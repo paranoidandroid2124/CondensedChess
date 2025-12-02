@@ -14,7 +14,11 @@ frontend/node_modules
 frontend/.next
 frontend/.turbo
 frontend/out
+frontend/tsconfig.tsbuildinfo
 twic_raw/
+.env
+# opening stats databases (generated)
+opening/*.db
 .DS_Store
 
 .idea
@@ -23,13 +27,3 @@ twic_raw/
 .metals/
 # docker sbt
 /?
-
-# VS Code
-*.code-workspace
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
-.env

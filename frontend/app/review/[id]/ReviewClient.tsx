@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
-import { fetchOpeningLookup, fetchReview } from "../../../lib/review";
-import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, TimelineNode } from "../../../types/review";
+import { addBranch, fetchOpeningLookup, fetchReview } from "../../../lib/review";
+import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, StudyChapter, TimelineNode } from "../../../types/review";
 
 type PieceDropArgs = {
   sourceSquare: string;
@@ -23,6 +23,90 @@ type VariationEntry = {
   turn: "white" | "black";
   parentFenBefore?: string;
 };
+
+function QuickJump({
+  timeline,
+  onSelect
+}: {
+  timeline: TimelineNode[];
+  onSelect: (ply: number) => void;
+}) {
+  const [value, setValue] = useState<string>("");
+  const maxPly = timeline[timeline.length - 1]?.ply ?? 0;
+
+  const nearestPly = (target: number) => {
+    if (!timeline.length) return null;
+    let best = timeline[0].ply;
+    let bestDiff = Math.abs(timeline[0].ply - target);
+    for (const t of timeline) {
+      const diff = Math.abs(t.ply - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = t.ply;
+      }
+    }
+    return best;
+  };
+
+  const submit = () => {
+    const num = parseInt(value, 10);
+    if (Number.isNaN(num) || num <= 0) return;
+    const clamped = Math.min(Math.max(num, 1), maxPly || num);
+    const target = nearestPly(clamped);
+    if (target != null) onSelect(target);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+      <span className="uppercase tracking-[0.16em] text-white/60">Quick nav</span>
+      <input
+        type="number"
+        min={1}
+        max={maxPly || undefined}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white outline-none focus:border-accent-teal/60"
+        placeholder="Ply #"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        className="rounded-md bg-accent-teal/20 px-3 py-1 text-white hover:bg-accent-teal/30"
+      >
+        Go
+      </button>
+      {maxPly ? <span className="text-[11px] text-white/50">1 – {maxPly}</span> : null}
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-2 text-sm text-white/80 hover:text-white"
+      >
+        <span className="font-semibold">{title}</span>
+        <span className="text-xs uppercase tracking-[0.18em] text-white/60">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open ? <div className="border-t border-white/10 p-3">{children}</div> : null}
+    </div>
+  );
+}
 
 const judgementColors: Record<string, string> = {
   brilliant: "bg-purple-500/20 text-purple-100",
@@ -65,6 +149,41 @@ function formatSanHuman(san: string): string {
 function formatDelta(value?: number) {
   if (value === undefined || Number.isNaN(value)) return "–";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function humanizeTag(text?: string): string {
+  if (!text) return "";
+  const spaced = text
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+const tagDisplayMap: Record<string, string> = {
+  opening_theory_branch: "Opening branch",
+  plan_change: "Plan change",
+  endgame_transition: "Transition to endgame",
+  shift_tactical_to_positional: "Tactical → positional",
+  fortress_building: "Fortress building",
+  king_exposed: "King exposed",
+  conversion_difficulty: "Conversion difficulty",
+  positional_sacrifice: "Positional sacrifice",
+  weak_back_rank: "Weak back rank",
+  weak_f2: "Weak f2",
+  weak_f7: "Weak f7",
+  tactical_miss: "Missed tactic",
+  greedy: "Greedy capture",
+  positional_trade_error: "Bad piece trade",
+  ignored_threat: "Ignored threat"
+};
+
+function displayTag(text?: string): string {
+  if (!text) return "";
+  const key = text.trim();
+  if (tagDisplayMap[key]) return tagDisplayMap[key];
+  return humanizeTag(text);
 }
 
 function normalizeEvalKind(kind?: string, value?: number) {
@@ -150,7 +269,7 @@ function ConceptChips({ concepts }: { concepts?: Concepts }) {
     <div className="flex flex-wrap gap-2">
       {entries.map(([name, score]) => (
         <span key={name} className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">
-          {name} {Math.round((score ?? 0) * 100) / 100}
+          {humanizeTag(name)} {Math.round((score ?? 0) * 100) / 100}
         </span>
       ))}
     </div>
@@ -310,6 +429,7 @@ function BoardCard({
   onDrop?: (args: PieceDropArgs) => boolean;
 }) {
   const [width, setWidth] = useState(420);
+  const draggable = typeof onDrop === "function";
 
   useEffect(() => {
     const update = () => {
@@ -350,11 +470,11 @@ function BoardCard({
             id="review-board"
             position={fen || "start"}
             boardWidth={width}
-            arePiecesDraggable={true}
-            onPieceDrop={(sourceSquare, targetSquare, piece) =>
-              onDrop
-                ? onDrop({ sourceSquare, targetSquare, piece })
-                : false
+            arePiecesDraggable={draggable}
+            onPieceDrop={
+              draggable
+                ? (sourceSquare, targetSquare, piece) => onDrop({ sourceSquare, targetSquare, piece })
+                : undefined
             }
             customLightSquareStyle={{ backgroundColor: "#e7ecff" }}
             customDarkSquareStyle={{ backgroundColor: "#5b8def" }}
@@ -372,7 +492,9 @@ function MoveTimeline({
   selected,
   onSelect,
   variations,
-  showAdvanced
+  showAdvanced,
+  onSelectVariation,
+  onPreviewLine
 }: {
   rows: Array<{
     moveNumber: number;
@@ -383,6 +505,8 @@ function MoveTimeline({
   onSelect: (ply: number) => void;
   variations?: Record<number, VariationEntry[]>;
   showAdvanced?: boolean;
+  onSelectVariation?: (entry: VariationEntry | null) => void;
+  onPreviewLine?: (fenBefore?: string, pv?: string[], label?: string) => void;
 }) {
   const [expandedVariation, setExpandedVariation] = useState<string | null>(null);
 
@@ -413,20 +537,26 @@ function MoveTimeline({
                 <React.Fragment key={row.moveNumber}>
                   <tr className="border-t border-white/5">
                     <td className="px-3 py-2 text-xs text-white/60">{row.moveNumber}</td>
-                    <MoveCell
-                      move={row.white}
-                      selected={selected}
-                      onSelect={onSelect}
-                      variationCount={row.white?.ply != null ? variations?.[row.white.ply]?.length ?? 0 : 0}
-                      showAdvanced={!!showAdvanced}
-                    />
-                    <MoveCell
-                      move={row.black}
-                      selected={selected}
-                      onSelect={onSelect}
-                      variationCount={row.black?.ply != null ? variations?.[row.black.ply]?.length ?? 0 : 0}
-                      showAdvanced={!!showAdvanced}
-                    />
+                  <MoveCell
+                    move={row.white}
+                    selected={selected}
+                    onSelect={(ply) => {
+                      onSelectVariation?.(null);
+                      onSelect(ply);
+                    }}
+                    variationCount={row.white?.ply != null ? variations?.[row.white.ply]?.length ?? 0 : 0}
+                    showAdvanced={!!showAdvanced}
+                  />
+                  <MoveCell
+                    move={row.black}
+                    selected={selected}
+                    onSelect={(ply) => {
+                      onSelectVariation?.(null);
+                      onSelect(ply);
+                    }}
+                    variationCount={row.black?.ply != null ? variations?.[row.black.ply]?.length ?? 0 : 0}
+                    showAdvanced={!!showAdvanced}
+                  />
                   </tr>
                   {variationGroups && variationGroups.length ? (
                     <tr className="border-t border-white/5 bg-white/5">
@@ -465,11 +595,14 @@ function MoveTimeline({
                                   <div
                                     key={`${group.ply}-${vidx}`}
                                     className={`w-full rounded-lg px-2 py-1 text-left transition ${
-                                      selected === v.node.ply ? "bg-white/10 ring-1 ring-accent-teal/50" : "hover:bg-white/5"
+                                      selected === v.node.ply && expandedVariation === `${group.ply}-${vidx}`
+                                        ? "bg-white/10 ring-1 ring-accent-teal/50"
+                                        : "hover:bg-white/5"
                                     }`}
                                   >
                                     <button
                                       onClick={() => {
+                                        onSelectVariation?.(v);
                                         onSelect(v.node.ply);
                                         const key = `${group.ply}-${vidx}`;
                                         setExpandedVariation((prev) => (prev === key ? null : key));
@@ -491,34 +624,38 @@ function MoveTimeline({
                                     {expandedVariation === `${group.ply}-${vidx}` ? (
                                       <div className="mt-1 space-y-1 rounded-md bg-white/5 p-2">
                                         {v.node.pv?.length ? (
-                                          <div className="text-[11px] text-white/60 flex flex-wrap gap-1">
-                                            {convertPvToSan(v.parentFenBefore, v.node.pv).map((m, idxPv) => (
-                                              <span
-                                                key={`${group.ply}-${vidx}-pv-${idxPv}`}
-                                                className={`rounded-full px-2 py-0.5 ${
-                                                  idxPv === 0 ? "bg-white/15 text-white" : "bg-white/10 text-white/70"
-                                                }`}
-                                                onClick={() => onSelect(v.node.ply)}
-                                                role="button"
-                                                style={{ cursor: "pointer" }}
-                                              >
-                                                {formatSanHuman(m)}
-                                              </span>
-                                            ))}
+                                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+                                            <button
+                                              className="rounded-full bg-accent-teal/20 px-2 py-0.5 text-white"
+                                              onClick={() => {
+                                                onPreviewLine?.(v.parentFenBefore, v.node.pv, `Preview: ${v.node.san} (${v.parentLabel})`);
+                                              }}
+                                            >
+                                              Play line
+                                            </button>
+                                            <div className="flex flex-wrap gap-1">
+                                              {convertPvToSan(v.parentFenBefore, v.node.pv).map((m, idxPv) => (
+                                                <span
+                                                  key={`${group.ply}-${vidx}-pv-${idxPv}`}
+                                                  className={`rounded-full px-2 py-0.5 ${
+                                                    idxPv === 0 ? "bg-white/15 text-white" : "bg-white/10 text-white/70"
+                                                  }`}
+                                                  onClick={() => onSelect(v.node.ply)}
+                                                  role="button"
+                                                  style={{ cursor: "pointer" }}
+                                                >
+                                                  {formatSanHuman(m)}
+                                                </span>
+                                              ))}
+                                            </div>
                                           </div>
-                                        ) : null}
+                                        ) : (
+                                          <div className="text-[11px] text-white/50">No engine line available for this variation.</div>
+                                        )}
                                         <div className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
                                           <span>{v.turn === "white" ? "White" : "Black"} perspective</span>
                                           <span className="rounded-full bg-white/5 px-2 py-0.5">Line {v.pvIndex ?? vidx + 1}</span>
-                                          <button
-                                            onClick={() => {
-                                              const arrows = buildPvArrows(v.parentFenBefore, v.node.pv);
-                                              setFollowLineArrows((prev) => (prev === arrows ? [] : arrows));
-                                            }}
-                                            className="rounded-full border border-white/15 px-2 py-0.5 text-white/70 hover:border-white/35"
-                                          >
-                                            Follow line
-                                          </button>
+                                          {!v.node.comment ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-white/60">No comment</span> : null}
                                         </div>
                                       </div>
                                     ) : null}
@@ -561,6 +698,7 @@ function MoveCell({
   const depth = move.evalBeforeDeep?.depth;
   const multiPv = move.evalBeforeDeep?.lines?.length;
   const delta = formatDeltaWithSide(move.deltaWinPct, move.turn);
+  const phase = humanizeTag(move.phaseLabel);
   const showDelta =
     Math.abs(move.deltaWinPct ?? 0) >= 1 ||
     judgement === "blunder" ||
@@ -590,6 +728,7 @@ function MoveCell({
                   {mark}
                 </span>
               ) : null}
+              {phase ? <span className="rounded-full bg-accent-teal/15 px-2 py-0.5 text-[10px] text-accent-teal/80">{displayTag(phase)}</span> : null}
               {variationCount ? (
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70">Variations {variationCount}</span>
               ) : null}
@@ -606,10 +745,12 @@ function MoveCell({
 
 function CriticalList({
   critical,
-  fenBeforeByPly
+  fenBeforeByPly,
+  onSelectPly
 }: {
   critical: CriticalNode[];
   fenBeforeByPly: Record<number, string | undefined>;
+  onSelectPly?: (ply: number) => void;
 }) {
   const humanReason = (r: string) => {
     const low = r.toLowerCase();
@@ -617,6 +758,12 @@ function CriticalList({
     if (low.includes("mistake")) return "Mistake: swing down";
     if (low.includes("swing")) return "Big eval swing";
     return "Concept change";
+  };
+  const phaseOf = (c: CriticalNode) => {
+    if (c.phaseLabel) return humanizeTag(c.phaseLabel);
+    if (c.reason?.toLowerCase().startsWith("phase shift:")) return humanizeTag(c.reason.split(":").slice(1).join(":"));
+    const tagMatch = c.tags?.find((t) => t.includes("transition") || t.includes("_to_") || t.includes("phase"));
+    return displayTag(tagMatch);
   };
 
   return (
@@ -633,14 +780,28 @@ function CriticalList({
                 Ply {c.ply}
                 <span className="ml-2 text-xs text-white/60">{humanReason(c.reason)}</span>
               </div>
-              <div className="text-xs font-semibold text-rose-200">{formatDelta(c.deltaWinPct)}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-xs font-semibold text-rose-200">{formatDelta(c.deltaWinPct)}</div>
+                {onSelectPly ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectPly(c.ply)}
+                    className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-white/70 hover:border-accent-teal/60 hover:text-white"
+                  >
+                    Jump to board
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/70">
+              {phaseOf(c) ? (
+                <span className="rounded-full bg-accent-teal/15 px-2 py-1 text-accent-teal/80">{phaseOf(c)}</span>
+              ) : null}
               {c.mistakeCategory ? (
-                <span className="rounded-full bg-rose-500/15 px-2 py-1 text-rose-100">{c.mistakeCategory}</span>
+                <span className="rounded-full bg-rose-500/15 px-2 py-1 text-rose-100">{displayTag(c.mistakeCategory)}</span>
               ) : null}
               {c.tags?.slice(0, 5).map((t) => (
-                <span key={t} className="rounded-full bg-white/10 px-2 py-1">{t}</span>
+                <span key={t} className="rounded-full bg-white/10 px-2 py-1">{displayTag(t)}</span>
               ))}
             </div>
             {c.branches?.length ? (
@@ -661,7 +822,7 @@ function CriticalList({
             {c.comment ? (
               <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-white/80">{c.comment}</p>
             ) : (
-              <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/50">No LLM comment</p>
+              <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/50">No comment (LLM disabled or template fallback).</p>
             )}
           </div>
         ))}
@@ -887,7 +1048,7 @@ function BlunderTimeline({
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white/80">Timeline</h3>
-        <span className="text-xs text-white/60">blunder/miss/brilliant at a glance</span>
+        <span className="text-xs text-white/60">blunder/tactical miss/brilliant at a glance</span>
       </div>
       <div className="mt-3 flex items-center gap-2 overflow-x-auto py-2">
         {timeline.map((t) => (
@@ -1070,22 +1231,26 @@ function SummaryPanel({
         {oppositeColorBishops ? (
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">Opposite-color bishops</span>
         ) : null}
+        {openingStats?.source ? (
+          <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-xs text-accent-teal/80">DB: {openingStats.source}</span>
+        ) : null}
       </div>
-      <div className="mt-4 space-y-2 text-sm text-white/80">
-        {opening?.name ? (
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-            <div>
-              <div className="text-white">{opening.name}</div>
-              <div className="text-xs text-white/60">ECO {opening.eco ?? "—"}</div>
-            </div>
-            <div className="flex flex-col items-end gap-1 text-right text-xs text-white/60">
-              {opening.ply ? <span>{opening.ply} ply</span> : null}
-              {openingStats ? <span>Novelty @ {openingStats.noveltyPly}</span> : null}
-            </div>
-          </div>
-        ) : (
-          <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
-        )}
+          <div className="mt-4 space-y-2 text-sm text-white/80">
+            {opening?.name ? (
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <div>
+                  <div className="text-white">{opening.name}</div>
+                  <div className="text-xs text-white/60">ECO {opening.eco ?? "—"}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1 text-right text-xs text-white/60">
+                  {opening.ply ? <span>{opening.ply} ply</span> : null}
+                  {openingStats ? <span>Novelty @ {openingStats.noveltyPly}</span> : null}
+                  {openingStats?.source ? <span className="text-accent-teal/80">DB {openingStats.source}</span> : null}
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
+            )}
         {openingSummary || bookExitComment || openingTrend ? (
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
             {openingSummary ? <div className="text-white/90">{openingSummary}</div> : null}
@@ -1168,27 +1333,101 @@ function SummaryPanel({
           <div className="pt-3">
             <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept tags</p>
             <ConceptChips concepts={concepts} />
-            {conceptSpikes && conceptSpikes.length ? (
-              <div className="pt-3">
-                <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept spikes</p>
-                <div className="flex flex-wrap gap-2">
-                  {conceptSpikes.map((s) => (
-                    <span
-                      key={`${s.concept}-${s.ply}`}
-                      className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80"
-                      title={`Ply ${s.ply} ${s.label}`}
-                      onClick={() => onSelectPly?.(s.ply)}
-                      role="button"
-                      style={{ cursor: onSelectPly ? "pointer" : "default" }}
-                    >
-                      {s.concept} +{s.delta.toFixed(2)} @ {s.label}
-                    </span>
-                  ))}
+              {conceptSpikes && conceptSpikes.length ? (
+                <div className="pt-3">
+                  <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept spikes</p>
+                  <div className="flex flex-wrap gap-2">
+                    {conceptSpikes.map((s) => (
+                      <span
+                        key={`${s.concept}-${s.ply}`}
+                        className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80"
+                        title={`Ply ${s.ply} ${s.label}`}
+                        onClick={() => onSelectPly?.(s.ply)}
+                        role="button"
+                        style={{ cursor: onSelectPly ? "pointer" : "default" }}
+                      >
+                        {displayTag(s.concept)} +{s.delta.toFixed(2)} @ {s.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StudyPanel({ chapters, onSelect }: { chapters?: StudyChapter[]; onSelect: (ply: number) => void }) {
+  if (!chapters || !chapters.length) return null;
+  return (
+    <div className="glass-card rounded-2xl p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Chapters</p>
+          <h3 className="text-sm font-semibold text-white/90">Training chapters</h3>
+        </div>
+        <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-white/70">#{chapters.length}</span>
+      </div>
+      <div className="mt-3 space-y-3">
+        {chapters.map((ch) => (
+          <button
+            key={ch.id}
+            onClick={() => onSelect(ch.anchorPly)}
+            className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-left hover:border-accent-teal/40"
+          >
+            <div className="flex items-center justify-between text-xs text-white/70">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-white">Ply {ch.anchorPly}</span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
+                  Study score / Quality {ch.studyScore?.toFixed?.(1) ?? "–"}
+                </span>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${ch.deltaWinPct < 0 ? "bg-rose-500/15 text-rose-100" : "bg-emerald-500/15 text-emerald-100"}`}>
+                Δ {formatDelta(ch.deltaWinPct)}
+              </span>
+            </div>
+            <div className="mt-1 text-sm text-white">
+              {formatSanHuman(ch.played)}
+              {ch.best ? (
+                <span className="text-xs text-white/60">
+                  {" "}
+                  vs {formatSanHuman(ch.best)}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-white/70">
+              {ch.tags.slice(0, 5).map((t) => (
+                <span key={t} className="rounded-full bg-white/10 px-2 py-0.5">
+                  {displayTag(t)}
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 space-y-1 text-[11px] text-white/70">
+              {ch.lines.map((l) => (
+                <div key={l.label} className="flex items-center gap-2">
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">
+                    {l.label === "played"
+                      ? "You should've played"
+                      : l.label === "engine"
+                      ? "Best move"
+                      : l.label === "alt"
+                      ? "Practical alternative"
+                      : humanizeTag(l.label)}
+                  </span>
+                  <span className="text-white/80">{l.pv.map(formatSanHuman).join(" ")}</span>
+                  <span className="text-white/50">{l.winPct.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+            {ch.summary ? (
+              <p className="mt-2 text-sm text-white/80">{ch.summary}</p>
+            ) : (
+              <p className="mt-2 text-xs text-white/50">No summary (server fallback).</p>
+            )}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -1285,17 +1524,28 @@ function SummaryHero({
 export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [selectedPly, setSelectedPly] = useState<number | null>(null);
-  const [scratchChess] = useState(() => new Chess());
-  const [customTimeline, setCustomTimeline] = useState<TimelineNode[] | null>(null);
+  const [selectedVariation, setSelectedVariation] = useState<VariationEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const [followLineArrows, setFollowLineArrows] = useState<Array<[string, string, string?]>>([]);
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [showAdvanced] = useState<boolean>(true);
   const [openingLookup, setOpeningLookup] = useState<OpeningStats | null>(null);
   const [lookupKey, setLookupKey] = useState<string>("");
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
+  const [branchSaving, setBranchSaving] = useState<boolean>(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+  const [showStudy] = useState<boolean>(true);
+  const [previewFen, setPreviewFen] = useState<string | null>(null);
+  const [previewArrows, setPreviewArrows] = useState<Array<[string, string, string?]>>([]);
+  const [previewLabel, setPreviewLabel] = useState<string | null>(null);
+  const jobId = review?.jobId ?? reviewId;
+
+  const clearPreview = useCallback(() => {
+    setPreviewFen(null);
+    setPreviewArrows([]);
+    setPreviewLabel(null);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -1341,8 +1591,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   }, [reviewId]);
 
   const enhancedTimeline = useMemo(() => {
-    const base = customTimeline ?? review?.timeline;
-    if (!base?.length) return [];
+    const base = review?.timeline ?? [];
+    if (!base.length) return [];
     const sorted = [...base].sort((a, b) => a.ply - b.ply);
     const chess = new Chess();
     const result: Array<TimelineNode & { label: string; fenBefore: string }> = [];
@@ -1368,7 +1618,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       result.push({ ...t, label, fenBefore });
     });
     return result;
-  }, [review, customTimeline]);
+  }, [review]);
 
   // Build SAN sequence up to selected ply for opening lookup
   const sanSequence = useMemo(() => {
@@ -1403,16 +1653,20 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     for (let i = 1; i < enhancedTimeline.length; i++) {
       const prev = enhancedTimeline[i - 1];
       const cur = enhancedTimeline[i];
-      if (!prev.concepts || !cur.concepts) continue;
+      if (!cur.concepts) continue;
       Object.keys(cur.concepts).forEach((k) => {
         const key = k as keyof Concepts;
+        const deltaFromEngine = cur.conceptDelta?.[key];
         const curVal = cur.concepts?.[key];
         const prevVal = prev.concepts?.[key];
-        if (typeof curVal === "number" && typeof prevVal === "number") {
-          const delta = curVal - prevVal;
-          if (delta >= 0.25) {
-            spikes.push({ ply: cur.ply, concept: key, delta, label: cur.label ?? cur.san });
-          }
+        const delta =
+          typeof deltaFromEngine === "number"
+            ? deltaFromEngine
+            : typeof curVal === "number" && typeof prevVal === "number"
+            ? curVal - prevVal
+            : null;
+        if (typeof delta === "number" && delta >= 0.25) {
+          spikes.push({ ply: cur.ply, concept: key, delta, label: cur.label ?? cur.san });
         }
       });
     }
@@ -1427,56 +1681,24 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     return enhancedTimeline.find((t) => t.ply === selectedPly) ?? enhancedTimeline[enhancedTimeline.length - 1];
   }, [selectedPly, enhancedTimeline]);
 
-  const handleBoardDrop = useCallback(
-    ({ sourceSquare, targetSquare }: PieceDropArgs) => {
-      try {
-        scratchChess.load(selected?.fen ?? "start");
-      } catch {
-        return false;
+  const activeMove = useMemo(() => {
+    if (selectedVariation) {
+      const parent = enhancedTimeline.find((t) => t.ply === selectedVariation.parentPly);
+      if (parent) {
+        return {
+          ...parent,
+          uci: selectedVariation.node.uci,
+          san: selectedVariation.node.san,
+          fen: selectedVariation.node.fen,
+          judgement: selectedVariation.node.judgement as any,
+          winPctAfterForPlayer: selectedVariation.node.eval,
+          label: selectedVariation.parentLabel ?? parent.label,
+          isCustom: true
+        } as TimelineNode & { label?: string };
       }
-      const prevFen = scratchChess.fen();
-      const move = scratchChess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
-      if (!move) return false;
-      const newFen = scratchChess.fen();
-      // create a synthetic ply entry
-      const nextPly = (selected?.ply ?? 0) + 1;
-      const san = move.san;
-      const uci = `${sourceSquare}${targetSquare}${move.promotion ?? ""}`;
-      const synthetic: TimelineNode & { label: string; fenBefore: string } = {
-        ply: nextPly,
-        turn: move.color === "w" ? "white" : "black",
-        san,
-        uci,
-        fen: newFen,
-        fenBefore: prevFen,
-        features: selected?.features ?? ({} as any),
-        judgement: "good",
-        winPctAfterForPlayer: selected?.winPctAfterForPlayer,
-        winPctBefore: selected?.winPctAfterForPlayer,
-        deltaWinPct: 0,
-        epBefore: 0,
-        epAfter: 0,
-        epLoss: 0,
-        special: undefined,
-        concepts: selected?.concepts,
-        label: `${Math.ceil(nextPly / 2)}${nextPly % 2 === 1 ? "." : "..."} ${san}`
-      };
-      const base = customTimeline ?? review?.timeline ?? [];
-      const mergedTimeline = [...base.filter((t) => t.ply < nextPly), synthetic, ...base.filter((t) => t.ply > nextPly)];
-      // update san sequence and lookup
-      const sorted = [...mergedTimeline].sort((a, b) => a.ply - b.ply);
-      const seq = sorted.map((t) => t.san);
-      setCustomTimeline(sorted);
-      setSelectedPly(nextPly);
-      setLookupLoading(true);
-      fetchOpeningLookup(seq)
-        .then(setOpeningLookup)
-        .catch((err) => setLookupError(err instanceof Error ? err.message : "Lookup failed"))
-        .finally(() => setLookupLoading(false));
-      return true;
-    },
-    [scratchChess, selected, customTimeline, review?.timeline]
-  );
+    }
+    return selected;
+  }, [selectedVariation, enhancedTimeline, selected]);
 
   useEffect(() => {
     const key = sanSequence.join(" ");
@@ -1494,27 +1716,27 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       .finally(() => setLookupLoading(false));
   }, [sanSequence, lookupKey]);
 
-  const evalPercent = selected
-    ? selected.turn === "white"
-      ? selected.winPctAfterForPlayer ?? selected.winPctBefore
-      : selected.winPctAfterForPlayer != null
-      ? 100 - selected.winPctAfterForPlayer
-      : selected.winPctBefore != null
-      ? 100 - selected.winPctBefore
+  const evalPercent = activeMove
+    ? activeMove.turn === "white"
+      ? activeMove.winPctAfterForPlayer ?? activeMove.winPctBefore
+      : activeMove.winPctAfterForPlayer != null
+      ? 100 - activeMove.winPctAfterForPlayer
+      : activeMove.winPctBefore != null
+      ? 100 - activeMove.winPctBefore
       : undefined
     : undefined;
   const judgementBadge =
-    selected?.special === "brilliant"
+    activeMove?.special === "brilliant"
       ? "!!"
-      : selected?.special === "great"
+      : activeMove?.special === "great"
       ? "!"
-      : selected?.judgement === "blunder"
+      : activeMove?.judgement === "blunder"
       ? "??"
-      : selected?.judgement === "mistake"
+      : activeMove?.judgement === "mistake"
       ? "?"
-      : selected?.judgement === "inaccuracy"
+      : activeMove?.judgement === "inaccuracy"
       ? "?!"
-      : selected?.judgement === "book"
+      : activeMove?.judgement === "book"
       ? "="
       : undefined;
 
@@ -1553,25 +1775,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     return map;
   }, [review?.root, enhancedTimeline]);
 
-  const buildPvArrows = useCallback((fenBefore?: string, pv?: string[]) => {
-    if (!fenBefore || !pv?.length) return [];
-    try {
-      const chess = new Chess(fenBefore);
-      const arrows: Array<[string, string, string?]> = [];
-      pv.slice(0, 6).forEach((mv) => {
-        try {
-          const move = chess.move(mv, { sloppy: true });
-          if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
-        } catch {
-          // ignore bad SAN
-        }
-      });
-      return arrows;
-    } catch {
-      return [];
-    }
-  }, []);
-
   const boardSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     const highlight = (uci: string, color: "red" | "green" | "purple") => {
@@ -1581,33 +1784,72 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       styles[from] = { ...styles[from], animation: color === "red" ? "pulse-red 1.2s ease-in-out infinite" : color === "green" ? "pulse-green 1.2s ease-in-out infinite" : "pulse-purple 1.2s ease-in-out infinite" };
       styles[to] = { ...styles[to], animation: color === "red" ? "pulse-red 1.2s ease-in-out infinite" : color === "green" ? "pulse-green 1.2s ease-in-out infinite" : "pulse-purple 1.2s ease-in-out infinite" };
     };
-    if (selected) {
-      const bad = selected.judgement === "inaccuracy" || selected.judgement === "mistake" || selected.judgement === "blunder";
-      highlight(selected.uci, bad ? "red" : "purple");
-      const best = selected.evalBeforeDeep?.lines?.[0]?.move;
-      if (best && best !== selected.uci) {
+    if (previewFen) return styles;
+    if (activeMove) {
+      const bad = activeMove.judgement === "inaccuracy" || activeMove.judgement === "mistake" || activeMove.judgement === "blunder";
+      highlight(activeMove.uci, bad ? "red" : "purple");
+      const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
+      if (best && best !== activeMove.uci) {
         highlight(best, "green");
       }
     }
     return styles;
-  }, [selected]);
+  }, [activeMove, previewFen]);
 
   const arrows = useMemo(() => {
+    if (previewArrows.length) return previewArrows;
     const arr: Array<[string, string, string?]> = [];
-    if (selected) {
-      const from = selected.uci.slice(0, 2);
-      const to = selected.uci.slice(2, 4);
-      const bad = selected.judgement === "inaccuracy" || selected.judgement === "mistake" || selected.judgement === "blunder";
+    if (activeMove) {
+      const from = activeMove.uci.slice(0, 2);
+      const to = activeMove.uci.slice(2, 4);
+      const bad = activeMove.judgement === "inaccuracy" || activeMove.judgement === "mistake" || activeMove.judgement === "blunder";
       arr.push([from, to, bad ? "#f87171" : "#818cf8"]);
-      const best = selected.evalBeforeDeep?.lines?.[0]?.move;
-      if (best && best !== selected.uci) {
+      const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
+      if (best && best !== activeMove.uci) {
         const bFrom = best.slice(0, 2);
         const bTo = best.slice(2, 4);
         arr.push([bFrom, bTo, "#4ade80"]);
       }
     }
-    return [...arr, ...followLineArrows];
-  }, [selected, followLineArrows]);
+    return arr;
+  }, [activeMove, previewArrows]);
+
+  const handleBoardDrop = useCallback(
+    ({ sourceSquare, targetSquare }: PieceDropArgs) => {
+      if (!review || !enhancedTimeline.length || branchSaving || previewFen) return false;
+      const anchorPly = selected?.ply ?? enhancedTimeline.at(-1)?.ply;
+      const anchor = enhancedTimeline.find((t) => t.ply === anchorPly);
+      if (!anchor) return false;
+      try {
+        const chess = new Chess(anchor.fenBefore || anchor.fen);
+        const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+        if (!move) return false;
+        const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
+        setBranchSaving(true);
+        setBranchError(null);
+        addBranch(jobId, anchor.ply, uci)
+          .then((updated) => {
+            setReview(updated);
+            setSelectedPly(anchor.ply);
+            setSelectedVariation(null);
+            clearPreview();
+          })
+          .catch((err) => {
+            setBranchError(err instanceof Error ? err.message : "Branch add failed");
+          })
+          .finally(() => setBranchSaving(false));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [review, enhancedTimeline, branchSaving, selected, previewFen, jobId, clearPreview]
+  );
+
+  useEffect(() => {
+    // selecting another ply exits preview
+    clearPreview();
+  }, [selectedPly, clearPreview]);
 
   if (loading) {
     return (
@@ -1656,43 +1898,51 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     );
   }
 
-  return (
-    <div className="px-6 py-10 sm:px-12 lg:px-16">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <SummaryHero timeline={enhancedTimeline} critical={review.critical ?? []} />
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="font-display text-3xl text-white">Game analysis</h1>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full bg-white/10 px-3 py-1">PGN timeline</span>
-              <span className="rounded-full bg-white/10 px-3 py-1">Stockfish shallow/deep</span>
-              <span className="rounded-full bg-white/10 px-3 py-1">Concept scores</span>
+    return (
+      <div className="px-6 py-10 sm:px-12 lg:px-16">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6">
+          <SummaryHero timeline={enhancedTimeline} critical={review.critical ?? []} />
+          <div className="flex flex-col gap-2">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h1 className="font-display text-3xl text-white">Game analysis</h1>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-white/10 px-3 py-1">PGN timeline</span>
+                <span className="rounded-full bg-white/10 px-3 py-1">Stockfish shallow/deep</span>
+                <span className="rounded-full bg-white/10 px-3 py-1">Concept scores</span>
+                {review.studyChapters && review.studyChapters.length ? (
+                  <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-accent-teal/80">Study chapters</span>
+                ) : null}
+              </div>
             </div>
-          </div>
           <div className="flex flex-wrap gap-2 text-xs">
-            <button
-              onClick={() => setShowAdvanced((p) => !p)}
-              className="rounded-full border border-white/15 px-3 py-1 text-white/80 hover:border-white/35"
-            >
-              {showAdvanced ? "Hide advanced" : "Show advanced"}
-            </button>
+            {previewFen ? (
+              <button
+                onClick={clearPreview}
+                className="rounded-full border border-amber-400/60 px-3 py-1 text-amber-100 hover:border-amber-300/80"
+              >
+                Exit preview
+              </button>
+            ) : null}
           </div>
-          <div className="text-sm text-white/70">
-            Opening: {review.opening?.name ?? "Unknown"} {review.opening?.eco ? `(${review.opening.eco})` : ""}
-          </div>
+            <div className="text-sm text-white/70">
+              Opening: {review.opening?.name ?? "Unknown"} {review.opening?.eco ? `(${review.opening.eco})` : ""}
         </div>
+      </div>
 
         <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
             <BoardCard
-              fen={selected?.fen}
+              fen={previewFen || activeMove?.fen}
               squareStyles={boardSquareStyles}
               arrows={arrows}
-              evalPercent={evalPercent}
+              evalPercent={activeMove?.winPctAfterForPlayer}
               judgementBadge={judgementBadge}
               onDrop={handleBoardDrop}
             />
+            {previewLabel ? (
+              <div className="text-xs text-amber-100">Previewing line: {previewLabel}</div>
+            ) : null}
             {showAdvanced ? (
               <EvalSparkline
                 timeline={enhancedTimeline}
@@ -1700,40 +1950,91 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               />
             ) : null}
             <MoveControls timeline={enhancedTimeline} selected={selected?.ply} onSelect={setSelectedPly} />
+            <div className="text-xs text-white/60">
+              Drag on board to add a variation at the selected ply (server merges/dedupes).
+              {branchSaving ? <span className="ml-2 text-accent-teal">Saving…</span> : null}
+              {branchError ? <span className="ml-2 text-rose-200">{branchError}</span> : null}
+            </div>
           </div>
 
           <div className="flex flex-col gap-4">
-            <SummaryPanel
-              opening={review.opening}
-              openingStats={review.openingStats}
-              oppositeColorBishops={review.oppositeColorBishops}
-              concepts={selected?.concepts}
-              conceptSpikes={conceptSpikes}
-              showAdvanced={showAdvanced}
-              summaryText={review.summaryText}
-              openingSummary={review.openingSummary}
-              bookExitComment={review.bookExitComment}
-              openingTrend={review.openingTrend}
-              onSelectPly={(ply) => setSelectedPly(ply)}
-            />
-            <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
-            <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
-            <div className="rounded-2xl">
+            <QuickJump timeline={enhancedTimeline} onSelect={(ply) => setSelectedPly(ply)} />
+            <CollapsibleSection title="Game summary" defaultOpen>
+              <SummaryPanel
+                opening={review.opening}
+                openingStats={review.openingStats}
+                oppositeColorBishops={review.oppositeColorBishops}
+                concepts={activeMove?.concepts}
+                conceptSpikes={conceptSpikes}
+                showAdvanced={showAdvanced}
+                summaryText={review.summaryText}
+                openingSummary={review.openingSummary}
+                bookExitComment={review.bookExitComment}
+                openingTrend={review.openingTrend}
+                onSelectPly={(ply) => setSelectedPly(ply)}
+              />
+            </CollapsibleSection>
+
+            {showStudy && review.studyChapters && review.studyChapters.length ? (
+              <CollapsibleSection title="Study chapters" defaultOpen>
+                <StudyPanel
+                  chapters={review.studyChapters}
+                  onSelect={(ply) => {
+                    setSelectedPly(ply);
+                    setSelectedVariation(null);
+                  }}
+                />
+              </CollapsibleSection>
+            ) : null}
+
+            <CollapsibleSection title="Opening lookup" defaultOpen={false}>
+              <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Guess the move" defaultOpen={false}>
+              <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Move timeline" defaultOpen>
               <div className="max-h-[70vh] overflow-y-auto pr-1">
                 <MoveTimeline
                   rows={moveRows}
                   selected={selected?.ply}
-                  onSelect={setSelectedPly}
+                  onSelect={(ply) => {
+                    clearPreview();
+                    setSelectedPly(ply);
+                  }}
                   variations={variationMap}
                   showAdvanced={showAdvanced}
+                  onSelectVariation={setSelectedVariation}
+                  onPreviewLine={(fenBefore, pv, label) => {
+                    if (!fenBefore || !pv?.length) return;
+                    try {
+                      const chess = new Chess(fenBefore);
+                      const arrows: Array<[string, string, string?]> = [];
+                      pv.slice(0, 8).forEach((mv) => {
+                        try {
+                          const move = (chess as any).move(mv, { sloppy: true });
+                          if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
+                        } catch {
+                          // ignore
+                        }
+                      });
+                      setPreviewFen(chess.fen());
+                      setPreviewArrows(arrows);
+                      setPreviewLabel(label ?? "Preview line");
+                    } catch {
+                      // ignore invalid preview
+                    }
+                  }}
                 />
               </div>
-            </div>
+            </CollapsibleSection>
+
             {showAdvanced ? (
-              <CriticalList
-                critical={review.critical ?? []}
-                fenBeforeByPly={fenBeforeByPly}
-              />
+              <CollapsibleSection title="Critical moves" defaultOpen={false}>
+                <CriticalList critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} onSelectPly={setSelectedPly} />
+              </CollapsibleSection>
             ) : null}
           </div>
         </div>

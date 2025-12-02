@@ -16,24 +16,6 @@ object LlmAnnotator:
   private def forcedFlag(legalMoves: Int, gapOpt: Option[Double]): Boolean =
     legalMoves <= 1 || gapOpt.exists(_ >= 20.0)
 
-  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 2): ujson.Arr =
-    val pairs = List(
-      "kingSafety" -> delta.kingSafety,
-      "rookActivity" -> delta.rookActivity,
-      "pawnStorm" -> delta.pawnStorm,
-      "dynamic" -> delta.dynamic,
-      "tacticalDepth" -> delta.tacticalDepth,
-      "blunderRisk" -> delta.blunderRisk,
-      "colorComplex" -> delta.colorComplex,
-      "goodKnight" -> delta.goodKnight,
-      "badBishop" -> delta.badBishop,
-      "fortress" -> delta.fortress,
-      "conversionDifficulty" -> delta.conversionDifficulty,
-      "alphaZeroStyle" -> delta.alphaZeroStyle
-    )
-    val top = pairs.sortBy { case (_, v) => -math.abs(v) }.take(limit)
-    ujson.Arr.from(top.map { case (k, v) => Obj("name" -> Str(k), "delta" -> Num(round2(v))) })
-
   private def moveLabel(ply: Ply, san: String, turn: Color): String =
     val moveNumber = (ply.value + 1) / 2
     val sep = if turn == Color.White then "." else "..."
@@ -62,7 +44,7 @@ object LlmAnnotator:
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
     val maxMoveNumber = math.max(1, (output.timeline.lastOption.map(_.ply.value).getOrElse(1) + 1) / 2)
-    val summary = LlmClient.summarize(renderPreview(output, timelineByPly)).filter(labelSafe(_, maxMoveNumber))
+    val summary = LlmClient.summarize(renderPreview(output, timelineByPly)).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
     // one-line timeline comments are intentionally disabled; focus on structured critical comments instead
     val criticalComments = filterWithLog(LlmClient.criticalComments(criticalPreview(output, timelineByPly)), maxMoveNumber, "critical")
     val treeComments = filterWithLog(LlmClient.treeComments(treePreview(output, timelineByPly)), maxMoveNumber, "tree")
@@ -77,11 +59,20 @@ object LlmAnnotator:
     }
     val updatedRoot = output.root.map(applyTreeComments(_, treeComments))
 
+    val studySummaries: Map[String, String] =
+      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(renderPreview(output, timelineByPly)) else Map.empty
+
+    val updatedChapters =
+      if studySummaries.nonEmpty then
+        output.studyChapters.map(ch => studySummaries.get(ch.id).filter(_.nonEmpty).map(txt => ch.copy(summary = Some(txt))).getOrElse(ch))
+      else output.studyChapters
+
     output.copy(
       summaryText = output.summaryText.orElse(summary),
       timeline = updatedTimeline,
       critical = updatedCritical,
-      root = updatedRoot
+      root = updatedRoot,
+      studyChapters = updatedChapters
     )
 
   private def renderPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
@@ -141,7 +132,7 @@ object LlmAnnotator:
         obj
       }
 
-    val criticalNodes = clampNodes(output.critical, 4).map { c =>
+    val criticalNodes = clampNodes(output.critical, 8).map { c =>
       val label = labelForPly(timelineByPly, c.ply.value)
       val branches = c.branches.take(3).map { b =>
         Obj(
@@ -188,7 +179,8 @@ object LlmAnnotator:
           "Reference move labels exactly (e.g., \"13. Qe2\", \"12...Ba6\"); never renumber.",
           "Lean on semanticTags/mistakeCategory/conceptShift/critical.reason to explain why evaluations shifted.",
           "Mention opening/book/novelty briefly when stats are present; if opening.summary/bookExitComment/trend is present, include one sentence.",
-          "Spell out forced/only-move or large best-vs-second gaps first; avoid generic advice."
+          "Spell out forced/only-move or large best-vs-second gaps first; avoid generic advice.",
+          "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
         ).map(Str(_))
       )
     )
@@ -201,6 +193,18 @@ object LlmAnnotator:
       "keySwings" -> Arr.from(topSwings),
       "critical" -> Arr.from(criticalNodes)
     )
+    if output.studyChapters.nonEmpty then
+      val chapters = output.studyChapters.take(8).map { ch =>
+        val obj = Obj(
+          "anchorPly" -> Num(ch.anchorPly),
+          "played" -> Str(ch.played),
+          "deltaWinPct" -> Num(round2(ch.deltaWinPct)),
+          "tags" -> arrStr(ch.tags.take(4))
+        )
+        ch.best.foreach(b => obj("best") = Str(b))
+        obj
+      }
+      payload("studyChapters") = Arr.from(chapters)
     output.timeline.lastOption.foreach { last =>
       payload("finalFrame") = Obj(
         "label" -> Str(moveLabel(last.ply, last.san, last.turn)),
@@ -211,21 +215,31 @@ object LlmAnnotator:
 
     ujson.write(payload)
 
+  private def fallbackSummary(output: AnalyzePgn.Output): Option[String] =
+    val topCrit = output.critical.headOption
+    val openingName = output.opening.map(_.opening.name.value)
+    val openingPart = openingName.map(n => s"Opening: $n.").getOrElse("")
+    val critPart = topCrit.map(c => s"Big swing at ply ${c.ply.value}: ${c.reason}.").getOrElse("")
+    val endPart = output.timeline.lastOption.map(t => s"Finished at ${t.judgement} after ${t.ply.value} plies.").getOrElse("")
+    val text = List(openingPart, critPart, endPart).filter(_.nonEmpty).mkString(" ")
+    if text.nonEmpty then Some(text) else None
+
   private def criticalPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
     val instructions = Obj(
       "goal" -> Str("Return JSON array of {\"ply\":number,\"label\":string,\"comment\":string} covering each critical move."),
       "style" -> Str("Crisp coach notes using the slot format: Heading | Why(delta/gap/forced/conceptShift) | Alternatives(PV labels) | Consequence."),
       "rules" -> Arr.from(
-        List(
-          "Use provided labels; do not invent ply numbers or moves.",
-          "Base severity on deltaWinPct/judgement/mistakeCategory; stay consistent with tags.",
-          "Cite branches/pv for refutations without fabricating new lines.",
-          "Lead with forced/only-move (legalMoves<=1 or big best-vs-second gap) and conceptShift; do not omit these signals when present."
-        ).map(Str(_))
-      )
-    )
+            List(
+              "Use provided labels; do not invent ply numbers or moves.",
+              "Base severity on deltaWinPct/judgement/mistakeCategory; stay consistent with tags.",
+              "Cite branches/pv for refutations without fabricating new lines.",
+              "Lead with forced/only-move (legalMoves<=1 or big best-vs-second gap) and conceptShift; do not omit these signals when present.",
+              "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
+            ).map(Str(_))
+          )
+        )
 
-    val nodes = clampNodes(output.critical, 4).map { c =>
+    val nodes = clampNodes(output.critical, 8).map { c =>
       val timeline = timelineByPly.get(c.ply.value)
       val label = labelForPly(timelineByPly, c.ply.value)
       val mergedTags = (timeline.map(_.semanticTags).getOrElse(Nil) ++ c.tags).distinct.take(6)
@@ -313,7 +327,8 @@ object LlmAnnotator:
             List(
               "Use provided labels; do not renumber or invent lines.",
               "Anchor to judgement/tags/pv/bestMove/conceptShift instead of generic advice.",
-              "Call out forced/only-move or big best-vs-second gaps first when present."
+              "Call out forced/only-move or big best-vs-second gaps first when present.",
+              "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
             ).map(Str(_))
           )
         )
@@ -330,3 +345,25 @@ object LlmAnnotator:
       comment = root.comment.orElse(comments.get(root.ply)),
       children = root.children.map(c => applyTreeComments(c, comments))
     )
+  @scala.annotation.nowarn("msg=unused")
+  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 2): ujson.Arr =
+    val pairs = List(
+      "drawish" -> delta.drawish,
+      "dry" -> delta.dry,
+      "comfortable" -> delta.comfortable,
+      "unpleasant" -> delta.unpleasant,
+      "kingSafety" -> delta.kingSafety,
+      "rookActivity" -> delta.rookActivity,
+      "pawnStorm" -> delta.pawnStorm,
+      "dynamic" -> delta.dynamic,
+      "tacticalDepth" -> delta.tacticalDepth,
+      "blunderRisk" -> delta.blunderRisk,
+      "colorComplex" -> delta.colorComplex,
+      "goodKnight" -> delta.goodKnight,
+      "badBishop" -> delta.badBishop,
+      "fortress" -> delta.fortress,
+      "conversionDifficulty" -> delta.conversionDifficulty,
+      "alphaZeroStyle" -> delta.alphaZeroStyle
+    )
+    val top = pairs.sortBy { case (_, v) => -math.abs(v) }.take(limit)
+    ujson.Arr.from(top.map { case (k, v) => Obj("name" -> Str(k), "delta" -> Num(round2(v))) })

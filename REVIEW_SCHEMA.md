@@ -18,9 +18,26 @@
     "topGames": [
       { "white": "Carlsen, M.", "black": "Aronian, L.", "whiteElo": 2872, "blackElo": 2809, "result": "½-½", "date": "2013-03" }
     ],
-    "source": "file"
+    "source": "file" // masters, classical 등 DB 소스 라벨
   },
   "oppositeColorBishops": false,
+  "studyChapters": [ // optional study anchors (server 생성)
+    {
+      "id": "ch-18",
+      "anchorPly": 18,
+      "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+      "played": "Nf3",
+      "best": "d5",
+      "deltaWinPct": -2.1,
+      "tags": ["plan_change","opening_theory_branch"],
+      "lines": [
+        { "label": "played", "pv": ["Nf3","Nc6","Bc4"], "winPct": 45.2 },
+        { "label": "engine", "pv": ["d5","exd5","Qxd5"], "winPct": 67.8 },
+        { "label": "alt", "pv": ["c5","c3","Nf6"], "winPct": 63.1 }
+      ],
+      "summary": "Nf3 at ply 18: plan change; best was d5; missed by -2.10 win%."
+    }
+  ],
   "critical": [
     {
       "ply": 12,
@@ -80,8 +97,9 @@
 
 ## 필드 설명
 - `opening`: Opening DB 매칭 결과(ECO/이름/ply).
-- `openingStats`: (선택) 마스터 승률/북 라인 길이/novelty 정보. `win*`은 백분율, `games`는 카운트, `topGames`는 최고 Elo 샘플.
+- `openingStats`: (선택) 마스터 승률/북 라인 길이/novelty 정보. `win*`은 백분율, `games`는 카운트, `topGames`는 최고 Elo 샘플, `source`로 DB(예: masters/classical) 구분.
 - `oppositeColorBishops`: 이색비숍 여부.
+- `studyChapters`: 서버가 Δeval/branch tension/plan change/opening theory branch 기반으로 생성한 스터디 앵커. 각 챕터는 `anchorPly`와 FEN, 플레이드/베스트/대안 PV, 태그, 짧은 요약 포함.
 - `critical`: ΔWin%와 개념 점프 기반 상위 N(기본 5) 노드, 각 노드에 MultiPV 브랜치(best/PV2/PV3).
 - `timeline`: ply별 상세 (+semantic tags)
   - `features`: 구조/기물/킹 안전/공간 등 엔진 없이 계산된 피처.

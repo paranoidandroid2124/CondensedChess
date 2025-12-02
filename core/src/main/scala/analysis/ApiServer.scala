@@ -2,6 +2,7 @@ package chess
 package analysis
 
 import com.sun.net.httpserver.{ HttpExchange, HttpServer }
+import chess.format.{ Fen, Uci }
 
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
@@ -21,7 +22,7 @@ import ujson.*
   */
 object ApiServer:
 
-  private case class Job(status: String, result: Option[String], error: Option[String])
+  private case class Job(status: String, result: Option[String], error: Option[String], output: Option[AnalyzePgn.Output], createdAt: Long)
 
   private val jobs = new ConcurrentHashMap[String, Job]()
   private val executor = Executors.newFixedThreadPool(math.max(2, Runtime.getRuntime.availableProcessors()))
@@ -40,6 +41,7 @@ object ApiServer:
     server.createContext("/analyze", (exchange: HttpExchange) => handleAnalyze(exchange, config, llmRequestedPlys))
     server.createContext("/result", (exchange: HttpExchange) => handleResult(exchange))
     server.createContext("/opening/lookup", (exchange: HttpExchange) => handleOpeningLookup(exchange))
+    server.createContext("/analysis/branch", (exchange: HttpExchange) => handleAddBranch(exchange))
     server.setExecutor(executor)
 
     println(s"[api] listening on $bindHost:$port (shallow=${config.shallowDepth}/deep=${config.deepDepth}, multipv=${config.maxMultiPv})")
@@ -100,23 +102,24 @@ object ApiServer:
       else llmRequestedPlys
 
     val jobId = UUID.randomUUID().toString
-    jobs.put(jobId, Job(status = "queued", result = None, error = None))
+    jobs.put(jobId, Job(status = "queued", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
 
     executor.submit(new Runnable:
       override def run(): Unit =
-        jobs.put(jobId, Job(status = "processing", result = None, error = None))
+        jobs.put(jobId, Job(status = "processing", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
         AnalyzePgn.analyze(pgnText, config, llmPlys) match
           case Right(output) =>
             val annotated = LlmAnnotator.annotate(output)
             val json = AnalyzePgn.render(annotated)
-            jobs.put(jobId, Job(status = "ready", result = Some(json), error = None))
+            jobs.put(jobId, Job(status = "ready", result = Some(withJobId(json, jobId)), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
           case Left(err) =>
-            jobs.put(jobId, Job(status = "failed", result = None, error = Some(err)))
+            jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
     )
 
     respond(exchange, 202, s"""{"jobId":"$jobId","status":"queued"}""")
 
   private def handleResult(exchange: HttpExchange): Unit =
+    cleanExpiredJobs()
     if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
       respond(exchange, 200, """{"ok":true}""", corsOnly = true)
       return
@@ -142,6 +145,101 @@ object ApiServer:
             respond(exchange, 202, s"""{"status":"$other"}""")
       case _ =>
         respond(exchange, 404, """{"error":"not_found"}""")
+
+  /** 변형 추가: POST /analysis/branch { jobId, ply, uci } */
+  private def handleAddBranch(exchange: HttpExchange): Unit =
+    cleanExpiredJobs()
+    if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
+      respond(exchange, 200, """{"ok":true}""", corsOnly = true)
+      return
+
+    if !exchange.getRequestMethod.equalsIgnoreCase("POST") then
+      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      return
+
+    val body = new String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8).trim
+    if body.isEmpty then
+      respond(exchange, 400, """{"error":"empty_body"}""")
+      return
+
+    val parsed =
+      try ujson.read(body)
+      catch
+        case _: Throwable =>
+          respond(exchange, 400, """{"error":"invalid_json"}""")
+          return
+
+    val jobId = parsed.obj.get("jobId").flatMap(v => Option(v.str).filter(_.nonEmpty))
+    val ply = parsed.obj.get("ply").flatMap(v => scala.util.Try(v.num.toInt).toOption)
+    val uciStr = parsed.obj.get("uci").flatMap(v => Option(v.str).filter(_.nonEmpty))
+
+    (jobId, ply, uciStr) match
+      case (Some(jid), Some(p), Some(uciMove)) =>
+        val job = jobs.get(jid)
+        if job == null then respond(exchange, 404, """{"error":"not_found"}""")
+        else if job.status != "ready" then respond(exchange, 202, s"""{"status":"${job.status}"}""")
+        else
+          job.output match
+            case None =>
+              respond(exchange, 500, """{"error":"missing_output"}""")
+            case Some(output) =>
+              output.timeline.find(_.ply.value == p) match
+                case None =>
+                  respond(exchange, 404, """{"error":"ply_not_found"}""")
+                case Some(anchor) =>
+                  val fenBefore = anchor.fenBefore
+                  val startFen: chess.format.FullFen = chess.format.Fen.Full.clean(fenBefore)
+                  val start = chess.Game(chess.variant.Standard, Some(startFen))
+                  Uci(uciMove) match
+                    case Some(m: Uci.Move) =>
+                      start.apply(m) match
+                        case Left(_) =>
+                          respond(exchange, 400, """{"error":"invalid_move"}""")
+                        case Right((nextGame, _)) =>
+                          val newFen = Fen.write(nextGame.position, nextGame.ply.fullMoveNumber).value
+                          val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciMove)
+                          val lineEval = anchor.evalBeforeDeep.lines.find(_.move == uciMove)
+                          val evalValue = lineEval.map(_.winPct).getOrElse(anchor.winPctBefore)
+                          val newVar = AnalyzePgn.TreeNode(
+                            ply = anchor.ply.value,
+                            san = san,
+                            uci = uciMove,
+                            fen = newFen,
+                            eval = evalValue,
+                            evalType = "win%",
+                            judgement = "variation",
+                            glyph = "",
+                            tags = List("variation", "user"),
+                            bestMove = None,
+                            bestEval = None,
+                            pv = lineEval.map(_.pv).map(_.take(6)).getOrElse(Nil),
+                            comment = None,
+                            children = Nil
+                          )
+                          val updatedRoot = output.root.map(r => addVariation(r, p, newVar))
+                          updatedRoot match
+                            case None =>
+                              respond(exchange, 500, """{"error":"missing_root"}""")
+                            case Some(rootWithVar) =>
+                              val updatedOutput = output.copy(root = Some(rootWithVar))
+                              val json = withJobId(AnalyzePgn.render(updatedOutput), jid)
+                              jobs.put(jid, job.copy(result = Some(json), output = Some(updatedOutput)))
+                              respond(exchange, 200, json)
+                    case _ =>
+                      respond(exchange, 400, """{"error":"invalid_move"}""")
+      case _ =>
+        respond(exchange, 400, """{"error":"missing_fields"}""")
+
+  private def addVariation(root: AnalyzePgn.TreeNode, ply: Int, variation: AnalyzePgn.TreeNode): AnalyzePgn.TreeNode =
+    if root.ply == ply then
+      val (vars, others) = root.children.partition(_.judgement == "variation")
+      val deduped = vars.filterNot(_.uci == variation.uci) :+ variation
+      root.copy(children = others ++ deduped)
+    else
+      val updatedMain = root.children.map { c =>
+        if c.judgement == "variation" then c else addVariation(c, ply, variation)
+      }
+      root.copy(children = updatedMain)
 
   private def handleOpeningLookup(exchange: HttpExchange): Unit =
     if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
@@ -235,3 +333,21 @@ object ApiServer:
       try os.write(bytes)
       finally os.close()
     else exchange.close()
+
+  private def withJobId(json: String, jobId: String): String =
+    try
+      val obj = ujson.read(json)
+      obj("jobId") = jobId
+      obj.render()
+    catch
+      case _: Throwable => json
+
+  private def cleanExpiredJobs(): Unit =
+    val ttlMinutes = sys.env.get("JOB_TTL_MINUTES").flatMap(_.toLongOption).getOrElse(360L)
+    val ttlMs = math.max(5L, ttlMinutes) * 60_000L
+    val now = System.currentTimeMillis()
+    val iter = jobs.entrySet().iterator()
+    while iter.hasNext do
+      val entry = iter.next()
+      val job = entry.getValue
+      if now - job.createdAt > ttlMs then iter.remove()

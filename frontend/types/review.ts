@@ -55,6 +55,12 @@ export interface CriticalNode {
   mistakeCategory?: string;
   tags?: string[];
   comment?: string; // LLM long form
+  bestVsSecondGap?: number;
+  bestVsPlayedGap?: number;
+  legalMoves?: number;
+  forced?: boolean;
+  phaseLabel?: string;
+  semanticTags?: string[];
 }
 
 export interface EvalLine {
@@ -120,11 +126,21 @@ export interface TimelineNode {
   epAfter?: number;
   epLoss?: number;
   judgement?: Judgement;
-  special?: "brilliant" | "great" | "miss";
+  special?: "brilliant" | "great";
   mistakeCategory?: string;
+  conceptDelta?: Concepts;
   semanticTags?: string[];
   concepts?: Concepts;
+  isCustom?: boolean;
+  bestVsSecondGap?: number;
+  bestVsPlayedGap?: number;
+  legalMoves?: number;
+  forced?: boolean;
+  phaseLabel?: string;
+  label?: string;
   shortComment?: string; // LLM short comment
+  studyTags?: string[];
+  studyScore?: number;
 }
 
 export interface Review {
@@ -138,6 +154,8 @@ export interface Review {
   timeline: TimelineNode[];
   summaryText?: string; // LLM game summary
   root?: ReviewTreeNode;
+  studyChapters?: StudyChapter[];
+  jobId?: string;
 }
 
 export interface ReviewTreeNode {
@@ -155,4 +173,23 @@ export interface ReviewTreeNode {
   pv: string[];
   comment?: string;
   children: ReviewTreeNode[];
+}
+
+export interface StudyLine {
+  label: string;
+  pv: string[];
+  winPct: number;
+}
+
+export interface StudyChapter {
+  id: string;
+  anchorPly: number;
+  fen: string;
+  played: string;
+  best?: string;
+  deltaWinPct: number;
+  tags: string[];
+  lines: StudyLine[];
+  summary?: string;
+  studyScore?: number;
 }

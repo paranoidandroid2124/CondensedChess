@@ -1,6 +1,37 @@
 {
   "opening": { "name": "Ruy Lopez", "eco": "C88", "ply": 8 },
   "oppositeColorBishops": false,
+  "studyChapters": [
+    {
+      "id": "ch-10",
+      "anchorPly": 10,
+      "fen": "r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 3 5",
+      "played": "Re1",
+      "best": "Nxe5",
+      "deltaWinPct": -32.4,
+      "tags": ["opening_theory_branch", "plan_change"],
+      "lines": [
+        { "label": "played", "pv": ["Re1", "Be7", "c3", "b5"], "winPct": 23.0 },
+        { "label": "engine", "pv": ["Nxe5", "Nxe5", "d4"], "winPct": 62.1 },
+        { "label": "alt", "pv": ["d4", "exd4", "e5"], "winPct": 58.3 }
+      ],
+      "summary": "Re1 at ply 10: plan change; best was Nxe5; missed by -32.40 win%."
+    },
+    {
+      "id": "ch-16",
+      "anchorPly": 16,
+      "fen": "r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/2P2N2/PP1P1PPP/RNBQ1RK1 b kq - 0 6",
+      "played": "Be7",
+      "best": "c3",
+      "deltaWinPct": 8.1,
+      "tags": ["dynamic", "tacticalDepth"],
+      "lines": [
+        { "label": "played", "pv": ["Be7", "Re1", "b5", "Bb3"], "winPct": 56.0 },
+        { "label": "engine", "pv": ["c3", "b5", "Bc2"], "winPct": 64.0 }
+      ],
+      "summary": "Be7 at ply 16: dynamic shift; best was c3; gain of 8.10 win%."
+    }
+  ],
   "critical": [
     {
       "ply": 10,
@@ -50,7 +81,9 @@
       "winPctAfterForPlayer": 53.7,
       "deltaWinPct": 1.0,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.12, "drawish": 0.36, "tacticalDepth": 0.1 }
+      "concepts": { "dynamic": 0.12, "drawish": 0.36, "tacticalDepth": 0.1 },
+      "studyTags": ["plan_change"],
+      "studyScore": 3.2
     },
     {
       "ply": 2,
@@ -73,7 +106,9 @@
       "winPctAfterForPlayer": 52.0,
       "deltaWinPct": -1.0,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.1, "drawish": 0.42, "tacticalDepth": 0.08 }
+      "concepts": { "dynamic": 0.1, "drawish": 0.42, "tacticalDepth": 0.08 },
+      "studyTags": ["plan_change"],
+      "studyScore": 2.8
     },
     {
       "ply": 3,
@@ -142,7 +177,9 @@
       "winPctAfterForPlayer": 54.9,
       "deltaWinPct": 0.5,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.24, "drawish": 0.32, "tacticalDepth": 0.23 }
+      "concepts": { "dynamic": 0.24, "drawish": 0.32, "tacticalDepth": 0.23 },
+      "studyTags": ["opening_theory_branch"],
+      "studyScore": 4.1
     },
     {
       "ply": 6,
@@ -165,7 +202,9 @@
       "winPctAfterForPlayer": 53.0,
       "deltaWinPct": -1.0,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.22, "drawish": 0.36, "tacticalDepth": 0.2 }
+      "concepts": { "dynamic": 0.22, "drawish": 0.36, "tacticalDepth": 0.2 },
+      "studyTags": ["plan_change"],
+      "studyScore": 2.5
     },
     {
       "ply": 7,
@@ -188,7 +227,9 @@
       "winPctAfterForPlayer": 55.2,
       "deltaWinPct": 0.6,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.28, "drawish": 0.3, "tacticalDepth": 0.28 }
+      "concepts": { "dynamic": 0.28, "drawish": 0.3, "tacticalDepth": 0.28 },
+      "studyTags": ["opening_theory_branch"],
+      "studyScore": 3.9
     },
     {
       "ply": 8,
@@ -211,7 +252,9 @@
       "winPctAfterForPlayer": 53.8,
       "deltaWinPct": -0.3,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.32, "drawish": 0.28, "tacticalDepth": 0.34 }
+      "concepts": { "dynamic": 0.32, "drawish": 0.28, "tacticalDepth": 0.34 },
+      "studyTags": ["plan_change"],
+      "studyScore": 2.2
     },
     {
       "ply": 9,
@@ -234,7 +277,9 @@
       "winPctAfterForPlayer": 55.0,
       "deltaWinPct": 0.0,
       "judgement": "ok",
-      "concepts": { "dynamic": 0.3, "drawish": 0.26, "tacticalDepth": 0.36 }
+      "concepts": { "dynamic": 0.3, "drawish": 0.26, "tacticalDepth": 0.36 },
+      "studyTags": ["opening_theory_branch"],
+      "studyScore": 3.1
     }
   ]
 }
