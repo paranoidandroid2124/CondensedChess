@@ -1286,6 +1286,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [selectedPly, setSelectedPly] = useState<number | null>(null);
   const [scratchChess] = useState(() => new Chess());
+  const [customTimeline, setCustomTimeline] = useState<TimelineNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -1340,8 +1341,9 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   }, [reviewId]);
 
   const enhancedTimeline = useMemo(() => {
-    if (!review?.timeline?.length) return [];
-    const sorted = [...review.timeline].sort((a, b) => a.ply - b.ply);
+    const base = customTimeline ?? review?.timeline;
+    if (!base?.length) return [];
+    const sorted = [...base].sort((a, b) => a.ply - b.ply);
     const chess = new Chess();
     const result: Array<TimelineNode & { label: string; fenBefore: string }> = [];
     sorted.forEach((t) => {
@@ -1366,7 +1368,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       result.push({ ...t, label, fenBefore });
     });
     return result;
-  }, [review]);
+  }, [review, customTimeline]);
 
   // Build SAN sequence up to selected ply for opening lookup
   const sanSequence = useMemo(() => {
@@ -1459,9 +1461,12 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         concepts: selected?.concepts,
         label: `${Math.ceil(nextPly / 2)}${nextPly % 2 === 1 ? "." : "..."} ${san}`
       };
-      const mergedTimeline = [...enhancedTimeline.filter((t) => t.ply < nextPly), synthetic];
+      const base = customTimeline ?? review?.timeline ?? [];
+      const mergedTimeline = [...base.filter((t) => t.ply < nextPly), synthetic, ...base.filter((t) => t.ply > nextPly)];
       // update san sequence and lookup
-      const seq = mergedTimeline.sort((a, b) => a.ply - b.ply).map((t) => t.san);
+      const sorted = [...mergedTimeline].sort((a, b) => a.ply - b.ply);
+      const seq = sorted.map((t) => t.san);
+      setCustomTimeline(sorted);
       setSelectedPly(nextPly);
       setLookupLoading(true);
       fetchOpeningLookup(seq)
@@ -1470,7 +1475,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         .finally(() => setLookupLoading(false));
       return true;
     },
-    [scratchChess, selected, enhancedTimeline]
+    [scratchChess, selected, customTimeline, review?.timeline]
   );
 
   useEffect(() => {
