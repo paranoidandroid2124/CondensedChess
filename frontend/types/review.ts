@@ -6,6 +6,24 @@ export interface Opening {
   ply?: number;
 }
 
+export interface OpeningTopMove {
+  san: string;
+  uci: string;
+  freq?: number; // percent if present
+  winPct?: number; // percent if present
+}
+
+export interface OpeningStats {
+  bookPly: number;
+  noveltyPly: number;
+  freq?: number; // percent if present
+  winWhite?: number; // percent if present
+  winBlack?: number; // percent if present
+  draw?: number; // percent if present
+  topMoves?: OpeningTopMove[];
+  source?: string;
+}
+
 export interface Branch {
   move: string;
   winPct: number;
@@ -95,6 +113,7 @@ export interface TimelineNode {
 
 export interface Review {
   opening?: Opening;
+  openingStats?: OpeningStats;
   oppositeColorBishops?: boolean;
   critical: CriticalNode[];
   timeline: TimelineNode[];

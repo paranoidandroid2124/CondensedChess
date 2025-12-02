@@ -7,6 +7,7 @@ package analysis
   */
 object LlmAnnotator:
   private def clampNodes[T](xs: Seq[T], max: Int): Seq[T] = xs.take(max)
+  private def pctInt(d: Double): Int = math.round(if d > 1.0 then d else d * 100.0).toInt
 
   private def moveLabel(ply: Ply, san: String, turn: Color): String =
     val moveNumber = (ply.value + 1) / 2
@@ -52,6 +53,20 @@ object LlmAnnotator:
     )
 
   private def renderPreview(output: AnalyzePgn.Output): String =
+    val openingLine =
+      output.openingStats
+        .map { os =>
+          val top = os.topMoves.headOption
+            .map { tm =>
+              val freq = pctInt(tm.freq)
+              val win = pctInt(tm.winPct)
+              s"top move ${tm.san} (${freq}% freq, win ${win}%)"
+            }
+            .getOrElse("no stats")
+          s"bookPly=${os.bookPly}, novelty=${os.noveltyPly}, $top"
+        }
+        .orElse(output.opening.map(op => Some(s"book up to ply ${op.ply.value}")))
+        .getOrElse("opening unknown")
     val crit = clampNodes(output.critical, 5).map { c =>
       val turn = if c.ply.value % 2 == 1 then Color.White else Color.Black
       val san = output.timeline.find(_.ply == c.ply).map(_.san).getOrElse("")
@@ -69,7 +84,7 @@ object LlmAnnotator:
         s"${moveLabel(t.ply, t.san, t.turn)}$cat Δ${"%.2f".format(t.deltaWinPct)} (${t.judgement})$tags"
       }
       .mkString("; ")
-    s"Opening=${output.opening.map(_.opening.name.value).getOrElse("unknown")}, swings=$swings, critical=$crit"
+    s"Opening=${output.opening.map(_.opening.name.value).getOrElse("unknown")} ($openingLine), swings=$swings, critical=$crit"
 
   private def criticalPreview(output: AnalyzePgn.Output): String =
     val nodes = clampNodes(output.critical, 6).map { c =>

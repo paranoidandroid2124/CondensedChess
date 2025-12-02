@@ -24,7 +24,9 @@ object LlmClient:
         s"""You are a chess coach. Summarize this chess review JSON for a human in 3-4 sentences.
            |- Use only moves/evals given. Do NOT invent moves/evals or move numbers.
            |- When referencing moves, quote the provided label exactly (e.g., "13. Qe2", "12...Ba6"); never renumber.
-           |- Focus on critical turning points, style (dynamic/dry), and what to improve. Avoid generic advice that is not supported by the data.
+           |- Use semanticTags (facts like open file, outpost, weak pawn) and mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) to explain *why*.
+           |- Mention novelty/book briefly using openingStats if present.
+           |- Avoid generic advice; ground every claim in the provided tags/evals/branches.
            |JSON: $json""".stripMargin
       val body =
         s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}]}"""
@@ -78,8 +80,9 @@ object LlmClient:
         s"""You are a chess coach. For each item, return JSON array of {"ply":number,"label":string,"$field":string}.
            |- Use only moves/evals provided. Do NOT invent moves/evals or move numbers.
            |- Always reference the provided label (e.g., "13. Qe2", "12...Ba6"); do not fabricate ply indices.
+           |- Leverage mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and semanticTags (facts like open_h_file, weak_f7, outpost_f5, back_rank_weak) to ground the explanation.
            |- Do NOT call a move a blunder/mistake unless its judgement or delta clearly indicates it; stay consistent with provided tags/delta.
-           |- If generating critical move comments, include: (a) a short heading (3-6 words), (b) 1-2 sentences on why (based on given judgement/delta/pv), (c) 1-2 refutation moves using provided pv/branches. Keep it concise and factual.
+           |- If generating critical move comments, include: (a) a short heading (3-6 words), (b) 1-2 sentences on why (based on given judgement/delta/pv/tags), (c) 1-2 refutation moves using provided pv/branches. Keep it concise and factual.
            |- If payload has pv, you can briefly mention the idea, but keep comments specific to the given move/judgement.
            |Payload: $promptPayload""".stripMargin
       val body =

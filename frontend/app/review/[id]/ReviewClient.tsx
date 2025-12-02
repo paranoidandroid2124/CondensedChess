@@ -120,6 +120,20 @@ function convertPvToSan(fen: string | undefined, pv?: string[]) {
   }
 }
 
+function uciToSanWithFen(fen: string | undefined, uci: string): string {
+  if (!fen) return uci;
+  try {
+    const chess = new Chess(fen);
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promotion = uci.length > 4 ? uci.slice(4) : undefined;
+    const move = chess.move({ from, to, promotion });
+    return move?.san ?? uci;
+  } catch {
+    return uci;
+  }
+}
+
 function ConceptChips({ concepts }: { concepts?: Concepts }) {
   if (!concepts) return null;
   const entries = Object.entries(concepts)
@@ -577,24 +591,11 @@ function CriticalList({
   fenBeforeByPly: Record<number, string | undefined>;
 }) {
   const humanReason = (r: string) => {
-    if (r.toLowerCase.contains("blunder")) return "Blunder: big swing";
-    if (r.toLowerCase.contains("mistake")) return "Mistake: swing down";
-    if (r.toLowerCase.contains("swing")) return "Big eval swing";
+    const low = r.toLowerCase();
+    if (low.includes("blunder")) return "Blunder: big swing";
+    if (low.includes("mistake")) return "Mistake: swing down";
+    if (low.includes("swing")) return "Big eval swing";
     return "Concept change";
-  };
-
-  const uciToSan = (fen: string | undefined, uci: string): string => {
-    if (!fen) return uci;
-    try {
-      const chess = new Chess(fen);
-      const from = uci.slice(0, 2);
-      const to = uci.slice(2, 4);
-      const promotion = uci.length > 4 ? uci.slice(4) : undefined;
-      const move = chess.move({ from, to, promotion });
-      return move?.san ?? uci;
-    } catch {
-      return uci;
-    }
   };
 
   return (
@@ -613,6 +614,14 @@ function CriticalList({
               </div>
               <div className="text-xs font-semibold text-rose-200">{formatDelta(c.deltaWinPct)}</div>
             </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/70">
+              {c.mistakeCategory ? (
+                <span className="rounded-full bg-rose-500/15 px-2 py-1 text-rose-100">{c.mistakeCategory}</span>
+              ) : null}
+              {c.tags?.slice(0, 5).map((t) => (
+                <span key={t} className="rounded-full bg-white/10 px-2 py-1">{t}</span>
+              ))}
+            </div>
             {c.branches?.length ? (
               <div className="mt-2 grid gap-2">
                 {c.branches.slice(0, 3).map((b) => (
@@ -621,7 +630,7 @@ function CriticalList({
                       <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/70">
                         {b.label}
                       </span>
-                      {uciToSan(fenBeforeByPly[c.ply], b.move)}
+                      {uciToSanWithFen(fenBeforeByPly[c.ply], b.move)}
                     </div>
                     <div className="text-xs text-accent-teal">{b.winPct.toFixed(1)}%</div>
                   </div>
@@ -635,6 +644,75 @@ function CriticalList({
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function GuessTheMove({
+  critical,
+  fenBeforeByPly
+}: {
+  critical: CriticalNode[];
+  fenBeforeByPly: Record<number, string | undefined>;
+}) {
+  const target = critical.find((c) => c.branches?.length);
+  const [guess, setGuess] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<boolean>(false);
+
+  if (!target || !target.branches?.length) return null;
+  const options = target.branches.slice(0, Math.min(3, target.branches.length));
+  const correct = options[0]?.move;
+  const fen = fenBeforeByPly[target.ply];
+
+  const status =
+    revealed && guess
+      ? guess === correct
+        ? { tone: "text-emerald-200", text: "Spot on." }
+        : { tone: "text-rose-200", text: `Better was ${uciToSanWithFen(fen, correct ?? "")}.` }
+      : guess
+      ? { tone: "text-white/70", text: "Lock in or reveal to check." }
+      : { tone: "text-white/60", text: "Pick the best move." };
+
+  return (
+    <div className="glass-card rounded-2xl p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Guess the move</p>
+          <h3 className="text-sm font-semibold text-white">Critical ply {target.ply}</h3>
+        </div>
+        {target.mistakeCategory ? (
+          <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-white/70">{target.mistakeCategory}</span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-xs text-white/60">Choose the best move (PV1) before revealing.</p>
+      <div className="mt-3 grid gap-2">
+        {options.map((b) => (
+          <button
+            key={b.move}
+            onClick={() => setGuess(b.move)}
+            className={`flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
+              guess === b.move ? "bg-accent-teal/20 ring-1 ring-accent-teal/60 text-white" : "bg-white/5 hover:bg-white/10 text-white/80"
+            }`}
+          >
+            <span>
+              <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/60">
+                {b.label}
+              </span>
+              {uciToSanWithFen(fen, b.move)}
+            </span>
+            <span className="text-xs text-white/60">{b.winPct.toFixed(1)}%</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-white/70">
+        <span className={status.tone}>{status.text}</span>
+        <button
+          onClick={() => setRevealed(true)}
+          className="rounded-lg border border-white/10 px-3 py-1 text-white/80 hover:border-white/30"
+        >
+          Reveal
+        </button>
       </div>
     </div>
   );
@@ -809,6 +887,7 @@ function TreeView({
 
 function SummaryPanel({
   opening,
+  openingStats,
   oppositeColorBishops,
   concepts,
   conceptSpikes,
@@ -816,6 +895,7 @@ function SummaryPanel({
   summaryText
 }: {
   opening?: Review["opening"];
+  openingStats?: Review["openingStats"];
   oppositeColorBishops?: boolean;
   concepts?: Concepts;
   conceptSpikes?: Array<{ ply: number; concept: string; delta: number; label: string }>;
@@ -840,11 +920,40 @@ function SummaryPanel({
               <div className="text-white">{opening.name}</div>
               <div className="text-xs text-white/60">ECO {opening.eco ?? "—"}</div>
             </div>
-            {opening.ply ? <span className="text-xs text-white/60">{opening.ply} ply</span> : null}
+            <div className="flex flex-col items-end gap-1 text-right text-xs text-white/60">
+              {opening.ply ? <span>{opening.ply} ply</span> : null}
+              {openingStats ? <span>Novelty @ {openingStats.noveltyPly}</span> : null}
+            </div>
           </div>
         ) : (
           <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
         )}
+        {openingStats ? (
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/70">
+              <span className="rounded-full bg-white/10 px-2 py-1">Book ply {openingStats.bookPly}</span>
+              <span className="rounded-full bg-white/10 px-2 py-1">Novelty {openingStats.noveltyPly}</span>
+              {openingStats.freq != null ? (
+                <span className="rounded-full bg-white/10 px-2 py-1">Master freq {openingStats.freq.toFixed(1)}%</span>
+              ) : null}
+              {openingStats.winWhite != null || openingStats.winBlack != null || openingStats.draw != null ? (
+                <span className="rounded-full bg-white/10 px-2 py-1">
+                  W {openingStats.winWhite?.toFixed(1) ?? "—"} / D {openingStats.draw?.toFixed(1) ?? "—"} / L{" "}
+                  {openingStats.winBlack?.toFixed(1) ?? "—"}%
+                </span>
+              ) : null}
+            </div>
+            {openingStats.topMoves?.length ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/80">
+                {openingStats.topMoves.slice(0, 3).map((m) => (
+                  <span key={m.uci} className="rounded-full bg-white/10 px-2 py-1">
+                    {m.san} ({m.freq?.toFixed(1) ?? "—"}% / {m.winPct?.toFixed(1) ?? "—"}%)
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {summaryText ? (
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
             {summaryText}
@@ -1077,6 +1186,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     return spikes.sort((a, b) => b.delta - a.delta).slice(0, 5);
   }, [enhancedTimeline]);
 
+  const fenBeforeByPly = useMemo(() => Object.fromEntries(enhancedTimeline.map((t) => [t.ply, t.fenBefore as string | undefined])), [enhancedTimeline]);
+
   const selected = useMemo(() => {
     if (!enhancedTimeline.length) return null;
     if (selectedPly === null) return enhancedTimeline[enhancedTimeline.length - 1];
@@ -1260,12 +1371,14 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
           <div className="flex flex-col gap-4">
             <SummaryPanel
               opening={review.opening}
+              openingStats={review.openingStats}
               oppositeColorBishops={review.oppositeColorBishops}
               concepts={selected?.concepts}
               conceptSpikes={conceptSpikes}
               showAdvanced={showAdvanced}
               summaryText={review.summaryText}
             />
+            <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
             <div className="rounded-2xl">
               <div className="max-h-[70vh] overflow-y-auto pr-1">
                 <MoveTimeline
@@ -1280,7 +1393,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             {showAdvanced ? (
               <CriticalList
                 critical={review.critical ?? []}
-                fenBeforeByPly={Object.fromEntries(enhancedTimeline.map((t) => [t.ply, (t as any).fenBefore]))}
+                fenBeforeByPly={fenBeforeByPly}
               />
             ) : null}
           </div>
