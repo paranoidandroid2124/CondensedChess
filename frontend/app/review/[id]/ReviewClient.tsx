@@ -1,10 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Chessboard, PieceDropArgs } from "react-chessboard";
+import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import { fetchOpeningLookup, fetchReview } from "../../../lib/review";
 import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, TimelineNode } from "../../../types/review";
+
+type PieceDropArgs = {
+  sourceSquare: string;
+  targetSquare: string;
+  piece?: string;
+};
 
 type VariationEntry = {
   node: ReviewTreeNode;
@@ -344,13 +350,13 @@ function BoardCard({
             arePiecesDraggable={true}
             onPieceDrop={(sourceSquare, targetSquare, piece) =>
               onDrop
-                ? onDrop({ sourceSquare, targetSquare, piece, dropSquare: targetSquare, target: undefined, pieceSquare: sourceSquare })
+                ? onDrop({ sourceSquare, targetSquare, piece })
                 : false
             }
             customLightSquareStyle={{ backgroundColor: "#e7ecff" }}
             customDarkSquareStyle={{ backgroundColor: "#5b8def" }}
             customSquareStyles={squareStyles}
-            customArrows={arrows}
+            customArrows={arrows as any}
           />
         </div>
       </div>
@@ -760,8 +766,10 @@ function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | 
         <div className="mt-3 space-y-2">
           <div className="text-xs uppercase tracking-[0.14em] text-white/60">다음 수 분포</div>
           {stats.topMoves?.map((m) => {
-            const total = stats.games || Math.max(...(stats.topMoves?.map((tm) => tm.games) ?? [1]));
-            const pct = total ? Math.max(4, (m.games / total) * 100) : 0;
+            const gameCounts = (stats.topMoves ?? []).map((tm) => tm.games ?? 0);
+            const fallbackTotal = gameCounts.length ? Math.max(...gameCounts) : 1;
+            const total = stats.games ?? fallbackTotal;
+            const pct = total ? Math.max(4, ((m.games ?? 0) / total) * 100) : 0;
             return (
               <div key={m.san} className="space-y-1">
                 <div className="flex items-center justify-between text-xs text-white/70">
@@ -1138,7 +1146,13 @@ function SummaryHero({
   timeline: (TimelineNode & { label?: string })[];
   critical: CriticalNode[];
 }) {
-  const stats = useMemo(() => {
+  type SummaryStats = {
+    total: number;
+    counts: Record<string, number>;
+    worst: { ply: number; delta: number; label: string } | null;
+    topCritical?: CriticalNode;
+  };
+  const stats = useMemo<SummaryStats>(() => {
     const total = timeline.length;
     const counts: Record<string, number> = {
       blunder: 0,
