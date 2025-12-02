@@ -135,6 +135,7 @@ object LlmAnnotator:
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+        t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
         t.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
         t.special.foreach(s => obj("special") = Str(s))
         obj
@@ -167,6 +168,7 @@ object LlmAnnotator:
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+        t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
       }
       c.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
       c.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
@@ -254,6 +256,7 @@ object LlmAnnotator:
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+        t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
       }
       if mergedTags.nonEmpty then obj("semanticTags") = arrStr(mergedTags)
       c.mistakeCategory.orElse(timeline.flatMap(_.mistakeCategory)).foreach(mc => obj("mistakeCategory") = Str(mc))
@@ -296,6 +299,7 @@ object LlmAnnotator:
               obj("forced") = Bool(forcedFlag(t.legalMoves, t.bestVsSecondGap))
               val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
               if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+              t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
             }
             n.bestMove.foreach(b => obj("bestMove") = Str(b))
             n.bestEval.foreach(ev => obj("bestEval") = Num(round2(ev)))
