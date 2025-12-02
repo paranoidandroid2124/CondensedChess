@@ -1,0 +1,42 @@
+import type { Review } from "../types/review";
+
+export const API_BASE = process.env.NEXT_PUBLIC_REVIEW_API_BASE || "http://localhost:8080";
+
+export type ReviewFetchResult =
+  | { status: "ready"; review: Review }
+  | { status: "pending"; message?: string };
+
+export async function fetchReview(id: string): Promise<ReviewFetchResult> {
+  if (id === "sample") {
+    const res = await fetch("/mock/sample-review.json", { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error("Failed to load sample review");
+    }
+    const json = await res.json();
+    return { status: "ready", review: json };
+  }
+
+  const url = `${API_BASE.replace(/\/$/, "")}/result/${id}`;
+  const res = await fetch(url, { cache: "no-store" });
+
+  // Backend returns 202 while analysis is pending
+  if (res.status === 202) {
+    let message: string | undefined;
+    try {
+      const json = await res.json();
+      message = json.status as string | undefined;
+    } catch {
+      // ignore
+    }
+    return { status: "pending", message };
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to fetch review (${res.status}): ${text}`);
+  }
+
+  const json = await res.json();
+  // Wrap as ready
+  return { status: "ready", review: json as Review };
+}

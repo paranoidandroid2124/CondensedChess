@@ -9,6 +9,14 @@ target
 /.project
 /.settings/
 
+# frontend build artifacts
+frontend/node_modules
+frontend/.next
+frontend/.turbo
+frontend/out
+twic_raw/
+.DS_Store
+
 .idea
 .bsp
 .bloop/
@@ -24,3 +32,4 @@ target
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
+.env

@@ -1,0 +1,32 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.12.01"]
+[Round "-"]
+[White "AllenCedrict"]
+[Black "ych24"]
+[Result "1-0"]
+[CurrentPosition "4r1k1/pp3pp1/5n1p/2q5/2B5/5N1P/P1Q2PP1/R5K1 b - - 0 24"]
+[Timezone "UTC"]
+[ECO "C42"]
+[ECOUrl "https://www.chess.com/openings/Petrovs-Defense-Classical-Damiano-Variation"]
+[UTCDate "2025.12.01"]
+[UTCTime "01:08:06"]
+[WhiteElo "2123"]
+[BlackElo "2104"]
+[TimeControl "600"]
+[Termination "AllenCedrict won by resignation"]
+[StartTime "01:08:06"]
+[EndDate "2025.12.01"]
+[EndTime "01:19:08"]
+[Link "https://www.chess.com/analysis/game/live/146163367072/analysis?move=28"]
+[WhiteUrl "https://images.chesscomfiles.com/uploads/v1/user/317346603.f374db24.50x50o.4e7676360ee7.jpg"]
+[WhiteCountry "111"]
+[WhiteTitle ""]
+[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/312046071.4cf385ec.50x50o.b7431328cf0c.jpg"]
+[BlackCountry "175"]
+[BlackTitle ""]
+
+1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. d4 d5 5. Bd3 Nd7 6. Nf3 Ndf6 7. O-O Bd6 8.
+h3 O-O 9. Re1 c6 10. Bg5 $2 Nxg5 11. Nxg5 h6 12. Nf3 Qb6 13. b3 c5 14. Nc3 Bd7 $6
+15. Ne2 $2 Rae8 $6 16. c4 $6 dxc4 17. Bxc4 cxd4 18. Nexd4 Rxe1+ 19. Qxe1 Bc5 20.
+Qd2 $6 Re8 $9 21. Nc2 $9 Bf5 $6 22. b4 Bxc2 $4 23. bxc5 Qxc5 24. Qxc2 $1 1-0

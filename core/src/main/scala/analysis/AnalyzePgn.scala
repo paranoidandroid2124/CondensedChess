@@ -1,0 +1,641 @@
+package chess
+package analysis
+
+import chess.format.Fen
+import chess.format.pgn.PgnStr
+import chess.opening.{ Opening, OpeningDb }
+
+import scala.io.Source
+
+/** 간단한 PGN→타임라인 CLI.
+  *
+  * 사용법: sbt "core/runMain chess.analysis.AnalyzePgn path/to/game.pgn"
+  * 출력: JSON 한 줄 (timeline + opening + per-ply feature 스냅샷)
+  */
+object AnalyzePgn:
+
+  /** 엔진/멀티PV 설정. 환경변수로 덮어쓰기 가능. */
+  final case class EngineConfig(
+      shallowDepth: Int = 8,
+      deepDepth: Int = 12,
+      shallowTimeMs: Int = 200,
+      deepTimeMs: Int = 500,
+      maxMultiPv: Int = 3,
+      extraDepthDelta: Int = 4,
+      extraTimeMs: Int = 300
+  )
+
+  object EngineConfig:
+    def fromEnv(): EngineConfig =
+      def intEnv(key: String, default: Int) =
+        sys.env.get(key).flatMap(_.toIntOption).filter(_ > 0).getOrElse(default)
+      EngineConfig(
+        shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 8),
+        deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 12),
+        shallowTimeMs = intEnv("ANALYZE_SHALLOW_MS", 200),
+        deepTimeMs = intEnv("ANALYZE_DEEP_MS", 500),
+        maxMultiPv = intEnv("ANALYZE_MAX_MULTIPV", 3),
+        extraDepthDelta = intEnv("ANALYZE_EXTRA_DEPTH_DELTA", 4),
+        extraTimeMs = intEnv("ANALYZE_EXTRA_MS", 300)
+      )
+
+  final case class EngineLine(move: String, winPct: Double, cp: Option[Int], mate: Option[Int], pv: List[String])
+  final case class EngineEval(depth: Int, lines: List[EngineLine])
+  final case class Concepts(
+      dynamic: Double,
+      drawish: Double,
+      imbalanced: Double,
+      tacticalDepth: Double,
+      blunderRisk: Double,
+      pawnStorm: Double,
+      fortress: Double,
+      colorComplex: Double,
+      badBishop: Double,
+      goodKnight: Double,
+      rookActivity: Double,
+      kingSafety: Double,
+      dry: Double,
+      comfortable: Double,
+      unpleasant: Double,
+      engineLike: Double,
+      conversionDifficulty: Double,
+      sacrificeQuality: Double,
+      alphaZeroStyle: Double
+  )
+
+  final case class PlyOutput(
+      ply: Ply,
+      turn: Color,
+      san: String,
+      uci: String,
+      fen: String,
+      fenBefore: String,
+      features: FeatureExtractor.SideFeatures,
+      evalBeforeShallow: EngineEval,
+      evalBeforeDeep: EngineEval,
+      winPctBefore: Double,
+      winPctAfterForPlayer: Double,
+      deltaWinPct: Double,
+      epBefore: Double,
+      epAfter: Double,
+      epLoss: Double,
+      judgement: String,
+      special: Option[String],
+      concepts: Concepts,
+      shortComment: Option[String] = None
+  )
+
+  final case class Output(
+      opening: Option[Opening.AtPly],
+      timeline: Vector[PlyOutput],
+      oppositeColorBishops: Boolean,
+      critical: Vector[CriticalNode],
+      summaryText: Option[String] = None,
+      root: Option[TreeNode] = None
+  )
+
+  final case class Branch(move: String, winPct: Double, pv: List[String], label: String)
+  final case class CriticalNode(ply: Ply, reason: String, deltaWinPct: Double, branches: List[Branch], comment: Option[String] = None)
+  final case class TreeNode(
+      ply: Int,
+      san: String,
+      uci: String,
+      fen: String,
+      eval: Double,
+      evalType: String,
+      judgement: String,
+      glyph: String,
+      tags: List[String],
+      bestMove: Option[String],
+      bestEval: Option[Double],
+      pv: List[String],
+      comment: Option[String],
+      children: List[TreeNode]
+  )
+
+  private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
+
+  private val pieceValues: Map[Role, Double] = Map(
+    Pawn   -> 1.0,
+    Knight -> 3.0,
+    Bishop -> 3.0,
+    Rook   -> 5.0,
+    Queen  -> 9.0,
+    King   -> 0.0
+  )
+
+  private def material(board: Board, color: Color): Double =
+    board.piecesOf(color).toList.map { case (_, piece) => pieceValues.getOrElse(piece.role, 0.0) }.sum
+
+  def main(args: Array[String]): Unit =
+    if args.length != 1 then
+      System.err.println("usage: AnalyzePgn <path/to/game.pgn>")
+      sys.exit(1)
+    val path = args(0)
+    val pgn = Source.fromFile(path).mkString
+    analyzeToJson(pgn, EngineConfig.fromEnv()) match
+      case Left(err) =>
+        System.err.println(err)
+        sys.exit(1)
+      case Right(json) =>
+        println(json)
+
+  /** PGN 문자열을 받아 Review JSON을 반환. 실패 시 에러 메시지 리턴. */
+  def analyzeToJson(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
+    analyze(pgn, config, llmRequestedPlys).map(render)
+
+  /** PGN 문자열을 받아 도메인 Output을 반환. */
+  def analyze(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, Output] =
+    Replay.mainline(PgnStr(pgn)).flatMap(_.valid) match
+      case Left(err) => Left(s"PGN 파싱 실패: ${err.value}")
+      case Right(replay) =>
+        val sans = replay.chronoMoves.map(_.toSanStr)
+        val opening = OpeningDb.search(sans)
+        val client = new StockfishClient()
+        val (timeline, finalGame) = buildTimeline(replay, client, config, opening)
+        val critical = detectCritical(timeline, client, config, llmRequestedPlys)
+        val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
+        val root = Some(buildTree(timeline, critical))
+        Right(Output(opening, timeline, oppositeColorBishops, critical, root = root))
+
+  private def buildTimeline(replay: Replay, client: StockfishClient, config: EngineConfig, opening: Option[Opening.AtPly]): (Vector[PlyOutput], Game) =
+    var game = replay.setup
+    val entries = Vector.newBuilder[PlyOutput]
+    var prevDeltaForOpp: Double = 0.0
+    replay.chronoMoves.foreach { mod =>
+      val player = game.position.color
+      val legalCount = game.position.legalMoves.size
+      val multiPv = math.min(config.maxMultiPv, math.max(1, legalCount))
+      val fenBefore = Fen.write(game.position, game.ply.fullMoveNumber).value
+      val evalBeforeShallow = evalFen(client, fenBefore, config.shallowDepth, multiPv, Some(config.shallowTimeMs))
+      val evalBeforeDeep = evalFen(client, fenBefore, config.deepDepth, multiPv, Some(config.deepTimeMs))
+      val winBefore = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(50.0)
+
+      val nextGame = mod.applyGame(game)
+      val fenAfter = Fen.write(nextGame.position, nextGame.ply.fullMoveNumber).value
+      val evalAfter = evalFen(client, fenAfter, config.deepDepth, 1, Some(config.deepTimeMs))
+      val winAfterSideToMove = evalAfter.lines.headOption.map(_.winPct).getOrElse(50.0)
+      val winAfterForPlayer =
+        if player == nextGame.position.color then winAfterSideToMove else 100.0 - winAfterSideToMove
+      val delta = winAfterForPlayer - winBefore
+      val epBefore = clamp01(winBefore / 100.0)
+      val epAfter = clamp01(winAfterForPlayer / 100.0)
+      val epLoss = math.max(0.0, epBefore - epAfter)
+
+      val baseJudgement =
+        if epLoss <= 0.0 then "best"
+        else if epLoss <= 0.05 then "good" // excellent 통합
+        else if epLoss <= 0.10 then "inaccuracy"
+        else if epLoss <= 0.20 then "mistake"
+        else "blunder"
+
+      // 희생 감지: 내 기물 가치가 줄었는지
+      val materialBefore = material(game.position.board, player)
+      val materialAfter = material(nextGame.position.board, player)
+      val sacrificed = materialAfter < materialBefore - 1.5 // 말 하나 이상 희생
+
+      val specialBrilliant =
+        sacrificed &&
+          (baseJudgement == "best" || baseJudgement == "excellent") &&
+          epLoss <= 0.02 &&
+          epBefore <= 0.7 && epBefore >= 0.3
+
+      val greatMove =
+        !specialBrilliant && (baseJudgement == "best" || baseJudgement == "excellent" || baseJudgement == "good") && (
+          (epBefore < 0.35 && epAfter >= 0.55) || // 패배권 → 승리권
+            (epAfter - epBefore) >= 0.2 // 큰 전환
+        )
+
+      val miss =
+        (baseJudgement == "inaccuracy" || baseJudgement == "mistake" || baseJudgement == "blunder") &&
+          prevDeltaForOpp <= -20 // 직전에 상대가 큰 실수(내 입장에서는 큰 득점)를 했는데 놓침
+
+      val special =
+        if specialBrilliant then Some("brilliant")
+        else if greatMove then Some("great")
+        else if miss then Some("miss")
+        else None
+
+      val inBook = opening.exists(op => nextGame.ply.value <= op.ply.value)
+      val finalJudgement =
+        if inBook then "book"
+        else baseJudgement
+
+      val features = FeatureExtractor.sideFeatures(nextGame.position, !mod.color)
+      val oppFeatures = FeatureExtractor.sideFeatures(nextGame.position, mod.color)
+      ConceptScorer.computeBreakAndInfiltration(nextGame.position, nextGame.position.color)
+      val conceptScores = ConceptScorer.score(
+        features = features,
+        oppFeatures = oppFeatures,
+        evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
+        evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
+        multiPvWin = evalBeforeDeep.lines.map(_.winPct),
+        position = nextGame.position,
+        sideToMove = nextGame.position.color
+      )
+      val concepts = Concepts(
+        dynamic = conceptScores.dynamic,
+        drawish = conceptScores.drawish,
+        imbalanced = conceptScores.imbalanced,
+        tacticalDepth = conceptScores.tacticalDepth,
+        blunderRisk = conceptScores.blunderRisk,
+        pawnStorm = conceptScores.pawnStorm,
+        fortress = conceptScores.fortress,
+        colorComplex = conceptScores.colorComplex,
+        badBishop = conceptScores.badBishop,
+        goodKnight = conceptScores.goodKnight,
+        rookActivity = conceptScores.rookActivity,
+        kingSafety = conceptScores.kingSafety,
+        dry = conceptScores.dry,
+        comfortable = conceptScores.comfortable,
+        unpleasant = conceptScores.unpleasant,
+        engineLike = conceptScores.engineLike,
+        conversionDifficulty = conceptScores.conversionDifficulty,
+        sacrificeQuality = conceptScores.sacrificeQuality,
+        alphaZeroStyle = conceptScores.alphaZeroStyle
+      )
+      entries += PlyOutput(
+        ply = nextGame.ply,
+        turn = player, // 수를 둔 색
+        san = mod.toSanStr.value,
+        uci = mod.toUci.uci,
+        fen = fenAfter,
+        fenBefore = fenBefore,
+        features = features,
+        evalBeforeShallow = evalBeforeShallow,
+        evalBeforeDeep = evalBeforeDeep,
+        winPctBefore = winBefore,
+        winPctAfterForPlayer = winAfterForPlayer,
+        deltaWinPct = delta,
+        epBefore = epBefore,
+        epAfter = epAfter,
+        epLoss = epLoss,
+        judgement = finalJudgement,
+        special = special,
+        concepts = concepts
+      )
+      game = nextGame
+      prevDeltaForOpp = delta // 다음 수에서 miss 판단용
+    }
+    entries.result() -> game
+
+  private final case class EvalCacheKey(fen: String, depth: Int, multiPv: Int, timeMs: Int)
+
+  private def detectCritical(timeline: Vector[PlyOutput], client: StockfishClient, config: EngineConfig, llmRequestedPlys: Set[Int]): Vector[CriticalNode] =
+    val evalCache = scala.collection.mutable.Map.empty[EvalCacheKey, EngineEval]
+    val judgementBoost: Map[String, Double] = Map(
+      "blunder" -> 15.0,
+      "mistake" -> 8.0,
+      "inaccuracy" -> 4.0,
+      "good" -> 0.0,
+      "best" -> 0.0,
+      "book" -> 0.0
+    )
+
+    def criticalityScore(p: PlyOutput): (Double, Double) =
+      val deltaScore = math.abs(p.deltaWinPct)
+      val conceptJump = p.concepts.dynamic + p.concepts.tacticalDepth + p.concepts.blunderRisk
+      val top = p.evalBeforeDeep.lines.headOption
+      val second = p.evalBeforeDeep.lines.drop(1).headOption
+      val bestVsSecondGap = (for t <- top; s <- second yield (t.winPct - s.winPct).abs).getOrElse(100.0)
+      val branchTension = math.max(0.0, 12.0 - bestVsSecondGap) // 가까울수록(갈림길) 점수 증가, 12% 이상은 0
+      val score =
+        deltaScore * 0.6 +
+          branchTension * 0.8 +
+          judgementBoost.getOrElse(p.judgement, 0.0) +
+          conceptJump * 20.0
+      (score, bestVsSecondGap)
+
+    val scored = timeline.map { p =>
+      val (s, gap) = criticalityScore(p)
+      val llmBoost = if llmRequestedPlys.contains(p.ply.value) then 50.0 else 0.0
+      (p, (s + llmBoost, gap))
+    }
+    val cap = math.min(8, math.max(3, 3 + timeline.size / 20)) // 게임 길이에 따라 3~8 사이 자동 조정
+
+    def extraEval(fen: String, multiPv: Int): EngineEval =
+      val depth = config.deepDepth + config.extraDepthDelta
+      val time = config.deepTimeMs + config.extraTimeMs
+      val key = EvalCacheKey(fen, depth, multiPv, time)
+      evalCache.getOrElseUpdate(key, evalFen(client, fen, depth = depth, multiPv = multiPv, moveTimeMs = Some(time)))
+
+    scored.sortBy { case (_, (s, _)) => -s }.take(cap).map { case (ply, (_, gap)) =>
+      val reason =
+        if ply.judgement == "blunder" then "ΔWin% blunder spike"
+        else if ply.judgement == "mistake" then "ΔWin% mistake"
+        else if gap <= 5.0 then "critical branching (lines close)"
+        else if ply.deltaWinPct.abs >= 3 then "notable eval swing"
+        else "concept shift"
+
+      val baseLines = (ply.evalBeforeDeep.lines.headOption.toList ++ ply.evalBeforeDeep.lines.drop(1).take(2))
+      val enriched =
+        try
+          val extra = extraEval(ply.fenBefore, math.min(3, config.maxMultiPv)).lines
+          if extra.nonEmpty then extra.take(3) else baseLines
+        catch
+          case _: Throwable => baseLines
+
+      val branches =
+        enriched.zipWithIndex.map {
+          case (l, idx) =>
+            val label = idx match
+              case 0 => "best (PV1)"
+              case 1 => "alt (PV2)"
+              case 2 => "alt (PV3)"
+              case _ => "line"
+            Branch(move = l.move, winPct = l.winPct, pv = l.pv, label = label)
+        }
+
+      CriticalNode(ply = ply.ply, reason = reason, deltaWinPct = ply.deltaWinPct, branches = branches)
+    }
+
+  private def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
+    val criticalByPly = critical.map(c => c.ply.value -> c).toMap
+    def glyphOf(j: String): String = j match
+      case "blunder" => "??"
+      case "mistake" => "?"
+      case "inaccuracy" => "?!"
+      case "good" | "best" => "!"
+      case "book" => "="
+      case _ => ""
+
+    def tagsOf(p: PlyOutput): List[String] =
+      (List(p.judgement) ++ p.special.toList).filter(_.nonEmpty)
+
+    def pvToSan(fen: String, pv: List[String], maxPlies: Int = 5): List[String] =
+      val fullFen: chess.format.FullFen = chess.format.Fen.Full.clean(fen)
+      val startGame: chess.Game = chess.Game(chess.variant.Standard, Some(fullFen))
+      pv.take(maxPlies).foldLeft((List.empty[String], startGame)) {
+        case ((sans, g), uciStr) =>
+          chess.format.Uci(uciStr) match
+            case Some(uci: chess.format.Uci.Move) =>
+              g.apply(uci) match
+                case Right((nextGame, _)) =>
+                  val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
+                  (sans :+ san, nextGame)
+                case _ => (sans, g)
+            case _ => (sans, g)
+      }._1
+    def uciToSanSingle(fen: String, uciStr: String): String =
+      pvToSan(fen, List(uciStr), maxPlies = 1).headOption.getOrElse(uciStr)
+
+    val mainNodes = timeline.map { t =>
+      val bestLine = t.evalBeforeDeep.lines.headOption
+      val bestMove = bestLine.map(_.move)
+      val bestEval = bestLine.map(_.winPct)
+      val pvSan = bestLine.map(bl => pvToSan(t.fenBefore, bl.pv)).getOrElse(Nil)
+      TreeNode(
+        ply = t.ply.value,
+        san = t.san,
+        uci = t.uci,
+        fen = t.fen,
+        eval = t.winPctAfterForPlayer,
+        evalType = "cp",
+        judgement = t.judgement,
+        glyph = glyphOf(t.judgement),
+        tags = tagsOf(t),
+        bestMove = bestMove,
+        bestEval = bestEval,
+        pv = pvSan,
+        comment = t.shortComment,
+        children = Nil
+      )
+    }
+
+    def attachVariations(node: TreeNode, fenBefore: String): TreeNode =
+      criticalByPly.get(node.ply) match
+        case None => node
+        case Some(c) =>
+          val vars = c.branches.take(3).map { b =>
+            val pvSan = pvToSan(fenBefore, b.pv)
+            val sanMove = uciToSanSingle(fenBefore, b.move)
+            TreeNode(
+              ply = node.ply,
+              san = sanMove,
+              uci = b.move,
+              fen = node.fen,
+              eval = b.winPct,
+              evalType = "cp",
+              judgement = "variation",
+              glyph = "",
+              tags = List("variation", c.reason),
+              bestMove = None,
+              bestEval = None,
+              pv = pvSan,
+              comment = c.comment,
+              children = Nil
+            )
+          }
+          node.copy(children = vars)
+
+    // build linear chain with attached variations
+    val nodesWithVars = mainNodes.zip(timeline).map { case (n, t) => attachVariations(n, t.fenBefore) }
+    val root = nodesWithVars.headOption.getOrElse(
+      TreeNode(0, "start", "", "", 50.0, "cp", "book", "", Nil, None, None, Nil, None, Nil)
+    )
+    nodesWithVars.drop(1).foldLeft(root) { (acc, n) => acc.copy(children = acc.children :+ n) }
+
+  private def evalFen(client: StockfishClient, fen: String, depth: Int, multiPv: Int, moveTimeMs: Option[Int]): EngineEval =
+    client.evaluateFen(fen, depth = depth, multiPv = multiPv, moveTimeMs = moveTimeMs) match
+      case Right(res) =>
+        val lines = res.lines.map { l =>
+          EngineLine(
+            move = l.pv.headOption.getOrElse(""),
+            winPct = l.winPercent,
+            cp = l.cp,
+            mate = l.mate,
+            pv = l.pv
+          )
+        }
+        EngineEval(depth, lines)
+      case Left(err) =>
+        System.err.println(s"[engine-error] $err")
+        EngineEval(depth, Nil)
+
+  def render(output: Output): String =
+    val sb = new StringBuilder(256 + output.timeline.size * 128)
+    sb.append('{')
+    output.summaryText.foreach { s =>
+      sb.append("\"summaryText\":\"").append(escape(s)).append("\",")
+    }
+    output.root.foreach { r =>
+      sb.append("\"root\":")
+      renderTree(sb, r)
+      sb.append(',')
+    }
+    output.opening.foreach { op =>
+      sb.append("\"opening\":{")
+      sb.append("\"name\":\"").append(escape(op.opening.name.value)).append("\",")
+      sb.append("\"eco\":\"").append(escape(op.opening.eco.value)).append("\",")
+      sb.append("\"ply\":").append(op.ply.value)
+      sb.append("},")
+    }
+    sb.append("\"oppositeColorBishops\":").append(output.oppositeColorBishops).append(',')
+    sb.append("\"critical\":[")
+    output.critical.zipWithIndex.foreach { case (c, idx) =>
+      if idx > 0 then sb.append(',')
+      renderCritical(sb, c)
+    }
+    sb.append("],")
+    sb.append("\"timeline\":[")
+    output.timeline.zipWithIndex.foreach { case (ply, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append('{')
+      sb.append("\"ply\":").append(ply.ply.value).append(',')
+      sb.append("\"turn\":\"").append(ply.turn.name).append("\",")
+      sb.append("\"san\":\"").append(escape(ply.san)).append("\",")
+      sb.append("\"uci\":\"").append(escape(ply.uci)).append("\",")
+      sb.append("\"fen\":\"").append(escape(ply.fen)).append("\",")
+      sb.append("\"fenBefore\":\"").append(escape(ply.fenBefore)).append("\",")
+      renderFeatures(sb, ply.features)
+      sb.append(',')
+      renderEval(sb, "evalBeforeShallow", ply.evalBeforeShallow)
+      sb.append(',')
+      renderEval(sb, "evalBeforeDeep", ply.evalBeforeDeep)
+      sb.append(',')
+      sb.append("\"winPctBefore\":").append(fmt(ply.winPctBefore)).append(',')
+      sb.append("\"winPctAfterForPlayer\":").append(fmt(ply.winPctAfterForPlayer)).append(',')
+      sb.append("\"deltaWinPct\":").append(fmt(ply.deltaWinPct)).append(',')
+      sb.append("\"epBefore\":").append(fmt(ply.epBefore)).append(',')
+      sb.append("\"epAfter\":").append(fmt(ply.epAfter)).append(',')
+      sb.append("\"epLoss\":").append(fmt(ply.epLoss)).append(',')
+      sb.append("\"judgement\":\"").append(ply.judgement).append('"')
+      ply.special.foreach { s =>
+        sb.append(",\"special\":\"").append(escape(s)).append('"')
+      }
+      ply.shortComment.foreach { txt =>
+        sb.append(",\"shortComment\":\"").append(escape(txt)).append('"')
+      }
+      sb.append(',')
+      renderConcepts(sb, ply.concepts)
+      sb.append('}')
+    }
+    sb.append("]}")
+    sb.result()
+
+  private def renderFeatures(sb: StringBuilder, f: FeatureExtractor.SideFeatures): Unit =
+    sb.append("\"features\":{")
+    sb.append("\"pawnIslands\":").append(f.pawnIslands).append(',')
+    sb.append("\"isolatedPawns\":").append(f.isolatedPawns).append(',')
+    sb.append("\"doubledPawns\":").append(f.doubledPawns).append(',')
+    sb.append("\"passedPawns\":").append(f.passedPawns).append(',')
+    sb.append("\"rookOpenFiles\":").append(f.rookOpenFiles).append(',')
+    sb.append("\"rookSemiOpenFiles\":").append(f.rookSemiOpenFiles).append(',')
+    sb.append("\"bishopPair\":").append(f.bishopPair).append(',')
+    sb.append("\"kingRingPressure\":").append(f.kingRingPressure).append(',')
+    sb.append("\"spaceControl\":").append(f.spaceControl)
+    sb.append('}')
+
+  private def fmt(d: Double): String = f"$d%.2f"
+
+  private def renderConcepts(sb: StringBuilder, c: Concepts): Unit =
+    sb.append("\"concepts\":{")
+    sb.append("\"dynamic\":").append(fmt(c.dynamic)).append(',')
+    sb.append("\"drawish\":").append(fmt(c.drawish)).append(',')
+    sb.append("\"imbalanced\":").append(fmt(c.imbalanced)).append(',')
+    sb.append("\"tacticalDepth\":").append(fmt(c.tacticalDepth)).append(',')
+    sb.append("\"blunderRisk\":").append(fmt(c.blunderRisk)).append(',')
+    sb.append("\"pawnStorm\":").append(fmt(c.pawnStorm)).append(',')
+    sb.append("\"fortress\":").append(fmt(c.fortress)).append(',')
+    sb.append("\"colorComplex\":").append(fmt(c.colorComplex)).append(',')
+    sb.append("\"badBishop\":").append(fmt(c.badBishop)).append(',')
+    sb.append("\"goodKnight\":").append(fmt(c.goodKnight)).append(',')
+    sb.append("\"rookActivity\":").append(fmt(c.rookActivity)).append(',')
+    sb.append("\"kingSafety\":").append(fmt(c.kingSafety)).append(',')
+    sb.append("\"dry\":").append(fmt(c.dry)).append(',')
+    sb.append("\"comfortable\":").append(fmt(c.comfortable)).append(',')
+    sb.append("\"unpleasant\":").append(fmt(c.unpleasant)).append(',')
+    sb.append("\"engineLike\":").append(fmt(c.engineLike)).append(',')
+    sb.append("\"conversionDifficulty\":").append(fmt(c.conversionDifficulty)).append(',')
+    sb.append("\"sacrificeQuality\":").append(fmt(c.sacrificeQuality)).append(',')
+    sb.append("\"alphaZeroStyle\":").append(fmt(c.alphaZeroStyle))
+    sb.append('}')
+
+  private def renderEval(sb: StringBuilder, key: String, eval: EngineEval): Unit =
+    sb.append('"').append(key).append("\":{")
+    sb.append("\"depth\":").append(eval.depth).append(',')
+    sb.append("\"lines\":[")
+    eval.lines.zipWithIndex.foreach { case (l, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append('{')
+      sb.append("\"move\":\"").append(escape(l.move)).append("\",")
+      sb.append("\"winPct\":").append(fmt(l.winPct)).append(',')
+      l.cp.foreach(cp => sb.append("\"cp\":").append(cp).append(','))
+      l.mate.foreach(m => sb.append("\"mate\":").append(m).append(','))
+      sb.append("\"pv\":[")
+      l.pv.zipWithIndex.foreach { case (m, i) =>
+        if i > 0 then sb.append(',')
+        sb.append("\"").append(escape(m)).append("\"")
+      }
+      sb.append("]}")
+    }
+    sb.append("]}")
+
+  private def renderCritical(sb: StringBuilder, c: CriticalNode): Unit =
+    sb.append('{')
+    sb.append("\"ply\":").append(c.ply.value).append(',')
+    sb.append("\"reason\":\"").append(escape(c.reason)).append("\",")
+    sb.append("\"deltaWinPct\":").append(fmt(c.deltaWinPct)).append(',')
+    c.comment.foreach { txt =>
+      sb.append("\"comment\":\"").append(escape(txt)).append("\",")
+    }
+    sb.append("\"branches\":[")
+    c.branches.zipWithIndex.foreach { case (b, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append('{')
+      sb.append("\"move\":\"").append(escape(b.move)).append("\",")
+      sb.append("\"winPct\":").append(fmt(b.winPct)).append(',')
+      sb.append("\"label\":\"").append(escape(b.label)).append("\",")
+      sb.append("\"pv\":[")
+      b.pv.zipWithIndex.foreach { case (m, i) =>
+        if i > 0 then sb.append(',')
+        sb.append("\"").append(escape(m)).append("\"")
+      }
+      sb.append("]}")
+    }
+    sb.append("]}")
+
+  private def renderTree(sb: StringBuilder, n: TreeNode): Unit =
+    sb.append('{')
+    sb.append("\"ply\":").append(n.ply).append(',')
+    sb.append("\"san\":\"").append(escape(n.san)).append("\",")
+    sb.append("\"uci\":\"").append(escape(n.uci)).append("\",")
+    sb.append("\"fen\":\"").append(escape(n.fen)).append("\",")
+    sb.append("\"eval\":").append(fmt(n.eval)).append(',')
+    sb.append("\"evalType\":\"").append(n.evalType).append("\",")
+    sb.append("\"judgement\":\"").append(escape(n.judgement)).append("\",")
+    sb.append("\"glyph\":\"").append(escape(n.glyph)).append("\",")
+    sb.append("\"tags\":[")
+    n.tags.zipWithIndex.foreach { case (t, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append("\"").append(escape(t)).append('"')
+    }
+    sb.append("],")
+    n.bestMove.foreach(m => sb.append("\"bestMove\":\"").append(escape(m)).append("\","))
+    n.bestEval.foreach(v => sb.append("\"bestEval\":").append(fmt(v)).append(','))
+    if n.pv.nonEmpty then
+      sb.append("\"pv\":[")
+      n.pv.zipWithIndex.foreach { case (m, idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append("\"").append(escape(m)).append('"')
+      }
+      sb.append("],")
+    n.comment.foreach(c => sb.append("\"comment\":\"").append(escape(c)).append("\","))
+    sb.append("\"children\":[")
+    n.children.zipWithIndex.foreach { case (c, idx) =>
+      if idx > 0 then sb.append(',')
+      renderTree(sb, c)
+    }
+    sb.append("]}")
+
+  private def escape(in: String): String =
+    val sb = new StringBuilder(in.length + 8)
+    in.foreach {
+      case '"' => sb.append("\\\"")
+      case '\\' => sb.append("\\\\")
+      case '\n' => sb.append("\\n")
+      case '\r' => sb.append("\\r")
+      case '\t' => sb.append("\\t")
+      case c => sb.append(c)
+    }
+    sb.result()
