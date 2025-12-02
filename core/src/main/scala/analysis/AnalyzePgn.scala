@@ -616,7 +616,6 @@ object AnalyzePgn:
     sb.append("\"bookPly\":").append(os.bookPly).append(',')
     sb.append("\"noveltyPly\":").append(os.noveltyPly).append(',')
     os.games.foreach(g => sb.append("\"games\":").append(g).append(','))
-    os.freq.foreach(f => sb.append("\"freq\":").append(fmt(pct(f))).append(','))
     os.winWhite.foreach(w => sb.append("\"winWhite\":").append(fmt(pct(w))).append(','))
     os.winBlack.foreach(w => sb.append("\"winBlack\":").append(fmt(pct(w))).append(','))
     os.draw.foreach(d => sb.append("\"draw\":").append(fmt(pct(d))).append(','))
@@ -627,9 +626,9 @@ object AnalyzePgn:
         sb.append('{')
         sb.append("\"san\":\"").append(escape(m.san)).append("\",")
         sb.append("\"uci\":\"").append(escape(m.uci)).append("\",")
-        sb.append("\"games\":").append(m.games).append(',')
-        sb.append("\"winPct\":").append(fmt(pct(m.winPct)))
-        m.drawPct.foreach(d => sb.append(",\"drawPct\":").append(fmt(pct(d))))
+        sb.append("\"games\":").append(m.games)
+        m.winPct.foreach(w => sb.append(',').append("\"winPct\":").append(fmt(pct(w))))
+        m.drawPct.foreach(d => sb.append(',').append("\"drawPct\":").append(fmt(pct(d))))
         sb.append('}')
       }
       sb.append("],")
@@ -739,7 +738,7 @@ object AnalyzePgn:
     }
     sb.append("]}")
 
-  private def escape(in: String): String =
+  def escape(in: String): String =
     val sb = new StringBuilder(in.length + 8)
     in.foreach {
       case '"' => sb.append("\\\"")

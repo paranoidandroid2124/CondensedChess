@@ -58,7 +58,7 @@ object LlmAnnotator:
         .map { os =>
           val top = os.topMoves.headOption
             .map { tm =>
-              val win = pctInt(tm.winPct)
+              val win = tm.winPct.map(pctInt).getOrElse(0)
               s"top move ${tm.san} (games=${tm.games}, win ${win}%)"
             }
             .getOrElse("no stats")
