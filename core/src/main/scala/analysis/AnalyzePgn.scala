@@ -257,21 +257,36 @@ object AnalyzePgn:
 
       val nextGame = mod.applyGame(game)
       val fenAfter = Fen.write(nextGame.position, nextGame.ply.fullMoveNumber).value
-      val evalAfter = evalFen(client, fenAfter, config.deepDepth, 1, Some(config.deepTimeMs))
-      val winAfterSideToMove = evalAfter.lines.headOption.map(_.winPct).getOrElse(50.0)
-      val winAfterForPlayer =
-        if player == nextGame.position.color then winAfterSideToMove else 100.0 - winAfterSideToMove
+      val statusAfter = nextGame.position.status
+      val winnerAfter = nextGame.position.winner
+      val (winAfterForPlayer, _) =
+        statusAfter match
+          case Some(Status.Mate) =>
+            val sideToMoveWin = if winnerAfter.contains(nextGame.position.color) then 100.0 else 0.0
+            val moverWin = if winnerAfter.contains(player) then 100.0 else 0.0
+            (moverWin, sideToMoveWin)
+          case Some(Status.Stalemate | Status.Draw | Status.VariantEnd) =>
+            (50.0, 50.0)
+          case _ =>
+            val evalAfter = evalFen(client, fenAfter, config.deepDepth, 1, Some(config.deepTimeMs))
+            val side = evalAfter.lines.headOption.map(_.winPct).getOrElse(50.0)
+            val mover = if player == nextGame.position.color then side else 100.0 - side
+            (mover, side)
       val delta = winAfterForPlayer - winBefore
       val epBefore = clamp01(winBefore / 100.0)
       val epAfter = clamp01(winAfterForPlayer / 100.0)
       val epLoss = math.max(0.0, epBefore - epAfter)
 
       val baseJudgement =
-        if epLoss <= 0.0 then "best"
-        else if epLoss <= 0.05 then "good" // excellent 통합
-        else if epLoss <= 0.10 then "inaccuracy"
-        else if epLoss <= 0.20 then "mistake"
-        else "blunder"
+        statusAfter match
+          case Some(Status.Mate) => "mate"
+          case Some(Status.Stalemate | Status.Draw | Status.VariantEnd) => "draw"
+          case _ =>
+            if epLoss <= 0.0 then "best"
+            else if epLoss <= 0.05 then "good" // excellent 통합
+            else if epLoss <= 0.10 then "inaccuracy"
+            else if epLoss <= 0.20 then "mistake"
+            else "blunder"
 
       // 희생 감지: 내 기물 가치가 줄었는지
       val materialBefore = material(game.position.board, player)
