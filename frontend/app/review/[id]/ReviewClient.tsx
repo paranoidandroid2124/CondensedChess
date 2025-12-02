@@ -742,6 +742,51 @@ function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | 
   if (!stats) return null;
   const hasMoves = stats.topMoves && stats.topMoves.length > 0;
   const hasGames = stats.topGames && stats.topGames.length > 0;
+  const totalGames =
+    stats.games ??
+    Math.max(
+      1,
+      ...(stats.topMoves ?? []).map((m) => m.games ?? 0)
+    );
+  const totalWin = stats.winWhite != null ? stats.winWhite : null;
+  const totalDraw = stats.draw != null ? stats.draw : null;
+  const totalLose = stats.winBlack != null ? stats.winBlack : totalWin != null && totalDraw != null ? 1 - totalWin - totalDraw : null;
+
+  const renderBars = (w?: number, d?: number, b?: number) => {
+    const ww = w != null ? Math.max(0, Math.min(1, w)) : 0;
+    const dd = d != null ? Math.max(0, Math.min(1, d)) : 0;
+    const bb = b != null ? Math.max(0, Math.min(1, b)) : Math.max(0, 1 - ww - dd);
+    return (
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="flex h-full w-full">
+          <div className="h-full bg-emerald-400/80" style={{ width: `${ww * 100}%` }} />
+          <div className="h-full bg-white/60" style={{ width: `${dd * 100}%` }} />
+          <div className="h-full bg-rose-400/80" style={{ width: `${bb * 100}%` }} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderRow = (label: string, games: number, w?: number, d?: number, b?: number) => {
+    return (
+      <div className="rounded-xl bg-white/5 px-3 py-2">
+        <div className="flex items-center justify-between text-xs text-white/70">
+          <span className="font-semibold text-white">{label}</span>
+          <span>
+            {games} games
+            {w != null ? ` · W ${(w * 100).toFixed(1)}%` : ""} {d != null ? ` · D ${(d * 100).toFixed(1)}%` : ""}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center justify-between text-[11px] text-white/60">
+          <span>White</span>
+          <span>Draw</span>
+          <span>Black</span>
+        </div>
+        {renderBars(w, d, b)}
+      </div>
+    );
+  };
+
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
@@ -757,25 +802,16 @@ function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | 
       </div>
       {hasMoves ? (
         <div className="mt-3 space-y-2">
-          <div className="text-xs uppercase tracking-[0.14em] text-white/60">다음 수 분포</div>
+          <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em] text-white/60">
+            <span>다음 수 분포</span>
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">Σ {totalGames} games</span>
+          </div>
+          {renderRow("Σ (All)", totalGames, totalWin ?? undefined, totalDraw ?? undefined, totalLose ?? undefined)}
           {stats.topMoves?.map((m) => {
-            const gameCounts = (stats.topMoves ?? []).map((tm) => tm.games ?? 0);
-            const fallbackTotal = gameCounts.length ? Math.max(...gameCounts) : 1;
-            const total = stats.games ?? fallbackTotal;
-            const pct = total ? Math.max(4, ((m.games ?? 0) / total) * 100) : 0;
-            return (
-              <div key={m.san} className="space-y-1">
-                <div className="flex items-center justify-between text-xs text-white/70">
-                  <span className="font-semibold text-white">{m.san}</span>
-                  <span>
-                    {m.games} games{m.winPct != null ? ` · W ${(m.winPct * 100).toFixed(1)}%` : ""}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400" style={{ width: `${Math.min(100, pct)}%` }} />
-                </div>
-              </div>
-            );
+            const w = m.winPct != null ? m.winPct : undefined;
+            const d = m.drawPct != null ? m.drawPct : undefined;
+            const b = w != null && d != null ? Math.max(0, 1 - w - d) : undefined;
+            return renderRow(m.san, m.games ?? 0, w, d, b);
           })}
         </div>
       ) : null}
