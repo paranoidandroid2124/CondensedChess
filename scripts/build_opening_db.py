@@ -167,8 +167,14 @@ def process_file(path: str, stats: Dict[str, NodeStats], args, log_prefix: str =
                 san_seq.append(san)
                 board.push(move)
                 ply += 1
-                # Use shredder FEN (board + turn + castling + ep) to merge transpositions regardless of move clocks.
-                key = board.shredder_fen()
+                # Use shredder FEN (board + turn + castling + ep) to merge transpositions; drop ep if no legal ep capture.
+                fen = board.shredder_fen()
+                if not board.has_legal_en_passant():
+                    parts = fen.split(" ")
+                    if len(parts) >= 4:
+                        parts[3] = "-"
+                        fen = " ".join(parts)
+                key = fen
                 san_str = " ".join(san_seq)
                 # 다음 수 추출
                 next_move_label = None
