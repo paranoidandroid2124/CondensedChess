@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 import { addBranch, fetchOpeningLookup, fetchReview } from "../../../lib/review";
+import { StockfishEngine, type EngineMessage } from "../../../lib/engine";
 import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, StudyChapter, TimelineNode } from "../../../types/review";
 
 type PieceDropArgs = {
@@ -347,11 +348,11 @@ function EvalSparkline({
       <svg
         className="mt-2 h-20 w-full"
         viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      onMouseMove={handleMove}
-      onMouseLeave={() => setHoverIdx(null)}
-    >
-      {/* grid lines */}
+        preserveAspectRatio="none"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        {/* grid lines */}
         <line x1={0} x2={w} y1={h * 0.5} y2={h * 0.5} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
         <polyline points={poly} fill="none" stroke="url(#sparkgrad)" strokeWidth="3" strokeLinejoin="round" />
         {hoverPoint ? (
@@ -390,17 +391,17 @@ function EvalSparkline({
         ) : null}
         {spikePlys && spikePlys.length
           ? spikePlys
-              .map((s) => {
-                const idx = timeline.findIndex((t) => t.ply === s.ply);
-                if (idx === -1 || !coords[idx]) return null;
-                return { ...s, point: coords[idx] };
-              })
-              .filter(Boolean)
-              .map((s, i) => (
-                <circle key={`${s?.ply}-${i}`} cx={s!.point[0]} cy={s!.point[1]} r={4} fill="#8b5cf6" opacity={0.7}>
-                  <title>{`${s!.concept} @ ply ${s!.ply}`}</title>
-                </circle>
-              ))
+            .map((s) => {
+              const idx = timeline.findIndex((t) => t.ply === s.ply);
+              if (idx === -1 || !coords[idx]) return null;
+              return { ...s, point: coords[idx] };
+            })
+            .filter(Boolean)
+            .map((s, i) => (
+              <circle key={`${s?.ply}-${i}`} cx={s!.point[0]} cy={s!.point[1]} r={4} fill="#8b5cf6" opacity={0.7}>
+                <title>{`${s!.concept} @ ply ${s!.ply}`}</title>
+              </circle>
+            ))
           : null}
         <defs>
           <linearGradient id="sparkgrad" x1="0%" x2="100%" y1="0%" y2="0%">
@@ -537,49 +538,49 @@ function MoveTimeline({
                 <React.Fragment key={row.moveNumber}>
                   <tr className="border-t border-white/5">
                     <td className="px-3 py-2 text-xs text-white/60">{row.moveNumber}</td>
-                  <MoveCell
-                    move={row.white}
-                    selected={selected}
-                    onSelect={(ply) => {
-                      onSelectVariation?.(null);
-                      onSelect(ply);
-                    }}
-                    variationCount={row.white?.ply != null ? variations?.[row.white.ply]?.length ?? 0 : 0}
-                    showAdvanced={!!showAdvanced}
-                  />
-                  <MoveCell
-                    move={row.black}
-                    selected={selected}
-                    onSelect={(ply) => {
-                      onSelectVariation?.(null);
-                      onSelect(ply);
-                    }}
-                    variationCount={row.black?.ply != null ? variations?.[row.black.ply]?.length ?? 0 : 0}
-                    showAdvanced={!!showAdvanced}
-                  />
+                    <MoveCell
+                      move={row.white}
+                      selected={selected}
+                      onSelect={(ply) => {
+                        onSelectVariation?.(null);
+                        onSelect(ply);
+                      }}
+                      variationCount={row.white?.ply != null ? variations?.[row.white.ply]?.length ?? 0 : 0}
+                      showAdvanced={!!showAdvanced}
+                    />
+                    <MoveCell
+                      move={row.black}
+                      selected={selected}
+                      onSelect={(ply) => {
+                        onSelectVariation?.(null);
+                        onSelect(ply);
+                      }}
+                      variationCount={row.black?.ply != null ? variations?.[row.black.ply]?.length ?? 0 : 0}
+                      showAdvanced={!!showAdvanced}
+                    />
                   </tr>
                   {variationGroups && variationGroups.length ? (
                     <tr className="border-t border-white/5 bg-white/5">
                       <td colSpan={3} className="px-3 py-2">
                         <div className="flex flex-col gap-3">
                           {variationGroups.map((group, idx) => (
-                          <div
-                            key={`${row.moveNumber}-var-${group.ply}-${idx}`}
-                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
-                          >
-                            {(() => {
-                              const commonComment = group.vars.find((v) => v.node.comment)?.node.comment;
-                              return commonComment ? (
-                                <div className="mb-2 rounded-lg bg-white/5 px-3 py-2 text-[11px] text-white/70">
-                                  {commonComment}
-                                </div>
-                              ) : null;
-                            })()}
-                            <div className="flex items-center justify-between text-xs text-white/60">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-white/50">↳</span>
-                                <span className="font-semibold text-white/80">{group.vars[0].parentLabel}</span>
-                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70">
+                            <div
+                              key={`${row.moveNumber}-var-${group.ply}-${idx}`}
+                              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                            >
+                              {(() => {
+                                const commonComment = group.vars.find((v) => v.node.comment)?.node.comment;
+                                return commonComment ? (
+                                  <div className="mb-2 rounded-lg bg-white/5 px-3 py-2 text-[11px] text-white/70">
+                                    {commonComment}
+                                  </div>
+                                ) : null;
+                              })()}
+                              <div className="flex items-center justify-between text-xs text-white/60">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-white/50">↳</span>
+                                  <span className="font-semibold text-white/80">{group.vars[0].parentLabel}</span>
+                                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70">
                                     Variations {group.vars.length}
                                   </span>
                                 </div>
@@ -594,11 +595,10 @@ function MoveTimeline({
                                 {group.vars.map((v, vidx) => (
                                   <div
                                     key={`${group.ply}-${vidx}`}
-                                    className={`w-full rounded-lg px-2 py-1 text-left transition ${
-                                      selected === v.node.ply && expandedVariation === `${group.ply}-${vidx}`
-                                        ? "bg-white/10 ring-1 ring-accent-teal/50"
-                                        : "hover:bg-white/5"
-                                    }`}
+                                    className={`w-full rounded-lg px-2 py-1 text-left transition ${selected === v.node.ply && expandedVariation === `${group.ply}-${vidx}`
+                                      ? "bg-white/10 ring-1 ring-accent-teal/50"
+                                      : "hover:bg-white/5"
+                                      }`}
                                   >
                                     <button
                                       onClick={() => {
@@ -637,9 +637,8 @@ function MoveTimeline({
                                               {convertPvToSan(v.parentFenBefore, v.node.pv).map((m, idxPv) => (
                                                 <span
                                                   key={`${group.ply}-${vidx}-pv-${idxPv}`}
-                                                  className={`rounded-full px-2 py-0.5 ${
-                                                    idxPv === 0 ? "bg-white/15 text-white" : "bg-white/10 text-white/70"
-                                                  }`}
+                                                  className={`rounded-full px-2 py-0.5 ${idxPv === 0 ? "bg-white/15 text-white" : "bg-white/10 text-white/70"
+                                                    }`}
                                                   onClick={() => onSelect(v.node.ply)}
                                                   role="button"
                                                   style={{ cursor: "pointer" }}
@@ -710,9 +709,8 @@ function MoveCell({
     <td className="px-3 py-2 align-top">
       <button
         onClick={() => onSelect(move.ply)}
-        className={`w-full rounded-lg border border-white/5 px-2 py-2 text-left transition ${
-          selected === move.ply ? "bg-white/10 ring-1 ring-accent-teal/60" : "bg-transparent hover:bg-white/5"
-        }`}
+        className={`w-full rounded-lg border border-white/5 px-2 py-2 text-left transition ${selected === move.ply ? "bg-white/10 ring-1 ring-accent-teal/60" : "bg-transparent hover:bg-white/5"
+          }`}
         title={move.shortComment}
       >
         <div className="flex flex-col gap-0.5">
@@ -721,9 +719,8 @@ function MoveCell({
               <span className="text-sm font-semibold text-white">{sanDisplay}</span>
               {!isBook && mark ? (
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] ${
-                    judgementColors[judgement] ?? "bg-white/10 text-white"
-                  }`}
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${judgementColors[judgement] ?? "bg-white/10 text-white"
+                    }`}
                 >
                   {mark}
                 </span>
@@ -735,7 +732,7 @@ function MoveCell({
             </div>
             {showDelta && !isBook ? <span className={`text-[11px] ${delta.tone}`}>{deltaText}</span> : null}
           </div>
-            {/* Engine depth/multipv are global; avoid repeating per-move badges */}
+          {/* Engine depth/multipv are global; avoid repeating per-move badges */}
           {move.shortComment ? <div className="text-[11px] text-white/70">{move.shortComment}</div> : null}
         </div>
       </button>
@@ -853,8 +850,8 @@ function GuessTheMove({
         ? { tone: "text-emerald-200", text: "Spot on." }
         : { tone: "text-rose-200", text: `Better was ${uciToSanWithFen(fen, correct ?? "")}.` }
       : guess
-      ? { tone: "text-white/70", text: "Lock in or reveal to check." }
-      : { tone: "text-white/60", text: "Pick the best move." };
+        ? { tone: "text-white/70", text: "Lock in or reveal to check." }
+        : { tone: "text-white/60", text: "Pick the best move." };
 
   return (
     <div className="glass-card rounded-2xl p-4">
@@ -873,9 +870,8 @@ function GuessTheMove({
           <button
             key={b.move}
             onClick={() => setGuess(b.move)}
-            className={`flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
-              guess === b.move ? "bg-accent-teal/20 ring-1 ring-accent-teal/60 text-white" : "bg-white/5 hover:bg-white/10 text-white/80"
-            }`}
+            className={`flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${guess === b.move ? "bg-accent-teal/20 ring-1 ring-accent-teal/60 text-white" : "bg-white/5 hover:bg-white/10 text-white/80"
+              }`}
           >
             <span>
               <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/60">
@@ -1055,9 +1051,8 @@ function BlunderTimeline({
           <button
             key={t.ply}
             onClick={() => onSelect(t.ply)}
-            className={`relative flex h-10 w-8 flex-col items-center justify-center rounded-lg transition ${
-              selected === t.ply ? "bg-white/10" : "hover:bg-white/5"
-            }`}
+            className={`relative flex h-10 w-8 flex-col items-center justify-center rounded-lg transition ${selected === t.ply ? "bg-white/10" : "hover:bg-white/5"
+              }`}
             title={`${t.label ?? t.san} (${t.judgement ?? ""}${t.special ? " " + t.special : ""})`}
           >
             <span className="text-[10px] text-white/50">{t.ply}</span>
@@ -1127,17 +1122,15 @@ function TreeView({
       <div key={`${node.ply}-${node.uci}-${depth}`} className="mb-1">
         <button
           onClick={() => onSelect(node.ply)}
-          className={`group flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left ${
-            isSelected ? "bg-white/10 ring-1 ring-accent-teal/60" : "hover:bg-white/5"
-          }`}
+          className={`group flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left ${isSelected ? "bg-white/10 ring-1 ring-accent-teal/60" : "hover:bg-white/5"
+            }`}
         >
           <span className="text-[10px] text-white/50" style={{ width: 34, visibility: isMainline ? "visible" : "hidden" }}>
             {node.ply}.
           </span>
           <div
-            className={`flex flex-1 items-center gap-2 ${
-              isMainline ? "font-semibold text-white" : "text-white/80"
-            }`}
+            className={`flex flex-1 items-center gap-2 ${isMainline ? "font-semibold text-white" : "text-white/80"
+              }`}
           >
             <span className="text-white">{formatSanHuman(node.san)}</span>
             {node.glyph ? <span className="text-xs text-white/60">{node.glyph}</span> : null}
@@ -1153,9 +1146,8 @@ function TreeView({
                 <span className="text-[11px] text-white/50">↳</span>
                 <button
                   onClick={() => onSelect(v.ply)}
-                  className={`flex flex-col rounded-lg px-2 py-1 text-left ${
-                    selected === v.ply ? "bg-white/10 ring-1 ring-accent-teal/50" : "hover:bg-white/5"
-                  }`}
+                  className={`flex flex-col rounded-lg px-2 py-1 text-left ${selected === v.ply ? "bg-white/10 ring-1 ring-accent-teal/50" : "hover:bg-white/5"
+                    }`}
                 >
                   <div className="flex items-center gap-2 text-sm text-white/80">
                     <span className="text-white">{formatSanHuman(v.san)}</span>
@@ -1172,10 +1164,10 @@ function TreeView({
         ) : null}
         {mainlineChildren.length
           ? mainlineChildren.map((c) => (
-              <div key={`${c.ply}-main`} className="ml-2 border-l border-white/5 pl-2">
-                {renderNode(c, depth + 1, true)}
-              </div>
-            ))
+            <div key={`${c.ply}-main`} className="ml-2 border-l border-white/5 pl-2">
+              {renderNode(c, depth + 1, true)}
+            </div>
+          ))
           : null}
       </div>
     );
@@ -1235,22 +1227,22 @@ function SummaryPanel({
           <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-xs text-accent-teal/80">DB: {openingStats.source}</span>
         ) : null}
       </div>
-          <div className="mt-4 space-y-2 text-sm text-white/80">
-            {opening?.name ? (
-              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                <div>
-                  <div className="text-white">{opening.name}</div>
-                  <div className="text-xs text-white/60">ECO {opening.eco ?? "—"}</div>
-                </div>
-                <div className="flex flex-col items-end gap-1 text-right text-xs text-white/60">
-                  {opening.ply ? <span>{opening.ply} ply</span> : null}
-                  {openingStats ? <span>Novelty @ {openingStats.noveltyPly}</span> : null}
-                  {openingStats?.source ? <span className="text-accent-teal/80">DB {openingStats.source}</span> : null}
-                </div>
-              </div>
-            ) : (
-              <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
-            )}
+      <div className="mt-4 space-y-2 text-sm text-white/80">
+        {opening?.name ? (
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <div>
+              <div className="text-white">{opening.name}</div>
+              <div className="text-xs text-white/60">ECO {opening.eco ?? "—"}</div>
+            </div>
+            <div className="flex flex-col items-end gap-1 text-right text-xs text-white/60">
+              {opening.ply ? <span>{opening.ply} ply</span> : null}
+              {openingStats ? <span>Novelty @ {openingStats.noveltyPly}</span> : null}
+              {openingStats?.source ? <span className="text-accent-teal/80">DB {openingStats.source}</span> : null}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
+        )}
         {openingSummary || bookExitComment || openingTrend ? (
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
             {openingSummary ? <div className="text-white/90">{openingSummary}</div> : null}
@@ -1333,25 +1325,25 @@ function SummaryPanel({
           <div className="pt-3">
             <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept tags</p>
             <ConceptChips concepts={concepts} />
-              {conceptSpikes && conceptSpikes.length ? (
-                <div className="pt-3">
-                  <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept spikes</p>
-                  <div className="flex flex-wrap gap-2">
-                    {conceptSpikes.map((s) => (
-                      <span
-                        key={`${s.concept}-${s.ply}`}
-                        className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80"
-                        title={`Ply ${s.ply} ${s.label}`}
-                        onClick={() => onSelectPly?.(s.ply)}
-                        role="button"
-                        style={{ cursor: onSelectPly ? "pointer" : "default" }}
-                      >
-                        {displayTag(s.concept)} +{s.delta.toFixed(2)} @ {s.label}
-                      </span>
-                    ))}
-                  </div>
+            {conceptSpikes && conceptSpikes.length ? (
+              <div className="pt-3">
+                <p className="mb-2 text-xs uppercase tracking-[0.16em] text-white/60">Concept spikes</p>
+                <div className="flex flex-wrap gap-2">
+                  {conceptSpikes.map((s) => (
+                    <span
+                      key={`${s.concept}-${s.ply}`}
+                      className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80"
+                      title={`Ply ${s.ply} ${s.label}`}
+                      onClick={() => onSelectPly?.(s.ply)}
+                      role="button"
+                      style={{ cursor: onSelectPly ? "pointer" : "default" }}
+                    >
+                      {displayTag(s.concept)} +{s.delta.toFixed(2)} @ {s.label}
+                    </span>
+                  ))}
                 </div>
-              ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1411,10 +1403,10 @@ function StudyPanel({ chapters, onSelect }: { chapters?: StudyChapter[]; onSelec
                     {l.label === "played"
                       ? "You should've played"
                       : l.label === "engine"
-                      ? "Best move"
-                      : l.label === "alt"
-                      ? "Practical alternative"
-                      : humanizeTag(l.label)}
+                        ? "Best move"
+                        : l.label === "alt"
+                          ? "Practical alternative"
+                          : humanizeTag(l.label)}
                   </span>
                   <span className="text-white/80">{l.pv.map(formatSanHuman).join(" ")}</span>
                   <span className="text-white/50">{l.winPct.toFixed(1)}%</span>
@@ -1433,47 +1425,39 @@ function StudyPanel({ chapters, onSelect }: { chapters?: StudyChapter[]; onSelec
   );
 }
 
-function SummaryHero({
-  timeline,
-  critical
-}: {
-  timeline: (TimelineNode & { label?: string })[];
-  critical: CriticalNode[];
-}) {
+function SummaryHero({ timeline, critical, review }: { timeline: (TimelineNode & { label?: string })[]; critical: CriticalNode[]; review?: Review }) {
   type SummaryStats = {
     total: number;
     counts: Record<string, number>;
-    worst: { ply: number; delta: number; label: string } | null;
-    topCritical?: CriticalNode;
+    worst: { label: string; delta: number } | null;
+    topCritical?: { ply: number; reason: string } | null;
   };
   const stats = useMemo<SummaryStats>(() => {
-    const total = timeline.length;
-    const counts: Record<string, number> = {
-      blunder: 0,
-      mistake: 0,
-      inaccuracy: 0,
-      good: 0,
-      best: 0
-    };
-    let worst: { ply: number; delta: number; label: string } | null = null;
+    const counts = { blunder: 0, mistake: 0, inaccuracy: 0, good: 0, best: 0 };
+    let worstDelta = 0;
+    let worstMove: { label: string; delta: number } | null = null;
     timeline.forEach((t) => {
-      const j = t.judgement ?? "good";
-      if (counts[j] != null) counts[j] += 1;
-      if (worst == null || (t.deltaWinPct ?? 0) < (worst.delta ?? 0)) {
-        worst = { ply: t.ply, delta: t.deltaWinPct ?? 0, label: t.label ?? t.san };
+      const j = t.judgement?.toLowerCase() ?? "good";
+      if (j === "blunder") counts.blunder++;
+      else if (j === "mistake") counts.mistake++;
+      else if (j === "inaccuracy") counts.inaccuracy++;
+      else if (j === "best") counts.best++;
+      else counts.good++;
+      if (t.deltaWinPct && t.deltaWinPct < worstDelta) {
+        worstDelta = t.deltaWinPct;
+        const moveNumber = Math.ceil(t.ply / 2);
+        const turnPrefix = t.ply % 2 === 1 ? "." : "...";
+        worstMove = { label: `${moveNumber}${turnPrefix} ${t.san}`, delta: t.deltaWinPct };
       }
     });
-    const topCritical = critical[0];
-    return {
-      total,
-      counts,
-      worst,
-      topCritical
-    };
+    const topCritical = critical.length
+      ? { ply: critical[0].ply, reason: critical[0].reason.split(":").pop()?.trim() ?? critical[0].reason }
+      : null;
+    return { total: timeline.length, counts, worst: worstMove, topCritical };
   }, [timeline, critical]);
 
   return (
-    <div className="glass-card mb-4 rounded-3xl p-5 md:p-6">
+    <div className="glass-card mb-4 rounded-2xl p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/60">Game summary</p>
@@ -1486,7 +1470,29 @@ function SummaryHero({
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-amber-100">Inacc {stats.counts.inaccuracy}</span>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Accuracy (White)</p>
+          {review?.accuracyWhite != null ? (
+            <>
+              <div className="text-xl font-bold text-accent-teal">{review.accuracyWhite.toFixed(1)}%</div>
+              <div className="text-xs text-white/60">Overall precision</div>
+            </>
+          ) : (
+            <p className="text-xs text-white/60">No data</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Accuracy (Black)</p>
+          {review?.accuracyBlack != null ? (
+            <>
+              <div className="text-xl font-bold text-accent-teal">{review.accuracyBlack.toFixed(1)}%</div>
+              <div className="text-xs text-white/60">Overall precision</div>
+            </>
+          ) : (
+            <p className="text-xs text-white/60">No data</p>
+          )}
+        </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
           <p className="text-xs uppercase tracking-[0.14em] text-white/60">Biggest drop</p>
           {stats.worst ? (
@@ -1495,7 +1501,7 @@ function SummaryHero({
               <div className="text-xs text-rose-200">{formatDelta(stats.worst.delta)}</div>
             </>
           ) : (
-            <p className="text-xs text-white/60">No data</p>
+            <p className="text-xs text-white/60">None</p>
           )}
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
@@ -1508,13 +1514,6 @@ function SummaryHero({
           ) : (
             <p className="text-xs text-white/60">None</p>
           )}
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Accurate moves</p>
-          <div className="text-sm font-semibold text-white">
-            {stats.counts.best + stats.counts.good} Good/Best
-          </div>
-          <div className="text-xs text-white/60">The rest need improvement</div>
         </div>
       </div>
     </div>
@@ -1540,6 +1539,66 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [previewArrows, setPreviewArrows] = useState<Array<[string, string, string?]>>([]);
   const [previewLabel, setPreviewLabel] = useState<string | null>(null);
   const jobId = review?.jobId ?? reviewId;
+
+  // Engine & Interactive State
+  const [engine, setEngine] = useState<StockfishEngine | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [engineLines, setEngineLines] = useState<EngineMessage[]>([]);
+  // const [localGame, setLocalGame] = useState<Chess>(new Chess()); // Use enhancedTimeline for state source
+  // const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
+
+  useEffect(() => {
+    const eng = new StockfishEngine((msg) => {
+      if (msg.pv) {
+        setEngineLines((prev) => [msg]); // Single PV for now
+      }
+    });
+    setEngine(eng);
+    return () => eng.stop();
+  }, []);
+
+  useEffect(() => {
+    if (isAnalyzing && engine && review) {
+      let currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      if (previewFen) {
+        currentFen = previewFen;
+      } else if (selectedPly !== null) {
+        const node = review.timeline.find(t => t.ply === selectedPly);
+        if (node) currentFen = node.fen;
+      } else if (review.timeline?.length) {
+        currentFen = review.timeline[review.timeline.length - 1].fen;
+      }
+      engine.analyze(currentFen);
+    } else {
+      engine?.stop();
+    }
+  }, [isAnalyzing, selectedPly, review, engine, previewFen]);
+
+  const toggleAnalysis = () => {
+    if (!isAnalyzing) {
+      engine?.start();
+      setIsAnalyzing(true);
+    } else {
+      engine?.stop();
+      setIsAnalyzing(false);
+      setEngineLines([]);
+    }
+  };
+
+  const handleSaveGame = async () => {
+    if (!review) return;
+    try {
+      const res = await fetch("/game/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reviewId, pgn: review.pgn }) // simplistic save
+      });
+      if (res.ok) alert("Game saved!");
+      else alert("Save failed");
+    } catch (e) {
+      alert("Save failed");
+    }
+  };
 
   const clearPreview = useCallback(() => {
     setPreviewFen(null);
@@ -1663,8 +1722,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
           typeof deltaFromEngine === "number"
             ? deltaFromEngine
             : typeof curVal === "number" && typeof prevVal === "number"
-            ? curVal - prevVal
-            : null;
+              ? curVal - prevVal
+              : null;
         if (typeof delta === "number" && delta >= 0.25) {
           spikes.push({ ply: cur.ply, concept: key, delta, label: cur.label ?? cur.san });
         }
@@ -1701,44 +1760,49 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   }, [selectedVariation, enhancedTimeline, selected]);
 
   useEffect(() => {
-    const key = sanSequence.join(" ");
-    if (!key || key === lookupKey) return;
-    setLookupKey(key);
-    setLookupError(null);
-    setLookupLoading(true);
-    fetchOpeningLookup(sanSequence)
-      .then((data) => {
-        setOpeningLookup(data);
-      })
-      .catch((err) => {
-        setLookupError(err instanceof Error ? err.message : "Lookup failed");
-      })
-      .finally(() => setLookupLoading(false));
-  }, [sanSequence, lookupKey]);
+    const fetch = async () => {
+      if (!selected || !enhancedTimeline.length) return;
+      const movesToPly = enhancedTimeline.filter((t) => t.ply <= selected.ply).map((t) => t.san);
+      const newKey = movesToPly.join(" ");
+      if (newKey === lookupKey) return; // No change
+      setLookupKey(newKey);
+      setLookupError(null);
+      setLookupLoading(true);
+      try {
+        const stats = await fetchOpeningLookup(movesToPly);
+        setOpeningLookup(stats);
+      } catch (err) {
+        setLookupError(err instanceof Error ? err.message : "Opening lookup failed");
+      } finally {
+        setLookupLoading(false);
+      }
+    };
+    fetch();
+  }, [selected, enhancedTimeline, lookupKey]);
 
   const evalPercent = activeMove
     ? activeMove.turn === "white"
       ? activeMove.winPctAfterForPlayer ?? activeMove.winPctBefore
       : activeMove.winPctAfterForPlayer != null
-      ? 100 - activeMove.winPctAfterForPlayer
-      : activeMove.winPctBefore != null
-      ? 100 - activeMove.winPctBefore
-      : undefined
+        ? 100 - activeMove.winPctAfterForPlayer
+        : activeMove.winPctBefore != null
+          ? 100 - activeMove.winPctBefore
+          : undefined
     : undefined;
   const judgementBadge =
     activeMove?.special === "brilliant"
       ? "!!"
       : activeMove?.special === "great"
-      ? "!"
-      : activeMove?.judgement === "blunder"
-      ? "??"
-      : activeMove?.judgement === "mistake"
-      ? "?"
-      : activeMove?.judgement === "inaccuracy"
-      ? "?!"
-      : activeMove?.judgement === "book"
-      ? "="
-      : undefined;
+        ? "!"
+        : activeMove?.judgement === "blunder"
+          ? "??"
+          : activeMove?.judgement === "mistake"
+            ? "?"
+            : activeMove?.judgement === "inaccuracy"
+              ? "?!"
+              : activeMove?.judgement === "book"
+                ? "="
+                : undefined;
 
   const variationMap = useMemo(() => {
     const map: Record<number, VariationEntry[]> = {};
@@ -1898,24 +1962,39 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     );
   }
 
-    return (
-      <div className="px-6 py-10 sm:px-12 lg:px-16">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6">
-          <SummaryHero timeline={enhancedTimeline} critical={review.critical ?? []} />
-          <div className="flex flex-col gap-2">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h1 className="font-display text-3xl text-white">Game analysis</h1>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full bg-white/10 px-3 py-1">PGN timeline</span>
-                <span className="rounded-full bg-white/10 px-3 py-1">Stockfish shallow/deep</span>
-                <span className="rounded-full bg-white/10 px-3 py-1">Concept scores</span>
-                {review.studyChapters && review.studyChapters.length ? (
-                  <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-accent-teal/80">Study chapters</span>
-                ) : null}
-              </div>
+  return (
+    <div className="px-6 py-10 sm:px-12 lg:px-16">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <SummaryHero timeline={enhancedTimeline} critical={review.critical ?? []} review={review} />
+        <div className="flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="font-display text-3xl text-white">Game analysis</h1>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-white/10 px-3 py-1">PGN timeline</span>
+              <span className="rounded-full bg-white/10 px-3 py-1">Stockfish shallow/deep</span>
+              <span className="rounded-full bg-white/10 px-3 py-1">Concept scores</span>
+              {review.studyChapters && review.studyChapters.length ? (
+                <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-accent-teal/80">Study chapters</span>
+              ) : null}
             </div>
+          </div>
           <div className="flex flex-wrap gap-2 text-xs">
+            <button
+              onClick={toggleAnalysis}
+              className={`rounded-full border px-3 py-1 transition ${isAnalyzing
+                ? "border-accent-teal bg-accent-teal/10 text-accent-teal"
+                : "border-white/20 text-white/60 hover:border-white/40 hover:text-white"
+                }`}
+            >
+              {isAnalyzing ? "Stop Analysis" : "Analyze"}
+            </button>
+            <button
+              onClick={handleSaveGame}
+              className="rounded-full border border-white/20 px-3 py-1 text-white/60 hover:border-white/40 hover:text-white"
+            >
+              Save
+            </button>
             {previewFen ? (
               <button
                 onClick={clearPreview}
@@ -1925,10 +2004,10 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               </button>
             ) : null}
           </div>
-            <div className="text-sm text-white/70">
-              Opening: {review.opening?.name ?? "Unknown"} {review.opening?.eco ? `(${review.opening.eco})` : ""}
+          <div className="text-sm text-white/70">
+            Opening: {review.opening?.name ?? "Unknown"} {review.opening?.eco ? `(${review.opening.eco})` : ""}
+          </div>
         </div>
-      </div>
 
         <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
@@ -2044,3 +2123,5 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     </div>
   );
 }
+// ... existing code ...
+

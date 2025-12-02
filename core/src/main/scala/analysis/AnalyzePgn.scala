@@ -106,7 +106,10 @@ object AnalyzePgn:
       openingTrend: Option[String] = None,
       summaryText: Option[String] = None,
       root: Option[TreeNode] = None,
-      studyChapters: Vector[StudyChapter] = Vector.empty
+      studyChapters: Vector[StudyChapter] = Vector.empty,
+      pgn: String = "",
+      accuracyWhite: Option[Double] = None,
+      accuracyBlack: Option[Double] = None
   )
 
   final case class Branch(move: String, winPct: Double, pv: List[String], label: String)
@@ -278,6 +281,7 @@ object AnalyzePgn:
         val root = Some(buildTree(timeline, critical))
         val studyChapters = buildStudyChapters(timeline)
         val (openingSummary, bookExitComment, openingTrend) = buildOpeningNotes(opening, openingStats, timeline)
+        val (accuracyWhite, accuracyBlack) = AccuracyScore.calculateBothSides(timeline)
         Right(
           Output(
             opening,
@@ -289,7 +293,10 @@ object AnalyzePgn:
             bookExitComment,
             openingTrend,
             root = root,
-            studyChapters = studyChapters
+            studyChapters = studyChapters,
+            pgn = pgn,
+            accuracyWhite = Some(accuracyWhite),
+            accuracyBlack = Some(accuracyBlack)
           )
         )
 
@@ -871,6 +878,14 @@ object AnalyzePgn:
       renderCritical(sb, c)
     }
     sb.append("],")
+    if output.pgn.nonEmpty then
+      sb.append("\"pgn\":\"").append(escape(output.pgn)).append("\",")
+    output.accuracyWhite.foreach { acc =>
+      sb.append("\"accuracyWhite\":").append(fmt(acc)).append(",")
+    }
+    output.accuracyBlack.foreach { acc =>
+      sb.append("\"accuracyBlack\":").append(fmt(acc)).append(",")
+    }
     sb.append("\"timeline\":[")
     output.timeline.zipWithIndex.foreach { case (ply, idx) =>
       if idx > 0 then sb.append(',')

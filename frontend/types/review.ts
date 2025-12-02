@@ -156,6 +156,9 @@ export interface Review {
   root?: ReviewTreeNode;
   studyChapters?: StudyChapter[];
   jobId?: string;
+  pgn?: string;
+  accuracyWhite?: number;
+  accuracyBlack?: number;
 }
 
 export interface ReviewTreeNode {
