@@ -10,6 +10,9 @@ import java.sql.{ Connection, DriverManager, ResultSet }
   */
 object OpeningExplorer:
 
+  private val cache = new java.util.LinkedHashMap[String, Stats](256, 0.75f, true):
+    override def removeEldestEntry(eldest: java.util.Map.Entry[String, Stats]): Boolean = this.size() > 512
+
   final case class TopMove(san: String, uci: String, games: Int, winPct: Option[Double], drawPct: Option[Double])
   final case class TopGame(
       white: String,
@@ -40,28 +43,33 @@ object OpeningExplorer:
     catch
       case _: Throwable => None
 
-  def explore(opening: Option[chess.opening.Opening.AtPly], sans: List[SanStr], topGamesLimit: Int = 12, topMovesLimit: Int = 8): Option[Stats] =
-    connection.flatMap { conn =>
-      val key = sanKey(sans)
-      lookupPosition(conn, key, topGamesLimit, topMovesLimit)
-        .orElse(opening.map { op =>
-          Stats(
-            bookPly = op.ply.value,
-            noveltyPly = math.min(op.ply.value + 1, sans.length),
-            games = None,
-            winWhite = None,
-            winBlack = None,
-            draw = None,
-            topMoves = Nil,
-            topGames = Nil,
-            source = "book"
-          )
-        })
+  def explore(opening: Option[chess.opening.Opening.AtPly], sans: List[SanStr], topGamesLimit: Int = 12, topMovesLimit: Int = 8, gamesOffset: Int = 0): Option[Stats] =
+    val key = sanKey(sans)
+    Option(cache.get(key)).orElse {
+      connection.flatMap { conn =>
+        lookupPosition(conn, key, topGamesLimit, topMovesLimit, gamesOffset)
+          .orElse(opening.map { op =>
+            Stats(
+              bookPly = op.ply.value,
+              noveltyPly = math.min(op.ply.value + 1, sans.length),
+              games = None,
+              winWhite = None,
+              winBlack = None,
+              draw = None,
+              topMoves = Nil,
+              topGames = Nil,
+              source = "book"
+            )
+          })
+      }.map { stats =>
+        cache.put(key, stats)
+        stats
+      }
     }
 
   private def sanKey(sans: List[SanStr]): String = sans.map(_.value).mkString(" ")
 
-  private def lookupPosition(conn: Connection, sanSeq: String, topGamesLimit: Int, topMovesLimit: Int): Option[Stats] =
+  private def lookupPosition(conn: Connection, sanSeq: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
     val posSql = "SELECT id, ply, games, win_w, win_b, draw FROM positions WHERE san_seq = ?"
     val posStmt = conn.prepareStatement(posSql)
     posStmt.setString(1, sanSeq)
@@ -78,7 +86,7 @@ object OpeningExplorer:
       posStmt.close()
 
       val moves = lookupMoves(conn, posId, topMovesLimit)
-      val gamesList = lookupGames(conn, posId, topGamesLimit)
+      val gamesList = lookupGames(conn, posId, topGamesLimit, gamesOffset)
       Some(
         Stats(
           bookPly = ply,
@@ -108,11 +116,12 @@ object OpeningExplorer:
     rs.close(); stmt.close()
     buf.toList
 
-  private def lookupGames(conn: Connection, posId: Int, limit: Int): List[TopGame] =
-    val sql = "SELECT white, black, white_elo, black_elo, result, date, event FROM games WHERE position_id = ? LIMIT ?"
+  private def lookupGames(conn: Connection, posId: Int, limit: Int, offset: Int): List[TopGame] =
+    val sql = "SELECT white, black, white_elo, black_elo, result, date, event FROM games WHERE position_id = ? LIMIT ? OFFSET ?"
     val stmt = conn.prepareStatement(sql)
     stmt.setInt(1, posId)
     stmt.setInt(2, limit)
+    stmt.setInt(3, offset)
     val rs = stmt.executeQuery()
     val buf = scala.collection.mutable.ListBuffer.empty[TopGame]
     while rs.next() do
@@ -129,4 +138,3 @@ object OpeningExplorer:
       )
     rs.close(); stmt.close()
     buf.toList
-

@@ -161,12 +161,15 @@ object ApiServer:
       }
       .toMap
     val sansStr = params.getOrElse("sans", "")
+    val movesLimit = params.get("movesLimit").flatMap(_.toIntOption).getOrElse(8)
+    val gamesLimit = params.get("gamesLimit").flatMap(_.toIntOption).getOrElse(12)
+    val gamesOffset = params.get("gamesOffset").flatMap(_.toIntOption).getOrElse(0)
     if sansStr.isEmpty then
       respond(exchange, 400, """{"error":"missing_sans"}""")
       return
 
     val sansList = sansStr.split("\\s+").toList.filter(_.nonEmpty).map(chess.format.pgn.SanStr.apply)
-    OpeningExplorer.explore(None, sansList) match
+    OpeningExplorer.explore(None, sansList, topGamesLimit = gamesLimit, topMovesLimit = movesLimit, gamesOffset = gamesOffset) match
       case None => respond(exchange, 404, """{"error":"not_found"}""")
       case Some(os) => respond(exchange, 200, renderOpeningStats(os))
 
