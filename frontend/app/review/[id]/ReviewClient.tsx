@@ -451,7 +451,6 @@ function MoveTimeline({
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 text-[11px] text-white/50">
-                                  {showAdvanced && group.vars[0].depth ? <span>Engine depth {group.vars[0].depth}</span> : null}
                                   <span className="flex items-center gap-1">
                                     <span className={`h-2 w-2 rounded-full ${group.vars[0].turn === "white" ? "bg-white" : "bg-black"} border border-white/20`} />
                                     <span>{group.vars[0].turn === "white" ? "White to move" : "Black to move"}</span>
@@ -501,12 +500,9 @@ function MoveTimeline({
                                               </span>
                                             ))}
                                           </div>
-                                        ) : null}
-                                        <div className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
+                                       ) : null}
+                                       <div className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
                                           <span>{v.turn === "white" ? "White" : "Black"} perspective</span>
-                                          {showAdvanced && v.depth ? (
-                                            <span className="rounded-full bg-white/5 px-2 py-0.5">Engine depth {v.depth}</span>
-                                          ) : null}
                                           <span className="rounded-full bg-white/5 px-2 py-0.5">Line {v.pvIndex ?? vidx + 1}</span>
                                         </div>
                                       </div>
@@ -585,10 +581,7 @@ function MoveCell({
             </div>
             {showDelta && !isBook ? <span className={`text-[11px] ${delta.tone}`}>{deltaText}</span> : null}
           </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
-              {showAdvanced && depth ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-white/70">Engine depth {depth}</span> : null}
-              {showAdvanced && multiPv ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-white/70">Candidates {multiPv}</span> : null}
-            </div>
+            {/* Engine depth/multipv are global; avoid repeating per-move badges */}
           {move.shortComment ? <div className="text-[11px] text-white/70">{move.shortComment}</div> : null}
         </div>
       </button>
