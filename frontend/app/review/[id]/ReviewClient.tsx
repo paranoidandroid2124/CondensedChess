@@ -742,7 +742,13 @@ function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | 
       </div>
     );
   }
-  if (!stats) return null;
+  if (!stats) {
+    return (
+      <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+        Opening DB 데이터를 찾지 못했습니다.
+      </div>
+    );
+  }
   const hasMoves = stats.topMoves && stats.topMoves.length > 0;
   const hasGames = stats.topGames && stats.topGames.length > 0;
   const totalGames =
