@@ -143,7 +143,7 @@ def game_info_from_headers(game) -> dict:
     }
 
 
-def process_file(path: str, stats: Dict[str, NodeStats], args, log_prefix: str = ""):
+def process_file(path: str, stats: Dict[str, NodeStats], args, log_prefix: str = "", progress_every: int = 5000, total_offset: int = 0):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         game_count = 0
         while True:
@@ -178,8 +178,9 @@ def process_file(path: str, stats: Dict[str, NodeStats], args, log_prefix: str =
                     next_move_label = None
                 stats.setdefault(key, NodeStats()).add_game(result, next_move_label, info, args.top_games_per_pos, args.store_all_games, san_str)
                 node = node.variations[0]
-            if game_count % 1000 == 0:
-                print(f"{log_prefix} processed {game_count} games in {os.path.basename(path)}")
+            absolute = total_offset + game_count
+            if progress_every and absolute > 0 and absolute % progress_every == 0:
+                print(f"{log_prefix} progress: {absolute} games total, positions={len(stats)}")
     return game_count
 
 
@@ -327,9 +328,9 @@ def main():
     for idx, p in enumerate(sorted(pgn_files)):
         prefix = f"[build {idx+1}/{len(pgn_files)}]"
         print(f"{prefix} processing {p}")
-        total_games += process_file(p, stats, args, log_prefix=prefix)
-    print(f"[build] positions collected: {len(stats)}")
-    print(f"[build] games processed: {total_games}")
+        total_games += process_file(p, stats, args, log_prefix=prefix, total_offset=total_games)
+        print(f"{prefix} done: games so far {total_games}, positions so far {len(stats)}")
+    print(f"[build] positions collected: {len(stats)}, games processed: {total_games}")
     write_db(args.out, stats, args)
     elapsed = time.time() - start_time
     print(f"[build] wrote DB to {args.out} (elapsed {elapsed/60:.1f} min)")
