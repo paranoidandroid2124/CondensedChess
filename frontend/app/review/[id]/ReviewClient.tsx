@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
-import { fetchReview } from "../../../lib/review";
-import type { Concepts, CriticalNode, Review, ReviewTreeNode, TimelineNode } from "../../../types/review";
+import { fetchOpeningLookup, fetchReview } from "../../../lib/review";
+import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, TimelineNode } from "../../../types/review";
 
 type VariationEntry = {
   node: ReviewTreeNode;
@@ -718,6 +718,87 @@ function GuessTheMove({
   );
 }
 
+function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | null; loading: boolean; error?: string | null }) {
+  if (loading) {
+    return (
+      <div className="glass-card rounded-2xl p-4">
+        <div className="animate-pulse space-y-2 text-sm text-white/60">Opening lookup…</div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="glass-card rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+        Opening lookup 실패: {error}
+      </div>
+    );
+  }
+  if (!stats) return null;
+  const hasMoves = stats.topMoves && stats.topMoves.length > 0;
+  const hasGames = stats.topGames && stats.topGames.length > 0;
+  return (
+    <div className="glass-card rounded-2xl p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Opening DB</p>
+          <h3 className="font-display text-lg text-white">현재 국면 통계</h3>
+        </div>
+        <div className="flex flex-col items-end text-[11px] text-white/60">
+          <span>Book ply {stats.bookPly}</span>
+          <span>Novelty {stats.noveltyPly}</span>
+          {stats.games ? <span>Games {stats.games}</span> : null}
+        </div>
+      </div>
+      {hasMoves ? (
+        <div className="mt-3 space-y-2">
+          <div className="text-xs uppercase tracking-[0.14em] text-white/60">다음 수 분포</div>
+          {stats.topMoves?.map((m) => {
+            const total = stats.games || Math.max(...(stats.topMoves?.map((tm) => tm.games) ?? [1]));
+            const pct = total ? Math.max(4, (m.games / total) * 100) : 0;
+            return (
+              <div key={m.san} className="space-y-1">
+                <div className="flex items-center justify-between text-xs text-white/70">
+                  <span className="font-semibold text-white">{m.san}</span>
+                  <span>
+                    {m.games} games{m.winPct != null ? ` · W ${(m.winPct * 100).toFixed(1)}%` : ""}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400" style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+      {hasGames ? (
+        <div className="mt-4 space-y-1">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-white/60">상위 대국</div>
+          <div className="space-y-1 text-xs text-white/80">
+            {stats.topGames?.slice(0, 10).map((g, idx) => (
+              <div key={`${g.white}-${g.black}-${idx}`} className="rounded-lg bg-white/5 px-2 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white">
+                    {g.white} {g.whiteElo ? `(${g.whiteElo})` : ""}
+                  </span>
+                  <span className="text-[11px] text-white/60">{g.date ?? ""}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white">
+                    {g.black} {g.blackElo ? `(${g.blackElo})` : ""}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/80">{g.result}</span>
+                </div>
+                {g.event ? <div className="text-[11px] text-white/50">{g.event}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BlunderTimeline({
   timeline,
   selected,
@@ -1119,6 +1200,10 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [openingLookup, setOpeningLookup] = useState<OpeningStats | null>(null);
+  const [lookupKey, setLookupKey] = useState<string>("");
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let mounted = true;
@@ -1192,6 +1277,17 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     return result;
   }, [review]);
 
+  // Build SAN sequence up to selected ply for opening lookup
+  const sanSequence = useMemo(() => {
+    if (!enhancedTimeline.length) return [] as string[];
+    const sorted = [...enhancedTimeline].sort((a, b) => a.ply - b.ply);
+    const cutoff = selectedPly ?? sorted[sorted.length - 1]?.ply ?? 0;
+    return sorted
+      .filter((t) => t.ply <= cutoff)
+      .map((t) => t.san)
+      .filter(Boolean);
+  }, [enhancedTimeline, selectedPly]);
+
   const moveRows = useMemo(() => {
     const rows: Array<{
       moveNumber: number;
@@ -1237,6 +1333,22 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     if (selectedPly === null) return enhancedTimeline[enhancedTimeline.length - 1];
     return enhancedTimeline.find((t) => t.ply === selectedPly) ?? enhancedTimeline[enhancedTimeline.length - 1];
   }, [selectedPly, enhancedTimeline]);
+
+  useEffect(() => {
+    const key = sanSequence.join(" ");
+    if (!key || key === lookupKey) return;
+    setLookupKey(key);
+    setLookupError(null);
+    setLookupLoading(true);
+    fetchOpeningLookup(sanSequence)
+      .then((data) => {
+        setOpeningLookup(data);
+      })
+      .catch((err) => {
+        setLookupError(err instanceof Error ? err.message : "Lookup failed");
+      })
+      .finally(() => setLookupLoading(false));
+  }, [sanSequence, lookupKey]);
 
   const evalPercent = selected
     ? selected.turn === "white"
@@ -1422,6 +1534,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               showAdvanced={showAdvanced}
               summaryText={review.summaryText}
             />
+            <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
             <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
             <div className="rounded-2xl">
               <div className="max-h-[70vh] overflow-y-auto pr-1">
