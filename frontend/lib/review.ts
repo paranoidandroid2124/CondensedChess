@@ -6,6 +6,18 @@ export type ReviewFetchResult =
   | { status: "ready"; review: Review }
   | { status: "pending"; message?: string };
 
+export async function fetchOpeningLookup(sans: string[]): Promise<import("../types/review").OpeningStats | null> {
+  if (!sans.length) return null;
+  const q = encodeURIComponent(sans.join(" "));
+  const url = `${API_BASE.replace(/\/$/, "")}/opening/lookup?sans=${q}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`lookup failed (${res.status})`);
+  }
+  return (await res.json()) as import("../types/review").OpeningStats;
+}
+
 export async function fetchReview(id: string): Promise<ReviewFetchResult> {
   if (id === "sample") {
     const res = await fetch("/mock/sample-review.json", { cache: "no-store" });
