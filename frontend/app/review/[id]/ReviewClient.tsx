@@ -902,6 +902,10 @@ function SummaryPanel({
   showAdvanced: boolean;
   summaryText?: string;
 }) {
+  const hasTopMoves = openingStats?.topMoves && openingStats.topMoves.length > 0;
+  const hasTopGames = openingStats?.topGames && openingStats.topGames.length > 0;
+  const totalGames = openingStats?.games ?? 0;
+
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
@@ -930,9 +934,10 @@ function SummaryPanel({
         )}
         {openingStats ? (
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/70">
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-white/70">
               <span className="rounded-full bg-white/10 px-2 py-1">Book ply {openingStats.bookPly}</span>
               <span className="rounded-full bg-white/10 px-2 py-1">Novelty {openingStats.noveltyPly}</span>
+              {totalGames ? <span className="rounded-full bg-white/10 px-2 py-1">Games {totalGames}</span> : null}
               {openingStats.freq != null ? (
                 <span className="rounded-full bg-white/10 px-2 py-1">Master freq {openingStats.freq.toFixed(1)}%</span>
               ) : null}
@@ -943,13 +948,52 @@ function SummaryPanel({
                 </span>
               ) : null}
             </div>
-            {openingStats.topMoves?.length ? (
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/80">
-                {openingStats.topMoves.slice(0, 3).map((m) => (
-                  <span key={m.uci} className="rounded-full bg-white/10 px-2 py-1">
-                    {m.san} ({m.freq?.toFixed(1) ?? "—"}% / {m.winPct?.toFixed(1) ?? "—"}%)
-                  </span>
-                ))}
+            {hasTopMoves ? (
+              <div className="space-y-2">
+                {openingStats?.topMoves?.slice(0, 6).map((m) => {
+                  const games = m.games ?? 0;
+                  const win = m.winPct ?? 0;
+                  const draw = m.drawPct ?? 0;
+                  const total = totalGames || Math.max(...(openingStats.topMoves?.map((tm) => tm.games ?? 0) ?? [1]));
+                  const pct = total ? Math.max(4, (games / total) * 100) : 0;
+                  return (
+                    <div key={m.uci} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-white/70">
+                        <span className="font-semibold text-white">{m.san}</span>
+                        <span>
+                          {games} games · W {win.toFixed(1)}% {draw ? ` · D ${draw.toFixed(1)}%` : ""}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            {hasTopGames ? (
+              <div className="mt-3 space-y-1">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/60">Top games</div>
+                <div className="space-y-1 text-xs text-white/80">
+                  {openingStats?.topGames?.slice(0, 6).map((g, idx) => (
+                    <div key={`${g.white}-${g.black}-${idx}`} className="rounded-lg bg-white/5 px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">
+                          {g.white} {g.whiteElo ? `(${g.whiteElo})` : ""}
+                        </span>
+                        <span className="text-[11px] text-white/60">{g.date ?? ""}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">
+                          {g.black} {g.blackElo ? `(${g.blackElo})` : ""}
+                        </span>
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/80">{g.result}</span>
+                      </div>
+                      {g.event ? <div className="text-[11px] text-white/50">{g.event}</div> : null}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>

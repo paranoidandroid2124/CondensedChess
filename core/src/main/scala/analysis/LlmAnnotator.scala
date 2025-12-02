@@ -58,12 +58,12 @@ object LlmAnnotator:
         .map { os =>
           val top = os.topMoves.headOption
             .map { tm =>
-              val freq = pctInt(tm.freq)
               val win = pctInt(tm.winPct)
-              s"top move ${tm.san} (${freq}% freq, win ${win}%)"
+              s"top move ${tm.san} (games=${tm.games}, win ${win}%)"
             }
             .getOrElse("no stats")
-          s"bookPly=${os.bookPly}, novelty=${os.noveltyPly}, $top"
+          val gameCount = os.games.map(gc => s"games=$gc").getOrElse("")
+          s"bookPly=${os.bookPly}, novelty=${os.noveltyPly} $gameCount, $top"
         }
         .orElse(output.opening.map(op => Some(s"book up to ply ${op.ply.value}")))
         .getOrElse("opening unknown")

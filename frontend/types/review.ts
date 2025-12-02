@@ -9,18 +9,31 @@ export interface Opening {
 export interface OpeningTopMove {
   san: string;
   uci: string;
-  freq?: number; // percent if present
+  games?: number;
   winPct?: number; // percent if present
+  drawPct?: number; // percent if present
+}
+
+export interface OpeningTopGame {
+  white: string;
+  black: string;
+  whiteElo?: number;
+  blackElo?: number;
+  result: string;
+  date?: string;
+  event?: string;
 }
 
 export interface OpeningStats {
   bookPly: number;
   noveltyPly: number;
+  games?: number;
   freq?: number; // percent if present
   winWhite?: number; // percent if present
   winBlack?: number; // percent if present
   draw?: number; // percent if present
   topMoves?: OpeningTopMove[];
+  topGames?: OpeningTopGame[];
   source?: string;
 }
 
