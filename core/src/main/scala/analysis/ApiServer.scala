@@ -42,9 +42,12 @@ object ApiServer:
     server.createContext("/result", (exchange: HttpExchange) => handleResult(exchange))
     server.createContext("/opening/lookup", (exchange: HttpExchange) => handleOpeningLookup(exchange))
     server.createContext("/analysis/branch", (exchange: HttpExchange) => handleAddBranch(exchange))
+    server.createContext("/game/save", (exchange: HttpExchange) => handleSaveGame(exchange))
+    server.createContext("/game/load", (exchange: HttpExchange) => handleLoadGame(exchange))
     server.setExecutor(executor)
 
     println(s"[api] listening on $bindHost:$port (shallow=${config.shallowDepth}/deep=${config.deepDepth}, multipv=${config.maxMultiPv})")
+    Persistence.init()
     server.start()
 
     // JVM이 바로 종료되지 않도록 유지
@@ -312,6 +315,39 @@ object ApiServer:
     if sb.length() > 0 && sb.charAt(sb.length - 1) == ',' then sb.setLength(sb.length - 1)
     sb.append('}')
     sb.result()
+
+  private def handleSaveGame(exchange: HttpExchange): Unit =
+    if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
+      respond(exchange, 200, """{"ok":true}""", corsOnly = true)
+      return
+
+    if !exchange.getRequestMethod.equalsIgnoreCase("POST") then
+      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      return
+
+    val body = new String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8).trim
+    try
+      val json = ujson.read(body)
+      val id = json.obj("id").str
+      val pgn = json.obj("pgn").str
+      Persistence.saveGame(id, pgn)
+      respond(exchange, 200, """{"ok":true}""")
+    catch
+      case e: Throwable => respond(exchange, 400, s"""{"error":"${e.getMessage}"}""")
+
+  private def handleLoadGame(exchange: HttpExchange): Unit =
+    if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
+      respond(exchange, 200, """{"ok":true}""", corsOnly = true)
+      return
+
+    if !exchange.getRequestMethod.equalsIgnoreCase("GET") then
+      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      return
+
+    val id = Option(exchange.getRequestURI.getQuery).flatMap(_.split("=").lastOption).getOrElse("")
+    Persistence.loadGame(id) match
+      case Some(pgn) => respond(exchange, 200, s"""{"pgn":"${AnalyzePgn.escape(pgn)}"}""")
+      case None => respond(exchange, 404, """{"error":"not_found"}""")
 
   private def respond(
       exchange: HttpExchange,
