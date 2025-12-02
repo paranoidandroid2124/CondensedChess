@@ -25,7 +25,7 @@ object LlmClient:
            |- Use only moves/evals given. Do NOT invent moves/evals or move numbers.
            |- When referencing moves, quote the provided label exactly (e.g., "13. Qe2", "12...Ba6"); never renumber.
            |- Use semanticTags (facts like open file, outpost, weak pawn) and mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) to explain *why*.
-           |- Mention novelty/book briefly using openingStats if present.
+           |- Mention novelty/book briefly using openingStats if present (bookPly/novelty, games, topMoves, topGames players/elos).
            |- Avoid generic advice; ground every claim in the provided tags/evals/branches.
            |JSON: $json""".stripMargin
       val body =

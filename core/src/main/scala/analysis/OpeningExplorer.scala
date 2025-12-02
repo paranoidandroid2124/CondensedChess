@@ -27,15 +27,18 @@ import java.nio.file.{ Files, Paths }
   * }
   */
 object OpeningExplorer:
-  final case class TopMove(san: String, uci: String, freq: Double, winPct: Double)
+  final case class TopMove(san: String, uci: String, games: Int, winPct: Double, drawPct: Option[Double])
+  final case class TopGame(white: String, black: String, whiteElo: Option[Int], blackElo: Option[Int], result: String, date: Option[String], event: Option[String])
   final case class Stats(
       bookPly: Int,
       noveltyPly: Int,
+      games: Option[Int],
       freq: Option[Double],
       winWhite: Option[Double],
       winBlack: Option[Double],
       draw: Option[Double],
       topMoves: List[TopMove],
+      topGames: List[TopGame],
       source: String
   )
 
@@ -68,6 +71,7 @@ object OpeningExplorer:
       val winWhite = obj.get("winWhite").map(_.num.toDouble)
       val winBlack = obj.get("winBlack").map(_.num.toDouble)
       val draw = obj.get("draw").map(_.num.toDouble)
+      val games = obj.get("games").flatMap(_.num.toIntOption)
       val topMoves = obj
         .get("topMoves")
         .map(_.arr.toList.flatMap { mv =>
@@ -75,12 +79,44 @@ object OpeningExplorer:
           for
             san <- mobj.get("san").map(_.str)
             uci <- mobj.get("uci").map(_.str)
-            f <- mobj.get("freq").flatMap(_.num.toDoubleOption)
+            g <- mobj.get("games").flatMap(_.num.toIntOption)
             w <- mobj.get("winPct").flatMap(_.num.toDoubleOption)
-          yield TopMove(san = san, uci = uci, freq = f, winPct = w)
+          yield TopMove(san = san, uci = uci, games = g, winPct = w, drawPct = mobj.get("drawPct").flatMap(_.num.toDoubleOption))
         })
         .getOrElse(Nil)
-      Some(Stats(bookPly = bookPly, noveltyPly = novelty, freq = freq, winWhite = winWhite, winBlack = winBlack, draw = draw, topMoves = topMoves, source = "file"))
+      val topGames = obj
+        .get("topGames")
+        .map(_.arr.toList.flatMap { tg =>
+          val gobj = tg.obj
+          for
+            white <- gobj.get("white").map(_.str)
+            black <- gobj.get("black").map(_.str)
+            result <- gobj.get("result").map(_.str)
+          yield TopGame(
+            white = white,
+            black = black,
+            whiteElo = gobj.get("whiteElo").flatMap(_.num.toIntOption),
+            blackElo = gobj.get("blackElo").flatMap(_.num.toIntOption),
+            result = result,
+            date = gobj.get("date").map(_.str),
+            event = gobj.get("event").map(_.str)
+          )
+        })
+        .getOrElse(Nil)
+      Some(
+        Stats(
+          bookPly = bookPly,
+          noveltyPly = novelty,
+          games = games,
+          freq = freq,
+          winWhite = winWhite,
+          winBlack = winBlack,
+          draw = draw,
+          topMoves = topMoves,
+          topGames = topGames,
+          source = "file"
+        )
+      )
     catch
       case _: Throwable => None
 
@@ -95,11 +131,13 @@ object OpeningExplorer:
           Stats(
             bookPly = bookPly,
             noveltyPly = novelty,
+            games = None,
             freq = None,
             winWhite = None,
             winBlack = None,
             draw = None,
             topMoves = Nil,
+            topGames = Nil,
             source = "book"
           )
         }
