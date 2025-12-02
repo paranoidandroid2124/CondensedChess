@@ -47,7 +47,7 @@ object OpeningExplorer:
       case _: Throwable => None
 
   def explore(opening: Option[chess.opening.Opening.AtPly], sans: List[SanStr], topGamesLimit: Int = 12, topMovesLimit: Int = 8, gamesOffset: Int = 0): Option[Stats] =
-    val key = sanKey(sans)
+    val key = fenKey(sans).getOrElse(sanKey(sans))
     Option(cache.get(key)).orElse {
       connection.flatMap { conn =>
         lookupPosition(conn, key, topGamesLimit, topMovesLimit, gamesOffset)
@@ -75,10 +75,19 @@ object OpeningExplorer:
 
   private def sanKey(sans: List[SanStr]): String = sans.map(_.value).mkString(" ")
 
-  private def lookupPosition(conn: Connection, sanSeq: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
-    val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE san_seq = ?"
+  private def fenKey(sans: List[SanStr]): Option[String] =
+    val game = chess.Game(chess.variant.Standard)
+    sans
+      .foldLeft[Either[chess.ErrorStr, chess.Game]](Right(game)) { (eg, san) =>
+        eg.flatMap(g => g.play(san).map { case (next, _) => next })
+      }
+      .toOption
+      .map(g => format.Fen.write(g.position, g.ply.fullMoveNumber).value)
+
+  private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
+    val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE fen = ?"
     val posStmt = conn.prepareStatement(posSql)
-    posStmt.setString(1, sanSeq)
+    posStmt.setString(1, key)
     val posRs = posStmt.executeQuery()
     if !posRs.next() then None
     else

@@ -66,7 +66,7 @@ class MoveStat:
 
 
 class NodeStats:
-    __slots__ = ("games", "white", "black", "draw", "move_stats", "top_games", "year_counts")
+    __slots__ = ("games", "white", "black", "draw", "move_stats", "top_games", "year_counts", "san_seq")
 
     def __init__(self):
         self.games = 0
@@ -76,8 +76,9 @@ class NodeStats:
         self.move_stats: Dict[str, MoveStat] = defaultdict(MoveStat)
         self.top_games: List[Tuple[int, dict]] = []  # (elo_sum, payload)
         self.year_counts: Dict[int, int] = defaultdict(int)
+        self.san_seq: Optional[str] = None
 
-    def add_game(self, result: str, next_move_san: Optional[str], game_info: dict, top_keep: int, store_all: bool):
+    def add_game(self, result: str, next_move_san: Optional[str], game_info: dict, top_keep: int, store_all: bool, san_seq_str: str):
         self.games += 1
         if result == "1-0":
             self.white += 1
@@ -90,6 +91,8 @@ class NodeStats:
         year = game_info.get("year")
         if year:
             self.year_counts[year] += 1
+        if not self.san_seq:
+            self.san_seq = san_seq_str
         if store_all:
             self.top_games.append((0, game_info))
         else:
@@ -163,7 +166,8 @@ def process_file(path: str, stats: Dict[str, NodeStats], args):
                 san_seq.append(san)
                 board.push(move)
                 ply += 1
-                key = " ".join(san_seq)
+                key = board.fen()
+                san_str = " ".join(san_seq)
                 # 다음 수 추출
                 next_move_label = None
                 if node.variations[0].variations:
@@ -171,7 +175,7 @@ def process_file(path: str, stats: Dict[str, NodeStats], args):
                     next_move_label = board.san(node.variations[0].variations[0].move)
                   except Exception:
                     next_move_label = None
-                stats.setdefault(key, NodeStats()).add_game(result, next_move_label, info, args.top_games_per_pos, args.store_all_games)
+                stats.setdefault(key, NodeStats()).add_game(result, next_move_label, info, args.top_games_per_pos, args.store_all_games, san_str)
                 node = node.variations[0]
 
 
@@ -181,7 +185,8 @@ def create_schema(conn: sqlite3.Connection):
         """
         CREATE TABLE IF NOT EXISTS positions (
           id INTEGER PRIMARY KEY,
-          san_seq TEXT UNIQUE,
+          fen TEXT UNIQUE,
+          san_seq TEXT,
           ply INTEGER,
           games INTEGER,
           win_w REAL,
@@ -216,6 +221,7 @@ def create_schema(conn: sqlite3.Connection):
           event TEXT
         );
 
+        CREATE INDEX IF NOT EXISTS idx_positions_fen ON positions(fen);
         CREATE INDEX IF NOT EXISTS idx_positions_san ON positions(san_seq);
         CREATE INDEX IF NOT EXISTS idx_moves_pos ON moves(position_id);
         CREATE INDEX IF NOT EXISTS idx_games_pos ON games(position_id);
@@ -242,7 +248,8 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
             return "2018_2019"
         return "2020_plus"
 
-    for san_seq, st in stats.items():
+    for fen, st in stats.items():
+        san_seq = st.san_seq or ""
         ply = len(san_seq.split())
         games = st.games
         win_w = st.white / games if games else 0
@@ -254,8 +261,9 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
         for y, cnt in st.year_counts.items():
             buckets[bucket_for_year(y)] += cnt
         cur.execute(
-            "INSERT INTO positions(san_seq, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO positions(fen, san_seq, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
+                fen,
                 san_seq,
                 ply,
                 games,
