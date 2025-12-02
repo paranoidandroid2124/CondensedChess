@@ -18,6 +18,8 @@ export interface CriticalNode {
   reason: string;
   deltaWinPct: number;
   branches: Branch[];
+  mistakeCategory?: string;
+  tags?: string[];
   comment?: string; // LLM long form
 }
 
@@ -85,6 +87,8 @@ export interface TimelineNode {
   epLoss?: number;
   judgement?: Judgement;
   special?: "brilliant" | "great" | "miss";
+  mistakeCategory?: string;
+  semanticTags?: string[];
   concepts?: Concepts;
   shortComment?: string; // LLM short comment
 }

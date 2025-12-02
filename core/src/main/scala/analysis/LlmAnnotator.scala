@@ -56,19 +56,27 @@ object LlmAnnotator:
       val turn = if c.ply.value % 2 == 1 then Color.White else Color.Black
       val san = output.timeline.find(_.ply == c.ply).map(_.san).getOrElse("")
       val label = moveLabel(c.ply, san, turn)
-      s"$label: ${c.reason} Δ${"%.2f".format(c.deltaWinPct)}"
+      val cat = c.mistakeCategory.map(mc => s"[$mc]").getOrElse("")
+      val tagStr = if c.tags.nonEmpty then s" tags=${c.tags.mkString("|")}" else ""
+      s"$label$cat: ${c.reason} Δ${"%.2f".format(c.deltaWinPct)}$tagStr"
     }.mkString("; ")
     val swings = output.timeline
       .sortBy(-_.deltaWinPct.abs)
       .take(5)
-      .map(t => s"${moveLabel(t.ply, t.san, t.turn)} Δ${"%.2f".format(t.deltaWinPct)} (${t.judgement})")
+      .map { t =>
+        val cat = t.mistakeCategory.map(mc => s"[$mc]").getOrElse("")
+        val tags = if t.semanticTags.nonEmpty then s" tags=${t.semanticTags.take(3).mkString("|")}" else ""
+        s"${moveLabel(t.ply, t.san, t.turn)}$cat Δ${"%.2f".format(t.deltaWinPct)} (${t.judgement})$tags"
+      }
       .mkString("; ")
     s"Opening=${output.opening.map(_.opening.name.value).getOrElse("unknown")}, swings=$swings, critical=$crit"
 
   private def criticalPreview(output: AnalyzePgn.Output): String =
     val nodes = clampNodes(output.critical, 6).map { c =>
       val branches = c.branches.take(3).map(b => s"""{"move":"${b.move}","pv":"${b.pv.take(5).mkString(" ")}","win":${"%.2f".format(b.winPct)}}""").mkString(",")
-      s"""{"ply":${c.ply.value},"reason":"${c.reason}","delta":${"%.2f".format(c.deltaWinPct)},"branches":[$branches]}"""
+      val tagField = if c.tags.nonEmpty then s""""tags":"${c.tags.mkString(",")}",""" else ""
+      val catField = c.mistakeCategory.map(mc => s""""mistakeCategory":"$mc",""").getOrElse("")
+      s"""{"ply":${c.ply.value},"reason":"${c.reason}","delta":${"%.2f".format(c.deltaWinPct)},$catField$tagField"branches":[$branches]}"""
     }.mkString(",")
     s"""{"critical":[$nodes]}"""
 

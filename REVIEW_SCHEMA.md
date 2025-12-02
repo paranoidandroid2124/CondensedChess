@@ -48,6 +48,8 @@
       "winPctAfterForPlayer": 53.79,   // after the played move, player-to-move perspective
       "deltaWinPct": 1.10,             // after - before
       "judgement": "ok"                // ok/inaccuracy/mistake/blunder
+      "mistakeCategory": "tactical_miss", // optional taxonomy: tactical_miss/greedy/positional_trade_error/ignored_threat
+      "semanticTags": ["open_h_file","weak_f7","outpost_f5"], // relevance-filtered facts
       "concepts": {
         "dynamic": 0.02,
         "drawish": 0.65,
@@ -65,8 +67,9 @@
 - `opening`: Opening DB 매칭 결과(ECO/이름/ply).
 - `oppositeColorBishops`: 이색비숍 여부.
 - `critical`: ΔWin%와 개념 점프 기반 상위 N(기본 5) 노드, 각 노드에 MultiPV 브랜치(best/PV2/PV3).
-- `timeline`: ply별 상세
+- `timeline`: ply별 상세 (+semantic tags)
   - `features`: 구조/기물/킹 안전/공간 등 엔진 없이 계산된 피처.
+  - `semanticTags`: 규칙 기반 태그(왕주변 오픈파일, 아웃포스트, 백랭크 취약 등). 노이즈 제거를 위해 관련성 필터링 적용.
   - `evalBefore*`: move 전 FEN의 Stockfish MultiPV 결과. `winPct`는 cp→Win% 변환.
   - `winPctBefore`: best line Win% (깊은 탐색) move 전.
   - `winPctAfterForPlayer`: move 후, 수를 둔 플레이어 관점 Win%.
