@@ -30,7 +30,8 @@ object OpeningDb:
   def findByStandardFen(fen: StandardFen): Option[Opening] = byFen.get(fen)
 
   val SEARCH_MAX_PLIES = 40
-  val SEARCH_MIN_PIECES = 20
+  // Allow matching even after early trades; still keep a floor to avoid late-game false positives.
+  val SEARCH_MIN_PIECES = 12
 
   // assumes standard initial Fen and variant
   def search(sans: Iterable[SanStr]): Option[Opening.AtPly] =

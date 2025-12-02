@@ -3,6 +3,7 @@ package analysis
 
 import chess.format.pgn.SanStr
 import java.sql.{ Connection, DriverManager }
+import java.nio.file.{ Paths, Path }
 
 /** SQLite 기반 오프닝 익스플로러.
   * DB 스키마는 scripts/build_opening_db.py에서 생성: positions/moves/games 테이블.
@@ -38,36 +39,62 @@ object OpeningExplorer:
       yearBuckets: Map[String, Int]
   )
 
-  private lazy val dbPath = sys.env.getOrElse("OPENING_STATS_DB", "opening/masters_stats.db")
-  private lazy val connection: Option[Connection] =
-    try
-      val conn = DriverManager.getConnection(s"jdbc:sqlite:$dbPath")
-      Some(conn)
-    catch
-      case _: Throwable => None
+  private def defaultDbCandidates: List[String] =
+    val fallback = "opening/masters_stats.db"
+    val cwd = Paths.get("").toAbsolutePath
+    val codeBase: List[Path] =
+      Option(getClass.getProtectionDomain)
+        .flatMap(pd => Option(pd.getCodeSource))
+        .flatMap(cs => Option(cs.getLocation))
+        .flatMap(url => scala.util.Try(Paths.get(url.toURI)).toOption)
+        .toList
+    val roots = (cwd :: codeBase.flatMap(p => List(p, p.getParent, Option(p.getParent).flatMap(pp => Option(pp.getParent)).getOrElse(p)))).distinct
+    (for
+      root <- roots
+    yield root.resolve(fallback).normalize.toString).distinct
+
+  private lazy val dbPaths: List[String] =
+    sys.env
+      .get("OPENING_STATS_DB_LIST")
+      .filter(_.nonEmpty)
+      .map(_.split("[,;]").toList.map(_.trim).filter(_.nonEmpty))
+      .orElse(sys.env.get("OPENING_STATS_DB").map(p => List(p.trim)).filter(_.nonEmpty))
+      .getOrElse(defaultDbCandidates)
+
+  private lazy val connections: List[(String, Connection)] =
+    dbPaths.flatMap { path =>
+      try
+        val conn = DriverManager.getConnection(s"jdbc:sqlite:$path")
+        Some(path -> conn)
+      catch
+        case _: Throwable =>
+          System.err.println(s"[opening] failed to open db at $path")
+          None
+    }
 
   def explore(opening: Option[chess.opening.Opening.AtPly], sans: List[SanStr], topGamesLimit: Int = 12, topMovesLimit: Int = 8, gamesOffset: Int = 0): Option[Stats] =
     val key = fenKey(sans).getOrElse(sanKey(sans))
     Option(cache.get(key)).orElse {
-      connection.flatMap { conn =>
-        lookupPosition(conn, key, topGamesLimit, topMovesLimit, gamesOffset)
-          .orElse(opening.map { op =>
-            Stats(
-              bookPly = op.ply.value,
-              noveltyPly = math.min(op.ply.value + 1, sans.length),
-              games = None,
-              winWhite = None,
-              winBlack = None,
-              draw = None,
-              topMoves = Nil,
-              topGames = Nil,
-              source = "book",
-              minYear = None,
-              maxYear = None,
-              yearBuckets = Map.empty
-            )
-          })
-      }.map { stats =>
+      val found = connections.view.flatMap { case (path, conn) =>
+        lookupPosition(conn, key, topGamesLimit, topMovesLimit, gamesOffset, path)
+      }.headOption
+      val fallbackBook = opening.map { op =>
+        Stats(
+          bookPly = op.ply.value,
+          noveltyPly = math.min(op.ply.value + 1, sans.length),
+          games = None,
+          winWhite = None,
+          winBlack = None,
+          draw = None,
+          topMoves = Nil,
+          topGames = Nil,
+          source = "book",
+          minYear = None,
+          maxYear = None,
+          yearBuckets = Map.empty
+        )
+      }
+      found.orElse(fallbackBook).map { stats =>
         cache.put(key, stats)
         stats
       }
@@ -95,7 +122,7 @@ object OpeningExplorer:
         epSafe
       }
 
-  private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
+  private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int, sourceLabel: String): Option[Stats] =
     val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE fen = ?"
     val posStmt = conn.prepareStatement(posSql)
     posStmt.setString(1, key)
@@ -129,14 +156,14 @@ object OpeningExplorer:
           winWhite = winW,
           winBlack = winB,
           draw = drw,
-              topMoves = moves,
-              topGames = gamesList,
-              source = "sqlite",
-              minYear = minYear,
-              maxYear = maxYear,
-              yearBuckets = yearBuckets
-            )
-          )
+          topMoves = moves,
+          topGames = gamesList,
+          source = sourceLabel,
+          minYear = minYear,
+          maxYear = maxYear,
+          yearBuckets = yearBuckets
+        )
+      )
 
   private def lookupMoves(conn: Connection, posId: Int, limit: Int): List[TopMove] =
     val sql = "SELECT san, uci, games, win_w, win_b, draw FROM moves WHERE position_id = ? ORDER BY games DESC LIMIT ?"

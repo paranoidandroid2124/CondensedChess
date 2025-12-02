@@ -90,7 +90,9 @@ object AnalyzePgn:
       semanticTags: List[String],
       mistakeCategory: Option[String],
       phaseLabel: Option[String] = None,
-      shortComment: Option[String] = None
+      shortComment: Option[String] = None,
+      studyTags: List[String] = Nil,
+      studyScore: Double = 0.0
   )
 
   final case class Output(
@@ -103,7 +105,8 @@ object AnalyzePgn:
       bookExitComment: Option[String] = None,
       openingTrend: Option[String] = None,
       summaryText: Option[String] = None,
-      root: Option[TreeNode] = None
+      root: Option[TreeNode] = None,
+      studyChapters: Vector[StudyChapter] = Vector.empty
   )
 
   final case class Branch(move: String, winPct: Double, pv: List[String], label: String)
@@ -135,6 +138,19 @@ object AnalyzePgn:
       pv: List[String],
       comment: Option[String],
       children: List[TreeNode]
+  )
+  final case class StudyLine(label: String, pv: List[String], winPct: Double)
+  final case class StudyChapter(
+      id: String,
+      anchorPly: Int,
+      fen: String,
+      played: String,
+      best: Option[String],
+      deltaWinPct: Double,
+      tags: List[String],
+      lines: List[StudyLine],
+      summary: Option[String] = None,
+      studyScore: Double = 0.0
   )
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
@@ -178,7 +194,8 @@ object AnalyzePgn:
       }
       val topMoveStr = topAlt.map(m => s"book line: $m").getOrElse("book line unknown")
       val notableStr = notableGame.map(g => s"; notable game $g").getOrElse("")
-      s"Left book at $label playing ${move.san}; $topMoveStr$notableStr."
+      val phaseNote = move.phaseLabel.map(ph => s"; phase=$ph").getOrElse("")
+      s"Left book at $label playing ${move.san}; $topMoveStr$notableStr$phaseNote."
 
     val trend = openingStats.flatMap { os =>
       val buckets = os.yearBuckets
@@ -210,6 +227,24 @@ object AnalyzePgn:
   private def material(board: Board, color: Color): Double =
     board.piecesOf(color).toList.map { case (_, piece) => pieceValues.getOrElse(piece.role, 0.0) }.sum
 
+  private def pvToSan(fen: String, pv: List[String], maxPlies: Int = 5): List[String] =
+    val fullFen: chess.format.FullFen = chess.format.Fen.Full.clean(fen)
+    val startGame: chess.Game = chess.Game(chess.variant.Standard, Some(fullFen))
+    pv.take(maxPlies).foldLeft((List.empty[String], startGame)) {
+      case ((sans, g), uciStr) =>
+        chess.format.Uci(uciStr) match
+          case Some(uci: chess.format.Uci.Move) =>
+            g.apply(uci) match
+              case Right((nextGame, _)) =>
+                val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
+                (sans :+ san, nextGame)
+              case _ => (sans, g)
+          case _ => (sans, g)
+    }._1
+
+  private def uciToSanSingle(fen: String, uciStr: String): String =
+    pvToSan(fen, List(uciStr), maxPlies = 1).headOption.getOrElse(uciStr)
+
   def main(args: Array[String]): Unit =
     if args.length != 1 then
       System.err.println("usage: AnalyzePgn <path/to/game.pgn>")
@@ -236,17 +271,33 @@ object AnalyzePgn:
         val opening = OpeningDb.search(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
-        val (timeline, finalGame) = buildTimeline(replay, client, config, opening)
+        val (timelineRaw, finalGame) = buildTimeline(replay, client, config, opening)
+        val timeline = withStudySignals(timelineRaw, opening)
         val critical = detectCritical(timeline, client, config, llmRequestedPlys)
         val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
         val root = Some(buildTree(timeline, critical))
+        val studyChapters = buildStudyChapters(timeline)
         val (openingSummary, bookExitComment, openingTrend) = buildOpeningNotes(opening, openingStats, timeline)
-        Right(Output(opening, openingStats, timeline, oppositeColorBishops, critical, openingSummary, bookExitComment, openingTrend, root = root))
+        Right(
+          Output(
+            opening,
+            openingStats,
+            timeline,
+            oppositeColorBishops,
+            critical,
+            openingSummary,
+            bookExitComment,
+            openingTrend,
+            root = root,
+            studyChapters = studyChapters
+          )
+        )
 
   private def buildTimeline(replay: Replay, client: StockfishClient, config: EngineConfig, opening: Option[Opening.AtPly]): (Vector[PlyOutput], Game) =
     var game = replay.setup
     val entries = Vector.newBuilder[PlyOutput]
     var prevDeltaForOpp: Double = 0.0
+    val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
     replay.chronoMoves.foreach { mod =>
       val player = game.position.color
       val legalCount = game.position.legalMoves.size
@@ -313,7 +364,6 @@ object AnalyzePgn:
       val special =
         if specialBrilliant then Some("brilliant")
         else if greatMove then Some("great")
-        else if miss then Some("miss")
         else None
 
       val inBook = opening.exists(op => nextGame.ply.value <= op.ply.value)
@@ -408,7 +458,8 @@ object AnalyzePgn:
         alphaZeroStyle = concepts.alphaZeroStyle - conceptsBefore.alphaZeroStyle
       )
       val (phaseScore, phaseLabelRaw) = phaseTransition(conceptDelta, winBefore)
-      val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= 8.0) // 노이즈 방지 임계값
+      val phaseThreshold = if bookExitPly.contains(nextGame.ply.value) then 6.0 else 8.0
+      val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= phaseThreshold) // 책 이탈 시점은 민감도 소폭 완화
       val bestVsSecondGap = (for
         top <- evalBeforeDeep.lines.headOption
         second <- evalBeforeDeep.lines.drop(1).headOption
@@ -424,7 +475,7 @@ object AnalyzePgn:
           opp = oppFeatures
         )
 
-      val mistakeCategory =
+      val baseMistakeCategory =
         MistakeClassifier.classify(
           MistakeClassifier.Input(
             ply = nextGame.ply,
@@ -438,6 +489,7 @@ object AnalyzePgn:
             oppFeatures = oppFeatures
           )
         )
+      val mistakeCategory = if miss then Some("tactical_miss") else baseMistakeCategory
       entries += PlyOutput(
         ply = nextGame.ply,
         turn = player, // 수를 둔 색
@@ -474,13 +526,13 @@ object AnalyzePgn:
   private final case class EvalCacheKey(fen: String, depth: Int, multiPv: Int, timeMs: Int)
 
   private def detectPhaseLabel(delta: Concepts, winPctBefore: Double): Option[String] =
-    if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then Some("transition_to_endgame")
-    else if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then Some("tactical_to_positional")
-    else if delta.fortress >= 0.4 then Some("fortress_formation")
+    if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then Some(TagName.EndgameTransition)
+    else if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then Some(TagName.ShiftTacticalToPositional)
+    else if delta.fortress >= 0.4 then Some(TagName.FortressBuilding)
     else if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then Some("comfort_to_unpleasant")
-    else if delta.alphaZeroStyle >= 0.35 then Some("positional_sacrifice")
-    else if delta.kingSafety >= 0.4 then Some("king_safety_crisis")
-    else if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then Some("conversion_difficulty")
+    else if delta.alphaZeroStyle >= 0.35 then Some(TagName.PositionalSacrifice)
+    else if delta.kingSafety >= 0.4 then Some(TagName.KingExposed)
+    else if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then Some(TagName.ConversionDifficulty)
     else None
 
   private def phaseTransition(delta: Concepts, winPctBefore: Double): (Double, Option[String]) =
@@ -493,6 +545,49 @@ object AnalyzePgn:
     val conversionIssue = if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then 8.0 else 0.0
     val phaseScore = List(dynamicCollapse, tacticalDry, fortressJump, comfortLoss, alphaZeroSpike, kingSafetyCollapse, conversionIssue).max
     (phaseScore, detectPhaseLabel(delta, winPctBefore))
+
+  private def bestVsSecondGapOf(p: PlyOutput): Double =
+    p.bestVsSecondGap.getOrElse {
+      val top = p.evalBeforeDeep.lines.headOption
+      val second = p.evalBeforeDeep.lines.drop(1).headOption
+      (for t <- top; s <- second yield (t.winPct - s.winPct).abs).getOrElse(100.0)
+    }
+
+  private def computeStudySignals(p: PlyOutput, opening: Option[Opening.AtPly]): (Double, List[String]) =
+    val gap = bestVsSecondGapOf(p)
+    val branchTension = math.max(0.0, 12.0 - gap) // closer lines → higher tension
+    val deltaScore = math.abs(p.deltaWinPct)
+    val (phaseShift, phaseLabel) = phaseTransition(p.conceptDelta, p.winPctBefore)
+    val planShift =
+      List(
+        math.abs(p.conceptDelta.dynamic),
+        math.abs(p.conceptDelta.kingSafety),
+        math.abs(p.conceptDelta.rookActivity),
+        math.abs(p.conceptDelta.pawnStorm),
+        math.abs(p.conceptDelta.fortress),
+        math.abs(p.conceptDelta.conversionDifficulty)
+      ).max
+    val theoryFork = opening.exists(op => p.ply.value <= op.ply.value + 5) && gap <= 3.0
+    val score =
+      deltaScore * 0.6 +
+        branchTension * 0.8 +
+        phaseShift * 1.4 +
+        planShift * 12.0 +
+        (if theoryFork then 6.0 else 0.0)
+    val tags = scala.collection.mutable.ListBuffer.empty[String]
+    if theoryFork then tags += TagName.OpeningTheoryBranch
+    phaseLabel.orElse(p.phaseLabel).foreach(tags += _)
+    if planShift >= 0.3 then tags += TagName.PlanChange
+    tags ++= p.mistakeCategory.toList
+    tags ++= p.semanticTags.take(4)
+    val canon = tags.toList.distinct
+    (score, canon)
+
+  private def withStudySignals(timeline: Vector[PlyOutput], opening: Option[Opening.AtPly]): Vector[PlyOutput] =
+    timeline.map { p =>
+      val (score, tags) = computeStudySignals(p, opening)
+      p.copy(studyScore = score, studyTags = tags, phaseLabel = p.phaseLabel)
+    }
 
   private def detectCritical(timeline: Vector[PlyOutput], client: StockfishClient, config: EngineConfig, llmRequestedPlys: Set[Int]): Vector[CriticalNode] =
     val evalCache = scala.collection.mutable.Map.empty[EvalCacheKey, EngineEval]
@@ -566,7 +661,7 @@ object AnalyzePgn:
 
       val forcedMove = ply.legalMoves <= 1 || gap >= 20.0
 
-      val tags = (phaseLabel.toList ++ ply.semanticTags).take(6)
+      val tags = (phaseLabel.toList ++ ply.semanticTags).distinct.take(6)
 
       CriticalNode(
         ply = ply.ply,
@@ -582,6 +677,61 @@ object AnalyzePgn:
       )
     }
 
+  private def buildStudyChapters(timeline: Vector[PlyOutput]): Vector[StudyChapter] =
+    val candidates = timeline.filter(_.studyScore > 0).sortBy(p => -p.studyScore).take(20)
+    val anchors = scala.collection.mutable.ArrayBuffer.empty[PlyOutput]
+    candidates.foreach { p =>
+      if anchors.forall(a => (a.ply.value - p.ply.value).abs > 2) then anchors += p
+    }
+    def templateSummary(anchor: PlyOutput, ch: StudyChapter): String =
+      val deltaText =
+        if ch.deltaWinPct <= -1 then s"missed by ${fmt(ch.deltaWinPct)} win%"
+        else if ch.deltaWinPct >= 1 then s"gain of ${fmt(ch.deltaWinPct)} win%"
+        else "small eval shift"
+      val bestText = ch.best.map(b => s"best was ${uciToSanSingle(anchor.fenBefore, b)}").getOrElse("no clear best line")
+      val tagText =
+        if ch.tags.nonEmpty then ch.tags.take(2).map(_.replace("_", " ")).mkString(", ")
+        else "idea"
+      s"${ch.played} at ply ${ch.anchorPly}: $tagText; $bestText; $deltaText."
+    anchors.take(10).map { anchor =>
+      val id = s"ch-${anchor.ply.value}"
+      val bestLine = anchor.evalBeforeDeep.lines.headOption
+      val altLine = anchor.evalBeforeDeep.lines.drop(1).headOption
+      val playedLine = anchor.evalBeforeDeep.lines.find(_.move == anchor.uci)
+      val includePlayed = (for
+        played <- playedLine
+        best <- bestLine
+      yield played.move != best.move && played.winPct < best.winPct).getOrElse(false)
+      val lines = scala.collection.mutable.ListBuffer.empty[StudyLine]
+      if includePlayed then
+        playedLine.foreach { l =>
+          lines += StudyLine(label = "played", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
+        }
+      bestLine.foreach { l =>
+        // avoid duplicate if already added as played with same move
+        if !playedLine.contains(l) then
+          lines += StudyLine(label = "engine", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
+      }
+      altLine.foreach { l =>
+        lines += StudyLine(label = "alt", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
+      }
+      StudyChapter(
+        id = id,
+        anchorPly = anchor.ply.value,
+        fen = anchor.fenBefore,
+        played = anchor.san,
+        best = bestLine.flatMap(bl => if playedLine.contains(bl) then None else Some(uciToSanSingle(anchor.fenBefore, bl.move))),
+        deltaWinPct = anchor.deltaWinPct,
+        tags = anchor.studyTags.take(5),
+        lines = lines.toList,
+        summary = None,
+        studyScore = anchor.studyScore
+      )
+    }.toVector.map { ch =>
+      val anchor = timeline.find(_.ply.value == ch.anchorPly)
+      ch.copy(summary = ch.summary.orElse(anchor.map(a => templateSummary(a, ch))))
+    }
+
   private def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
     val criticalByPly = critical.map(c => c.ply.value -> c).toMap
     def glyphOf(j: String): String = j match
@@ -593,24 +743,8 @@ object AnalyzePgn:
       case _ => ""
 
     def tagsOf(p: PlyOutput): List[String] =
-      (List(p.judgement) ++ p.special.toList ++ p.mistakeCategory.toList ++ p.semanticTags).filter(_.nonEmpty)
-
-    def pvToSan(fen: String, pv: List[String], maxPlies: Int = 5): List[String] =
-      val fullFen: chess.format.FullFen = chess.format.Fen.Full.clean(fen)
-      val startGame: chess.Game = chess.Game(chess.variant.Standard, Some(fullFen))
-      pv.take(maxPlies).foldLeft((List.empty[String], startGame)) {
-        case ((sans, g), uciStr) =>
-          chess.format.Uci(uciStr) match
-            case Some(uci: chess.format.Uci.Move) =>
-              g.apply(uci) match
-                case Right((nextGame, _)) =>
-                  val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
-                  (sans :+ san, nextGame)
-                case _ => (sans, g)
-            case _ => (sans, g)
-      }._1
-    def uciToSanSingle(fen: String, uciStr: String): String =
-      pvToSan(fen, List(uciStr), maxPlies = 1).headOption.getOrElse(uciStr)
+      (List(p.judgement) ++ p.special.toList ++ p.mistakeCategory.toList ++ p.semanticTags)
+        .filter(_.nonEmpty)
 
     val mainNodes = timeline.map { t =>
       val bestLine = t.evalBeforeDeep.lines.headOption
@@ -642,6 +776,12 @@ object AnalyzePgn:
           val vars = c.branches.take(3).map { b =>
             val pvSan = pvToSan(fenBefore, b.pv)
             val sanMove = uciToSanSingle(fenBefore, b.move)
+            val fallbackComment =
+              c.comment.orElse {
+                val reason = c.reason
+                val delta = f"${b.winPct}%.1f"
+                Some(s"Line ${b.label}: ${sanMove} (${delta}% win). ${reason}")
+              }
             TreeNode(
               ply = node.ply,
               san = sanMove,
@@ -655,7 +795,7 @@ object AnalyzePgn:
               bestMove = None,
               bestEval = None,
               pv = pvSan,
-              comment = c.comment,
+              comment = fallbackComment,
               children = Nil
             )
           }
@@ -696,6 +836,13 @@ object AnalyzePgn:
       renderTree(sb, r)
       sb.append(',')
     }
+    if output.studyChapters.nonEmpty then
+      sb.append("\"studyChapters\":[")
+      output.studyChapters.zipWithIndex.foreach { case (ch, idx) =>
+        if idx > 0 then sb.append(',')
+        renderStudyChapter(sb, ch)
+      }
+      sb.append("],")
     output.opening.foreach { op =>
       sb.append("\"opening\":{")
       sb.append("\"name\":\"").append(escape(op.opening.name.value)).append("\",")
@@ -773,6 +920,14 @@ object AnalyzePgn:
       ply.shortComment.foreach { txt =>
         sb.append(",\"shortComment\":\"").append(escape(txt)).append('"')
       }
+      if ply.studyTags.nonEmpty then
+        sb.append(",\"studyTags\":[")
+        ply.studyTags.zipWithIndex.foreach { case (t, i) =>
+          if i > 0 then sb.append(',')
+          sb.append("\"").append(escape(t)).append('"')
+        }
+        sb.append(']')
+      sb.append(",\"studyScore\":").append(fmt(ply.studyScore))
       sb.append(',')
       renderConcepts(sb, "concepts", ply.concepts)
       sb.append(',')
@@ -935,6 +1090,40 @@ object AnalyzePgn:
       sb.append("]}")
     }
     sb.append("]}")
+
+  private def renderStudyChapter(sb: StringBuilder, ch: StudyChapter): Unit =
+    sb.append('{')
+    sb.append("\"id\":\"").append(escape(ch.id)).append("\",")
+    sb.append("\"anchorPly\":").append(ch.anchorPly).append(',')
+    sb.append("\"fen\":\"").append(escape(ch.fen)).append("\",")
+    sb.append("\"played\":\"").append(escape(ch.played)).append("\",")
+    ch.best.foreach(b => sb.append("\"best\":\"").append(escape(b)).append("\","))
+    sb.append("\"deltaWinPct\":").append(fmt(ch.deltaWinPct)).append(',')
+    sb.append("\"studyScore\":").append(fmt(ch.studyScore)).append(',')
+    sb.append("\"tags\":[")
+    ch.tags.zipWithIndex.foreach { case (t, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append("\"").append(escape(t)).append('"')
+    }
+    sb.append("],")
+    sb.append("\"lines\":[")
+    ch.lines.zipWithIndex.foreach { case (l, idx) =>
+      if idx > 0 then sb.append(',')
+      sb.append('{')
+      sb.append("\"label\":\"").append(escape(l.label)).append("\",")
+      sb.append("\"winPct\":").append(fmt(l.winPct)).append(',')
+      sb.append("\"pv\":[")
+      l.pv.zipWithIndex.foreach { case (m, i) =>
+        if i > 0 then sb.append(',')
+        sb.append("\"").append(escape(m)).append('"')
+      }
+      sb.append("]}")
+    }
+    sb.append("]")
+    ch.summary.foreach { s =>
+      sb.append(",\"summary\":\"").append(escape(s)).append('"')
+    }
+    sb.append('}')
 
   private def renderTree(sb: StringBuilder, n: TreeNode): Unit =
     sb.append('{')

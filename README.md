@@ -10,8 +10,8 @@ Self-hosted PGN review stack built on scalachess + Stockfish + (optional) Gemini
 
 ## Backend (Scala)
 - Run API server (loads `.env` if present): `./scripts/run_api.sh`  
-  - Endpoints: `POST /analyze` (body = PGN string or `{"pgn": "...", "llmPlys":[...]}`) → `{jobId,status}`; `GET /result/:id` → pending/ready/failed or Review JSON body. CORS enabled.
-  - Env: `PORT` (8080), `BIND` (0.0.0.0), `ANALYZE_*` depth/time knobs (see `AnalyzePgn.EngineConfig.fromEnv`), `ANALYZE_FORCE_CRITICAL_PLYS` to always request LLM at given plys.
+  - Endpoints: `POST /analyze` (body = PGN string or `{"pgn": "...", "llmPlys":[...]}`) → `{jobId,status}`; `GET /result/:id` → pending/ready/failed or Review JSON body (includes `jobId`); `POST /analysis/branch` with `{jobId, ply, uci}` merges a new variation into the server tree and returns updated Review JSON. CORS enabled.
+  - Env: `PORT` (8080), `BIND` (0.0.0.0), `ANALYZE_*` depth/time knobs (see `AnalyzePgn.EngineConfig.fromEnv`), `ANALYZE_FORCE_CRITICAL_PLYS` to always request LLM at given plys, `OPENING_STATS_DB_LIST` (comma/semicolon) to load multiple opening DBs (e.g., masters + classical). `openingStats.source` shows which DB served the stats.
 - CLI (one-off JSON): `sbt "core/runMain chess.analysis.AnalyzePgn path/to/game.pgn"` prints Review JSON to stdout.
 - Schema: see `REVIEW_SCHEMA.md` for the Review JSON fields.
 

@@ -76,6 +76,41 @@ object LlmClient:
   def treeComments(payload: String): Map[Int, String] =
     generateJson(payload, "comment")
 
+  def studyChapterComments(payload: String): Map[String, String] =
+    apiKey.flatMap { key =>
+      val prompt =
+        s"""You are a chess coach. For each study chapter, return JSON array of {"id":string,"summary":string}.
+           |- Payload includes studyChapters with anchorPly, played, best, deltaWinPct, tags, lines (pv), and instructions.
+           |- Use only provided moves/evals/tags. Do NOT invent moves/evals or move numbers.
+           |- Keep each summary to 1-2 sentences. Mention played vs best (if present) and the core idea from tags (plan_change/opening_theory_branch/tactic/etc.).
+           |- Use PV ideas briefly (1-2 moves) only if provided. Do not fabricate additional moves.
+           |- If deltaWinPct is small, focus on plan/theory shift rather than eval swing.
+           |- Ground every claim in the given tags/lines/delta; avoid generic advice.
+           |Payload: $payload""".stripMargin
+      val body =
+        s"""{
+           |  "contents":[{"parts":[{"text":${quote(prompt)}}]}],
+           |  "generationConfig":{"responseMimeType":"application/json"}
+           |}""".stripMargin
+      val req = HttpRequest
+        .newBuilder()
+        .uri(URI.create(endpoint + key))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build()
+      try
+        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+        if res.statusCode() >= 200 && res.statusCode() < 300 then
+          extractText(res.body()).map(parseIdSummaryJson)
+        else
+          System.err.println(s"[llm-study] status=${res.statusCode()} body=${res.body()}")
+          None
+      catch
+        case e: Throwable =>
+          System.err.println(s"[llm-study] request failed: ${e.getMessage}")
+          None
+    }.getOrElse(Map.empty)
+
   private def generateJson(promptPayload: String, field: String): Map[Int, String] =
     apiKey.flatMap { key =>
       val prompt =
@@ -83,7 +118,7 @@ object LlmClient:
            |- Payload includes an "instructions" block and data nodes; follow that guidance while applying the rules below.
            |- Use only moves/evals provided. Do NOT invent moves/evals or move numbers.
            |- Prefer the provided label field when present (e.g., "13. Qe2", "12...Ba6"); do not fabricate ply indices.
-           |- Leverage mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and semanticTags (facts like open_h_file, weak_f7, outpost_f5, back_rank_weak) to ground the explanation.
+           |- Leverage mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and semanticTags (facts like open_h_file, weak_f7, outpost_f5, weak_back_rank) to ground the explanation.
            |- Mention forced/only-move or big best-vs-second gaps when legalMoves<=1 or bestVsSecondGap is large.
            |- Use conceptShift or tags to explain *why* (kingSafety/pawnStorm/rookActivity changes, etc.) without inventing moves.
            |- Do NOT call a move a blunder/mistake unless its judgement or delta clearly indicates it; stay consistent with provided tags/delta.
@@ -127,4 +162,19 @@ object LlmClient:
     catch
       case e: Throwable =>
         System.err.println(s"[llm-$field] failed to parse JSON body: ${e.getMessage}")
+        Map.empty
+
+  private def parseIdSummaryJson(body: String): Map[String, String] =
+    try
+      val arr = ujson.read(body).arr
+      arr.iterator.flatMap { v =>
+        val obj = v.obj
+        for
+          id <- obj.get("id").map(_.str)
+          summary <- obj.get("summary").map(_.str)
+        yield id -> summary
+      }.toMap
+    catch
+      case e: Throwable =>
+        System.err.println(s"[llm-study] failed to parse JSON body: ${e.getMessage}")
         Map.empty

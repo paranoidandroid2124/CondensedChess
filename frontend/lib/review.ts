@@ -52,3 +52,23 @@ export async function fetchReview(id: string): Promise<ReviewFetchResult> {
   // Wrap as ready
   return { status: "ready", review: json as Review };
 }
+
+export async function addBranch(jobId: string, ply: number, uci: string): Promise<Review> {
+  const url = `${API_BASE.replace(/\/$/, "")}/analysis/branch`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jobId, ply, uci }),
+    cache: "no-store"
+  });
+  if (res.status === 202) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.status || "analysis_pending");
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`branch failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  return json as Review;
+}

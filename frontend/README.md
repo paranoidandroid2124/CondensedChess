@@ -13,7 +13,9 @@ Open http://localhost:3000/review/sample to see the mock Review JSON rendered. T
 
 ## API wiring
 - Set `NEXT_PUBLIC_REVIEW_API_BASE` to your backend host (e.g. `http://localhost:8080`).
-- The review page calls `GET {API_BASE}/result/:id`. Use `/review/sample` for offline/demo.
+- The review page calls `GET {API_BASE}/result/:id` (returns `jobId` too). Use `/review/sample` for offline/demo.
+- Variations: the board drag/drop hits `POST {API_BASE}/analysis/branch` with `{jobId, ply, uci}` and re-renders the returned tree.
+- Opening DB: backend can load multiple SQLite DBs via `OPENING_STATS_DB_LIST` (masters/classical). The API returns `openingStats.source`, which is displayed as a badge in Summary.
 
 ## Structure
 - `app/page.tsx`: Landing page (Hero + feature cards).

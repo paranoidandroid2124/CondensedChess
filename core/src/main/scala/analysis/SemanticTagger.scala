@@ -32,7 +32,7 @@ object SemanticTagger:
 
     strongOutpost(board, perspective).foreach(tags += _)
 
-    if backRankWeak(board, perspective) then tags += "back_rank_weak"
+    if backRankWeak(board, perspective) then tags += TagName.WeakBackRank
     looseMinor(board, perspective).foreach(tags += _)
 
     if kingStuckCenter(myKing, plyNumber) then tags += "king_stuck_center"
