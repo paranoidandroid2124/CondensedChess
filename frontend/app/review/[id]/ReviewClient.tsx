@@ -1255,7 +1255,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
           if (attempt < 80) {
             timer = setTimeout(() => poll(attempt + 1), 1500);
           } else {
-            setError("Result not ready yet. Please refresh later.");
+            setPendingMessage("Still processing; please refresh later.");
             setLoading(false);
           }
           return;
@@ -1543,6 +1543,20 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               Analyzing... ({pendingMessage})
             </div>
           ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (!review && pendingMessage) {
+    return (
+      <div className="px-6 py-10 sm:px-12 lg:px-16">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6">
+          <h2 className="text-xl font-semibold text-white">Analyzing...</h2>
+          <p className="text-sm text-white/80">Job {reviewId} is still processing. You can refresh later.</p>
+          <p className="mt-2 text-xs text-white/60">
+            Set NEXT_PUBLIC_REVIEW_API_BASE for the API base URL, or open `/review/sample` to view sample data.
+          </p>
         </div>
       </div>
     );
