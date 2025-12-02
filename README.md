@@ -1,48 +1,25 @@
-Chess API written in scala for [lichess.org](https://lichess.org)
+# CondensedChess
 
-It is entirely functional, immutable, and free of side effects.
+Self-hosted PGN review stack built on scalachess + Stockfish + (optional) Gemini. It ingests a PGN, computes engine/feature timelines, marks critical moves, and emits a Review JSON that the Next.js frontend renders.
 
-[![](https://jitpack.io/v/lichess-org/scalachess.svg)](https://jitpack.io/#lichess-org/scalachess)
+## Requirements
+- JDK 21+, sbt
+- Stockfish available on `PATH` or `STOCKFISH_BIN`
+- Node 18+ for `frontend/`
+- Optional: `GEMINI_API_KEY` (and `GEMINI_MODEL`, default `gemini-3-pro-preview`) to enable LLM summaries/comments
 
-## INSTALL
+## Backend (Scala)
+- Run API server (loads `.env` if present): `./scripts/run_api.sh`  
+  - Endpoints: `POST /analyze` (body = PGN string or `{"pgn": "...", "llmPlys":[...]}`) → `{jobId,status}`; `GET /result/:id` → pending/ready/failed or Review JSON body. CORS enabled.
+  - Env: `PORT` (8080), `BIND` (0.0.0.0), `ANALYZE_*` depth/time knobs (see `AnalyzePgn.EngineConfig.fromEnv`), `ANALYZE_FORCE_CRITICAL_PLYS` to always request LLM at given plys.
+- CLI (one-off JSON): `sbt "core/runMain chess.analysis.AnalyzePgn path/to/game.pgn"` prints Review JSON to stdout.
+- Schema: see `REVIEW_SCHEMA.md` for the Review JSON fields.
 
-Clone scalachess
+## Frontend (Next.js)
+- `cd frontend && npm install && npm run dev`
+- Set `NEXT_PUBLIC_REVIEW_API_BASE` (e.g., `http://localhost:8080`) to hit the Scala API. `/review/sample` uses the bundled mock JSON for offline demo.
 
-    git clone https://github.com/lichess-org/scalachess
-
-Start [sbt](http://www.scala-sbt.org/download.html) in scalachess directory
-
-    sbt
-
-In the sbt shell, to compile scalachess, run
-
-    compile
-
-To run the tests
-
-    testKit / test
-
-To run benchmarks (takes more than 1 hour to finish):
-
-    bench / Jmh / run
-
-Or to output a json file
-
-    bench / Jmh / run -rf json
-
-To run quick benchmarks (results may be inaccurate):
-
-    bench / Jmh / run -i 1 -wi 1 -f1 -t1
-
-To run benchmarks for a specific class:
-
-    bench / Jmh / run -rf json .*PlayBench.*
-
-To run [scalafmt](https://scalameta.org/scalafmt/docs/installation.html) and [scalafix](https://scalacenter.github.io/scalafix):
-
-    sbt prepare
-
-## Install (python)
-
-For python code, [install pipenv](https://pipenv.pypa.io/en/latest/installation.html#installing-pipenv), and run `$ pipenv install` from project root.
-
+## Notes
+- Sample PGNs live at `sample*.pgn` for quick checks.
+- `twic_raw/` is a local data dump and ignored via `.gitignore`.
+- Upstream codebase started from lichess scalachess; many bench/tests were removed in favor of the review pipeline here.
