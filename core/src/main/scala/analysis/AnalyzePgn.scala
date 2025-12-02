@@ -82,6 +82,8 @@ object AnalyzePgn:
       judgement: String,
       special: Option[String],
       concepts: Concepts,
+      semanticTags: List[String],
+      mistakeCategory: Option[String],
       shortComment: Option[String] = None
   )
 
@@ -95,7 +97,15 @@ object AnalyzePgn:
   )
 
   final case class Branch(move: String, winPct: Double, pv: List[String], label: String)
-  final case class CriticalNode(ply: Ply, reason: String, deltaWinPct: Double, branches: List[Branch], comment: Option[String] = None)
+  final case class CriticalNode(
+      ply: Ply,
+      reason: String,
+      deltaWinPct: Double,
+      branches: List[Branch],
+      comment: Option[String] = None,
+      mistakeCategory: Option[String] = None,
+      tags: List[String] = Nil
+  )
   final case class TreeNode(
       ply: Int,
       san: String,
@@ -221,11 +231,11 @@ object AnalyzePgn:
         if inBook then "book"
         else baseJudgement
 
-      val features = FeatureExtractor.sideFeatures(nextGame.position, !mod.color)
-      val oppFeatures = FeatureExtractor.sideFeatures(nextGame.position, mod.color)
+      val moverFeatures = FeatureExtractor.sideFeatures(nextGame.position, player)
+      val oppFeatures = FeatureExtractor.sideFeatures(nextGame.position, !player)
       ConceptScorer.computeBreakAndInfiltration(nextGame.position, nextGame.position.color)
       val conceptScores = ConceptScorer.score(
-        features = features,
+        features = moverFeatures,
         oppFeatures = oppFeatures,
         evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
         evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
@@ -254,6 +264,29 @@ object AnalyzePgn:
         sacrificeQuality = conceptScores.sacrificeQuality,
         alphaZeroStyle = conceptScores.alphaZeroStyle
       )
+      val semanticTags =
+        SemanticTagger.tags(
+          position = nextGame.position,
+          perspective = player,
+          ply = nextGame.ply,
+          self = moverFeatures,
+          opp = oppFeatures
+        )
+
+      val mistakeCategory =
+        MistakeClassifier.classify(
+          MistakeClassifier.Input(
+            ply = nextGame.ply,
+            judgement = finalJudgement,
+            deltaWinPct = delta,
+            san = mod.toSanStr.value,
+            player = player,
+            inCheckBefore = game.situation.check,
+            concepts = concepts,
+            features = moverFeatures,
+            oppFeatures = oppFeatures
+          )
+        )
       entries += PlyOutput(
         ply = nextGame.ply,
         turn = player, // 수를 둔 색
@@ -261,7 +294,7 @@ object AnalyzePgn:
         uci = mod.toUci.uci,
         fen = fenAfter,
         fenBefore = fenBefore,
-        features = features,
+        features = moverFeatures,
         evalBeforeShallow = evalBeforeShallow,
         evalBeforeDeep = evalBeforeDeep,
         winPctBefore = winBefore,
@@ -272,7 +305,9 @@ object AnalyzePgn:
         epLoss = epLoss,
         judgement = finalJudgement,
         special = special,
-        concepts = concepts
+        concepts = concepts,
+        semanticTags = semanticTags,
+        mistakeCategory = mistakeCategory
       )
       game = nextGame
       prevDeltaForOpp = delta // 다음 수에서 miss 판단용
@@ -346,7 +381,14 @@ object AnalyzePgn:
             Branch(move = l.move, winPct = l.winPct, pv = l.pv, label = label)
         }
 
-      CriticalNode(ply = ply.ply, reason = reason, deltaWinPct = ply.deltaWinPct, branches = branches)
+      CriticalNode(
+        ply = ply.ply,
+        reason = reason,
+        deltaWinPct = ply.deltaWinPct,
+        branches = branches,
+        mistakeCategory = ply.mistakeCategory,
+        tags = ply.semanticTags.take(6)
+      )
     }
 
   private def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
@@ -360,7 +402,7 @@ object AnalyzePgn:
       case _ => ""
 
     def tagsOf(p: PlyOutput): List[String] =
-      (List(p.judgement) ++ p.special.toList).filter(_.nonEmpty)
+      (List(p.judgement) ++ p.special.toList ++ p.mistakeCategory.toList ++ p.semanticTags).filter(_.nonEmpty)
 
     def pvToSan(fen: String, pv: List[String], maxPlies: Int = 5): List[String] =
       val fullFen: chess.format.FullFen = chess.format.Fen.Full.clean(fen)
@@ -503,6 +545,16 @@ object AnalyzePgn:
       ply.special.foreach { s =>
         sb.append(",\"special\":\"").append(escape(s)).append('"')
       }
+      ply.mistakeCategory.foreach { cat =>
+        sb.append(",\"mistakeCategory\":\"").append(escape(cat)).append('"')
+      }
+      if ply.semanticTags.nonEmpty then
+        sb.append(",\"semanticTags\":[")
+        ply.semanticTags.zipWithIndex.foreach { case (t, i) =>
+          if i > 0 then sb.append(',')
+          sb.append("\"").append(escape(t)).append('"')
+        }
+        sb.append(']')
       ply.shortComment.foreach { txt =>
         sb.append(",\"shortComment\":\"").append(escape(txt)).append('"')
       }
@@ -576,6 +628,16 @@ object AnalyzePgn:
     sb.append("\"ply\":").append(c.ply.value).append(',')
     sb.append("\"reason\":\"").append(escape(c.reason)).append("\",")
     sb.append("\"deltaWinPct\":").append(fmt(c.deltaWinPct)).append(',')
+    c.mistakeCategory.foreach { cat =>
+      sb.append("\"mistakeCategory\":\"").append(escape(cat)).append("\",")
+    }
+    if c.tags.nonEmpty then
+      sb.append("\"tags\":[")
+      c.tags.zipWithIndex.foreach { case (t, idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append("\"").append(escape(t)).append('"')
+      }
+      sb.append("],")
     c.comment.foreach { txt =>
       sb.append("\"comment\":\"").append(escape(txt)).append("\",")
     }
