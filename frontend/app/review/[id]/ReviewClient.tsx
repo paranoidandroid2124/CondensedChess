@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Chessboard } from "react-chessboard";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Chessboard, PieceDropArgs } from "react-chessboard";
 import { Chess } from "chess.js";
 import { fetchOpeningLookup, fetchReview } from "../../../lib/review";
 import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, TimelineNode } from "../../../types/review";
@@ -290,13 +290,15 @@ function BoardCard({
   squareStyles,
   arrows,
   evalPercent,
-  judgementBadge
+  judgementBadge,
+  onDrop
 }: {
   fen?: string;
   squareStyles?: Record<string, React.CSSProperties>;
   arrows?: Array<[string, string, string?]>;
   evalPercent?: number;
   judgementBadge?: string;
+  onDrop?: (args: PieceDropArgs) => boolean;
 }) {
   const [width, setWidth] = useState(420);
 
@@ -339,7 +341,12 @@ function BoardCard({
             id="review-board"
             position={fen || "start"}
             boardWidth={width}
-            arePiecesDraggable={false}
+            arePiecesDraggable={true}
+            onPieceDrop={(sourceSquare, targetSquare, piece) =>
+              onDrop
+                ? onDrop({ sourceSquare, targetSquare, piece, dropSquare: targetSquare, target: undefined, pieceSquare: sourceSquare })
+                : false
+            }
             customLightSquareStyle={{ backgroundColor: "#e7ecff" }}
             customDarkSquareStyle={{ backgroundColor: "#5b8def" }}
             customSquareStyles={squareStyles}
@@ -1196,6 +1203,7 @@ function SummaryHero({
 export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [selectedPly, setSelectedPly] = useState<number | null>(null);
+  const [scratchChess] = useState(() => new Chess());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -1333,6 +1341,54 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     if (selectedPly === null) return enhancedTimeline[enhancedTimeline.length - 1];
     return enhancedTimeline.find((t) => t.ply === selectedPly) ?? enhancedTimeline[enhancedTimeline.length - 1];
   }, [selectedPly, enhancedTimeline]);
+
+  const handleBoardDrop = useCallback(
+    ({ sourceSquare, targetSquare }: PieceDropArgs) => {
+      try {
+        scratchChess.load(selected?.fen ?? "start");
+      } catch {
+        return false;
+      }
+      const prevFen = scratchChess.fen();
+      const move = scratchChess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+      if (!move) return false;
+      const newFen = scratchChess.fen();
+      // create a synthetic ply entry
+      const nextPly = (selected?.ply ?? 0) + 1;
+      const san = move.san;
+      const uci = `${sourceSquare}${targetSquare}${move.promotion ?? ""}`;
+      const synthetic: TimelineNode & { label: string; fenBefore: string } = {
+        ply: nextPly,
+        turn: move.color === "w" ? "white" : "black",
+        san,
+        uci,
+        fen: newFen,
+        fenBefore: prevFen,
+        features: selected?.features ?? ({} as any),
+        judgement: "good",
+        winPctAfterForPlayer: selected?.winPctAfterForPlayer,
+        winPctBefore: selected?.winPctAfterForPlayer,
+        deltaWinPct: 0,
+        epBefore: 0,
+        epAfter: 0,
+        epLoss: 0,
+        special: undefined,
+        concepts: selected?.concepts,
+        label: `${Math.ceil(nextPly / 2)}${nextPly % 2 === 1 ? "." : "..."} ${san}`
+      };
+      const mergedTimeline = [...enhancedTimeline.filter((t) => t.ply < nextPly), synthetic];
+      // update san sequence and lookup
+      const seq = mergedTimeline.sort((a, b) => a.ply - b.ply).map((t) => t.san);
+      setSelectedPly(nextPly);
+      setLookupLoading(true);
+      fetchOpeningLookup(seq)
+        .then(setOpeningLookup)
+        .catch((err) => setLookupError(err instanceof Error ? err.message : "Lookup failed"))
+        .finally(() => setLookupLoading(false));
+      return true;
+    },
+    [scratchChess, selected, enhancedTimeline]
+  );
 
   useEffect(() => {
     const key = sanSequence.join(" ");
@@ -1514,6 +1570,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               arrows={arrows}
               evalPercent={evalPercent}
               judgementBadge={judgementBadge}
+              onDrop={handleBoardDrop}
             />
             {showAdvanced ? (
               <EvalSparkline
