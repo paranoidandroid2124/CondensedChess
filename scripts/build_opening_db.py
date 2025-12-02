@@ -2,28 +2,29 @@
 """
 Build a SQLite opening database from PGN games (e.g., twic_raw 2400+).
 
-Schema (tables):
-- positions(id INTEGER PRIMARY KEY, san_seq TEXT UNIQUE, ply INT, games INT, win_w REAL, win_b REAL, draw REAL)
-- moves(position_id INT, san TEXT, uci TEXT, games INT, win_w REAL, win_b REAL, draw REAL)
-- games(position_id INT, white TEXT, black TEXT, white_elo INT, black_elo INT, result TEXT, date TEXT, event TEXT)
+Schema:
+- positions(id, san_seq UNIQUE, ply, games, win_w, win_b, draw)
+- moves(position_id, san, uci, games, win_w, win_b, draw)  # per-next-move outcomes
+- games(position_id, white, black, white_elo, black_elo, result, date, event)
 
-Usage example:
+Key behavior:
+- win/draw per move 집계 포함 (moves.win_w/win_b/draw 비율 저장).
+- 기본은 포지션별 상위 Elo 게임을 `--top-games-per-pos` 만큼만 저장; `--store-all-games`로 전체 저장 가능.
+- 전체를 한 트랜잭션으로 삽입해 속도 개선, executemany 배치 사용.
+
+Usage 예:
   python scripts/build_opening_db.py \
     --pgn-dir twic_raw \
     --out opening/masters_stats.db \
+    --max-plies 200 \
     --min-elo 0 \
-    --top-games-per-pos 20 \
-    --store-all-games false
-
-Notes:
-- By default 모든 게임에 대해 집계 통계만 저장하고, 각 포지션마다 Elo 상위 게임 20개만 보관합니다.
-- `--store-all-games`를 true로 주면 각 포지션마다 해당 게임 전체를 저장하지만 DB 크기가 매우 커질 수 있습니다.
+    --top-games-per-pos 20
 """
 
 import argparse
 import os
 import sqlite3
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from typing import Dict, List, Tuple, Optional
 
 import chess.pgn
@@ -34,25 +35,48 @@ def parse_args():
     ap.add_argument("--pgn-dir", required=True, help="Directory containing PGN files")
     ap.add_argument("--out", required=True, help="Output SQLite path")
     ap.add_argument("--min-elo", type=int, default=0, help="Minimum Elo for both players (0 to disable)")
-    ap.add_argument("--max-plies", type=int, default=200, help="Max plies per game to index (set high to include full games)")
+    ap.add_argument("--max-plies", type=int, default=200, help="Max plies per game to index")
     ap.add_argument("--top-games-per-pos", type=int, default=20, help="Max games to keep per position when not storing all")
-    ap.add_argument("--store-all-games", action="store_true", help="Store all games per position (DB may be huge)")
+    ap.add_argument("--store-all-games", action="store_true", help="Store all games per position (DB can become large)")
     ap.add_argument("--sample", type=int, default=None, help="Optional limit of games to process")
     return ap.parse_args()
 
 
+class MoveStat:
+    __slots__ = ("games", "w", "b", "d")
+
+    def __init__(self):
+        self.games = 0
+        self.w = 0
+        self.b = 0
+        self.d = 0
+
+    def add(self, result: str):
+        self.games += 1
+        if result == "1-0":
+            self.w += 1
+        elif result == "0-1":
+            self.b += 1
+        else:
+            self.d += 1
+
+    def ratios(self):
+        g = max(1, self.games)
+        return self.games, self.w / g, self.b / g, self.d / g
+
+
 class NodeStats:
-    __slots__ = ("games", "white", "black", "draw", "next_moves", "top_games")
+    __slots__ = ("games", "white", "black", "draw", "move_stats", "top_games")
 
     def __init__(self):
         self.games = 0
         self.white = 0
         self.black = 0
         self.draw = 0
-        self.next_moves: Counter = Counter()
+        self.move_stats: Dict[str, MoveStat] = defaultdict(MoveStat)
         self.top_games: List[Tuple[int, dict]] = []  # (elo_sum, payload)
 
-    def add_game(self, result: str, next_move: Optional[str], game_info: dict, top_keep: int, store_all: bool):
+    def add_game(self, result: str, next_move_san: Optional[str], game_info: dict, top_keep: int, store_all: bool):
         self.games += 1
         if result == "1-0":
             self.white += 1
@@ -60,8 +84,8 @@ class NodeStats:
             self.black += 1
         else:
             self.draw += 1
-        if next_move:
-            self.next_moves[next_move] += 1
+        if next_move_san:
+            self.move_stats[next_move_san].add(result)
         if store_all:
             self.top_games.append((0, game_info))
         else:
@@ -124,20 +148,20 @@ def process_file(path: str, stats: Dict[str, NodeStats], args):
                 board.push(move)
                 ply += 1
                 key = " ".join(san_seq)
-                next_move_san = node.variations[0].variations[0].move if node.variations[0].variations else None
+                # 다음 수 추출
                 next_move_label = None
-                if next_move_san:
-                    try:
-                        next_move_label = board.san(next_move_san)
-                    except Exception:
-                        next_move_label = None
+                if node.variations[0].variations:
+                  try:
+                    next_move_label = board.san(node.variations[0].variations[0].move)
+                  except Exception:
+                    next_move_label = None
                 stats.setdefault(key, NodeStats()).add_game(result, next_move_label, info, args.top_games_per_pos, args.store_all_games)
                 node = node.variations[0]
 
 
 def create_schema(conn: sqlite3.Connection):
     cur = conn.cursor()
-    cur.execute(
+    cur.executescript(
         """
         CREATE TABLE IF NOT EXISTS positions (
           id INTEGER PRIMARY KEY,
@@ -148,10 +172,7 @@ def create_schema(conn: sqlite3.Connection):
           win_b REAL,
           draw REAL
         );
-        """
-    )
-    cur.execute(
-        """
+
         CREATE TABLE IF NOT EXISTS moves (
           position_id INTEGER,
           san TEXT,
@@ -161,10 +182,7 @@ def create_schema(conn: sqlite3.Connection):
           win_b REAL,
           draw REAL
         );
-        """
-    )
-    cur.execute(
-        """
+
         CREATE TABLE IF NOT EXISTS games (
           position_id INTEGER,
           white TEXT,
@@ -175,11 +193,12 @@ def create_schema(conn: sqlite3.Connection):
           date TEXT,
           event TEXT
         );
+
+        CREATE INDEX IF NOT EXISTS idx_positions_san ON positions(san_seq);
+        CREATE INDEX IF NOT EXISTS idx_moves_pos ON moves(position_id);
+        CREATE INDEX IF NOT EXISTS idx_games_pos ON games(position_id);
         """
     )
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_positions_san ON positions(san_seq);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_moves_pos ON moves(position_id);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_games_pos ON games(position_id);")
     conn.commit()
 
 
@@ -190,21 +209,33 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
     conn = sqlite3.connect(path)
     create_schema(conn)
     cur = conn.cursor()
+    cur.execute("BEGIN")
+
     for san_seq, st in stats.items():
         ply = len(san_seq.split())
+        games = st.games
+        win_w = st.white / games if games else 0
+        win_b = st.black / games if games else 0
+        drw = st.draw / games if games else 0
         cur.execute(
             "INSERT INTO positions(san_seq, ply, games, win_w, win_b, draw) VALUES (?,?,?,?,?,?)",
-            (san_seq, ply, st.games, st.white / st.games if st.games else 0, st.black / st.games if st.games else 0, st.draw / st.games if st.games else 0),
+            (san_seq, ply, games, win_w, win_b, drw),
         )
         pos_id = cur.lastrowid
-        for mv, cnt in st.next_moves.most_common():
-            cur.execute(
+
+        move_rows = []
+        for mv, mstat in st.move_stats.items():
+            g, w, b, d = mstat.ratios()
+            move_rows.append((pos_id, mv, "", g, w, b, d))
+        if move_rows:
+            cur.executemany(
                 "INSERT INTO moves(position_id, san, uci, games, win_w, win_b, draw) VALUES (?,?,?,?,?,?,?)",
-                (pos_id, mv, "", cnt, None, None, None),
+                move_rows,
             )
+
+        game_rows = []
         for _, g in st.top_games:
-            cur.execute(
-                "INSERT INTO games(position_id, white, black, white_elo, black_elo, result, date, event) VALUES (?,?,?,?,?,?,?,?)",
+            game_rows.append(
                 (
                     pos_id,
                     g.get("white"),
@@ -214,8 +245,14 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
                     g.get("result"),
                     g.get("date"),
                     g.get("event"),
-                    ),
+                )
             )
+        if game_rows:
+            cur.executemany(
+                "INSERT INTO games(position_id, white, black, white_elo, black_elo, result, date, event) VALUES (?,?,?,?,?,?,?,?)",
+                game_rows,
+            )
+
     conn.commit()
     conn.close()
 
