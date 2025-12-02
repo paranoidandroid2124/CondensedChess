@@ -171,11 +171,16 @@ function EvalSparkline({
     const height = 64;
     const vals = timeline
       .map((t) => t.winPctAfterForPlayer ?? t.winPctBefore)
-      .filter((v): v is number => typeof v === "number");
+      .filter((v): v is number => typeof v === "number")
+      .map((v, idx) => {
+        // normalize to White perspective: if it's Black to move, flip to White's win%
+        const turn = timeline[idx].turn;
+        return turn === "black" ? 100 - v : v;
+      });
     if (!vals.length) return { poly: "", values: [], w: width, h: height, min: 0, max: 0, coords: [] as Array<[number, number]> };
-    const minVal = Math.min(...vals);
-    const maxVal = Math.max(...vals);
-    const range = maxVal - minVal || 1;
+    const minVal = 0;
+    const maxVal = 100;
+    const range = maxVal - minVal;
     const coordinates = vals.map((v, idx) => {
       const x = vals.length === 1 ? width / 2 : (idx / (vals.length - 1)) * width;
       const y = height - ((v - minVal) / range) * height;
@@ -223,14 +228,12 @@ function EvalSparkline({
       <svg
         className="mt-2 h-20 w-full"
         viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="none"
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
-        {/* grid lines */}
-        {[0.25, 0.5, 0.75].map((p) => (
-          <line key={p} x1={0} x2={w} y1={h * p} y2={h * p} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
-        ))}
+      preserveAspectRatio="none"
+      onMouseMove={handleMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      {/* grid lines */}
+        <line x1={0} x2={w} y1={h * 0.5} y2={h * 0.5} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
         <polyline points={poly} fill="none" stroke="url(#sparkgrad)" strokeWidth="3" strokeLinejoin="round" />
         {hoverPoint ? (
           <>
