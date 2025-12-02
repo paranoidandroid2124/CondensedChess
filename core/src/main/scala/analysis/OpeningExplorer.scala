@@ -32,7 +32,10 @@ object OpeningExplorer:
       draw: Option[Double],
       topMoves: List[TopMove],
       topGames: List[TopGame],
-      source: String
+      source: String,
+      minYear: Option[Int],
+      maxYear: Option[Int],
+      yearBuckets: Map[String, Int]
   )
 
   private lazy val dbPath = sys.env.getOrElse("OPENING_STATS_DB", "opening/masters_stats.db")
@@ -58,7 +61,10 @@ object OpeningExplorer:
               draw = None,
               topMoves = Nil,
               topGames = Nil,
-              source = "book"
+              source = "book",
+              minYear = None,
+              maxYear = None,
+              yearBuckets = Map.empty
             )
           })
       }.map { stats =>
@@ -70,7 +76,7 @@ object OpeningExplorer:
   private def sanKey(sans: List[SanStr]): String = sans.map(_.value).mkString(" ")
 
   private def lookupPosition(conn: Connection, sanSeq: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
-    val posSql = "SELECT id, ply, games, win_w, win_b, draw FROM positions WHERE san_seq = ?"
+    val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE san_seq = ?"
     val posStmt = conn.prepareStatement(posSql)
     posStmt.setString(1, sanSeq)
     val posRs = posStmt.executeQuery()
@@ -82,6 +88,14 @@ object OpeningExplorer:
       val winW = Option(posRs.getDouble("win_w")).filterNot(_.isNaN)
       val winB = Option(posRs.getDouble("win_b")).filterNot(_.isNaN)
       val drw = Option(posRs.getDouble("draw")).filterNot(_.isNaN)
+      val minYear = Option(posRs.getInt("min_year")).filter(_ > 0)
+      val maxYear = Option(posRs.getInt("max_year")).filter(_ > 0)
+      val yearBuckets = Map(
+        "pre2012" -> posRs.getInt("bucket_pre2012"),
+        "2012_2017" -> posRs.getInt("bucket_2012_2017"),
+        "2018_2019" -> posRs.getInt("bucket_2018_2019"),
+        "2020_plus" -> posRs.getInt("bucket_2020_plus")
+      ).filter(_._2 > 0)
       posRs.close()
       posStmt.close()
 
@@ -95,11 +109,14 @@ object OpeningExplorer:
           winWhite = winW,
           winBlack = winB,
           draw = drw,
-          topMoves = moves,
-          topGames = gamesList,
-          source = "sqlite"
-        )
-      )
+              topMoves = moves,
+              topGames = gamesList,
+              source = "sqlite",
+              minYear = minYear,
+              maxYear = maxYear,
+              yearBuckets = yearBuckets
+            )
+          )
 
   private def lookupMoves(conn: Connection, posId: Int, limit: Int): List[TopMove] =
     val sql = "SELECT san, uci, games, win_w, win_b, draw FROM moves WHERE position_id = ? ORDER BY games DESC LIMIT ?"

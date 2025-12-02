@@ -98,6 +98,9 @@ object AnalyzePgn:
       timeline: Vector[PlyOutput],
       oppositeColorBishops: Boolean,
       critical: Vector[CriticalNode],
+      openingSummary: Option[String] = None,
+      bookExitComment: Option[String] = None,
+      openingTrend: Option[String] = None,
       summaryText: Option[String] = None,
       root: Option[TreeNode] = None
   )
@@ -134,6 +137,65 @@ object AnalyzePgn:
   )
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
+  private def pctInt(d: Double): Int = math.round(if d > 1.0 then d else d * 100.0).toInt
+  private def moveLabel(ply: Ply, san: String, turn: Color): String =
+    val moveNumber = (ply.value + 1) / 2
+    val sep = if turn == Color.White then "." else "..."
+    s"$moveNumber$sep $san"
+
+  private def buildOpeningNotes(
+      opening: Option[Opening.AtPly],
+      openingStats: Option[OpeningExplorer.Stats],
+      timeline: Vector[PlyOutput]
+  ): (Option[String], Option[String], Option[String]) =
+    val openingName = opening.map(_.opening.name.value).getOrElse("Opening")
+    val summary = openingStats.map { os =>
+      val topMove = os.topMoves.headOption
+        .map { tm =>
+          val win = tm.winPct.map(pctInt).map(w => s", win $w%").getOrElse("")
+          s"top move ${tm.san} (${tm.games} games$win)"
+        }
+        .getOrElse("no top move data")
+      val gamesStr = os.games.map(g => s"$g games").getOrElse("few games")
+      val source = s"source=${os.source}"
+      s"$openingName book to ply ${os.bookPly} (novelty ${os.noveltyPly}, $gamesStr, $topMove, $source)"
+    }
+
+    val exitPly = openingStats.map(_.bookPly + 1).orElse(opening.map(op => op.ply.value + 1))
+    val bookExit = for
+      ep <- exitPly
+      move <- timeline.find(_.ply.value == ep)
+    yield
+      val label = moveLabel(move.ply, move.san, move.turn)
+      val topAlt = openingStats.flatMap(_.topMoves.headOption).map { tm =>
+        val win = tm.winPct.map(pctInt).map(w => s", win $w%").getOrElse("")
+        s"${tm.san} (${tm.games} games$win)"
+      }
+      val notableGame = openingStats.flatMap(_.topGames.headOption).map { g =>
+        val date = g.date.map(d => s" $d").getOrElse("")
+        s"${g.white}-${g.black}$date"
+      }
+      val topMoveStr = topAlt.map(m => s"book line: $m").getOrElse("book line unknown")
+      val notableStr = notableGame.map(g => s"; notable game $g").getOrElse("")
+      s"Left book at $label playing ${move.san}; $topMoveStr$notableStr."
+
+    val trend = openingStats.flatMap { os =>
+      val buckets = os.yearBuckets
+      val recent = buckets.getOrElse("2020_plus", 0) + buckets.getOrElse("2018_2019", 0)
+      val prior = buckets.getOrElse("pre2012", 0) + buckets.getOrElse("2012_2017", 0)
+      val span = (os.minYear, os.maxYear) match
+        case (Some(minY), Some(maxY)) if minY > 0 && maxY > 0 => s" (${minY}-${maxY})"
+        case _ => ""
+      if recent >= 10 && prior > 0 && recent.toDouble / prior >= 1.5 then
+        Some(s"Line popularity rising post-2018: recent ${recent} vs prior ${prior} games$span.")
+      else if recent >= 5 && prior > 0 && recent.toDouble / prior <= 0.6 then
+        Some(s"Line less common after 2018: recent ${recent} vs prior ${prior} games$span.")
+      else if recent + prior >= 8 then
+        Some(s"Line stable across eras: recent ${recent}, prior ${prior}$span.")
+      else None
+    }
+
+    (summary, bookExit, trend)
 
   private val pieceValues: Map[Role, Double] = Map(
     Pawn   -> 1.0,
@@ -177,7 +239,8 @@ object AnalyzePgn:
         val critical = detectCritical(timeline, client, config, llmRequestedPlys)
         val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
         val root = Some(buildTree(timeline, critical))
-        Right(Output(opening, openingStats, timeline, oppositeColorBishops, critical, root = root))
+        val (openingSummary, bookExitComment, openingTrend) = buildOpeningNotes(opening, openingStats, timeline)
+        Right(Output(opening, openingStats, timeline, oppositeColorBishops, critical, openingSummary, bookExitComment, openingTrend, root = root))
 
   private def buildTimeline(replay: Replay, client: StockfishClient, config: EngineConfig, opening: Option[Opening.AtPly]): (Vector[PlyOutput], Game) =
     var game = replay.setup
@@ -601,6 +664,15 @@ object AnalyzePgn:
       sb.append(',')
     }
     sb.append("\"oppositeColorBishops\":").append(output.oppositeColorBishops).append(',')
+    output.openingSummary.foreach { s =>
+      sb.append("\"openingSummary\":\"").append(escape(s)).append("\",")
+    }
+    output.bookExitComment.foreach { s =>
+      sb.append("\"bookExitComment\":\"").append(escape(s)).append("\",")
+    }
+    output.openingTrend.foreach { s =>
+      sb.append("\"openingTrend\":\"").append(escape(s)).append("\",")
+    }
     sb.append("\"critical\":[")
     output.critical.zipWithIndex.foreach { case (c, idx) =>
       if idx > 0 then sb.append(',')
@@ -711,6 +783,15 @@ object AnalyzePgn:
     os.winWhite.foreach(w => sb.append("\"winWhite\":").append(fmt(pct(w))).append(','))
     os.winBlack.foreach(w => sb.append("\"winBlack\":").append(fmt(pct(w))).append(','))
     os.draw.foreach(d => sb.append("\"draw\":").append(fmt(pct(d))).append(','))
+    os.minYear.foreach(y => sb.append("\"minYear\":").append(y).append(','))
+    os.maxYear.foreach(y => sb.append("\"maxYear\":").append(y).append(','))
+    if os.yearBuckets.nonEmpty then
+      sb.append("\"yearBuckets\":{")
+      os.yearBuckets.zipWithIndex.foreach { case ((k, v), idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append("\"").append(escape(k)).append("\":").append(v)
+      }
+      sb.append("},")
     if os.topMoves.nonEmpty then
       sb.append("\"topMoves\":[")
       os.topMoves.zipWithIndex.foreach { case (m, idx) =>

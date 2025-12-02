@@ -66,7 +66,7 @@ class MoveStat:
 
 
 class NodeStats:
-    __slots__ = ("games", "white", "black", "draw", "move_stats", "top_games")
+    __slots__ = ("games", "white", "black", "draw", "move_stats", "top_games", "year_counts")
 
     def __init__(self):
         self.games = 0
@@ -75,6 +75,7 @@ class NodeStats:
         self.draw = 0
         self.move_stats: Dict[str, MoveStat] = defaultdict(MoveStat)
         self.top_games: List[Tuple[int, dict]] = []  # (elo_sum, payload)
+        self.year_counts: Dict[int, int] = defaultdict(int)
 
     def add_game(self, result: str, next_move_san: Optional[str], game_info: dict, top_keep: int, store_all: bool):
         self.games += 1
@@ -86,6 +87,9 @@ class NodeStats:
             self.draw += 1
         if next_move_san:
             self.move_stats[next_move_san].add(result)
+        year = game_info.get("year")
+        if year:
+            self.year_counts[year] += 1
         if store_all:
             self.top_games.append((0, game_info))
         else:
@@ -112,6 +116,17 @@ def game_info_from_headers(game) -> dict:
         except Exception:
             return None
 
+    def parse_year(date_str: str):
+        if not date_str:
+            return None
+        parts = date_str.split(".")
+        if parts and len(parts[0]) == 4 and parts[0].isdigit():
+            try:
+                return int(parts[0])
+            except Exception:
+                return None
+        return None
+
     return {
         "white": game.headers.get("White") or "",
         "black": game.headers.get("Black") or "",
@@ -119,6 +134,7 @@ def game_info_from_headers(game) -> dict:
         "blackElo": to_int(game.headers.get("BlackElo")),
         "result": game.headers.get("Result") or "*",
         "date": game.headers.get("Date") or "",
+        "year": parse_year(game.headers.get("Date") or ""),
         "event": game.headers.get("Event") or "",
     }
 
@@ -170,7 +186,13 @@ def create_schema(conn: sqlite3.Connection):
           games INTEGER,
           win_w REAL,
           win_b REAL,
-          draw REAL
+          draw REAL,
+          min_year INTEGER,
+          max_year INTEGER,
+          bucket_pre2012 INTEGER,
+          bucket_2012_2017 INTEGER,
+          bucket_2018_2019 INTEGER,
+          bucket_2020_plus INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS moves (
@@ -211,15 +233,42 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
     cur = conn.cursor()
     cur.execute("BEGIN")
 
+    def bucket_for_year(year: int) -> str:
+        if year < 2012:
+            return "pre2012"
+        if year <= 2017:
+            return "2012_2017"
+        if year <= 2019:
+            return "2018_2019"
+        return "2020_plus"
+
     for san_seq, st in stats.items():
         ply = len(san_seq.split())
         games = st.games
         win_w = st.white / games if games else 0
         win_b = st.black / games if games else 0
         drw = st.draw / games if games else 0
+        min_year = min(st.year_counts.keys()) if st.year_counts else None
+        max_year = max(st.year_counts.keys()) if st.year_counts else None
+        buckets = {"pre2012": 0, "2012_2017": 0, "2018_2019": 0, "2020_plus": 0}
+        for y, cnt in st.year_counts.items():
+            buckets[bucket_for_year(y)] += cnt
         cur.execute(
-            "INSERT INTO positions(san_seq, ply, games, win_w, win_b, draw) VALUES (?,?,?,?,?,?)",
-            (san_seq, ply, games, win_w, win_b, drw),
+            "INSERT INTO positions(san_seq, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                san_seq,
+                ply,
+                games,
+                win_w,
+                win_b,
+                drw,
+                min_year,
+                max_year,
+                buckets["pre2012"],
+                buckets["2012_2017"],
+                buckets["2018_2019"],
+                buckets["2020_plus"],
+            ),
         )
         pos_id = cur.lastrowid
 

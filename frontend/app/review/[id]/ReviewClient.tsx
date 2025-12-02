@@ -980,7 +980,10 @@ function SummaryPanel({
   concepts,
   conceptSpikes,
   showAdvanced,
-  summaryText
+  summaryText,
+  openingSummary,
+  bookExitComment,
+  openingTrend
 }: {
   opening?: Review["opening"];
   openingStats?: Review["openingStats"];
@@ -989,6 +992,9 @@ function SummaryPanel({
   conceptSpikes?: Array<{ ply: number; concept: string; delta: number; label: string }>;
   showAdvanced: boolean;
   summaryText?: string;
+  openingSummary?: string;
+  bookExitComment?: string;
+  openingTrend?: string;
 }) {
   const hasTopMoves = openingStats?.topMoves && openingStats.topMoves.length > 0;
   const hasTopGames = openingStats?.topGames && openingStats.topGames.length > 0;
@@ -1020,6 +1026,13 @@ function SummaryPanel({
         ) : (
           <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white/70">Opening unknown</p>
         )}
+        {openingSummary || bookExitComment || openingTrend ? (
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
+            {openingSummary ? <div className="text-white/90">{openingSummary}</div> : null}
+            {bookExitComment ? <div className="text-white/70">{bookExitComment}</div> : null}
+            {openingTrend ? <div className="text-white/70">{openingTrend}</div> : null}
+          </div>
+        ) : null}
         {openingStats ? (
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-white/70">
@@ -1590,6 +1603,9 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               conceptSpikes={conceptSpikes}
               showAdvanced={showAdvanced}
               summaryText={review.summaryText}
+              openingSummary={review.openingSummary}
+              bookExitComment={review.bookExitComment}
+              openingTrend={review.openingTrend}
             />
             <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
             <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />

@@ -27,7 +27,7 @@ object LlmClient:
            |- When referencing moves, quote the provided label exactly (e.g., "13. Qe2", "12...Ba6"); never renumber.
            |- Use keySwings/critical arrays to anchor the story. Mention forced/only-move flags, legalMoves, and best-vs-second gaps when present.
            |- Lean on semanticTags/mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and conceptShift to explain *why* the eval moved.
-           |- Mention novelty/book briefly using openingStats if present (bookPly/novelty, games, topMoves, topGames players/elos).
+           |- Mention novelty/book briefly using openingStats if present (bookPly/novelty, games, topMoves, topGames players/elos), and include opening.summary or bookExitComment when provided.
            |- Avoid generic advice; ground every claim in the provided tags/evals/branches/oppositeColorBishops flags.
            |JSON: $json""".stripMargin
       val body =
