@@ -498,15 +498,27 @@ function MoveTimeline({
                                                 className={`rounded-full px-2 py-0.5 ${
                                                   idxPv === 0 ? "bg-white/15 text-white" : "bg-white/10 text-white/70"
                                                 }`}
+                                                onClick={() => onSelect(v.node.ply)}
+                                                role="button"
+                                                style={{ cursor: "pointer" }}
                                               >
                                                 {formatSanHuman(m)}
                                               </span>
                                             ))}
                                           </div>
-                                       ) : null}
-                                       <div className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
+                                        ) : null}
+                                        <div className="text-[11px] text-white/50 flex flex-wrap items-center gap-2">
                                           <span>{v.turn === "white" ? "White" : "Black"} perspective</span>
                                           <span className="rounded-full bg-white/5 px-2 py-0.5">Line {v.pvIndex ?? vidx + 1}</span>
+                                          <button
+                                            onClick={() => {
+                                              const arrows = buildPvArrows(v.parentFenBefore, v.node.pv);
+                                              setFollowLineArrows((prev) => (prev === arrows ? [] : arrows));
+                                            }}
+                                            className="rounded-full border border-white/15 px-2 py-0.5 text-white/70 hover:border-white/35"
+                                          >
+                                            Follow line
+                                          </button>
                                         </div>
                                       </div>
                                     ) : null}
@@ -1029,7 +1041,8 @@ function SummaryPanel({
   summaryText,
   openingSummary,
   bookExitComment,
-  openingTrend
+  openingTrend,
+  onSelectPly
 }: {
   opening?: Review["opening"];
   openingStats?: Review["openingStats"];
@@ -1041,6 +1054,7 @@ function SummaryPanel({
   openingSummary?: string;
   bookExitComment?: string;
   openingTrend?: string;
+  onSelectPly?: (ply: number) => void;
 }) {
   const hasTopMoves = openingStats?.topMoves && openingStats.topMoves.length > 0;
   const hasTopGames = openingStats?.topGames && openingStats.topGames.length > 0;
@@ -1163,6 +1177,9 @@ function SummaryPanel({
                       key={`${s.concept}-${s.ply}`}
                       className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80"
                       title={`Ply ${s.ply} ${s.label}`}
+                      onClick={() => onSelectPly?.(s.ply)}
+                      role="button"
+                      style={{ cursor: onSelectPly ? "pointer" : "default" }}
                     >
                       {s.concept} +{s.delta.toFixed(2)} @ {s.label}
                     </span>
@@ -1272,6 +1289,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [followLineArrows, setFollowLineArrows] = useState<Array<[string, string, string?]>>([]);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [openingLookup, setOpeningLookup] = useState<OpeningStats | null>(null);
   const [lookupKey, setLookupKey] = useState<string>("");
@@ -1530,6 +1548,25 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     return map;
   }, [review?.root, enhancedTimeline]);
 
+  const buildPvArrows = useCallback((fenBefore?: string, pv?: string[]) => {
+    if (!fenBefore || !pv?.length) return [];
+    try {
+      const chess = new Chess(fenBefore);
+      const arrows: Array<[string, string, string?]> = [];
+      pv.slice(0, 6).forEach((mv) => {
+        try {
+          const move = chess.move(mv, { sloppy: true });
+          if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
+        } catch {
+          // ignore bad SAN
+        }
+      });
+      return arrows;
+    } catch {
+      return [];
+    }
+  }, []);
+
   const boardSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     const highlight = (uci: string, color: "red" | "green" | "purple") => {
@@ -1564,8 +1601,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         arr.push([bFrom, bTo, "#4ade80"]);
       }
     }
-    return arr;
-  }, [selected]);
+    return [...arr, ...followLineArrows];
+  }, [selected, followLineArrows]);
 
   if (loading) {
     return (
@@ -1672,6 +1709,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               openingSummary={review.openingSummary}
               bookExitComment={review.bookExitComment}
               openingTrend={review.openingTrend}
+              onSelectPly={(ply) => setSelectedPly(ply)}
             />
             <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
             <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
