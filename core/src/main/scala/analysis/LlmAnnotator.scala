@@ -16,7 +16,7 @@ object LlmAnnotator:
   private def forcedFlag(legalMoves: Int, gapOpt: Option[Double]): Boolean =
     legalMoves <= 1 || gapOpt.exists(_ >= 20.0)
 
-  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 4): ujson.Arr =
+  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 2): ujson.Arr =
     val pairs = List(
       "kingSafety" -> delta.kingSafety,
       "rookActivity" -> delta.rookActivity,
@@ -97,6 +97,11 @@ object LlmAnnotator:
       os.winWhite.foreach(w => stats("winWhite") = Num(pctInt(w)))
       os.winBlack.foreach(b => stats("winBlack") = Num(pctInt(b)))
       os.draw.foreach(d => stats("draw") = Num(pctInt(d)))
+      os.minYear.foreach(y => stats("minYear") = Num(y))
+      os.maxYear.foreach(y => stats("maxYear") = Num(y))
+      if os.yearBuckets.nonEmpty then
+        val buckets = os.yearBuckets.map { case (k, v) => k -> Num(v) }
+        stats("yearBuckets") = Obj.from(buckets)
       os.topMoves.headOption.foreach { tm =>
         val tmObj = Obj("san" -> Str(tm.san), "games" -> Num(tm.games))
         tm.winPct.foreach(w => tmObj("winPct") = Num(pctInt(w)))
@@ -105,10 +110,13 @@ object LlmAnnotator:
       }
       openingObj("stats") = stats
     }
+    output.openingSummary.foreach(s => openingObj("summary") = Str(s))
+    output.bookExitComment.foreach(s => openingObj("bookExitComment") = Str(s))
+    output.openingTrend.foreach(s => openingObj("trend") = Str(s))
 
     val topSwings = output.timeline
       .sortBy(t => -math.abs(t.deltaWinPct))
-      .take(6)
+      .take(4)
       .map { t =>
         val obj = Obj(
           "ply" -> Num(t.ply.value),
@@ -125,14 +133,14 @@ object LlmAnnotator:
         )
         t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
-        val shiftArr = conceptShifts(t.conceptDelta, limit = 3)
+        val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
         t.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
         t.special.foreach(s => obj("special") = Str(s))
         obj
       }
 
-    val criticalNodes = clampNodes(output.critical, 5).map { c =>
+    val criticalNodes = clampNodes(output.critical, 4).map { c =>
       val label = labelForPly(timelineByPly, c.ply.value)
       val branches = c.branches.take(3).map { b =>
         Obj(
@@ -157,7 +165,7 @@ object LlmAnnotator:
         obj("forced") = Bool(c.forced || forcedFlag(t.legalMoves, c.bestVsSecondGap.orElse(t.bestVsSecondGap)))
         t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
-        val shiftArr = conceptShifts(t.conceptDelta, limit = 4)
+        val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
       }
       c.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
@@ -177,8 +185,8 @@ object LlmAnnotator:
           "Follow the instructions block plus rules; use only provided data.",
           "Reference move labels exactly (e.g., \"13. Qe2\", \"12...Ba6\"); never renumber.",
           "Lean on semanticTags/mistakeCategory/conceptShift/critical.reason to explain why evaluations shifted.",
-          "Mention opening/book/novelty briefly when stats are present.",
-          "Spell out forced/only-move or large best-vs-second gaps when present; avoid generic advice."
+          "Mention opening/book/novelty briefly when stats are present; if opening.summary/bookExitComment/trend is present, include one sentence.",
+          "Spell out forced/only-move or large best-vs-second gaps first; avoid generic advice."
         ).map(Str(_))
       )
     )
@@ -204,18 +212,18 @@ object LlmAnnotator:
   private def criticalPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
     val instructions = Obj(
       "goal" -> Str("Return JSON array of {\"ply\":number,\"label\":string,\"comment\":string} covering each critical move."),
-      "style" -> Str("Crisp coach notes: explain what could change, what was chosen, consequences, and whether the move was forced."),
+      "style" -> Str("Crisp coach notes using the slot format: Heading | Why(delta/gap/forced/conceptShift) | Alternatives(PV labels) | Consequence."),
       "rules" -> Arr.from(
         List(
           "Use provided labels; do not invent ply numbers or moves.",
           "Base severity on deltaWinPct/judgement/mistakeCategory; stay consistent with tags.",
           "Cite branches/pv for refutations without fabricating new lines.",
-          "Call out forced/only-move situations (legalMoves<=1 or huge best-vs-second gap) and conceptShift."
+          "Lead with forced/only-move (legalMoves<=1 or big best-vs-second gap) and conceptShift; do not omit these signals when present."
         ).map(Str(_))
       )
     )
 
-    val nodes = clampNodes(output.critical, 6).map { c =>
+    val nodes = clampNodes(output.critical, 4).map { c =>
       val timeline = timelineByPly.get(c.ply.value)
       val label = labelForPly(timelineByPly, c.ply.value)
       val mergedTags = (timeline.map(_.semanticTags).getOrElse(Nil) ++ c.tags).distinct.take(6)
@@ -244,7 +252,7 @@ object LlmAnnotator:
         obj("forced") = Bool(c.forced || forcedFlag(t.legalMoves, c.bestVsSecondGap.orElse(t.bestVsSecondGap)))
         t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
         t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
-        val shiftArr = conceptShifts(t.conceptDelta, limit = 4)
+        val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
       }
       if mergedTags.nonEmpty then obj("semanticTags") = arrStr(mergedTags)
@@ -286,7 +294,7 @@ object LlmAnnotator:
             timelineByPly.get(n.ply).foreach { t =>
               obj("legalMoves") = Num(t.legalMoves)
               obj("forced") = Bool(forcedFlag(t.legalMoves, t.bestVsSecondGap))
-              val shiftArr = conceptShifts(t.conceptDelta, limit = 3)
+              val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
               if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
             }
             n.bestMove.foreach(b => obj("bestMove") = Str(b))
@@ -301,7 +309,7 @@ object LlmAnnotator:
             List(
               "Use provided labels; do not renumber or invent lines.",
               "Anchor to judgement/tags/pv/bestMove/conceptShift instead of generic advice.",
-              "Call out forced/only-move or big best-vs-second gaps when present."
+              "Call out forced/only-move or big best-vs-second gaps first when present."
             ).map(Str(_))
           )
         )

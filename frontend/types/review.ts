@@ -32,6 +32,9 @@ export interface OpeningStats {
   winWhite?: number; // percent if present
   winBlack?: number; // percent if present
   draw?: number; // percent if present
+  minYear?: number;
+  maxYear?: number;
+  yearBuckets?: Record<string, number>;
   topMoves?: OpeningTopMove[];
   topGames?: OpeningTopGame[];
   source?: string;
@@ -128,6 +131,9 @@ export interface Review {
   opening?: Opening;
   openingStats?: OpeningStats;
   oppositeColorBishops?: boolean;
+  openingSummary?: string;
+  bookExitComment?: string;
+  openingTrend?: string;
   critical: CriticalNode[];
   timeline: TimelineNode[];
   summaryText?: string; // LLM game summary
