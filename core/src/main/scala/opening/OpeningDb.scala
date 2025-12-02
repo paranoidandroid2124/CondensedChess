@@ -51,15 +51,16 @@ object OpeningDb:
         .toVector
       moves.map(_.before) ++ moves.lastOption.map(_.after).toVector
 
-  // first position is initial position
+  // first position is initial position; prefer the deepest matching ply
   def searchInPositions[F[_]: Foldable](positions: F[Position]) =
     positions
       .takeWhile_(_.board.nbPieces >= SEARCH_MIN_PIECES)
       .zipWithIndex
       .drop(1)
-      .foldRight(none[Opening.AtPly]):
-        case ((board, ply), None) => byFen.get(format.Fen.writeOpening(board)).map(_.atPly(Ply(ply)))
-        case (_, found) => found
+      .foldLeft(none[Opening.AtPly]) { case (found, (board, ply)) =>
+        val hit = byFen.get(format.Fen.writeOpening(board)).map(_.atPly(Ply(ply)))
+        hit.orElse(found)
+      }
 
   def searchInFens(fens: Iterable[StandardFen]): Option[Opening] =
     fens.foldRight(none[Opening]):
