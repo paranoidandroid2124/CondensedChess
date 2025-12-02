@@ -89,6 +89,7 @@ object AnalyzePgn:
 
   final case class Output(
       opening: Option[Opening.AtPly],
+      openingStats: Option[OpeningExplorer.Stats],
       timeline: Vector[PlyOutput],
       oppositeColorBishops: Boolean,
       critical: Vector[CriticalNode],
@@ -161,12 +162,13 @@ object AnalyzePgn:
       case Right(replay) =>
         val sans = replay.chronoMoves.map(_.toSanStr)
         val opening = OpeningDb.search(sans)
+        val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
         val (timeline, finalGame) = buildTimeline(replay, client, config, opening)
         val critical = detectCritical(timeline, client, config, llmRequestedPlys)
         val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
         val root = Some(buildTree(timeline, critical))
-        Right(Output(opening, timeline, oppositeColorBishops, critical, root = root))
+        Right(Output(opening, openingStats, timeline, oppositeColorBishops, critical, root = root))
 
   private def buildTimeline(replay: Replay, client: StockfishClient, config: EngineConfig, opening: Option[Opening.AtPly]): (Vector[PlyOutput], Game) =
     var game = replay.setup
@@ -512,6 +514,11 @@ object AnalyzePgn:
       sb.append("\"ply\":").append(op.ply.value)
       sb.append("},")
     }
+    output.openingStats.foreach { os =>
+      sb.append("\"openingStats\":")
+      renderOpeningStats(sb, os)
+      sb.append(',')
+    }
     sb.append("\"oppositeColorBishops\":").append(output.oppositeColorBishops).append(',')
     sb.append("\"critical\":[")
     output.critical.zipWithIndex.foreach { case (c, idx) =>
@@ -579,6 +586,7 @@ object AnalyzePgn:
     sb.append('}')
 
   private def fmt(d: Double): String = f"$d%.2f"
+  private def pct(d: Double): Double = if d > 1.0 then d else d * 100.0
 
   private def renderConcepts(sb: StringBuilder, c: Concepts): Unit =
     sb.append("\"concepts\":{")
@@ -601,6 +609,29 @@ object AnalyzePgn:
     sb.append("\"conversionDifficulty\":").append(fmt(c.conversionDifficulty)).append(',')
     sb.append("\"sacrificeQuality\":").append(fmt(c.sacrificeQuality)).append(',')
     sb.append("\"alphaZeroStyle\":").append(fmt(c.alphaZeroStyle))
+    sb.append('}')
+
+  private def renderOpeningStats(sb: StringBuilder, os: OpeningExplorer.Stats): Unit =
+    sb.append('{')
+    sb.append("\"bookPly\":").append(os.bookPly).append(',')
+    sb.append("\"noveltyPly\":").append(os.noveltyPly).append(',')
+    os.freq.foreach(f => sb.append("\"freq\":").append(fmt(pct(f))).append(','))
+    os.winWhite.foreach(w => sb.append("\"winWhite\":").append(fmt(pct(w))).append(','))
+    os.winBlack.foreach(w => sb.append("\"winBlack\":").append(fmt(pct(w))).append(','))
+    os.draw.foreach(d => sb.append("\"draw\":").append(fmt(pct(d))).append(','))
+    if os.topMoves.nonEmpty then
+      sb.append("\"topMoves\":[")
+      os.topMoves.zipWithIndex.foreach { case (m, idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append('{')
+        sb.append("\"san\":\"").append(escape(m.san)).append("\",")
+        sb.append("\"uci\":\"").append(escape(m.uci)).append("\",")
+        sb.append("\"freq\":").append(fmt(pct(m.freq))).append(',')
+        sb.append("\"winPct\":").append(fmt(pct(m.winPct)))
+        sb.append('}')
+      }
+      sb.append("],")
+    sb.append("\"source\":\"").append(escape(os.source)).append('"')
     sb.append('}')
 
   private def renderEval(sb: StringBuilder, key: String, eval: EngineEval): Unit =
