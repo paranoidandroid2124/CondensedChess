@@ -39,6 +39,7 @@ object ApiServer:
     val server = HttpServer.create(new InetSocketAddress(bindHost, port), 0)
     server.createContext("/analyze", (exchange: HttpExchange) => handleAnalyze(exchange, config, llmRequestedPlys))
     server.createContext("/result", (exchange: HttpExchange) => handleResult(exchange))
+    server.createContext("/opening/lookup", (exchange: HttpExchange) => handleOpeningLookup(exchange))
     server.setExecutor(executor)
 
     println(s"[api] listening on $bindHost:$port (shallow=${config.shallowDepth}/deep=${config.deepDepth}, multipv=${config.maxMultiPv})")
@@ -141,6 +142,75 @@ object ApiServer:
             respond(exchange, 202, s"""{"status":"$other"}""")
       case _ =>
         respond(exchange, 404, """{"error":"not_found"}""")
+
+  private def handleOpeningLookup(exchange: HttpExchange): Unit =
+    if exchange.getRequestMethod.equalsIgnoreCase("OPTIONS") then
+      respond(exchange, 200, """{"ok":true}""", corsOnly = true)
+      return
+
+    if !exchange.getRequestMethod.equalsIgnoreCase("GET") then
+      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      return
+
+    val params = Option(exchange.getRequestURI.getQuery).toList
+      .flatMap(_.split("&").toList)
+      .flatMap { kv =>
+        kv.split("=", 2).toList match
+          case k :: v :: Nil => Some(k -> java.net.URLDecoder.decode(v, "UTF-8"))
+          case _ => None
+      }
+      .toMap
+    val sansStr = params.getOrElse("sans", "")
+    if sansStr.isEmpty then
+      respond(exchange, 400, """{"error":"missing_sans"}""")
+      return
+
+    val sansList = sansStr.split("\\s+").toList.filter(_.nonEmpty).map(chess.format.pgn.SanStr.apply)
+    OpeningExplorer.explore(None, sansList) match
+      case None => respond(exchange, 404, """{"error":"not_found"}""")
+      case Some(os) => respond(exchange, 200, renderOpeningStats(os))
+
+  private def renderOpeningStats(os: OpeningExplorer.Stats): String =
+    val sb = new StringBuilder()
+    sb.append('{')
+    sb.append("\"bookPly\":").append(os.bookPly).append(',')
+    sb.append("\"noveltyPly\":").append(os.noveltyPly).append(',')
+    os.games.foreach(g => sb.append("\"games\":").append(g).append(','))
+    os.winWhite.foreach(w => sb.append("\"winWhite\":").append(f"$w%.4f").append(','))
+    os.winBlack.foreach(w => sb.append("\"winBlack\":").append(f"$w%.4f").append(','))
+    os.draw.foreach(d => sb.append("\"draw\":").append(f"$d%.4f").append(','))
+    if os.topMoves.nonEmpty then
+      sb.append("\"topMoves\":[")
+      os.topMoves.zipWithIndex.foreach { case (m, idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append('{')
+        sb.append("\"san\":\"").append(AnalyzePgn.escape(m.san)).append("\",")
+        sb.append("\"uci\":\"").append(AnalyzePgn.escape(m.uci)).append("\",")
+        sb.append("\"games\":").append(m.games)
+        m.winPct.foreach(w => sb.append(',').append("\"winPct\":").append(f"$w%.4f"))
+        m.drawPct.foreach(d => sb.append(',').append("\"drawPct\":").append(f"$d%.4f"))
+        sb.append('}')
+      }
+      sb.append(']').append(',')
+    if os.topGames.nonEmpty then
+      sb.append("\"topGames\":[")
+      os.topGames.zipWithIndex.foreach { case (g, idx) =>
+        if idx > 0 then sb.append(',')
+        sb.append('{')
+        sb.append("\"white\":\"").append(AnalyzePgn.escape(g.white)).append("\",")
+        sb.append("\"black\":\"").append(AnalyzePgn.escape(g.black)).append("\",")
+        g.whiteElo.foreach(e => sb.append("\"whiteElo\":").append(e).append(','))
+        g.blackElo.foreach(e => sb.append("\"blackElo\":").append(e).append(','))
+        sb.append("\"result\":\"").append(AnalyzePgn.escape(g.result)).append("\",")
+        g.date.foreach(d => sb.append("\"date\":\"").append(AnalyzePgn.escape(d)).append("\",") )
+        g.event.foreach(ev => sb.append("\"event\":\"").append(AnalyzePgn.escape(ev)).append("\",") )
+        if sb.length() > 0 && sb.charAt(sb.length - 1) == ',' then sb.setLength(sb.length - 1)
+        sb.append('}')
+      }
+      sb.append(']').append(',')
+    if sb.length() > 0 && sb.charAt(sb.length - 1) == ',' then sb.setLength(sb.length - 1)
+    sb.append('}')
+    sb.result()
 
   private def respond(
       exchange: HttpExchange,

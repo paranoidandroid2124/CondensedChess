@@ -9,7 +9,6 @@
     "bookPly": 10,
     "noveltyPly": 11,
     "games": 128,
-    "freq": 12.5,             // percent if available
     "winWhite": 54.0,         // percent if available
     "winBlack": 23.0,
     "draw": 23.0,
@@ -81,7 +80,7 @@
 
 ## 필드 설명
 - `opening`: Opening DB 매칭 결과(ECO/이름/ply).
-- `openingStats`: (선택) 마스터 빈도/승률/북 라인 길이/novelty 정보. `freq`/`win*`은 백분율. `games`는 카운트, `topGames`는 최고 Elo 샘플.
+- `openingStats`: (선택) 마스터 승률/북 라인 길이/novelty 정보. `win*`은 백분율, `games`는 카운트, `topGames`는 최고 Elo 샘플.
 - `oppositeColorBishops`: 이색비숍 여부.
 - `critical`: ΔWin%와 개념 점프 기반 상위 N(기본 5) 노드, 각 노드에 MultiPV 브랜치(best/PV2/PV3).
 - `timeline`: ply별 상세 (+semantic tags)

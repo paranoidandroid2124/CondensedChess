@@ -2,38 +2,28 @@ package chess
 package analysis
 
 import chess.format.pgn.SanStr
-import chess.opening.Opening
-import ujson.*
+import java.sql.{ Connection, DriverManager, ResultSet }
 
-import java.nio.file.{ Files, Paths }
-
-/** Lightweight Opening Explorer:
-  * - noveltyPly: first ply after the known book line
-  * - optional frequency/win rates/top moves from an external stats JSON (opt-in)
-  *
-  * Stats file shape (example):
-  * {
-  *   "e4 e5 Nf3 Nc6 Bb5": {
-  *     "bookPly": 8,
-  *     "freq": 0.12,
-  *     "winWhite": 0.54,
-  *     "winBlack": 0.23,
-  *     "draw": 0.23,
-  *     "topMoves": [
-  *       {"san": "a6", "uci": "a7a6", "freq": 0.62, "winPct": 0.55},
-  *       {"san": "Nf6", "uci": "g8f6", "freq": 0.22, "winPct": 0.51}
-  *     ]
-  *   }
-  * }
+/** SQLite 기반 오프닝 익스플로러.
+  * DB 스키마는 scripts/build_opening_db.py에서 생성: positions/moves/games 테이블.
+  * 환경변수: OPENING_STATS_DB (기본: opening/masters_stats.db)
   */
 object OpeningExplorer:
-  final case class TopMove(san: String, uci: String, games: Int, winPct: Double, drawPct: Option[Double])
-  final case class TopGame(white: String, black: String, whiteElo: Option[Int], blackElo: Option[Int], result: String, date: Option[String], event: Option[String])
+
+  final case class TopMove(san: String, uci: String, games: Int, winPct: Option[Double], drawPct: Option[Double])
+  final case class TopGame(
+      white: String,
+      black: String,
+      whiteElo: Option[Int],
+      blackElo: Option[Int],
+      result: String,
+      date: Option[String],
+      event: Option[String]
+  )
   final case class Stats(
       bookPly: Int,
       noveltyPly: Int,
       games: Option[Int],
-      freq: Option[Double],
       winWhite: Option[Double],
       winBlack: Option[Double],
       draw: Option[Double],
@@ -42,97 +32,23 @@ object OpeningExplorer:
       source: String
   )
 
-  private lazy val statsByKey: Map[String, Stats] = loadStats()
-
-  private def keyFromSans(sans: Iterable[SanStr]): String =
-    sans.take(20).map(_.value).mkString(" ")
-
-  private def loadStats(): Map[String, Stats] =
-    val path = sys.env.getOrElse("OPENING_STATS_JSON", "opening_stats.json")
-    val p = Paths.get(path)
-    if !Files.exists(p) then Map.empty
-    else
-      try
-        val json = ujson.read(Files.readString(p))
-        json.obj.toMap.flatMap { case (k, v) =>
-          parseStats(k, v).map(k -> _)
-        }
-      catch
-        case e: Throwable =>
-          System.err.println(s"[opening-stats] failed to load $path: ${e.getMessage}")
-          Map.empty
-
-  private def parseStats(key: String, v: Value): Option[Stats] =
+  private lazy val dbPath = sys.env.getOrElse("OPENING_STATS_DB", "opening/masters_stats.db")
+  private lazy val connection: Option[Connection] =
     try
-      val obj = v.obj
-      val bookPly = obj.get("bookPly").flatMap(_.num.toIntOption).getOrElse(0)
-      val novelty = obj.get("noveltyPly").flatMap(_.num.toIntOption).getOrElse(bookPly + 1)
-      val freq = obj.get("freq").map(_.num.toDouble)
-      val winWhite = obj.get("winWhite").map(_.num.toDouble)
-      val winBlack = obj.get("winBlack").map(_.num.toDouble)
-      val draw = obj.get("draw").map(_.num.toDouble)
-      val games = obj.get("games").flatMap(_.num.toIntOption)
-      val topMoves = obj
-        .get("topMoves")
-        .map(_.arr.toList.flatMap { mv =>
-          val mobj = mv.obj
-          for
-            san <- mobj.get("san").map(_.str)
-            uci <- mobj.get("uci").map(_.str)
-            g <- mobj.get("games").flatMap(_.num.toIntOption)
-            w <- mobj.get("winPct").flatMap(_.num.toDoubleOption)
-          yield TopMove(san = san, uci = uci, games = g, winPct = w, drawPct = mobj.get("drawPct").flatMap(_.num.toDoubleOption))
-        })
-        .getOrElse(Nil)
-      val topGames = obj
-        .get("topGames")
-        .map(_.arr.toList.flatMap { tg =>
-          val gobj = tg.obj
-          for
-            white <- gobj.get("white").map(_.str)
-            black <- gobj.get("black").map(_.str)
-            result <- gobj.get("result").map(_.str)
-          yield TopGame(
-            white = white,
-            black = black,
-            whiteElo = gobj.get("whiteElo").flatMap(_.num.toIntOption),
-            blackElo = gobj.get("blackElo").flatMap(_.num.toIntOption),
-            result = result,
-            date = gobj.get("date").map(_.str),
-            event = gobj.get("event").map(_.str)
-          )
-        })
-        .getOrElse(Nil)
-      Some(
-        Stats(
-          bookPly = bookPly,
-          noveltyPly = novelty,
-          games = games,
-          freq = freq,
-          winWhite = winWhite,
-          winBlack = winBlack,
-          draw = draw,
-          topMoves = topMoves,
-          topGames = topGames,
-          source = "file"
-        )
-      )
+      val conn = DriverManager.getConnection(s"jdbc:sqlite:$dbPath")
+      Some(conn)
     catch
       case _: Throwable => None
 
-  def explore(opening: Option[Opening.AtPly], sans: List[SanStr]): Option[Stats] =
-    val key = keyFromSans(sans)
-    statsByKey
-      .get(key)
-      .orElse {
-        opening.map { op =>
-          val bookPly = op.ply.value
-          val novelty = math.min(math.max(1, bookPly + 1), sans.length)
+  def explore(opening: Option[chess.opening.Opening.AtPly], sans: List[SanStr], topGamesLimit: Int = 12, topMovesLimit: Int = 8): Option[Stats] =
+    connection.flatMap { conn =>
+      val key = sanKey(sans)
+      lookupPosition(conn, key, topGamesLimit, topMovesLimit)
+        .orElse(opening.map { op =>
           Stats(
-            bookPly = bookPly,
-            noveltyPly = novelty,
+            bookPly = op.ply.value,
+            noveltyPly = math.min(op.ply.value + 1, sans.length),
             games = None,
-            freq = None,
             winWhite = None,
             winBlack = None,
             draw = None,
@@ -140,5 +56,77 @@ object OpeningExplorer:
             topGames = Nil,
             source = "book"
           )
-        }
-      }
+        })
+    }
+
+  private def sanKey(sans: List[SanStr]): String = sans.map(_.value).mkString(" ")
+
+  private def lookupPosition(conn: Connection, sanSeq: String, topGamesLimit: Int, topMovesLimit: Int): Option[Stats] =
+    val posSql = "SELECT id, ply, games, win_w, win_b, draw FROM positions WHERE san_seq = ?"
+    val posStmt = conn.prepareStatement(posSql)
+    posStmt.setString(1, sanSeq)
+    val posRs = posStmt.executeQuery()
+    if !posRs.next() then None
+    else
+      val posId = posRs.getInt("id")
+      val ply = posRs.getInt("ply")
+      val games = Option(posRs.getInt("games")).filter(_ > 0)
+      val winW = Option(posRs.getDouble("win_w")).filterNot(_.isNaN)
+      val winB = Option(posRs.getDouble("win_b")).filterNot(_.isNaN)
+      val drw = Option(posRs.getDouble("draw")).filterNot(_.isNaN)
+      posRs.close()
+      posStmt.close()
+
+      val moves = lookupMoves(conn, posId, topMovesLimit)
+      val gamesList = lookupGames(conn, posId, topGamesLimit)
+      Some(
+        Stats(
+          bookPly = ply,
+          noveltyPly = ply + 1,
+          games = games,
+          winWhite = winW,
+          winBlack = winB,
+          draw = drw,
+          topMoves = moves,
+          topGames = gamesList,
+          source = "sqlite"
+        )
+      )
+
+  private def lookupMoves(conn: Connection, posId: Int, limit: Int): List[TopMove] =
+    val sql = "SELECT san, uci, games, win_w, win_b, draw FROM moves WHERE position_id = ? ORDER BY games DESC LIMIT ?"
+    val stmt = conn.prepareStatement(sql)
+    stmt.setInt(1, posId)
+    stmt.setInt(2, limit)
+    val rs = stmt.executeQuery()
+    val buf = scala.collection.mutable.ListBuffer.empty[TopMove]
+    while rs.next() do
+      val games = rs.getInt("games")
+      val win = Option(rs.getDouble("win_w")).filterNot(_.isNaN)
+      val draw = Option(rs.getDouble("draw")).filterNot(_.isNaN)
+      buf += TopMove(rs.getString("san"), rs.getString("uci"), games, win, draw)
+    rs.close(); stmt.close()
+    buf.toList
+
+  private def lookupGames(conn: Connection, posId: Int, limit: Int): List[TopGame] =
+    val sql = "SELECT white, black, white_elo, black_elo, result, date, event FROM games WHERE position_id = ? LIMIT ?"
+    val stmt = conn.prepareStatement(sql)
+    stmt.setInt(1, posId)
+    stmt.setInt(2, limit)
+    val rs = stmt.executeQuery()
+    val buf = scala.collection.mutable.ListBuffer.empty[TopGame]
+    while rs.next() do
+      val whiteElo = Option(rs.getInt("white_elo")).filter(_ > 0)
+      val blackElo = Option(rs.getInt("black_elo")).filter(_ > 0)
+      buf += TopGame(
+        white = rs.getString("white"),
+        black = rs.getString("black"),
+        whiteElo = whiteElo,
+        blackElo = blackElo,
+        result = rs.getString("result"),
+        date = Option(rs.getString("date")).filter(_.nonEmpty),
+        event = Option(rs.getString("event")).filter(_.nonEmpty)
+      )
+    rs.close(); stmt.close()
+    buf.toList
+
