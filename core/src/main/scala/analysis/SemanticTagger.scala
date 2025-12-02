@@ -144,11 +144,11 @@ object SemanticTagger:
       val advancedOnWing =
         if isShortCastle then
           myPawns.squares.exists { s =>
-            s.file >= File.F && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
+            s.file.value >= File.F.value && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
           }
         else if isLongCastle then
           myPawns.squares.exists { s =>
-            s.file <= File.C && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
+            s.file.value <= File.C.value && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
           }
         else false
       (isShortCastle || isLongCastle) && advancedOnWing
