@@ -70,6 +70,7 @@ object AnalyzePgn:
       uci: String,
       fen: String,
       fenBefore: String,
+      legalMoves: Int,
       features: FeatureExtractor.SideFeatures,
       evalBeforeShallow: EngineEval,
       evalBeforeDeep: EngineEval,
@@ -81,7 +82,11 @@ object AnalyzePgn:
       epLoss: Double,
       judgement: String,
       special: Option[String],
+      conceptsBefore: Concepts,
       concepts: Concepts,
+      conceptDelta: Concepts,
+      bestVsSecondGap: Option[Double],
+      bestVsPlayedGap: Option[Double],
       semanticTags: List[String],
       mistakeCategory: Option[String],
       shortComment: Option[String] = None
@@ -103,6 +108,10 @@ object AnalyzePgn:
       reason: String,
       deltaWinPct: Double,
       branches: List[Branch],
+      bestVsSecondGap: Option[Double] = None,
+      bestVsPlayedGap: Option[Double] = None,
+      forced: Boolean = false,
+      legalMoves: Option[Int] = None,
       comment: Option[String] = None,
       mistakeCategory: Option[String] = None,
       tags: List[String] = Nil
@@ -233,9 +242,20 @@ object AnalyzePgn:
         if inBook then "book"
         else baseJudgement
 
+      val moverFeaturesBefore = FeatureExtractor.sideFeatures(game.position, player)
+      val oppFeaturesBefore = FeatureExtractor.sideFeatures(game.position, !player)
       val moverFeatures = FeatureExtractor.sideFeatures(nextGame.position, player)
       val oppFeatures = FeatureExtractor.sideFeatures(nextGame.position, !player)
       ConceptScorer.computeBreakAndInfiltration(nextGame.position, nextGame.position.color)
+      val conceptScoresBefore = ConceptScorer.score(
+        features = moverFeaturesBefore,
+        oppFeatures = oppFeaturesBefore,
+        evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
+        evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
+        multiPvWin = evalBeforeDeep.lines.map(_.winPct),
+        position = game.position,
+        sideToMove = game.position.color
+      )
       val conceptScores = ConceptScorer.score(
         features = moverFeatures,
         oppFeatures = oppFeatures,
@@ -266,6 +286,54 @@ object AnalyzePgn:
         sacrificeQuality = conceptScores.sacrificeQuality,
         alphaZeroStyle = conceptScores.alphaZeroStyle
       )
+      val conceptsBefore = Concepts(
+        dynamic = conceptScoresBefore.dynamic,
+        drawish = conceptScoresBefore.drawish,
+        imbalanced = conceptScoresBefore.imbalanced,
+        tacticalDepth = conceptScoresBefore.tacticalDepth,
+        blunderRisk = conceptScoresBefore.blunderRisk,
+        pawnStorm = conceptScoresBefore.pawnStorm,
+        fortress = conceptScoresBefore.fortress,
+        colorComplex = conceptScoresBefore.colorComplex,
+        badBishop = conceptScoresBefore.badBishop,
+        goodKnight = conceptScoresBefore.goodKnight,
+        rookActivity = conceptScoresBefore.rookActivity,
+        kingSafety = conceptScoresBefore.kingSafety,
+        dry = conceptScoresBefore.dry,
+        comfortable = conceptScoresBefore.comfortable,
+        unpleasant = conceptScoresBefore.unpleasant,
+        engineLike = conceptScoresBefore.engineLike,
+        conversionDifficulty = conceptScoresBefore.conversionDifficulty,
+        sacrificeQuality = conceptScoresBefore.sacrificeQuality,
+        alphaZeroStyle = conceptScoresBefore.alphaZeroStyle
+      )
+      val conceptDelta = Concepts(
+        dynamic = concepts.dynamic - conceptsBefore.dynamic,
+        drawish = concepts.drawish - conceptsBefore.drawish,
+        imbalanced = concepts.imbalanced - conceptsBefore.imbalanced,
+        tacticalDepth = concepts.tacticalDepth - conceptsBefore.tacticalDepth,
+        blunderRisk = concepts.blunderRisk - conceptsBefore.blunderRisk,
+        pawnStorm = concepts.pawnStorm - conceptsBefore.pawnStorm,
+        fortress = concepts.fortress - conceptsBefore.fortress,
+        colorComplex = concepts.colorComplex - conceptsBefore.colorComplex,
+        badBishop = concepts.badBishop - conceptsBefore.badBishop,
+        goodKnight = concepts.goodKnight - conceptsBefore.goodKnight,
+        rookActivity = concepts.rookActivity - conceptsBefore.rookActivity,
+        kingSafety = concepts.kingSafety - conceptsBefore.kingSafety,
+        dry = concepts.dry - conceptsBefore.dry,
+        comfortable = concepts.comfortable - conceptsBefore.comfortable,
+        unpleasant = concepts.unpleasant - conceptsBefore.unpleasant,
+        engineLike = concepts.engineLike - conceptsBefore.engineLike,
+        conversionDifficulty = concepts.conversionDifficulty - conceptsBefore.conversionDifficulty,
+        sacrificeQuality = concepts.sacrificeQuality - conceptsBefore.sacrificeQuality,
+        alphaZeroStyle = concepts.alphaZeroStyle - conceptsBefore.alphaZeroStyle
+      )
+      val bestVsSecondGap = (for
+        top <- evalBeforeDeep.lines.headOption
+        second <- evalBeforeDeep.lines.drop(1).headOption
+      yield (top.winPct - second.winPct).abs)
+      val bestVsPlayedGap = evalBeforeDeep.lines.headOption.map(_.winPct - winAfterForPlayer)
+
       val semanticTags =
         SemanticTagger.tags(
           position = nextGame.position,
@@ -283,7 +351,7 @@ object AnalyzePgn:
             deltaWinPct = delta,
             san = mod.toSanStr.value,
             player = player,
-            inCheckBefore = game.situation.check,
+            inCheckBefore = game.position.check.yes,
             concepts = concepts,
             features = moverFeatures,
             oppFeatures = oppFeatures
@@ -296,6 +364,7 @@ object AnalyzePgn:
         uci = mod.toUci.uci,
         fen = fenAfter,
         fenBefore = fenBefore,
+        legalMoves = legalCount,
         features = moverFeatures,
         evalBeforeShallow = evalBeforeShallow,
         evalBeforeDeep = evalBeforeDeep,
@@ -307,7 +376,11 @@ object AnalyzePgn:
         epLoss = epLoss,
         judgement = finalJudgement,
         special = special,
+        conceptsBefore = conceptsBefore,
         concepts = concepts,
+        conceptDelta = conceptDelta,
+        bestVsSecondGap = bestVsSecondGap,
+        bestVsPlayedGap = bestVsPlayedGap,
         semanticTags = semanticTags,
         mistakeCategory = mistakeCategory
       )
@@ -332,9 +405,11 @@ object AnalyzePgn:
     def criticalityScore(p: PlyOutput): (Double, Double) =
       val deltaScore = math.abs(p.deltaWinPct)
       val conceptJump = p.concepts.dynamic + p.concepts.tacticalDepth + p.concepts.blunderRisk
-      val top = p.evalBeforeDeep.lines.headOption
-      val second = p.evalBeforeDeep.lines.drop(1).headOption
-      val bestVsSecondGap = (for t <- top; s <- second yield (t.winPct - s.winPct).abs).getOrElse(100.0)
+      val bestVsSecondGap = p.bestVsSecondGap.getOrElse {
+        val top = p.evalBeforeDeep.lines.headOption
+        val second = p.evalBeforeDeep.lines.drop(1).headOption
+        (for t <- top; s <- second yield (t.winPct - s.winPct).abs).getOrElse(100.0)
+      }
       val branchTension = math.max(0.0, 12.0 - bestVsSecondGap) // 가까울수록(갈림길) 점수 증가, 12% 이상은 0
       val score =
         deltaScore * 0.6 +
@@ -383,11 +458,17 @@ object AnalyzePgn:
             Branch(move = l.move, winPct = l.winPct, pv = l.pv, label = label)
         }
 
+      val forcedMove = ply.legalMoves <= 1 || gap >= 20.0
+
       CriticalNode(
         ply = ply.ply,
         reason = reason,
         deltaWinPct = ply.deltaWinPct,
         branches = branches,
+        bestVsSecondGap = Some(gap),
+        bestVsPlayedGap = ply.bestVsPlayedGap,
+        forced = forcedMove,
+        legalMoves = Some(ply.legalMoves),
         mistakeCategory = ply.mistakeCategory,
         tags = ply.semanticTags.take(6)
       )
@@ -536,6 +617,7 @@ object AnalyzePgn:
       sb.append("\"uci\":\"").append(escape(ply.uci)).append("\",")
       sb.append("\"fen\":\"").append(escape(ply.fen)).append("\",")
       sb.append("\"fenBefore\":\"").append(escape(ply.fenBefore)).append("\",")
+      sb.append("\"legalMoves\":").append(ply.legalMoves).append(',')
       renderFeatures(sb, ply.features)
       sb.append(',')
       renderEval(sb, "evalBeforeShallow", ply.evalBeforeShallow)
@@ -549,6 +631,12 @@ object AnalyzePgn:
       sb.append("\"epAfter\":").append(fmt(ply.epAfter)).append(',')
       sb.append("\"epLoss\":").append(fmt(ply.epLoss)).append(',')
       sb.append("\"judgement\":\"").append(ply.judgement).append('"')
+      ply.bestVsSecondGap.foreach { gap =>
+        sb.append(",\"bestVsSecondGap\":").append(fmt(gap))
+      }
+      ply.bestVsPlayedGap.foreach { gap =>
+        sb.append(",\"bestVsPlayedGap\":").append(fmt(gap))
+      }
       ply.special.foreach { s =>
         sb.append(",\"special\":\"").append(escape(s)).append('"')
       }
@@ -566,7 +654,11 @@ object AnalyzePgn:
         sb.append(",\"shortComment\":\"").append(escape(txt)).append('"')
       }
       sb.append(',')
-      renderConcepts(sb, ply.concepts)
+      renderConcepts(sb, "concepts", ply.concepts)
+      sb.append(',')
+      renderConcepts(sb, "conceptsBefore", ply.conceptsBefore)
+      sb.append(',')
+      renderConcepts(sb, "conceptDelta", ply.conceptDelta)
       sb.append('}')
     }
     sb.append("]}")
@@ -588,8 +680,8 @@ object AnalyzePgn:
   private def fmt(d: Double): String = f"$d%.2f"
   private def pct(d: Double): Double = if d > 1.0 then d else d * 100.0
 
-  private def renderConcepts(sb: StringBuilder, c: Concepts): Unit =
-    sb.append("\"concepts\":{")
+  private def renderConcepts(sb: StringBuilder, key: String, c: Concepts): Unit =
+    sb.append('"').append(key).append("\":{")
     sb.append("\"dynamic\":").append(fmt(c.dynamic)).append(',')
     sb.append("\"drawish\":").append(fmt(c.drawish)).append(',')
     sb.append("\"imbalanced\":").append(fmt(c.imbalanced)).append(',')
@@ -676,6 +768,16 @@ object AnalyzePgn:
     sb.append("\"ply\":").append(c.ply.value).append(',')
     sb.append("\"reason\":\"").append(escape(c.reason)).append("\",")
     sb.append("\"deltaWinPct\":").append(fmt(c.deltaWinPct)).append(',')
+    c.bestVsSecondGap.foreach { g =>
+      sb.append("\"bestVsSecondGap\":").append(fmt(g)).append(',')
+    }
+    c.bestVsPlayedGap.foreach { g =>
+      sb.append("\"bestVsPlayedGap\":").append(fmt(g)).append(',')
+    }
+    c.legalMoves.foreach { lm =>
+      sb.append("\"legalMoves\":").append(lm).append(',')
+    }
+    sb.append("\"forced\":").append(c.forced).append(',')
     c.mistakeCategory.foreach { cat =>
       sb.append("\"mistakeCategory\":\"").append(escape(cat)).append("\",")
     }

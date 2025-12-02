@@ -2,7 +2,7 @@ package chess
 package analysis
 
 import chess.format.pgn.SanStr
-import java.sql.{ Connection, DriverManager, ResultSet }
+import java.sql.{ Connection, DriverManager }
 
 /** SQLite 기반 오프닝 익스플로러.
   * DB 스키마는 scripts/build_opening_db.py에서 생성: positions/moves/games 테이블.
