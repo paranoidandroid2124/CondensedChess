@@ -24,6 +24,7 @@ Usage 예:
 import argparse
 import os
 import sqlite3
+import time
 from collections import Counter, defaultdict
 from typing import Dict, List, Tuple, Optional
 
@@ -142,7 +143,7 @@ def game_info_from_headers(game) -> dict:
     }
 
 
-def process_file(path: str, stats: Dict[str, NodeStats], args):
+def process_file(path: str, stats: Dict[str, NodeStats], args, log_prefix: str = ""):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         game_count = 0
         while True:
@@ -177,6 +178,9 @@ def process_file(path: str, stats: Dict[str, NodeStats], args):
                     next_move_label = None
                 stats.setdefault(key, NodeStats()).add_game(result, next_move_label, info, args.top_games_per_pos, args.store_all_games, san_str)
                 node = node.variations[0]
+            if game_count % 1000 == 0:
+                print(f"{log_prefix} processed {game_count} games in {os.path.basename(path)}")
+    return game_count
 
 
 def create_schema(conn: sqlite3.Connection):
@@ -315,15 +319,20 @@ def write_db(path: str, stats: Dict[str, NodeStats], args):
 
 
 def main():
+    start_time = time.time()
     args = parse_args()
     stats: Dict[str, NodeStats] = {}
     pgn_files = [os.path.join(args.pgn_dir, f) for f in os.listdir(args.pgn_dir) if f.lower().endswith(".pgn")]
+    total_games = 0
     for idx, p in enumerate(sorted(pgn_files)):
-        print(f"[build] processing {idx+1}/{len(pgn_files)}: {p}")
-        process_file(p, stats, args)
+        prefix = f"[build {idx+1}/{len(pgn_files)}]"
+        print(f"{prefix} processing {p}")
+        total_games += process_file(p, stats, args, log_prefix=prefix)
     print(f"[build] positions collected: {len(stats)}")
+    print(f"[build] games processed: {total_games}")
     write_db(args.out, stats, args)
-    print(f"[build] wrote DB to {args.out}")
+    elapsed = time.time() - start_time
+    print(f"[build] wrote DB to {args.out} (elapsed {elapsed/60:.1f} min)")
 
 
 if __name__ == "__main__":
