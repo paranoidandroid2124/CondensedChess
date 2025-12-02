@@ -82,7 +82,8 @@ object OpeningExplorer:
         eg.flatMap(g => g.play(san).map { case (next, _) => next })
       }
       .toOption
-      .map(g => format.Fen.write(g.position, g.ply.fullMoveNumber).value)
+      // Use opening FEN (board/turn/castling/ep) to merge transpositions irrespective of move clocks.
+      .map(g => format.Fen.writeOpening(g.position).value)
 
   private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int): Option[Stats] =
     val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE fen = ?"
