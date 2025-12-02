@@ -89,6 +89,7 @@ object AnalyzePgn:
       bestVsPlayedGap: Option[Double],
       semanticTags: List[String],
       mistakeCategory: Option[String],
+      phaseLabel: Option[String] = None,
       shortComment: Option[String] = None
   )
 
@@ -406,6 +407,8 @@ object AnalyzePgn:
         sacrificeQuality = concepts.sacrificeQuality - conceptsBefore.sacrificeQuality,
         alphaZeroStyle = concepts.alphaZeroStyle - conceptsBefore.alphaZeroStyle
       )
+      val (phaseScore, phaseLabelRaw) = phaseTransition(conceptDelta, winBefore)
+      val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= 8.0) // 노이즈 방지 임계값
       val bestVsSecondGap = (for
         top <- evalBeforeDeep.lines.headOption
         second <- evalBeforeDeep.lines.drop(1).headOption
@@ -460,7 +463,8 @@ object AnalyzePgn:
         bestVsSecondGap = bestVsSecondGap,
         bestVsPlayedGap = bestVsPlayedGap,
         semanticTags = semanticTags,
-        mistakeCategory = mistakeCategory
+        mistakeCategory = mistakeCategory,
+        phaseLabel = phaseLabel
       )
       game = nextGame
       prevDeltaForOpp = delta // 다음 수에서 miss 판단용
@@ -468,6 +472,27 @@ object AnalyzePgn:
     entries.result() -> game
 
   private final case class EvalCacheKey(fen: String, depth: Int, multiPv: Int, timeMs: Int)
+
+  private def detectPhaseLabel(delta: Concepts, winPctBefore: Double): Option[String] =
+    if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then Some("transition_to_endgame")
+    else if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then Some("tactical_to_positional")
+    else if delta.fortress >= 0.4 then Some("fortress_formation")
+    else if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then Some("comfort_to_unpleasant")
+    else if delta.alphaZeroStyle >= 0.35 then Some("positional_sacrifice")
+    else if delta.kingSafety >= 0.4 then Some("king_safety_crisis")
+    else if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then Some("conversion_difficulty")
+    else None
+
+  private def phaseTransition(delta: Concepts, winPctBefore: Double): (Double, Option[String]) =
+    val dynamicCollapse = if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then 15.0 else 0.0
+    val tacticalDry = if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then 12.0 else 0.0
+    val fortressJump = if delta.fortress >= 0.4 then 10.0 else 0.0
+    val comfortLoss = if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then 10.0 else 0.0
+    val alphaZeroSpike = if delta.alphaZeroStyle >= 0.35 then 8.0 else 0.0
+    val kingSafetyCollapse = if delta.kingSafety >= 0.4 then 12.0 else 0.0
+    val conversionIssue = if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then 8.0 else 0.0
+    val phaseScore = List(dynamicCollapse, tacticalDry, fortressJump, comfortLoss, alphaZeroSpike, kingSafetyCollapse, conversionIssue).max
+    (phaseScore, detectPhaseLabel(delta, winPctBefore))
 
   private def detectCritical(timeline: Vector[PlyOutput], client: StockfishClient, config: EngineConfig, llmRequestedPlys: Set[Int]): Vector[CriticalNode] =
     val evalCache = scala.collection.mutable.Map.empty[EvalCacheKey, EngineEval]
@@ -480,7 +505,7 @@ object AnalyzePgn:
       "book" -> 0.0
     )
 
-    def criticalityScore(p: PlyOutput): (Double, Double) =
+    def criticalityScore(p: PlyOutput): (Double, Double, Option[String]) =
       val deltaScore = math.abs(p.deltaWinPct)
       val conceptJump = p.concepts.dynamic + p.concepts.tacticalDepth + p.concepts.blunderRisk
       val bestVsSecondGap = p.bestVsSecondGap.getOrElse {
@@ -489,17 +514,19 @@ object AnalyzePgn:
         (for t <- top; s <- second yield (t.winPct - s.winPct).abs).getOrElse(100.0)
       }
       val branchTension = math.max(0.0, 12.0 - bestVsSecondGap) // 가까울수록(갈림길) 점수 증가, 12% 이상은 0
+      val (phaseShift, phaseLabel) = phaseTransition(p.conceptDelta, p.winPctBefore)
       val score =
         deltaScore * 0.6 +
           branchTension * 0.8 +
           judgementBoost.getOrElse(p.judgement, 0.0) +
-          conceptJump * 20.0
-      (score, bestVsSecondGap)
+          conceptJump * 20.0 +
+          phaseShift * 1.5
+      (score, bestVsSecondGap, phaseLabel)
 
     val scored = timeline.map { p =>
-      val (s, gap) = criticalityScore(p)
+      val (s, gap, phaseLabel) = criticalityScore(p)
       val llmBoost = if llmRequestedPlys.contains(p.ply.value) then 50.0 else 0.0
-      (p, (s + llmBoost, gap))
+      (p, (s + llmBoost, gap, phaseLabel))
     }
     val cap = math.min(8, math.max(3, 3 + timeline.size / 20)) // 게임 길이에 따라 3~8 사이 자동 조정
 
@@ -509,10 +536,11 @@ object AnalyzePgn:
       val key = EvalCacheKey(fen, depth, multiPv, time)
       evalCache.getOrElseUpdate(key, evalFen(client, fen, depth = depth, multiPv = multiPv, moveTimeMs = Some(time)))
 
-    scored.sortBy { case (_, (s, _)) => -s }.take(cap).map { case (ply, (_, gap)) =>
+    scored.sortBy { case (_, (s, _, _)) => -s }.take(cap).map { case (ply, (_, gap, phaseLabel)) =>
       val reason =
         if ply.judgement == "blunder" then "ΔWin% blunder spike"
         else if ply.judgement == "mistake" then "ΔWin% mistake"
+        else if phaseLabel.nonEmpty then s"phase shift: ${phaseLabel.get}"
         else if gap <= 5.0 then "critical branching (lines close)"
         else if ply.deltaWinPct.abs >= 3 then "notable eval swing"
         else "concept shift"
@@ -538,6 +566,8 @@ object AnalyzePgn:
 
       val forcedMove = ply.legalMoves <= 1 || gap >= 20.0
 
+      val tags = (phaseLabel.toList ++ ply.semanticTags).take(6)
+
       CriticalNode(
         ply = ply.ply,
         reason = reason,
@@ -548,7 +578,7 @@ object AnalyzePgn:
         forced = forcedMove,
         legalMoves = Some(ply.legalMoves),
         mistakeCategory = ply.mistakeCategory,
-        tags = ply.semanticTags.take(6)
+        tags = tags
       )
     }
 
@@ -729,6 +759,9 @@ object AnalyzePgn:
       }
       ply.mistakeCategory.foreach { cat =>
         sb.append(",\"mistakeCategory\":\"").append(escape(cat)).append('"')
+      }
+      ply.phaseLabel.foreach { phase =>
+        sb.append(",\"phaseLabel\":\"").append(escape(phase)).append('"')
       }
       if ply.semanticTags.nonEmpty then
         sb.append(",\"semanticTags\":[")
