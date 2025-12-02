@@ -1,4 +1,4 @@
-export type Judgement = "best" | "excellent" | "good" | "inaccuracy" | "mistake" | "blunder";
+export type Judgement = "best" | "excellent" | "good" | "inaccuracy" | "mistake" | "blunder" | "book";
 
 export interface Opening {
   name?: string;
