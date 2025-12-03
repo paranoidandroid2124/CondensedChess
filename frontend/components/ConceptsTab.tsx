@@ -7,66 +7,67 @@ type ConceptsTabProps = {
     currentSemanticTags?: string[];
 };
 
-// Piece quality
-"restricted_bishop": "Restricted Bishop",
+const tagLabelMap: Record<string, string> = {
+    // Piece quality
+    "restricted_bishop": "Restricted Bishop",
     "strong_knight": "Strong Knight",
-        "active_rooks": "Active Rooks",
+    "active_rooks": "Active Rooks",
 
-            // King safety
-            "king_exposed": "King in Danger",
-                "king_attack_ready": "King Attack",
-                    "king_stuck_center": "Uncastled King",
-                        "weak_back_rank": "Weak Back Rank",
-                            "king_safety_crisis": "King Safety Crisis",
+    // King safety
+    "king_exposed": "King in Danger",
+    "king_attack_ready": "King Attack",
+    "king_stuck_center": "Uncastled King",
+    "weak_back_rank": "Weak Back Rank",
+    "king_safety_crisis": "King Safety Crisis",
 
-                                // Positional themes
-                                "locked_position": "Locked Position",
-                                    "fortress_defense": "Fortress Defense",
-                                        "space_advantage": "Space Advantage",
-                                            "color_complex_weakness": "Color Weakness",
-                                                "material_imbalance": "Material Imbalance",
+    // Positional themes
+    "locked_position": "Locked Position",
+    "fortress_defense": "Fortress Defense",
+    "space_advantage": "Space Advantage",
+    "color_complex_weakness": "Color Weakness",
+    "material_imbalance": "Material Imbalance",
 
-                                                    // Pawn structure
-                                                    "pawn_storm": "Pawn Storm",
-                                                        "pawn_storm_against_castled_king": "Attacking Pawns",
-                                                            "isolated_d_pawn": "Isolated d-Pawn",
-                                                                "weak_f7": "Weak f7",
-                                                                    "weak_f2": "Weak f2",
+    // Pawn structure
+    "pawn_storm": "Pawn Storm",
+    "pawn_storm_against_castled_king": "Attacking Pawns",
+    "isolated_d_pawn": "Isolated d-Pawn",
+    "weak_f7": "Weak f7",
+    "weak_f2": "Weak f2",
 
-                                                                        // Tactical/Strategic
-                                                                        "tactical_complexity": "Tactical Position",
-                                                                            "high_blunder_risk": "Sharp Position",
-                                                                                "dynamic_position": "Dynamic Play",
-                                                                                    "dry_position": "Quiet Position",
-                                                                                        "drawish_position": "Drawish",
+    // Tactical/Strategic
+    "tactical_complexity": "Tactical Position",
+    "high_blunder_risk": "Sharp Position",
+    "dynamic_position": "Dynamic Play",
+    "dry_position": "Quiet Position",
+    "drawish_position": "Drawish",
 
-                                                                                            // Advanced concepts
-                                                                                            "conversion_difficulty": "Hard to Convert",
-                                                                                                "long_term_compensation": "Long-term Edge",
-                                                                                                    "positional_sacrifice": "Positional Sacrifice",
-                                                                                                        "engine_only_move": "Computer Move",
-                                                                                                            "comfortable_position": "Comfortable",
-                                                                                                                "unpleasant_position": "Unpleasant",
+    // Advanced concepts
+    "conversion_difficulty": "Hard to Convert",
+    "long_term_compensation": "Long-term Edge",
+    "positional_sacrifice": "Positional Sacrifice",
+    "engine_only_move": "Computer Move",
+    "comfortable_position": "Comfortable",
+    "unpleasant_position": "Unpleasant",
 
-                                                                                                                    // File/rank features
-                                                                                                                    "open_h_file": "Open h-File",
-                                                                                                                        "open_g_file": "Open g-File",
-                                                                                                                            "rook_on_seventh": "Rook on 7th",
+    // File/rank features
+    "open_h_file": "Open h-File",
+    "open_g_file": "Open g-File",
+    "rook_on_seventh": "Rook on 7th",
 
-                                                                                                                                // Phase transitions
-                                                                                                                                "endgame_transition": "Entering Endgame",
-                                                                                                                                    "shift_tactical_to_positional": "Simplifying",
-                                                                                                                                        "opening_theory_branch": "Theory Branch",
-                                                                                                                                            "plan_change": "Plan Shift",
+    // Phase transitions
+    "endgame_transition": "Entering Endgame",
+    "shift_tactical_to_positional": "Simplifying",
+    "opening_theory_branch": "Theory Branch",
+    "plan_change": "Plan Shift",
 
-                                                                                                                                                // Other
-                                                                                                                                                "opposite_color_bishops": "Opposite Bishops",
+    // Other
+    "opposite_color_bishops": "Opposite Bishops",
 
-                                                                                                                                                    // Rich Concepts (New)
-                                                                                                                                                    "conversion_difficulty_endgame": "Tricky Endgame",
-                                                                                                                                                        "conversion_difficulty_opposite_bishops": "Opposite Bishop Draw Risk",
-                                                                                                                                                            "bishop_pair_advantage": "Bishop Pair Advantage",
-                                                                                                                                                                "knight_outpost_central": "Central Outpost"
+    // Rich Concepts (New)
+    "conversion_difficulty_endgame": "Tricky Endgame",
+    "conversion_difficulty_opposite_bishops": "Opposite Bishop Draw Risk",
+    "bishop_pair_advantage": "Bishop Pair Advantage",
+    "knight_outpost_central": "Central Outpost"
 };
 
 const tagColorMap: Record<string, string> = {
