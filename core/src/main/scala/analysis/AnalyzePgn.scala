@@ -271,7 +271,7 @@ object AnalyzePgn:
       case Left(err) => Left(s"PGN 파싱 실패: ${err.value}")
       case Right(replay) =>
         val sans = replay.chronoMoves.map(_.toSanStr)
-        val opening = OpeningDb.search(sans)
+        val opening = OpeningDb.searchWithTransposition(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
         val (timelineRaw, finalGame) = buildTimeline(replay, client, config, opening)

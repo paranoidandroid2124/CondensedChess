@@ -6,6 +6,16 @@ import { Chess } from "chess.js";
 import { addBranch, fetchOpeningLookup, fetchReview } from "../../../lib/review";
 import { StockfishEngine, type EngineMessage } from "../../../lib/engine";
 import type { Concepts, CriticalNode, OpeningStats, Review, ReviewTreeNode, StudyChapter, TimelineNode } from "../../../types/review";
+import { VerticalEvalBar } from "../../../components/VerticalEvalBar";
+import { CompressedMoveList } from "../../../components/CompressedMoveList";
+import { AnalysisPanel } from "../../../components/AnalysisPanel";
+import { BestAlternatives } from "../../../components/BestAlternatives";
+import { OpeningExplorerTab } from "../../../components/OpeningExplorerTab";
+import { StudyTab } from "../../../components/StudyTab";
+import { ConceptsTab } from "../../../components/ConceptsTab";
+import { ConceptCards } from "../../../components/ConceptCards";
+import { DrawingTools } from "../../../components/DrawingTools";
+import { GuessTheMove } from "../../../components/GuessTheMove";
 
 type PieceDropArgs = {
   sourceSquare: string;
@@ -449,18 +459,7 @@ function BoardCard({
         <span className="text-xs text-white/60">{fen ? "Selected ply" : "Starting position"}</span>
       </div>
       <div className="relative mt-3 flex gap-3">
-        <div className="flex w-4 flex-col items-center">
-          <div className="relative h-full w-2 overflow-hidden rounded-full bg-white/10">
-            {typeof evalPercent === "number" ? (
-              <div
-                className="absolute left-0 w-full rounded-full bg-accent-teal"
-                style={{ height: `${Math.max(0, Math.min(100, evalPercent))}%`, bottom: 0 }}
-                title={`Win chance ${evalPercent.toFixed(1)}%`}
-              />
-            ) : null}
-          </div>
-          <div className="mt-1 text-[10px] text-white/70">{evalPercent != null ? `${evalPercent.toFixed(1)}%` : "—"}</div>
-        </div>
+        <VerticalEvalBar evalPercent={evalPercent} />
         <div className="relative overflow-hidden rounded-xl border border-white/10">
           <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
             {judgementBadge ? (
@@ -828,73 +827,8 @@ function CriticalList({
   );
 }
 
-function GuessTheMove({
-  critical,
-  fenBeforeByPly
-}: {
-  critical: CriticalNode[];
-  fenBeforeByPly: Record<number, string | undefined>;
-}) {
-  const target = critical.find((c) => c.branches?.length);
-  const [guess, setGuess] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState<boolean>(false);
 
-  if (!target || !target.branches?.length) return null;
-  const options = target.branches.slice(0, Math.min(3, target.branches.length));
-  const correct = options[0]?.move;
-  const fen = fenBeforeByPly[target.ply];
 
-  const status =
-    revealed && guess
-      ? guess === correct
-        ? { tone: "text-emerald-200", text: "Spot on." }
-        : { tone: "text-rose-200", text: `Better was ${uciToSanWithFen(fen, correct ?? "")}.` }
-      : guess
-        ? { tone: "text-white/70", text: "Lock in or reveal to check." }
-        : { tone: "text-white/60", text: "Pick the best move." };
-
-  return (
-    <div className="glass-card rounded-2xl p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Guess the move</p>
-          <h3 className="text-sm font-semibold text-white">Critical ply {target.ply}</h3>
-        </div>
-        {target.mistakeCategory ? (
-          <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] text-white/70">{target.mistakeCategory}</span>
-        ) : null}
-      </div>
-      <p className="mt-2 text-xs text-white/60">Choose the best move (PV1) before revealing.</p>
-      <div className="mt-3 grid gap-2">
-        {options.map((b) => (
-          <button
-            key={b.move}
-            onClick={() => setGuess(b.move)}
-            className={`flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${guess === b.move ? "bg-accent-teal/20 ring-1 ring-accent-teal/60 text-white" : "bg-white/5 hover:bg-white/10 text-white/80"
-              }`}
-          >
-            <span>
-              <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/60">
-                {b.label}
-              </span>
-              {uciToSanWithFen(fen, b.move)}
-            </span>
-            <span className="text-xs text-white/60">{b.winPct.toFixed(1)}%</span>
-          </button>
-        ))}
-      </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-white/70">
-        <span className={status.tone}>{status.text}</span>
-        <button
-          onClick={() => setRevealed(true)}
-          className="rounded-lg border border-white/10 px-3 py-1 text-white/80 hover:border-white/30"
-        >
-          Reveal
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function OpeningLookupPanel({ stats, loading, error }: { stats?: OpeningStats | null; loading: boolean; error?: string | null }) {
   if (loading) {
@@ -1538,6 +1472,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [previewFen, setPreviewFen] = useState<string | null>(null);
   const [previewArrows, setPreviewArrows] = useState<Array<[string, string, string?]>>([]);
   const [previewLabel, setPreviewLabel] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"engine" | "opening" | "study" | "concepts">("concepts");
+  const [drawingColor, setDrawingColor] = useState<"green" | "red" | "blue" | "orange">("green");
   const jobId = review?.jobId ?? reviewId;
 
   // Engine & Interactive State
@@ -1545,12 +1481,28 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [engineLines, setEngineLines] = useState<EngineMessage[]>([]);
   // const [localGame, setLocalGame] = useState<Chess>(new Chess()); // Use enhancedTimeline for state source
-  // const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
+  const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
+
+  // Study Mode State
+  const [isGuessing, setIsGuessing] = useState(false);
+  const [guessState, setGuessState] = useState<"waiting" | "correct" | "incorrect" | "giveup">("waiting");
+  const [guessFeedback, setGuessFeedback] = useState<string | undefined>();
 
   useEffect(() => {
     const eng = new StockfishEngine((msg) => {
       if (msg.pv) {
-        setEngineLines((prev) => [msg]); // Single PV for now
+        setEngineLines((prev) => {
+          // Accumulate up to 3 unique PV lines (MultiPV)
+          const existing = prev.find(l => l.pv === msg.pv);
+          if (existing) {
+            // Update existing line
+            return prev.map(l => l.pv === msg.pv ? msg : l);
+          } else {
+            // Add new line, keep top 3 by depth
+            const updated = [...prev, msg].sort((a, b) => (b.depth || 0) - (a.depth || 0));
+            return updated.slice(0, 3);
+          }
+        });
       }
     });
     setEngine(eng);
@@ -1568,7 +1520,9 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       } else if (review.timeline?.length) {
         currentFen = review.timeline[review.timeline.length - 1].fen;
       }
-      engine.analyze(currentFen);
+      // Enable MultiPV (3 lines)
+      setEngineLines([]); // Clear previous lines for new position
+      engine.analyze(currentFen, 18, 3);
     } else {
       engine?.stop();
     }
@@ -1862,24 +1816,58 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
   const arrows = useMemo(() => {
     if (previewArrows.length) return previewArrows;
-    const arr: Array<[string, string, string?]> = [];
+    const arr: Array<[string, string, string?]> = [...customArrows];
     if (activeMove) {
       const from = activeMove.uci.slice(0, 2);
       const to = activeMove.uci.slice(2, 4);
       const bad = activeMove.judgement === "inaccuracy" || activeMove.judgement === "mistake" || activeMove.judgement === "blunder";
       arr.push([from, to, bad ? "#f87171" : "#818cf8"]);
+      // Only show best move arrow when NOT in guessing mode (Train mode)
       const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
-      if (best && best !== activeMove.uci) {
+      if (best && best !== activeMove.uci && !isGuessing) {
         const bFrom = best.slice(0, 2);
         const bTo = best.slice(2, 4);
         arr.push([bFrom, bTo, "#4ade80"]);
       }
     }
     return arr;
-  }, [activeMove, previewArrows]);
+  }, [activeMove, previewArrows, customArrows, isGuessing]);
 
   const handleBoardDrop = useCallback(
     ({ sourceSquare, targetSquare }: PieceDropArgs) => {
+      // 1. Guess Mode Interception
+      if (isGuessing && activeMove && guessState !== "correct" && guessState !== "giveup") {
+        try {
+          const chess = new Chess(activeMove.fenBefore || activeMove.fen);
+          const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+          if (!move) return false;
+
+          const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
+          const bestMoveUci = activeMove.evalBeforeDeep?.lines?.[0]?.move;
+          const playedMoveUci = activeMove.uci;
+
+          if (bestMoveUci && (uci === bestMoveUci || (uci.length === 4 && bestMoveUci.startsWith(uci)))) {
+            setGuessState("correct");
+            setGuessFeedback(undefined);
+            // Show the move on board
+            setPreviewFen(chess.fen());
+            setPreviewArrows([[move.from, move.to, "#22c55e"]]);
+            return true;
+          } else if (uci === playedMoveUci) {
+            setGuessState("incorrect");
+            setGuessFeedback("That's the move played in the game (the mistake!). Try to find a better one.");
+            return false;
+          } else {
+            setGuessState("incorrect");
+            setGuessFeedback("Not quite the best move. Try again!");
+            return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+
+      // 2. Standard Branch Creation
       if (!review || !enhancedTimeline.length || branchSaving || previewFen) return false;
       const anchorPly = selected?.ply ?? enhancedTimeline.at(-1)?.ply;
       const anchor = enhancedTimeline.find((t) => t.ply === anchorPly);
@@ -1907,7 +1895,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         return false;
       }
     },
-    [review, enhancedTimeline, branchSaving, selected, previewFen, jobId, clearPreview]
+    [review, enhancedTimeline, branchSaving, selected, previewFen, jobId, clearPreview, isGuessing, activeMove, guessState]
   );
 
   useEffect(() => {
@@ -2009,16 +1997,26 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[auto_300px_1fr] xl:grid-cols-[auto_360px_1fr]">
           <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <BoardCard
-              fen={previewFen || activeMove?.fen}
-              squareStyles={boardSquareStyles}
-              arrows={arrows}
-              evalPercent={activeMove?.winPctAfterForPlayer}
-              judgementBadge={judgementBadge}
-              onDrop={handleBoardDrop}
-            />
+            <div className="group relative">
+              <BoardCard
+                fen={previewFen || activeMove?.fen}
+                squareStyles={boardSquareStyles}
+                arrows={arrows}
+                evalPercent={activeMove?.winPctAfterForPlayer}
+                judgementBadge={judgementBadge}
+                onDrop={handleBoardDrop}
+              />
+              <DrawingTools
+                selectedColor={drawingColor}
+                onSelectColor={setDrawingColor}
+                onClear={() => {
+                  setCustomArrows([]);
+                  clearPreview();
+                }}
+              />
+            </div>
             {previewLabel ? (
               <div className="text-xs text-amber-100">Previewing line: {previewLabel}</div>
             ) : null}
@@ -2036,62 +2034,33 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 lg:h-[calc(100vh-2rem)] lg:sticky lg:top-4">
+            <CompressedMoveList
+              timeline={enhancedTimeline}
+              currentPly={selectedPly}
+              onSelectPly={setSelectedPly}
+            />
             <QuickJump timeline={enhancedTimeline} onSelect={(ply) => setSelectedPly(ply)} />
-            <CollapsibleSection title="Game summary" defaultOpen>
-              <SummaryPanel
-                opening={review.opening}
-                openingStats={review.openingStats}
-                oppositeColorBishops={review.oppositeColorBishops}
-                concepts={activeMove?.concepts}
-                conceptSpikes={conceptSpikes}
-                showAdvanced={showAdvanced}
-                summaryText={review.summaryText}
-                openingSummary={review.openingSummary}
-                bookExitComment={review.bookExitComment}
-                openingTrend={review.openingTrend}
-                onSelectPly={(ply) => setSelectedPly(ply)}
-              />
-            </CollapsibleSection>
+          </div>
 
-            {showStudy && review.studyChapters && review.studyChapters.length ? (
-              <CollapsibleSection title="Study chapters" defaultOpen>
-                <StudyPanel
-                  chapters={review.studyChapters}
-                  onSelect={(ply) => {
-                    setSelectedPly(ply);
-                    setSelectedVariation(null);
-                  }}
-                />
-              </CollapsibleSection>
-            ) : null}
-
-            <CollapsibleSection title="Opening lookup" defaultOpen={false}>
-              <OpeningLookupPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Guess the move" defaultOpen={false}>
-              <GuessTheMove critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} />
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Move timeline" defaultOpen>
-              <div className="max-h-[70vh] overflow-y-auto pr-1">
-                <MoveTimeline
-                  rows={moveRows}
-                  selected={selected?.ply}
-                  onSelect={(ply) => {
-                    clearPreview();
-                    setSelectedPly(ply);
-                  }}
-                  variations={variationMap}
-                  showAdvanced={showAdvanced}
-                  onSelectVariation={setSelectedVariation}
-                  onPreviewLine={(fenBefore, pv, label) => {
-                    if (!fenBefore || !pv?.length) return;
+          <div className="flex flex-col gap-4 lg:h-[calc(100vh-2rem)] lg:sticky lg:top-4">
+            <ConceptCards
+              concepts={activeMove?.concepts}
+              prevConcepts={enhancedTimeline.find(t => t.ply === (activeMove?.ply ?? 0) - 1)?.concepts}
+            />
+            <AnalysisPanel activeTab={activeTab} onTabChange={setActiveTab}>
+              {activeTab === "engine" && (
+                <BestAlternatives
+                  lines={engineLines}
+                  isAnalyzing={isAnalyzing}
+                  onToggleAnalysis={toggleAnalysis}
+                  onPreviewLine={(pv) => {
+                    // Reuse existing preview logic
+                    if (!activeMove?.fenBefore || !pv) return;
                     try {
-                      const chess = new Chess(fenBefore);
+                      const chess = new Chess(activeMove.fenBefore);
                       const arrows: Array<[string, string, string?]> = [];
-                      pv.slice(0, 8).forEach((mv) => {
+                      pv.split(" ").slice(0, 8).forEach((mv) => {
                         try {
                           const move = (chess as any).move(mv, { sloppy: true });
                           if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
@@ -2101,20 +2070,77 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                       });
                       setPreviewFen(chess.fen());
                       setPreviewArrows(arrows);
-                      setPreviewLabel(label ?? "Preview line");
+                      setPreviewLabel("Engine Line");
                     } catch {
-                      // ignore invalid preview
+                      // ignore
                     }
                   }}
                 />
-              </div>
-            </CollapsibleSection>
+              )}
 
-            {showAdvanced ? (
-              <CollapsibleSection title="Critical moves" defaultOpen={false}>
-                <CriticalList critical={review.critical ?? []} fenBeforeByPly={fenBeforeByPly} onSelectPly={setSelectedPly} />
-              </CollapsibleSection>
-            ) : null}
+              {activeTab === "opening" && (
+                <OpeningExplorerTab
+                  stats={openingLookup}
+                  loading={lookupLoading}
+                  error={lookupError}
+                />
+              )}
+
+              {activeTab === "study" && (
+                <StudyTab
+                  chapters={review.studyChapters}
+                  onSelectChapter={(ply) => {
+                    setSelectedPly(ply);
+                    setSelectedVariation(null);
+                  }}
+                  onStartGuess={(chapter) => {
+                    setSelectedPly(chapter.anchorPly);
+                    setIsGuessing(true);
+                    setGuessState("waiting");
+                    setGuessFeedback(undefined);
+                  }}
+                />
+              )}
+
+              {activeTab === "concepts" && (
+                <ConceptsTab
+                  review={review}
+                  currentConcepts={activeMove?.concepts}
+                />
+              )}
+
+              {isGuessing && activeMove && (
+                <div className="absolute inset-0 z-20 bg-black/80 p-4 backdrop-blur-sm">
+                  <GuessTheMove
+                    targetPly={activeMove.ply}
+                    fenBefore={activeMove.fenBefore || ""}
+                    bestMoveSan={
+                      activeMove.evalBeforeDeep?.lines?.[0]?.move
+                        ? uciToSanWithFen(activeMove.fenBefore || "", activeMove.evalBeforeDeep.lines[0].move)
+                        : "Unknown"
+                    }
+                    playedMoveSan={activeMove.san}
+                    guessState={guessState}
+                    feedbackMessage={guessFeedback}
+                    onSolve={() => {
+                      setIsGuessing(false);
+                      // Maybe move to next chapter?
+                    }}
+                    onGiveUp={() => {
+                      setGuessState("giveup");
+                      // Show best move on board?
+                      const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
+                      if (best) {
+                        const from = best.slice(0, 2);
+                        const to = best.slice(2, 4);
+                        setPreviewArrows([[from, to, "#22c55e"]]);
+                      }
+                    }}
+                    onClose={() => setIsGuessing(false)}
+                  />
+                </div>
+              )}
+            </AnalysisPanel>
           </div>
         </div>
 
