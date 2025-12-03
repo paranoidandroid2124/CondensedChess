@@ -20,9 +20,10 @@ object AccuracyScore:
     // Calculate average centipawn loss
     val totalCpLoss = moves.map { move =>
       // Use epLoss (expected pawn loss) as proxy for centipawn loss
-      // epLoss is in win% delta, convert to centipawn equivalent
-      // Rough conversion: 1% win% ≈ 25cp in the middlegame
-      val cpLoss = move.epLoss * 25.0
+      // epLoss is likely in 0-1 scale (win probability difference)
+      // Conversion: 1% (0.01) win prob ≈ 10 cp
+      // So 1.0 (100%) ≈ 1000 cp
+      val cpLoss = move.epLoss * 1000.0
       math.max(0.0, cpLoss) // Only count losses, not gains
     }.sum
     

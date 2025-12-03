@@ -1993,13 +1993,25 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
               <div className="rounded-2xl border border-accent-teal/30 bg-accent-teal/10 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
-                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.2s]" />
-                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.4s]" />
+                    {loading ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+                        <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.2s]" />
+                        <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.4s]" />
+                      </>
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    )}
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-white">Analysis in progress...</div>
-                    <div className="text-xs text-white/70">Board is ready. Advanced features will appear when complete. ({elapsed}s)</div>
+                    <div className="text-sm font-semibold text-white">
+                      {loading ? "Analysis in progress..." : "Analysis delayed"}
+                    </div>
+                    <div className="text-xs text-white/70">
+                      {loading
+                        ? `Board is ready. Advanced features will appear when complete. (${elapsed}s)`
+                        : pendingMessage || "Still processing. You can refresh later."}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2086,7 +2098,56 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     );
   }
 
+  // Handle Timeout/Pending state (when loading is false but review is not ready)
   if (!review && pendingMessage) {
+    // Reuse the instant board logic if available
+    if (instantPgn) {
+      try {
+        const tempChess = new Chess();
+        tempChess.loadPgn(instantPgn);
+        const history = tempChess.history({ verbose: true });
+
+        return (
+          <div className="px-6 py-10 sm:px-12 lg:px-16">
+            <div className="mx-auto max-w-6xl space-y-6">
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-amber-400" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-white">Analysis taking longer than expected</div>
+                    <div className="text-xs text-white/70">
+                      {pendingMessage}. You can refresh later to check for results.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <BoardCard
+                  fen={tempChess.fen()}
+                  evalPercent={undefined}
+                  judgementBadge={undefined}
+                />
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-white/80 mb-3">Game Moves</h3>
+                    <div className="max-h-96 overflow-y-auto text-sm text-white/70">
+                      {history.map((move, idx) => (
+                        <span key={idx} className="mr-2">
+                          {idx % 2 === 0 && `${Math.floor(idx / 2) + 1}. `}
+                          {move.san}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      } catch { }
+    }
+
     return (
       <div className="px-6 py-10 sm:px-12 lg:px-16">
         <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6">

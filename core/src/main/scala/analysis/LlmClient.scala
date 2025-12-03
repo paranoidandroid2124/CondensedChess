@@ -79,14 +79,29 @@ object LlmClient:
   def studyChapterComments(payload: String): Map[String, String] =
     apiKey.flatMap { key =>
       val prompt =
-        s"""You are a chess coach. For each study chapter, return JSON array of {"id":string,"summary":string}.
-           |- Payload includes studyChapters with anchorPly, played, best, deltaWinPct, tags, lines (pv), and instructions.
-           |- Use only provided moves/evals/tags. Do NOT invent moves/evals or move numbers.
-           |- Keep each summary to 1-2 sentences. Mention played vs best (if present) and the core idea from tags (plan_change/opening_theory_branch/tactic/etc.).
-           |- Use PV ideas briefly (1-2 moves) only if provided. Do not fabricate additional moves.
-           |- If deltaWinPct is small, focus on plan/theory shift rather than eval swing.
-           |- Ground every claim in the given tags/lines/delta; avoid generic advice.
-           |Payload: $payload""".stripMargin
+        s"""You are a chess book author. For each study chapter, return JSON array of {"id":string,"summary":string}.
+
+PAYLOAD STRUCTURE:
+Each chapter has: anchorPly, played, best, deltaWinPct, tags, lines (pv), phase, winPctBefore, winPctAfter, narrativeContext
+
+CRITICAL CONSTRAINTS (STRICT MODE):
+1. MOVES: Use ONLY moves from 'played' or 'best' fields. Do NOT mention any other moves.
+2. VARIATIONS: Do NOT extend variations beyond what's in the 'lines' field (max 2-3 moves from PV).
+3. REFERENCES: Do NOT reference external games, players (except those in metadata), or theoretical positions.
+4. TAGS ONLY: Base ALL strategic commentary on the provided 'tags' field. Do NOT invent concepts.
+5. EVAL ONLY: Use ONLY the provided winPctBefore/winPctAfter/deltaWinPct. Do NOT estimate additional evaluations.
+6. NO SPECULATION: Avoid phrases like "might have", "could consider", "reminds me of", "in theory".
+
+WRITING INSTRUCTIONS:
+- Write 2-3 sentences as if annotating a chess book chapter.
+- Follow the narrativeContext template (arc, key themes).
+- Focus on: (1) WHY this moment matters, (2) WHAT changed (using tags), (3) HOW it fits the arc.
+- Mention 'best' move only if it differs significantly from 'played' and is provided.
+- Ground EVERY claim in tags/evals/lines from the payload.
+
+TONE: Educational, specific, factual (like a GM annotating with only the data in front of them).
+
+Payload: $payload""".stripMargin
       val body =
         s"""{
            |  "contents":[{"parts":[{"text":${quote(prompt)}}]}],
@@ -172,9 +187,41 @@ object LlmClient:
         for
           id <- obj.get("id").map(_.str)
           summary <- obj.get("summary").map(_.str)
+          if !detectHallucination(summary) // Filter out hallucinated summaries
         yield id -> summary
       }.toMap
     catch
       case e: Throwable =>
         System.err.println(s"[llm-study] failed to parse JSON body: ${e.getMessage}")
         Map.empty
+
+  /** Detects common hallucination patterns in LLM-generated text */
+  private def detectHallucination(text: String): Boolean =
+    val lower = text.toLowerCase
+    val suspiciousPatterns = List(
+      "reminds me of",
+      "reminiscent of",
+      "famous game",
+      "classic game",
+      "in theory",
+      "theoretically",
+      "might have",
+      "could have considered",
+      "should have seen",
+      "kasparov",
+      "carlsen",
+      "fischer",
+      "karpov"
+    )
+    val hasSuspicious = suspiciousPatterns.exists(p => lower.contains(p))
+    
+    // Detect overly long variations (more than 3 move pairs like "1. e4 e5 2. Nf3 Nc6 3. Bb5")
+    val movePattern = """\d+\.\s*[a-zA-Z][a-zA-Z0-9+#=]*""".r
+    val moveCount = movePattern.findAllMatchIn(text).size
+    val tooManyMoves = moveCount > 6 // More than ~3 move pairs suggests hallucination
+    
+    if hasSuspicious || tooManyMoves then
+      System.err.println(s"[llm-validation] Detected hallucination in: ${text.take(100)}...")
+      true
+    else
+      false
