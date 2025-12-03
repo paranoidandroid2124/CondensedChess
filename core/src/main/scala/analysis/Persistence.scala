@@ -1,8 +1,7 @@
 package chess
 package analysis
 
-import java.sql.{ Connection, DriverManager, ResultSet, Statement }
-import java.util.UUID
+import java.sql.DriverManager
 import scala.util.Using
 
 object Persistence:

@@ -67,3 +67,42 @@ object OpeningDb:
     fens.foldRight(none[Opening]):
       case (fen, None) => findByStandardFen(fen)
       case (_, found) => found
+
+  /** Transposition-aware search: tries SAN match first, then position-based fallback.
+    * This handles cases where the same position is reached via different move orders.
+    * 
+    * @param moveOrDrops the sequence of moves/drops to search
+    * @return the deepest matching opening with its ply, or None if no match found
+    */
+  @scala.annotation.targetName("searchWithTranspositionMoves")
+  def searchWithTransposition(moveOrDrops: Iterable[MoveOrDrop]): Option[Opening.AtPly] =
+    // 1. Try standard SAN-based search (fast, precise)
+    val sanMatch = search(moveOrDrops)
+    
+    // 2. If SAN match fails, try position-based search (handles transpositions)
+    sanMatch.orElse {
+      searchInPositions:
+        val moves: Vector[Move] = moveOrDrops.view
+          .take(SEARCH_MAX_PLIES)
+          .takeWhile:
+            case move: Move => move.before.board.nbPieces >= SEARCH_MIN_PIECES
+            case _ => false
+          .collect { case move: Move => move }
+          .toVector
+        moves.map(_.before) ++ moves.lastOption.map(_.after).toVector
+    }
+
+  /** Transposition-aware search from SAN strings.
+    * Requires replaying moves from initial position to get positions.
+    */
+  def searchWithTransposition(sans: Iterable[SanStr]): Option[Opening.AtPly] =
+    chess.variant.Standard.initialPosition
+      .playPositions(sans.take(SEARCH_MAX_PLIES).takeWhile(!_.value.contains('@')).toList)
+      .toOption
+      .flatMap { positions =>
+        // 1. Try standard SAN search first
+        searchInPositions(positions).orElse {
+          // 2. Fallback: already did position search above, so just return None
+          none[Opening.AtPly]
+        }
+      }
