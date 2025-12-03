@@ -15,7 +15,8 @@ object SemanticTagger:
       ply: Ply,
       self: FeatureExtractor.SideFeatures,
       opp: FeatureExtractor.SideFeatures,
-      concepts: Option[ConceptScorer.Scores] = None
+      concepts: Option[ConceptScorer.Scores] = None,
+      winPct: Double = 50.0 // Added winPct for context-aware tagging
   ): List[String] =
     val board = position.board
     val tags = mutable.ListBuffer.empty[String]
@@ -52,12 +53,21 @@ object SemanticTagger:
     // Concept-based tags from ConceptScorer
     concepts.foreach { c =>
       // Strategic imbalances
-      if c.badBishop >= 0.6 then tags += "bad_bishop"
-      if c.goodKnight >= 0.6 then tags += "good_knight_outpost"
+      if c.badBishop >= 0.6 then tags += "restricted_bishop" // Renamed from bad_bishop
+      if c.goodKnight >= 0.6 then tags += "strong_knight" // Renamed from good_knight_outpost
       if c.colorComplex >= 0.5 then tags += "color_complex_weakness"
       
       // Positional character
-      if c.fortress >= 0.6 then tags += TagName.FortressBuilding
+      // Fortress Logic Split
+      val endgame = isEndgame(board)
+      if c.fortress >= 0.6 && !endgame then tags += "locked_position" // Closed center in middlegame
+      
+      if c.fortress >= 0.6 && endgame then
+        val myMat = materialScore(board, perspective)
+        val oppMat = materialScore(board, oppColor)
+        if myMat <= oppMat - 1.0 && c.drawish >= 0.5 then
+           tags += "fortress_defense" // True fortress: material down but holding
+
       if c.dry >= 0.6 then tags += "dry_position"
       if c.pawnStorm >= 0.6 then tags += "pawn_storm"
       
@@ -68,7 +78,10 @@ object SemanticTagger:
       
       // Crisis and opportunity
       if c.kingSafety >= 0.5 then tags += TagName.KingExposed
-      if c.conversionDifficulty >= 0.5 then tags += TagName.ConversionDifficulty
+      
+      // Conversion Difficulty: Only if winning
+      if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then tags += TagName.ConversionDifficulty
+      
       if c.blunderRisk >= 0.6 then tags += "high_blunder_risk"
       if c.tacticalDepth >= 0.6 then tags += "tactical_complexity"
       
@@ -82,7 +95,35 @@ object SemanticTagger:
       if c.alphaZeroStyle >= 0.6 then tags += "long_term_compensation"
       if c.engineLike >= 0.6 then tags += "engine_only_move"
       if c.comfortable >= 0.7 then tags += "comfortable_position"
-      if c.unpleasant >= 0.6 then tags += "unpleasant_position"
+      
+      // Unpleasant: Only if slightly worse or equal
+      if c.unpleasant >= 0.6 && winPct <= 45.0 then tags += "unpleasant_position"
+    }
+
+    // Rich Concept Taxonomy (White Space #2) - Refined
+    concepts.foreach { c =>
+      // 1. Conversion Difficulty Context
+      if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then
+        if isEndgame(board) then tags += "conversion_difficulty_endgame"
+        if tags.contains("opposite_color_bishops") then tags += "conversion_difficulty_opposite_bishops"
+
+      // 2. Fortress Potential (Material down but holding) - Merged into fortress_defense logic above
+
+      // 3. King Safety Crisis
+      if c.kingSafety >= 0.6 && (c.pawnStorm >= 0.5 || c.rookActivity >= 0.6) then
+        tags += "king_safety_crisis"
+
+      // 4. Bishop Pair Advantage in Open Position
+      if self.bishopPair && !opp.bishopPair && c.dry <= 0.4 then 
+        tags += "bishop_pair_advantage"
+
+      // 5. Central Knight Outpost
+      if c.goodKnight >= 0.6 then
+        val knights = board.knights & board.byColor(perspective)
+        val centralFiles = Set(File.D, File.E)
+        val centralRanks = if perspective == Color.White then Set(Rank.Fourth, Rank.Fifth, Rank.Sixth) else Set(Rank.Fifth, Rank.Fourth, Rank.Third)
+        if knights.squares.exists(k => centralFiles.contains(k.file) && centralRanks.contains(k.rank)) then
+          tags += "knight_outpost_central"
     }
 
     tags.distinct.toList
@@ -190,3 +231,16 @@ object SemanticTagger:
         else false
       (isShortCastle || isLongCastle) && advancedOnWing
     }
+
+  private def isEndgame(board: Board): Boolean =
+    val whitePieces = board.byColor(Color.White).count
+    val blackPieces = board.byColor(Color.Black).count
+    whitePieces <= 6 || blackPieces <= 6 || (board.queens.isEmpty && whitePieces <= 8 && blackPieces <= 8)
+
+  private def materialScore(board: Board, color: Color): Double =
+    val pawns = (board.pawns & board.byColor(color)).count * 1.0
+    val knights = (board.knights & board.byColor(color)).count * 3.0
+    val bishops = (board.bishops & board.byColor(color)).count * 3.0
+    val rooks = (board.rooks & board.byColor(color)).count * 5.0
+    val queens = (board.queens & board.byColor(color)).count * 9.0
+    pawns + knights + bishops + rooks + queens

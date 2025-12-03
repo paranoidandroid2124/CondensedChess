@@ -153,7 +153,10 @@ object AnalyzePgn:
       tags: List[String],
       lines: List[StudyLine],
       summary: Option[String] = None,
-      studyScore: Double = 0.0
+      studyScore: Double = 0.0,
+      phase: String = "middlegame",
+      winPctBefore: Double = 50.0,
+      winPctAfter: Double = 50.0
   )
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
@@ -480,7 +483,8 @@ object AnalyzePgn:
           ply = nextGame.ply,
           self = moverFeatures,
           opp = oppFeatures,
-          concepts = Some(conceptScores)
+          concepts = Some(conceptScores),
+          winPct = winBefore
         )
 
       val baseMistakeCategory =
@@ -706,32 +710,11 @@ object AnalyzePgn:
       (anchor, phase)
     }
     
-    // Enhanced summary with narrative context
-    def narrativeSummary(anchor: PlyOutput, ch: StudyChapter, phase: String): String =
-      val phaseContext = phase match
-        case "opening" => "In the opening phase"
-        case "middlegame" => "In the middlegame"
-        case "endgame" => "In the endgame"
-        case _ => "At this point"
-      
-      val conceptContext = 
-        if ch.tags.exists(_.contains("king")) then "affecting king safety"
-        else if ch.tags.exists(_.contains("tactical")) then "creating tactical complications"
-        else if ch.tags.exists(_.contains("positional")) then "shifting positional balance"
-        else if ch.tags.exists(_.contains("fortress")) then "establishing defensive structure"
-        else if ch.tags.exists(_.contains("conversion")) then "presenting conversion challenges"
-        else "changing the position's character"
-      
-      val deltaText =
-        if ch.deltaWinPct <= -5 then s"a critical mistake costing ${fmt(-ch.deltaWinPct)}%"
-        else if ch.deltaWinPct <= -1 then s"an inaccuracy losing ${fmt(-ch.deltaWinPct)}%"
-        else if ch.deltaWinPct >= 1 then s"a strong move gaining ${fmt(ch.deltaWinPct)}%"
-        else "a subtle shift in evaluation"
-      
-      val bestText = ch.best.map(b => s"${uciToSanSingle(anchor.fenBefore, b)} was stronger").getOrElse("played move was reasonable")
-      val mainConcept = ch.tags.headOption.map(_.replace("_", " ")).getOrElse("key moment")
-      
-      s"$phaseContext, ${ch.played} represents $deltaText, $conceptContext. Theme: $mainConcept. $bestText."
+    // Simplified narrative summary using NarrativeBuilder
+    def narrativeSummary(anchor: PlyOutput, tags: List[String], phase: String, winBefore: Double, winAfter: Double): String =
+      val arc = NarrativeBuilder.detectArc(anchor.deltaWinPct)
+      val template = NarrativeBuilder.narrativeTemplate(tags, arc)
+      template
     
     chaptersWithPhase.map { case (anchor, phase) =>
       val id = s"ch-${anchor.ply.value}"
@@ -755,6 +738,7 @@ object AnalyzePgn:
         lines += StudyLine(label = "alt", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
       }
       
+      
       val enrichedTags = (phase :: anchor.studyTags).take(6)
       
       val ch = StudyChapter(
@@ -766,10 +750,13 @@ object AnalyzePgn:
         deltaWinPct = anchor.deltaWinPct,
         tags = enrichedTags,
         lines = lines.toList,
-        summary = None,
-        studyScore = anchor.studyScore
+        summary = Some(narrativeSummary(anchor, enrichedTags, phase, anchor.winPctBefore, anchor.winPctAfterForPlayer)),
+        studyScore = anchor.studyScore,
+        phase = phase,
+        winPctBefore = anchor.winPctBefore,
+        winPctAfter = anchor.winPctAfterForPlayer
       )
-      ch.copy(summary = Some(narrativeSummary(anchor, ch, phase)))
+      ch
     }.toVector
 
   private def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
