@@ -430,6 +430,7 @@ function BoardCard({
   arrows,
   evalPercent,
   judgementBadge,
+  moveSquare,
   onDrop
 }: {
   fen?: string;
@@ -437,6 +438,7 @@ function BoardCard({
   arrows?: Array<[string, string, string?]>;
   evalPercent?: number;
   judgementBadge?: string;
+  moveSquare?: string; // Target square for the move (e.g. "h5")
   onDrop?: (args: PieceDropArgs) => boolean;
 }) {
   const [width, setWidth] = useState(420);
@@ -452,6 +454,25 @@ function BoardCard({
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  // Combine square styles with judgment badge overlay
+  const combinedSquareStyles = { ...squareStyles };
+
+  if (moveSquare && judgementBadge) {
+    const judgmentColor =
+      judgementBadge.includes("??") ? "rgba(220, 38, 38, 0.8)" :  // red for blunder
+        judgementBadge.includes("?") && !judgementBadge.includes("!") ? "rgba(251, 146, 60, 0.7)" : // orange for mistake
+          judgementBadge.includes("?!") ? "rgba(251, 191, 36, 0.7)" : // yellow for inaccuracy
+            judgementBadge.includes("!") ? "rgba(34, 197, 94, 0.7)" : // green for good/brilliant
+              "rgba(148, 163, 184, 0.5)"; // gray default
+
+    combinedSquareStyles[moveSquare] = {
+      ...combinedSquareStyles[moveSquare],
+      position: "relative" as const,
+      backgroundColor: judgmentColor,
+      boxShadow: `inset 0 0 0 3px ${judgmentColor.replace("0.7", "1")}`,
+    };
+  }
+
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
@@ -461,11 +482,7 @@ function BoardCard({
       <div className="relative mt-3 flex gap-3">
         <VerticalEvalBar evalPercent={evalPercent} />
         <div className="relative overflow-hidden rounded-xl border border-white/10">
-          <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
-            {judgementBadge ? (
-              <span className="rounded-full bg-black/50 px-2 py-1 text-xs text-white">{judgementBadge}</span>
-            ) : null}
-          </div>
+          {/* Remove floating badge */}
           <Chessboard
             id="review-board"
             position={fen || "start"}
@@ -478,7 +495,7 @@ function BoardCard({
             }
             customLightSquareStyle={{ backgroundColor: "#e7ecff" }}
             customDarkSquareStyle={{ backgroundColor: "#5b8def" }}
-            customSquareStyles={squareStyles}
+            customSquareStyles={combinedSquareStyles}
             customArrows={arrows as any}
           />
         </div>
@@ -1461,6 +1478,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pollStartTime, setPollStartTime] = useState<number | null>(null);
+  const [pollAttempt, setPollAttempt] = useState<number>(0);
   const [showAdvanced] = useState<boolean>(true);
   const [openingLookup, setOpeningLookup] = useState<OpeningStats | null>(null);
   const [lookupKey, setLookupKey] = useState<string>("");
@@ -1475,6 +1494,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [activeTab, setActiveTab] = useState<"engine" | "opening" | "study" | "concepts">("concepts");
   const [drawingColor, setDrawingColor] = useState<"green" | "red" | "blue" | "orange">("green");
   const jobId = review?.jobId ?? reviewId;
+  const [instantPgn, setInstantPgn] = useState<string | null>(null);
 
   // Engine & Interactive State
   const [engine, setEngine] = useState<StockfishEngine | null>(null);
@@ -1487,6 +1507,16 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   const [isGuessing, setIsGuessing] = useState(false);
   const [guessState, setGuessState] = useState<"waiting" | "correct" | "incorrect" | "giveup">("waiting");
   const [guessFeedback, setGuessFeedback] = useState<string | undefined>();
+
+  useEffect(() => {
+    // Check for pending PGN in localStorage for instant display
+    const pendingPgn = localStorage.getItem("pending-pgn");
+    if (pendingPgn) {
+      setInstantPgn(pendingPgn);
+      // Clear after reading
+      localStorage.removeItem("pending-pgn");
+    }
+  }, []);
 
   useEffect(() => {
     const eng = new StockfishEngine((msg) => {
@@ -1566,22 +1596,25 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     const poll = async (attempt: number) => {
       if (!mounted) return;
+      setPollAttempt(attempt);
       try {
         const res = await fetchReview(reviewId);
         if (res.status === "pending") {
-          setPendingMessage(res.message ?? "processing");
+          setPendingMessage("Analyzing game...");
           setLoading(true);
           // poll up to ~80 attempts (~120s)
           if (attempt < 80) {
             timer = setTimeout(() => poll(attempt + 1), 1500);
           } else {
-            setPendingMessage("Still processing; please refresh later.");
+            setPendingMessage("Analysis taking longer than expected. Please refresh later.");
             setLoading(false);
           }
           return;
         }
         // ready
         setPendingMessage(null);
+        setPollStartTime(null);
+        setPollAttempt(0);
         setReview(res.review);
         const lastPly = res.review.timeline?.at(-1)?.ply ?? null;
         setSelectedPly(lastPly);
@@ -1595,6 +1628,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     setLoading(true);
     setError(null);
     setPendingMessage(null);
+    setPollStartTime(Date.now());
+    setPollAttempt(0);
     poll(0);
 
     return () => {
@@ -1868,7 +1903,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
       }
 
       // 2. Standard Branch Creation
-      if (!review || !enhancedTimeline.length || branchSaving || previewFen) return false;
+      if (!review || !enhancedTimeline.length || branchSaving) return false;
       const anchorPly = selected?.ply ?? enhancedTimeline.at(-1)?.ply;
       const anchor = enhancedTimeline.find((t) => t.ply === anchorPly);
       if (!anchor) return false;
@@ -1877,19 +1912,55 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
         if (!move) return false;
         const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
+        const newFen = chess.fen();
+
+        // Optimistic update: show the move immediately
+        setPreviewFen(newFen);
         setBranchSaving(true);
         setBranchError(null);
+
         addBranch(jobId, anchor.ply, uci)
           .then((updated) => {
             setReview(updated);
-            setSelectedPly(anchor.ply);
-            setSelectedVariation(null);
-            clearPreview();
+
+            // Find the new move to select it
+            // It could be in the main timeline or a variation
+            // We look for a node that matches the new FEN or UCI
+            let newPly: number | null = null;
+
+            // Check timeline first (if it extended main line)
+            const nextNode = updated.timeline.find(t => t.ply === anchor.ply + 1);
+            if (nextNode && nextNode.uci === uci) {
+              newPly = nextNode.ply;
+            } else {
+              // Check variations (if we have access to them in the Review object)
+              // Since Review object structure for variations isn't fully visible here,
+              // we rely on the fact that if it's not in timeline, it might be hard to find without the variations map.
+              // However, we can try to find it by FEN in the entire timeline if it became main line.
+              // If it's a variation, we might need to rely on the user manually finding it or 
+              // we can try to keep previewFen until we find a better way.
+              // BUT, for now, let's just clear previewFen. If the move is in variations, 
+              // the user will see the anchor position and the new variation in the list.
+              // Ideally we want to select it.
+
+              // Let's try to find any node with matching FEN and ply > anchor.ply
+              const candidate = updated.timeline.find(t => t.fen === newFen);
+              if (candidate) newPly = candidate.ply;
+            }
+
+            if (newPly !== null) {
+              setSelectedPly(newPly);
+            }
+
+            // Clear preview to show the real state
+            setPreviewFen(null);
+            setBranchSaving(false);
           })
           .catch((err) => {
-            setBranchError(err instanceof Error ? err.message : "Branch add failed");
-          })
-          .finally(() => setBranchSaving(false));
+            setBranchError(err instanceof Error ? err.message : "Failed to add branch");
+            setBranchSaving(false);
+            setPreviewFen(null); // Revert on error
+          });
         return true;
       } catch {
         return false;
@@ -1904,19 +1975,112 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   }, [selectedPly, clearPreview]);
 
   if (loading) {
+    const elapsed = pollStartTime ? Math.floor((Date.now() - pollStartTime) / 1000) : 0;
+    const estimatedTotal = 30; // Rough estimate: 30 seconds
+    const progress = Math.min(95, (pollAttempt / 20) * 100); // Cap at 95% until done
+
+    // If we have instant PGN, parse and show board immediately
+    if (instantPgn) {
+      try {
+        const tempChess = new Chess();
+        tempChess.loadPgn(instantPgn);
+        const history = tempChess.history({ verbose: true });
+
+        return (
+          <div className="px-6 py-10 sm:px-12 lg:px-16">
+            <div className="mx-auto max-w-6xl space-y-6">
+              {/* Analysis Progress Banner */}
+              <div className="rounded-2xl border border-accent-teal/30 bg-accent-teal/10 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.2s]" />
+                    <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.4s]" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-white">Analysis in progress...</div>
+                    <div className="text-xs text-white/70">Board is ready. Advanced features will appear when complete. ({elapsed}s)</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Board View */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <BoardCard
+                  fen={tempChess.fen()}
+                  evalPercent={undefined}
+                  judgementBadge={undefined}
+                />
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-white/80 mb-3">Game Moves</h3>
+                    <div className="max-h-96 overflow-y-auto text-sm text-white/70">
+                      {history.map((move, idx) => (
+                        <span key={idx} className="mr-2">
+                          {idx % 2 === 0 && `${Math.floor(idx / 2) + 1}. `}
+                          {move.san}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-sm text-white/60">
+                    <p>💡 You can use the local engine to analyze positions while waiting</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      } catch (err) {
+        // Fall through to normal loading screen if PGN parsing fails
+      }
+    }
+
     return (
       <div className="px-6 py-10 sm:px-12 lg:px-16">
-        <div className="mx-auto max-w-6xl animate-pulse space-y-4">
-          <div className="h-10 rounded-2xl bg-white/5" />
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="h-96 rounded-2xl bg-white/5" />
-            <div className="h-96 rounded-2xl bg-white/5" />
-          </div>
-          {pendingMessage ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-              Analyzing... ({pendingMessage})
+        <div className="mx-auto max-w-3xl space-y-6">
+          {/* Progress Card */}
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-semibold text-white">Analyzing Game...</h2>
+              <span className="text-sm text-white/60">{elapsed}s elapsed</span>
             </div>
-          ) : null}
+
+            {/* Progress Bar */}
+            <div className="relative h-2 rounded-full bg-black/20 overflow-hidden mb-4">
+              <div
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent-teal to-blue-400 transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            {/* Status Message */}
+            {pendingMessage ? (
+              <div className="flex items-center gap-3 text-white/80">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.2s]" />
+                  <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.4s]" />
+                </div>
+                <span className="text-sm">{pendingMessage}</span>
+              </div>
+            ) : null}
+
+            {/* Estimated Time */}
+            {elapsed < estimatedTotal && (
+              <p className="mt-4 text-xs text-white/50">
+                Typically completes in {estimatedTotal} seconds
+              </p>
+            )}
+          </div>
+
+          {/* Skeleton Preview */}
+          <div className="animate-pulse space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="h-96 rounded-2xl bg-white/5" />
+              <div className="h-96 rounded-2xl bg-white/5" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -2006,6 +2170,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 arrows={arrows}
                 evalPercent={activeMove?.winPctAfterForPlayer}
                 judgementBadge={judgementBadge}
+                moveSquare={activeMove?.uci?.slice(2, 4)} // Extract target square from UCI (e.g. "e2e4" -> "e4")
                 onDrop={handleBoardDrop}
               />
               <DrawingTools
@@ -2013,7 +2178,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 onSelectColor={setDrawingColor}
                 onClear={() => {
                   setCustomArrows([]);
-                  clearPreview();
                 }}
               />
             </div>

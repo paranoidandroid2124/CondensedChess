@@ -4,9 +4,88 @@ import { Review, Concepts } from "../types/review";
 type ConceptsTabProps = {
     review: Review | null;
     currentConcepts?: Concepts;
+    currentSemanticTags?: string[];
 };
 
-export function ConceptsTab({ review, currentConcepts }: ConceptsTabProps) {
+const tagLabelMap: Record<string, string> = {
+    // Piece quality
+    "bad_bishop": "Bad Bishop",
+    "good_knight_outpost": "Good Knight",
+    "active_rooks": "Active Rooks",
+
+    // King safety
+    "king_exposed": "King in Danger",
+    "king_attack_ready": "King Attack",
+    "king_stuck_center": "Uncastled King",
+    "weak_back_rank": "Weak Back Rank",
+
+    // Positional themes
+    "fortress_building": "Fortress",
+    "space_advantage": "Space Advantage",
+    "color_complex_weakness": "Color Weakness",
+    "material_imbalance": "Material Imbalance",
+
+    // Pawn structure
+    "pawn_storm": "Pawn Storm",
+    "pawn_storm_against_castled_king": "Attacking Pawns",
+    "isolated_d_pawn": "Isolated d-Pawn",
+    "weak_f7": "Weak f7",
+    "weak_f2": "Weak f2",
+
+    // Tactical/Strategic
+    "tactical_complexity": "Tactical Position",
+    "high_blunder_risk": "Sharp Position",
+    "dynamic_position": "Dynamic Play",
+    "dry_position": "Quiet Position",
+    "drawish_position": "Drawish",
+
+    // Advanced concepts
+    "conversion_difficulty": "Hard to Convert",
+    "long_term_compensation": "Long-term Edge",
+    "positional_sacrifice": "Positional Sacrifice",
+    "engine_only_move": "Computer Move",
+    "comfortable_position": "Comfortable",
+    "unpleasant_position": "Unpleasant",
+
+    // File/rank features
+    "open_h_file": "Open h-File",
+    "open_g_file": "Open g-File",
+    "rook_on_seventh": "Rook on 7th",
+
+    // Phase transitions
+    "endgame_transition": "Entering Endgame",
+    "shift_tactical_to_positional": "Simplifying",
+    "opening_theory_branch": "Theory Branch",
+    "plan_change": "Plan Shift",
+
+    // Other
+    "opposite_color_bishops": "Opposite Bishops"
+};
+
+const tagColorMap: Record<string, string> = {
+    "king": "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    "tactical": "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    "fortress": "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    "bishop": "bg-purple-500/20 text-purple-300 border-purple-500/30",
+    "knight": "bg-green-500/20 text-green-300 border-green-500/30",
+    "rook": "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    "pawn": "bg-lime-500/20 text-lime-300 border-lime-500/30",
+    "dynamic": "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    "drawish": "bg-gray-500/20 text-gray-300 border-gray-500/30",
+    "space": "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+    "default": "bg-white/10 text-white/70 border-white/20"
+};
+
+function getTagLabel(tag: string): string {
+    return tagLabelMap[tag] || tag.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function getTagColor(tag: string): string {
+    const key = Object.keys(tagColorMap).find(k => tag.toLowerCase().includes(k));
+    return key ? tagColorMap[key] : tagColorMap.default;
+}
+
+export function ConceptsTab({ review, currentConcepts, currentSemanticTags }: ConceptsTabProps) {
     if (!review) return null;
 
     return (
