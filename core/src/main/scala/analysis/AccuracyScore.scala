@@ -28,8 +28,12 @@ object AccuracyScore:
     
     val acpl = totalCpLoss / moves.length.toDouble
     
-    // Chess.com formula
-    val rawAccuracy = 103.1668 * math.exp(-0.04354 * acpl) - 3.1669
+    // Adjusted accuracy formula for more realistic distribution
+    // High scores (95+) only for near-perfect play (ACPL < 5)
+    // Average amateur games (ACPL 20-40) score 70-85
+    val C = 30.0   // Floor value
+    val k = 0.015  // Steepness (tunable)
+    val rawAccuracy = C + (100.0 - C) * math.exp(-k * acpl)
     
     // Clamp to [0, 100]
     math.max(0.0, math.min(100.0, rawAccuracy))

@@ -479,7 +479,8 @@ object AnalyzePgn:
           perspective = player,
           ply = nextGame.ply,
           self = moverFeatures,
-          opp = oppFeatures
+          opp = oppFeatures,
+          concepts = Some(conceptScores)
         )
 
       val baseMistakeCategory =
@@ -690,17 +691,49 @@ object AnalyzePgn:
     candidates.foreach { p =>
       if anchors.forall(a => (a.ply.value - p.ply.value).abs > 2) then anchors += p
     }
-    def templateSummary(anchor: PlyOutput, ch: StudyChapter): String =
+    
+    // Narrative phase detection
+    def detectPhase(ply: Int, tags: List[String]): String =
+      val hasOpeningTag = tags.exists(t => t.contains("opening") || t.contains("theory"))
+      val hasEndgameTag = tags.exists(t => t.contains("endgame") || t.contains("conversion") || t.contains("fortress"))
+      if ply <= 15 || hasOpeningTag then "opening"
+      else if ply >= 40 || hasEndgameTag then "endgame"
+      else "middlegame"
+    
+    // Group chapters by phase
+    val chaptersWithPhase = anchors.take(10).map { anchor =>
+      val phase = detectPhase(anchor.ply.value, anchor.studyTags)
+      (anchor, phase)
+    }
+    
+    // Enhanced summary with narrative context
+    def narrativeSummary(anchor: PlyOutput, ch: StudyChapter, phase: String): String =
+      val phaseContext = phase match
+        case "opening" => "In the opening phase"
+        case "middlegame" => "In the middlegame"
+        case "endgame" => "In the endgame"
+        case _ => "At this point"
+      
+      val conceptContext = 
+        if ch.tags.exists(_.contains("king")) then "affecting king safety"
+        else if ch.tags.exists(_.contains("tactical")) then "creating tactical complications"
+        else if ch.tags.exists(_.contains("positional")) then "shifting positional balance"
+        else if ch.tags.exists(_.contains("fortress")) then "establishing defensive structure"
+        else if ch.tags.exists(_.contains("conversion")) then "presenting conversion challenges"
+        else "changing the position's character"
+      
       val deltaText =
-        if ch.deltaWinPct <= -1 then s"missed by ${fmt(ch.deltaWinPct)} win%"
-        else if ch.deltaWinPct >= 1 then s"gain of ${fmt(ch.deltaWinPct)} win%"
-        else "small eval shift"
-      val bestText = ch.best.map(b => s"best was ${uciToSanSingle(anchor.fenBefore, b)}").getOrElse("no clear best line")
-      val tagText =
-        if ch.tags.nonEmpty then ch.tags.take(2).map(_.replace("_", " ")).mkString(", ")
-        else "idea"
-      s"${ch.played} at ply ${ch.anchorPly}: $tagText; $bestText; $deltaText."
-    anchors.take(10).map { anchor =>
+        if ch.deltaWinPct <= -5 then s"a critical mistake costing ${fmt(-ch.deltaWinPct)}%"
+        else if ch.deltaWinPct <= -1 then s"an inaccuracy losing ${fmt(-ch.deltaWinPct)}%"
+        else if ch.deltaWinPct >= 1 then s"a strong move gaining ${fmt(ch.deltaWinPct)}%"
+        else "a subtle shift in evaluation"
+      
+      val bestText = ch.best.map(b => s"${uciToSanSingle(anchor.fenBefore, b)} was stronger").getOrElse("played move was reasonable")
+      val mainConcept = ch.tags.headOption.map(_.replace("_", " ")).getOrElse("key moment")
+      
+      s"$phaseContext, ${ch.played} represents $deltaText, $conceptContext. Theme: $mainConcept. $bestText."
+    
+    chaptersWithPhase.map { case (anchor, phase) =>
       val id = s"ch-${anchor.ply.value}"
       val bestLine = anchor.evalBeforeDeep.lines.headOption
       val altLine = anchor.evalBeforeDeep.lines.drop(1).headOption
@@ -715,29 +748,29 @@ object AnalyzePgn:
           lines += StudyLine(label = "played", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
         }
       bestLine.foreach { l =>
-        // avoid duplicate if already added as played with same move
         if !playedLine.contains(l) then
           lines += StudyLine(label = "engine", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
       }
       altLine.foreach { l =>
         lines += StudyLine(label = "alt", pv = pvToSan(anchor.fenBefore, l.pv), winPct = l.winPct)
       }
-      StudyChapter(
+      
+      val enrichedTags = (phase :: anchor.studyTags).take(6)
+      
+      val ch = StudyChapter(
         id = id,
         anchorPly = anchor.ply.value,
         fen = anchor.fenBefore,
         played = anchor.san,
         best = bestLine.flatMap(bl => if playedLine.contains(bl) then None else Some(uciToSanSingle(anchor.fenBefore, bl.move))),
         deltaWinPct = anchor.deltaWinPct,
-        tags = anchor.studyTags.take(5),
+        tags = enrichedTags,
         lines = lines.toList,
         summary = None,
         studyScore = anchor.studyScore
       )
-    }.toVector.map { ch =>
-      val anchor = timeline.find(_.ply.value == ch.anchorPly)
-      ch.copy(summary = ch.summary.orElse(anchor.map(a => templateSummary(a, ch))))
-    }
+      ch.copy(summary = Some(narrativeSummary(anchor, ch, phase)))
+    }.toVector
 
   private def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
     val criticalByPly = critical.map(c => c.ply.value -> c).toMap

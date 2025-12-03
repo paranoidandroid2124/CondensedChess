@@ -18,18 +18,25 @@ export default function UploadCard() {
     setLoading(true);
     setError(null);
     try {
+      // Store PGN in localStorage for immediate display
+      localStorage.setItem("pending-pgn", pgn);
+
       const res = await fetch(`${API_BASE.replace(/\/$/, "")}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: pgn
       });
       if (!res.ok) {
+        localStorage.removeItem("pending-pgn");
         const text = await res.text();
         throw new Error(`Analysis request failed (${res.status}): ${text}`);
       }
       const data = await res.json();
       const jobId = data.jobId as string | undefined;
-      if (!jobId) throw new Error("Missing jobId");
+      if (!jobId) {
+        localStorage.removeItem("pending-pgn");
+        throw new Error("Missing jobId");
+      }
       router.push(`/review/${jobId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");

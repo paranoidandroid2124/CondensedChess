@@ -14,7 +14,8 @@ object SemanticTagger:
       perspective: Color,
       ply: Ply,
       self: FeatureExtractor.SideFeatures,
-      opp: FeatureExtractor.SideFeatures
+      opp: FeatureExtractor.SideFeatures,
+      concepts: Option[ConceptScorer.Scores] = None
   ): List[String] =
     val board = position.board
     val tags = mutable.ListBuffer.empty[String]
@@ -47,6 +48,42 @@ object SemanticTagger:
       tags += "opposite_color_bishops"
 
     if self.kingRingPressure >= 4 && opp.kingRingPressure <= 1 then tags += "king_attack_ready"
+
+    // Concept-based tags from ConceptScorer
+    concepts.foreach { c =>
+      // Strategic imbalances
+      if c.badBishop >= 0.6 then tags += "bad_bishop"
+      if c.goodKnight >= 0.6 then tags += "good_knight_outpost"
+      if c.colorComplex >= 0.5 then tags += "color_complex_weakness"
+      
+      // Positional character
+      if c.fortress >= 0.6 then tags += TagName.FortressBuilding
+      if c.dry >= 0.6 then tags += "dry_position"
+      if c.pawnStorm >= 0.6 then tags += "pawn_storm"
+      
+      // Space and activity
+      val spaceAdvantage = self.spaceControl.toDouble / (self.spaceControl + opp.spaceControl + 1.0)
+      if spaceAdvantage >= 0.65 then tags += "space_advantage"
+      if c.rookActivity >= 0.6 then tags += "active_rooks"
+      
+      // Crisis and opportunity
+      if c.kingSafety >= 0.5 then tags += TagName.KingExposed
+      if c.conversionDifficulty >= 0.5 then tags += TagName.ConversionDifficulty
+      if c.blunderRisk >= 0.6 then tags += "high_blunder_risk"
+      if c.tacticalDepth >= 0.6 then tags += "tactical_complexity"
+      
+      // Dynamic vs static
+      if c.dynamic >= 0.7 then tags += "dynamic_position"
+      if c.drawish >= 0.7 then tags += "drawish_position"
+      if c.imbalanced >= 0.6 then tags += "material_imbalance"
+      
+      // Advanced concepts
+      if c.sacrificeQuality >= 0.5 then tags += TagName.PositionalSacrifice
+      if c.alphaZeroStyle >= 0.6 then tags += "long_term_compensation"
+      if c.engineLike >= 0.6 then tags += "engine_only_move"
+      if c.comfortable >= 0.7 then tags += "comfortable_position"
+      if c.unpleasant >= 0.6 then tags += "unpleasant_position"
+    }
 
     tags.distinct.toList
 
