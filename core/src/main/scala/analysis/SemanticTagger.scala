@@ -23,27 +23,27 @@ object SemanticTagger:
     val oppColor = !perspective
     val plyNumber = ply.value
 
-    val myKing = board.kingPosOf(perspective)
     val oppKing = board.kingPosOf(oppColor)
 
     if hasOpenFileThreat(board, oppKing, File.H, perspective) then tags += "open_h_file"
     if hasOpenFileThreat(board, oppKing, File.G, perspective) then tags += "open_g_file"
 
-    if weakHomePawn(board, oppColor, File.F, Rank.Seventh) then tags += "weak_f7"
-    if weakHomePawn(board, oppColor, File.F, Rank.Second) then tags += "weak_f2"
+    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, "weak_f7").foreach(tags += _)
+    weakFHomeTag(board, oppColor, File.F, Rank.Second, "weak_f2").foreach(tags += _)
 
     strongOutpost(board, perspective).foreach(tags += _)
 
     if backRankWeak(board, perspective) then tags += TagName.WeakBackRank
     looseMinor(board, perspective).foreach(tags += _)
 
-    if kingStuckCenter(myKing, plyNumber) then tags += "king_stuck_center"
+    if kingStuckCenter(position, perspective, plyNumber) then tags += "king_stuck_center"
 
     if hasIsolatedDPawn(board, perspective, plyNumber) then tags += "isolated_d_pawn"
 
     if rookOnSeventh(board, perspective) then tags += "rook_on_seventh"
 
-    if pawnStormAgainstCastledKing(board, perspective, oppKing) then tags += "pawn_storm_against_castled_king"
+    val boardPawnStorm = pawnStormAgainstCastledKing(board, perspective, oppKing)
+    if boardPawnStorm then tags += "pawn_storm_against_castled_king"
 
     if opp.bishopPair && self.bishopPair == false && FeatureExtractor.hasOppositeColorBishops(board) then
       tags += "opposite_color_bishops"
@@ -54,7 +54,9 @@ object SemanticTagger:
     concepts.foreach { c =>
       // Strategic imbalances
       if c.badBishop >= 0.6 then tags += "restricted_bishop" // Renamed from bad_bishop
-      if c.goodKnight >= 0.6 then tags += "strong_knight" // Renamed from good_knight_outpost
+      if c.goodKnight >= 0.6 then
+        if hasCentralKnightOutpost(board, perspective) then tags += "knight_outpost_central"
+        else tags += "strong_knight" // Renamed from good_knight_outpost
       if c.colorComplex >= 0.5 then tags += "color_complex_weakness"
       
       // Positional character
@@ -68,8 +70,14 @@ object SemanticTagger:
         if myMat <= oppMat - 1.0 && c.drawish >= 0.5 then
            tags += "fortress_defense" // True fortress: material down but holding
 
-      if c.dry >= 0.6 then tags += "dry_position"
-      if c.pawnStorm >= 0.6 then tags += "pawn_storm"
+      val dynamicTagged =
+        if c.dynamic >= 0.7 && c.dry < 0.5 then
+          tags += "dynamic_position"
+          true
+        else false
+      if !dynamicTagged && c.dry >= 0.6 then tags += "dry_position"
+      if c.drawish >= 0.7 && winPct >= 35.0 && winPct <= 65.0 then tags += "drawish_position"
+      if c.pawnStorm >= 0.6 && boardPawnStorm then tags += "pawn_storm"
       
       // Space and activity
       val spaceAdvantage = self.spaceControl.toDouble / (self.spaceControl + opp.spaceControl + 1.0)
@@ -77,7 +85,9 @@ object SemanticTagger:
       if c.rookActivity >= 0.6 then tags += "active_rooks"
       
       // Crisis and opportunity
-      if c.kingSafety >= 0.5 then tags += TagName.KingExposed
+      val crisis = c.kingSafety >= 0.6 && (c.pawnStorm >= 0.5 || c.rookActivity >= 0.6)
+      if crisis then tags += "king_safety_crisis"
+      else if c.kingSafety >= 0.5 then tags += TagName.KingExposed
       
       // Conversion Difficulty: Only if winning
       if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then tags += TagName.ConversionDifficulty
@@ -86,8 +96,6 @@ object SemanticTagger:
       if c.tacticalDepth >= 0.6 then tags += "tactical_complexity"
       
       // Dynamic vs static
-      if c.dynamic >= 0.7 then tags += "dynamic_position"
-      if c.drawish >= 0.7 then tags += "drawish_position"
       if c.imbalanced >= 0.6 then tags += "material_imbalance"
       
       // Advanced concepts
@@ -109,21 +117,9 @@ object SemanticTagger:
 
       // 2. Fortress Potential (Material down but holding) - Merged into fortress_defense logic above
 
-      // 3. King Safety Crisis
-      if c.kingSafety >= 0.6 && (c.pawnStorm >= 0.5 || c.rookActivity >= 0.6) then
-        tags += "king_safety_crisis"
-
-      // 4. Bishop Pair Advantage in Open Position
+      // 3. Bishop Pair Advantage in Open Position
       if self.bishopPair && !opp.bishopPair && c.dry <= 0.4 then 
         tags += "bishop_pair_advantage"
-
-      // 5. Central Knight Outpost
-      if c.goodKnight >= 0.6 then
-        val knights = board.knights & board.byColor(perspective)
-        val centralFiles = Set(File.D, File.E)
-        val centralRanks = if perspective == Color.White then Set(Rank.Fourth, Rank.Fifth, Rank.Sixth) else Set(Rank.Fifth, Rank.Fourth, Rank.Third)
-        if knights.squares.exists(k => centralFiles.contains(k.file) && centralRanks.contains(k.rank)) then
-          tags += "knight_outpost_central"
     }
 
     tags.distinct.toList
@@ -146,9 +142,47 @@ object SemanticTagger:
     val majors = (board.rooks | board.queens) & board.byColor(color)
     majors.squares.exists(_.file == file)
 
-  private def weakHomePawn(board: Board, color: Color, file: File, rank: Rank): Boolean =
-    val pawns = board.pawns & board.byColor(color)
-    !pawns.contains(Square(file, rank))
+  private def weakFHomeTag(board: Board, color: Color, file: File, rank: Rank, tag: String): Option[String] =
+    if isEndgame(board) then None
+    else if !kingInFHomeSector(board, color) then None
+    else
+      val homeSq = Square(file, rank)
+      val opp = !color
+      val attackers = board.attackers(homeSq, opp)
+      val defenders = board.attackers(homeSq, color)
+      val attackersCount = attackers.count
+      val defendersCount = defenders.count
+      val strongAttackerExists =
+        attackers.exists { sq =>
+          board.roleAt(sq).exists(r => r == Role.Queen || r == Role.Rook)
+        }
+      val oppMajorsExist = hasMajors(board, opp)
+
+      board.pieceAt(homeSq) match
+        case Some(Piece(Role.Pawn, `color`)) =>
+          if attackersCount >= 2 && attackersCount > defendersCount && strongAttackerExists then Some(tag) else None
+        case _ =>
+          if oppMajorsExist && attackersCount >= 1 && strongAttackerExists then Some(tag) else None
+
+  private def kingInFHomeSector(board: Board, color: Color): Boolean =
+    board.kingPosOf(color).exists { k =>
+      color match
+        case Color.White =>
+          k.rank.value <= Rank.Second.value && k.file.value >= File.E.value && k.file.value <= File.G.value
+        case Color.Black =>
+          k.rank.value >= Rank.Seventh.value && k.file.value >= File.E.value && k.file.value <= File.G.value
+    }
+
+  private def hasMajors(board: Board, color: Color): Boolean =
+    ((board.queens & board.byColor(color)).nonEmpty) || ((board.rooks & board.byColor(color)).nonEmpty)
+
+  private def hasCentralKnightOutpost(board: Board, color: Color): Boolean =
+    val knights = board.knights & board.byColor(color)
+    val centralFiles = Set(File.D, File.E)
+    val centralRanks =
+      if color == Color.White then Set(Rank.Fourth, Rank.Fifth, Rank.Sixth)
+      else Set(Rank.Fifth, Rank.Fourth, Rank.Third)
+    knights.squares.exists(k => centralFiles.contains(k.file) && centralRanks.contains(k.rank))
 
   private def strongOutpost(board: Board, color: Color): Option[String] =
     val squares =
@@ -174,13 +208,19 @@ object SemanticTagger:
   private def backRankWeak(board: Board, color: Color): Boolean =
     board.kingPosOf(color).exists { k =>
       val backRank = if color == Color.White then Rank.First else Rank.Eighth
-      val kingOnBackRank = k.rank == backRank
-      val pawnsShield =
-        val files = List(File.F, File.G, File.H)
-        val pawns = board.pawns & board.byColor(color)
-        val shieldRank = if color == Color.White then Rank.Second else Rank.Seventh
-        files.count(f => pawns.contains(Square(f, shieldRank))) >= 2
-      kingOnBackRank && !pawnsShield
+      if k.rank != backRank then false
+      else if isEndgame(board) then false
+      else
+        val oppMajors = (board.rooks | board.queens) & board.byColor(!color)
+        if oppMajors.isEmpty then false
+        else
+          val shieldRank = if color == Color.White then Rank.Second else Rank.Seventh
+          val shieldFiles =
+            if k.file.value <= File.D.value then List(File.B, File.C, File.D)
+            else List(File.F, File.G, File.H)
+          val pawns = board.pawns & board.byColor(color)
+          val shieldCount = shieldFiles.count(f => pawns.contains(Square(f, shieldRank)))
+          shieldCount < 2
     }
 
   private def looseMinor(board: Board, color: Color): Option[String] =
@@ -191,10 +231,22 @@ object SemanticTagger:
       case sq if attackers(sq).nonEmpty && defenders(sq).isEmpty => s"loose_piece_${sq.key.toLowerCase}"
     }
 
-  private def kingStuckCenter(kingOpt: Option[Square], ply: Int): Boolean =
-    kingOpt.exists { k =>
+  private def kingStuckCenter(position: Position, color: Color, ply: Int): Boolean =
+    val board = position.board
+    val endgame = isEndgame(board)
+    val anyQueen = board.queens.nonEmpty
+    val canCastle = position.castles.can(color)
+    board.kingPosOf(color).exists { k =>
       val centerFiles = Set(File.D, File.E)
-      ply > 12 && centerFiles.contains(k.file)
+      val centerRankOk =
+        if color == Color.White then k.rank.value <= Rank.Third.value
+        else k.rank.value >= Rank.Sixth.value
+      ply > 12 &&
+      !endgame &&
+      anyQueen &&
+      canCastle &&
+      centerFiles.contains(k.file) &&
+      centerRankOk
     }
 
   private def hasIsolatedDPawn(board: Board, color: Color, ply: Int): Boolean =
@@ -215,22 +267,29 @@ object SemanticTagger:
     }
 
   private def pawnStormAgainstCastledKing(board: Board, color: Color, oppKingOpt: Option[Square]): Boolean =
-    oppKingOpt.exists { king =>
-      val isShortCastle = (king == Square.G1 && color == Color.Black) || (king == Square.G8 && color == Color.White)
-      val isLongCastle = (king == Square.C1 && color == Color.Black) || (king == Square.C8 && color == Color.White)
-      val myPawns = board.pawns & board.byColor(color)
-      val advancedOnWing =
-        if isShortCastle then
-          myPawns.squares.exists { s =>
-            s.file.value >= File.F.value && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
-          }
-        else if isLongCastle then
-          myPawns.squares.exists { s =>
-            s.file.value <= File.C.value && (if color == Color.White then s.rank.value >= Rank.Fourth.value else s.rank.value <= Rank.Fifth.value)
-          }
-        else false
-      (isShortCastle || isLongCastle) && advancedOnWing
-    }
+    if isEndgame(board) || board.queens.isEmpty then false
+    else
+      oppKingOpt.exists { king =>
+        val isShortCastle = (king == Square.G1 && color == Color.Black) || (king == Square.G8 && color == Color.White)
+        val isLongCastle = (king == Square.C1 && color == Color.Black) || (king == Square.C8 && color == Color.White)
+        val myPawns = board.pawns & board.byColor(color)
+        val advancedThreshold = if color == Color.White then Rank.Fourth.value else Rank.Fifth.value
+
+        val candidatePawns = myPawns.squares.filter { s =>
+          val kingside = s.file.value >= File.F.value
+          val queenside = s.file.value <= File.C.value
+          val advanced = if color == Color.White then s.rank.value >= advancedThreshold else s.rank.value <= advancedThreshold
+          (isShortCastle && kingside && advanced) || (isLongCastle && queenside && advanced)
+        }
+
+        val closeToKing = candidatePawns.exists { s =>
+          val fileDist = (s.file.value - king.file.value).abs
+          val rankDist = (s.rank.value - king.rank.value).abs
+          fileDist + rankDist <= 3
+        }
+
+        (isShortCastle || isLongCastle) && candidatePawns.size >= 2 && closeToKing
+      }
 
   private def isEndgame(board: Board): Boolean =
     val whitePieces = board.byColor(Color.White).count
