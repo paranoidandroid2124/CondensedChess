@@ -1,11 +1,5 @@
 import { Chess } from "chess.js";
 
-export function formatDelta(value?: number): string {
-  if (value === undefined || Number.isNaN(value)) return "–";
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value.toFixed(1)}%`;
-}
-
 export function uciToSan(fen: string | undefined, uci: string): string {
   if (!fen) return uci;
   try {

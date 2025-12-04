@@ -69,3 +69,9 @@ export function formatDeltaWithSide(value?: number, turn?: "white" | "black") {
   const verb = value > 0 ? "improved" : value < 0 ? "worsened" : "no change";
   return { text: `Move ${verb}: ${sign}${value.toFixed(1)}%`, tone };
 }
+
+export function formatDelta(value?: number): string {
+  if (value === undefined || Number.isNaN(value)) return "–";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}%`;
+}

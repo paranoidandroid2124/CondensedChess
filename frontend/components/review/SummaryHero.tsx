@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import type { CriticalNode, Review, TimelineNode } from "../../types/review";
-import { formatDelta } from "../../lib/chess-utils";
+import { formatDelta } from "../../lib/review-format";
 
 interface SummaryHeroProps {
   timeline: (TimelineNode & { label?: string })[];
