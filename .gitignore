@@ -28,3 +28,10 @@ opening/*.db
 .metals/
 # docker sbt
 /?
+
+# local logs and samples
+analysis_output.json
+compile_error*.log
+hs_err_*.log
+replay_*.log
+sample_chesscom.pgn
