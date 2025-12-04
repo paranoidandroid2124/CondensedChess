@@ -18,6 +18,9 @@ import { DrawingTools } from "../../../components/DrawingTools";
 import { GuessTheMove } from "../../../components/GuessTheMove";
 import { CriticalMomentCard } from "../../../components/review/CriticalMomentCard";
 import { SummaryHero } from "../../../components/review/SummaryHero";
+import { TimelineView } from "../../../components/review/TimelineView";
+import { VariationTree } from "../../../components/review/VariationTree";
+import { OpeningStatsPanel } from "../../../components/review/OpeningStatsPanel";
 import { QuickJump } from "../../../components/common/QuickJump";
 import { CollapsibleSection } from "../../../components/common/CollapsibleSection";
 import { humanizeTag, displayTag, phaseOf } from "../../../lib/review-tags";
@@ -730,6 +733,30 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     setPreviewArrows([]);
     setPreviewLabel(null);
   }, []);
+
+  const handlePreviewLine = useCallback(
+    (fenBefore?: string, pv?: string[], label?: string) => {
+      if (!fenBefore || !pv?.length) return;
+      try {
+        const chess = new Chess(fenBefore);
+        const arrows: Array<[string, string, string?]> = [];
+        pv.slice(0, 8).forEach((mv) => {
+          try {
+            const move = (chess as any).move(mv, { sloppy: true });
+            if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
+          } catch {
+            // ignore bad moves in PV
+          }
+        });
+        setPreviewFen(chess.fen());
+        setPreviewArrows(arrows);
+        setPreviewLabel(label ?? "Preview line");
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -1507,6 +1534,24 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 </div>
               )}
             </AnalysisPanel>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <TimelineView
+              rows={moveRows}
+              selected={selected?.ply}
+              onSelect={setSelectedPly}
+              variations={variationMap}
+              showAdvanced={showAdvanced}
+              onSelectVariation={setSelectedVariation}
+              onPreviewLine={handlePreviewLine}
+            />
+          </div>
+          <div className="space-y-4">
+            <VariationTree root={review.root} selected={selected?.ply} onSelect={setSelectedPly} />
+            <OpeningStatsPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
           </div>
         </div>
 
