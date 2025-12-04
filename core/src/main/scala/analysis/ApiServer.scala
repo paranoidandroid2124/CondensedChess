@@ -110,13 +110,17 @@ object ApiServer:
     executor.submit(new Runnable:
       override def run(): Unit =
         jobs.put(jobId, Job(status = "processing", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
-        AnalyzePgn.analyze(pgnText, config, llmPlys) match
+        AnalyzePgn.analyze(pgnText, config, llmPlys, Some(jobId)) match
           case Right(output) =>
+            AnalysisProgressTracker.update(jobId, AnalysisStage.LLM_GENERATION, 0.0)
             val annotated = LlmAnnotator.annotate(output)
+            AnalysisProgressTracker.update(jobId, AnalysisStage.FINALIZATION, 1.0)
             val json = AnalyzePgn.render(annotated)
             jobs.put(jobId, Job(status = "ready", result = Some(withJobId(json, jobId)), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
+            AnalysisProgressTracker.remove(jobId)
           case Left(err) =>
             jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
+            AnalysisProgressTracker.remove(jobId)
     )
 
     respond(exchange, 202, s"""{"jobId":"$jobId","status":"queued"}""")
@@ -145,7 +149,14 @@ object ApiServer:
             val msg = job.error.getOrElse("unknown_error").replace("\"", "\\\"")
             respond(exchange, 500, s"""{"status":"failed","error":"$msg"}""")
           case other =>
-            respond(exchange, 202, s"""{"status":"$other"}""")
+            val progressJson = AnalysisProgressTracker.get(jobId) match
+              case Some(prog) =>
+                val stageStr = prog.stage.toString
+                val stageLabel = AnalysisStage.labelFor(prog.stage)
+                s"""{"status":"$other","stage":"$stageStr","stageLabel":"$stageLabel","stageProgress":${prog.stageProgress},"totalProgress":${prog.totalProgress}}"""
+              case None =>
+                s"""{"status":"$other"}"""
+            respond(exchange, 202, progressJson)
       case _ =>
         respond(exchange, 404, """{"error":"not_found"}""")
 
