@@ -1,51 +1,30 @@
 import { PracticalityScore } from "../types/review";
 
-const categoryTone: Record<string, string> = {
-  "Human-Friendly": "Easy to play and forgiving for humans",
-  Challenging: "Playable but demands steady accuracy",
-  "Engine-Like": "Strong line but feels computer-driven",
-  "Computer-Only": "Unforgiving line that expects engine-level precision"
-};
-
-function describeRobustness(robustness: number): string {
-  if (robustness >= 0.75) return "Multiple moves keep the eval stable";
-  if (robustness >= 0.4) return "Stays okay if you stay in the main idea";
-  return "Brittle line: only the top move survives";
-}
-
-function describeHorizon(horizon: number): string {
-  if (horizon >= 0.75) return "Tactics are near the surface";
-  if (horizon >= 0.4) return "Requires some calculation to stay afloat";
-  return "Threats sit deep in the horizon";
-}
-
-function describeNaturalness(naturalness: number): string {
-  if (naturalness >= 0.75) return "Moves look natural and human";
-  if (naturalness >= 0.4) return "Playable but can feel non-obvious";
-  return "Likely feels anti-intuitive or sac-heavy";
-}
-
+/**
+ * Generates a practicality-based narrative for a chess move.
+ * 
+ * Design principle: LLM comment takes priority for real narrative content.
+ * Template fallback is kept minimal (one-liner hint level) to avoid repetition fatigue.
+ */
 export function getPracticalityNarrative(
   practicality: PracticalityScore | undefined,
   comment: string | undefined
 ): string {
-  const note = comment?.trim() ?? "";
-  if (!practicality && !note) return "";
-  if (!practicality) return note;
+  // Priority 1: LLM-generated comment (rich, contextual narrative)
+  if (comment?.trim()) return comment.trim();
 
-  const { category, robustness, horizon, naturalness, overall } = practicality;
-  const parts: string[] = [];
+  // Priority 2: No practicality → empty (badge will show category)
+  if (!practicality) return "";
 
-  parts.push(categoryTone[category] ?? `Practicality: ${category}`);
+  // Priority 3: Minimal one-liner fallback (hint-level only)
+  const category = practicality.categoryPersonal || practicality.categoryGlobal || practicality.category;
 
-  const insights = [describeRobustness(robustness), describeHorizon(horizon), describeNaturalness(naturalness)].filter(
-    Boolean
-  ) as string[];
-  if (insights.length) parts.push(insights.join("; "));
+  const categoryOneLiner: Record<string, string> = {
+    "Computer-Only": "Practically unplayable for humans",
+    "Engine-Like": "Requires engine-level calculation",
+    "Challenging": "Difficult but studiable",
+    "Human-Friendly": "Playable with pattern recognition"
+  };
 
-  parts.push(`Overall ${overall.toFixed(2)}`);
-
-  if (note) parts.push(note);
-
-  return parts.join(" | ");
+  return categoryOneLiner[category] || "";
 }

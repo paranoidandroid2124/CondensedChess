@@ -132,7 +132,7 @@ object LlmAnnotator:
         obj
       }
 
-    val criticalNodes = clampNodes(output.critical, 8).map { c =>
+    val criticalNodes = clampNodes(output.critical, 16).map { c =>
       val label = labelForPly(timelineByPly, c.ply.value)
       val branches = c.branches.take(3).map { b =>
         Obj(
@@ -194,7 +194,7 @@ object LlmAnnotator:
       "critical" -> Arr.from(criticalNodes)
     )
     if output.studyChapters.nonEmpty then
-      val chapters = output.studyChapters.take(8).map { ch =>
+      val chapters = output.studyChapters.take(12).map { ch =>
         val obj = Obj(
           "anchorPly" -> Num(ch.anchorPly),
           "played" -> Str(ch.played),
@@ -239,7 +239,7 @@ object LlmAnnotator:
           )
         )
 
-    val nodes = clampNodes(output.critical, 8).map { c =>
+    val nodes = clampNodes(output.critical, 16).map { c =>
       val timeline = timelineByPly.get(c.ply.value)
       val label = labelForPly(timelineByPly, c.ply.value)
       val mergedTags = (timeline.map(_.semanticTags).getOrElse(Nil) ++ c.tags).distinct.take(6)

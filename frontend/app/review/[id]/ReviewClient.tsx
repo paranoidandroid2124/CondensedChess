@@ -309,7 +309,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     return (
         <div className="px-6 py-10 sm:px-12 lg:px-16">
-            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+            <div className="mx-auto flex max-w-6xl xl:max-w-[1500px] flex-col gap-6">
                 <SummaryHero timeline={enhancedTimeline} critical={review.critical ?? []} review={review} />
                 <div className="flex flex-col gap-2">
                     <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>

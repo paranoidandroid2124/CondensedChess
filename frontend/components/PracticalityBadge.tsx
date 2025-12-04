@@ -17,10 +17,14 @@ export function PracticalityBadge({ score, className = "" }: PracticalityBadgePr
         }
     };
 
+    const displayCategory = score.categoryPersonal || score.categoryGlobal || score.category;
+    const isPersonalized = !!score.categoryPersonal;
+
     return (
-        <div className={`flex items-center gap-2 ${className}`}>
-            <span className={`px-2 py-0.5 rounded text-xs border ${getColors(score.category)}`}>
-                {score.category}
+        <div className={`flex items-center gap-2 ${className}`} title={isPersonalized ? `Global category: ${score.categoryGlobal}` : undefined}>
+            <span className={`px-2 py-0.5 rounded text-xs border ${getColors(displayCategory)} flex items-center gap-1`}>
+                {displayCategory}
+                {isPersonalized && <span className="text-[10px] opacity-70">👤</span>}
             </span>
             <span className="text-xs text-white/40">
                 (Robust: {score.robustness.toFixed(2)}, Horizon: {score.horizon.toFixed(2)})

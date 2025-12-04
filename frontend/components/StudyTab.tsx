@@ -85,12 +85,19 @@ export function StudyTab({ chapters, onSelectChapter }: StudyTabProps) {
         );
     }
 
+    // Sort chapters by studyScore (highest value first)
+    const sortedChapters = [...chapters].sort((a, b) => {
+        const scoreA = a.studyScore ?? 0;
+        const scoreB = b.studyScore ?? 0;
+        return scoreB - scoreA; // Descending order
+    });
+
     // We pass null for currentPly for now, as we need to wire it up from parent if we want 
     // bi-directional sync (board -> scroll). For now, scroll -> board is the priority.
     return (
         <div className="h-[calc(100vh-200px)]">
             <ScrollytellingLayout
-                chapters={chapters}
+                chapters={sortedChapters}
                 currentPly={null}
                 onPlySelect={onSelectPly => onSelectChapter(onSelectPly)}
             />
