@@ -1,6 +1,7 @@
 import React from "react";
 import { StudyChapter } from "../types/review";
 import { getTagLabel, getTagColor } from "./ConceptsTab";
+import { PracticalityBadge } from "./PracticalityBadge";
 
 interface ChapterCardProps {
     chapter: StudyChapter;
@@ -32,10 +33,13 @@ export function ChapterCard({ chapter, isActive, onClick }: ChapterCardProps) {
         >
             {/* Phase Badge */}
             <div className="mb-4 flex items-center justify-between">
-                <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${phaseConfig.color}`}>
-                    <span>{phaseConfig.icon}</span>
-                    <span>{phaseConfig.label}</span>
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${phaseConfig.color}`}>
+                        <span>{phaseConfig.icon}</span>
+                        <span>{phaseConfig.label}</span>
+                    </span>
+                    {chapter.practicality && <PracticalityBadge score={chapter.practicality} />}
+                </div>
                 <span className="text-xs font-mono text-white/40">Ply {chapter.anchorPly}</span>
             </div>
 

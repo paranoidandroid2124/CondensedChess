@@ -109,6 +109,14 @@ export interface Concepts {
   alphaZeroStyle?: number;
 }
 
+export interface PracticalityScore {
+  overall: number;
+  robustness: number;
+  horizon: number;
+  naturalness: number;
+  category: string;
+}
+
 export interface TimelineNode {
   ply: number;
   turn: "white" | "black";
@@ -141,6 +149,7 @@ export interface TimelineNode {
   shortComment?: string; // LLM short comment
   studyTags?: string[];
   studyScore?: number;
+  practicality?: PracticalityScore;
 }
 
 export interface Review {
@@ -195,4 +204,5 @@ export interface StudyChapter {
   lines: StudyLine[];
   summary?: string;
   studyScore?: number;
+  practicality?: PracticalityScore;
 }
