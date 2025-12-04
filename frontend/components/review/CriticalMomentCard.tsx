@@ -1,9 +1,10 @@
 import React from "react";
+import type { CriticalNode } from "../../types/review";
 import { PracticalityBadge } from "../PracticalityBadge";
-import { formatDelta, uciToSan } from "../../lib/chess-utils";
+import { uciToSan } from "../../lib/chess-utils";
 import { getPracticalityNarrative } from "../../lib/practicality-narrative";
 import { displayTag, humanizeTag, phaseOf } from "../../lib/review-tags";
-import type { CriticalNode } from "../../types/review";
+import { formatDelta } from "../../lib/review-format";
 
 interface Props {
   critical: CriticalNode;

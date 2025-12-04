@@ -24,8 +24,8 @@ import { OpeningStatsPanel } from "../../../components/review/OpeningStatsPanel"
 import { QuickJump } from "../../../components/common/QuickJump";
 import { CollapsibleSection } from "../../../components/common/CollapsibleSection";
 import { humanizeTag, displayTag, phaseOf } from "../../../lib/review-tags";
-import { formatDelta, uciToSan } from "../../../lib/chess-utils";
-import { formatSanHuman, normalizeEvalKind } from "../../../lib/review-format";
+import { uciToSan } from "../../../lib/chess-utils";
+import { formatDelta, formatSanHuman, normalizeEvalKind } from "../../../lib/review-format";
 import type { VariationEntry } from "../../../components/review/TimelineView";
 
 type PieceDropArgs = {
