@@ -1134,7 +1134,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         return false;
       }
     },
-    [review, enhancedTimeline, branchSaving, selected, previewFen, jobId, clearPreview, isGuessing, activeMove, guessState]
+    [review, enhancedTimeline, branchSaving, selected, jobId, isGuessing, activeMove, guessState]
   );
 
   useEffect(() => {
