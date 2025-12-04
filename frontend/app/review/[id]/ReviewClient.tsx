@@ -16,6 +16,9 @@ import { ConceptsTab } from "../../../components/ConceptsTab";
 import { ConceptCards } from "../../../components/ConceptCards";
 import { DrawingTools } from "../../../components/DrawingTools";
 import { GuessTheMove } from "../../../components/GuessTheMove";
+import { CriticalMomentCard } from "../../../components/review/CriticalMomentCard";
+import { humanizeTag, displayTag, phaseOf } from "../../../lib/review-tags";
+import { uciToSan } from "../../../lib/chess-utils";
 
 type PieceDropArgs = {
   sourceSquare: string;
@@ -162,41 +165,6 @@ function formatDelta(value?: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function humanizeTag(text?: string): string {
-  if (!text) return "";
-  const spaced = text
-    .replace(/_/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-const tagDisplayMap: Record<string, string> = {
-  opening_theory_branch: "Opening branch",
-  plan_change: "Plan change",
-  endgame_transition: "Transition to endgame",
-  shift_tactical_to_positional: "Tactical → positional",
-  fortress_building: "Fortress building",
-  king_exposed: "King exposed",
-  conversion_difficulty: "Conversion difficulty",
-  positional_sacrifice: "Positional sacrifice",
-  weak_back_rank: "Weak back rank",
-  weak_f2: "Weak f2",
-  weak_f7: "Weak f7",
-  tactical_miss: "Missed tactic",
-  greedy: "Greedy capture",
-  positional_trade_error: "Bad piece trade",
-  ignored_threat: "Ignored threat"
-};
-
-function displayTag(text?: string): string {
-  if (!text) return "";
-  const key = text.trim();
-  if (tagDisplayMap[key]) return tagDisplayMap[key];
-  return humanizeTag(text);
-}
-
 function normalizeEvalKind(kind?: string, value?: number) {
   const lower = kind?.toLowerCase();
   if (!lower) return "win%";
@@ -253,20 +221,6 @@ function convertPvToSan(fen: string | undefined, pv?: string[]) {
     return moves;
   } catch {
     return pv;
-  }
-}
-
-function uciToSanWithFen(fen: string | undefined, uci: string): string {
-  if (!fen) return uci;
-  try {
-    const chess = new Chess(fen);
-    const from = uci.slice(0, 2);
-    const to = uci.slice(2, 4);
-    const promotion = uci.length > 4 ? uci.slice(4) : undefined;
-    const move = chess.move({ from, to, promotion });
-    return move?.san ?? uci;
-  } catch {
-    return uci;
   }
 }
 
@@ -765,20 +719,6 @@ function CriticalList({
   fenBeforeByPly: Record<number, string | undefined>;
   onSelectPly?: (ply: number) => void;
 }) {
-  const humanReason = (r: string) => {
-    const low = r.toLowerCase();
-    if (low.includes("blunder")) return "Blunder: big swing";
-    if (low.includes("mistake")) return "Mistake: swing down";
-    if (low.includes("swing")) return "Big eval swing";
-    return "Concept change";
-  };
-  const phaseOf = (c: CriticalNode) => {
-    if (c.phaseLabel) return humanizeTag(c.phaseLabel);
-    if (c.reason?.toLowerCase().startsWith("phase shift:")) return humanizeTag(c.reason.split(":").slice(1).join(":"));
-    const tagMatch = c.tags?.find((t) => t.includes("transition") || t.includes("_to_") || t.includes("phase"));
-    return displayTag(tagMatch);
-  };
-
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
@@ -787,57 +727,7 @@ function CriticalList({
       </div>
       <div className="mt-3 space-y-3">
         {critical.map((c) => (
-          <div key={c.ply} className="rounded-xl border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">
-                Ply {c.ply}
-                <span className="ml-2 text-xs text-white/60">{humanReason(c.reason)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="text-xs font-semibold text-rose-200">{formatDelta(c.deltaWinPct)}</div>
-                {onSelectPly ? (
-                  <button
-                    type="button"
-                    onClick={() => onSelectPly(c.ply)}
-                    className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-white/70 hover:border-accent-teal/60 hover:text-white"
-                  >
-                    Jump to board
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/70">
-              {phaseOf(c) ? (
-                <span className="rounded-full bg-accent-teal/15 px-2 py-1 text-accent-teal/80">{phaseOf(c)}</span>
-              ) : null}
-              {c.mistakeCategory ? (
-                <span className="rounded-full bg-rose-500/15 px-2 py-1 text-rose-100">{displayTag(c.mistakeCategory)}</span>
-              ) : null}
-              {c.tags?.slice(0, 5).map((t) => (
-                <span key={t} className="rounded-full bg-white/10 px-2 py-1">{displayTag(t)}</span>
-              ))}
-            </div>
-            {c.branches?.length ? (
-              <div className="mt-2 grid gap-2">
-                {c.branches.slice(0, 3).map((b) => (
-                  <div key={b.move} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-                    <div className="text-sm text-white">
-                      <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/70">
-                        {b.label}
-                      </span>
-                      {uciToSanWithFen(fenBeforeByPly[c.ply], b.move)}
-                    </div>
-                    <div className="text-xs text-accent-teal">{b.winPct.toFixed(1)}%</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {c.comment ? (
-              <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-white/80">{c.comment}</p>
-            ) : (
-              <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/50">No comment (LLM disabled or template fallback).</p>
-            )}
-          </div>
+          <CriticalMomentCard key={c.ply} critical={c} fenBefore={fenBeforeByPly[c.ply]} onSelectPly={onSelectPly} />
         ))}
       </div>
     </div>
@@ -2341,7 +2231,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                     fenBefore={activeMove.fenBefore || ""}
                     bestMoveSan={
                       activeMove.evalBeforeDeep?.lines?.[0]?.move
-                        ? uciToSanWithFen(activeMove.fenBefore || "", activeMove.evalBeforeDeep.lines[0].move)
+                        ? uciToSan(activeMove.fenBefore || "", activeMove.evalBeforeDeep.lines[0].move)
                         : "Unknown"
                     }
                     playedMoveSan={activeMove.san}
@@ -2375,4 +2265,3 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
   );
 }
 // ... existing code ...
-
