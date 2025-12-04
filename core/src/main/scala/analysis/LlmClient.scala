@@ -81,25 +81,23 @@ object LlmClient:
       val prompt =
         s"""You are a chess book author. For each study chapter, return JSON array of {"id":string,"summary":string}.
 
-PAYLOAD STRUCTURE:
-Each chapter has: anchorPly, played, best, deltaWinPct, tags, lines (pv), phase, winPctBefore, winPctAfter, narrativeContext
+PAYLOAD STRUCTURE (per chapter):
+- id, anchorPly, label, turn, played, best?, deltaWinPct, winPctBefore/After, phase, studyScore, tags, lines[{label,pv,winPct}], practicality{overall,categoryGlobal,categoryPersonal?}
 
 CRITICAL CONSTRAINTS (STRICT MODE):
-1. MOVES: Use ONLY moves from 'played' or 'best' fields. Do NOT mention any other moves.
-2. VARIATIONS: Do NOT extend variations beyond what's in the 'lines' field (max 2-3 moves from PV).
-3. REFERENCES: Do NOT reference external games, players (except those in metadata), or theoretical positions.
-4. TAGS ONLY: Base ALL strategic commentary on the provided 'tags' field. Do NOT invent concepts.
-5. EVAL ONLY: Use ONLY the provided winPctBefore/winPctAfter/deltaWinPct. Do NOT estimate additional evaluations.
-6. NO SPECULATION: Avoid phrases like "might have", "could consider", "reminds me of", "in theory".
+1. MOVES: Use ONLY moves from 'played', 'best', or the provided 'lines'. Do NOT invent other moves.
+2. VARIATIONS: Do NOT extend PV beyond the given 'lines.pv' (max 2-3 plies). No new lines.
+3. REFERENCES: Do NOT reference external games/players/theory.
+4. TAGS ONLY: Base strategic commentary on provided tags/phase/practicality; do NOT invent concepts.
+5. EVAL ONLY: Use ONLY winPctBefore/After/deltaWinPct/studyScore; do NOT estimate more evals.
+6. NO SPECULATION: Avoid "might have", "could consider", "in theory", etc.
 
-WRITING INSTRUCTIONS:
-- Write 2-3 sentences as if annotating a chess book chapter.
-- Follow the narrativeContext template (arc, key themes).
-- Focus on: (1) WHY this moment matters, (2) WHAT changed (using tags), (3) HOW it fits the arc.
-- Mention 'best' move only if it differs significantly from 'played' and is provided.
-- Ground EVERY claim in tags/evals/lines from the payload.
-
-TONE: Educational, specific, factual (like a GM annotating with only the data in front of them).
+WRITING INSTRUCTIONS (keep to 2-3 sentences, ~70-110 words):
+- State WHY this chapter matters (use deltaWinPct/studyScore/practicality/tags/phase).
+- Contrast played vs best if they differ, referencing label/turn for clarity.
+- Use a short theme label (from tags/phase) and a one-line takeaway (plan/outcome).
+- If tags imply danger/only-move (king_exposed, conversion_difficulty, plan_change, fortress_building, etc.), call it out directly.
+- Keep tone educational, specific, and grounded in provided data.
 
 Payload: $payload""".stripMargin
       val body =

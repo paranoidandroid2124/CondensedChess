@@ -21,6 +21,34 @@ export function ChapterCard({ chapter, isActive, onClick }: ChapterCardProps) {
 
     const phaseConfig = phaseConfigMap[phase] || { color: "border-gray-500 text-gray-400", icon: "Unknown", label: "Unknown" };
 
+    // Extract Theme/Takeaway hints from summary if present
+    const parseSummary = (text?: string) => {
+        if (!text) return { body: "", theme: "", takeaway: "" };
+        let remaining = text.trim();
+        let theme = "";
+        let takeaway = "";
+        const themeMatch = remaining.match(/Theme:\s*(.+?)(?:\s*Takeaway:|$)/i);
+        if (themeMatch) {
+            theme = themeMatch[1].trim();
+            remaining = remaining.replace(themeMatch[0], "").trim();
+        }
+        const takeawayMatch = remaining.match(/Takeaway:\s*(.+)$/i);
+        if (takeawayMatch) {
+            takeaway = takeawayMatch[1].trim();
+            remaining = remaining.replace(takeawayMatch[0], "").trim();
+        } else {
+            // Fallback: use the last sentence as takeaway if none provided explicitly
+            const sentences = remaining.split(/(?<=\.)\s+/).filter(Boolean);
+            if (sentences.length > 1) {
+                takeaway = sentences.pop()?.trim() ?? "";
+                remaining = sentences.join(" ").trim();
+            }
+        }
+        return { body: remaining, theme, takeaway };
+    };
+
+    const { body, theme, takeaway } = parseSummary(chapter.summary);
+
     return (
         <div
             onClick={onClick}
@@ -48,8 +76,24 @@ export function ChapterCard({ chapter, isActive, onClick }: ChapterCardProps) {
             {/* Narrative Text */}
             <div className="prose prose-invert prose-sm max-w-none mb-4">
                 <p className="text-white/90 leading-relaxed text-base">
-                    {chapter.summary || "No summary available for this chapter."}
+                    {body || chapter.summary || "No summary available for this chapter."}
                 </p>
+                {(theme || takeaway) && (
+                    <div className="mt-2 space-y-1">
+                        {theme ? (
+                            <div className="flex items-start gap-2 text-sm text-white/80">
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-accent-teal/80">Theme</span>
+                                <span className="leading-snug">{theme}</span>
+                            </div>
+                        ) : null}
+                        {takeaway ? (
+                            <div className="flex items-start gap-2 text-sm text-white/80">
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-amber-200/90">Takeaway</span>
+                                <span className="leading-snug">{takeaway}</span>
+                            </div>
+                        ) : null}
+                    </div>
+                )}
             </div>
 
             {/* Tags */}

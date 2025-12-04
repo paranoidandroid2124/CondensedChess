@@ -153,7 +153,7 @@ object ApiServer:
               case Some(prog) =>
                 val stageStr = prog.stage.toString
                 val stageLabel = AnalysisStage.labelFor(prog.stage)
-                s"""{"status":"$other","stage":"$stageStr","stageLabel":"$stageLabel","stageProgress":${prog.stageProgress},"totalProgress":${prog.totalProgress}}"""
+                s"""{"status":"$other","stage":"$stageStr","stageLabel":"$stageLabel","stageProgress":${prog.stageProgress},"totalProgress":${prog.totalProgress},"startedAt":${prog.startedAt}}"""
               case None =>
                 s"""{"status":"$other"}"""
             respond(exchange, 202, progressJson)

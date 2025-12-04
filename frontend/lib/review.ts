@@ -4,7 +4,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_REVIEW_API_BASE || "http://local
 
 export type ReviewFetchResult =
   | { status: "ready"; review: Review }
-  | { status: "pending"; message?: string; stage?: string; stageLabel?: string; stageProgress?: number; totalProgress?: number };
+  | { status: "pending"; message?: string; stage?: string; stageLabel?: string; stageProgress?: number; totalProgress?: number; startedAt?: number };
 
 export async function fetchOpeningLookup(sans: string[]): Promise<import("../types/review").OpeningStats | null> {
   if (!sans.length) return null;

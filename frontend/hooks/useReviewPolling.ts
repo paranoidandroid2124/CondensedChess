@@ -10,7 +10,7 @@ interface ReviewPollingState {
   pollAttempt: number;
   error: string | null;
   setReview: (r: Review) => void;
-  progressInfo: { stage?: string; stageLabel?: string; totalProgress?: number } | null;
+  progressInfo: { stage?: string; stageLabel?: string; totalProgress?: number; stageProgress?: number; startedAt?: number } | null;
 }
 
 export function useReviewPolling(reviewId: string): ReviewPollingState {
@@ -20,7 +20,7 @@ export function useReviewPolling(reviewId: string): ReviewPollingState {
   const [pollStartTime, setPollStartTime] = useState<number | null>(null);
   const [pollAttempt, setPollAttempt] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [progressInfo, setProgressInfo] = useState<{ stage?: string; stageLabel?: string; totalProgress?: number } | null>(null);
+  const [progressInfo, setProgressInfo] = useState<{ stage?: string; stageLabel?: string; totalProgress?: number; stageProgress?: number; startedAt?: number } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -36,13 +36,15 @@ export function useReviewPolling(reviewId: string): ReviewPollingState {
           setProgressInfo({
             stage: res.stage,
             stageLabel: res.stageLabel,
-            totalProgress: res.totalProgress
+            totalProgress: res.totalProgress,
+            stageProgress: res.stageProgress,
+            startedAt: res.startedAt
           });
           setLoading(true);
-          if (attempt < 80) {
+          if (attempt < 2400) { // Wait up to ~1 hour
             timer = setTimeout(() => poll(attempt + 1), 1500);
           } else {
-            setPendingMessage("Analysis taking longer than expected. Please refresh later.");
+            setPendingMessage("Analysis is taking a long time. You can refresh to check again.");
             setLoading(false);
           }
           return;
@@ -54,10 +56,11 @@ export function useReviewPolling(reviewId: string): ReviewPollingState {
         setReview(res.review);
         setLoading(false);
       } catch (err) {
-        // If error occurs (e.g. 404 not found yet), retry a few times before giving up
-        if (attempt < 5) {
-          console.log(`Polling error (attempt ${attempt}), retrying...`, err);
-          timer = setTimeout(() => poll(attempt + 1), 2000);
+        // Retry on error, but back off slightly
+        // We allow many retries because analysis can be long and network might flicker
+        console.log(`Polling error (attempt ${attempt}), retrying...`, err);
+        if (attempt < 2400) {
+          timer = setTimeout(() => poll(attempt + 1), 3000); // Retry slower on error
           return;
         }
         setError(err instanceof Error ? err.message : "Failed to fetch review");

@@ -1,0 +1,31 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project condensedchess-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\project
+[info] loading settings for project root from build.sbt...
+[info] set current project to root (in build file:/C:/Codes/CondensedChess/)
+[info] Executing in batch mode. For better performance use sbt's shell
+[info] set current project to scalachess (in build file:/C:/Codes/CondensedChess/)
+[info] compiling 5 Scala sources to C:\Codes\CondensedChess\core\target\scala-3.7.4\classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\core\src\main\scala\analysis\PracticalityScorer.scala:82:6 
+[warn] 82 |      timeControl: Option[AnalyzeDomain.TimeControl]
+[warn]    |      ^^^^^^^^^^^
+[warn]    |      unused explicit parameter
+[warn] one warning found
+[info] done compiling
+[info] compiling 11 Scala sources to C:\Codes\CondensedChess\core\target\scala-3.7.4\classes ...
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\core\src\main\scala\analysis\AnalyzeRenderer.scala:126:53 
+[error] 126 |        sb.append("\"category\":\"").append(escape(p.category)).append('"')
+[error]     |                                                   ^^^^^^^^^^
+[error]     |value category is not a member of chess.analysis.PracticalityScorer.Score
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\core\src\main\scala\analysis\AnalyzeRenderer.scala:284:51 
+[error] 284 |      sb.append("\"category\":\"").append(escape(p.category)).append('"')
+[error]     |                                                 ^^^^^^^^^^
+[error]     |value category is not a member of chess.analysis.PracticalityScorer.Score
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\core\src\main\scala\analysis\AnalyzeRenderer.scala:318:51 
+[error] 318 |      sb.append("\"category\":\"").append(escape(p.category)).append('"')
+[error]     |                                                 ^^^^^^^^^^
+[error]     |value category is not a member of chess.analysis.PracticalityScorer.Score
+[warn] one warning found
+[error] three errors found
+[error] (Compile / compileIncremental) Compilation failed
+[error] Total time: 13 s, completed 2025. 12. 4. 오후 2:08:14

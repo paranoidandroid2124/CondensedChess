@@ -11,6 +11,7 @@ export class StockfishEngine {
   private worker: Worker | null = null;
   private onMessage: (msg: EngineMessage) => void;
   private isReady = false;
+  private pending: { fen: string; depth: number; multiPv: number } | null = null;
 
   constructor(onMessage: (msg: EngineMessage) => void) {
     this.onMessage = onMessage;
@@ -24,6 +25,11 @@ export class StockfishEngine {
       // console.log("Engine:", line);
       if (line === "uciok") {
         this.isReady = true;
+        if (this.pending) {
+          const { fen, depth, multiPv } = this.pending;
+          this.pending = null;
+          this.analyze(fen, depth, multiPv);
+        }
       }
       if (line.startsWith("info depth")) {
         this.parseInfo(line);
@@ -33,6 +39,9 @@ export class StockfishEngine {
         this.onMessage({ bestMove: parts[1] });
       }
     };
+    this.worker.onerror = (err) => {
+      console.error("[stockfish] worker error", err);
+    };
     this.worker.postMessage("uci");
   }
 
@@ -40,10 +49,15 @@ export class StockfishEngine {
     this.worker?.terminate();
     this.worker = null;
     this.isReady = false;
+    this.pending = null;
   }
 
   analyze(fen: string, depth: number = 18, multiPv: number = 1) {
     if (!this.worker) return;
+    if (!this.isReady) {
+      this.pending = { fen, depth, multiPv };
+      return;
+    }
     this.worker.postMessage("stop");
     this.worker.postMessage(`setoption name MultiPV value ${multiPv}`);
     this.worker.postMessage(`position fen ${fen}`);

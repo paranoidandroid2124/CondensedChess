@@ -46,7 +46,7 @@ object AnalyzePgn:
         val opening = OpeningDb.searchWithTransposition(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
-        val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext)
+        val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext, jobId)
         val timeline = StudySignals.withStudySignals(timelineRaw, opening)
         
         jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
