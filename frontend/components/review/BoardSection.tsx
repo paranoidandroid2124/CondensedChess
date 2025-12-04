@@ -22,7 +22,8 @@ export function BoardSection({
   selectedPly,
   onSelectPly,
   branchSaving,
-  branchError
+  branchError,
+  children
 }: {
   fen?: string;
   squareStyles?: Record<string, React.CSSProperties>;
@@ -42,7 +43,17 @@ export function BoardSection({
   onSelectPly: (ply: number) => void;
   branchSaving: boolean;
   branchError: string | null;
+  children?: React.ReactNode;
 }) {
+  const markers = timeline
+    .filter((t) => t.judgement === "blunder" || t.judgement === "mistake" || t.judgement === "inaccuracy" || t.special)
+    .map((t) => ({
+      ply: t.ply,
+      kind: (t.special as string) || t.judgement || "event",
+      label: t.label ?? t.san
+    }))
+    .concat(conceptSpikes.map((s) => ({ ply: s.ply, kind: "spike", label: s.concept })));
+
   return (
     <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
       <div className="group relative">
@@ -68,6 +79,8 @@ export function BoardSection({
         <EvalSparkline
           timeline={timeline}
           spikePlys={conceptSpikes.map((s) => ({ ply: s.ply, concept: s.concept }))}
+          markers={markers}
+          onSelectPly={onSelectPly}
         />
       ) : null}
       <MoveControls timeline={timeline} selected={selectedPly ?? undefined} onSelect={onSelectPly} />
@@ -76,7 +89,7 @@ export function BoardSection({
         {branchSaving ? <span className="ml-2 text-accent-teal">Saving…</span> : null}
         {branchError ? <span className="ml-2 text-rose-200">{branchError}</span> : null}
       </div>
+      {children}
     </div>
   );
 }
-

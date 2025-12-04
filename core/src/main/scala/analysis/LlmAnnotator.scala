@@ -2,6 +2,7 @@ package chess
 package analysis
 
 import ujson.*
+import AnalyzeUtils.{ pvToSan, uciToSanSingle }
 
 /** Lightweight LLM annotator: single-call helpers for summary, mainline short comments,
   * and critical comments. All calls are optional (skip if key missing or failure).
@@ -135,10 +136,13 @@ object LlmAnnotator:
     val criticalNodes = clampNodes(output.critical, 16).map { c =>
       val label = labelForPly(timelineByPly, c.ply.value)
       val branches = c.branches.take(3).map { b =>
+        val fenForBranch = timelineByPly.get(c.ply.value).map(_.fenBefore).getOrElse("")
+        val sanMove = if fenForBranch.nonEmpty then uciToSanSingle(fenForBranch, b.move) else b.move
+        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(6) else b.pv.take(6)
         Obj(
           "label" -> Str(b.label),
-          "move" -> Str(b.move),
-          "pv" -> arrStr(b.pv.take(6)),
+          "move" -> Str(sanMove),
+          "pv" -> arrStr(pvSan),
           "winPct" -> Num(round2(b.winPct))
         )
       }
@@ -195,13 +199,38 @@ object LlmAnnotator:
     )
     if output.studyChapters.nonEmpty then
       val chapters = output.studyChapters.take(12).map { ch =>
+        val turn = timelineByPly.get(ch.anchorPly).map(_.turn).getOrElse(if ch.anchorPly % 2 == 1 then Color.White else Color.Black)
+        val label = labelForPly(timelineByPly, ch.anchorPly)
         val obj = Obj(
+          "id" -> Str(ch.id),
           "anchorPly" -> Num(ch.anchorPly),
+          "label" -> Str(label),
+          "turn" -> Str(colorName(turn)),
           "played" -> Str(ch.played),
           "deltaWinPct" -> Num(round2(ch.deltaWinPct)),
-          "tags" -> arrStr(ch.tags.take(4))
+          "winPctBefore" -> Num(round2(ch.winPctBefore)),
+          "winPctAfter" -> Num(round2(ch.winPctAfter)),
+          "phase" -> Str(ch.phase),
+          "studyScore" -> Num(round2(ch.studyScore)),
+          "tags" -> arrStr(ch.tags.take(6))
         )
         ch.best.foreach(b => obj("best") = Str(b))
+        if ch.lines.nonEmpty then
+          val lines = ch.lines.take(4).map { l =>
+            Obj(
+              "label" -> Str(l.label),
+              "pv" -> arrStr(l.pv.take(6)),
+              "winPct" -> Num(round2(l.winPct))
+            )
+          }
+          obj("lines") = Arr.from(lines)
+        ch.practicality.foreach { p =>
+          obj("practicality") = Obj(
+            "overall" -> Num(round2(p.overall)),
+            "categoryGlobal" -> Str(p.categoryGlobal),
+            "categoryPersonal" -> p.categoryPersonal.map(Str(_)).getOrElse(Null)
+          )
+        }
         obj
       }
       payload("studyChapters") = Arr.from(chapters)
@@ -299,23 +328,27 @@ object LlmAnnotator:
         val nodes = flatten(r)
           .filter(_.judgement != "variation")
           .map { n =>
-            val turn = timelineByPly.get(n.ply).map(_.turn).getOrElse(if n.ply % 2 == 1 then Color.White else Color.Black)
-            val obj = Obj(
-              "ply" -> Num(n.ply),
-              "label" -> Str(moveLabel(Ply(n.ply), n.san, turn)),
-              "judgement" -> Str(n.judgement),
-              "glyph" -> Str(n.glyph),
-              "tags" -> arrStr(n.tags.filter(_.nonEmpty).take(6)),
-              "pv" -> arrStr(n.pv.take(5))
-            )
+        val turn = timelineByPly.get(n.ply).map(_.turn).getOrElse(if n.ply % 2 == 1 then Color.White else Color.Black)
+        val fenBefore = timelineByPly.get(n.ply).map(_.fenBefore).getOrElse("")
+        val obj = Obj(
+          "ply" -> Num(n.ply),
+          "label" -> Str(moveLabel(Ply(n.ply), n.san, turn)),
+          "judgement" -> Str(n.judgement),
+          "glyph" -> Str(n.glyph),
+          "tags" -> arrStr(n.tags.filter(_.nonEmpty).take(6)),
+          "pv" -> arrStr(n.pv.take(5))
+        )
             timelineByPly.get(n.ply).foreach { t =>
               obj("legalMoves") = Num(t.legalMoves)
               obj("forced") = Bool(forcedFlag(t.legalMoves, t.bestVsSecondGap))
-              val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
-              if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
-              t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
+            val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
+            if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+            t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
+          }
+            n.bestMove.foreach { b =>
+              val sanBest = if fenBefore.nonEmpty then uciToSanSingle(fenBefore, b) else b
+              obj("bestMove") = Str(sanBest)
             }
-            n.bestMove.foreach(b => obj("bestMove") = Str(b))
             n.bestEval.foreach(ev => obj("bestEval") = Num(round2(ev)))
             obj
           }

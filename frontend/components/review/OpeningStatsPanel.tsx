@@ -96,11 +96,15 @@ export function OpeningStatsPanel({ stats, loading, error }: OpeningStatsPanelPr
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">Σ {totalGames} games</span>
           </div>
           {renderRow("Σ (All)", totalGames, totalWin ?? undefined, totalDraw ?? undefined, totalLose ?? undefined)}
-          {stats.topMoves?.map((m) => {
+          {stats.topMoves?.map((m, idx) => {
             const w = m.winPct != null ? m.winPct : undefined;
             const d = m.drawPct != null ? m.drawPct : undefined;
             const b = w != null && d != null ? Math.max(0, 1 - w - d) : undefined;
-            return renderRow(m.san, m.games ?? 0, w, d, b);
+            return (
+              <div key={`${m.san}-${idx}`}>
+                {renderRow(m.san, m.games ?? 0, w, d, b)}
+              </div>
+            );
           })}
         </div>
       ) : null}

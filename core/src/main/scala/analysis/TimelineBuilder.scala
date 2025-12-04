@@ -13,13 +13,17 @@ object TimelineBuilder:
       client: StockfishClient, 
       config: EngineConfig, 
       opening: Option[Opening.AtPly],
-      playerContext: Option[PlayerContext] = None
+      playerContext: Option[PlayerContext] = None,
+      jobId: Option[String] = None
   ): (Vector[PlyOutput], Game) =
     var game = replay.setup
     val entries = Vector.newBuilder[PlyOutput]
     var prevDeltaForOpp: Double = 0.0
     val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
-    replay.chronoMoves.foreach { mod =>
+    val totalMoves = replay.chronoMoves.size
+    
+    replay.chronoMoves.zipWithIndex.foreach { case (mod, idx) =>
+      jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, idx.toDouble / totalMoves))
       val player = game.position.color
       val legalCount = game.position.legalMoves.size
       val multiPv = math.min(config.maxMultiPv, math.max(1, legalCount))

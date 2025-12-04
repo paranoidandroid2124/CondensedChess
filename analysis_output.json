@@ -1,0 +1,29 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project condensedchess-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\project
+[info] loading settings for project root from build.sbt...
+[info] set current project to root (in build file:/C:/Codes/CondensedChess/)
+[info] set current project to scalachess (in build file:/C:/Codes/CondensedChess/)
+[info] compiling 6 Scala sources to C:\Codes\CondensedChess\core\target\scala-3.7.4\classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\core\src\main\scala\analysis\PracticalityScorer.scala:82:6 
+[warn] 82 |      timeControl: Option[AnalyzeDomain.TimeControl]
+[warn]    |      ^^^^^^^^^^^
+[warn]    |      unused explicit parameter
+[warn] one warning found
+[info] done compiling
+[info] compiling 11 Scala sources to C:\Codes\CondensedChess\core\target\scala-3.7.4\classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\core\src\main\scala\analysis\StudyChapterBuilder.scala:23:64 
+[warn] 23 |    def narrativeSummary(anchor: PlyOutput, tags: List[String], phase: String, winBefore: Double, winAfter: Double): String =
+[warn]    |                                                                ^^^^^
+[warn]    |                                               unused explicit parameter
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\core\src\main\scala\analysis\StudyChapterBuilder.scala:23:79 
+[warn] 23 |    def narrativeSummary(anchor: PlyOutput, tags: List[String], phase: String, winBefore: Double, winAfter: Double): String =
+[warn]    |                                                                               ^^^^^^^^^
+[warn]    |                                               unused explicit parameter
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\core\src\main\scala\analysis\StudyChapterBuilder.scala:23:98 
+[warn] 23 |    def narrativeSummary(anchor: PlyOutput, tags: List[String], phase: String, winBefore: Double, winAfter: Double): String =
+[warn]    |                                                                                                  ^^^^^^^^
+[warn]    |                                               unused explicit parameter
+[warn] four warnings found
+[info] done compiling
+[info] running chess.analysis.AnalyzePgn sample_chesscom.pgn

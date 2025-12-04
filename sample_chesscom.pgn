@@ -1,0 +1,33 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.11.30"]
+[Round "-"]
+[White "deaa666"]
+[Black "yoonchan333"]
+[Result "0-1"]
+[CurrentPosition "6k1/1p4pp/8/3p4/pB1Pp1n1/P4PP1/2P1R1Kr/5R1r w - - 3 32"]
+[Timezone "UTC"]
+[ECO "A01"]
+[ECOUrl "https://www.chess.com/openings/Nimzowitsch-Larsen-Attack-Modern-Variation-2.Bb2-Nc6"]
+[UTCDate "2025.11.30"]
+[UTCTime "12:40:32"]
+[WhiteElo "1534"]
+[BlackElo "1561"]
+[TimeControl "600"]
+[Termination "yoonchan333 won by checkmate"]
+[StartTime "12:40:32"]
+[EndDate "2025.11.30"]
+[EndTime "12:47:55"]
+[Link "https://www.chess.com/analysis/game/live/146140608888/analysis"]
+[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[WhiteCountry ""]
+[WhiteTitle ""]
+[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/312052283.4a87bf33.50x50o.7490d2a1f6d1.png"]
+[BlackCountry "175"]
+[BlackTitle ""]
+
+1. b3 e5 2. Bb2 Nc6 3. a3 d5 4. d3 f5 5. Nd2 Nf6 6. e3 Bd6 7. h3 Qe7 8. g3 a5 9.
+Bg2 a4 10. b4 O-O 11. Ne2 Be6 12. O-O Rad8 13. Nf3 e4 14. Nfd4 Nxd4 15. Nxd4 c5
+16. bxc5 Bxc5 17. Qe2 Bxd4 18. exd4 Qd7 19. dxe4 fxe4 20. Qe3 Bxh3 21. Rad1 Bxg2
+22. Kxg2 Ng4 23. Qg5 Qf5 24. Qxf5 Rxf5 25. Rde1 Rdf8 26. Re2 Rh5 27. Bc3 Rh2+
+28. Kg1 Rf6 29. Bb4 Rfh6 30. f3 Rh1+ 31. Kg2 R6h2# 0-1

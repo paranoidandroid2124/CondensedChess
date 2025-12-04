@@ -92,25 +92,25 @@ export function EvalSparkline({
         ) : null}
         {hoverPoint ? (
           <>
-            <circle cx={hoverPoint[0]} cy={hoverPoint[1]} r={4} fill="#5b8def" />
+            <circle cx={hoverPoint[0]} cy={hoverPoint[1]} r={3.2} fill="#5b8def" />
             {hoverLabel ? (
               <>
                 {(() => {
-                  const padding = 8;
-                  const rectW = Math.max(46, hoverLabel.length * 7 + padding * 2);
-                  const rectH = 18;
+                  const padding = 5;
+                  const rectW = Math.max(38, hoverLabel.length * 5.5 + padding * 2);
+                  const rectH = 14;
                   const rectX = Math.min(Math.max(hoverPoint[0] - rectW / 2, 0), w - rectW);
                   const rectY = Math.max(hoverPoint[1] - rectH - 6, 0);
                   const textX = rectX + rectW / 2;
-                  const textY = rectY + rectH / 2 + 4;
+                  const textY = rectY + rectH / 2 + 3;
                   return (
                     <>
-                      <rect x={rectX} y={rectY} width={rectW} height={rectH} rx={6} fill="rgba(0,0,0,0.65)" />
+                      <rect x={rectX} y={rectY} width={rectW} height={rectH} rx={4} fill="rgba(0,0,0,0.7)" />
                       <text
                         x={textX}
                         y={textY}
-                        fill="#e7ecff"
-                        fontSize={12}
+                        fill="#f5f5f5"
+                        fontSize={10}
                         fontFamily="Inter, system-ui, sans-serif"
                         fontWeight={600}
                         textAnchor="middle"
@@ -141,7 +141,7 @@ export function EvalSparkline({
                 <circle
                   cx={s!.point[0]}
                   cy={s!.point[1]}
-                  r={5}
+                  r={4}
                   fill={
                     s!.kind === "blunder"
                       ? "#f87171"
