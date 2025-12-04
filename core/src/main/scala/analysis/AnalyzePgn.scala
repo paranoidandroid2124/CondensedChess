@@ -92,7 +92,8 @@ object AnalyzePgn:
       phaseLabel: Option[String] = None,
       shortComment: Option[String] = None,
       studyTags: List[String] = Nil,
-      studyScore: Double = 0.0
+      studyScore: Double = 0.0,
+      practicality: Option[PracticalityScorer.Score] = None
   )
 
   final case class Output(
@@ -156,7 +157,8 @@ object AnalyzePgn:
       studyScore: Double = 0.0,
       phase: String = "middlegame",
       winPctBefore: Double = 50.0,
-      winPctAfter: Double = 50.0
+      winPctAfter: Double = 50.0,
+      practicality: Option[PracticalityScorer.Score] = None
   )
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
@@ -502,6 +504,14 @@ object AnalyzePgn:
           )
         )
       val mistakeCategory = if miss then Some("tactical_miss") else baseMistakeCategory
+      
+      val practicality = Some(PracticalityScorer.score(
+        eval = evalBeforeDeep,
+        tacticalDepth = concepts.tacticalDepth,
+        sacrificeQuality = concepts.sacrificeQuality,
+        tags = semanticTags
+      ))
+
       entries += PlyOutput(
         ply = nextGame.ply,
         turn = player, // 수를 둔 색
@@ -528,7 +538,8 @@ object AnalyzePgn:
         bestVsPlayedGap = bestVsPlayedGap,
         semanticTags = semanticTags,
         mistakeCategory = mistakeCategory,
-        phaseLabel = phaseLabel
+        phaseLabel = phaseLabel,
+        practicality = practicality
       )
       game = nextGame
       prevDeltaForOpp = delta // 다음 수에서 miss 판단용
@@ -754,7 +765,8 @@ object AnalyzePgn:
         studyScore = anchor.studyScore,
         phase = phase,
         winPctBefore = anchor.winPctBefore,
-        winPctAfter = anchor.winPctAfterForPlayer
+        winPctAfter = anchor.winPctAfterForPlayer,
+        practicality = anchor.practicality
       )
       ch
     }.toVector
@@ -963,6 +975,15 @@ object AnalyzePgn:
         }
         sb.append(']')
       sb.append(",\"studyScore\":").append(fmt(ply.studyScore))
+      ply.practicality.foreach { p =>
+        sb.append(",\"practicality\":{")
+        sb.append("\"overall\":").append(fmt(p.overall)).append(',')
+        sb.append("\"robustness\":").append(fmt(p.robustness)).append(',')
+        sb.append("\"horizon\":").append(fmt(p.horizon)).append(',')
+        sb.append("\"naturalness\":").append(fmt(p.naturalness)).append(',')
+        sb.append("\"category\":\"").append(escape(p.category)).append('"')
+        sb.append('}')
+      }
       sb.append(',')
       renderConcepts(sb, "concepts", ply.concepts)
       sb.append(',')
@@ -1135,6 +1156,15 @@ object AnalyzePgn:
     ch.best.foreach(b => sb.append("\"best\":\"").append(escape(b)).append("\","))
     sb.append("\"deltaWinPct\":").append(fmt(ch.deltaWinPct)).append(',')
     sb.append("\"studyScore\":").append(fmt(ch.studyScore)).append(',')
+    ch.practicality.foreach { p =>
+      sb.append("\"practicality\":{")
+      sb.append("\"overall\":").append(fmt(p.overall)).append(',')
+      sb.append("\"robustness\":").append(fmt(p.robustness)).append(',')
+      sb.append("\"horizon\":").append(fmt(p.horizon)).append(',')
+      sb.append("\"naturalness\":").append(fmt(p.naturalness)).append(',')
+      sb.append("\"category\":\"").append(escape(p.category)).append('"')
+      sb.append("},")
+    }
     sb.append("\"tags\":[")
     ch.tags.zipWithIndex.foreach { case (t, idx) =>
       if idx > 0 then sb.append(',')
