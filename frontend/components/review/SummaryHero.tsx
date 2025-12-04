@@ -39,6 +39,38 @@ export function SummaryHero({ timeline, critical, review }: SummaryHeroProps) {
     return { total: timeline.length, counts, worst: worstMove, topCritical };
   }, [timeline, critical]);
 
+  const avgPracticality = useMemo(() => {
+    const withPracticality = timeline.filter(t => t.practicality);
+    if (!withPracticality.length) return null;
+
+    const avg = withPracticality.reduce((sum, t) =>
+      sum + t.practicality!.overall, 0) / withPracticality.length;
+
+    const category =
+      avg >= 0.75 ? { label: "Human-Friendly", color: "text-emerald-400", icon: "🟢" } :
+        avg >= 0.50 ? { label: "Challenging", color: "text-amber-400", icon: "🟡" } :
+          avg >= 0.25 ? { label: "Engine-Like", color: "text-orange-400", icon: "🟠" } :
+            { label: "Computer-Only", color: "text-rose-400", icon: "🔴" };
+
+    return { score: avg, ...category };
+  }, [timeline]);
+
+  const pressurePointCount = useMemo(() =>
+    critical.filter(c => c.isPressurePoint).length,
+    [critical]);
+
+  const pressurePointsByColor = useMemo(() => {
+    const counts = { white: 0, black: 0 };
+    critical
+      .filter((c) => c.isPressurePoint)
+      .forEach((c) => {
+        const turn = timeline.find((t) => t.ply === c.ply)?.turn ?? (c.ply % 2 === 1 ? "white" : "black");
+        if (turn === "white") counts.white += 1;
+        else counts.black += 1;
+      });
+    return counts;
+  }, [critical, timeline]);
+
   return (
     <div className="glass-card mb-4 rounded-2xl p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -53,7 +85,7 @@ export function SummaryHero({ timeline, critical, review }: SummaryHeroProps) {
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-amber-100">Inacc {stats.counts.inaccuracy}</span>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
           <p className="text-xs uppercase tracking-[0.14em] text-white/60">Accuracy (White)</p>
           {review?.accuracyWhite != null ? (
@@ -96,6 +128,38 @@ export function SummaryHero({ timeline, critical, review }: SummaryHeroProps) {
             </>
           ) : (
             <p className="text-xs text-white/60">No critical nodes</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Avg Practicality</p>
+          {avgPracticality ? (
+            <>
+              <div className={`text-lg font-bold ${avgPracticality.color} flex items-center gap-1`}>
+                <span>{avgPracticality.icon}</span>
+                <span>{avgPracticality.label}</span>
+              </div>
+              <div className="text-xs text-white/60">Score: {avgPracticality.score.toFixed(2)}</div>
+            </>
+          ) : (
+            <p className="text-xs text-white/60">No data</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/60">Pressure Points</p>
+          {pressurePointCount > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm text-white">
+                <span>White</span>
+                <span className="text-lg font-bold text-amber-300">⚡ {pressurePointsByColor.white}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-white">
+                <span>Black</span>
+                <span className="text-lg font-bold text-amber-300">⚡ {pressurePointsByColor.black}</span>
+              </div>
+              <div className="text-xs text-white/60">Counted from critical nodes marked as pressure points.</div>
+            </div>
+          ) : (
+            <p className="text-xs text-white/60">None detected</p>
           )}
         </div>
       </div>

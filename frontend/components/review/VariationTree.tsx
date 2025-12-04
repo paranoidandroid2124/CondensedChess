@@ -30,7 +30,7 @@ export function VariationTree({ root, onSelect, selected }: VariationTreeProps) 
             <span className="text-white">{formatSanHuman(node.san)}</span>
             {node.glyph ? <span className="text-xs text-white/60">{node.glyph}</span> : null}
             {node.comment ? (
-              <span className="truncate text-[11px] text-white/60 max-w-[260px]">{node.comment}</span>
+              <span className="text-[11px] text-white/60 whitespace-normal leading-snug break-words">{node.comment}</span>
             ) : null}
           </div>
         </button>
@@ -73,7 +73,9 @@ export function VariationTree({ root, onSelect, selected }: VariationTreeProps) 
         <h3 className="text-sm font-semibold text-white/80">Tree</h3>
         <span className="text-xs text-white/60">mainline + variations</span>
       </div>
-      <div className="max-h-[360px] overflow-y-auto pr-2">{renderNode(root, 0, true)}</div>
+      <div className="min-h-[320px] max-h-[70vh] lg:max-h-[calc(100vh-240px)] overflow-y-auto pr-2">
+        {renderNode(root, 0, true)}
+      </div>
     </div>
   );
 }

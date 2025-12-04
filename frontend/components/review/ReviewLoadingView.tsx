@@ -106,6 +106,16 @@ export function ReviewLoadingView({
     );
   }
 
+  const getStageIcon = (stage?: string) => {
+    switch (stage) {
+      case 'parsing': return '📄';
+      case 'engine': return '⚙️';
+      case 'llm': return '🤖';
+      case 'concepts': return '💡';
+      default: return '🔍';
+    }
+  };
+
   return (
     <div className="px-6 py-10 sm:px-12 lg:px-16">
       <div className="mx-auto max-w-3xl space-y-6">
@@ -122,14 +132,22 @@ export function ReviewLoadingView({
             />
           </div>
 
-          {pendingMessage ? (
+          {progressInfo?.stageLabel || pendingMessage ? (
             <div className="flex items-center gap-3 text-white/80">
+              <span className="text-2xl">{getStageIcon(progressInfo?.stage)}</span>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">
+                  {progressInfo?.stageLabel || pendingMessage}
+                </div>
+                {progressInfo?.stage && (
+                  <div className="text-xs text-white/50">Stage: {progressInfo.stage}</div>
+                )}
+              </div>
               <div className="flex gap-1">
                 <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse" />
                 <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.2s]" />
                 <div className="w-2 h-2 rounded-full bg-accent-teal animate-pulse [animation-delay:0.4s]" />
               </div>
-              <span className="text-sm">{pendingMessage}</span>
             </div>
           ) : null}
 

@@ -8,23 +8,34 @@ object PracticalityScorer:
       robustness: Double,
       horizon: Double,
       naturalness: Double,
-      category: String
+      categoryGlobal: String,
+      categoryPersonal: Option[String] = None
   )
 
   def score(
       eval: AnalyzePgn.EngineEval,
       tacticalDepth: Double,
       sacrificeQuality: Double,
-      tags: List[String]
+      tags: List[String],
+      context: Option[AnalyzeDomain.PlayerContext] = None,
+      turn: chess.Color
   ): Score =
     val robustness = computeRobustness(eval)
-    val horizon = computeHorizon(tacticalDepth)
+    val horizon = computeHorizon(tacticalDepth, context)
     val naturalness = computeNaturalness(sacrificeQuality, tags)
 
     val overall = 0.4 * robustness + 0.4 * horizon + 0.2 * naturalness
-    val category = categorize(overall)
+    val categoryGlobal = categorize(overall)
+    
+    val categoryPersonal = context.flatMap { ctx =>
+      val playerElo = if turn == chess.White then ctx.whiteElo else ctx.blackElo
+      categorizePersonal(overall, playerElo, ctx.timeControl)
+    }
 
-    Score(overall, robustness, horizon, naturalness, category)
+    Score(overall, robustness, horizon, naturalness, categoryGlobal, categoryPersonal)
+
+  def computeOpponentRobustness(eval: AnalyzePgn.EngineEval): Double =
+    computeRobustness(eval)
 
   private def computeRobustness(eval: AnalyzePgn.EngineEval): Double =
     val topLines = eval.lines.take(3)
@@ -37,10 +48,19 @@ object PracticalityScorer:
       // If spread is 0%, robustness is 1.
       clamp(1.0 - (spread / 20.0))
 
-  private def computeHorizon(tacticalDepth: Double): Double =
+  private def computeHorizon(tacticalDepth: Double, context: Option[AnalyzeDomain.PlayerContext]): Double =
     // tacticalDepth is typically 0.0 to 1.0 (shallow vs deep eval gap)
     // High tacticalDepth means the advantage is hidden deep -> Low Horizon
-    clamp(1.0 - tacticalDepth)
+    
+    // Time control adjustment:
+    // If Blitz/Rapid, we penalize hidden tactics more heavily (horizon is harder to see)
+    val weight = context.flatMap(_.timeControl).map { tc =>
+      if tc.isBlitz then 1.2      // Harder to see deep tactics in blitz
+      else if tc.isRapid then 1.1 // Slightly harder in rapid
+      else 1.0
+    }.getOrElse(1.0)
+
+    clamp(1.0 - (tacticalDepth * weight))
 
   private def computeNaturalness(sacrificeQuality: Double, tags: List[String]): Double =
     // Penalty for sacrifice
@@ -55,5 +75,25 @@ object PracticalityScorer:
     else if score >= 0.5 then "Challenging"
     else if score >= 0.2 then "Engine-Like"
     else "Computer-Only"
+
+  private def categorizePersonal(
+      rawScore: Double, 
+      playerElo: Option[Int], 
+      timeControl: Option[AnalyzeDomain.TimeControl]
+  ): Option[String] =
+    playerElo.map { elo =>
+      // Rating-based scaling
+      // Lower rated players get a boost (easier to be considered Human-Friendly)
+      // Higher rated players get a penalty (stricter standards)
+      val scaleFactor = 
+        if elo < 1200 then 1.2
+        else if elo < 1600 then 1.1
+        else if elo < 2000 then 1.0
+        else if elo < 2400 then 0.9
+        else 0.8 // GM level
+
+      val adjustedScore = rawScore * scaleFactor
+      categorize(adjustedScore)
+    }
 
   private def clamp(d: Double): Double = math.max(0.0, math.min(1.0, d))

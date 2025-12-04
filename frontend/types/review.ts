@@ -61,6 +61,9 @@ export interface CriticalNode {
   forced?: boolean;
   phaseLabel?: string;
   semanticTags?: string[];
+  practicality?: PracticalityScore;
+  opponentRobustness?: number;
+  isPressurePoint?: boolean;
 }
 
 export interface EvalLine {
@@ -114,6 +117,9 @@ export interface PracticalityScore {
   robustness: number;
   horizon: number;
   naturalness: number;
+  categoryGlobal: string;
+  categoryPersonal?: string;
+  // Deprecated: kept for backward compatibility if needed, but prefer categoryGlobal
   category: string;
 }
 

@@ -54,6 +54,12 @@ export function useReviewPolling(reviewId: string): ReviewPollingState {
         setReview(res.review);
         setLoading(false);
       } catch (err) {
+        // If error occurs (e.g. 404 not found yet), retry a few times before giving up
+        if (attempt < 5) {
+          console.log(`Polling error (attempt ${attempt}), retrying...`, err);
+          timer = setTimeout(() => poll(attempt + 1), 2000);
+          return;
+        }
         setError(err instanceof Error ? err.message : "Failed to fetch review");
         setLoading(false);
       }

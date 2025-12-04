@@ -79,7 +79,8 @@ object NarrativeBuilder:
       tags: List[String],
       phase: String,
       winPctBefore: Double,
-      winPctAfter: Double
+      winPctAfter: Double,
+      opponentRobustness: Option[Double] = None
   ): String =
     val arc = detectArc(deltaWinPct)
     val keyTags = selectKeyTags(tags)
@@ -107,6 +108,22 @@ object NarrativeBuilder:
 
     val bestContext = best.map(b => s"Best was $b.").getOrElse("")
 
+    val opponentContext = opponentRobustness match
+      case Some(or) if or < 0.3 =>
+        val estimatedMoves = if or < 0.15 then "only 1-2 good defensive moves" else "a narrow defensive window"
+        s"""
+OPPONENT PERSPECTIVE (Pressure Point):
+- This move created a difficult defensive problem for your opponent
+- Opponent Robustness: ${fmt(or)} (${estimatedMoves})
+- Your opponent must find precise moves to avoid worse outcomes
+"""
+      case Some(or) =>
+        s"""
+OPPONENT PERSPECTIVE:
+- Opponent Robustness: ${fmt(or)} (multiple good replies available)
+"""
+      case None => ""
+
     s"""
 CONTEXT:
 - Phase: $phaseLabel (Ply $anchorPly)
@@ -116,7 +133,7 @@ CONTEXT:
 - Best: ${best.getOrElse("N/A")}
 - Arc: ${arc.toString}
 - Key Themes: ${keyTags.mkString(", ")}
-
+${opponentContext}
 NARRATIVE TEMPLATE:
 $template
 
@@ -126,6 +143,7 @@ Focus on:
 1. WHY this moment matters (strategic/tactical turning point)
 2. WHAT element changed (using the key themes above)
 3. HOW it connects to the overall game story (use the arc context)
+${if opponentContext.nonEmpty then "4. If this is a Pressure Point, emphasize how it challenges your opponent" else ""}
 
 Tone: Educational, insightful, specific (not generic).
     """.trim

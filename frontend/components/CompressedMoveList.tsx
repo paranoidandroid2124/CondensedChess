@@ -29,6 +29,13 @@ const judgementMarks: Record<string, string> = {
     blunder: "??"
 };
 
+const practicalityBg: Record<string, string> = {
+    "Human-Friendly": "bg-emerald-500/10 hover:bg-emerald-500/15",
+    "Challenging": "bg-amber-500/10 hover:bg-amber-500/15",
+    "Engine-Like": "bg-orange-500/10 hover:bg-orange-500/15",
+    "Computer-Only": "bg-rose-500/10 hover:bg-rose-500/15"
+};
+
 export function CompressedMoveList({ timeline, currentPly, onSelectPly }: CompressedMoveListProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const activeRef = useRef<HTMLButtonElement>(null);
@@ -112,13 +119,17 @@ const MoveButton = React.forwardRef<HTMLButtonElement, {
     const mark = judgementMarks[judgement] ?? "";
     const colorClass = judgementColors[judgement] ?? "text-white";
 
+    // Get practicality background color
+    const practicalityCategory = node.practicality?.categoryPersonal || node.practicality?.categoryGlobal || node.practicality?.category;
+    const practicalityBgClass = practicalityCategory && !isActive ? practicalityBg[practicalityCategory] : "";
+
     return (
         <button
             ref={ref}
             onClick={onClick}
             className={`
         group relative rounded px-1.5 py-0.5 transition-colors
-        ${isActive ? "bg-accent-teal/20 text-white ring-1 ring-accent-teal/50" : "text-white/80 hover:bg-white/10 hover:text-white"}
+        ${isActive ? "bg-accent-teal/20 text-white ring-1 ring-accent-teal/50" : `text-white/80 ${practicalityBgClass || "hover:bg-white/10"} hover:text-white`}
       `}
         >
             <span>{node.san}</span>

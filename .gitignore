@@ -16,6 +16,7 @@ frontend/.turbo
 frontend/out
 frontend/tsconfig.tsbuildinfo
 twic_raw/
+references/
 .env
 # opening stats databases (generated)
 opening/*.db

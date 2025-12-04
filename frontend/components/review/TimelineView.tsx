@@ -36,6 +36,32 @@ const judgementMarks: Record<string, string> = {
   blunder: "??"
 };
 
+const practicalityBg: Record<string, string> = {
+  "Human-Friendly": "bg-emerald-500/10 hover:bg-emerald-500/15",
+  "Challenging": "bg-amber-500/10 hover:bg-amber-500/15",
+  "Engine-Like": "bg-orange-500/10 hover:bg-orange-500/15",
+  "Computer-Only": "bg-rose-500/10 hover:bg-rose-500/15"
+};
+
+const mistakeIcons: Record<string, string> = {
+  tactical_miss: "🎯",
+  greedy: "💰",
+  positional_trade_error: "⚖️",
+  ignored_threat: "🚨",
+  conversion_difficulty: "🧗",
+  king_exposed: "👑",
+  fortress_building: "🏰"
+};
+
+const conceptIcons: Record<string, string> = {
+  dynamic: "⚡",
+  drawish: "😴",
+  blunderRisk: "⚠️",
+  tacticalDepth: "⚔️",
+  pawnStorm: "♟️",
+  sacrificeQuality: "💣"
+};
+
 function MoveCell({
   move,
   selected,
@@ -64,13 +90,19 @@ function MoveCell({
   const showDelta = !["book", "best"].includes(move.judgement ?? "");
   const isBook = move.judgement === "book";
   const deltaText = showDelta ? delta.text.replace(/\(.*?\)/, "").trim() : "";
+
+  // Get practicality background color
+  const practicalityCategory = move.practicality?.categoryPersonal || move.practicality?.categoryGlobal || move.practicality?.category;
+  const practicalityBgClass = practicalityCategory && selected !== move.ply ? practicalityBg[practicalityCategory] : "";
+
   return (
     <td className="px-3 py-2 align-top">
       <button
         onClick={() => onSelect(move.ply)}
-        className={`w-full rounded-lg border border-white/5 px-2 py-2 text-left transition ${
-          selected === move.ply ? "bg-white/10 ring-1 ring-accent-teal/60" : "bg-transparent hover:bg-white/5"
-        }`}
+        className={`w-full rounded-lg border border-white/5 px-2 py-2 text-left transition ${selected === move.ply
+          ? "bg-white/10 ring-1 ring-accent-teal/60"
+          : `${practicalityBgClass || "bg-transparent"} hover:bg-white/5`
+          }`}
         title={move.shortComment}
       >
         <div className="flex flex-col gap-0.5">
@@ -79,11 +111,15 @@ function MoveCell({
               <span className="text-sm font-semibold text-white">{sanDisplay}</span>
               {!isBook && mark ? (
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] ${
-                    judgementColors[judgement] ?? "bg-white/10 text-white"
-                  }`}
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${judgementColors[judgement] ?? "bg-white/10 text-white"
+                    }`}
                 >
                   {mark}
+                </span>
+              ) : null}
+              {move.mistakeCategory && mistakeIcons[move.mistakeCategory] ? (
+                <span className="text-sm" title={displayTag(move.mistakeCategory)}>
+                  {mistakeIcons[move.mistakeCategory]}
                 </span>
               ) : null}
               {phase ? (
@@ -101,6 +137,33 @@ function MoveCell({
           </div>
           {/* Engine depth/multipv are global; avoid repeating per-move badges */}
           {move.shortComment ? <div className="text-[11px] text-white/70">{move.shortComment}</div> : null}
+
+          {/* Concept Deltas & Semantic Tags */}
+          {(move.semanticTags?.length || move.conceptDelta) ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {/* Concept Deltas */}
+              {move.conceptDelta && Object.entries(move.conceptDelta).map(([key, val]) => {
+                if (val && val > 0.2 && conceptIcons[key]) {
+                  return (
+                    <span key={key} className="text-xs" title={`${key} increased`}>
+                      {conceptIcons[key]}
+                    </span>
+                  );
+                }
+                return null;
+              })}
+
+              {/* Semantic Tags */}
+              {move.semanticTags?.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[9px] rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-cyan-300 border border-cyan-500/20"
+                >
+                  {displayTag(tag)}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </button>
     </td>
@@ -208,9 +271,8 @@ export function TimelineView({
                                 <div className="flex items-center gap-2 text-[11px] text-white/50">
                                   <span className="flex items-center gap-1">
                                     <span
-                                      className={`h-2 w-2 rounded-full ${
-                                        group.vars[0].turn === "white" ? "bg-white" : "bg-black"
-                                      } border border-white/20`}
+                                      className={`h-2 w-2 rounded-full ${group.vars[0].turn === "white" ? "bg-white" : "bg-black"
+                                        } border border-white/20`}
                                     />
                                     <span>{group.vars[0].turn === "white" ? "White to move" : "Black to move"}</span>
                                   </span>
@@ -220,11 +282,10 @@ export function TimelineView({
                                 {group.vars.map((v, vidx) => (
                                   <div
                                     key={`${group.ply}-${vidx}`}
-                                    className={`w-full rounded-lg px-2 py-1 text-left transition ${
-                                      selected === v.node.ply && expandedVariation === `${group.ply}-${vidx}`
-                                        ? "bg-white/10 ring-1 ring-accent-teal/50"
-                                        : "hover:bg-white/5"
-                                    }`}
+                                    className={`w-full rounded-lg px-2 py-1 text-left transition ${selected === v.node.ply && expandedVariation === `${group.ply}-${vidx}`
+                                      ? "bg-white/10 ring-1 ring-accent-teal/50"
+                                      : "hover:bg-white/5"
+                                      }`}
                                   >
                                     <button
                                       onClick={() => {

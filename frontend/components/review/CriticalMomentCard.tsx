@@ -24,7 +24,17 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
   const narrative = getPracticalityNarrative(c.practicality, c.comment);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+    <div className={`rounded-xl border p-3 ${c.isPressurePoint
+      ? 'border-2 border-amber-500/60 bg-amber-500/5'
+      : 'border-white/10 bg-white/5'
+      }`}>
+      {c.isPressurePoint && (
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-amber-500/30">
+          <span className="text-xl">⚡</span>
+          <span className="text-amber-300 font-semibold text-sm">Pressure Point</span>
+          <span className="text-xs text-amber-200/60">You created a difficult defensive problem</span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold text-white">
           Ply {c.ply}
@@ -57,7 +67,26 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
           </span>
         ))}
         {c.practicality ? <PracticalityBadge score={c.practicality} /> : null}
+        {c.opponentRobustness !== undefined ? (
+          <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 border border-indigo-500/30" title={`Opponent Robustness: ${c.opponentRobustness.toFixed(2)}`}>
+            Opponent Burden: {c.opponentRobustness < 0.3 ? "High" : c.opponentRobustness > 0.7 ? "Low" : "Medium"}
+          </span>
+        ) : null}
       </div>
+
+      {c.semanticTags && c.semanticTags.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-white/40">Facts:</span>
+          {c.semanticTags.slice(0, 6).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] text-cyan-200 border border-cyan-500/30"
+            >
+              {displayTag(tag)}
+            </span>
+          ))}
+        </div>
+      )}
 
       {c.branches?.length ? (
         <div className="mt-2 grid gap-2">
