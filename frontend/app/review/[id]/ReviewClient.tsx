@@ -1,22 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Chess } from "chess.js";
+import React, { useEffect, useMemo, useState } from "react";
 import { fetchOpeningLookup } from "../../../lib/review";
 import type { OpeningStats, Review, TimelineNode } from "../../../types/review";
 import { SummaryHero } from "../../../components/review/SummaryHero";
 import { ReviewErrorView } from "../../../components/review/ReviewErrorView";
 import { BoardSection } from "../../../components/review/BoardSection";
-import { CompressedMoveList } from "../../../components/CompressedMoveList";
-import { OpeningStatsPanel } from "../../../components/review/OpeningStatsPanel";
-import { StudyTab } from "../../../components/StudyTab";
-import { ConceptsTab } from "../../../components/ConceptsTab";
 import { TimelineView } from "../../../components/review/TimelineView";
-import { VariationTree } from "../../../components/review/VariationTree";
-import { BestAlternatives } from "../../../components/BestAlternatives";
-import { QuickJump } from "../../../components/common/QuickJump";
 import { ProgressBanner } from "../../../components/review/ProgressBanner";
-import { uciToSan } from "../../../lib/chess-utils";
 import { useInstantTimeline } from "../../../hooks/useInstantTimeline";
 import { useReviewPolling } from "../../../hooks/useReviewPolling";
 import { useEngineAnalysis } from "../../../hooks/useEngineAnalysis";
@@ -24,6 +15,10 @@ import { useBranchCreation } from "../../../hooks/useBranchCreation";
 import { useGuessMode } from "../../../hooks/useGuessMode";
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, type EnhancedTimelineNode } from "../../../lib/review-derived";
 import { CommentCard } from "../../../components/review/CommentCard";
+import { AnalysisTabsSection } from "../../../components/review/AnalysisTabsSection";
+import type { TabId } from "../../../components/AnalysisPanel";
+import type { VariationEntry } from "../../../components/review/TimelineView";
+import { BestAlternatives } from "../../../components/BestAlternatives";
 
 
 
@@ -40,8 +35,9 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const [previewFen, setPreviewFen] = useState<string | null>(null);
     const [previewArrows, setPreviewArrows] = useState<Array<[string, string, string?]>>([]);
     const [previewLabel, setPreviewLabel] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<"opening" | "moves" | "study" | "concepts" | "tree">("concepts");
+    const [activeTab, setActiveTab] = useState<TabId>("concepts");
     const [drawingColor, setDrawingColor] = useState<"green" | "red" | "blue" | "orange">("green");
+    const [selectedVariation, setSelectedVariation] = useState<VariationEntry | null>(null);
     const jobId = review?.jobId ?? reviewId;
     const [instantPgn, setInstantPgn] = useState<string | null>(null);
     const instantTimeline = useInstantTimeline(instantPgn);
@@ -76,35 +72,11 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         }
     };
 
-    const clearPreview = useCallback(() => {
+    const clearPreview = () => {
         setPreviewFen(null);
         setPreviewArrows([]);
         setPreviewLabel(null);
-    }, []);
-
-    const handlePreviewLine = useCallback(
-        (fenBefore?: string, pv?: string[], label?: string) => {
-            if (!fenBefore || !pv?.length) return;
-            try {
-                const chess = new Chess(fenBefore);
-                const arrows: Array<[string, string, string?]> = [];
-                pv.slice(0, 8).forEach((mv) => {
-                    try {
-                        const move = (chess as any).move(mv, { sloppy: true });
-                        if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
-                    } catch {
-                        // ignore bad moves in PV
-                    }
-                });
-                setPreviewFen(chess.fen());
-                setPreviewArrows(arrows);
-                setPreviewLabel(label ?? "Preview line");
-            } catch {
-                // ignore
-            }
-        },
-        []
-    );
+    };
 
     useEffect(() => {
         if (review?.timeline?.length) {
@@ -346,76 +318,41 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
                     <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto pr-1">
                         <CommentCard move={activeMove} critical={activeCritical} />
-
                         <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4">
                             <BestAlternatives
                                 lines={engineLines}
                                 isAnalyzing={isAnalyzing}
                                 onToggleAnalysis={toggleAnalysis}
-                                onPreviewLine={(pv) =>
-                                    handlePreviewLine(activeMove?.fenBefore || activeMove?.fen, pv.split(" "), "Engine line")
-                                }
+                                onPreviewLine={() => {
+                                    setPreviewFen(null);
+                                    setPreviewArrows([]);
+                                    setPreviewLabel("Engine line");
+                                }}
                             />
                         </div>
 
-
-                        <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-2">
-                            <div className="flex flex-wrap gap-2 border-b border-white/10 px-2 pb-2">
-                                {(["concepts", "opening", "moves", "tree", "study"] as const).map((tab) => (
-                                    <button
-                                        key={tab}
-                                        onClick={() => setActiveTab(tab)}
-                                        className={`rounded-full px-3 py-1 text-xs capitalize transition ${activeTab === tab
-                                            ? "bg-accent-teal/20 text-accent-teal border border-accent-teal/30"
-                                            : "bg-white/5 text-white/60 border border-white/10 hover:text-white"
-                                            }`}
-                                    >
-                                        {tab}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="p-3 space-y-3">
-                                {activeTab === "opening" && (
-                                    <OpeningStatsPanel
-                                        stats={openingLookup ?? review?.openingStats ?? null}
-                                        loading={isLoading || lookupLoading}
-                                        error={lookupError}
-                                    />
-                                )}
-                                {activeTab === "moves" && (
-                                    <div className="space-y-3">
-                                        <CompressedMoveList timeline={timelineToUse} currentPly={selectedPly} onSelectPly={setSelectedPly} />
-                                        <QuickJump timeline={timelineToUse} onSelect={setSelectedPly} />
-                                    </div>
-                                )}
-                                {activeTab === "study" && (
-                                    <div className="h-[calc(100vh-260px)]">
-                                        {isLoading ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <p className="text-sm text-white/60">Loading study chapters...</p>
-                                            </div>
-                                        ) : (
-                                            <StudyTab chapters={review?.studyChapters} onSelectChapter={setSelectedPly} />
-                                        )}
-                                    </div>
-                                )}
-                                {activeTab === "concepts" && (
-                                    <ConceptsTab
-                                        review={review}
-                                        currentConcepts={activeMove?.concepts}
-                                        currentSemanticTags={activeMove?.semanticTags}
-                                        conceptDelta={activeMove?.conceptDelta}
-                                    />
-                                )}
-                                {activeTab === "tree" && (
-                                    <VariationTree
-                                        root={review?.root}
-                                        onSelect={setSelectedPly}
-                                        selected={selectedPly ?? undefined}
-                                    />
-                                )}
-                            </div>
-                        </div>
+                        <AnalysisTabsSection
+                            activeMove={activeMove}
+                            enhancedTimeline={enhancedTimeline}
+                            timeline={timelineToUse}
+                            review={review as Review}
+                            reviewRoot={review?.root}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            openingLookup={openingLookup ?? review?.openingStats ?? null}
+                            lookupLoading={isLoading || lookupLoading}
+                            lookupError={lookupError}
+                            setSelectedPly={setSelectedPly}
+                            setSelectedVariation={setSelectedVariation}
+                            isGuessing={isGuessing}
+                            setIsGuessing={setIsGuessing}
+                            guessState={guessState}
+                            setGuessState={setGuessState}
+                            guessFeedback={guessFeedback}
+                            setGuessFeedback={setGuessFeedback}
+                            selectedPly={selectedPly}
+                            tabOrder={["concepts", "opening", "moves", "tree", "study"]}
+                        />
                     </div>
                 </div>
             </div>

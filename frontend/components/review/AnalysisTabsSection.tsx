@@ -1,16 +1,19 @@
 import { Chess } from "chess.js";
 import { AnalysisPanel } from "../AnalysisPanel";
-import { BestAlternatives } from "../BestAlternatives";
 import { OpeningExplorerTab } from "../OpeningExplorerTab";
 import { StudyTab } from "../StudyTab";
 import { ConceptsTab } from "../ConceptsTab";
 import { ConceptCards } from "../ConceptCards";
 import { GuessTheMove } from "../GuessTheMove";
 import { uciToSan } from "../../lib/chess-utils";
+import { CompressedMoveList } from "../CompressedMoveList";
+import { QuickJump } from "../common/QuickJump";
+import { VariationTree } from "./VariationTree";
 import type { Review } from "../../types/review";
 import type { EnhancedTimelineNode } from "../../lib/review-derived";
 import type { EngineMessage } from "../../lib/engine";
 import type { VariationEntry } from "./TimelineView";
+import type { TabId } from "../AnalysisPanel";
 
 export function AnalysisTabsSection({
   activeMove,
@@ -18,9 +21,6 @@ export function AnalysisTabsSection({
   review,
   activeTab,
   setActiveTab,
-  engineLines,
-  isAnalyzing,
-  toggleAnalysis,
   openingLookup,
   lookupLoading,
   lookupError,
@@ -32,18 +32,18 @@ export function AnalysisTabsSection({
   setGuessState,
   guessFeedback,
   setGuessFeedback,
-  setPreviewFen,
-  setPreviewArrows,
-  setPreviewLabel
+  tabOrder,
+  timeline,
+  selectedPly,
+  reviewRoot
 }: {
   activeMove: EnhancedTimelineNode | null;
   enhancedTimeline: EnhancedTimelineNode[];
-  review: Review;
-  activeTab: "engine" | "opening" | "study" | "concepts";
-  setActiveTab: (tab: "engine" | "opening" | "study" | "concepts") => void;
-  engineLines: EngineMessage[];
-  isAnalyzing: boolean;
-  toggleAnalysis: () => void;
+  timeline: EnhancedTimelineNode[];
+  review: Review | null;
+  reviewRoot?: Review["root"];
+  activeTab: TabId;
+  setActiveTab: (tab: TabId) => void;
   openingLookup: Review["openingStats"] | null;
   lookupLoading: boolean;
   lookupError: string | null;
@@ -55,45 +55,38 @@ export function AnalysisTabsSection({
   setGuessState: (v: "waiting" | "correct" | "incorrect" | "giveup") => void;
   guessFeedback: string | undefined;
   setGuessFeedback: (v: string | undefined) => void;
-  setPreviewFen: (fen: string | null) => void;
-  setPreviewArrows: (arrows: Array<[string, string, string?]>) => void;
-  setPreviewLabel: (label: string | null) => void;
+  selectedPly: number | null;
+  tabOrder?: TabId[];
 }) {
+  const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "tree", "study"];
+
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100vh-2rem)] lg:sticky lg:top-4">
       <ConceptCards
         concepts={activeMove?.concepts}
         prevConcepts={enhancedTimeline.find(t => t.ply === (activeMove?.ply ?? 0) - 1)?.concepts}
       />
-      <AnalysisPanel activeTab={activeTab} onTabChange={setActiveTab}>
-        {activeTab === "engine" && (
-          <BestAlternatives
-            lines={engineLines}
-            isAnalyzing={isAnalyzing}
-            onToggleAnalysis={toggleAnalysis}
-            onPreviewLine={(pv) => {
-              if (!activeMove?.fenBefore || !pv) return;
-              try {
-                const chess = new Chess(activeMove.fenBefore);
-                const arrows: Array<[string, string, string?]> = [];
-                pv.split(" ").slice(0, 8).forEach((mv) => {
-                  try {
-                    const move = (chess as any).move(mv, { sloppy: true });
-                    if (move?.from && move?.to) arrows.push([move.from, move.to, "#10b981"]);
-                  } catch {
-                    // ignore
-                  }
-                });
-                setPreviewFen(chess.fen());
-                setPreviewArrows(arrows);
-                setPreviewLabel("Engine Line");
-              } catch {
-                // ignore
-              }
-            }}
-          />
-        )}
-
+      <AnalysisPanel
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        tabs={tabs.map((id) => {
+          const labels: Record<TabId, string> = {
+            opening: "Opening",
+            moves: "Moves",
+            tree: "Tree",
+            study: "Study",
+            concepts: "Concepts"
+          };
+          const icons: Partial<Record<TabId, string>> = {
+            opening: "📖",
+            moves: "↔️",
+            tree: "🌿",
+            study: "🎓",
+            concepts: "💡"
+          };
+          return { id, label: labels[id], icon: icons[id] };
+        })}
+      >
         {activeTab === "opening" && (
           <OpeningExplorerTab
             stats={openingLookup}
@@ -102,9 +95,20 @@ export function AnalysisTabsSection({
           />
         )}
 
+        {activeTab === "moves" && (
+          <div className="space-y-3">
+            <CompressedMoveList timeline={timeline} currentPly={selectedPly} onSelectPly={setSelectedPly} />
+            <QuickJump timeline={timeline} onSelect={setSelectedPly} />
+          </div>
+        )}
+
+        {activeTab === "tree" && (
+          <VariationTree root={reviewRoot} onSelect={setSelectedPly} selected={selectedPly ?? undefined} />
+        )}
+
         {activeTab === "study" && (
           <StudyTab
-            chapters={review.studyChapters}
+            chapters={review?.studyChapters}
             onSelectChapter={(ply) => {
               setSelectedPly(ply);
               setSelectedVariation(null);
@@ -122,6 +126,8 @@ export function AnalysisTabsSection({
           <ConceptsTab
             review={review}
             currentConcepts={activeMove?.concepts}
+            currentSemanticTags={activeMove?.semanticTags}
+            conceptDelta={activeMove?.conceptDelta}
           />
         )}
 
@@ -158,4 +164,3 @@ export function AnalysisTabsSection({
     </div>
   );
 }
-
