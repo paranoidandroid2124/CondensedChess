@@ -31,10 +31,16 @@ export const TreeNodeCard = ({ node, isSelected, onSelect }: TreeNodeCardProps) 
             bg: "bg-white/5",
             text: "text-white/70",
             badge: "bg-white/20 text-white"
+        },
+        root: {
+            border: "border-accent-teal/50",
+            bg: "bg-accent-teal/20",
+            text: "text-accent-teal",
+            badge: "bg-accent-teal text-black"
         }
     };
 
-    const style = colors[nodeType];
+    const style = colors[nodeType] || colors.sideline;
     const evalText = node.eval ? (node.eval > 0 ? `+${node.eval.toFixed(2)}` : node.eval.toFixed(2)) : "";
 
     return (
