@@ -30,6 +30,7 @@ final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN",
   case class EvalResult(lines: List[Line], bestmove: Option[String])
 
   private val processBuilder = new ProcessBuilder(command)
+  processBuilder.redirectErrorStream(true)
   private var process: Process = uninitialized
   private var reader: BufferedReader = uninitialized
   private var writer: BufferedWriter = uninitialized
