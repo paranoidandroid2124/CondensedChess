@@ -44,8 +44,8 @@ object StudySignals:
       0.25 * planN    +   // Plan/concept shift
       0.10 * theoryN      // Theory branch point
     
-    // Scale to 0-10 for better granularity
-    val score = study0to1 * 10.0
+    // Scale to 0-5 for 5-star rating
+    val score = study0to1 * 5.0
     val tags = scala.collection.mutable.ListBuffer.empty[String]
     if theoryFork then tags += TagName.OpeningTheoryBranch
     phaseLabel.orElse(p.phaseLabel).foreach(tags += _)

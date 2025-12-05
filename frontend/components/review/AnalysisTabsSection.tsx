@@ -1,3 +1,4 @@
+import React from "react";
 import { Chess } from "chess.js";
 import { AnalysisPanel } from "../AnalysisPanel";
 import { OpeningExplorerTab } from "../OpeningExplorerTab";
@@ -8,6 +9,7 @@ import { QuickJump } from "../common/QuickJump";
 
 import { AnnotationView } from "./BookView/AnnotationView";
 import { HorizontalTreeView } from "./BookView/HorizontalTreeView";
+import { TreeModal } from "./TreeModal";
 import type { Review } from "../../types/review";
 import type { EnhancedTimelineNode } from "../../lib/review-derived";
 import type { EngineMessage } from "../../lib/engine";
@@ -47,6 +49,8 @@ export function AnalysisTabsSection({
   setPreviewArrows?: (arrows: [string, string, string][]) => void;
 }) {
   const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "tree", "study"];
+
+  const [showTreeModal, setShowTreeModal] = React.useState(false);
 
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100vh-2rem)] lg:sticky lg:top-4">
@@ -91,14 +95,25 @@ export function AnalysisTabsSection({
         )}
 
         {activeTab === "tree" && (
-          <div className="flex-1 overflow-x-auto p-4">
+          <div className="flex-1 overflow-x-auto p-4 relative">
             {review?.root ? (
-              <HorizontalTreeView
-                rootNode={review.root}
-                currentPly={selectedPly}
-                onSelectPly={setSelectedPly}
-                isRoot={true}
-              />
+              <>
+                <button
+                  onClick={() => setShowTreeModal(true)}
+                  className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                  title="Expand Tree View"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </button>
+                <HorizontalTreeView
+                  rootNode={review.root}
+                  currentPly={selectedPly}
+                  onSelectPly={setSelectedPly}
+                  isRoot={true}
+                />
+              </>
             ) : (
               <div className="text-white/60 text-center mt-10">
                 Tree view not available.
@@ -124,9 +139,16 @@ export function AnalysisTabsSection({
             conceptDelta={activeMove?.conceptDelta}
           />
         )}
-
-
       </AnalysisPanel>
+
+      {showTreeModal && review?.root && (
+        <TreeModal
+          rootNode={review.root}
+          currentPly={selectedPly}
+          onSelectPly={setSelectedPly}
+          onClose={() => setShowTreeModal(false)}
+        />
+      )}
     </div>
   );
 }

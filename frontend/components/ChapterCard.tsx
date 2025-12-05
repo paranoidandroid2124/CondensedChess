@@ -68,7 +68,7 @@ export function ChapterCard({ chapter, isActive, onClick }: ChapterCardProps) {
                         <span>{phaseConfig.label}</span>
                     </span>
                     {chapter.practicality && <PracticalityBadge score={chapter.practicality} />}
-                    {chapter.studyScore !== undefined && <StarRating score={chapter.studyScore} />}
+                    {chapter.studyScore !== undefined && <StarRating score={chapter.studyScore / 5} />}
                 </div>
                 <span className="text-xs font-mono text-white/40">Ply {chapter.anchorPly}</span>
             </div>

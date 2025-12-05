@@ -7,8 +7,8 @@ object AnalysisModel:
 
   /** 엔진/멀티PV 설정. 환경변수로 덮어쓰기 가능. */
   final case class EngineConfig(
-      shallowDepth: Int = 8,
-      deepDepth: Int = 12,
+      shallowDepth: Int = 6,
+      deepDepth: Int = 14,
       shallowTimeMs: Int = 200,
       deepTimeMs: Int = 500,
       maxMultiPv: Int = 3,
@@ -36,8 +36,8 @@ object AnalysisModel:
       def intEnv(key: String, default: Int) =
         sys.env.get(key).flatMap(_.toIntOption).filter(_ > 0).getOrElse(default)
       EngineConfig(
-        shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 8),
-        deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 12),
+        shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 6),
+        deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 14),
         shallowTimeMs = intEnv("ANALYZE_SHALLOW_MS", 200),
         deepTimeMs = intEnv("ANALYZE_DEEP_MS", 500),
         maxMultiPv = intEnv("ANALYZE_MAX_MULTIPV", 3),

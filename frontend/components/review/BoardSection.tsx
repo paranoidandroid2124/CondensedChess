@@ -72,9 +72,6 @@ export function BoardSection({
           onClear={onClearArrows}
         />
       </div>
-      {previewLabel ? (
-        <div className="text-xs text-amber-100">Previewing line: {previewLabel}</div>
-      ) : null}
       {showAdvanced ? (
         <EvalSparkline
           timeline={timeline}

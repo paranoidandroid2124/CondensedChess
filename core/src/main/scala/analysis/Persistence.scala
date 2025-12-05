@@ -79,3 +79,20 @@ object Persistence:
         )
       result.toMap
     }.get
+
+  def saveAnalysisJson(gameId: String, json: String): Unit =
+    Using(DriverManager.getConnection(dbPath)) { conn =>
+      val pstmt = conn.prepareStatement("INSERT OR REPLACE INTO analysis_json (game_id, json, updated_at) VALUES (?, ?, ?)")
+      pstmt.setString(1, gameId)
+      pstmt.setString(2, json)
+      pstmt.setLong(3, System.currentTimeMillis())
+      pstmt.executeUpdate()
+    }.get
+
+  def loadAnalysisJson(gameId: String): Option[String] =
+    Using(DriverManager.getConnection(dbPath)) { conn =>
+      val pstmt = conn.prepareStatement("SELECT json FROM analysis_json WHERE game_id = ?")
+      pstmt.setString(1, gameId)
+      val rs = pstmt.executeQuery()
+      if rs.next() then Some(rs.getString("json")) else None
+    }.get

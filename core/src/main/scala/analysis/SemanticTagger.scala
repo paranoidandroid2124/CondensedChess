@@ -62,7 +62,7 @@ object SemanticTagger:
       // Positional character
       // Fortress Logic Split
       val endgame = isEndgame(board)
-      if c.fortress >= 0.6 && !endgame then tags += "locked_position" // Closed center in middlegame
+      if c.fortress >= 0.6 && !endgame && plyNumber > 20 then tags += "locked_position" // Closed center in middlegame
       
       if c.fortress >= 0.6 && endgame then
         val myMat = materialScore(board, perspective)
@@ -75,7 +75,7 @@ object SemanticTagger:
           tags += "dynamic_position"
           true
         else false
-      if !dynamicTagged && c.dry >= 0.6 then tags += "dry_position"
+      if !dynamicTagged && c.dry >= 0.6 && (plyNumber > 16 || isEndgame(board)) then tags += "dry_position"
       if c.drawish >= 0.7 && winPct >= 35.0 && winPct <= 65.0 then tags += "drawish_position"
       if c.pawnStorm >= 0.6 && boardPawnStorm then tags += "pawn_storm"
       

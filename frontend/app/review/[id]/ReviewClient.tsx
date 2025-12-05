@@ -44,6 +44,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     // Engine & Interactive State
     const { isAnalyzing, engineLines, toggleAnalysis } = useEngineAnalysis(review, previewFen, selectedPly);
     const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
+    const [userMoves, setUserMoves] = useState<EnhancedTimelineNode[]>([]); // Local moves added by user during analysis
 
     useEffect(() => {
         // Check for pending PGN in localStorage for instant display
@@ -92,7 +93,11 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const enhancedTimeline = useMemo<EnhancedTimelineNode[]>(() => buildEnhancedTimeline(review), [review]);
 
     // Use instantTimeline or empty array as fallback for timeline
-    const timelineToUse = review ? enhancedTimeline : (instantTimeline || []);
+    const baseTimeline = review ? enhancedTimeline : (instantTimeline || []);
+    const timelineToUse = useMemo(() => {
+        if (!userMoves.length) return baseTimeline;
+        return [...baseTimeline, ...userMoves];
+    }, [baseTimeline, userMoves]);
 
 
 
@@ -218,7 +223,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         setBranchSaving,
         setBranchError,
         setGuessState: () => { },
-        setGuessFeedback: () => { }
+        setGuessFeedback: () => { },
+        onUserMove: (node) => setUserMoves(prev => [...prev, node])
     });
     const isLoading = loading || !review;
     const elapsed = pollStartTime ? Math.floor((Date.now() - pollStartTime) / 1000) : 0;
@@ -277,14 +283,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         >
                             Save
                         </button>
-                        {previewFen ? (
-                            <button
-                                onClick={clearPreview}
-                                className="rounded-full border border-amber-400/60 px-3 py-1 text-amber-100 hover:border-amber-300/80"
-                            >
-                                Exit preview
-                            </button>
-                        ) : null}
                     </div>
                     <div className="text-sm text-white/70">
                         Opening: {review?.opening?.name ?? "Unknown"} {review?.opening?.eco ? `(${review.opening.eco})` : ""}

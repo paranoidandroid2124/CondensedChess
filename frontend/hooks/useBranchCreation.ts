@@ -28,6 +28,7 @@ export interface BranchCreationOptions {
   setBranchError: (msg: string | null) => void;
   setGuessState?: (state: GuessState) => void;
   setGuessFeedback?: (msg?: string) => void;
+  onUserMove?: (node: EnhancedTimelineNode) => void;
 }
 
 export function useBranchCreation(options: BranchCreationOptions) {
@@ -47,7 +48,8 @@ export function useBranchCreation(options: BranchCreationOptions) {
     setBranchSaving,
     setBranchError,
     setGuessState,
-    setGuessFeedback
+    setGuessFeedback,
+    onUserMove
   } = options;
 
   return useCallback(
@@ -84,7 +86,8 @@ export function useBranchCreation(options: BranchCreationOptions) {
       }
 
       // 2. Standard Branch Creation
-      if (!review || !enhancedTimeline.length || branchSaving) return false;
+      // Allow interaction if we have a timeline, even if review is not yet ready (preview mode)
+      if (!enhancedTimeline.length || branchSaving) return false;
       const anchorPly = selected?.ply ?? enhancedTimeline.at(-1)?.ply;
       const anchor = enhancedTimeline.find((t) => t.ply === anchorPly);
       if (!anchor) return false;
@@ -96,6 +99,47 @@ export function useBranchCreation(options: BranchCreationOptions) {
         const newFen = chess.fen();
 
         setPreviewFen(newFen);
+
+        // If review is not ready (analyzing), just show preview and return
+        if (!review) {
+          // Create a temporary node for the UI
+          if (onUserMove) {
+            const newNode: EnhancedTimelineNode = {
+              ply: (anchor.ply) + 1,
+              turn: anchor.turn === "white" ? "black" : "white",
+              san: move.san,
+              uci: uci,
+              fen: newFen,
+              fenBefore: anchor.fen,
+              judgement: undefined,
+              // Fill other fields with defaults or nulls
+              legalMoves: 0,
+              evalBeforeShallow: { depth: 0, lines: [] },
+              evalBeforeDeep: { depth: 0, lines: [] },
+              winPctBefore: 0,
+              deltaWinPct: 0,
+              epBefore: 0,
+              epAfter: 0,
+              epLoss: 0,
+              conceptsBefore: {} as any,
+              concepts: {} as any,
+              conceptDelta: {} as any,
+              semanticTags: [],
+              mistakeCategory: undefined,
+              phaseLabel: undefined,
+              practicality: undefined,
+              bestVsSecondGap: undefined,
+              bestVsPlayedGap: undefined,
+              special: undefined,
+              winPctAfterForPlayer: undefined,
+              features: {} as any
+            };
+            onUserMove(newNode);
+            setSelectedPly(newNode.ply);
+          }
+          return true;
+        }
+
         setBranchSaving(true);
         setBranchError(null);
 

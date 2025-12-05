@@ -23,7 +23,7 @@ export default function FeatureHighlights() {
         },
         {
             title: "Book-style Narrative",
-            desc: "Each critical moment explained in 2-3 lines, Doknjas / Sadler style.",
+            desc: "Each critical moment explained in 2-3 lines.",
             detail: "LLM-generated human-friendly commentary translates engine evaluations.",
             badge: "LLM",
             color: "from-accent-teal/20 to-green-500/20",
