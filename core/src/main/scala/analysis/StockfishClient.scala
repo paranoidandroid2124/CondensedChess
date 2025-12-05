@@ -1,18 +1,18 @@
 package chess
 package analysis
 
-import java.util.concurrent.atomic.{ AtomicBoolean, AtomicReference }
-
+import java.io.{ BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter }
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable
-import scala.sys.process.{ Process, ProcessIO }
+import scala.compiletime.uninitialized
 
-/** 간단한 UCI Stockfish 래퍼.
+/** Persistent UCI Stockfish wrapper.
   *
-  * - depth 지정, MultiPV 지원
-  * - info line에서 cp/mate/pv/depth/multipv 파싱
-  * - bestmove까지 blocking
+  * - Keeps the engine process alive to avoid startup overhead.
+  * - Supports depth + movetime constraints.
+  * - Must call close() to release resources.
   */
-final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN", "stockfish")):
+final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN", "stockfish")) extends AutoCloseable:
 
   case class Line(
       multiPv: Int,
@@ -22,12 +22,39 @@ final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN",
       pv: List[String]
   ):
     lazy val cpOrMate: Int = cp.getOrElse {
-      // mate in N → 큰 절댓값으로 취급(부호는 side-to-move 기준)
+      // mate in N → large value
       mate.fold(0)(m => if m > 0 then 32000 - m else -32000 - m)
     }
     lazy val winPercent: Double = StockfishClient.cpToWinPercent(cpOrMate)
 
   case class EvalResult(lines: List[Line], bestmove: Option[String])
+
+  private val processBuilder = new ProcessBuilder(command)
+  private var process: Process = uninitialized
+  private var reader: BufferedReader = uninitialized
+  private var writer: BufferedWriter = uninitialized
+  private val isClosed = new AtomicBoolean(false)
+
+  // Initialize immediately
+  start()
+
+  private def start(): Unit =
+    try
+      process = processBuilder.start()
+      reader = new BufferedReader(new InputStreamReader(process.getInputStream))
+      writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
+      
+      sendCommand("uci")
+      // Consume header until uciok
+      var line = ""
+      while { line = reader.readLine(); line != null && line != "uciok" } do ()
+      
+      sendCommand("isready")
+      while { line = reader.readLine(); line != null && line != "readyok" } do ()
+    catch
+      case e: Throwable =>
+        System.err.println(s"[StockfishClient] Failed to start: ${e.getMessage}")
+        throw e
 
   def evaluateFen(
       fen: String,
@@ -35,58 +62,54 @@ final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN",
       multiPv: Int = 1,
       moveTimeMs: Option[Int] = Some(500)
   ): Either[String, EvalResult] =
-    runEngine(fen, depth, multiPv, moveTimeMs)
+    if isClosed.get() then return Left("Client closed")
+    
+    try
+      this.synchronized {
+        sendCommand(s"setoption name MultiPV value $multiPv")
+        sendCommand(s"position fen $fen")
+        
+        val goCmd = moveTimeMs match
+          case Some(ms) => s"go depth $depth movetime $ms"
+          case None     => s"go depth $depth"
+        
+        sendCommand(goCmd)
+        
+        val infoByPv = mutable.Map.empty[Int, Line]
+        var best: Option[String] = None
+        var line = ""
+        var done = false
+        
+        while !done && { line = reader.readLine(); line != null } do
+          if line.startsWith("bestmove") then
+            best = line.split("\\s+").lift(1)
+            done = true
+          else if line.startsWith("info") then
+            parseInfo(line).foreach { l => infoByPv.update(l.multiPv, l) }
+            
+        val lines = infoByPv.toList.sortBy(_._1).map(_._2)
+        Right(EvalResult(lines, best))
+      }
+    catch
+      case e: Throwable => Left(s"Engine error: ${e.getMessage}")
 
-  private def runEngine(fen: String, depth: Int, multiPv: Int, moveTimeMs: Option[Int]): Either[String, EvalResult] =
-    val infoByPv = mutable.Map.empty[Int, Line]
-    var best: Option[String] = None
-    val errBuffer = new StringBuilder
-    val stop = new AtomicBoolean(false)
-    val writerRef = new AtomicReference[Option[java.io.PrintWriter]](None)
+  private def sendCommand(cmd: String): Unit =
+    writer.write(cmd)
+    writer.newLine()
+    writer.flush()
 
-    val processIO = new ProcessIO(
-      in => // writer
-        val writer = new java.io.PrintWriter(in)
-        writerRef.set(Some(writer))
-        writer.println("uci")
-        writer.println(s"setoption name MultiPV value $multiPv")
-        writer.println("isready")
-        writer.flush()
-        writer.println(s"position fen $fen")
-        val goCmd = moveTimeMs.fold(s"go depth $depth")(mt => s"go movetime $mt")
-        writer.println(goCmd)
-        writer.flush()
-      ,
-      out => // reader
-        val source = scala.io.Source.fromInputStream(out)
-        val iter = source.getLines()
-        try
-          while !stop.get() && iter.hasNext do
-            val line = iter.next()
-            if line.startsWith("bestmove") then
-              best = line.split("\\s+").lift(1)
-              stop.set(true)
-              writerRef.get().foreach { w =>
-                w.println("quit")
-                w.flush()
-                w.close()
-              }
-            else if line.startsWith("info") then
-              parseInfo(line).foreach { l => infoByPv.update(l.multiPv, l) }
-        finally source.close()
-      ,
-      err => // stderr collector
-        val source = scala.io.Source.fromInputStream(err)
-        try errBuffer.appendAll(source.mkString)
-        finally source.close()
-    )
-
-    val process = Process(command).run(processIO)
-    val exit = process.exitValue() // waits until quit
-
-    val lines = infoByPv.toList.sortBy(_._1).map(_._2)
-    if exit != 0 && lines.isEmpty then Left(s"Stockfish exited $exit: ${errBuffer.result()}")
-    else Right(EvalResult(lines, best))
+  override def close(): Unit =
+    if isClosed.compareAndSet(false, true) then
+      try
+        if writer != null then
+          writer.write("quit")
+          writer.newLine()
+          writer.flush()
+          writer.close()
+        if reader != null then reader.close()
+        if process != null then process.destroy()
+      catch
+        case e: Throwable => System.err.println(s"[StockfishClient] Error closing: ${e.getMessage}")
 
   private def parseInfo(line: String): Option[Line] =
     // info depth 18 seldepth 30 multipv 1 score cp 23 nodes ... pv e2e4 e7e5 ...

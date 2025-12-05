@@ -46,47 +46,52 @@ object AnalyzePgn:
         val opening = OpeningDb.searchWithTransposition(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
-        val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext, jobId)
-        // val timeline = StudySignals.withStudySignals(timelineRaw, opening) // Assuming this is done inside buildTimeline or separate
-        // Wait, original code had: val timeline = StudySignals.withStudySignals(timelineRaw, opening)
-        val timeline = StudySignals.withStudySignals(timelineRaw, opening)
-        
-        jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
-        
-        // Stage 2: Critical Detection (10% weight)
-        jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 0.0))
-        
-        val critical = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys)
-        val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
-        val root = Some(ReviewTreeBuilder.buildTree(timeline, critical))
-        val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
-        val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
-        val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)
-        
-        jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 1.0))
-        
-        // Stage 3: LLM will be tracked in ApiServer
-        // Stage 4: Finalization
-        jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.FINALIZATION, 0.0))
-        
-        Right(
-          Output(
-            opening,
-            openingStats,
-            timeline,
-            oppositeColorBishops,
-            critical,
-            openingSummary,
-            bookExitComment,
-            openingTrend,
-            None, // summaryText
-            root = root,
-            studyChapters = studyChapters,
-            pgn = pgn,
-            accuracyWhite = Some(accWhite),
-            accuracyBlack = Some(accBlack)
+        try
+          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 0.05)) // Setup done
+          
+          val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext, jobId)
+          // val timeline = StudySignals.withStudySignals(timelineRaw, opening) // Assuming this is done inside buildTimeline or separate
+          // Wait, original code had: val timeline = StudySignals.withStudySignals(timelineRaw, opening)
+          val timeline = StudySignals.withStudySignals(timelineRaw, opening)
+          
+          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
+          
+          // Stage 2: Critical Detection (10% weight)
+          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 0.0))
+          
+          val critical = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
+          val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
+          val root = Some(ReviewTreeBuilder.buildTree(timeline, critical))
+          val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
+          val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
+          val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)
+          
+          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 1.0))
+          
+          // Stage 3: LLM will be tracked in ApiServer
+          // Stage 4: Finalization
+          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.FINALIZATION, 0.0))
+          
+          Right(
+            Output(
+              opening,
+              openingStats,
+              timeline,
+              oppositeColorBishops,
+              critical,
+              openingSummary,
+              bookExitComment,
+              openingTrend,
+              None, // summaryText
+              root = root,
+              studyChapters = studyChapters,
+              pgn = pgn,
+              accuracyWhite = Some(accWhite),
+              accuracyBlack = Some(accBlack)
+            )
           )
-        )
+        finally
+          client.close()
 
   def render(output: Output): String = AnalysisSerializer.render(output)
 

@@ -113,7 +113,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     }, [enhancedTimeline, selectedPly]);
 
     const conceptSpikes = useMemo(() => buildConceptSpikes(enhancedTimeline), [enhancedTimeline]);
-    const selected = useMemo(() => findSelected(enhancedTimeline, selectedPly), [selectedPly, enhancedTimeline]);
+    const selected = useMemo(() => findSelected(timelineToUse, selectedPly), [selectedPly, timelineToUse]);
 
     const activeMove = useMemo<EnhancedTimelineNode | null>(() => selected, [selected]);
     const activeCritical = review?.critical.find(c => c.ply === activeMove?.ply);

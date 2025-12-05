@@ -55,18 +55,27 @@ object LlmAnnotator:
     val preview = renderPreview(output, timelineByPly)
     val critPreview = criticalPreview(output, timelineByPly)
 
-    // Parallelize LLM calls
+    // Parallelize LLM calls with individual recovery
     val summaryFuture = Future {
       LlmClient.summarize(preview).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
+    }.recover { case e: Throwable =>
+      System.err.println(s"[LlmAnnotator] Summary failed: ${e.getMessage}")
+      fallbackSummary(output)
     }
     
     val criticalFuture = Future {
       filterWithLog(LlmClient.criticalComments(critPreview), maxMoveNumber, "critical")
+    }.recover { case e: Throwable =>
+      System.err.println(s"[LlmAnnotator] Critical comments failed: ${e.getMessage}")
+      Map.empty[Int, String]
     }
 
     val studyFuture = Future {
       if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(preview)
       else Map.empty[String, LlmClient.ChapterAnnotation]
+    }.recover { case e: Throwable =>
+      System.err.println(s"[LlmAnnotator] Study comments failed: ${e.getMessage}")
+      Map.empty[String, LlmClient.ChapterAnnotation]
     }
 
     val (summary, criticalComments, studyAnnotations) = 
@@ -81,7 +90,7 @@ object LlmAnnotator:
         )
       catch
         case e: Throwable =>
-          System.err.println(s"[LlmAnnotator] Parallel execution failed: ${e.getMessage}")
+          System.err.println(s"[LlmAnnotator] Await failed (timeout?): ${e.getMessage}")
           (fallbackSummary(output), Map.empty[Int, String], Map.empty[String, LlmClient.ChapterAnnotation])
 
     // Merge critical comments with key move comments from chapters

@@ -18,6 +18,22 @@ object LlmClient:
   private val endpoint = s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key="
   private val http = HttpClient.newHttpClient()
 
+  private def sendWithRetry(req: HttpRequest, retries: Int = 3, delayMs: Int = 2000): HttpResponse[String] =
+    try
+      val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+      if (res.statusCode() == 429 || res.statusCode() >= 500) && retries > 0 then
+        System.err.println(s"[LlmClient] Rate limit/Server error (${res.statusCode()}). Retrying in ${delayMs}ms...")
+        Thread.sleep(delayMs)
+        sendWithRetry(req, retries - 1, delayMs * 2)
+      else
+        res
+    catch
+      case e: Throwable if retries > 0 =>
+        System.err.println(s"[LlmClient] Network error: ${e.getMessage}. Retrying in ${delayMs}ms...")
+        Thread.sleep(delayMs)
+        sendWithRetry(req, retries - 1, delayMs * 2)
+      case e: Throwable => throw e
+
   def summarize(json: String): Option[String] =
     apiKey.flatMap { key =>
       val prompt =
@@ -39,7 +55,7 @@ object LlmClient:
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build()
       try
-        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+        val res = sendWithRetry(req)
         if res.statusCode() >= 200 && res.statusCode() < 300 then
           extractText(res.body())
         else
@@ -89,7 +105,7 @@ object LlmClient:
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build()
       try
-        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+        val res = sendWithRetry(req)
         if res.statusCode() >= 200 && res.statusCode() < 300 then
           extractText(res.body()).map { text =>
              try
@@ -165,7 +181,7 @@ object LlmClient:
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .build()
       try
-        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+        val res = sendWithRetry(req)
         if res.statusCode() >= 200 && res.statusCode() < 300 then
           extractText(res.body()).map(parseChapterAnnotationJson)
         else

@@ -7,7 +7,7 @@ import PhaseClassifier.phaseTransition
 object CriticalDetector:
   private final case class EvalCacheKey(fen: String, depth: Int, multiPv: Int, timeMs: Int)
 
-  def detectCritical(timeline: Vector[PlyOutput], client: StockfishClient, config: EngineConfig, llmRequestedPlys: Set[Int]): Vector[CriticalNode] =
+  def detectCritical(timeline: Vector[PlyOutput], client: StockfishClient, config: EngineConfig, llmRequestedPlys: Set[Int], jobId: Option[String] = None): Vector[CriticalNode] =
     val evalCache = scala.collection.mutable.Map.empty[EvalCacheKey, EngineEval]
     val judgementBoost: Map[String, Double] = Map(
       "blunder" -> 15.0,
@@ -49,7 +49,14 @@ object CriticalDetector:
       val key = EvalCacheKey(fen, depth, multiPv, time)
       evalCache.getOrElseUpdate(key, EngineProbe.evalFen(client, fen, depth = depth, multiPv = multiPv, moveTimeMs = Some(time)))
 
-    scored.sortBy { case (_, (s, _, _)) => -s }.take(cap).map { case (ply, (_, gap, phaseLabel)) =>
+    val topNodes = scored.sortBy { case (_, (s, _, _)) => -s }.take(cap)
+    val totalCritical = topNodes.size
+
+    topNodes.zipWithIndex.map { case ((ply, (_, gap, phaseLabel)), idx) =>
+      jobId.foreach { id =>
+        val prog = idx.toDouble / totalCritical
+        AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, prog)
+      }
       val reason =
         if ply.judgement == "blunder" then "ΔWin% blunder spike"
         else if ply.judgement == "mistake" then "ΔWin% mistake"
