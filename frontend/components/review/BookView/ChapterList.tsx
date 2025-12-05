@@ -41,8 +41,8 @@ export function ChapterList({ chapters, activeChapterPly, onSelectChapter }: Cha
                                 {/* Score Stars */}
                                 {chapter.studyScore && (
                                     <div className="flex text-[10px] text-amber-400">
-                                        {"★".repeat(Math.min(5, Math.ceil(chapter.studyScore / 20)))}
-                                        <span className="text-white/20">{"★".repeat(5 - Math.min(5, Math.ceil(chapter.studyScore / 20)))}</span>
+                                        {"★".repeat(Math.min(5, Math.round(chapter.studyScore)))}
+                                        <span className="text-white/20">{"★".repeat(5 - Math.min(5, Math.round(chapter.studyScore)))}</span>
                                     </div>
                                 )}
 

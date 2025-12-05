@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { MiniBoard } from "../../common/MiniBoard";
 import type { ReviewTreeNode, StudyChapter, StudyLine } from "../../../types/review";
 import { formatSanHuman } from "../../../lib/review-format";
 import { getTagLabel } from "../../StudyTab";
 import { HorizontalTreeView } from "./HorizontalTreeView";
+import { TreeModal } from "../TreeModal";
 
 interface ChapterDetailProps {
     chapter: StudyChapter;
@@ -12,11 +13,9 @@ interface ChapterDetailProps {
     currentPly: number | null;
 }
 
-
-
-
-
 export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly }: ChapterDetailProps) {
+    const [showTreeModal, setShowTreeModal] = useState(false);
+
     return (
         <div className="flex flex-col gap-4 pb-20">
             {/* Compact Header */}
@@ -77,9 +76,18 @@ export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly }: Ch
             </div>
 
             {/* Narrative Flow - Now outside header, uses full width */}
-            <div className="flex flex-col gap-3 overflow-x-auto pb-4">
+            <div className="flex flex-col gap-3 overflow-x-auto pb-4 relative">
                 {chapter.rootNode ? (
-                    <div className="min-w-full p-4">
+                    <div className="min-w-full p-4 relative">
+                        <button
+                            onClick={() => setShowTreeModal(true)}
+                            className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                            title="Expand Tree View"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                        </button>
                         <HorizontalTreeView
                             rootNode={chapter.rootNode}
                             currentPly={currentPly}
@@ -93,6 +101,15 @@ export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly }: Ch
                     </div>
                 )}
             </div>
+
+            {showTreeModal && chapter.rootNode && (
+                <TreeModal
+                    rootNode={chapter.rootNode}
+                    currentPly={currentPly}
+                    onSelectPly={onSelectPly}
+                    onClose={() => setShowTreeModal(false)}
+                />
+            )}
         </div>
     );
 }

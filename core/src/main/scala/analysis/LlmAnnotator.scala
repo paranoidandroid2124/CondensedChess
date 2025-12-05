@@ -4,11 +4,18 @@ package analysis
 import ujson.*
 import AnalyzeUtils.{ pvToSan, uciToSanSingle }
 
+import scala.concurrent.{ Future, Await, ExecutionContext }
+import scala.concurrent.duration.*
+import java.util.concurrent.Executors
+
 /** Lightweight LLM annotator: single-call helpers for summary, mainline short comments,
   * and critical comments. All calls are optional (skip if key missing or failure).
   * Parsing is best-effort; JSON mode 응답을 기대하지만 파싱 실패 시 무시합니다.
   */
 object LlmAnnotator:
+  private val executor = Executors.newCachedThreadPool()
+  private given ExecutionContext = ExecutionContext.fromExecutor(executor)
+
   private def clampNodes[T](xs: Seq[T], max: Int): Seq[T] = xs.take(max)
   private def pctInt(d: Double): Int = math.round(if d > 1.0 then d else d * 100.0).toInt
   private def round2(d: Double): Double = math.round(d * 100.0) / 100.0
@@ -45,14 +52,37 @@ object LlmAnnotator:
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
     val maxMoveNumber = math.max(1, (output.timeline.lastOption.map(_.ply.value).getOrElse(1) + 1) / 2)
-    val summary = LlmClient.summarize(renderPreview(output, timelineByPly)).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
-    // one-line timeline comments are intentionally disabled; focus on structured critical comments instead
-    val criticalComments = filterWithLog(LlmClient.criticalComments(criticalPreview(output, timelineByPly)), maxMoveNumber, "critical")
+    val preview = renderPreview(output, timelineByPly)
+    val critPreview = criticalPreview(output, timelineByPly)
+
+    // Parallelize LLM calls
+    val summaryFuture = Future {
+      LlmClient.summarize(preview).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
+    }
     
-    // Unified Annotation: Get Chapter Summaries + Key Move Comments in one go
-    val studyAnnotations = 
-      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(renderPreview(output, timelineByPly)) 
+    val criticalFuture = Future {
+      filterWithLog(LlmClient.criticalComments(critPreview), maxMoveNumber, "critical")
+    }
+
+    val studyFuture = Future {
+      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(preview)
       else Map.empty[String, LlmClient.ChapterAnnotation]
+    }
+
+    val (summary, criticalComments, studyAnnotations) = 
+      try
+        Await.result(
+          for
+            s <- summaryFuture
+            c <- criticalFuture
+            st <- studyFuture
+          yield (s, c, st),
+          120.seconds
+        )
+      catch
+        case e: Throwable =>
+          System.err.println(s"[LlmAnnotator] Parallel execution failed: ${e.getMessage}")
+          (fallbackSummary(output), Map.empty[Int, String], Map.empty[String, LlmClient.ChapterAnnotation])
 
     // Merge critical comments with key move comments from chapters
     // Priority: Critical > Chapter Key Move

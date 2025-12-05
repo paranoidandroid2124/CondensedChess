@@ -24,7 +24,7 @@ object PracticalityScorer:
     val horizon = computeHorizon(tacticalDepth, context)
     val naturalness = computeNaturalness(sacrificeQuality, tags)
 
-    val overall = 0.4 * robustness + 0.4 * horizon + 0.2 * naturalness
+    val overall = 0.3 * robustness + 0.5 * horizon + 0.2 * naturalness
     val categoryGlobal = categorize(overall)
     
     val categoryPersonal = context.flatMap { ctx =>
@@ -73,9 +73,9 @@ object PracticalityScorer:
     clamp(1.0 - (sacrificePenalty + planShiftPenalty))
 
   private def categorize(score: Double): String =
-    if score >= 0.8 then "Human-Friendly"
-    else if score >= 0.5 then "Challenging"
-    else if score >= 0.2 then "Engine-Like"
+    if score >= 0.85 then "Human-Friendly"
+    else if score >= 0.6 then "Challenging"
+    else if score >= 0.3 then "Engine-Like"
     else "Computer-Only"
 
   private def categorizePersonal(

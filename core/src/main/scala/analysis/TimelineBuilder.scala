@@ -23,7 +23,11 @@ object TimelineBuilder:
     val totalMoves = replay.chronoMoves.size
     
     replay.chronoMoves.zipWithIndex.foreach { case (mod, idx) =>
-      jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, idx.toDouble / totalMoves))
+      val prog = idx.toDouble / totalMoves
+      jobId.foreach { id => 
+        if (idx % 5 == 0) println(s"[TimelineBuilder] $id progress: $prog")
+        AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
+      }
       val player = game.position.color
       val legalCount = game.position.legalMoves.size
       val multiPv = math.min(config.maxMultiPv, math.max(1, legalCount))

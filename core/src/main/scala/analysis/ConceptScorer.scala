@@ -40,7 +40,7 @@ object ConceptScorer:
     val pawnStorm = pawnStormScore(position, sideToMove)
     val kingPressure = clamp(features.kingRingPressure / 8.0)
     val space = clamp(features.spaceControl / 16.0)
-    val dynamic = clamp(0.25 * tacticalDepth + 0.2 * blunderRisk + 0.2 * kingPressure + 0.2 * space + 0.15 * pawnStorm)
+    val dynamic = clamp(0.3 * tacticalDepth + 0.2 * blunderRisk + 0.2 * kingPressure + 0.2 * space + 0.2 * pawnStorm)
     val drawish = clamp((1.0 - dynamic) * smallEval(evalDeepWin) * smallImbalance(features, oppFeatures))
     val imbalanced = clamp(
       0.35 * materialImbalance(features, oppFeatures) + 0.35 * pawnStructureImbalance(features, oppFeatures) + 0.3 * math.abs(space - clamp(oppFeatures.spaceControl / 16.0))

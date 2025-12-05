@@ -116,7 +116,9 @@ object ApiServer:
             val annotated = LlmAnnotator.annotate(output)
             AnalysisProgressTracker.update(jobId, AnalysisStage.FINALIZATION, 1.0)
             val json = AnalyzePgn.render(annotated)
-            jobs.put(jobId, Job(status = "ready", result = Some(withJobId(json, jobId)), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
+            val finalJson = withJobId(json, jobId)
+            Persistence.saveAnalysisJson(jobId, finalJson)
+            jobs.put(jobId, Job(status = "ready", result = Some(finalJson), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
             AnalysisProgressTracker.remove(jobId)
           case Left(err) =>
             jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
@@ -141,7 +143,9 @@ object ApiServer:
       case _ :: jobId :: Nil =>
         val job = jobs.get(jobId)
         if job == null then
-          respond(exchange, 404, """{"error":"not_found"}""")
+          Persistence.loadAnalysisJson(jobId) match
+            case Some(json) => respond(exchange, 200, json)
+            case None => respond(exchange, 404, """{"error":"not_found"}""")
         else job.status match
           case "ready" =>
             respond(exchange, 200, job.result.getOrElse("""{"error":"missing_result"}"""))
