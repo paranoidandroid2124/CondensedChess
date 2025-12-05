@@ -91,6 +91,11 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     const enhancedTimeline = useMemo<EnhancedTimelineNode[]>(() => buildEnhancedTimeline(review), [review]);
 
+    // Use instantTimeline or empty array as fallback for timeline
+    const timelineToUse = review ? enhancedTimeline : (instantTimeline || []);
+
+
+
     // Build SAN sequence up to selected ply for opening lookup
     const sanSequence = useMemo(() => {
         if (!enhancedTimeline.length) return [] as string[];
@@ -195,9 +200,11 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         return arr;
     }, [activeMove, previewArrows, customArrows]);
 
+
+
     const handleBoardDrop = useBranchCreation({
         review,
-        enhancedTimeline,
+        enhancedTimeline: timelineToUse,
         selected,
         jobId,
         isGuessing: false,
@@ -213,15 +220,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         setGuessState: () => { },
         setGuessFeedback: () => { }
     });
-
-    useEffect(() => {
-        // selecting another ply exits preview
-        clearPreview();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedPly]);
-
-    // Use instantTimeline or empty array as fallback for timeline
-    const timelineToUse = review ? enhancedTimeline : (instantTimeline || []);
     const isLoading = loading || !review;
     const elapsed = pollStartTime ? Math.floor((Date.now() - pollStartTime) / 1000) : 0;
     const hasMinimalData = timelineToUse.length > 0 || review;
