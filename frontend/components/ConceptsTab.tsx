@@ -5,6 +5,7 @@ type ConceptsTabProps = {
     review: Review | null;
     currentConcepts?: Concepts;
     currentSemanticTags?: string[];
+    conceptDelta?: Concepts;
 };
 
 const tagLabelMap: Record<string, string> = {
@@ -93,7 +94,7 @@ export function getTagColor(tag: string): string {
     return key ? tagColorMap[key] : tagColorMap.default;
 }
 
-export function ConceptsTab({ review, currentConcepts, currentSemanticTags }: ConceptsTabProps) {
+export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conceptDelta }: ConceptsTabProps) {
     if (!review) return null;
 
     return (
@@ -130,6 +131,36 @@ export function ConceptsTab({ review, currentConcepts, currentSemanticTags }: Co
             {currentConcepts && (
                 <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-white/80">Current Position Concepts</h3>
+
+                    {/* Semantic Tags */}
+                    {currentSemanticTags && currentSemanticTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {currentSemanticTags.map(tag => (
+                                <span key={tag} className={`rounded px-2 py-1 text-xs font-medium border ${getTagColor(tag)}`}>
+                                    {getTagLabel(tag)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Concept Deltas */}
+                    {conceptDelta && (
+                        <div className="mb-4 space-y-2">
+                            <h4 className="text-xs font-medium text-white/60 uppercase tracking-wider">Significant Changes</h4>
+                            {Object.entries(conceptDelta)
+                                .filter(([, val]) => typeof val === 'number' && Math.abs(val) >= 0.1)
+                                .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
+                                .map(([key, val]) => (
+                                    <div key={key} className="flex items-center justify-between text-xs">
+                                        <span className="text-white/70 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                        <span className={`font-mono ${(val as number) > 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                                            {(val as number) > 0 ? '+' : ''}{(val as number).toFixed(2)}
+                                        </span>
+                                    </div>
+                                ))}
+                        </div>
+                    )}
+
                     <div className="grid gap-2">
                         {Object.entries(currentConcepts)
                             .filter(([, val]) => typeof val === 'number')

@@ -31,7 +31,10 @@ object NarrativeBuilder:
       "tactical_complexity",
       "locked_position",
       "strong_knight",
-      "bishop_pair_advantage"
+      "bishop_pair_advantage",
+      "restricted_bishop",
+      "weak_f7",
+      "weak_f2"
     )
     val priority = tags.filter(priorityTags.contains)
     val other = tags.filterNot(priorityTags.contains)
@@ -43,32 +46,36 @@ object NarrativeBuilder:
     
     // Tag-based narrative fragments
     val fragments = keyTags.flatMap {
-      case "king_safety_crisis" => Some("A menacing attack threatens the exposed king")
-      case "fortress_defense" => Some("The defender constructs an impregnable fortress")
-      case "locked_position" => Some("The locked pawn structure creates strategic deadlock")
-      case "conversion_difficulty" => Some("Despite the advantage, converting proves challenging")
-      case "conversion_difficulty_endgame" => Some("The technical endgame demands precision")
-      case "tactical_complexity" => Some("Tactical complications blur the evaluation")
-      case "strong_knight" => Some("A powerfully placed knight dominates the position")
-      case "bishop_pair_advantage" => Some("The bishop pair exerts long-range pressure")
-      case "pawn_storm" => Some("An aggressive pawn storm advances menacingly")
-      case "active_rooks" => Some("Active rooks infiltrate the opponent's position")
-      case "opposite_color_bishops" => Some("Opposite-colored bishops create drawing chances")
+      case "king_safety_crisis" => Some("a direct attack against the king becomes realistic")
+      case "fortress_defense" => Some("the defender is close to building a fortress despite material deficit")
+      case "locked_position" => Some("the locked pawn structure leaves both sides with limited pawn breaks and long-term manoeuvring")
+      case "conversion_difficulty" => Some("converting the edge will require patience and clean technique")
+      case "conversion_difficulty_endgame" => Some("the technical endgame demands precision")
+      case "tactical_complexity" => Some("tactical complications blur the evaluation")
+      case "strong_knight" => Some("a powerfully placed knight dominates the position")
+      case "restricted_bishop" => Some("a bishop is restricted by its own pawn chain")
+      case "bishop_pair_advantage" => Some("the bishop pair exerts long-range pressure")
+      case "pawn_storm" => Some("an aggressive pawn storm advances with tempo")
+      case "active_rooks" => Some("active rooks infiltrate along open files")
+      case "opposite_color_bishops" => Some("opposite-colored bishops tilt the game toward drawing motifs")
+      case "weak_f7" | "weak_f2" => Some("the home-square weakness on f7/f2 remains a long-term target")
       case _ => None
     }
 
     // Arc-based framing
     val arcFraming = arc match
-      case Arc.RisingTension => "The pressure mounts as"
-      case Arc.Collapse => "The advantage evaporates when"
-      case Arc.Turnaround => "A dramatic turnaround occurs as"
-      case Arc.SteadyGrind => "The position subtly shifts as"
-      case Arc.CriticalMoment => "A critical juncture arrives when"
+      case Arc.RisingTension => "The pressure increases as"
+      case Arc.Collapse => "The advantage slips away when"
+      case Arc.Turnaround => "The game turns in favour of the other side when"
+      case Arc.SteadyGrind => "The position slowly shifts as"
+      case Arc.CriticalMoment => "A critical moment arises when"
 
-    if fragments.nonEmpty then
-      s"$arcFraming ${fragments.mkString(", ")}."
-    else
-      s"$arcFraming the position's character changes."
+    val joined =
+      if fragments.isEmpty then "one side improves its position"
+      else if fragments.length == 1 then fragments.head
+      else fragments.init.mkString(", ") + ", and " + fragments.last
+
+    s"$arcFraming $joined."
 
   /** Build rich context for LLM prompt */
   def buildContext(
@@ -138,14 +145,14 @@ NARRATIVE TEMPLATE:
 $template
 
 INSTRUCTIONS:
-Write a 2-3 sentence narrative as if you're writing a chess book chapter.
-Focus on:
-1. WHY this moment matters (strategic/tactical turning point)
-2. WHAT element changed (using the key themes above)
-3. HOW it connects to the overall game story (use the arc context)
-${if opponentContext.nonEmpty then "4. If this is a Pressure Point, emphasize how it challenges your opponent" else ""}
-
-Tone: Educational, insightful, specific (not generic).
+Write 2–3 sentences in the style of a modern instructional chess book:
+- First state the evaluation shift clearly (clear edge / slight edge / equal / unpleasant defence).
+- Then explain the key plan or idea (intending / aiming to / preparing to).
+- Add a concise takeaway naming the central theme (e.g., "Theme/Takeaway: locked structure → manoeuvre slowly").
+- Use concrete chess vocabulary; avoid hype or filler.
+- Keep paragraphs short and objective.
+Optional: you may use a brief "Question: …? Answer: …" to highlight an instructive choice.
+${if opponentContext.nonEmpty then "- If this is a Pressure Point, stress why the defence is difficult." else ""}
     """.trim
 
   private def fmt(d: Double): String = f"$d%.1f"
