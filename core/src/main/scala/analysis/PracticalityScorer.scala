@@ -44,23 +44,25 @@ object PracticalityScorer:
       val best = topLines.head.winPct
       val worst = topLines.last.winPct
       val spread = (best - worst).abs
-      // If spread is 20% or more, robustness is 0.
-      // If spread is 0%, robustness is 1.
-      clamp(1.0 - (spread / 20.0))
+      // v2: Exponential decay instead of linear
+      // tau=20.0 calibrated so spread=3.2% → robustness≈0.85
+      val tau = 20.0
+      math.exp(-spread / tau).clamp(0.0, 1.0)
 
   private def computeHorizon(tacticalDepth: Double, context: Option[AnalyzeDomain.PlayerContext]): Double =
     // tacticalDepth is typically 0.0 to 1.0 (shallow vs deep eval gap)
     // High tacticalDepth means the advantage is hidden deep -> Low Horizon
     
-    // Time control adjustment:
-    // If Blitz/Rapid, we penalize hidden tactics more heavily (horizon is harder to see)
-    val weight = context.flatMap(_.timeControl).map { tc =>
-      if tc.isBlitz then 1.2      // Harder to see deep tactics in blitz
-      else if tc.isRapid then 1.1 // Slightly harder in rapid
+    // v2: Exponential decay with saturating behavior
+    // Time control adjustment: higher k = steeper penalty
+    val k = context.flatMap(_.timeControl).map { tc =>
+      if tc.isBlitz then 1.8      // Steeper penalty in blitz
+      else if tc.isRapid then 1.4 // Moderate penalty in rapid
       else 1.0
     }.getOrElse(1.0)
 
-    clamp(1.0 - (tacticalDepth * weight))
+    // exp(-k*tacticalDepth): 0→1.0, 0.5→~0.4-0.6, 1.0→~0.14-0.17
+    math.exp(-k * tacticalDepth).clamp(0.0, 1.0)
 
   private def computeNaturalness(sacrificeQuality: Double, tags: List[String]): Double =
     // Penalty for sacrifice

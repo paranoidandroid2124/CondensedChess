@@ -10,6 +10,9 @@ import { BoardSection } from "../../../components/review/BoardSection";
 import { CompressedMoveList } from "../../../components/CompressedMoveList";
 import { OpeningStatsPanel } from "../../../components/review/OpeningStatsPanel";
 import { StudyTab } from "../../../components/StudyTab";
+import { ConceptsTab } from "../../../components/ConceptsTab";
+import { TimelineView } from "../../../components/review/TimelineView";
+import { VariationTree } from "../../../components/review/VariationTree";
 import { BestAlternatives } from "../../../components/BestAlternatives";
 import { QuickJump } from "../../../components/common/QuickJump";
 import { ProgressBanner } from "../../../components/review/ProgressBanner";
@@ -20,6 +23,7 @@ import { useEngineAnalysis } from "../../../hooks/useEngineAnalysis";
 import { useBranchCreation } from "../../../hooks/useBranchCreation";
 import { useGuessMode } from "../../../hooks/useGuessMode";
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, type EnhancedTimelineNode } from "../../../lib/review-derived";
+import { CommentCard } from "../../../components/review/CommentCard";
 
 
 
@@ -36,7 +40,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const [previewFen, setPreviewFen] = useState<string | null>(null);
     const [previewArrows, setPreviewArrows] = useState<Array<[string, string, string?]>>([]);
     const [previewLabel, setPreviewLabel] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<"engine" | "opening" | "moves" | "study" | "concepts">("engine");
+    const [activeTab, setActiveTab] = useState<"opening" | "moves" | "study" | "concepts" | "tree">("concepts");
     const [drawingColor, setDrawingColor] = useState<"green" | "red" | "blue" | "orange">("green");
     const jobId = review?.jobId ?? reviewId;
     const [instantPgn, setInstantPgn] = useState<string | null>(null);
@@ -132,6 +136,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const selected = useMemo(() => findSelected(enhancedTimeline, selectedPly), [selectedPly, enhancedTimeline]);
 
     const activeMove = useMemo<EnhancedTimelineNode | null>(() => selected, [selected]);
+    const activeCritical = review?.critical.find(c => c.ply === activeMove?.ply);
 
     useEffect(() => {
         const fetch = async () => {
@@ -177,6 +182,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             : activeMove?.judgement === "book"
                                 ? "="
                                 : undefined;
+
+
 
     const boardSquareStyles = useMemo(() => {
         const styles: Record<string, React.CSSProperties> = {};
@@ -338,6 +345,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                     />
 
                     <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto pr-1">
+                        <CommentCard move={activeMove} critical={activeCritical} />
+
                         <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4">
                             <BestAlternatives
                                 lines={engineLines}
@@ -349,9 +358,10 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             />
                         </div>
 
+
                         <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-2">
                             <div className="flex flex-wrap gap-2 border-b border-white/10 px-2 pb-2">
-                                {(["engine", "opening", "moves", "study", "concepts"] as const).map((tab) => (
+                                {(["concepts", "opening", "moves", "tree", "study"] as const).map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
@@ -365,11 +375,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                                 ))}
                             </div>
                             <div className="p-3 space-y-3">
-                                {activeTab === "engine" && (
-                                    <p className="text-xs text-white/60">
-                                        Use the Analyze toggle above to view engine lines. PV preview will draw on the board.
-                                    </p>
-                                )}
                                 {activeTab === "opening" && (
                                     <OpeningStatsPanel
                                         stats={openingLookup ?? review?.openingStats ?? null}
@@ -395,15 +400,19 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                                     </div>
                                 )}
                                 {activeTab === "concepts" && (
-                                    <div className="space-y-3">
-                                        {isLoading ? (
-                                            <p className="text-xs text-white/60">Analyzing concepts...</p>
-                                        ) : review?.summaryText ? (
-                                            <p className="text-sm text-white/80 leading-relaxed">{review.summaryText}</p>
-                                        ) : (
-                                            <p className="text-xs text-white/60">No summary provided.</p>
-                                        )}
-                                    </div>
+                                    <ConceptsTab
+                                        review={review}
+                                        currentConcepts={activeMove?.concepts}
+                                        currentSemanticTags={activeMove?.semanticTags}
+                                        conceptDelta={activeMove?.conceptDelta}
+                                    />
+                                )}
+                                {activeTab === "tree" && (
+                                    <VariationTree
+                                        root={review?.root}
+                                        onSelect={setSelectedPly}
+                                        selected={selectedPly ?? undefined}
+                                    />
                                 )}
                             </div>
                         </div>

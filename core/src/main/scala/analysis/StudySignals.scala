@@ -28,12 +28,24 @@ object StudySignals:
         math.abs(p.conceptDelta.conversionDifficulty)
       ).max
     val theoryFork = opening.exists(op => p.ply.value <= op.ply.value + 5) && gap <= 3.0
-    val score =
-      deltaScore * 0.6 +
-        branchTension * 0.8 +
-        phaseShift * 1.4 +
-        planShift * 12.0 +
-        (if theoryFork then 6.0 else 0.0)
+    
+    // v2: Normalize all components to [0,1] before weighted combination
+    val deltaN   = clamp(deltaScore / 40.0, 0.0, 1.0)      // 40% jump -> 1.0
+    val tensionN = clamp(branchTension / 12.0, 0.0, 1.0)   // max 12 -> 1.0
+    val phaseN   = clamp(phaseShift, 0.0, 1.0)
+    val planN    = clamp(planShift, 0.0, 1.0)
+    val theoryN  = if theoryFork then 1.0 else 0.0
+    
+    // Weighted combination (components now balanced)
+    val study0to1 =
+      0.25 * deltaN   +   // Mistake magnitude
+      0.25 * tensionN +   // Choice tension
+      0.15 * phaseN   +   // Phase transition
+      0.25 * planN    +   // Plan/concept shift
+      0.10 * theoryN      // Theory branch point
+    
+    // Scale to 0-10 for better granularity
+    val score = study0to1 * 10.0
     val tags = scala.collection.mutable.ListBuffer.empty[String]
     if theoryFork then tags += TagName.OpeningTheoryBranch
     phaseLabel.orElse(p.phaseLabel).foreach(tags += _)
@@ -48,3 +60,5 @@ object StudySignals:
       val (score, tags) = computeStudySignals(p, opening)
       p.copy(studyScore = score, studyTags = tags, phaseLabel = p.phaseLabel)
     }
+
+  private def clamp(d: Double, min: Double, max: Double): Double = math.max(min, math.min(max, d))
