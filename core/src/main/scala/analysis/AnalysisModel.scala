@@ -3,7 +3,7 @@ package analysis
 
 import chess.opening.Opening
 
-object AnalyzeDomain:
+object AnalysisModel:
 
   /** 엔진/멀티PV 설정. 환경변수로 덮어쓰기 가능. */
   final case class EngineConfig(
@@ -150,7 +150,10 @@ object AnalyzeDomain:
       bestEval: Option[Double],
       pv: List[String],
       comment: Option[String],
-      children: List[TreeNode]
+      children: List[TreeNode],
+      nodeType: String = "mainline", // "mainline", "critical", "sideline"
+      concepts: Option[Concepts] = None,
+      features: Option[FeatureExtractor.SideFeatures] = None
   )
   final case class StudyLine(label: String, pv: List[String], winPct: Double)
   final case class StudyChapter(
@@ -167,5 +170,12 @@ object AnalyzeDomain:
       phase: String = "middlegame",
       winPctBefore: Double = 50.0,
       winPctAfter: Double = 50.0,
-      practicality: Option[PracticalityScorer.Score] = None
+      practicality: Option[PracticalityScorer.Score] = None,
+      metadata: Option[StudyChapterMetadata] = None,
+      rootNode: Option[TreeNode] = None
+  )
+
+  final case class StudyChapterMetadata(
+      name: String,
+      description: String
   )

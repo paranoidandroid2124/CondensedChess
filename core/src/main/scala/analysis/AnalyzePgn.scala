@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.*
+import AnalysisModel.*
 import chess.format.pgn.PgnStr
 import chess.opening.OpeningDb
 
@@ -13,7 +13,7 @@ import scala.io.Source
   * 출력: JSON 한 줄 (timeline + opening + per-ply feature 스냅샷)
   */
 object AnalyzePgn:
-  export AnalyzeDomain.{ EngineConfig, EngineLine, EngineEval, Concepts, PlyOutput, Output, Branch, CriticalNode, TreeNode, StudyLine, StudyChapter }
+  export AnalysisModel.{ EngineConfig, EngineLine, EngineEval, Concepts, PlyOutput, Output, Branch, CriticalNode, TreeNode, StudyLine, StudyChapter }
   export AnalyzeUtils.escape
 
   def main(args: Array[String]): Unit =
@@ -22,18 +22,18 @@ object AnalyzePgn:
       sys.exit(1)
     val path = args(0)
     val pgn = Source.fromFile(path).mkString
-    analyzeToJson(pgn, EngineConfig.fromEnv()) match
+    analyzeAndRender(pgn, EngineConfig.fromEnv()) match
       case Left(err) =>
         System.err.println(err)
         sys.exit(1)
       case Right(json) =>
         println(json)
 
-  /** PGN 문자열을 받아 Review JSON을 반환. 실패 시 에러 메시지 리턴. */
-  def analyzeToJson(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
-    analyze(pgn, config, llmRequestedPlys).map(AnalyzeRenderer.render)
+  /** PGN 문자열을 분석하여 JSON 문자열로 반환 */
+  def analyzeAndRender(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
+    analyze(pgn, config, llmRequestedPlys).map(AnalysisSerializer.render)
 
-  /** PGN 문자열을 받아 도메인 Output을 반환. */
+  /** PGN 문자열을 분석하여 Output 객체 반환 */
   def analyze(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty, jobId: Option[String] = None): Either[String, Output] =
     Replay.mainline(PgnStr(pgn)).flatMap(_.valid) match
       case Left(err) => Left(s"PGN 파싱 실패: ${err.value}")
@@ -47,6 +47,8 @@ object AnalyzePgn:
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
         val client = new StockfishClient()
         val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext, jobId)
+        // val timeline = StudySignals.withStudySignals(timelineRaw, opening) // Assuming this is done inside buildTimeline or separate
+        // Wait, original code had: val timeline = StudySignals.withStudySignals(timelineRaw, opening)
         val timeline = StudySignals.withStudySignals(timelineRaw, opening)
         
         jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
@@ -59,7 +61,7 @@ object AnalyzePgn:
         val root = Some(ReviewTreeBuilder.buildTree(timeline, critical))
         val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
         val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
-        val (accuracyWhite, accuracyBlack) = AccuracyScore.calculateBothSides(timeline)
+        val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)
         
         jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 1.0))
         
@@ -77,15 +79,16 @@ object AnalyzePgn:
             openingSummary,
             bookExitComment,
             openingTrend,
+            None, // summaryText
             root = root,
             studyChapters = studyChapters,
             pgn = pgn,
-            accuracyWhite = Some(accuracyWhite),
-            accuracyBlack = Some(accuracyBlack)
+            accuracyWhite = Some(accWhite),
+            accuracyBlack = Some(accBlack)
           )
         )
 
-  def render(output: Output): String = AnalyzeRenderer.render(output)
+  def render(output: Output): String = AnalysisSerializer.render(output)
 
   private def extractPlayerContext(pgn: String): Option[PlayerContext] =
     val whiteElo = findTag(pgn, "WhiteElo").flatMap(_.toIntOption)

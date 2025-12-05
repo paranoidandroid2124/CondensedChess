@@ -67,39 +67,92 @@ object LlmClient:
   def quote(in: String): String =
     "\"" + in.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
 
+  private def generateJson(payload: String, field: String): Map[Int, String] =
+    apiKey.flatMap { key =>
+      val prompt =
+        s"""You are a chess engine. Analyze the JSON payload and return a JSON array of objects:
+           |[{"ply": 12, "$field": "..."}]
+           |
+           |Rules:
+           |- Only comment on moves present in the payload.
+           |- Keep comments short and factual.
+           |
+           |Payload: $payload""".stripMargin
+      val body =
+        s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}],
+           |  "generationConfig":{"responseMimeType":"application/json"}
+           |}""".stripMargin
+      val req = HttpRequest
+        .newBuilder()
+        .uri(URI.create(endpoint + key))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build()
+      try
+        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
+        if res.statusCode() >= 200 && res.statusCode() < 300 then
+          extractText(res.body()).map { text =>
+             try
+               val arr = ujson.read(text).arr
+               arr.flatMap { v =>
+                 for
+                   ply <- v.obj.get("ply").map(_.num.toInt)
+                   comment <- v.obj.get(field).map(_.str)
+                 yield ply -> comment
+               }.toMap
+             catch
+               case e: Throwable => Map.empty
+          }
+        else None
+      catch
+        case e: Throwable => None
+    }.getOrElse(Map.empty)
+
   def shortComments(payload: String): Map[Int, String] =
     generateJson(payload, "shortComment")
 
   def criticalComments(payload: String): Map[Int, String] =
     generateJson(payload, "comment")
 
-  def treeComments(payload: String): Map[Int, String] =
-    generateJson(payload, "comment")
-
-  def studyChapterComments(payload: String): Map[String, String] =
+  def studyChapterComments(payload: String): Map[String, ChapterAnnotation] =
     apiKey.flatMap { key =>
       val prompt =
-        s"""You are a chess book author. For each study chapter, return JSON array of {"id":string,"summary":string}.
-
-PAYLOAD STRUCTURE (per chapter):
-- id, anchorPly, label, turn, played, best?, deltaWinPct, winPctBefore/After, phase, studyScore, tags, lines[{label,pv,winPct}], practicality{overall,categoryGlobal,categoryPersonal?}
-
-CRITICAL CONSTRAINTS (STRICT MODE):
-1. MOVES: Use ONLY moves from 'played', 'best', or the provided 'lines'. Do NOT invent other moves.
-2. VARIATIONS: Do NOT extend PV beyond the given 'lines.pv' (max 2-3 plies). No new lines.
-3. REFERENCES: Do NOT reference external games/players/theory.
-4. TAGS ONLY: Base strategic commentary on provided tags/phase/practicality; do NOT invent concepts.
-5. EVAL ONLY: Use ONLY winPctBefore/After/deltaWinPct/studyScore; do NOT estimate more evals.
-6. NO SPECULATION: Avoid "might have", "could consider", "in theory", etc.
-
-WRITING INSTRUCTIONS (keep to 2-3 sentences, ~70-110 words):
-- State WHY this chapter matters (use deltaWinPct/studyScore/practicality/tags/phase).
-- Contrast played vs best if they differ, referencing label/turn for clarity.
-- Use a short theme label (from tags/phase) and a one-line takeaway (plan/outcome).
-- If tags imply danger/only-move (king_exposed, conversion_difficulty, plan_change, fortress_building, etc.), call it out directly.
-- Keep tone educational, specific, and grounded in provided data.
-
-Payload: $payload""".stripMargin
+        s"""You are a chess book author. For each study chapter, return JSON array of objects with:
+           |- "id": string (chapter id)
+           |- "title": string (3-5 words, catchy chapter title)
+           |- "summary": string (2-3 sentences, the chapter narrative)
+           |- "keyMoves": array of {"ply": number, "san": string, "comment": string} (optional, for specific moves inside the chapter)
+           |
+           |PAYLOAD STRUCTURE (per chapter):
+           |- id, anchorPly, label, turn, played, best?, deltaWinPct, winPctBefore/After, phase, studyScore, tags, lines[{label,pv,winPct}], practicality{overall,categoryGlobal,categoryPersonal?}
+           |
+           |CRITICAL CONSTRAINTS (STRICT MODE):
+           |1. MOVES: Use ONLY moves from 'played', 'best', or the provided 'lines'. Do NOT invent other moves.
+           |2. VARIATIONS: Do NOT extend PV beyond the given 'lines.pv' (max 2-3 plies). No new lines.
+           |3. REFERENCES: Do NOT reference external games/players/theory.
+           |4. TAGS ONLY: Base strategic commentary on provided tags/phase/practicality; do NOT invent concepts.
+           |5. EVAL ONLY: Use ONLY winPctBefore/After/deltaWinPct/studyScore; do NOT estimate more evals.
+           |6. NO SPECULATION: Avoid "might have", "could consider", "in theory", etc.
+           |
+           |WRITING INSTRUCTIONS:
+           |1. **Title**:
+           |   - Create a short, engaging title based on the key theme (e.g., "The King Hunt", "Missed Opportunity", "Endgame Precision").
+           |
+           |2. **Summary**:
+           |   - State WHY this chapter matters (use deltaWinPct/studyScore/practicality/tags/phase).
+           |   - Contrast played vs best if they differ.
+           |   - Use a short theme label and a one-line takeaway.
+           |   - Keep tone educational and grounded.
+           |
+           |3. **Key Moves (Comments)**:
+           |   - Provide comments for ANY move within this chapter's scope (mainline or variations) where you can add educational value.
+           |   - Do not artificially limit the number of comments; if a sequence is interesting, explain it.
+           |   - Focus on "why" (plans, threats, practical choices), not just "what" (notation).
+           |   - If a line is labeled 'practical', explain why it is easier/safer.
+           |   - Keep comments concise (1-2 sentences).
+           |   - **IMPORTANT**: You MUST include the "san" (Standard Algebraic Notation) for each move to identify it correctly (e.g., "Nf3", "e5").
+           |
+           |Payload: $payload""".stripMargin
       val body =
         s"""{
            |  "contents":[{"parts":[{"text":${quote(prompt)}}]}],
@@ -114,7 +167,7 @@ Payload: $payload""".stripMargin
       try
         val res = http.send(req, HttpResponse.BodyHandlers.ofString())
         if res.statusCode() >= 200 && res.statusCode() < 300 then
-          extractText(res.body()).map(parseIdSummaryJson)
+          extractText(res.body()).map(parseChapterAnnotationJson)
         else
           System.err.println(s"[llm-study] status=${res.statusCode()} body=${res.body()}")
           None
@@ -124,69 +177,36 @@ Payload: $payload""".stripMargin
           None
     }.getOrElse(Map.empty)
 
-  private def generateJson(promptPayload: String, field: String): Map[Int, String] =
-    apiKey.flatMap { key =>
-      val prompt =
-        s"""You are a chess coach. For each item, return JSON array of {"ply":number,"label":string,"$field":string}.
-           |- Payload includes an "instructions" block and data nodes; follow that guidance while applying the rules below.
-           |- Use only moves/evals provided. Do NOT invent moves/evals or move numbers.
-           |- Prefer the provided label field when present (e.g., "13. Qe2", "12...Ba6"); do not fabricate ply indices.
-           |- Leverage mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and semanticTags (facts like open_h_file, weak_f7, outpost_f5, weak_back_rank) to ground the explanation.
-           |- Mention forced/only-move or big best-vs-second gaps when legalMoves<=1 or bestVsSecondGap is large.
-           |- Use conceptShift or tags to explain *why* (kingSafety/pawnStorm/rookActivity changes, etc.) without inventing moves.
-           |- Do NOT call a move a blunder/mistake unless its judgement or delta clearly indicates it; stay consistent with provided tags/delta.
-           |- If generating critical move comments, include: (a) a short heading (3-6 words), (b) 1-2 sentences on why (based on given judgement/delta/pv/tags), (c) 1-2 refutation moves using provided pv/branches. Keep it concise and factual.
-           |- If payload has pv, you can briefly mention the idea, but keep comments specific to the given move/judgement.
-           |Payload: $promptPayload""".stripMargin
-      val body =
-        s"""{
-           |  "contents":[{"parts":[{"text":${quote(prompt)}}]}],
-           |  "generationConfig":{"responseMimeType":"application/json"}
-           |}""".stripMargin
-      val req = HttpRequest
-        .newBuilder()
-        .uri(URI.create(endpoint + key))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build()
-      try
-        val res = http.send(req, HttpResponse.BodyHandlers.ofString())
-        if res.statusCode() >= 200 && res.statusCode() < 300 then
-          extractText(res.body()).map(parsePlyMapJson(_, field))
-        else
-          System.err.println(s"[llm-${field}] status=${res.statusCode()} body=${res.body()}")
-          None
-      catch
-        case e: Throwable =>
-          System.err.println(s"[llm-${field}] request failed: ${e.getMessage}")
-          None
-    }.getOrElse(Map.empty)
+  case class ChapterAnnotation(title: String, summary: String, keyMoves: Map[(Int, String), String])
 
-  private def parsePlyMapJson(body: String, field: String): Map[Int, String] =
+  private def parseChapterAnnotationJson(body: String): Map[String, ChapterAnnotation] =
     try
       val arr = ujson.read(body).arr
       arr.iterator.flatMap { v =>
         val obj = v.obj
-        for
-          ply <- obj.get("ply").map(_.num.toInt)
-          value <- obj.get(field).map(_.str)
-        yield ply -> value
-      }.toMap
-    catch
-      case e: Throwable =>
-        System.err.println(s"[llm-$field] failed to parse JSON body: ${e.getMessage}")
-        Map.empty
+        val idOpt = obj.get("id").map(_.str)
+        val titleOpt = obj.get("title").map(_.str).orElse(Some("Chapter"))
+        val summaryOpt = obj.get("summary").map(_.str)
+        
+        // Parse keyMoves
+        val keyMovesMap = obj.get("keyMoves")
+          .flatMap(_.arrOpt)
+          .map { movesArr =>
+            movesArr.flatMap { m =>
+              for
+                ply <- m.obj.get("ply").map(_.num.toInt)
+                san <- m.obj.get("san").map(_.str)
+                comment <- m.obj.get("comment").map(_.str)
+              yield (ply, san) -> comment
+            }.toMap
+          }.getOrElse(Map.empty[(Int, String), String])
 
-  private def parseIdSummaryJson(body: String): Map[String, String] =
-    try
-      val arr = ujson.read(body).arr
-      arr.iterator.flatMap { v =>
-        val obj = v.obj
         for
-          id <- obj.get("id").map(_.str)
-          summary <- obj.get("summary").map(_.str)
-          if !detectHallucination(summary) // Filter out hallucinated summaries
-        yield id -> summary
+          id <- idOpt
+          title <- titleOpt
+          summary <- summaryOpt
+          if !detectHallucination(summary)
+        yield id -> ChapterAnnotation(title, summary, keyMovesMap)
       }.toMap
     catch
       case e: Throwable =>

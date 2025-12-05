@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Chess } from "chess.js";
-import type { Features, TimelineNode } from "../types/review";
+import type { Features } from "../types/review";
 import type { EnhancedTimelineNode } from "../lib/review-derived";
 
 export function useInstantTimeline(instantPgn: string | null): EnhancedTimelineNode[] | null {
@@ -22,7 +22,8 @@ export function useInstantTimeline(instantPgn: string | null): EnhancedTimelineN
       const verbose = new Chess();
       verbose.loadPgn(instantPgn);
       const history = verbose.history({ verbose: true });
-      const timeline: Array<TimelineNode & { label: string; fenBefore: string }> = [
+
+      const timeline: EnhancedTimelineNode[] = [
         {
           ply: 0,
           turn: "white",
@@ -31,9 +32,14 @@ export function useInstantTimeline(instantPgn: string | null): EnhancedTimelineN
           fen: replay.fen(),
           fenBefore: replay.fen(),
           features: { ...baseFeatures },
-          label: "Start"
+          label: "Start",
+          // EnhancedTimelineNode additional fields with defaults
+          winPctBefore: 50,
+          judgement: undefined,
+          special: undefined
         }
       ];
+
       history.forEach((mv, idx) => {
         const fenBefore = replay.fen();
         const move = replay.move(mv);
@@ -49,7 +55,11 @@ export function useInstantTimeline(instantPgn: string | null): EnhancedTimelineN
           fen: replay.fen(),
           fenBefore,
           features: { ...baseFeatures },
-          label
+          label,
+          // EnhancedTimelineNode additional fields with defaults
+          winPctBefore: 50,
+          judgement: undefined,
+          special: undefined
         });
       });
       return timeline;
@@ -58,4 +68,3 @@ export function useInstantTimeline(instantPgn: string | null): EnhancedTimelineN
     }
   }, [instantPgn]);
 }
-

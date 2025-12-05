@@ -1,5 +1,5 @@
 import { TimelineView } from "./TimelineView";
-import { VariationTree } from "./VariationTree";
+
 import { OpeningStatsPanel } from "./OpeningStatsPanel";
 import type { MoveRow } from "../../lib/review-derived";
 import type { VariationEntry } from "./TimelineView";
@@ -44,7 +44,6 @@ export function TimelineSection({
         />
       </div>
       <div className="space-y-4">
-        <VariationTree root={reviewRoot} selected={selected} onSelect={onSelect} />
         <OpeningStatsPanel stats={openingLookup} loading={lookupLoading} error={lookupError} />
       </div>
     </div>

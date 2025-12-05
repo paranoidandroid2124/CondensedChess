@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.PlyOutput
+import AnalysisModel.PlyOutput
 import AnalyzeUtils.{ moveLabel, pctInt }
 import chess.opening.Opening
 

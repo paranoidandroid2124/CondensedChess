@@ -1,14 +1,13 @@
 import { Chess } from "chess.js";
 import { AnalysisPanel } from "../AnalysisPanel";
 import { OpeningExplorerTab } from "../OpeningExplorerTab";
-import { StudyTab } from "../StudyTab";
 import { ConceptsTab } from "../ConceptsTab";
 import { ConceptCards } from "../ConceptCards";
-import { GuessTheMove } from "../GuessTheMove";
-import { uciToSan } from "../../lib/chess-utils";
 import { CompressedMoveList } from "../CompressedMoveList";
 import { QuickJump } from "../common/QuickJump";
-import { VariationTree } from "./VariationTree";
+
+import { AnnotationView } from "./BookView/AnnotationView";
+import { HorizontalTreeView } from "./BookView/HorizontalTreeView";
 import type { Review } from "../../types/review";
 import type { EnhancedTimelineNode } from "../../lib/review-derived";
 import type { EngineMessage } from "../../lib/engine";
@@ -26,12 +25,6 @@ export function AnalysisTabsSection({
   lookupError,
   setSelectedPly,
   setSelectedVariation,
-  isGuessing,
-  setIsGuessing,
-  guessState,
-  setGuessState,
-  guessFeedback,
-  setGuessFeedback,
   tabOrder,
   timeline,
   selectedPly,
@@ -49,14 +42,9 @@ export function AnalysisTabsSection({
   lookupError: string | null;
   setSelectedPly: (ply: number) => void;
   setSelectedVariation: (v: VariationEntry | null) => void;
-  isGuessing: boolean;
-  setIsGuessing: (v: boolean) => void;
-  guessState: "waiting" | "correct" | "incorrect" | "giveup";
-  setGuessState: (v: "waiting" | "correct" | "incorrect" | "giveup") => void;
-  guessFeedback: string | undefined;
-  setGuessFeedback: (v: string | undefined) => void;
   selectedPly: number | null;
   tabOrder?: TabId[];
+  setPreviewArrows?: (arrows: [string, string, string][]) => void;
 }) {
   const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "tree", "study"];
 
@@ -103,22 +91,28 @@ export function AnalysisTabsSection({
         )}
 
         {activeTab === "tree" && (
-          <VariationTree root={reviewRoot} onSelect={setSelectedPly} selected={selectedPly ?? undefined} />
+          <div className="flex-1 overflow-x-auto p-4">
+            {review?.root ? (
+              <HorizontalTreeView
+                rootNode={review.root}
+                currentPly={selectedPly}
+                onSelectPly={setSelectedPly}
+                isRoot={true}
+              />
+            ) : (
+              <div className="text-white/60 text-center mt-10">
+                Tree view not available.
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === "study" && (
-          <StudyTab
-            chapters={review?.studyChapters}
-            onSelectChapter={(ply) => {
-              setSelectedPly(ply);
-              setSelectedVariation(null);
-            }}
-            onStartGuess={(chapter) => {
-              setSelectedPly(chapter.anchorPly);
-              setIsGuessing(true);
-              setGuessState("waiting");
-              setGuessFeedback(undefined);
-            }}
+          <AnnotationView
+            review={review as Review}
+            rootNode={reviewRoot}
+            selectedPly={selectedPly}
+            onSelectPly={setSelectedPly}
           />
         )}
 
@@ -131,35 +125,7 @@ export function AnalysisTabsSection({
           />
         )}
 
-        {isGuessing && activeMove && (
-          <div className="absolute inset-0 z-20 bg-black/80 p-4 backdrop-blur-sm">
-            <GuessTheMove
-              targetPly={activeMove.ply}
-              fenBefore={activeMove.fenBefore || ""}
-              bestMoveSan={
-                activeMove.evalBeforeDeep?.lines?.[0]?.move
-                  ? uciToSan(activeMove.fenBefore || "", activeMove.evalBeforeDeep.lines[0].move)
-                  : "Unknown"
-              }
-              playedMoveSan={activeMove.san}
-              guessState={guessState}
-              feedbackMessage={guessFeedback}
-              onSolve={() => {
-                setIsGuessing(false);
-              }}
-              onGiveUp={() => {
-                setGuessState("giveup");
-                const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
-                if (best) {
-                  const from = best.slice(0, 2);
-                  const to = best.slice(2, 4);
-                  setPreviewArrows([[from, to, "#22c55e"]]);
-                }
-              }}
-              onClose={() => setIsGuessing(false)}
-            />
-          </div>
-        )}
+
       </AnalysisPanel>
     </div>
   );
