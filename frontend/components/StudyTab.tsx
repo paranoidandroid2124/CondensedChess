@@ -62,7 +62,7 @@ const tagLabelMap: Record<string, string> = {
     "opposite_color_bishops": "Opposite Bishops"
 };
 
-function getTagLabel(tag: string): string {
+export function getTagLabel(tag: string): string {
     return tagLabelMap[tag] || tag.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
@@ -74,7 +74,7 @@ const phaseConfig: Record<string, { icon: string; color: string; label: string }
 
 import { ScrollytellingLayout } from "./ScrollytellingLayout";
 
-export function StudyTab({ chapters, onSelectChapter }: StudyTabProps) {
+export function StudyTab({ chapters, onSelectChapter, onStartGuess }: StudyTabProps) {
     if (!chapters || chapters.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -100,6 +100,7 @@ export function StudyTab({ chapters, onSelectChapter }: StudyTabProps) {
                 chapters={sortedChapters}
                 currentPly={null}
                 onPlySelect={onSelectPly => onSelectChapter(onSelectPly)}
+                onStartGuess={onStartGuess}
             />
         </div>
     );

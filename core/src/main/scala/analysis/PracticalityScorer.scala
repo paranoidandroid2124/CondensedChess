@@ -17,7 +17,7 @@ object PracticalityScorer:
       tacticalDepth: Double,
       sacrificeQuality: Double,
       tags: List[String],
-      context: Option[AnalyzeDomain.PlayerContext] = None,
+      context: Option[AnalysisModel.PlayerContext] = None,
       turn: chess.Color
   ): Score =
     val robustness = computeRobustness(eval)
@@ -47,9 +47,9 @@ object PracticalityScorer:
       // v2: Exponential decay instead of linear
       // tau=20.0 calibrated so spread=3.2% → robustness≈0.85
       val tau = 20.0
-      math.exp(-spread / tau).clamp(0.0, 1.0)
+      math.max(0.0, math.min(1.0, math.exp(-spread / tau)))
 
-  private def computeHorizon(tacticalDepth: Double, context: Option[AnalyzeDomain.PlayerContext]): Double =
+  private def computeHorizon(tacticalDepth: Double, context: Option[AnalysisModel.PlayerContext]): Double =
     // tacticalDepth is typically 0.0 to 1.0 (shallow vs deep eval gap)
     // High tacticalDepth means the advantage is hidden deep -> Low Horizon
     
@@ -62,7 +62,7 @@ object PracticalityScorer:
     }.getOrElse(1.0)
 
     // exp(-k*tacticalDepth): 0→1.0, 0.5→~0.4-0.6, 1.0→~0.14-0.17
-    math.exp(-k * tacticalDepth).clamp(0.0, 1.0)
+    clamp(math.exp(-k * tacticalDepth))
 
   private def computeNaturalness(sacrificeQuality: Double, tags: List[String]): Double =
     // Penalty for sacrifice
@@ -81,7 +81,7 @@ object PracticalityScorer:
   private def categorizePersonal(
       rawScore: Double, 
       playerElo: Option[Int], 
-      timeControl: Option[AnalyzeDomain.TimeControl]
+      timeControl: Option[AnalysisModel.TimeControl]
   ): Option[String] =
     playerElo.map { elo =>
       // Rating-based scaling

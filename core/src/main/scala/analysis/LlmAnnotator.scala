@@ -48,24 +48,45 @@ object LlmAnnotator:
     val summary = LlmClient.summarize(renderPreview(output, timelineByPly)).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
     // one-line timeline comments are intentionally disabled; focus on structured critical comments instead
     val criticalComments = filterWithLog(LlmClient.criticalComments(criticalPreview(output, timelineByPly)), maxMoveNumber, "critical")
-    val treeComments = filterWithLog(LlmClient.treeComments(treePreview(output, timelineByPly)), maxMoveNumber, "tree")
+    
+    // Unified Annotation: Get Chapter Summaries + Key Move Comments in one go
+    val studyAnnotations = 
+      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(renderPreview(output, timelineByPly)) 
+      else Map.empty[String, LlmClient.ChapterAnnotation]
+
+    // Merge critical comments with key move comments from chapters
+    // Priority: Critical > Chapter Key Move
+    // Critical comments are Ply-based (mainline only), so we convert them to (Ply, SAN)
+    val criticalCommentsWithSan = criticalComments.flatMap { case (ply, comment) =>
+      timelineByPly.get(ply).map(t => (ply, t.san) -> comment)
+    }
+    
+    val chapterMoveComments = studyAnnotations.values.flatMap(_.keyMoves).toMap
+    val mergedComments = chapterMoveComments ++ criticalCommentsWithSan // critical overrides if overlap
 
     val updatedTimeline = output.timeline.map { t =>
       t.copy(shortComment = None) // suppress per-move one-liners
     }
-    val criticalMap = criticalComments
+    
     val updatedCritical = output.critical.map { c =>
-      val add = criticalMap.get(c.ply.value)
+      val add = criticalComments.get(c.ply.value)
       c.copy(comment = c.comment.orElse(add))
     }
-    val updatedRoot = output.root.map(applyTreeComments(_, treeComments))
-
-    val studySummaries: Map[String, String] =
-      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(renderPreview(output, timelineByPly)) else Map.empty
+    
+    // Apply merged comments to the tree
+    val updatedRoot = output.root.map(applyTreeComments(_, mergedComments))
 
     val updatedChapters =
-      if studySummaries.nonEmpty then
-        output.studyChapters.map(ch => studySummaries.get(ch.id).filter(_.nonEmpty).map(txt => ch.copy(summary = Some(txt))).getOrElse(ch))
+      if studyAnnotations.nonEmpty then
+        output.studyChapters.map { ch =>
+          studyAnnotations.get(ch.id) match
+            case Some(ann) if ann.summary.nonEmpty => 
+              ch.copy(
+                summary = Some(ann.summary),
+                metadata = Some(AnalysisModel.StudyChapterMetadata(ann.title, ann.summary))
+              )
+            case _ => ch
+        }
       else output.studyChapters
 
     output.copy(
@@ -184,6 +205,7 @@ object LlmAnnotator:
           "Lean on semanticTags/mistakeCategory/conceptShift/critical.reason to explain why evaluations shifted.",
           "Mention opening/book/novelty briefly when stats are present; if opening.summary/bookExitComment/trend is present, include one sentence.",
           "Spell out forced/only-move or large best-vs-second gaps first; avoid generic advice.",
+          "If a line is labeled 'practical', explicitly mention it as a 'Practical Choice' and explain why it might be easier/safer than the engine best.",
           "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
         ).map(Str(_))
       )
@@ -317,65 +339,11 @@ object LlmAnnotator:
 
     ujson.write(payload)
 
-  private def treePreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
-    output.root match
-      case None =>
-        ujson.write(Obj("instructions" -> Obj("goal" -> Str("no tree")), "nodes" -> Arr()))
-      case Some(r) =>
-        def flatten(n: AnalyzePgn.TreeNode): List[AnalyzePgn.TreeNode] =
-          n :: n.children.flatMap(flatten)
 
-        val nodes = flatten(r)
-          .filter(_.judgement != "variation")
-          .map { n =>
-        val turn = timelineByPly.get(n.ply).map(_.turn).getOrElse(if n.ply % 2 == 1 then Color.White else Color.Black)
-        val fenBefore = timelineByPly.get(n.ply).map(_.fenBefore).getOrElse("")
-        val obj = Obj(
-          "ply" -> Num(n.ply),
-          "label" -> Str(moveLabel(Ply(n.ply), n.san, turn)),
-          "judgement" -> Str(n.judgement),
-          "glyph" -> Str(n.glyph),
-          "tags" -> arrStr(n.tags.filter(_.nonEmpty).take(6)),
-          "pv" -> arrStr(n.pv.take(5))
-        )
-            timelineByPly.get(n.ply).foreach { t =>
-              obj("legalMoves") = Num(t.legalMoves)
-              obj("forced") = Bool(forcedFlag(t.legalMoves, t.bestVsSecondGap))
-            val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
-            if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
-            t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
-          }
-            n.bestMove.foreach { b =>
-              val sanBest = if fenBefore.nonEmpty then uciToSanSingle(fenBefore, b) else b
-              obj("bestMove") = Str(sanBest)
-            }
-            n.bestEval.foreach(ev => obj("bestEval") = Num(round2(ev)))
-            obj
-          }
 
-        val instructions = Obj(
-          "goal" -> Str("Return JSON array of {\"ply\":number,\"label\":string,\"comment\":string} to annotate mainline nodes."),
-          "style" -> Str("One sentence per node highlighting plan/idea/outcome: what was tried, why it mattered, and any forced follow-up."),
-          "rules" -> Arr.from(
-            List(
-              "Use provided labels; do not renumber or invent lines.",
-              "Anchor to judgement/tags/pv/bestMove/conceptShift instead of generic advice.",
-              "Call out forced/only-move or big best-vs-second gaps first when present.",
-              "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
-            ).map(Str(_))
-          )
-        )
-
-        val payload = Obj(
-          "instructions" -> instructions,
-          "nodes" -> Arr.from(nodes)
-        )
-
-        ujson.write(payload)
-
-  private def applyTreeComments(root: AnalyzePgn.TreeNode, comments: Map[Int, String]): AnalyzePgn.TreeNode =
+  private def applyTreeComments(root: AnalyzePgn.TreeNode, comments: Map[(Int, String), String]): AnalyzePgn.TreeNode =
     root.copy(
-      comment = root.comment.orElse(comments.get(root.ply)),
+      comment = root.comment.orElse(comments.get((root.ply, root.san))),
       children = root.children.map(c => applyTreeComments(c, comments))
     )
   @scala.annotation.nowarn("msg=unused")

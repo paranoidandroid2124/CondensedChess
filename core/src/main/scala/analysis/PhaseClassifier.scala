@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.Concepts
+import AnalysisModel.Concepts
 
 object PhaseClassifier:
   def detectPhaseLabel(delta: Concepts, winPctBefore: Double): Option[String] =

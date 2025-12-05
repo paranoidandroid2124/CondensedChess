@@ -214,7 +214,7 @@ object ApiServer:
                           val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciMove)
                           val lineEval = anchor.evalBeforeDeep.lines.find(_.move == uciMove)
                           val evalValue = lineEval.map(_.winPct).getOrElse(anchor.winPctBefore)
-                          val newVar = AnalyzeDomain.TreeNode(
+                          val newVar = AnalyzePgn.TreeNode(
                             ply = anchor.ply.value,
                             san = san,
                             uci = uciMove,

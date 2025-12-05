@@ -1,10 +1,12 @@
 package chess
 package analysis
 
+import AnalysisModel.StudyChapterMetadata
+
 /** Builds rich narrative context for LLM-based chapter summaries.
   * Transforms semantic tags + concept scores into storytelling prompts.
   */
-object NarrativeBuilder:
+object NarrativeTemplates:
 
   /** Narrative arc classification */
   enum Arc:
@@ -77,6 +79,38 @@ object NarrativeBuilder:
 
     s"$arcFraming $joined."
 
+  def buildChapterMetadata(
+      anchorPly: Int,
+      tags: List[String],
+      phase: String,
+      arc: Arc,
+      studyScore: Double
+  ): StudyChapterMetadata =
+    val keyTags = selectKeyTags(tags)
+    
+    // 1. Generate Title
+    val title = (keyTags.headOption, arc) match
+      case (Some("king_safety_crisis"), _) => "King in Danger"
+      case (Some("tactical_complexity"), _) => "Tactical Storm"
+      case (Some("conversion_difficulty"), _) => "Technical Task"
+      case (Some("fortress_defense"), _) => "Fortress Attempt"
+      case (Some("strong_knight"), _) => "The Octopus Knight"
+      case (Some("bad_bishop"), _) => "Bad Bishop Woes"
+      case (_, Arc.Collapse) => "The Turning Point"
+      case (_, Arc.CriticalMoment) => "Critical Decision"
+      case (_, Arc.Turnaround) => "The Comeback"
+      case (_, Arc.RisingTension) => "Building Pressure"
+      case _ => if phase == "endgame" then "Endgame Grind" else "Strategic Battle"
+
+    // 2. Generate Description
+    // Use the existing narrative template logic but make it more "book-like"
+    val description = narrativeTemplate(tags, arc)
+
+    StudyChapterMetadata(
+      name = title,
+      description = description
+    )
+
   /** Build rich context for LLM prompt */
   def buildContext(
       anchorPly: Int,
@@ -87,7 +121,8 @@ object NarrativeBuilder:
       phase: String,
       winPctBefore: Double,
       winPctAfter: Double,
-      opponentRobustness: Option[Double] = None
+      opponentRobustness: Option[Double] = None,
+      practicalMove: Option[String] = None
   ): String =
     val arc = detectArc(deltaWinPct)
     val keyTags = selectKeyTags(tags)
@@ -114,6 +149,7 @@ object NarrativeBuilder:
       else "maintained the balance"
 
     val bestContext = best.map(b => s"Best was $b.").getOrElse("")
+    val practicalContext = practicalMove.map(m => s"Practical alternative: $m (easier to play).").getOrElse("")
 
     val opponentContext = opponentRobustness match
       case Some(or) if or < 0.3 =>
@@ -138,6 +174,7 @@ CONTEXT:
 - After: ${fmt(winPctAfter)}% ($changeContext)
 - Played: $played
 - Best: ${best.getOrElse("N/A")}
+- $practicalContext
 - Arc: ${arc.toString}
 - Key Themes: ${keyTags.mkString(", ")}
 ${opponentContext}
@@ -151,6 +188,7 @@ Write 2–3 sentences in the style of a modern instructional chess book:
 - Add a concise takeaway naming the central theme (e.g., "Theme/Takeaway: locked structure → manoeuvre slowly").
 - Use concrete chess vocabulary; avoid hype or filler.
 - Keep paragraphs short and objective.
+- If a Practical alternative is listed, mention why it might be a good choice (e.g. "safer", "simpler plan") compared to the engine best.
 Optional: you may use a brief "Question: …? Answer: …" to highlight an instructive choice.
 ${if opponentContext.nonEmpty then "- If this is a Pressure Point, stress why the defence is difficult." else ""}
     """.trim

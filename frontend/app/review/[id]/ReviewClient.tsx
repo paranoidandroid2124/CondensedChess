@@ -12,7 +12,6 @@ import { useInstantTimeline } from "../../../hooks/useInstantTimeline";
 import { useReviewPolling } from "../../../hooks/useReviewPolling";
 import { useEngineAnalysis } from "../../../hooks/useEngineAnalysis";
 import { useBranchCreation } from "../../../hooks/useBranchCreation";
-import { useGuessMode } from "../../../hooks/useGuessMode";
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, type EnhancedTimelineNode } from "../../../lib/review-derived";
 import { CommentCard } from "../../../components/review/CommentCard";
 import { AnalysisTabsSection } from "../../../components/review/AnalysisTabsSection";
@@ -45,7 +44,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     // Engine & Interactive State
     const { isAnalyzing, engineLines, toggleAnalysis } = useEngineAnalysis(review, previewFen, selectedPly);
     const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
-    const { isGuessing, guessState, guessFeedback, setIsGuessing, setGuessState, setGuessFeedback } = useGuessMode();
 
     useEffect(() => {
         // Check for pending PGN in localStorage for instant display
@@ -188,23 +186,23 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             arr.push([from, to, bad ? "#f87171" : "#818cf8"]);
             // Only show best move arrow when NOT in guessing mode (Train mode)
             const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
-            if (best && best !== activeMove.uci && !isGuessing) {
+            if (best && best !== activeMove.uci) {
                 const bFrom = best.slice(0, 2);
                 const bTo = best.slice(2, 4);
                 arr.push([bFrom, bTo, "#4ade80"]);
             }
         }
         return arr;
-    }, [activeMove, previewArrows, customArrows, isGuessing]);
+    }, [activeMove, previewArrows, customArrows]);
 
     const handleBoardDrop = useBranchCreation({
         review,
         enhancedTimeline,
         selected,
         jobId,
-        isGuessing,
+        isGuessing: false,
         activeMove,
-        guessState,
+        guessState: "waiting",
         branchSaving,
         setReview,
         setSelectedPly,
@@ -212,14 +210,15 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         setPreviewArrows,
         setBranchSaving,
         setBranchError,
-        setGuessState,
-        setGuessFeedback
+        setGuessState: () => { },
+        setGuessFeedback: () => { }
     });
 
     useEffect(() => {
         // selecting another ply exits preview
         clearPreview();
-    }, [selectedPly, clearPreview]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPly]);
 
     // Use instantTimeline or empty array as fallback for timeline
     const timelineToUse = review ? enhancedTimeline : (instantTimeline || []);
@@ -308,7 +307,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         onClearArrows={() => setCustomArrows([])}
                         previewLabel={previewLabel}
                         showAdvanced={showAdvanced}
-                        timeline={enhancedTimeline}
+                        timeline={timelineToUse}
                         conceptSpikes={conceptSpikes}
                         selectedPly={selected?.ply}
                         onSelectPly={setSelectedPly}
@@ -344,14 +343,9 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             lookupError={lookupError}
                             setSelectedPly={setSelectedPly}
                             setSelectedVariation={setSelectedVariation}
-                            isGuessing={isGuessing}
-                            setIsGuessing={setIsGuessing}
-                            guessState={guessState}
-                            setGuessState={setGuessState}
-                            guessFeedback={guessFeedback}
-                            setGuessFeedback={setGuessFeedback}
                             selectedPly={selectedPly}
                             tabOrder={["concepts", "opening", "moves", "tree", "study"]}
+                            setPreviewArrows={setPreviewArrows as any}
                         />
                     </div>
                 </div>

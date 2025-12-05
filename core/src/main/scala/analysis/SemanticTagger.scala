@@ -154,12 +154,12 @@ object SemanticTagger:
       val defendersCount = defenders.count
       val strongAttackerExists =
         attackers.exists { sq =>
-          board.roleAt(sq).exists(r => r == Role.Queen || r == Role.Rook)
+          board.roleAt(sq).exists(r => r == Queen || r == Rook)
         }
       val oppMajorsExist = hasMajors(board, opp)
 
       board.pieceAt(homeSq) match
-        case Some(Piece(Role.Pawn, `color`)) =>
+        case Some(Piece(Pawn, `color`)) =>
           if attackersCount >= 2 && attackersCount > defendersCount && strongAttackerExists then Some(tag) else None
         case _ =>
           if oppMajorsExist && attackersCount >= 1 && strongAttackerExists then Some(tag) else None

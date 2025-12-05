@@ -176,6 +176,8 @@ export interface Review {
   accuracyBlack?: number;
 }
 
+
+
 export interface ReviewTreeNode {
   ply: number;
   san: string;
@@ -191,6 +193,9 @@ export interface ReviewTreeNode {
   pv: string[];
   comment?: string;
   children: ReviewTreeNode[];
+  nodeType?: string; // "mainline" | "critical" | "sideline"
+  concepts?: Concepts;
+  features?: Features;
 }
 
 export interface StudyLine {
@@ -211,4 +216,13 @@ export interface StudyChapter {
   summary?: string;
   studyScore?: number;
   practicality?: PracticalityScore;
+  metadata?: {
+    name: string;
+    description: string;
+  };
+  phase?: string;
+  winPctBefore?: number;
+  winPctAfter?: number;
+  rootNode?: ReviewTreeNode;
+  variations?: any[]; // Placeholder if needed, or remove from AnnotationView fallback
 }

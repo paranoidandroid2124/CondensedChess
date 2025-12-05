@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.{ EngineEval, EngineLine }
+import AnalysisModel.{ EngineEval, EngineLine }
 
 object EngineProbe:
   def evalFen(client: StockfishClient, fen: String, depth: Int, multiPv: Int, moveTimeMs: Option[Int]): EngineEval =

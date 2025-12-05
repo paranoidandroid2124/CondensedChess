@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.*
+import AnalysisModel.*
 import PhaseClassifier.phaseTransition
 import chess.opening.Opening
 

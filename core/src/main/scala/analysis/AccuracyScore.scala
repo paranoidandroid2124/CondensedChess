@@ -14,7 +14,7 @@ object AccuracyScore:
     * @param moves moves timeline filtered for one player
     * @return accuracy score (0-100)
     */
-  def calculate(moves: Vector[AnalyzePgn.PlyOutput]): Double =
+  def calculate(moves: Vector[AnalysisModel.PlyOutput]): Double =
     if moves.isEmpty then return 0.0
     
     // Calculate average centipawn loss
@@ -43,7 +43,7 @@ object AccuracyScore:
     * @param timeline full game timeline
     * @return (whiteAccuracy, blackAccuracy)
     */
-  def calculateBothSides(timeline: Vector[AnalyzePgn.PlyOutput]): (Double, Double) =
+  def calculateBothSides(timeline: Vector[AnalysisModel.PlyOutput]): (Double, Double) =
     val whiteMoves = timeline.filter(_.turn == Color.White)
     val blackMoves = timeline.filter(_.turn == Color.Black)
     (calculate(whiteMoves), calculate(blackMoves))

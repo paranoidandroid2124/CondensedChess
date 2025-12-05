@@ -1,10 +1,10 @@
 package chess
 package analysis
 
-import AnalyzeDomain.*
+import AnalysisModel.*
 import AnalyzeUtils.escape
 
-object AnalyzeRenderer:
+object AnalysisSerializer:
 
   def render(output: Output): String =
     val sb = new StringBuilder(256 + output.timeline.size * 128)
@@ -352,6 +352,21 @@ object AnalyzeRenderer:
     ch.summary.foreach { s =>
       sb.append(",\"summary\":\"").append(escape(s)).append('"')
     }
+    sb.append(",\"phase\":\"").append(escape(ch.phase)).append("\",")
+    sb.append("\"winPctBefore\":").append(fmt(ch.winPctBefore)).append(',')
+    sb.append("\"winPctAfter\":").append(fmt(ch.winPctAfter))
+    
+    ch.metadata.foreach { m =>
+      sb.append(",\"metadata\":{")
+      sb.append("\"name\":\"").append(escape(m.name)).append("\",")
+      sb.append("\"description\":\"").append(escape(m.description)).append("\"")
+      sb.append("}")
+    }
+
+    ch.rootNode.foreach { r =>
+      sb.append(",\"rootNode\":")
+      renderTree(sb, r)
+    }
     sb.append('}')
 
   private def renderTree(sb: StringBuilder, n: TreeNode): Unit =
@@ -364,6 +379,7 @@ object AnalyzeRenderer:
     sb.append("\"evalType\":\"").append(n.evalType).append("\",")
     sb.append("\"judgement\":\"").append(escape(n.judgement)).append("\",")
     sb.append("\"glyph\":\"").append(escape(n.glyph)).append("\",")
+    sb.append("\"nodeType\":\"").append(escape(n.nodeType)).append("\",")
     sb.append("\"tags\":[")
     n.tags.zipWithIndex.foreach { case (t, idx) =>
       if idx > 0 then sb.append(',')
@@ -380,9 +396,44 @@ object AnalyzeRenderer:
       }
       sb.append("],")
     n.comment.foreach(c => sb.append("\"comment\":\"").append(escape(c)).append("\","))
+    
+    n.concepts.foreach { c =>
+      sb.append("\"concepts\":")
+      renderConcepts(sb, c)
+      sb.append(',')
+    }
+    
+    n.features.foreach { f =>
+      renderFeatures(sb, f)
+      sb.append(',')
+    }
+
     sb.append("\"children\":[")
     n.children.zipWithIndex.foreach { case (c, idx) =>
       if idx > 0 then sb.append(',')
       renderTree(sb, c)
     }
     sb.append("]}")
+
+  private def renderConcepts(sb: StringBuilder, c: Concepts): Unit =
+    sb.append('{')
+    sb.append("\"dynamic\":").append(fmt(c.dynamic)).append(',')
+    sb.append("\"drawish\":").append(fmt(c.drawish)).append(',')
+    sb.append("\"imbalanced\":").append(fmt(c.imbalanced)).append(',')
+    sb.append("\"tacticalDepth\":").append(fmt(c.tacticalDepth)).append(',')
+    sb.append("\"blunderRisk\":").append(fmt(c.blunderRisk)).append(',')
+    sb.append("\"pawnStorm\":").append(fmt(c.pawnStorm)).append(',')
+    sb.append("\"fortress\":").append(fmt(c.fortress)).append(',')
+    sb.append("\"colorComplex\":").append(fmt(c.colorComplex)).append(',')
+    sb.append("\"badBishop\":").append(fmt(c.badBishop)).append(',')
+    sb.append("\"goodKnight\":").append(fmt(c.goodKnight)).append(',')
+    sb.append("\"rookActivity\":").append(fmt(c.rookActivity)).append(',')
+    sb.append("\"kingSafety\":").append(fmt(c.kingSafety)).append(',')
+    sb.append("\"dry\":").append(fmt(c.dry)).append(',')
+    sb.append("\"comfortable\":").append(fmt(c.comfortable)).append(',')
+    sb.append("\"unpleasant\":").append(fmt(c.unpleasant)).append(',')
+    sb.append("\"engineLike\":").append(fmt(c.engineLike)).append(',')
+    sb.append("\"conversionDifficulty\":").append(fmt(c.conversionDifficulty)).append(',')
+    sb.append("\"sacrificeQuality\":").append(fmt(c.sacrificeQuality)).append(',')
+    sb.append("\"alphaZeroStyle\":").append(fmt(c.alphaZeroStyle))
+    sb.append('}')

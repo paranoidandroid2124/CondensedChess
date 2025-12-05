@@ -1,7 +1,7 @@
 package chess
 package analysis
 
-import AnalyzeDomain.*
+import AnalysisModel.*
 import AnalyzeUtils.*
 import chess.format.Fen
 import chess.opening.Opening

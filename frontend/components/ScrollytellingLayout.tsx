@@ -6,9 +6,10 @@ interface ScrollytellingLayoutProps {
     chapters: StudyChapter[];
     currentPly: number | null;
     onPlySelect: (ply: number) => void;
+    onStartGuess?: (chapter: StudyChapter) => void;
 }
 
-export function ScrollytellingLayout({ chapters, currentPly, onPlySelect }: ScrollytellingLayoutProps) {
+export function ScrollytellingLayout({ chapters, currentPly, onPlySelect, onStartGuess }: ScrollytellingLayoutProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
 

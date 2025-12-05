@@ -77,34 +77,41 @@ export function CompressedMoveList({ timeline, currentPly, onSelectPly }: Compre
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 text-sm font-medium">
-                <div className="flex flex-wrap content-start gap-x-1 gap-y-0.5">
-                    {movePairs.map((pair, idx) => {
-                        if (!pair) return null; // Skip empty slots (0 index)
-                        return (
-                            <div key={pair.number} className="flex items-baseline gap-1 px-1 py-0.5 hover:bg-white/5 rounded">
-                                <span className="mr-1 text-white/40 font-mono text-xs">{pair.number}.</span>
+                {timeline.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-8 text-white/40">
+                        <div className="animate-pulse text-2xl mb-2">⏳</div>
+                        <p className="text-sm">Loading moves...</p>
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap content-start gap-x-1 gap-y-0.5">
+                        {movePairs.map((pair, idx) => {
+                            if (!pair) return null; // Skip empty slots (0 index)
+                            return (
+                                <div key={pair.number} className="flex items-baseline gap-1 px-1 py-0.5 hover:bg-white/5 rounded">
+                                    <span className="mr-1 text-white/40 font-mono text-xs">{pair.number}.</span>
 
-                                {pair.white && (
-                                    <MoveButton
-                                        node={pair.white}
-                                        isActive={currentPly === pair.white.ply}
-                                        onClick={() => onSelectPly(pair.white!.ply)}
-                                        ref={currentPly === pair.white.ply ? activeRef : undefined}
-                                    />
-                                )}
+                                    {pair.white && (
+                                        <MoveButton
+                                            node={pair.white}
+                                            isActive={currentPly === pair.white.ply}
+                                            onClick={() => onSelectPly(pair.white!.ply)}
+                                            ref={currentPly === pair.white.ply ? activeRef : undefined}
+                                        />
+                                    )}
 
-                                {pair.black && (
-                                    <MoveButton
-                                        node={pair.black}
-                                        isActive={currentPly === pair.black.ply}
-                                        onClick={() => onSelectPly(pair.black!.ply)}
-                                        ref={currentPly === pair.black.ply ? activeRef : undefined}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                                    {pair.black && (
+                                        <MoveButton
+                                            node={pair.black}
+                                            isActive={currentPly === pair.black.ply}
+                                            onClick={() => onSelectPly(pair.black!.ply)}
+                                            ref={currentPly === pair.black.ply ? activeRef : undefined}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );
