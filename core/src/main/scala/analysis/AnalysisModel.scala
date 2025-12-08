@@ -96,10 +96,14 @@ object AnalysisModel:
       semanticTags: List[String],
       mistakeCategory: Option[String],
       phaseLabel: Option[String] = None,
+      phase: String = "middlegame",
       shortComment: Option[String] = None,
       studyTags: List[String] = Nil,
       studyScore: Double = 0.0,
-      practicality: Option[PracticalityScorer.Score] = None
+      practicality: Option[PracticalityScorer.Score] = None,
+      materialDiff: Double = 0.0,
+      bestMaterialDiff: Option[Double] = None,
+      tacticalMotif: Option[String] = None
   )
 
   final case class Output(
@@ -153,7 +157,8 @@ object AnalysisModel:
       children: List[TreeNode],
       nodeType: String = "mainline", // "mainline", "critical", "sideline"
       concepts: Option[Concepts] = None,
-      features: Option[FeatureExtractor.SideFeatures] = None
+      features: Option[FeatureExtractor.SideFeatures] = None,
+      practicality: Option[PracticalityScorer.Score] = None
   )
   final case class StudyLine(label: String, pv: List[String], winPct: Double)
   final case class StudyChapter(

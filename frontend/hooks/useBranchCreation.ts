@@ -108,6 +108,7 @@ export function useBranchCreation(options: BranchCreationOptions) {
               ply: (anchor.ply) + 1,
               turn: anchor.turn === "white" ? "black" : "white",
               san: move.san,
+              label: `${Math.ceil((anchor.ply + 1) / 2)}${(anchor.ply + 1) % 2 === 1 ? "." : "..."} ${move.san}`,
               uci: uci,
               fen: newFen,
               fenBefore: anchor.fen,
@@ -121,7 +122,7 @@ export function useBranchCreation(options: BranchCreationOptions) {
               epBefore: 0,
               epAfter: 0,
               epLoss: 0,
-              conceptsBefore: {} as any,
+
               concepts: {} as any,
               conceptDelta: {} as any,
               semanticTags: [],

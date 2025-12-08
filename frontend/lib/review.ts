@@ -33,14 +33,21 @@ export async function fetchReview(id: string): Promise<ReviewFetchResult> {
 
   // Backend returns 202 while analysis is pending
   if (res.status === 202) {
-    let message: string | undefined;
+    let data: any = {};
     try {
-      const json = await res.json();
-      message = json.status as string | undefined;
+      data = await res.json();
     } catch {
       // ignore
     }
-    return { status: "pending", message };
+    return {
+      status: "pending",
+      message: data.status,
+      stage: data.stage,
+      stageLabel: data.stageLabel,
+      stageProgress: data.stageProgress,
+      totalProgress: data.totalProgress,
+      startedAt: data.startedAt
+    };
   }
 
   if (!res.ok) {

@@ -28,7 +28,8 @@ const config: Config = {
       },
       fontFamily: {
         display: ["'Space Grotesk'", "Inter", "system-ui", "sans-serif"],
-        body: ["'Inter'", "system-ui", "sans-serif"]
+        body: ["'Inter'", "system-ui", "sans-serif"],
+        serif: ["'Merriweather'", "serif"]
       }
     }
   },

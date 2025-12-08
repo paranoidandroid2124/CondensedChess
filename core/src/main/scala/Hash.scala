@@ -57,38 +57,8 @@ object Hash:
     val hEp = position.enPassantSquare.fold(0): square =>
       ZobristTables.enPassantMasks(square.file.value)
 
-    val hChecks = position.variant match
-      case variant.ThreeCheck =>
-        hashThreeCheck(Black, position.history.checkCount.black) ^
-          hashThreeCheck(White, position.history.checkCount.white)
-      case _ => 0
-
-    val hCrazy = position.crazyData.fold(0): data =>
-      var h = 0
-      data.promoted.foreach: s =>
-        h ^= ZobristTables.crazyPromotionMasks(s.hashCode)
-      data.pockets.foreach: (color, pocket) =>
-        pocket.foreach: (role, size) =>
-          h ^= hashCrazyPocket(color, role, size)
-      h
-
-    hPieces ^ hTurn ^ hCastling ^ hEp ^ hChecks ^ hCrazy
+    hPieces ^ hTurn ^ hCastling ^ hEp
   end hashPosition
-
-  private def hashThreeCheck(color: Color, count: Int): Int =
-    val subTable = ZobristTables.threeCheckMasks(color)
-    ((count & 1) * subTable(0)) ^
-      (((count >>> 1) & 1) * subTable(1))
-
-  private def hashCrazyPocket(color: Color, role: Role, count: Int): Int =
-    val subTable = ZobristTables.crazyPocketMasks(color)(role)
-    (count & 1) * subTable(0) ^
-      ((count >>> 1) & 1) * subTable(1) ^
-      ((count >>> 2) & 1) * subTable(2) ^
-      ((count >>> 3) & 1) * subTable(3) ^
-      ((count >>> 4) & 1) * subTable(4) ^
-      ((count >>> 5) & 1) * subTable(5) ^
-      ((count >>> 6) & 1) * subTable(6)
 
 private object ZobristTables:
   val actorMasks = ByColor(
@@ -245,69 +215,4 @@ private object ZobristTables:
 
   val enPassantMasks = Array(
     0x70cc_73d9, 0xe21a_6b35, 0x003a_93d8, 0x1c99_ded3, 0xcf31_45de, 0xd0e4_427a, 0x77c6_21cc, 0x67a3_4dac
-  )
-
-  val threeCheckMasks = ByColor(
-    black = Array(
-      0x1d6d_c0ee,
-      0xc628_4b65
-    ),
-    white = Array(
-      0x803f_5fb0,
-      0xb183_ccc9
-    )
-  )
-
-  val crazyPromotionMasks = Array(
-    0x2f99_00cc, 0xf752_35be, 0x8ae7_e298, 0xad30_091c, 0xaae1_1877, 0x8ec5_14ce, 0x26a4_12bd, 0x1bdc_e26b,
-    0xea5f_4ade, 0x69ab_7ebc, 0x3e65_5f89, 0xf394_f688, 0x3173_cfa2, 0x434d_20d2, 0x3ba2_97f7, 0x099b_a1b0,
-    0xc49f_050b, 0xe14e_ec50, 0x2571_cc79, 0xde0f_98d6, 0x0682_220b, 0xcb90_0d3a, 0x2462_0fbf, 0x0f40_a9b2,
-    0x83c6_980d, 0xab6f_9af7, 0x1c90_6974, 0x9c1b_a3db, 0x81a1_9098, 0xfce5_6173, 0x43cb_7aa2, 0x7e96_e2ae,
-    0x0186_0725, 0xf74d_3690, 0x1ae9_962c, 0x5d66_fa46, 0xe9c1_3ae1, 0xcaec_4035, 0x839d_28ad, 0xe470_3b6e,
-    0x1e2f_d5b2, 0x96f1_e8d8, 0x90f2_075c, 0xc48e_0774, 0xf17e_5f6a, 0x6248_409b, 0x967b_d94e, 0xe91e_8985,
-    0xb841_038e, 0x46f3_b25c, 0x3e97_e042, 0x868a_166a, 0xf71b_e788, 0xcb6d_6541, 0x7e30_d705, 0x32db_0f5c,
-    0x97a9_116e, 0x85ee_68ee, 0x076a_1417, 0xbad4_9d47, 0x6361_87d9, 0x962e_5097, 0x8f16_c910, 0x7e3d_e4bf
-  )
-
-  val crazyPocketMasks = ByColor(
-    black = ByRole(
-      pawn = Array(
-        0xb262_e9f9, 0x9153_3947, 0xa13b_56b4, 0x9a35_cce2, 0x2716_940e, 0x7447_209c, 0x5cf9_1d8a
-      ),
-      knight = Array(
-        0x4625_588d, 0xe42e_c619, 0x478e_6cc8, 0x1726_fc94, 0xfb9d_2e5a, 0x7f66_8e40, 0xee4d_6fe1
-      ),
-      bishop = Array(
-        0x006c_b700, 0x3353_5a7c, 0x479e_792f, 0x656a_6e71, 0xcada_3e48, 0xb37a_d726, 0x85ae_2540
-      ),
-      rook = Array(
-        0x3de4_e82d, 0xb1c8_4996, 0xf1c1_853c, 0x51f9_7ed3, 0x00da_9ede, 0x3cd0_fd65, 0xac29_40b6
-      ),
-      queen = Array(
-        0xe51a_cb5b, 0xcf75_17fb, 0xdfe9_01ab, 0x24bf_d4b7, 0xf085_bcd9, 0x41b7_1908, 0x6d60_4cc0
-      ),
-      king = Array(
-        0xaedf_8291, 0x09d3_c83f, 0x257d_5c7e, 0x56ac_1c99, 0xa25c_0b06, 0xa9a2_a7e2, 0xb8e7_ca47
-      )
-    ),
-    white = ByRole(
-      pawn = Array(
-        0x9b25_3f89, 0x1e70_1e2a, 0xcdf3_51b2, 0x2e4e_118f, 0x8024_7d70, 0x0a99_dccf, 0xb555_3435
-      ),
-      knight = Array(
-        0xee56_2004, 0x551b_5fa3, 0x2dbb_493c, 0xf06b_4c65, 0x5f0b_44d9, 0xce7d_bafa, 0xe009_c0e3
-      ),
-      bishop = Array(
-        0x2191_8f47, 0xdcf1_1e80, 0x7ac2_1357, 0x28ab_e0a3, 0x30b8_e3da, 0xd999_d38f, 0x8a7e_0d13
-      ),
-      rook = Array(
-        0x9157_bfe7, 0xadda_94b2, 0x6f55_5cf7, 0x5b2a_5b27, 0x500c_782c, 0x20f8_b3f7, 0x79c8_90ed
-      ),
-      queen = Array(
-        0xe64d_bd47, 0xa949_66fb, 0x2473_b4e6, 0x98ab_df9f, 0x75fa_1ecb, 0xf605_3757, 0x060e_2788
-      ),
-      king = Array(
-        0x5fa6_1c63, 0x90bb_f42d, 0xb525_460e, 0x2696_070a, 0x1580_8744, 0x6501_0c3e, 0xb28e_cdf3
-      )
-    )
   )

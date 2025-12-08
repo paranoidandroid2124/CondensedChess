@@ -7,33 +7,22 @@ import chess.format.Fen
 
 import scala.annotation.nowarn
 
-// Correctness depends on singletons for each variant ID
-abstract class Variant private[variant] (
-    val id: Variant.Id,
-    val key: Variant.LilaKey,
-    val uciKey: Variant.UciKey,
-    val name: String,
-    val shortName: String,
-    val title: String,
-    val standardInitialPosition: Boolean
-):
+abstract class Variant(val name: String):
 
   def initialPieces: Map[Square, Piece]
   def initialBoard: Board
   def initialPosition: Position = Position(initialBoard, this, White)
 
   inline def standard: Boolean = this == Standard
-  inline def chess960: Boolean = this == Chess960
-  inline def fromPosition: Boolean = this == FromPosition
-  inline def kingOfTheHill: Boolean = this == KingOfTheHill
-  inline def threeCheck: Boolean = this == ThreeCheck
-  inline def antichess: Boolean = this == Antichess
-  inline def atomic: Boolean = this == Atomic
-  inline def horde: Boolean = this == Horde
-  inline def racingKings: Boolean = this == RacingKings
-  inline def crazyhouse: Boolean = this == Crazyhouse
-
-  inline def exotic: Boolean = !standard
+  inline def chess960: Boolean = false
+  inline def fromPosition: Boolean = false
+  inline def kingOfTheHill: Boolean = false
+  inline def threeCheck: Boolean = false
+  inline def antichess: Boolean = false
+  inline def atomic: Boolean = false
+  inline def horde: Boolean = false
+  inline def racingKings: Boolean = false
+  inline def crazyhouse: Boolean = false
 
   def allowsCastling: Boolean = !castles.isEmpty
 
@@ -48,10 +37,10 @@ abstract class Variant private[variant] (
   val initialFen: Fen.Full = Fen.Full.initial
 
   def isValidPromotion(promotion: Option[PromotableRole]): Boolean =
-    promotion match
-      case None => true
-      case Some(Queen | Rook | Knight | Bishop) => true
+    promotion.forall {
+      case Queen | Rook | Knight | Bishop => true
       case _ => false
+    }
 
   def validMoves(position: Position): List[Move]
 
@@ -96,10 +85,6 @@ abstract class Variant private[variant] (
       promotion: Option[PromotableRole]
   ): Either[ErrorStr, Move] =
 
-    // when users set auto queen promotion, lichobile will send an uci move
-    // without promotion ex: b2a1 instead of b2a1q.
-    // So if a move is a pawn move to the last rank, we need to set the promotion
-    // to queen if it is not already set.
     inline def findMove(m: Move): Boolean =
       m.dest == to && m.promotion == promotion.orElse(Option.when(isPromotion(m))(Queen))
 
@@ -117,12 +102,6 @@ abstract class Variant private[variant] (
 
   def checkmate(position: Position): Boolean = position.check.yes && position.legalMoves.isEmpty
 
-  /**
-  * Return the winner of the game if there is one.
-  *
-  * In most variants, the winner is the last player to have played and there is a possibility
-  * of either a traditional checkmate or a variant end condition
-  * */
   def winner(position: Position): Option[Color] =
     if position.checkMate || specialEnd(position) then Option(!position.color) else None
 
@@ -133,8 +112,6 @@ abstract class Variant private[variant] (
   def autoDraw(position: Position): Boolean =
     isInsufficientMaterial(position) || fiftyMoves(position.history) || position.history.fivefoldRepetition
 
-  /** Returns the material imbalance in pawns (overridden in Antichess)
-    */
   def materialImbalance(board: Board): Int =
     board.fold(0): (acc, color, role) =>
       Role
@@ -142,19 +119,12 @@ abstract class Variant private[variant] (
         .fold(acc): value =>
           acc + value * color.fold(1, -1)
 
-  /** Returns true if neither player can win. The game should end immediately.
-    */
   def isInsufficientMaterial(position: Position): Boolean = InsufficientMatingMaterial(position.board)
 
-  /** Returns true if the other player cannot win. This is relevant when the
-    * side to move times out or disconnects. Instead of losing on time,
-    * the game should be drawn.
-    */
   def opponentHasInsufficientMaterial(position: Position): Boolean =
     InsufficientMatingMaterial(position.board, !position.color)
 
   def playerHasInsufficientMaterial(position: Position): Boolean =
-    // For all variants except Antichess and Horde, considering turn isn't needed:
     opponentHasInsufficientMaterial(position.withColor(!position.color))
 
   def fiftyMoves(history: History): Boolean =
@@ -184,75 +154,13 @@ abstract class Variant private[variant] (
 
   override def equals(that: Any): Boolean = this eq that.asInstanceOf[AnyRef]
 
-  override def hashCode: Int = id.value
+  override def hashCode: Int = name.hashCode
 
 object Variant:
 
-  given Eq[Variant] = Eq.by(_.id)
+  given Eq[Variant] = Eq.fromUniversalEquals
 
-  opaque type Id = Int
-  object Id extends OpaqueInt[Id]
-
-  opaque type LilaKey = String
-  object LilaKey extends OpaqueString[LilaKey]
-
-  opaque type UciKey = String
-  object UciKey extends OpaqueString[UciKey]
-
-  object list:
-    val all: List[Variant] = List(
-      Standard,
-      Crazyhouse,
-      Chess960,
-      FromPosition,
-      KingOfTheHill,
-      ThreeCheck,
-      Antichess,
-      Atomic,
-      Horde,
-      RacingKings
-    )
-    val byId = all.mapBy(_.id)
-    val byKey = all.mapBy(_.key)
-
-    val openingSensibleVariants: Set[Variant] = Set(
-      chess.variant.Standard,
-      chess.variant.Crazyhouse,
-      chess.variant.ThreeCheck,
-      chess.variant.KingOfTheHill
-    )
-    val divisionSensibleVariants: Set[Variant] = Set(
-      chess.variant.Standard,
-      chess.variant.Chess960,
-      chess.variant.ThreeCheck,
-      chess.variant.KingOfTheHill,
-      chess.variant.FromPosition
-    )
-
-  inline def default: Variant = Standard
-
-  inline def apply(inline id: Id): Option[Variant] = list.byId.get(id)
-  inline def apply(inline key: LilaKey): Option[Variant] = list.byKey.get(key)
-  def orDefault(id: Id): Variant = apply(id) | default
-  def orDefault(key: LilaKey): Variant = apply(key) | default
-  def idOrDefault(id: Option[Id]): Variant = id.flatMap(apply(_)) | default
-  def orDefault(key: Option[LilaKey]): Variant = key.flatMap(apply(_)) | default
+  val default: Variant = Standard
 
   def byName(name: String): Option[Variant] =
-    list.all.find(_.name.toLowerCase == name.toLowerCase)
-
-  def exists(id: Id): Boolean = list.byId.contains(id)
-
-  private[variant] def symmetricRank(rank: IndexedSeq[Role]): Map[Square, Piece] =
-    (File.all.zip(rank).map((x, role) => Square(x, Rank.First) -> (White - role)) ++
-      File.all.map(Square(_, Rank.Second) -> White.pawn) ++
-      File.all.map(Square(_, Rank.Seventh) -> Black.pawn) ++
-      File.all.zip(rank).map((x, role) => Square(x, Rank.Eighth) -> (Black - role))).toMap
-
-  def isValidInitialFen(variant: Variant, fen: Option[Fen.Full], strict: Boolean = false): Boolean =
-    if variant.chess960
-    then fen.forall(f => Chess960.positionNumber(f).isDefined)
-    else if variant.fromPosition then
-      fen.exists: f =>
-        Fen.read(f).exists(_.playable(strict))
-    else true
+    Option.when(name.equalsIgnoreCase("standard") || name.equalsIgnoreCase("chess"))(Standard)

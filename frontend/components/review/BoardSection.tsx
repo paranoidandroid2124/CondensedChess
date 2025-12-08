@@ -4,9 +4,11 @@ import { MoveControls } from "./MoveControls";
 import { BoardCard, type PieceDropArgs } from "./BoardCard";
 import type { EnhancedTimelineNode } from "../../lib/review-derived";
 
+import { DrawShape } from "chessground/draw";
+
 export function BoardSection({
   fen,
-  squareStyles,
+  customShapes,
   arrows,
   evalPercent,
   judgementBadge,
@@ -26,6 +28,7 @@ export function BoardSection({
   children
 }: {
   fen?: string;
+  customShapes?: DrawShape[];
   squareStyles?: Record<string, React.CSSProperties>;
   arrows?: Array<[string, string, string?]>;
   evalPercent?: number;
@@ -59,7 +62,7 @@ export function BoardSection({
       <div className="group relative">
         <BoardCard
           fen={fen}
-          squareStyles={squareStyles}
+          customShapes={customShapes}
           arrows={arrows}
           evalPercent={evalPercent}
           judgementBadge={judgementBadge}

@@ -2,9 +2,14 @@ package chess
 package analysis
 
 import AnalysisModel.*
-
+import AnalyzeUtils.pvToSan
 object ReviewTreeBuilder:
-  def buildTree(timeline: Vector[PlyOutput], critical: Vector[CriticalNode]): TreeNode =
+  def buildTree(
+      timeline: Vector[PlyOutput], 
+      critical: Vector[CriticalNode], 
+      client: StockfishClient, 
+      config: AnalysisModel.EngineConfig
+  ): TreeNode =
     val criticalByPly = critical.map(c => c.ply.value -> c).toMap
 
     // Helper to convert a PV line into a linear TreeNode chain
@@ -21,6 +26,9 @@ object ReviewTreeBuilder:
                 case Right((nextGame, _)) =>
                   val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
                   val fen = chess.format.Fen.write(nextGame).value
+                  // Convert remaining UCI PV to SAN from the updated position
+                  val pvSan = pvToSan(fen, rest)
+
                   val node = TreeNode(
                     ply = currentPly,
                     san = san,
@@ -33,7 +41,7 @@ object ReviewTreeBuilder:
                     tags = List(label),
                     bestMove = None,
                     bestEval = None,
-                    pv = rest,
+                    pv = pvSan,
                     comment = None,
                     children = rec(rest, nextGame, currentPly + 1).toList,
                     nodeType = nodeType
@@ -54,16 +62,51 @@ object ReviewTreeBuilder:
           child.copy(nodeType = "mainline")
         }
 
+        // 1.5. Hypothesis Branches (Why Not?)
+        // Only trigger for critical nodes or mistakes to explain "Why not X?"
+        val hypothesisBranches = 
+          val bestMoveOpt = p.evalBeforeDeep.lines.headOption
+          if (p.mistakeCategory.isDefined || p.judgement == "blunder" || p.judgement == "mistake") && bestMoveOpt.isDefined then
+             HypothesisValidator.findHypotheses(
+               client, 
+               p.fenBefore, 
+               bestMoveOpt.get.move, 
+               p.winPctBefore.max(bestMoveOpt.get.winPct), // Best eval
+               depth = config.shallowDepth
+             ).flatMap { h =>
+               pvToNodeChain(p.fenBefore, h.move :: h.refutation, h.eval, "hypothesis", h.label)
+             }
+          else Nil
+
         // 2. Variations from Critical Nodes
-        val variations = criticalByPly.get(p.ply.value) match
+        // 2. Variations: Critical + Best + Practical
+        val criticalVariations = criticalByPly.get(p.ply.value) match
           case Some(c) =>
             c.branches.take(3).flatMap { b =>
-              // We need to reconstruct the PV nodes
-              // The 'b.move' is the first move of the variation
               val pv = b.move :: b.pv
               pvToNodeChain(p.fenBefore, pv, b.winPct, "critical", b.label)
             }.toList
           case None => Nil
+
+        // Best Move from Engine (if not played)
+        val bestLine = p.evalBeforeDeep.lines.headOption
+        val bestVariation = bestLine.filter(_.move != p.uci).flatMap { l =>
+          pvToNodeChain(p.fenBefore, l.move :: l.pv, l.winPct, "best", "Best")
+        }
+
+        // Practical Move (2nd best, close to best)
+        val practicalVariation = p.evalBeforeDeep.lines.drop(1).headOption.filter { l =>
+          bestLine.exists(b => (b.winPct - l.winPct).abs < 10.0) && l.move != p.uci
+        }.flatMap { l =>
+          pvToNodeChain(p.fenBefore, l.move :: l.pv, l.winPct, "practical", "Practical")
+        }
+
+        // Merge and Deduplicate by first move (UCI)
+        // Order: Critical -> Best -> Practical -> Hypothesis
+        val variations = (criticalVariations ++ bestVariation ++ practicalVariation ++ hypothesisBranches)
+          .foldLeft(List.empty[TreeNode]) { (acc, node) =>
+            if (acc.exists(_.uci == node.uci)) acc else acc :+ node
+          }
 
         // Construct current node
         
@@ -79,6 +122,9 @@ object ReviewTreeBuilder:
           (List(p.judgement) ++ p.special.toList ++ p.mistakeCategory.toList ++ p.semanticTags)
             .filter(_.nonEmpty)
 
+        // Convert Engine PV to SAN
+        val bestLinePvSan = p.evalBeforeDeep.lines.headOption.map(_.pv).getOrElse(Nil)
+
         Some(TreeNode(
           ply = p.ply.value,
           san = p.san,
@@ -91,12 +137,13 @@ object ReviewTreeBuilder:
           tags = tagsOf(p),
           bestMove = p.evalBeforeDeep.lines.headOption.map(_.move),
           bestEval = p.evalBeforeDeep.lines.headOption.map(_.winPct),
-          pv = p.evalBeforeDeep.lines.headOption.map(_.pv).getOrElse(Nil),
+          pv = bestLinePvSan,
           comment = p.shortComment,
           children = mainlineChild.toList ++ variations,
           nodeType = "mainline",
           concepts = Some(p.concepts),
-          features = Some(p.features)
+          features = Some(p.features),
+          practicality = p.practicality
         ))
 
     // The root of the entire game tree is usually the starting position
@@ -122,4 +169,3 @@ object ReviewTreeBuilder:
       children = firstMove.toList,
       nodeType = "root"
     )
-

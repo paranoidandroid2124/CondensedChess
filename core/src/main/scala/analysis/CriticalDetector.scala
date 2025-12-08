@@ -77,10 +77,10 @@ object CriticalDetector:
         enriched.zipWithIndex.map {
           case (l, idx) =>
             val label = idx match
-              case 0 => "best (PV1)"
-              case 1 => "alt (PV2)"
-              case 2 => "alt (PV3)"
-              case _ => "line"
+              case 0 => "Best Move"
+              case 1 => "Alternative"
+              case 2 => "Alternative"
+              case _ => "Line"
             Branch(move = l.move, winPct = l.winPct, pv = l.pv, label = label)
         }
 

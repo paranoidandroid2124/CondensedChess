@@ -24,52 +24,54 @@ object SemanticTagger:
     val plyNumber = ply.value
 
     val oppKing = board.kingPosOf(oppColor)
+    val p = perspective.toString.toLowerCase
+    val o = oppColor.toString.toLowerCase
 
-    if hasOpenFileThreat(board, oppKing, File.H, perspective) then tags += "open_h_file"
-    if hasOpenFileThreat(board, oppKing, File.G, perspective) then tags += "open_g_file"
+    if hasOpenFileThreat(board, oppKing, File.H, perspective) then tags += s"${p}_open_h_file"
+    if hasOpenFileThreat(board, oppKing, File.G, perspective) then tags += s"${p}_open_g_file"
 
-    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, "weak_f7").foreach(tags += _)
-    weakFHomeTag(board, oppColor, File.F, Rank.Second, "weak_f2").foreach(tags += _)
+    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, s"${o}_weak_f7").foreach(tags += _)
+    weakFHomeTag(board, oppColor, File.F, Rank.Second, s"${o}_weak_f2").foreach(tags += _)
 
-    strongOutpost(board, perspective).foreach(tags += _)
+    strongOutpost(board, perspective).foreach(s => tags += s"${p}_$s") // strongOutpost returns "outpost_..."
 
-    if backRankWeak(board, perspective) then tags += TagName.WeakBackRank
-    looseMinor(board, perspective).foreach(tags += _)
+    if backRankWeak(board, perspective) then tags += s"${p}_weak_back_rank"
+    looseMinor(board, perspective).foreach(s => tags += s"${p}_$s") // looseMinor returns "loose_piece_..."
 
-    if kingStuckCenter(position, perspective, plyNumber) then tags += "king_stuck_center"
+    if kingStuckCenter(position, perspective, plyNumber) then tags += s"${p}_king_stuck_center"
 
-    if hasIsolatedDPawn(board, perspective, plyNumber) then tags += "isolated_d_pawn"
+    if hasIsolatedDPawn(board, perspective, plyNumber) then tags += s"${p}_isolated_d_pawn"
 
-    if rookOnSeventh(board, perspective) then tags += "rook_on_seventh"
+    if rookOnSeventh(board, perspective) then tags += s"${p}_rook_on_seventh"
 
     val boardPawnStorm = pawnStormAgainstCastledKing(board, perspective, oppKing)
-    if boardPawnStorm then tags += "pawn_storm_against_castled_king"
+    if boardPawnStorm then tags += s"${p}_pawn_storm_against_castled_king"
 
     if opp.bishopPair && self.bishopPair == false && FeatureExtractor.hasOppositeColorBishops(board) then
       tags += "opposite_color_bishops"
 
-    if self.kingRingPressure >= 4 && opp.kingRingPressure <= 1 then tags += "king_attack_ready"
+    if self.kingRingPressure >= 4 && opp.kingRingPressure <= 1 then tags += s"${p}_king_attack_ready"
 
     // Concept-based tags from ConceptScorer
     concepts.foreach { c =>
       // Strategic imbalances
-      if c.badBishop >= 0.6 then tags += "restricted_bishop" // Renamed from bad_bishop
+      if c.badBishop >= 0.6 then tags += s"${p}_restricted_bishop"
       if c.goodKnight >= 0.6 then
-        if hasCentralKnightOutpost(board, perspective) then tags += "knight_outpost_central"
-        else tags += "strong_knight" // Renamed from good_knight_outpost
-      if c.colorComplex >= 0.5 then tags += "color_complex_weakness"
+        if hasCentralKnightOutpost(board, perspective) then tags += s"${p}_knight_outpost_central"
+        else tags += s"${p}_strong_knight"
+      if c.colorComplex >= 0.5 then tags += s"${p}_color_complex_weakness"
       
       // Positional character
       // Fortress Logic Split
       val endgame = isEndgame(board)
-      if c.fortress >= 0.6 && !endgame && plyNumber > 20 then tags += "locked_position" // Closed center in middlegame
+      if c.fortress >= 0.6 && !endgame && plyNumber > 20 then tags += "locked_position" // Neutral
       
       if c.fortress >= 0.6 && endgame then
         val myMat = materialScore(board, perspective)
         val oppMat = materialScore(board, oppColor)
         if myMat <= oppMat - 1.0 && c.drawish >= 0.5 then
-           tags += "fortress_defense" // True fortress: material down but holding
-
+           tags += s"${p}_fortress_defense"
+ 
       val dynamicTagged =
         if c.dynamic >= 0.7 && c.dry < 0.5 then
           tags += "dynamic_position"
@@ -77,20 +79,20 @@ object SemanticTagger:
         else false
       if !dynamicTagged && c.dry >= 0.6 && (plyNumber > 16 || isEndgame(board)) then tags += "dry_position"
       if c.drawish >= 0.7 && winPct >= 35.0 && winPct <= 65.0 then tags += "drawish_position"
-      if c.pawnStorm >= 0.6 && boardPawnStorm then tags += "pawn_storm"
+      if c.pawnStorm >= 0.6 && boardPawnStorm then tags += s"${p}_pawn_storm"
       
       // Space and activity
       val spaceAdvantage = self.spaceControl.toDouble / (self.spaceControl + opp.spaceControl + 1.0)
-      if spaceAdvantage >= 0.65 then tags += "space_advantage"
-      if c.rookActivity >= 0.6 then tags += "active_rooks"
+      if spaceAdvantage >= 0.65 then tags += s"${p}_space_advantage"
+      if c.rookActivity >= 0.6 then tags += s"${p}_active_rooks"
       
       // Crisis and opportunity
       val crisis = c.kingSafety >= 0.6 && (c.pawnStorm >= 0.5 || c.rookActivity >= 0.6)
-      if crisis then tags += "king_safety_crisis"
-      else if c.kingSafety >= 0.5 then tags += TagName.KingExposed
+      if crisis then tags += s"${p}_king_safety_crisis"
+      else if c.kingSafety >= 0.5 then tags += s"${p}_king_exposed"
       
       // Conversion Difficulty: Only if winning
-      if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then tags += TagName.ConversionDifficulty
+      if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then tags += s"${p}_conversion_difficulty"
       
       if c.blunderRisk >= 0.6 then tags += "high_blunder_risk"
       if c.tacticalDepth >= 0.6 then tags += "tactical_complexity"
@@ -99,27 +101,27 @@ object SemanticTagger:
       if c.imbalanced >= 0.6 then tags += "material_imbalance"
       
       // Advanced concepts
-      if c.sacrificeQuality >= 0.5 then tags += TagName.PositionalSacrifice
-      if c.alphaZeroStyle >= 0.6 then tags += "long_term_compensation"
-      if c.engineLike >= 0.6 then tags += "engine_only_move"
-      if c.comfortable >= 0.7 then tags += "comfortable_position"
+      if c.sacrificeQuality >= 0.5 then tags += s"${p}_positional_sacrifice"
+      if c.alphaZeroStyle >= 0.6 then tags += s"${p}_long_term_compensation"
+      if c.engineLike >= 0.6 then tags += s"${p}_engine_only_move"
+      if c.comfortable >= 0.7 then tags += s"${p}_comfortable_position"
       
       // Unpleasant: Only if slightly worse or equal
-      if c.unpleasant >= 0.6 && winPct <= 45.0 then tags += "unpleasant_position"
+      if c.unpleasant >= 0.6 && winPct <= 45.0 then tags += s"${p}_unpleasant_position"
     }
 
     // Rich Concept Taxonomy (White Space #2) - Refined
     concepts.foreach { c =>
       // 1. Conversion Difficulty Context
       if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then
-        if isEndgame(board) then tags += "conversion_difficulty_endgame"
-        if tags.contains("opposite_color_bishops") then tags += "conversion_difficulty_opposite_bishops"
+        if isEndgame(board) then tags += s"${p}_conversion_difficulty_endgame"
+        if tags.contains("opposite_color_bishops") then tags += s"${p}_conversion_difficulty_opposite_bishops"
 
       // 2. Fortress Potential (Material down but holding) - Merged into fortress_defense logic above
 
       // 3. Bishop Pair Advantage in Open Position
       if self.bishopPair && !opp.bishopPair && c.dry <= 0.4 then 
-        tags += "bishop_pair_advantage"
+        tags += s"${p}_bishop_pair_advantage"
     }
 
     tags.distinct.toList

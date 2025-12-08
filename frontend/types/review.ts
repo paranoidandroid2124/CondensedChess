@@ -145,6 +145,7 @@ export interface TimelineNode {
   conceptDelta?: Concepts;
   semanticTags?: string[];
   concepts?: Concepts;
+  conceptsBefore?: Concepts;
   isCustom?: boolean;
   bestVsSecondGap?: number;
   bestVsPlayedGap?: number;
@@ -156,6 +157,7 @@ export interface TimelineNode {
   studyTags?: string[];
   studyScore?: number;
   practicality?: PracticalityScore;
+  phase?: string; // "opening" | "middlegame" | "endgame"
 }
 
 export interface Review {
@@ -193,7 +195,7 @@ export interface ReviewTreeNode {
   pv: string[];
   comment?: string;
   children: ReviewTreeNode[];
-  nodeType?: string; // "mainline" | "critical" | "sideline"
+  nodeType?: string; // "mainline" | "critical" | "sideline" | "hypothesis"
   concepts?: Concepts;
   features?: Features;
 }

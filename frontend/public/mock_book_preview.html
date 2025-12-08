@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Mode Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['Merriweather', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #111; color: #e5e5e5; }
+        .paper-texture {
+            background-color: #1a1a1a;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-8 bg-neutral-900">
+
+    <!-- PaperLayout Container -->
+    <div class="paper-texture max-w-3xl w-full mx-auto p-12 font-serif text-lg leading-relaxed text-neutral-200">
+        
+        <!-- ChapterHeaderTable -->
+        <div class="mb-8 border border-neutral-700 rounded-sm overflow-hidden text-sm">
+            <div class="bg-neutral-800/50 p-3 border-b border-neutral-700">
+                <h3 class="font-bold text-neutral-300 uppercase tracking-widest text-xs">Chapter Key Points</h3>
+            </div>
+            <div class="divide-y divide-neutral-700 bg-neutral-900/30">
+                <div class="grid grid-cols-[120px_1fr] divide-x divide-neutral-700">
+                    <div class="p-3 text-neutral-400 font-semibold bg-neutral-800/10">Theme</div>
+                    <div class="p-3 text-neutral-200">Prophylaxis, Piece Activity</div>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] divide-x divide-neutral-700">
+                    <div class="p-3 text-neutral-400 font-semibold bg-neutral-800/10">Atmosphere</div>
+                    <div class="p-3 text-neutral-200">
+                        <span class="text-white font-bold mr-2">Tense</span>
+                        <span class="text-neutral-400 italic">(Critical)</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-[120px_1fr] divide-x divide-neutral-700">
+                    <div class="p-3 text-neutral-400 font-semibold bg-neutral-800/10">Context</div>
+                    <div class="p-3 text-neutral-200 flex gap-6">
+                        <div><span class="text-neutral-500 mr-2 text-xs uppercase">Phase</span>Middlegame</div>
+                        <div><span class="text-neutral-500 mr-2 text-xs uppercase">Impact</span><span class="text-yellow-500 text-xs tracking-widest">★★★★☆</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Narrative Flow -->
+        <div class="space-y-6">
+            <h2 class="font-bold text-2xl text-neutral-100 mb-6 border-b border-neutral-700 pb-2">The Illusion of Safety</h2>
+            
+            <!-- Root Move -->
+            <div class="mb-4">
+                <div class="inline">
+                    <span class="font-bold text-white cursor-pointer hover:bg-yellow-500/20 px-1 rounded">22. Qf3</span>
+                    <span class="ml-2 text-neutral-300">
+                        A natural looking developing move, protecting the knight and connecting the rooks. However, it misses a subtle tactical detail that Black can exploit immediately.
+                    </span>
+                </div>
+
+                <!-- Children -->
+                <div class="mt-2">
+                    
+                    <!-- Main Continuation (Best Move: Bg4) -->
+                    <div class="mb-4">
+                        <div class="inline">
+                            <span class="font-bold text-white cursor-pointer hover:bg-yellow-500/20 px-1 rounded">22... Bg4</span>
+                            <span class="ml-2 text-neutral-300">
+                                <strong class="text-white font-bold">The Bishop skewer is devastating.</strong> White's Queen has no good squares to maintain defense of the d4 pawn while stepping out of the pin.
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Hypothesis (Why Not?) -->
+                    <div class="mb-4 ml-6 pl-4 border-l border-neutral-700">
+                        <span class="inline-block mr-2 font-bold text-neutral-400 text-sm">A)</span>
+                        <div class="inline">
+                            <span class="text-red-300 decoration-red-900 underline decoration-dashed cursor-pointer hover:bg-yellow-500/20 px-1 rounded">22... Nxd4?</span>
+                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/30 text-red-200 border border-red-800/50">Why Not?</span>
+                            <span class="ml-2 text-neutral-300">
+                                This looks tempting, grabbing a central pawn. But it fails to <strong class="text-white font-bold">23. Nxd4!</strong> opening the E-file and leaving Black's king exposed to a discovered check mechanism.
+                            </span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

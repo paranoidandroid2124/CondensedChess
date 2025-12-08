@@ -61,7 +61,7 @@ object AnalyzePgn:
           
           val critical = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
-          val root = Some(ReviewTreeBuilder.buildTree(timeline, critical))
+          val root = Some(ReviewTreeBuilder.buildTree(timeline, critical, client, config))
           val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
           val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
           val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)

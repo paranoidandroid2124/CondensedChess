@@ -24,7 +24,7 @@ object PracticalityScorer:
     val horizon = computeHorizon(tacticalDepth, context)
     val naturalness = computeNaturalness(sacrificeQuality, tags)
 
-    val overall = 0.3 * robustness + 0.5 * horizon + 0.2 * naturalness
+    val overall = 0.5 * robustness + 0.3 * horizon + 0.2 * naturalness
     val categoryGlobal = categorize(overall)
     
     val categoryPersonal = context.flatMap { ctx =>
@@ -88,11 +88,11 @@ object PracticalityScorer:
       // Lower rated players get a boost (easier to be considered Human-Friendly)
       // Higher rated players get a penalty (stricter standards)
       val scaleFactor = 
-        if elo < 1200 then 1.2
-        else if elo < 1600 then 1.1
+        if elo < 1200 then 0.8
+        else if elo < 1600 then 0.9
         else if elo < 2000 then 1.0
-        else if elo < 2400 then 0.9
-        else 0.8 // GM level
+        else if elo < 2400 then 1.1
+        else 1.2 // GM level finds many moves 'natural'
 
       val adjustedScore = rawScore * scaleFactor
       categorize(adjustedScore)

@@ -85,13 +85,36 @@ const tagColorMap: Record<string, string> = {
     "default": "bg-white/10 text-white/70 border-white/20"
 };
 
+export function parseTag(tag: string): { label: string; color: "White" | "Black" | null; colorClass: string } {
+    const parts = tag.split('_');
+    let color: "White" | "Black" | null = null;
+    let baseTag = tag;
+
+    if (parts[0] === "white") {
+        color = "White";
+        baseTag = parts.slice(1).join('_');
+    } else if (parts[0] === "black") {
+        color = "Black";
+        baseTag = parts.slice(1).join('_');
+    }
+
+    const label = tagLabelMap[baseTag] || baseTag.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+    // Find color class based on baseTag (e.g. "strong_knight" -> "knight")
+    const colorKey = Object.keys(tagColorMap).find(k => baseTag.toLowerCase().includes(k));
+    const colorClass = colorKey ? tagColorMap[colorKey] : tagColorMap.default;
+
+    return { label, color, colorClass };
+}
+
+// Keep generic helpers for backward compatibility if needed, but they forward to parseTag
 export function getTagLabel(tag: string): string {
-    return tagLabelMap[tag] || tag.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const { label, color } = parseTag(tag);
+    return color ? `${label} (${color})` : label;
 }
 
 export function getTagColor(tag: string): string {
-    const key = Object.keys(tagColorMap).find(k => tag.toLowerCase().includes(k));
-    return key ? tagColorMap[key] : tagColorMap.default;
+    return parseTag(tag).colorClass;
 }
 
 export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conceptDelta }: ConceptsTabProps) {
@@ -116,16 +139,6 @@ export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conc
                     </div>
                 </div>
             </div>
-
-            {/* Game Summary */}
-            {review.summaryText && (
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <h3 className="text-sm font-semibold text-white/80 mb-2">Game Summary</h3>
-                    <p className="text-sm text-white/70 leading-relaxed">
-                        {review.summaryText}
-                    </p>
-                </div>
-            )}
 
             {/* Current Position Concepts */}
             {currentConcepts && (

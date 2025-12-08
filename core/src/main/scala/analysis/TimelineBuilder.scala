@@ -2,7 +2,6 @@ package chess
 package analysis
 
 import AnalysisModel.*
-import AnalyzeUtils.*
 import chess.format.Fen
 import chess.opening.Opening
 
@@ -23,9 +22,9 @@ object TimelineBuilder:
     val totalMoves = replay.chronoMoves.size
     
     replay.chronoMoves.zipWithIndex.foreach { case (mod, idx) =>
-      val prog = idx.toDouble / totalMoves
+      val prog = (idx + 1).toDouble / totalMoves
       jobId.foreach { id => 
-        if (idx % 5 == 0) println(s"[TimelineBuilder] $id progress: $prog")
+        if (idx % 5 == 0 || idx == totalMoves - 1) println(s"[TimelineBuilder] $id progress: $prog")
         AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
       }
       val player = game.position.color
@@ -72,6 +71,24 @@ object TimelineBuilder:
       val materialBefore = material(game.position.board, player)
       val materialAfter = material(nextGame.position.board, player)
       val sacrificed = materialAfter < materialBefore - 1.5 // 말 하나 이상 희생
+
+      val materialDiff = materialAfter - materialBefore
+      val bestMovePv = evalBeforeDeep.lines.headOption.map(_.pv)
+      val bestMaterialDiff = bestMovePv.map { pv =>
+        val bestMove = pv.headOption.getOrElse("") // Should verify Uci parse
+        // Calculate material after BEST move
+        // We need 'game.apply(bestMove)'
+        import chess.format.Uci
+        Uci(bestMove).flatMap(u => game.apply(u).toOption).map { case (bg, _) =>
+           material(bg.position.board, player) - materialBefore
+        }.getOrElse(0.0)
+      }
+
+      val tacticalMotif =
+        if materialDiff < -0.5 && bestMaterialDiff.exists(_ >= 0.0) && epLoss > 0.1 then Some("Material Loss")
+        else if materialDiff < 0.5 && bestMaterialDiff.exists(_ > 1.0) && epLoss > 0.1 then Some("Missed Tactics") // Missed material gain
+        else if materialDiff > 0.5 then Some("Material Gain")
+        else None
 
       val specialBrilliant =
         sacrificed &&
@@ -120,7 +137,8 @@ object TimelineBuilder:
         evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
         multiPvWin = evalBeforeDeep.lines.map(_.winPct),
         position = nextGame.position,
-        sideToMove = nextGame.position.color
+        sideToMove = nextGame.position.color,
+        san = mod.toSanStr.value
       )
       val concepts = Concepts(
         dynamic = conceptScores.dynamic,
@@ -232,13 +250,19 @@ object TimelineBuilder:
         )
       )
 
+      val gamePhase = PhaseCalculator.getPhase(
+        fen = Fen.write(game).value,
+        ply = nextGame.ply.value,
+        semanticTags = semanticTags
+      )
+      
       entries += PlyOutput(
         ply = nextGame.ply,
         turn = player,
         san = mod.toSanStr.value,
         uci = mod.toUci.uci,
-        fen = fenAfter,
-        fenBefore = fenBefore,
+        fen = Fen.write(nextGame).value,
+        fenBefore = Fen.write(game).value,
         legalMoves = legalCount,
         features = moverFeatures,
         evalBeforeShallow = evalBeforeShallow,
@@ -249,7 +273,7 @@ object TimelineBuilder:
         epBefore = epBefore,
         epAfter = epAfter,
         epLoss = epLoss,
-        judgement = finalJudgement,
+        judgement = finalJudgement.toString.toLowerCase,
         special = special,
         conceptsBefore = conceptsBefore,
         concepts = concepts,
@@ -259,9 +283,17 @@ object TimelineBuilder:
         semanticTags = semanticTags,
         mistakeCategory = mistakeCategory,
         phaseLabel = phaseLabel,
-        practicality = practicality
+        phase = gamePhase.toString.toLowerCase,
+        practicality = practicality,
+        materialDiff = materialDiff,
+        bestMaterialDiff = bestMaterialDiff,
+        tacticalMotif = tacticalMotif
       )
       game = nextGame
       prevDeltaForOpp = delta
     }
     entries.result() -> game
+
+  private def material(board: chess.Board, color: chess.Color): Double = 0.0
+
+  private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))

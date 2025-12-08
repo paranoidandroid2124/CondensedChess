@@ -73,96 +73,86 @@ export function EvalSparkline({
           <div className="font-semibold text-accent-teal">{last != null ? last.toFixed(1) : "–"}</div>
         </div>
       </div>
-      <svg
-        className="mt-2 h-24 w-full"
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="none"
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHoverIdx(null)}
-      >
-        <line x1={0} x2={w} y1={h * 0.5} y2={h * 0.5} stroke="rgba(255,255,255,0.12)" strokeWidth={1} strokeDasharray="4 4" />
-        {poly ? (
-          <>
-            <polygon
-              points={`${poly} ${w},${h} 0,${h}`}
-              fill="rgba(255,255,255,0.70)"
-            />
-            <polyline points={poly} fill="none" stroke="#f5f5f5" strokeWidth="3.5" strokeLinejoin="round" />
-          </>
-        ) : null}
-        {hoverPoint ? (
-          <>
+      <div className="relative mt-2 h-24 w-full">
+        <svg
+          className="h-full w-full"
+          viewBox={`0 0 ${w} ${h}`}
+          preserveAspectRatio="none"
+          onMouseMove={handleMove}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
+          <line x1={0} x2={w} y1={h * 0.5} y2={h * 0.5} stroke="rgba(255,255,255,0.12)" strokeWidth={1} strokeDasharray="4 4" />
+          {poly ? (
+            <>
+              <polygon
+                points={`${poly} ${w},${h} 0,${h}`}
+                fill="rgba(255,255,255,0.70)"
+              />
+              <polyline points={poly} fill="none" stroke="#f5f5f5" strokeWidth="3.5" strokeLinejoin="round" />
+            </>
+          ) : null}
+          {hoverPoint ? (
             <circle cx={hoverPoint[0]} cy={hoverPoint[1]} r={3.2} fill="#5b8def" />
-            {hoverLabel ? (
-              <>
-                {(() => {
-                  const padding = 5;
-                  const rectW = Math.max(38, hoverLabel.length * 5.5 + padding * 2);
-                  const rectH = 14;
-                  const rectX = Math.min(Math.max(hoverPoint[0] - rectW / 2, 0), w - rectW);
-                  const rectY = Math.max(hoverPoint[1] - rectH - 6, 0);
-                  const textX = rectX + rectW / 2;
-                  const textY = rectY + rectH / 2 + 3;
-                  return (
-                    <>
-                      <rect x={rectX} y={rectY} width={rectW} height={rectH} rx={4} fill="rgba(0,0,0,0.7)" />
-                      <text
-                        x={textX}
-                        y={textY}
-                        fill="#f5f5f5"
-                        fontSize={10}
-                        fontFamily="Inter, system-ui, sans-serif"
-                        fontWeight={600}
-                        textAnchor="middle"
-                      >
-                        {hoverLabel}
-                      </text>
-                    </>
-                  );
-                })()}
-              </>
-            ) : null}
-          </>
-        ) : null}
-        {((markers && markers.length) || (spikePlys && spikePlys.length))
-          ? (markers && markers.length ? markers : spikePlys?.map((s) => ({ ply: s.ply, kind: "spike", label: s.concept })) || [])
-            .map((s) => {
-              const idx = timeline.findIndex((t) => t.ply === s.ply);
-              if (idx === -1 || !coords[idx]) return null;
-              return { ...s, idx, point: coords[idx] };
-            })
-            .filter(Boolean)
-            .map((s, i) => (
-              <g
-                key={`${s?.ply}-${i}`}
-                onClick={() => onSelectPly?.(s!.ply)}
-                className="cursor-pointer"
-              >
-                <circle
-                  cx={s!.point[0]}
-                  cy={s!.point[1]}
-                  r={4}
-                  fill={
-                    s!.kind === "blunder"
-                      ? "#f87171"
-                      : s!.kind === "mistake"
-                        ? "#fb923c"
-                        : s!.kind === "inaccuracy"
-                          ? "#fbbf24"
-                          : s!.kind === "brilliant"
-                            ? "#a855f7"
-                            : s!.kind === "great"
-                              ? "#22d3ee"
-                              : "#c084fc"
-                  }
-                  opacity={0.9}
+          ) : null}
+          {((markers && markers.length) || (spikePlys && spikePlys.length))
+            ? (markers && markers.length ? markers : spikePlys?.map((s) => ({ ply: s.ply, kind: "spike", label: s.concept })) || [])
+              .map((s) => {
+                const idx = timeline.findIndex((t) => t.ply === s.ply);
+                if (idx === -1 || !coords[idx]) return null;
+                return { ...s, idx, point: coords[idx] };
+              })
+              .filter(Boolean)
+              .map((s, i) => (
+                <g
+                  key={`${s?.ply}-${i}`}
+                  onClick={() => onSelectPly?.(s!.ply)}
+                  className="cursor-pointer"
                 >
-                  <title>{`${s!.label ?? s!.kind ?? "event"} @ ply ${s!.ply}`}</title>
-                </circle>
-              </g>
-            ))
-          : null}
-      </svg>
+                  <circle
+                    cx={s!.point[0]}
+                    cy={s!.point[1]}
+                    r={4}
+                    fill={
+                      s!.kind === "blunder"
+                        ? "#f87171"
+                        : s!.kind === "mistake"
+                          ? "#fb923c"
+                          : s!.kind === "inaccuracy"
+                            ? "#fbbf24"
+                            : s!.kind === "brilliant"
+                              ? "#a855f7"
+                              : s!.kind === "great"
+                                ? "#22d3ee"
+                                : "#c084fc"
+                    }
+                    opacity={0.9}
+                  >
+                    <title>{`${s!.label ?? s!.kind ?? "event"} @ ply ${s!.ply}`}</title>
+                  </circle>
+                </g>
+              ))
+            : null}
+        </svg>
+
+        {/* HTML Tooltip Overlay to avoid font stretching */}
+        {hoverPoint && hoverLabel && (
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 translate-y-[-140%] rounded bg-black/80 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm"
+            style={{
+              left: `${(hoverPoint[0] / w) * 100}%`,
+              top: `${(hoverPoint[1] / h) * 100}%`,
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+            }}
+          >
+            {hoverLabel}
+            {/* Little triangle arrow at bottom */}
+            <div
+              className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-black/80"
+              style={{ content: '""' }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

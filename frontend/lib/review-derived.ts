@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+// chess.js dependency removed
 import { normalizeEvalKind } from "./review-format";
 import type { Review, ReviewTreeNode, TimelineNode } from "../types/review";
 import type { VariationEntry } from "../components/review/TimelineView";
@@ -13,30 +13,20 @@ export interface MoveRow {
 
 export function buildEnhancedTimeline(review?: Review | null): EnhancedTimelineNode[] {
   if (!review?.timeline?.length) return [];
+
+  // Sort by ply to ensure correct order
   const sorted = [...review.timeline].sort((a, b) => a.ply - b.ply);
-  const chess = new Chess();
-  const result: EnhancedTimelineNode[] = [];
-  sorted.forEach((t) => {
+
+  return sorted.map((t) => {
     const moveNumber = Math.ceil(t.ply / 2);
     const turnPrefix = t.ply % 2 === 1 ? "." : "...";
     const label = `${moveNumber}${turnPrefix} ${t.san}`;
-    const fenBefore = t.fenBefore || chess.fen();
-    try {
-      chess.load(fenBefore);
-    } catch {
-      // ignore load errors
-    }
-    const from = t.uci.slice(0, 2);
-    const to = t.uci.slice(2, 4);
-    const promotion = t.uci.length > 4 ? t.uci.slice(4) : undefined;
-    try {
-      chess.move({ from, to, promotion });
-    } catch {
-      // ignore
-    }
-    result.push({ ...t, label, fenBefore });
+    // Backend/TimelineBuilder guarantees fenBefore is populated.
+    // We fall back to fen (current) only if absolutely necessary, though it shouldn't happen for valid moves.
+    const fenBefore = t.fenBefore || t.fen;
+
+    return { ...t, label, fenBefore };
   });
-  return result;
 }
 
 export function buildMoveRows(enhancedTimeline: EnhancedTimelineNode[]): MoveRow[] {
@@ -63,13 +53,9 @@ export function buildConceptSpikes(enhancedTimeline: EnhancedTimelineNode[]) {
       const key = k as keyof TimelineNode["concepts"];
       const deltaFromEngine = cur.conceptDelta?.[key];
       const curVal = cur.concepts?.[key];
-      const prevVal = prev.concepts?.[key];
-      const delta =
-        typeof deltaFromEngine === "number"
-          ? deltaFromEngine
-          : typeof curVal === "number" && typeof prevVal === "number"
-            ? curVal - prevVal
-            : null;
+      // We rely solely on the backend-provided conceptDelta.
+      // If the backend didn't compute a delta, we assume it's not a significant spike.
+      const delta = typeof deltaFromEngine === "number" ? deltaFromEngine : null;
       if (typeof delta === "number" && delta >= 0.25) {
         spikes.push({ ply: cur.ply, concept: key, delta, label: cur.label ?? cur.san });
       }

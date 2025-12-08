@@ -99,6 +99,7 @@ object AnalysisSerializer:
       ply.phaseLabel.foreach { phase =>
         sb.append(",\"phaseLabel\":\"").append(escape(phase)).append('"')
       }
+      sb.append(",\"phase\":\"").append(escape(ply.phase)).append('"')
       if ply.semanticTags.nonEmpty then
         sb.append(",\"semanticTags\":[")
         ply.semanticTags.zipWithIndex.foreach { case (t, i) =>
@@ -406,6 +407,18 @@ object AnalysisSerializer:
     n.features.foreach { f =>
       renderFeatures(sb, f)
       sb.append(',')
+    }
+
+    n.practicality.foreach { p =>
+        sb.append("\"practicality\":{")
+        sb.append("\"overall\":").append(fmt(p.overall)).append(',')
+        sb.append("\"robustness\":").append(fmt(p.robustness)).append(',')
+        sb.append("\"horizon\":").append(fmt(p.horizon)).append(',')
+        sb.append("\"naturalness\":").append(fmt(p.naturalness)).append(',')
+        sb.append("\"categoryGlobal\":\"").append(escape(p.categoryGlobal)).append("\",")
+        p.categoryPersonal.foreach(cp => sb.append("\"categoryPersonal\":\"").append(escape(cp)).append("\","))
+        sb.append("\"category\":\"").append(escape(p.categoryGlobal)).append('"')
+        sb.append("},")
     }
 
     sb.append("\"children\":[")

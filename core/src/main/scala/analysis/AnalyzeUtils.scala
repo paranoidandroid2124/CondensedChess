@@ -1,55 +1,52 @@
 package chess
 package analysis
 
-import chess.format.Uci
+import chess.format.Fen
 
 object AnalyzeUtils:
-  private val pieceValues: Map[Role, Double] = Map(
-    Pawn   -> 1.0,
-    Knight -> 3.0,
-    Bishop -> 3.0,
-    Rook   -> 5.0,
-    Queen  -> 9.0,
-    King   -> 0.0
-  )
+
+  def round2(d: Double): Double = math.round(d * 100.0) / 100.0
+
+  def escape(raw: String): String =
+    raw.replace("\"", "\\\"").replace("\n", " ")
+
+  /** Convert a single UCI move to SAN given a starting FEN. Falls back to UCI on parse failure. */
+  def uciToSanSingle(fen: String, uci: String): String =
+    val fullFen = Fen.Full.clean(fen)
+    val game = chess.Game(chess.variant.Standard, Some(fullFen))
+    chess.format.Uci(uci)
+      .flatMap(game(_).toOption)
+      .map(_._2.toSanStr.value)
+      .getOrElse(uci)
+
+  /** Convert a PV (UCIs) to SAN list from a starting FEN. Keeps original UCI if conversion fails mid-line. */
+  def pvToSan(fen: String, pv: List[String]): List[String] =
+    val fullFen = Fen.Full.clean(fen)
+    val start = chess.Game(chess.variant.Standard, Some(fullFen))
+
+    def loop(game: chess.Game, moves: List[String], acc: List[String]): List[String] =
+      moves match
+        case Nil => acc.reverse
+        case uciStr :: rest =>
+          chess.format.Uci(uciStr) match
+            case Some(uci) =>
+              game(uci) match
+                case Right((next, moveOrDrop)) =>
+                  val san = moveOrDrop.toSanStr.value
+                  loop(next, rest, san :: acc)
+                case _ =>
+                  loop(game, rest, uciStr :: acc)
+            case None =>
+              loop(game, rest, uciStr :: acc)
+
+    loop(start, pv, Nil)
+
+  def pctInt(d: Double): Int = math.round(d).toInt
+
+  def moveLabel(ply: chess.Ply, san: String, turn: chess.Color): String =
+    val fullMove = (ply.value / 2) + 1
+    if turn == chess.Color.White then s"$fullMove. $san" else s"$fullMove... $san"
 
   def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
-  def pctInt(d: Double): Int = math.round(if d > 1.0 then d else d * 100.0).toInt
 
-  def moveLabel(ply: Ply, san: String, turn: Color): String =
-    val moveNumber = (ply.value + 1) / 2
-    val sep = if turn == Color.White then "." else "..."
-    s"$moveNumber$sep $san"
-
-  def material(board: Board, color: Color): Double =
-    board.piecesOf(color).toList.map { case (_, piece) => pieceValues.getOrElse(piece.role, 0.0) }.sum
-
-  def pvToSan(fen: String, pv: List[String], maxPlies: Int = 5): List[String] =
-    val fullFen: chess.format.FullFen = chess.format.Fen.Full.clean(fen)
-    val startGame: chess.Game = chess.Game(chess.variant.Standard, Some(fullFen))
-    pv.take(maxPlies).foldLeft((List.empty[String], startGame)) {
-      case ((sans, g), uciStr) =>
-        Uci(uciStr) match
-          case Some(uci: Uci.Move) =>
-            g.apply(uci) match
-              case Right((nextGame, _)) =>
-                val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
-                (sans :+ san, nextGame)
-              case _ => (sans, g)
-          case _ => (sans, g)
-    }._1
-
-  def uciToSanSingle(fen: String, uciStr: String): String =
-    pvToSan(fen, List(uciStr), maxPlies = 1).headOption.getOrElse(uciStr)
-
-  def escape(in: String): String =
-    val sb = new StringBuilder(in.length + 8)
-    in.foreach {
-      case '"' => sb.append("\\\"")
-      case '\\' => sb.append("\\\\")
-      case '\n' => sb.append("\\n")
-      case '\r' => sb.append("\\r")
-      case '\t' => sb.append("\\t")
-      case c => sb.append(c)
-    }
-    sb.result()
+  def materialScore(fen: String): Double = 0.0

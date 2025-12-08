@@ -18,9 +18,7 @@ export default function Navigation({ isAuthenticated = false }: NavigationProps)
     ];
 
     const appLinks = [
-        { href: "/app/dashboard", label: "Dashboard" },
-        { href: "/app/openings", label: "Openings" },
-        { href: "/app/profile", label: "Profile" },
+        { href: "/app/dashboard", label: "Dashboard" }
     ];
 
     const navLinks = isAuthenticated ? appLinks : publicLinks;
