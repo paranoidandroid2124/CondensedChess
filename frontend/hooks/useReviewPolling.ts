@@ -49,6 +49,7 @@ export function useReviewPolling(reviewId: string): ReviewPollingState {
           }
           return;
         }
+        console.log(`[ReviewPolling] Review ${reviewId} ready! Attempt ${attempt}`);
         setPendingMessage(null);
         setPollStartTime(null);
         setPollAttempt(0);

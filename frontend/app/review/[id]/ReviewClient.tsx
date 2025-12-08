@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchOpeningLookup } from "../../../lib/review";
 import type { OpeningStats, Review, TimelineNode } from "../../../types/review";
+import { DrawShape } from "chessground/draw";
+import { Key } from "chessground/types";
 import { SummaryHero } from "../../../components/review/SummaryHero";
 import { ReviewErrorView } from "../../../components/review/ReviewErrorView";
 import { BoardSection } from "../../../components/review/BoardSection";
@@ -12,6 +14,7 @@ import { useInstantTimeline } from "../../../hooks/useInstantTimeline";
 import { useReviewPolling } from "../../../hooks/useReviewPolling";
 import { useEngineAnalysis } from "../../../hooks/useEngineAnalysis";
 import { useBranchCreation } from "../../../hooks/useBranchCreation";
+
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, type EnhancedTimelineNode } from "../../../lib/review-derived";
 import { CommentCard } from "../../../components/review/CommentCard";
 import { AnalysisTabsSection } from "../../../components/review/AnalysisTabsSection";
@@ -23,6 +26,18 @@ import { BestAlternatives } from "../../../components/BestAlternatives";
 
 export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const { review, loading, pendingMessage, pollStartTime, pollAttempt, error, setReview, progressInfo } = useReviewPolling(reviewId);
+
+    useEffect(() => {
+        if (review) {
+            console.log("[ReviewClient] Review data loaded:", {
+                id: review.jobId,
+                moves: review.timeline.length,
+                hasSummary: !!review.summaryText,
+                hasChapters: review.studyChapters?.length
+            });
+        }
+    }, [review]);
+
     const [selectedPly, setSelectedPly] = useState<number | null>(null);
     const [showAdvanced] = useState<boolean>(true);
     const [openingLookup, setOpeningLookup] = useState<OpeningStats | null>(null);
@@ -165,25 +180,26 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
 
 
-    const boardSquareStyles = useMemo(() => {
-        const styles: Record<string, React.CSSProperties> = {};
-        const highlight = (uci: string, color: "red" | "green" | "purple") => {
+    const boardShapes = useMemo(() => {
+        const shapes: DrawShape[] = [];
+        const highlight = (uci: string, brush: "red" | "green" | "paleBlue") => { // 'paleBlue' is approx for purple/blue in chessground theme or we use custom class
             if (!uci || uci.length < 4) return;
-            const from = uci.slice(0, 2);
-            const to = uci.slice(2, 4);
-            styles[from] = { ...styles[from], animation: color === "red" ? "pulse-red 1.2s ease-in-out infinite" : color === "green" ? "pulse-green 1.2s ease-in-out infinite" : "pulse-purple 1.2s ease-in-out infinite" };
-            styles[to] = { ...styles[to], animation: color === "red" ? "pulse-red 1.2s ease-in-out infinite" : color === "green" ? "pulse-green 1.2s ease-in-out infinite" : "pulse-purple 1.2s ease-in-out infinite" };
+            const from = uci.slice(0, 2) as Key;
+            const to = uci.slice(2, 4) as Key;
+            shapes.push({ orig: from, brush });
+            shapes.push({ orig: to, brush });
         };
-        if (previewFen) return styles;
+
+        if (previewFen) return shapes;
         if (activeMove) {
             const bad = activeMove.judgement === "inaccuracy" || activeMove.judgement === "mistake" || activeMove.judgement === "blunder";
-            highlight(activeMove.uci, bad ? "red" : "purple");
+            highlight(activeMove.uci, bad ? "red" : "paleBlue");
             const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
             if (best && best !== activeMove.uci) {
                 highlight(best, "green");
             }
         }
-        return styles;
+        return shapes;
     }, [activeMove, previewFen]);
 
     const arrows = useMemo(() => {
@@ -292,7 +308,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 <div className="grid gap-6 lg:grid-cols-[minmax(380px,520px)_1fr]">
                     <BoardSection
                         fen={previewFen || activeMove?.fen}
-                        squareStyles={boardSquareStyles}
+                        customShapes={boardShapes}
                         arrows={arrows}
                         evalPercent={activeMove?.winPctAfterForPlayer}
                         judgementBadge={judgementBadge}
@@ -330,6 +346,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             activeMove={activeMove}
                             enhancedTimeline={enhancedTimeline}
                             timeline={timelineToUse}
+
                             review={review as Review}
                             reviewRoot={review?.root}
                             activeTab={activeTab}

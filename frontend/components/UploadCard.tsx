@@ -74,7 +74,7 @@ export default function UploadCard() {
         />
       </div>
       {error ? <p className="mt-2 text-sm text-rose-300">{error}</p> : null}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           onClick={submit}
           disabled={loading}
@@ -88,6 +88,7 @@ export default function UploadCard() {
         >
           View sample
         </button>
+        <span className="text-xs text-white/50">Takes about 4–5 min</span>
       </div>
     </div>
   );

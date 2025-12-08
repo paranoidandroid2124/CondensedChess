@@ -24,9 +24,16 @@ object Persistence:
           fen TEXT,
           eval REAL,
           eval_type TEXT,
-          judgement TEXT,
           comment TEXT,
           PRIMARY KEY (game_id, ply),
+          FOREIGN KEY(game_id) REFERENCES games(id)
+        )
+      """)
+      stmt.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_json (
+          game_id TEXT PRIMARY KEY,
+          json TEXT,
+          updated_at INTEGER,
           FOREIGN KEY(game_id) REFERENCES games(id)
         )
       """)

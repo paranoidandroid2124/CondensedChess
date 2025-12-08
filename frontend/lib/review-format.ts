@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+// chess.js dependency removed
 
 export function formatSanHuman(san: string): string {
   const trimmed = san.trim();
@@ -22,22 +22,9 @@ export function formatPvList(pv?: string[]) {
 }
 
 export function convertPvToSan(fen: string | undefined, pv?: string[]) {
-  if (!pv || !pv.length || !fen) return pv ?? [];
-  try {
-    const chess = new Chess(fen);
-    const moves: string[] = [];
-    pv.forEach((uci) => {
-      try {
-        const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.slice(4) || undefined });
-        moves.push(move?.san ?? uci);
-      } catch {
-        moves.push(uci);
-      }
-    });
-    return moves;
-  } catch {
-    return pv;
-  }
+  // Backend now provides PV in SAN format. We just return it.
+  if (!pv || !pv.length) return [];
+  return pv;
 }
 
 export function normalizeEvalKind(kind?: string, value?: number) {

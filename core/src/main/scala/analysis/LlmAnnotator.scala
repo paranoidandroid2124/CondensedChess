@@ -18,7 +18,7 @@ object LlmAnnotator:
 
   private def clampNodes[T](xs: Seq[T], max: Int): Seq[T] = xs.take(max)
   private def pctInt(d: Double): Int = math.round(if d > 1.0 then d else d * 100.0).toInt
-  private def round2(d: Double): Double = math.round(d * 100.0) / 100.0
+  private def round2(d: Double): Double = math.round(d * 10.0) / 10.0
   private def colorName(color: Color): String = if color == Color.White then "White" else "Black"
   private def arrStr(values: Iterable[String]): ujson.Arr = ujson.Arr.from(values.map(ujson.Str(_)))
   private def forcedFlag(legalMoves: Int, gapOpt: Option[Double]): Boolean =
@@ -39,7 +39,10 @@ object LlmAnnotator:
     // 허용 범위를 벗어난 수 번호가 등장하면 폐기
     val movePattern = "(\\d+)\\.{1,3}".r
     val nums = movePattern.findAllMatchIn(text).flatMap(m => m.group(1).toIntOption).toList
-    nums.isEmpty || nums.forall(n => n >= 1 && n <= maxMoveNumber)
+    val result = nums.isEmpty || nums.forall(n => n >= 1 && n <= maxMoveNumber)
+    if !result then
+      System.err.println(s"[llm-labelSafe] REJECTED text (maxMove=$maxMoveNumber, found=$nums): ${text.take(100)}...")
+    result
 
   private def filterWithLog[A](data: Map[Int, String], maxMoveNumber: Int, label: String): Map[Int, String] =
     data.flatMap { case (k, v) =>
@@ -51,28 +54,43 @@ object LlmAnnotator:
 
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
-    val maxMoveNumber = math.max(1, (output.timeline.lastOption.map(_.ply.value).getOrElse(1) + 1) / 2)
+    
+    // Helper to find max ply in tree
+    def findMaxPly(node: AnalyzePgn.TreeNode): Int =
+      node.children.map(findMaxPly).foldLeft(node.ply)(math.max)
+
+    val maxPly = output.root.map(findMaxPly).getOrElse(output.timeline.lastOption.map(_.ply.value).getOrElse(0))
+    val maxMoveNumber = math.max(1, (maxPly + 1) / 2)
     val preview = renderPreview(output, timelineByPly)
     val critPreview = criticalPreview(output, timelineByPly)
 
     // Parallelize LLM calls with individual recovery
     val summaryFuture = Future {
-      LlmClient.summarize(preview).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
+      System.err.println("[LlmAnnotator] Starting summary generation...")
+      val res = LlmClient.summarize(preview).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
+      System.err.println("[LlmAnnotator] Summary generation finished.")
+      res
     }.recover { case e: Throwable =>
       System.err.println(s"[LlmAnnotator] Summary failed: ${e.getMessage}")
       fallbackSummary(output)
     }
     
     val criticalFuture = Future {
-      filterWithLog(LlmClient.criticalComments(critPreview), maxMoveNumber, "critical")
+      System.err.println("[LlmAnnotator] Starting critical comments generation...")
+      val res = filterWithLog(LlmClient.criticalComments(critPreview), maxMoveNumber, "critical")
+      System.err.println("[LlmAnnotator] Critical comments generation finished.")
+      res
     }.recover { case e: Throwable =>
       System.err.println(s"[LlmAnnotator] Critical comments failed: ${e.getMessage}")
       Map.empty[Int, String]
     }
 
     val studyFuture = Future {
-      if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(preview)
+      System.err.println("[LlmAnnotator] Starting study chapter comments generation...")
+      val res = if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(preview)
       else Map.empty[String, LlmClient.ChapterAnnotation]
+      System.err.println("[LlmAnnotator] Study chapter comments generation finished.")
+      res
     }.recover { case e: Throwable =>
       System.err.println(s"[LlmAnnotator] Study comments failed: ${e.getMessage}")
       Map.empty[String, LlmClient.ChapterAnnotation]
@@ -122,9 +140,12 @@ object LlmAnnotator:
             case Some(ann) if ann.summary.nonEmpty => 
               ch.copy(
                 summary = Some(ann.summary),
-                metadata = Some(AnalysisModel.StudyChapterMetadata(ann.title, ann.summary))
+                metadata = Some(AnalysisModel.StudyChapterMetadata(ann.title, ann.summary)),
+                rootNode = ch.rootNode.map(applyTreeComments(_, mergedComments))
               )
-            case _ => ch
+            case _ => 
+              // Even if no specific chapter annotation, we should apply global critical comments
+              ch.copy(rootNode = ch.rootNode.map(applyTreeComments(_, mergedComments)))
         }
       else output.studyChapters
 
@@ -190,6 +211,12 @@ object LlmAnnotator:
         t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
         t.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
         t.special.foreach(s => obj("special") = Str(s))
+        
+        // Tactical Context Injection
+        obj("materialDiff") = Num(round2(t.materialDiff))
+        t.bestMaterialDiff.foreach(b => obj("bestMaterialDiff") = Num(round2(b)))
+        t.tacticalMotif.foreach(m => obj("tacticalMotif") = Str(m))
+
         obj
       }
 
@@ -224,6 +251,10 @@ object LlmAnnotator:
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
         t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
+        // Tactical Context Injection (Critical)
+        obj("materialDiff") = Num(round2(t.materialDiff))
+        t.bestMaterialDiff.foreach(b => obj("bestMaterialDiff") = Num(round2(b)))
+        t.tacticalMotif.foreach(m => obj("tacticalMotif") = Str(m))
       }
       c.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
       c.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
@@ -244,7 +275,9 @@ object LlmAnnotator:
           "Lean on semanticTags/mistakeCategory/conceptShift/critical.reason to explain why evaluations shifted.",
           "Mention opening/book/novelty briefly when stats are present; if opening.summary/bookExitComment/trend is present, include one sentence.",
           "Spell out forced/only-move or large best-vs-second gaps first; avoid generic advice.",
+          "PRIORITIZE tactical details (Material Loss, Missed Win, tacticalMotif) over abstract tags like 'Pawn Storm'. If tacticalMotif is present, explain IT.",
           "If a line is labeled 'practical', explicitly mention it as a 'Practical Choice' and explain why it might be easier/safer than the engine best.",
+          "If 'Plan Change' tag is present, explicitly state: 'Black shifted focus from [Prev Dominant Concept] to [New Concept]' using conceptShift values.",
           "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
         ).map(Str(_))
       )
@@ -292,6 +325,10 @@ object LlmAnnotator:
             "categoryPersonal" -> p.categoryPersonal.map(Str(_)).getOrElse(Null)
           )
         }
+        timelineByPly.get(ch.anchorPly).foreach { t =>
+          val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
+          if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
+        }
         obj
       }
       payload("studyChapters") = Arr.from(chapters)
@@ -334,10 +371,13 @@ object LlmAnnotator:
       val label = labelForPly(timelineByPly, c.ply.value)
       val mergedTags = (timeline.map(_.semanticTags).getOrElse(Nil) ++ c.tags).distinct.take(6)
       val branches = c.branches.take(3).map { b =>
+        val fenForBranch = timelineByPly.get(c.ply.value).map(_.fenBefore).getOrElse("")
+        val sanMove = if fenForBranch.nonEmpty then uciToSanSingle(fenForBranch, b.move) else b.move
+        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(6) else b.pv.take(6)
         Obj(
           "label" -> Str(b.label),
-          "move" -> Str(b.move),
-          "pv" -> arrStr(b.pv.take(6)),
+          "move" -> Str(sanMove),
+          "pv" -> arrStr(pvSan),
           "winPct" -> Num(round2(b.winPct))
         )
       }
@@ -386,24 +426,28 @@ object LlmAnnotator:
       children = root.children.map(c => applyTreeComments(c, comments))
     )
   @scala.annotation.nowarn("msg=unused")
-  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 2): ujson.Arr =
+  private def conceptShifts(delta: AnalyzePgn.Concepts, limit: Int = 3): ujson.Arr =
     val pairs = List(
-      "drawish" -> delta.drawish,
-      "dry" -> delta.dry,
-      "comfortable" -> delta.comfortable,
-      "unpleasant" -> delta.unpleasant,
-      "kingSafety" -> delta.kingSafety,
-      "rookActivity" -> delta.rookActivity,
-      "pawnStorm" -> delta.pawnStorm,
-      "dynamic" -> delta.dynamic,
-      "tacticalDepth" -> delta.tacticalDepth,
-      "blunderRisk" -> delta.blunderRisk,
-      "colorComplex" -> delta.colorComplex,
-      "goodKnight" -> delta.goodKnight,
-      "badBishop" -> delta.badBishop,
-      "fortress" -> delta.fortress,
-      "conversionDifficulty" -> delta.conversionDifficulty,
-      "alphaZeroStyle" -> delta.alphaZeroStyle
+      "Drawishness" -> delta.drawish,
+      "Dull/Dry Position" -> delta.dry,
+      "White Comfortable" -> delta.comfortable,
+      "Black Unpleasant" -> delta.unpleasant,
+      "King Safety" -> delta.kingSafety,
+      "Rook Activity" -> delta.rookActivity,
+      "Pawn Storm" -> delta.pawnStorm,
+      "Dynamic Sharpness" -> delta.dynamic,
+      "Tactical Complexity" -> delta.tacticalDepth,
+      "Blunder Risk" -> delta.blunderRisk,
+      "Color Complex" -> delta.colorComplex,
+      "Good Knight" -> delta.goodKnight,
+      "Bad Bishop" -> delta.badBishop,
+      "Fortress Potential" -> delta.fortress,
+      "Endgame Complexity" -> delta.conversionDifficulty,
+      "Long-term Compensation" -> delta.alphaZeroStyle
     )
-    val top = pairs.sortBy { case (_, v) => -math.abs(v) }.take(limit)
+    // Filter noise: only show shifts >= 0.15
+    val top = pairs
+      .filter { case (_, v) => math.abs(v) >= 0.15 }
+      .sortBy { case (_, v) => -math.abs(v) }
+      .take(limit)
     ujson.Arr.from(top.map { case (k, v) => Obj("name" -> Str(k), "delta" -> Num(round2(v))) })

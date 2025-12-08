@@ -48,14 +48,16 @@ export function ChapterList({ chapters, activeChapterPly, onSelectChapter }: Cha
 
                                 {/* Tags */}
                                 <div className="flex flex-wrap gap-1">
-                                    {chapter.tags.slice(0, 2).map((tag) => (
-                                        <span key={tag} className="truncate rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-white/60">
-                                            {getTagLabel(tag)}
-                                        </span>
-                                    ))}
-                                    {chapter.tags.length > 2 && (
+                                    {chapter.tags
+                                        .filter(t => !t.startsWith("adj:") && !t.startsWith("mood:"))
+                                        .slice(0, 2).map((tag) => (
+                                            <span key={tag} className="truncate rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-white/60">
+                                                {getTagLabel(tag)}
+                                            </span>
+                                        ))}
+                                    {chapter.tags.filter(t => !t.startsWith("adj:") && !t.startsWith("mood:")).length > 2 && (
                                         <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-white/60">
-                                            +{chapter.tags.length - 2}
+                                            +{chapter.tags.filter(t => !t.startsWith("adj:") && !t.startsWith("mood:")).length - 2}
                                         </span>
                                     )}
                                 </div>

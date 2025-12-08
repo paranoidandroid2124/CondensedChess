@@ -112,15 +112,24 @@ object ApiServer:
         jobs.put(jobId, Job(status = "processing", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
         AnalyzePgn.analyze(pgnText, config, llmPlys, Some(jobId)) match
           case Right(output) =>
-            AnalysisProgressTracker.update(jobId, AnalysisStage.LLM_GENERATION, 0.0)
-            val annotated = LlmAnnotator.annotate(output)
-            AnalysisProgressTracker.update(jobId, AnalysisStage.FINALIZATION, 1.0)
-            val json = AnalyzePgn.render(annotated)
-            val finalJson = withJobId(json, jobId)
-            Persistence.saveAnalysisJson(jobId, finalJson)
-            jobs.put(jobId, Job(status = "ready", result = Some(finalJson), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
-            AnalysisProgressTracker.remove(jobId)
+            try
+              AnalysisProgressTracker.update(jobId, AnalysisStage.LLM_GENERATION, 0.0)
+              val annotated = LlmAnnotator.annotate(output)
+              AnalysisProgressTracker.update(jobId, AnalysisStage.FINALIZATION, 1.0)
+              val json = AnalyzePgn.render(annotated)
+              val finalJson = withJobId(json, jobId)
+              Persistence.saveAnalysisJson(jobId, finalJson)
+              jobs.put(jobId, Job(status = "ready", result = Some(finalJson), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
+              AnalysisProgressTracker.remove(jobId)
+              println(s"[ApiServer] Job $jobId finished. Status: ready")
+            catch
+              case e: Throwable =>
+                System.err.println(s"[ApiServer] Internal error processing job $jobId: $e")
+                e.printStackTrace()
+                jobs.put(jobId, Job(status = "failed", result = None, error = Some(s"Internal error: ${e.getMessage}"), output = None, createdAt = System.currentTimeMillis()))
+                AnalysisProgressTracker.remove(jobId)
           case Left(err) =>
+            System.err.println(s"[ApiServer] Job $jobId failed: $err")
             jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
             AnalysisProgressTracker.remove(jobId)
     )

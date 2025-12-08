@@ -49,6 +49,10 @@ export default function HeroSection() {
                                 View Sample Review
                             </Link>
                         </div>
+                        <p className="flex items-center gap-2 text-sm text-white/50">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-teal/70"></span>
+                            Deep analysis takes about 4–5 minutes per game
+                        </p>
                     </div>
 
                     {/* Right: Screenshot Preview */}

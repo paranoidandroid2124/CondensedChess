@@ -7,23 +7,30 @@ import AnalyzeUtils.{ pvToSan, uciToSanSingle }
 object StudyChapterBuilder:
 
   def buildStudyChapters(timeline: Vector[PlyOutput]): Vector[StudyChapter] =
-    val candidates = timeline.filter(_.studyScore > 0).sortBy(p => -p.studyScore).take(20)
+    // 1. Collect candidate chapters with decent scores
+    val candidates = timeline.filter(_.studyScore > 1.0).sortBy(p => -p.studyScore)
+
+    // 2. Editorial Selection Policy:
+    // - Limit Total Chapters: ~5 max to keep the "Book" concise.
+    // - Diversity: Ensure roughly 1 Opening, 2-3 Middlegame, 1 Endgame.
+    // - Best-of-Type: If multiple chapters have same tag (e.g. "Blunder"), pick the highest score.
+
+    val opening = candidates.filter(c => c.phase == "opening" && c.ply.value < 20).take(1)
+    val middlegame = candidates.filter(c => c.phase == "middlegame" || (c.phase == "opening" && c.ply.value >= 20)).take(3)
+    val endgame = candidates.filter(_.phase == "endgame").take(1)
+
+    // Merge and sort physically by ply order
+    val selectedAnchors = (opening ++ middlegame ++ endgame)
+      .sortBy(_.ply.value)
+      .distinctBy(_.ply.value) // Safety check
+    
+    // Ensure minimal distance between chapters to avoid overlapping narratives
     val anchors = scala.collection.mutable.ArrayBuffer.empty[PlyOutput]
-    candidates.foreach { p =>
-      if anchors.forall(a => (a.ply.value - p.ply.value).abs > 2) then anchors += p
+    selectedAnchors.foreach { p =>
+      if anchors.forall(a => (a.ply.value - p.ply.value).abs > 5) then anchors += p
     }
 
-    def detectPhase(ply: Int, tags: List[String]): String =
-      val hasOpeningTag = tags.exists(t => t.contains("opening") || t.contains("theory"))
-      val hasEndgameTag = tags.exists(t => t.contains("endgame") || t.contains("conversion") || t.contains("fortress"))
-      if ply <= 15 || hasOpeningTag then "opening"
-      else if ply >= 40 || hasEndgameTag then "endgame"
-      else "middlegame"
 
-    def narrativeSummary(anchor: PlyOutput, tags: List[String], phase: String, winBefore: Double, winAfter: Double): String =
-      val arc = NarrativeTemplates.detectArc(anchor.deltaWinPct)
-      val template = NarrativeTemplates.narrativeTemplate(tags, arc)
-      template
 
     def buildTree(anchor: PlyOutput, timeline: Vector[PlyOutput], maxDepth: Int = 4): Option[TreeNode] =
       // Helper to convert a PV line into a linear TreeNode chain
@@ -40,6 +47,8 @@ object StudyChapterBuilder:
                   case Right((nextGame, _)) =>
                     val san = nextGame.sans.lastOption.map(_.value).getOrElse(uciStr)
                     val fen = chess.format.Fen.write(nextGame).value
+                    val pvSan = pvToSan(fen, rest)
+
                     val node = TreeNode(
                       ply = currentPly,
                       san = san,
@@ -52,7 +61,7 @@ object StudyChapterBuilder:
                       tags = List.empty,
                       bestMove = None,
                       bestEval = None,
-                      pv = rest,
+                      pv = pvSan,
                       comment = None,
                       children = rec(rest, nextGame, currentPly + 1).toList,
                       nodeType = nodeType
@@ -80,19 +89,23 @@ object StudyChapterBuilder:
           val variations = if currentDepth <= 1 then
             val bestLine = p.evalBeforeDeep.lines.headOption
             val practicalLine = p.evalBeforeDeep.lines.drop(1).headOption.filter { l =>
-              bestLine.exists(b => (b.winPct - l.winPct).abs < 5.0)
+              bestLine.exists(b => (b.winPct - l.winPct).abs < 10.0)
             }
             
             val playedUci = p.uci
             
+            // Safely construct PV to avoiding duplicating the first move if it's already in the PV list
+            def safePv(move: String, pv: List[String]): List[String] = 
+              if pv.headOption.contains(move) then pv else move :: pv
+
             val bestNode = bestLine.filter(_.move != playedUci).flatMap { l =>
-              pvToNodeChain(p.fenBefore, l.move :: l.pv, l.cp.getOrElse(0).toDouble, "critical")
+              pvToNodeChain(p.fenBefore, safePv(l.move, l.pv), l.cp.getOrElse(0).toDouble, "critical")
             }
             
             val practicalNode = practicalLine.filter(_.move != playedUci).flatMap { l =>
               // If practical is same as best, don't duplicate
               if bestLine.exists(_.move == l.move) then None
-              else pvToNodeChain(p.fenBefore, l.move :: l.pv, l.cp.getOrElse(0).toDouble, "sideline")
+              else pvToNodeChain(p.fenBefore, safePv(l.move, l.pv), l.cp.getOrElse(0).toDouble, "practical")
             }
             
             List(bestNode, practicalNode).flatten
@@ -157,13 +170,17 @@ object StudyChapterBuilder:
       
       val playedUci = anchor.uci
       
+      // Safely construct PV to avoiding duplicating the first move if it's already in the PV list
+      def safePv(move: String, pv: List[String]): List[String] = 
+        if pv.headOption.contains(move) then pv else move :: pv
+
       val bestNode = bestLine.filter(_.move != playedUci).flatMap { l =>
-        pvToNodeChain(rootFen, l.move :: l.pv, l.cp.getOrElse(0).toDouble, "critical")
+        pvToNodeChain(rootFen, safePv(l.move, l.pv), l.cp.getOrElse(0).toDouble, "critical")
       }
       
       val practicalNode = practicalLine.filter(_.move != playedUci).flatMap { l =>
         if bestLine.exists(_.move == l.move) then None
-        else pvToNodeChain(rootFen, l.move :: l.pv, l.cp.getOrElse(0).toDouble, "sideline")
+        else pvToNodeChain(rootFen, safePv(l.move, l.pv), l.cp.getOrElse(0).toDouble, "sideline")
       }
       
       Some(TreeNode(
@@ -179,20 +196,19 @@ object StudyChapterBuilder:
         bestMove = bestLine.map(_.move),
         bestEval = bestLine.flatMap(_.cp).map(_.toDouble),
         pv = List.empty,
-        comment = Some("Chapter Start"),
+        comment = None,
         children = playedChild.toList ++ List(bestNode, practicalNode).flatten,
         nodeType = "root"
       ))
 
     val chaptersWithPhase = anchors.take(10).map { anchor =>
-      val phase = detectPhase(anchor.ply.value, anchor.studyTags)
+      val phase = anchor.phase
       (anchor, phase)
     }
 
     chaptersWithPhase.map { case (anchor, phase) =>
       val id = s"ch-${anchor.ply.value}"
       val bestLine = anchor.evalBeforeDeep.lines.headOption
-      val altLine = anchor.evalBeforeDeep.lines.drop(1).headOption
       val playedLine = anchor.evalBeforeDeep.lines.find(_.move == anchor.uci)
       val includePlayed = (for
         played <- playedLine
@@ -219,8 +235,19 @@ object StudyChapterBuilder:
 
       val enrichedTags = (phase :: anchor.studyTags).take(6)
 
+      // Data-Driven Adjective Injection
+      val delta = anchor.deltaWinPct
+      val (adjTag, moodTag) = if delta <= -3.0 then ("adj:Fatal", "mood:Catastrophic")
+        else if delta <= -1.5 then ("adj:Decisive", "mood:Critical")
+        else if delta <= -0.5 then ("adj:Imprecise", "mood:Tense")
+        else if delta >= 0.5 && delta < 1.5 then ("adj:Resourceful", "mood:Surgical")
+        else if delta >= 1.5 then ("adj:Brilliant", "mood:Electric")
+        else ("adj:Solid", "mood:Steady")
+      
+      val finalTags = List(adjTag, moodTag) ++ enrichedTags
+
       val arc = NarrativeTemplates.detectArc(anchor.deltaWinPct)
-      val metadata = NarrativeTemplates.buildChapterMetadata(anchor.ply.value, enrichedTags, phase, arc, anchor.studyScore)
+      val metadata = NarrativeTemplates.buildChapterMetadata(anchor.ply.value, finalTags, phase, arc, anchor.studyScore)
 
       StudyChapter(
         id = id,
@@ -229,7 +256,7 @@ object StudyChapterBuilder:
         played = anchor.san,
         best = bestLine.flatMap(bl => if playedLine.contains(bl) then None else Some(uciToSanSingle(anchor.fenBefore, bl.move))),
         deltaWinPct = anchor.deltaWinPct,
-        tags = enrichedTags,
+        tags = finalTags,
         lines = lines.toList,
         summary = Some(metadata.description),
         studyScore = anchor.studyScore,

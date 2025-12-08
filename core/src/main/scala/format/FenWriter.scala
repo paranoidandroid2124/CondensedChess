@@ -1,14 +1,7 @@
 package chess
 package format
 
-import chess.variant.Crazyhouse
-
-/** https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
-  *
-  * Crazyhouse & Threecheck extensions:
-  * https://github.com/ddugovic/Stockfish/wiki/FEN-extensions
-  * http://scidb.sourceforge.net/help/en/FEN.html#ThreeCheck
-  */
+/** https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation */
 trait FenWriter:
 
   private given Ordering[File] = Ordering.by[File, Int](_.value)
@@ -26,7 +19,6 @@ trait FenWriter:
   def write(position: Position, fullMoveNumber: FullMoveNumber): FullFen = FullFen:
     val builder = scala.collection.mutable.StringBuilder(80)
     builder.append(writeBoard(position))
-    builder.append(writeCrazyPocket(position.crazyData))
     builder.addOne(' ')
     builder.addOne(position.color.letter)
     builder.addOne(' ')
@@ -37,9 +29,6 @@ trait FenWriter:
     builder.append(position.history.halfMoveClock)
     builder.addOne(' ')
     builder.append(fullMoveNumber)
-    if position.variant == variant.ThreeCheck then
-      builder.addOne(' ')
-      builder.append(writeCheckCount(position.history.checkCount))
     builder.toString
 
   def writeOpening(position: Position): StandardFen = StandardFen:
@@ -59,8 +48,6 @@ trait FenWriter:
             else
               fen.append(s"$empty${piece.forsyth}")
               empty = 0
-            if piece.role != Pawn && position.crazyData.exists(_.promoted.contains(Square(x, y))) then
-              fen.append('~')
       if empty > 0 then fen.append(empty)
       if y > Rank.First then fen.append('/')
     BoardFen(fen.toString)
@@ -70,15 +57,6 @@ trait FenWriter:
 
   def writeBoardAndColor(position: Position, turnColor: Color): BoardAndColorFen =
     writeBoard(position).andColor(turnColor)
-
-  private def writeCheckCount(checkCount: CheckCount) =
-    s"+${checkCount.black}+${checkCount.white}"
-
-  private def writeCrazyPocket(data: Option[Crazyhouse.Data]) =
-    data match
-      case Some(variant.Crazyhouse.Data(pockets, _)) =>
-        "/" + pockets.forsyth
-      case _ => ""
 
   private[chess] def writeCastles(position: Position): String =
     val wr = position.rooks & position.white & Bitboard.rank(White.backRank)

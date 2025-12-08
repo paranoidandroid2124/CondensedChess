@@ -6,11 +6,11 @@ import chess.format.{ Fen, Uci }
 
 import scala.annotation.threadUnsafe
 
-import variant.{ Variant, Crazyhouse }
+import variant.Variant
 
 case class Position(board: Board, history: History, variant: Variant, color: Color):
 
-  export history.{ castles, unmovedRooks, crazyData }
+  export history.{ castles, unmovedRooks }
   // format: off
   export board.{ attackers, attacks, bishops, black, byColor, byPiece, byRole, byRoleOf, colorAt,
     fold, foreach, isCheck, isOccupied, kingOf, kingPosOf, kings, kingsAndBishopsOnly,
@@ -29,16 +29,7 @@ case class Position(board: Board, history: History, variant: Variant, color: Col
 
   def withPieces(newPieces: PieceMap) = copy(board = Board.fromMap(newPieces))
 
-  def withVariant(v: Variant): Position =
-    if v == Crazyhouse then copy(variant = v).ensureCrazyData
-    else copy(variant = v)
-
-  def withCrazyData(data: Crazyhouse.Data): Position = updateHistory(_.copy(crazyData = data.some))
-  def withCrazyData(data: Option[Crazyhouse.Data]): Position = updateHistory(_.copy(crazyData = data))
-  def withCrazyData(f: Crazyhouse.Data => Crazyhouse.Data): Position =
-    withCrazyData(f(crazyData.getOrElse(Crazyhouse.Data.init)))
-
-  def ensureCrazyData: Position = withCrazyData(crazyData.getOrElse(Crazyhouse.Data.init))
+  def withVariant(v: Variant): Position = copy(variant = v)
 
   inline def updateHistory(inline f: History => History): Position = copy(history = f(history))
 
@@ -56,11 +47,6 @@ case class Position(board: Board, history: History, variant: Variant, color: Col
 
   @threadUnsafe
   lazy val destinations: Map[Square, Bitboard] = legalMoves.groupMapReduce(_.orig)(_.dest.bb)(_ | _)
-
-  def drops: Option[List[Square]] =
-    variant match
-      case v: Crazyhouse.type => v.possibleDrops(this)
-      case _ => None
 
   def checkSquare: Option[Square] = if check.yes then ourKing else None
 
@@ -426,8 +412,7 @@ object Position:
       board,
       History(
         castles = variant.castles,
-        unmovedRooks = unmovedRooks,
-        crazyData = variant.crazyhouse.option(Crazyhouse.Data.init)
+        unmovedRooks = unmovedRooks
       ),
       variant,
       color

@@ -67,6 +67,7 @@ final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN",
     
     try
       this.synchronized {
+        // System.err.println(s"[StockfishClient] Evaluating FEN: $fen")
         sendCommand(s"setoption name MultiPV value $multiPv")
         sendCommand(s"position fen $fen")
         
@@ -81,18 +82,38 @@ final class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN",
         var line = ""
         var done = false
         
-        while !done && { line = reader.readLine(); line != null } do
-          if line.startsWith("bestmove") then
-            best = line.split("\\s+").lift(1)
-            done = true
-          else if line.startsWith("info") then
-            parseInfo(line).foreach { l => infoByPv.update(l.multiPv, l) }
+        // Timeout safety: wait at most (moveTimeMs + 2000) or 10s if depth-only
+        val maxWaitMs = moveTimeMs.map(_ + 2000).getOrElse(10000)
+        val startWait = System.currentTimeMillis()
+        
+        while !done do
+          if System.currentTimeMillis() - startWait > maxWaitMs then
+            System.err.println(s"[StockfishClient] Timeout waiting for bestmove (max ${maxWaitMs}ms)")
+            sendCommand("stop") // Try to stop it
+            // Give it a moment to spit out bestmove
+            Thread.sleep(100)
+            if !reader.ready() then
+              return Left("Engine timeout")
+
+          if reader.ready() then
+            line = reader.readLine()
+            if line != null then
+              // if line.startsWith("info depth") then System.err.println(s"[StockfishClient] $line")
+              if line.startsWith("bestmove") then
+                best = line.split("\\s+").lift(1)
+                done = true
+              else if line.startsWith("info") then
+                parseInfo(line).foreach { l => infoByPv.update(l.multiPv, l) }
+          else
+            Thread.sleep(10)
             
         val lines = infoByPv.toList.sortBy(_._1).map(_._2)
         Right(EvalResult(lines, best))
       }
     catch
-      case e: Throwable => Left(s"Engine error: ${e.getMessage}")
+      case e: Throwable => 
+        System.err.println(s"[StockfishClient] Exception: ${e.getMessage}")
+        Left(s"Engine error: ${e.getMessage}")
 
   private def sendCommand(cmd: String): Unit =
     writer.write(cmd)
