@@ -4,6 +4,7 @@ import { MiniBoard } from "../../common/MiniBoard";
 
 interface BookViewContainerProps {
     book: Book;
+    root?: ReviewTreeNode;
     onSelectPly: (ply: number) => void;
 }
 
@@ -66,54 +67,23 @@ function DiagramCard({
 }
 
 
-function SectionRenderer({ section, onSelectPly }: { section: BookSection; onSelectPly: (ply: number) => void }) {
-    const typeIcons: Record<string, string> = {
-        OpeningPortrait: "🌅",
-        CriticalCrisis: "⚠️",
-        StructuralDeepDive: "🏗️",
-        TacticalStorm: "⚔️",
-        EndgameMasterclass: "👑",
-        NarrativeBridge: "🌉"
-    };
+import { NarrativeRenderer } from "./NarrativeRenderer";
+import { KeyPointsTable } from "../../study/book/sections/KeyPointsTable";
+import type { ReviewTreeNode } from "../../../types/review";
 
-    const typeColors: Record<string, string> = {
-        OpeningPortrait: "border-blue-500/30 bg-blue-500/5",
-        CriticalCrisis: "border-red-500/30 bg-red-500/5",
-        StructuralDeepDive: "border-cyan-500/30 bg-cyan-500/5",
-        TacticalStorm: "border-orange-500/30 bg-orange-500/5",
-        EndgameMasterclass: "border-purple-500/30 bg-purple-500/5",
-        NarrativeBridge: "border-slate-500/30 bg-slate-500/5"
-    };
-
-    return (
-        <div className={`py-6 border-b border-white/5`}>
-            <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">{typeIcons[section.sectionType]}</span>
-                <h2 className="text-lg font-bold text-white">{section.title}</h2>
-                <span className="text-xs text-white/40 ml-auto">Ply {section.startPly}-{section.endPly}</span>
-            </div>
-
-            <div className={`p-4 rounded-lg border ${typeColors[section.sectionType] || "border-white/10 bg-white/5"}`}>
-                <p className="text-sm text-white/80 mb-4 whitespace-pre-wrap leading-relaxed">
-                    {section.narrativeHint}
-                </p>
-
-                {section.diagrams.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {section.diagrams.map(d => (
-                            <DiagramCard
-                                key={d.id}
-                                diagram={d}
-                                displayRole={section.sectionType}
-                                onClick={() => onSelectPly(d.ply)}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+// Helper to find node
+function findNodeByPly(root: ReviewTreeNode, ply: number): ReviewTreeNode | null {
+    if (root.ply === ply) return root;
+    if (root.children) {
+        for (const child of root.children) {
+            const found = findNodeByPly(child, ply);
+            if (found) return found;
+        }
+    }
+    return null;
 }
+
+
 
 function ChecklistSection({ blocks }: { blocks: ChecklistBlock[] }) {
     if (blocks.length === 0) return null;
@@ -142,13 +112,127 @@ function ChecklistSection({ blocks }: { blocks: ChecklistBlock[] }) {
 
 // --- Main Container ---
 
-export function BookViewContainer({ book, onSelectPly }: BookViewContainerProps) {
+interface BookViewContainerProps {
+    book: Book;
+    root?: ReviewTreeNode;
+    onSelectPly: (ply: number) => void;
+    onPreviewFen?: (fen: string | null) => void;
+    onSelectNode?: (node: ReviewTreeNode) => void;
+}
+
+function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNode }: {
+    section: BookSection;
+    root?: ReviewTreeNode;
+    onSelectPly: (ply: number) => void;
+    onPreviewFen?: (fen: string | null) => void;
+    onSelectNode?: (node: ReviewTreeNode) => void;
+}) {
+    // ... Type defs omitted for brevity, they are unchanged ...
+
+    // (Re-copy icons/colors maps from original if not already in closure, assuming component function continues)
+    const typeIcons: Record<string, string> = {
+        OpeningPortrait: "🌅",
+        CriticalCrisis: "⚠️",
+        StructuralDeepDive: "🏗️",
+        TacticalStorm: "⚔️",
+        EndgameMasterclass: "👑",
+        NarrativeBridge: "🌉"
+    };
+
+    const typeColors: Record<string, string> = {
+        OpeningPortrait: "border-blue-500/30 bg-blue-500/5",
+        CriticalCrisis: "border-red-500/30 bg-red-500/5",
+        StructuralDeepDive: "border-cyan-500/30 bg-cyan-500/5",
+        TacticalStorm: "border-orange-500/30 bg-orange-500/5",
+        EndgameMasterclass: "border-purple-500/30 bg-purple-500/5",
+        NarrativeBridge: "border-slate-500/30 bg-slate-500/5"
+    };
+
+    // Find the start node for this section to anchor the narrative
+    const startNode = root ? findNodeByPly(root, section.startPly) : null;
+
+    return (
+        <div className={`py-8 border-b border-white/5`}>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-6">
+                <span className="text-2xl filter drop-shadow-md">{typeIcons[section.sectionType]}</span>
+                <h2 className="text-2xl font-bold text-white font-serif tracking-tight">{section.title}</h2>
+                <div className="ml-auto flex flex-col items-end">
+                    <span className="text-xs font-mono text-white/30 uppercase tracking-widest">Ply {section.startPly}-{section.endPly}</span>
+                </div>
+            </div>
+
+            {/* Structured Metadata Table */}
+            {section.metadata && (
+                <KeyPointsTable metadata={section.metadata} />
+            )}
+
+            <div className={`p-6 rounded-xl border ${typeColors[section.sectionType] || "border-white/10 bg-white/5"} relative overflow-hidden group`}>
+
+                {/* Introduction Text */}
+                <div className="mb-6 font-serif text-lg leading-loose text-white/80 space-y-4 max-w-none">
+                    {section.narrativeHint.split('\n').map((para, i) => (
+                        para.trim() && <p key={i}>{para}</p>
+                    ))}
+                </div>
+
+                {/* Diagrams */}
+                {section.diagrams.length > 0 && (
+                    <div className="my-8 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {section.diagrams.map(d => (
+                            <DiagramCard
+                                key={d.id}
+                                diagram={d}
+                                displayRole={section.sectionType}
+                                onClick={() => onSelectPly(d.ply)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Hierarchical Narrative Rendering */}
+                {startNode && (
+                    <div className="mt-8 pt-6 border-t border-white/10">
+                        <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-4">Detailed Analysis</h3>
+                        <div className="font-serif text-base leading-relaxed space-y-2 break-words text-justify">
+                            <NarrativeRenderer
+                                node={startNode}
+                                onInteract={(node) => {
+                                    // If node is a variation (has nodeType or doesn't match main flow in theory, 
+                                    // but simplistically: ALWAYS preview fen if available, PLUS select ply)
+                                    // Actually, onSelectPly jumps timeline. onPreviewFen forces board.
+                                    // Let's do both.
+                                    onSelectPly(node.ply);
+                                    if (onPreviewFen && node.fen) {
+                                        onPreviewFen(node.fen);
+                                    }
+                                    onSelectNode?.(node);
+                                }}
+                                depth={0}
+                                endPly={section.endPly}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSelectNode }: BookViewContainerProps) {
     return (
         <div className="space-y-2 pb-16">
             <IntroSection meta={book.gameMeta} />
             {/* Render Sections Dynamically */}
             {book.sections.map((section, idx) => (
-                <SectionRenderer key={idx} section={section} onSelectPly={onSelectPly} />
+                <SectionRenderer
+                    key={idx}
+                    section={section}
+                    root={root}
+                    onSelectPly={onSelectPly}
+                    onPreviewFen={onPreviewFen}
+                    onSelectNode={onSelectNode}
+                />
             ))}
             <ChecklistSection blocks={book.checklist} />
         </div>

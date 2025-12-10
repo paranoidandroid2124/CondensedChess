@@ -210,6 +210,24 @@ export interface StudyLine {
   winPct: number;
 }
 
+// Copied from BookModel.ts structure effectively
+export interface TagBundle {
+  structure: string[];
+  plan: string[];
+  tactic: string[];
+  mistake: string[];
+  endgame: string[];
+  transition: string[];
+}
+
+export interface BookDiagram {
+  id: string;
+  fen: string;
+  roles: string[];
+  ply: number;
+  tags: TagBundle;
+}
+
 export interface StudyChapter {
   id: string;
   anchorPly: number;
@@ -230,7 +248,8 @@ export interface StudyChapter {
   winPctBefore?: number;
   winPctAfter?: number;
   rootNode?: ReviewTreeNode;
-  variations?: any[]; // Placeholder if needed, or remove from AnnotationView fallback
+  variations?: any[];
+  diagrams?: BookDiagram[]; // Added diagram support
 }
 
 // --- Phase 4.6 Book Types ---

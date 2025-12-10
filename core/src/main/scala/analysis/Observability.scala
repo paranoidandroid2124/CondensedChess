@@ -41,7 +41,7 @@ object Observability:
         }
       },
       "pool": {
-         "max": ${sys.env.getOrElse("MAX_ENGINES", "4")}
+         "max": ${EnvLoader.getOrElse("MAX_ENGINES", "4")}
       }
     }
     """

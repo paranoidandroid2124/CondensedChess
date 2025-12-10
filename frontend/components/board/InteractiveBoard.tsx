@@ -97,6 +97,7 @@ export default function InteractiveBoard({
 
         // Cleanup
         return () => cgApi.destroy();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Run once on mount
 
     // Sync FEN changes from props

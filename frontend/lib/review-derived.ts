@@ -114,3 +114,57 @@ export function buildVariationMap(review: Review | null, enhancedTimeline: Enhan
   return map;
 }
 
+
+export function findPathToNode(root: ReviewTreeNode, targetNode: ReviewTreeNode): ReviewTreeNode[] | null {
+  // Try reference equality first
+  if (root === targetNode) return [root];
+  // Fallback to strict unique ID check if refs change (UCI + Ply + FEN)
+  const isMatch = root.ply === targetNode.ply && root.uci === targetNode.uci && root.fen === targetNode.fen;
+  if (isMatch) return [root];
+
+  if (!root.children) return null;
+  for (const child of root.children) {
+    const path = findPathToNode(child, targetNode);
+    if (path) {
+      return [root, ...path];
+    }
+  }
+  return null;
+}
+
+export function convertPathToTimeline(path: ReviewTreeNode[]): EnhancedTimelineNode[] {
+  // Skip root if it's the starting position (ply 0, typically no move) 
+  // UNLESS the array includes the root as a move? 
+  // ReviewTreeNode root is usually "start pos" (ply 0) or "first move".
+  // Typically root is ply 0 (Concept analysis usually starts at ply 0).
+  // But TimelineNode usually starts at ply 1.
+  // Check buildEnhancedTimeline: input is review.timeline (which are moves).
+
+  // Filter out ply 0 if it has no SAN (start pos)
+  const moves = path.filter(n => n.ply > 0);
+
+  return moves.map(node => {
+    const moveNumber = Math.ceil(node.ply / 2);
+    const turnPrefix = node.ply % 2 === 1 ? "." : "...";
+    const label = `${moveNumber}${turnPrefix} ${node.san}`;
+    // For variation nodes, we might not have fenBefore populated in the node itself
+    // But we can infer it from the PREVIOUS node in the path.
+    // In the path, index i-1 is the parent.
+    // So moves[i].fenBefore = path[i-1 if mapped correctly].fen.
+
+    // However, `path` includes root. `moves` filters it.
+    // Let's find the parent in `path`.
+    const parent = path.find(p => p.ply === node.ply - 1);
+    const fenBefore = parent ? parent.fen : (node.fenBefore || node.fen); // fallback
+
+    return {
+      ...node,
+      label,
+      fenBefore,
+      // Ensure exact types match TimelineNode
+      // ReviewTreeNode has 'comment', 'concepts', etc. which overlap with TimelineNode
+      // But we need to make sure we don't miss anything required.
+      // TimelineNode usually requires: ply, san, uci, fen. ReviewTreeNode has all.
+    } as EnhancedTimelineNode;
+  });
+}

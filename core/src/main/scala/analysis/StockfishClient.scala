@@ -12,7 +12,7 @@ import scala.compiletime.uninitialized
   * - Supports depth + movetime constraints.
   * - Must call close() to release resources.
   */
-class StockfishClient(command: String = sys.env.getOrElse("STOCKFISH_BIN", "stockfish")) extends AutoCloseable:
+class StockfishClient(command: String = EnvLoader.getOrElse("STOCKFISH_BIN", "stockfish")) extends AutoCloseable:
 
   import StockfishClient.*
   import org.slf4j.LoggerFactory

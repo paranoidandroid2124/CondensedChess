@@ -35,12 +35,11 @@ object ApiServer:
   private val logger = LoggerFactory.getLogger("chess.api")
 
   def main(args: Array[String]): Unit =
-    val port = sys.env.get("PORT").flatMap(_.toIntOption).filter(_ > 0).getOrElse(8080)
-    val bindHost = sys.env.getOrElse("BIND", "0.0.0.0")
+    val port = EnvLoader.get("PORT").flatMap(_.toIntOption).filter(_ > 0).getOrElse(8080)
+    val bindHost = EnvLoader.getOrElse("BIND", "0.0.0.0")
     val config = AnalyzePgn.EngineConfig.fromEnv()
     val llmRequestedPlys: Set[Int] =
-      sys.env
-        .get("ANALYZE_FORCE_CRITICAL_PLYS")
+      EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
         .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
         .getOrElse(Set.empty)
 
@@ -565,7 +564,7 @@ object ApiServer:
       case _: Throwable => json
 
   private def cleanExpiredJobs(): Unit =
-    val ttlMinutes = sys.env.get("JOB_TTL_MINUTES").flatMap(_.toLongOption).getOrElse(360L)
+    val ttlMinutes = EnvLoader.get("JOB_TTL_MINUTES").flatMap(_.toLongOption).getOrElse(360L)
     val ttlMs = math.max(5L, ttlMinutes) * 60_000L
     val now = System.currentTimeMillis()
     val iter = jobs.entrySet().iterator()

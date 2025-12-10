@@ -89,69 +89,112 @@ object BookBuilder:
     sections.result()
 
   private def segmentMiddlegame(plys: Vector[PlyOutput], offsetStr: Int): List[BookSection] =
-    // Simple greedy segmenter
+    // Smoother Segmentation: Group by chunks of ~8-12 moves, or break at major Crisis.
+    // We want to avoid 1-move sections.
     val sections = List.newBuilder[BookSection]
+    val MIN_CHUNK_SIZE = 6
+    val IDEAL_CHUNK_SIZE = 12
+
     var buffer = Vector.empty[PlyOutput]
-    var currentType = SectionType.StructuralDeepDive // Default
-    var startIdx = offsetStr
-
-    def flush(narrative: String) =
-      if buffer.nonEmpty then
-        sections += createSection(
-          determineTitle(currentType), 
-          currentType, 
-          buffer, 
-          narrative
-        )
-        buffer = Vector.empty
-
+    var currentType = SectionType.StructuralDeepDive // Default starting type
+    // We will determine the "Type" of the section *after* collecting the chunk, based on its dominant content.
+    
+    // Explicit Turning Points that MUST start a new section (unless too close to start)
+    // - GameDecider (Role)
+    // - BlunderPunishment (Role)
+    // - High concept shift?
+    
     plys.foreach { p =>
-      // Determine ply "nature"
       val isCrisis = p.roles.exists(r => r == "GameDecider" || r == "BlunderPunishment")
-      val isTactic = p.roles.exists(r => r == "Violence" || r == "Complication")
+      val isViolence = p.roles.exists(r => r == "Violence" || r == "Complication")
       
-      val targetType = 
-        if isCrisis then SectionType.CriticalCrisis
-        else if isTactic then SectionType.TacticalStorm
-        else SectionType.StructuralDeepDive // or NarrativeBridge
+      // Decision to flush:
+      // 1. If buffer >= IDEAL_CHUNK_SIZE
+      // 2. If buffer >= MIN_CHUNK_SIZE AND we hit a Crisis (major turning point)
       
-      if targetType != currentType && buffer.nonEmpty then
-        // If switching types, flush current buffer
-        // Heuristic: Don't switch for single ply unless High Importance?
-        // Let's switch.
-        flush(getNarrativeHint(currentType))
-        currentType = targetType
+      val hitLimit = buffer.size >= IDEAL_CHUNK_SIZE
+      val hitCrisis = buffer.size >= MIN_CHUNK_SIZE && isCrisis
+      
+      if (hitLimit || hitCrisis) then
+        // Flush buffer
+        val (finalType, finalTitle) = analyzeChunk(buffer)
+        sections += createSection(finalTitle, finalType, buffer, getNarrativeHint(finalType))
+        buffer = Vector.empty
       
       buffer = buffer :+ p
     }
-    flush(getNarrativeHint(currentType))
+    
+    // Flush remaining
+    if buffer.nonEmpty then
+      val (finalType, finalTitle) = analyzeChunk(buffer)
+      sections += createSection(finalTitle, finalType, buffer, getNarrativeHint(finalType))
+      
     sections.result()
 
+  private def analyzeChunk(plys: Vector[PlyOutput]): (SectionType, String) =
+    // Determine the dominant character of the chunk
+    val tacticalCount = plys.count(p => p.roles.exists(r => r == "Violence" || r == "Complication") || p.conceptLabels.exists(_.tacticTags.nonEmpty))
+    val crisisCount = plys.count(p => p.roles.exists(r => r == "GameDecider" || r == "BlunderPunishment"))
+    val blunderCount = plys.count(p => p.conceptLabels.exists(_.mistakeTags.nonEmpty))
+    
+    val total = plys.size
+    val tacticRatio = tacticalCount.toDouble / total
+    
+    if crisisCount > 0 then
+      (SectionType.CriticalCrisis, "Critical Turning Point")
+    else if tacticRatio > 0.4 then
+      (SectionType.TacticalStorm, "Tactical Complications")
+    else if blunderCount >= 2 then
+      (SectionType.StructuralDeepDive, "Missed Opportunities") // Or Strategic Errors? keeping it simple
+    else
+      // Default to Structural/Strategic
+      (SectionType.StructuralDeepDive, "Strategic Maneuvering")
+
   private def createSection(title: String, tpe: SectionType, plys: Vector[PlyOutput], narrative: String): BookSection =
-    // Select relevant diagrams from this chunk (not every ply needs a diagram)
-    // Heuristic: Filter interesting ones
-    // STRICTER FILTER: Only diagrams for Turning Points, Tactics, or Structural Changes
-    val diagPlys = plys.filter { p => 
-      val isRole = p.roles.nonEmpty
-      val isMistake = p.conceptLabels.exists(_.mistakeTags.nonEmpty)
-      val isTactic = p.conceptLabels.exists(_.tacticTags.nonEmpty)
-      // Only include structure if it's a structural section or very sparse
-      val isStructure = tpe == SectionType.StructuralDeepDive && p.conceptLabels.exists(_.structureTags.nonEmpty)
+    // Smart Diagram Selection:
+    // Only pick diagrams for High Importance moves or spaced intervals
+    val candidatePlys = plys.filter { p =>
+      val isCrisis = p.roles.exists(r => r == "GameDecider" || r == "BlunderPunishment")
+      val isTactic = p.roles.exists(r => r == "Violence" || r == "Complication")
+      val isHighDelta = Math.abs(p.deltaWinPct) > 5.0
+      val hasStructureChange = p.conceptLabels.exists(_.structureTags.nonEmpty)
       
-      isRole || isMistake || isTactic || isStructure
+      isCrisis || isTactic || isHighDelta || (hasStructureChange && Math.abs(p.deltaWinPct) > 2.0)
     }
-    // Limit density: if too many, take every Nth?
-    // For now, let's just rely on stricter filtering.
+
+    // Filter for spacing (min 4 plies gap)
+    var selectedDiagrams = Vector.empty[PlyOutput]
+    var lastPly = -10
     
-    val diagrams = diagPlys.map(toBookDiagram).toList
+    // User Request: For Opening, show the LAST move (final state) instead of the first
+    // So we don't force head here. We will ensure last is added later.
+
+    candidatePlys.foreach { p =>
+      if (p.ply.value - lastPly >= 4) then
+        selectedDiagrams = selectedDiagrams :+ p
+        lastPly = p.ply.value
+    }
+
+    // If section is long (>10 plies) and no diagrams selected, add the LAST one (final state)
+    // ALSO: If it's an Opening Portrait, we MUST include the final state as per user request
+    val forceLast = (selectedDiagrams.isEmpty && plys.length > 8) || (tpe == SectionType.OpeningPortrait && plys.nonEmpty)
     
+    if (forceLast) {
+       val last = plys.last
+       // Avoid duplicate if candidate selection already picked it
+       if (!selectedDiagrams.exists(_.ply.value == last.ply.value)) {
+          selectedDiagrams = selectedDiagrams :+ last
+       }
+    }
+
     BookSection(
       title = title,
       sectionType = tpe,
-      diagrams = diagrams,
       narrativeHint = narrative,
       startPly = plys.headOption.map(_.ply.value).getOrElse(0),
-      endPly = plys.lastOption.map(_.ply.value).getOrElse(0)
+      endPly = plys.lastOption.map(_.ply.value).getOrElse(0),
+      diagrams = selectedDiagrams.map(toBookDiagram).toList,
+      metadata = None
     )
 
   private def determineTitle(tpe: SectionType): String =

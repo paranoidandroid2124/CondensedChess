@@ -127,7 +127,7 @@ export function EvalSparkline({
                     }
                     opacity={0.9}
                   >
-                    <title>{`${s!.label ?? s!.kind ?? "event"} @ ply ${s!.ply}`}</title>
+                    <title>{`${s!.label ?? s!.kind ?? "event"} @ ${Math.ceil(s!.ply / 2)}${s!.ply % 2 !== 0 ? "w" : "...b"}`}</title>
                   </circle>
                 </g>
               ))

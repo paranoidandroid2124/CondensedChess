@@ -14,6 +14,7 @@ interface ChapterDetailProps {
     rootNode: ReviewTreeNode; // The anchor node of the chapter
     onSelectPly: (ply: number) => void;
     currentPly: number | null;
+    onPreviewFen?: (fen: string | null) => void;
 }
 
 // Basic markdown parser for bold text
@@ -27,7 +28,7 @@ function renderMarkdown(text: string): string {
     return html;
 }
 
-export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly }: ChapterDetailProps) {
+export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly, onPreviewFen }: ChapterDetailProps) {
     const [showTreeModal, setShowTreeModal] = useState(false);
 
     return (
@@ -101,11 +102,14 @@ export function ChapterDetail({ chapter, rootNode, onSelectPly, currentPly }: Ch
                         {(chapter.rootNode || rootNode) && (
                             <NarrativeRenderer
                                 node={chapter.rootNode || rootNode}
-                                onInteract={(fen, uci) => {
+                                onInteract={(node) => {
                                     // Open modal when clicking notation
-                                    console.log("Interact", fen, uci);
+                                    console.log("Interact node:", node);
+                                    if (onPreviewFen && node.fen) onPreviewFen(node.fen);
+                                    // Also allow TreeModal if needed, but PreviewFen is priority for user request
                                     setShowTreeModal(true);
                                 }}
+                                diagrams={chapter.diagrams}
                             />
                         )}
                     </div>

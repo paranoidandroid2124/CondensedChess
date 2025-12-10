@@ -13,7 +13,7 @@ export const StandardSection: React.FC<Props> = ({ section, onDiagramClick }) =>
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex-1 overflow-y-auto p-8 bg-slate-900 text-slate-200 font-sans leading-relaxed"
+            className="flex-1 overflow-y-auto p-8 bg-slate-900 text-slate-200 font-serif leading-relaxed"
         >
             {/* Header */}
             <h2 className="text-3xl font-serif font-bold text-slate-100 mb-6 border-b border-slate-700 pb-2 flex items-center justify-between">

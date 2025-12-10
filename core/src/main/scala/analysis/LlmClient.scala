@@ -11,10 +11,10 @@ import ujson.*
   * Requires GEMINI_API_KEY in env. Model defaults to gemini-1.5-flash.
   */
 object LlmClient:
-  private val apiKey = sys.env.get("GEMINI_API_KEY").orElse(sys.props.get("GEMINI_API_KEY"))
+  private val apiKey = EnvLoader.get("GEMINI_API_KEY").orElse(sys.props.get("GEMINI_API_KEY"))
   if apiKey.isEmpty then System.err.println("[llm] GEMINI_API_KEY not set; LlmClient is disabled")
 
-  private val model = sys.env.getOrElse("GEMINI_MODEL", "gemini-2.5-flash")
+  private val model = EnvLoader.getOrElse("GEMINI_MODEL", "gemini-2.5-flash")
   private val endpoint = s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key="
   private val http = HttpClient.newHttpClient()
 
@@ -140,7 +140,7 @@ object LlmClient:
                  yield ply -> comment
                }.toMap
              catch
-               case e: Throwable => Map.empty
+               case _: Throwable => Map.empty
           }
         else None
       catch
@@ -211,7 +211,7 @@ object LlmClient:
                   yield ply -> comment
                 }.toMap
               catch
-                case e: Throwable => Map.empty
+                case _: Throwable => Map.empty
            }
          else None
       catch
@@ -356,17 +356,11 @@ object LlmClient:
         Map.empty
 
   /** Detects common hallucination patterns in LLM-generated text */
+  /** Detects common hallucination patterns in LLM-generated text */
   private def detectHallucination(text: String): Boolean =
     val lower = text.toLowerCase
+    // Relaxed patterns: removing generic terms like "in theory" or "should have seen" which are valid coaching
     val suspiciousPatterns = List(
-      "reminds me of",
-      "reminiscent of",
-      "famous game",
-      "classic game",
-      "in theory",
-      "theoretically",
-      "could have considered",
-      "should have seen",
       "kasparov",
       "carlsen",
       "fischer",
@@ -374,10 +368,11 @@ object LlmClient:
     )
     val hasSuspicious = suspiciousPatterns.exists(p => lower.contains(p))
     
-    // Detect overly long variations (more than 3 move pairs like "1. e4 e5 2. Nf3 Nc6 3. Bb5")
+    // Detect overly long variations (more than 6 move pairs)
+    // Relaxed from 3 to 6
     val movePattern = """\d+\.\s*[a-zA-Z][a-zA-Z0-9+#=]*""".r
     val moveCount = movePattern.findAllMatchIn(text).size
-    val tooManyMoves = moveCount > 6 // More than ~3 move pairs suggests hallucination
+    val tooManyMoves = moveCount > 12 // Allow up to ~6 full moves (12 plies)
     
     if hasSuspicious || tooManyMoves then
       System.err.println(s"[llm-validation] Detected hallucination in: $text")
@@ -385,11 +380,13 @@ object LlmClient:
     else
       false
 
-  def bookSectionNarrative(prompt: String): Option[String] =
+  case class SectionNarrative(narrative: String, metadata: Option[BookModel.SectionMetadata])
+
+  def bookSectionNarrative(prompt: String): Option[SectionNarrative] =
     apiKey.flatMap { key =>
       val body =
         s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}],
-           |  "generationConfig":{"responseMimeType":"text/plain"}
+           |  "generationConfig":{"responseMimeType":"application/json"}
            |}""".stripMargin
       val req = HttpRequest
         .newBuilder()
@@ -401,7 +398,7 @@ object LlmClient:
       try
         val res = sendWithRetry(req)
         if res.statusCode() >= 200 && res.statusCode() < 300 then
-           extractText(res.body()).filter(!detectHallucination(_))
+           extractText(res.body()).filter(!detectHallucination(_)).flatMap(parseSectionJson)
         else
            System.err.println(s"[llm-section] status=${res.statusCode()} body=${res.body()}")
            None
@@ -410,3 +407,26 @@ object LlmClient:
            System.err.println(s"[llm-section] request failed: ${e.getMessage}")
            None
     }
+
+  private def parseSectionJson(jsonStr: String): Option[SectionNarrative] =
+    try
+      val json = ujson.read(jsonStr)
+      val narrative = json.obj.get("narrative").map(_.str).getOrElse("")
+      
+      val theme = json.obj.get("theme").map(_.str).getOrElse("Strategy")
+      val atmosphere = json.obj.get("atmosphere").map(_.str).getOrElse("Neutral")
+      val contextMap = json.obj.get("context").flatMap(_.objOpt).map(_.toMap.mapValues {
+        case ujson.Str(s) => s
+        case ujson.Num(n) => if (n % 1 == 0) n.toInt.toString else n.toString
+        case ujson.Bool(b) => b.toString
+        case other => other.toString
+      }.toMap).getOrElse(Map.empty)
+      
+      val meta = BookModel.SectionMetadata(theme, atmosphere, contextMap)
+      
+      if narrative.nonEmpty then Some(SectionNarrative(narrative, Some(meta)))
+      else None
+    catch
+      case e: Throwable =>
+        System.err.println(s"[llm-parseSection] Failed to parse JSON: ${e.getMessage}")
+        if jsonStr.trim.startsWith("{") then None else Some(SectionNarrative(jsonStr, None))

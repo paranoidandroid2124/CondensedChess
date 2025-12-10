@@ -91,11 +91,9 @@ object NarrativeTemplates:
     s"$arcFraming $joined."
 
   def buildChapterMetadata(
-      anchorPly: Int,
       tags: List[String],
       phase: String,
-      arc: Arc,
-      studyScore: Double
+      arc: Arc
   ): StudyChapterMetadata =
     val keyTags = selectKeyTags(tags)
     
@@ -156,7 +154,7 @@ object NarrativeTemplates:
       else if deltaWinPct >= 1 then s"improved by ${fmt(deltaWinPct)}%"
       else "maintained the balance"
 
-    val bestContext = best.map(b => s"Best was $b.").getOrElse("")
+
     val practicalContext = practicalMove.map(m => s"Practical alternative: $m (easier to play).").getOrElse("")
 
     val opponentContext = opponentRobustness match
@@ -220,7 +218,7 @@ object NarrativeTemplates:
     // Aggregate data for context
     val keyRoles = plys.flatMap(_.roles).groupBy(identity).mapValues(_.size).toList.sortBy(-_._2).take(3).map(_._1)
     val avgDyn = if plys.nonEmpty then plys.map(_.concepts.dynamic).sum / plys.size else 0.0
-    val maxAdvantage = plys.map(p => math.abs(p.winPctBefore - 50)).maxOption.getOrElse(0.0)
+
     
     // Detailed Timeline Evidence (Hybrid Approach)
     val keyMoments = diagrams.flatMap { d =>
@@ -252,14 +250,32 @@ object NarrativeTemplates:
       |      $keyMoments
     """.stripMargin
 
+    val commonInstructions =
+      """
+        |OUTPUT FORMAT:
+        |Return a valid JSON object with the following fields:
+        |- "narrative": A concise, engaging paragraph (3-4 sentences) describing the action.
+        |- "theme": A 1-2 word strategic theme (e.g. "Space Advantage", "King Attack", "Endgame Grind").
+        |- "atmosphere": A 1-word adjective describing the tension (e.g. "Tense", "Calm", "Chaotic", "Desperate").
+        |- "context": A subset of key metrics or facts (e.g. {"Material": "Equal", "Mistakes": "None"}).
+        |
+        |JSON EXAMPLE:
+        |{
+        |  "narrative": "White seized the initiative with a bold pawn sacrifice, opening lines against the black king. Black failed to respond accurately, leading to a decisive tactical sequence.",
+        |  "theme": "King Attack",
+        |  "atmosphere": "Chaotic",
+        |  "context": { "Material": "-1 Pawn", "Key Moment": "Move 18" }
+        |}
+      """.stripMargin
+
     sectionType match
       case BookModel.SectionType.OpeningPortrait =>
         s"""$context
            |GOAL: Describe the opening phase.
            |INSTRUCTIONS:
-           |- Explain which side emerged with an advantage (or if it was balanced).
-           |- Mention the key strategic theme (e.g. space, development).
-           |- Write a concise paragraph (3-4 sentences).
+           |- Explain which side emerged with an advantage.
+           |- Identify the opening line if clear.
+           |$commonInstructions
          """.stripMargin
          
       case BookModel.SectionType.TacticalStorm =>
@@ -267,8 +283,8 @@ object NarrativeTemplates:
            |GOAL: Describe a tactical sequence.
            |INSTRUCTIONS:
            |- Highlight the intensity and complexity.
-           |- Mention who initiated the complications and WHY (look at tags like Greed/Refuted).
-           |- Keep it dynamic and exciting. 3-4 sentences.
+           |- Mention who initiated the complications.
+           |$commonInstructions
          """.stripMargin
          
       case BookModel.SectionType.CriticalCrisis =>
@@ -276,24 +292,26 @@ object NarrativeTemplates:
            |GOAL: Describe a turning point or crisis.
            |INSTRUCTIONS:
            |- Identify the critical error or decisive moment.
-           |- Explain the shift in momentum and the specific mistake/success (e.g. Greed punished).
-           |- Use dramatic but accurate language. 3-4 sentences.
+           |- Explain the shift in momentum.
+           |$commonInstructions
          """.stripMargin
          
       case BookModel.SectionType.EndgameMasterclass =>
         s"""$context
            |GOAL: Describe the endgame phase.
            |INSTRUCTIONS:
-           |- Focus on technique and conversion.
-           |- Mention the key theoretical concept (e.g. opposition, passed pawn).
-           |- Keep it instructive. 3-4 sentences.
+           |- Focus on technique and conversion/defense.
+           |- Mention key theoretical concepts.
+           |$commonInstructions
          """.stripMargin
          
-      case _ => // StructuralDeepDive or NarrativeBridge
+      case _ => // Mixed / Structural
         s"""$context
-           |GOAL: Describe the strategic maneuvering.
+           |GOAL: Describe the flow of this game segment (moves $startPly-$endPly).
            |INSTRUCTIONS:
-           |- Focus on plans, structures, and long-term ideas.
-           |- Explain what both sides were trying to achieve.
-           |- 3-4 sentences.
+           |- This segment may contain a mix of tactical and strategic moves.
+           |- If there are tactical moments (see Key Moments), highlight them prominently.
+           |- If it's mostly maneuvering, focus on the plans.
+           |- Explain how the advantage shifted (or didn't) during this phase.
+           |$commonInstructions
          """.stripMargin

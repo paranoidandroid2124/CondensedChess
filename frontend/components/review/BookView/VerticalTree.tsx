@@ -12,10 +12,11 @@ interface VerticalTreeProps {
 export const VerticalTree = ({ rootNode, currentPly, onSelectPly, isRoot = false }: VerticalTreeProps) => {
     // Identify Mainline child vs Variations
     const mainlineChild = rootNode.children?.find(c => c.nodeType === "mainline");
-    const variations = rootNode.children?.filter(c => c.nodeType !== "mainline") || [];
+
 
     // Sort variations: Critical > Best > Practical > Sideline
     const sortedVariations = React.useMemo(() => {
+        const variations = rootNode.children?.filter(c => c.nodeType !== "mainline") || [];
         return [...variations].sort((a, b) => {
             const score = (type?: string) => {
                 if (type === "critical") return 4;
@@ -25,7 +26,7 @@ export const VerticalTree = ({ rootNode, currentPly, onSelectPly, isRoot = false
             };
             return score(b.nodeType) - score(a.nodeType);
         });
-    }, [variations]);
+    }, [rootNode.children]);
 
     return (
         <div className="flex flex-col">

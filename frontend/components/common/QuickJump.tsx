@@ -9,27 +9,26 @@ interface QuickJumpProps {
 export function QuickJump({ timeline, onSelect }: QuickJumpProps) {
   const [value, setValue] = useState<string>("");
   const maxPly = timeline[timeline.length - 1]?.ply ?? 0;
-
-  const nearestPly = (target: number) => {
-    if (!timeline.length) return null;
-    let best = timeline[0].ply;
-    let bestDiff = Math.abs(timeline[0].ply - target);
-    for (const t of timeline) {
-      const diff = Math.abs(t.ply - target);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        best = t.ply;
-      }
-    }
-    return best;
-  };
+  const maxMove = Math.ceil(maxPly / 2);
 
   const submit = () => {
     const num = parseInt(value, 10);
     if (Number.isNaN(num) || num <= 0) return;
-    const clamped = Math.min(Math.max(num, 1), maxPly || num);
-    const target = nearestPly(clamped);
-    if (target != null) onSelect(target);
+
+    // Jump to the White move of the requested turn (Ply = num*2 - 1)
+    // If it's before start, clamp to 1. If after end, clamp to max.
+    const targetPly = (num * 2) - 1;
+
+    // Find nearest valid ply in timeline
+    // (Timeline might not have specifically Ply 1 if started from FEN, but usually fine)
+    const clampedPly = Math.min(Math.max(targetPly, timeline[0]?.ply ?? 0), maxPly);
+
+    // Helper to find exact node or closest
+    const best = timeline.reduce((prev, curr) =>
+      Math.abs(curr.ply - clampedPly) < Math.abs(prev.ply - clampedPly) ? curr : prev
+      , timeline[0]);
+
+    if (best) onSelect(best.ply);
   };
 
   return (
@@ -38,14 +37,14 @@ export function QuickJump({ timeline, onSelect }: QuickJumpProps) {
       <input
         type="number"
         min={1}
-        max={maxPly || undefined}
+        max={maxMove || undefined}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
         }}
         className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white outline-none focus:border-accent-teal/60"
-        placeholder="Ply #"
+        placeholder="Move #"
       />
       <button
         type="button"
@@ -54,7 +53,7 @@ export function QuickJump({ timeline, onSelect }: QuickJumpProps) {
       >
         Go
       </button>
-      {maxPly ? <span className="text-[11px] text-white/50">1 – {maxPly}</span> : null}
+      {maxMove ? <span className="text-[11px] text-white/50">1 – {maxMove}</span> : null}
     </div>
   );
 }

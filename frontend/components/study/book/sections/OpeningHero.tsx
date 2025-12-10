@@ -32,7 +32,7 @@ export const OpeningHero: React.FC<Props> = ({ section, onDiagramClick }) => {
             variants={container}
             initial="hidden"
             animate="show"
-            className="flex-1 overflow-y-auto bg-slate-950 text-slate-200 font-sans"
+            className="flex-1 overflow-y-auto bg-slate-950 text-slate-200 font-serif"
         >
             <div className="relative w-full bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800 pb-12 pt-8 px-8 flex flex-col items-center text-center">
                 <motion.div variants={item} className="mb-6">

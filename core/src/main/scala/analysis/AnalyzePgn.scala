@@ -76,7 +76,7 @@ object AnalyzePgn:
             }, Duration.Inf)
             
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
-          val root = None
+          val root = TreeBuilder.buildTree(timeline, critical)
           val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
           val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
           val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)

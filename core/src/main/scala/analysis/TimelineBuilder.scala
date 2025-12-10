@@ -95,10 +95,6 @@ object TimelineBuilder:
       jobId: Option[String]
   )(using ec: ExecutionContext): Future[RawPlyData] =
     val prog = (idx + 1).toDouble / totalMoves
-    jobId.foreach { id => 
-       if (idx % 5 == 0 || idx == totalMoves - 1) 
-         AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
-    }
 
     val player = gameBefore.position.color
     val legalCount = gameBefore.position.legalMoves.size
@@ -151,6 +147,10 @@ object TimelineBuilder:
       afterEvalOpt <- afterEvalF
       experiments <- runExperimentsFuture
     yield
+      jobId.foreach { id => 
+         if (idx % 5 == 0 || idx == totalMoves - 1) 
+           AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
+      }
       RawPlyData(
         plyIndex = idx,
         gameBefore = gameBefore,

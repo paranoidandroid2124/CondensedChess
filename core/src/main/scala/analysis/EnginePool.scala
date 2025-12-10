@@ -11,7 +11,7 @@ import scala.concurrent.{Future, ExecutionContext}
  */
 object EnginePool:
   
-  private val maxInstances = sys.env.get("MAX_ENGINES").flatMap(_.toIntOption).getOrElse(4) // Conservative default
+  private val maxInstances = EnvLoader.get("MAX_ENGINES").flatMap(_.toIntOption).getOrElse(4) // Conservative default
   private val pool: BlockingQueue[StockfishClient] = new LinkedBlockingQueue[StockfishClient](maxInstances)
   private val availablePermits = new Semaphore(maxInstances, true) // Fair semaphore
   private val isShutdown = new AtomicBoolean(false)
