@@ -168,7 +168,7 @@ components:
           type: string
         schemaVersion:
           type: integer
-          example: 3
+          example: 4
         result:
           $ref: '#/components/schemas/AnalysisOutput'
         error:
@@ -184,13 +184,192 @@ components:
       properties:
         book:
           $ref: '#/components/schemas/Book'
+        chapter:
+          $ref: '#/components/schemas/GameChapter'
         timeline:
           type: array
           items:
-            type: object # Simplified for now, can be detailed later
+            type: object
         summaryText:
           type: string
 
+    # --- New Checklist-Aligned Format (Phase 1) ---
+    GameChapter:
+      type: object
+      properties:
+        chapterId:
+          type: string
+        meta:
+          $ref: '#/components/schemas/GameMeta'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChapterSection'
+
+    GameMeta:
+      type: object
+      properties:
+        white:
+          type: string
+        black:
+          type: string
+        result:
+          type: string
+          example: "1-0"
+        openingName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ChapterSection:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/SectionType'
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/TitleSummaryData'
+            - $ref: '#/components/schemas/KeyDiagramsData'
+            - $ref: '#/components/schemas/OpeningReviewData'
+            - $ref: '#/components/schemas/TurningPointsData'
+            - $ref: '#/components/schemas/TacticalMomentsData'
+            - $ref: '#/components/schemas/MiddlegamePlansData'
+            - $ref: '#/components/schemas/EndgameLessonsData'
+            - $ref: '#/components/schemas/FinalChecklistData'
+
+    TitleSummaryData:
+      type: object
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+
+    KeyDiagramsData:
+      type: object
+      properties:
+        diagrams:
+          type: array
+          items:
+            $ref: '#/components/schemas/KeyDiagram'
+
+    KeyDiagram:
+      type: object
+      properties:
+        fen:
+          type: string
+        role:
+          type: string
+          enum: [opening, turning_point, tactical, endgame]
+        tags:
+          type: array
+          items:
+            type: string
+        referenceMoves:
+          type: array
+          items:
+            type: string
+
+    OpeningReviewData:
+      type: object
+      properties:
+        structure:
+          type: string
+        mainPlans:
+          type: array
+          items:
+            type: string
+        deviation:
+          type: string
+
+    TurningPointsData:
+      type: object
+      properties:
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/TurningPoint'
+
+    TurningPoint:
+      type: object
+      properties:
+        ply:
+          type: integer
+        side:
+          type: string
+        playedMove:
+          type: string
+        bestMove:
+          type: string
+        evalBefore:
+          type: integer
+        evalAfterPlayed:
+          type: integer
+        evalAfterBest:
+          type: integer
+
+    TacticalMomentsData:
+      type: object
+      properties:
+        moments:
+          type: array
+          items:
+            type: object
+
+    MiddlegamePlansData:
+      type: object
+      properties:
+        dominantStructure:
+          type: string
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanSummary'
+
+    PlanSummary:
+      type: object
+      properties:
+        planType:
+          type: string
+        quality:
+          type: string
+          enum: [good, neutral, bad]
+        description:
+          type: string
+
+    EndgameLessonsData:
+      type: object
+      properties:
+        principles:
+          type: array
+          items:
+            type: string
+
+    FinalChecklistData:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChecklistItem'
+
+    ChecklistItem:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [structure, plans, tactics, endgame]
+        text:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    # --- Legacy Format (Backward Compatibility) ---
     Book:
       type: object
       properties:
@@ -230,9 +409,19 @@ components:
     SectionType:
       type: string
       enum:
-        - OpeningPortrait
-        - CriticalCrisis
-        - StructuralDeepDive
-        - TacticalStorm
-        - EndgameMasterclass
-        - NarrativeBridge
+        # Legacy types
+        - opening_portrait
+        - critical_crisis
+        - structural_deep_dive
+        - tactical_storm
+        - endgame_masterclass
+        - narrative_bridge
+        # New checklist-aligned types (Phase 1)
+        - title_summary
+        - key_diagrams
+        - opening_review
+        - turning_points
+        - tactical_moments
+        - middlegame_plans
+        - endgame_lessons
+        - final_checklist

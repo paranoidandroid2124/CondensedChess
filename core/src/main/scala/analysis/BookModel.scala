@@ -41,6 +41,7 @@ object BookModel:
     wasMissed: Boolean
   )
 
+  // Legacy section types (for backward compatibility)
   enum SectionType:
     case OpeningPortrait
     case CriticalCrisis
@@ -48,7 +49,62 @@ object BookModel:
     case TacticalStorm
     case EndgameMasterclass
     case NarrativeBridge // Generic transition
+    // New checklist-aligned types (Phase 1)
+    case TitleSummary
+    case KeyDiagrams
+    case OpeningReview
+    case TurningPoints
+    case TacticalMoments
+    case MiddlegamePlans
+    case EndgameLessons
+    case FinalChecklist
 
+  // Typed section data for new checklist-aligned format
+  sealed trait SectionData
+  case class TitleSummaryData(title: String, summary: String) extends SectionData
+  case class KeyDiagramsData(diagrams: List[KeyDiagram]) extends SectionData
+  case class OpeningReviewData(
+    structure: String,
+    mainPlans: List[String],
+    deviation: Option[String]
+  ) extends SectionData
+  case class TurningPointsData(points: List[BookTurningPoint]) extends SectionData
+  case class TacticalMomentsData(moments: List[BookTacticalMoment]) extends SectionData
+  case class MiddlegamePlansData(
+    dominantStructure: String,
+    plans: List[PlanSummary]
+  ) extends SectionData
+  case class EndgameLessonsData(principles: List[String]) extends SectionData
+  case class FinalChecklistData(items: List[ChecklistItem]) extends SectionData
+  case class LegacySectionData(diagrams: List[BookDiagram], narrativeHint: String) extends SectionData
+
+  case class KeyDiagram(
+    fen: String,
+    role: String, // "opening" | "turning_point" | "tactical" | "endgame"
+    tags: List[String],
+    referenceMoves: List[String]
+  )
+
+  case class PlanSummary(
+    planType: String,
+    quality: String, // "good" | "neutral" | "bad"
+    description: String
+  )
+
+  case class ChecklistItem(
+    id: String,
+    category: String, // "structure" | "plans" | "tactics" | "endgame"
+    text: String,
+    tags: List[String]
+  )
+
+  // New unified section (Phase 1 aligned with checklist)
+  case class ChapterSection(
+    sectionType: SectionType,
+    data: SectionData
+  )
+
+  // Legacy section (kept for backward compatibility)
   case class BookSection(
     title: String,
     sectionType: SectionType,
@@ -79,9 +135,18 @@ object BookModel:
     white: String,
     black: String,
     result: String,
-    openingName: Option[String]
+    openingName: Option[String],
+    createdAt: Option[String] = None  // ISO-8601 timestamp
   )
 
+  // New Chapter format (Phase 1 - checklist aligned)
+  case class GameChapter(
+    chapterId: String,
+    meta: GameMeta,
+    sections: List[ChapterSection]
+  )
+
+  // Legacy Book format (kept for backward compatibility)
   case class Book(
     gameMeta: GameMeta,
     sections: List[BookSection],
@@ -90,3 +155,4 @@ object BookModel:
     tacticalMoments: List[BookTacticalMoment],
     checklist: List[ChecklistBlock]
   )
+

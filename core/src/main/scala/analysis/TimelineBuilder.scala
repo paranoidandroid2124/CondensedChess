@@ -10,7 +10,7 @@ import chess.analysis.ConceptLabeler
 import chess.analysis.RoleLabeler
 import chess.analysis.AnalysisTypes._
 import chess.analysis.AnalysisModel._
-import chess.analysis.{SemanticTagger, MistakeClassifier, PhaseCalculator, PracticalityScorer, ConceptScorer, AnalysisContext}
+import chess.analysis.{PhaseCalculator, PracticalityScorer, ConceptScorer, AnalysisContext}
 import chess.MoveOrDrop
 
 object TimelineBuilder:
@@ -37,10 +37,13 @@ object TimelineBuilder:
 
   /**
    * Builds the timeline asynchronously.
+   * 
+   * @param engineInterface Engine evaluation interface (Student role)
+   * @param experimentRunner Experiment execution (Coach role)
    */
   def buildTimeline(
       replay: Replay, 
-      engineService: EngineService,
+      engineInterface: EngineInterface,  // Changed from EngineService
       experimentRunner: ExperimentRunner,
       config: EngineConfig, 
       opening: Option[Opening.AtPly],
@@ -63,7 +66,7 @@ object TimelineBuilder:
     // 2. Parallel Analysis Phase
     val futureRawData: Future[Vector[RawPlyData]] = Future.sequence(
       gameSequence.map { case (idx, mod, gameBefore, gameAfter) =>
-        processPlyParallel(idx, mod, gameBefore, gameAfter, engineService, experimentRunner, config, totalMoves, jobId)
+        processPlyParallel(idx, mod, gameBefore, gameAfter, engineInterface, experimentRunner, config, totalMoves, jobId)
       }
     ).map(_.toVector)
 
@@ -85,7 +88,7 @@ object TimelineBuilder:
       mod: MoveOrDrop,
       gameBefore: Game,
       gameAfter: Game,
-      engineService: EngineService,
+      engine: EngineInterface,  // Changed from EngineService
       experimentRunner: ExperimentRunner,
       config: EngineConfig,
       totalMoves: Int,
@@ -103,19 +106,17 @@ object TimelineBuilder:
     val fenBefore = Fen.write(gameBefore.position, gameBefore.ply.fullMoveNumber).value
     val fenAfter = Fen.write(gameAfter.position, gameAfter.ply.fullMoveNumber).value
     
-    // Request 1 & 2: Before
-    val shallowReq = Analyze(fenBefore, depth = config.shallowDepth, multiPv = multiPv, timeoutMs = config.shallowTimeMs)
-    val deepReq = Analyze(fenBefore, depth = config.deepDepth, multiPv = multiPv, timeoutMs = config.deepTimeMs)
+    // Request 1 & 2: Before (using EngineInterface)
+    val shallowEvalF = engine.evaluate(fenBefore, config.shallowDepth, multiPv, config.shallowTimeMs)
+    val deepEvalF = engine.evaluate(fenBefore, config.deepDepth, multiPv, config.deepTimeMs)
     
     // Request 3: After (for accurate winPct if needed)
     // Only needed if game is not over
     val statusAfter = gameAfter.position.status
-    val afterReqFuture = statusAfter match
+    val afterEvalF: Future[Option[EngineEval]] = statusAfter match
       case Some(_) => Future.successful(None)
       case None =>
-        engineService.submit(
-          Analyze(fenAfter, depth = config.deepDepth, multiPv = 1, timeoutMs = config.deepTimeMs)
-        ).map(Some(_))
+        engine.evaluate(fenAfter, config.deepDepth, 1, config.deepTimeMs).map(Some(_))
 
     // Features
     val p4FeaturesBefore = FeatureExtractor.extractPositionFeatures(fenBefore, gameBefore.ply.value)
@@ -145,9 +146,9 @@ object TimelineBuilder:
     )
 
     for
-      shallowRes <- engineService.submit(shallowReq)
-      deepRes <- engineService.submit(deepReq)
-      afterResOpt <- afterReqFuture
+      shallowEval <- shallowEvalF
+      deepEval <- deepEvalF
+      afterEvalOpt <- afterEvalF
       experiments <- runExperimentsFuture
     yield
       RawPlyData(
@@ -155,9 +156,9 @@ object TimelineBuilder:
         gameBefore = gameBefore,
         gameAfter = gameAfter,
         move = mod,
-        evalBeforeShallow = shallowRes.eval,
-        evalBeforeDeep = deepRes.eval,
-        evalAfterDeep = afterResOpt.map(_.eval),
+        evalBeforeShallow = shallowEval,
+        evalBeforeDeep = deepEval,
+        evalAfterDeep = afterEvalOpt,
         experiments = experiments,
         featuresBefore = moverFeaturesBefore, // Wait, features field in output is usually 'moverFeaturesAfter' (current state) or 'moverFeaturesBefore'? 
         // Original code: features = moverFeatures (which is nextGame/Around).
@@ -312,52 +313,50 @@ object TimelineBuilder:
         alphaZeroStyle = conceptsCurrent.alphaZeroStyle - conceptsBefore.alphaZeroStyle
     )
 
+    // Phase 4 Concept Labeler (Moved up)
+    val bestEvalVal = evalBeforeDeep.lines.headOption.flatMap(l => l.cp.orElse(l.mate.map(m => if m>0 then 10000-m else -10000+m))).getOrElse(0)
+    
+    // playedEvalRel: Mover's perspective. evalAfterDeep is Opponent's perspective (side to move), so we negate.
+    val playedEvalRel = evalAfterDeep.flatMap(_.lines.headOption).map(l => 
+       -(l.cp.getOrElse(l.mate.map(m => if m>0 then 10000-m else -10000+m).getOrElse(0)))
+    ).getOrElse(0)
+
+    val positionalTags = ConceptLabeler.labelPositional(
+       position = gameAfter.position, perspective = player, ply = gameAfter.ply,
+       self = featuresAfter, opp = oppFeaturesAfter, concepts = Some(conceptScores), winPct = winBefore
+    )
+
+    val p4Concepts = ConceptLabeler.labelAll(
+        featuresBefore = p4FeaturesBefore, featuresAfter = p4FeaturesAfter,
+        movePlayedUci = move.toUci.uci, experiments = experiments,
+        baselineEval = bestEvalVal, evalAfterPlayed = playedEvalRel, bestEval = bestEvalVal,
+        positionalTags = positionalTags
+    )
+
     // Phase Label
-    // Inline logic removal -> moved to shared? No, plan said "Clarify Phase".
-    // I need to keep the inline logic for now or move it helper.
-    // Original had 'phaseTransitionInline'. I will inline it again or define inside object.
-    val (phaseScore, phaseLabelRaw) = phaseTransitionInline(conceptDelta, winBefore)
-    val phaseThreshold = if bookExitPly.contains(gameAfter.ply.value) then 6.0 else 8.0
-    val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= phaseThreshold)
+    val phaseLabel = p4Concepts.transitionTags.headOption.map(_.toSnakeCase)
 
     val bestVsSecondGap = (for
         top <- evalBeforeDeep.lines.headOption
         second <- evalBeforeDeep.lines.drop(1).headOption
-      yield (top.winPct - second.winPct).abs)
-    val bestVsPlayedGap = evalBeforeDeep.lines.headOption.map(_.winPct - winAfterForPlayer)
+    yield (top.winPct - second.winPct).abs).orElse(None)
+
+    val bestVsPlayedGap = (for
+        top <- evalBeforeDeep.lines.headOption
+        played <- evalBeforeDeep.lines.find(_.move == move.toUci.uci)
+        if top.move != played.move
+    yield (top.winPct - played.winPct).abs).orElse(None)
 
     // Tags & Mistakes
-    val semanticTags = SemanticTagger.tags(
-       position = gameAfter.position, perspective = player, ply = gameAfter.ply,
-       self = featuresAfter, opp = oppFeaturesAfter, concepts = Some(conceptScores), winPct = winBefore
-    )
-    val baseMistakeCategory = MistakeClassifier.classify(
-      MistakeClassifier.Input(
-        ply = gameAfter.ply, judgement = finalJudgement, deltaWinPct = delta, san = move.toSanStr.value,
-        player = player, inCheckBefore = gameBefore.position.check.yes, concepts = conceptsCurrent,
-        features = featuresAfter, oppFeatures = oppFeaturesAfter
-      )
-    )
+    val semanticTags = p4Concepts.positionalTags.map(_.toSnakeCase)
+    
+    val baseMistakeCategory = p4Concepts.mistakeTags.headOption.map(_.toSnakeCase)
+
     val mistakeCategory = if miss then Some("tactical_miss") else baseMistakeCategory
 
     // Phase Calculation
     val gamePhase = PhaseCalculator.getPhase(
        fen = Fen.write(gameBefore).value, ply = gameAfter.ply.value, semanticTags = semanticTags
-    )
-
-    // Phase 4 Concept Labeler
-    val bestEvalVal = evalBeforeDeep.lines.headOption.flatMap(l => l.cp.orElse(l.mate.map(m => if m>0 then 10000-m else -10000+m))).getOrElse(0)
-    // playedEvalRel needs to be from Mover perspective (which is 'player', who made the move)
-    // evalAfterDeep is from Opponent perspective. 
-    // If Opponent CP is X, then Player CP is -X.
-    val playedEvalRel = evalAfterOpt.flatMap(e => 
-       e.lines.headOption.flatMap(l => l.cp.orElse(l.mate.map(m => if m>0 then 10000-m else -10000+m)))
-    ).map(cp => -cp).getOrElse(bestEvalVal) // fallback
-
-    val p4Concepts = ConceptLabeler.labelAll(
-        featuresBefore = p4FeaturesBefore, featuresAfter = p4FeaturesAfter,
-        movePlayedUci = move.toUci.uci, experiments = experiments,
-        baselineEval = bestEvalVal, evalAfterPlayed = playedEvalRel, bestEval = bestEvalVal
     )
 
     // Practicality
@@ -427,23 +426,3 @@ object TimelineBuilder:
          acc + v
        else acc
      }
-
-  private def phaseTransitionInline(delta: Concepts, winPctBefore: Double): (Double, Option[String]) =
-    val dynamicCollapse = if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then 15.0 else 0.0
-    val tacticalDry = if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then 12.0 else 0.0
-    val fortressJump = if delta.fortress >= 0.4 then 10.0 else 0.0
-    val comfortLoss = if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then 10.0 else 0.0
-    val alphaZeroSpike = if delta.alphaZeroStyle >= 0.35 then 8.0 else 0.0
-    val kingSafetyCollapse = if delta.kingSafety >= 0.4 then 12.0 else 0.0
-    val conversionIssue = if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then 8.0 else 0.0
-    val phaseScore = List(dynamicCollapse, tacticalDry, fortressJump, comfortLoss, alphaZeroSpike, kingSafetyCollapse, conversionIssue).max
-    val label = 
-      if dynamicCollapse > 0 then Some("endgame_transition")
-      else if tacticalDry > 0 then Some("tactical_to_positional")
-      else if fortressJump > 0 then Some("fortress_building")
-      else if comfortLoss > 0 then Some("comfort_to_unpleasant")
-      else if alphaZeroSpike > 0 then Some("positional_sacrifice")
-      else if kingSafetyCollapse > 0 then Some("king_exposed")
-      else if conversionIssue > 0 then Some("conversion_difficulty")
-      else None
-    (phaseScore, label)

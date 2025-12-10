@@ -219,3 +219,140 @@ class ExperimentRunner(
   def clearCache(): Unit =
     memCache.clear()
 
+  // --- Phase 3: Role-Specific Experiment Strategies ---
+
+  /**
+   * Opening Portrait experiments.
+   * Focuses on development, key pawn breaks, and opening principle adherence.
+   * 
+   * @param position Current position
+   * @param features Position features
+   * @param maxExperiments Max experiments per ply
+   */
+  def runOpeningPortrait(
+      position: chess.Position,
+      features: FeatureExtractor.PositionFeatures,
+      maxExperiments: Int = 3
+  ): Future[List[ExperimentResult]] =
+    // For opening: prioritize central breaks, development moves
+    val allCandidates = MoveGenerator.generateCandidates(position, features)
+    val openingCandidates = allCandidates.filter { c =>
+      c.candidateType == MoveGenerator.CandidateType.CentralBreak ||
+      c.candidateType == MoveGenerator.CandidateType.PieceImprovement ||
+      c.candidateType == MoveGenerator.CandidateType.EngineBest ||
+      c.candidateType == MoveGenerator.CandidateType.EngineSecond
+    }
+    runSelectedCandidates(position, openingCandidates, ExperimentType.OpeningStats, maxExperiments, depth = 8)
+
+  /**
+   * Turning Point experiments.
+   * Focuses on critical moment analysis - mistakes, missed opportunities.
+   * 
+   * @param fenBefore Position before the move
+   * @param fenAfter Position after the move
+   * @param playedMove The move that was played (UCI)
+   * @param depth Analysis depth (deeper for critical moments)
+   */
+  def runTurningPointAnalysis(
+      fenBefore: String,
+      fenAfter: String,
+      playedMove: String,
+      depth: Int = 14
+  ): Future[TurningPointAnalysis] =
+    for
+      beforeEval <- run(ExperimentType.TurningPointVerification, fenBefore, None, depth, multiPv = 3)
+      afterEval <- run(ExperimentType.TurningPointVerification, fenAfter, None, depth, multiPv = 1)
+      playedEval <- run(ExperimentType.TurningPointVerification, fenBefore, Some(playedMove), depth, multiPv = 1, forcedMoves = List(playedMove))
+    yield TurningPointAnalysis(
+      evalBefore = beforeEval.eval,
+      evalAfter = afterEval.eval,
+      playedMoveEval = playedEval.eval,
+      bestMove = beforeEval.eval.lines.headOption.map(_.move),
+      deltaFromBest = beforeEval.eval.lines.headOption.map { best =>
+        val bestCp = best.cp.getOrElse(0)
+        val playedCp = playedEval.eval.lines.headOption.flatMap(_.cp).getOrElse(0)
+        bestCp - playedCp
+      }
+    )
+
+  /**
+   * Endgame experiments.
+   * Focuses on conversion, king activity, passed pawn handling.
+   * 
+   * @param position Current endgame position
+   * @param features Position features
+   * @param maxExperiments Max experiments
+   */
+  def runEndgameExperiments(
+      position: chess.Position,
+      features: FeatureExtractor.PositionFeatures,
+      maxExperiments: Int = 4
+  ): Future[List[ExperimentResult]] =
+    // For endgame: prioritize king moves, pawn promotion paths, piece activity
+    val allCandidates = MoveGenerator.generateCandidates(position, features)
+    
+    // In endgame, king activity and pawn moves are key
+    val legalMoves = position.legalMoves.toList
+    val kingMoves = legalMoves.filter(_.piece.role == chess.King)
+    val pawnMoves = legalMoves.filter(_.piece.role == chess.Pawn)
+    
+    // Convert to candidates and combine with generated candidates
+    val endgameCandidates = allCandidates.take(maxExperiments / 2) ++
+      kingMoves.take(2).map(m => MoveGenerator.CandidateMove(m.toUci.uci, m.toUci.uci, MoveGenerator.CandidateType.PieceImprovement, 0.7, "King Activity")) ++
+      pawnMoves.take(2).map(m => MoveGenerator.CandidateMove(m.toUci.uci, m.toUci.uci, MoveGenerator.CandidateType.PieceImprovement, 0.6, "Pawn Advance"))
+    
+    runSelectedCandidates(position, endgameCandidates.distinctBy(_.uci), ExperimentType.EndgameCheck, maxExperiments, depth = 12)
+
+  /**
+   * Tactical experiments.
+   * Focuses on forcing moves, sacrifices, and tactical patterns.
+   */
+  def runTacticalExperiments(
+      position: chess.Position,
+      features: FeatureExtractor.PositionFeatures,
+      maxExperiments: Int = 5
+  ): Future[List[ExperimentResult]] =
+    val allCandidates = MoveGenerator.generateCandidates(position, features)
+    val tacticalCandidates = allCandidates.filter { c =>
+      c.candidateType == MoveGenerator.CandidateType.Fork ||
+      c.candidateType == MoveGenerator.CandidateType.Pin ||
+      c.candidateType == MoveGenerator.CandidateType.Skewer ||
+      c.candidateType == MoveGenerator.CandidateType.DiscoveredAttack ||
+      c.candidateType == MoveGenerator.CandidateType.SacrificeProbe ||
+      c.candidateType == MoveGenerator.CandidateType.TacticalCheck
+    }
+    runSelectedCandidates(position, tacticalCandidates, ExperimentType.TacticalCheck, maxExperiments, depth = 12)
+
+  // --- Helper Methods ---
+
+  private def runSelectedCandidates(
+      position: chess.Position,
+      candidates: List[MoveGenerator.CandidateMove],
+      expType: ExperimentType,
+      maxExperiments: Int,
+      depth: Int
+  ): Future[List[ExperimentResult]] =
+    val fen = Fen.write(position, chess.FullMoveNumber(1)).value
+    val selected = candidates.distinctBy(_.uci).sortBy(-_.priority).take(maxExperiments)
+    
+    Future.sequence(
+      selected.map { candidate =>
+        run(
+          expType = expType,
+          fen = fen,
+          move = Some(candidate.uci),
+          depth = depth,
+          multiPv = 1,
+          forcedMoves = List(candidate.uci)
+        ).map(res => res.copy(metadata = res.metadata + ("candidateType" -> candidate.candidateType.toString)))
+      }
+    )
+
+// Result type for TurningPoint analysis
+case class TurningPointAnalysis(
+    evalBefore: AnalysisModel.EngineEval,
+    evalAfter: AnalysisModel.EngineEval,
+    playedMoveEval: AnalysisModel.EngineEval,
+    bestMove: Option[String],
+    deltaFromBest: Option[Int]  // CP difference: best - played (positive = mistake)
+)
