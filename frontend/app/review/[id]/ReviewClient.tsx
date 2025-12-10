@@ -182,7 +182,10 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     const boardShapes = useMemo(() => {
         const shapes: DrawShape[] = [];
-        const highlight = (uci: string, brush: "red" | "green" | "paleBlue") => { // 'paleBlue' is approx for purple/blue in chessground theme or we use custom class
+        // CLEANUP: We use Arrows for move indication now. 
+        // Removing the square highlights to reduce visual clutter as per user feedback.
+        /*
+        const highlight = (uci: string, brush: "red" | "green" | "paleBlue") => { 
             if (!uci || uci.length < 4) return;
             const from = uci.slice(0, 2) as Key;
             const to = uci.slice(2, 4) as Key;
@@ -199,6 +202,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 highlight(best, "green");
             }
         }
+        */
         return shapes;
     }, [activeMove, previewFen]);
 

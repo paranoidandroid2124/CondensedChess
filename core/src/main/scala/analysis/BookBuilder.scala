@@ -130,7 +130,19 @@ object BookBuilder:
   private def createSection(title: String, tpe: SectionType, plys: Vector[PlyOutput], narrative: String): BookSection =
     // Select relevant diagrams from this chunk (not every ply needs a diagram)
     // Heuristic: Filter interesting ones
-    val diagPlys = plys.filter(p => p.roles.nonEmpty || p.conceptLabels.exists(c => c.structureTags.nonEmpty || c.tacticTags.nonEmpty || c.mistakeTags.nonEmpty))
+    // STRICTER FILTER: Only diagrams for Turning Points, Tactics, or Structural Changes
+    val diagPlys = plys.filter { p => 
+      val isRole = p.roles.nonEmpty
+      val isMistake = p.conceptLabels.exists(_.mistakeTags.nonEmpty)
+      val isTactic = p.conceptLabels.exists(_.tacticTags.nonEmpty)
+      // Only include structure if it's a structural section or very sparse
+      val isStructure = tpe == SectionType.StructuralDeepDive && p.conceptLabels.exists(_.structureTags.nonEmpty)
+      
+      isRole || isMistake || isTactic || isStructure
+    }
+    // Limit density: if too many, take every Nth?
+    // For now, let's just rely on stricter filtering.
+    
     val diagrams = diagPlys.map(toBookDiagram).toList
     
     BookSection(
