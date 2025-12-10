@@ -1,0 +1,238 @@
+openapi: 3.0.0
+info:
+  title: Condensed Chess Analysis API
+  description: Backend API for PGN analysis, game review, and opening exploration.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server
+
+paths:
+  # --- Core Analysis ---
+  /api/game-review/chapter:
+    post:
+      summary: Submit a game for Chapter-based Review
+      description: Queues a PGN for deep analysis, generating a narrative "book" structure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pgn:
+                  type: string
+                  description: The raw PGN text of the game.
+                options:
+                  type: object
+                  properties:
+                    depthProfile:
+                      type: string
+                      enum: [Fast, Deep, Tournament]
+                      default: Fast
+                    forceCriticalPlys:
+                      type: array
+                      items:
+                        type: integer
+      responses:
+        '202':
+          description: Job Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  status:
+                    type: string
+                    example: queued
+    get:
+      summary: Get Review Status or Result
+      description: Polls the status of a job. Returns the full JSON result when ready.
+      parameters:
+        - name: jobId
+          in: query
+          description: (Legacy param style) - Prefer RESTful path if available, but currently implemented via path splitting in handler.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+        '202':
+          description: Processing
+          content:
+            application/json:
+              schema:
+                 type: object
+                 properties:
+                   jobId: 
+                     type: string
+                   status:
+                     type: string
+                   stage:
+                     type: string
+                   stageProgress:
+                     type: number
+
+  /api/game-review/chapter/{jobId}:
+    get:
+      summary: Get Review Result (RESTful)
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job Ready
+          content:
+            application/json:
+              schema:
+                 $ref: '#/components/schemas/AnalysisResult'
+
+  # --- Interactive Features ---
+  /analysis/branch:
+    post:
+      summary: Add Variation Branch
+      description: Adds a user or engine variation to an existing analysis tree.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                ply:
+                  type: integer
+                uci:
+                  type: string
+      responses:
+        '200':
+          description: Updated JSON
+          
+  /opening/lookup:
+    get:
+      summary: Opening Explorer
+      parameters:
+        - name: sans
+          in: query
+          required: true
+          description: Space-separated SAN moves (e.g. "e4 e5 Nf3")
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  games:
+                    type: integer
+                  winWhite:
+                    type: number
+                  topMoves:
+                    type: array
+                    
+  # --- Legacy / Utilities ---
+  /status:
+    get:
+      summary: System Status (Localhost Only)
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeJobs:
+                    type: integer
+                  cacheSize:
+                    type: integer
+
+components:
+  schemas:
+    AnalysisResult:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+        schemaVersion:
+          type: integer
+          example: 3
+        result:
+          $ref: '#/components/schemas/AnalysisOutput'
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    AnalysisOutput:
+      type: object
+      properties:
+        book:
+          $ref: '#/components/schemas/Book'
+        timeline:
+          type: array
+          items:
+            type: object # Simplified for now, can be detailed later
+        summaryText:
+          type: string
+
+    Book:
+      type: object
+      properties:
+        gameMeta:
+          type: object
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookSection'
+        turningPoints:
+          type: array
+          items:
+            type: object
+        checklist:
+          type: array
+          items:
+            type: object
+
+    BookSection:
+      type: object
+      properties:
+        title:
+          type: string
+        sectionType:
+          $ref: '#/components/schemas/SectionType'
+        narrativeHint:
+          type: string
+        startPly:
+          type: integer
+        endPly:
+          type: integer
+        diagrams:
+          type: array
+          items:
+            type: object
+
+    SectionType:
+      type: string
+      enum:
+        - OpeningPortrait
+        - CriticalCrisis
+        - StructuralDeepDive
+        - TacticalStorm
+        - EndgameMasterclass
+        - NarrativeBridge

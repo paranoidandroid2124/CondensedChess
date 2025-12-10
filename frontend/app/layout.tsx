@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import React from "react";
 import "chessground/assets/chessground.base.css";
-import "chessground/assets/theme.css";
+import "chessground/assets/chessground.brown.css";
 import Navigation from "@/components/Navigation";
 
 export const metadata: Metadata = {

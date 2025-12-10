@@ -37,7 +37,44 @@ object Persistence:
           FOREIGN KEY(game_id) REFERENCES games(id)
         )
       """)
+      stmt.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_cache (
+          key TEXT PRIMARY KEY,
+          fen TEXT,
+          json TEXT,
+          depth INTEGER,
+          created_at INTEGER
+        )
+      """)
+      // Create index on timestamp for pseudo-LRU/Cleanup
+      stmt.execute("CREATE INDEX IF NOT EXISTS idx_cache_created ON analysis_cache(created_at)")
     }.get
+
+  // ... existing methods ...
+
+  def getCachedExperiment(key: String): Option[String] =
+    Using(DriverManager.getConnection(dbPath)) { conn =>
+      val pstmt = conn.prepareStatement("SELECT json FROM analysis_cache WHERE key = ?")
+      pstmt.setString(1, key)
+      val rs = pstmt.executeQuery()
+      if rs.next() then Some(rs.getString("json")) else None
+    }.toOption.flatten
+
+  def saveCachedExperiment(key: String, fen: String, depth: Int, json: String): Unit =
+    // Fire and forget (Try wrapping) to not block critical path on DB error
+    scala.util.Try {
+      Using(DriverManager.getConnection(dbPath)) { conn =>
+        val pstmt = conn.prepareStatement(
+          "INSERT OR REPLACE INTO analysis_cache (key, fen, json, depth, created_at) VALUES (?, ?, ?, ?, ?)"
+        )
+        pstmt.setString(1, key)
+        pstmt.setString(2, fen)
+        pstmt.setString(3, json)
+        pstmt.setInt(4, depth)
+        pstmt.setLong(5, System.currentTimeMillis())
+        pstmt.executeUpdate()
+      }
+    }
 
   def saveGame(id: String, pgn: String): Unit =
     Using(DriverManager.getConnection(dbPath)) { conn =>
@@ -103,3 +140,23 @@ object Persistence:
       val rs = pstmt.executeQuery()
       if rs.next() then Some(rs.getString("json")) else None
     }.get
+
+  // Phase 9.5 Hardening: Atomic File Write
+  def saveStudyAtomic(studyId: String, json: String): Unit =
+    import java.nio.file.{Files, Paths, StandardCopyOption, StandardOpenOption}
+    import java.nio.charset.StandardCharsets
+
+    val studiesDir = Paths.get("data/studies")
+    if !Files.exists(studiesDir) then Files.createDirectories(studiesDir)
+
+    val targetPath = studiesDir.resolve(s"$studyId.json")
+    val tempPath = studiesDir.resolve(s"$studyId.json.tmp")
+
+    try
+      Files.write(tempPath, json.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+      Files.move(tempPath, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    catch
+      case e: Throwable =>
+        // Cleanup temp if exists
+        try Files.deleteIfExists(tempPath) catch case _: Throwable => ()
+        throw e

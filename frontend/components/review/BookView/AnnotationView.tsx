@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { Review, ReviewTreeNode, StudyChapter } from "../../../types/review";
+import type { Review, ReviewTreeNode, StudyChapter, Book } from "../../../types/review";
 import { ChapterList } from "./ChapterList";
 import { ChapterDetail } from "./ChapterDetail";
+import { BookViewContainer } from "./BookViewContainer";
 
 interface AnnotationViewProps {
     review: Review;
@@ -22,7 +23,13 @@ function findNodeByPly(root: ReviewTreeNode, ply: number): ReviewTreeNode | null
     return null;
 }
 
-export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: AnnotationViewProps) {
+// Legacy component for StudyChapter-based rendering
+function LegacyAnnotationView({
+    review,
+    rootNode,
+    selectedPly,
+    onSelectPly
+}: AnnotationViewProps) {
     // Sort chapters by Ply (chronological order)
     const chapters = useMemo(() => {
         const chaps = review?.studyChapters || [];
@@ -82,7 +89,7 @@ export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: A
                         activeChapterPly={activeChapterPly}
                         onSelectChapter={(ply) => {
                             setActiveChapterPly(ply);
-                            onSelectPly(ply); // Also jump to that position on the board
+                            onSelectPly(ply);
                         }}
                     />
                 </div>
@@ -104,5 +111,30 @@ export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: A
                 </div>
             </div>
         </div>
+    );
+}
+
+// Main export - routes to BookView or Legacy based on data availability
+export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: AnnotationViewProps) {
+    // If Phase 4.6 Book is available, use the new BookView
+    if (review.book) {
+        return (
+            <div className="h-full overflow-y-auto">
+                <BookViewContainer
+                    book={review.book}
+                    onSelectPly={onSelectPly}
+                />
+            </div>
+        );
+    }
+
+    // Fallback to legacy StudyChapter-based view
+    return (
+        <LegacyAnnotationView
+            review={review}
+            rootNode={rootNode}
+            selectedPly={selectedPly}
+            onSelectPly={onSelectPly}
+        />
     );
 }

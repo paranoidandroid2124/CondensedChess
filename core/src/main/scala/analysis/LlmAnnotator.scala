@@ -96,20 +96,43 @@ object LlmAnnotator:
       Map.empty[String, LlmClient.ChapterAnnotation]
     }
 
-    val (summary, criticalComments, studyAnnotations) = 
+    val bookFuture = Future {
+      System.err.println("[LlmAnnotator] Starting book section narrative generation...")
+      output.book match
+        case Some(book) =>
+          val annotatedSections = book.sections.zipWithIndex.map { case (section, idx) =>
+            val plys = output.timeline.slice(section.startPly, section.endPly + 1) // Slice by index or filter logic?
+            // startPly/endPly are likely Ply values, but timeline is Vector.
+            // Assuming timeline corresponds to ply 1..N roughly. 
+            // Better: output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
+            val segment = output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
+            
+            val prompt = NarrativeTemplates.buildSectionPrompt(section.sectionType, section.title, segment, section.diagrams)
+            val narrative = LlmClient.bookSectionNarrative(prompt).getOrElse(section.narrativeHint) // Fallback to key phrase
+            section.copy(narrativeHint = narrative)
+          }
+          Some(book.copy(sections = annotatedSections))
+        case None => None
+    }.recover { case e: Throwable =>
+       System.err.println(s"[LlmAnnotator] Book processing failed: ${e.getMessage}")
+       output.book 
+    }
+
+    val (summary, criticalComments, studyAnnotations, updatedBook) = 
       try
         Await.result(
           for
             s <- summaryFuture
             c <- criticalFuture
             st <- studyFuture
-          yield (s, c, st),
+            b <- bookFuture
+          yield (s, c, st, b),
           120.seconds
         )
       catch
         case e: Throwable =>
           System.err.println(s"[LlmAnnotator] Await failed (timeout?): ${e.getMessage}")
-          (fallbackSummary(output), Map.empty[Int, String], Map.empty[String, LlmClient.ChapterAnnotation])
+          (fallbackSummary(output), Map.empty[Int, String], Map.empty[String, LlmClient.ChapterAnnotation], output.book)
 
     // Merge critical comments with key move comments from chapters
     // Priority: Critical > Chapter Key Move
@@ -154,7 +177,8 @@ object LlmAnnotator:
       timeline = updatedTimeline,
       critical = updatedCritical,
       root = updatedRoot,
-      studyChapters = updatedChapters
+      studyChapters = updatedChapters,
+      book = updatedBook
     )
 
   private def renderPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =

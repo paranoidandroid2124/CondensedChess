@@ -1,25 +1,91 @@
-# CondensedChess
+# Condensed Chess: Advanced Game Review Engine
 
-Self-hosted PGN review stack built on scalachess + Stockfish + (optional) Gemini. It ingests a PGN, computes engine/feature timelines, marks critical moves, and emits a Review JSON that the Next.js frontend renders.
+**Condensed Chess** is a high-performance chess analysis pipeline designed to bridge the gap between engine evaluation and human understanding. It transforms raw PGN files into rich, narrative-driven "Studies" by identifying key moments, structural changes, and distinct game phases.
 
-## Requirements
-- JDK 21+, sbt
-- Stockfish available on `PATH` or `STOCKFISH_BIN`
-- Node 18+ for `frontend/`
-- Optional: `GEMINI_API_KEY` (and `GEMINI_MODEL`, default `gemini-3-pro-preview`) to enable LLM summaries/comments
+Powered by **Scala 3**, **Stockfish 16+**, and optional **LLM integration** (Gemini/OpenAI).
 
-## Backend (Scala)
-- Run API server (loads `.env` if present): `./scripts/run_api.sh`  
-  - Endpoints: `POST /analyze` (body = PGN string or `{"pgn": "...", "llmPlys":[...]}`) → `{jobId,status}`; `GET /result/:id` → pending/ready/failed or Review JSON body (includes `jobId`); `POST /analysis/branch` with `{jobId, ply, uci}` merges a new variation into the server tree and returns updated Review JSON. CORS enabled.
-  - Env: `PORT` (8080), `BIND` (0.0.0.0), `ANALYZE_*` depth/time knobs (see `AnalyzePgn.EngineConfig.fromEnv`), `ANALYZE_FORCE_CRITICAL_PLYS` to always request LLM at given plys, `OPENING_STATS_DB_LIST` (comma/semicolon) to load multiple opening DBs (e.g., masters + classical). `openingStats.source` shows which DB served the stats.
-- CLI (one-off JSON): `sbt "core/runMain chess.analysis.AnalyzePgn path/to/game.pgn"` prints Review JSON to stdout.
-- Schema: see `REVIEW_SCHEMA.md` for the Review JSON fields.
+## 📊 Key Features
 
-## Frontend (Next.js)
-- `cd frontend && npm install && npm run dev`
-- Set `NEXT_PUBLIC_REVIEW_API_BASE` (e.g., `http://localhost:8080`) to hit the Scala API. `/review/sample` uses the bundled mock JSON for offline demo.
+- **Sequential Analysis Pipeline**: Replay -> Engine Eval -> Hypothesis Testing -> Narrative Generation.
+- **Hypothesis Testing**: Instead of just specific moves, the engine tests for concepts like "Fortress", "Attack", or "Squeeze".
+- **Golden Test Suite**: Regression testing ensures analysis logic remains stable across refactors.
+- **Narrative Structure**: Games are broken into Chapters (Opening, Middlegame, Endgame) with generated prose.
 
-## Notes
-- Sample PGNs live at `sample*.pgn` for quick checks.
-- `twic_raw/` is a local data dump and ignored via `.gitignore`.
-- Upstream codebase started from lichess scalachess; many bench/tests were removed in favor of the review pipeline here.
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **JDK 21+** (Eclipse Adoptium suggested)
+- **SBT** (Scala Build Tool)
+- **Stockfish 16+** (Must be on `PATH` or set via `STOCKFISH_BIN`)
+- **Node.js 18+** (For Frontend)
+
+### 1. Backend Setup
+
+```bash
+# Clone and enter directory
+git clone https://github.com/your-repo/condensed-chess.git
+cd condensed-chess
+
+# Run Tests (Highly Recommended)
+sbt test
+# Note: integration tests require Stockfish to be executable.
+```
+
+### 2. Running the Server
+
+```bash
+# Start the API Server on localhost:8080
+sbt "core/runMain chess.analysis.ApiServer"
+```
+
+The server exposes:
+- `POST /api/game-review/chapter`: Submit PGN for analysis.
+- `GET /status`: Monitor job queue and engine pool status.
+- `GET /api/game-review/chapter/:jobId`: Retrieve results.
+
+See **[openapi.yaml](./openapi.yaml)** for full API documentation.
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:3000
+```
+Ensure `.env.local` points to your backend: `NEXT_PUBLIC_API_URL=http://localhost:8080`.
+
+## 🛠 Architecture
+
+The system uses a **Actor-like concurrency model** backed by `java.util.concurrent`.
+
+- **EnginePool**: Manages a fixed set of Stockfish instances to prevent CPU starvation.
+- **ExperimentRunner**: Caches identical positions to avoid re-computing known evaluations.
+- **AnalysisPipeline**:
+    1.  **Assessment**: Deep search + Static Features.
+    2.  **Investigation**: Finding "Critical Moments" and "Turning Points".
+    3.  **Editorial**: Grouping moves into Chapters.
+    4.  **Publication**: generating JSON + LLM Text.
+
+Detailed design is available in **[COACH_ARCHITECTURE.md](./COACH_ARCHITECTURE.md)**.
+
+## 🧪 Testing
+
+We use a **Golden Master** testing strategy.
+- `core/src/test/resources/golden/*.pgn`: Source games.
+- `core/src/test/resources/golden/*.json`: Expected analysis output.
+
+To update golden files (approve changes):
+```powershell
+$env:UPDATE_GOLDEN="true"; sbt test
+```
+See **[TESTING.md](./TESTING.md)** for details.
+
+## 🧱 Extending
+
+Want to add a new "Concept Tag" (e.g., *Greek Gift*)?
+See **[docs/EXTENSION_GUIDE.md](./docs/EXTENSION_GUIDE.md)**.
+
+## 📄 License
+MIT

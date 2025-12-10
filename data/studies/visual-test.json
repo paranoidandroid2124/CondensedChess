@@ -1,0 +1,102 @@
+{
+    "schemaVersion": 3,
+    "createdAt": "2024-01-01T12:00:00Z",
+    "engineInfo": {
+        "name": "Stockfish 16",
+        "depth": "Mock"
+    },
+    "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6",
+    "book": {
+        "gameMeta": {
+            "white": "Visual Test White",
+            "black": "Visual Test Black",
+            "result": "*"
+        },
+        "sections": [
+            {
+                "title": "Ruy Lopez: Morphy Defense",
+                "sectionType": "OpeningPortrait",
+                "startPly": 0,
+                "endPly": 8,
+                "narrativeHint": "The Ruy Lopez is one of the oldest and most popular openings.\nWhite controls the center and prepares to castle, while Black challenges the bishop immediately with a6.",
+                "diagrams": [
+                    {
+                        "id": "opening_diag",
+                        "fen": "r1bqkb1r/1ppn1ppp/p2p1n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 5",
+                        "roles": [
+                            "Standard Opening"
+                        ],
+                        "ply": 8,
+                        "tags": {
+                            "structure": [],
+                            "plan": [],
+                            "tactic": [],
+                            "mistake": [],
+                            "endgame": [],
+                            "transition": []
+                        }
+                    }
+                ]
+            },
+            {
+                "title": "The Critical Blunder",
+                "sectionType": "CriticalCrisis",
+                "startPly": 8,
+                "endPly": 12,
+                "narrativeHint": "Black plays a careless knight move that allows White to fork the center!\nThis is the turning point of the game where precision is required.",
+                "diagrams": [
+                    {
+                        "id": "crisis_diag",
+                        "fen": "r1bqkb1r/1ppn1ppp/p2p4/4p3/B3P3/2n2N2/PPPP1PPP/RNBQ1RK1 w kq - 0 6",
+                        "roles": [
+                            "Blunder",
+                            "Tactical Warning"
+                        ],
+                        "ply": 11,
+                        "tags": {
+                            "structure": [],
+                            "plan": [],
+                            "tactic": [],
+                            "mistake": [
+                                "Blunder"
+                            ],
+                            "endgame": [],
+                            "transition": []
+                        }
+                    }
+                ]
+            },
+            {
+                "title": "Standard Middle Game",
+                "sectionType": "StructuralDeepDive",
+                "startPly": 13,
+                "endPly": 20,
+                "narrativeHint": "After the complications resolve, we enter a standard structural battle.\nNotice how White's bishop pair dominates the open diagonals.",
+                "diagrams": [
+                    {
+                        "id": "std_diag",
+                        "fen": "r1bqk2r/1ppn1ppp/p2p4/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 0 7",
+                        "roles": [
+                            "Consolidation"
+                        ],
+                        "ply": 14,
+                        "tags": {
+                            "structure": [
+                                "Bishop Pair"
+                            ],
+                            "plan": [],
+                            "tactic": [],
+                            "mistake": [],
+                            "endgame": [],
+                            "transition": []
+                        }
+                    }
+                ]
+            }
+        ],
+        "turningPoints": [],
+        "tacticalMoments": [],
+        "checklist": []
+    },
+    "timeline": []
+}

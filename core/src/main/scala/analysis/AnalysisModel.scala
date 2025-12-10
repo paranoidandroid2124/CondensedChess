@@ -2,8 +2,18 @@ package chess
 package analysis
 
 import chess.opening.Opening
+import chess.analysis.ConceptLabeler.ConceptLabels
+import chess.analysis.FeatureExtractor.PositionFeatures
 
 object AnalysisModel:
+  
+  // Phase 17: New Tags
+  enum EvaluationTag:
+    case Unknown
+    case GeometryGood, GeometryBad
+    case SpaceGood, SpaceBad
+    case EndgameTechniqueGood, EndgameTechniqueBad
+    case WrongBishopDraw
 
   /** 엔진/멀티PV 설정. 환경변수로 덮어쓰기 가능. */
   final case class EngineConfig(
@@ -13,7 +23,9 @@ object AnalysisModel:
       deepTimeMs: Int = 500,
       maxMultiPv: Int = 3,
       extraDepthDelta: Int = 4,
-      extraTimeMs: Int = 300
+      extraTimeMs: Int = 300,
+      experimentCapPerPly: Int = 5,
+      maxRetries: Int = 2
   )
 
   final case class TimeControl(
@@ -42,7 +54,9 @@ object AnalysisModel:
         deepTimeMs = intEnv("ANALYZE_DEEP_MS", 500),
         maxMultiPv = intEnv("ANALYZE_MAX_MULTIPV", 3),
         extraDepthDelta = intEnv("ANALYZE_EXTRA_DEPTH_DELTA", 4),
-        extraTimeMs = intEnv("ANALYZE_EXTRA_MS", 300)
+        extraTimeMs = intEnv("ANALYZE_EXTRA_MS", 300),
+        experimentCapPerPly = intEnv("ANALYZE_EXPERIMENT_CAP", 5),
+        maxRetries = intEnv("ANALYZE_MAX_RETRIES", 2)
       )
 
   final case class EngineLine(move: String, winPct: Double, cp: Option[Int], mate: Option[Int], pv: List[String])
@@ -103,7 +117,11 @@ object AnalysisModel:
       practicality: Option[PracticalityScorer.Score] = None,
       materialDiff: Double = 0.0,
       bestMaterialDiff: Option[Double] = None,
-      tacticalMotif: Option[String] = None
+      tacticalMotif: Option[String] = None,
+      roles: List[String] = Nil,
+      conceptLabels: Option[ConceptLabels] = None,
+      fullFeatures: Option[PositionFeatures] = None,
+      playedEvalCp: Option[Int] = None
   )
 
   final case class Output(
@@ -120,7 +138,8 @@ object AnalysisModel:
       studyChapters: Vector[StudyChapter] = Vector.empty,
       pgn: String = "",
       accuracyWhite: Option[Double] = None,
-      accuracyBlack: Option[Double] = None
+      accuracyBlack: Option[Double] = None,
+      book: Option[BookModel.Book] = None  // Phase 4.6 Book JSON
   )
 
   final case class Branch(move: String, winPct: Double, pv: List[String], label: String)

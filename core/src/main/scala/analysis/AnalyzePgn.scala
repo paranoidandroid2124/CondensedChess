@@ -4,7 +4,9 @@ package analysis
 import AnalysisModel.*
 import chess.format.pgn.PgnStr
 import chess.opening.OpeningDb
-
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.Source
 
 /** 간단한 PGN→타임라인 CLI.
@@ -28,6 +30,7 @@ object AnalyzePgn:
         sys.exit(1)
       case Right(json) =>
         println(json)
+        EnginePool.shutdown()
 
   /** PGN 문자열을 분석하여 JSON 문자열로 반환 */
   def analyzeAndRender(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
@@ -45,13 +48,16 @@ object AnalyzePgn:
         val sans = replay.chronoMoves.map(_.toSanStr)
         val opening = OpeningDb.searchWithTransposition(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
-        val client = new StockfishClient()
-        try
+        val engineService = new EngineService() 
+        val experimentRunner = new ExperimentRunner(engineService)
+
           jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 0.05)) // Setup done
           
-          val (timelineRaw, finalGame) = TimelineBuilder.buildTimeline(replay, client, config, opening, playerContext, jobId)
-          // val timeline = StudySignals.withStudySignals(timelineRaw, opening) // Assuming this is done inside buildTimeline or separate
-          // Wait, original code had: val timeline = StudySignals.withStudySignals(timelineRaw, opening)
+          val futureTimeline = TimelineBuilder.buildTimeline(replay, engineService, experimentRunner, config, opening, playerContext, jobId)
+          
+          // Await result (CLI mode)
+          val (timelineRaw, finalGame) = Await.result(futureTimeline, Duration.Inf)
+          
           val timeline = StudySignals.withStudySignals(timelineRaw, opening)
           
           jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
@@ -59,12 +65,31 @@ object AnalyzePgn:
           // Stage 2: Critical Detection (10% weight)
           jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 0.0))
           
-          val critical = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
+          // Use EnginePool for blocking operations (CriticalDetector, ReviewTreeBuilder)
+          // We assume sequential execution for now to keep logic simple
+          val (critical, root) = Await.result(
+            EnginePool.withEngine { client =>
+              Future {
+                val c = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
+                val r = ReviewTreeBuilder.buildTree(timeline, c, client, config)
+                (c, r)
+              }
+            }, Duration.Inf)
+            
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
-          val root = Some(ReviewTreeBuilder.buildTree(timeline, critical, client, config))
+          // val root = ... calculated above
           val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
           val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
           val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)
+          
+          // Phase 4.6: Build Book JSON
+          val gameMeta = BookModel.GameMeta(
+            white = findTag(pgn, "White").getOrElse("?"),
+            black = findTag(pgn, "Black").getOrElse("?"),
+            result = findTag(pgn, "Result").getOrElse("*"),
+            openingName = opening.map(_.opening.name.value)
+          )
+          val book = Some(BookBuilder.buildBook(timeline, gameMeta))
           
           jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 1.0))
           
@@ -83,15 +108,14 @@ object AnalyzePgn:
               bookExitComment,
               openingTrend,
               None, // summaryText
-              root = root,
+              root = Some(root),
               studyChapters = studyChapters,
               pgn = pgn,
               accuracyWhite = Some(accWhite),
-              accuracyBlack = Some(accBlack)
+              accuracyBlack = Some(accBlack),
+              book = book
             )
           )
-        finally
-          client.close()
 
   def render(output: Output): String = AnalysisSerializer.render(output)
 

@@ -1,3 +1,6 @@
+import type { Book } from "./StudyModel";
+export type { Book };
+
 export type Judgement = "best" | "excellent" | "good" | "inaccuracy" | "mistake" | "blunder" | "book";
 
 export interface Opening {
@@ -176,6 +179,7 @@ export interface Review {
   pgn?: string;
   accuracyWhite?: number;
   accuracyBlack?: number;
+  book?: Book; // Phase 4.6 Book JSON
 }
 
 
@@ -228,3 +232,9 @@ export interface StudyChapter {
   rootNode?: ReviewTreeNode;
   variations?: any[]; // Placeholder if needed, or remove from AnnotationView fallback
 }
+
+// --- Phase 4.6 Book Types ---
+
+// --- Phase 4.6 Book Types (Legacy types removed, using StudyModel.Book) ---
+// See import at top.
+
