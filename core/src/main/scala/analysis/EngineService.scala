@@ -11,7 +11,7 @@ import AnalysisModel.{EngineEval, EngineLine}
 class EngineService(
     // No client passed in, uses Pool
     // maxConcurrent handled by Pool
-)(using ec: ExecutionContext):
+)(using ec: ExecutionContext) extends EngineInterface:
   
   private val logger = LoggerFactory.getLogger("chess.engine.service")
 
@@ -78,3 +78,14 @@ class EngineService(
          logger.error(s"Job failed: ${e.getMessage}")
          Future.failed(e)
     }
+
+  // EngineInterface implementation
+  override def evaluate(
+      fen: String,
+      depth: Int,
+      multiPv: Int = 1,
+      timeoutMs: Int = 1000,
+      moves: List[String] = Nil
+  )(using ExecutionContext): Future[EngineEval] =
+    val req = Analyze(fen, moves, depth, multiPv, timeoutMs)
+    submit(req).map(_.eval)

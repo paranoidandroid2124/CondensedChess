@@ -41,7 +41,7 @@ object ApiTypes:
     result: Option[Value] = None
   )
 
-  final val SCHEMA_VERSION = 3
+  final val SCHEMA_VERSION = 4  // Phase 1: Checklist-aligned section types
 
   case class ApiError(
       code: String,

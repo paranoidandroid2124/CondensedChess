@@ -150,6 +150,15 @@ object BookBuilder:
       case SectionType.StructuralDeepDive => "Strategic Maneuvering"
       case SectionType.EndgameMasterclass => "Endgame Technique"
       case SectionType.NarrativeBridge => "Game Flow"
+      // New checklist-aligned types (Phase 1)
+      case SectionType.TitleSummary => "Game Summary"
+      case SectionType.KeyDiagrams => "Key Positions"
+      case SectionType.OpeningReview => "Opening Analysis"
+      case SectionType.TurningPoints => "Turning Points"
+      case SectionType.TacticalMoments => "Tactical Highlights"
+      case SectionType.MiddlegamePlans => "Strategic Plans"
+      case SectionType.EndgameLessons => "Endgame Lessons"
+      case SectionType.FinalChecklist => "Key Takeaways"
 
   private def getNarrativeHint(tpe: SectionType): String =
     tpe match

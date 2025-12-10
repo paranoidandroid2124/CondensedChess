@@ -67,17 +67,16 @@ object AnalyzePgn:
           
           // Use EnginePool for blocking operations (CriticalDetector, ReviewTreeBuilder)
           // We assume sequential execution for now to keep logic simple
-          val (critical, root) = Await.result(
+          
+          val critical = Await.result(
             EnginePool.withEngine { client =>
               Future {
-                val c = CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
-                val r = ReviewTreeBuilder.buildTree(timeline, c, client, config)
-                (c, r)
+                CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
               }
             }, Duration.Inf)
             
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
-          // val root = ... calculated above
+          val root = None
           val studyChapters = StudyChapterBuilder.buildStudyChapters(timeline)
           val (openingSummary, bookExitComment, openingTrend) = OpeningNotes.buildOpeningNotes(opening, openingStats, timeline)
           val (accWhite, accBlack) = AccuracyScore.calculateBothSides(timeline)
@@ -108,7 +107,7 @@ object AnalyzePgn:
               bookExitComment,
               openingTrend,
               None, // summaryText
-              root = Some(root),
+              root = root,
               studyChapters = studyChapters,
               pgn = pgn,
               accuracyWhite = Some(accWhite),

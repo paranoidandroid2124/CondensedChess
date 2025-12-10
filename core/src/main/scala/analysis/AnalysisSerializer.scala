@@ -596,3 +596,141 @@ object AnalysisSerializer:
     sb.append("]")
     sb.append('}')
 
+  // --- Phase 1: New Chapter Serialization (Checklist-aligned) ---
+
+  def renderGameChapter(chapter: BookModel.GameChapter): String =
+    val sb = new StringBuilder(1024)
+    sb.append('{')
+    sb.append("\"chapterId\":\"").append(escape(chapter.chapterId)).append("\",")
+    sb.append("\"schemaVersion\":").append(ApiTypes.SCHEMA_VERSION).append(',')
+    sb.append("\"meta\":")
+    renderGameMetaV2(sb, chapter.meta)
+    sb.append(",\"sections\":[")
+    chapter.sections.zipWithIndex.foreach { case (s, idx) =>
+      if idx > 0 then sb.append(',')
+      renderChapterSection(sb, s)
+    }
+    sb.append("]}")
+    sb.result()
+
+  private def renderGameMetaV2(sb: StringBuilder, m: BookModel.GameMeta): Unit =
+    sb.append('{')
+    sb.append("\"white\":\"").append(escape(m.white)).append("\",")
+    sb.append("\"black\":\"").append(escape(m.black)).append("\",")
+    sb.append("\"result\":\"").append(escape(m.result)).append("\"")
+    m.openingName.foreach(n => sb.append(",\"openingName\":\"").append(escape(n)).append("\""))
+    m.createdAt.foreach(t => sb.append(",\"createdAt\":\"").append(escape(t)).append("\""))
+    sb.append('}')
+
+  private def renderChapterSection(sb: StringBuilder, s: BookModel.ChapterSection): Unit =
+    sb.append('{')
+    sb.append("\"type\":\"").append(sectionTypeKey(s.sectionType)).append("\",")
+    sb.append("\"data\":")
+    renderSectionData(sb, s.data)
+    sb.append('}')
+
+  private def sectionTypeKey(t: BookModel.SectionType): String = t match
+    case BookModel.SectionType.TitleSummary => "title_summary"
+    case BookModel.SectionType.KeyDiagrams => "key_diagrams"
+    case BookModel.SectionType.OpeningReview => "opening_review"
+    case BookModel.SectionType.TurningPoints => "turning_points"
+    case BookModel.SectionType.TacticalMoments => "tactical_moments"
+    case BookModel.SectionType.MiddlegamePlans => "middlegame_plans"
+    case BookModel.SectionType.EndgameLessons => "endgame_lessons"
+    case BookModel.SectionType.FinalChecklist => "final_checklist"
+    // Legacy types
+    case BookModel.SectionType.OpeningPortrait => "opening_portrait"
+    case BookModel.SectionType.CriticalCrisis => "critical_crisis"
+    case BookModel.SectionType.StructuralDeepDive => "structural_deep_dive"
+    case BookModel.SectionType.TacticalStorm => "tactical_storm"
+    case BookModel.SectionType.EndgameMasterclass => "endgame_masterclass"
+    case BookModel.SectionType.NarrativeBridge => "narrative_bridge"
+
+  private def renderSectionData(sb: StringBuilder, data: BookModel.SectionData): Unit = data match
+    case d: BookModel.TitleSummaryData =>
+      sb.append('{')
+      sb.append("\"title\":\"").append(escape(d.title)).append("\",")
+      sb.append("\"summary\":\"").append(escape(d.summary)).append("\"")
+      sb.append('}')
+    case d: BookModel.KeyDiagramsData =>
+      sb.append("{\"diagrams\":[")
+      d.diagrams.zipWithIndex.foreach { case (diag, i) =>
+        if i > 0 then sb.append(',')
+        renderKeyDiagram(sb, diag)
+      }
+      sb.append("]}")
+    case d: BookModel.OpeningReviewData =>
+      sb.append('{')
+      sb.append("\"structure\":\"").append(escape(d.structure)).append("\",")
+      sb.append("\"mainPlans\":[")
+      d.mainPlans.zipWithIndex.foreach { case (p, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(p)).append("\"") }
+      sb.append("]")
+      d.deviation.foreach(dev => sb.append(",\"deviation\":\"").append(escape(dev)).append("\""))
+      sb.append('}')
+    case d: BookModel.TurningPointsData =>
+      sb.append("{\"points\":[")
+      d.points.zipWithIndex.foreach { case (tp, i) =>
+        if i > 0 then sb.append(',')
+        renderTurningPoint(sb, tp)
+      }
+      sb.append("]}")
+    case d: BookModel.TacticalMomentsData =>
+      sb.append("{\"moments\":[")
+      d.moments.zipWithIndex.foreach { case (tm, i) =>
+        if i > 0 then sb.append(',')
+        renderTacticalMoment(sb, tm)
+      }
+      sb.append("]}")
+    case d: BookModel.MiddlegamePlansData =>
+      sb.append('{')
+      sb.append("\"dominantStructure\":\"").append(escape(d.dominantStructure)).append("\",")
+      sb.append("\"plans\":[")
+      d.plans.zipWithIndex.foreach { case (p, i) =>
+        if i > 0 then sb.append(',')
+        renderPlanSummary(sb, p)
+      }
+      sb.append("]}")
+    case d: BookModel.EndgameLessonsData =>
+      sb.append("{\"principles\":[")
+      d.principles.zipWithIndex.foreach { case (p, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(p)).append("\"") }
+      sb.append("]}")
+    case d: BookModel.FinalChecklistData =>
+      sb.append("{\"items\":[")
+      d.items.zipWithIndex.foreach { case (item, i) =>
+        if i > 0 then sb.append(',')
+        renderChecklistItem(sb, item)
+      }
+      sb.append("]}")
+    case d: BookModel.LegacySectionData =>
+      sb.append("{\"diagrams\":[")
+      d.diagrams.zipWithIndex.foreach { case (diag, i) =>
+        if i > 0 then sb.append(',')
+        renderBookDiagram(sb, diag)
+      }
+      sb.append("],\"narrativeHint\":\"").append(escape(d.narrativeHint)).append("\"}")
+
+  private def renderKeyDiagram(sb: StringBuilder, d: BookModel.KeyDiagram): Unit =
+    sb.append('{')
+    sb.append("\"fen\":\"").append(escape(d.fen)).append("\",")
+    sb.append("\"role\":\"").append(escape(d.role)).append("\",")
+    sb.append("\"tags\":[")
+    d.tags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t)).append("\"") }
+    sb.append("],\"referenceMoves\":[")
+    d.referenceMoves.zipWithIndex.foreach { case (m, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(m)).append("\"") }
+    sb.append("]}")
+
+  private def renderPlanSummary(sb: StringBuilder, p: BookModel.PlanSummary): Unit =
+    sb.append('{')
+    sb.append("\"planType\":\"").append(escape(p.planType)).append("\",")
+    sb.append("\"quality\":\"").append(escape(p.quality)).append("\",")
+    sb.append("\"description\":\"").append(escape(p.description)).append("\"")
+    sb.append('}')
+
+  private def renderChecklistItem(sb: StringBuilder, item: BookModel.ChecklistItem): Unit =
+    sb.append('{')
+    sb.append("\"id\":\"").append(escape(item.id)).append("\",")
+    sb.append("\"category\":\"").append(escape(item.category)).append("\",")
+    sb.append("\"text\":\"").append(escape(item.text)).append("\",")
+    sb.append("\"tags\":[")
+    item.tags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t)).append("\"") }
+    sb.append("]}")

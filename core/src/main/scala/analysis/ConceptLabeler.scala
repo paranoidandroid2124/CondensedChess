@@ -40,11 +40,88 @@ object ConceptLabeler:
     case MissedCentralBreak
     case Greed // Took material but lost game
     case Fear // Passive defense when attack was available
+    case PositionalTradeError
+    case IgnoredThreat 
+
+    def toSnakeCase: String = this match
+      case TacticalMiss => "tactical_miss"
+      case PrematurePawnPush => "premature_pawn_push"
+      case PassiveMove => "passive_move"
+      case MissedCentralBreak => "missed_central_break"
+      case Greed => "greedy"
+      case Fear => "fear"
+      case PositionalTradeError => "positional_trade_error"
+      case IgnoredThreat => "ignored_threat"
 
   enum EndgameTag:
     case KingActivityIgnored, KingActivityGood
     case RookBehindPassedPawnObeyed, RookBehindPassedPawnIgnored
     case WrongBishopDraw
+
+  enum PositionalTag:
+    case OpenFile(file: String, side: Color)
+    case WeakSquare(square: String, side: Color)
+    case Outpost(square: String, side: Color)
+    case WeakBackRank(side: Color)
+    case LoosePiece(square: String, side: Color)
+    case KingStuckCenter(side: Color)
+    case RookOnSeventh(side: Color)
+    case PawnStorm(side: Color)
+    case OppositeColorBishops
+    case KingAttackReady(side: Color)
+    // Concept-based
+    case RestrictedBishop(side: Color)
+    case StrongKnight(side: Color)
+    case ColorComplexWeakness(side: Color)
+    case LockedPosition
+    case FortressDefense(side: Color)
+    case DynamicPosition
+    case DryPosition
+    case DrawishPosition
+    case ActiveRooks(side: Color)
+    case SpaceAdvantage(side: Color)
+    case KingSafetyCrisis(side: Color)
+    case ConversionDifficulty(side: Color)
+    case HighBlunderRisk
+    case TacticalComplexity
+    case MaterialImbalance
+    case LongTermCompensation(side: Color)
+    case EngineOnlyMove(side: Color)
+    case ComfortablePosition(side: Color)
+    case UnpleasantPosition(side: Color)
+    case BishopPairAdvantage(side: Color)
+
+    def toSnakeCase: String = this match
+      case OpenFile(f, c) => s"${c.name.toLowerCase}_open_${f}_file"
+      case WeakSquare(sq, c) => s"${c.name.toLowerCase}_weak_$sq"
+      case Outpost(sq, c) => s"${c.name.toLowerCase}_outpost_$sq"
+      case WeakBackRank(c) => s"${c.name.toLowerCase}_weak_back_rank"
+      case LoosePiece(sq, c) => s"${c.name.toLowerCase}_loose_piece_$sq"
+      case KingStuckCenter(c) => s"${c.name.toLowerCase}_king_stuck_center"
+      case RookOnSeventh(c) => s"${c.name.toLowerCase}_rook_on_seventh"
+      case PawnStorm(c) => s"${c.name.toLowerCase}_pawn_storm"
+      case OppositeColorBishops => "opposite_color_bishops"
+      case KingAttackReady(c) => s"${c.name.toLowerCase}_king_attack_ready"
+      case RestrictedBishop(c) => s"${c.name.toLowerCase}_restricted_bishop"
+      case StrongKnight(c) => s"${c.name.toLowerCase}_strong_knight"
+      case ColorComplexWeakness(c) => s"${c.name.toLowerCase}_color_complex_weakness"
+      case LockedPosition => "locked_position"
+      case FortressDefense(c) => s"${c.name.toLowerCase}_fortress_defense"
+      case DynamicPosition => "dynamic_position"
+      case DryPosition => "dry_position"
+      case DrawishPosition => "drawish_position"
+      case ActiveRooks(c) => s"${c.name.toLowerCase}_active_rooks"
+      case SpaceAdvantage(c) => s"${c.name.toLowerCase}_space_advantage"
+      case KingSafetyCrisis(c) => s"${c.name.toLowerCase}_king_safety_crisis"
+      case ConversionDifficulty(c) => s"${c.name.toLowerCase}_conversion_difficulty"
+      case HighBlunderRisk => "high_blunder_risk"
+      case TacticalComplexity => "tactical_complexity"
+      case MaterialImbalance => "material_imbalance"
+      case LongTermCompensation(c) => s"${c.name.toLowerCase}_long_term_compensation"
+      case EngineOnlyMove(c) => s"${c.name.toLowerCase}_engine_only_move"
+      case ComfortablePosition(c) => s"${c.name.toLowerCase}_comfortable_position"
+      case UnpleasantPosition(c) => s"${c.name.toLowerCase}_unpleasant_position"
+      case BishopPairAdvantage(c) => s"${c.name.toLowerCase}_bishop_pair_advantage"
 
   enum TransitionTag:
     case EndgameTransition
@@ -55,12 +132,22 @@ object ConceptLabeler:
     case KingExposed
     case ConversionDifficulty
 
+    def toSnakeCase: String = this match
+      case EndgameTransition => "endgame_transition"
+      case TacticalToPositional => "tactical_to_positional"
+      case FortressStructure => "fortress_building"
+      case ComfortToUnpleasant => "comfort_to_unpleasant"
+      case PositionalSacrifice => "positional_sacrifice"
+      case KingExposed => "king_exposed"
+      case ConversionDifficulty => "conversion_difficulty"
+
   case class ConceptLabels(
     structureTags: List[StructureTag],
     planTags: List[PlanTag],
     tacticTags: List[TacticTag],
     mistakeTags: List[MistakeTag],
     endgameTags: List[EndgameTag],
+    positionalTags: List[PositionalTag] = Nil,
     transitionTags: List[TransitionTag] = Nil,
     missedPatternTypes: List[String] = Nil  // e.g., ["Fork", "Pin"] when TacticalPatternMiss
   )
@@ -80,7 +167,8 @@ object ConceptLabeler:
       experiments: List[ExperimentResult],
       baselineEval: Int,
       evalAfterPlayed: Int,
-      bestEval: Int
+      bestEval: Int,
+      positionalTags: List[PositionalTag] = Nil
   ): ConceptLabels =
 
     val structure = labelStructure(featuresBefore, featuresAfter, experiments, baselineEval)
@@ -88,9 +176,11 @@ object ConceptLabeler:
     val (tactics, missedPatterns) = labelTactics(featuresBefore, experiments, baselineEval, movePlayedUci, bestEval, evalAfterPlayed)
     val mistakes = labelMistakes(movePlayedUci, featuresBefore, featuresAfter, experiments, baselineEval, evalAfterPlayed, bestEval)
     val endgame = labelEndgame(featuresBefore, featuresAfter, movePlayedUci)
+    
+    // Transition
     val transitions = TransitionTagger.label(featuresBefore, featuresAfter, baselineEval, evalAfterPlayed, bestEval)
 
-    ConceptLabels(structure, plans, tactics, mistakes, endgame, transitions, missedPatterns)
+    ConceptLabels(structure, plans, tactics, mistakes, endgame, positionalTags, transitions, missedPatterns)
 
 
   // --- Sub-Labelers ---
@@ -290,7 +380,11 @@ object ConceptLabeler:
       if matDiff > 0 then
          tags += MistakeTag.Greed
 
-      if fAfter.kingSafety.whiteKingExposedFiles > fBefore.kingSafety.whiteKingExposedFiles then
+      val (exposedBefore, exposedAfter) = if side == "white"
+         then (fBefore.kingSafety.whiteKingExposedFiles, fAfter.kingSafety.whiteKingExposedFiles)
+         else (fBefore.kingSafety.blackKingExposedFiles, fAfter.kingSafety.blackKingExposedFiles)
+
+      if exposedAfter > exposedBefore then
          tags += MistakeTag.PrematurePawnPush
 
       // Fear Detection: Good attack was available but played passive defense
@@ -300,6 +394,26 @@ object ConceptLabeler:
       val evalWorsened = evalAfterPlayed < baselineEval - 50
       if attackAvailable && evalWorsened then
          tags += MistakeTag.Fear
+
+      // Ignored Threat
+      // If we made a mistake/blunder and were under pressure
+      if deltaToBest > 100 then
+         val pressure = if side == "white"
+            then fBefore.kingSafety.whiteKingRingEnemyPieces
+            else fBefore.kingSafety.blackKingRingEnemyPieces
+         
+         val underPressure = pressure >= 3 // Threshold for pressure
+         
+         if underPressure then 
+            tags += MistakeTag.IgnoredThreat
+
+         // Positional Trade Error
+         // Lost Bishop Pair without tactical justification
+         val bpBefore = if side == "white" then fBefore.activity.whiteBishopPair else fBefore.activity.blackBishopPair
+         val bpAfter = if side == "white" then fAfter.activity.whiteBishopPair else fAfter.activity.blackBishopPair
+
+         if bpBefore && !bpAfter then
+            tags += MistakeTag.PositionalTradeError
 
     tags.result().distinct
 
@@ -315,10 +429,6 @@ object ConceptLabeler:
     // Or if opponent has active king and we don't?
     val phase = fBefore.materialPhase.phase
     if phase == "endgame" then
-       val kingDistBefore = fBefore.kingSafety.whiteKingCenterDistance // assuming white context for now, need side?
-       // Wait, we need side perspective. Features are absolute white/black.
-       // We need to know who moved.
-       // 'movePlayed' is UCI. We don't have side info easily here unless we parse FEN or look at sideToMove in features?
        val side = fBefore.sideToMove // "white" or "black"
        val (myDistBef, myDistAft) = if side == "white" 
          then (fBefore.kingSafety.whiteKingCenterDistance, fAfter.kingSafety.whiteKingCenterDistance)
@@ -396,3 +506,218 @@ object ConceptLabeler:
         tags += TransitionTag.ComfortToUnpleasant
       
       tags.result().distinct
+
+  // --- Positional Logic (Migrated from SemanticTagger) ---
+
+  def labelPositional(
+      position: Position,
+      perspective: Color,
+      ply: Ply,
+      self: FeatureExtractor.SideFeatures,
+      opp: FeatureExtractor.SideFeatures,
+      concepts: Option[ConceptScorer.Scores] = None,
+      winPct: Double = 50.0
+  ): List[PositionalTag] =
+    val board = position.board
+    val tags = List.newBuilder[PositionalTag]
+    val plyNumber = ply.value
+    val oppColor = !perspective
+    val oppKing = board.kingPosOf(oppColor)
+    val p = perspective.toString.toLowerCase
+
+    if hasOpenFileThreat(board, oppKing, File.H, perspective) then tags += PositionalTag.OpenFile("h", perspective)
+    if hasOpenFileThreat(board, oppKing, File.G, perspective) then tags += PositionalTag.OpenFile("g", perspective)
+
+    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, s"${oppColor.fold("black", "white")}_weak_f7").foreach(s => tags += PositionalTag.WeakSquare("f7", oppColor))
+    weakFHomeTag(board, oppColor, File.F, Rank.Second, s"${oppColor.fold("black", "white")}_weak_f2").foreach(s => tags += PositionalTag.WeakSquare("f2", oppColor))
+
+    strongOutpost(board, perspective).foreach(s => tags += PositionalTag.Outpost(s.replace("outpost_", ""), perspective))
+
+    if backRankWeak(board, perspective) then tags += PositionalTag.WeakBackRank(perspective)
+    looseMinor(board, perspective).foreach(s => tags += PositionalTag.LoosePiece(s.replace("loose_piece_", ""), perspective))
+
+    if kingStuckCenter(position, perspective, plyNumber) then tags += PositionalTag.KingStuckCenter(perspective)
+    if rookOnSeventh(board, perspective) then tags += PositionalTag.RookOnSeventh(perspective)
+
+    val boardPawnStorm = pawnStormAgainstCastledKing(board, perspective, oppKing)
+    if boardPawnStorm then tags += PositionalTag.PawnStorm(perspective)
+
+    if opp.bishopPair && !self.bishopPair && FeatureExtractor.hasOppositeColorBishops(board) then
+      tags += PositionalTag.OppositeColorBishops
+
+    if self.kingRingPressure >= 4 && opp.kingRingPressure <= 1 then tags += PositionalTag.KingAttackReady(perspective)
+
+    concepts.foreach { c =>
+      if c.badBishop >= 0.6 then tags += PositionalTag.RestrictedBishop(perspective)
+      if c.goodKnight >= 0.6 then
+        if hasCentralKnightOutpost(board, perspective) then tags += PositionalTag.Outpost("central", perspective) else tags += PositionalTag.StrongKnight(perspective)
+      if c.colorComplex >= 0.5 then tags += PositionalTag.ColorComplexWeakness(perspective)
+      
+      val endgame = isEndgame(board)
+      if c.fortress >= 0.6 && !endgame && plyNumber > 20 then tags += PositionalTag.LockedPosition
+      
+      if c.fortress >= 0.6 && endgame then
+        val myMat = materialScore(board, perspective)
+        val oppMat = materialScore(board, oppColor)
+        if myMat <= oppMat - 1.0 && c.drawish >= 0.5 then tags += PositionalTag.FortressDefense(perspective)
+ 
+      val dynamicTagged =
+        if c.dynamic >= 0.7 && c.dry < 0.5 then
+          tags += PositionalTag.DynamicPosition
+          true
+        else false
+      if !dynamicTagged && c.dry >= 0.6 && (plyNumber > 16 || isEndgame(board)) then tags += PositionalTag.DryPosition
+      if c.drawish >= 0.7 && winPct >= 35.0 && winPct <= 65.0 then tags += PositionalTag.DrawishPosition
+      if c.pawnStorm >= 0.6 && boardPawnStorm then tags += PositionalTag.PawnStorm(perspective)
+      
+      val spaceAdvantage = self.spaceControl.toDouble / (self.spaceControl + opp.spaceControl + 1.0)
+      if spaceAdvantage >= 0.65 then tags += PositionalTag.SpaceAdvantage(perspective)
+      if c.rookActivity >= 0.6 then tags += PositionalTag.ActiveRooks(perspective)
+      
+      val crisis = c.kingSafety >= 0.6 && (c.pawnStorm >= 0.5 || c.rookActivity >= 0.6)
+      if crisis then tags += PositionalTag.KingSafetyCrisis(perspective)
+      
+      if c.conversionDifficulty >= 0.5 && winPct >= 60.0 then tags += PositionalTag.ConversionDifficulty(perspective)
+      if c.blunderRisk >= 0.6 then tags += PositionalTag.HighBlunderRisk
+      if c.tacticalDepth >= 0.6 then tags += PositionalTag.TacticalComplexity
+      if c.imbalanced >= 0.6 then tags += PositionalTag.MaterialImbalance
+      if c.alphaZeroStyle >= 0.6 then tags += PositionalTag.LongTermCompensation(perspective)
+      if c.engineLike >= 0.6 then tags += PositionalTag.EngineOnlyMove(perspective)
+      if c.comfortable >= 0.7 then tags += PositionalTag.ComfortablePosition(perspective)
+      if c.unpleasant >= 0.6 && winPct <= 45.0 then tags += PositionalTag.UnpleasantPosition(perspective)
+      
+      if self.bishopPair && !opp.bishopPair && c.dry <= 0.4 then tags += PositionalTag.BishopPairAdvantage(perspective)
+    }
+
+    tags.result().distinct
+
+  private def hasOpenFileThreat(board: Board, kingOpt: Option[Square], file: File, perspective: Color): Boolean =
+    kingOpt.exists { kingSq =>
+      val kingNearFile = (kingSq.file.value - file.value).abs <= 1
+      val myMajorOnFile = hasMajorOnFile(board, perspective, file)
+      val openOrSemiOpen =
+        val friendly = board.pawns & board.byColor(perspective)
+        val enemy = board.pawns & board.byColor(!perspective)
+        val mask = file.bb
+        val friendlyOnFile = friendly.intersects(mask)
+        val enemyOnFile = enemy.intersects(mask)
+        (!friendlyOnFile && !enemyOnFile) || (!friendlyOnFile && enemyOnFile)
+      kingNearFile && myMajorOnFile && openOrSemiOpen
+    }
+
+  private def hasMajorOnFile(board: Board, color: Color, file: File): Boolean =
+    val majors = (board.rooks | board.queens) & board.byColor(color)
+    majors.squares.exists(_.file == file)
+
+  private def weakFHomeTag(board: Board, color: Color, file: File, rank: Rank, tag: String): Option[String] =
+    if isEndgame(board) then None
+    else if !kingInFHomeSector(board, color) then None
+    else
+      val homeSq = Square(file, rank)
+      val opp = !color
+      val attackers = board.attackers(homeSq, opp)
+      val defenders = board.attackers(homeSq, color)
+      val attackersCount = attackers.count
+      val defendersCount = defenders.count
+      val strongAttackerExists = attackers.exists { sq => board.roleAt(sq).exists(r => r == Queen || r == Rook) }
+      val oppMajorsExist = hasMajors(board, opp)
+
+      board.pieceAt(homeSq) match
+        case Some(Piece(Pawn, `color`)) =>
+          if attackersCount >= 2 && attackersCount > defendersCount && strongAttackerExists then Some(tag) else None
+        case _ =>
+          if oppMajorsExist && attackersCount >= 1 && strongAttackerExists then Some(tag) else None
+
+  private def kingInFHomeSector(board: Board, color: Color): Boolean =
+    board.kingPosOf(color).exists { k =>
+      color match
+        case Color.White => k.rank.value <= Rank.Second.value && k.file.value >= File.E.value && k.file.value <= File.G.value
+        case Color.Black => k.rank.value >= Rank.Seventh.value && k.file.value >= File.E.value && k.file.value <= File.G.value
+    }
+
+  private def hasMajors(board: Board, color: Color): Boolean =
+    ((board.queens & board.byColor(color)).nonEmpty) || ((board.rooks & board.byColor(color)).nonEmpty)
+
+  private def hasCentralKnightOutpost(board: Board, color: Color): Boolean =
+    val knights = board.knights & board.byColor(color)
+    val centralFiles = Set(File.D, File.E)
+    val centralRanks = if color == Color.White then Set(Rank.Fourth, Rank.Fifth, Rank.Sixth) else Set(Rank.Fifth, Rank.Fourth, Rank.Third)
+    knights.squares.exists(k => centralFiles.contains(k.file) && centralRanks.contains(k.rank))
+
+  private def strongOutpost(board: Board, color: Color): Option[String] =
+    val squares = if color == Color.White then List(Square.D4, Square.E4, Square.F4, Square.D5, Square.E5, Square.F5) else List(Square.D5, Square.E5, Square.F5, Square.D4, Square.E4, Square.F4)
+    squares.collectFirst { case sq if isOutpost(board, color, sq) => s"outpost_${sq.key.toLowerCase}" }
+
+  private def isOutpost(board: Board, color: Color, sq: Square): Boolean =
+    val knights = board.knights & board.byColor(color)
+    val pawnSupport = (board.pawns & board.byColor(color)).squares.exists { p => p.pawnAttacks(color).contains(sq) }
+    val enemyPawns = board.pawns & board.byColor(!color)
+    val enemyChasers = enemyPawns.squares.exists { p => p.pawnAttacks(!color).contains(sq) }
+    knights.contains(sq) && pawnSupport && !enemyChasers
+
+  private def backRankWeak(board: Board, color: Color): Boolean =
+    board.kingPosOf(color).exists { k =>
+      val backRank = if color == Color.White then Rank.First else Rank.Eighth
+      if k.rank != backRank then false
+      else if isEndgame(board) then false
+      else
+        val oppMajors = (board.rooks | board.queens) & board.byColor(!color)
+        if oppMajors.isEmpty then false
+        else
+          val shieldRank = if color == Color.White then Rank.Second else Rank.Seventh
+          val shieldFiles = if k.file.value <= File.D.value then List(File.B, File.C, File.D) else List(File.F, File.G, File.H)
+          val pawns = board.pawns & board.byColor(color)
+          shieldFiles.count(f => pawns.contains(Square(f, shieldRank))) < 2
+    }
+
+  private def looseMinor(board: Board, color: Color): Option[String] =
+    val defenders = board.attackers(_, color)
+    val attackers = board.attackers(_, !color)
+    val minors = (board.bishops | board.knights) & board.byColor(color)
+    minors.squares.collectFirst { case sq if attackers(sq).nonEmpty && defenders(sq).isEmpty => s"loose_piece_${sq.key.toLowerCase}" }
+
+  private def kingStuckCenter(position: Position, color: Color, ply: Int): Boolean =
+    val board = position.board
+    val endgame = isEndgame(board)
+    val anyQueen = board.queens.nonEmpty
+    val canCastle = position.castles.can(color)
+    board.kingPosOf(color).exists { k =>
+      val centerFiles = Set(File.D, File.E)
+      val centerRankOk = if color == Color.White then k.rank.value <= Rank.Third.value else k.rank.value >= Rank.Sixth.value
+      ply > 12 && !endgame && anyQueen && canCastle && centerFiles.contains(k.file) && centerRankOk
+    }
+
+  private def rookOnSeventh(board: Board, color: Color): Boolean =
+    val rooks = board.rooks & board.byColor(color)
+    rooks.squares.exists { r => if color == Color.White then r.rank == Rank.Seventh else r.rank == Rank.Second }
+
+  private def pawnStormAgainstCastledKing(board: Board, color: Color, oppKingOpt: Option[Square]): Boolean =
+    if isEndgame(board) || board.queens.isEmpty then false
+    else
+      oppKingOpt.exists { king =>
+        val isShortCastle = (king == Square.G1 && color == Color.Black) || (king == Square.G8 && color == Color.White)
+        val isLongCastle = (king == Square.C1 && color == Color.Black) || (king == Square.C8 && color == Color.White)
+        val myPawns = board.pawns & board.byColor(color)
+        val advancedThreshold = if color == Color.White then Rank.Fourth.value else Rank.Fifth.value
+        val candidatePawns = myPawns.squares.filter { s =>
+          val kingside = s.file.value >= File.F.value
+          val queenside = s.file.value <= File.C.value
+          val advanced = if color == Color.White then s.rank.value >= advancedThreshold else s.rank.value <= advancedThreshold
+          (isShortCastle && kingside && advanced) || (isLongCastle && queenside && advanced)
+        }
+        val closeToKing = candidatePawns.exists { s => (s.file.value - king.file.value).abs + (s.rank.value - king.rank.value).abs <= 3 }
+        (isShortCastle || isLongCastle) && candidatePawns.size >= 2 && closeToKing
+      }
+
+  private def isEndgame(board: Board): Boolean =
+    val whitePieces = board.byColor(Color.White).count
+    val blackPieces = board.byColor(Color.Black).count
+    whitePieces <= 6 || blackPieces <= 6 || (board.queens.isEmpty && whitePieces <= 8 && blackPieces <= 8)
+
+  private def materialScore(board: Board, color: Color): Double =
+    val pawns = (board.pawns & board.byColor(color)).count * 1.0
+    val knights = (board.knights & board.byColor(color)).count * 3.0
+    val bishops = (board.bishops & board.byColor(color)).count * 3.0
+    val rooks = (board.rooks & board.byColor(color)).count * 5.0
+    val queens = (board.queens & board.byColor(color)).count * 9.0
+    pawns + knights + bishops + rooks + queens
