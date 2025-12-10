@@ -36,7 +36,7 @@ sbt test
 
 ```bash
 # Start the API Server on localhost:8080
-sbt "core/runMain chess.analysis.ApiServer"
+sbt "scalachess/runMain chess.analysis.ApiServer"
 ```
 
 The server exposes:
