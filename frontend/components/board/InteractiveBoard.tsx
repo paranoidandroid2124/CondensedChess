@@ -25,7 +25,15 @@ export default function InteractiveBoard({
 }: InteractiveBoardProps) {
     const ref = useRef<HTMLDivElement>(null);
     const [api, setApi] = useState<Api | null>(null);
-    const game = useRef(new Chess(fen));
+    // Safe initialization
+    const safeGame = (f: string) => {
+        try {
+            return new Chess(f);
+        } catch {
+            return new Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        }
+    };
+    const game = useRef(safeGame(fen));
 
     // Initialize Chessground
     useEffect(() => {
