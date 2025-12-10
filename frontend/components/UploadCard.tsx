@@ -21,10 +21,10 @@ export default function UploadCard() {
       // Store PGN in localStorage for immediate display
       localStorage.setItem("pending-pgn", pgn);
 
-      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/analyze`, {
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/game-review/chapter`, {
         method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: pgn
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pgn })
       });
       if (!res.ok) {
         localStorage.removeItem("pending-pgn");
