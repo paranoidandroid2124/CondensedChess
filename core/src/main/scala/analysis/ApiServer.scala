@@ -3,12 +3,14 @@ package analysis
 
 import com.sun.net.httpserver.{ HttpExchange, HttpServer }
 import chess.format.{ Fen, Uci }
+import chess.analysis.ApiTypes._
 
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.{ ConcurrentHashMap, Executors }
 import ujson.*
+import org.slf4j.LoggerFactory
 
 /** 간단한 HTTP API 래퍼.
   *
@@ -23,9 +25,14 @@ import ujson.*
 object ApiServer:
 
   private case class Job(status: String, result: Option[String], error: Option[String], output: Option[AnalyzePgn.Output], createdAt: Long)
+  
+  private def makeErrorJson(code: String, message: String): String =
+     ujson.Obj("error" -> ujson.Obj("code" -> code, "message" -> message)).render()
 
   private val jobs = new ConcurrentHashMap[String, Job]()
   private val executor = Executors.newFixedThreadPool(math.max(2, Runtime.getRuntime.availableProcessors()))
+
+  private val logger = LoggerFactory.getLogger("chess.api")
 
   def main(args: Array[String]): Unit =
     val port = sys.env.get("PORT").flatMap(_.toIntOption).filter(_ > 0).getOrElse(8080)
@@ -38,15 +45,30 @@ object ApiServer:
         .getOrElse(Set.empty)
 
     val server = HttpServer.create(new InetSocketAddress(bindHost, port), 0)
+    
+    // Internal Status Dashboard (Protected)
+    server.createContext("/status", (exchange: HttpExchange) => {
+      // Security: Internal Only
+      if !exchange.getRemoteAddress.getAddress.isLoopbackAddress then
+        respond(exchange, 403, makeErrorJson("FORBIDDEN", "Access denied"))
+      else
+        respond(exchange, 200, Observability.statusJson)
+    })
+
+    // Legacy endpoints
     server.createContext("/analyze", (exchange: HttpExchange) => handleAnalyze(exchange, config, llmRequestedPlys))
     server.createContext("/result", (exchange: HttpExchange) => handleResult(exchange))
+    
+    // New API endpoints
+    server.createContext("/api/game-review/chapter", (exchange: HttpExchange) => handleChapterReview(exchange, config, llmRequestedPlys))
+    
     server.createContext("/opening/lookup", (exchange: HttpExchange) => handleOpeningLookup(exchange))
     server.createContext("/analysis/branch", (exchange: HttpExchange) => handleAddBranch(exchange))
     server.createContext("/game/save", (exchange: HttpExchange) => handleSaveGame(exchange))
     server.createContext("/game/load", (exchange: HttpExchange) => handleLoadGame(exchange))
     server.setExecutor(executor)
 
-    println(s"[api] listening on $bindHost:$port (shallow=${config.shallowDepth}/deep=${config.deepDepth}, multipv=${config.maxMultiPv})")
+    logger.info(s"Listening on $bindHost:$port (shallow=${config.shallowDepth}/deep=${config.deepDepth}, multipv=${config.maxMultiPv})")
     Persistence.init()
     server.start()
 
@@ -54,7 +76,7 @@ object ApiServer:
     Runtime.getRuntime.addShutdownHook(new Thread(() => {
       server.stop(0)
       executor.shutdown()
-      println("[api] stopped")
+      logger.info("Server stopped")
     }))
     // block main thread
     while true do Thread.sleep(3600_000)
@@ -65,12 +87,12 @@ object ApiServer:
       return
 
     if !exchange.getRequestMethod.equalsIgnoreCase("POST") then
-      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      respond(exchange, 405, makeErrorJson("METHOD_NOT_ALLOWED", "Only POST allowed"))
       return
 
     val body = new String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8).trim
     if body.isEmpty then
-      respond(exchange, 400, """{"error":"empty_body"}""")
+      respond(exchange, 400, makeErrorJson("BAD_REQUEST", "Empty body"))
       return
 
     val (pgnText, llmFromBody) =
@@ -120,21 +142,161 @@ object ApiServer:
               val finalJson = withJobId(json, jobId)
               Persistence.saveAnalysisJson(jobId, finalJson)
               jobs.put(jobId, Job(status = "ready", result = Some(finalJson), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
-              AnalysisProgressTracker.remove(jobId)
-              println(s"[ApiServer] Job $jobId finished. Status: ready")
+              Observability.completedJobs.incrementAndGet()
+              logger.info(s"Job $jobId finished. Status: ready")
             catch
               case e: Throwable =>
-                System.err.println(s"[ApiServer] Internal error processing job $jobId: $e")
+                Observability.failedJobs.incrementAndGet()
+                logger.error(s"Internal error processing job $jobId", e)
                 e.printStackTrace()
                 jobs.put(jobId, Job(status = "failed", result = None, error = Some(s"Internal error: ${e.getMessage}"), output = None, createdAt = System.currentTimeMillis()))
                 AnalysisProgressTracker.remove(jobId)
           case Left(err) =>
-            System.err.println(s"[ApiServer] Job $jobId failed: $err")
+            Observability.failedJobs.incrementAndGet()
+            logger.error(s"Job $jobId failed: $err")
             jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
             AnalysisProgressTracker.remove(jobId)
     )
 
     respond(exchange, 202, s"""{"jobId":"$jobId","status":"queued"}""")
+
+  private def handleChapterReview(exchange: HttpExchange, defaultConfig: AnalyzePgn.EngineConfig, defaultLlmPlys: Set[Int]): Unit =
+    val method = exchange.getRequestMethod
+    if method.equalsIgnoreCase("OPTIONS") then
+      respond(exchange, 200, """{"ok":true}""", corsOnly = true)
+    else if method.equalsIgnoreCase("POST") then
+      handleChapterReviewPost(exchange, defaultConfig, defaultLlmPlys)
+    else if method.equalsIgnoreCase("GET") then
+      handleChapterReviewGet(exchange)
+    else
+      respond(exchange, 405, makeErrorJson("METHOD_NOT_ALLOWED", "Use POST or GET"))
+
+  private def handleChapterReviewPost(exchange: HttpExchange, defaultConfig: AnalyzePgn.EngineConfig, defaultLlmPlys: Set[Int]): Unit =
+    val body = new String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8).trim
+    if body.isEmpty then
+      respond(exchange, 400, """{"error":"empty_body"}""")
+      return
+
+    try
+      val json = ujson.read(body)
+      val pgn = json.obj.get("pgn").map(_.str).getOrElse("")
+      
+      // Parse options
+      val optionsObj = json.obj.get("options")
+      val options = optionsObj.map { opt =>
+        ReviewOptions(
+          language = opt.obj.get("language").map(_.str).map(Language.fromString).getOrElse(Language.English),
+          depthProfile = opt.obj.get("depthProfile").map(_.str).map(DepthProfile.fromString).getOrElse(DepthProfile.Fast),
+          maxExperimentsPerPly = opt.obj.get("maxExperimentsPerPly").map(_.num.toInt),
+          forceCriticalPlys = opt.obj.get("forceCriticalPlys").map(_.arr.map(_.num.toInt).toSet).getOrElse(Set.empty)
+        )
+      }
+
+      val config = options.map(mapToEngineConfig(_, defaultConfig)).getOrElse(defaultConfig)
+      val llmPlys = options.map(_.forceCriticalPlys).getOrElse(defaultLlmPlys)
+      
+      val jobId = UUID.randomUUID().toString
+      jobs.put(jobId, Job(status = "queued", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
+
+      executor.submit(new Runnable:
+        override def run(): Unit =
+          jobs.put(jobId, Job(status = "processing", result = None, error = None, output = None, createdAt = System.currentTimeMillis()))
+          AnalyzePgn.analyze(pgn, config, llmPlys, Some(jobId)) match
+            case Right(output) =>
+              try
+                AnalysisProgressTracker.update(jobId, AnalysisStage.LLM_GENERATION, 0.0)
+                val annotated = LlmAnnotator.annotate(output) // Note: Lang support logic to be added to LlmAnnotator later
+                AnalysisProgressTracker.update(jobId, AnalysisStage.FINALIZATION, 1.0)
+                val json = AnalyzePgn.render(annotated)
+                val finalJson = withJobId(json, jobId)
+                Persistence.saveAnalysisJson(jobId, finalJson) // Keep DB
+                Persistence.saveStudyAtomic(jobId, finalJson)  // File Atomic
+                jobs.put(jobId, Job(status = "ready", result = Some(finalJson), error = None, output = Some(annotated), createdAt = System.currentTimeMillis()))
+                Observability.completedJobs.incrementAndGet()
+                logger.info(s"Job $jobId finished. Status: ready")
+              catch
+                case e: Throwable =>
+                  Observability.failedJobs.incrementAndGet()
+                  logger.error(s"Internal error processing job $jobId", e)
+                  e.printStackTrace()
+                  jobs.put(jobId, Job(status = "failed", result = None, error = Some(s"Internal error: ${e.getMessage}"), output = None, createdAt = System.currentTimeMillis()))
+                  AnalysisProgressTracker.remove(jobId)
+            case Left(err) =>
+              Observability.failedJobs.incrementAndGet()
+              logger.error(s"Job $jobId failed: $err")
+              jobs.put(jobId, Job(status = "failed", result = None, error = Some(err), output = None, createdAt = System.currentTimeMillis()))
+              AnalysisProgressTracker.remove(jobId)
+      )
+
+      respond(exchange, 202, s"""{"jobId":"$jobId","status":"queued"}""")
+    catch
+      case e: Throwable => 
+        respond(exchange, 400, makeErrorJson("INVALID_REQUEST", e.getMessage))
+
+  private def handleChapterReviewGet(exchange: HttpExchange): Unit =
+    cleanExpiredJobs()
+    val path = exchange.getRequestURI.getPath
+    val jobId = path.split("/").lastOption.getOrElse("")
+    
+    if jobId.isEmpty then
+      respond(exchange, 400, """{"error":"missing_job_id"}""")
+      return
+
+    val job = jobs.get(jobId)
+    if job == null then
+      Persistence.loadAnalysisJson(jobId) match
+        case Some(json) => respond(exchange, 200, wrapResult(jobId, "ready", Some(ujson.read(json))))
+        case None => respond(exchange, 404, makeErrorJson("NOT_FOUND", "Job ID not found"))
+    else
+      val status = job.status
+      status match
+        case "ready" =>
+          val resultJson = job.result.map(ujson.read(_))
+          respond(exchange, 200, wrapResult(jobId, status, resultJson))
+        case "failed" =>
+           respond(exchange, 500, wrapResult(jobId, status, None, job.error)) // wrapResult handles error formatting
+        case _ => 
+           respond(exchange, 202, wrapProgress(jobId, status))
+
+  private def mapToEngineConfig(opts: ReviewOptions, default: AnalyzePgn.EngineConfig): AnalyzePgn.EngineConfig =
+    val (shallow, deep, sTime, dTime) = opts.depthProfile match
+      case DepthProfile.Fast => (10, 14, 50, 100)
+      case DepthProfile.Deep => (14, 18, 100, 500)
+      case DepthProfile.Tournament => (16, 20, 200, 1500)
+    
+    default.copy(
+      shallowDepth = shallow, 
+      deepDepth = deep, 
+      shallowTimeMs = sTime, 
+      deepTimeMs = dTime
+      // maxMultiPv could be mapped if added to options
+    )
+
+  private def wrapResult(jobId: String, status: String, result: Option[Value], error: Option[String] = None): String =
+    val obj = ujson.Obj(
+      "jobId" -> jobId,
+      "status" -> status,
+      "schemaVersion" -> ApiTypes.SCHEMA_VERSION
+    )
+    result.foreach(r => obj("result") = r)
+    // Error formatting inside wrapResult if needed, or pass explicit error object? 
+    // Usually standard error format is { error: { ... } } at root.
+    // But wrapResult is returning { jobId, status, result|errorString }. 
+    // Let's adapt it to put error string in standard format if present.
+    error.foreach { e => 
+       obj("error") = ujson.Obj("code" -> "JOB_FAILED", "message" -> e)
+    }
+    obj.render()
+  
+  private def wrapProgress(jobId: String, status: String): String =
+    val obj = ujson.Obj("jobId" -> jobId, "status" -> status)
+    AnalysisProgressTracker.get(jobId).foreach { prog =>
+      obj("stage") = prog.stage.toString
+      obj("stageLabel") = AnalysisStage.labelFor(prog.stage)
+      obj("stageProgress") = prog.stageProgress
+      obj("totalProgress") = prog.totalProgress
+    }
+    obj.render()
 
   private def handleResult(exchange: HttpExchange): Unit =
     cleanExpiredJobs()
@@ -143,7 +305,7 @@ object ApiServer:
       return
 
     if !exchange.getRequestMethod.equalsIgnoreCase("GET") then
-      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      respond(exchange, 405, makeErrorJson("METHOD_NOT_ALLOWED", "Only GET allowed"))
       return
 
     val path = exchange.getRequestURI.getPath // /result/<id>
@@ -171,7 +333,7 @@ object ApiServer:
                 s"""{"status":"$other"}"""
             respond(exchange, 202, progressJson)
       case _ =>
-        respond(exchange, 404, """{"error":"not_found"}""")
+        respond(exchange, 404, makeErrorJson("NOT_FOUND", "Job not found"))
 
   /** 변형 추가: POST /analysis/branch { jobId, ply, uci } */
   private def handleAddBranch(exchange: HttpExchange): Unit =
@@ -181,19 +343,19 @@ object ApiServer:
       return
 
     if !exchange.getRequestMethod.equalsIgnoreCase("POST") then
-      respond(exchange, 405, """{"error":"method_not_allowed"}""")
+      respond(exchange, 405, makeErrorJson("METHOD_NOT_ALLOWED", "Only POST allowed"))
       return
 
     val body = new String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8).trim
     if body.isEmpty then
-      respond(exchange, 400, """{"error":"empty_body"}""")
+      respond(exchange, 400, makeErrorJson("BAD_REQUEST", "Empty body"))
       return
 
     val parsed =
       try ujson.read(body)
       catch
         case _: Throwable =>
-          respond(exchange, 400, """{"error":"invalid_json"}""")
+          respond(exchange, 400, makeErrorJson("INVALID_JSON", "Invalid JSON body"))
           return
 
     val jobId = parsed.obj.get("jobId").flatMap(v => Option(v.str).filter(_.nonEmpty))
@@ -208,7 +370,7 @@ object ApiServer:
         else
           job.output match
             case None =>
-              respond(exchange, 500, """{"error":"missing_output"}""")
+              respond(exchange, 500, makeErrorJson("INTERNAL_ERROR", "Missing output"))
             case Some(output) =>
               output.timeline.find(_.ply.value == p) match
                 case None =>

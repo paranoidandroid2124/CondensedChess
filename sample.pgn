@@ -1,9 +1,0 @@
-[Event "Test"]
-[Site "Local"]
-[Date "2024.01.01"]
-[Round "1"]
-[White "White"]
-[Black "Black"]
-[Result "1-0"]
-
-1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 11. c4 c6 12. Nc3 b4 13. Na4 c5 14. dxe5 Nxe5 15. Nxe5 dxe5 16. Be3 Qc7 17. Qf3 Bb7 18. Bc2 Nd7 19. Qg3 Rfe8 20. Rad1 Rad8 21. Bh6 g6 22. b3 Bf8 23. Bg5 f6 24. Be3 Be7 25. h4 Nf8 26. h5 g5 27. Qf3 Ne6 28. Rd5 Bxd5 29. exd5 Nd4 30. Bxd4 cxd4 31. Qf5 Bf8 32. Qxf6 h6 33. Bf5 Bg7 34. Qg6 Re7 35. c5 Rxd5 36. Be6+ Rxe6 37. Qxe6+ Qf7 38. Qc8+ Kh7 39. c6 d3 40. c7 d2 41. Rd1 Rd4 42. Nb6 Rf4 43. Rxd2 e4 44. Nc4 e3 45. Nxe3 Bc3 46. Rd7 Bg7 47. Rxf7 Rxf7 48. Nd5 Bd4 49. Qe6 Rxf2 50. Qg6+ Kh8 51. Kh2 Rf8 52. Qxh6+ Kg8 53. Qg6+ Kh8

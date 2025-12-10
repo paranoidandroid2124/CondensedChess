@@ -1,0 +1,78 @@
+package chess
+package analysis
+
+import munit.FunSuite
+import java.nio.file.{Files, Paths, StandardOpenOption}
+import java.nio.charset.StandardCharsets
+
+class GoldenAnalysisTest extends FunSuite:
+
+  private val goldenDir = Paths.get("core/src/test/resources/golden")
+  private val updateGolden = sys.env.get("UPDATE_GOLDEN").contains("true")
+
+  // Mock config for deterministic behavior
+  private val config = AnalyzePgn.EngineConfig(
+    shallowDepth = 6, // Low depth for speed
+    deepDepth = 8,
+    shallowTimeMs = 50,
+    deepTimeMs = 100,
+    maxMultiPv = 1
+  )
+  
+  // Use empty forced plys to let engine decide
+  private val llmPlys = Set.empty[Int]
+
+  override def beforeAll(): Unit =
+    Persistence.init()
+
+  test("Golden PGN Regression") {
+    if (!Files.exists(goldenDir)) 
+      println("No golden directory found, skipping.")
+    else
+      Files.list(goldenDir)
+        .filter(_.toString.endsWith(".pgn"))
+        .forEach { pgnPath =>
+          val name = pgnPath.getFileName.toString.replace(".pgn", "")
+          val jsonPath = goldenDir.resolve(s"$name.json")
+          val pgnContent = Files.readString(pgnPath, StandardCharsets.UTF_8)
+          
+          println(s"Running Golden Test: $name")
+          
+          // Run Analysis (Blocking)
+          // We need an EnginePool?
+          // EnginePool is Global object. It starts up. 
+          // We must ensure it's clean.
+          
+          try
+            val result = AnalyzePgn.analyze(pgnContent, config, llmPlys, Some("test-job"))
+            result match
+              case Left(err) => fail(s"Analysis failed for $name: $err")
+              case Right(output) =>
+                // Normalize JSON for comparison
+                // 1. Render
+                val rawJson = AnalyzePgn.render(output)
+                val json = normalizeJson(rawJson)
+                
+                if updateGolden || !Files.exists(jsonPath) then
+                  Files.writeString(jsonPath, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+                  println(s"Updated golden file for $name")
+                else
+                  val expected = normalizeJson(Files.readString(jsonPath, StandardCharsets.UTF_8))
+                  assertEquals(json, expected, s"Golden file mismatch for $name. Run with UPDATE_GOLDEN=true to approve.")
+          catch
+             case e: Throwable => fail(s"Exception in golden test $name: $e")
+        }
+  }
+
+  // Helper to normalize JSON (ignore volatile fields if any)
+  // For now, simple string comparison. 
+  // Ideally we ignore 'duration', 'createdAt' if present.
+  // AnalyzePgn.render output schema: { metadata: {...}, skyline: [...], analysis: [...] }
+  // Metadata has 'created' date. We should mask it.
+  private def normalizeJson(json: String): String =
+    // Regex replace "created": \d+ -> "created": 0
+    // Regex replace "engine": "Stockfish..." -> "engine": "Stockfish" (version might vary)
+    var norm = json.replaceAll("\"created\":\\s*\\d+", "\"created\": 0")
+    norm = norm.replaceAll("\"date\":\\s*\"[^\"]+\"", "\"date\": \"2024-01-01\"") // Mask run date
+    norm = norm.replaceAll("\"jobId\":\\s*\"[^\"]+\"", "\"jobId\": \"test-job\"")
+    norm

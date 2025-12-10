@@ -3,6 +3,7 @@ package analysis
 
 import AnalysisModel.*
 import AnalyzeUtils.pvToSan
+@deprecated("Will be replaced by BookBuilder in Phase 4.6", "2024-12-09")
 object ReviewTreeBuilder:
   def buildTree(
       timeline: Vector[PlyOutput], 
@@ -67,14 +68,18 @@ object ReviewTreeBuilder:
         val hypothesisBranches = 
           val bestMoveOpt = p.evalBeforeDeep.lines.headOption
           if (p.mistakeCategory.isDefined || p.judgement == "blunder" || p.judgement == "mistake") && bestMoveOpt.isDefined then
-             HypothesisValidator.findHypotheses(
-               client, 
-               p.fenBefore, 
-               bestMoveOpt.get.move, 
-               p.winPctBefore.max(bestMoveOpt.get.winPct), // Best eval
-               depth = config.shallowDepth
-             ).flatMap { h =>
-               pvToNodeChain(p.fenBefore, h.move :: h.refutation, h.eval, "hypothesis", h.label)
+             // Inline hypothesis finding (migrated from HypothesisValidator)
+             val candidatesEval = EngineProbe.evalFen(client, p.fenBefore, config.shallowDepth, multiPv = 5, moveTimeMs = Some(300))
+             val currentEval = p.winPctBefore.max(bestMoveOpt.get.winPct)
+             val candidates = candidatesEval.lines
+               .filter(_.move != bestMoveOpt.get.move)
+               .filter(l => (currentEval - l.winPct).abs > 15.0)
+               .take(2)
+             
+             candidates.flatMap { line =>
+               val label = "Hypothesis"
+               val h = (line.move, line.winPct, line.pv, label, (currentEval - line.winPct).abs)
+               pvToNodeChain(p.fenBefore, h._1 :: h._3, h._2, "hypothesis", h._4)
              }
           else Nil
 

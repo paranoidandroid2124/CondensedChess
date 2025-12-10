@@ -40,7 +40,9 @@ lazy val scalachess: Project = Project("scalachess", file("core")).settings(
     "org.typelevel" %% "cats-parse" % "1.1.0",
     "dev.optics" %% "monocle-core" % "3.3.0",
     "org.typelevel" %% "kittens" % "3.5.0",
-    "org.xerial" % "sqlite-jdbc" % "3.46.1.0"
+    "org.xerial" % "sqlite-jdbc" % "3.46.1.0",
+    "ch.qos.logback" % "logback-classic" % "1.4.14",
+    "org.scalameta" %% "munit" % "1.0.0" % Test
   ),
   resolvers += "jitpack".at("https://jitpack.io")
 )

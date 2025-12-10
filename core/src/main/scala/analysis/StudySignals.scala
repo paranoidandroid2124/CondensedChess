@@ -2,10 +2,32 @@ package chess
 package analysis
 
 import AnalysisModel.*
-import PhaseClassifier.phaseTransition
+// PhaseClassifier removed - inlined as local function
 import chess.opening.Opening
 
 object StudySignals:
+  // Inlined from PhaseClassifier
+  private def phaseTransition(delta: Concepts, winPctBefore: Double): (Double, Option[String]) =
+    val dynamicCollapse = if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then 15.0 else 0.0
+    val tacticalDry = if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then 12.0 else 0.0
+    val fortressJump = if delta.fortress >= 0.4 then 10.0 else 0.0
+    val comfortLoss = if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then 10.0 else 0.0
+    val alphaZeroSpike = if delta.alphaZeroStyle >= 0.35 then 8.0 else 0.0
+    val kingSafetyCollapse = if delta.kingSafety >= 0.4 then 12.0 else 0.0
+    val conversionIssue = if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then 8.0 else 0.0
+    val phaseScore = List(dynamicCollapse, tacticalDry, fortressJump, comfortLoss, alphaZeroSpike, kingSafetyCollapse, conversionIssue).max
+    
+    val label = 
+      if dynamicCollapse > 0 then Some("endgame_transition")
+      else if tacticalDry > 0 then Some("tactical_to_positional")
+      else if fortressJump > 0 then Some("fortress_building")
+      else if comfortLoss > 0 then Some("comfort_to_unpleasant")
+      else if alphaZeroSpike > 0 then Some("positional_sacrifice")
+      else if kingSafetyCollapse > 0 then Some("king_exposed")
+      else if conversionIssue > 0 then Some("conversion_difficulty")
+      else None
+    (phaseScore, label)
+
   private def bestVsSecondGapOf(p: PlyOutput): Double =
     p.bestVsSecondGap.getOrElse {
       val top = p.evalBeforeDeep.lines.headOption

@@ -1,299 +1,449 @@
 package chess
 package analysis
 
-import AnalysisModel.*
+import scala.concurrent.{Future, ExecutionContext}
 import chess.format.Fen
 import chess.opening.Opening
+import chess.analysis.FeatureExtractor
+import chess.analysis.MoveGenerator
+import chess.analysis.ConceptLabeler
+import chess.analysis.RoleLabeler
+import chess.analysis.AnalysisTypes._
+import chess.analysis.AnalysisModel._
+import chess.analysis.{SemanticTagger, MistakeClassifier, PhaseCalculator, PracticalityScorer, ConceptScorer, AnalysisContext}
+import chess.MoveOrDrop
 
 object TimelineBuilder:
 
+  // Intermediate data structure
+  private case class RawPlyData(
+      plyIndex: Int,
+      gameBefore: Game,
+      gameAfter: Game,
+      move: MoveOrDrop,
+      evalBeforeShallow: EngineEval,
+      evalBeforeDeep: EngineEval,
+      evalAfterDeep: Option[EngineEval], // Opponent's perspective after move
+      experiments: List[ExperimentResult],
+      featuresBefore: FeatureExtractor.SideFeatures,
+      featuresAfter: FeatureExtractor.SideFeatures, // Mover's features in new position (for concept scoring)
+      oppFeaturesAfter: FeatureExtractor.SideFeatures,
+      p4FeaturesBefore: FeatureExtractor.PositionFeatures,
+      p4FeaturesAfter: FeatureExtractor.PositionFeatures
+      // Note: we might need featuresBefore for ConceptScorer (moverFeaturesBefore)
+      , moverFeaturesBefore: FeatureExtractor.SideFeatures,
+      oppFeaturesBefore: FeatureExtractor.SideFeatures
+  )
+
+  /**
+   * Builds the timeline asynchronously.
+   */
   def buildTimeline(
       replay: Replay, 
-      client: StockfishClient, 
+      engineService: EngineService,
+      experimentRunner: ExperimentRunner,
       config: EngineConfig, 
       opening: Option[Opening.AtPly],
       playerContext: Option[PlayerContext] = None,
       jobId: Option[String] = None
-  ): (Vector[PlyOutput], Game) =
-    var game = replay.setup
-    val entries = Vector.newBuilder[PlyOutput]
-    var prevDeltaForOpp: Double = 0.0
-    val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
+  )(using ec: ExecutionContext): Future[(Vector[PlyOutput], Game)] =
+    
     val totalMoves = replay.chronoMoves.size
     
-    replay.chronoMoves.zipWithIndex.foreach { case (mod, idx) =>
-      val prog = (idx + 1).toDouble / totalMoves
-      jobId.foreach { id => 
-        if (idx % 5 == 0 || idx == totalMoves - 1) println(s"[TimelineBuilder] $id progress: $prog")
-        AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
+    // 1. Prepare Game States
+    var currentGame = replay.setup
+    val gameSequence = replay.chronoMoves.zipWithIndex.map { case (mod, idx) =>
+      val gameBefore = currentGame
+      val gameAfter = mod.applyGame(currentGame)
+      currentGame = gameAfter
+      (idx, mod, gameBefore, gameAfter)
+    }
+    val finalGame = currentGame
+
+    // 2. Parallel Analysis Phase
+    val futureRawData: Future[Vector[RawPlyData]] = Future.sequence(
+      gameSequence.map { case (idx, mod, gameBefore, gameAfter) =>
+        processPlyParallel(idx, mod, gameBefore, gameAfter, engineService, experimentRunner, config, totalMoves, jobId)
       }
-      val player = game.position.color
-      val legalCount = game.position.legalMoves.size
-      val multiPv = math.min(config.maxMultiPv, math.max(1, legalCount))
-      val fenBefore = Fen.write(game.position, game.ply.fullMoveNumber).value
-      val evalBeforeShallow = EngineProbe.evalFen(client, fenBefore, config.shallowDepth, multiPv, Some(config.shallowTimeMs))
-      val evalBeforeDeep = EngineProbe.evalFen(client, fenBefore, config.deepDepth, multiPv, Some(config.deepTimeMs))
-      val winBefore = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(50.0)
+    ).map(_.toVector)
 
-      val nextGame = mod.applyGame(game)
-      val fenAfter = Fen.write(nextGame.position, nextGame.ply.fullMoveNumber).value
-      val statusAfter = nextGame.position.status
-      val winnerAfter = nextGame.position.winner
-      val (winAfterForPlayer, _) =
-        statusAfter match
-          case Some(Status.Mate) =>
-            val sideToMoveWin = if winnerAfter.contains(nextGame.position.color) then 100.0 else 0.0
-            val moverWin = if winnerAfter.contains(player) then 100.0 else 0.0
-            (moverWin, sideToMoveWin)
-          case Some(Status.Stalemate | Status.Draw | Status.VariantEnd) =>
-            (50.0, 50.0)
-          case _ =>
-            val evalAfter = EngineProbe.evalFen(client, fenAfter, config.deepDepth, 1, Some(config.deepTimeMs))
-            val side = evalAfter.lines.headOption.map(_.winPct).getOrElse(50.0)
-            val mover = if player == nextGame.position.color then side else 100.0 - side
-            (mover, side)
-      val delta = winAfterForPlayer - winBefore
-      val epBefore = clamp01(winBefore / 100.0)
-      val epAfter = clamp01(winAfterForPlayer / 100.0)
-      val epLoss = math.max(0.0, epBefore - epAfter)
+    // 3. Sequential Enrichment Phase
+    futureRawData.map { rawData =>
+      var prevDeltaForOpp: Double = 0.0
+      val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
+      
+      val timeline = rawData.map { d =>
+        val (output, delta) = enrichPly(d, prevDeltaForOpp, bookExitPly, opening, playerContext)
+        prevDeltaForOpp = delta
+        output
+      }
+      (timeline, finalGame)
+    }
 
-      val baseJudgement =
-        statusAfter match
-          case Some(Status.Mate) => "mate"
-          case Some(Status.Stalemate | Status.Draw | Status.VariantEnd) => "draw"
-          case _ =>
-            if epLoss <= 0.0 then "best"
-            else if epLoss <= 0.05 then "good" // excellent 통합
-            else if epLoss <= 0.10 then "inaccuracy"
-            else if epLoss <= 0.20 then "mistake"
-            else "blunder"
+  private def processPlyParallel(
+      idx: Int,
+      mod: MoveOrDrop,
+      gameBefore: Game,
+      gameAfter: Game,
+      engineService: EngineService,
+      experimentRunner: ExperimentRunner,
+      config: EngineConfig,
+      totalMoves: Int,
+      jobId: Option[String]
+  )(using ec: ExecutionContext): Future[RawPlyData] =
+    val prog = (idx + 1).toDouble / totalMoves
+    jobId.foreach { id => 
+       if (idx % 5 == 0 || idx == totalMoves - 1) 
+         AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
+    }
 
-      val materialBefore = material(game.position.board, player)
-      val materialAfter = material(nextGame.position.board, player)
-      val sacrificed = materialAfter < materialBefore - 1.5 // 말 하나 이상 희생
+    val player = gameBefore.position.color
+    val legalCount = gameBefore.position.legalMoves.size
+    val multiPv = math.min(config.maxMultiPv, math.max(1, legalCount))
+    val fenBefore = Fen.write(gameBefore.position, gameBefore.ply.fullMoveNumber).value
+    val fenAfter = Fen.write(gameAfter.position, gameAfter.ply.fullMoveNumber).value
+    
+    // Request 1 & 2: Before
+    val shallowReq = Analyze(fenBefore, depth = config.shallowDepth, multiPv = multiPv, timeoutMs = config.shallowTimeMs)
+    val deepReq = Analyze(fenBefore, depth = config.deepDepth, multiPv = multiPv, timeoutMs = config.deepTimeMs)
+    
+    // Request 3: After (for accurate winPct if needed)
+    // Only needed if game is not over
+    val statusAfter = gameAfter.position.status
+    val afterReqFuture = statusAfter match
+      case Some(_) => Future.successful(None)
+      case None =>
+        engineService.submit(
+          Analyze(fenAfter, depth = config.deepDepth, multiPv = 1, timeoutMs = config.deepTimeMs)
+        ).map(Some(_))
 
-      val materialDiff = materialAfter - materialBefore
-      val bestMovePv = evalBeforeDeep.lines.headOption.map(_.pv)
-      val bestMaterialDiff = bestMovePv.map { pv =>
-        val bestMove = pv.headOption.getOrElse("") // Should verify Uci parse
-        // Calculate material after BEST move
-        // We need 'game.apply(bestMove)'
-        import chess.format.Uci
-        Uci(bestMove).flatMap(u => game.apply(u).toOption).map { case (bg, _) =>
+    // Features
+    val p4FeaturesBefore = FeatureExtractor.extractPositionFeatures(fenBefore, gameBefore.ply.value)
+    val p4FeaturesAfter = FeatureExtractor.extractPositionFeatures(fenAfter, gameAfter.ply.value)
+    
+    val moverFeaturesBefore = FeatureExtractor.sideFeatures(gameBefore.position, player)
+    val oppFeaturesBefore = FeatureExtractor.sideFeatures(gameBefore.position, !player)
+    val moverFeaturesAfter = FeatureExtractor.sideFeatures(gameAfter.position, player)
+    val oppFeaturesAfter = FeatureExtractor.sideFeatures(gameAfter.position, !player)
+
+    // Candidates & Experiments
+    val p4Candidates = MoveGenerator.generateCandidates(gameBefore.position, p4FeaturesBefore)
+    val runExperimentsFuture = Future.sequence(
+      p4Candidates.map { candidate =>
+        val expType = candidate.candidateType match
+          case MoveGenerator.CandidateType.TacticalCheck => ExperimentType.TacticalCheck
+          case _ => ExperimentType.StructureAnalysis 
+        experimentRunner.run(
+           expType = expType,
+           fen = fenBefore,
+           move = Some(candidate.uci),
+           depth = 10,
+           multiPv = 1,
+           forcedMoves = List(candidate.uci)
+        ).map(res => res.copy(metadata = res.metadata + ("candidateType" -> candidate.candidateType.toString)))
+      }
+    )
+
+    for
+      shallowRes <- engineService.submit(shallowReq)
+      deepRes <- engineService.submit(deepReq)
+      afterResOpt <- afterReqFuture
+      experiments <- runExperimentsFuture
+    yield
+      RawPlyData(
+        plyIndex = idx,
+        gameBefore = gameBefore,
+        gameAfter = gameAfter,
+        move = mod,
+        evalBeforeShallow = shallowRes.eval,
+        evalBeforeDeep = deepRes.eval,
+        evalAfterDeep = afterResOpt.map(_.eval),
+        experiments = experiments,
+        featuresBefore = moverFeaturesBefore, // Wait, features field in output is usually 'moverFeaturesAfter' (current state) or 'moverFeaturesBefore'? 
+        // Original code: features = moverFeatures (which is nextGame/Around).
+        // Let's store all.
+        moverFeaturesBefore = moverFeaturesBefore,
+        oppFeaturesBefore = oppFeaturesBefore,
+        featuresAfter = moverFeaturesAfter,
+        oppFeaturesAfter = oppFeaturesAfter,
+        p4FeaturesBefore = p4FeaturesBefore,
+        p4FeaturesAfter = p4FeaturesAfter
+      )
+
+  private def enrichPly(
+      d: RawPlyData, 
+      prevDeltaForOpp: Double,
+      bookExitPly: Option[Int],
+      opening: Option[Opening.AtPly],
+      playerContext: Option[PlayerContext]
+  ): (PlyOutput, Double) =
+    import d._
+    
+    val player = gameBefore.position.color
+    val winBefore = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(50.0)
+    
+    val statusAfter = gameAfter.position.status
+    val winnerAfter = gameAfter.position.winner
+    
+    val (winAfterForPlayer, sideToMoveWin, evalAfterOpt) =
+      statusAfter match
+        case Some(Status.Mate) =>
+          val sideWin = if winnerAfter.contains(gameAfter.position.color) then 100.0 else 0.0
+          val moverWin = if winnerAfter.contains(player) then 100.0 else 0.0
+          (moverWin, sideWin, None)
+        case Some(_) => // Draw
+          (50.0, 50.0, None)
+        case None =>
+          // evalAfterDeep is from opponent perspective (side to move)
+          val eval = evalAfterDeep.getOrElse(EngineEval(0, Nil)) // Should verify logic if missing
+          val side = eval.lines.headOption.map(_.winPct).getOrElse(50.0)
+          val mover = if player == gameAfter.position.color then side else 100.0 - side
+          (mover, side, Some(eval))
+
+    val delta = winAfterForPlayer - winBefore
+    val epBefore = clamp01(winBefore / 100.0)
+    val epAfter = clamp01(winAfterForPlayer / 100.0)
+    val epLoss = math.max(0.0, epBefore - epAfter)
+
+    val baseJudgement =
+      statusAfter match
+        case Some(Status.Mate) => "mate"
+        case Some(_) => "draw"
+        case _ =>
+          if epLoss <= 0.0 then "best"
+          else if epLoss <= 0.05 then "good"
+          else if epLoss <= 0.10 then "inaccuracy"
+          else if epLoss <= 0.20 then "mistake"
+          else "blunder"
+
+    // Material
+    val materialBefore = material(gameBefore.position.board, player)
+    val materialAfter = material(gameAfter.position.board, player)
+    val sacrificed = materialAfter < materialBefore - 1.5
+    val materialDiff = materialAfter - materialBefore
+
+    // Best move material diff
+    val bestMovePv = evalBeforeDeep.lines.headOption.map(_.pv)
+    val bestMaterialDiff = bestMovePv.flatMap { pv =>
+      pv.headOption.flatMap { bestMoveStr =>
+        chess.format.Uci(bestMoveStr).flatMap(u => gameBefore.apply(u).toOption).map { case (bg, _) =>
            material(bg.position.board, player) - materialBefore
-        }.getOrElse(0.0)
+        }
       }
+    }
 
-      val tacticalMotif =
-        if materialDiff < -0.5 && bestMaterialDiff.exists(_ >= 0.0) && epLoss > 0.1 then Some("Material Loss")
-        else if materialDiff < 0.5 && bestMaterialDiff.exists(_ > 1.0) && epLoss > 0.1 then Some("Missed Tactics") // Missed material gain
-        else if materialDiff > 0.5 then Some("Material Gain")
-        else None
+    val tacticalMotif =
+      if materialDiff < -0.5 && bestMaterialDiff.exists(_ >= 0.0) && epLoss > 0.1 then Some("Material Loss")
+      else if materialDiff < 0.5 && bestMaterialDiff.exists(_ > 1.0) && epLoss > 0.1 then Some("Missed Tactics")
+      else if materialDiff > 0.5 then Some("Material Gain")
+      else None
 
-      val specialBrilliant =
-        sacrificed &&
-          (baseJudgement == "best" || baseJudgement == "excellent") &&
-          epLoss <= 0.02 &&
-          epBefore <= 0.7 && epBefore >= 0.3
+    val specialBrilliant = sacrificed && (baseJudgement == "best" || baseJudgement == "excellent") && epLoss <= 0.02 && epBefore <= 0.7 && epBefore >= 0.3
+    val greatMove = !specialBrilliant && (baseJudgement == "best" || baseJudgement == "excellent" || baseJudgement == "good") && ((epBefore < 0.35 && epAfter >= 0.55) || (epAfter - epBefore) >= 0.2)
+    val miss = (baseJudgement == "inaccuracy" || baseJudgement == "mistake" || baseJudgement == "blunder") && prevDeltaForOpp <= -20
 
-      val greatMove =
-        !specialBrilliant && (baseJudgement == "best" || baseJudgement == "excellent" || baseJudgement == "good") && (
-          (epBefore < 0.35 && epAfter >= 0.55) || // 패배권 → 승리권
-            (epAfter - epBefore) >= 0.2 // 큰 전환
-        )
+    val special = if specialBrilliant then Some("brilliant") else if greatMove then Some("great") else None
+    
+    val inBook = opening.exists(op => gameAfter.ply.value <= op.ply.value)
+    val finalJudgement = if inBook then "book" else baseJudgement
 
-      val miss =
-        (baseJudgement == "inaccuracy" || baseJudgement == "mistake" || baseJudgement == "blunder") &&
-          prevDeltaForOpp <= -20 // 직전에 상대가 큰 실수(내 입장에서는 큰 득점)를 했는데 놓침
+    // Concepts
+    ConceptScorer.computeBreakAndInfiltration(gameAfter.position, gameAfter.position.color)
+    val conceptScoresBefore = ConceptScorer.score(
+      features = moverFeaturesBefore,
+      oppFeatures = oppFeaturesBefore,
+      evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
+      evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
+      multiPvWin = evalBeforeDeep.lines.map(_.winPct),
+      position = gameBefore.position,
+      sideToMove = gameBefore.position.color
+    )
+    val conceptScores = ConceptScorer.score(
+      features = featuresAfter,
+      oppFeatures = oppFeaturesAfter,
+      evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore), // Using Prev Ply Eval for Next Ply Concept? 
+      // Original code used 'evalBeforeShallow' (which was current ply eval) for scoring Next position?
+      // Wait. Original: 
+      // evalBeforeShallow = evalFen(fenBefore)
+      // conceptScores = ConceptScorer.score(..., evalShallowWin = evalBeforeShallow...)
+      // Yes, it used Before eval for After position scoring? That seems odd but I will replicate.
+      // Actually ConceptScorer calculates strictly position based concepts, but uses winPct for 'conversionDifficulty' etc.
+      // If we are scoring the resulting position, we should conceptually use the resulting position's eval.
+      // But let's stick to strict replication of original code block logic unless it's obviously a bug.
+      // Original: val conceptScores = ConceptScorer.score(..., evalShallowWin = evalBeforeShallow.lines...)
+      evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
+      multiPvWin = evalBeforeDeep.lines.map(_.winPct),
+      position = gameAfter.position,
+      sideToMove = gameAfter.position.color,
+      san = move.toSanStr.value
+    )
 
-      val special =
-        if specialBrilliant then Some("brilliant")
-        else if greatMove then Some("great")
-        else None
+    // Map to Concepts case class (Helper)
+    def toConcepts(s: ConceptScorer.Scores) = Concepts(
+      dynamic = s.dynamic, drawish = s.drawish, imbalanced = s.imbalanced, tacticalDepth = s.tacticalDepth,
+      blunderRisk = s.blunderRisk, pawnStorm = s.pawnStorm, fortress = s.fortress, colorComplex = s.colorComplex,
+      badBishop = s.badBishop, goodKnight = s.goodKnight, rookActivity = s.rookActivity, kingSafety = s.kingSafety,
+      dry = s.dry, comfortable = s.comfortable, unpleasant = s.unpleasant, engineLike = s.engineLike,
+      conversionDifficulty = s.conversionDifficulty, sacrificeQuality = s.sacrificeQuality, alphaZeroStyle = s.alphaZeroStyle
+    )
+    val conceptsBefore = toConcepts(conceptScoresBefore)
+    val conceptsCurrent = toConcepts(conceptScores)
+    
+    // Concept Delta
+    val conceptDelta = Concepts(
+        dynamic = conceptsCurrent.dynamic - conceptsBefore.dynamic,
+        drawish = conceptsCurrent.drawish - conceptsBefore.drawish,
+        imbalanced = conceptsCurrent.imbalanced - conceptsBefore.imbalanced,
+        tacticalDepth = conceptsCurrent.tacticalDepth - conceptsBefore.tacticalDepth,
+        blunderRisk = conceptsCurrent.blunderRisk - conceptsBefore.blunderRisk,
+        pawnStorm = conceptsCurrent.pawnStorm - conceptsBefore.pawnStorm,
+        fortress = conceptsCurrent.fortress - conceptsBefore.fortress,
+        colorComplex = conceptsCurrent.colorComplex - conceptsBefore.colorComplex,
+        badBishop = conceptsCurrent.badBishop - conceptsBefore.badBishop,
+        goodKnight = conceptsCurrent.goodKnight - conceptsBefore.goodKnight,
+        rookActivity = conceptsCurrent.rookActivity - conceptsBefore.rookActivity,
+        kingSafety = conceptsCurrent.kingSafety - conceptsBefore.kingSafety,
+        dry = conceptsCurrent.dry - conceptsBefore.dry,
+        comfortable = conceptsCurrent.comfortable - conceptsBefore.comfortable,
+        unpleasant = conceptsCurrent.unpleasant - conceptsBefore.unpleasant,
+        engineLike = conceptsCurrent.engineLike - conceptsBefore.engineLike,
+        conversionDifficulty = conceptsCurrent.conversionDifficulty - conceptsBefore.conversionDifficulty,
+        sacrificeQuality = conceptsCurrent.sacrificeQuality - conceptsBefore.sacrificeQuality,
+        alphaZeroStyle = conceptsCurrent.alphaZeroStyle - conceptsBefore.alphaZeroStyle
+    )
 
-      val inBook = opening.exists(op => nextGame.ply.value <= op.ply.value)
-      val finalJudgement =
-        if inBook then "book"
-        else baseJudgement
+    // Phase Label
+    // Inline logic removal -> moved to shared? No, plan said "Clarify Phase".
+    // I need to keep the inline logic for now or move it helper.
+    // Original had 'phaseTransitionInline'. I will inline it again or define inside object.
+    val (phaseScore, phaseLabelRaw) = phaseTransitionInline(conceptDelta, winBefore)
+    val phaseThreshold = if bookExitPly.contains(gameAfter.ply.value) then 6.0 else 8.0
+    val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= phaseThreshold)
 
-      val moverFeaturesBefore = FeatureExtractor.sideFeatures(game.position, player)
-      val oppFeaturesBefore = FeatureExtractor.sideFeatures(game.position, !player)
-      val moverFeatures = FeatureExtractor.sideFeatures(nextGame.position, player)
-      val oppFeatures = FeatureExtractor.sideFeatures(nextGame.position, !player)
-      ConceptScorer.computeBreakAndInfiltration(nextGame.position, nextGame.position.color)
-      val conceptScoresBefore = ConceptScorer.score(
-        features = moverFeaturesBefore,
-        oppFeatures = oppFeaturesBefore,
-        evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
-        evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
-        multiPvWin = evalBeforeDeep.lines.map(_.winPct),
-        position = game.position,
-        sideToMove = game.position.color
-      )
-      val conceptScores = ConceptScorer.score(
-        features = moverFeatures,
-        oppFeatures = oppFeatures,
-        evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
-        evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
-        multiPvWin = evalBeforeDeep.lines.map(_.winPct),
-        position = nextGame.position,
-        sideToMove = nextGame.position.color,
-        san = mod.toSanStr.value
-      )
-      val concepts = Concepts(
-        dynamic = conceptScores.dynamic,
-        drawish = conceptScores.drawish,
-        imbalanced = conceptScores.imbalanced,
-        tacticalDepth = conceptScores.tacticalDepth,
-        blunderRisk = conceptScores.blunderRisk,
-        pawnStorm = conceptScores.pawnStorm,
-        fortress = conceptScores.fortress,
-        colorComplex = conceptScores.colorComplex,
-        badBishop = conceptScores.badBishop,
-        goodKnight = conceptScores.goodKnight,
-        rookActivity = conceptScores.rookActivity,
-        kingSafety = conceptScores.kingSafety,
-        dry = conceptScores.dry,
-        comfortable = conceptScores.comfortable,
-        unpleasant = conceptScores.unpleasant,
-        engineLike = conceptScores.engineLike,
-        conversionDifficulty = conceptScores.conversionDifficulty,
-        sacrificeQuality = conceptScores.sacrificeQuality,
-        alphaZeroStyle = conceptScores.alphaZeroStyle
-      )
-      val conceptsBefore = Concepts(
-        dynamic = conceptScoresBefore.dynamic,
-        drawish = conceptScoresBefore.drawish,
-        imbalanced = conceptScoresBefore.imbalanced,
-        tacticalDepth = conceptScoresBefore.tacticalDepth,
-        blunderRisk = conceptScoresBefore.blunderRisk,
-        pawnStorm = conceptScoresBefore.pawnStorm,
-        fortress = conceptScoresBefore.fortress,
-        colorComplex = conceptScoresBefore.colorComplex,
-        badBishop = conceptScoresBefore.badBishop,
-        goodKnight = conceptScoresBefore.goodKnight,
-        rookActivity = conceptScoresBefore.rookActivity,
-        kingSafety = conceptScoresBefore.kingSafety,
-        dry = conceptScoresBefore.dry,
-        comfortable = conceptScoresBefore.comfortable,
-        unpleasant = conceptScoresBefore.unpleasant,
-        engineLike = conceptScoresBefore.engineLike,
-        conversionDifficulty = conceptScoresBefore.conversionDifficulty,
-        sacrificeQuality = conceptScoresBefore.sacrificeQuality,
-        alphaZeroStyle = conceptScoresBefore.alphaZeroStyle
-      )
-      val conceptDelta = Concepts(
-        dynamic = concepts.dynamic - conceptsBefore.dynamic,
-        drawish = concepts.drawish - conceptsBefore.drawish,
-        imbalanced = concepts.imbalanced - conceptsBefore.imbalanced,
-        tacticalDepth = concepts.tacticalDepth - conceptsBefore.tacticalDepth,
-        blunderRisk = concepts.blunderRisk - conceptsBefore.blunderRisk,
-        pawnStorm = concepts.pawnStorm - conceptsBefore.pawnStorm,
-        fortress = concepts.fortress - conceptsBefore.fortress,
-        colorComplex = concepts.colorComplex - conceptsBefore.colorComplex,
-        badBishop = concepts.badBishop - conceptsBefore.badBishop,
-        goodKnight = concepts.goodKnight - conceptsBefore.goodKnight,
-        rookActivity = concepts.rookActivity - conceptsBefore.rookActivity,
-        kingSafety = concepts.kingSafety - conceptsBefore.kingSafety,
-        dry = concepts.dry - conceptsBefore.dry,
-        comfortable = concepts.comfortable - conceptsBefore.comfortable,
-        unpleasant = concepts.unpleasant - conceptsBefore.unpleasant,
-        engineLike = concepts.engineLike - conceptsBefore.engineLike,
-        conversionDifficulty = concepts.conversionDifficulty - conceptsBefore.conversionDifficulty,
-        sacrificeQuality = concepts.sacrificeQuality - conceptsBefore.sacrificeQuality,
-        alphaZeroStyle = concepts.alphaZeroStyle - conceptsBefore.alphaZeroStyle
-      )
-      val (phaseScore, phaseLabelRaw) = PhaseClassifier.phaseTransition(conceptDelta, winBefore)
-      val phaseThreshold = if bookExitPly.contains(nextGame.ply.value) then 6.0 else 8.0
-      val phaseLabel = phaseLabelRaw.filter(_ => phaseScore >= phaseThreshold)
-      val bestVsSecondGap = (for
+    val bestVsSecondGap = (for
         top <- evalBeforeDeep.lines.headOption
         second <- evalBeforeDeep.lines.drop(1).headOption
       yield (top.winPct - second.winPct).abs)
-      val bestVsPlayedGap = evalBeforeDeep.lines.headOption.map(_.winPct - winAfterForPlayer)
+    val bestVsPlayedGap = evalBeforeDeep.lines.headOption.map(_.winPct - winAfterForPlayer)
 
-      val semanticTags =
-        SemanticTagger.tags(
-          position = nextGame.position,
-          perspective = player,
-          ply = nextGame.ply,
-          self = moverFeatures,
-          opp = oppFeatures,
-          concepts = Some(conceptScores),
-          winPct = winBefore
-        )
-
-      val baseMistakeCategory =
-        MistakeClassifier.classify(
-          MistakeClassifier.Input(
-            ply = nextGame.ply,
-            judgement = finalJudgement,
-            deltaWinPct = delta,
-            san = mod.toSanStr.value,
-            player = player,
-            inCheckBefore = game.position.check.yes,
-            concepts = concepts,
-            features = moverFeatures,
-            oppFeatures = oppFeatures
-          )
-        )
-      val mistakeCategory = if miss then Some("tactical_miss") else baseMistakeCategory
-
-      val practicality = Some(
-        PracticalityScorer.score(
-          eval = evalBeforeDeep,
-          tacticalDepth = concepts.tacticalDepth,
-          sacrificeQuality = concepts.sacrificeQuality,
-          tags = semanticTags,
-          context = playerContext,
-          turn = player
-        )
+    // Tags & Mistakes
+    val semanticTags = SemanticTagger.tags(
+       position = gameAfter.position, perspective = player, ply = gameAfter.ply,
+       self = featuresAfter, opp = oppFeaturesAfter, concepts = Some(conceptScores), winPct = winBefore
+    )
+    val baseMistakeCategory = MistakeClassifier.classify(
+      MistakeClassifier.Input(
+        ply = gameAfter.ply, judgement = finalJudgement, deltaWinPct = delta, san = move.toSanStr.value,
+        player = player, inCheckBefore = gameBefore.position.check.yes, concepts = conceptsCurrent,
+        features = featuresAfter, oppFeatures = oppFeaturesAfter
       )
+    )
+    val mistakeCategory = if miss then Some("tactical_miss") else baseMistakeCategory
 
-      val gamePhase = PhaseCalculator.getPhase(
-        fen = Fen.write(game).value,
-        ply = nextGame.ply.value,
-        semanticTags = semanticTags
-      )
-      
-      entries += PlyOutput(
-        ply = nextGame.ply,
-        turn = player,
-        san = mod.toSanStr.value,
-        uci = mod.toUci.uci,
-        fen = Fen.write(nextGame).value,
-        fenBefore = Fen.write(game).value,
-        legalMoves = legalCount,
-        features = moverFeatures,
-        evalBeforeShallow = evalBeforeShallow,
-        evalBeforeDeep = evalBeforeDeep,
-        winPctBefore = winBefore,
-        winPctAfterForPlayer = winAfterForPlayer,
-        deltaWinPct = delta,
-        epBefore = epBefore,
-        epAfter = epAfter,
-        epLoss = epLoss,
-        judgement = finalJudgement.toString.toLowerCase,
-        special = special,
-        conceptsBefore = conceptsBefore,
-        concepts = concepts,
-        conceptDelta = conceptDelta,
-        bestVsSecondGap = bestVsSecondGap,
-        bestVsPlayedGap = bestVsPlayedGap,
-        semanticTags = semanticTags,
-        mistakeCategory = mistakeCategory,
-        phaseLabel = phaseLabel,
-        phase = gamePhase.toString.toLowerCase,
-        practicality = practicality,
-        materialDiff = materialDiff,
-        bestMaterialDiff = bestMaterialDiff,
-        tacticalMotif = tacticalMotif
-      )
-      game = nextGame
-      prevDeltaForOpp = delta
-    }
-    entries.result() -> game
+    // Phase Calculation
+    val gamePhase = PhaseCalculator.getPhase(
+       fen = Fen.write(gameBefore).value, ply = gameAfter.ply.value, semanticTags = semanticTags
+    )
 
-  private def material(board: chess.Board, color: chess.Color): Double = 0.0
+    // Phase 4 Concept Labeler
+    val bestEvalVal = evalBeforeDeep.lines.headOption.flatMap(l => l.cp.orElse(l.mate.map(m => if m>0 then 10000-m else -10000+m))).getOrElse(0)
+    // playedEvalRel needs to be from Mover perspective (which is 'player', who made the move)
+    // evalAfterDeep is from Opponent perspective. 
+    // If Opponent CP is X, then Player CP is -X.
+    val playedEvalRel = evalAfterOpt.flatMap(e => 
+       e.lines.headOption.flatMap(l => l.cp.orElse(l.mate.map(m => if m>0 then 10000-m else -10000+m)))
+    ).map(cp => -cp).getOrElse(bestEvalVal) // fallback
+
+    val p4Concepts = ConceptLabeler.labelAll(
+        featuresBefore = p4FeaturesBefore, featuresAfter = p4FeaturesAfter,
+        movePlayedUci = move.toUci.uci, experiments = experiments,
+        baselineEval = bestEvalVal, evalAfterPlayed = playedEvalRel, bestEval = bestEvalVal
+    )
+
+    // Practicality
+    val evalSpread = evalBeforeDeep.lines.take(3) match
+       case lines if lines.size >= 2 => (lines.head.winPct - lines.last.winPct).abs
+       case _ => 0.0
+    val playerElo = playerContext.flatMap(ctx => if player == chess.White then ctx.whiteElo else ctx.blackElo)
+    val practicality = Some(
+       PracticalityScorer.scoreFromConcepts(
+         labels = p4Concepts, evalSpread = evalSpread, tacticalDepth = conceptsCurrent.tacticalDepth, playerElo = playerElo
+       )
+    )
+
+
+
+    // Phase 4.5 Role Labeler Integration
+    val ctx = AnalysisContext(
+      move = move.toUci.uci,
+      evalBefore = Some(evalBeforeDeep),
+      evalAfter = evalAfterOpt,
+      bestMoveBefore = evalBeforeDeep.lines.headOption.map(_.move), // This might be sanitized (Option[String])
+      bestMoveEval = Some(evalBeforeDeep),
+      featuresBefore = p4FeaturesBefore,
+      featuresAfter = p4FeaturesAfter,
+      phaseBefore = p4FeaturesBefore.materialPhase.phase,
+      phaseAfter = p4FeaturesAfter.materialPhase.phase,
+      isCapture = move match { case m: chess.Move => m.captures; case _ => false },
+      isCheck = gameAfter.position.check.yes,
+      isCastle = move match { case m: chess.Move => m.castles; case _ => false }
+    )
+    val newRoles = RoleLabeler.label(ctx).map(_.toString).toList.sorted
+
+    (PlyOutput(
+      ply = gameAfter.ply, turn = player, san = move.toSanStr.value, uci = move.toUci.uci,
+      fen = Fen.write(gameAfter).value, fenBefore = Fen.write(gameBefore).value,
+      legalMoves = gameBefore.position.legalMoves.size,
+      features = featuresAfter,
+      evalBeforeShallow = evalBeforeShallow, evalBeforeDeep = evalBeforeDeep,
+      winPctBefore = winBefore, winPctAfterForPlayer = winAfterForPlayer,
+      deltaWinPct = delta,
+      epBefore = epBefore, epAfter = epAfter, epLoss = epLoss,
+      judgement = finalJudgement.toString.toLowerCase,
+      special = special,
+      conceptsBefore = conceptsBefore, concepts = conceptsCurrent, conceptDelta = conceptDelta,
+      bestVsSecondGap = bestVsSecondGap, bestVsPlayedGap = bestVsPlayedGap,
+      semanticTags = semanticTags, mistakeCategory = mistakeCategory,
+      phaseLabel = phaseLabel, phase = gamePhase.toString.toLowerCase,
+      practicality = practicality,
+      materialDiff = materialDiff, bestMaterialDiff = bestMaterialDiff,
+      tacticalMotif = tacticalMotif,
+      roles = newRoles,
+      conceptLabels = Some(p4Concepts),
+      fullFeatures = Some(p4FeaturesAfter), playedEvalCp = Some(playedEvalRel)
+    ), delta)
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
+  private def material(board: chess.Board, color: chess.Color): Double =
+     board.pieces.foldLeft(0.0) { (acc, piece) =>
+       if piece.color == color then 
+         val v = piece.role match
+            case chess.Pawn => 1.0
+            case chess.Knight => 3.0
+            case chess.Bishop => 3.0
+            case chess.Rook => 5.0
+            case chess.Queen => 9.0
+            case _ => 0.0
+         acc + v
+       else acc
+     }
+
+  private def phaseTransitionInline(delta: Concepts, winPctBefore: Double): (Double, Option[String]) =
+    val dynamicCollapse = if delta.dynamic <= -0.3 && delta.drawish >= 0.3 then 15.0 else 0.0
+    val tacticalDry = if delta.tacticalDepth <= -0.25 && delta.dry >= 0.25 then 12.0 else 0.0
+    val fortressJump = if delta.fortress >= 0.4 then 10.0 else 0.0
+    val comfortLoss = if delta.comfortable <= -0.3 && delta.unpleasant >= 0.3 then 10.0 else 0.0
+    val alphaZeroSpike = if delta.alphaZeroStyle >= 0.35 then 8.0 else 0.0
+    val kingSafetyCollapse = if delta.kingSafety >= 0.4 then 12.0 else 0.0
+    val conversionIssue = if delta.conversionDifficulty >= 0.35 && winPctBefore >= 60 then 8.0 else 0.0
+    val phaseScore = List(dynamicCollapse, tacticalDry, fortressJump, comfortLoss, alphaZeroSpike, kingSafetyCollapse, conversionIssue).max
+    val label = 
+      if dynamicCollapse > 0 then Some("endgame_transition")
+      else if tacticalDry > 0 then Some("tactical_to_positional")
+      else if fortressJump > 0 then Some("fortress_building")
+      else if comfortLoss > 0 then Some("comfort_to_unpleasant")
+      else if alphaZeroSpike > 0 then Some("positional_sacrifice")
+      else if kingSafetyCollapse > 0 then Some("king_exposed")
+      else if conversionIssue > 0 then Some("conversion_difficulty")
+      else None
+    (phaseScore, label)

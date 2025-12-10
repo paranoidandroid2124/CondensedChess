@@ -384,3 +384,29 @@ object LlmClient:
       true
     else
       false
+
+  def bookSectionNarrative(prompt: String): Option[String] =
+    apiKey.flatMap { key =>
+      val body =
+        s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}],
+           |  "generationConfig":{"responseMimeType":"text/plain"}
+           |}""".stripMargin
+      val req = HttpRequest
+        .newBuilder()
+        .uri(URI.create(endpoint + key))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build()
+      
+      try
+        val res = sendWithRetry(req)
+        if res.statusCode() >= 200 && res.statusCode() < 300 then
+           extractText(res.body()).filter(!detectHallucination(_))
+        else
+           System.err.println(s"[llm-section] status=${res.statusCode()} body=${res.body()}")
+           None
+      catch
+        case e: Throwable =>
+           System.err.println(s"[llm-section] request failed: ${e.getMessage}")
+           None
+    }

@@ -1,6 +1,12 @@
 package chess
 package analysis
 
+import chess.analysis.ConceptLabeler.{ ConceptLabels, TransitionTag, TacticTag }
+
+/**
+ * PracticalityScorer V2: Rebuilt on Phase 4 data.
+ * Uses ConceptLabels (tags) instead of direct engine eval.
+ */
 object PracticalityScorer:
 
   final case class Score(
@@ -12,65 +18,52 @@ object PracticalityScorer:
       categoryPersonal: Option[String] = None
   )
 
-  def score(
-      eval: AnalyzePgn.EngineEval,
-      tacticalDepth: Double,
-      sacrificeQuality: Double,
-      tags: List[String],
-      context: Option[AnalysisModel.PlayerContext] = None,
-      turn: chess.Color
+  /**
+   * V2 Implementation: Score from Phase 4 ConceptLabels
+   */
+  def scoreFromConcepts(
+      labels: ConceptLabels,
+      evalSpread: Double,       // (best - 3rd best) winPct spread
+      tacticalDepth: Double,    // 0.0 (shallow) to 1.0 (deep)
+      playerElo: Option[Int] = None
   ): Score =
-    val robustness = computeRobustness(eval)
-    val horizon = computeHorizon(tacticalDepth, context)
-    val naturalness = computeNaturalness(sacrificeQuality, tags)
+    val robustness = computeRobustnessV2(evalSpread)
+    val horizon = computeHorizonV2(tacticalDepth)
+    val naturalness = computeNaturalnessV2(labels)
 
     val overall = 0.5 * robustness + 0.3 * horizon + 0.2 * naturalness
     val categoryGlobal = categorize(overall)
-    
-    val categoryPersonal = context.flatMap { ctx =>
-      val playerElo = if turn == chess.White then ctx.whiteElo else ctx.blackElo
-      categorizePersonal(overall, playerElo, ctx.timeControl)
-    }
+    val categoryPersonal = playerElo.map(elo => categorizePersonal(overall, elo))
 
     Score(overall, robustness, horizon, naturalness, categoryGlobal, categoryPersonal)
 
-  def computeOpponentRobustness(eval: AnalyzePgn.EngineEval): Double =
-    computeRobustness(eval)
+  // --- V2 Helpers ---
 
-  private def computeRobustness(eval: AnalyzePgn.EngineEval): Double =
-    val topLines = eval.lines.take(3)
-    if topLines.isEmpty then 0.0
-    else
-      val best = topLines.head.winPct
-      val worst = topLines.last.winPct
-      val spread = (best - worst).abs
-      // v2: Exponential decay instead of linear
-      // tau=20.0 calibrated so spread=3.2% → robustness≈0.85
-      val tau = 20.0
-      math.max(0.0, math.min(1.0, math.exp(-spread / tau)))
+  private def computeRobustnessV2(evalSpread: Double): Double =
+    // Lower spread = more robust
+    val tau = 20.0
+    math.max(0.0, math.min(1.0, math.exp(-evalSpread / tau)))
 
-  private def computeHorizon(tacticalDepth: Double, context: Option[AnalysisModel.PlayerContext]): Double =
-    // tacticalDepth is typically 0.0 to 1.0 (shallow vs deep eval gap)
-    // High tacticalDepth means the advantage is hidden deep -> Low Horizon
+  private def computeHorizonV2(tacticalDepth: Double): Double =
+    // Higher depth = harder to see = lower horizon score
+    math.max(0.0, math.min(1.0, math.exp(-1.2 * tacticalDepth)))
+
+  private def computeNaturalnessV2(labels: ConceptLabels): Double =
+    var penalty = 0.0
     
-    // v2: Exponential decay with saturating behavior
-    // Time control adjustment: higher k = steeper penalty
-    val k = context.flatMap(_.timeControl).map { tc =>
-      if tc.isBlitz then 1.8      // Steeper penalty in blitz
-      else if tc.isRapid then 1.4 // Moderate penalty in rapid
-      else 1.0
-    }.getOrElse(1.0)
-
-    // exp(-k*tacticalDepth): 0→1.0, 0.5→~0.4-0.6, 1.0→~0.14-0.17
-    clamp(math.exp(-k * tacticalDepth))
-
-  private def computeNaturalness(sacrificeQuality: Double, tags: List[String]): Double =
-    // Penalty for sacrifice
-    val sacrificePenalty = if sacrificeQuality >= 0.5 then 0.2 else 0.0
-    // Penalty for plan change
-    val planShiftPenalty = if tags.exists(_.contains("plan_change")) then 0.1 else 0.0
+    // Penalty for positional sacrifice
+    if labels.transitionTags.contains(TransitionTag.PositionalSacrifice) then
+      penalty += 0.25
     
-    clamp(1.0 - (sacrificePenalty + planShiftPenalty))
+    // Penalty for engine-only tactics
+    if labels.tacticTags.exists(t => t == TacticTag.GreekGiftUnsound) then
+      penalty += 0.2
+    
+    // Penalty for comfort loss
+    if labels.transitionTags.contains(TransitionTag.ComfortToUnpleasant) then
+      penalty += 0.15
+    
+    math.max(0.0, math.min(1.0, 1.0 - penalty))
 
   private def categorize(score: Double): String =
     if score >= 0.85 then "Human-Friendly"
@@ -78,24 +71,26 @@ object PracticalityScorer:
     else if score >= 0.3 then "Engine-Like"
     else "Computer-Only"
 
-  private def categorizePersonal(
-      rawScore: Double, 
-      playerElo: Option[Int], 
-      timeControl: Option[AnalysisModel.TimeControl]
-  ): Option[String] =
-    playerElo.map { elo =>
-      // Rating-based scaling
-      // Lower rated players get a boost (easier to be considered Human-Friendly)
-      // Higher rated players get a penalty (stricter standards)
-      val scaleFactor = 
-        if elo < 1200 then 0.8
-        else if elo < 1600 then 0.9
-        else if elo < 2000 then 1.0
-        else if elo < 2400 then 1.1
-        else 1.2 // GM level finds many moves 'natural'
+  private def categorizePersonal(rawScore: Double, elo: Int): String =
+    val scaleFactor =
+      if elo < 1200 then 0.8
+      else if elo < 1600 then 0.9
+      else if elo < 2000 then 1.0
+      else if elo < 2400 then 1.1
+      else 1.2
+    categorize(rawScore * scaleFactor)
 
-      val adjustedScore = rawScore * scaleFactor
-      categorize(adjustedScore)
-    }
+  // --- Legacy Helper (kept for CriticalDetector.computeOpponentRobustness) ---
 
-  private def clamp(d: Double): Double = math.max(0.0, math.min(1.0, d))
+  def computeOpponentRobustness(eval: AnalyzePgn.EngineEval): Double =
+    computeRobustnessLegacy(eval)
+
+  private def computeRobustnessLegacy(eval: AnalyzePgn.EngineEval): Double =
+    val topLines = eval.lines.take(3)
+    if topLines.isEmpty then 0.0
+    else
+      val best = topLines.head.winPct
+      val worst = topLines.last.winPct
+      val spread = (best - worst).abs
+      val tau = 20.0
+      math.max(0.0, math.min(1.0, math.exp(-spread / tau)))

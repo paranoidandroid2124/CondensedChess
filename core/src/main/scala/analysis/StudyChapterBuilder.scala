@@ -129,7 +129,14 @@ object StudyChapterBuilder:
             eval = p.evalBeforeDeep.lines.headOption.flatMap(_.cp).getOrElse(0).toDouble, // Use deep eval
             evalType = "cp",
             judgement = p.judgement,
-            glyph = "", // TODO: Map judgement to glyph
+            glyph = p.judgement match
+              case "brilliant" => "!!"
+              case "good" | "best" => "!"
+              case "mistake" => "?"
+              case "blunder" => "??"
+              case "inaccuracy" => "?!"
+              case _ => ""
+            ,
             tags = p.semanticTags,
             bestMove = p.evalBeforeDeep.lines.headOption.map(_.move),
             bestEval = p.evalBeforeDeep.lines.headOption.flatMap(_.cp).map(_.toDouble),
@@ -246,7 +253,7 @@ object StudyChapterBuilder:
       
       val finalTags = List(adjTag, moodTag) ++ enrichedTags
 
-      val arc = NarrativeTemplates.detectArc(anchor.deltaWinPct)
+      val arc = NarrativeTemplates.detectArc(anchor.deltaWinPct, anchor.winPctBefore)
       val metadata = NarrativeTemplates.buildChapterMetadata(anchor.ply.value, finalTags, phase, arc, anchor.studyScore)
 
       StudyChapter(
