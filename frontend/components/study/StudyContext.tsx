@@ -46,7 +46,7 @@ export const StudyProvider: React.FC<{
         // router.replace(`?${params.toString()}`, { scroll: false }); 
         // Optimization: Debounce URL updates if ply changes rapidly (e.g. scrubbing).
         // For now, simple.
-    }, [currentChapterIndex, currentPly]);
+    }, [currentChapterIndex, currentPly, searchParams, router]);
 
     const setChapter = (index: number) => {
         if (index >= 0 && index < study.book.sections.length) {

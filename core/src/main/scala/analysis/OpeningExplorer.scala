@@ -40,25 +40,40 @@ object OpeningExplorer:
   )
 
   private def defaultDbCandidates: List[String] =
-    val fallback = "opening/masters_stats.db"
+    val filename = "masters_stats.db"
+    val relativePath = s"opening/$filename"
     val cwd = Paths.get("").toAbsolutePath
+    
+    // 1. Check direct relative path from CWD
+    val candidates = scala.collection.mutable.ListBuffer(cwd.resolve(relativePath))
+
+    // 2. Traverse up from CWD (up to 5 levels) to find project root containing "opening" folder
+    var current = cwd
+    for (_ <- 1 to 5) {
+      if (current.getParent != null) {
+        current = current.getParent
+        candidates += current.resolve(relativePath)
+      }
+    }
+    
+    // 3. Fallback to classpath/codebase locations (existing logic)
     val codeBase: List[Path] =
       Option(getClass.getProtectionDomain)
         .flatMap(pd => Option(pd.getCodeSource))
         .flatMap(cs => Option(cs.getLocation))
         .flatMap(url => scala.util.Try(Paths.get(url.toURI)).toOption)
         .toList
-    val roots = (cwd :: codeBase.flatMap(p => List(p, p.getParent, Option(p.getParent).flatMap(pp => Option(pp.getParent)).getOrElse(p)))).distinct
-    (for
-      root <- roots
-    yield root.resolve(fallback).normalize.toString).distinct
+        
+    val codeBaseRoots = codeBase.flatMap(p => List(p, p.getParent)).filter(_ != null).distinct
+    candidates ++= codeBaseRoots.map(_.resolve(relativePath))
+
+    candidates.map(_.normalize.toString).distinct.toList
 
   private lazy val dbPaths: List[String] =
-    sys.env
-      .get("OPENING_STATS_DB_LIST")
+    EnvLoader.get("OPENING_STATS_DB_LIST")
       .filter(_.nonEmpty)
       .map(_.split("[,;]").toList.map(_.trim).filter(_.nonEmpty))
-      .orElse(sys.env.get("OPENING_STATS_DB").map(p => List(p.trim)).filter(_.nonEmpty))
+      .orElse(EnvLoader.get("OPENING_STATS_DB").map(p => List(p.trim)).filter(_.nonEmpty))
       .getOrElse(defaultDbCandidates)
 
   private lazy val connections: List[(String, Connection)] =

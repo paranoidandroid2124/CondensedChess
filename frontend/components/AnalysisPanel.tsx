@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export type TabId = "opening" | "moves" | "tree" | "study" | "concepts";
+export type TabId = "opening" | "moves" | "study" | "concepts";
 
 type TabConfig = { id: TabId; label: string; icon?: string };
 
@@ -21,7 +21,6 @@ export function AnalysisPanel({ children, tabs, activeTab: controlledTab, onTabC
     [
       { id: "opening", label: "Opening", icon: "📖" },
       { id: "moves", label: "Moves", icon: "↔️" },
-      { id: "tree", label: "Tree", icon: "🌿" },
       { id: "study", label: "Study", icon: "🎓" },
       { id: "concepts", label: "Concepts", icon: "💡" }
     ];

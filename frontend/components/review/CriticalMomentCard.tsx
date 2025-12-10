@@ -37,7 +37,7 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
       )}
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold text-white">
-          Ply {c.ply}
+          {`Move ${Math.ceil(c.ply / 2)}${c.ply % 2 === 0 ? "..." : ""}`}
           <span className="ml-2 text-xs text-white/60">{humanReason(c.reason)}</span>
         </div>
         <div className="flex items-center gap-2">

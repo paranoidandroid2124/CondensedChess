@@ -46,7 +46,7 @@ object AnalysisModel:
   object EngineConfig:
     def fromEnv(): EngineConfig =
       def intEnv(key: String, default: Int) =
-        sys.env.get(key).flatMap(_.toIntOption).filter(_ > 0).getOrElse(default)
+        EnvLoader.get(key).flatMap(_.toIntOption).filter(_ > 0).getOrElse(default)
       EngineConfig(
         shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 6),
         deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 14),

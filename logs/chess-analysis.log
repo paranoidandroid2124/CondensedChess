@@ -1,4 +1,1 @@
-2025-12-10 14:18:38.267 [scala-execution-context-global-140] ERROR chess.engine.service - Job failed: Mock Engine Crash
-2025-12-10 14:18:38.281 [scala-execution-context-global-140] WARN  chess.engine.service - Retrying job due to engine error: Engine timeout (soft mock) (attempts left: 2)
-2025-12-10 14:18:38.387 [scala-execution-context-global-140] WARN  chess.engine.service - Retrying job due to engine error: Engine timeout (soft mock) (attempts left: 1)
-2025-12-10 14:18:38.503 [scala-execution-context-global-142] ERROR chess.engine.service - Job failed: Engine timeout (soft mock)
+2025-12-11 00:05:56.903 [sbt-bg-threads-1] INFO  chess.api - Listening on 0.0.0.0:8080 (shallow=14/deep=22, multipv=3)

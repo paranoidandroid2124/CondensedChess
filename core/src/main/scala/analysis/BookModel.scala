@@ -111,7 +111,8 @@ object BookModel:
     diagrams: List[BookDiagram],
     narrativeHint: String,
     startPly: Int,
-    endPly: Int
+    endPly: Int,
+    metadata: Option[SectionMetadata] = None
   )
 
   case class BookStructureSection(
@@ -131,6 +132,13 @@ object BookModel:
     hintTags: List[String] // Using String representation of Enums for simplicity or Enums themselves? User said Union of Tags. List[Any] is ugly. Let's use List[String] of tag names.
   )
 
+  case class SectionMetadata(
+    theme: String,
+    atmosphere: String,
+    context: Map[String, String]
+  )
+
+  // New Unified Chapter format (Phase 1 legacy kept)
   case class GameMeta(
     white: String,
     black: String,

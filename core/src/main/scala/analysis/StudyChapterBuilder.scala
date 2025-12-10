@@ -254,7 +254,7 @@ object StudyChapterBuilder:
       val finalTags = List(adjTag, moodTag) ++ enrichedTags
 
       val arc = NarrativeTemplates.detectArc(anchor.deltaWinPct, anchor.winPctBefore)
-      val metadata = NarrativeTemplates.buildChapterMetadata(anchor.ply.value, finalTags, phase, arc, anchor.studyScore)
+      val metadata = NarrativeTemplates.buildChapterMetadata(finalTags, phase, arc)
 
       StudyChapter(
         id = id,

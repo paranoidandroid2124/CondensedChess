@@ -9,6 +9,8 @@ interface AnnotationViewProps {
     rootNode?: ReviewTreeNode;
     selectedPly: number | null;
     onSelectPly: (ply: number) => void;
+    onPreviewFen?: (fen: string | null) => void;
+    onSelectNode?: (node: ReviewTreeNode) => void;
 }
 
 // Helper to find a node in the tree by ply
@@ -28,7 +30,8 @@ function LegacyAnnotationView({
     review,
     rootNode,
     selectedPly,
-    onSelectPly
+    onSelectPly,
+    onPreviewFen
 }: AnnotationViewProps) {
     // Sort chapters by Ply (chronological order)
     const chapters = useMemo(() => {
@@ -102,6 +105,7 @@ function LegacyAnnotationView({
                             rootNode={chapterRootNode}
                             onSelectPly={onSelectPly}
                             currentPly={selectedPly}
+                            onPreviewFen={onPreviewFen}
                         />
                     ) : (
                         <div className="text-white/40 text-center py-10">
@@ -115,14 +119,17 @@ function LegacyAnnotationView({
 }
 
 // Main export - routes to BookView or Legacy based on data availability
-export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: AnnotationViewProps) {
+export function AnnotationView({ review, rootNode, selectedPly, onSelectPly, onPreviewFen, onSelectNode }: AnnotationViewProps) {
     // If Phase 4.6 Book is available, use the new BookView
     if (review.book) {
         return (
             <div className="h-full overflow-y-auto">
                 <BookViewContainer
                     book={review.book}
+                    root={rootNode}
                     onSelectPly={onSelectPly}
+                    onPreviewFen={onPreviewFen}
+                    onSelectNode={onSelectNode}
                 />
             </div>
         );
@@ -135,6 +142,7 @@ export function AnnotationView({ review, rootNode, selectedPly, onSelectPly }: A
             rootNode={rootNode}
             selectedPly={selectedPly}
             onSelectPly={onSelectPly}
+            onPreviewFen={onPreviewFen}
         />
     );
 }

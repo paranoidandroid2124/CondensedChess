@@ -1,5 +1,7 @@
 {
   "files.watcherExclude": {
     "**/target": true
-  }
+  },
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore"
 }

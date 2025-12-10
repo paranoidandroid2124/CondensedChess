@@ -32,6 +32,12 @@ export interface BookDiagram {
     tags: TagBundle;
 }
 
+export interface SectionMetadata {
+    theme: string;
+    atmosphere: string;
+    context: Record<string, string>;
+}
+
 export interface BookSection {
     title: string;
     sectionType: SectionType;
@@ -39,6 +45,7 @@ export interface BookSection {
     narrativeHint: string;
     startPly: number;
     endPly: number;
+    metadata?: SectionMetadata;
 }
 
 export interface BookTurningPoint {

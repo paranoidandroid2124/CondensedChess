@@ -37,7 +37,10 @@ object LlmAnnotator:
 
   private def labelSafe(text: String, maxMoveNumber: Int): Boolean =
     // 허용 범위를 벗어난 수 번호가 등장하면 폐기
-    val movePattern = "(\\d+)\\.{1,3}".r
+    // IMPORTANT: 백분율("86.6%")이 "86."으로 오인되지 않도록, 뒤에 공백이나 텍스트가 오는 경우만 매칭 (negative lookahead/boundary)
+    // Old: "(\\d+)\\.{1,3}" -> matches "86." in "86.6%"
+    // New: "(?:^|\\s)(\\d+)\\.+(?=\\s)" -> requires space after dot
+    val movePattern = "(?:^|\\s)(\\d+)\\.+(?=\\s)".r
     val nums = movePattern.findAllMatchIn(text).flatMap(m => m.group(1).toIntOption).toList
     val result = nums.isEmpty || nums.forall(n => n >= 1 && n <= maxMoveNumber)
     if !result then
@@ -55,12 +58,20 @@ object LlmAnnotator:
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
     
-    // Helper to find max ply in tree
-    def findMaxPly(node: AnalyzePgn.TreeNode): Int =
-      node.children.map(findMaxPly).foldLeft(node.ply)(math.max)
+    val mainlineMax = output.timeline.lastOption.map(_.ply.value).getOrElse(0)
+    
+    val criticalMax = output.critical.map { c =>
+      val maxBranchLen = if c.branches.nonEmpty then c.branches.map(_.pv.length).max else 0
+      c.ply.value + maxBranchLen
+    }.maxOption.getOrElse(0)
 
-    val maxPly = output.root.map(findMaxPly).getOrElse(output.timeline.lastOption.map(_.ply.value).getOrElse(0))
-    val maxMoveNumber = math.max(1, (maxPly + 1) / 2)
+    val studyMax = output.studyChapters.flatMap { ch =>
+       ch.lines.map(l => ch.anchorPly + l.pv.length)
+    }.maxOption.getOrElse(0)
+
+    val maxPly = math.max(mainlineMax, math.max(criticalMax, studyMax))
+    // Add a buffer of 2 plies just in case of off-by-one or immediate follow-ups
+    val maxMoveNumber = math.max(1, (maxPly + 2 + 1) / 2)
     val preview = renderPreview(output, timelineByPly)
     val critPreview = criticalPreview(output, timelineByPly)
 
@@ -108,8 +119,11 @@ object LlmAnnotator:
             val segment = output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
             
             val prompt = NarrativeTemplates.buildSectionPrompt(section.sectionType, section.title, segment, section.diagrams)
-            val narrative = LlmClient.bookSectionNarrative(prompt).getOrElse(section.narrativeHint) // Fallback to key phrase
-            section.copy(narrativeHint = narrative)
+            val result = LlmClient.bookSectionNarrative(prompt)
+            
+            result match
+              case Some(sn) => section.copy(narrativeHint = sn.narrative, metadata = sn.metadata)
+              case None => section // Keep original hint
           }
           Some(book.copy(sections = annotatedSections))
         case None => None
