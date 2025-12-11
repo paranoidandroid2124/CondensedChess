@@ -45,6 +45,7 @@ object OpeningExplorer:
     val cwd = Paths.get("").toAbsolutePath
     
     // 1. Check direct relative path from CWD
+    println(s"[opening] DEBUG: CWD = $cwd")
     val candidates = scala.collection.mutable.ListBuffer(cwd.resolve(relativePath))
 
     // 2. Traverse up from CWD (up to 5 levels) to find project root containing "opening" folder
@@ -67,7 +68,9 @@ object OpeningExplorer:
     val codeBaseRoots = codeBase.flatMap(p => List(p, p.getParent)).filter(_ != null).distinct
     candidates ++= codeBaseRoots.map(_.resolve(relativePath))
 
-    candidates.map(_.normalize.toString).distinct.toList
+    val finalCandidates = candidates.map(_.normalize.toString).distinct.toList
+    println(s"[opening] DEBUG: Candidates = $finalCandidates")
+    finalCandidates
 
   private lazy val dbPaths: List[String] =
     EnvLoader.get("OPENING_STATS_DB_LIST")
@@ -82,8 +85,9 @@ object OpeningExplorer:
         val conn = DriverManager.getConnection(s"jdbc:sqlite:$path")
         Some(path -> conn)
       catch
-        case _: Throwable =>
+        case e: Throwable =>
           System.err.println(s"[opening] failed to open db at $path")
+          e.printStackTrace()
           None
     }
 

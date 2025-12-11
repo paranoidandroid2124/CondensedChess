@@ -1,0 +1,36 @@
+# Stage 1: Build the 'fat jar' using SBT
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.4_1.7.1_3.2.0 AS builder
+
+WORKDIR /app
+
+# COPY build configuration first to cache dependencies
+COPY build.sbt .
+COPY project/ project/
+
+# Copy source code
+COPY core/ core/
+
+# Build the assembly jar
+# We invoke 'assembly' on the 'scalachess' project
+RUN sbt "project scalachess" assembly
+
+# Stage 2: Runtime environment
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+# Install Stockfish (Required for engine analysis)
+# We use a specific version or latest from apt if simple, but for stability, downloading a static binary is often better.
+# For now, apt-get is easiest for "Debian" based images (temurin is Ubuntu/Debian based).
+RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/*
+
+# Copy the built jar from the builder stage
+# Note: The jar path depends on the sbt-assembly output, typically target/scala-3.x/scalachess-assembly-<version>.jar
+# We use a wildcard to avoid version hardcoding issues, but we must be careful.
+COPY --from=builder /app/core/target/scala-*/scalachess-assembly-*.jar /app/app.jar
+
+# Expose the API port (Default 8080)
+EXPOSE 8080
+
+# Run the application
+CMD ["java", "-jar", "/app/app.jar"]

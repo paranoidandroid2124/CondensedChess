@@ -1,17 +1,22 @@
 import React from "react";
-import { ReviewTreeNode } from "../../../types/review";
+import { ReviewTreeNode, Branch, TimelineNode } from "../../../types/review";
 
 import { MiniBoard } from "../../common/MiniBoard";
 import { BookDiagram } from "../../../types/review";
+import { HypothesisDiagram } from "./HypothesisDiagram";
 
 interface NarrativeRendererProps {
     node: ReviewTreeNode;
     depth?: number;
     variationLabel?: string;
     onInteract?: (node: ReviewTreeNode) => void;
+    onMoveHover?: (node: ReviewTreeNode | null) => void;
     diagrams?: BookDiagram[]; // Pass diagrams for inline rendering
     endPly?: number; // Optional limit to stop rendering
+    timeline?: TimelineNode[]; // For hypotheses lookup
+    onHypothesisHover?: (branch: Branch | null) => void;
 }
+
 
 // Helper to convert bold markdown to JSX
 function renderMarkdown(text: string) {
@@ -26,11 +31,12 @@ function renderMarkdown(text: string) {
 }
 
 // Move Span Component
-const MoveSpan = ({ node, isFirst, variationLabel, onInteract }: {
+const MoveSpan = ({ node, isFirst, variationLabel, onInteract, onMoveHover }: {
     node: ReviewTreeNode,
     isFirst?: boolean,
     variationLabel?: string,
-    onInteract?: (node: ReviewTreeNode) => void
+    onInteract?: (node: ReviewTreeNode) => void,
+    onMoveHover?: (node: ReviewTreeNode | null) => void
 }) => {
     const isHypothesis = node.nodeType === "hypothesis";
     // Check if this move starts a sentence or is Black's move to determine numbering
@@ -56,6 +62,8 @@ const MoveSpan = ({ node, isFirst, variationLabel, onInteract }: {
                     ${isHypothesis ? "text-red-400 decoration-red-900 underline decoration-dashed" : "font-semibold text-sky-300"}
                 `}
                 onClick={() => onInteract?.(node)}
+                onMouseEnter={() => onMoveHover?.(node)}
+                onMouseLeave={() => onMoveHover?.(null)}
             >
                 {node.san}
             </span>
@@ -75,7 +83,8 @@ const MoveSpan = ({ node, isFirst, variationLabel, onInteract }: {
     );
 };
 
-export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract, diagrams, endPly }: NarrativeRendererProps) {
+
+export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract, onMoveHover, diagrams, endPly, timeline, onHypothesisHover }: NarrativeRendererProps) {
     // Flatten logic: 
     // We want to transform the tree into a list of "Paragraphs" and "Variation Blocks".
     // But since this component is called recursively, we handle the CURRENT sequence.
@@ -128,6 +137,7 @@ export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract,
                                 isFirst={idx === 0 && !!variationLabel}
                                 variationLabel={idx === 0 ? variationLabel : undefined}
                                 onInteract={onInteract}
+                                onMoveHover={onMoveHover}
                             />
                             {/* Inline Diagram Injection: Only for Mainline (depth 0) to avoid clutter in variations */}
                             {diag && depth === 0 && (
@@ -142,6 +152,23 @@ export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract,
                                     </div>
                                 </div>
                             )}
+                            {/* Hypothesis Diagram: Show for mainline nodes with hypotheses */}
+                            {depth === 0 && (() => {
+                                const timelineNode = timeline?.find(t => t.ply === n.ply);
+                                const hypotheses = timelineNode?.hypotheses;
+                                if (hypotheses && hypotheses.length > 0) {
+                                    return (
+                                        <div className="clear-both my-4 flex justify-center">
+                                            <HypothesisDiagram
+                                                fen={n.fen}
+                                                hypotheses={hypotheses}
+                                                onHoverBranch={onHypothesisHover}
+                                            />
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </React.Fragment>
                     );
                 })}
@@ -158,8 +185,10 @@ export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract,
                                 depth={depth + 1}
                                 variationLabel={String.fromCharCode(65 + i) + ")"}
                                 onInteract={onInteract}
-                                diagrams={diagrams} // Pass down
-                            // We do NOT pass endPly to variations. Variations should play out fully.
+                                onMoveHover={onMoveHover}
+                                diagrams={diagrams}
+                                timeline={timeline}
+                                onHypothesisHover={onHypothesisHover}
                             />
                         </div>
                     ))}
@@ -170,10 +199,13 @@ export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract,
                         <div className="mt-2 pt-1">
                             <NarrativeRenderer
                                 node={lastNode.children[0]}
-                                depth={depth} // Maintain depth for mainline
+                                depth={depth}
                                 onInteract={onInteract}
-                                diagrams={diagrams} // Pass down
-                                endPly={endPly} // Pass down limit
+                                onMoveHover={onMoveHover}
+                                diagrams={diagrams}
+                                endPly={endPly}
+                                timeline={timeline}
+                                onHypothesisHover={onHypothesisHover}
                             />
                         </div>
                     )}

@@ -65,8 +65,8 @@ object BookBuilder:
     val openingEnd = Math.min(limit, 16) // Heuristic: first 8 moves
     if openingEnd > 0 then
       sections += createSection(
-        "Opening Phase", 
-        SectionType.OpeningPortrait, 
+        "Opening Analysis", 
+        SectionType.OpeningReview, 
         timeline.take(openingEnd), 
         "Key development decisions and opening strategy."
       )
@@ -80,8 +80,8 @@ object BookBuilder:
     if endgameStart != -1 then
       val egPlys = timeline.drop(endgameStart)
       sections += createSection(
-        "Endgame", 
-        SectionType.EndgameMasterclass, 
+        "Endgame Lessons", 
+        SectionType.EndgameLessons, 
         egPlys, 
         "Conversion and technical play in the endgame."
       )
@@ -96,21 +96,9 @@ object BookBuilder:
     val IDEAL_CHUNK_SIZE = 12
 
     var buffer = Vector.empty[PlyOutput]
-    var currentType = SectionType.StructuralDeepDive // Default starting type
-    // We will determine the "Type" of the section *after* collecting the chunk, based on its dominant content.
-    
-    // Explicit Turning Points that MUST start a new section (unless too close to start)
-    // - GameDecider (Role)
-    // - BlunderPunishment (Role)
-    // - High concept shift?
     
     plys.foreach { p =>
       val isCrisis = p.roles.exists(r => r == "GameDecider" || r == "BlunderPunishment")
-      val isViolence = p.roles.exists(r => r == "Violence" || r == "Complication")
-      
-      // Decision to flush:
-      // 1. If buffer >= IDEAL_CHUNK_SIZE
-      // 2. If buffer >= MIN_CHUNK_SIZE AND we hit a Crisis (major turning point)
       
       val hitLimit = buffer.size >= IDEAL_CHUNK_SIZE
       val hitCrisis = buffer.size >= MIN_CHUNK_SIZE && isCrisis
@@ -118,7 +106,8 @@ object BookBuilder:
       if (hitLimit || hitCrisis) then
         // Flush buffer
         val (finalType, finalTitle) = analyzeChunk(buffer)
-        sections += createSection(finalTitle, finalType, buffer, getNarrativeHint(finalType))
+        val specificHint = generateSpecificHint(buffer, finalType)
+        sections += createSection(finalTitle, finalType, buffer, specificHint)
         buffer = Vector.empty
       
       buffer = buffer :+ p
@@ -127,7 +116,8 @@ object BookBuilder:
     // Flush remaining
     if buffer.nonEmpty then
       val (finalType, finalTitle) = analyzeChunk(buffer)
-      sections += createSection(finalTitle, finalType, buffer, getNarrativeHint(finalType))
+      val specificHint = generateSpecificHint(buffer, finalType)
+      sections += createSection(finalTitle, finalType, buffer, specificHint)
       
     sections.result()
 
@@ -141,14 +131,24 @@ object BookBuilder:
     val tacticRatio = tacticalCount.toDouble / total
     
     if crisisCount > 0 then
-      (SectionType.CriticalCrisis, "Critical Turning Point")
+      (SectionType.TurningPoints, "Turning Point")
     else if tacticRatio > 0.4 then
-      (SectionType.TacticalStorm, "Tactical Complications")
+      (SectionType.TacticalStorm, "Tactical Storm")
     else if blunderCount >= 2 then
-      (SectionType.StructuralDeepDive, "Missed Opportunities") // Or Strategic Errors? keeping it simple
+      (SectionType.MiddlegamePlans, "Missed Opportunities") 
     else
-      // Default to Structural/Strategic
-      (SectionType.StructuralDeepDive, "Strategic Maneuvering")
+      (SectionType.MiddlegamePlans, "Strategic Plans")
+
+  private def generateSpecificHint(plys: Vector[PlyOutput], tpe: SectionType): String =
+    // Try to find dominant plan tags
+    val plans = plys.flatMap(_.conceptLabels).flatMap(_.planTags).groupBy(identity).maxByOption(_._2.size).map(_._1.toString.replaceAll("([a-z])([A-Z])", "$1 $2"))
+    
+    tpe match
+      case SectionType.TurningPoints => "Analysis of the decisive moment."
+      case SectionType.TacticalStorm => "A sharp tactical sequence."
+      case SectionType.MiddlegamePlans => 
+         plans.map(p => s"Focus on $p.").getOrElse("Positional play and planning.")
+      case _ => "Continuing the game."
 
   private def createSection(title: String, tpe: SectionType, plys: Vector[PlyOutput], narrative: String): BookSection =
     // Smart Diagram Selection:
@@ -177,7 +177,7 @@ object BookBuilder:
 
     // If section is long (>10 plies) and no diagrams selected, add the LAST one (final state)
     // ALSO: If it's an Opening Portrait, we MUST include the final state as per user request
-    val forceLast = (selectedDiagrams.isEmpty && plys.length > 8) || (tpe == SectionType.OpeningPortrait && plys.nonEmpty)
+    val forceLast = (selectedDiagrams.isEmpty && plys.length > 8) || (tpe == SectionType.OpeningReview && plys.nonEmpty)
     
     if (forceLast) {
        val last = plys.last
@@ -199,27 +199,18 @@ object BookBuilder:
 
   private def determineTitle(tpe: SectionType): String =
     tpe match
-      case SectionType.OpeningPortrait => "The Opening"
-      case SectionType.CriticalCrisis => "Critical Turning Point"
-      case SectionType.TacticalStorm => "Tactical Complications"
-      case SectionType.StructuralDeepDive => "Strategic Maneuvering"
-      case SectionType.EndgameMasterclass => "Endgame Technique"
-      case SectionType.NarrativeBridge => "Game Flow"
-      // New checklist-aligned types (Phase 1)
-      case SectionType.TitleSummary => "Game Summary"
-      case SectionType.KeyDiagrams => "Key Positions"
-      case SectionType.OpeningReview => "Opening Analysis"
-      case SectionType.TurningPoints => "Turning Points"
-      case SectionType.TacticalMoments => "Tactical Highlights"
+      case SectionType.OpeningReview => "The Opening"
+      case SectionType.TurningPoints => "Turning Point"
+      case SectionType.TacticalStorm => "Tactical Storm"
       case SectionType.MiddlegamePlans => "Strategic Plans"
-      case SectionType.EndgameLessons => "Endgame Lessons"
-      case SectionType.FinalChecklist => "Key Takeaways"
+      case SectionType.EndgameLessons => "Endgame Technique"
+      case _ => "Game Section"
 
   private def getNarrativeHint(tpe: SectionType): String =
     tpe match
-      case SectionType.CriticalCrisis => "Analysis of the decisive moment."
+      case SectionType.TurningPoints => "Analysis of the decisive moment."
       case SectionType.TacticalStorm => "A sharp tactical sequence."
-      case SectionType.StructuralDeepDive => "Positional play and planning."
+      case SectionType.MiddlegamePlans => "Positional play and planning."
       case _ => "Continuing the game."
 
   private def toBookDiagram(p: PlyOutput): BookDiagram =
@@ -281,8 +272,8 @@ object BookBuilder:
   ): List[ChecklistBlock] =
     val blocks = List.newBuilder[ChecklistBlock]
     
-    // 1. Structure (Gather from Structural Sections)
-    val structTags = sections.filter(_.sectionType == SectionType.StructuralDeepDive)
+    // 1. Structure (Gather from Strategic Sections)
+    val structTags = sections.filter(_.sectionType == SectionType.MiddlegamePlans)
       .flatMap(_.diagrams.flatMap(_.tags.structure))
       .distinct
       .map(_.toString)
@@ -297,7 +288,7 @@ object BookBuilder:
     if mistakeTags.nonEmpty then blocks += ChecklistBlock("Critical Errors", mistakeTags)
 
     // 4. Endgame
-    val endgameTags = sections.filter(_.sectionType == SectionType.EndgameMasterclass)
+    val endgameTags = sections.filter(_.sectionType == SectionType.EndgameLessons)
       .flatMap(_.diagrams.flatMap(_.tags.endgame))
       .distinct
       .map(_.toString)

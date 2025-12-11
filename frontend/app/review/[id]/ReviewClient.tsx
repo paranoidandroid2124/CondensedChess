@@ -8,7 +8,7 @@ import { Key } from "chessground/types";
 import { SummaryHero } from "../../../components/review/SummaryHero";
 import { ReviewErrorView } from "../../../components/review/ReviewErrorView";
 import { BoardSection } from "../../../components/review/BoardSection";
-import { TimelineView } from "../../../components/review/TimelineView";
+// TimelineView import removed
 import { ProgressBanner } from "../../../components/review/ProgressBanner";
 import { useInstantTimeline } from "../../../hooks/useInstantTimeline";
 import { useReviewPolling } from "../../../hooks/useReviewPolling";
@@ -21,6 +21,7 @@ import type { TabId } from "../../../components/AnalysisPanel";
 import { CommentCard } from "../../../components/review/CommentCard";
 import { BestAlternatives } from "../../../components/BestAlternatives";
 import type { VariationEntry } from "../../../components/review/TimelineView";
+import { EngineSettingsModal } from "../../../components/review/EngineSettingsModal";
 
 export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const { review, loading, pendingMessage, pollStartTime, pollAttempt, error, setReview, progressInfo } = useReviewPolling(reviewId);
@@ -57,7 +58,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const instantTimeline = useInstantTimeline(instantPgn);
 
     // Engine & Interactive State
-    const { isAnalyzing, engineLines, toggleAnalysis } = useEngineAnalysis(review, previewFen, selectedPly);
+    const { isAnalyzing, engineLines, engineStatus, toggleAnalysis, config, setConfig } = useEngineAnalysis(review, previewFen, selectedPly);
+    const [showEngineSettings, setShowEngineSettings] = useState(false);
     const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
     const [userMoves, setUserMoves] = useState<EnhancedTimelineNode[]>([]); // Local moves added by user during analysis
 
@@ -107,24 +109,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     // ... existing ...
 
-    // New handler for extensive node selection (e.g. from Book View)
-    const handleSelectNode = React.useCallback((node: any) => {
-        if (!review?.root) return;
 
-        // 1. Set ply
-        setSelectedPly(node.ply);
-
-        // 2. Build virtual timeline if it's a variation (not in mainline)
-        // Check if node is in mainline? 
-        // Or simpler: Always build path if called from Book View?
-        // Let's assume BookView calls this for any click.
-        // We find path from root.
-        const path = findPathToNode(review.root, node);
-        if (path) {
-            const vTimeline = convertPathToTimeline(path);
-            setVirtualTimeline(vTimeline);
-        }
-    }, [review]);
 
     // Clear virtual timeline when switching tabs? Or keep it?
     // If user clicks "Moves" tab, they probably want to see the current path.
@@ -146,6 +131,30 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         if (!userMoves.length) return baseTimeline;
         return [...baseTimeline, ...userMoves];
     }, [baseTimeline, userMoves, virtualTimeline]);
+
+    // New handler for extensive node selection (e.g. from Book View)
+    const handleSelectNode = React.useCallback((node: any) => {
+        if (!review?.root) return;
+
+        // 1. Set ply
+        setSelectedPly(node.ply);
+
+        // 2. Check if this node is in the mainline (baseTimeline/enhancedTimeline)
+        const mainlineNode = baseTimeline.find(n => n.ply === node.ply);
+        const isMainline = mainlineNode && mainlineNode.uci === node.uci;
+
+        if (isMainline) {
+            // It's in the mainline! Don't truncate.
+            setVirtualTimeline(null);
+        } else {
+            // It's a variation. Build the path.
+            const path = findPathToNode(review.root, node);
+            if (path) {
+                const vTimeline = convertPathToTimeline(path);
+                setVirtualTimeline(vTimeline);
+            }
+        }
+    }, [review, baseTimeline]);
 
     const sanSequence = useMemo(() => {
         // Build SAN sequence up to selectedPly
@@ -209,9 +218,33 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
 
 
+    // Calculate CP/Mate from White's perspective
+    const rawScore = activeMove?.playedEvalCp;
+    const whiteScore = rawScore !== undefined && activeMove
+        ? (activeMove.turn === "white" ? rawScore : -rawScore)
+        : undefined;
+
+    const cp = whiteScore !== undefined && Math.abs(whiteScore) < 9000 ? whiteScore : undefined;
+    const mate = whiteScore !== undefined && Math.abs(whiteScore) >= 9000
+        ? (whiteScore > 0 ? 10000 - whiteScore : -10000 - whiteScore)
+        : undefined;
+
     const boardShapes = useMemo(() => {
         const shapes: DrawShape[] = [];
         return shapes;
+    }, []);
+
+    // Handler for Book View move hover - shows arrow on board
+    const handleBookMoveHover = React.useCallback((node: any) => {
+        if (!node || !node.uci) {
+            // Clear preview arrows when mouse leaves
+            setPreviewArrows([]);
+            return;
+        }
+        // Convert UCI to arrow: e.g., "e2e4" -> ["e2", "e4", "#22c55e"]
+        const from = node.uci.slice(0, 2);
+        const to = node.uci.slice(2, 4);
+        setPreviewArrows([[from, to, "#22c55e"]]); // Green for hover preview
     }, []);
 
     const arrows = useMemo(() => {
@@ -221,19 +254,24 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             const from = activeMove.uci.slice(0, 2);
             const to = activeMove.uci.slice(2, 4);
             const bad = activeMove.judgement === "inaccuracy" || activeMove.judgement === "mistake" || activeMove.judgement === "blunder";
-            arr.push([from, to, bad ? "#f87171" : "#818cf8"]);
+            // Blue for played (neutral/good), Red for mistake. 
+            // The user wants distinction from the engine arrow.
+            // Played: Blue (#2563eb), Mistake: Red (#dc2626)
+            arr.push([from, to, bad ? "#dc2626" : "#2563eb"]);
+
             // Only show best move arrow when NOT in guessing mode (Train mode)
             const best = activeMove.evalBeforeDeep?.lines?.[0]?.move;
             if (best && best !== activeMove.uci) {
                 const bFrom = best.slice(0, 2);
                 const bTo = best.slice(2, 4);
-                arr.push([bFrom, bTo, "#4ade80"]);
+                // Best: Green (#16a34a)
+                arr.push([bFrom, bTo, "#16a34a"]);
             }
         }
         return arr;
     }, [activeMove, previewArrows, customArrows]);
 
-
+    // ...
 
     const handleBoardDrop = useBranchCreation({
         review,
@@ -286,14 +324,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                     <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h1 className="font-display text-3xl text-white">Game analysis</h1>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                            <span className="rounded-full bg-white/10 px-3 py-1">PGN timeline</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Stockfish shallow/deep</span>
-                            <span className="rounded-full bg-white/10 px-3 py-1">Concept scores</span>
-                            {review?.studyChapters && review.studyChapters.length ? (
-                                <span className="rounded-full bg-accent-teal/15 px-3 py-1 text-accent-teal/80">Study chapters</span>
-                            ) : null}
-                        </div>
+
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
                         <button
@@ -323,6 +354,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         customShapes={boardShapes}
                         arrows={arrows}
                         evalPercent={activeMove?.winPctAfterForPlayer}
+                        cp={cp}
+                        mate={mate}
                         judgementBadge={judgementBadge}
                         moveSquare={activeMove?.uci?.slice(2, 4)}
                         onDrop={handleBoardDrop}
@@ -337,6 +370,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         onSelectPly={setSelectedPly}
                         branchSaving={branchSaving}
                         branchError={branchError}
+                        orientation="white" /* Default to white for now, can be dynamic later */
                     />
 
                     <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto pr-1">
@@ -344,13 +378,23 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4">
                             <BestAlternatives
                                 lines={engineLines}
+                                hypotheses={activeMove?.hypotheses}
+                                fen={activeMove?.fenBefore || activeMove?.fen}
                                 isAnalyzing={isAnalyzing}
+                                engineStatus={engineStatus}
                                 onToggleAnalysis={toggleAnalysis}
-                                onPreviewLine={() => {
-                                    setPreviewFen(null);
-                                    setPreviewArrows([]);
-                                    setPreviewLabel("Engine line");
+                                onPreviewLine={(pv) => {
+                                    if (!pv) return;
+                                    const firstMove = pv.split(" ")[0]; // e.g. "e2e4"
+                                    if (firstMove && firstMove.length >= 4) {
+                                        const from = firstMove.slice(0, 2);
+                                        const to = firstMove.slice(2, 4);
+                                        setPreviewArrows([[from, to, "#16a34a"]]); // Green for best/alternative
+                                        setPreviewLabel(`Preview: ${firstMove}`);
+                                        setPreviewFen(activeMove?.fen || null); // Keep current FEN
+                                    }
                                 }}
+                                onOpenSettings={() => setShowEngineSettings(true)}
                             />
                         </div>
 
@@ -373,10 +417,18 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             setPreviewArrows={setPreviewArrows as any}
                             setPreviewFen={setPreviewFen}
                             onSelectNode={handleSelectNode}
+                            onMoveHover={handleBookMoveHover}
                         />
                     </div>
                 </div>
             </div>
+            {showEngineSettings && (
+                <EngineSettingsModal
+                    config={config}
+                    setConfig={setConfig}
+                    onClose={() => setShowEngineSettings(false)}
+                />
+            )}
         </div>
     );
 }

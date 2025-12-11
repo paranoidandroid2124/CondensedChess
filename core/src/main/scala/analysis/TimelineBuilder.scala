@@ -48,7 +48,7 @@ object TimelineBuilder:
       config: EngineConfig, 
       opening: Option[Opening.AtPly],
       playerContext: Option[PlayerContext] = None,
-      jobId: Option[String] = None
+      onProgress: (AnalysisStage.AnalysisStage, Double) => Unit = (_, _) => ()
   )(using ec: ExecutionContext): Future[(Vector[PlyOutput], Game)] =
     
     val totalMoves = replay.chronoMoves.size
@@ -63,12 +63,29 @@ object TimelineBuilder:
     }
     val finalGame = currentGame
 
-    // 2. Parallel Analysis Phase
-    val futureRawData: Future[Vector[RawPlyData]] = Future.sequence(
-      gameSequence.map { case (idx, mod, gameBefore, gameAfter) =>
-        processPlyParallel(idx, mod, gameBefore, gameAfter, engineInterface, experimentRunner, config, totalMoves, jobId)
-      }
-    ).map(_.toVector)
+    // 2. Parallel Analysis Phase (with per-ply error isolation)
+    // 2. Parallel Analysis Phase in Batches
+    // We process in small batches to avoid overloading the engine pool queue
+    // and to provide smoother progress feedback.
+    val batchSize = 8
+    val batches = gameSequence.grouped(batchSize).toList
+    
+    // Process batches sequentially, but items within a batch in parallel
+    val futureRawData: Future[Vector[RawPlyData]] = batches.foldLeft(Future.successful(Vector.empty[RawPlyData])) { (accFuture, batch) =>
+       accFuture.flatMap { acc =>
+         Future.sequence(
+           batch.map { case (idx, mod, gameBefore, gameAfter) =>
+             processPlyParallel(idx, mod, gameBefore, gameAfter, engineInterface, experimentRunner, config, totalMoves, onProgress)
+               .recover { case e: Throwable =>
+                 // Log error but continue with fallback data
+                 // This effectively isolates single ply failures
+                 System.err.println(s"[TimelineBuilder] Ply $idx analysis failed: ${e.getMessage}")
+                 fallbackRawPlyData(idx, mod, gameBefore, gameAfter)
+               }
+           }
+         ).map(batchResults => acc ++ batchResults)
+       }
+    }
 
     // 3. Sequential Enrichment Phase
     futureRawData.map { rawData =>
@@ -92,7 +109,7 @@ object TimelineBuilder:
       experimentRunner: ExperimentRunner,
       config: EngineConfig,
       totalMoves: Int,
-      jobId: Option[String]
+      onProgress: (AnalysisStage.AnalysisStage, Double) => Unit
   )(using ec: ExecutionContext): Future[RawPlyData] =
     val prog = (idx + 1).toDouble / totalMoves
 
@@ -147,10 +164,9 @@ object TimelineBuilder:
       afterEvalOpt <- afterEvalF
       experiments <- runExperimentsFuture
     yield
-      jobId.foreach { id => 
-         if (idx % 5 == 0 || idx == totalMoves - 1) 
-           AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, prog)
-      }
+      if (idx % 5 == 0 || idx == totalMoves - 1) 
+         onProgress(AnalysisStage.ENGINE_EVALUATION, prog)
+ 
       RawPlyData(
         plyIndex = idx,
         gameBefore = gameBefore,
@@ -262,18 +278,11 @@ object TimelineBuilder:
     val conceptScores = ConceptScorer.score(
       features = featuresAfter,
       oppFeatures = oppFeaturesAfter,
-      evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore), // Using Prev Ply Eval for Next Ply Concept? 
-      // Original code used 'evalBeforeShallow' (which was current ply eval) for scoring Next position?
-      // Wait. Original: 
-      // evalBeforeShallow = evalFen(fenBefore)
-      // conceptScores = ConceptScorer.score(..., evalShallowWin = evalBeforeShallow...)
-      // Yes, it used Before eval for After position scoring? That seems odd but I will replicate.
-      // Actually ConceptScorer calculates strictly position based concepts, but uses winPct for 'conversionDifficulty' etc.
-      // If we are scoring the resulting position, we should conceptually use the resulting position's eval.
-      // But let's stick to strict replication of original code block logic unless it's obviously a bug.
-      // Original: val conceptScores = ConceptScorer.score(..., evalShallowWin = evalBeforeShallow.lines...)
-      evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
-      multiPvWin = evalBeforeDeep.lines.map(_.winPct),
+      // FIX: Use evalAfterDeep (the resulting position's eval) instead of evalBefore.
+      // Note: evalAfterDeep is from opponent's perspective, so we invert winPct for mover's view.
+      evalShallowWin = evalAfterDeep.flatMap(_.lines.headOption).map(l => 100.0 - l.winPct).getOrElse(winAfterForPlayer),
+      evalDeepWin = evalAfterDeep.flatMap(_.lines.headOption).map(l => 100.0 - l.winPct).getOrElse(winAfterForPlayer),
+      multiPvWin = evalAfterDeep.map(_.lines.map(l => 100.0 - l.winPct)).getOrElse(List(winAfterForPlayer)),
       position = gameAfter.position,
       sideToMove = gameAfter.position.color,
       san = move.toSanStr.value
@@ -336,10 +345,15 @@ object TimelineBuilder:
     // Phase Label
     val phaseLabel = p4Concepts.transitionTags.headOption.map(_.toSnakeCase)
 
-    val bestVsSecondGap = (for
-        top <- evalBeforeDeep.lines.headOption
-        second <- evalBeforeDeep.lines.drop(1).headOption
-    yield (top.winPct - second.winPct).abs).orElse(None)
+    val bestVsSecondGap = evalBeforeDeep.lines.take(2) match
+       case top :: second :: _ => Some((top.winPct - second.winPct).abs)
+       case top :: Nil if gameBefore.position.legalMoves.size > 1 => 
+          // Requested MultiPV but got only 1 line? Maybe singular move or engine cutoff.
+          // Or maybe only 1 sensible move found.
+          // Let's assume high gap if engine is certain enough to prune everything else or legal moves is small.
+          // But safer is None if we are unsure.
+          None 
+       case _ => None
 
     val bestVsPlayedGap = (for
         top <- evalBeforeDeep.lines.headOption
@@ -409,7 +423,22 @@ object TimelineBuilder:
       tacticalMotif = tacticalMotif,
       roles = newRoles,
       conceptLabels = Some(p4Concepts),
-      fullFeatures = Some(p4FeaturesAfter), playedEvalCp = Some(playedEvalRel)
+      fullFeatures = Some(p4FeaturesAfter), playedEvalCp = Some(playedEvalRel),
+      hypotheses = d.experiments.map { exp =>
+         val meta = exp.metadata
+         val label = meta.getOrElse("candidateType", exp.expType.toString)
+         // Calculate hypothetical winPct if eval exists
+         val lines = exp.eval.lines
+         val winPct = lines.headOption.map(_.winPct).getOrElse(50.0)
+         // PV?
+         val pv = lines.headOption.map(_.pv).getOrElse(Nil)
+         Branch(
+           move = exp.move.getOrElse("?"), // If None, it was null-move experiment or general eval
+           winPct = winPct,
+           pv = pv,
+           label = label
+         )
+      }
     ), delta)
 
   private def clamp01(d: Double): Double = math.max(0.0, math.min(1.0, d))
@@ -426,3 +455,37 @@ object TimelineBuilder:
          acc + v
        else acc
      }
+
+  /** Fallback RawPlyData for error recovery - creates minimal valid data when engine fails */
+  private def fallbackRawPlyData(
+      idx: Int, 
+      mod: MoveOrDrop, 
+      gameBefore: Game, 
+      gameAfter: Game
+  ): RawPlyData =
+    val player = gameBefore.position.color
+    val emptyEval = EngineEval(0, Nil)
+    val emptyFeatures = FeatureExtractor.SideFeatures(
+      pawnIslands = 0, isolatedPawns = 0, doubledPawns = 0, passedPawns = 0,
+      rookOpenFiles = 0, rookSemiOpenFiles = 0, bishopPair = false, kingRingPressure = 0, spaceControl = 0
+    )
+    val emptyP4Features = FeatureExtractor.extractPositionFeatures(
+      Fen.write(gameBefore).value, gameBefore.ply.value
+    )
+    RawPlyData(
+      plyIndex = idx,
+      gameBefore = gameBefore,
+      gameAfter = gameAfter,
+      move = mod,
+      evalBeforeShallow = emptyEval,
+      evalBeforeDeep = emptyEval,
+      evalAfterDeep = None,
+      experiments = Nil,
+      featuresBefore = emptyFeatures,
+      moverFeaturesBefore = emptyFeatures,
+      oppFeaturesBefore = emptyFeatures,
+      featuresAfter = emptyFeatures,
+      oppFeaturesAfter = emptyFeatures,
+      p4FeaturesBefore = emptyP4Features,
+      p4FeaturesAfter = emptyP4Features
+    )

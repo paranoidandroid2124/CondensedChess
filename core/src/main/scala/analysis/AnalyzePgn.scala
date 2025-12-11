@@ -4,7 +4,7 @@ package analysis
 import AnalysisModel.*
 import chess.format.pgn.PgnStr
 import chess.opening.OpeningDb
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.Source
@@ -24,7 +24,12 @@ object AnalyzePgn:
       sys.exit(1)
     val path = args(0)
     val pgn = Source.fromFile(path).mkString
-    analyzeAndRender(pgn, EngineConfig.fromEnv()) match
+    
+    // Default service for CLI
+    given scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+    val service = new EngineService()
+    
+    analyzeAndRender(pgn, service, EngineConfig.fromEnv()) match
       case Left(err) =>
         System.err.println(err)
         sys.exit(1)
@@ -33,47 +38,44 @@ object AnalyzePgn:
         EnginePool.shutdown()
 
   /** PGN 문자열을 분석하여 JSON 문자열로 반환 */
-  def analyzeAndRender(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
-    analyze(pgn, config, llmRequestedPlys).map(AnalysisSerializer.render)
+  def analyzeAndRender(pgn: String, service: EngineService, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty): Either[String, String] =
+    analyze(pgn, service, config, llmRequestedPlys).map(AnalysisSerializer.render)
 
   /** PGN 문자열을 분석하여 Output 객체 반환 */
-  def analyze(pgn: String, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty, jobId: Option[String] = None): Either[String, Output] =
+  def analyze(pgn: String, engineService: EngineService, config: EngineConfig = EngineConfig.fromEnv(), llmRequestedPlys: Set[Int] = Set.empty, onProgress: (AnalysisStage.AnalysisStage, Double) => Unit = (_, _) => ()): Either[String, Output] =
     Replay.mainline(PgnStr(pgn)).flatMap(_.valid) match
       case Left(err) => Left(s"PGN 파싱 실패: ${err.value}")
       case Right(replay) =>
         // Stage 1: Engine Evaluation (40% weight)
-        jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 0.0))
+        onProgress(AnalysisStage.ENGINE_EVALUATION, 0.0)
         
         val playerContext = extractPlayerContext(pgn)
         val sans = replay.chronoMoves.map(_.toSanStr)
         val opening = OpeningDb.searchWithTransposition(sans)
         val openingStats = OpeningExplorer.explore(opening, replay.chronoMoves.map(_.toSanStr).toList)
-        val engineService = new EngineService() 
         val experimentRunner = new ExperimentRunner(engineService)
 
-          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 0.05)) // Setup done
+          onProgress(AnalysisStage.ENGINE_EVALUATION, 0.05) // Setup done
           
-          val futureTimeline = TimelineBuilder.buildTimeline(replay, engineService, experimentRunner, config, opening, playerContext, jobId)
+          val futureTimeline = TimelineBuilder.buildTimeline(replay, engineService, experimentRunner, config, opening, playerContext, onProgress)
           
           // Await result (CLI mode)
           val (timelineRaw, finalGame) = Await.result(futureTimeline, Duration.Inf)
           
           val timeline = StudySignals.withStudySignals(timelineRaw, opening)
           
-          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.ENGINE_EVALUATION, 1.0))
+          onProgress(AnalysisStage.ENGINE_EVALUATION, 1.0)
           
           // Stage 2: Critical Detection (10% weight)
-          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 0.0))
+          onProgress(AnalysisStage.CRITICAL_DETECTION, 0.0)
           
-          // Use EnginePool for blocking operations (CriticalDetector, ReviewTreeBuilder)
-          // We assume sequential execution for now to keep logic simple
+          // Stage 2: Critical Detection (20% weight) 
+          // Note: Updated weights in Tracker if needed, but here we just update progress.
+          onProgress(AnalysisStage.CRITICAL_DETECTION, 0.0)
           
-          val critical = Await.result(
-            EnginePool.withEngine { client =>
-              Future {
-                CriticalDetector.detectCritical(timeline, client, config, llmRequestedPlys, jobId)
-              }
-            }, Duration.Inf)
+          val criticalFuture = CriticalDetector.detectCritical(timeline, experimentRunner, config, llmRequestedPlys, onProgress)
+          
+          val critical = Await.result(criticalFuture, Duration.Inf)
             
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
           val root = TreeBuilder.buildTree(timeline, critical)
@@ -90,11 +92,13 @@ object AnalyzePgn:
           )
           val book = Some(BookBuilder.buildBook(timeline, gameMeta))
           
-          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.CRITICAL_DETECTION, 1.0))
+          val bookData = Some(BookBuilder.buildBook(timeline, gameMeta))
+          
+          onProgress(AnalysisStage.CRITICAL_DETECTION, 1.0)
           
           // Stage 3: LLM will be tracked in ApiServer
           // Stage 4: Finalization
-          jobId.foreach(id => AnalysisProgressTracker.update(id, AnalysisStage.FINALIZATION, 0.0))
+          onProgress(AnalysisStage.FINALIZATION, 0.0)
           
           Right(
             Output(

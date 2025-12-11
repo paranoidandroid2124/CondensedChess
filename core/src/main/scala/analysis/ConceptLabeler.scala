@@ -211,9 +211,7 @@ object ConceptLabeler:
     if fBefore.pawns.whiteMinorityAttackReady || fBefore.pawns.blackMinorityAttackReady then
       tags += StructureTag.MinorityAttackCandidate
       
-    // Geometry Features: BadBishop
-    if fBefore.geometry.whiteWrongBishop then tags += StructureTag.BadBishopWhite
-    if fBefore.geometry.blackWrongBishop then tags += StructureTag.BadBishopBlack
+    // Geometry/BadBishop check removed - GeometryFeatures was deleted
 
     // Space Advantage: Compare central space control
     val spaceThreshold = 3
@@ -408,11 +406,11 @@ object ConceptLabeler:
             tags += MistakeTag.IgnoredThreat
 
          // Positional Trade Error
-         // Lost Bishop Pair without tactical justification
-         val bpBefore = if side == "white" then fBefore.activity.whiteBishopPair else fBefore.activity.blackBishopPair
-         val bpAfter = if side == "white" then fAfter.activity.whiteBishopPair else fAfter.activity.blackBishopPair
+         // Lost material advantage without tactical justification
+         val minorsBefore = if side == "white" then fBefore.materialPhase.whiteMinorPieces else fBefore.materialPhase.blackMinorPieces
+         val minorsAfter = if side == "white" then fAfter.materialPhase.whiteMinorPieces else fAfter.materialPhase.blackMinorPieces
 
-         if bpBefore && !bpAfter then
+         if minorsBefore > minorsAfter then
             tags += MistakeTag.PositionalTradeError
 
     tags.result().distinct
@@ -457,9 +455,8 @@ object ConceptLabeler:
        // Has rooks, has passed pawns, but none behind? Maybe ignored.
        tags += EndgameTag.RookBehindPassedPawnIgnored
 
-    // 3. Wrong Corner Color (WrongBishopDraw)
-    if (if fBefore.sideToMove == "white" then fBefore.geometry.whiteWrongBishop else fBefore.geometry.blackWrongBishop) then
-       tags += EndgameTag.WrongBishopDraw
+
+    // WrongBishopDraw check removed - GeometryFeatures was deleted
 
     tags.result().distinct
 

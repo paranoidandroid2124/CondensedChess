@@ -10,9 +10,11 @@ interface InteractiveBoardProps {
     fen: string;
     orientation?: 'white' | 'black';
     onMove?: (orig: Key, dest: Key, fen: string) => void;
-    className?: string; // For sizing
+    className?: string;
     shapes?: DrawShape[];
     viewOnly?: boolean;
+    lastMove?: [Key, Key]; // Sync external last move
+    check?: boolean | Color; // Sync external check
 }
 
 export default function InteractiveBoard({
@@ -21,7 +23,9 @@ export default function InteractiveBoard({
     onMove,
     className,
     shapes = [],
-    viewOnly = false
+    viewOnly = false,
+    lastMove,
+    check
 }: InteractiveBoardProps) {
     const ref = useRef<HTMLDivElement>(null);
     const [api, setApi] = useState<Api | null>(null);
@@ -39,7 +43,7 @@ export default function InteractiveBoard({
     useEffect(() => {
         if (!ref.current) return;
 
-        const chess = game.current; // Stable reference
+        const chess = game.current;
 
         const config: Config = {
             fen: fen,
@@ -47,18 +51,15 @@ export default function InteractiveBoard({
             viewOnly: viewOnly,
             animation: { enabled: true, duration: 200 },
             movable: {
-                color: 'both', // controlled by game logic
+                color: 'both',
                 free: false,
                 dests: toDests(chess),
                 events: {
                     after: (orig: Key, dest: Key) => {
-                        // Apply move to internal logic
                         try {
                             const move = chess.move({ from: orig, to: dest });
                             if (move) {
-                                // Valid move
                                 if (onMove) onMove(orig, dest, chess.fen());
-                                // Update dests for next turn
                                 api?.set({
                                     turnColor: toColor(chess),
                                     movable: {
@@ -67,12 +68,9 @@ export default function InteractiveBoard({
                                     },
                                     check: chess.inCheck()
                                 });
-                            } else {
-                                console.warn("Invalid move attempted", orig, dest);
                             }
                         } catch (e) {
                             console.error(e);
-                            // Snapback handled by chessground if we don't update state
                         }
                     },
                 },
@@ -95,34 +93,45 @@ export default function InteractiveBoard({
         const cgApi = Chessground(ref.current, config);
         setApi(cgApi);
 
-        // Cleanup
-        return () => cgApi.destroy();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run once on mount
+        // ResizeObserver
+        const ro = new ResizeObserver(() => {
+            cgApi.redrawAll();
+        });
+        ro.observe(ref.current);
 
-    // Sync FEN changes from props
+        return () => {
+            cgApi.destroy();
+            ro.disconnect();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Sync FEN & External State
     useEffect(() => {
         if (!api) return;
 
-        // Check if external FEN is different from internal state
+        // Load FEN if changed
         if (fen !== game.current.fen()) {
             try {
                 game.current.load(fen);
-                api.set({
-                    fen: fen,
-                    turnColor: toColor(game.current),
-                    movable: {
-                        color: toColor(game.current),
-                        dests: toDests(game.current)
-                    },
-                    check: game.current.inCheck(),
-                    lastMove: undefined
-                });
-            } catch (e) {
-                console.error("Invalid FEN passed to InteractiveBoard:", fen);
+            } catch {
+                console.error("Invalid FEN:", fen);
             }
         }
-    }, [fen, api]);
+
+        // Apply state to Chessground
+        api.set({
+            fen: fen,
+            turnColor: toColor(game.current),
+            movable: {
+                color: toColor(game.current),
+                dests: toDests(game.current)
+            },
+            // Use external props if provided, otherwise internal
+            lastMove: lastMove ?? undefined,
+            check: check ?? game.current.inCheck()
+        });
+    }, [fen, api, lastMove, check]);
 
     // Sync Orientation
     useEffect(() => {
@@ -143,7 +152,11 @@ export default function InteractiveBoard({
         <div
             ref={ref}
             className={`is2d blues ${className}`}
-            style={{ width: '100%', height: '100%' }} // Ensure it accepts parent size
+            style={{
+                width: '100%',
+                height: '100%',
+                touchAction: 'none' // Prevent scrolling on mobile
+            }}
         />
     );
 }

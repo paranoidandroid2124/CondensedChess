@@ -1,7 +1,9 @@
-import React from "react";
+import { formatEvaluation } from "../lib/eval";
 
 type VerticalEvalBarProps = {
     evalPercent?: number; // 0 (Black winning) to 100 (White winning), 50 is equal
+    cp?: number;
+    mate?: number;
     orientation?: "white" | "black";
     conceptMarkers?: Array<{
         yPercent: number; // 0 to 100
@@ -12,11 +14,19 @@ type VerticalEvalBarProps = {
 
 export function VerticalEvalBar({
     evalPercent = 50,
+    cp,
+    mate,
     orientation = "white",
     conceptMarkers = []
 }: VerticalEvalBarProps) {
+    // If Mate is present, override height to 100% (White wins) or 0% (Black wins)
+    // Note: mate > 0 means White mates, mate < 0 means Black mates (standard convention)
+    const effectivePercent = mate !== undefined
+        ? (mate > 0 ? 100 : 0)
+        : evalPercent;
+
     // Clamp between 5% and 95% to always show a bit of the losing side color
-    const clampedEval = Math.max(5, Math.min(95, evalPercent));
+    const clampedEval = Math.max(5, Math.min(95, effectivePercent));
 
     // If orientation is black, we flip the visual representation if needed, 
     // but usually evalPercent is "White's winning chance". 
@@ -26,6 +36,9 @@ export function VerticalEvalBar({
     // Let's stick to White = Top (100%), Black = Bottom (0%).
 
     const heightPercent = clampedEval;
+
+    // Determine text to show
+    const evalText = formatEvaluation(cp, mate);
 
     return (
         <div className="relative h-full w-6 select-none overflow-hidden rounded bg-white/10">
@@ -43,8 +56,7 @@ export function VerticalEvalBar({
 
             {/* Evaluation Text Label */}
             <div className={`absolute left-0 w-full text-center text-[10px] font-bold ${heightPercent > 50 ? 'bottom-1 text-[#403d39]' : 'top-1 text-[#f0f0f0]'}`}>
-                {/* We can show CP or Mate here later, for now just visual */}
-                {/* {evalPercent.toFixed(1)} */}
+                {evalText}
             </div>
 
             {/* Concept Markers */}

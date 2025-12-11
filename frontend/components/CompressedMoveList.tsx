@@ -56,19 +56,21 @@ export function CompressedMoveList({ timeline, currentPly, onSelectPly }: Compre
     }, [currentPly]);
 
     // Group moves into pairs (White, Black)
-    const movePairs: Array<{ number: number; white?: TimelineNode; black?: TimelineNode }> = [];
-
-    timeline.forEach((node) => {
-        const moveNumber = Math.ceil(node.ply / 2);
-        if (!movePairs[moveNumber]) {
-            movePairs[moveNumber] = { number: moveNumber };
-        }
-        if (node.ply % 2 !== 0) {
-            movePairs[moveNumber].white = node;
-        } else {
-            movePairs[moveNumber].black = node;
-        }
-    });
+    const movePairs = React.useMemo(() => {
+        const pairs: Array<{ number: number; white?: TimelineNode; black?: TimelineNode }> = [];
+        timeline.forEach((node) => {
+            const moveNumber = Math.ceil(node.ply / 2);
+            if (!pairs[moveNumber]) {
+                pairs[moveNumber] = { number: moveNumber };
+            }
+            if (node.ply % 2 !== 0) {
+                pairs[moveNumber].white = node;
+            } else {
+                pairs[moveNumber].black = node;
+            }
+        });
+        return pairs;
+    }, [timeline]);
 
     return (
         <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -91,19 +93,19 @@ export function CompressedMoveList({ timeline, currentPly, onSelectPly }: Compre
                                     <span className="mr-1 text-white/40 font-mono text-xs">{pair.number}.</span>
 
                                     {pair.white && (
-                                        <MoveButton
+                                        <MemoMoveButton
                                             node={pair.white}
                                             isActive={currentPly === pair.white.ply}
-                                            onClick={() => onSelectPly(pair.white!.ply)}
+                                            onSelect={onSelectPly}
                                             ref={currentPly === pair.white.ply ? activeRef : undefined}
                                         />
                                     )}
 
                                     {pair.black && (
-                                        <MoveButton
+                                        <MemoMoveButton
                                             node={pair.black}
                                             isActive={currentPly === pair.black.ply}
-                                            onClick={() => onSelectPly(pair.black!.ply)}
+                                            onSelect={onSelectPly}
                                             ref={currentPly === pair.black.ply ? activeRef : undefined}
                                         />
                                     )}
@@ -120,8 +122,8 @@ export function CompressedMoveList({ timeline, currentPly, onSelectPly }: Compre
 const MoveButton = React.forwardRef<HTMLButtonElement, {
     node: TimelineNode;
     isActive: boolean;
-    onClick: () => void;
-}>(({ node, isActive, onClick }, ref) => {
+    onSelect: (ply: number) => void;
+}>(({ node, isActive, onSelect }, ref) => {
     const judgement = (node.special as keyof typeof judgementMarks) ?? node.judgement ?? "good";
     const mark = judgementMarks[judgement] ?? "";
     const colorClass = judgementColors[judgement] ?? "text-white";
@@ -133,7 +135,7 @@ const MoveButton = React.forwardRef<HTMLButtonElement, {
     return (
         <button
             ref={ref}
-            onClick={onClick}
+            onClick={() => onSelect(node.ply)}
             className={`
         group relative rounded px-1.5 py-0.5 transition-colors
         ${isActive ? "bg-accent-teal/20 text-white ring-1 ring-accent-teal/50" : `text-white/80 ${practicalityBgClass || "hover:bg-white/10"} hover:text-white`}
@@ -150,3 +152,6 @@ const MoveButton = React.forwardRef<HTMLButtonElement, {
 });
 
 MoveButton.displayName = "MoveButton";
+
+// Memoize MoveButton to prevent re-renders of non-active moves
+const MemoMoveButton = React.memo(MoveButton);

@@ -38,13 +38,20 @@ export function normalizeEvalKind(kind?: string, value?: number) {
   return lower;
 }
 
+import { formatEvaluation } from "./eval";
+
 export function formatEvalValue(value?: number, evalKind?: string, turn?: "white" | "black") {
-  const kind = normalizeEvalKind(evalKind, value);
-  if (value === undefined || Number.isNaN(value)) return "Eval —";
-  if (kind === "cp") {
-    const sign = value > 0 ? "+" : "";
-    return `Eval ${sign}${Math.round(value)}cp`;
+  if (value === undefined || Number.isNaN(value)) return "–";
+
+  const lower = evalKind?.toLowerCase();
+
+  if (lower === "mate") {
+    return formatEvaluation(undefined, value);
+  } else if (lower === "cp") {
+    return formatEvaluation(value, undefined);
   }
+
+  // Fallback to win%
   const sideLabel = turn === "white" ? "White" : turn === "black" ? "Black" : "Side";
   return `${sideLabel} eval ${value.toFixed(1)}%`;
 }

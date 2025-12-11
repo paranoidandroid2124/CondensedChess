@@ -12,12 +12,15 @@ import scala.concurrent.{Future, ExecutionContext}
 object EnginePool:
   
   private val maxInstances = EnvLoader.get("MAX_ENGINES").flatMap(_.toIntOption).getOrElse(4) // Conservative default
+  private val engineThreads = EnvLoader.get("ENGINE_THREADS").flatMap(_.toIntOption).getOrElse(2)
+  private val engineHash = EnvLoader.get("ENGINE_HASH").flatMap(_.toIntOption).getOrElse(64)
+
   private val pool: BlockingQueue[StockfishClient] = new LinkedBlockingQueue[StockfishClient](maxInstances)
   private val availablePermits = new Semaphore(maxInstances, true) // Fair semaphore
   private val isShutdown = new AtomicBoolean(false)
   
   // Test hook
-  var clientFactory: () => StockfishClient = () => new StockfishClient()
+  var clientFactory: (ExecutionContext) => StockfishClient = (ec: ExecutionContext) => new StockfishClient(threads = engineThreads, hash = engineHash)(using ec)
 
   // Lazy initialization of the pool? No, let's init on demand to avoid startup spike.
   // Actually, standard pool pattern: create when needed up to max, then reuse.
@@ -63,7 +66,7 @@ object EnginePool:
         // If pool is empty, it means we haven't created it yet OR it's being used?
         // Ah, if permit acquire matched creation, we wouldn't need to check.
         // Let's use a "managed" approach.
-        clientFactory() 
+        clientFactory(ec) 
       }
       
       block(engine).transform { result =>

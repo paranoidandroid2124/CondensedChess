@@ -33,8 +33,8 @@ object TreeBuilder:
           san = p.san,
           uci = p.uci,
           fen = p.fen,
-          eval = p.evalBeforeDeep.lines.headOption.flatMap(_.cp).getOrElse(0).toDouble,
-          evalType = "cp",
+          eval = p.evalBeforeDeep.lines.headOption.flatMap(l => l.cp.map(_.toDouble).orElse(l.mate.map(_.toDouble))).getOrElse(p.winPctBefore),
+          evalType = p.evalBeforeDeep.lines.headOption.flatMap(l => l.mate.map(_ => "mate").orElse(l.cp.map(_ => "cp"))).getOrElse("win%"),
           judgement = p.judgement,
           glyph = p.judgement match
             case "brilliant" => "!!"
@@ -80,15 +80,15 @@ object TreeBuilder:
                   san = san,
                   uci = uci,
                   fen = fen,
-                  eval = branch.winPct, // Approximate eval from winPct or generic
-                  evalType = "win%",
+                  eval = branch.cp.map(_.toDouble).orElse(branch.mate.map(_.toDouble)).getOrElse(branch.winPct),
+                  evalType = branch.mate.map(_ => "mate").orElse(branch.cp.map(_ => "cp")).getOrElse("win%"),
                   judgement = "variation",
                   glyph = "",
                   tags = List("variation"),
                   bestMove = None,
                   bestEval = None,
                   pv = rest,
-                  comment = None,
+                  comment = if isFirst then branch.comment else None,
                   children = buildChain(fen, rest, currentPly + 1, false).toList,
                   nodeType = if isFirst then determineNodeType(branch.label) else "variation"
                 )

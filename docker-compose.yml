@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  # Scala Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - BIND=0.0.0.0
+      - STOCKFISH_BIN=stockfish
+      - MAX_ENGINES=4
+      # Placeholder for future connection strings
+      - DB_URL=jdbc:postgresql://db:5432/chess
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      # Persist local data (e.g. SQLite files if still used, or JSONs)
+      - ./data:/app/data
+    depends_on:
+      - db
+      - redis
+
+  # Background Worker (Stockfish Engine)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    # Override CMD to run Worker instead of API
+    command: ["java", "-cp", "/app/app.jar", "chess.analysis.AnalysisWorker"]
+    environment:
+      - STOCKFISH_BIN=stockfish
+      - DB_URL=jdbc:postgresql://db:5432/chess
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - db
+      - redis
+
+  # Next.js Frontend
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Client-side requests go to localhost (browser)
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    depends_on:
+      - api
+
+  # PostgreSQL (Future Persistence)
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: chess
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chess
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis (Future Job Queue)
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

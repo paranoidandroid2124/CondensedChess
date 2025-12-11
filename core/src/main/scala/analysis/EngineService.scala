@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory
 // Use the new types
 import AnalysisTypes._
 import AnalysisModel.{EngineEval, EngineLine}
+import scala.concurrent.duration._
+import chess.analysis.AsyncUtils
 
 class EngineService(
     // No client passed in, uses Pool
@@ -45,35 +47,22 @@ class EngineService(
 
   private def submitAnalyze(req: Analyze, retries: Int): Future[EngineResult] =
     val job = EnginePool.withEngine { client =>
-        try
-          // Pass forcedMoves and apply internal timeout (plus buffer)
-          client.evaluateFen(req.fen, req.depth, req.multiPv, Some(req.timeoutMs), req.moves) match
-            case Right(res) => Future.successful(convertResult(res, req.depth))
-            case Left(err) => Future.failed(new RuntimeException(err))
-        catch 
-           case e: Throwable => Future.failed(e)
+        // use async client.evaluateFen
+        client.evaluateFen(req.fen, req.depth, req.multiPv, Some(req.timeoutMs), req.moves).flatMap {
+             case Right(res) => Future.successful(convertResult(res, req.depth))
+             case Left(err) => Future.failed(new RuntimeException(err))
+        }.recoverWith {
+             case e: Throwable => Future.failed(e)
+        }
     }
 
-    // Wrap with strict timeout safety (in case Engine hangs despite internal timeout)
-    val strictTimeout = req.timeoutMs + 2000 // 2s Grace buffer
-    
-    val promised = scala.concurrent.Promise[EngineResult]()
-    
-    // Timer thread or scheduler? avoiding new heavy dependencies.
-    // Ideally use Akka Scheduler or Java Timer.
-    // For simplicity in this stack, we'll rely on EnginePool's Future completing.
-    // But if we want *Strict* timeout:
-    // We can use a daemon thread to fail the promise.
-    // Implementing simple Future.firstCompletedOf logic if needed, but requires a timer Future.
-    // Given the constraints, let's trust EnginePool's internal timeout for now but improve the Retry/Recovery.
-    
     job.recoverWith {
-      case e: RuntimeException if retries > 0 && Option(e.getMessage).exists(m => m.contains("timeout") || m.contains("CreateProcess")) =>
+      case e: RuntimeException if retries > 0 && Option(e.getMessage).exists(m => m.contains("Timeout") || m.contains("client busy") || m.contains("process")) =>
          logger.warn(s"Retrying job due to engine error: ${e.getMessage} (attempts left: $retries)")
-         // Backoff?
-         val pauseMs = 100
-         Thread.sleep(pauseMs) // blocking inside future? bad. but simple for now.
-         submitAnalyze(req, retries - 1)
+         // Async backoff
+         AsyncUtils.delay(100.millis).flatMap { _ =>
+            submitAnalyze(req, retries - 1)
+         }
       case e: Throwable =>
          logger.error(s"Job failed: ${e.getMessage}")
          Future.failed(e)

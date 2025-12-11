@@ -76,57 +76,66 @@ object LlmAnnotator:
     val critPreview = criticalPreview(output, timelineByPly)
 
     // Parallelize LLM calls with individual recovery
-    val summaryFuture = Future {
+    val summaryFuture = {
       System.err.println("[LlmAnnotator] Starting summary generation...")
-      val res = LlmClient.summarize(preview).filter(labelSafe(_, maxMoveNumber)).orElse(fallbackSummary(output))
-      System.err.println("[LlmAnnotator] Summary generation finished.")
-      res
-    }.recover { case e: Throwable =>
-      System.err.println(s"[LlmAnnotator] Summary failed: ${e.getMessage}")
-      fallbackSummary(output)
+      LlmClient.summarize(preview).map(_.filter(labelSafe(_, maxMoveNumber))).flatMap {
+        case Some(s) => Future.successful(Some(s))
+        case None => 
+          System.err.println("[LlmAnnotator] Summary empty/invalid, using fallback.")
+          Future.successful(fallbackSummary(output))
+      }.recover { case e: Throwable =>
+        System.err.println(s"[LlmAnnotator] Summary failed: ${e.getMessage}")
+        fallbackSummary(output)
+      }
     }
     
-    val criticalFuture = Future {
+    val criticalFuture = {
       System.err.println("[LlmAnnotator] Starting critical comments generation...")
-      val res = filterWithLog(LlmClient.criticalComments(critPreview), maxMoveNumber, "critical")
-      System.err.println("[LlmAnnotator] Critical comments generation finished.")
-      res
-    }.recover { case e: Throwable =>
-      System.err.println(s"[LlmAnnotator] Critical comments failed: ${e.getMessage}")
-      Map.empty[Int, String]
+      LlmClient.criticalComments(critPreview).map { raw =>
+        val res = raw.filter { case (k, v) => labelSafe(v.main, maxMoveNumber) }
+        System.err.println("[LlmAnnotator] Critical comments generation finished.")
+        res
+      }.recover { case e: Throwable =>
+        System.err.println(s"[LlmAnnotator] Critical comments failed: ${e.getMessage}")
+        Map.empty[Int, LlmClient.CriticalAnnotation]
+      }
     }
 
-    val studyFuture = Future {
+    val studyFuture = {
       System.err.println("[LlmAnnotator] Starting study chapter comments generation...")
-      val res = if output.studyChapters.nonEmpty then LlmClient.studyChapterComments(preview)
-      else Map.empty[String, LlmClient.ChapterAnnotation]
-      System.err.println("[LlmAnnotator] Study chapter comments generation finished.")
-      res
+      if output.studyChapters.nonEmpty then 
+        LlmClient.studyChapterComments(preview).map { res =>
+          System.err.println("[LlmAnnotator] Study chapter comments generation finished.")
+          res
+        }
+      else Future.successful(Map.empty[String, LlmClient.ChapterAnnotation])
     }.recover { case e: Throwable =>
       System.err.println(s"[LlmAnnotator] Study comments failed: ${e.getMessage}")
       Map.empty[String, LlmClient.ChapterAnnotation]
     }
 
-    val bookFuture = Future {
+    val bookFuture = {
       System.err.println("[LlmAnnotator] Starting book section narrative generation...")
       output.book match
         case Some(book) =>
-          val annotatedSections = book.sections.zipWithIndex.map { case (section, idx) =>
-            val plys = output.timeline.slice(section.startPly, section.endPly + 1) // Slice by index or filter logic?
-            // startPly/endPly are likely Ply values, but timeline is Vector.
-            // Assuming timeline corresponds to ply 1..N roughly. 
-            // Better: output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
+          val sectionFutures = book.sections.zipWithIndex.map { case (section, idx) =>
             val segment = output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
-            
             val prompt = NarrativeTemplates.buildSectionPrompt(section.sectionType, section.title, segment, section.diagrams)
-            val result = LlmClient.bookSectionNarrative(prompt)
             
-            result match
-              case Some(sn) => section.copy(narrativeHint = sn.narrative, metadata = sn.metadata)
-              case None => section // Keep original hint
+            LlmClient.bookSectionNarrative(prompt).map {
+              case Some(sn) => section.copy(
+                  title = sn.title.getOrElse(section.title),
+                  narrativeHint = sn.narrative, 
+                  metadata = sn.metadata
+              )
+              case None => section
+            }
           }
-          Some(book.copy(sections = annotatedSections))
-        case None => None
+          
+          Future.sequence(sectionFutures).map { annotatedSections =>
+            Some(book.copy(sections = annotatedSections))
+          }
+        case None => Future.successful(None)
     }.recover { case e: Throwable =>
        System.err.println(s"[LlmAnnotator] Book processing failed: ${e.getMessage}")
        output.book 
@@ -146,13 +155,13 @@ object LlmAnnotator:
       catch
         case e: Throwable =>
           System.err.println(s"[LlmAnnotator] Await failed (timeout?): ${e.getMessage}")
-          (fallbackSummary(output), Map.empty[Int, String], Map.empty[String, LlmClient.ChapterAnnotation], output.book)
+          (fallbackSummary(output), Map.empty[Int, LlmClient.CriticalAnnotation], Map.empty[String, LlmClient.ChapterAnnotation], output.book)
 
     // Merge critical comments with key move comments from chapters
     // Priority: Critical > Chapter Key Move
     // Critical comments are Ply-based (mainline only), so we convert them to (Ply, SAN)
-    val criticalCommentsWithSan = criticalComments.flatMap { case (ply, comment) =>
-      timelineByPly.get(ply).map(t => (ply, t.san) -> comment)
+    val criticalCommentsWithSan = criticalComments.flatMap { case (ply, annotation) =>
+      timelineByPly.get(ply).map(t => (ply, t.san) -> annotation.main)
     }
     
     val chapterMoveComments = studyAnnotations.values.flatMap(_.keyMoves).toMap
@@ -163,8 +172,23 @@ object LlmAnnotator:
     }
     
     val updatedCritical = output.critical.map { c =>
-      val add = criticalComments.get(c.ply.value)
-      c.copy(comment = c.comment.orElse(add))
+      val annotationOpt = criticalComments.get(c.ply.value)
+      
+      // Map variation comments
+      val updatedBranches = c.branches.map { b =>
+         val varComment = annotationOpt.flatMap(_.variations.get(b.label)).orElse(
+             // Fallback: try matching by move SAN keys if label key missing?
+             // But prompt asked for label keys usually.
+             // We can try to use label.
+             None
+         )
+         b.copy(comment = varComment)
+      }
+      
+      c.copy(
+          comment = c.comment.orElse(annotationOpt.map(_.main)),
+          branches = updatedBranches
+      )
     }
     
     // Apply merged comments to the tree
@@ -229,30 +253,25 @@ object LlmAnnotator:
       .sortBy(t => -math.abs(t.deltaWinPct))
       .take(4)
       .map { t =>
+        // Optimized: removed ply, turn, legalMoves, epLoss, winAfter (redundant/derivable)
+        val wasOnlyMove = t.legalMoves <= 1 || t.bestVsSecondGap.exists(_ >= 20.0)
         val obj = Obj(
-          "ply" -> Num(t.ply.value),
           "label" -> Str(moveLabel(t.ply, t.san, t.turn)),
-          "turn" -> Str(colorName(t.turn)),
           "judgement" -> Str(t.judgement),
           "deltaWinPct" -> Num(round2(t.deltaWinPct)),
           "winBefore" -> Num(round2(t.winPctBefore)),
-          "winAfter" -> Num(round2(t.winPctAfterForPlayer)),
-          "epLoss" -> Num(round2(t.epLoss)),
           "semanticTags" -> arrStr(t.semanticTags.take(6)),
-          "legalMoves" -> Num(t.legalMoves),
           "forced" -> Bool(forcedFlag(t.legalMoves, t.bestVsSecondGap))
         )
-        t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
-        t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
+        if wasOnlyMove then obj("wasOnlyMove") = Bool(true)
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
         t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
         t.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
         t.special.foreach(s => obj("special") = Str(s))
         
-        // Tactical Context Injection
-        obj("materialDiff") = Num(round2(t.materialDiff))
-        t.bestMaterialDiff.foreach(b => obj("bestMaterialDiff") = Num(round2(b)))
+        // Tactical Context (keep materialDiff for concrete info)
+        if t.materialDiff != 0 then obj("materialDiff") = Num(round2(t.materialDiff))
         t.tacticalMotif.foreach(m => obj("tacticalMotif") = Str(m))
 
         obj
@@ -271,32 +290,25 @@ object LlmAnnotator:
           "winPct" -> Num(round2(b.winPct))
         )
       }
+      // Optimized: removed ply, winAfter, epLoss, legalMoves, bestVsGaps (redundant)
       val obj = Obj(
-        "ply" -> Num(c.ply.value),
         "label" -> Str(label),
         "reason" -> Str(c.reason),
         "deltaWinPct" -> Num(round2(c.deltaWinPct)),
         "branches" -> Arr.from(branches)
       )
+      val wasOnlyMove = c.legalMoves.exists(_ <= 1) || c.bestVsSecondGap.exists(_ >= 20.0)
+      if wasOnlyMove then obj("wasOnlyMove") = Bool(true)
+      
       timelineByPly.get(c.ply.value).foreach { t =>
         obj("winBefore") = Num(round2(t.winPctBefore))
-        obj("winAfter") = Num(round2(t.winPctAfterForPlayer))
-        obj("epLoss") = Num(round2(t.epLoss))
-        obj("legalMoves") = Num(t.legalMoves)
         obj("forced") = Bool(c.forced || forcedFlag(t.legalMoves, c.bestVsSecondGap.orElse(t.bestVsSecondGap)))
-        t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
-        t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
         t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
-        // Tactical Context Injection (Critical)
-        obj("materialDiff") = Num(round2(t.materialDiff))
-        t.bestMaterialDiff.foreach(b => obj("bestMaterialDiff") = Num(round2(b)))
+        if t.materialDiff != 0 then obj("materialDiff") = Num(round2(t.materialDiff))
         t.tacticalMotif.foreach(m => obj("tacticalMotif") = Str(m))
       }
-      c.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
-      c.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
-      c.legalMoves.foreach(lm => obj("legalMoves") = Num(lm))
       obj("forced") = Bool(c.forced || c.legalMoves.exists(_ <= 1))
       if c.tags.nonEmpty then obj("tags") = arrStr(c.tags.take(6))
       c.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
@@ -391,14 +403,14 @@ object LlmAnnotator:
 
   private def criticalPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
     val instructions = Obj(
-      "goal" -> Str("Return JSON array of {\"ply\":number,\"label\":string,\"comment\":string} covering each critical move."),
-      "style" -> Str("Crisp coach notes using the slot format: Heading | Why(delta/gap/forced/conceptShift) | Alternatives(PV labels) | Consequence."),
+      "goal" -> Str("Return JSON array of {\"label\":string,\"comment\":string} covering each critical move."),
+      "style" -> Str("Crisp coach notes: Heading | Why(delta/wasOnlyMove/conceptShift) | Alternatives(PV labels) | Consequence."),
       "rules" -> Arr.from(
             List(
-              "Use provided labels; do not invent ply numbers or moves.",
+              "Use provided labels; do not invent moves.",
               "Base severity on deltaWinPct/judgement/mistakeCategory; stay consistent with tags.",
               "Cite branches/pv for refutations without fabricating new lines.",
-              "Lead with forced/only-move (legalMoves<=1 or big best-vs-second gap) and conceptShift; do not omit these signals when present.",
+              "If wasOnlyMove is true, emphasize it was the only reasonable choice.",
               "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
             ).map(Str(_))
           )
@@ -419,32 +431,26 @@ object LlmAnnotator:
           "winPct" -> Num(round2(b.winPct))
         )
       }
+      // Optimized: removed ply, turn, winAfter, epLoss, legalMoves, bestVsGaps
       val obj = Obj(
-        "ply" -> Num(c.ply.value),
         "label" -> Str(label),
         "reason" -> Str(c.reason),
         "deltaWinPct" -> Num(round2(c.deltaWinPct)),
         "branches" -> Arr.from(branches)
       )
+      val wasOnlyMove = c.legalMoves.exists(_ <= 1) || c.bestVsSecondGap.exists(_ >= 20.0)
+      if wasOnlyMove then obj("wasOnlyMove") = Bool(true)
+      
       timeline.foreach { t =>
-        obj("turn") = Str(colorName(t.turn))
         obj("judgement") = Str(t.judgement)
         obj("winBefore") = Num(round2(t.winPctBefore))
-        obj("winAfter") = Num(round2(t.winPctAfterForPlayer))
-        obj("epLoss") = Num(round2(t.epLoss))
-        obj("legalMoves") = Num(t.legalMoves)
         obj("forced") = Bool(c.forced || forcedFlag(t.legalMoves, c.bestVsSecondGap.orElse(t.bestVsSecondGap)))
-        t.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
-        t.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
         val shiftArr = conceptShifts(t.conceptDelta, limit = 2)
         if shiftArr.value.nonEmpty then obj("conceptShift") = shiftArr
         t.phaseLabel.foreach(ph => obj("phaseLabel") = Str(ph))
       }
       if mergedTags.nonEmpty then obj("semanticTags") = arrStr(mergedTags)
       c.mistakeCategory.orElse(timeline.flatMap(_.mistakeCategory)).foreach(mc => obj("mistakeCategory") = Str(mc))
-      c.bestVsSecondGap.foreach(g => obj("bestVsSecondGap") = Num(round2(g)))
-      c.bestVsPlayedGap.foreach(g => obj("bestVsPlayedGap") = Num(round2(g)))
-      c.legalMoves.foreach(lm => obj("legalMoves") = Num(lm))
       obj("forced") = Bool(c.forced || c.legalMoves.exists(_ <= 1))
       obj
     }

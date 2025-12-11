@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { ReviewTreeNode, TimelineNode } from "../../types/review";
 import { displayTag } from "../../lib/review-tags";
 import { convertPvToSan, formatDeltaWithSide, formatEvalValue, formatSanHuman } from "../../lib/review-format";
+import { TagBadge } from "../common/TagBadge";
 
 export type VariationEntry = {
   node: ReviewTreeNode;
@@ -153,14 +154,9 @@ function MoveCell({
                 return null;
               })}
 
-              {/* Semantic Tags */}
+              {/* Semantic Tags with Tooltips */}
               {move.semanticTags?.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="text-[9px] rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-cyan-300 border border-cyan-500/20"
-                >
-                  {displayTag(tag)}
-                </span>
+                <TagBadge key={tag} tag={tag} />
               ))}
             </div>
           ) : null}

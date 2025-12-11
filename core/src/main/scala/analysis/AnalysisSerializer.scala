@@ -144,12 +144,33 @@ object AnalysisSerializer:
         sb.append("\"category\":\"").append(escape(p.categoryGlobal)).append('"')
         sb.append('}')
       }
+      ply.playedEvalCp.foreach(cp => sb.append(",\"playedEvalCp\":").append(cp))
       sb.append(',')
       renderConcepts(sb, "concepts", ply.concepts)
       sb.append(',')
       renderConcepts(sb, "conceptsBefore", ply.conceptsBefore)
       sb.append(',')
       renderConcepts(sb, "conceptDelta", ply.conceptDelta)
+      if ply.hypotheses.nonEmpty then
+        sb.append(',')
+        sb.append("\"hypotheses\":[")
+        ply.hypotheses.zipWithIndex.foreach { case (b, idx) =>
+          if idx > 0 then sb.append(',')
+          sb.append('{')
+          sb.append("\"move\":\"").append(escape(b.move)).append("\",")
+          sb.append("\"winPct\":").append(fmt(b.winPct)).append(',')
+          sb.append("\"label\":\"").append(escape(b.label)).append("\",")
+          b.comment.foreach { txt =>
+            sb.append("\"comment\":\"").append(escape(txt)).append("\",")
+          }
+          sb.append("\"pv\":[")
+          b.pv.zipWithIndex.foreach { case (m, i) =>
+            if i > 0 then sb.append(',')
+            sb.append("\"").append(escape(m)).append("\"")
+          }
+          sb.append("]}")
+        }
+        sb.append("]")
       sb.append('}')
     }
     sb.append("]}")
@@ -314,7 +335,12 @@ object AnalysisSerializer:
       sb.append('{')
       sb.append("\"move\":\"").append(escape(b.move)).append("\",")
       sb.append("\"winPct\":").append(fmt(b.winPct)).append(',')
+      b.cp.foreach(cp => sb.append("\"cp\":").append(cp).append(','))
+      b.mate.foreach(m => sb.append("\"mate\":").append(m).append(','))
       sb.append("\"label\":\"").append(escape(b.label)).append("\",")
+      b.comment.foreach { txt =>
+        sb.append("\"comment\":\"").append(escape(txt)).append("\",")
+      }
       sb.append("\"pv\":[")
       b.pv.zipWithIndex.foreach { case (m, i) =>
         if i > 0 then sb.append(',')
@@ -356,6 +382,8 @@ object AnalysisSerializer:
       sb.append('{')
       sb.append("\"label\":\"").append(escape(l.label)).append("\",")
       sb.append("\"winPct\":").append(fmt(l.winPct)).append(',')
+      l.cp.foreach(cp => sb.append("\"cp\":").append(cp).append(','))
+      l.mate.foreach(m => sb.append("\"mate\":").append(m).append(','))
       sb.append("\"pv\":[")
       l.pv.zipWithIndex.foreach { case (m, i) =>
         if i > 0 then sb.append(',')
@@ -638,13 +666,8 @@ object AnalysisSerializer:
     case BookModel.SectionType.MiddlegamePlans => "middlegame_plans"
     case BookModel.SectionType.EndgameLessons => "endgame_lessons"
     case BookModel.SectionType.FinalChecklist => "final_checklist"
-    // Legacy types
-    case BookModel.SectionType.OpeningPortrait => "opening_portrait"
-    case BookModel.SectionType.CriticalCrisis => "critical_crisis"
-    case BookModel.SectionType.StructuralDeepDive => "structural_deep_dive"
+    // Legacy types removed
     case BookModel.SectionType.TacticalStorm => "tactical_storm"
-    case BookModel.SectionType.EndgameMasterclass => "endgame_masterclass"
-    case BookModel.SectionType.NarrativeBridge => "narrative_bridge"
 
   private def renderSectionData(sb: StringBuilder, data: BookModel.SectionData): Unit = data match
     case d: BookModel.TitleSummaryData =>

@@ -1,1 +1,10 @@
 2025-12-11 00:05:56.903 [sbt-bg-threads-1] INFO  chess.api - Listening on 0.0.0.0:8080 (shallow=14/deep=22, multipv=3)
+2025-12-11 00:14:19.977 [sbt-bg-threads-1] INFO  chess.api - Listening on 0.0.0.0:8080 (shallow=14/deep=22, multipv=3)
+2025-12-11 00:15:31.150 [pool-19-thread-3] INFO  chess.analysis.BookBuilder - Generated Book: TacticalStorm: 2, OpeningPortrait: 1, CriticalCrisis: 1. Tags: Greed=0, Refuted=1
+2025-12-11 00:16:03.634 [pool-19-thread-3] INFO  chess.api - Job e1b96c10-bd19-4af2-a8a6-88c7186bca9e finished. Status: ready
+2025-12-11 11:37:36.632 [sbt-bg-threads-1] INFO  chess.api - Listening on 0.0.0.0:8080 (shallow=14/deep=22, multipv=3)
+2025-12-11 11:39:42.032 [pool-19-thread-3] INFO  chess.analysis.BookBuilder - Generated Book: EndgameMasterclass: 1, TacticalStorm: 6, OpeningPortrait: 1. Tags: Greed=0, Refuted=4
+2025-12-11 11:40:39.885 [pool-19-thread-3] INFO  chess.api - Job f8a581f3-8497-49d9-8f82-16c4b34f94ad finished. Status: ready
+2025-12-11 11:57:58.203 [Thread-6] INFO  chess.api - Server stopped
+2025-12-11 14:48:23.517 [io-compute-blocker-6] INFO  chess.api - Starting http4s server on 0.0.0.0:8080
+2025-12-11 14:48:24.136 [io-compute-4] INFO  o.h.e.s.EmberServerBuilderCompanionPlatform - Ember-Server service bound to address: [::]:8080

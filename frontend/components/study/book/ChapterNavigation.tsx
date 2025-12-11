@@ -7,27 +7,33 @@ interface Props {
     onSelect: (index: number) => void;
 }
 
-// Icons mapping could be separate, simplified here
+// Icons mapping for SectionType
 const getSectionIcon = (type: SectionType) => {
     switch (type) {
-        case 'OpeningPortrait': return '📖';
-        case 'CriticalCrisis': return '🔥';
-        case 'StructuralDeepDive': return '🏛️';
-        case 'TacticalStorm': return '⚡';
-        case 'EndgameMasterclass': return '🎓';
-        case 'NarrativeBridge': return '🌉';
+        case 'OpeningReview': return '📖';
+        case 'TurningPoints': return '🔥';
+        case 'MiddlegamePlans': return '🏛️';
+        case 'TacticalStorm':
+        case 'TacticalMoments': return '⚡';
+        case 'EndgameLessons': return '🎓';
+        case 'TitleSummary': return '📋';
+        case 'KeyDiagrams': return '🖼️';
+        case 'FinalChecklist': return '✅';
         default: return '📄';
     }
 };
 
 const getSectionLabel = (type: SectionType) => {
     switch (type) {
-        case 'OpeningPortrait': return 'Opening';
-        case 'CriticalCrisis': return 'Critical Moment';
-        case 'StructuralDeepDive': return 'Structure';
-        case 'TacticalStorm': return 'Tactics';
-        case 'EndgameMasterclass': return 'Endgame';
-        case 'NarrativeBridge': return 'Transition';
+        case 'OpeningReview': return 'Opening';
+        case 'TurningPoints': return 'Critical Moment';
+        case 'MiddlegamePlans': return 'Strategy';
+        case 'TacticalStorm':
+        case 'TacticalMoments': return 'Tactics';
+        case 'EndgameLessons': return 'Endgame';
+        case 'TitleSummary': return 'Summary';
+        case 'KeyDiagrams': return 'Diagrams';
+        case 'FinalChecklist': return 'Checklist';
         default: return 'Chapter';
     }
 };

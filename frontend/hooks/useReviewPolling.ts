@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import useSWR from 'swr';
 import { fetchReview } from "../lib/review";
 import type { Review } from "../types/review";
 
@@ -6,82 +6,52 @@ interface ReviewPollingState {
   review: Review | null;
   loading: boolean;
   pendingMessage: string | null;
-  pollStartTime: number | null;
-  pollAttempt: number;
+  pollStartTime: number | null; // Kept for interface compatibility but unused in SWR logic
+  pollAttempt: number;          // Unused/Mocked
   error: string | null;
-  setReview: (r: Review) => void;
+  setReview: (r: Review) => void; // Mutate function adapter
   progressInfo: { stage?: string; stageLabel?: string; totalProgress?: number; stageProgress?: number; startedAt?: number } | null;
 }
 
 export function useReviewPolling(reviewId: string): ReviewPollingState {
-  const [review, setReview] = useState<Review | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const [pollStartTime, setPollStartTime] = useState<number | null>(null);
-  const [pollAttempt, setPollAttempt] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
-  const [progressInfo, setProgressInfo] = useState<{ stage?: string; stageLabel?: string; totalProgress?: number; stageProgress?: number; startedAt?: number } | null>(null);
+  // SWR Key: unique identifier for the request
+  const key = reviewId ? ['review', reviewId] : null;
 
-  useEffect(() => {
-    let mounted = true;
-    let timer: NodeJS.Timeout | null = null;
+  const { data, error, mutate, isLoading } = useSWR(
+    key,
+    () => fetchReview(reviewId),
+    {
+      // Smart Polling: Refresh every 1.5s if status is pending
+      refreshInterval: (data) => {
+        if (data && data.status === 'pending') return 1500;
+        return 0; // Stop polling when complete or error
+      },
+      revalidateOnFocus: false, // Don't aggressive revalidate if we have final data
+      revalidateOnReconnect: true,
+      dedupingInterval: 2000,
+    }
+  );
 
-    const poll = async (attempt: number) => {
-      if (!mounted) return;
-      setPollAttempt(attempt);
-      try {
-        const res = await fetchReview(reviewId);
-        if (res.status === "pending") {
-          setPendingMessage(res.stageLabel || "Analyzing game...");
-          setProgressInfo({
-            stage: res.stage,
-            stageLabel: res.stageLabel,
-            totalProgress: res.totalProgress,
-            stageProgress: res.stageProgress,
-            startedAt: res.startedAt
-          });
-          setLoading(true);
-          if (attempt < 2400) { // Wait up to ~1 hour
-            timer = setTimeout(() => poll(attempt + 1), 1500);
-          } else {
-            setPendingMessage("Analysis is taking a long time. You can refresh to check again.");
-            setLoading(false);
-          }
-          return;
-        }
-        console.log(`[ReviewPolling] Review ${reviewId} ready! Attempt ${attempt}`);
-        setPendingMessage(null);
-        setPollStartTime(null);
-        setPollAttempt(0);
-        setProgressInfo(null);
-        setReview(res.review);
-        setLoading(false);
-      } catch (err) {
-        // Retry on error, but back off slightly
-        // We allow many retries because analysis can be long and network might flicker
-        console.log(`Polling error (attempt ${attempt}), retrying...`, err);
-        if (attempt < 2400) {
-          timer = setTimeout(() => poll(attempt + 1), 3000); // Retry slower on error
-          return;
-        }
-        setError(err instanceof Error ? err.message : "Failed to fetch review");
-        setLoading(false);
-      }
-    };
+  const isPending = data?.status === 'pending';
+  const review = (data && data.status === 'ready') ? data.review : null;
 
-    setLoading(true);
-    setError(null);
-    setPendingMessage(null);
-    setPollStartTime(Date.now());
-    setPollAttempt(0);
-    setProgressInfo(null);
-    poll(0);
+  // Progress Info Construction
+  const progressInfo = (data && data.status === 'pending') ? {
+    stage: data.stage,
+    stageLabel: data.stageLabel,
+    totalProgress: data.totalProgress,
+    stageProgress: data.stageProgress,
+    startedAt: data.startedAt
+  } : null;
 
-    return () => {
-      mounted = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [reviewId]);
-
-  return { review, loading, pendingMessage, pollStartTime, pollAttempt, error, setReview, progressInfo };
+  return {
+    review,
+    loading: isLoading || (!data && !error),
+    pendingMessage: (data && data.status === 'pending') ? (data.stageLabel || "Analyzing game...") : null,
+    pollStartTime: null, // Legacy field
+    pollAttempt: 0,      // Legacy field
+    error: error ? (error.message || "Failed to fetch review") : null,
+    setReview: (r: Review) => mutate({ status: 'ready', review: r }, false), // Optimistic update
+    progressInfo
+  };
 }

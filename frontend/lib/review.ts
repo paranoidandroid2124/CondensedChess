@@ -6,11 +6,19 @@ export type ReviewFetchResult =
   | { status: "ready"; review: Review }
   | { status: "pending"; message?: string; stage?: string; stageLabel?: string; stageProgress?: number; totalProgress?: number; startedAt?: number };
 
+const getAuthHeaders = () => ({
+  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}`,
+  'Content-Type': 'application/json'
+});
+
 export async function fetchOpeningLookup(sans: string[]): Promise<import("../types/review").OpeningStats | null> {
   if (!sans.length) return null;
   const q = encodeURIComponent(sans.join(" "));
   const url = `${API_BASE.replace(/\/$/, "")}/opening/lookup?sans=${q}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}` }
+  });
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`lookup failed (${res.status})`);
@@ -29,7 +37,10 @@ export async function fetchReview(id: string): Promise<ReviewFetchResult> {
   }
 
   const url = `${API_BASE.replace(/\/$/, "")}/result/${id}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}` }
+  });
 
   // Backend returns 202 while analysis is pending
   if (res.status === 202) {
@@ -64,7 +75,7 @@ export async function addBranch(jobId: string, ply: number, uci: string): Promis
   const url = `${API_BASE.replace(/\/$/, "")}/analysis/branch`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ jobId, ply, uci }),
     cache: "no-store"
   });

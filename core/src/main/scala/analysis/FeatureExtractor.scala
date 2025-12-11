@@ -121,11 +121,8 @@ object FeatureExtractor:
     whiteRooksOnSemiOpenFiles: Int,
     blackRooksOnSemiOpenFiles: Int,
     whiteKnightOutposts: Int,
-    blackKnightOutposts: Int,
-    whiteBadBishopCount: Int,
-    blackBadBishopCount: Int,
-    whiteBishopPair: Boolean,
-    blackBishopPair: Boolean
+    blackKnightOutposts: Int
+    // badBishopCount and bishopPair removed - duplicates SideFeatures/ConceptScorer
   )
 
   final case class KingSafetyFeatures(
@@ -181,10 +178,7 @@ object FeatureExtractor:
     blackRooksBehindPassedPawns: Int
   )
 
-  final case class GeometryFeatures(
-    whiteWrongBishop: Boolean,
-    blackWrongBishop: Boolean
-  )
+  // GeometryFeatures removed - was unused
 
   final case class TacticalFeatures(
     whiteHangingPieces: Int,
@@ -206,8 +200,7 @@ object FeatureExtractor:
     development: DevelopmentFeatures,
     space: SpaceFeatures,
     coordination: CoordinationFeatures,
-    tactics: TacticalFeatures,
-    geometry: GeometryFeatures
+    tactics: TacticalFeatures
   )
 
   def extractPositionFeatures(fen: String, plyCount: Int): PositionFeatures =
@@ -235,8 +228,7 @@ object FeatureExtractor:
       development = computeDevelopment(board),
       space = computeSpace(board),
       coordination = computeCoordination(board),
-      tactics = computeTactics(board),
-      geometry = computeGeometryFeatures(board)
+      tactics = computeTactics(board)
     )
 
   // --- Internal Calculation Logic ---
@@ -403,16 +395,6 @@ object FeatureExtractor:
     val wOutposts = countOutposts(Color.White)
     val bOutposts = countOutposts(Color.Black)
 
-    // Bad Bishops
-    def badBishop(color: Color) =
-      val bishops = board.bishops & board.byColor(color)
-      val pawns = board.pawns & board.byColor(color)
-      bishops.squares.count { sq =>
-        val isLight = sq.isLight
-        val blockedPawns = pawns.squares.count(_.isLight == isLight)
-        blockedPawns >= 3 
-      }
-
     ActivityFeatures(
       whiteLegalMoves = wMoves.size,
       blackLegalMoves = bMoves.size,
@@ -429,11 +411,7 @@ object FeatureExtractor:
       whiteRooksOnSemiOpenFiles = wRSemi,
       blackRooksOnSemiOpenFiles = bRSemi,
       whiteKnightOutposts = wOutposts,
-      blackKnightOutposts = bOutposts,
-      whiteBadBishopCount = badBishop(Color.White),
-      blackBadBishopCount = badBishop(Color.Black),
-      whiteBishopPair = board.count(Color.White, Bishop) >= 2,
-      blackBishopPair = board.count(Color.Black, Bishop) >= 2
+      blackKnightOutposts = bOutposts
     )
 
   private def computeKingSafety(board: Board, position: Position): KingSafetyFeatures =
@@ -519,11 +497,15 @@ object FeatureExtractor:
     val bMin = board.count(Color.Black, Bishop) + board.count(Color.Black, Knight)
 
     val totalMat = wMat + bMat
-    // Simple phase logic
+    // Starting material = 78 (2*Q=18, 4*R=20, 4*B=12, 4*N=12, 16*P=16)
+    // Phase thresholds based on material remaining:
+    // - Opening: >= 70 (early game, most pieces on board)
+    // - Endgame: <= 40 (~50% gone) OR no major pieces with few minors
+    // - Middlegame: everything else
+    val isEndgameByPieces = wMaj + bMaj == 0 && wMin + bMin <= 2
     val phase = 
-      if wMaj + bMaj == 0 && wMin + bMin <= 4 then "endgame" // very simplified
-      else if totalMat <= 20 then "endgame" 
-      else if totalMat >= 60 then "opening" // heuristic
+      if isEndgameByPieces || totalMat <= 40 then "endgame"
+      else if totalMat >= 70 then "opening"
       else "middlegame"
 
     MaterialPhaseFeatures(
@@ -907,30 +889,4 @@ object FeatureExtractor:
       whiteBishops.head.isLight != blackBishops.head.isLight
     else false
 
-  private def computeGeometryFeatures(board: Board): GeometryFeatures =
-    
-    // KBP vs K Wrong Bishop logic
-    def isWrongBishop(color: Color): Boolean =
-       val pieces = board.piecesOf(color)
-       if pieces.size != 3 then false // King + Bishop + Pawn only (simplified)
-       else
-         val hasBishop = pieces.values.exists(_.role == Bishop)
-         val hasPawn = pieces.values.exists(_.role == Pawn)
-         if !hasBishop || !hasPawn then false
-         else
-           val pawnSq = pieces.find(_._2.role == Pawn).get._1
-           val bishopSq = pieces.find(_._2.role == Bishop).get._1
-           
-           if pawnSq.file != File.A && pawnSq.file != File.H then false
-           else
-             val promotionCornerColor = if pawnSq.file == File.A 
-                then (if color == Color.White then Square.A8.isLight else Square.A1.isLight) 
-                else (if color == Color.White then Square.H8.isLight else Square.H1.isLight)
-             
-             bishopSq.isLight != promotionCornerColor
-
-    GeometryFeatures(
-       whiteWrongBishop = isWrongBishop(Color.White),
-       blackWrongBishop = isWrongBishop(Color.Black)
-    )
 

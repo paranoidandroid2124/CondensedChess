@@ -239,37 +239,83 @@ object NarrativeTemplates:
       }
     }.mkString("\n      ")
     
+    // Extract structural context from PositionFeatures (if available)
+    val structuralContext = plys.headOption.flatMap(_.fullFeatures).map { f =>
+      val hints = List.newBuilder[String]
+      
+      // Pawn Structure
+      if f.pawns.whiteIQP then hints += "White has an Isolated Queen's Pawn (IQP)"
+      if f.pawns.blackIQP then hints += "Black has an Isolated Queen's Pawn (IQP)"
+      if f.pawns.whitePassedPawns > 0 then hints += s"White has ${f.pawns.whitePassedPawns} passed pawn(s)"
+      if f.pawns.blackPassedPawns > 0 then hints += s"Black has ${f.pawns.blackPassedPawns} passed pawn(s)"
+      if f.pawns.whiteHangingPawns then hints += "White has hanging pawns (c+d file)"
+      if f.pawns.blackHangingPawns then hints += "Black has hanging pawns (c+d file)"
+      
+      // King Safety
+      if f.kingSafety.whiteKingExposedFiles >= 2 then hints += "White's king is exposed (2+ open files nearby)"
+      if f.kingSafety.blackKingExposedFiles >= 2 then hints += "Black's king is exposed (2+ open files nearby)"
+      if f.kingSafety.whiteBackRankWeak then hints += "White has a weak back rank"
+      if f.kingSafety.blackBackRankWeak then hints += "Black has a weak back rank"
+      
+      // Activity
+      if f.activity.whiteKnightOutposts > 0 then hints += s"White has ${f.activity.whiteKnightOutposts} knight(s) on outpost(s)"
+      if f.activity.blackKnightOutposts > 0 then hints += s"Black has ${f.activity.blackKnightOutposts} knight(s) on outpost(s)"
+      
+      // Space
+      val spaceDiff = f.space.whiteCentralSpace - f.space.blackCentralSpace
+      if spaceDiff >= 3 then hints += "White has a significant space advantage"
+      if spaceDiff <= -3 then hints += "Black has a significant space advantage"
+      
+      if hints.result().nonEmpty then s"\n      |Structural Notes: ${hints.result().mkString("; ")}" else ""
+    }.getOrElse("")
+    
     val context = s"""
       |SECTION CONTEXT:
       |Type: $sectionType
       |Title Hint: $title
       |Ply Range: $startPly - $endPly (${plyToMove(startPly)} to ${plyToMove(endPly)})
       |Dominant Roles: ${keyRoles.mkString(", ")}
-      |Avg Dynamic Score: ${fmt(avgDyn)}
+      |Avg Dynamic Score: ${fmt(avgDyn)}$structuralContext
       |Key Moments (Evidence):
       |      $keyMoments
     """.stripMargin
 
     val commonInstructions =
       """
+        |STYLE RULES:
+        |- Write like a chess book author, not a computer report.
+        |- ALWAYS cite specific moves (e.g., "15.Nxe5") and squares, but ONLY if they are explicitly in the source data.
+        |- **NO ORIGIN ASSUMPTIONS**: If input says "Nxe5", do NOT write "The knight *from f3* captures..." unless you know it was on f3.
+        |- Use natural chess language: "wins a pawn", "creates threats", "exposes the king".
+        |- NEVER use: win percentages, "eval", "deltaWinPct", "conceptShift", or technical jargon.
+        |- Be SPECIFIC about WHAT happened: "After 15.Nxe5, the knight forks the king and rook".
+        |
         |OUTPUT FORMAT:
         |Return a valid JSON object with the following fields:
-        |- "narrative": A concise, engaging paragraph (3-4 sentences) describing the action.
+        |- "title": A short, engaging title (3-5 words) that captures the essence of the section.
+        |- "narrative": A concise paragraph (3-4 sentences) describing the action with SPECIFIC moves.
         |- "theme": A 1-2 word strategic theme (e.g. "Space Advantage", "King Attack", "Endgame Grind").
         |- "atmosphere": A 1-word adjective describing the tension (e.g. "Tense", "Calm", "Chaotic", "Desperate").
         |- "context": A subset of key metrics or facts (e.g. {"Material": "Equal", "Mistakes": "None"}).
         |
+        |BAD EXAMPLE:
+        |"The position's dynamism increased and tactical complexity shifted the evaluation."
+        |
+        |GOOD EXAMPLE:
+        |"After 15.Nxe5!, White wins the d7 pawn because Black's bishop is overloaded defending both d7 and b7. Black tried 15...Qe7 but 16.Bc4 pins the f7 pawn to the king."
+        |
         |JSON EXAMPLE:
         |{
-        |  "narrative": "White seized the initiative with a bold pawn sacrifice, opening lines against the black king. Black failed to respond accurately, leading to a decisive tactical sequence.",
+        |  "title": "A Sudden King Attack",
+        |  "narrative": "White seized the initiative with 18.Bxh7+! Kxh7 19.Ng5+, a classic Greek Gift sacrifice. Black's king was forced into the open after Kg6 20.Qd3+ f5 21.Qg3, and White had a winning attack.",
         |  "theme": "King Attack",
         |  "atmosphere": "Chaotic",
-        |  "context": { "Material": "-1 Pawn", "Key Moment": "Move 18" }
+        |  "context": { "Material": "-1 Piece", "Key Moment": "Move 18" }
         |}
       """.stripMargin
 
     sectionType match
-      case BookModel.SectionType.OpeningPortrait =>
+      case BookModel.SectionType.OpeningReview =>
         s"""$context
            |GOAL: Describe the opening phase.
            |INSTRUCTIONS:
@@ -287,7 +333,7 @@ object NarrativeTemplates:
            |$commonInstructions
          """.stripMargin
          
-      case BookModel.SectionType.CriticalCrisis =>
+      case BookModel.SectionType.TurningPoints =>
         s"""$context
            |GOAL: Describe a turning point or crisis.
            |INSTRUCTIONS:
@@ -296,12 +342,21 @@ object NarrativeTemplates:
            |$commonInstructions
          """.stripMargin
          
-      case BookModel.SectionType.EndgameMasterclass =>
+      case BookModel.SectionType.EndgameLessons =>
         s"""$context
            |GOAL: Describe the endgame phase.
            |INSTRUCTIONS:
            |- Focus on technique and conversion/defense.
            |- Mention key theoretical concepts.
+           |$commonInstructions
+         """.stripMargin
+         
+      case BookModel.SectionType.MiddlegamePlans =>
+        s"""$context
+           |GOAL: Describe the strategic plans and maneuvering (moves $startPly-$endPly).
+           |INSTRUCTIONS:
+           |- Identify the dominant plan (e.g. Queen's side attack, Center control).
+           |- Explain how the plan unfolded.
            |$commonInstructions
          """.stripMargin
          

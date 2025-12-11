@@ -16,8 +16,8 @@ export const ReadingMode: React.FC<Props> = (props) => {
     // Determine the component to render
     const Component = (() => {
         switch (section.sectionType) {
-            case 'OpeningPortrait': return OpeningHero;
-            case 'CriticalCrisis': return CrisisView;
+            case 'OpeningReview': return OpeningHero;
+            case 'TurningPoints': return CrisisView;
             default: return StandardSection;
         }
     })();
