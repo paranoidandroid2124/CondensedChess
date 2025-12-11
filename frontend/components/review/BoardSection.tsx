@@ -11,6 +11,8 @@ export function BoardSection({
   customShapes,
   arrows,
   evalPercent,
+  cp,
+  mate,
   judgementBadge,
   moveSquare,
   onDrop,
@@ -25,13 +27,16 @@ export function BoardSection({
   onSelectPly,
   branchSaving,
   branchError,
-  children
+  children,
+  orientation = "white"
 }: {
   fen?: string;
   customShapes?: DrawShape[];
   squareStyles?: Record<string, React.CSSProperties>;
   arrows?: Array<[string, string, string?]>;
   evalPercent?: number;
+  cp?: number;
+  mate?: number;
   judgementBadge?: string;
   moveSquare?: string;
   onDrop?: (args: PieceDropArgs) => boolean;
@@ -47,6 +52,7 @@ export function BoardSection({
   branchSaving: boolean;
   branchError: string | null;
   children?: React.ReactNode;
+  orientation?: "white" | "black";
 }) {
   const markers = timeline
     .filter((t) => t.judgement === "blunder" || t.judgement === "mistake" || t.judgement === "inaccuracy" || t.special)
@@ -57,6 +63,12 @@ export function BoardSection({
     }))
     .concat(conceptSpikes.map((s) => ({ ply: s.ply, kind: "spike", label: s.concept })));
 
+  const currentNode = typeof selectedPly === 'number' ? timeline.find((t) => t.ply === selectedPly) : null;
+  const lastMove = currentNode?.uci && currentNode.uci.length >= 4
+    ? [currentNode.uci.substring(0, 2), currentNode.uci.substring(2, 4)] as [string, string]
+    : undefined;
+  const isCheck = currentNode?.san?.includes('+') || currentNode?.san?.includes('#');
+
   return (
     <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
       <div className="group relative">
@@ -65,9 +77,14 @@ export function BoardSection({
           customShapes={customShapes}
           arrows={arrows}
           evalPercent={evalPercent}
+          cp={cp}
+          mate={mate}
           judgementBadge={judgementBadge}
           moveSquare={moveSquare}
           onDrop={onDrop}
+          lastMove={lastMove}
+          check={isCheck}
+          orientation={orientation}
         />
         <DrawingTools
           selectedColor={drawingColor}

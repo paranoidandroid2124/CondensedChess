@@ -42,7 +42,21 @@ lazy val scalachess: Project = Project("scalachess", file("core")).settings(
     "org.typelevel" %% "kittens" % "3.5.0",
     "org.xerial" % "sqlite-jdbc" % "3.46.1.0",
     "ch.qos.logback" % "logback-classic" % "1.4.14",
-    "org.scalameta" %% "munit" % "1.0.0" % Test
+    "org.typelevel" %% "cats-effect" % "3.5.4",
+    "org.http4s" %% "http4s-ember-server" % "0.23.27",
+    "org.http4s" %% "http4s-dsl" % "0.23.27",
+    "org.http4s" %% "http4s-circe" % "0.23.27",
+    "org.scalameta" %% "munit" % "1.0.0" % Test,
+    // Database (Doobie)
+    "org.tpolecat" %% "doobie-core" % "1.0.0-RC5",
+    "org.tpolecat" %% "doobie-postgres" % "1.0.0-RC5",
+    "org.tpolecat" %% "doobie-hikari" % "1.0.0-RC5",
+    // Redis (Job Queue)
+    "dev.profunktor" %% "redis4cats-effects" % "1.7.0",
+    "dev.profunktor" %% "redis4cats-streams" % "1.7.0",
+    // Authentication (Tsec + JBCrypt)
+    "org.mindrot" % "jbcrypt" % "0.4",
+    "io.github.jmcardon" %% "tsec-jwt-mac" % "0.5.0"
   ),
   resolvers += "jitpack".at("https://jitpack.io")
 )

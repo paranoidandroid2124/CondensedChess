@@ -118,34 +118,42 @@ interface BookViewContainerProps {
     onSelectPly: (ply: number) => void;
     onPreviewFen?: (fen: string | null) => void;
     onSelectNode?: (node: ReviewTreeNode) => void;
+    onMoveHover?: (node: ReviewTreeNode | null) => void;
 }
 
-function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNode }: {
+function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNode, onMoveHover }: {
     section: BookSection;
     root?: ReviewTreeNode;
     onSelectPly: (ply: number) => void;
     onPreviewFen?: (fen: string | null) => void;
     onSelectNode?: (node: ReviewTreeNode) => void;
+    onMoveHover?: (node: ReviewTreeNode | null) => void;
 }) {
     // ... Type defs omitted for brevity, they are unchanged ...
 
     // (Re-copy icons/colors maps from original if not already in closure, assuming component function continues)
     const typeIcons: Record<string, string> = {
-        OpeningPortrait: "🌅",
-        CriticalCrisis: "⚠️",
-        StructuralDeepDive: "🏗️",
+        OpeningReview: "📖",
+        TurningPoints: "⚡",
+        MiddlegamePlans: "🎯",
         TacticalStorm: "⚔️",
-        EndgameMasterclass: "👑",
-        NarrativeBridge: "🌉"
+        TacticalMoments: "✨",
+        EndgameLessons: "🎓",
+        TitleSummary: "📑",
+        KeyDiagrams: "📸",
+        FinalChecklist: "✅"
     };
 
     const typeColors: Record<string, string> = {
-        OpeningPortrait: "border-blue-500/30 bg-blue-500/5",
-        CriticalCrisis: "border-red-500/30 bg-red-500/5",
-        StructuralDeepDive: "border-cyan-500/30 bg-cyan-500/5",
+        OpeningReview: "border-indigo-500/30 bg-indigo-500/5",
+        TurningPoints: "border-rose-500/30 bg-rose-500/5",
+        MiddlegamePlans: "border-teal-500/30 bg-teal-500/5",
         TacticalStorm: "border-orange-500/30 bg-orange-500/5",
-        EndgameMasterclass: "border-purple-500/30 bg-purple-500/5",
-        NarrativeBridge: "border-slate-500/30 bg-slate-500/5"
+        TacticalMoments: "border-amber-500/30 bg-amber-500/5",
+        EndgameLessons: "border-violet-500/30 bg-violet-500/5",
+        TitleSummary: "border-white/10 bg-white/5",
+        KeyDiagrams: "border-white/10 bg-white/5",
+        FinalChecklist: "border-green-500/30 bg-green-500/5"
     };
 
     // Find the start node for this section to anchor the narrative
@@ -198,16 +206,13 @@ function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNod
                             <NarrativeRenderer
                                 node={startNode}
                                 onInteract={(node) => {
-                                    // If node is a variation (has nodeType or doesn't match main flow in theory, 
-                                    // but simplistically: ALWAYS preview fen if available, PLUS select ply)
-                                    // Actually, onSelectPly jumps timeline. onPreviewFen forces board.
-                                    // Let's do both.
                                     onSelectPly(node.ply);
                                     if (onPreviewFen && node.fen) {
                                         onPreviewFen(node.fen);
                                     }
                                     onSelectNode?.(node);
                                 }}
+                                onMoveHover={onMoveHover}
                                 depth={0}
                                 endPly={section.endPly}
                             />
@@ -219,22 +224,87 @@ function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNod
     );
 }
 
-export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSelectNode }: BookViewContainerProps) {
+// --- Table of Contents ---
+
+function TableOfContents({ sections }: { sections: BookSection[] }) {
+    const scrollToSection = (idx: number) => {
+        const el = document.getElementById(`book-section-${idx}`);
+        if (el) {
+            const offset = 80; // Header offset
+            const bodyRect = document.body.getBoundingClientRect().top;
+            const elementRect = el.getBoundingClientRect().top;
+            const elementPosition = elementRect - bodyRect;
+            const offsetPosition = elementPosition - offset;
+
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: "smooth"
+            });
+        }
+    };
+
     return (
-        <div className="space-y-2 pb-16">
-            <IntroSection meta={book.gameMeta} />
-            {/* Render Sections Dynamically */}
-            {book.sections.map((section, idx) => (
-                <SectionRenderer
+        <nav className="space-y-1">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3 px-2">Contents</h3>
+            {sections.map((section, idx) => (
+                <button
                     key={idx}
-                    section={section}
-                    root={root}
-                    onSelectPly={onSelectPly}
-                    onPreviewFen={onPreviewFen}
-                    onSelectNode={onSelectNode}
-                />
+                    onClick={() => scrollToSection(idx)}
+                    className="block w-full text-left px-3 py-2 text-sm rounded transition-colors text-white/60 hover:bg-white/5 hover:text-white truncate"
+                >
+                    <span className="mr-2 opacity-50 text-[10px]">{idx + 1}.</span>
+                    {section.title}
+                </button>
             ))}
-            <ChecklistSection blocks={book.checklist} />
+            <button
+                onClick={() => {
+                    const el = document.getElementById('book-checklist');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="block w-full text-left px-3 py-2 text-sm rounded transition-colors text-accent-teal/80 hover:bg-accent-teal/10 hover:text-accent-teal mt-4 border-t border-white/5 pt-4"
+            >
+                ✅ Study Checklist
+            </button>
+        </nav>
+    );
+}
+
+export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSelectNode, onMoveHover }: BookViewContainerProps) {
+    if (!book || !book.sections) return (
+        <div className="py-12 text-center text-white/40 italic">
+            No book content generated yet. Run analysis to create the book.
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 relative items-start">
+            {/* Sidebar TOC - Desktop only */}
+            <aside className="hidden lg:block w-56 xl:w-64 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 custom-scrollbar">
+                <TableOfContents sections={book.sections} />
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 min-w-0 space-y-4 pb-16 w-full">
+                <IntroSection meta={book.gameMeta} />
+
+                {/* Render Sections Dynamically */}
+                {book.sections.map((section, idx) => (
+                    <div key={idx} id={`book-section-${idx}`}>
+                        <SectionRenderer
+                            section={section}
+                            root={root}
+                            onSelectPly={onSelectPly}
+                            onPreviewFen={onPreviewFen}
+                            onSelectNode={onSelectNode}
+                            onMoveHover={onMoveHover}
+                        />
+                    </div>
+                ))}
+
+                <div id="book-checklist">
+                    <ChecklistSection blocks={book.checklist} />
+                </div>
+            </main>
         </div>
     );
 }

@@ -1,11 +1,14 @@
-import React from "react";
-import { Review, Concepts } from "../types/review";
+import React, { useMemo } from "react";
+import { Review, Concepts, TimelineNode } from "../types/review";
+import { ConceptTrendChart } from "./review/ConceptTrendChart";
 
 type ConceptsTabProps = {
     review: Review | null;
     currentConcepts?: Concepts;
     currentSemanticTags?: string[];
     conceptDelta?: Concepts;
+    timeline?: TimelineNode[];
+    currentPly?: number;
 };
 
 const tagLabelMap: Record<string, string> = {
@@ -117,33 +120,51 @@ export function getTagColor(tag: string): string {
     return parseTag(tag).colorClass;
 }
 
-export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conceptDelta }: ConceptsTabProps) {
+export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conceptDelta, timeline, currentPly }: ConceptsTabProps) {
     if (!review) return null;
 
     return (
         <div className="space-y-6">
             {/* Game Accuracy */}
             <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
-                    <div className="text-xs uppercase tracking-wider text-white/40 mb-1">White</div>
-                    <div className="text-2xl font-bold text-white">
+                <div className="rounded-xl border border-surface-highlight bg-surface-elevated p-3 text-center">
+                    <div className="text-xs uppercase tracking-wider text-content-tertiary mb-1">White</div>
+                    <div className="text-2xl font-bold text-content-primary">
                         {review.accuracyWhite?.toFixed(1) ?? "—"}
-                        <span className="text-sm text-white/40">%</span>
+                        <span className="text-sm text-content-tertiary">%</span>
                     </div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
-                    <div className="text-xs uppercase tracking-wider text-white/40 mb-1">Black</div>
-                    <div className="text-2xl font-bold text-white">
+                <div className="rounded-xl border border-surface-highlight bg-surface-elevated p-3 text-center">
+                    <div className="text-xs uppercase tracking-wider text-content-tertiary mb-1">Black</div>
+                    <div className="text-2xl font-bold text-content-primary">
                         {review.accuracyBlack?.toFixed(1) ?? "—"}
-                        <span className="text-sm text-white/40">%</span>
+                        <span className="text-sm text-content-tertiary">%</span>
                     </div>
                 </div>
             </div>
 
+            {/* Concept Trend Chart */}
+            {timeline && timeline.length > 0 && (
+                <div className="rounded-xl border border-surface-highlight bg-surface-elevated p-4 animate-scale-in">
+                    <p className="mb-2 text-xs font-semibold text-content-secondary">Concept Trends</p>
+                    <ConceptTrendChart
+                        data={timeline.map(node => ({
+                            ply: node.ply,
+                            dynamic: node.concepts?.dynamic,
+                            kingSafety: node.concepts?.kingSafety,
+                            tacticalDepth: node.concepts?.tacticalDepth,
+                            comfortable: node.concepts?.comfortable
+                        }))}
+                        currentPly={currentPly}
+                        height={160}
+                    />
+                </div>
+            )}
+
             {/* Current Position Concepts */}
             {currentConcepts && (
-                <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-white/80">Current Position Concepts</h3>
+                <div className="space-y-3 animate-slide-up">
+                    <h3 className="text-sm font-semibold text-content-secondary">Current Position Concepts</h3>
 
                     {/* Semantic Tags */}
                     {currentSemanticTags && currentSemanticTags.length > 0 && (
@@ -159,13 +180,13 @@ export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conc
                     {/* Concept Deltas */}
                     {conceptDelta && (
                         <div className="mb-4 space-y-2">
-                            <h4 className="text-xs font-medium text-white/60 uppercase tracking-wider">Significant Changes</h4>
+                            <h4 className="text-xs font-medium text-content-tertiary uppercase tracking-wider">Significant Changes</h4>
                             {Object.entries(conceptDelta)
                                 .filter(([, val]) => typeof val === 'number' && Math.abs(val) >= 0.1)
                                 .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
                                 .map(([key, val]) => (
                                     <div key={key} className="flex items-center justify-between text-xs">
-                                        <span className="text-white/70 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                        <span className="text-content-secondary capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                                         <span className={`font-mono ${(val as number) > 0 ? 'text-green-400' : 'text-rose-400'}`}>
                                             {(val as number) > 0 ? '+' : ''}{(val as number).toFixed(2)}
                                         </span>
@@ -180,8 +201,8 @@ export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conc
                             .sort(([, a], [, b]) => (b as number) - (a as number))
                             .slice(0, 6)
                             .map(([key, val]) => (
-                                <div key={key} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-                                    <span className="text-xs text-white/80 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                <div key={key} className="flex items-center justify-between rounded-lg bg-surface-base px-3 py-2 border border-surface-highlight">
+                                    <span className="text-xs text-content-secondary capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                                     <div className="flex items-center gap-2">
                                         <div className="h-1.5 w-16 rounded-full bg-black/20 overflow-hidden">
                                             <div

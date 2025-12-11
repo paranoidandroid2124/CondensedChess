@@ -43,20 +43,17 @@ object BookModel:
 
   // Legacy section types (for backward compatibility)
   enum SectionType:
-    case OpeningPortrait
-    case CriticalCrisis
-    case StructuralDeepDive
-    case TacticalStorm
-    case EndgameMasterclass
-    case NarrativeBridge // Generic transition
-    // New checklist-aligned types (Phase 1)
-    case TitleSummary
-    case KeyDiagrams
+    // Active Types used in BookBuilder
     case OpeningReview
     case TurningPoints
-    case TacticalMoments
+    case TacticalStorm
     case MiddlegamePlans
     case EndgameLessons
+    
+    // Future/New Types
+    case TitleSummary
+    case KeyDiagrams
+    case TacticalMoments // Specific list view
     case FinalChecklist
 
   // Typed section data for new checklist-aligned format

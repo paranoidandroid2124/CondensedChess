@@ -5,6 +5,7 @@ import React from "react";
 import "chessground/assets/chessground.base.css";
 import "chessground/assets/chessground.brown.css";
 import Navigation from "@/components/Navigation";
+import ClientProviders from "@/components/ClientProviders";
 
 const merriweather = Merriweather({
   weight: ["300", "400", "700", "900"],
@@ -27,8 +28,10 @@ export default function RootLayout({
       <body className={`${merriweather.className} bg-ink text-mist font-body`}>
         <div className="bg-hero-gradient min-h-screen">
           <div className="grid-accent absolute inset-0 pointer-events-none opacity-50" />
-          <Navigation />
-          <main className="relative z-10">{children}</main>
+          <ClientProviders>
+            <Navigation />
+            <main className="relative z-10">{children}</main>
+          </ClientProviders>
         </div>
       </body>
     </html>

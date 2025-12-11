@@ -15,6 +15,17 @@ const config: Config = {
           teal: "#3dd6b7",
           purple: "#8b5cf6"
         },
+        surface: {
+          base: "#0b1021",
+          elevated: "rgba(255, 255, 255, 0.05)",
+          floating: "rgba(255, 255, 255, 0.1)",
+          highlight: "rgba(255, 255, 255, 0.08)"
+        },
+        content: {
+          primary: "#e7ecff",
+          secondary: "rgba(231, 236, 255, 0.7)",
+          tertiary: "rgba(231, 236, 255, 0.4)"
+        },
         card: {
           base: "rgba(16, 22, 48, 0.85)",
           ring: "rgba(255, 255, 255, 0.08)"
@@ -30,6 +41,25 @@ const config: Config = {
         display: ["'Space Grotesk'", "Inter", "system-ui", "sans-serif"],
         body: ["'Inter'", "system-ui", "sans-serif"],
         serif: ["'Merriweather'", "serif"]
+      },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" }
+        },
+        "slide-up": {
+          "0%": { transform: "translateY(10px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" }
+        },
+        "scale-in": {
+          "0%": { transform: "scale(0.95)", opacity: "0" },
+          "100%": { transform: "scale(1)", opacity: "1" }
+        }
+      },
+      animation: {
+        "fade-in": "fade-in 0.3s ease-out",
+        "slide-up": "slide-up 0.4s ease-out",
+        "scale-in": "scale-in 0.2s ease-out"
       }
     }
   },

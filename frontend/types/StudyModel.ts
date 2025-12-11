@@ -1,12 +1,15 @@
 import { TimelineNode } from './review';
 
 export type SectionType =
-    | "OpeningPortrait"
-    | "CriticalCrisis"
-    | "StructuralDeepDive"
+    | "OpeningReview"
+    | "TurningPoints"
+    | "MiddlegamePlans"
     | "TacticalStorm"
-    | "EndgameMasterclass"
-    | "NarrativeBridge";
+    | "EndgameLessons"
+    | "TacticalMoments"
+    | "TitleSummary"
+    | "KeyDiagrams"
+    | "FinalChecklist";
 
 export type MistakeTag = "TacticalMiss" | "Blunder" | "PrematurePawnPush" | "PassiveMove" | "PositionalTradeError" | "MissedCentralBreak";
 export type StructureTag = string; // e.g. "SpaceAdvantageWhite" - we can be loose or exhaustive here

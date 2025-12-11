@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import InteractiveBoard from "../board/InteractiveBoard"; // Renamed from LichessBoard
+import InteractiveBoard from "../board/InteractiveBoard";
 import { VerticalEvalBar } from "../VerticalEvalBar";
 import { DrawShape } from "chessground/draw";
 import { Key } from "chessground/types";
@@ -15,23 +15,34 @@ export function BoardCard({
   customShapes = [],
   arrows,
   evalPercent,
+  cp,
+  mate,
   judgementBadge,
   moveSquare,
-  onDrop
+  onDrop,
+  check,
+  lastMove,
+  orientation = "white"
 }: {
   fen?: string;
-  customShapes?: DrawShape[]; // New prop from ReviewClient
-  squareStyles?: Record<string, React.CSSProperties>; // Deprecated but kept for type compat if needed
+  customShapes?: DrawShape[];
   arrows?: Array<[string, string, string?]>;
   evalPercent?: number;
+  cp?: number;
+  mate?: number;
   judgementBadge?: string;
   moveSquare?: string;
   onDrop?: (args: PieceDropArgs) => boolean;
+  check?: boolean;
+  lastMove?: [string, string];
+  orientation?: "white" | "black";
 }) {
   const [width, setWidth] = useState(420);
   const rowRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // ResizeObserver handled inside InteractiveBoard now for Redraw.
+    // This hook mainly handles container sizing logic if needed.
     const measure = (el?: HTMLElement) => {
       const target = el ?? rowRef.current;
       if (!target) return;
@@ -61,7 +72,7 @@ export function BoardCard({
       shapes.push({
         orig: orig as Key,
         dest: dest as Key,
-        brush: color === 'red' ? 'red' : color === 'green' ? 'green' : 'blue', // Simple mapping
+        brush: color === 'red' ? 'red' : color === 'green' ? 'green' : 'blue',
       });
     });
   }
@@ -81,9 +92,6 @@ export function BoardCard({
     });
   }
 
-  // 3. SquareStyles (Fallback map if needed, mainly checks/highlights)
-  // react-chessboard style mapping is hard, simplified for Lichess style.
-
   const handleMove = (orig: Key, dest: Key, newFen: string) => {
     if (onDrop) {
       onDrop({
@@ -100,18 +108,23 @@ export function BoardCard({
         <h3 className="text-sm font-semibold text-white/80">Board</h3>
         <span className="text-xs text-white/60">{fen ? "Selected ply" : "Starting position"}</span>
       </div>
-      <div ref={rowRef} className="relative mt-3 flex gap-3">
-        <VerticalEvalBar evalPercent={evalPercent} />
-        <div
-          className="relative overflow-hidden rounded-xl border border-white/10"
-          style={{ width: width, height: width }}
-        >
+
+      <div className="mt-4 flex justify-center" ref={rowRef}>
+        <div style={{ width: width, height: width }}>
           <InteractiveBoard
             fen={fen || "start"}
-            shapes={shapes}
-            onMove={handleMove}
+            orientation={orientation}
             viewOnly={!onDrop}
+            onMove={handleMove}
+            shapes={shapes}
+            lastMove={lastMove as [Key, Key]} /* Cast string to Key */
+            check={check}
           />
+        </div>
+
+        {/* Eval Bar */}
+        <div className="ml-4 h-full" style={{ height: width }}>
+          <VerticalEvalBar evalPercent={evalPercent} cp={cp} mate={mate} />
         </div>
       </div>
     </div>

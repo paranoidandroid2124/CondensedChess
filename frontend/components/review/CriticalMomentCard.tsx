@@ -5,6 +5,7 @@ import { uciToSan } from "../../lib/chess-utils";
 import { getPracticalityNarrative } from "../../lib/practicality-narrative";
 import { displayTag, humanizeTag, phaseOf } from "../../lib/review-tags";
 import { formatDelta } from "../../lib/review-format";
+import { TagBadge } from "../common/TagBadge";
 
 interface Props {
   critical: CriticalNode;
@@ -78,12 +79,7 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wide text-white/40">Facts:</span>
           {c.semanticTags.slice(0, 6).map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] text-cyan-200 border border-cyan-500/30"
-            >
-              {displayTag(tag)}
-            </span>
+            <TagBadge key={tag} tag={tag} />
           ))}
         </div>
       )}
@@ -91,14 +87,21 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
       {c.branches?.length ? (
         <div className="mt-2 grid gap-2">
           {c.branches.slice(0, 3).map((b) => (
-            <div key={b.move} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-              <div className="text-sm text-white">
-                <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/70">
-                  {b.label}
-                </span>
-                {uciToSan(fenBefore, b.move)}
+            <div key={b.move} className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-white">
+                  <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/70">
+                    {b.label}
+                  </span>
+                  {uciToSan(fenBefore, b.move)}
+                </div>
+                <div className="text-xs text-accent-teal">{b.winPct.toFixed(1)}%</div>
               </div>
-              <div className="text-xs text-accent-teal">{b.winPct.toFixed(1)}%</div>
+              {b.comment && (
+                <div className="mt-1 text-xs text-white/60 italic ml-2 border-l-2 border-white/10 pl-2">
+                  {b.comment}
+                </div>
+              )}
             </div>
           ))}
         </div>

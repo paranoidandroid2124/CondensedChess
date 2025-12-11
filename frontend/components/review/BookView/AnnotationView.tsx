@@ -11,6 +11,7 @@ interface AnnotationViewProps {
     onSelectPly: (ply: number) => void;
     onPreviewFen?: (fen: string | null) => void;
     onSelectNode?: (node: ReviewTreeNode) => void;
+    onMoveHover?: (node: ReviewTreeNode | null) => void;
 }
 
 // Helper to find a node in the tree by ply
@@ -119,7 +120,7 @@ function LegacyAnnotationView({
 }
 
 // Main export - routes to BookView or Legacy based on data availability
-export function AnnotationView({ review, rootNode, selectedPly, onSelectPly, onPreviewFen, onSelectNode }: AnnotationViewProps) {
+export function AnnotationView({ review, rootNode, selectedPly, onSelectPly, onPreviewFen, onSelectNode, onMoveHover }: AnnotationViewProps) {
     // If Phase 4.6 Book is available, use the new BookView
     if (review.book) {
         return (
@@ -130,6 +131,7 @@ export function AnnotationView({ review, rootNode, selectedPly, onSelectPly, onP
                     onSelectPly={onSelectPly}
                     onPreviewFen={onPreviewFen}
                     onSelectNode={onSelectNode}
+                    onMoveHover={onMoveHover}
                 />
             </div>
         );

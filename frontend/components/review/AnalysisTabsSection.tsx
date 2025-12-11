@@ -14,6 +14,8 @@ import type { EngineMessage } from "../../lib/engine";
 import type { VariationEntry } from "./TimelineView";
 import type { TabId } from "../AnalysisPanel";
 
+import { useKeyboardNavigation } from "../../hooks/useKeyboardNavigation";
+
 export function AnalysisTabsSection({
   activeMove,
   enhancedTimeline,
@@ -30,7 +32,8 @@ export function AnalysisTabsSection({
   selectedPly,
   reviewRoot,
   setPreviewFen,
-  onSelectNode
+  onSelectNode,
+  onMoveHover
 }: {
   activeMove: EnhancedTimelineNode | null;
   enhancedTimeline: EnhancedTimelineNode[];
@@ -49,8 +52,23 @@ export function AnalysisTabsSection({
   setPreviewArrows?: (arrows: [string, string, string][]) => void;
   setPreviewFen?: (fen: string | null) => void;
   onSelectNode?: (node: any) => void;
+  onMoveHover?: (node: any) => void;
 }) {
   const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "study"];
+  const maxPly = timeline.length > 0 ? timeline[timeline.length - 1].ply : 0;
+
+  useKeyboardNavigation({
+    onPrev: () => {
+      const current = selectedPly ?? 0;
+      if (current > 0) setSelectedPly(current - 1);
+    },
+    onNext: () => {
+      const current = selectedPly ?? 0;
+      if (current < maxPly) setSelectedPly(current + 1);
+    },
+    onFirst: () => setSelectedPly(0),
+    onLast: () => setSelectedPly(maxPly)
+  });
 
   const [showTreeModal, setShowTreeModal] = React.useState(false);
 
@@ -104,6 +122,7 @@ export function AnalysisTabsSection({
             onSelectPly={setSelectedPly}
             onPreviewFen={setPreviewFen}
             onSelectNode={onSelectNode}
+            onMoveHover={onMoveHover}
           />
         )}
 
@@ -113,6 +132,8 @@ export function AnalysisTabsSection({
             currentConcepts={activeMove?.concepts}
             currentSemanticTags={activeMove?.semanticTags}
             conceptDelta={activeMove?.conceptDelta}
+            timeline={enhancedTimeline}
+            currentPly={selectedPly ?? undefined}
           />
         )}
       </AnalysisPanel>

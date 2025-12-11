@@ -133,38 +133,35 @@ export function findPathToNode(root: ReviewTreeNode, targetNode: ReviewTreeNode)
 }
 
 export function convertPathToTimeline(path: ReviewTreeNode[]): EnhancedTimelineNode[] {
-  // Skip root if it's the starting position (ply 0, typically no move) 
-  // UNLESS the array includes the root as a move? 
-  // ReviewTreeNode root is usually "start pos" (ply 0) or "first move".
-  // Typically root is ply 0 (Concept analysis usually starts at ply 0).
-  // But TimelineNode usually starts at ply 1.
-  // Check buildEnhancedTimeline: input is review.timeline (which are moves).
-
-  // Filter out ply 0 if it has no SAN (start pos)
+  // Skip root if it's ply 0 (start position) with no SAN
   const moves = path.filter(n => n.ply > 0);
 
   return moves.map(node => {
     const moveNumber = Math.ceil(node.ply / 2);
     const turnPrefix = node.ply % 2 === 1 ? "." : "...";
     const label = `${moveNumber}${turnPrefix} ${node.san}`;
-    // For variation nodes, we might not have fenBefore populated in the node itself
-    // But we can infer it from the PREVIOUS node in the path.
-    // In the path, index i-1 is the parent.
-    // So moves[i].fenBefore = path[i-1 if mapped correctly].fen.
 
-    // However, `path` includes root. `moves` filters it.
-    // Let's find the parent in `path`.
+    // For variation nodes, infer fenBefore from the previous node in the path
     const parent = path.find(p => p.ply === node.ply - 1);
-    const fenBefore = parent ? parent.fen : (node.fenBefore || node.fen); // fallback
+    const fenBefore = parent ? parent.fen : node.fen;
 
+    // Determine turn from ply (odd = white moved, even = black moved)
+    const turn: "white" | "black" = node.ply % 2 === 1 ? "white" : "black";
+
+    // Build EnhancedTimelineNode with required fields
+    // ReviewTreeNode has: ply, san, uci, fen, eval, evalType, judgement, glyph, tags, pv, children
+    // TimelineNode requires: ply, turn, san, uci, fen, features
     return {
-      ...node,
+      ply: node.ply,
+      turn,
+      san: node.san,
+      uci: node.uci,
+      fen: node.fen,
+      features: node.features ?? { pawnIslands: 0, isolatedPawns: 0, doubledPawns: 0, passedPawns: 0, rookOpenFiles: 0, rookSemiOpenFiles: 0, bishopPair: false, kingRingPressure: 0, spaceControl: 0 },
+      concepts: node.concepts,
       label,
       fenBefore,
-      // Ensure exact types match TimelineNode
-      // ReviewTreeNode has 'comment', 'concepts', etc. which overlap with TimelineNode
-      // But we need to make sure we don't miss anything required.
-      // TimelineNode usually requires: ply, san, uci, fen. ReviewTreeNode has all.
     } as EnhancedTimelineNode;
   });
 }
+

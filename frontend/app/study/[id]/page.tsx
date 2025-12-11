@@ -4,6 +4,7 @@ import React from 'react';
 import { useStudyData } from '../../../hooks/useStudyData';
 import { StudyProvider } from '../../../components/study/StudyContext';
 import { StudyShell } from '../../../components/study/StudyShell';
+import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
 import { useParams } from 'next/navigation';
 
 export default function StudyPage() {
@@ -79,9 +80,6 @@ export default function StudyPage() {
                         </a>
                         <button
                             onClick={() => {
-                                // Logic to trigger re-analysis?
-                                // Ideally POST /analyze again.
-                                // For now just refresh or user manual action.
                                 window.location.href = '/';
                             }}
                             className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white transition font-semibold"
@@ -95,8 +93,10 @@ export default function StudyPage() {
     }
 
     return (
-        <StudyProvider study={study}>
-            <StudyShell />
-        </StudyProvider>
+        <ErrorBoundary>
+            <StudyProvider study={study}>
+                <StudyShell />
+            </StudyProvider>
+        </ErrorBoundary>
     );
 }

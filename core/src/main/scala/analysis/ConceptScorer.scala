@@ -196,7 +196,43 @@ object ConceptScorer:
       }
       scores.sum / scores.size
 
-  private def goodKnightScore(position: Position, side: Color): Double = 0.0
+  private def goodKnightScore(position: Position, side: Color): Double =
+    val knights = (position.board.knights & position.board.byColor(side)).squares
+    if knights.isEmpty then 0.0
+    else
+      val friendlyPawns = position.board.pawns & position.board.byColor(side)
+      val oppPawns = position.board.pawns & position.board.byColor(!side)
+      
+      val scores = knights.map { n =>
+        // Check if on advanced rank (4-6 for white, 1-3 for black)
+        val advanced = side match
+          case Color.White => n.rank.value >= 3 && n.rank.value <= 5
+          case Color.Black => n.rank.value >= 2 && n.rank.value <= 4
+        
+        // Check if protected by pawn
+        val protectedByPawn = friendlyPawns.squares.exists { p =>
+          val attacks = p.pawnAttacks(side)
+          attacks.contains(n)
+        }
+        
+        // Check if cannot be attacked by enemy pawns (true outpost)
+        val notAttackableByPawns = !oppPawns.squares.exists { p =>
+          val attacks = p.pawnAttacks(!side)
+          attacks.contains(n) || {
+            // Check if pawn can advance to attack
+            val fwd = if side == Color.White then p.rank.value - 1 else p.rank.value + 1
+            fwd >= 0 && fwd <= 7 && math.abs(p.file.value - n.file.value) == 1
+          }
+        }
+        
+        val baseScore = if advanced && protectedByPawn && notAttackableByPawns then 0.8
+          else if advanced && protectedByPawn then 0.5
+          else if advanced then 0.2
+          else 0.0
+        
+        baseScore
+      }
+      clamp(scores.max)
 
   private def rookActivityScore(position: Position, side: Color, f: FeatureExtractor.SideFeatures): Double =
     val rooks = (position.board.rooks & position.board.byColor(side)).squares

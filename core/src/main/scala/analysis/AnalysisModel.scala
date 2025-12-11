@@ -121,7 +121,8 @@ object AnalysisModel:
       roles: List[String] = Nil,
       conceptLabels: Option[ConceptLabels] = None,
       fullFeatures: Option[PositionFeatures] = None,
-      playedEvalCp: Option[Int] = None
+      playedEvalCp: Option[Int] = None,
+      hypotheses: List[Branch] = Nil
   )
 
   final case class Output(
@@ -142,7 +143,7 @@ object AnalysisModel:
       book: Option[BookModel.Book] = None  // Phase 4.6 Book JSON
   )
 
-  final case class Branch(move: String, winPct: Double, pv: List[String], label: String)
+  final case class Branch(move: String, winPct: Double, pv: List[String], label: String, comment: Option[String] = None, cp: Option[Int] = None, mate: Option[Int] = None)
   final case class CriticalNode(
       ply: Ply,
       reason: String,
@@ -179,7 +180,7 @@ object AnalysisModel:
       features: Option[FeatureExtractor.SideFeatures] = None,
       practicality: Option[PracticalityScorer.Score] = None
   )
-  final case class StudyLine(label: String, pv: List[String], winPct: Double)
+  final case class StudyLine(label: String, pv: List[String], winPct: Double, cp: Option[Int] = None, mate: Option[Int] = None)
   final case class StudyChapter(
       id: String,
       anchorPly: Int,

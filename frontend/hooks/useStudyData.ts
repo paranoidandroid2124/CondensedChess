@@ -37,7 +37,11 @@ export function useStudyData(jobId: string | undefined): UseStudyDataResult {
         const fetchData = async () => {
             try {
                 // Use new RESTful endpoint for standardized chapter reviews
-                const res = await fetch(`${API_BASE}/api/game-review/chapter/${jobId}`);
+                const res = await fetch(`${API_BASE}/api/game-review/chapter/${jobId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}`
+                    }
+                });
 
                 if (res.status === 202) {
                     const progress = await res.json();

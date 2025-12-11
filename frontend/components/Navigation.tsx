@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
-interface NavigationProps {
-    isAuthenticated?: boolean;
-}
-
-export default function Navigation({ isAuthenticated = false }: NavigationProps) {
+export default function Navigation() {
+    const { user, logout } = useAuth();
+    const isAuthenticated = !!user;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const publicLinks = [
@@ -53,25 +52,34 @@ export default function Navigation({ isAuthenticated = false }: NavigationProps)
                         {!isAuthenticated ? (
                             <>
                                 <Link
-                                    href="/app/dashboard"
+                                    href="/login"
                                     className="text-sm font-medium text-white/70 transition hover:text-white"
                                 >
                                     Login
                                 </Link>
                                 <Link
-                                    href="/app/dashboard"
+                                    href="/register"
                                     className="rounded-full bg-accent-teal px-4 py-2 text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
                                 >
                                     Sign up
                                 </Link>
                             </>
                         ) : (
-                            <Link
-                                href="/app/dashboard"
-                                className="rounded-full bg-accent-teal px-4 py-2 text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
-                            >
-                                Upload Game
-                            </Link>
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-white/70">Hi, {user.email}</span>
+                                <button
+                                    onClick={logout}
+                                    className="text-sm font-medium text-white/70 transition hover:text-white"
+                                >
+                                    Logout
+                                </button>
+                                <Link
+                                    href="/app/dashboard"
+                                    className="rounded-full bg-accent-teal px-4 py-2 text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
+                                >
+                                    Upload Game
+                                </Link>
+                            </div>
                         )}
                     </div>
 
@@ -104,14 +112,14 @@ export default function Navigation({ isAuthenticated = false }: NavigationProps)
                             {!isAuthenticated ? (
                                 <>
                                     <Link
-                                        href="/app/dashboard"
+                                        href="/login"
                                         className="text-sm font-medium text-white/70 transition hover:text-white"
                                         onClick={() => setMobileMenuOpen(false)}
                                     >
                                         Login
                                     </Link>
                                     <Link
-                                        href="/app/dashboard"
+                                        href="/register"
                                         className="rounded-full bg-accent-teal px-4 py-2 text-center text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
                                         onClick={() => setMobileMenuOpen(false)}
                                     >
@@ -119,13 +127,22 @@ export default function Navigation({ isAuthenticated = false }: NavigationProps)
                                     </Link>
                                 </>
                             ) : (
-                                <Link
-                                    href="/app/dashboard"
-                                    className="rounded-full bg-accent-teal px-4 py-2 text-center text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    Upload Game
-                                </Link>
+                                <>
+                                    <div className="text-sm text-white/70 mb-2">Hi, {user.email}</div>
+                                    <button
+                                        onClick={() => { logout(); setMobileMenuOpen(false); }}
+                                        className="text-left text-sm font-medium text-white/70 transition hover:text-white"
+                                    >
+                                        Logout
+                                    </button>
+                                    <Link
+                                        href="/app/dashboard"
+                                        className="rounded-full bg-accent-teal px-4 py-2 text-center text-sm font-semibold text-ink shadow-glow transition hover:scale-[1.02]"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Upload Game
+                                    </Link>
+                                </>
                             )}
                         </div>
                     </div>

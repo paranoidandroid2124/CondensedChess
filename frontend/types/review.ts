@@ -48,6 +48,7 @@ export interface Branch {
   winPct: number;
   label: string;
   pv: string[];
+  comment?: string;
 }
 
 export interface CriticalNode {
@@ -73,6 +74,7 @@ export interface EvalLine {
   move: string;
   winPct: number;
   cp?: number;
+  mate?: number;
   pv: string[];
 }
 
@@ -161,6 +163,8 @@ export interface TimelineNode {
   studyScore?: number;
   practicality?: PracticalityScore;
   phase?: string; // "opening" | "middlegame" | "endgame"
+  hypotheses?: Branch[];
+  playedEvalCp?: number; // Added for CP display of played move
 }
 
 export interface Review {
