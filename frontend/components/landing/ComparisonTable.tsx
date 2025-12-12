@@ -1,11 +1,11 @@
 export default function ComparisonTable() {
     const features = [
-        { name: "Blunder/Mistake detection", standard: "✓", premium: "✓", condensed: "✓" },
-        { name: "Practicality Score (suboptimal tolerance)", standard: "—", premium: "—", condensed: "✓" },
-        { name: "Study hotspot ranking", standard: "—", premium: "Partial", condensed: "✓" },
-        { name: "Book-style explanation", standard: "—", premium: "—", condensed: "✓" },
-        { name: "Semantic position tagging", standard: "—", premium: "—", condensed: "✓" },
-        { name: "Chapter-like narrative structure", standard: "—", premium: "—", condensed: "✓" },
+        { name: "Blunder/Mistake detection", standard: "✓", premium: "✓", chesstory: "✓" },
+        { name: "Practicality Score (suboptimal tolerance)", standard: "—", premium: "—", chesstory: "✓" },
+        { name: "Study hotspot ranking", standard: "—", premium: "Partial", chesstory: "✓" },
+        { name: "Book-style explanation", standard: "—", premium: "—", chesstory: "✓" },
+        { name: "Semantic position tagging", standard: "—", premium: "—", chesstory: "✓" },
+        { name: "Chapter-like narrative structure", standard: "—", premium: "—", chesstory: "✓" },
     ];
 
     return (
@@ -14,7 +14,7 @@ export default function ComparisonTable() {
                 <p className="text-xs uppercase tracking-[0.2em] text-white/60">Comparison</p>
                 <h2 className="font-display text-3xl text-white">vs Traditional Analysis Tools</h2>
                 <p className="mt-2 text-sm text-white/70">
-                    Most chess platforms offer great analysis. CondensedChess goes one step further.
+                    Most chess platforms offer great analysis. Chesstory goes one step further.
                 </p>
             </div>
             <div className="overflow-x-auto">
@@ -28,7 +28,7 @@ export default function ComparisonTable() {
                                 Platforms
                             </th>
                             <th className="px-4 pb-3 text-center font-semibold text-white/70">Premium Tools</th>
-                            <th className="px-4 pb-3 text-center font-semibold text-accent-teal">CondensedChess</th>
+                            <th className="px-4 pb-3 text-center font-semibold text-accent-teal">Chesstory</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -37,7 +37,7 @@ export default function ComparisonTable() {
                                 <td className="py-3 pr-4 text-white/80">{feature.name}</td>
                                 <td className="px-4 py-3 text-center text-white/60">{feature.standard}</td>
                                 <td className="px-4 py-3 text-center text-white/60">{feature.premium}</td>
-                                <td className="px-4 py-3 text-center font-semibold text-accent-teal">{feature.condensed}</td>
+                                <td className="px-4 py-3 text-center font-semibold text-accent-teal">{feature.chesstory}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -45,7 +45,7 @@ export default function ComparisonTable() {
             </div>
             <div className="mt-6 rounded-xl bg-white/5 p-4">
                 <p className="text-xs text-white/70">
-                    <strong className="text-white">TL;DR:</strong> CondensedChess = Engine accuracy + chess book explanations + automated study prioritization
+                    <strong className="text-white">TL;DR:</strong> Chesstory = Engine accuracy + chess book explanations + automated study prioritization
                 </p>
             </div>
         </section>

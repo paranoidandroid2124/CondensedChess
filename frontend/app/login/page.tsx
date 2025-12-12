@@ -35,7 +35,7 @@ export default function LoginPage() {
                         Welcome back
                     </h2>
                     <p className="mt-2 text-sm text-gray-400">
-                        Sign in to your CondensedChess account
+                        Sign in to your Chesstory account
                     </p>
                 </div>
 

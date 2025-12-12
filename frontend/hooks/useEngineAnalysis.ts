@@ -9,13 +9,14 @@ export type EngineConfig = {
   depth: number; // 99 for infinite
 };
 
-export type EngineStatus = "idle" | "loading" | "ready" | "analyzing" | "error";
+export type EngineStatus = "idle" | "loading" | "ready" | "analyzing" | "error" | "restarting";
 
 export function useEngineAnalysis(review: Review | null, previewFen: string | null, selectedPly: number | null) {
   const [engine, setEngine] = useState<StockfishEngine | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [engineLines, setEngineLines] = useState<EngineMessage[]>([]);
   const [engineStatus, setEngineStatus] = useState<EngineStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Use a map keyed by multipv index for stable accumulation
   const linesMapRef = useRef<Map<number, EngineMessage>>(new Map());
@@ -30,31 +31,58 @@ export function useEngineAnalysis(review: Review | null, previewFen: string | nu
 
   useEffect(() => {
     setEngineStatus("loading");
-    const eng = new StockfishEngine((msg) => {
-      if (msg.pv) {
-        // Use multipv index if available, otherwise fallback to line order
-        const pvIndex = msg.multipv ?? linesMapRef.current.size + 1;
-        linesMapRef.current.set(pvIndex, msg);
+    setErrorMessage(null);
 
-        // Convert map to array sorted by multipv index
-        const sortedLines = Array.from(linesMapRef.current.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([_, line]) => line)
-          .slice(0, config.multiPv);
+    const eng = new StockfishEngine(
+      // onMessage callback
+      (msg) => {
+        // Handle error message from crash
+        if (msg.error) {
+          setEngineStatus("restarting");
+          setErrorMessage(msg.error);
+          return;
+        }
 
-        setEngineLines(sortedLines);
+        if (msg.pv) {
+          // Clear error on successful message
+          setErrorMessage(null);
+
+          // Use multipv index if available, otherwise fallback to line order
+          const pvIndex = msg.multipv ?? linesMapRef.current.size + 1;
+          linesMapRef.current.set(pvIndex, msg);
+
+          // Convert map to array sorted by multipv index
+          const sortedLines = Array.from(linesMapRef.current.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([_, line]) => line)
+            .slice(0, config.multiPv);
+
+          setEngineLines(sortedLines);
+        }
+        // Detect if engine is ready (uciok received)
+        if (msg.bestMove !== undefined || msg.pv) {
+          setEngineStatus("analyzing");
+        }
+      },
+      // onError callback
+      (error) => {
+        if (error.includes("repeatedly")) {
+          setEngineStatus("error");
+        } else {
+          setEngineStatus("restarting");
+        }
+        setErrorMessage(error);
       }
-      // Detect if engine is ready (uciok received)
-      if (msg.bestMove !== undefined || msg.pv) {
-        setEngineStatus("analyzing");
-      }
-    });
+    );
     eng.start();
     setEngine(eng);
 
     // Give engine time to initialize
     const readyTimer = setTimeout(() => {
-      setEngineStatus("ready");
+      if (eng.isAlive()) {
+        setEngineStatus("ready");
+        setErrorMessage(null);
+      }
     }, 1000);
 
     return () => {
@@ -115,6 +143,7 @@ export function useEngineAnalysis(review: Review | null, previewFen: string | nu
     isAnalyzing,
     engineLines,
     engineStatus,
+    errorMessage,
     toggleAnalysis,
     setEngineLines,
     setIsAnalyzing,

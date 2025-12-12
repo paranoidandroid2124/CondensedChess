@@ -14,7 +14,7 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "CondensedChess | Chess Review Like a Book",
+  title: "Chesstory | Chess Review Like a Book",
   description: "Analyze your games with Practicality Score, Study Score, and book-style narrative powered by engine + LLM"
 };
 

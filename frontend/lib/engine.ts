@@ -5,16 +5,31 @@ export type EngineMessage = {
   pv?: string;
   mate?: number;
   multipv?: number;
+  error?: string; // Error message for crash/failure
 };
 
-type EngineState = "IDLE" | "ANALYZING" | "STOPPING";
+type EngineState = "IDLE" | "ANALYZING" | "STOPPING" | "CRASHED";
+
+const MAX_RESTART_ATTEMPTS = 3;
+const RESTART_DELAY_MS = 500;
 
 export class StockfishEngine {
   private worker: Worker | null = null;
   private state: EngineState = "IDLE";
   private pendingTask: { fen: string; options: { depth?: number; multipv?: number } } | null = null;
+  private restartAttempts = 0;
+  private lastFen: string | null = null;
+  private lastOptions: { depth?: number; multipv?: number } = {};
 
-  constructor(private onMessage: (line: EngineMessage) => void) { }
+  constructor(
+    private onMessage: (line: EngineMessage) => void,
+    private onError?: (error: string) => void
+  ) { }
+
+  /** Check if worker is alive */
+  isAlive(): boolean {
+    return this.worker !== null && this.state !== "CRASHED";
+  }
 
   start() {
     if (typeof window === "undefined") return;
@@ -29,12 +44,54 @@ export class StockfishEngine {
 
       this.worker.onerror = (error) => {
         console.error("Stockfish Worker Error:", error);
+        this.handleCrash(error.message || "Worker crashed");
       };
 
       this.worker.postMessage("uci");
+      this.state = "IDLE";
+      this.restartAttempts = 0; // Reset on successful start
     } catch (e) {
       console.error("Failed to start Stockfish worker:", e);
+      this.handleCrash(e instanceof Error ? e.message : "Failed to start");
     }
+  }
+
+  /** Handle worker crash with auto-restart */
+  private handleCrash(errorMessage: string) {
+    this.state = "CRASHED";
+    this.worker = null;
+
+    // Notify listener
+    this.onMessage({ error: errorMessage });
+    this.onError?.(errorMessage);
+
+    // Attempt auto-restart
+    if (this.restartAttempts < MAX_RESTART_ATTEMPTS) {
+      this.restartAttempts++;
+      console.warn(`Attempting restart ${this.restartAttempts}/${MAX_RESTART_ATTEMPTS}...`);
+
+      setTimeout(() => {
+        this.start();
+
+        // Resume analysis if we had a pending task
+        if (this.lastFen && this.state !== "CRASHED") {
+          this.analyze(this.lastFen, this.lastOptions);
+        }
+      }, RESTART_DELAY_MS);
+    } else {
+      console.error("Max restart attempts reached. Engine unavailable.");
+      this.onError?.("Engine crashed repeatedly. Please refresh the page.");
+    }
+  }
+
+  /** Manual restart */
+  restart() {
+    console.warn("Manual engine restart requested");
+    this.worker?.terminate();
+    this.worker = null;
+    this.state = "IDLE";
+    this.restartAttempts = 0;
+    this.start();
   }
 
   stop() {
@@ -62,7 +119,11 @@ export class StockfishEngine {
   }
 
   analyze(fen: string, options: { depth?: number; multipv?: number } = {}) {
-    if (!this.worker) this.start();
+    // Save for crash recovery
+    this.lastFen = fen;
+    this.lastOptions = options;
+
+    if (!this.worker || this.state === "CRASHED") this.start();
 
     if (this.state === "IDLE") {
       this.startAnalysis(fen, options);

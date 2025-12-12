@@ -7,7 +7,7 @@ export default function HowItWorks() {
         },
         {
             title: "Engine + LLM Analysis",
-            desc: "Stockfish + CondensedChess algorithms generate Practicality / Study Scores, semantic tags, and narrative commentary.",
+            desc: "Stockfish + Chesstory algorithms generate Practicality / Study Scores, semantic tags, and narrative commentary.",
             icon: "🧠",
         },
         {

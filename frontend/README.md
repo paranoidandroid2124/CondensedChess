@@ -1,4 +1,4 @@
-# CondensedChess Frontend (Next.js + Tailwind)
+# Chesstory Frontend (Next.js + Tailwind)
 
 Private-from-scratch UI (no Maia/GPL code) to consume the Review JSON schema.
 

@@ -33,7 +33,11 @@ export function AnalysisTabsSection({
   reviewRoot,
   setPreviewFen,
   onSelectNode,
-  onMoveHover
+  onMoveHover,
+  onFlip,
+  onToggleEngine,
+  onPlayBest,
+  onToggleArrows
 }: {
   activeMove: EnhancedTimelineNode | null;
   enhancedTimeline: EnhancedTimelineNode[];
@@ -53,6 +57,11 @@ export function AnalysisTabsSection({
   setPreviewFen?: (fen: string | null) => void;
   onSelectNode?: (node: any) => void;
   onMoveHover?: (node: any) => void;
+  // Keyboard shortcut handlers
+  onFlip?: () => void;
+  onToggleEngine?: () => void;
+  onPlayBest?: () => void;
+  onToggleArrows?: () => void;
 }) {
   const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "study"];
   const maxPly = timeline.length > 0 ? timeline[timeline.length - 1].ply : 0;
@@ -67,7 +76,11 @@ export function AnalysisTabsSection({
       if (current < maxPly) setSelectedPly(current + 1);
     },
     onFirst: () => setSelectedPly(0),
-    onLast: () => setSelectedPly(maxPly)
+    onLast: () => setSelectedPly(maxPly),
+    onFlip,
+    onToggleEngine,
+    onPlayBest,
+    onToggleArrows,
   });
 
   const [showTreeModal, setShowTreeModal] = React.useState(false);

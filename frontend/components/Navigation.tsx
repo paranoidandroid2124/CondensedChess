@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import React, { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -11,7 +12,6 @@ export default function Navigation() {
 
     const publicLinks = [
         { href: "/product", label: "Product" },
-        { href: "/examples", label: "Examples" },
         { href: "/pricing", label: "Pricing" },
         { href: "/faq", label: "FAQ" },
     ];
@@ -28,10 +28,14 @@ export default function Navigation() {
                 <div className="flex items-center justify-between">
                     {/* Logo */}
                     <Link href={isAuthenticated ? "/app/dashboard" : "/"} className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent-teal to-accent-blue">
-                            <span className="text-lg font-bold text-white">♟</span>
-                        </div>
-                        <span className="font-display text-xl text-white">CondensedChess</span>
+                        <Image
+                            src="/logo.png"
+                            alt="Chesstory Logo"
+                            width={32}
+                            height={32}
+                            className="rounded-lg"
+                        />
+                        <span className="font-display text-xl text-white">Chesstory</span>
                     </Link>
 
                     {/* Desktop Navigation */}

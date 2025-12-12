@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Condensed Chess Analysis API
+  title: Chesstory API
   description: Backend API for PGN analysis, game review, and opening exploration.
   version: 1.0.0
 servers:

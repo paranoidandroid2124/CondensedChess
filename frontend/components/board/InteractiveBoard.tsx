@@ -5,6 +5,7 @@ import { Api } from 'chessground/api';
 import { Config } from 'chessground/config';
 import { Color, Key } from 'chessground/types';
 import { DrawShape } from 'chessground/draw';
+import { useChessSound } from '../../hooks/useChessSound';
 
 interface InteractiveBoardProps {
     fen: string;
@@ -15,6 +16,7 @@ interface InteractiveBoardProps {
     viewOnly?: boolean;
     lastMove?: [Key, Key]; // Sync external last move
     check?: boolean | Color; // Sync external check
+    soundEnabled?: boolean; // Enable move sounds
 }
 
 export default function InteractiveBoard({
@@ -25,10 +27,17 @@ export default function InteractiveBoard({
     shapes = [],
     viewOnly = false,
     lastMove,
-    check
+    check,
+    soundEnabled = true
 }: InteractiveBoardProps) {
     const ref = useRef<HTMLDivElement>(null);
     const [api, setApi] = useState<Api | null>(null);
+    // Sound hook
+    const { playMoveSound } = useChessSound(soundEnabled);
+    // Use ref for onMove to avoid stale closure
+    const onMoveRef = useRef(onMove);
+    useEffect(() => { onMoveRef.current = onMove; }, [onMove]);
+
     // Safe initialization
     const safeGame = (f: string) => {
         try {
@@ -45,7 +54,9 @@ export default function InteractiveBoard({
 
         const chess = game.current;
 
-        const config: Config = {
+        // Create Chessground first, then configure the after handler
+        // This avoids the stale closure issue where api was null
+        const cgApi = Chessground(ref.current, {
             fen: fen,
             orientation: orientation,
             viewOnly: viewOnly,
@@ -54,26 +65,6 @@ export default function InteractiveBoard({
                 color: 'both',
                 free: false,
                 dests: toDests(chess),
-                events: {
-                    after: (orig: Key, dest: Key) => {
-                        try {
-                            const move = chess.move({ from: orig, to: dest });
-                            if (move) {
-                                if (onMove) onMove(orig, dest, chess.fen());
-                                api?.set({
-                                    turnColor: toColor(chess),
-                                    movable: {
-                                        color: toColor(chess),
-                                        dests: toDests(chess)
-                                    },
-                                    check: chess.inCheck()
-                                });
-                            }
-                        } catch (e) {
-                            console.error(e);
-                        }
-                    },
-                },
             },
             drawable: {
                 enabled: true,
@@ -88,9 +79,38 @@ export default function InteractiveBoard({
                 lastMove: true,
                 check: true,
             },
-        };
+        });
 
-        const cgApi = Chessground(ref.current, config);
+        // Now configure the after handler with access to cgApi
+        cgApi.set({
+            movable: {
+                events: {
+                    after: (orig: Key, dest: Key) => {
+                        try {
+                            const move = chess.move({ from: orig, to: dest });
+                            if (move) {
+                                // Play sound based on move type
+                                playMoveSound(!!move.captured, chess.inCheck());
+                                // Use ref to get fresh onMove callback
+                                onMoveRef.current?.(orig, dest, chess.fen());
+                                // Use cgApi directly (not stale api state)
+                                cgApi.set({
+                                    turnColor: toColor(chess),
+                                    movable: {
+                                        color: toColor(chess),
+                                        dests: toDests(chess)
+                                    },
+                                    check: chess.inCheck()
+                                });
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    },
+                },
+            },
+        });
+
         setApi(cgApi);
 
         // ResizeObserver

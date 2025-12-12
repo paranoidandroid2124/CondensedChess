@@ -14,6 +14,7 @@ import { useInstantTimeline } from "../../../hooks/useInstantTimeline";
 import { useReviewPolling } from "../../../hooks/useReviewPolling";
 import { useEngineAnalysis } from "../../../hooks/useEngineAnalysis";
 import { useBranchCreation } from "../../../hooks/useBranchCreation";
+import { useBoardController } from "../../../hooks/useBoardController";
 
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, findPathToNode, convertPathToTimeline, type EnhancedTimelineNode } from "../../../lib/review-derived";
 import { AnalysisTabsSection } from "../../../components/review/AnalysisTabsSection";
@@ -58,10 +59,12 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     const instantTimeline = useInstantTimeline(instantPgn);
 
     // Engine & Interactive State
-    const { isAnalyzing, engineLines, engineStatus, toggleAnalysis, config, setConfig } = useEngineAnalysis(review, previewFen, selectedPly);
+    const { isAnalyzing, engineLines, engineStatus, errorMessage, toggleAnalysis, config, setConfig } = useEngineAnalysis(review, previewFen, selectedPly);
     const [showEngineSettings, setShowEngineSettings] = useState(false);
     const [customArrows, setCustomArrows] = useState<Array<[string, string, string?]>>([]); // TODO: Implement drawing
     const [userMoves, setUserMoves] = useState<EnhancedTimelineNode[]>([]); // Local moves added by user during analysis
+    const [orientation, setOrientation] = useState<"white" | "black">("white");
+    const [showArrows, setShowArrows] = useState(true);
 
     useEffect(() => {
         // Check for pending PGN in localStorage for instant display
@@ -95,11 +98,13 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
     };
 
     useEffect(() => {
-        if (review?.timeline?.length) {
+        // Only set initial selectedPly if not already set
+        // This prevents SWR revalidation from resetting user's navigation
+        if (review?.timeline?.length && selectedPly === null) {
             const lastPly = review.timeline.at(-1)?.ply ?? null;
             setSelectedPly(lastPly);
         }
-    }, [review]);
+    }, [review, selectedPly]);
 
     useEffect(() => {
         if (!review && instantTimeline?.length && selectedPly === null) {
@@ -382,16 +387,31 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                                 fen={activeMove?.fenBefore || activeMove?.fen}
                                 isAnalyzing={isAnalyzing}
                                 engineStatus={engineStatus}
+                                errorMessage={errorMessage}
                                 onToggleAnalysis={toggleAnalysis}
                                 onPreviewLine={(pv) => {
-                                    if (!pv) return;
+                                    if (!pv) {
+                                        setPreviewArrows([]);
+                                        setPreviewLabel(null);
+                                        return;
+                                    }
                                     const firstMove = pv.split(" ")[0]; // e.g. "e2e4"
                                     if (firstMove && firstMove.length >= 4) {
                                         const from = firstMove.slice(0, 2);
                                         const to = firstMove.slice(2, 4);
                                         setPreviewArrows([[from, to, "#16a34a"]]); // Green for best/alternative
                                         setPreviewLabel(`Preview: ${firstMove}`);
-                                        setPreviewFen(activeMove?.fen || null); // Keep current FEN
+                                    }
+                                }}
+                                onClickLine={(pv) => {
+                                    // Execute the first move of the PV line
+                                    if (!pv) return;
+                                    const firstMove = pv.split(" ")[0];
+                                    if (firstMove && firstMove.length >= 4) {
+                                        // Use the branch creation logic for proper integration
+                                        const from = firstMove.slice(0, 2);
+                                        const to = firstMove.slice(2, 4);
+                                        handleBoardDrop({ sourceSquare: from, targetSquare: to });
                                     }
                                 }}
                                 onOpenSettings={() => setShowEngineSettings(true)}
@@ -418,6 +438,17 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             setPreviewFen={setPreviewFen}
                             onSelectNode={handleSelectNode}
                             onMoveHover={handleBookMoveHover}
+                            onFlip={() => setOrientation(o => o === "white" ? "black" : "white")}
+                            onToggleEngine={toggleAnalysis}
+                            onPlayBest={() => {
+                                if (engineLines.length && engineLines[0]?.pv) {
+                                    const firstMove = engineLines[0].pv.split(" ")[0];
+                                    if (firstMove && firstMove.length >= 4) {
+                                        handleBoardDrop({ sourceSquare: firstMove.slice(0, 2), targetSquare: firstMove.slice(2, 4) });
+                                    }
+                                }
+                            }}
+                            onToggleArrows={() => setShowArrows(v => !v)}
                         />
                     </div>
                 </div>

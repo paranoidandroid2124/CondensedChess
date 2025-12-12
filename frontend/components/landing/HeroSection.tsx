@@ -29,7 +29,7 @@ export default function HeroSection() {
                             </span>
                         </h1>
                         <p className="text-lg leading-relaxed text-white/70">
-                            CondensedChess picks the most study-worthy moments from your games,
+                            Chesstory picks the most study-worthy moments from your games,
                             <br />
                             organizes them like a chess textbook,
                             <br />

@@ -27,10 +27,14 @@ RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/
 # Copy the built jar from the builder stage
 # Note: The jar path depends on the sbt-assembly output, typically target/scala-3.x/scalachess-assembly-<version>.jar
 # We use a wildcard to avoid version hardcoding issues, but we must be careful.
+# Copy the built jar from the builder stage
 COPY --from=builder /app/core/target/scala-*/scalachess-assembly-*.jar /app/app.jar
+
+# Copy Opening DB (Required for opening explorer)
+COPY opening/masters_stats.db /app/opening/
 
 # Expose the API port (Default 8080)
 EXPOSE 8080
 
-# Run the application
-CMD ["java", "-jar", "/app/app.jar"]
+# Run the application (Explicit Main Class)
+CMD ["java", "-cp", "/app/app.jar", "chess.analysis.ApiServer"]

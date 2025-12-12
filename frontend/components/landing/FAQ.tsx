@@ -8,7 +8,7 @@ export default function FAQ() {
     const faqs = [
         {
             q: "How is this different from other chess analysis tools?",
-            a: "Most chess platforms excel at finding mistakes. CondensedChess goes further: we tell you *which* mistakes to study, how dangerous a move is in practice (Practicality Score), and organize everything like a chess textbook with narrative commentary.",
+            a: "Most chess platforms excel at finding mistakes. Chesstory goes further: we tell you *which* mistakes to study, how dangerous a move is in practice (Practicality Score), and organize everything like a chess textbook with narrative commentary.",
         },
         {
             q: "How does this compare to raw engine analysis?",

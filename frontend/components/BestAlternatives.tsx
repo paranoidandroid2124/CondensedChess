@@ -10,8 +10,10 @@ type BestAlternativesProps = {
     fen?: string;
     isAnalyzing: boolean;
     engineStatus?: EngineStatus;
+    errorMessage?: string | null;
     onToggleAnalysis: () => void;
-    onPreviewLine?: (pv: string) => void;
+    onPreviewLine?: (pv: string) => void;  // Hover: show arrow
+    onClickLine?: (pv: string) => void;    // Click: execute moves
     onOpenSettings?: () => void;
 };
 
@@ -20,8 +22,11 @@ export function BestAlternatives({
     hypotheses = [],
     fen,
     isAnalyzing,
+    engineStatus,
+    errorMessage,
     onToggleAnalysis,
     onPreviewLine,
+    onClickLine,
     onOpenSettings
 }: BestAlternativesProps) {
     // Adapter to unify display with SAN conversion
@@ -87,6 +92,21 @@ export function BestAlternatives({
                 </div>
             </div>
 
+            {/* Error/Restarting Status */}
+            {(engineStatus === "error" || engineStatus === "restarting") && (
+                <div className={`rounded-xl border p-4 text-center text-sm ${engineStatus === "error"
+                        ? "border-red-500/30 bg-red-500/10 text-red-400"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                    }`}>
+                    <div className="font-medium mb-1">
+                        {engineStatus === "error" ? "⚠️ Engine Error" : "🔄 Restarting Engine..."}
+                    </div>
+                    {errorMessage && (
+                        <div className="text-xs opacity-80">{errorMessage}</div>
+                    )}
+                </div>
+            )}
+
             {(!isAnalyzing && mergedLines.length === 0) ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/40">
                     Click Start to see engine lines
@@ -121,7 +141,9 @@ export function BestAlternatives({
                                 </div>
 
                                 <button
-                                    onClick={() => onPreviewLine?.(line.pv || "")}
+                                    onClick={() => onClickLine?.(line.pv || "")}
+                                    onMouseEnter={() => onPreviewLine?.(line.pv || "")}
+                                    onMouseLeave={() => onPreviewLine?.("")}
                                     className="w-full text-left text-sm text-white/80 font-medium leading-relaxed break-words hover:text-white transition"
                                 >
                                     {line.pvDisplay || "..."}
