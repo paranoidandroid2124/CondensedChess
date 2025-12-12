@@ -149,7 +149,7 @@ object ExperimentExecutor:
       depth: Int = 10
   ): List[Hypothesis] =
     // 1. Shallow search to find candidates (using EngineProbe for multiPv)
-    val result = engineProbe(fen, depth, 5) // 5 PVs
+    engineProbe(fen, depth, 5) // 5 PVs
     
     // Approximate conversion: We only have one result line from EngineProbe type.
     // Need to use StockfishClient directly for multiPv, or adapt.

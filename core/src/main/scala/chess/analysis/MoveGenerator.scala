@@ -44,7 +44,7 @@ object MoveGenerator:
     val candidates = List.newBuilder[CandidateMove]
 
     // 1. Engine Candidates (Top 3)
-    engineMoves.zipWithIndex.foreach { case ((uci, score), idx) =>
+    engineMoves.zipWithIndex.foreach { case ((uci, _), idx) =>
       val (cType, priority) = idx match
         case 0 => (CandidateType.EngineBest, 1.0)
         case 1 => (CandidateType.EngineSecond, 0.9)
@@ -106,17 +106,17 @@ object MoveGenerator:
     // C. Pawn Storm (Kingside)
     // Basic heuristic: if opposite castling data available or just general Kingside expansion
     // For now, if kingside pawns advance
-    val kPushes = position.legalMoves.filter { m =>
-         val isKingside = m.orig.file.value >= 5 // f,g,h
-         m.piece.role == Pawn && isKingside
-    }
+    // val kPushes = position.legalMoves.filter { m =>
+    //      val isKingside = m.orig.file.value >= 5 // f,g,h
+    //      m.piece.role == Pawn && isKingside
+    // }
     // Only verify if this makes sense (e.g. Activity says "Attacking")
     // For now add with lower priority
     // moves += ...
 
     moves.result()
 
-  private def computeActivityCandidates(position: Position, features: PositionFeatures): List[CandidateMove] =
+  private def computeActivityCandidates(position: Position, @annotation.nowarn features: PositionFeatures): List[CandidateMove] =
     val moves = List.newBuilder[CandidateMove]
     val us = position.color
 
@@ -148,12 +148,12 @@ object MoveGenerator:
 
     moves.result()
 
-  private def computeTacticalCandidates(position: Position, features: PositionFeatures): List[CandidateMove] =
+  private def computeTacticalCandidates(position: Position, @annotation.nowarn features: PositionFeatures): List[CandidateMove] =
     val moves = List.newBuilder[CandidateMove]
     val us = position.color
     val board = position.board
     val enemyKingOpt = board.kingPosOf(!us)
-    val enemyQueens = board.queens & board.byColor(!us)
+    // val enemyQueens = board.queens & board.byColor(!us)
     val enemies = board.byColor(!us)
     val occupied = board.occupied
     
@@ -254,7 +254,7 @@ object MoveGenerator:
        val targetOpt = lastUci match
          case Uci.Move(_, dest, _) => Some(dest)
          case Uci.Drop(_, dest)    => Some(dest)
-         case _ => None
+
        
        targetOpt.foreach { target =>
          val recaptures = position.legalMoves.filter(_.dest == target)

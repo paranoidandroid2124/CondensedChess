@@ -88,7 +88,7 @@ object BookBuilder:
 
     sections.result()
 
-  private def segmentMiddlegame(plys: Vector[PlyOutput], offsetStr: Int): List[BookSection] =
+  private def segmentMiddlegame(plys: Vector[PlyOutput], _offsetStr: Int): List[BookSection] =
     // Smoother Segmentation: Group by chunks of ~8-12 moves, or break at major Crisis.
     // We want to avoid 1-move sections.
     val sections = List.newBuilder[BookSection]
@@ -197,21 +197,9 @@ object BookBuilder:
       metadata = None
     )
 
-  private def determineTitle(tpe: SectionType): String =
-    tpe match
-      case SectionType.OpeningReview => "The Opening"
-      case SectionType.TurningPoints => "Turning Point"
-      case SectionType.TacticalStorm => "Tactical Storm"
-      case SectionType.MiddlegamePlans => "Strategic Plans"
-      case SectionType.EndgameLessons => "Endgame Technique"
-      case _ => "Game Section"
+  // private def determineTitle(tpe: SectionType): String = ...
 
-  private def getNarrativeHint(tpe: SectionType): String =
-    tpe match
-      case SectionType.TurningPoints => "Analysis of the decisive moment."
-      case SectionType.TacticalStorm => "A sharp tactical sequence."
-      case SectionType.MiddlegamePlans => "Positional play and planning."
-      case _ => "Continuing the game."
+  // private def getNarrativeHint(tpe: SectionType): String = ...
 
   private def toBookDiagram(p: PlyOutput): BookDiagram =
     val labels = p.conceptLabels.get
@@ -265,7 +253,7 @@ object BookBuilder:
     )
 
   private def buildChecklist(
-      timeline: Vector[PlyOutput],
+      _timeline: Vector[PlyOutput],
       sections: List[BookSection],
       turning: List[BookTurningPoint],
       tactics: List[BookTacticalMoment]

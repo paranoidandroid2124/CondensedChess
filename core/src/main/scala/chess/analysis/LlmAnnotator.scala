@@ -47,13 +47,13 @@ object LlmAnnotator:
       System.err.println(s"[llm-labelSafe] REJECTED text (maxMove=$maxMoveNumber, found=$nums): ${text.take(100)}...")
     result
 
-  private def filterWithLog[A](data: Map[Int, String], maxMoveNumber: Int, label: String): Map[Int, String] =
-    data.flatMap { case (k, v) =>
-      if labelSafe(v, maxMoveNumber) then Some(k -> v)
-      else
-        System.err.println(s"[llm-$label] drop comment for ply=$k due to out-of-range move reference")
-        None
-    }
+  // private def filterWithLog[A](data: Map[Int, String], maxMoveNumber: Int, label: String): Map[Int, String] =
+  //   data.flatMap { case (k, v) =>
+  //     if labelSafe(v, maxMoveNumber) then Some(k -> v)
+  //     else
+  //       System.err.println(s"[llm-$label] drop comment for ply=$k due to out-of-range move reference")
+  //       None
+  //   }
 
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
@@ -92,7 +92,7 @@ object LlmAnnotator:
     val criticalFuture = {
       System.err.println("[LlmAnnotator] Starting critical comments generation...")
       LlmClient.criticalComments(critPreview).map { raw =>
-        val res = raw.filter { case (k, v) => labelSafe(v.main, maxMoveNumber) }
+        val res = raw.filter { case (_, v) => labelSafe(v.main, maxMoveNumber) }
         System.err.println("[LlmAnnotator] Critical comments generation finished.")
         res
       }.recover { case e: Throwable =>
@@ -118,7 +118,7 @@ object LlmAnnotator:
       System.err.println("[LlmAnnotator] Starting book section narrative generation...")
       output.book match
         case Some(book) =>
-          val sectionFutures = book.sections.zipWithIndex.map { case (section, idx) =>
+          val sectionFutures = book.sections.zipWithIndex.map { case (section, _) =>
             val segment = output.timeline.filter(p => p.ply.value >= section.startPly && p.ply.value <= section.endPly)
             val prompt = NarrativeTemplates.buildSectionPrompt(section.sectionType, section.title, segment, section.diagrams)
             

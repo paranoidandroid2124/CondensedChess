@@ -21,7 +21,7 @@ object TestExperimentExecutor:
     )
 
     // Dummy Engine
-    val mockEngine: ExperimentExecutor.EngineProbe = (fen, depth, multi) => {
+    val mockEngine: ExperimentExecutor.EngineProbe = (_, _, _) => {
       // Return fixed result
       ExperimentExecutor.AnalysisResult(Some(50), None, List("e5e4..."))
     }

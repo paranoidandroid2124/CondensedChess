@@ -92,7 +92,7 @@ object CriticalDetector:
              (Nil, None) // Fallback: empty lines, no turning point
            }
 
-        enrichmentF.map { case (extraLines, turningPoint) =>
+        enrichmentF.map { case (extraLines, _) =>
            val reason =
              if ply.judgement == "blunder" then "ΔWin% blunder spike"
              else if ply.judgement == "mistake" then "ΔWin% mistake"

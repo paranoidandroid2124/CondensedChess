@@ -190,7 +190,7 @@ object TimelineBuilder:
   private def enrichPly(
       d: RawPlyData, 
       prevDeltaForOpp: Double,
-      bookExitPly: Option[Int],
+      _bookExitPly: Option[Int],
       opening: Option[Opening.AtPly],
       playerContext: Option[PlayerContext]
   ): (PlyOutput, Double) =
@@ -202,7 +202,7 @@ object TimelineBuilder:
     val statusAfter = gameAfter.position.status
     val winnerAfter = gameAfter.position.winner
     
-    val (winAfterForPlayer, sideToMoveWin, evalAfterOpt) =
+    val (winAfterForPlayer, _, evalAfterOpt) =
       statusAfter match
         case Some(Status.Mate) =>
           val sideWin = if winnerAfter.contains(gameAfter.position.color) then 100.0 else 0.0
@@ -347,7 +347,7 @@ object TimelineBuilder:
 
     val bestVsSecondGap = evalBeforeDeep.lines.take(2) match
        case top :: second :: _ => Some((top.winPct - second.winPct).abs)
-       case top :: Nil if gameBefore.position.legalMoves.size > 1 => 
+       case _ :: Nil if gameBefore.position.legalMoves.size > 1 => 
           // Requested MultiPV but got only 1 line? Maybe singular move or engine cutoff.
           // Or maybe only 1 sensible move found.
           // Let's assume high gap if engine is certain enough to prune everything else or legal moves is small.
@@ -463,7 +463,7 @@ object TimelineBuilder:
       gameBefore: Game, 
       gameAfter: Game
   ): RawPlyData =
-    val player = gameBefore.position.color
+    // val player = gameBefore.position.color
     val emptyEval = EngineEval(0, Nil)
     val emptyFeatures = FeatureExtractor.SideFeatures(
       pawnIslands = 0, isolatedPawns = 0, doubledPawns = 0, passedPawns = 0,

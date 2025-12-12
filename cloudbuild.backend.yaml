@@ -1,0 +1,6 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/gen-lang-client-0162856170/api:latest', '-f', 'Dockerfile.backend', '.']
+images:
+  - 'gcr.io/gen-lang-client-0162856170/api:latest'
+timeout: 7200s

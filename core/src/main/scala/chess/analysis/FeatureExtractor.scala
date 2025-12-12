@@ -478,7 +478,7 @@ object FeatureExtractor:
 
   private def computeMaterialPhase(board: Board): MaterialPhaseFeatures =
     def mat(color: Color) =
-      board.piecesOf(color).map { case (sq, cm) =>
+      board.piecesOf(color).map { case (_, cm) =>
          cm.role match
            case Queen => 9
            case Rook => 5
@@ -537,7 +537,7 @@ object FeatureExtractor:
       // 2. Stop square (sq + dir) is controlled by enemy pawn
       // Stop square attacks: checks if any enemy pawn attacks the square in front of me
       val stopRank = Rank.all.lift(r.value + dir).getOrElse(r)
-      val stopSq = Square.at(f.value, stopRank.value)
+      // val stopSq = Square.at(f.value, stopRank.value)
       // If error says expected Int, maybe I should check import or Square object.
       // Assuming Square.at(File, Rank) returns Option[Square] or Square.
       // The previous error was "Found: File, Required: Int". 

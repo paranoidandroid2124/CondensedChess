@@ -118,6 +118,7 @@ export default function LoginPage() {
                         }}
                         theme="filled_black"
                         shape="circle"
+                        ux_mode="redirect"
                     />
                 </div>
 

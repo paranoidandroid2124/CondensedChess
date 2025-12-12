@@ -102,43 +102,43 @@ object ConceptScorer:
     val hasQueen = (position.board.queens & position.board.byColor(color)).nonEmpty
     val isEndgame = position.board.pieces.size <= 12
 
-    if !hasQueen || isEndgame then return 0.0
-
-    // Pawn storm only makes sense when opponent has castled
-    val oppCastled = oppKingSq.exists { ok =>
-      ok == Square.G1 || ok == Square.G8 ||  // Kingside castle
-      ok == Square.C1 || ok == Square.C8     // Queenside castle
-    }
-    
-    if !oppCastled then return 0.0
-    
-    // Determine wing based on opponent king position (not our own)
-    oppKingSq.fold(0.0) { ok =>
-      val wingFiles: Set[Int] = if ok.file.value <= 3 then Set(0, 1, 2, 3) else Set(4, 5, 6, 7)
-      val pawns = position.board.pawns & position.board.byColor(color)
-      val advanced = pawns.squares.filter { sq =>
-        wingFiles.contains(sq.file.value) && (if color == Color.White then sq.rank.value >= 3 else sq.rank.value <= 4)
-      }.map(_.file.value).toList.sorted
-      val connected = advanced.sliding(2).count {
-        case a :: b :: Nil => (b - a) == 1
-        case _ => false
+    if !hasQueen || isEndgame then 0.0
+    else
+      // Pawn storm only makes sense when opponent has castled
+      val oppCastled = oppKingSq.exists { ok =>
+        ok == Square.G1 || ok == Square.G8 ||  // Kingside castle
+        ok == Square.C1 || ok == Square.C8     // Queenside castle
       }
-      val base =
-        if advanced.size >= 3 then 0.8
-        else if advanced.size >= 2 then 0.6
-        else if advanced.nonEmpty then 0.3
-        else 0.0
-      val connBonus = if connected > 0 then 0.1 else 0.0
-      val oppSideBonus = {
-        val myKingSq = position.kingPosOf(color)
-        myKingSq.fold(0.0) { ks =>
-          val oppWingLeft = ok.file.value <= 3
-          val myWingLeft = ks.file.value <= 3
-          if oppWingLeft != myWingLeft then 0.1 else 0.0
+      
+      if !oppCastled then 0.0
+      else
+        // Determine wing based on opponent king position (not our own)
+        oppKingSq.fold(0.0) { ok =>
+          val wingFiles: Set[Int] = if ok.file.value <= 3 then Set(0, 1, 2, 3) else Set(4, 5, 6, 7)
+          val pawns = position.board.pawns & position.board.byColor(color)
+          val advanced = pawns.squares.filter { sq =>
+            wingFiles.contains(sq.file.value) && (if color == Color.White then sq.rank.value >= 3 else sq.rank.value <= 4)
+          }.map(_.file.value).toList.sorted
+          val connected = advanced.sliding(2).count {
+            case a :: b :: Nil => (b - a) == 1
+            case _ => false
+          }
+          val base =
+            if advanced.size >= 3 then 0.8
+            else if advanced.size >= 2 then 0.6
+            else if advanced.nonEmpty then 0.3
+            else 0.0
+          val connBonus = if connected > 0 then 0.1 else 0.0
+          val oppSideBonus = {
+            val myKingSq = position.kingPosOf(color)
+            myKingSq.fold(0.0) { ks =>
+              val oppWingLeft = ok.file.value <= 3
+              val myWingLeft = ks.file.value <= 3
+              if oppWingLeft != myWingLeft then 0.1 else 0.0
+            }
+          }
+          clamp(base + connBonus + oppSideBonus)
         }
-      }
-      clamp(base + connBonus + oppSideBonus)
-    }
 
   private def materialImbalance(f: FeatureExtractor.SideFeatures, opp: FeatureExtractor.SideFeatures): Double =
     val bpSelf = if f.bishopPair then 1 else 0
@@ -262,25 +262,26 @@ object ConceptScorer:
       // f.kingRingPressure is essentially 'attackers count' on the king ring
       val attackersCount = f.kingRingPressure
       // Safe Check: If no attackers, the king is safe regardless of exposure
-      if attackersCount == 0 then return 0.0
+      // Safe Check: If no attackers, the king is safe regardless of exposure
+      if attackersCount == 0 then 0.0
+      else
+        val pressureScore = clamp(attackersCount.toDouble / 5.0)
+        val enemyQueen = (position.board.queens & position.board.byColor(oppColor)).nonEmpty
+        val queenThreat = if enemyQueen then 0.2 else 0.0
+        
+        // Check threat: is there a safe check available? (Basic heuristic using king attacks)
+        // We don't have full legality check here easily without making moves, so we skip for now or use simple proxy
+        val checkThreat = if position.check.yes then 0.1 else 0.0
 
-      val pressureScore = clamp(attackersCount.toDouble / 5.0)
-      val enemyQueen = (position.board.queens & position.board.byColor(oppColor)).nonEmpty
-      val queenThreat = if enemyQueen then 0.2 else 0.0
-      
-      // Check threat: is there a safe check available? (Basic heuristic using king attacks)
-      // We don't have full legality check here easily without making moves, so we skip for now or use simple proxy
-      val checkThreat = if position.check.yes then 0.1 else 0.0
+        // C. Defender Density (Adjustment)
+        // Simple proxy: pieces near king
+        // omitted for simplicity to keep it lightweight, reliance on 'attackers' is strong enough
 
-      // C. Defender Density (Adjustment)
-      // Simple proxy: pieces near king
-      // omitted for simplicity to keep it lightweight, reliance on 'attackers' is strong enough
-
-      // Final Calculation
-      val rawScore = 0.2 * openAround + 0.5 * pressureScore + queenThreat + checkThreat
-      
-      // Dampen if no queen
-      if !enemyQueen then clamp(rawScore * 0.5) else clamp(rawScore)
+        // Final Calculation
+        val rawScore = 0.2 * openAround + 0.5 * pressureScore + queenThreat + checkThreat
+        
+        // Dampen if no queen
+        if !enemyQueen then clamp(rawScore * 0.5) else clamp(rawScore)
     }
 
   private def dryScore(position: Position, winShallow: Double, winDeep: Double, dynamic: Double, f: FeatureExtractor.SideFeatures): Double =

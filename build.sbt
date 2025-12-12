@@ -1,6 +1,6 @@
 inThisBuild(
   Seq(
-    scalaVersion := "3.7.4",
+    scalaVersion := "3.7.0",
     version := "17.14.1",
     organization := "com.github.lichess-org.scalachess",
     licenses += ("MIT" -> url("https://opensource.org/licenses/MIT")),
@@ -21,7 +21,7 @@ val commonSettings = Seq(
     "-feature",
     "-language:postfixOps",
     "-Wunused:all",
-    "-release:21"
+    "-release:17"
     // "-Werror"
     // Warnings as errors!
     /* "-Xfatal-warnings" */
@@ -52,13 +52,22 @@ lazy val scalachess: Project = Project("scalachess", file("core")).settings(
     "org.tpolecat" %% "doobie-postgres" % "1.0.0-RC5",
     "org.tpolecat" %% "doobie-hikari" % "1.0.0-RC5",
     // Redis (Job Queue)
-    "dev.profunktor" %% "redis4cats-effects" % "1.7.0",
-    "dev.profunktor" %% "redis4cats-streams" % "1.7.0",
+    "dev.profunktor" %% "redis4cats-effects" % "1.5.2",
+    "dev.profunktor" %% "redis4cats-streams" % "1.5.2",
     // Authentication (Tsec + JBCrypt)
     "org.mindrot" % "jbcrypt" % "0.4",
-    "io.github.jmcardon" %% "tsec-jwt-mac" % "0.5.0"
+    "io.github.jmcardon" %% "tsec-jwt-mac" % "0.5.0",
+    "com.google.cloud.sql" % "postgres-socket-factory" % "1.15.1"
   ),
-  resolvers += "jitpack".at("https://jitpack.io")
+  resolvers += "jitpack".at("https://jitpack.io"),
+  assembly / assemblyMergeStrategy := {
+    case PathList("META-INF", "versions", _*) => MergeStrategy.discard
+    case PathList("META-INF", "io.netty.versions.properties") => MergeStrategy.first
+    case x if x.endsWith("module-info.class") => MergeStrategy.discard
+    case x =>
+      val oldStrategy = (assembly / assemblyMergeStrategy).value
+      oldStrategy(x)
+  }
 )
 
 lazy val root = project
