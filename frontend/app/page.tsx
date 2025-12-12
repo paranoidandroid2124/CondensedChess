@@ -2,7 +2,6 @@ import HeroSection from "../components/landing/HeroSection";
 import HowItWorks from "../components/landing/HowItWorks";
 import FeatureHighlights from "../components/landing/FeatureHighlights";
 import ComparisonTable from "../components/landing/ComparisonTable";
-import SampleShowcase from "../components/landing/SampleShowcase";
 import FAQ from "../components/landing/FAQ";
 import Link from "next/link";
 
@@ -21,9 +20,6 @@ export default function Home() {
 
         {/* Comparison Table */}
         <ComparisonTable />
-
-        {/* Sample Showcase */}
-        <SampleShowcase />
 
         {/* FAQ */}
         <FAQ />

@@ -1,8 +1,8 @@
-# System Architecture: Condensed Chess
+# System Architecture: Chesstory
 
 ## 1. High-Level Overview
 
-Condensed Chess is a **data-driven chess analysis pipeline** that transforms raw game records (PGN) into rich, narrative-driven "books". It uses a multi-stage process involving engine evaluation, structural analysis, and LLM-based narrative generation.
+Chesstory is a **data-driven chess analysis pipeline** that transforms raw game records (PGN) into rich, narrative-driven "books". It uses a multi-stage process involving engine evaluation, structural analysis, and LLM-based narrative generation.
 
 ### Core Philosophy
 - **"Book Metaphor"**: Analysis is preserved as a structured Book with Chapters, not just a list of moves.

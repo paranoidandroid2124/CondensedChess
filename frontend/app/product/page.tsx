@@ -12,7 +12,7 @@ export default function ProductPage() {
                     </Link>
                     <h1 className="font-display text-4xl sm:text-5xl text-white mt-4">Product</h1>
                     <p className="mt-4 text-lg text-white/70 max-w-2xl mx-auto">
-                        CondensedChess goes beyond simple engine analysis to deliver chess reviews organized like textbooks.
+                        Chesstory goes beyond simple engine analysis to deliver chess reviews organized like textbooks.
                     </p>
                 </div>
 

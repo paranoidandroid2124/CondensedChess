@@ -1,6 +1,6 @@
 # Extension Guide: How to Add new features
 
-This guide explains how to extend Condensed Chess with new analytical concepts or narrative sections.
+This guide explains how to extend Chesstory with new analytical concepts or narrative sections.
 
 ## 1. Adding a New Concept Tag
 "I want the engine to detect 'Greek Gift Sacrifice' or 'Space Advantage'."

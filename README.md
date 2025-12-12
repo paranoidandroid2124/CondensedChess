@@ -1,6 +1,6 @@
-# Condensed Chess: Advanced Game Review Engine
+# Chesstory: Advanced Game Review Engine
 
-**Condensed Chess** is a high-performance chess analysis pipeline designed to bridge the gap between engine evaluation and human understanding. It transforms raw PGN files into rich, narrative-driven "Studies" by identifying key moments, structural changes, and distinct game phases.
+**Chesstory** is a high-performance chess analysis pipeline designed to bridge the gap between engine evaluation and human understanding. It transforms raw PGN files into rich, narrative-driven "Studies" by identifying key moments, structural changes, and distinct game phases.
 
 Powered by **Scala 3**, **Stockfish 16+**, and optional **LLM integration** (Gemini/OpenAI).
 
@@ -24,8 +24,8 @@ Powered by **Scala 3**, **Stockfish 16+**, and optional **LLM integration** (Gem
 
 ```bash
 # Clone and enter directory
-git clone https://github.com/your-repo/condensed-chess.git
-cd condensed-chess
+git clone https://github.com/your-repo/chesstory.git
+cd chesstory
 
 # Run Tests (Highly Recommended)
 sbt test

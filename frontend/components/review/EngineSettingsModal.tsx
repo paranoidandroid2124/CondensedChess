@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useMemo } from "react";
 import type { EngineConfig } from "../../hooks/useEngineAnalysis";
+import { getHashOptions, validateHash, getMaxHash, getMaxThreads, isMultiThreadingSupported } from "../../lib/engine-memory";
 
 type EngineSettingsModalProps = {
     config: EngineConfig;
@@ -9,8 +10,25 @@ type EngineSettingsModalProps = {
 
 export function EngineSettingsModal({ config, setConfig, onClose }: EngineSettingsModalProps) {
 
+    const hashOptions = useMemo(() => getHashOptions(), []);
+    const maxHash = useMemo(() => getMaxHash(), []);
+    const hashValidation = useMemo(() => validateHash(config.hash), [config.hash]);
+
+    // Threading support
+    const maxThreads = useMemo(() => getMaxThreads(), []);
+    const multiThreadingSupported = useMemo(() => isMultiThreadingSupported(), []);
+
     const handleChange = (key: keyof EngineConfig, val: number) => {
-        setConfig({ ...config, [key]: val });
+        if (key === "hash") {
+            const validated = validateHash(val);
+            setConfig({ ...config, hash: validated.hash });
+        } else if (key === "threads") {
+            // Clamp threads to max supported
+            const clampedThreads = Math.min(val, maxThreads);
+            setConfig({ ...config, threads: clampedThreads });
+        } else {
+            setConfig({ ...config, [key]: val });
+        }
     };
 
     return (
@@ -26,14 +44,22 @@ export function EngineSettingsModal({ config, setConfig, onClose }: EngineSettin
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                             <span className="text-white/60">Threads</span>
-                            <span className="text-accent-teal font-mono">{config.threads}</span>
+                            <span className="text-accent-teal font-mono">
+                                {config.threads}{maxThreads === 1 ? " (single-thread)" : ` / ${maxThreads}`}
+                            </span>
                         </div>
                         <input
-                            type="range" min="1" max="16" step="1"
-                            value={config.threads}
+                            type="range" min="1" max={maxThreads} step="1"
+                            value={Math.min(config.threads, maxThreads)}
                             onChange={(e) => handleChange("threads", parseInt(e.target.value))}
                             className="w-full accent-accent-teal"
+                            disabled={maxThreads === 1}
                         />
+                        {!multiThreadingSupported && (
+                            <div className="text-[10px] text-amber-400">
+                                ⚠️ Multi-threading unavailable (SharedArrayBuffer not supported in this context)
+                            </div>
+                        )}
                     </div>
 
                     {/* Hash */}
@@ -47,12 +73,17 @@ export function EngineSettingsModal({ config, setConfig, onClose }: EngineSettin
                             onChange={(e) => handleChange("hash", parseInt(e.target.value))}
                             className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-teal"
                         >
-                            {[16, 32, 64, 128, 256, 512, 1024].map(v => (
+                            {hashOptions.map(v => (
                                 <option key={v} value={v} className="bg-[#1a1a1a] text-white">
-                                    {v} MB
+                                    {v} MB{v === maxHash ? " (max)" : ""}
                                 </option>
                             ))}
                         </select>
+                        {hashValidation.warning && (
+                            <div className="text-[10px] text-amber-400">
+                                ⚠️ {hashValidation.warning}
+                            </div>
+                        )}
                     </div>
 
                     {/* MultiPV */}

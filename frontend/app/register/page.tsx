@@ -37,7 +37,7 @@ export default function RegisterPage() {
                         Create an account
                     </h2>
                     <p className="mt-2 text-sm text-gray-400">
-                        Join CondensedChess today
+                        Join Chesstory today
                     </p>
                 </div>
 

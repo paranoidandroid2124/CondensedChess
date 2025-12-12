@@ -16,6 +16,9 @@ services:
       # Placeholder for future connection strings
       - DB_URL=jdbc:postgresql://db:5432/chess
       - REDIS_URL=redis://redis:6379
+      - OPENING_STATS_DB=/app/opening/masters_stats.db
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     volumes:
       # Persist local data (e.g. SQLite files if still used, or JSONs)
       - ./data:/app/data
@@ -29,7 +32,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     # Override CMD to run Worker instead of API
-    command: ["java", "-cp", "/app/app.jar", "chess.analysis.AnalysisWorker"]
+    command: [ "java", "-cp", "/app/app.jar", "chess.analysis.AnalysisWorker" ]
     environment:
       - STOCKFISH_BIN=stockfish
       - DB_URL=jdbc:postgresql://db:5432/chess

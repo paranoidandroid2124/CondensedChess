@@ -26,7 +26,7 @@ export default function FAQPage() {
                         Feel free to reach out anytime.
                     </p>
                     <a
-                        href="mailto:support@condensedchess.com"
+                        href="mailto:support@chesstory.com"
                         className="mt-6 inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40"
                     >
                         Contact Support
