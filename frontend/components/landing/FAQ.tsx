@@ -16,7 +16,7 @@ export default function FAQ() {
         },
         {
             q: "Where is my game data stored?",
-            a: "Currently stored in local browser storage or on our server. When we introduce authentication, your data will be securely managed in a user-specific database. Data is used only for learning purposes and never shared with third parties.",
+            a: "Your games are securely analyzed and stored on our servers, allowing you to access your Chesstory anytime. We respect your privacy and data is strictly used for your learning and improvement.",
         },
         {
             q: "How deep is the analysis?",

@@ -15,9 +15,9 @@ export default function HeroSection() {
                         {/* Eye-catching LLM positioning */}
                         <div className="inline-block rounded-xl border border-accent-teal/30 bg-accent-teal/10 px-4 py-3">
                             <p className="text-sm leading-relaxed text-white/90">
-                                <span className="font-semibold text-accent-teal">LLMs still play bad chess.</span>
+                                <span className="font-semibold text-accent-teal">Engine precision. Human clarity.</span>
                                 <br />
-                                We don&apos;t ask them to play – we ask them to <span className="font-semibold text-white">explain</span>.
+                                We translate complex <span className="font-semibold text-white">evaluations</span> into clear explanations.
                             </p>
                         </div>
 

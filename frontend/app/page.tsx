@@ -4,6 +4,7 @@ import FeatureHighlights from "../components/landing/FeatureHighlights";
 import ComparisonTable from "../components/landing/ComparisonTable";
 import FAQ from "../components/landing/FAQ";
 import Link from "next/link";
+import Footer from "../components/landing/Footer";
 
 export default function Home() {
   return (
@@ -28,19 +29,18 @@ export default function Home() {
         <section className="glass-card rounded-3xl p-8 sm:p-10 text-center">
           <p className="text-xs uppercase tracking-[0.2em] text-white/60">Pricing</p>
           <h2 className="font-display text-3xl text-white mt-2">Simple, Transparent Pricing</h2>
-          <p className="mt-3 text-sm text-white/70">Coming soon. Start free!</p>
-          <div className="mt-6 inline-grid grid-cols-3 gap-4 text-sm">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="font-semibold text-white">Free</p>
-              <p className="mt-2 text-xs text-white/60">Basic analysis</p>
-            </div>
+          <p className="mt-3 text-sm text-white/70">
+            <span className="rounded-full bg-accent-teal/20 px-2 py-0.5 text-xs text-accent-teal font-semibold">BETA</span>
+            {" "} Currently in Public Beta. All Pro features are <strong>Free</strong> for a limited time.
+          </p>
+          <div className="mt-6 inline-grid grid-cols-2 gap-4 text-sm max-w-md mx-auto">
             <div className="rounded-xl border border-accent-teal bg-accent-teal/10 p-4">
-              <p className="font-semibold text-accent-teal">Pro</p>
-              <p className="mt-2 text-xs text-white/60">Unlimited deep reviews</p>
+              <p className="font-semibold text-accent-teal">Beta Access</p>
+              <p className="mt-2 text-xs text-white/60">Full Access (Free)</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="font-semibold text-white">Coach</p>
-              <p className="mt-2 text-xs text-white/60">Team features</p>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 opacity-60">
+              <p className="font-semibold text-white">Pro</p>
+              <p className="mt-2 text-xs text-white/60">Coming Soon</p>
             </div>
           </div>
           <Link
@@ -63,6 +63,8 @@ export default function Home() {
           </Link>
         </section>
       </div>
+
+      <Footer />
     </div>
   );
 }
