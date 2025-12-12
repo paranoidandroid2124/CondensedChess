@@ -2,6 +2,8 @@ import React from 'react';
 import { BookSection } from '@/types/StudyModel';
 import InteractiveBoard from '@/components/board/InteractiveBoard';
 import { motion } from 'framer-motion';
+import { useStudy } from '../../StudyContext';
+import { ScoreWidget } from '../ScoreWidget';
 
 interface Props {
     section: BookSection;
@@ -9,6 +11,9 @@ interface Props {
 }
 
 export const CrisisView: React.FC<Props> = ({ section, onDiagramClick }) => {
+    const { study } = useStudy();
+    // Get the node for the start of the section (usually the critical move)
+    const node = study.timeline[section.startPly];
     return (
         <div className="flex-1 overflow-y-auto bg-slate-950 text-slate-200 font-sans border-l-4 border-amber-600">
             <div className="p-8 md:p-12 max-w-5xl mx-auto">
@@ -41,6 +46,13 @@ export const CrisisView: React.FC<Props> = ({ section, onDiagramClick }) => {
                                 para.trim() && <p key={idx} className="first:text-xl first:text-slate-100 first:font-serif">{para}</p>
                             ))}
                         </div>
+
+                        {/* Analysis Scores Widget */}
+                        <ScoreWidget
+                            practicality={node?.practicality}
+                            studyScore={node?.studyScore}
+                            className="mt-6 max-w-sm"
+                        />
                     </div>
 
                     <div className="w-full md:w-96 flex-shrink-0">
