@@ -173,7 +173,7 @@ class StockfishClient(
     val timeoutDuration = moveTimeMs.map(_ + 3000).getOrElse(30000).millis
     
     AsyncUtils.timeout(p.future, timeoutDuration).map(Right(_)).recover {
-      case e: java.util.concurrent.TimeoutException =>
+      case _: java.util.concurrent.TimeoutException =>
         // Try to stop engine
         writeLine("stop")
         // If it doesn't respond quickly, we might want to kill/restart, 

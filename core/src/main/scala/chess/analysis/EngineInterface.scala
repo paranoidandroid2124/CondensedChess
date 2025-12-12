@@ -42,7 +42,7 @@ object EngineInterface:
    * Adapter to wrap EngineService as EngineInterface.
    * This provides backward compatibility while enforcing interface usage.
    */
-  def fromService(service: EngineService)(using ec: ExecutionContext): EngineInterface =
+  def fromService(service: EngineService)(using ExecutionContext): EngineInterface =
     new EngineInterface:
       def evaluate(
           fen: String,

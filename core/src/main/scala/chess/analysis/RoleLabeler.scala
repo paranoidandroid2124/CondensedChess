@@ -114,7 +114,7 @@ object RoleLabeler {
     // 1. Parse move to get source square
     val moveStr = ctx.move
     val fromKey = moveStr.substring(0, 2)
-    val toKey = moveStr.substring(2, 4)
+    // val toKey = moveStr.substring(2, 4)
     
     // 2. Identify Piece from FEN (Expensive but accurate)
     // We only need to check if it's a pawn and on wing.
@@ -146,7 +146,7 @@ object RoleLabeler {
 
   private def isSqueeze(ctx: AnalysisContext): Boolean =
     // Opponent mobility drop + My space gain + Eval improving
-    val hero = if ctx.isWhiteToMove then "white" else "black"
+    // val hero = if ctx.isWhiteToMove then "white" else "black"
     def mobility(f: FeatureExtractor.PositionFeatures, isWhite: Boolean) = 
       if isWhite then f.activity.whiteLegalMoves else f.activity.blackLegalMoves // approximating mobility by legal moves
     

@@ -1,0 +1,13 @@
+# .gcloudignore
+.git
+.gitignore
+node_modules/
+frontend/node_modules/
+frontend/.next/
+**/target/
+.gemini/
+.idea/
+.vscode/
+
+# Ignore opening DB for frontend build speed
+/opening/

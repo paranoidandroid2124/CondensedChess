@@ -88,7 +88,8 @@ object AnalyzePgn:
             white = findTag(pgn, "White").getOrElse("?"),
             black = findTag(pgn, "Black").getOrElse("?"),
             result = findTag(pgn, "Result").getOrElse("*"),
-            openingName = opening.map(_.opening.name.value)
+            openingName = opening.map(_.opening.name.value),
+            createdAt = None
           )
           val book = Some(BookBuilder.buildBook(timeline, gameMeta))
           

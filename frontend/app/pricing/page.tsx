@@ -64,8 +64,8 @@ export default function PricingPage() {
                             <div
                                 key={plan.name}
                                 className={`glass-card flex flex-col rounded-3xl p-8 transition-all ${plan.highlighted
-                                        ? "border-accent-teal bg-accent-teal/5 shadow-glow scale-[1.02]"
-                                        : "border-white/10 bg-white/5 opacity-80 hover:opacity-100"
+                                    ? "border-accent-teal bg-accent-teal/5 shadow-glow scale-[1.02]"
+                                    : "border-white/10 bg-white/5 opacity-80 hover:opacity-100"
                                     }`}
                             >
                                 {plan.highlighted && (
@@ -130,7 +130,7 @@ export default function PricingPage() {
                             <div>
                                 <p className="font-semibold text-white">Q: How can I provide feedback?</p>
                                 <p className="mt-2 text-white/70 leading-relaxed">
-                                    A: We'd love to hear from you! Please reach out to use via the support email or the feedback button in the dashboard.
+                                    A: We&apos;d love to hear from you! Please reach out to use via the support email or the feedback button in the dashboard.
                                 </p>
                             </div>
                         </div>
