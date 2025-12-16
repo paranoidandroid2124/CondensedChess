@@ -1,13 +1,19 @@
 import type { Review } from "../types/review";
 
-export const API_BASE = process.env.NEXT_PUBLIC_REVIEW_API_BASE || "http://localhost:8080";
+const apiBaseEnv = process.env.NEXT_PUBLIC_REVIEW_API_BASE || process.env.NEXT_PUBLIC_API_URL;
+
+if (!apiBaseEnv) {
+  throw new Error("NEXT_PUBLIC_REVIEW_API_BASE (or NEXT_PUBLIC_API_URL) is not defined");
+}
+
+export const API_BASE: string = apiBaseEnv;
 
 export type ReviewFetchResult =
   | { status: "ready"; review: Review }
   | { status: "pending"; message?: string; stage?: string; stageLabel?: string; stageProgress?: number; totalProgress?: number; startedAt?: number };
 
 const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}`,
+  'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '',
   'Content-Type': 'application/json'
 });
 
@@ -17,7 +23,7 @@ export async function fetchOpeningLookup(sans: string[]): Promise<import("../typ
   const url = `${API_BASE.replace(/\/$/, "")}/opening/lookup?sans=${q}`;
   const res = await fetch(url, {
     cache: "no-store",
-    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}` }
+    headers: { 'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '' }
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -39,7 +45,7 @@ export async function fetchReview(id: string): Promise<ReviewFetchResult> {
   const url = `${API_BASE.replace(/\/$/, "")}/result/${id}`;
   const res = await fetch(url, {
     cache: "no-store",
-    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}` }
+    headers: { 'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '' }
   });
 
   // Backend returns 202 while analysis is pending

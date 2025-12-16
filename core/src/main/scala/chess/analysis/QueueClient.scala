@@ -48,9 +48,12 @@ object QueueClient:
                  userId = scala.util.Try(json("userId").str).toOption,
                  pgn = json("pgn").str,
                  options = ApiTypes.ReviewOptions(
-                   forceCriticalPlys = json("force").arr.map(_.num.toInt).toSet
+                   forceCriticalPlys = scala.util.Try(json("force").arr.map(_.num.toInt).toSet).getOrElse(Set.empty)
                  )
                )
+             }.handleErrorWith { e =>
+                // Poison Pill detected: Log and skip
+                IO(System.err.println(s"[QueueClient] Failed to parse job: ${e.getMessage}. Payload: $jsonStr")) >> dequeue
              }
            case None => dequeue // Retry if timeout/empty (though 0.seconds usually blocks)
         }

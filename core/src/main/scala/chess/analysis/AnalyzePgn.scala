@@ -5,7 +5,7 @@ import AnalysisModel.*
 import chess.format.pgn.PgnStr
 import chess.opening.OpeningDb
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.Source
 
@@ -59,8 +59,8 @@ object AnalyzePgn:
           
           val futureTimeline = TimelineBuilder.buildTimeline(replay, engineService, experimentRunner, config, opening, playerContext, onProgress)
           
-          // Await result (CLI mode)
-          val (timelineRaw, finalGame) = Await.result(futureTimeline, Duration.Inf)
+          // Await result (CLI mode) -- Set timeout to 15 minutes to prevent forever-hang
+          val (timelineRaw, finalGame) = Await.result(futureTimeline, 15.minutes)
           
           val timeline = StudySignals.withStudySignals(timelineRaw, opening)
           
@@ -75,7 +75,7 @@ object AnalyzePgn:
           
           val criticalFuture = CriticalDetector.detectCritical(timeline, experimentRunner, config, llmRequestedPlys, onProgress)
           
-          val critical = Await.result(criticalFuture, Duration.Inf)
+          val critical = Await.result(criticalFuture, 15.minutes)
             
           val oppositeColorBishops = FeatureExtractor.hasOppositeColorBishops(finalGame.position.board)
           val root = TreeBuilder.buildTree(timeline, critical)
@@ -93,7 +93,7 @@ object AnalyzePgn:
           )
           val book = Some(BookBuilder.buildBook(timeline, gameMeta))
           
-          val bookData = Some(BookBuilder.buildBook(timeline, gameMeta))
+
           
           onProgress(AnalysisStage.CRITICAL_DETECTION, 1.0)
           

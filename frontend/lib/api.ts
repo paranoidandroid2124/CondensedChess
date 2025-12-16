@@ -1,4 +1,10 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const apiUrlEnv = process.env.NEXT_PUBLIC_API_URL;
+
+if (!apiUrlEnv) {
+    throw new Error("NEXT_PUBLIC_API_URL is not defined");
+}
+
+export const API_URL: string = apiUrlEnv;
 
 class ApiError extends Error {
     constructor(public status: number, message: string) {

@@ -54,27 +54,24 @@ object EnginePool:
         availablePermits.acquire()
       }
     }.flatMap { _ =>
-      // We have a permit. Get an engine.
-      // If pool is empty but we haven't created max yet? 
-      // Simplest: Just use the Queue. Pre-fill it lazily?
-      // Let's simplify: Just take from queue. If queue empty, it means all Max are busy (since permits = max).
-      // Wait, we need to create them first.
-      
-      val engine = Option(pool.poll()).getOrElse {
-        // Pool was empty, create new one? 
-        // Logic: Access permit guarantees we are allowed to use one.
-        // If pool is empty, it means we haven't created it yet OR it's being used?
-        // Ah, if permit acquire matched creation, we wouldn't need to check.
-        // Let's use a "managed" approach.
-        clientFactory(ec) 
+      // We have a permit. Get or create an engine.
+      val engineAttempt = scala.util.Try {
+        Option(pool.poll()).getOrElse {
+          clientFactory(ec)
+        }
       }
-      
-      block(engine).transform { result =>
-        // Return engine to pool
-        pool.offer(engine)
-        availablePermits.release()
-        result
-      }
+
+      engineAttempt match
+        case scala.util.Success(engine) =>
+          block(engine).transform { result =>
+            pool.offer(engine)
+            availablePermits.release()
+            result
+          }
+        case scala.util.Failure(e) =>
+          // Creation failed, release permit immediately
+          availablePermits.release()
+          Future.failed(e)
     }
 
   /**

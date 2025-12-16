@@ -11,10 +11,11 @@ import org.http4s.server.middleware.CORS
 import chess.analysis.ApiTypes.*
 import org.slf4j.LoggerFactory
 import ujson.Value
-import chess.db.{Database, BlobStorage}
+import chess.db.{Database, BlobStorage, JobRepo}
 import doobie.implicits.*
 import chess.auth.*
 import dev.profunktor.redis4cats.effect.Log
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object ApiServer extends IOApp:
 
@@ -193,8 +194,9 @@ object ApiServer extends IOApp:
       QueueClient.makeRedis(redisUrl).use { queue =>
         ProgressClient.makeRedis(redisUrl).use { progressClient =>
           dev.profunktor.redis4cats.Redis[IO].utf8(redisUrl).use { redisCmd =>
+          cats.effect.std.Dispatcher.parallel[IO].use { dispatcher =>
           
-          val jobManager = JobManager.make(queue)
+          val jobManager = JobManager.make(queue, xa)
           val loadConfig = IO.blocking(AnalyzePgn.EngineConfig.fromEnv()).map(c => (c, EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
               .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
               .getOrElse(Set.empty)))
@@ -202,6 +204,56 @@ object ApiServer extends IOApp:
           val blob = new BlobStorage.FileBlobStorage("data")
           val analysisService = new AnalysisService(xa, blob)
           val usageService = UsageService.make(redisCmd)
+          val engineService = new EngineService() // Worker component
+
+          // --- Worker Loop ---
+          val workerLoop = queue.dequeue.flatMap { job =>
+             IO(logger.info(s"Processing job ${job.jobId}")) >>
+             (for
+               // 1. Update Status -> Processing
+               _ <- JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "PROCESSING", 0).transact(xa)
+
+               // 2. Configure Engine
+               config = AnalyzePgn.EngineConfig.fromEnv()
+               
+               // Callback for progress updates
+               progCallback = (stage: AnalysisStage.AnalysisStage, p: Double) => 
+                  dispatcher.unsafeRunAndForget(
+                    progressClient.update(job.jobId, stage, p).handleErrorWith(e => IO(logger.warn(s"Progress update failed: ${e.getMessage}")))
+                  )
+
+               // 3. Run Analysis
+               output <- IO.blocking(
+                 AnalyzePgn.analyze(
+                   pgn = job.pgn, 
+                   engineService = engineService, 
+                   config = config, 
+                   llmRequestedPlys = job.options.forceCriticalPlys, 
+                   onProgress = progCallback
+                 )
+               ).flatMap {
+                   case Right(out) => IO.pure(out)
+                   case Left(err) => IO.raiseError(new Exception(err))
+                 }
+               
+               // 4. Annotate
+               _ <- IO(progCallback(AnalysisStage.LLM_GENERATION, 0.0))
+               annotated = LlmAnnotator.annotate(output)
+               _ <- IO(progCallback(AnalysisStage.FINALIZATION, 1.0))
+               
+               // 5. Save
+               userId = job.userId.flatMap(u => scala.util.Try(java.util.UUID.fromString(u)).toOption)
+               _ <- analysisService.save(job.jobId, annotated, userId)
+               
+               // 6. Complete
+               _ <- JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "COMPLETED", 100).transact(xa)
+                >> IO(logger.info(s"Job ${job.jobId} completed"))
+
+             yield ()).handleErrorWith { e =>
+                logger.error(s"Job ${job.jobId} failed", e)
+                JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "FAILED", 0).transact(xa).void
+             }
+          }.foreverM
 
           for {
             (config, llmForce) <- loadConfig
@@ -241,13 +293,17 @@ object ApiServer extends IOApp:
                ).orNotFound
             )
             
-            _ <- EmberServerBuilder.default[IO]
+            server = EmberServerBuilder.default[IO]
               .withHost(host)
               .withPort(Port.fromInt(port).getOrElse(port"8080")) 
               .withHttpApp(finalHttpApp)
               .build
               .use(_ => IO.never)
+
+            // Run Server and Worker concurrently
+            _ <- server &> workerLoop
           } yield ExitCode.Success
+          }
           }
         }
       }

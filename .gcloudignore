@@ -10,4 +10,4 @@ frontend/.next/
 .vscode/
 
 # Ignore opening DB for frontend build speed
-/opening/
+# /opening/
