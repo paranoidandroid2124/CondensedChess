@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { StudyModel } from '../types/StudyModel';
+import { API_URL } from '../lib/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 
 export interface StudyLoadingState {
     status: 'loading' | 'analyzing' | 'error' | 'ready';
@@ -36,10 +37,10 @@ export function useStudyData(jobId: string | undefined): UseStudyDataResult {
 
         const fetchData = async () => {
             try {
-                // Use new RESTful endpoint for standardized chapter reviews
-                const res = await fetch(`${API_BASE}/api/game-review/chapter/${jobId}`, {
+                // Use standard result endpoint
+                const res = await fetch(`${API_URL}/result/${jobId}`, {
                     headers: {
-                        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_KEY || ''}`
+                        'x-api-key': process.env.NEXT_PUBLIC_API_KEY || ''
                     }
                 });
 
@@ -48,8 +49,8 @@ export function useStudyData(jobId: string | undefined): UseStudyDataResult {
                     if (isMounted) {
                         setLoadingState({
                             status: 'analyzing',
-                            stage: progress.stageLabel || 'Processing...',
-                            progress: progress.totalProgress || 0
+                            stage: progress.stage || 'Processing...',
+                            progress: progress.progress || 0
                         });
                         // Poll again in 1s
                         pollTimeout.current = setTimeout(fetchData, 1000);

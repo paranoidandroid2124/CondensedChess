@@ -42,11 +42,9 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
     // We use the same key pattern as DB
     val saveBlob = blob.save(game.analysisS3Key.get, json)
 
-    // 4. Save to DB
-    // Transactional save? Ideally yes.
-    // But Accessing S3 is not part of DB Transaction.
-    // Pattern: Save Blob first, then commit DB pointer.
-    val saveDb = GameRepo.insert(game).transact(xa)
+    // 4. Save to DB target
+    // We update the existing game record created by JobManager with the S3 key
+    val saveDb = GameRepo.updateS3Key(uuid, game.analysisS3Key.get).transact(xa)
 
     for
       _ <- saveBlob

@@ -32,6 +32,15 @@ WORKDIR /app
 # For now, apt-get is easiest for "Debian" based images (temurin is Ubuntu/Debian based).
 RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/*
 
+# Verify stockfish location and set ENV
+RUN which stockfish || ls -l /usr/games/stockfish
+ENV STOCKFISH_BIN=/usr/games/stockfish
+
+# Build-time verification: Smoke test to ensure Stockfish runs
+RUN echo "Running Stockfish Smoke Test..." && \
+    echo "uci" | $STOCKFISH_BIN && \
+    echo "Stockfish is executable."
+
 # Copy the built jar from the builder stage
 # Note: The jar path depends on the sbt-assembly output, typically target/scala-3.x/scalachess-assembly-<version>.jar
 # We use a wildcard to avoid version hardcoding issues, but we must be careful.
@@ -45,4 +54,9 @@ COPY opening/masters_stats.db /app/opening/
 EXPOSE 8080
 
 # Run the application (Explicit Main Class)
-CMD ["java", "-cp", "/app/app.jar", "chess.analysis.ApiServer"]
+# Run the application (Explicit Main Class)
+# -Xmx4g: Limit Heap to 4GB (leaving 4GB for OS/Stockfish/Cache)
+# -XX:+UseG1GC: Efficient GC
+ENV MAX_ENGINES=2
+ENV JAVA_OPTS="-Xmx4g -XX:+UseG1GC"
+CMD ["sh", "-c", "java $JAVA_OPTS -cp /app/app.jar chess.analysis.ApiServer"]
