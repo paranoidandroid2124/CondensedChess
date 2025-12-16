@@ -191,8 +191,20 @@ object ApiServer extends IOApp:
     val redisUrl = EnvLoader.getOrElse("REDIS_URL", "redis://localhost:6379")
     
     Database.make().use { xa =>
-      QueueClient.makeRedis(redisUrl).use { queue =>
-        ProgressClient.makeRedis(redisUrl).use { progressClient =>
+      // Retry policy for Redis connections
+    def retryResource[A](resource: Resource[IO, A], retries: Int = 5, delay: FiniteDuration = 2.seconds): Resource[IO, A] =
+      resource.handleErrorWith { e =>
+        if retries > 0 then
+          Resource.eval(IO(logger.warn(s"Redis connection failed, retrying in $delay... (${e.getMessage})"))) *>
+            Resource.eval(IO.sleep(delay)) *>
+            retryResource(resource, retries - 1, delay * 2)
+        else
+          Resource.eval(IO(logger.error(s"Redis connection failed after retries", e))) *>
+            Resource.raiseError(e)
+      }
+
+    retryResource(QueueClient.makeRedis(redisUrl)).use { queue =>
+        retryResource(ProgressClient.makeRedis(redisUrl)).use { progressClient =>
           dev.profunktor.redis4cats.Redis[IO].utf8(redisUrl).use { redisCmd =>
           cats.effect.std.Dispatcher.parallel[IO].use { dispatcher =>
           
