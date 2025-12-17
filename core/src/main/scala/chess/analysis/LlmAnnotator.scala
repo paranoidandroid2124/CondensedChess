@@ -161,7 +161,24 @@ object LlmAnnotator:
     // Priority: Critical > Chapter Key Move
     // Critical comments are Ply-based (mainline only), so we convert them to (Ply, SAN)
     val criticalCommentsWithSan = criticalComments.flatMap { case (ply, annotation) =>
-      timelineByPly.get(ply).map(t => (ply, t.san) -> annotation.main)
+      val mainlineEntry = timelineByPly.get(ply).map(t => (ply, t.san) -> annotation.main)
+      
+      // Map variation comments
+      val variationEntries = output.critical.find(_.ply.value == ply).map { node =>
+        val fenBefore = timelineByPly.get(ply).map(_.fenBefore).getOrElse("")
+        node.branches.flatMap { branch =>
+           // Avoid duplication if variation is same as played move
+           val isPlayed = timelineByPly.get(ply).exists(_.uci == branch.move)
+           if isPlayed then None
+           else
+             val san = if fenBefore.nonEmpty then uciToSanSingle(fenBefore, branch.move) else branch.move
+             annotation.variations.get(branch.label).map { comment =>
+               (ply, san) -> comment
+             }
+        }
+      }.getOrElse(Nil)
+
+      mainlineEntry.toSeq ++ variationEntries
     }
     
     val chapterMoveComments = studyAnnotations.values.flatMap(_.keyMoves).toMap
@@ -328,7 +345,7 @@ object LlmAnnotator:
           "PRIORITIZE tactical details (Material Loss, Missed Win, tacticalMotif) over abstract tags like 'Pawn Storm'. If tacticalMotif is present, explain IT.",
           "If a line is labeled 'practical', explicitly mention it as a 'Practical Choice' and explain why it might be easier/safer than the engine best.",
           "If 'Plan Change' tag is present, explicitly state: 'Black shifted focus from [Prev Dominant Concept] to [New Concept]' using conceptShift values.",
-          "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
+          "NATURALIZE TAGS: Translate technical tags (e.g. 'Pawn Storm') into descriptive prose. NEVER output raw tags."
         ).map(Str(_))
       )
     )
@@ -411,7 +428,7 @@ object LlmAnnotator:
               "Base severity on deltaWinPct/judgement/mistakeCategory; stay consistent with tags.",
               "Cite branches/pv for refutations without fabricating new lines.",
               "If wasOnlyMove is true, emphasize it was the only reasonable choice.",
-              "Humanize labels/tags (replace underscores with spaces); do not echo raw snake_case."
+              "NATURALIZE TAGS: Translate technical tags (e.g. 'Pawn Storm', 'Tactical Complexity') into descriptive prose (e.g. 'furious pawn avalanche', 'sharp tactical complications'). NEVER output raw tags."
             ).map(Str(_))
           )
         )

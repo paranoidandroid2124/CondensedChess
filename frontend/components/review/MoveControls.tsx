@@ -21,7 +21,7 @@ export function MoveControls({
         ← Prev
       </button>
       <div className="flex-1 text-center text-white/70">
-        {selected != null ? `Ply ${selected}` : "Start"}
+        {selected != null ? `Move ${Math.ceil(selected / 2)}${selected % 2 === 0 ? "..." : "."}` : "Start"}
       </div>
       <button
         onClick={() => next && onSelect(next.ply)}

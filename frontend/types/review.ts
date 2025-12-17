@@ -115,6 +115,7 @@ export interface Concepts {
   conversionDifficulty?: number;
   sacrificeQuality?: number;
   alphaZeroStyle?: number;
+  space?: number; // Added
 }
 
 export interface PracticalityScore {

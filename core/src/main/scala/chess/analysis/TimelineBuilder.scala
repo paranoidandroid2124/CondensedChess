@@ -92,8 +92,14 @@ object TimelineBuilder:
       var prevDeltaForOpp: Double = 0.0
       val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
       
-      val timeline = rawData.map { d =>
-        val (output, delta) = enrichPly(d, prevDeltaForOpp, bookExitPly, opening, playerContext)
+      val timeline = rawData.zipWithIndex.map { case (d, i) =>
+        // Stitching Logic: If evalAfterDeep is missing (skipped optimization), try to grab from next ply
+        val stitchedEvalAfter = d.evalAfterDeep.orElse {
+          rawData.lift(i + 1).map(_.evalBeforeDeep)
+        }
+        val dStitched = d.copy(evalAfterDeep = stitchedEvalAfter)
+
+        val (output, delta) = enrichPly(dStitched, prevDeltaForOpp, bookExitPly, opening, playerContext)
         prevDeltaForOpp = delta
         output
       }
@@ -124,12 +130,16 @@ object TimelineBuilder:
     val deepEvalF = engine.evaluate(fenBefore, config.deepDepth, multiPv, config.deepTimeMs)
     
     // Request 3: After (for accurate winPct if needed)
-    // Only needed if game is not over
+    // Optimization: If this is NOT the last move, we can stitch the next ply's evalBeforeDeep.
+    // So we only run this if it's the last move AND game not over.
+    val isLastMove = idx == totalMoves - 1
     val statusAfter = gameAfter.position.status
-    val afterEvalF: Future[Option[EngineEval]] = statusAfter match
-      case Some(_) => Future.successful(None)
-      case None =>
-        engine.evaluate(fenAfter, config.deepDepth, 1, config.deepTimeMs).map(Some(_))
+    val afterEvalF: Future[Option[EngineEval]] = 
+      if (!isLastMove && statusAfter.isEmpty) Future.successful(None) // Stitching candidate
+      else statusAfter match
+        case Some(_) => Future.successful(None)
+        case None =>
+          engine.evaluate(fenAfter, config.deepDepth, 1, config.deepTimeMs).map(Some(_))
 
     // Features
     val p4FeaturesBefore = FeatureExtractor.extractPositionFeatures(fenBefore, gameBefore.ply.value)

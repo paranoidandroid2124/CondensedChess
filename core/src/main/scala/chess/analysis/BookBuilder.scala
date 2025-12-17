@@ -29,8 +29,8 @@ object BookBuilder:
     // 3. Storyboard Sections
     val sections = storyboard(timeline)
 
-    // 4. Checklist (Updated to use new sections/tags)
-    val checklist = buildChecklist(timeline, sections, turningPoints, tacticalMoments)
+    // 4. Checklist (Disabled)
+    val checklist = Nil
 
     // Observability Logging (Phase 21)
     val sectionStats = sections.groupBy(_.sectionType.toString).map { case (k, v) => s"$k: ${v.size}" }.mkString(", ")
@@ -252,34 +252,4 @@ object BookBuilder:
       wasMissed = isMiss
     )
 
-  private def buildChecklist(
-      _timeline: Vector[PlyOutput],
-      sections: List[BookSection],
-      turning: List[BookTurningPoint],
-      tactics: List[BookTacticalMoment]
-  ): List[ChecklistBlock] =
-    val blocks = List.newBuilder[ChecklistBlock]
-    
-    // 1. Structure (Gather from Strategic Sections)
-    val structTags = sections.filter(_.sectionType == SectionType.MiddlegamePlans)
-      .flatMap(_.diagrams.flatMap(_.tags.structure))
-      .distinct
-      .map(_.toString)
-    if structTags.nonEmpty then blocks += ChecklistBlock("Strategic Themes", structTags)
 
-    // 2. Tactics
-    val tacticTags = tactics.flatMap(_.motifTags).distinct.map(_.toString)
-    if tacticTags.nonEmpty then blocks += ChecklistBlock("Tactical Motifs", tacticTags)
-
-    // 3. Mistakes
-    val mistakeTags = turning.flatMap(_.mistakeTags).distinct.map(_.toString)
-    if mistakeTags.nonEmpty then blocks += ChecklistBlock("Critical Errors", mistakeTags)
-
-    // 4. Endgame
-    val endgameTags = sections.filter(_.sectionType == SectionType.EndgameLessons)
-      .flatMap(_.diagrams.flatMap(_.tags.endgame))
-      .distinct
-      .map(_.toString)
-    if endgameTags.nonEmpty then blocks += ChecklistBlock("Endgame Skills", endgameTags)
-
-    blocks.result()

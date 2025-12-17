@@ -6,7 +6,7 @@ export default function HowItWorks() {
             icon: "📤",
         },
         {
-            title: "Engine + LLM Analysis",
+            title: "Deep Analysis",
             desc: "Stockfish + Chesstory algorithms generate Practicality / Study Scores, semantic tags, and narrative commentary.",
             icon: "🧠",
         },
@@ -27,7 +27,7 @@ export default function HowItWorks() {
                 <div className="flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full bg-white/10 px-3 py-1.5">Stockfish</span>
                     <span className="rounded-full bg-white/10 px-3 py-1.5">Concept scores</span>
-                    <span className="rounded-full bg-white/10 px-3 py-1.5">LLM summary</span>
+                    <span className="rounded-full bg-white/10 px-3 py-1.5">Narrative</span>
                 </div>
             </div>
             <div className="mt-8 grid gap-6 md:grid-cols-3">

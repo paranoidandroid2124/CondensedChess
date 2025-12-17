@@ -35,7 +35,7 @@ object QueueClient:
           "force" -> ujson.Arr.from(payload.options.forceCriticalPlys)
           // Add other options as needed
         ).render()
-        cmd.rPush("analysis_queue", json).void
+        cmd.rPush("analysis_queue", json).timeout(5.seconds).void
 
       def dequeue: IO[JobPayload] =
         // BLPOP returns Option[(key, value)]

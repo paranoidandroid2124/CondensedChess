@@ -162,9 +162,9 @@ object NarrativeTemplates:
         val estimatedMoves = if or < 0.15 then "only 1-2 good defensive moves" else "a narrow defensive window"
         s"""
 | OPPONENT PERSPECTIVE (Pressure Point):
-| - This move created a difficult defensive problem for your opponent
+| - This move created a difficult defensive problem for the opponent
 | - Opponent Robustness: ${fmt(or)} (${estimatedMoves})
-| - Your opponent must find precise moves to avoid worse outcomes
+| - The opponent must find precise moves to avoid worse outcomes
 | """
       case Some(or) =>
         s"""
@@ -223,7 +223,10 @@ object NarrativeTemplates:
     // Detailed Timeline Evidence (Hybrid Approach)
     val keyMoments = diagrams.flatMap { d =>
       plys.find(_.ply.value == d.ply).map { p =>
-        val moveAndSide = plyToMove(p.ply.value)
+        val moveNumber = (p.ply.value + 1) / 2
+        val dots = if p.ply.value % 2 != 0 then "." else "..."
+        val moveLabel = s"$moveNumber$dots ${p.san}"
+        
         val delta = p.deltaWinPct
         val rawTags = p.semanticTags ++ p.mistakeCategory.toList
         // Filter important tags for the story
@@ -235,7 +238,7 @@ object NarrativeTemplates:
         val tagStr = if storyTags.nonEmpty then s"[${storyTags.mkString(", ")}]" else ""
         val evalStr = if delta < -2 then s"Dropped ${fmt(-delta)}%" else if delta > 2 then s"Gained ${fmt(delta)}%" else "Neutral"
         
-        s"Move $moveAndSide: $tagStr - $evalStr"
+        s"Move $moveLabel: $tagStr - $evalStr"
       }
     }.mkString("\n      ")
     
@@ -273,7 +276,7 @@ object NarrativeTemplates:
       |SECTION CONTEXT:
       |Type: $sectionType
       |Title Hint: $title
-      |Ply Range: $startPly - $endPly (${plyToMove(startPly)} to ${plyToMove(endPly)})
+      |Move Range: $startPly - $endPly (${plyToMove(startPly)} to ${plyToMove(endPly)})
       |Dominant Roles: ${keyRoles.mkString(", ")}
       |Avg Dynamic Score: ${fmt(avgDyn)}$structuralContext
       |Key Moments (Evidence):
@@ -288,6 +291,7 @@ object NarrativeTemplates:
         |- **NO ORIGIN ASSUMPTIONS**: If input says "Nxe5", do NOT write "The knight *from f3* captures..." unless you know it was on f3.
         |- Use natural chess language: "wins a pawn", "creates threats", "exposes the king".
         |- NEVER use: win percentages, "eval", "deltaWinPct", "conceptShift", or technical jargon.
+        |- STRICT PERSPECTIVE RULE: NEVER use "You", "Your", "We", "I". Always use "White" and "Black". The PGN does not identify the hero.
         |- Be SPECIFIC about WHAT happened: "After 15.Nxe5, the knight forks the king and rook".
         |
         |OUTPUT FORMAT:

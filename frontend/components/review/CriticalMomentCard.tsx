@@ -108,7 +108,7 @@ export function CriticalMomentCard({ critical: c, fenBefore, onSelectPly }: Prop
       ) : null}
 
       <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-white/80">
-        {narrative || "No comment (LLM disabled or template fallback)."}
+        {narrative || "No commentary available for this moment."}
       </p>
     </div>
   );

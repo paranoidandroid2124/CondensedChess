@@ -1,6 +1,17 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/gen-lang-client-0162856170/web:latest', '--build-arg', 'NEXT_PUBLIC_API_URL=${_NEXT_PUBLIC_API_URL}', '--build-arg', 'NEXT_PUBLIC_GOOGLE_CLIENT_ID=${_NEXT_PUBLIC_GOOGLE_CLIENT_ID}', '--build-arg', 'NEXT_PUBLIC_API_KEY=${_NEXT_PUBLIC_API_KEY}', '-f', 'Dockerfile.frontend', '.']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chesstory-frontend'
+      - '--image'
+      - 'gcr.io/gen-lang-client-0162856170/web:latest'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
 images:
   - 'gcr.io/gen-lang-client-0162856170/web:latest'
 timeout: 1200s
