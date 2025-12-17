@@ -106,7 +106,7 @@ export function BoardCard({
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white/80">Board</h3>
-        <span className="text-xs text-white/60">{fen ? "Selected ply" : "Starting position"}</span>
+        <span className="text-xs text-white/60">{fen ? "Analysis Board" : "Starting position"}</span>
       </div>
 
       <div className="mt-4 flex justify-center" ref={rowRef}>

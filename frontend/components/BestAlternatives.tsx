@@ -3,6 +3,7 @@ import { EngineMessage } from "../lib/engine";
 import { Branch } from "../types/review";
 import { pvToSan } from "../lib/chess-utils";
 import type { EngineStatus } from "../hooks/useEngineAnalysis";
+import { SanWithIcons } from "./review/SanWithIcons";
 
 type BestAlternativesProps = {
     lines: EngineMessage[];
@@ -17,9 +18,8 @@ type BestAlternativesProps = {
     onOpenSettings?: () => void;
 };
 
-export function BestAlternatives({
+export function EngineAnalysisPanel({
     lines,
-    hypotheses = [],
     fen,
     isAnalyzing,
     engineStatus,
@@ -28,46 +28,43 @@ export function BestAlternatives({
     onPreviewLine,
     onClickLine,
     onOpenSettings
-}: BestAlternativesProps) {
+}: {
+    lines: EngineMessage[];
+    fen?: string;
+    isAnalyzing: boolean;
+    engineStatus?: EngineStatus;
+    errorMessage?: string | null;
+    onToggleAnalysis: () => void;
+    onPreviewLine?: (pv: string) => void;
+    onClickLine?: (pv: string) => void;
+    onOpenSettings?: () => void;
+}) {
     // Adapter to unify display with SAN conversion
     const mergedLines = useMemo(() => {
-        if (isAnalyzing) {
-            return lines.map(l => {
-                const uciPv = (l.pv || "").split(" ").filter(Boolean);
-                const sanPv = fen ? pvToSan(fen, uciPv).join(" ") : uciPv.join(" ");
-                return {
-                    pv: l.pv || "",
-                    pvDisplay: sanPv,
-                    scoreDisplay: l.mate
-                        ? `Mate in ${Math.abs(l.mate)}`
-                        : l.cp
-                            ? `${l.cp > 0 ? "+" : ""}${(l.cp / 100).toFixed(2)}`
-                            : "—",
-                    depth: l.depth,
-                    label: null as string | null,
-                    isCached: false
-                };
-            });
-        } else {
-            return hypotheses.map(h => {
-                const sanPv = fen ? pvToSan(fen, h.pv).join(" ") : h.pv.join(" ");
-                return {
-                    pv: h.pv.join(" "),
-                    pvDisplay: sanPv,
-                    scoreDisplay: `${h.winPct > 50 ? "+" : ""}${(h.winPct - 50).toFixed(1)}%`,
-                    depth: "Cached" as const,
-                    label: h.label,
-                    isCached: true
-                };
-            });
-        }
-    }, [isAnalyzing, lines, hypotheses, fen]);
+        if (!isAnalyzing) return [];
+        return lines.map(l => {
+            const uciPv = (l.pv || "").split(" ").filter(Boolean);
+            const sanPv = fen ? pvToSan(fen, uciPv) : uciPv;
+            return {
+                pv: l.pv || "",
+                moves: sanPv,
+                scoreDisplay: l.mate
+                    ? `Mate in ${Math.abs(l.mate)}`
+                    : l.cp
+                        ? `${l.cp > 0 ? "+" : ""}${(l.cp / 100).toFixed(2)}`
+                        : "—",
+                depth: l.depth,
+                label: null as string | null,
+                isCached: false
+            };
+        });
+    }, [isAnalyzing, lines, fen]);
 
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-white/80">
-                    {isAnalyzing ? "Live Analysis" : hypotheses.length > 0 ? "Saved Analysis" : "Engine"}
+                    Engine Analysis
                 </h3>
                 <div className="flex items-center gap-2">
                     <button
@@ -95,8 +92,8 @@ export function BestAlternatives({
             {/* Error/Restarting Status */}
             {(engineStatus === "error" || engineStatus === "restarting") && (
                 <div className={`rounded-xl border p-4 text-center text-sm ${engineStatus === "error"
-                        ? "border-red-500/30 bg-red-500/10 text-red-400"
-                        : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                    ? "border-red-500/30 bg-red-500/10 text-red-400"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-400"
                     }`}>
                     <div className="font-medium mb-1">
                         {engineStatus === "error" ? "⚠️ Engine Error" : "🔄 Restarting Engine..."}
@@ -107,11 +104,11 @@ export function BestAlternatives({
                 </div>
             )}
 
-            {(!isAnalyzing && mergedLines.length === 0) ? (
+            {!isAnalyzing ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/40">
-                    Click Start to see engine lines
+                    Click Start to run local Stockfish analysis
                 </div>
-            ) : (isAnalyzing && lines.length === 0) ? (
+            ) : (lines.length === 0) ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/40">
                     Calculating...
                 </div>
@@ -129,13 +126,13 @@ export function BestAlternatives({
                                             ? "bg-accent-teal/20 text-accent-teal"
                                             : "bg-white/10 text-white/60"
                                             }`}>
-                                            {line.label || `PV${idx + 1}`}
+                                            {`PV${idx + 1}`}
                                         </span>
                                         <span className="font-mono text-sm font-bold text-white">
                                             {line.scoreDisplay}
                                         </span>
                                         <span className="text-[10px] text-white/40">
-                                            {line.depth !== "Cached" ? `depth ${line.depth}` : "Cached"}
+                                            {`depth ${line.depth}`}
                                         </span>
                                     </div>
                                 </div>
@@ -144,9 +141,12 @@ export function BestAlternatives({
                                     onClick={() => onClickLine?.(line.pv || "")}
                                     onMouseEnter={() => onPreviewLine?.(line.pv || "")}
                                     onMouseLeave={() => onPreviewLine?.("")}
-                                    className="w-full text-left text-sm text-white/80 font-medium leading-relaxed break-words hover:text-white transition"
+                                    className="w-full text-left text-sm text-white/80 font-medium leading-relaxed break-words hover:text-white transition flex flex-wrap gap-x-2 gap-y-1"
                                 >
-                                    {line.pvDisplay || "..."}
+                                    {line.moves.map((m, i) => (
+                                        <SanWithIcons key={i} move={m} />
+                                    ))}
+                                    {line.moves.length === 0 && "..."}
                                 </button>
                             </div>
                         );

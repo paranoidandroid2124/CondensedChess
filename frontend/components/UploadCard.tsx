@@ -54,7 +54,7 @@ export default function UploadCard() {
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/60">Upload</p>
           <h2 className="font-display text-xl text-white">Upload PGN and get a review</h2>
-          <p className="text-sm text-white/70">Run the engine+LLM pipeline and jump to the review page when ready.</p>
+          <p className="text-sm text-white/70">Run full analysis and jump to the review page when ready.</p>
         </div>
         <label className="inline-flex cursor-pointer items-center rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/80 hover:border-white/40">
           Choose file

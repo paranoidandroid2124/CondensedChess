@@ -12,7 +12,7 @@ export default function FAQ() {
         },
         {
             q: "How does this compare to raw engine analysis?",
-            a: "Engines calculate the best moves. We take engine results and add Practicality Score (tolerance for mistakes), Study Score (learning value), Semantic Tags (position characteristics), and LLM-generated human-friendly explanations.",
+            a: "Engines calculate the best moves. We take engine results and add Practicality Score (tolerance for mistakes), Study Score (learning value), Semantic Tags (position characteristics), and human-friendly explanations.",
         },
         {
             q: "Where is my game data stored?",
@@ -20,7 +20,7 @@ export default function FAQ() {
         },
         {
             q: "How deep is the analysis?",
-            a: "We use professional-strength engine analysis for all positions. Critical moments get even deeper analysis with more variations. The LLM explains the strategic context for each moment. Pro plans offer the deepest analysis available.",
+            a: "We use professional-strength engine analysis for all positions. Critical moments get even deeper analysis with more variations. Each moment includes narrative commentary explaining the strategic context. Pro plans offer the deepest analysis available.",
         },
         {
             q: "Who is this for?",

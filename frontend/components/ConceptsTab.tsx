@@ -152,8 +152,10 @@ export function ConceptsTab({ review, currentConcepts, currentSemanticTags, conc
                             ply: node.ply,
                             dynamic: node.concepts?.dynamic,
                             kingSafety: node.concepts?.kingSafety,
-                            tacticalDepth: node.concepts?.tacticalDepth,
-                            comfortable: node.concepts?.comfortable
+                            imbalanced: node.concepts?.imbalanced,
+                            colorComplex: node.concepts?.colorComplex,
+                            space: node.concepts?.space,
+                            blunderRisk: node.concepts?.blunderRisk
                         }))}
                         currentPly={currentPly}
                         height={160}

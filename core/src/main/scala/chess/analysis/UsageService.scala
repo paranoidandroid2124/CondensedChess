@@ -37,3 +37,23 @@ object UsageService:
         count <- redis.incr(k)
         _ <- if (count == 1) redis.expire(k, scala.concurrent.duration.Duration(24, scala.concurrent.duration.HOURS)).void else IO.unit
       yield ()
+
+  def makeMemory: Resource[IO, UsageService[IO]] =
+    Resource.eval(IO.ref(Map.empty[String, Int])).map { ref =>
+      new UsageService[IO]:
+        private def key(userId: UUID): String =
+            val date = LocalDate.now().format(DateFmt)
+            s"usage:daily:${userId}:${date}"
+
+        def checkLimit(userId: UUID, tier: String): IO[Boolean] =
+            if (tier != "FREE") IO.pure(true)
+            else
+                ref.get.map { data =>
+                    val k = key(userId)
+                    data.getOrElse(k, 0) < 1
+                }
+
+        def increment(userId: UUID): IO[Unit] =
+            val k = key(userId)
+            ref.update(m => m.updated(k, m.getOrElse(k, 0) + 1))
+    }

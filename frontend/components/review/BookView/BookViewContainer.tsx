@@ -1,5 +1,5 @@
 import React from "react";
-import type { Book, BookDiagram, BookTurningPoint, BookTacticalMoment, ChecklistBlock, BookSection, SectionType } from "../../../types/StudyModel";
+import type { Book, BookDiagram, BookTurningPoint, BookTacticalMoment, BookSection, SectionType } from "../../../types/StudyModel";
 import { MiniBoard } from "../../common/MiniBoard";
 
 interface BookViewContainerProps {
@@ -85,30 +85,7 @@ function findNodeByPly(root: ReviewTreeNode, ply: number): ReviewTreeNode | null
 
 
 
-function ChecklistSection({ blocks }: { blocks: ChecklistBlock[] }) {
-    if (blocks.length === 0) return null;
 
-    return (
-        <div className="py-6">
-            <h2 className="text-lg font-bold text-white mb-4">✅ Study Checklist</h2>
-            <div className="space-y-4">
-                {blocks.map((block, i) => (
-                    <div key={i} className="p-4 rounded-lg border border-white/10 bg-white/5">
-                        <div className="font-medium text-white mb-2">{block.category}</div>
-                        <ul className="space-y-1">
-                            {block.hintTags.map((hint, j) => (
-                                <li key={j} className="text-sm text-white/70 flex items-start gap-2">
-                                    <span className="text-green-400 mt-0.5">•</span>
-                                    {hint}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 // --- Main Container ---
 
@@ -256,15 +233,6 @@ function TableOfContents({ sections }: { sections: BookSection[] }) {
                     {section.title}
                 </button>
             ))}
-            <button
-                onClick={() => {
-                    const el = document.getElementById('book-checklist');
-                    el?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="block w-full text-left px-3 py-2 text-sm rounded transition-colors text-accent-teal/80 hover:bg-accent-teal/10 hover:text-accent-teal mt-4 border-t border-white/5 pt-4"
-            >
-                ✅ Study Checklist
-            </button>
         </nav>
     );
 }
@@ -301,9 +269,7 @@ export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSel
                     </div>
                 ))}
 
-                <div id="book-checklist">
-                    <ChecklistSection blocks={book.checklist} />
-                </div>
+
             </main>
         </div>
     );

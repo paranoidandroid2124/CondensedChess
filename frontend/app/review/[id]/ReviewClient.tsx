@@ -19,8 +19,8 @@ import { useBoardController } from "../../../hooks/useBoardController";
 import { buildConceptSpikes, buildEnhancedTimeline, findSelected, findPathToNode, convertPathToTimeline, type EnhancedTimelineNode } from "../../../lib/review-derived";
 import { AnalysisTabsSection } from "../../../components/review/AnalysisTabsSection";
 import type { TabId } from "../../../components/AnalysisPanel";
-import { CommentCard } from "../../../components/review/CommentCard";
-import { BestAlternatives } from "../../../components/BestAlternatives";
+
+import { EngineAnalysisPanel } from "../../../components/BestAlternatives";
 import type { VariationEntry } from "../../../components/review/TimelineView";
 import { EngineSettingsModal } from "../../../components/review/EngineSettingsModal";
 
@@ -328,25 +328,35 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                 <div className="flex flex-col gap-2">
                     <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <h1 className="font-display text-3xl text-white">Game analysis</h1>
+                        <div className="flex items-center gap-4">
+                            <h1 className="font-display text-3xl text-white">Game analysis</h1>
 
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                        <button
-                            onClick={toggleAnalysis}
-                            className={`rounded-full border px-3 py-1 transition ${isAnalyzing
-                                ? "border-accent-teal bg-accent-teal/10 text-accent-teal"
-                                : "border-white/20 text-white/60 hover:border-white/40 hover:text-white"
-                                }`}
-                        >
-                            {isAnalyzing ? "Stop Analysis" : "Analyze"}
-                        </button>
-                        <button
-                            onClick={handleSaveGame}
-                            className="rounded-full border border-white/20 px-3 py-1 text-white/60 hover:border-white/40 hover:text-white"
-                        >
-                            Save
-                        </button>
+                            {/* New Engine Toggle Switch */}
+                            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
+                                <span className={`text-xs font-semibold uppercase tracking-wider ${isAnalyzing ? "text-accent-teal" : "text-white/40"}`}>
+                                    Engine
+                                </span>
+                                <button
+                                    onClick={toggleAnalysis}
+                                    className={`relative flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${isAnalyzing ? "bg-accent-teal" : "bg-white/20"
+                                        }`}
+                                >
+                                    <span
+                                        className={`block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${isAnalyzing ? "translate-x-4" : "translate-x-0"
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSaveGame}
+                                className="rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/60 hover:border-white/40 hover:text-white transition"
+                            >
+                                Save Game
+                            </button>
+                        </div>
                     </div>
                     <div className="text-sm text-white/70">
                         Opening: {review?.opening?.name ?? "Unknown"} {review?.opening?.eco ? `(${review.opening.eco})` : ""}
@@ -358,7 +368,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         fen={previewFen || activeMove?.fen}
                         customShapes={boardShapes}
                         arrows={arrows}
-                        evalPercent={activeMove?.winPctAfterForPlayer}
+                        evalPercent={evalPercent}
                         cp={cp}
                         mate={mate}
                         judgementBadge={judgementBadge}
@@ -372,51 +382,56 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                         timeline={timelineToUse}
                         conceptSpikes={conceptSpikes}
                         selectedPly={selected?.ply}
-                        onSelectPly={setSelectedPly}
+                        onSelectPly={(ply) => {
+                            const node = timelineToUse.find(n => n.ply === ply);
+                            if (node) handleSelectNode(node);
+                            else setSelectedPly(ply);
+                        }}
                         branchSaving={branchSaving}
                         branchError={branchError}
                         orientation="white" /* Default to white for now, can be dynamic later */
                     />
 
                     <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto pr-1">
-                        <CommentCard move={activeMove} critical={activeCritical[0]} />
-                        <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <BestAlternatives
-                                lines={engineLines}
-                                hypotheses={activeMove?.hypotheses}
-                                fen={activeMove?.fenBefore || activeMove?.fen}
-                                isAnalyzing={isAnalyzing}
-                                engineStatus={engineStatus}
-                                errorMessage={errorMessage}
-                                onToggleAnalysis={toggleAnalysis}
-                                onPreviewLine={(pv) => {
-                                    if (!pv) {
-                                        setPreviewArrows([]);
-                                        setPreviewLabel(null);
-                                        return;
-                                    }
-                                    const firstMove = pv.split(" ")[0]; // e.g. "e2e4"
-                                    if (firstMove && firstMove.length >= 4) {
-                                        const from = firstMove.slice(0, 2);
-                                        const to = firstMove.slice(2, 4);
-                                        setPreviewArrows([[from, to, "#16a34a"]]); // Green for best/alternative
-                                        setPreviewLabel(`Preview: ${firstMove}`);
-                                    }
-                                }}
-                                onClickLine={(pv) => {
-                                    // Execute the first move of the PV line
-                                    if (!pv) return;
-                                    const firstMove = pv.split(" ")[0];
-                                    if (firstMove && firstMove.length >= 4) {
-                                        // Use the branch creation logic for proper integration
-                                        const from = firstMove.slice(0, 2);
-                                        const to = firstMove.slice(2, 4);
-                                        handleBoardDrop({ sourceSquare: from, targetSquare: to });
-                                    }
-                                }}
-                                onOpenSettings={() => setShowEngineSettings(true)}
-                            />
-                        </div>
+
+                        {isAnalyzing && (
+                            <div className="glass-card rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <EngineAnalysisPanel
+                                    lines={engineLines}
+                                    fen={previewFen || activeMove?.fen}
+                                    isAnalyzing={isAnalyzing}
+                                    engineStatus={engineStatus}
+                                    errorMessage={errorMessage}
+                                    onToggleAnalysis={toggleAnalysis}
+                                    onPreviewLine={(pv) => {
+                                        if (!pv) {
+                                            setPreviewArrows([]);
+                                            setPreviewLabel(null);
+                                            return;
+                                        }
+                                        const firstMove = pv.split(" ")[0]; // e.g. "e2e4"
+                                        if (firstMove && firstMove.length >= 4) {
+                                            const from = firstMove.slice(0, 2);
+                                            const to = firstMove.slice(2, 4);
+                                            setPreviewArrows([[from, to, "#16a34a"]]); // Green for best/alternative
+                                            setPreviewLabel(`Preview: ${firstMove}`);
+                                        }
+                                    }}
+                                    onClickLine={(pv) => {
+                                        // Execute the first move of the PV line
+                                        if (!pv) return;
+                                        const firstMove = pv.split(" ")[0];
+                                        if (firstMove && firstMove.length >= 4) {
+                                            // Use the branch creation logic for proper integration
+                                            const from = firstMove.slice(0, 2);
+                                            const to = firstMove.slice(2, 4);
+                                            handleBoardDrop({ sourceSquare: from, targetSquare: to });
+                                        }
+                                    }}
+                                    onOpenSettings={() => setShowEngineSettings(true)}
+                                />
+                            </div>
+                        )}
 
                         <AnalysisTabsSection
                             activeMove={activeMove}

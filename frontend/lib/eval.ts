@@ -35,3 +35,11 @@ export function getEvaluationColorClass(cp?: number, mate?: number, invert: bool
     }
     return "text-neutral-500";
 }
+
+/**
+ * Convert Centipawns to Win Percentage (Lichess formula)
+ * winPct = 50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)
+ */
+export function cpToWinPct(cp: number): number {
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}

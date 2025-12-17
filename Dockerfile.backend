@@ -48,7 +48,7 @@ RUN echo "Running Stockfish Smoke Test..." && \
 COPY --from=builder /app/core/target/scala-*/scalachess-assembly-*.jar /app/app.jar
 
 # Copy Opening DB (Required for opening explorer)
-COPY opening/masters_stats.db /app/opening/
+# COPY opening/masters_stats.db /app/opening/
 
 # Expose the API port (Default 8080)
 EXPOSE 8080

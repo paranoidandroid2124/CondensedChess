@@ -20,7 +20,7 @@ export default function Footer() {
                         <p className="text-sm text-white/50 max-w-xs">
                             Turn your chess games into a story.
                             <br />
-                            Powered by Stockfish & LLMs.
+                            Powered by Stockfish.
                         </p>
                     </div>
 

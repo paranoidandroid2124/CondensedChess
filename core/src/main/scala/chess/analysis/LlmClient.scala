@@ -77,6 +77,7 @@ object LlmClient:
     val req = HttpRequest.newBuilder()
       .uri(URI.create(endpoint + key))
       .header("Content-Type", "application/json")
+      .timeout(java.time.Duration.ofSeconds(30))
       .POST(HttpRequest.BodyPublishers.ofString(body))
       .build()
 
@@ -162,19 +163,21 @@ object LlmClient:
              |- **NO ORIGIN ASSUMPTIONS**: If input says "Nxe5", do NOT write "Knight from f3 captures..." unless you know it was on f3.
              |- Use natural chess language: "wins material", "creates threats", "gains space".
              |- NEVER use: win percentages, "multiPV", "eval", "tags" as words.
+             |- **NATURALIZE TAGS**: Translate technical tags (e.g., "Pawn Storm", "King Safety Crisis") into rich, descriptive prose (e.g., "a furious pawn avalanche", "the king is in mortal danger"). NEVER output the raw tag name like "Tactical Storm".
              |
              |Your Goal:
              |Explain *why* the played move was a mistake and *what* the student should have played instead, citing the Best Move's specific continuation.
+             |**ALSO:** Provide a brief, 1-sentence comment for the alternative variations (Best Move, etc.) to explain their point.
              |
              |**SAFETY RULES (CRITICAL):**
              |1. **NO GEOMETRY GUESSES**: Do NOT claim a piece attacks/defends a square unless it is OBVIOUS from the PV.
-             |2. **NO ORIGIN ASSUMPTIONS**: Never say "removed the knight from f6" unless the move is explicitly "Nf6xd5". "Nxd5" could come from anywhere.
+             |2. **NO ORIGIN ASSUMPTIONS**: Never say "removed the knight from f6" unless the move is explicitly "Nxd5".
              |3. **PV INTEGRITY**: When citing variations, use the exact moves provided. Do not invent move numbers.
              |
              |Input Payload: $payload
              |
              |Output Format:
-             |JSON array: [{"ply": 12, "main": "Coach comment...", "variations": {"Best Move": "...", "Hypothesis...": "..."}}]
+             |JSON array: [{"ply": 12, "main": "Coach comment on the played move...", "variations": {"Best Move": "Explanation of why this wins...", "Hypothesis: ...": "Refutation or reason..."}}]
              |""".stripMargin
         
         val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], "generationConfig":{"responseMimeType":"application/json"}}"""

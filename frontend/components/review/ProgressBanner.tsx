@@ -11,7 +11,7 @@ export function ProgressBanner({ stage, stageLabel, totalProgress, stageProgress
         switch (s) {
             case 'parsing': return '📄';
             case 'engine': return '⚙️';
-            case 'llm': return '🤖';
+            case 'llm': return '📝';
             case 'concepts': return '💡';
             default: return '🔍';
         }

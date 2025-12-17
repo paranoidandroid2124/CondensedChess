@@ -93,16 +93,23 @@ object ApiServer extends IOApp:
                  case Some(job) =>
                     // 3. If Processing, Get Progress from Redis
                     if job.status == "PROCESSING" then
-                       progressClient.get(jobId).flatMap { progOpt =>
-                          val p = progOpt.map(_.totalProgress).getOrElse(job.progress.toDouble / 100.0)
-                          val stage = progOpt.map(_.stage.toString).getOrElse("Unknown")
-                          Accepted(ujson.Obj(
-                            "jobId" -> jobId,
-                            "status" -> "processing",
-                            "progress" -> p,
-                            "stage" -> stage
-                          ).render())
-                       }
+                        progressClient.get(jobId).flatMap { progOpt =>
+                           val p = progOpt.map(_.totalProgress).getOrElse(job.progress.toDouble / 100.0)
+                           val stage = progOpt.map(_.stage.toString).getOrElse("Unknown")
+                           val stageLabel = stage.replaceAll("([a-z])([A-Z])", "$1 $2")
+                           val stageProgress = progOpt.map(_.stageProgress).getOrElse(0.0)
+                           val startedAt = progOpt.map(_.startedAt).getOrElse(0L)
+                           
+                           Accepted(ujson.Obj(
+                             "jobId" -> jobId,
+                             "status" -> "processing",
+                             "totalProgress" -> p,
+                             "stageProgress" -> stageProgress,
+                             "stage" -> stage,
+                             "stageLabel" -> stageLabel, 
+                             "startedAt" -> startedAt
+                           ).render())
+                        }
                     else if job.status == "FAILED" then
                        InternalServerError(makeErrorJson("JOB_FAILED", job.errorMessage.getOrElse("Unknown error")))
                     else 
@@ -192,30 +199,25 @@ object ApiServer extends IOApp:
     
     Database.make().use { xa =>
       // Retry policy for Redis connections
-    def retryResource[A](resource: Resource[IO, A], retries: Int = 5, delay: FiniteDuration = 2.seconds): Resource[IO, A] =
-      resource.handleErrorWith { e =>
-        if retries > 0 then
-          Resource.eval(IO(logger.warn(s"Redis connection failed, retrying in $delay... (${e.getMessage})"))) *>
-            Resource.eval(IO.sleep(delay)) *>
-            retryResource(resource, retries - 1, delay * 2)
-        else
-          Resource.eval(IO(logger.error(s"Redis connection failed after retries", e))) *>
-            Resource.raiseError(e)
-      }
+    // Redis URL is no longer used for Queue/Progress, but kept for legacy UsageService/Auth if needed or removed later.
+    // For this Hotfix, we switched to In-Memory Queue & Progress.
+    
 
-    retryResource(QueueClient.makeRedis(redisUrl)).use { queue =>
-        retryResource(ProgressClient.makeRedis(redisUrl)).use { progressClient =>
-          dev.profunktor.redis4cats.Redis[IO].utf8(redisUrl).use { redisCmd =>
+    
+    // In-Memory clients don't need retryResource
+    QueueClient.makeMemory.use { queue =>
+        ProgressClient.makeMemory.use { progressClient =>
+          // UsageService now also In-Memory (Redis is gone)
+          UsageService.makeMemory.use { usageService =>
           cats.effect.std.Dispatcher.parallel[IO].use { dispatcher =>
+          JobManager.make(queue, xa).flatMap { jobManager =>
           
-          val jobManager = JobManager.make(queue, xa)
           val loadConfig = IO.blocking(AnalyzePgn.EngineConfig.fromEnv()).map(c => (c, EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
               .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
               .getOrElse(Set.empty)))
 
           val blob = new BlobStorage.FileBlobStorage("data")
           val analysisService = new AnalysisService(xa, blob)
-          val usageService = UsageService.make(redisCmd)
           val engineService = new EngineService() // Worker component
 
           // --- Worker Loop ---
@@ -312,9 +314,10 @@ object ApiServer extends IOApp:
               .build
               .use(_ => IO.never)
 
-            // Run Server and Worker concurrently
-            _ <- server &> workerLoop
+            // Run Server, Worker, AND Poller concurrently
+            _ <- server &> workerLoop &> jobManager.startPoller
           } yield ExitCode.Success
+          }
           }
           }
         }

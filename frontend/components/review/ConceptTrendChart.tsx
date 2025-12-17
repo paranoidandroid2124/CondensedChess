@@ -6,8 +6,10 @@ interface ConceptData {
     ply: number;
     dynamic?: number;
     kingSafety?: number;
-    tacticalDepth?: number;
-    comfortable?: number;
+    imbalanced?: number;
+    colorComplex?: number;
+    space?: number;
+    blunderRisk?: number;
 }
 
 interface ConceptTrendChartProps {
@@ -16,23 +18,32 @@ interface ConceptTrendChartProps {
     height?: number;
 }
 
-const CONCEPT_COLORS = {
-    dynamic: '#ff6b6b',
-    kingSafety: '#feca57',
-    tacticalDepth: '#48dbfb',
-    comfortable: '#1dd1a1',
+const CONCEPT_COLORS: Record<string, string> = {
+    dynamic: '#ff9f43',       // Orange
+    kingSafety: '#ff6b6b',    // Reddish
+    imbalanced: '#a55eea',    // Purple
+    colorComplex: '#4b7bec',  // Blue
+    space: '#26de81',         // Green
+    blunderRisk: '#ee5253',   // Red
 };
 
-const CONCEPT_LABELS = {
+const CONCEPT_LABELS: Record<string, string> = {
     dynamic: 'Dynamic',
     kingSafety: 'King Danger',
-    tacticalDepth: 'Tactical Depth',
-    comfortable: 'Comfort',
+    imbalanced: 'Imbalance',
+    colorComplex: 'Color Complex',
+    space: 'Space',
+    blunderRisk: 'Blunder Risk',
 };
 
-
-
-const concepts = ['dynamic', 'kingSafety', 'tacticalDepth', 'comfortable'] as const;
+const concepts = [
+    'dynamic',
+    'kingSafety',
+    'imbalanced',
+    'colorComplex',
+    'space',
+    'blunderRisk'
+] as const;
 
 export function ConceptTrendChart({
     data,
@@ -43,28 +54,44 @@ export function ConceptTrendChart({
     const chartData = useMemo(() => {
         if (data.length === 0) return null;
 
-        const width = 100; // percentage
-        const padding = { top: 10, bottom: 20, left: 5, right: 5 };
-        const chartHeight = height - padding.top - padding.bottom;
+        // Logical coordinate system: 0-100 for both X and Y
+        // This allows us to rely on SVG scaling via viewBox
+        const logicalWidth = 100;
+        const logicalHeight = 100;
+
+        // Vertical padding within the logical space (10 units top, 10 units bottom)
+        const vPadding = 10;
+        const drawHeight = logicalHeight - (vPadding * 2);
 
         const maxPly = Math.max(...data.map(d => d.ply));
-        const xScale = (ply: number) => (ply / maxPly) * (width - padding.left - padding.right) + padding.left;
-        const yScale = (val: number) => chartHeight - (val * chartHeight) + padding.top;
+
+        // Map Ply to 0..100
+        // We use full width for X axis
+        const xScale = (ply: number) => (ply / Math.max(1, maxPly)) * logicalWidth;
+
+        // Map Value 0..1 to Y (inverted: 1 is top, 0 is bottom)
+        // Value 1 -> vPadding
+        // Value 0 -> logicalHeight - vPadding
+        const yScale = (val: number) => (logicalHeight - vPadding) - (val * drawHeight);
 
         const paths: Record<string, string> = {};
 
         concepts.forEach(concept => {
             const points = data
                 .filter(d => d[concept] !== undefined)
-                .map(d => `${xScale(d.ply)}%,${yScale(d[concept] ?? 0)}`);
+                .map(d => {
+                    const x = xScale(d.ply);
+                    const y = yScale(Math.max(0, Math.min(1, d[concept] ?? 0)));
+                    return `${x.toFixed(2)},${y.toFixed(2)}`;
+                });
 
             if (points.length > 1) {
                 paths[concept] = `M ${points.join(' L ')}`;
             }
         });
 
-        return { paths, xScale, yScale, maxPly };
-    }, [data, height]);
+        return { paths, xScale, yScale, maxPly, logicalHeight, logicalWidth };
+    }, [data]);
 
     if (!chartData || data.length < 2) {
         return (
@@ -76,7 +103,7 @@ export function ConceptTrendChart({
                 color: 'var(--muted)',
                 fontSize: '0.8rem'
             }}>
-                분석 데이터 부족
+                Not enough data
             </div>
         );
     }
@@ -85,20 +112,23 @@ export function ConceptTrendChart({
         <div className="concept-trend-chart" style={{ height, position: 'relative' }}>
             <svg
                 width="100%"
-                height={height}
+                height="100%"
+                viewBox={`0 0 ${chartData.logicalWidth} ${chartData.logicalHeight}`}
+                preserveAspectRatio="none"
                 style={{ overflow: 'visible' }}
             >
-                {/* Grid lines */}
+                {/* Grid lines (0, 0.25, 0.5, 0.75, 1.0) */}
                 {[0, 0.25, 0.5, 0.75, 1].map(val => (
                     <line
                         key={val}
-                        x1="5%"
-                        x2="95%"
-                        y1={height - 20 - val * (height - 30)}
-                        y2={height - 20 - val * (height - 30)}
-                        stroke="var(--border, #333)"
+                        x1="0"
+                        x2="100"
+                        y1={chartData.yScale(val)}
+                        y2={chartData.yScale(val)}
+                        stroke="var(--border, #444)"
                         strokeWidth="0.5"
                         strokeDasharray="2,2"
+                        vectorEffect="non-scaling-stroke"
                     />
                 ))}
 
@@ -113,20 +143,22 @@ export function ConceptTrendChart({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
                         />
                     )
                 ))}
 
                 {/* Current ply marker */}
-                {currentPly && (
+                {currentPly !== undefined && (
                     <line
-                        x1={`${chartData.xScale(currentPly)}%`}
-                        x2={`${chartData.xScale(currentPly)}%`}
-                        y1="10"
-                        y2={height - 20}
+                        x1={chartData.xScale(currentPly)}
+                        x2={chartData.xScale(currentPly)}
+                        y1="0"
+                        y2="100"
                         stroke="var(--primary, #fff)"
                         strokeWidth="1"
                         strokeDasharray="3,3"
+                        vectorEffect="non-scaling-stroke"
                     />
                 )}
             </svg>
@@ -137,7 +169,9 @@ export function ConceptTrendChart({
                 justifyContent: 'center',
                 gap: '12px',
                 fontSize: '0.65rem',
-                marginTop: '4px'
+                marginTop: '-10px',
+                position: 'relative',
+                zIndex: 10
             }}>
                 {concepts.map(concept => (
                     <span key={concept} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

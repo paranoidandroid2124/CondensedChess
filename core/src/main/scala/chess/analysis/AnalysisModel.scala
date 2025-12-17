@@ -48,10 +48,10 @@ object AnalysisModel:
       def intEnv(key: String, default: Int) =
         EnvLoader.get(key).flatMap(_.toIntOption).filter(_ > 0).getOrElse(default)
       EngineConfig(
-        shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 6),
-        deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 14),
-        shallowTimeMs = intEnv("ANALYZE_SHALLOW_MS", 200),
-        deepTimeMs = intEnv("ANALYZE_DEEP_MS", 500),
+        shallowDepth = intEnv("ANALYZE_SHALLOW_DEPTH", 6), // Keep shallow to represent "intuition"
+        deepDepth = intEnv("ANALYZE_DEEP_DEPTH", 18),      // Increase deep to find hidden tactics
+        shallowTimeMs = intEnv("ANALYZE_SHALLOW_MS", 100), // Fast check (glance)
+        deepTimeMs = intEnv("ANALYZE_DEEP_MS", 2500),      // Give enough time to reach high depth
         maxMultiPv = intEnv("ANALYZE_MAX_MULTIPV", 3),
         extraDepthDelta = intEnv("ANALYZE_EXTRA_DEPTH_DELTA", 4),
         extraTimeMs = intEnv("ANALYZE_EXTRA_MS", 300),

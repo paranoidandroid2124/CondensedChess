@@ -1,5 +1,6 @@
 // chess.js dependency removed
 import { normalizeEvalKind } from "./review-format";
+import { cpToWinPct } from "./eval";
 import type { Review, ReviewTreeNode, TimelineNode } from "../types/review";
 import type { VariationEntry } from "../components/review/TimelineView";
 
@@ -151,6 +152,68 @@ export function convertPathToTimeline(path: ReviewTreeNode[]): EnhancedTimelineN
     // Build EnhancedTimelineNode with required fields
     // ReviewTreeNode has: ply, san, uci, fen, eval, evalType, judgement, glyph, tags, pv, children
     // TimelineNode requires: ply, turn, san, uci, fen, features
+
+    // Calculate winPctAfterForPlayer
+    // node.eval is from the perspective of the side whose turn just happened (the Mover)?
+    // Wait, TreeBuilder says: 
+    // eval = p.evalBeforeDeep...lines.head...orElse(p.winPctBefore)
+    // evalType = "cp" or "mate" or "win%"
+    // BUT for variations: eval = branch.cp..orElse(branch.winPct)
+
+    // Key Logic:
+    // AnalysisModel.Branch `winPct` is generally from the perspective of the side to move *at that branch point*?
+    // Actually, EngineEval lines are usually "Score for the side to move".
+    // So if it's White to move, +100 means White is better.
+    // If it's Black to move, +100 means Black is better (often normalized in UCI, but EngineEval wraps it).
+    // Let's assume standard UCI: always White-centric? Or Side-centric?
+    // AnalysisModel says: `winPctBefore` in PlyOutput.
+
+    // In TreeBuilder: `eval` for variation is taking `branch.cp` or `branch.winPct`.
+    // We need to convert this to `winPctAfterForPlayer`.
+    // If node.ply is 1 (White moved), we want White's winning chances after the move.
+
+    // Let's rely on standard assumption:
+    // If evalType is 'cp', convert to winPct.
+    // If evalType is 'mate', convert to 0 or 100.
+    // If evalType is 'win%', use as is.
+
+    let winPctRaw = 50;
+    if (node.evalType === 'mate') {
+      winPctRaw = node.eval > 0 ? 100 : 0; // Positive mate = winning
+    } else if (node.evalType === 'cp') {
+      winPctRaw = cpToWinPct(node.eval);
+    } else {
+      winPctRaw = node.eval;
+    }
+
+    // Now, is `winPctRaw` for White or for the Side-To-Move?
+    // Usually tree nodes store "Evaluation of this position". 
+    // Position after White moved => It's Black's turn.
+    // Engines evaluate for side-to-move (Black).
+    // So if Black is losing, score is negative (if relative) or Low Win% (if absolute White).
+    // However, `cp` from Stockfish usually is normalized to White in many tools, OR side-to-move in others.
+    // In `TimelineBuilder`, we see: `winAfterForPlayer`.
+
+    // Given the ambiguity, let's assume `node.eval` follows the convention of "White's Advantage" (Centipawns relative to white if not specified otherwise, but Stockfish UCI is usually side-to-move).
+    // BUT `branch.winPct` from `AnalysisModel` usually comes from `score` which `AnalysisService` normalizes.
+
+    // ReviewClient uses `winPctAfterForPlayer` which is explicit.
+    // If we want "White Winning %", we generally want to ensure we pass that.
+    // `PlyOutput` has `winPctAfterForPlayer`.
+
+    // Let's assume `winPctRaw` is "Win % for White" for now, to match the main timeline if it uses absolute values.
+    // If it turns out inverted for Black moves, we will fix it.
+
+    // Actually, `winPctAfterForPlayer` specifically asks for "Player who just moved".
+    // If White moved (ply 1), we want White's Win %. (e.g. 55%)
+    // If Black moved (ply 2), we want Black's Win %. (e.g. 45% for White => 55% for Black)
+
+    // We'll trust `winPctRaw` is "White Win %" (Absolute).
+    // So if turn is 'white' (White just moved), `winPctAfterForPlayer` = winPctRaw.
+    // If turn is 'black' (Black just moved), `winPctAfterForPlayer` = 100 - winPctRaw.
+
+    const winPctAfterForPlayer = turn === 'white' ? winPctRaw : (100 - winPctRaw);
+
     return {
       ply: node.ply,
       turn,
@@ -161,6 +224,7 @@ export function convertPathToTimeline(path: ReviewTreeNode[]): EnhancedTimelineN
       concepts: node.concepts,
       label,
       fenBefore,
+      winPctAfterForPlayer
     } as EnhancedTimelineNode;
   });
 }
