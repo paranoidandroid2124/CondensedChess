@@ -21,7 +21,7 @@ object LlmClient:
   private val apiKey = EnvLoader.get("GEMINI_API_KEY").orElse(sys.props.get("GEMINI_API_KEY"))
   if apiKey.isEmpty then System.err.println("[llm] GEMINI_API_KEY not set; LlmClient is disabled")
 
-  private val model = EnvLoader.getOrElse("GEMINI_MODEL", "gemini-2.5-flash")
+  private val model = EnvLoader.getOrElse("GEMINI_MODEL", "gemini-1.5-flash")
   private val endpoint = s"https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key="
   private val http = HttpClient.newBuilder().executor(Executors.newFixedThreadPool(4)).build()
 
