@@ -133,7 +133,7 @@ export function ShareModal({ activeMove, reviewTitle, onClose }: ShareModalProps
                                         </h1>
                                         <div className="w-16 h-1 bg-white/20 rounded-full" />
                                         <p className="text-white/60 font-serif italic text-sm">
-                                            "A tactical masterpiece featuring a brilliant exchange sacrifice."
+                                            &quot;A tactical masterpiece featuring a brilliant exchange sacrifice.&quot;
                                         </p>
                                     </div>
                                     <div className="absolute bottom-6 w-full text-center text-[10px] text-white/20 font-mono uppercase tracking-[0.2em]">
