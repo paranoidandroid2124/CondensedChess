@@ -482,7 +482,7 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             {showShareModal && (
                 <ShareModal
                     activeMove={activeMove}
-                    reviewTitle={`${review?.white?.name || "White"} vs ${review?.black?.name || "Black"}`}
+                    reviewTitle={"White vs Black"}
                     onClose={() => setShowShareModal(false)}
                 />
             )}
