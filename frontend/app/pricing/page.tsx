@@ -130,7 +130,7 @@ export default function PricingPage() {
                             <div>
                                 <p className="font-semibold text-white">Q: How can I provide feedback?</p>
                                 <p className="mt-2 text-white/70 leading-relaxed">
-                                    A: We&apos;d love to hear from you! Please reach out to use via the support email or the feedback button in the dashboard.
+                                    A: We&apos;d love to hear from you! Please reach out to use via the support email.
                                 </p>
                             </div>
                         </div>
