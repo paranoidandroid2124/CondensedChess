@@ -125,9 +125,16 @@ export default function SampleReviewPage() {
                                             showAdvanced={false}
                                             customShapes={[]}
                                             arrows={[[moment.move.from, moment.move.to, "#22c55e"]]}
-                                            onDrop={() => { }}
+                                            onDrop={() => true}
                                             onSelectPly={() => { }}
                                             onClearArrows={() => { }}
+                                            drawingColor="green"
+                                            onSelectColor={() => { }}
+                                            timeline={[]}
+                                            conceptSpikes={[]}
+                                            previewLabel={null}
+                                            branchSaving={false}
+                                            branchError={null}
                                         />
                                     </div>
 
