@@ -43,7 +43,7 @@ export default function HeroSection() {
                                 Analyze My Games
                             </Link>
                             <Link
-                                href="/examples"
+                                href="/review/sample"
                                 className="inline-flex items-center justify-center rounded-full border border-white/15 px-6 py-3.5 text-sm font-semibold text-white/80 transition hover:border-white/35"
                             >
                                 View Sample Review

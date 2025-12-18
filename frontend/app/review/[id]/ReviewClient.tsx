@@ -23,8 +23,11 @@ import type { TabId } from "../../../components/AnalysisPanel";
 import { EngineAnalysisPanel } from "../../../components/BestAlternatives";
 import type { VariationEntry } from "../../../components/review/TimelineView";
 import { EngineSettingsModal } from "../../../components/review/EngineSettingsModal";
+import { ShareModal } from "../../../components/review/ShareModal";
+import { Share2 } from "lucide-react";
 
 export default function ReviewClient({ reviewId }: { reviewId: string }) {
+    const [showShareModal, setShowShareModal] = useState(false);
     const { review, loading, pendingMessage, pollStartTime, pollAttempt, error, setReview, progressInfo } = useReviewPolling(reviewId);
 
     useEffect(() => {
@@ -351,10 +354,11 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={handleSaveGame}
-                                className="rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/60 hover:border-white/40 hover:text-white transition"
+                                onClick={() => setShowShareModal(true)}
+                                className="flex items-center gap-2 rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/80 hover:border-white/40 hover:text-white transition hover:bg-white/5"
                             >
-                                Save Game
+                                <Share2 className="w-3 h-3" />
+                                Share / Export
                             </button>
                         </div>
                     </div>
@@ -473,6 +477,13 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                     config={config}
                     setConfig={setConfig}
                     onClose={() => setShowEngineSettings(false)}
+                />
+            )}
+            {showShareModal && (
+                <ShareModal
+                    activeMove={activeMove}
+                    reviewTitle={`${review?.white?.name || "White"} vs ${review?.black?.name || "Black"}`}
+                    onClose={() => setShowShareModal(false)}
                 />
             )}
         </div>

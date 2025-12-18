@@ -94,7 +94,7 @@ export default function UploadCard() {
         >
           View sample
         </button>
-        <span className="text-xs text-white/50">Free Tier: 1 game/day</span>
+        <span className="text-xs text-white/50">BETA: Unlimited Access</span>
       </div>
     </div>
   );
