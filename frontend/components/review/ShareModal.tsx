@@ -159,7 +159,7 @@ export function ShareModal({ activeMove, reviewTitle, onClose }: ShareModalProps
                                                         fen={activeMove.fen}
                                                         orientation="white"
                                                         showAdvanced={false}
-                                                        onDrop={() => { }} onSelectPly={() => { }} onClearArrows={() => { }}
+                                                        onDrop={() => true} onSelectPly={() => { }} onClearArrows={() => { }}
                                                         arrows={[]} customShapes={[]}
                                                     />
                                                 )}
@@ -175,7 +175,7 @@ export function ShareModal({ activeMove, reviewTitle, onClose }: ShareModalProps
                                                 <span className="text-white/30 text-xs font-mono">Move {Math.ceil((activeMove?.ply || 0) / 2)}</span>
                                             </div>
                                             <p className="text-white text-sm font-serif leading-relaxed line-clamp-3">
-                                                {activeMove?.comment || activeMove?.narrativeContent || "White seizes the initiative with a bold pawn sacrifice, opening lines against the black king."}
+                                                {activeMove?.shortComment || "White seizes the initiative with a bold pawn sacrifice, opening lines against the black king."}
                                             </p>
                                         </div>
                                     </div>
