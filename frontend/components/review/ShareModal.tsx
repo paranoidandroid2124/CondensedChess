@@ -161,6 +161,13 @@ export function ShareModal({ activeMove, reviewTitle, onClose }: ShareModalProps
                                                         showAdvanced={false}
                                                         onDrop={() => true} onSelectPly={() => { }} onClearArrows={() => { }}
                                                         arrows={[]} customShapes={[]}
+                                                        drawingColor="green"
+                                                        onSelectColor={() => { }}
+                                                        timeline={[]}
+                                                        conceptSpikes={[]}
+                                                        previewLabel={null}
+                                                        branchSaving={false}
+                                                        branchError={null}
                                                     />
                                                 )}
                                             </div>
