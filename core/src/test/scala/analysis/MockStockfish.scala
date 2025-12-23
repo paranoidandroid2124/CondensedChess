@@ -3,6 +3,7 @@ package analysis
 
 import scala.collection.mutable
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * A mock implementation of StockfishClient for testing purposes.
@@ -10,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class MockStockfish extends StockfishClient("mock") {
   
+  import scala.concurrent.Future
   import StockfishClient._
   
   private val cannedResults = mutable.Map.empty[String, Either[String, EvalResult]]
@@ -18,9 +20,9 @@ class MockStockfish extends StockfishClient("mock") {
   private var shouldCrash = false
   
   override protected def start(): Unit = {
-    // No process needed
+    // Overridden to avoid starting a real process in tests
   }
-  
+
   override def close(): Unit = {
     isClosed.set(true)
   }
@@ -48,19 +50,19 @@ class MockStockfish extends StockfishClient("mock") {
       multiPv: Int = 1,
       moveTimeMs: Option[Int] = Some(500),
       moves: List[String] = Nil
-  ): Either[String, EvalResult] = {
-    if isClosed.get() then return Left("Client closed")
+  ): Future[Either[String, EvalResult]] = {
+    if isClosed.get() then return Future.successful(Left("Client closed"))
     
-    if shouldCrash then throw new RuntimeException("Mock Engine Crash")
+    if shouldCrash then return Future.failed(new RuntimeException("Mock Engine Crash"))
     if shouldTimeout then {
       // simulate delay
       // Thread.sleep(moveTimeMs.getOrElse(100) + 10)
-      return Left("Engine timeout (soft mock)")
+      return Future.successful(Left("Engine timeout (soft mock)"))
     }
     
     val key = makeKey(fen, moves)
     // Check exact match first
-    cannedResults.get(key) match {
+    val res = cannedResults.get(key) match {
       case Some(res) => res
       case None => 
          // Check just FEN match if no moves provided in seed but requested?
@@ -70,5 +72,6 @@ class MockStockfish extends StockfishClient("mock") {
            Line(1, depth, Some(10), None, List("a2a3"))
          ), Some("a2a3")))
     }
+    Future.successful(res)
   }
 }

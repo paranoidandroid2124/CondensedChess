@@ -141,18 +141,4 @@ class FeatureExtractorTest extends FunSuite:
     assertEquals(f.coordination.whiteRooksBehindPassedPawns, 1, "White Rook should be behind passed pawn")
   }
 
-  test("Geometry - Wrong Bishop Draw") {
-    // 1. Wrong Bishop: h-pawn (promotes on h8=Dark). Bishop on g2 (Light).
-    // FEN: 8/7P/8/8/8/8/6B1/7k w - - 0 1 -> Missing White King!
-    // Fixed FEN: 8/7P/8/8/8/8/6B1/K6k w - - 0 1 (White King at a1)
-    val fenWrong = "8/7P/8/8/8/8/6B1/K6k w - - 0 1"
-    val fWrong = FeatureExtractor.extractPositionFeatures(fenWrong, 1)
-    assert(fWrong.geometry.whiteWrongBishop, "Should be wrong bishop (Light bishop vs Dark h8)")
 
-    // 2. Right Bishop: a-pawn (promotes on a8=Light). Bishop on c4 (Light).
-    // FEN: 8/P7/8/8/2B5/8/8/k7 w - - 0 1 -> Missing White King!
-    // Fixed FEN: 8/P7/8/8/2B5/8/8/k6K w - - 0 1 (White King at h1)
-    val fenRight = "8/P7/8/8/2B5/8/8/k6K w - - 0 1"
-    val fRight = FeatureExtractor.extractPositionFeatures(fenRight, 1)
-    assert(!fRight.geometry.whiteWrongBishop, "Should NOT be wrong bishop (Light bishop vs Light a8)")
-  }

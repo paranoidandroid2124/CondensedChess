@@ -5,7 +5,7 @@ export function ReviewErrorView({ error, reviewId }: { error?: string | null; re
         <h2 className="text-xl font-semibold text-white">Load failed</h2>
         <p className="text-sm text-white/80">{error ?? "Review not found"}</p>
         <p className="mt-2 text-xs text-white/60">
-          Set NEXT_PUBLIC_REVIEW_API_BASE for the API base URL, or open `/review/sample` to view sample data.
+          If this issue persists, please try again later.
         </p>
       </div>
     </div>

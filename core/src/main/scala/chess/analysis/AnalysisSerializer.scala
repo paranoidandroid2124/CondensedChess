@@ -2,6 +2,8 @@ package chess
 package analysis
 
 import AnalysisModel.*
+import AnalysisTypes.*
+import ConceptLabeler.*
 import AnalyzeUtils.escape
 
 object AnalysisSerializer:
@@ -171,6 +173,11 @@ object AnalysisSerializer:
           sb.append("]}")
         }
         sb.append("]")
+      ply.conceptLabels.foreach { cl =>
+        sb.append(",\"conceptLabels\":")
+        renderConceptLabels(cl, sb)
+      }
+      sb.append("]")
       sb.append('}')
     }
     sb.append("]}")
@@ -757,3 +764,92 @@ object AnalysisSerializer:
     sb.append("\"tags\":[")
     item.tags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t)).append("\"") }
     sb.append("]}")
+
+  private def renderConceptLabels(cl: ConceptLabels, sb: StringBuilder): Unit =
+    sb.append('{')
+    sb.append("\"structureTags\":[")
+    cl.structureTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"planTags\":[")
+    cl.planTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"tacticTags\":[")
+    cl.tacticTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"mistakeTags\":[")
+    cl.mistakeTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"endgameTags\":[")
+    cl.endgameTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"positionalTags\":[")
+    cl.positionalTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"transitionTags\":[")
+    cl.transitionTags.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t.toString)).append("\"") }
+    sb.append("],\"missedPatternTypes\":[")
+    cl.missedPatternTypes.zipWithIndex.foreach { case (t, i) => if i > 0 then sb.append(','); sb.append("\"").append(escape(t)).append("\"") }
+    sb.append("],\"richTags\":[")
+    cl.richTags.zipWithIndex.foreach { case (rt, i) =>
+       if i > 0 then sb.append(',')
+       sb.append("{\"id\":\"").append(escape(rt.id)).append("\",")
+       sb.append("\"score\":").append(fmt(rt.score)).append(',')
+       sb.append("\"category\":\"").append(escape(rt.category.toString)).append("\",")
+       sb.append("\"evidenceRefs\":[")
+       rt.evidenceRefs.zipWithIndex.foreach { case (ref, ri) =>
+         if ri > 0 then sb.append(',')
+         sb.append("{\"kind\":\"").append(escape(ref.kind)).append("\",\"id\":\"").append(escape(ref.id)).append("\"}")
+       }
+       sb.append("]}")
+    }
+    sb.append("],\"evidence\":")
+    renderEvidencePack(cl.evidence, sb)
+    sb.append('}')
+
+  private def renderEvidencePack(ev: EvidencePack, sb: StringBuilder): Unit =
+    sb.append('{')
+    sb.append("\"kingSafety\":{")
+    ev.kingSafety.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{\"square\":\"").append(escape(e.square)).append("\",\"openFiles\":[")
+      e.openFiles.zipWithIndex.foreach { case (f, fi) => if fi > 0 then sb.append(','); sb.append("\"").append(escape(f)).append("\"") }
+      sb.append("],\"attackers\":").append(e.attackers).append(',')
+      sb.append("\"checks\":[")
+      e.checks.zipWithIndex.foreach { case (c, ci) => if ci > 0 then sb.append(','); sb.append("\"").append(escape(c)).append("\"") }
+      sb.append("],\"defenders\":").append(e.defenders).append('}')
+    }
+    sb.append("},\"structure\":{")
+    ev.structure.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{\"description\":\"").append(escape(e.description)).append("\",\"squares\":[")
+      e.squares.zipWithIndex.foreach { case (s, si) => if si > 0 then sb.append(','); sb.append("\"").append(escape(s)).append("\"") }
+      sb.append("]}")
+    }
+    sb.append("},\"tactics\":{")
+    ev.tactics.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{\"motif\":\"").append(escape(e.motif)).append("\",\"sequence\":[")
+      e.sequence.zipWithIndex.foreach { case (s, si) => if si > 0 then sb.append(','); sb.append("\"").append(escape(s)).append("\"") }
+      sb.append("]")
+      e.captured.foreach(c => sb.append(",\"captured\":\"").append(escape(c)).append("\""))
+      sb.append('}')
+    }
+    sb.append("},\"placement\":{")
+    ev.placement.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{\"piece\":\"").append(escape(e.piece)).append("\",\"reason\":\"").append(escape(e.reason)).append("\",\"startSquare\":\"").append(escape(e.startSquare)).append("\",\"targetSquare\":\"").append(escape(e.targetSquare)).append("\",\"delta\":").append(fmt(e.delta)).append('}')
+    }
+    sb.append("},\"plans\":{")
+    ev.plans.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{\"concept\":\"").append(escape(e.concept)).append("\",\"starterMove\":\"").append(escape(e.starterMove)).append("\",")
+      sb.append("\"goal\":\"").append(escape(e.goal)).append("\",\"successScore\":").append(fmt(e.successScore)).append(',')
+      sb.append("\"pv\":[")
+      e.pv.zipWithIndex.foreach { case (m, mi) => if mi > 0 then sb.append(','); sb.append("\"").append(escape(m)).append("\"") }
+      sb.append("]}")
+    }
+    sb.append("},\"pv\":{")
+    ev.pv.zipWithIndex.foreach { case ((id, e), i) =>
+      if i > 0 then sb.append(',')
+      sb.append("\"").append(escape(id)).append("\":{")
+      sb.append("\"line\":[")
+      e.line.zipWithIndex.foreach { case (m, mi) => if mi > 0 then sb.append(','); sb.append("\"").append(escape(m)).append("\"") }
+      sb.append("],")
+      renderEval(sb, "eval", e.eval)
+      sb.append('}')
+    }
+    sb.append("}}")

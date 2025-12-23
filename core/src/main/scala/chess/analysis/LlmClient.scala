@@ -56,17 +56,15 @@ object LlmClient:
       case None => Future.successful(None)
       case Some(key) =>
         val prompt =
-          s"""You are a chess coach. Summarize this chess review JSON for a human in 3-6 sentences.
-             |- Payload contains an "instructions" block; follow it plus these rules.
-             |- Use only moves/evals given. Do NOT invent moves/evals or move numbers.
-             |- Do NOT use the word 'ply'; refer to moves by standard notation (e.g., "13. Qe2").
-             |- When referenceing moves, quote the provided label exactly (e.g., "13. Qe2", "12...Ba6"); never renumber.
-             |- Use keySwings/critical arrays to anchor the story. Mention forced/only-move flags, legalMoves, and best-vs-second gaps when present.
-             |- Lean on semanticTags/mistakeCategory (tactical_miss/greedy/positional_trade_error/ignored_threat) and conceptShift to explain *why* the eval moved.
-             |- Mention novelty/book briefly using openingStats if present.
-             |- Avoid generic advice; ground every claim in the provided tags/evals/branches/oppositeColorBishops flags.
+          s"""You are a chess coach. Summarize this game review in 3-6 sentences.
+             |RULES:
+             |- Use only moves/evals given. Never invent moves.
+             |- Refer to moves as "13. Qe2", never "ply".
+             |- Keep language concise and direct. Avoid flowery prose.
+             |- Naturalize tags: say "a well-placed knight" not "has a 'Knight Outpost'".
+             |- Mention critical moments from keySwings/critical arrays.
              |JSON: $json""".stripMargin
-        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}]}"""
+        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], ${GenerationConfig.jsonPart("text/plain")}}"""
         
         buildAndSend(key, body, "[llm-summarize]") { text =>
           Future.successful(Some(text))
@@ -77,7 +75,7 @@ object LlmClient:
     val req = HttpRequest.newBuilder()
       .uri(URI.create(endpoint + key))
       .header("Content-Type", "application/json")
-      .timeout(java.time.Duration.ofSeconds(30))
+      .timeout(java.time.Duration.ofSeconds(90))
       .POST(HttpRequest.BodyPublishers.ofString(body))
       .build()
 
@@ -132,7 +130,7 @@ object LlmClient:
              |- Reference moves by standard notation (e.g. '13. Qe2').
              |Payload: $payload""".stripMargin
         
-        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], "generationConfig":{"responseMimeType":"application/json"}}"""
+        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], ${GenerationConfig.jsonPart()}}"""
         
         buildAndSend(key, body, "[llm-shortComments]") { text =>
           Future.successful(Some(parseShortCommentsJson(text)))
@@ -156,31 +154,24 @@ object LlmClient:
       case None => Future.successful(Map.empty)
       case Some(key) =>
         val prompt =
-          s"""You are a friendly but sharp Chess Coach. Analyze these critical moments and provide a "Coach's Insight" for each.
-             |**STYLE RULES:**
-             |- Write like a chess book, not a computer report.
-             |- ALWAYS cite specific moves (e.g., "15.Nxe5") and squares, but ONLY if they are explicitly in the source data.
-             |- **NO ORIGIN ASSUMPTIONS**: If input says "Nxe5", do NOT write "Knight from f3 captures..." unless you know it was on f3.
-             |- Use natural chess language: "wins material", "creates threats", "gains space".
-             |- NEVER use: win percentages, "multiPV", "eval", "tags" as words.
-             |- **NATURALIZE TAGS**: Translate technical tags (e.g., "Pawn Storm", "King Safety Crisis") into rich, descriptive prose (e.g., "a furious pawn avalanche", "the king is in mortal danger"). NEVER output the raw tag name like "Tactical Storm".
-             |
-             |Your Goal:
-             |Explain *why* the played move was a mistake and *what* the student should have played instead, citing the Best Move's specific continuation.
-             |**ALSO:** Provide a brief, 1-sentence comment for the alternative variations (Best Move, etc.) to explain their point.
-             |
-             |**SAFETY RULES (CRITICAL):**
-             |1. **NO GEOMETRY GUESSES**: Do NOT claim a piece attacks/defends a square unless it is OBVIOUS from the PV.
-             |2. **NO ORIGIN ASSUMPTIONS**: Never say "removed the knight from f6" unless the move is explicitly "Nxd5".
-             |3. **PV INTEGRITY**: When citing variations, use the exact moves provided. Do not invent move numbers.
-             |
-             |Input Payload: $payload
-             |
-             |Output Format:
-             |JSON array: [{"ply": 12, "main": "Coach comment on the played move...", "variations": {"Best Move": "Explanation of why this wins...", "Hypothesis: ...": "Refutation or reason..."}}]
+          s"""You are a chess coach. Provide "Coach's Insight" for each critical moment.
+             |RULES:
+             |- Cite specific moves (e.g., "15.Nxe5") only if in the source data.
+             |- Use natural chess language. Avoid technical jargon and flowery prose.
+             |- Naturalize tags: say "a dominant knight" not "has a 'Knight Outpost'".
+             |- Explain WHY the move was a mistake and WHAT should have been played.
+             |- No geometry guesses. No origin assumptions. Use exact PV moves.
+             |CHESS BOOK STYLE:
+             |- Use "leads to X because of Y" format: "leads to a problematic endgame because of the weak d4-pawn".
+             |- For major mistakes, use Q&A: "Question: Why not Nxe5? Answer: Because after Qxe5, Black wins the bishop."
+             |- Give pieces personality: "the knight eyes the d5-outpost", "the bishop dominates the long diagonal".
+             |- When citing PV lines, write: "for example, 14 h3 Bb3! 15 Rd7 leads to..."
+             |- Mention follow-up ideas: "with ideas of ...f5 and ...Nd4+".
+             |Input: $payload
+             |Output: JSON array [{\"ply\": 12, \"main\": \"...\", \"variations\": {\"Best Move\": \"...\"}}]
              |""".stripMargin
         
-        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], "generationConfig":{"responseMimeType":"application/json"}}"""
+        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], ${GenerationConfig.jsonPart()}}"""
         
         buildAndSend(key, body, "[llm-critical]") { text =>
           Future.successful(Some(parseCriticalJson(text)))
@@ -218,54 +209,20 @@ object LlmClient:
           |""" else ""
 
         val prompt =
-          s"""You are a Professional Chess Author writing a high-quality game collection book.
-             |
-             |PAYLOAD (per chapter):
-             |$payload
-             |
-             |GOAL:
-             |Write a "Mini-Chapter" that feels like a polished chess book.
-             |
-             |**STRICT EDITORIAL RULES:**
-             |1. **Tone & Style (Data-Driven):**
-             |   - **CRITICAL:** Use the tags provided in the data (e.g., "adj:Fatal", "mood:Critical") to determine the intensity of your language.
-             |   - If the tag is "adj:Fatal", use words like "catastrophic", "deadly".
-             |   - If the tag is "adj:Solid", use words like "steady", "sensible".
-             |   - **DO NOT** invent your own intensity judgment. Trust the tags.
+          s"""You are a chess author. Write mini-chapter summaries for study chapters.
+             |RULES:
+             |- Use tags (adj:Fatal, mood:Critical) to calibrate intensity.
+             |- Bold all moves: **Nf3**, **15...Re8**.
+             |- Keep concise (2-3 sentences). Avoid flowery prose.
+             |- Naturalize tags: say \"controls the center\" not \"has 'Space Advantage'\".
+             |- For hypotheses/traps, explain why the move fails.
              |$hypothesisInstruction
-             |3. **Glossary Enforcement:**
-             |   - Use "Space Advantage" (not "big space").
-             |   - Use "Initiative" (not "attack power").
-             |   - Use "Playable" (not "okay move").
-             |4. **Formatting:**
-             |   - **BOLD** ALL algebraic notation moves (e.g., **Nf3**, **e4**, **15...Re8**).
-             |
-             |**OUTPUT FORMAT:**
-             |Return a JSON ARRAY of objects (one for each studyChapter provided):
-             |[
-             |  {
-             |    "miniChapter": {
-             |      "id": "Copy the EXACT 'id' from the input chapter",
-             |      "title": "A short, punchy title (e.g., The Greedy Trap)",
-             |      "summary": "A 2-3 sentence narrative summary. Focus on the psychological or strategic context.",
-             |      "keyMoves": [
-             |         { "move": "15...Nf6", "commentary": "..." }
-             |      ]
-             |    }
-             |  }
-             |]
-             |
-             |**STYLE TEMPLATES:**
-             |1. (Lesson): "**[Move]** is a strong idea. It addresses strategic concerns..."
-             |$hypothesisTemplate
-             |
-             |**CRITICAL SAFETY RAIL (HALLUCINATION CHECK):**
-             | - Do NOT invent functionality or rules not present in chess.
-             | - **Length Guideline:** Keep comments concise (1-3 sentences) for normal moves. However, for **Hypothesis Refutations** or **Critical Turning Points**, you may write up to 5-6 sentences to fully explain the strategic nuance. Depth is allowed where necessary.
+             |Input: $payload
+             |Output: JSON array [{\"miniChapter\":{\"id\":\"...\",\"title\":\"...\",\"summary\":\"...\",\"keyMoves\":[{\"move\":\"...\",\"commentary\":\"...\"}]}}]
              |""".stripMargin
 
         val fullPrompt = s"$prompt\n\nPayload: $payload"
-        val body = s"""{"contents":[{"parts":[{"text":${quote(fullPrompt)}}]}], "generationConfig":{"responseMimeType":"application/json"}}"""
+        val body = s"""{"contents":[{"parts":[{"text":${quote(fullPrompt)}}]}], ${GenerationConfig.jsonPart()}}"""
         
         buildAndSend(key, body, "[llm-study]") { text =>
           Future.successful(Some(parseChapterAnnotationJson(text)))
@@ -328,7 +285,7 @@ object LlmClient:
     apiKey match
       case None => Future.successful(None)
       case Some(key) =>
-        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], "generationConfig":{"responseMimeType":"application/json"}}"""
+        val body = s"""{"contents":[{"parts":[{"text":${quote(prompt)}}]}], ${GenerationConfig.jsonPart()}}"""
         
         buildAndSend(key, body, "[llm-section]") { text =>
           if detectHallucination(text) then Future.successful(None)

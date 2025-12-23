@@ -1,0 +1,15 @@
+- [x] **Add Logging for LlmAnnotator Rejections** (Completed)
+- [x] Relax 'AntiFluffGate' strict check (Completed)
+- [/] **Investigate 'Log Hang' for LLM generation** (In Progress)
+  - [x] Investigate Stockfish Segfault (Identified & Logged)
+  - [x] **Add PID Logging** (Completed)
+- [x] **Fix 'Unknown' Progress Issue** (Completed)
+  - [x] Add DB-backed stage persistence
+  - [x] **Implement Zombie Job Cleanup** (Completed)
+- [ ] **Infrastructure Upgrades**
+  - [x] **Implement Persistent Storage for Analysis** (Completed)
+  - [x] **Verify Deployment** (Build & Deploy Success)
+  - [x] **Cleanup Build Warnings** (Removed unused symbols across 10+ files)
+- [ ] **Debugging Missing Results**
+  - [/] **Investigate Backend Response** (Checking /result/:id logic)
+  - [ ] **Verify Frontend Parsing** (Check useStudyData)

@@ -64,7 +64,12 @@ object EnginePool:
       engineAttempt match
         case scala.util.Success(engine) =>
           block(engine).transform { result =>
-            pool.offer(engine)
+            if result.isSuccess then
+              pool.offer(engine)
+            else
+              // CRITICAL: Discard engine on failure (Timeout/StreamClosed)
+              try engine.close() catch case _: Throwable => ()
+
             availablePermits.release()
             result
           }

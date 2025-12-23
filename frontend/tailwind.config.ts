@@ -54,12 +54,23 @@ const config: Config = {
         "scale-in": {
           "0%": { transform: "scale(0.95)", opacity: "0" },
           "100%": { transform: "scale(1)", opacity: "1" }
+        },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" }
+        },
+        indeterminate: {
+          "0%": { left: "-35%", right: "100%" },
+          "60%": { left: "100%", right: "-90%" },
+          "100%": { left: "100%", right: "-90%" }
         }
       },
       animation: {
         "fade-in": "fade-in 0.3s ease-out",
         "slide-up": "slide-up 0.4s ease-out",
-        "scale-in": "scale-in 0.2s ease-out"
+        "scale-in": "scale-in 0.2s ease-out",
+        shimmer: "shimmer 2s infinite",
+        indeterminate: "indeterminate 1.5s infinite linear"
       }
     }
   },

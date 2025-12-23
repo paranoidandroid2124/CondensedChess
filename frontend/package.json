@@ -10,10 +10,13 @@
     "test": "jest"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
     "@react-oauth/google": "^0.12.2",
     "chess.js": "^1.4.0",
     "chessground": "^9.2.1",
     "framer-motion": "^12.23.25",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^3.0.4",
     "lucide-react": "^0.557.0",
     "next": "14.1.0",
     "react": "18.2.0",

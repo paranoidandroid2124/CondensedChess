@@ -49,6 +49,13 @@ CREATE TABLE analysis_jobs (
     progress INT DEFAULT 0,
     error_message TEXT,
     
+    -- Job payload for DB-only queue (no Redis dependency)
+    pgn_text TEXT NOT NULL,
+    options_json JSONB NOT NULL DEFAULT '{}',
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Index for efficient job claiming
+CREATE INDEX idx_jobs_queued ON analysis_jobs(status, created_at) WHERE status = 'QUEUED';

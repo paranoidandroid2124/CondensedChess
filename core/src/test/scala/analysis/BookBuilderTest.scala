@@ -5,6 +5,7 @@ import munit.FunSuite
 import chess.analysis.BookModel.*
 import chess.analysis.AnalysisModel.{ PlyOutput, EngineEval, EngineLine, Concepts }
 import chess.analysis.ConceptLabeler.*
+import chess.analysis.AnalysisTypes.EvidencePack
 import chess.Color
 import chess.Ply
 
@@ -49,7 +50,7 @@ class BookBuilderTest extends FunSuite:
       semanticTags = Nil,
       mistakeCategory = None,
       roles = roles,
-      conceptLabels = Some(ConceptLabels(structureTags, Nil, tacticTags, mistakeTags, endgameTags, transitionTags)),
+      conceptLabels = Some(ConceptLabels(structureTags, Nil, tacticTags, mistakeTags, endgameTags, Nil, transitionTags, Nil, Nil, EvidencePack())),
       playedEvalCp = Some(10)
     )
 
@@ -58,7 +59,7 @@ class BookBuilderTest extends FunSuite:
     val sections = BookBuilder.storyboard(timeline)
     
     assertEquals(sections.size, 1)
-    assertEquals(sections.head.sectionType, SectionType.OpeningPortrait)
+    assertEquals(sections.head.sectionType, SectionType.OpeningReview)
     assertEquals(sections.head.endPly, 10)
   }
 
@@ -79,10 +80,9 @@ class BookBuilderTest extends FunSuite:
     // Expected: Opening(1-16) -> Structure(17-20) -> Tactics(21-25) -> Crisis(26-30)
     // Structure section might be "StructuralDeepDive" or "NarrativeBridge" depending on default
     
-    assertEquals(sections.head.sectionType, SectionType.OpeningPortrait)
-    assertEquals(sections(1).sectionType, SectionType.StructuralDeepDive)
-    assertEquals(sections(2).sectionType, SectionType.TacticalStorm)
-    assertEquals(sections(3).sectionType, SectionType.CriticalCrisis)
+    assertEquals(sections.head.sectionType, SectionType.OpeningReview)
+    assertEquals(sections(1).sectionType, SectionType.TacticalStorm)
+    assertEquals(sections(2).sectionType, SectionType.TurningPoints)
   }
 
   test("storyboard detects Endgame") {
@@ -105,6 +105,6 @@ class BookBuilderTest extends FunSuite:
     val sections = BookBuilder.storyboard(timeline)
     
     val endgameSec = sections.last
-    assertEquals(endgameSec.sectionType, SectionType.EndgameMasterclass)
+    assertEquals(endgameSec.sectionType, SectionType.EndgameLessons)
     assertEquals(endgameSec.startPly, 21)
   }

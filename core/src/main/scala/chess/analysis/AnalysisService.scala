@@ -16,12 +16,15 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
     TagRegex.findAllMatchIn(pgn)
       .collectFirst { case m if m.group(1) == name => m.group(2) }
 
+  private val logger = org.slf4j.LoggerFactory.getLogger("chess.analysis.service")
+
   def save(id: String, output: AnalyzePgn.Output, userId: Option[UUID]): IO[Unit] =
     val pgn = output.pgn
     val uuid = UUID.fromString(id)
     val now = Instant.now()
     
     // 1. Prepare Metadata
+    val s3Key = s"games/$id/analysis.json"
     val game = DbGame(
       id = uuid,
       userId = userId, // Anonymous for now
@@ -31,7 +34,7 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
       datePlayed = None, // Parse Date later if needed
       eco = output.opening.map(_.opening.eco.value),
       pgnHeaders = "{}", // Use proper JSON lib to extract all tags if needed
-      analysisS3Key = Some(s"games/$id/analysis.json"),
+      analysisS3Key = Some(s3Key),
       createdAt = now
     )
 
@@ -40,11 +43,15 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
 
     // 3. Save to Blob Storage (Simulated S3)
     // We use the same key pattern as DB
-    val saveBlob = blob.save(game.analysisS3Key.get, json)
+    val saveBlob = IO(logger.info(s"Saving analysis blob for $id at key: $s3Key")) >>
+                   blob.save(s3Key, json) >>
+                   IO(logger.info(s"Blob saved successfully for $id"))
 
     // 4. Save to DB target
     // We update the existing game record created by JobManager with the S3 key
-    val saveDb = GameRepo.updateS3Key(uuid, game.analysisS3Key.get).transact(xa)
+    val saveDb = GameRepo.updateS3Key(uuid, s3Key).transact(xa).flatMap { count =>
+      IO(logger.info(s"Updated Game S3 Key for $id. Rows affected: $count"))
+    }
 
     for
       _ <- saveBlob
@@ -63,12 +70,14 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
         GameRepo.findById(uid).transact(xa).flatMap {
           case Some(game) => 
             game.analysisS3Key match
-              case Some(key) => blob.load(key)
-              case None => IO.pure(None)
+              case Some(key) => 
+                 IO(logger.info(s"Loading via DB Key for $id: $key")) >> blob.load(key)
+              case None => 
+                 IO(logger.warn(s"Game found for $id but analysisS3Key is None")) >> IO.pure(None)
           case None => 
-            // Fallback for legacy files not in DB?
-            // "games/{id}/analysis.json"
-            blob.load(s"games/$id/analysis.json") 
+            val directKey = s"games/$id/analysis.json"
+            IO(logger.info(s"Game not found in DB for $id. Trying direct key: $directKey")) >>
+            blob.load(directKey) 
         }
       case None => IO.pure(None)
 
@@ -77,8 +86,13 @@ class AnalysisService(xa: Transactor[IO], blob: BlobStorage[IO]):
     // actually let's just try direct path if Db path returns None
     loadFromDb.flatMap {
       case Some(json) => IO.pure(Some(json))
-      case None => blob.load(s"games/$id/analysis.json") // Try direct key
+      case None => 
+        val fallbackKey = s"games/$id/analysis.json"
+        IO(logger.info(s"Fallback loading for $id using key: $fallbackKey")) >>
+        blob.load(fallbackKey) // Try direct key
     }
+
+
 
 object AnalysisService:
   // Factory for convenience if needed, but direct class usage is fine

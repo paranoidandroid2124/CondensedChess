@@ -18,13 +18,13 @@ class ConceptLabelerTest extends FunSuite {
   ): PositionFeatures =
     PositionFeatures(
       pawns = PawnStructureFeatures(whitePawnCount, blackPawnCount, Nil, Nil, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false, false, false, 0, 0, false, false),
-      activity = ActivityFeatures(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false),
+      activity = ActivityFeatures(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
       kingSafety = KingSafetyFeatures("none", "none", 0, 0, 0, 0, whiteBackRankWeak, blackBackRankWeak, whiteKingDist, blackKingDist, 0, 0),
       space = SpaceFeatures(0, 0, 0, 0, 0, 0),
       materialPhase = MaterialPhaseFeatures(0, 0, 0, whiteMajor, blackMajor, whiteMinor, blackMinor, phase),
       development = DevelopmentFeatures(0, 0, 0, 0, false, false),
       coordination = CoordinationFeatures(false, false, false, false, 0, 0),
-      geometry = GeometryFeatures(false, false),
+      geometry = GeometricFacts("?", "?", Nil, Nil, Nil, Nil, Nil, Nil),
       tactics = TacticalFeatures(0, 0, 0, 0, 0, 0),
       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       sideToMove = "white",

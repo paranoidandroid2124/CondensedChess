@@ -29,6 +29,7 @@ export interface BranchCreationOptions {
   setGuessState?: (state: GuessState) => void;
   setGuessFeedback?: (msg?: string) => void;
   onUserMove?: (node: EnhancedTimelineNode) => void;
+  isLocalAnalysis?: boolean;
 }
 
 export function useBranchCreation(options: BranchCreationOptions) {
@@ -49,7 +50,8 @@ export function useBranchCreation(options: BranchCreationOptions) {
     setBranchError,
     setGuessState,
     setGuessFeedback,
-    onUserMove
+    onUserMove,
+    isLocalAnalysis
   } = options;
 
   return useCallback(
@@ -100,8 +102,10 @@ export function useBranchCreation(options: BranchCreationOptions) {
 
         setPreviewFen(newFen);
 
-        // If review is not ready (analyzing), just show preview and return
-        if (!review) {
+        setPreviewFen(newFen);
+
+        // If review is not ready (analyzing) OR we are in local analysis mode
+        if (!review || (isLocalAnalysis && onUserMove)) {
           // Create a temporary node for the UI
           if (onUserMove) {
             const newNode: EnhancedTimelineNode = {
@@ -122,18 +126,13 @@ export function useBranchCreation(options: BranchCreationOptions) {
               epBefore: 0,
               epAfter: 0,
               epLoss: 0,
-
-              concepts: {} as any,
-              conceptDelta: {} as any,
-              semanticTags: [],
-              mistakeCategory: undefined,
               phaseLabel: undefined,
               practicality: undefined,
               bestVsSecondGap: undefined,
               bestVsPlayedGap: undefined,
               special: undefined,
               winPctAfterForPlayer: undefined,
-              features: {} as any
+              features: { pawnIslands: 0, isolatedPawns: 0, doubledPawns: 0, passedPawns: 0, rookOpenFiles: 0, rookSemiOpenFiles: 0, bishopPair: false, kingRingPressure: 0, spaceControl: 0 }
             };
             onUserMove(newNode);
             setSelectedPly(newNode.ply);

@@ -188,14 +188,19 @@ object NarrativeTemplates:
 | $template
 | 
 | INSTRUCTIONS:
-| Write a concise, insightful paragraph (3-4 sentences) in the style of a modern instructional chess book:
+| Write a concise, insightful paragraph of concise sentences in the style of a modern instructional chess book:
 | - First state the evaluation shift clearly (clear edge / slight edge / equal / unpleasant defence).
 | - Then explain the key plan or idea, using the Theme tags provided as guidance.
 | - Add a concise takeaway naming the central theme (e.g., "Theme/Takeaway: locked structure → manoeuvre slowly").
 | - Use concrete chess vocabulary; avoid hype or filler.
 | - Keep paragraphs short and objective.
 | - If a Practical alternative is listed, mention why it might be a good choice (e.g. "safer", "simpler plan") compared to the engine best.
-| Optional: you may use a brief "Question: …? Answer: …" to highlight an instructive choice.
+| CHESS BOOK STYLE (REQUIRED):
+| - Use "leads to X because of Y" pattern: "leads to an unpleasant endgame because of the exposed king".
+| - For mistakes (large eval drop), use "Question: Why not [alternative]? Answer: Because [concrete reason]".
+| - Give pieces personality: "the knight eyes the outpost", "the bishop controls the long diagonal".
+| - Cite variations with: "for example, 14 h3 Bb3! 15 Rd7 leads to..."
+| - Mention follow-up ideas: "with ideas of ...f5 and ...Nd4+".
 | ${if opponentContext.nonEmpty then "- If this is a Pressure Point, stress why the defence is difficult." else ""}
 | """.stripMargin
 
@@ -238,7 +243,30 @@ object NarrativeTemplates:
         val tagStr = if storyTags.nonEmpty then s"[${storyTags.mkString(", ")}]" else ""
         val evalStr = if delta < -2 then s"Dropped ${fmt(-delta)}%" else if delta > 2 then s"Gained ${fmt(delta)}%" else "Neutral"
         
-        s"Move $moveLabel: $tagStr - $evalStr"
+        // EVIDENCE formatting
+        val evidenceStr = p.conceptLabels.map { cl =>
+           cl.richTags.take(3).map { rt => // Increased to top 3 tags
+             val detail = rt.evidenceRefs.headOption.flatMap { ref =>
+                ref.kind match
+                  case "structure" => cl.evidence.structure.get(ref.id).map(e => s"Structure: ${e.description} (Squares: ${e.squares.mkString(",")})")
+                  case "plans" => cl.evidence.plans.get(ref.id).map {e => 
+                     val planSan = AnalyzeUtils.pvToSan(p.fenBefore, e.pv).mkString(" ") // Plan PV converted
+                     s"Plan: ${e.concept} (Goal: ${e.goal}) [Plan: $planSan]" 
+                  }
+                  case "tactics" => cl.evidence.tactics.get(ref.id).map(e => s"Tactic: ${e.motif} (Captured: ${e.captured.getOrElse("None")})")
+                  case "safety" => cl.evidence.kingSafety.get(ref.id).map(e => s"King Danger: ${e.attackers} attackers on ${e.square}")
+                  case "placement" => cl.evidence.placement.get(ref.id).map(e => s"Piece Improvement: ${e.piece} to ${e.targetSquare} (${e.reason})")
+                  case "pv" => cl.evidence.pv.get(ref.id).map { e => 
+                     val lineSan = AnalyzeUtils.pvToSan(p.fenBefore, e.line.take(3)).mkString(" ") // PV converted
+                     s"Line: $lineSan... (Eval: ${fmt(e.eval.lines.headOption.map(_.winPct).getOrElse(0.0))}%)"
+                  }
+                  case _ => None
+             }.getOrElse("")
+             if detail.nonEmpty then s"($detail)" else ""
+           }.mkString(" ")
+        }.getOrElse("")
+
+        s"Move $moveLabel: $tagStr - $evalStr $evidenceStr"
       }
     }.mkString("\n      ")
     
@@ -291,13 +319,16 @@ object NarrativeTemplates:
         |- **NO ORIGIN ASSUMPTIONS**: If input says "Nxe5", do NOT write "The knight *from f3* captures..." unless you know it was on f3.
         |- Use natural chess language: "wins a pawn", "creates threats", "exposes the king".
         |- NEVER use: win percentages, "eval", "deltaWinPct", "conceptShift", or technical jargon.
+        |- **EVIDENCE CITATIONS (MANDATORY)**: Whenever you describe a strategic concept or tactical motif provided in the data, you MUST cite its ID using the syntax `(src:kind:id)`.
+        |  * Examples: (src:struct:iqp_white), (src:tactic:greek_gift), (src:safety:ignored_threat).
+        |  * Place these inline precisely after the claim they support.
         |- STRICT PERSPECTIVE RULE: NEVER use "You", "Your", "We", "I". Always use "White" and "Black". The PGN does not identify the hero.
         |- Be SPECIFIC about WHAT happened: "After 15.Nxe5, the knight forks the king and rook".
         |
         |OUTPUT FORMAT:
         |Return a valid JSON object with the following fields:
         |- "title": A short, engaging title (3-5 words) that captures the essence of the section.
-        |- "narrative": A concise paragraph (3-4 sentences) describing the action with SPECIFIC moves.
+        |- "narrative": A paragraph of concise sentences describing the action with SPECIFIC moves.
         |- "theme": A 1-2 word strategic theme (e.g. "Space Advantage", "King Attack", "Endgame Grind").
         |- "atmosphere": A 1-word adjective describing the tension (e.g. "Tense", "Calm", "Chaotic", "Desperate").
         |- "context": A subset of key metrics or facts (e.g. {"Material": "Equal", "Mistakes": "None"}).
