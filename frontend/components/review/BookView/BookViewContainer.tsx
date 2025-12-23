@@ -1,6 +1,7 @@
 import React from "react";
 import type { Book, BookDiagram, BookTurningPoint, BookTacticalMoment, BookSection, SectionType } from "../../../types/StudyModel";
 import { MiniBoard } from "../../common/MiniBoard";
+import InteractiveBoard from "../../board/InteractiveBoard";
 
 interface BookViewContainerProps {
     book: Book;
@@ -98,17 +99,15 @@ interface BookViewContainerProps {
     onMoveHover?: (node: ReviewTreeNode | null) => void;
 }
 
-function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNode, onMoveHover }: {
+function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNode, onMoveHover, sectionIndex = 0 }: {
     section: BookSection;
     root?: ReviewTreeNode;
     onSelectPly: (ply: number) => void;
     onPreviewFen?: (fen: string | null) => void;
     onSelectNode?: (node: ReviewTreeNode) => void;
     onMoveHover?: (node: ReviewTreeNode | null) => void;
+    sectionIndex?: number;
 }) {
-    // ... Type defs omitted for brevity, they are unchanged ...
-
-    // (Re-copy icons/colors maps from original if not already in closure, assuming component function continues)
     const typeIcons: Record<string, string> = {
         OpeningReview: "📖",
         TurningPoints: "⚡",
@@ -136,14 +135,20 @@ function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNod
     // Find the start node for this section to anchor the narrative
     const startNode = root ? findNodeByPly(root, section.startPly) : null;
 
+    // Zigzag: even sections = board left, odd = board right
+    const isEven = sectionIndex % 2 === 0;
+    const primaryDiagram = section.diagrams[0];
+
     return (
-        <div className={`py-8 border-b border-white/5`}>
+        <div className={`py-10 border-b border-white/5`}>
             {/* Header */}
-            <div className="flex items-center gap-3 mb-6">
-                <span className="text-2xl filter drop-shadow-md">{typeIcons[section.sectionType]}</span>
-                <h2 className="text-2xl font-bold text-white font-serif tracking-tight">{section.title}</h2>
-                <div className="ml-auto flex flex-col items-end">
-                    <span className="text-xs font-mono text-white/30 uppercase tracking-widest">Ply {section.startPly}-{section.endPly}</span>
+            <div className="flex items-center gap-3 mb-8">
+                <span className="text-3xl filter drop-shadow-md">{typeIcons[section.sectionType]}</span>
+                <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-white font-serif tracking-tight">{section.title}</h2>
+                    <span className="text-xs font-mono text-white/30 uppercase tracking-widest">
+                        Moves {Math.ceil(section.startPly / 2)} – {Math.ceil(section.endPly / 2)}
+                    </span>
                 </div>
             </div>
 
@@ -152,88 +157,140 @@ function SectionRenderer({ section, root, onSelectPly, onPreviewFen, onSelectNod
                 <KeyPointsTable metadata={section.metadata} />
             )}
 
-            <div className={`p-6 rounded-xl border ${typeColors[section.sectionType] || "border-white/10 bg-white/5"} relative overflow-hidden group`}>
+            {/* Magazine-style Zigzag Layout */}
+            <div className={`grid gap-8 ${primaryDiagram ? 'lg:grid-cols-[1fr_280px]' : ''} ${!isEven && primaryDiagram ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
 
-                {/* Introduction Text */}
-                <div className="mb-6 font-serif text-lg leading-loose text-white/80 space-y-4 max-w-none">
-                    {section.narrativeHint.split('\n').map((para, i) => (
-                        para.trim() && <p key={i}>{para}</p>
-                    ))}
-                </div>
-
-                {/* Diagrams */}
-                {section.diagrams.length > 0 && (
-                    <div className="my-8 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        {section.diagrams.map(d => (
-                            <DiagramCard
-                                key={d.id}
-                                diagram={d}
-                                displayRole={section.sectionType}
-                                onClick={() => onSelectPly(d.ply)}
-                            />
-                        ))}
+                {/* Board Column (appears first on even, second on odd) */}
+                {primaryDiagram && !isEven && (
+                    <div className="order-1 lg:order-1">
+                        <div
+                            className={`sticky top-28 rounded-xl border p-3 cursor-pointer hover:scale-[1.02] transition-all ${typeColors[section.sectionType] || 'border-white/10 bg-white/5'}`}
+                            onClick={() => onSelectPly(primaryDiagram.ply)}
+                        >
+                            <div className="w-full aspect-square">
+                                <InteractiveBoard fen={primaryDiagram.fen} orientation="white" viewOnly={true} />
+                            </div>
+                            <div className="mt-2 text-center text-xs text-white/50 font-mono">
+                                Move {Math.ceil(primaryDiagram.ply / 2)}
+                            </div>
+                            {primaryDiagram.tags.transition.length > 0 && (
+                                <div className="flex flex-wrap gap-1 justify-center mt-2">
+                                    {primaryDiagram.tags.transition.slice(0, 2).map((t, i) => (
+                                        <span key={i} className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] text-white/60">
+                                            {t}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
-                {/* Hierarchical Narrative Rendering */}
-                {startNode && (
-                    <div className="mt-8 pt-6 border-t border-white/10">
-                        <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-4">Detailed Analysis</h3>
-                        <div className="font-serif text-base leading-relaxed space-y-2 break-words text-justify">
-                            <NarrativeRenderer
-                                node={startNode}
-                                onInteract={(node) => {
-                                    onSelectPly(node.ply);
-                                    if (onPreviewFen && node.fen) {
-                                        onPreviewFen(node.fen);
-                                    }
-                                    onSelectNode?.(node);
-                                }}
-                                onMoveHover={onMoveHover}
-                                depth={0}
-                                endPly={section.endPly}
-                            />
+                {/* Content Column */}
+                <div className={`${!isEven && primaryDiagram ? 'order-2 lg:order-2' : 'order-1'}`}>
+                    <div className={`p-6 rounded-xl border ${typeColors[section.sectionType] || "border-white/10 bg-white/5"} relative overflow-hidden`}>
+
+                        {/* Narrative Text */}
+                        <div className="font-serif text-lg leading-loose text-white/80 space-y-4 max-w-none">
+                            {section.narrativeHint.split('\n').map((para, i) => (
+                                para.trim() && <p key={i} className="first-letter:text-3xl first-letter:font-bold first-letter:mr-1 first-letter:float-left">{para}</p>
+                            ))}
+                        </div>
+
+                        {/* Hierarchical Narrative Rendering */}
+                        {startNode && (
+                            <div className="mt-8 pt-6 border-t border-white/10">
+                                <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-4">Detailed Analysis</h3>
+                                <div className="font-serif text-base leading-relaxed space-y-2 break-words text-justify">
+                                    <NarrativeRenderer
+                                        node={startNode}
+                                        onInteract={(node) => {
+                                            onSelectPly(node.ply);
+                                            if (onPreviewFen && node.fen) {
+                                                onPreviewFen(node.fen);
+                                            }
+                                            onSelectNode?.(node);
+                                        }}
+                                        onMoveHover={onMoveHover}
+                                        depth={0}
+                                        endPly={section.endPly}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Board Column (appears second on even sections) */}
+                {primaryDiagram && isEven && (
+                    <div className="order-2 lg:order-2">
+                        <div
+                            className={`sticky top-28 rounded-xl border p-3 cursor-pointer hover:scale-[1.02] transition-all ${typeColors[section.sectionType] || 'border-white/10 bg-white/5'}`}
+                            onClick={() => onSelectPly(primaryDiagram.ply)}
+                        >
+                            <div className="w-full aspect-square">
+                                <InteractiveBoard fen={primaryDiagram.fen} orientation="white" viewOnly={true} />
+                            </div>
+                            <div className="mt-2 text-center text-xs text-white/50 font-mono">
+                                Move {Math.ceil(primaryDiagram.ply / 2)}
+                            </div>
+                            {primaryDiagram.tags.transition.length > 0 && (
+                                <div className="flex flex-wrap gap-1 justify-center mt-2">
+                                    {primaryDiagram.tags.transition.slice(0, 2).map((t, i) => (
+                                        <span key={i} className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] text-white/60">
+                                            {t}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* Additional Diagrams (if more than 1) */}
+            {section.diagrams.length > 1 && (
+                <div className="mt-8 grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {section.diagrams.slice(1).map(d => (
+                        <DiagramCard
+                            key={d.id}
+                            diagram={d}
+                            displayRole={section.sectionType}
+                            onClick={() => onSelectPly(d.ply)}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
 
+
 // --- Table of Contents ---
+
+// --- Table of Contents (Horizontal Tabs) ---
 
 function TableOfContents({ sections }: { sections: BookSection[] }) {
     const scrollToSection = (idx: number) => {
         const el = document.getElementById(`book-section-${idx}`);
         if (el) {
-            const offset = 80; // Header offset
-            const bodyRect = document.body.getBoundingClientRect().top;
-            const elementRect = el.getBoundingClientRect().top;
-            const elementPosition = elementRect - bodyRect;
-            const offsetPosition = elementPosition - offset;
-
-            window.scrollTo({
-                top: offsetPosition,
-                behavior: "smooth"
-            });
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
 
     return (
-        <nav className="space-y-1">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3 px-2">Contents</h3>
+        <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 mb-6 -mx-4 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar mask-gradient-right">
             {sections.map((section, idx) => (
                 <button
                     key={idx}
                     onClick={() => scrollToSection(idx)}
-                    className="block w-full text-left px-3 py-2 text-sm rounded transition-colors text-white/60 hover:bg-white/5 hover:text-white truncate"
+                    className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-white/5 text-white/60 hover:bg-white/10 hover:text-white border border-transparent hover:border-white/10 whitespace-nowrap"
                 >
-                    <span className="mr-2 opacity-50 text-[10px]">{idx + 1}.</span>
+                    <span className="mr-1.5 opacity-50">{idx + 1}.</span>
                     {section.title}
                 </button>
             ))}
-        </nav>
+        </div>
     );
 }
 
@@ -245,19 +302,17 @@ export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSel
     );
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 relative items-start">
-            {/* Sidebar TOC - Desktop only */}
-            <aside className="hidden lg:block w-56 xl:w-64 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 custom-scrollbar">
-                <TableOfContents sections={book.sections} />
-            </aside>
+        <div className="flex flex-col relative w-full max-w-4xl mx-auto px-4 lg:px-0 pb-20">
+            <IntroSection meta={book.gameMeta} />
 
-            {/* Main Content */}
-            <main className="flex-1 min-w-0 space-y-4 pb-16 w-full">
-                <IntroSection meta={book.gameMeta} />
+            {/* Sticky Horizontal TOC */}
+            <TableOfContents sections={book.sections} />
 
+            {/* Main Content (Full Width) */}
+            <main className="w-full space-y-12">
                 {/* Render Sections Dynamically */}
                 {book.sections.map((section, idx) => (
-                    <div key={idx} id={`book-section-${idx}`}>
+                    <div key={idx} id={`book-section-${idx}`} className="scroll-mt-24">
                         <SectionRenderer
                             section={section}
                             root={root}
@@ -265,11 +320,10 @@ export function BookViewContainer({ book, root, onSelectPly, onPreviewFen, onSel
                             onPreviewFen={onPreviewFen}
                             onSelectNode={onSelectNode}
                             onMoveHover={onMoveHover}
+                            sectionIndex={idx}
                         />
                     </div>
                 ))}
-
-
             </main>
         </div>
     );

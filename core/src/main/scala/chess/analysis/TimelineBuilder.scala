@@ -5,7 +5,6 @@ import scala.concurrent.{Future, ExecutionContext}
 import chess.format.Fen
 import chess.opening.Opening
 import chess.analysis.FeatureExtractor
-import chess.analysis.MoveGenerator
 import chess.analysis.ConceptLabeler
 import chess.analysis.RoleLabeler
 import chess.analysis.AnalysisTypes._
@@ -90,7 +89,7 @@ object TimelineBuilder:
     // 3. Sequential Enrichment Phase
     futureRawData.map { rawData =>
       var prevDeltaForOpp: Double = 0.0
-      val bookExitPly: Option[Int] = opening.map(_.ply.value + 1)
+
       
       val timeline = rawData.zipWithIndex.map { case (d, i) =>
         // Stitching Logic: If evalAfterDeep is missing (skipped optimization), try to grab from next ply
@@ -99,7 +98,7 @@ object TimelineBuilder:
         }
         val dStitched = d.copy(evalAfterDeep = stitchedEvalAfter)
 
-        val (output, delta) = enrichPly(dStitched, prevDeltaForOpp, bookExitPly, opening, playerContext)
+        val (output, delta) = enrichPly(dStitched, prevDeltaForOpp, opening, playerContext)
         prevDeltaForOpp = delta
         output
       }
@@ -141,31 +140,22 @@ object TimelineBuilder:
         case None =>
           engine.evaluate(fenAfter, config.deepDepth, 1, config.deepTimeMs).map(Some(_))
 
-    // Features
+    // Features - compute only Phase 4 features, derive legacy from them
     val p4FeaturesBefore = FeatureExtractor.extractPositionFeatures(fenBefore, gameBefore.ply.value)
     val p4FeaturesAfter = FeatureExtractor.extractPositionFeatures(fenAfter, gameAfter.ply.value)
     
-    val moverFeaturesBefore = FeatureExtractor.sideFeatures(gameBefore.position, player)
-    val oppFeaturesBefore = FeatureExtractor.sideFeatures(gameBefore.position, !player)
-    val moverFeaturesAfter = FeatureExtractor.sideFeatures(gameAfter.position, player)
-    val oppFeaturesAfter = FeatureExtractor.sideFeatures(gameAfter.position, !player)
+    // Derive legacy SideFeatures from PositionFeatures (no duplicate computation)
+    val moverFeaturesBefore = FeatureExtractor.toSideFeatures(p4FeaturesBefore, player, gameBefore.position)
+    val oppFeaturesBefore = FeatureExtractor.toSideFeatures(p4FeaturesBefore, !player, gameBefore.position)
+    val moverFeaturesAfter = FeatureExtractor.toSideFeatures(p4FeaturesAfter, player, gameAfter.position)
+    val oppFeaturesAfter = FeatureExtractor.toSideFeatures(p4FeaturesAfter, !player, gameAfter.position)
 
     // Candidates & Experiments
-    val p4Candidates = MoveGenerator.generateCandidates(gameBefore.position, p4FeaturesBefore)
-    val runExperimentsFuture = Future.sequence(
-      p4Candidates.map { candidate =>
-        val expType = candidate.candidateType match
-          case MoveGenerator.CandidateType.TacticalCheck => ExperimentType.TacticalCheck
-          case _ => ExperimentType.StructureAnalysis 
-        experimentRunner.run(
-           expType = expType,
-           fen = fenBefore,
-           move = Some(candidate.uci),
-           depth = 10,
-           multiPv = 1,
-           forcedMoves = List(candidate.uci)
-        ).map(res => res.copy(metadata = res.metadata + ("candidateType" -> candidate.candidateType.toString)))
-      }
+    // Candidates & Experiments (Integrated Phase 2 Logic)
+    val runExperimentsFuture = experimentRunner.findHypotheses(
+        position = gameBefore.position,
+        features = p4FeaturesBefore,
+        maxExperiments = config.experimentCapPerPly
     )
 
     for
@@ -200,7 +190,6 @@ object TimelineBuilder:
   private def enrichPly(
       d: RawPlyData, 
       prevDeltaForOpp: Double,
-      _bookExitPly: Option[Int],
       opening: Option[Opening.AtPly],
       playerContext: Option[PlayerContext]
   ): (PlyOutput, Double) =
@@ -275,19 +264,22 @@ object TimelineBuilder:
     val finalJudgement = if inBook then "book" else baseJudgement
 
     // Concepts
-    ConceptScorer.computeBreakAndInfiltration(gameAfter.position, gameAfter.position.color)
+    val (breaksBefore, infilBefore) = ConceptScorer.computeBreakAndInfiltration(gameBefore.position, player)
+    val (breaksAfter, infilAfter) = ConceptScorer.computeBreakAndInfiltration(gameAfter.position, player)
     val conceptScoresBefore = ConceptScorer.score(
-      features = moverFeaturesBefore,
-      oppFeatures = oppFeaturesBefore,
+      features = p4FeaturesBefore,
+      perspective = player,
       evalShallowWin = evalBeforeShallow.lines.headOption.map(_.winPct).getOrElse(winBefore),
       evalDeepWin = evalBeforeDeep.lines.headOption.map(_.winPct).getOrElse(winBefore),
       multiPvWin = evalBeforeDeep.lines.map(_.winPct),
       position = gameBefore.position,
-      sideToMove = gameBefore.position.color
+      sideToMove = gameBefore.position.color,
+      breakCandidates = breaksBefore,
+      infiltrationCt = infilBefore
     )
     val conceptScores = ConceptScorer.score(
-      features = featuresAfter,
-      oppFeatures = oppFeaturesAfter,
+      features = p4FeaturesAfter,
+      perspective = player,
       // FIX: Use evalAfterDeep (the resulting position's eval) instead of evalBefore.
       // Note: evalAfterDeep is from opponent's perspective, so we invert winPct for mover's view.
       evalShallowWin = evalAfterDeep.flatMap(_.lines.headOption).map(l => 100.0 - l.winPct).getOrElse(winAfterForPlayer),
@@ -295,7 +287,9 @@ object TimelineBuilder:
       multiPvWin = evalAfterDeep.map(_.lines.map(l => 100.0 - l.winPct)).getOrElse(List(winAfterForPlayer)),
       position = gameAfter.position,
       sideToMove = gameAfter.position.color,
-      san = move.toSanStr.value
+      san = move.toSanStr.value,
+      breakCandidates = breaksAfter,
+      infiltrationCt = infilAfter
     )
 
     // Map to Concepts case class (Helper)
@@ -479,9 +473,11 @@ object TimelineBuilder:
       pawnIslands = 0, isolatedPawns = 0, doubledPawns = 0, passedPawns = 0,
       rookOpenFiles = 0, rookSemiOpenFiles = 0, bishopPair = false, kingRingPressure = 0, spaceControl = 0
     )
-    val emptyP4Features = FeatureExtractor.extractPositionFeatures(
-      Fen.write(gameBefore).value, gameBefore.ply.value
-    )
+    // Use Try to avoid crashing in fallback - if features fail, use safe empty defaults
+    val emptyP4Features = scala.util.Try(
+      FeatureExtractor.extractPositionFeatures(Fen.write(gameBefore).value, gameBefore.ply.value)
+    ).getOrElse(safeEmptyPositionFeatures(gameBefore.ply.value))
+    
     RawPlyData(
       plyIndex = idx,
       gameBefore = gameBefore,
@@ -499,3 +495,19 @@ object TimelineBuilder:
       p4FeaturesBefore = emptyP4Features,
       p4FeaturesAfter = emptyP4Features
     )
+
+  /** Safe empty PositionFeatures - used when feature extraction fails */
+  private def safeEmptyPositionFeatures(ply: Int): FeatureExtractor.PositionFeatures =
+    FeatureExtractor.PositionFeatures(
+      fen = "", sideToMove = "white", plyCount = ply,
+      pawns = FeatureExtractor.PawnStructureFeatures(0, 0, Nil, Nil, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false, false, false, false, false, 0, 0, false, false),
+      activity = FeatureExtractor.ActivityFeatures(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+      kingSafety = FeatureExtractor.KingSafetyFeatures("none", "none", 0, 0, 0, 0, false, false, 0.0, 0.0, 0, 0),
+      materialPhase = FeatureExtractor.MaterialPhaseFeatures(0, 0, 0, 0, 0, 0, 0, "middlegame"),
+      development = FeatureExtractor.DevelopmentFeatures(0, 0, 0, 0, false, false),
+      space = FeatureExtractor.SpaceFeatures(0, 0, 0, 0, 0, 0),
+      coordination = FeatureExtractor.CoordinationFeatures(false, false, false, false, 0, 0),
+      tactics = FeatureExtractor.TacticalFeatures(0, 0, 0, 0, 0, 0),
+      geometry = FeatureExtractor.GeometricFacts("?", "?", Nil, Nil, Nil, Nil, Nil, Nil)
+    )
+

@@ -18,9 +18,33 @@ interface NarrativeRendererProps {
 }
 
 
-// Helper to convert bold markdown to JSX
+// Helper to convert markdown and Q&A format to JSX
 function renderMarkdown(text: string) {
     if (!text) return null;
+
+    // Check for Q&A pattern: "Question: ... Answer: ..."
+    // Using [\s\S] instead of 's' flag for ES2015 compatibility
+    const qaMatch = text.match(/^(Question:\s*)([\s\S]+?)(\s*Answer:\s*)([\s\S]+)$/);
+    if (qaMatch) {
+        return (
+            <span className="block my-4 p-4 rounded-lg bg-amber-900/20 border-l-4 border-amber-500">
+                <span className="block">
+                    <span className="font-bold text-amber-400 uppercase text-sm tracking-wide">Q: </span>
+                    <span className="italic text-white/90">{qaMatch[2].trim()}</span>
+                </span>
+                <span className="block mt-2">
+                    <span className="font-bold text-teal-400 uppercase text-sm tracking-wide">A: </span>
+                    <span className="text-white/90">{renderBoldText(qaMatch[4].trim())}</span>
+                </span>
+            </span>
+        );
+    }
+
+    return renderBoldText(text);
+}
+
+// Helper for bold markdown only
+function renderBoldText(text: string) {
     const parts = text.split(/(\*\*.*?\*\*)/g);
     return parts.map((part, idx) => {
         if (part.startsWith("**") && part.endsWith("**")) {
@@ -176,10 +200,11 @@ export function NarrativeRenderer({ node, depth = 0, variationLabel, onInteract,
 
             {/* If the last node has branches, render them */}
             {hasBranches && lastNode.children && (
-                <div className="block my-2 pl-4 border-l-2 border-neutral-700/50 space-y-2">
+                <div className="block my-4 pl-5 border-l-2 border-sky-500/30 bg-sky-900/10 rounded-r-lg py-3 space-y-3">
+                    <div className="text-[10px] uppercase tracking-widest text-sky-400/70 font-semibold mb-2">Alternative Lines</div>
                     {/* Render Alternatives (Children 1..N) */}
                     {lastNode.children.slice(1).map((child, i) => (
-                        <div key={child.uci} className="mb-2">
+                        <div key={child.uci} className="mb-2 pl-2 border-l border-neutral-600/30">
                             <NarrativeRenderer
                                 node={child}
                                 depth={depth + 1}

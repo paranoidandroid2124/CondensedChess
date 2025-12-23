@@ -12,11 +12,11 @@ class EngineChaosTest extends FunSuite:
 
   override def beforeAll(): Unit =
     // Inject our mock factory
-    EnginePool.clientFactory = () => mockClient
+    EnginePool.clientFactory = (ec: scala.concurrent.ExecutionContext) => mockClient
 
   override def afterAll(): Unit =
     // Reset to default
-    EnginePool.clientFactory = () => new StockfishClient()
+    EnginePool.clientFactory = (ec: scala.concurrent.ExecutionContext) => new StockfishClient()(using ec)
 
   test("EngineService recovers from crash during task (Retry Logic)") {
     val service = new EngineService()

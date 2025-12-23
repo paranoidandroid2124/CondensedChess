@@ -26,45 +26,91 @@ object ConceptScorer:
       alphaZeroStyle: Double
   )
 
+  /** Internal helper: extracts legacy-equivalent fields from Phase 4 PositionFeatures */
+  private case class LegacyFields(
+      pawnIslands: Int,
+      isolatedPawns: Int,
+      doubledPawns: Int,
+      passedPawns: Int,
+      rookOpenFiles: Int,
+      rookSemiOpenFiles: Int,
+      bishopPair: Boolean,
+      kingRingPressure: Int,
+      spaceControl: Int
+  )
+
+  private def extractLegacy(pf: FeatureExtractor.PositionFeatures, side: Color, position: Position): LegacyFields =
+    val isWhite = side == Color.White
+    // Pawn islands: count contiguous groups from pawnCountByFile
+    val pawnCountsByFile = if isWhite then pf.pawns.whitePawnCountByFile else pf.pawns.blackPawnCountByFile
+    val pawnIslands = countIslands(pawnCountsByFile)
+    val isolatedPawns = if isWhite then pf.pawns.whiteIsolatedPawns else pf.pawns.blackIsolatedPawns
+    val doubledPawns = if isWhite then pf.pawns.whiteDoubledPawns else pf.pawns.blackDoubledPawns
+    val passedPawns = if isWhite then pf.pawns.whitePassedPawns else pf.pawns.blackPassedPawns
+    val rookOpenFiles = if isWhite then pf.activity.whiteRooksOnOpenFiles else pf.activity.blackRooksOnOpenFiles
+    val rookSemiOpenFiles = if isWhite then pf.activity.whiteRooksOnSemiOpenFiles else pf.activity.blackRooksOnSemiOpenFiles
+    val bishopPair = position.board.count(side, Bishop) >= 2
+    val kingRingPressure = if isWhite then pf.kingSafety.whiteKingRingEnemyPieces else pf.kingSafety.blackKingRingEnemyPieces
+    val spaceControl = if isWhite then pf.space.whiteCentralSpace else pf.space.blackCentralSpace
+    LegacyFields(pawnIslands, isolatedPawns, doubledPawns, passedPawns, rookOpenFiles, rookSemiOpenFiles, bishopPair, kingRingPressure, spaceControl)
+
+  private def countIslands(pawnCountsByFile: List[Int]): Int =
+    if pawnCountsByFile.isEmpty then 0
+    else
+      var islands = 0
+      var inIsland = false
+      for count <- pawnCountsByFile do
+        if count > 0 then
+          if !inIsland then
+            islands += 1
+            inIsland = true
+        else
+          inIsland = false
+      islands
+
   def score(
-      features: FeatureExtractor.SideFeatures,
-      oppFeatures: FeatureExtractor.SideFeatures,
+      features: FeatureExtractor.PositionFeatures,
+      perspective: Color,
       evalShallowWin: Double,
       evalDeepWin: Double,
       multiPvWin: List[Double],
       position: Position,
       sideToMove: Color,
-      san: String = ""
+      san: String = "",
+      breakCandidates: Int = 0,
+      infiltrationCt: Int = 0
   ): Scores =
+    val f = extractLegacy(features, perspective, position)
+    val oppF = extractLegacy(features, !perspective, position)
+    
     val tacticalDepth = clamp(math.abs(evalDeepWin - evalShallowWin) / 20.0) // 20% 차이를 1.0으로
     val blunderRisk = multiPvRisk(multiPvWin, tacticalDepth)
     val pawnStorm = pawnStormScore(position, sideToMove)
-    val kingPressure = clamp(features.kingRingPressure / 8.0)
-    val space = clamp(features.spaceControl / 16.0)
+    val kingPressure = clamp(f.kingRingPressure / 8.0)
+    val space = clamp(f.spaceControl / 16.0)
 
     // Human Realized Chaos: Engine doesn't see 'force' as 'dynamic'. We correct this.
     val isViolence = san.exists(c => c == '+' || c == 'x' || c == '=')
     val humanChaosScore = if isViolence then 0.25 else 0.0
 
     val dynamic = clamp(0.3 * tacticalDepth + 0.2 * blunderRisk + 0.2 * kingPressure + 0.2 * space + 0.2 * pawnStorm + humanChaosScore)
-    val drawish = clamp((1.0 - dynamic) * smallEval(evalDeepWin) * smallImbalance(features, oppFeatures))
+    val drawish = clamp((1.0 - dynamic) * smallEval(evalDeepWin) * smallImbalance(f, oppF))
     val imbalanced = clamp(
-      0.35 * materialImbalance(features, oppFeatures) + 0.35 * pawnStructureImbalance(features, oppFeatures) + 0.3 * math.abs(space - clamp(oppFeatures.spaceControl / 16.0))
+      0.35 * materialImbalance(f, oppF) + 0.35 * pawnStructureImbalance(f, oppF) + 0.3 * math.abs(space - clamp(oppF.spaceControl / 16.0))
     )
-    val fortress = fortressScore(evalDeepWin, evalShallowWin, features, dynamic)
+    val fortress = fortressScore(evalDeepWin, evalShallowWin, f, dynamic, breakCandidates, infiltrationCt)
     val colorComplex = colorComplexScore(position, sideToMove)
     val badBishop = badBishopScore(position, sideToMove)
     val goodKnight = goodKnightScore(position, sideToMove)
-    val rookActivity = rookActivityScore(position, sideToMove, features)
-    val kingSafety = kingSafetyScore(position, sideToMove, features)
-    val dry = dryScore(position, evalShallowWin, evalDeepWin, dynamic, features)
+    val rookActivity = rookActivityScore(position, sideToMove, f)
+    val kingSafety = kingSafetyScore(position, sideToMove, f)
+    val dry = dryScore(position, evalShallowWin, evalDeepWin, dynamic, f, breakCandidates, infiltrationCt)
     val comfortable = comfortableScore(multiPvWin)
     val unpleasant = unpleasantScore(multiPvWin)
     val engineLike = engineLikeScore(multiPvWin, tacticalDepth)
     val conversionDifficulty = conversionDifficultyScore(evalDeepWin, fortress, comfortable)
     val sacrificeQuality = sacrificeQualityScore(evalShallowWin, evalDeepWin)
     val alphaZeroStyle = alphaZeroScore(
-      position, sideToMove, features, oppFeatures,
       sacrificeQuality, dynamic, kingSafety, rookActivity, goodKnight, colorComplex, imbalanced
     )
     Scores(
@@ -88,6 +134,7 @@ object ConceptScorer:
       sacrificeQuality,
       alphaZeroStyle
     )
+
 
   private def multiPvRisk(winPcts: List[Double], tacticalDepth: Double): Double =
     if winPcts.sizeIs < 2 then 0.0
@@ -140,29 +187,29 @@ object ConceptScorer:
           clamp(base + connBonus + oppSideBonus)
         }
 
-  private def materialImbalance(f: FeatureExtractor.SideFeatures, opp: FeatureExtractor.SideFeatures): Double =
+  private def materialImbalance(f: LegacyFields, opp: LegacyFields): Double =
     val bpSelf = if f.bishopPair then 1 else 0
     val bpOpp = if opp.bishopPair then 1 else 0
     val bishopPairDiff = math.abs(bpSelf - bpOpp) * 0.2  // 한쪽만 가지고 있으면 0.2, 둘 다 있거나 둘 다 없으면 0
     val passedDiff = math.abs(f.passedPawns - opp.passedPawns) * 0.1
     clamp(bishopPairDiff + passedDiff)
 
-  private def pawnStructureImbalance(f: FeatureExtractor.SideFeatures, opp: FeatureExtractor.SideFeatures): Double =
+  private def pawnStructureImbalance(f: LegacyFields, opp: LegacyFields): Double =
     clamp(math.abs(f.pawnIslands - opp.pawnIslands) * 0.15 + math.abs(f.isolatedPawns - opp.isolatedPawns) * 0.1 + math.abs(f.doubledPawns - opp.doubledPawns) * 0.05)
 
   private def smallEval(winPct: Double): Double =
     val diff = math.abs(winPct - 50.0)
     clamp(1.0 - diff / 10.0) // 0~10% 범위면 drawish↑
 
-  private def smallImbalance(f: FeatureExtractor.SideFeatures, opp: FeatureExtractor.SideFeatures): Double =
+  private def smallImbalance(f: LegacyFields, opp: LegacyFields): Double =
     clamp(1.0 - (materialImbalance(f, opp) + pawnStructureImbalance(f, opp)))
 
-  private def fortressScore(winDeep: Double, winShallow: Double, f: FeatureExtractor.SideFeatures, dynamic: Double): Double =
+  private def fortressScore(winDeep: Double, winShallow: Double, f: LegacyFields, dynamic: Double, breakCandidates: Int, infiltrationCt: Int): Double =
     val advantage = if winDeep > 60 then 0.3 else 0.0
     val stability = 1.0 - clamp(math.abs(winDeep - winShallow) / 5.0) // 5% 차이면 0
     val closed = clamp(1.0 - (f.rookOpenFiles + f.rookSemiOpenFiles).toDouble / 6.0)
-    val breakFew = 1.0 - clamp(breakCandidatesCount / 6.0)
-    val infiltrationLow = 1.0 - clamp(infiltrationCount / 3.0)
+    val breakFew = 1.0 - clamp(breakCandidates.toDouble / 6.0)
+    val infiltrationLow = 1.0 - clamp(infiltrationCt.toDouble / 3.0)
     clamp(advantage + 0.25 * stability + 0.2 * closed + 0.25 * breakFew + 0.1 * infiltrationLow + 0.2 * (1.0 - dynamic))
 
   private def colorComplexScore(position: Position, side: Color): Double =
@@ -234,7 +281,7 @@ object ConceptScorer:
       }
       clamp(scores.max)
 
-  private def rookActivityScore(position: Position, side: Color, f: FeatureExtractor.SideFeatures): Double =
+  private def rookActivityScore(position: Position, side: Color, f: LegacyFields): Double =
     val rooks = (position.board.rooks & position.board.byColor(side)).squares
     if rooks.isEmpty then 0.0
     else
@@ -247,7 +294,7 @@ object ConceptScorer:
         } > 0
       clamp(openScore + (if seventh then 0.3 else 0.0) + 0.2 * (rooks.size.min(2).toDouble / 2.0))
 
-  private def kingSafetyScore(position: Position, side: Color, f: FeatureExtractor.SideFeatures): Double =
+  private def kingSafetyScore(position: Position, side: Color, f: LegacyFields): Double =
     val kingSqOpt = position.kingPosOf(side)
     val oppColor = !side
     kingSqOpt.fold(0.0) { k =>
@@ -284,13 +331,13 @@ object ConceptScorer:
         if !enemyQueen then clamp(rawScore * 0.5) else clamp(rawScore)
     }
 
-  private def dryScore(position: Position, winShallow: Double, winDeep: Double, dynamic: Double, f: FeatureExtractor.SideFeatures): Double =
+  private def dryScore(position: Position, winShallow: Double, winDeep: Double, dynamic: Double, f: LegacyFields, breakCandidates: Int, infiltrationCt: Int): Double =
     val queens = position.board.queens.count
     val queenOff = if queens <= 1 then 0.3 else 0.0
     val lowTension = clamp(1.0 - (f.rookOpenFiles + f.rookSemiOpenFiles).toDouble / 6.0)
     val lowVol = clamp(1.0 - math.abs(winDeep - winShallow) / 10.0)
-    val fewBreaks = 1.0 - clamp(breakCandidatesCount / 6.0)
-    val lowInfiltration = 1.0 - clamp(infiltrationCount / 3.0)
+    val fewBreaks = 1.0 - clamp(breakCandidates.toDouble / 6.0)
+    val lowInfiltration = 1.0 - clamp(infiltrationCt.toDouble / 3.0)
     clamp(queenOff + 0.25 * lowTension + 0.2 * lowVol + 0.2 * fewBreaks + 0.1 * lowInfiltration + 0.25 * (1.0 - dynamic))
 
   private def comfortableScore(multiPvWin: List[Double]): Double =
@@ -325,10 +372,6 @@ object ConceptScorer:
     clamp((winDeep - winShallow) / 15.0)
 
   private def alphaZeroScore(
-      position: Position,
-      color: Color,
-      features: FeatureExtractor.SideFeatures,
-      oppFeatures: FeatureExtractor.SideFeatures,
       sacrificeQuality: Double,
       dynamic: Double,
       kingSafety: Double,
@@ -355,22 +398,14 @@ object ConceptScorer:
     }
 
   // ===== Helpers for break/infiltration (lightweight heuristics) =====
-  private def breakCandidatesCount: Double = BreakCache.count.toDouble
-  private def infiltrationCount: Double = BreakCache.infiltration.toDouble
-
-  private object BreakCache:
-    private val breakLocal = new ThreadLocal[Int]() { override def initialValue() = 0 }
-    private val infiltrateLocal = new ThreadLocal[Int]() { override def initialValue() = 0 }
-    def setCounts(breaks: Int, infiltrations: Int): Unit =
-      breakLocal.set(breaks)
-      infiltrateLocal.set(infiltrations)
-    def count: Int = breakLocal.get()
-    def infiltration: Int = infiltrateLocal.get()
-
-  def computeBreakAndInfiltration(position: Position, side: Color): Unit =
+  /** Computes break candidate count and infiltration count for a given position and side.
+   *  Returns a tuple (breakCandidates, infiltrationCount).
+   *  Callers should pass the results to score() rather than relying on implicit state.
+   */
+  def computeBreakAndInfiltration(position: Position, side: Color): (Int, Int) =
     val breaks = countBreakCandidates(position, side)
     val infil = countInfiltration(position, side)
-    BreakCache.setCounts(breaks, infil)
+    (breaks, infil)
 
   private def countBreakCandidates(position: Position, side: Color): Int =
     val pawns = position.board.pawns & position.board.byColor(side)

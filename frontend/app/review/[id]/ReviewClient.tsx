@@ -281,6 +281,15 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
 
     // ...
 
+    // Local Move Handler
+    const handleUserMove = React.useCallback((node: EnhancedTimelineNode) => {
+        setUserMoves(prev => {
+            // Check if move already exists to avoid dupes?
+            // Simple append for now as we don't support full tree editing locally yet
+            return [...prev, node];
+        });
+    }, []);
+
     const handleBoardDrop = useBranchCreation({
         review,
         enhancedTimeline: timelineToUse,
@@ -298,7 +307,8 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
         setBranchError,
         setGuessState: () => { },
         setGuessFeedback: () => { },
-        onUserMove: (node) => setUserMoves(prev => [...prev, node])
+        onUserMove: handleUserMove,
+        isLocalAnalysis: isAnalyzing || !!userMoves.length // Enable local moves if analyzing OR we already have local moves (continue variation)
     });
     const isLoading = loading || !review;
     const elapsed = pollStartTime ? Math.floor((Date.now() - pollStartTime) / 1000) : 0;
@@ -328,42 +338,45 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                     />
                 )}
 
-                <div className="flex flex-col gap-2">
-                    <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-4">
-                            <h1 className="font-display text-3xl text-white">Game analysis</h1>
+                {/* Sticky Header */}
+                <div className="sticky top-16 z-30 -mx-6 px-6 sm:-mx-12 sm:px-12 lg:-mx-16 lg:px-16 py-3 bg-slate-900/95 backdrop-blur-md border-b border-white/10">
+                    <div className="flex flex-col gap-1">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/60">Review</p>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-4">
+                                <h1 className="font-display text-3xl text-white">Game analysis</h1>
 
-                            {/* New Engine Toggle Switch */}
-                            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
-                                <span className={`text-xs font-semibold uppercase tracking-wider ${isAnalyzing ? "text-accent-teal" : "text-white/40"}`}>
-                                    Engine
-                                </span>
-                                <button
-                                    onClick={toggleAnalysis}
-                                    className={`relative flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${isAnalyzing ? "bg-accent-teal" : "bg-white/20"
-                                        }`}
-                                >
-                                    <span
-                                        className={`block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${isAnalyzing ? "translate-x-4" : "translate-x-0"
+                                {/* New Engine Toggle Switch */}
+                                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
+                                    <span className={`text-xs font-semibold uppercase tracking-wider ${isAnalyzing ? "text-accent-teal" : "text-white/40"}`}>
+                                        Engine
+                                    </span>
+                                    <button
+                                        onClick={toggleAnalysis}
+                                        className={`relative flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${isAnalyzing ? "bg-accent-teal" : "bg-white/20"
                                             }`}
-                                    />
+                                    >
+                                        <span
+                                            className={`block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${isAnalyzing ? "translate-x-4" : "translate-x-0"
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowShareModal(true)}
+                                    className="flex items-center gap-2 rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/80 hover:border-white/40 hover:text-white transition hover:bg-white/5"
+                                >
+                                    <Share2 className="w-3 h-3" />
+                                    Share / Export
                                 </button>
                             </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setShowShareModal(true)}
-                                className="flex items-center gap-2 rounded-full border border-white/20 px-4 py-1.5 text-xs text-white/80 hover:border-white/40 hover:text-white transition hover:bg-white/5"
-                            >
-                                <Share2 className="w-3 h-3" />
-                                Share / Export
-                            </button>
+                        <div className="text-sm text-white/70">
+                            Opening: {review?.opening?.name ?? "Unknown"} {review?.opening?.eco ? `(${review.opening.eco})` : ""}
                         </div>
-                    </div>
-                    <div className="text-sm text-white/70">
-                        Opening: {review?.opening?.name ?? "Unknown"} {review?.opening?.eco ? `(${review.opening.eco})` : ""}
                     </div>
                 </div>
 
@@ -452,7 +465,6 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
                             setSelectedPly={setSelectedPly}
                             setSelectedVariation={setSelectedVariation}
                             selectedPly={selectedPly}
-                            tabOrder={["concepts", "opening", "moves", "study"]}
                             setPreviewArrows={setPreviewArrows as any}
                             setPreviewFen={setPreviewFen}
                             onSelectNode={handleSelectNode}
@@ -481,8 +493,10 @@ export default function ReviewClient({ reviewId }: { reviewId: string }) {
             )}
             {showShareModal && (
                 <ShareModal
+                    reviewTitle={`${review?.opening?.name || "Chess Game"} Review`}
                     activeMove={activeMove}
-                    reviewTitle={"White vs Black"}
+                    book={review?.book}
+                    timeline={enhancedTimeline}
                     onClose={() => setShowShareModal(false)}
                 />
             )}

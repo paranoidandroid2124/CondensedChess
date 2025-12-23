@@ -74,7 +74,7 @@ object BookBuilder:
     // B. Middlegame (openingEnd until limit)
     if openingEnd < limit then
       val mgPlys = timeline.slice(openingEnd, limit)
-      sections ++= segmentMiddlegame(mgPlys, openingEnd)
+      sections ++= segmentMiddlegame(mgPlys)
 
     // C. Endgame (from limit to end)
     if endgameStart != -1 then
@@ -88,7 +88,7 @@ object BookBuilder:
 
     sections.result()
 
-  private def segmentMiddlegame(plys: Vector[PlyOutput], _offsetStr: Int): List[BookSection] =
+  private def segmentMiddlegame(plys: Vector[PlyOutput]): List[BookSection] =
     // Smoother Segmentation: Group by chunks of ~8-12 moves, or break at major Crisis.
     // We want to avoid 1-move sections.
     val sections = List.newBuilder[BookSection]

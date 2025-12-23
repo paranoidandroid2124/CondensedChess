@@ -30,3 +30,14 @@ object BlobStorage:
       if Files.exists(path) then Some(Files.readString(path))
       else None
     }
+
+  // Database-backed storage
+  import doobie.util.transactor.Transactor
+  import doobie.implicits.*
+  
+  class DbBlobStorage(xa: Transactor[IO]) extends BlobStorage[IO]:
+    def save(key: String, content: String): IO[Unit] =
+      BlobRepo.save(key, content).transact(xa).void
+    
+    def load(key: String): IO[Option[String]] =
+      BlobRepo.findByKey(key).transact(xa)

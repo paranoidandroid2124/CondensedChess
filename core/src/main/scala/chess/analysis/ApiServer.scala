@@ -11,11 +11,12 @@ import org.http4s.server.middleware.CORS
 import chess.analysis.ApiTypes.*
 import org.slf4j.LoggerFactory
 import ujson.Value
-import chess.db.{Database, BlobStorage, JobRepo}
+import chess.db.{Database, BlobStorage, JobRepo, GameRepo}
 import doobie.implicits.*
 import chess.auth.*
 import dev.profunktor.redis4cats.effect.Log
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.*
 
 object ApiServer extends IOApp:
 
@@ -28,22 +29,13 @@ object ApiServer extends IOApp:
   private val logger = LoggerFactory.getLogger("chess.api")
 
   // --- Config ---
-  private def loadConfig: IO[(AnalyzePgn.EngineConfig, Set[Int])] = IO {
-    val config = AnalyzePgn.EngineConfig.fromEnv()
-    val llmForce = EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
-      .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
-      .getOrElse(Set.empty)
-    (config, llmForce)
-  }
 
-  // --- Routes ---
   // --- Routes ---
   private def apiRoutes(
       config: AnalyzePgn.EngineConfig, 
       llmForce: Set[Int], 
       jobManager: JobManager, 
       analysisService: AnalysisService,
-      progressClient: ProgressClient[IO],
       usageService: UsageService[IO],
       xa: doobie.Transactor[IO]
   ): AuthedRoutes[Option[chess.db.DbUser], IO] = AuthedRoutes.of {
@@ -91,30 +83,37 @@ object ApiServer extends IOApp:
             case Some(uuid) =>
               chess.db.JobRepo.findById(uuid).transact(xa).flatMap {
                  case Some(job) =>
-                    // 3. If Processing, Get Progress from Redis
-                    if job.status == "PROCESSING" then
-                        progressClient.get(jobId).flatMap { progOpt =>
-                           val p = progOpt.map(_.totalProgress).getOrElse(job.progress.toDouble / 100.0)
-                           val stage = progOpt.map(_.stage.toString).getOrElse("Unknown")
-                           val stageLabel = stage.replaceAll("([a-z])([A-Z])", "$1 $2")
-                           val stageProgress = progOpt.map(_.stageProgress).getOrElse(0.0)
-                           val startedAt = progOpt.map(_.startedAt).getOrElse(0L)
-                           
-                           Accepted(ujson.Obj(
-                             "jobId" -> jobId,
-                             "status" -> "processing",
-                             "totalProgress" -> p,
-                             "stageProgress" -> stageProgress,
-                             "stage" -> stage,
-                             "stageLabel" -> stageLabel, 
-                             "startedAt" -> startedAt
-                           ).render())
-                        }
+                    // 3. If Processing, Get Progress from Memory OR Recover from DB Status
+                    if job.status.startsWith("PROCESSING") then
+                        // DB-only progress (no Redis/Memory dependency)
+                        val p = job.progress.toDouble / 100.0
+                        
+                        // Stage from DB status: PROCESSING_ENGINE -> engine_evaluation
+                        val dbStageName = if job.status.contains("_") then 
+                          job.status.stripPrefix("PROCESSING_").toLowerCase 
+                        else "initializing"
+                        
+                        val stageEnumOpt = scala.util.Try(AnalysisStage.withName(dbStageName.toUpperCase)).toOption
+                        val stageLabel = stageEnumOpt.map(AnalysisStage.labelFor).getOrElse(dbStageName)
+                        
+                        Accepted(ujson.Obj(
+                          "jobId" -> jobId,
+                          "status" -> "processing",
+                          "totalProgress" -> p,
+                          "stageProgress" -> p, // Simplified: same as total for DB-only
+                          "stage" -> dbStageName,
+                          "stageLabel" -> stageLabel,
+                          "startedAt" -> job.updatedAt.toEpochMilli
+                        ).render())
                     else if job.status == "FAILED" then
                        InternalServerError(makeErrorJson("JOB_FAILED", job.errorMessage.getOrElse("Unknown error")))
                     else 
                        // QUEUED or other
-                       Accepted(ujson.Obj("jobId" -> jobId, "status" -> job.status).render())
+                       if job.status == "COMPLETED" then
+                         logger.warn(s"Job $jobId is COMPLETED but result load returned None. Data missing.")
+                         NotFound(makeErrorJson("RESULT_MISSING", "Analysis completed but result file is missing"))
+                       else
+                         Accepted(ujson.Obj("jobId" -> jobId, "status" -> job.status).render())
                  case None => 
                     NotFound(makeErrorJson("NOT_FOUND", "Job ID not found"))
               }
@@ -122,7 +121,7 @@ object ApiServer extends IOApp:
       }
 
     // DELETE /analyze/:id
-    case DELETE -> Root / "analyze" / jobId as _ =>
+    case DELETE -> Root / "analyze" / _ as _ =>
         Ok(ujson.Obj("status" -> "cancelled_ignored").render())
 
     // POST /api/game-review/chapter
@@ -195,7 +194,6 @@ object ApiServer extends IOApp:
   }
 
   override def run(args: List[String]): IO[ExitCode] =
-    val redisUrl = EnvLoader.getOrElse("REDIS_URL", "redis://localhost:6379")
     
     Database.make().use { xa =>
       // Retry policy for Redis connections
@@ -204,123 +202,141 @@ object ApiServer extends IOApp:
     
 
     
-    // In-Memory clients don't need retryResource
-    QueueClient.makeMemory.use { queue =>
-        ProgressClient.makeMemory.use { progressClient =>
-          // UsageService now also In-Memory (Redis is gone)
-          UsageService.makeMemory.use { usageService =>
-          cats.effect.std.Dispatcher.parallel[IO].use { dispatcher =>
-          JobManager.make(queue, xa).flatMap { jobManager =>
-          
-          val loadConfig = IO.blocking(AnalyzePgn.EngineConfig.fromEnv()).map(c => (c, EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
-              .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
-              .getOrElse(Set.empty)))
+    // DB-only queue: no QueueClient needed
+    UsageService.makeMemory.use { usageService =>
+      cats.effect.std.Dispatcher.parallel[IO].use { dispatcher =>
+      JobManager.make(xa).flatMap { jobManager =>
+      
+      val loadConfig = IO.blocking(AnalyzePgn.EngineConfig.fromEnv()).map(c => (c, EnvLoader.get("ANALYZE_FORCE_CRITICAL_PLYS")
+          .map(_.split(",").toList.flatMap(_.trim.toIntOption).toSet)
+          .getOrElse(Set.empty)))
 
-          val blob = new BlobStorage.FileBlobStorage("data")
-          val analysisService = new AnalysisService(xa, blob)
-          val engineService = new EngineService() // Worker component
+      val blob = new BlobStorage.DbBlobStorage(xa)
+      val analysisService = new AnalysisService(xa, blob)
+      val engineService = new EngineService() // Worker component
 
-          // --- Worker Loop ---
-          val workerLoop = queue.dequeue.flatMap { job =>
-             IO(logger.info(s"Processing job ${job.jobId}")) >>
-             (for
-               // 1. Update Status -> Processing
-               _ <- JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "PROCESSING", 0).transact(xa)
+      // --- Worker Loop: Poll DB for QUEUED jobs ---
+      def pollAndProcess: IO[Unit] = 
+        JobRepo.claimNextJob.transact(xa).flatMap {
+          case Some(job) =>
+            IO(logger.info(s"Processing job ${job.id}")) >> {
+              // Parse options from JSON - outside for-comprehension
+              val optionsJson = scala.util.Try(ujson.read(job.optionsJson)).getOrElse(ujson.Obj())
+              val forceCriticalPlys = optionsJson.obj.get("forceCriticalPlys")
+                .map(_.arr.map(_.num.toInt).toSet).getOrElse(Set.empty[Int])
 
-               // 2. Configure Engine
-               config = AnalyzePgn.EngineConfig.fromEnv()
-               
-               // Callback for progress updates
-               progCallback = (stage: AnalysisStage.AnalysisStage, p: Double) => 
-                  dispatcher.unsafeRunAndForget(
-                    progressClient.update(job.jobId, stage, p).handleErrorWith(e => IO(logger.warn(s"Progress update failed: ${e.getMessage}")))
+              // Configure Engine
+              val config = AnalyzePgn.EngineConfig.fromEnv()
+              
+              // Callback for progress updates
+              val progCallback: (AnalysisStage.AnalysisStage, Double) => Unit = 
+                (stage, p) => dispatcher.unsafeRunAndForget(
+                  JobRepo.updateStatus(job.id, s"PROCESSING:${AnalysisStage.labelFor(stage)}:${(p * 100).toInt}%", (p * 100).toInt).transact(xa)
+                    .handleErrorWith(e => IO(logger.warn(s"Progress update failed: ${e.getMessage}")))
+                )
+
+              (for
+                // Run Analysis
+                output <- IO.blocking(
+                  AnalyzePgn.analyze(
+                    pgn = job.pgnText, 
+                    engineService = engineService, 
+                    config = config, 
+                    llmRequestedPlys = forceCriticalPlys, 
+                    onProgress = progCallback
                   )
+                ).flatMap {
+                    case Right(out) => IO.pure(out)
+                    case Left(err) => IO.raiseError(new Exception(err))
+                  }
+                
+                // Annotate
+                _ <- IO(progCallback(AnalysisStage.LLM_GENERATION, 0.0))
+                annotated = LlmAnnotator.annotate(output)
+                _ <- IO(progCallback(AnalysisStage.FINALIZATION, 1.0))
+                
+                // Save (get userId from games table via gameId)
+                gameOpt <- GameRepo.findById(job.gameId).transact(xa)
+                userIdOpt = gameOpt.flatMap(_.userId)
+                _ <- analysisService.save(job.id.toString, annotated, userIdOpt)
+                
+                // Complete
+                _ <- JobRepo.updateStatus(job.id, "COMPLETED", 100).transact(xa)
+                 >> IO(logger.info(s"Job ${job.id} completed"))
 
-               // 3. Run Analysis
-               output <- IO.blocking(
-                 AnalyzePgn.analyze(
-                   pgn = job.pgn, 
-                   engineService = engineService, 
-                   config = config, 
-                   llmRequestedPlys = job.options.forceCriticalPlys, 
-                   onProgress = progCallback
-                 )
-               ).flatMap {
-                   case Right(out) => IO.pure(out)
-                   case Left(err) => IO.raiseError(new Exception(err))
-                 }
-               
-               // 4. Annotate
-               _ <- IO(progCallback(AnalysisStage.LLM_GENERATION, 0.0))
-               annotated = LlmAnnotator.annotate(output)
-               _ <- IO(progCallback(AnalysisStage.FINALIZATION, 1.0))
-               
-               // 5. Save
-               userId = job.userId.flatMap(u => scala.util.Try(java.util.UUID.fromString(u)).toOption)
-               _ <- analysisService.save(job.jobId, annotated, userId)
-               
-               // 6. Complete
-               _ <- JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "COMPLETED", 100).transact(xa)
-                >> IO(logger.info(s"Job ${job.jobId} completed"))
-
-             yield ()).handleErrorWith { e =>
-                logger.error(s"Job ${job.jobId} failed", e)
-                JobRepo.updateStatus(java.util.UUID.fromString(job.jobId), "FAILED", 0).transact(xa).void
-             }
-          }.foreverM
-
-          for {
-            (config, llmForce) <- loadConfig
-            port <- IO.fromOption(EnvLoader.get("PORT").flatMap(_.toIntOption))(new Exception("PORT not set")).handleError(_ => 8080)
-            host <- IO.fromOption(EnvLoader.get("BIND").flatMap(Ipv4Address.fromString))(new Exception("Invalid BIND Address")).handleError(_ => ipv4"0.0.0.0")
-            
-            // Middleware Config
-            bucketSize <- IO(EnvLoader.get("RATE_LIMIT_BUCKET").flatMap(_.toIntOption).getOrElse(60))
-            refillRate <- IO(EnvLoader.get("RATE_LIMIT_REFILL").flatMap(_.toDoubleOption).getOrElse(1.0))
-            jwtSecret = EnvLoader.getOrElse("JWT_SECRET", "dev-jwt-secret")
-            apiKey = EnvLoader.getOrElse("API_KEY", "dev-secret-key")
-            authService = AuthService.make(xa, jwtSecret)
-            userMiddleware = AuthMiddlewareVals(authService, xa)
-            userAuthRoutes = AuthRoutes.routes(authService, userMiddleware)
-            
-            // Initialize Middleware
-            rateLimiter <- Middleware.rateLimitMiddleware(bucketSize, refillRate)
-            // Use Hybrid Auth (JWT or API Key)
-            hybridAuth = chess.auth.AuthMiddlewareVals.optionalAuthMiddleware(authService, xa, apiKey) 
-            requestLogger = Middleware.requestLoggingMiddleware(logger)
-            
-            _ <- IO(logger.info(s"Starting http4s server on $host:$port"))
-            
-            // Combine Routes
-            // /auth/* -> User Auth (Login/Register)
-            // /*      -> Hybrid Auth (Analyze, Result, etc)
-            combinedRoutes = org.http4s.server.Router(
-              "/auth" -> userAuthRoutes,
-              "/" -> hybridAuth(apiRoutes(config, llmForce, jobManager, analysisService, progressClient, usageService, xa))
-            )
-
-            finalHttpApp = CORS.policy.withAllowOriginAll(
-               requestLogger(
-                 rateLimiter(
-                   combinedRoutes
-                 )
-               ).orNotFound
-            )
-            
-            server = EmberServerBuilder.default[IO]
-              .withHost(host)
-              .withPort(Port.fromInt(port).getOrElse(port"8080")) 
-              .withHttpApp(finalHttpApp)
-              .build
-              .use(_ => IO.never)
-
-            // Run Server, Worker, AND Poller concurrently
-            _ <- server &> workerLoop &> jobManager.startPoller
-          } yield ExitCode.Success
-          }
-          }
-          }
+              yield ()).handleErrorWith { e =>
+                 logger.error(s"Job ${job.id} failed", e)
+                 JobRepo.updateStatus(job.id, "FAILED", 0).transact(xa).void
+              }
+            }
+          case None =>
+            // No jobs available, wait before polling again
+            IO.sleep(1.second)
         }
+      
+      val workerLoop = pollAndProcess.foreverM
+
+      // Zombie Cleanup Loop: Every 2 minutes, fail jobs stuck in PROCESSING for 8+ minutes
+      def zombieCleanup: IO[Unit] = 
+        (for {
+          threshold <- IO(java.time.Instant.now().minusSeconds(480)) // 8 minutes
+          count <- JobRepo.failStuckJobs(threshold).transact(xa)
+          _ <- if (count > 0) IO(logger.warn(s"Cleaned up $count stuck jobs")) else IO.unit
+        } yield ()).handleErrorWith(e => IO(logger.error(s"Zombie cleanup failed: ${e.getMessage}")))
+          >> IO.sleep(2.minutes)
+
+      val cleanupLoop = zombieCleanup.foreverM
+
+      for {
+        (config, llmForce) <- loadConfig
+        port <- IO.fromOption(EnvLoader.get("PORT").flatMap(_.toIntOption))(new Exception("PORT not set")).handleError(_ => 8080)
+        host <- IO.fromOption(EnvLoader.get("BIND").flatMap(Ipv4Address.fromString))(new Exception("Invalid BIND Address")).handleError(_ => ipv4"0.0.0.0")
+        
+        // Middleware Config
+        bucketSize <- IO(EnvLoader.get("RATE_LIMIT_BUCKET").flatMap(_.toIntOption).getOrElse(60))
+        refillRate <- IO(EnvLoader.get("RATE_LIMIT_REFILL").flatMap(_.toDoubleOption).getOrElse(1.0))
+        jwtSecret = EnvLoader.getOrElse("JWT_SECRET", "dev-jwt-secret")
+        apiKey = EnvLoader.getOrElse("API_KEY", "dev-secret-key")
+        authService = AuthService.make(xa, jwtSecret)
+        userMiddleware = AuthMiddlewareVals(authService, xa)
+        userAuthRoutes = AuthRoutes.routes(authService, userMiddleware)
+        
+        // Initialize Middleware
+        rateLimiter <- Middleware.rateLimitMiddleware(bucketSize, refillRate)
+        // Use Hybrid Auth (JWT or API Key)
+        hybridAuth = chess.auth.AuthMiddlewareVals.optionalAuthMiddleware(authService, xa, apiKey) 
+        requestLogger = Middleware.requestLoggingMiddleware(logger)
+        
+        _ <- IO(logger.info(s"Starting http4s server on $host:$port"))
+        
+        // Combine Routes
+        // /auth/* -> User Auth (Login/Register)
+        // /*      -> Hybrid Auth (Analyze, Result, etc)
+        combinedRoutes = org.http4s.server.Router(
+          "/auth" -> userAuthRoutes,
+          "/" -> hybridAuth(apiRoutes(config, llmForce, jobManager, analysisService, usageService, xa))
+        )
+
+        finalHttpApp = CORS.policy.withAllowOriginAll(
+           requestLogger(
+             rateLimiter(
+               combinedRoutes
+             )
+           ).orNotFound
+        )
+        
+        server = EmberServerBuilder.default[IO]
+          .withHost(host)
+          .withPort(Port.fromInt(port).getOrElse(port"8080")) 
+          .withHttpApp(finalHttpApp)
+          .build
+          .use(_ => IO.never)
+
+        // Run Server, Worker, and Zombie Cleanup concurrently
+        _ <- server &> workerLoop &> cleanupLoop
+      } yield ExitCode.Success
+      }
+      }
       }
     }
 
@@ -396,13 +412,4 @@ object ApiServer extends IOApp:
     sb.append('}')
     sb.result()
 
-  private def addVariation(root: AnalyzePgn.TreeNode, ply: Int, variation: AnalyzePgn.TreeNode): AnalyzePgn.TreeNode =
-    if root.ply == ply then
-      val (vars, others) = root.children.partition(_.judgement == "variation")
-      val deduped = vars.filterNot(_.uci == variation.uci) :+ variation
-      root.copy(children = others ++ deduped)
-    else
-      val updatedMain = root.children.map { c =>
-        if c.judgement == "variation" then c else addVariation(c, ply, variation)
-      }
-      root.copy(children = updatedMain)
+

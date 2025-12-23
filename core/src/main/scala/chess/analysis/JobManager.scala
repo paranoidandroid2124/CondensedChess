@@ -4,20 +4,33 @@ package analysis
 import cats.effect.*
 import java.util.UUID
 import java.time.Instant
-import scala.concurrent.duration.*
-import chess.db.{DbGame, DbAnalysisJob, GameRepo, JobRepo}
+import chess.db.{BlobRepo, DbGame, DbAnalysisJob, GameRepo, JobRepo}
 import doobie.*
 import doobie.implicits.*
 
 trait JobManager:
   def submit(pgn: String, config: AnalyzePgn.EngineConfig, llmPlys: Set[Int], userId: Option[String]): IO[String]
-  def startPoller: IO[Unit]
 
 object JobManager:
   private val logger = org.slf4j.LoggerFactory.getLogger("chess.job")
 
-  def make(queue: QueueClient[IO], xa: Transactor[IO]): IO[JobManager] = 
-    cats.effect.std.Queue.unbounded[IO, JobPayload].map { internalQueue =>
+  def make(xa: Transactor[IO]): IO[JobManager] = 
+
+    // Janitor: Cleanup Zombie jobs & Init Blob Table
+    val startup = for {
+      _ <- BlobRepo.init.transact(xa)
+      // Aggressive Cleanup: Reset ANY job left in PROCESSING state from previous runs
+      _ <- sql"""
+        UPDATE analysis_jobs 
+        SET status = 'FAILED', error_message = 'Job terminated unexpectedly (server restart)'
+        WHERE status LIKE 'PROCESSING%'
+      """.update.run.transact(xa).flatMap { count =>
+         if (count > 0) IO(logger.info(s"[Start] Cleaned up $count zombie jobs from previous run."))
+         else IO.unit
+      }
+    } yield ()
+
+    startup.as {
       new JobManager:
         private val TagRegex = """\[(\w+) "([^"]+)"\]""".r
     
@@ -44,51 +57,31 @@ object JobManager:
             createdAt = now
           )
     
-          // 2. Create Job Entity (Status=CREATED)
+          // 2. Create Job Entity (Status=QUEUED, with PGN and options)
+          // Serialize options to JSON
+          val optionsJson = ujson.Obj("forceCriticalPlys" -> ujson.Arr(llmPlys.toSeq.map(ujson.Num(_))*)).render()
+          
           val job = DbAnalysisJob(
             id = id, 
             gameId = id,
-            status = "CREATED",
+            status = "QUEUED",  // DB-only queue: jobs start as QUEUED
             progress = 0,
             errorMessage = None,
+            pgnText = pgn,
+            optionsJson = optionsJson,
             createdAt = now,
             updatedAt = now
           )
     
-          val payload = JobPayload(id.toString, userIdString, pgn, ApiTypes.ReviewOptions(forceCriticalPlys = llmPlys))
-    
-          // 3. Persist to DB ONLY
+          // 3. Persist to DB (no memory queue or Redis)
           val dbOps = for {
             _ <- GameRepo.insert(game)
             _ <- JobRepo.create(job)
           } yield ()
     
           for {
-            _ <- IO(logger.info(s"Job $id: Saving to DB (Status=CREATED)..."))
+            _ <- IO(logger.info(s"Job $id: Saving to DB (Status=QUEUED)..."))
             _ <- dbOps.transact(xa)
-            _ <- IO(logger.info(s"Job $id: DB Saved. Buffering to Memory Queue..."))
-            _ <- internalQueue.offer(payload)
-            _ <- IO(logger.info(s"Job $id: Buffered successfully."))
+            _ <- IO(logger.info(s"Job $id: Queued successfully."))
           } yield id.toString
-    
-        def getStatus(id: String): IO[Option[String]] = 
-          JobRepo.findById(UUID.fromString(id)).transact(xa).map(_.map(_.status))
-
-        // Background Poller: Memory -> Redis
-        def startPoller: IO[Unit] = 
-          internalQueue.take.flatMap { payload =>
-             (for 
-               _ <- IO(logger.info(s"Poller: Popped Job ${payload.jobId}. Pushing to Redis..."))
-               _ <- queue.enqueue(payload) // Standard enqueue (Redis)
-               _ <- JobRepo.updateStatus(UUID.fromString(payload.jobId), "QUEUED", 0).transact(xa)
-               _ <- IO(logger.info(s"Poller: Job ${payload.jobId} pushed to Redis & Status updated."))
-             yield ()).handleErrorWith { e =>
-               // If Redis fails, we should ideally retry or put back in queue?
-               // For MVP, just log error. The job remains "CREATED" regarding DB status (stuck state), 
-               // but it is lost from memory queue if we don't re-enqueue.
-               // Let's Retry forever for Redis errors.
-               logger.error(s"Poller: Failed to push Job ${payload.jobId} to Redis. Retrying in 3s...", e)
-               IO.sleep(3.seconds) >> internalQueue.offer(payload) // Re-buffer
-             }
-          }.foreverM
     }

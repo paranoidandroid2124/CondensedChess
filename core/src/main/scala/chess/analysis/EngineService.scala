@@ -72,9 +72,10 @@ class EngineService(
   override def evaluate(
       fen: String,
       depth: Int,
-      multiPv: Int = 1,
-      timeoutMs: Int = 1000,
-      moves: List[String] = Nil
+      multiPv: Int, // Default inherited from trait
+      timeoutMs: Int,
+      moves: List[String],
+      searchMoves: List[String]
   )(using ExecutionContext): Future[EngineEval] =
-    val req = Analyze(fen, moves, depth, multiPv, timeoutMs)
+    val req = Analyze(fen, moves, depth, multiPv, timeoutMs, searchMoves)
     submit(req).map(_.eval)

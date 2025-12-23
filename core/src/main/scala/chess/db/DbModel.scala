@@ -34,6 +34,15 @@ final case class DbAnalysisJob(
   status: String,
   progress: Int,
   errorMessage: Option[String],
+  pgnText: String,      // Job payload for DB-only queue
+  optionsJson: String,  // JSONB as String
   createdAt: Instant,
   updatedAt: Instant
+)
+
+// Maps to 'blobs' table
+final case class DbBlob(
+  key: String,
+  content: String,
+  createdAt: Instant
 )

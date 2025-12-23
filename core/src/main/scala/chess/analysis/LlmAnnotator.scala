@@ -55,6 +55,122 @@ object LlmAnnotator:
   //       None
   //   }
 
+  /** Simple text cleanup - no validation, no rejection. Just basic formatting fixes. */
+  private def cleanText(text: String): String =
+    AntiFluffGate.semiClean(text)
+
+  /** Convert PositionalTags to structured JSON for LLM (Phase 2 enhancement) */
+  private def positionalTagsToJson(tags: List[ConceptLabeler.PositionalTag]): ujson.Arr =
+    import ConceptLabeler.PositionalTag.*
+    val facts = tags.take(4).flatMap {
+      case WeakSquare(sq, side) => Some(Obj("type" -> "WeakSquare", "square" -> sq, "side" -> colorName(side)))
+      case Outpost(sq, side) => Some(Obj("type" -> "Outpost", "square" -> sq, "side" -> colorName(side)))
+      case OpenFile(file, side) => Some(Obj("type" -> "OpenFile", "file" -> file, "side" -> colorName(side)))
+      case LoosePiece(sq, side) => Some(Obj("type" -> "LoosePiece", "square" -> sq, "side" -> colorName(side)))
+      case WeakBackRank(side) => Some(Obj("type" -> "WeakBackRank", "side" -> colorName(side)))
+      case KingSafetyCrisis(side) => Some(Obj("type" -> "KingSafetyCrisis", "side" -> colorName(side)))
+      case _ => None
+    }
+    ujson.Arr.from(facts)
+
+  /** Extract core geometry facts for LLM (Phase 2 enhancement) */
+  private def geometryToJson(features: FeatureExtractor.PositionFeatures): ujson.Obj =
+    val g = features.geometry
+    val obj = Obj(
+      "whiteKing" -> Str(g.whiteKingSquare),
+      "blackKing" -> Str(g.blackKingSquare)
+    )
+    if g.whiteOpenFilesNearKing.nonEmpty then obj("openFilesNearWhiteKing") = arrStr(g.whiteOpenFilesNearKing)
+    if g.blackOpenFilesNearKing.nonEmpty then obj("openFilesNearBlackKing") = arrStr(g.blackOpenFilesNearKing)
+    if g.whiteKingAttackers.nonEmpty then obj("whiteKingAttackers") = Num(g.whiteKingAttackers.size)
+    if g.blackKingAttackers.nonEmpty then obj("blackKingAttackers") = Num(g.blackKingAttackers.size)
+    obj
+
+  /** Sparse serialization of PositionFeatures - only non-default values (Phase 2.5) */
+  private def sparsePositionFeatures(pf: FeatureExtractor.PositionFeatures): ujson.Obj =
+    val obj = Obj()
+    val p = pf.pawns
+    val a = pf.activity
+    val k = pf.kingSafety
+    val m = pf.materialPhase
+    val t = pf.tactics
+    val c = pf.coordination
+    
+    // Pawn Structure (only significant values)
+    if p.whiteIQP then obj("whiteIQP") = Bool(true)
+    if p.blackIQP then obj("blackIQP") = Bool(true)
+    if p.whitePassedPawns > 0 then obj("whitePassedPawns") = Num(p.whitePassedPawns)
+    if p.blackPassedPawns > 0 then obj("blackPassedPawns") = Num(p.blackPassedPawns)
+    if p.whiteIsolatedPawns > 0 then obj("whiteIsolatedPawns") = Num(p.whiteIsolatedPawns)
+    if p.blackIsolatedPawns > 0 then obj("blackIsolatedPawns") = Num(p.blackIsolatedPawns)
+    if p.whiteDoubledPawns > 0 then obj("whiteDoubledPawns") = Num(p.whiteDoubledPawns)
+    if p.blackDoubledPawns > 0 then obj("blackDoubledPawns") = Num(p.blackDoubledPawns)
+    if p.whiteHangingPawns then obj("whiteHangingPawns") = Bool(true)
+    if p.blackHangingPawns then obj("blackHangingPawns") = Bool(true)
+    
+    // King Safety (critical values only)
+    if k.whiteBackRankWeak then obj("whiteBackRankWeak") = Bool(true)
+    if k.blackBackRankWeak then obj("blackBackRankWeak") = Bool(true)
+    if k.whiteKingExposedFiles > 0 then obj("whiteKingExposed") = Num(k.whiteKingExposedFiles)
+    if k.blackKingExposedFiles > 0 then obj("blackKingExposed") = Num(k.blackKingExposedFiles)
+    if k.whiteKingRingEnemyPieces >= 2 then obj("whiteKingPressure") = Num(k.whiteKingRingEnemyPieces)
+    if k.blackKingRingEnemyPieces >= 2 then obj("blackKingPressure") = Num(k.blackKingRingEnemyPieces)
+    
+    // Tactics (hanging pieces)
+    if t.whiteHangingPieces > 0 then obj("whiteHangingPieces") = Num(t.whiteHangingPieces)
+    if t.blackHangingPieces > 0 then obj("blackHangingPieces") = Num(t.blackHangingPieces)
+    if t.whiteLoosePieces > 0 then obj("whiteLoosePieces") = Num(t.whiteLoosePieces)
+    if t.blackLoosePieces > 0 then obj("blackLoosePieces") = Num(t.blackLoosePieces)
+    
+    // Coordination
+    if c.whiteRookOn7th then obj("whiteRookOn7th") = Bool(true)
+    if c.blackRookOn7th then obj("blackRookOn7th") = Bool(true)
+    if c.whiteRooksBehindPassedPawns > 0 then obj("whiteRooksBehindPP") = Num(c.whiteRooksBehindPassedPawns)
+    if c.blackRooksBehindPassedPawns > 0 then obj("blackRooksBehindPP") = Num(c.blackRooksBehindPassedPawns)
+    
+    // Activity (significant differences only)
+    val mobilityDiff = a.whiteLegalMoves - a.blackLegalMoves
+    if math.abs(mobilityDiff) >= 5 then obj("mobilityAdvantage") = Str(if mobilityDiff > 0 then "White" else "Black")
+    if a.whiteKnightOutposts > 0 then obj("whiteOutposts") = Num(a.whiteKnightOutposts)
+    if a.blackKnightOutposts > 0 then obj("blackOutposts") = Num(a.blackKnightOutposts)
+    
+    // Material
+    if m.materialDiff != 0 then obj("materialDiff") = Num(m.materialDiff)
+    obj("phase") = Str(m.phase)
+    
+    obj
+
+  /** Sparse serialization of ConceptLabels - only non-empty tags (Phase 2.5) */
+  private def sparseConceptLabels(cl: ConceptLabeler.ConceptLabels): ujson.Obj =
+    val obj = Obj()
+    
+    // Structure tags
+    if cl.structureTags.nonEmpty then
+      obj("structure") = arrStr(cl.structureTags.take(3).map(_.toString))
+    
+    // Plan tags
+    if cl.planTags.nonEmpty then
+      obj("plans") = arrStr(cl.planTags.take(3).map(_.toString))
+    
+    // Tactics tags
+    if cl.tacticTags.nonEmpty then
+      obj("tactics") = arrStr(cl.tacticTags.take(3).map(_.toString))
+    
+    // Mistake tags
+    if cl.mistakeTags.nonEmpty then
+      obj("mistakes") = arrStr(cl.mistakeTags.take(2).map(_.toString))
+    
+    // Endgame tags
+    if cl.endgameTags.nonEmpty then
+      obj("endgame") = arrStr(cl.endgameTags.take(2).map(_.toString))
+    
+    // Transition tags
+    if cl.transitionTags.nonEmpty then
+      obj("transition") = arrStr(cl.transitionTags.take(2).map(_.toString))
+    
+    obj
+
+
   def annotate(output: AnalyzePgn.Output): AnalyzePgn.Output =
     val timelineByPly = output.timeline.map(t => t.ply.value -> t).toMap
     
@@ -78,11 +194,11 @@ object LlmAnnotator:
     // Parallelize LLM calls with individual recovery
     val summaryFuture = {
       System.err.println("[LlmAnnotator] Starting summary generation...")
-      LlmClient.summarize(preview).map(_.filter(labelSafe(_, maxMoveNumber))).flatMap {
-        case Some(s) => Future.successful(Some(s))
+      LlmClient.summarize(preview).map { 
+        case Some(s) => Some(cleanText(s))
         case None => 
           System.err.println("[LlmAnnotator] Summary empty/invalid, using fallback.")
-          Future.successful(fallbackSummary(output))
+          fallbackSummary(output)
       }.recover { case e: Throwable =>
         System.err.println(s"[LlmAnnotator] Summary failed: ${e.getMessage}")
         fallbackSummary(output)
@@ -92,8 +208,14 @@ object LlmAnnotator:
     val criticalFuture = {
       System.err.println("[LlmAnnotator] Starting critical comments generation...")
       LlmClient.criticalComments(critPreview).map { raw =>
-        val res = raw.filter { case (_, v) => labelSafe(v.main, maxMoveNumber) }
-        System.err.println("[LlmAnnotator] Critical comments generation finished.")
+        val res = raw.flatMap { case (ply, ann) => 
+          if labelSafe(ann.main, maxMoveNumber) then
+             Some(ply -> ann.copy(main = cleanText(ann.main)))
+          else
+             System.err.println(s"[LlmAnnotator] Critical(ply=$ply) rejected for unsafe labels: ${ann.main}")
+             None
+        }
+        System.err.println(s"[LlmAnnotator] Critical comments generation finished. Count: ${res.size}")
         res
       }.recover { case e: Throwable =>
         System.err.println(s"[LlmAnnotator] Critical comments failed: ${e.getMessage}")
@@ -104,8 +226,11 @@ object LlmAnnotator:
     val studyFuture = {
       System.err.println("[LlmAnnotator] Starting study chapter comments generation...")
       if output.studyChapters.nonEmpty then 
-        LlmClient.studyChapterComments(preview).map { res =>
-          System.err.println("[LlmAnnotator] Study chapter comments generation finished.")
+        LlmClient.studyChapterComments(preview).map { raw =>
+          val res = raw.map { case (id, ann) =>
+            id -> ann.copy(summary = cleanText(ann.summary))
+          }
+          System.err.println(s"[LlmAnnotator] Study chapter comments generation finished. Count: ${res.size}")
           res
         }
       else Future.successful(Map.empty[String, LlmClient.ChapterAnnotation])
@@ -123,12 +248,15 @@ object LlmAnnotator:
             val prompt = NarrativeTemplates.buildSectionPrompt(section.sectionType, section.title, segment, section.diagrams)
             
             LlmClient.bookSectionNarrative(prompt).map {
-              case Some(sn) => section.copy(
-                  title = sn.title.getOrElse(section.title),
-                  narrativeHint = sn.narrative, 
-                  metadata = sn.metadata
-              )
-              case None => section
+              case Some(sn) =>
+                val cleanNarrative = cleanText(sn.narrative)
+                System.err.println(s"[LlmAnnotator] SUCCESS: Book section '${section.title}' generated. Length: ${cleanNarrative.length}")
+                section.copy(
+                   title = sn.title.getOrElse(section.title),
+                   narrativeHint = cleanNarrative,
+                   metadata = sn.metadata
+                )
+              case _ => section
             }
           }
           
@@ -236,7 +364,7 @@ object LlmAnnotator:
       book = updatedBook
     )
 
-  private def renderPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
+  private[analysis] def renderPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
     val openingObj = Obj("name" -> Str(output.opening.map(_.opening.name.value).getOrElse("unknown")))
     output.opening.foreach(op => openingObj("bookToPly") = Num(op.ply.value))
     output.openingStats.foreach { os =>
@@ -268,7 +396,7 @@ object LlmAnnotator:
 
     val topSwings = output.timeline
       .sortBy(t => -math.abs(t.deltaWinPct))
-      .take(4)
+      .take(8)
       .map { t =>
         // Optimized: removed ply, turn, legalMoves, epLoss, winAfter (redundant/derivable)
         val wasOnlyMove = t.legalMoves <= 1 || t.bestVsSecondGap.exists(_ >= 20.0)
@@ -287,9 +415,74 @@ object LlmAnnotator:
         t.mistakeCategory.foreach(mc => obj("mistakeCategory") = Str(mc))
         t.special.foreach(s => obj("special") = Str(s))
         
-        // Tactical Context (keep materialDiff for concrete info)
+        // Tactical Context
         if t.materialDiff != 0 then obj("materialDiff") = Num(round2(t.materialDiff))
         t.tacticalMotif.foreach(m => obj("tacticalMotif") = Str(m))
+
+        // Phase 3: Enhanced Evidence Injection
+        t.conceptLabels.foreach { cl =>
+          if cl.richTags.nonEmpty then
+             val evidenceArr = cl.richTags.distinct.take(3).map { rt =>
+               val refObj = Obj("id" -> Str(rt.id), "category" -> Str(rt.category.toString), "score" -> Num(rt.score))
+               // Resolve details from EvidencePack
+               rt.evidenceRefs.headOption.foreach { ref =>
+                  ref.kind match
+                    case "structure" => cl.evidence.structure.get(ref.id).foreach { e =>
+                      refObj("detail") = Str(e.description)
+                      refObj("squares") = arrStr(e.squares)
+                    }
+                    case "plans" => cl.evidence.plans.get(ref.id).foreach { e =>
+                      refObj("concept") = Str(e.concept)
+                      refObj("goal") = Str(e.goal)
+                      refObj("pv") = arrStr(e.pv.take(5))
+                    }
+                    case "tactics" => cl.evidence.tactics.get(ref.id).foreach { e =>
+                      refObj("motif") = Str(e.motif)
+                      refObj("sequence") = arrStr(e.sequence)
+                    }
+                    case _ => 
+               }
+               refObj
+             }
+             obj("evidence") = Arr.from(evidenceArr)
+              
+              // Phase 2: Add structured positional facts (squares, files)
+              if cl.positionalTags.nonEmpty then
+                val posFacts = positionalTagsToJson(cl.positionalTags)
+                if posFacts.value.nonEmpty then obj("positionalFacts") = posFacts
+        }
+        
+        // Phase 2: Add geometry if fullFeatures available
+        t.fullFeatures.foreach { ff =>
+          val geo = geometryToJson(ff)
+          obj("geometry") = geo
+        }
+        
+        // Phase 2: Add hypotheses ("why not" variations)
+        if t.hypotheses.nonEmpty then
+          val hypos = t.hypotheses.take(2).map { h =>
+            val sanMove = uciToSanSingle(t.fenBefore, h.move)
+            val pvSan = pvToSan(t.fenBefore, h.pv).take(5)
+            Obj(
+              "move" -> Str(sanMove),
+              "label" -> Str(h.label),
+              "pv" -> arrStr(pvSan),
+              "winPct" -> Num(round2(h.winPct))
+            )
+          }
+          obj("hypotheses") = Arr.from(hypos)
+        
+        // Phase 2.5: Sparse transmission - full features with non-default values only
+        t.fullFeatures.foreach { ff =>
+          val sparse = sparsePositionFeatures(ff)
+          if sparse.value.nonEmpty then obj("features") = sparse
+        }
+        
+        // Phase 2.5: Sparse conceptLabels
+        t.conceptLabels.foreach { cl =>
+          val sparse = sparseConceptLabels(cl)
+          if sparse.value.nonEmpty then obj("concepts") = sparse
+        }
 
         obj
       }
@@ -299,7 +492,7 @@ object LlmAnnotator:
       val branches = c.branches.take(3).map { b =>
         val fenForBranch = timelineByPly.get(c.ply.value).map(_.fenBefore).getOrElse("")
         val sanMove = if fenForBranch.nonEmpty then uciToSanSingle(fenForBranch, b.move) else b.move
-        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(6) else b.pv.take(6)
+        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(8) else b.pv.take(8)
         Obj(
           "label" -> Str(b.label),
           "move" -> Str(sanMove),
@@ -345,6 +538,7 @@ object LlmAnnotator:
           "PRIORITIZE tactical details (Material Loss, Missed Win, tacticalMotif) over abstract tags like 'Pawn Storm'. If tacticalMotif is present, explain IT.",
           "If a line is labeled 'practical', explicitly mention it as a 'Practical Choice' and explain why it might be easier/safer than the engine best.",
           "If 'Plan Change' tag is present, explicitly state: 'Black shifted focus from [Prev Dominant Concept] to [New Concept]' using conceptShift values.",
+          "If 'evidence' array is present, YOU MUST CITE IT for key claims. E.g. 'White targets the backward pawn (Evidence: Structure d4)'.",
           "NATURALIZE TAGS: Translate technical tags (e.g. 'Pawn Storm') into descriptive prose. NEVER output raw tags."
         ).map(Str(_))
       )
@@ -418,7 +612,7 @@ object LlmAnnotator:
     val text = List(openingPart, critPart, endPart).filter(_.nonEmpty).mkString(" ")
     if text.nonEmpty then Some(text) else None
 
-  private def criticalPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
+  private[analysis] def criticalPreview(output: AnalyzePgn.Output, timelineByPly: Map[Int, AnalyzePgn.PlyOutput]): String =
     val instructions = Obj(
       "goal" -> Str("Return JSON array of {\"label\":string,\"comment\":string} covering each critical move."),
       "style" -> Str("Crisp coach notes: Heading | Why(delta/wasOnlyMove/conceptShift) | Alternatives(PV labels) | Consequence."),
@@ -440,7 +634,7 @@ object LlmAnnotator:
       val branches = c.branches.take(3).map { b =>
         val fenForBranch = timelineByPly.get(c.ply.value).map(_.fenBefore).getOrElse("")
         val sanMove = if fenForBranch.nonEmpty then uciToSanSingle(fenForBranch, b.move) else b.move
-        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(6) else b.pv.take(6)
+        val pvSan = if fenForBranch.nonEmpty then pvToSan(fenForBranch, b.pv).take(8) else b.pv.take(8)
         Obj(
           "label" -> Str(b.label),
           "move" -> Str(sanMove),

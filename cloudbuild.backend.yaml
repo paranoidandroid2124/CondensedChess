@@ -11,6 +11,12 @@ steps:
       - 'gcr.io/gen-lang-client-0162856170/api:latest'
       - '--region'
       - 'us-central1'
+      - '--memory'
+      - '4Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '3600'
 images:
   - 'gcr.io/gen-lang-client-0162856170/api:latest'
 timeout: 7200s

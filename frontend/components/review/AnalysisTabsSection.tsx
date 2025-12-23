@@ -1,11 +1,8 @@
 import React from "react";
-import { Chess } from "chess.js";
 import { AnalysisPanel } from "../AnalysisPanel";
-import { OpeningExplorerTab } from "../OpeningExplorerTab";
-import { ConceptsTab } from "../ConceptsTab";
 import { ConceptCards } from "../ConceptCards";
 import { CompressedMoveList } from "../CompressedMoveList";
-import { QuickJump } from "../common/QuickJump";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 
 import { AnnotationView } from "./BookView/AnnotationView";
 import type { Review } from "../../types/review";
@@ -27,7 +24,6 @@ export function AnalysisTabsSection({
   lookupError,
   setSelectedPly,
   setSelectedVariation,
-  tabOrder,
   timeline,
   selectedPly,
   reviewRoot,
@@ -52,7 +48,6 @@ export function AnalysisTabsSection({
   setSelectedPly: (ply: number) => void;
   setSelectedVariation: (v: VariationEntry | null) => void;
   selectedPly: number | null;
-  tabOrder?: TabId[];
   setPreviewArrows?: (arrows: [string, string, string][]) => void;
   setPreviewFen?: (fen: string | null) => void;
   onSelectNode?: (node: any) => void;
@@ -63,7 +58,6 @@ export function AnalysisTabsSection({
   onPlayBest?: () => void;
   onToggleArrows?: () => void;
 }) {
-  const tabs: TabId[] = tabOrder ?? ["concepts", "opening", "moves", "study"];
   const maxPly = timeline.length > 0 ? timeline[timeline.length - 1].ply : 0;
 
   const handleSelectPly = (ply: number) => {
@@ -99,24 +93,13 @@ export function AnalysisTabsSection({
       <AnalysisPanel
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        tabs={tabs.map((id) => {
-          switch (id) {
-            case "concepts": return { id: "concepts", label: "Concepts", icon: "💡" };
-            case "opening": return { id: "opening", label: "Opening", icon: "📖" };
-            case "moves": return { id: "moves", label: "Moves", icon: "↔️" };
-            case "study": return { id: "study", label: "Study", icon: "🎓" };
-          }
-        })}
+        tabs={[
+          { id: "study", label: "Overview", icon: "📖" },
+          { id: "moves", label: "Moves", icon: "↔️" }
+        ]}
       >
         <div className="h-full overflow-y-auto custom-scrollbar px-1">
           {/* Tab Contents */}
-          {activeTab === "opening" && (
-            <OpeningExplorerTab
-              stats={openingLookup}
-              loading={lookupLoading}
-              error={lookupError}
-            />
-          )}
           {activeTab === "moves" && (
             <CompressedMoveList
               timeline={timeline}
@@ -125,25 +108,17 @@ export function AnalysisTabsSection({
             />
           )}
           {activeTab === "study" && review && (
-            <AnnotationView
-              review={review}
-              rootNode={reviewRoot ?? { ply: 0, fen: "", san: "", uci: "", eval: 0, evalType: "cp", judgement: "book", glyph: "", tags: [], pv: [], children: [] } /* fallback */}
-              selectedPly={selectedPly}
-              onSelectPly={handleSelectPly}
-              onPreviewFen={setPreviewFen}
-              onSelectNode={onSelectNode}
-              onMoveHover={onMoveHover}
-            />
-          )}
-          {activeTab === "concepts" && (
-            <ConceptsTab
-              review={review}
-              currentConcepts={activeMove?.concepts}
-              currentSemanticTags={activeMove?.semanticTags}
-              timeline={enhancedTimeline}
-              currentPly={activeMove?.ply}
-              conceptDelta={activeMove?.conceptDelta}
-            />
+            <ErrorBoundary>
+              <AnnotationView
+                review={review}
+                rootNode={reviewRoot ?? { ply: 0, fen: "", san: "", uci: "", eval: 0, evalType: "cp", judgement: "book", glyph: "", tags: [], pv: [], children: [] } /* fallback */}
+                selectedPly={selectedPly}
+                onSelectPly={handleSelectPly}
+                onPreviewFen={setPreviewFen}
+                onSelectNode={onSelectNode}
+                onMoveHover={onMoveHover}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </AnalysisPanel>

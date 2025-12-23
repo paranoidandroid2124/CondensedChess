@@ -4,6 +4,8 @@ package analysis
 import munit.FunSuite
 import chess.analysis.BookModel.*
 import chess.analysis.AnalysisModel.*
+import chess.analysis.AnalysisTypes.*
+import chess.analysis.ConceptLabeler.* // For ConceptLabels
 
 class NarrativeTemplatesTest extends FunSuite:
 
@@ -53,16 +55,16 @@ class NarrativeTemplatesTest extends FunSuite:
     )
     
     val prompt = NarrativeTemplates.buildSectionPrompt(
-      SectionType.OpeningPortrait,
+      SectionType.OpeningReview,
       "The Opening",
       plys,
       List(diag)
     )
     
-    assert(prompt.contains("OpeningPortrait"))
-    assert(prompt.contains("Ply Range: 1 - 2"))
-    assert(prompt.contains("Dominant Roles: DevelopmentAdvantage, Violence")) // Order depends on frequency/sort
-    assert(prompt.contains("GOAL: Describe the opening phase"))
+    assert(prompt.contains("OpeningReview"))
+    assert(prompt.contains("Move Range: 1 - 2"))
+    assert(prompt.contains("Dominant Roles: DevelopmentAdvantage, Violence")) 
+    assert(prompt.contains("GOAL: Describe the opening phase"), "Missing GOAL description")
   }
 
   test("buildSectionPrompt handles TacticalStorm") {
@@ -100,11 +102,62 @@ class NarrativeTemplatesTest extends FunSuite:
     val diagram = BookDiagram("Greed Moment", "fen...", List("Mistake"), 29, TagBundle(Nil,Nil,Nil,Nil,Nil,Nil))
     
     val prompt = NarrativeTemplates.buildSectionPrompt(
-       SectionType.CriticalCrisis, "Crisis", Vector(p), List(diagram)
+       SectionType.TurningPoints, "Crisis", Vector(p), List(diagram)
     )
     
-    assert(prompt.contains("Move 15. w"), s"Expected human notation 'Move 15. w', got: $prompt")
+    assert(prompt.contains("15. w"), s"Expected human notation '15. w', got: $prompt")
     assert(prompt.contains("[Greed]"), s"Expected tag '[Greed]', got: $prompt")
     assert(prompt.contains("Dropped 4.5%"), s"Expected eval change 'Dropped 4.5%', got: $prompt")
-    assert(prompt.contains("3-4 sentences"), s"Expected relaxed constraint '3-4 sentences', got: $prompt")
+    assert(prompt.contains("concise sentences"), s"Expected relaxed constraint 'concise sentences', got: $prompt")
   }
+
+  test("buildSectionPrompt renders rich evidence (Safety, PV San)") {
+    val safetyEv = KingSafetyEvidence("g8", List("h-file"), 2, Nil, 1)
+    
+    // Use valid alternating moves: White e4, Black e5
+    val pvEv = PvEvidence(List("e2e4", "e7e5"), EngineEval(20, List(EngineLine("e2e4", 0.99, Some(35), None, Nil)) ) ) 
+    
+    val labels = ConceptLabels(
+       structureTags = Nil,
+       planTags = Nil,
+       tacticTags = Nil,
+       mistakeTags = Nil,
+       endgameTags = Nil,
+       positionalTags = Nil,
+       transitionTags = Nil,
+       missedPatternTypes = Nil,
+       richTags = List(
+         RichTag("king_danger", 0.9, TagCategory.Dynamic, List(EvidenceRef("safety", "safety_1"))),
+         RichTag("winning_line", 0.8, TagCategory.Tactic, List(EvidenceRef("pv", "pv_1")))
+       ),
+       evidence = EvidencePack(
+         kingSafety = Map("safety_1" -> safetyEv),
+         pv = Map("pv_1" -> pvEv)
+       )
+    )
+
+    val p = mockPly(30, "MatingAttack").copy(
+       conceptLabels = Some(labels)
+    )
+    val diagram = BookDiagram("Mate", "fen...", List("MatingAttack"), 30, TagBundle(Nil,Nil,Nil,Nil,Nil,Nil))
+
+    val prompt = NarrativeTemplates.buildSectionPrompt(
+       SectionType.TacticalStorm, "Attack", Vector(p), List(diagram)
+    )
+
+    assert(prompt.contains("King Danger: 2 attackers on g8"), s"Missing Safety evidence: $prompt")
+    // Assert SAN conversion happens: e2e4 -> e4, e7e5 -> e5
+    assert(prompt.contains("Line: e4 e5..."), s"Missing PV evidence or SAN conversion failed: $prompt")
+  }
+
+  test("buildSectionPrompt includes chess book style requirements") {
+    val p = mockPly(29, "Mistake").copy(deltaWinPct = -6.0)
+    val prompt = NarrativeTemplates.buildSectionPrompt(
+      SectionType.TurningPoints, "Crisis", Vector(p), Nil
+    )
+    assert(prompt.contains("CHESS BOOK STYLE"), s"Missing CHESS BOOK STYLE section: $prompt")
+    assert(prompt.contains("leads to X because of Y"), s"Missing causation pattern: $prompt")
+    assert(prompt.contains("Question:"), s"Should require Q&A format: $prompt")
+    assert(prompt.contains("personality"), s"Missing personification guidance: $prompt")
+  }
+

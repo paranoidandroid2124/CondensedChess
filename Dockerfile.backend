@@ -27,14 +27,22 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Install Stockfish (Required for engine analysis)
-# We use a specific version or latest from apt if simple, but for stability, downloading a static binary is often better.
-# For now, apt-get is easiest for "Debian" based images (temurin is Ubuntu/Debian based).
-RUN apt-get update && apt-get install -y stockfish && rm -rf /var/lib/apt/lists/*
+# Install dependencies for downloading
+RUN apt-get update && apt-get install -y wget tar && rm -rf /var/lib/apt/lists/*
 
-# Verify stockfish location and set ENV
-RUN which stockfish || ls -l /usr/games/stockfish
-ENV STOCKFISH_BIN=/usr/games/stockfish
+# Download Stockfish 16.1 (AVX2 Compatible)
+# We use the statically linked binary to avoid library issues and ensure AVX2 support (usually safe on Cloud Run)
+WORKDIR /tmp
+RUN wget https://github.com/official-stockfish/Stockfish/releases/download/sf_16.1/stockfish-ubuntu-x86-64-avx2.tar && \
+    tar xvf stockfish-ubuntu-x86-64-avx2.tar && \
+    mv stockfish/stockfish-ubuntu-x86-64-avx2 /usr/local/bin/stockfish && \
+    chmod +x /usr/local/bin/stockfish && \
+    rm -rf /tmp/*
+
+# Reset WORKDIR
+WORKDIR /app
+
+ENV STOCKFISH_BIN=/usr/local/bin/stockfish
 
 # Build-time verification: Smoke test to ensure Stockfish runs
 RUN echo "Running Stockfish Smoke Test..." && \

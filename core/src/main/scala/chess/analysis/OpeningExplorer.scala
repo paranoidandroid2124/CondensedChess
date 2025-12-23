@@ -141,7 +141,12 @@ object OpeningExplorer:
         epSafe
       }
 
-  private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int, sourceLabel: String): Option[Stats] =
+  // Synchronized to prevent SQLite race conditions (Segfault)
+  private def lookupPosition(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int, sourceLabel: String): Option[Stats] = this.synchronized {
+    lookupPositionImpl(conn, key, topGamesLimit, topMovesLimit, gamesOffset, sourceLabel)
+  }
+
+  private def lookupPositionImpl(conn: Connection, key: String, topGamesLimit: Int, topMovesLimit: Int, gamesOffset: Int, sourceLabel: String): Option[Stats] = {
     val posSql = "SELECT id, ply, games, win_w, win_b, draw, min_year, max_year, bucket_pre2012, bucket_2012_2017, bucket_2018_2019, bucket_2020_plus FROM positions WHERE fen = ?"
     val posStmt = conn.prepareStatement(posSql)
     posStmt.setString(1, key)
@@ -183,6 +188,8 @@ object OpeningExplorer:
           yearBuckets = yearBuckets
         )
       )
+  }
+
 
   private def lookupMoves(conn: Connection, posId: Int, limit: Int): List[TopMove] =
     val sql = "SELECT san, uci, games, win_w, win_b, draw FROM moves WHERE position_id = ? ORDER BY games DESC LIMIT ?"

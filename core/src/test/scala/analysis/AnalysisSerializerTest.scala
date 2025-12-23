@@ -13,7 +13,7 @@ class AnalysisSerializerTest extends FunSuite:
   test("renderBook serializes all fields correctly") {
     val section1 = BookSection(
       // ... same
-      sectionType = SectionType.OpeningPortrait,
+      sectionType = SectionType.OpeningReview,
       title = "The Opening",
       diagrams = List(
         BookDiagram(
@@ -76,14 +76,14 @@ class AnalysisSerializerTest extends FunSuite:
     val jsonStr = AnalysisSerializer.render(output)
     
     // Basic String checks
-    assert(jsonStr.contains("\"sectionType\":\"OpeningPortrait\""), "Missing sectionType")
+    assert(jsonStr.contains("\"sectionType\":\"OpeningReview\""), "Missing sectionType")
     assert(jsonStr.contains("\"narrativeHint\":\"This is a narrative hint.\""), "Missing narrativeHint")
     assert(jsonStr.contains("\"SpaceAdvantageWhite\""), "Missing structure tag")
     assert(jsonStr.contains("\"TacticalMiss\""), "Missing mistake tag")
     assert(jsonStr.contains("\"openingName\":\"Italian Game\""), "Missing openingName")
     
     // Hardening checks
-    assert(jsonStr.contains("\"schemaVersion\":3"), "Missing or incorrect schemaVersion")
+    assert(jsonStr.contains("\"schemaVersion\":4"), "Missing or incorrect schemaVersion")
     assert(jsonStr.contains("\"createdAt\""), "Missing createdAt")
     assert(jsonStr.contains("\"engineInfo\""), "Missing engineInfo")
 

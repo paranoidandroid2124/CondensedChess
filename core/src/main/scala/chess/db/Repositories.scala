@@ -57,15 +57,58 @@ object GameRepo:
 object JobRepo:
   def create(job: DbAnalysisJob): ConnectionIO[DbAnalysisJob] =
     sql"""
-      INSERT INTO analysis_jobs (id, game_id, status, progress, error_message, created_at, updated_at)
-      VALUES (${job.id}, ${job.gameId}, ${job.status}, ${job.progress}, ${job.errorMessage}, ${job.createdAt}, ${job.updatedAt})
-      RETURNING id, game_id, status, progress, error_message, created_at, updated_at
+      INSERT INTO analysis_jobs (id, game_id, status, progress, error_message, pgn_text, options_json, created_at, updated_at)
+      VALUES (${job.id}, ${job.gameId}, ${job.status}, ${job.progress}, ${job.errorMessage}, ${job.pgnText}, ${job.optionsJson}::jsonb, ${job.createdAt}, ${job.updatedAt})
+      RETURNING id, game_id, status, progress, error_message, pgn_text, options_json, created_at, updated_at
     """.query[DbAnalysisJob].unique
 
   def updateStatus(id: UUID, status: String, progress: Int): ConnectionIO[Int] =
      sql"UPDATE analysis_jobs SET status = $status, progress = $progress, updated_at = NOW() WHERE id = $id".update.run
 
   def findById(id: UUID): ConnectionIO[Option[DbAnalysisJob]] =
-    sql"SELECT id, game_id, status, progress, error_message, created_at, updated_at FROM analysis_jobs WHERE id = $id"
+    sql"SELECT id, game_id, status, progress, error_message, pgn_text, options_json, created_at, updated_at FROM analysis_jobs WHERE id = $id"
       .query[DbAnalysisJob]
       .option
+
+  // DB-only Queue: Claim next QUEUED job atomically using FOR UPDATE SKIP LOCKED
+  def claimNextJob: ConnectionIO[Option[DbAnalysisJob]] =
+    sql"""
+      UPDATE analysis_jobs 
+      SET status = 'PROCESSING', updated_at = NOW()
+      WHERE id = (
+        SELECT id FROM analysis_jobs 
+        WHERE status = 'QUEUED'
+        ORDER BY created_at ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING id, game_id, status, progress, error_message, pgn_text, options_json, created_at, updated_at
+    """.query[DbAnalysisJob].option
+
+  // Zombie Job Cleanup
+  def failStuckJobs(olderThan: java.time.Instant): ConnectionIO[Int] =
+    sql"""
+      UPDATE analysis_jobs 
+      SET status = 'FAILED', error_message = 'Job terminated unexpectedly (server restart)'
+      WHERE status LIKE 'PROCESSING%' AND updated_at < $olderThan
+    """.update.run
+
+object BlobRepo:
+  def init: ConnectionIO[Int] =
+    sql"""
+      CREATE TABLE IF NOT EXISTS blobs (
+        key TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL
+      )
+    """.update.run
+
+  def save(key: String, content: String): ConnectionIO[Int] =
+    sql"""
+      INSERT INTO blobs (key, content, created_at)
+      VALUES ($key, $content, NOW())
+      ON CONFLICT (key) DO UPDATE SET content = $content, created_at = NOW()
+    """.update.run
+
+  def findByKey(key: String): ConnectionIO[Option[String]] =
+    sql"SELECT content FROM blobs WHERE key = $key".query[String].option
