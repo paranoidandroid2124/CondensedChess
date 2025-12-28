@@ -2,8 +2,7 @@ package chess
 package analysis
 
 import chess.analysis.FeatureExtractor.PositionFeatures
-import chess.analysis.AnalysisTypes.{ExperimentResult, RichTag, EvidencePack, EvidenceRef, StructureEvidence, TacticsEvidence, KingSafetyEvidence, TagCategory}
-import chess.analysis.PlanCardGenerator
+import chess.analysis.AnalysisTypes.ExperimentResult
 
 object ConceptLabeler:
 
@@ -150,10 +149,7 @@ object ConceptLabeler:
     endgameTags: List[EndgameTag],
     positionalTags: List[PositionalTag] = Nil,
     transitionTags: List[TransitionTag] = Nil,
-    missedPatternTypes: List[String] = Nil,
-    // Phase 1: Evidence-Based Narrative Support
-    richTags: List[RichTag] = Nil,
-    evidence: EvidencePack = EvidencePack()
+    missedPatternTypes: List[String] = Nil  // e.g., ["Fork", "Pin"] when TacticalPatternMiss
   )
 
   // --- Constants ---
@@ -175,29 +171,16 @@ object ConceptLabeler:
       positionalTags: List[PositionalTag] = Nil
   ): ConceptLabels =
 
-    // -- Phase 1 Refactor --
-    val (structure, strRich, strEv) = labelStructure(featuresBefore, experiments, baselineEval)
-    
-    // Plans: Use Generator
-    val (plans, planRich, planEv) = PlanCardGenerator.generate(experiments, baselineEval)
-    
-    val (tactics, missedPatterns, tacRich, tacEv) = labelTactics(featuresBefore, experiments, baselineEval, bestEval, evalAfterPlayed)
-    val (mistakes, misRich, misKingEv) = labelMistakes(movePlayedUci, featuresBefore, featuresAfter, experiments, baselineEval, evalAfterPlayed, bestEval)
-    val endgame = labelEndgame(featuresBefore, featuresAfter)
+    val structure = labelStructure(featuresBefore, featuresAfter, experiments, baselineEval)
+    val plans = labelPlans(featuresBefore, experiments, baselineEval)
+    val (tactics, missedPatterns) = labelTactics(featuresBefore, experiments, baselineEval, movePlayedUci, bestEval, evalAfterPlayed)
+    val mistakes = labelMistakes(movePlayedUci, featuresBefore, featuresAfter, experiments, baselineEval, evalAfterPlayed, bestEval)
+    val endgame = labelEndgame(featuresBefore, featuresAfter, movePlayedUci)
     
     // Transition
-    val transitions = TransitionTagger.label(featuresBefore, featuresAfter, baselineEval, evalAfterPlayed)
+    val transitions = TransitionTagger.label(featuresBefore, featuresAfter, baselineEval, evalAfterPlayed, bestEval)
 
-    // Aggregate Rich Content
-    val allRichTags = strRich ++ planRich ++ tacRich ++ misRich
-    val allEvidence = EvidencePack(
-      structure = strEv, 
-      plans = planEv, 
-      tactics = tacEv,
-      kingSafety = misKingEv
-    )
-
-    ConceptLabels(structure, plans, tactics, mistakes, endgame, positionalTags, transitions, missedPatterns, allRichTags, allEvidence)
+    ConceptLabels(structure, plans, tactics, mistakes, endgame, positionalTags, transitions, missedPatterns)
 
 
   // --- Sub-Labelers ---
@@ -213,28 +196,23 @@ object ConceptLabeler:
 
   def labelStructure(
       fBefore: PositionFeatures, 
+      fAfter: PositionFeatures, 
       exps: List[ExperimentResult],
       baselineEval: Int
-  ): (List[StructureTag], List[RichTag], Map[String, StructureEvidence]) =
+  ): List[StructureTag] =
     val tags = List.newBuilder[StructureTag]
-    val richTags = List.newBuilder[RichTag]
-    val evidence = Map.newBuilder[String, StructureEvidence]
 
-    def add(t: StructureTag, id: String, desc: String, squares: List[String]) =
-      tags += t
-      val evId = s"struct:$id"
-      richTags += RichTag(evId, 1.0, TagCategory.Structure, List(EvidenceRef("structure", evId)))
-      evidence += (evId -> StructureEvidence(desc, squares))
-
-    if fBefore.pawns.whiteIQP then add(StructureTag.IqpWhite, "iqp_white", "White IQP", List("d4")) // Inferred
-    if fBefore.pawns.blackIQP then add(StructureTag.IqpBlack, "iqp_black", "Black IQP", List("d5"))
-    if fBefore.pawns.whiteHangingPawns then add(StructureTag.HangingPawnsWhite, "hanging_white", "White Hanging Pawns", List("c4","d4"))
-    if fBefore.pawns.blackHangingPawns then add(StructureTag.HangingPawnsBlack, "hanging_black", "Black Hanging Pawns", List("c5","d5"))
+    if fBefore.pawns.whiteIQP then tags += StructureTag.IqpWhite
+    if fBefore.pawns.blackIQP then tags += StructureTag.IqpBlack
+    if fBefore.pawns.whiteHangingPawns then tags += StructureTag.HangingPawnsWhite
+    if fBefore.pawns.blackHangingPawns then tags += StructureTag.HangingPawnsBlack
     
     if fBefore.pawns.whiteMinorityAttackReady || fBefore.pawns.blackMinorityAttackReady then
+    if fBefore.pawns.whiteMinorityAttackReady || fBefore.pawns.blackMinorityAttackReady then
       tags += StructureTag.MinorityAttackCandidate
-      // No rich tag yet for minority
       
+    // Geometry/BadBishop check removed - GeometryFeatures was deleted
+
     // Space Advantage: Compare central space control
     val spaceThreshold = 3
     val spaceDiff = fBefore.space.whiteCentralSpace - fBefore.space.blackCentralSpace
@@ -242,10 +220,8 @@ object ConceptLabeler:
     if spaceDiff <= -spaceThreshold then tags += StructureTag.SpaceAdvantageBlack
 
     // King Exposed: Check exposed files
-    if fBefore.kingSafety.whiteKingExposedFiles >= 2 then 
-      add(StructureTag.KingExposedWhite, "exposed_white", "White King Exposed", fBefore.geometry.whiteOpenFilesNearKing)
-    if fBefore.kingSafety.blackKingExposedFiles >= 2 then 
-      add(StructureTag.KingExposedBlack, "exposed_black", "Black King Exposed", fBefore.geometry.blackOpenFilesNearKing)
+    if fBefore.kingSafety.whiteKingExposedFiles >= 2 then tags += StructureTag.KingExposedWhite
+    if fBefore.kingSafety.blackKingExposedFiles >= 2 then tags += StructureTag.KingExposedBlack
 
     val breaks = exps.filter(e => isCandidate(e, "CentralBreak"))
     if breaks.nonEmpty then
@@ -256,54 +232,78 @@ object ConceptLabeler:
         if delta < FAILURE_THRESHOLD_CP then tags += StructureTag.CentralBreakBad
       }
 
-    (tags.result().distinct, richTags.result(), evidence.result())
+    tags.result().distinct
 
-  // Deprecated: Logic moved to PlanCardGenerator
   def labelPlans(
       fBefore: PositionFeatures, 
       exps: List[ExperimentResult], 
       baselineEval: Int
   ): List[PlanTag] =
-      // Fallback for tests if needed, or remove?
-      // Since labelAll calls PlanCardGenerator directly now, this method is unused by labelAll.
-      // But tests might call it.
-      PlanCardGenerator.generate(exps, baselineEval)._1
+    val tags = List.newBuilder[PlanTag]
+
+    exps.foreach { ex =>
+      val delta = getScore(ex) - baselineEval
+      val cType = ex.metadata.get("candidateType").getOrElse("")
+      
+      val isRefuted = delta < -200 // Big drop = tactical refutation
+      
+      cType match
+        case "CentralBreak" =>
+          if delta > SUCCESS_THRESHOLD_CP then tags += PlanTag.CentralBreakGood
+          else if isRefuted then tags += PlanTag.CentralBreakRefuted
+          else if delta < FAILURE_THRESHOLD_CP then tags += PlanTag.CentralBreakPremature
+        case "QueensideMajority" =>
+          if delta > SUCCESS_THRESHOLD_CP then tags += PlanTag.QueensideMajorityGood
+          else if delta < FAILURE_THRESHOLD_CP then tags += PlanTag.QueensideMajorityBad
+        case "KingsidePawnStorm" =>
+          if delta > SUCCESS_THRESHOLD_CP then tags += PlanTag.KingsideAttackGood
+          else if isRefuted then tags += PlanTag.KingsideAttackRefuted
+          else if delta < FAILURE_THRESHOLD_CP then tags += PlanTag.KingsideAttackPremature
+        case "PieceImprovement" =>
+          if delta > SUCCESS_THRESHOLD_CP then tags += PlanTag.PieceImprovementGood
+        case "RookLift" =>
+          if delta > SUCCESS_THRESHOLD_CP then tags += PlanTag.RookLiftGood
+        case _ => 
+    }
+
+    tags.result().distinct
 
   def labelTactics(
       fBefore: PositionFeatures, 
       exps: List[ExperimentResult], 
       baselineEval: Int,
+      movePlayed: String,
       bestEval: Int,
       evalAfterPlayed: Int
-  ): (List[TacticTag], List[String], List[RichTag], Map[String, TacticsEvidence]) =  
+  ): (List[TacticTag], List[String]) =  // Returns (tacticTags, missedPatternTypes)
     val tags = List.newBuilder[TacticTag]
-    val richTags = List.newBuilder[RichTag]
-    val evidence = Map.newBuilder[String, TacticsEvidence]
     
-    def add(t: TacticTag, id: String, motif: String, seq: List[String], cap: Option[String]) =
-      tags += t
-      val evId = s"tactic:$id"
-      richTags += RichTag(evId, 1.0, TagCategory.Tactic, List(EvidenceRef("tactics", evId)))
-      evidence += (evId -> TacticsEvidence(motif, seq, cap))
-
     // Sound Tactics found in experiments
     exps.filter(e => isCandidate(e, "SacrificeProbe")).foreach { ex =>
       val delta = getScore(ex) - baselineEval
       val move = ex.move.getOrElse("")
-      val pv = ex.eval.lines.headOption.map(_.pv).getOrElse(Nil)
       if (move.startsWith("h7") && fBefore.kingSafety.blackKingShieldPawns > 0) ||
          (move.contains("h7") || move.contains("h2")) then
-           if delta > TACTIC_WIN_THRESHOLD_CP then 
-             add(TacticTag.GreekGiftSound, "greek_gift", "Greek Gift Sacrifice", pv, Some("P"))
-           else if delta < FAILURE_THRESHOLD_CP then 
-             tags += TacticTag.GreekGiftUnsound
+           if delta > TACTIC_WIN_THRESHOLD_CP then tags += TacticTag.GreekGiftSound
+           else if delta < FAILURE_THRESHOLD_CP then tags += TacticTag.GreekGiftUnsound
     }
 
     // Back Rank Mate Pattern
+    // Heuristic: Mate in < 5, and king on 1st/8th rank, and own pawns blocking?
+    // This is hard to detect purely from numeric features without board state.
+    // We can check if 'mate' is present in bestEval and king is on back rank.
     if exps.exists(e => e.eval.lines.headOption.exists(_.mate.exists(m => m.abs <= 5))) then
+       val kingRank = if bestEval > 0 then fBefore.kingSafety.blackBackRankWeak else fBefore.kingSafety.whiteBackRankWeak
+       // Actually 'blackBackRankWeak' is boolean. We need rank index.
+       // Current features don't expose raw King Rank directly.
+       // We can infer back rank if 'whiteBackRankWeak' is true? No.
+       // We need to extend FeatureExtractor or use available proxy.
+       // 'whiteBackRankWeak' logic: kSq.rank == Rank.First && kingShield == 0.
+       // If so, king is on back rank.
        val isBackRank = if bestEval > 0 then fBefore.kingSafety.blackBackRankWeak else fBefore.kingSafety.whiteBackRankWeak
+       
        if isBackRank && (fBefore.kingSafety.whiteKingShieldPawns > 0 || fBefore.kingSafety.blackKingShieldPawns > 0) then 
-          add(TacticTag.BackRankMatePattern, "back_rank", "Back Rank Mate", Nil, None)
+          tags += TacticTag.BackRankMatePattern
 
     val deltaToBest = bestEval - evalAfterPlayed
     
@@ -312,25 +312,36 @@ object ConceptLabeler:
     if deltaToBest > BLUNDER_THRESHOLD_CP then
        tags += TacticTag.TacticalPatternMiss
        // Check which sound tactics were available but not played
-       exps.find(e => isCandidate(e, "Fork") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP).foreach { e =>
+       if exps.exists(e => isCandidate(e, "Fork") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP) then
          missedPatterns += "Fork"
-         add(TacticTag.TacticalPatternMiss, "missed_fork", "Missed Fork", e.eval.lines.headOption.map(_.pv).getOrElse(Nil), None)
-       }
-       // ... other missed patterns could be added similarly to rich tags if needed
+       if exps.exists(e => isCandidate(e, "Pin") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP) then
+         missedPatterns += "Pin"
+       if exps.exists(e => isCandidate(e, "DiscoveredAttack") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP) then
+         missedPatterns += "DiscoveredAttack"
+       if exps.exists(e => isCandidate(e, "Skewer") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP) then
+         missedPatterns += "Skewer"
+       if exps.exists(e => isCandidate(e, "SacrificeProbe") && (getScore(e) - baselineEval) > TACTIC_WIN_THRESHOLD_CP) then
+         missedPatterns += "Sacrifice"
 
-    // Fork/Pin/Discovered Detection
+    // Fork/Pin/Discovered Detection (using MoveGenerator's candidateType)
     exps.filter(e => isCandidate(e, "Fork")).foreach { ex =>
       val delta = getScore(ex) - baselineEval
-      if delta > TACTIC_WIN_THRESHOLD_CP then 
-        add(TacticTag.ForkSound, s"fork_${ex.move.getOrElse("unknown")}", "Tactical Fork", ex.eval.lines.headOption.map(_.pv).getOrElse(Nil), None)
+      if delta > TACTIC_WIN_THRESHOLD_CP then tags += TacticTag.ForkSound
     }
     exps.filter(e => isCandidate(e, "Pin")).foreach { ex =>
       val delta = getScore(ex) - baselineEval
-      if delta > TACTIC_WIN_THRESHOLD_CP then 
-        add(TacticTag.PinSound, s"pin_${ex.move.getOrElse("unknown")}", "Tactical Pin", ex.eval.lines.headOption.map(_.pv).getOrElse(Nil), None)
+      if delta > TACTIC_WIN_THRESHOLD_CP then tags += TacticTag.PinSound
+    }
+    exps.filter(e => isCandidate(e, "DiscoveredAttack")).foreach { ex =>
+      val delta = getScore(ex) - baselineEval
+      if delta > TACTIC_WIN_THRESHOLD_CP then tags += TacticTag.DiscoveredAttackSound
+    }
+    exps.filter(e => isCandidate(e, "Skewer")).foreach { ex =>
+      val delta = getScore(ex) - baselineEval
+      if delta > TACTIC_WIN_THRESHOLD_CP then tags += TacticTag.SkewerSound
     }
 
-    (tags.result().distinct, missedPatterns.result(), richTags.result(), evidence.result())
+    (tags.result().distinct, missedPatterns.result())
 
   def labelMistakes(
       movePlayed: String,
@@ -340,22 +351,9 @@ object ConceptLabeler:
       baselineEval: Int,
       evalAfterPlayed: Int,
       bestEval: Int
-  ): (List[MistakeTag], List[RichTag], Map[String, KingSafetyEvidence]) =
+  ): List[MistakeTag] =
     val tags = List.newBuilder[MistakeTag]
-    val richTags = List.newBuilder[RichTag]
-    val evidence = Map.newBuilder[String, KingSafetyEvidence]
-
-    def addExposed(t: MistakeTag, id: String, side: String) =
-      tags += t
-      val evId = s"safety:$id"
-      richTags += RichTag(evId, 1.0, TagCategory.Dynamic, List(EvidenceRef("kingSafety", evId)))
-      val kingSq = if side == "white" then fAfter.geometry.whiteKingSquare else fAfter.geometry.blackKingSquare
-      val openFiles = if side == "white" then fAfter.geometry.whiteOpenFilesNearKing else fAfter.geometry.blackOpenFilesNearKing
-      val checks = if side == "white" then fAfter.geometry.whiteAvailableChecks else fAfter.geometry.blackAvailableChecks
-      evidence += (evId -> KingSafetyEvidence(kingSq, openFiles, 0, checks, 0))
-
     val deltaToBest = bestEval - evalAfterPlayed
-    val side = fBefore.sideToMove 
 
     val goodPlans = exps.filter(e => (getScore(e) - baselineEval) > SUCCESS_THRESHOLD_CP)
     
@@ -371,39 +369,56 @@ object ConceptLabeler:
          tags += MistakeTag.PassiveMove
 
       // Greed Detection
+      // Use logic: Material increased, but position lost
+      val side = fBefore.sideToMove // "white" or "black"
       val matDiff = if side == "white" 
         then fAfter.materialPhase.whiteMaterial - fBefore.materialPhase.whiteMaterial
         else fAfter.materialPhase.blackMaterial - fBefore.materialPhase.blackMaterial
       
-      if matDiff > 0 then tags += MistakeTag.Greed
+      if matDiff > 0 then
+         tags += MistakeTag.Greed
 
       val (exposedBefore, exposedAfter) = if side == "white"
          then (fBefore.kingSafety.whiteKingExposedFiles, fAfter.kingSafety.whiteKingExposedFiles)
          else (fBefore.kingSafety.blackKingExposedFiles, fAfter.kingSafety.blackKingExposedFiles)
 
       if exposedAfter > exposedBefore then
-         addExposed(MistakeTag.PrematurePawnPush, "premature_push", side)
+         tags += MistakeTag.PrematurePawnPush
 
-      // Ignored Threat (Null Move Probe)
-      val threatExp = exps.find(e => isCandidate(e, "Threat"))
-      threatExp.foreach { t =>
-        val threatScore = getScore(t)
-        val threatSeverity = baselineEval - threatScore
-        val playedSeverity = baselineEval - evalAfterPlayed
-        if threatSeverity > 200 && playedSeverity > 150 then
-           tags += MistakeTag.IgnoredThreat
-           val evId = "safety:ignored_threat"
-           richTags += RichTag(evId, 1.0, TagCategory.Dynamic, List(EvidenceRef("kingSafety", evId)))
-           val kingSq = if side == "white" then fBefore.geometry.whiteKingSquare else fBefore.geometry.blackKingSquare
-           val checks = t.eval.lines.headOption.map(_.pv).getOrElse(Nil)
-           evidence += (evId -> KingSafetyEvidence(kingSq, Nil, 3, checks, 0))
-      }
+      // Fear Detection: Good attack was available but played passive defense
+      val attackAvailable = exps.exists(e => 
+         isCandidate(e, "KingsidePawnStorm") && (getScore(e) - baselineEval) > SUCCESS_THRESHOLD_CP
+      )
+      val evalWorsened = evalAfterPlayed < baselineEval - 50
+      if attackAvailable && evalWorsened then
+         tags += MistakeTag.Fear
 
-    (tags.result().distinct, richTags.result(), evidence.result())
+      // Ignored Threat
+      // If we made a mistake/blunder and were under pressure
+      if deltaToBest > 100 then
+         val pressure = if side == "white"
+            then fBefore.kingSafety.whiteKingRingEnemyPieces
+            else fBefore.kingSafety.blackKingRingEnemyPieces
+         
+         val underPressure = pressure >= 3 // Threshold for pressure
+         
+         if underPressure then 
+            tags += MistakeTag.IgnoredThreat
+
+         // Positional Trade Error
+         // Lost material advantage without tactical justification
+         val minorsBefore = if side == "white" then fBefore.materialPhase.whiteMinorPieces else fBefore.materialPhase.blackMinorPieces
+         val minorsAfter = if side == "white" then fAfter.materialPhase.whiteMinorPieces else fAfter.materialPhase.blackMinorPieces
+
+         if minorsBefore > minorsAfter then
+            tags += MistakeTag.PositionalTradeError
+
+    tags.result().distinct
 
   def labelEndgame(
       fBefore: PositionFeatures,
-      fAfter: PositionFeatures
+      fAfter: PositionFeatures,
+      movePlayed: String
   ): List[EndgameTag] =
     val tags = List.newBuilder[EndgameTag]
     
@@ -450,7 +465,8 @@ object ConceptLabeler:
         fBefore: PositionFeatures,
         fAfter: PositionFeatures,
         evalBefore: Int,
-        evalAfter: Int
+        evalAfter: Int,
+        bestEval: Int
     ): List[TransitionTag] =
       val tags = List.newBuilder[TransitionTag]
       val phaseBefore = fBefore.materialPhase.phase
@@ -504,12 +520,13 @@ object ConceptLabeler:
     val plyNumber = ply.value
     val oppColor = !perspective
     val oppKing = board.kingPosOf(oppColor)
+    val p = perspective.toString.toLowerCase
 
     if hasOpenFileThreat(board, oppKing, File.H, perspective) then tags += PositionalTag.OpenFile("h", perspective)
     if hasOpenFileThreat(board, oppKing, File.G, perspective) then tags += PositionalTag.OpenFile("g", perspective)
 
-    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, s"${oppColor.fold("black", "white")}_weak_f7").foreach(_ => tags += PositionalTag.WeakSquare("f7", oppColor))
-    weakFHomeTag(board, oppColor, File.F, Rank.Second, s"${oppColor.fold("black", "white")}_weak_f2").foreach(_ => tags += PositionalTag.WeakSquare("f2", oppColor))
+    weakFHomeTag(board, oppColor, File.F, Rank.Seventh, s"${oppColor.fold("black", "white")}_weak_f7").foreach(s => tags += PositionalTag.WeakSquare("f7", oppColor))
+    weakFHomeTag(board, oppColor, File.F, Rank.Second, s"${oppColor.fold("black", "white")}_weak_f2").foreach(s => tags += PositionalTag.WeakSquare("f2", oppColor))
 
     strongOutpost(board, perspective).foreach(s => tags += PositionalTag.Outpost(s.replace("outpost_", ""), perspective))
 

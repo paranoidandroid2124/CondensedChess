@@ -51,7 +51,6 @@ object FeatureExtractor:
       openingAtPly = OpeningDb.search(sans)
     )
 
-  /** @deprecated Use toSideFeatures(PositionFeatures, Color, Position) instead */
   def sideFeatures(position: Position, color: Color): SideFeatures =
     val board = position.board
     val pawns = board.pawns & board.byColor(color)
@@ -76,37 +75,6 @@ object FeatureExtractor:
       kingRingPressure = kingRingPressure,
       spaceControl = spaceControl
     )
-
-  /** Derives SideFeatures from PositionFeatures - use this to avoid duplicate computation */
-  def toSideFeatures(pf: PositionFeatures, side: Color, position: Position): SideFeatures =
-    val isWhite = side == Color.White
-    val pawnCounts = if isWhite then pf.pawns.whitePawnCountByFile else pf.pawns.blackPawnCountByFile
-    val islands = countIslandsFromList(pawnCounts)
-    SideFeatures(
-      pawnIslands = islands,
-      isolatedPawns = if isWhite then pf.pawns.whiteIsolatedPawns else pf.pawns.blackIsolatedPawns,
-      doubledPawns = if isWhite then pf.pawns.whiteDoubledPawns else pf.pawns.blackDoubledPawns,
-      passedPawns = if isWhite then pf.pawns.whitePassedPawns else pf.pawns.blackPassedPawns,
-      rookOpenFiles = if isWhite then pf.activity.whiteRooksOnOpenFiles else pf.activity.blackRooksOnOpenFiles,
-      rookSemiOpenFiles = if isWhite then pf.activity.whiteRooksOnSemiOpenFiles else pf.activity.blackRooksOnSemiOpenFiles,
-      bishopPair = position.board.count(side, Bishop) >= 2,
-      kingRingPressure = if isWhite then pf.kingSafety.whiteKingRingEnemyPieces else pf.kingSafety.blackKingRingEnemyPieces,
-      spaceControl = if isWhite then pf.space.whiteCentralSpace else pf.space.blackCentralSpace
-    )
-
-  private def countIslandsFromList(pawnCounts: List[Int]): Int =
-    if pawnCounts.isEmpty then 0
-    else
-      var islands = 0
-      var inIsland = false
-      for count <- pawnCounts do
-        if count > 0 then
-          if !inIsland then
-            islands += 1
-            inIsland = true
-        else
-          inIsland = false
-      islands
 
   // --- Phase 4.1: The "Eye" (New High-Dimensional Features) ---
 
@@ -210,18 +178,7 @@ object FeatureExtractor:
     blackRooksBehindPassedPawns: Int
   )
 
-  // GeometryFeatures removed - was unused (Replaced with GeometricFacts for Narrative)
-
-  final case class GeometricFacts(
-    whiteKingSquare: String,
-    blackKingSquare: String,
-    whiteOpenFilesNearKing: List[String],
-    blackOpenFilesNearKing: List[String],
-    whiteKingAttackers: List[String], // Squares of attackers
-    blackKingAttackers: List[String],
-    whiteAvailableChecks: List[String], // SAN or UCI
-    blackAvailableChecks: List[String] 
-  )
+  // GeometryFeatures removed - was unused
 
   final case class TacticalFeatures(
     whiteHangingPieces: Int,
@@ -243,13 +200,21 @@ object FeatureExtractor:
     development: DevelopmentFeatures,
     space: SpaceFeatures,
     coordination: CoordinationFeatures,
-    tactics: TacticalFeatures,
-    geometry: GeometricFacts
+    tactics: TacticalFeatures
   )
 
   def extractPositionFeatures(fen: String, plyCount: Int): PositionFeatures =
     val positionOrNone = Fen.read(chess.variant.Standard, fen.asInstanceOf[chess.format.Fen.Full])
     val position = positionOrNone.getOrElse(sys.error("Invalid FEN: " + fen))
+    // I'll try passing 'fen' assuming it's an opaque string type aliased to String.
+    // And cast it? no.
+    // Let's try `chess.format.EpdFen`?
+    // Safe bet: The library uses `Fen.Epd` distinct from `Fen.Full`. 
+    // If Replay used Fen.Full...
+    // I'll try `Fen.read(chess.variant.Standard, fen.asInstanceOf[chess.format.Fen.Epd])` logic via simple assume.
+    // Or `Fen.read(chess.variant.Standard, Fen.Epd(fen))` failed.
+    // I'll try `Fen.read(chess.variant.Standard, fen)` 
+
     val board = position.board
 
     PositionFeatures(
@@ -263,57 +228,7 @@ object FeatureExtractor:
       development = computeDevelopment(board),
       space = computeSpace(board),
       coordination = computeCoordination(board),
-      tactics = computeTactics(board),
-      geometry = computeGeometricFacts(position)
-    )
-
-  private def computeGeometricFacts(position: Position): GeometricFacts =
-    val board = position.board
-    
-    // King Squares
-    val whiteKing = board.kingPosOf(Color.White).map(_.key).getOrElse("?")
-    val blackKing = board.kingPosOf(Color.Black).map(_.key).getOrElse("?")
-
-    // Open Files Near King
-    def openFilesNear(color: Color): List[String] =
-      board.kingPosOf(color).map { kSq =>
-         List(kSq.file.value - 1, kSq.file.value, kSq.file.value + 1)
-           .filter(i => i >= 0 && i <= 7)
-           .flatMap(File.all.lift)
-           .filter { f => 
-             val pawns = board.pawns & f.bb
-             pawns.isEmpty || (pawns & board.byColor(color)).isEmpty
-           }
-           .map(_.toString)
-      }.getOrElse(Nil)
-
-    // King Attackers (squares)
-    def attackers(color: Color): List[String] =
-       board.kingPosOf(color).fold(List.empty[String]) { kSq =>
-         val ring = kSq.kingAttacks | kSq.bb
-         ring.squares.flatMap { sq =>
-           board.attackers(sq, !color).squares.map(_.key)
-         }.distinct
-       }
-
-    // Available Checks
-    val activeColor = position.color
-    // Ensure we handle check generation safely
-    val checks = position.legalMoves.filter(m => m.after.check.yes).map(_.toUci.uci).distinct
-    
-    val (wChecks, bChecks) = 
-      if activeColor == Color.White then (checks, List.empty[String])
-      else (List.empty[String], checks)
-
-    GeometricFacts(
-      whiteKingSquare = whiteKing,
-      blackKingSquare = blackKing,
-      whiteOpenFilesNearKing = openFilesNear(Color.White),
-      blackOpenFilesNearKing = openFilesNear(Color.Black),
-      whiteKingAttackers = attackers(Color.White),
-      blackKingAttackers = attackers(Color.Black),
-      whiteAvailableChecks = wChecks,
-      blackAvailableChecks = bChecks
+      tactics = computeTactics(board)
     )
 
   // --- Internal Calculation Logic ---

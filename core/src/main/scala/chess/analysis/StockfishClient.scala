@@ -44,15 +44,10 @@ class StockfishClient(
   def isAlive(): Boolean =
     process != null && process.isAlive
 
-  protected def start(): Unit =
+  private def start(): Unit =
     this.synchronized {
       try
         process = processBuilder.start()
-        // Log the PID for crash diagnostics (User Request)
-        // Note: process.pid() is available since Java 9
-        if (process.isAlive) {
-           logger.info(s"Started Stockfish process. PID: ${process.pid()}")
-        }
         writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
         
         // Start Reader Thread
@@ -110,12 +105,6 @@ class StockfishClient(
             currentInfo.put(l.multiPv, l) 
           }
         // else ignore (uciok, readyok, etc)
-      
-      // Loop finished (EOF)
-      if process.isAlive then
-         logger.warn("Stockfish reader loop finished but process IS ALIVE. This is unexpected.")
-      else
-         logger.warn(s"Stockfish process terminated. Exit Code: ${process.exitValue()}")
     catch
       case e: Throwable => 
         logger.error(s"Reader loop error: ${e.getMessage}")

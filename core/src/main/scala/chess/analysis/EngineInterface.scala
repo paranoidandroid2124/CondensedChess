@@ -32,8 +32,7 @@ trait EngineInterface:
       depth: Int,
       multiPv: Int = 1,
       timeoutMs: Int = 1000,
-      moves: List[String] = Nil,
-      searchMoves: List[String] = Nil // New: Restrict search to specific candidate moves
+      moves: List[String] = Nil
   )(using ExecutionContext): Future[EngineEval]
 
 
@@ -43,22 +42,20 @@ object EngineInterface:
    * Adapter to wrap EngineService as EngineInterface.
    * This provides backward compatibility while enforcing interface usage.
    */
-  def fromService(service: EngineService)(using @scala.annotation.unused ec: ExecutionContext): EngineInterface =
+  def fromService(service: EngineService)(using ExecutionContext): EngineInterface =
     new EngineInterface:
       def evaluate(
           fen: String,
           depth: Int,
           multiPv: Int,
           timeoutMs: Int,
-          moves: List[String],
-          searchMoves: List[String]
+          moves: List[String]
       )(using ExecutionContext): Future[EngineEval] =
         val req = AnalysisTypes.Analyze(
           fen = fen,
           depth = depth,
           multiPv = multiPv,
           timeoutMs = timeoutMs,
-          moves = moves,
-          searchMoves = searchMoves
+          moves = moves
         )
         service.submit(req).map(_.eval)
