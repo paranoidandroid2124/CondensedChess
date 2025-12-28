@@ -1,0 +1,77 @@
+name: Build Lila Docker
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'patches/lila/**'
+      - '.github/workflows/build-lila-docker.yml'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout CondensedChess
+        uses: actions/checkout@v5
+
+      - name: Clone lila-docker
+        run: |
+          git clone --depth 1 https://github.com/lichess-org/lila-docker.git lila-docker-fresh
+          
+      - name: Clone Lichess repositories
+        run: |
+          cd lila-docker-fresh
+          git clone --depth 1 https://github.com/lichess-org/lila.git repos/lila
+          git clone --depth 1 https://github.com/lichess-org/lila-ws.git repos/lila-ws
+          git clone --depth 1 https://github.com/lichess-org/lila-db-seed.git repos/lila-db-seed
+          
+      - name: Overlay CondensedChess patches
+        run: |
+          # Copy all patches over the fresh lila clone
+          cp -r patches/lila/* lila-docker-fresh/repos/lila/
+          
+          # Remove files that were deleted in our modifications
+          rm -f lila-docker-fresh/repos/lila/app/controllers/Tv.scala
+          rm -f lila-docker-fresh/repos/lila/app/views/tv.scala
+          
+          echo "Overlay complete. Modified files:"
+          ls -la lila-docker-fresh/repos/lila/modules/llm/src/main/
+          
+      - name: Free disk space
+        uses: kfir4444/free-disk-space@main
+        with:
+          tool-cache: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/lila
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: lila-docker-fresh
+          file: lila-docker-fresh/docker/mono.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/lila:latest
+            ghcr.io/${{ github.repository }}/lila:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

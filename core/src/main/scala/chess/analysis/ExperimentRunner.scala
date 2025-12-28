@@ -1,15 +1,14 @@
-package chess.analysis
+package chess
+package analysis
 
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.concurrent.TrieMap
 import chess.analysis.AnalysisTypes._
 import chess.analysis.MoveGenerator
 import chess.format.Fen
-import chess.analysis.AnalysisModel.EngineEval
 
-// Enum for priority (Phase 2 Refactor)
-enum ExperimentPriority:
-  case High, Normal, Low
+
+import chess.analysis.AnalysisModel.EngineEval
 
 class ExperimentRunner(
     engineService: EngineService
@@ -26,9 +25,6 @@ class ExperimentRunner(
       .digest(raw.getBytes)
       .map("%02x".format(_))
       .mkString
-
-  // Engine Interface Adapter
-  private val engineInterface = EngineInterface.fromService(engineService)
 
   /**
    * Run a specific experiment with caching.
@@ -64,7 +60,44 @@ class ExperimentRunner(
     })
 
   /**
-   * Main entry point for hypothesis generation and testing (Phase 5 + Phase 2 Probes).
+   * Validate if a potential tactical move is sound.
+   */
+  def verifyTactics(fen: String, move: String): Future[ExperimentResult] =
+    run(
+      expType = ExperimentType.TacticalCheck,
+      fen = fen,
+      move = Some(move),
+      forcedMoves = List(move),
+      depth = 12,
+      multiPv = 1
+    )
+
+  /**
+   * Check opening stats or shallow eval.
+   */
+  def checkOpening(fen: String): Future[ExperimentResult] =
+    run(
+      expType = ExperimentType.OpeningStats,
+      fen = fen,
+      move = None,
+      depth = 8,
+      multiPv = 3
+    )
+    
+  /**
+   * Detect turning points by deeper check.
+   */
+  def detectTurningPoint(fen: String): Future[ExperimentResult] =
+    run(
+      expType = ExperimentType.TurningPointVerification,
+      fen = fen,
+      move = None,
+      depth = 14,
+      multiPv = 1
+    )
+
+  /**
+   * Main entry point for hypothesis generation and testing (Phase 5).
    * Generates candidate moves using heuristics, then runs experiments in parallel.
    */
   def findHypotheses(
@@ -72,9 +105,6 @@ class ExperimentRunner(
       features: FeatureExtractor.PositionFeatures,
       maxExperiments: Int = 5
   ): Future[List[ExperimentResult]] =
-    
-    val fen = Fen.write(position, chess.FullMoveNumber(1)).value
-
     // 1. Generate Candidates using Heuristics (The "Coach"'s Intuition)
     val allCandidates = MoveGenerator.generateCandidates(position, features)
     
@@ -83,56 +113,24 @@ class ExperimentRunner(
       .distinctBy(_.uci)
       .sortBy(-_.priority)
       .take(maxExperiments)
-
-    // 3. Prepare Standard Experiments
-    val stdExperiments = selected.map { candidate =>
-      val expType = candidate.candidateType match
-        case MoveGenerator.CandidateType.TacticalCheck => ExperimentType.TacticalCheck
-        case _ => ExperimentType.StructureAnalysis 
+      
+    // 3. Run Experiments (Verification)
+    Future.sequence(
+      selected.map { candidate =>
+        val expType = candidate.candidateType match
+          case MoveGenerator.CandidateType.TacticalCheck => ExperimentType.TacticalCheck
+          case _ => ExperimentType.StructureAnalysis 
           
-      run(
-         expType = expType,
-         fen = fen,
-         move = Some(candidate.uci),
-         depth = 10,
-         multiPv = 1,
-         forcedMoves = List(candidate.uci)
-      ).map(res => res.copy(metadata = res.metadata + ("candidateType" -> candidate.candidateType.toString)))
-    }
-
-    // 4. Run Special Probes (Phase 2)
-    // Only run if not already overloaded
-    val probeFutures = List.newBuilder[Future[Option[ExperimentResult]]]
-    
-    // A. Null Move Probe (Threat Detection) - critical for "Why?" explanations
-    probeFutures += NullMoveProbe.probe(fen, engineInterface, depth = 10)
-
-    // B. Strategic Probe (Quiet Moves) - if position is not too tactical
-    // Skip if multiple tactical candidates exist
-    val isTactical = selected.exists(_.candidateType == MoveGenerator.CandidateType.TacticalCheck)
-    if !isTactical then
-       // We need set of captures/checks to filter quiet moves.
-       // Re-using position context.
-       val legalMoves = position.legalMoves
-       val captures = legalMoves.filter(m => position.board.isOccupied(m.dest)).map(_.toUci.uci).toSet
-       // Checks check? 
-       // position.legalMoves doesn't pre-calc checks for next move cheaply?
-       // We can just rely on captures for now for "Quiet" approximation or skip checks if expensive.
-       // Let's assume captures is enough to filter "obvious" tactical moves for now.
-       val uciChecks = Set.empty[String] // TODO: Better check detection if critical
-       val allUci = legalMoves.map(_.toUci.uci).toList
-       
-       probeFutures += QuietImprovementProbe.probe(fen, allUci, captures, uciChecks, engineInterface, depth = 8)
-
-    // Combine all
-    val allFutures = stdExperiments ++ probeFutures.result().map(_.map(_.toList))
-
-    Future.foldLeft(allFutures)(List.empty[ExperimentResult]) { (acc, res) =>
-      res match
-        case r: ExperimentResult => acc :+ r
-        case l: List[?] => acc ++ l.asInstanceOf[List[ExperimentResult]]
-        case _ => acc // Should not happen with current map logic
-    }
+        run(
+           expType = expType,
+           fen = Fen.write(position, chess.FullMoveNumber(1)).value, // Use clean FEN for cache consistency
+           move = Some(candidate.uci),
+           depth = 10,
+           multiPv = 1,
+           forcedMoves = List(candidate.uci)
+        ).map(res => res.copy(metadata = res.metadata + ("candidateType" -> candidate.candidateType.toString)))
+      }
+    )
 
   def clearCache(): Unit =
     memCache.clear()
@@ -141,6 +139,11 @@ class ExperimentRunner(
 
   /**
    * Opening Portrait experiments.
+   * Focuses on development, key pawn breaks, and opening principle adherence.
+   * 
+   * @param position Current position
+   * @param features Position features
+   * @param maxExperiments Max experiments per ply
    */
   def runOpeningPortrait(
       position: chess.Position,
@@ -159,6 +162,12 @@ class ExperimentRunner(
 
   /**
    * Turning Point experiments.
+   * Focuses on critical moment analysis - mistakes, missed opportunities.
+   * 
+   * @param fenBefore Position before the move
+   * @param fenAfter Position after the move
+   * @param playedMove The move that was played (UCI)
+   * @param depth Analysis depth (deeper for critical moments)
    */
   def runTurningPointAnalysis(
       fenBefore: String,
@@ -184,18 +193,26 @@ class ExperimentRunner(
 
   /**
    * Endgame experiments.
+   * Focuses on conversion, king activity, passed pawn handling.
+   * 
+   * @param position Current endgame position
+   * @param features Position features
+   * @param maxExperiments Max experiments
    */
   def runEndgameExperiments(
       position: chess.Position,
       features: FeatureExtractor.PositionFeatures,
       maxExperiments: Int = 4
   ): Future[List[ExperimentResult]] =
+    // For endgame: prioritize king moves, pawn promotion paths, piece activity
     val allCandidates = MoveGenerator.generateCandidates(position, features)
     
+    // In endgame, king activity and pawn moves are key
     val legalMoves = position.legalMoves.toList
     val kingMoves = legalMoves.filter(_.piece.role == chess.King)
     val pawnMoves = legalMoves.filter(_.piece.role == chess.Pawn)
     
+    // Convert to candidates and combine with generated candidates
     val endgameCandidates = allCandidates.take(maxExperiments / 2) ++
       kingMoves.take(2).map(m => MoveGenerator.CandidateMove(m.toUci.uci, m.toUci.uci, MoveGenerator.CandidateType.PieceImprovement, 0.7, "King Activity")) ++
       pawnMoves.take(2).map(m => MoveGenerator.CandidateMove(m.toUci.uci, m.toUci.uci, MoveGenerator.CandidateType.PieceImprovement, 0.6, "Pawn Advance"))
@@ -204,6 +221,7 @@ class ExperimentRunner(
 
   /**
    * Tactical experiments.
+   * Focuses on forcing moves, sacrifices, and tactical patterns.
    */
   def runTacticalExperiments(
       position: chess.Position,
@@ -254,4 +272,3 @@ case class TurningPointAnalysis(
     bestMove: Option[String],
     deltaFromBest: Option[Int]  // CP difference: best - played (positive = mistake)
 )
-
