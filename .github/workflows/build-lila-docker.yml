@@ -3,7 +3,7 @@ name: Build Lila Docker
 on:
   workflow_dispatch:  # Manual trigger
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
     paths:
       - 'patches/lila/**'
       - '.github/workflows/build-lila-docker.yml'
