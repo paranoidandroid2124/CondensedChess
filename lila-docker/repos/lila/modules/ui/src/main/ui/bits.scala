@@ -5,7 +5,6 @@ import java.time.YearMonth
 import chess.format.Fen
 
 import lila.core.i18n.Translate
-import lila.core.security.HcaptchaForm
 import lila.core.config.ImageGetOrigin
 import lila.ui.ScalatagsTemplate.{ *, given }
 
@@ -88,8 +87,6 @@ object bits:
 
   private val dataSitekey = attr("data-sitekey")
 
-  def hcaptcha(form: HcaptchaForm[?]) =
-    div(cls := "h-captcha form-group", dataSitekey := form.config.key)
 
   def contactEmailLinkEmpty(email: String) =
     a(cls := "contact-email-obfuscated", attr("data-email") := scalalib.StringOps.base64.encode(email))
@@ -121,7 +118,7 @@ object bits:
   def markdownTextarea(picfitIdPrefix: Option[String])(textareaTag: Tag)(using
       imageGetOrigin: ImageGetOrigin
   )(using Me) =
-    val canUploadImages = lila.core.security.canUploadImages(~picfitIdPrefix)
+    val canUploadImages = false
     div(
       cls := "markdown-textarea",
       attr("data-image-download-origin") := imageGetOrigin,
@@ -129,19 +126,15 @@ object bits:
         case Some(p) if p.startsWith("forum") => 5
         case Some(p) if p.startsWith("team") => 2
         case _ => 1,
-      canUploadImages
-        .so(picfitIdPrefix)
-        .map(id => attr("data-image-upload-url") := routes.Main.uploadImage(id)),
+      // canUploadImages logic removed
       picfitIdPrefix.flatMap(imageDesignWidth).map(dw => attr("data-image-design-width") := dw)
     )(
       div(cls := "comment-header")(
         button(cls := "header-tab write active", tpe := "button")("Write"),
         button(
           cls := "header-tab preview",
-          tpe := "button",
-          canUploadImages.option(title := "Preview and resize images")
-        )("Preview"),
-        canUploadImages.option(button(cls := "upload-image", tpe := "button", title := "Upload image"))
+          tpe := "button"
+        )("Preview")
       ),
       div(cls := "comment-content")(
         textareaTag,
@@ -150,9 +143,5 @@ object bits:
     )
 
   def imageDesignWidth(rel: String) =
-    if rel.startsWith("forum") then 864.some
-    else if rel.startsWith("ublog") then 800.some
-    else if rel.startsWith("cms") then 800.some
-    else if rel.startsWith("broadcast") then 800.some
-    else if rel.startsWith("team") then 768.some // desc & private desc
-    else none
+    if rel.startsWith("forum") then 864.some // keeping forum for now as fallback?? No, analysis only.
+    else none // Simplify to none for now or minimal support.

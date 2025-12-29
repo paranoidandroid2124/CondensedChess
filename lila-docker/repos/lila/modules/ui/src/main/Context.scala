@@ -4,11 +4,10 @@ import play.api.i18n.Lang
 import play.api.mvc.RequestHeader
 import scalalib.model.Language
 
-import lila.core.i18n.{ toLanguage, Translate, defaultLanguage }
+import lila.core.i18n.{ toLanguage, Translate, defaultLanguage, playAcceptLanguages }
 import lila.core.net.IpAddress
-import lila.core.notify.UnreadCount
+import lila.core.net.IpAddress
 import lila.core.pref.Pref
-import lila.core.user.KidMode
 
 /* Data available in every HTTP request */
 trait Context:
@@ -25,7 +24,6 @@ trait Context:
   def blind: Boolean
   def troll: Boolean
   def isBot: Boolean
-  def kid: KidMode
 
   def is[U: UserIdOf](u: U): Boolean = me.exists(_.is(u))
   def isnt[U: UserIdOf](u: U): Boolean = !is(u)
@@ -35,8 +33,8 @@ trait Context:
   def speechSynthesis = pref.hasSpeech || blind
   inline def noBot = !isBot
   lazy val acceptLanguages: Set[Language] =
-    lila.core.i18n.playAcceptLanguages(req).view.map(toLanguage).toSet + defaultLanguage ++
-      user.flatMap(_.realLang.map(toLanguage)).toSet
+    playAcceptLanguages(req).view.map(toLanguage).toSet + defaultLanguage ++
+      user.flatMap(_.lang.map(Language.apply)).toSet
 
 object Context:
   given ctxMe(using ctx: Context): Option[Me] = ctx.me
@@ -47,7 +45,6 @@ trait PageContext extends Context:
   val needsFp: Boolean
   val impersonatedBy: Option[lila.core.userId.ModId]
   def teamNbRequests: Int
-  def nbNotifications: UnreadCount
   def hasInquiry: Boolean
   def nonce: Option[Nonce]
   def error: Boolean

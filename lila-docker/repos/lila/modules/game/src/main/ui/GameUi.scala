@@ -36,8 +36,7 @@ final class GameUi(helpers: Helpers):
       )
 
     def noCtx(pov: Pov, tv: Boolean = false, channelKey: Option[String] = None): Tag =
-      val link = if tv then channelKey.fold(routes.Tv.index) { routes.Tv.onChannel }
-      else routes.Round.watcher(pov.gameId, pov.color)
+      val link = routes.Round.watcher(pov.gameId, pov.color)
       renderMini(pov, link.url.some)(using transDefault, None)
 
     def renderState(pov: Pov)(using me: Option[Me]) =
@@ -118,7 +117,7 @@ final class GameUi(helpers: Helpers):
       case S.Draw =>
         import lila.game.DrawReason.*
         game.drawReason match
-          case Some(MutualAgreement) => trans.site.drawByMutualAgreement.txt()
+          case Some(MutualAgreement) => trans.site.drawBy MutualAgreement.txt()
           case Some(FiftyMoves) => trans.site.fiftyMovesWithoutProgress.txt() + " • " + trans.site.draw.txt()
           case Some(ThreefoldRepetition) =>
             trans.site.threefoldRepetition.txt() + " • " + trans.site.draw.txt()
@@ -197,10 +196,6 @@ final class GameUi(helpers: Helpers):
 
   object importer:
 
-    private def analyseHelp(using ctx: Context) =
-      (!ctx.isAuth).option:
-        a(cls := "blue", href := routes.Auth.signup)(trans.site.youNeedAnAccountToDoThat())
-
     def apply(form: play.api.data.Form[?])(using ctx: Context) =
       Page(trans.site.importGame.txt())
         .css("bits.importer")
@@ -215,8 +210,7 @@ final class GameUi(helpers: Helpers):
             p(cls := "explanation")(
               trans.site.importGameExplanation(),
               br,
-              a(cls := "text", dataIcon := Icon.InfoCircle, href := routes.Study.allDefault(1)):
-                trans.site.importGameDataPrivacyWarning()
+              trans.site.importGameDataPrivacyWarning()
             ),
             standardFlash,
             postForm(cls := "form3 import", action := routes.Importer.sendGame)(
@@ -234,7 +228,6 @@ final class GameUi(helpers: Helpers):
               form3.checkbox(
                 form("analyse"),
                 trans.site.requestAComputerAnalysis(),
-                help = Some(analyseHelp),
                 disabled = !ctx.isAuth
               ),
               form3.action(form3.submit(trans.site.importGame(), Icon.UploadCloud.some))

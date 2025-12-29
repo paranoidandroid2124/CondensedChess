@@ -9,9 +9,7 @@ import lila.ui.ScalatagsTemplate.*
 trait FormHelper:
   self: I18nHelper & AssetHelper =>
 
-  protected def flairApi: lila.core.user.FlairApi
-
-  lazy val form3 = Form3(this, flairApi)
+  lazy val form3 = Form3(this)
 
   def errMsg(form: Field)(using Translate): Seq[Tag] = errMsg(form.errors)
 

@@ -4,3 +4,5 @@ resolvers += Resolver.url(
 )(Resolver.ivyStylePatterns)
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.18-lila_1.26") // scala2 branch
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.5.6")
+
+libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "2.3.0"

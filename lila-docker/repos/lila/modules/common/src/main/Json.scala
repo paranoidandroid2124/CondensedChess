@@ -13,15 +13,11 @@ object Json:
     .flatMapResult: str =>
       JsResult.fromTry(UserStr.read(str).toTry(s"Invalid username: $str"))
 
-  given Writes[lila.core.relation.Relation] = writeAs(_.isFollow)
-
   given Writes[PerfKey] = writeAs(PerfKey.value)
 
   given Writes[URL] = writeAs(_.toString)
 
   given Writes[chess.PlayerTitle] = writeAs(_.value)
-
-  given Writes[lila.core.plan.PatronColorResolved] = writeAs(_.value.id)
 
   given [A: Writes]: OWrites[chess.ByColor[A]] = PlayJson.writes
 
@@ -33,9 +29,5 @@ object Json:
     def write(u: LightUser): JsObject = writeNoId(u) + ("id" -> JsString(u.id.value))
     def writeNoId(u: LightUser): JsObject = PlayJson
       .obj("name" -> u.name)
-      .add("title", u.title)
-      .add("flair", u.flair)
-      .add("patron", u.isPatron)
-      .add("patronColor", u.patronAndColor.map(_.color))
 
   trait OpaqueJson[A](using A =:= JsObject) extends TotalWrapper[A, JsObject]

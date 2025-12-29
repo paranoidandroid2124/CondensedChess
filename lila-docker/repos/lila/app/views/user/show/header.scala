@@ -3,7 +3,6 @@ package show
 
 import lila.app.UiEnv.{ *, given }
 import lila.app.mashup.UserInfo
-import lila.user.Plan.sinceDate
 import lila.user.PlayTime.*
 import lila.user.Profile.*
 import lila.web.ui.bits.splitNumber
@@ -11,9 +10,6 @@ import lila.web.ui.bits.splitNumber
 object header:
 
   private val actionMenu = lila.user.ui.UserActionMenu(helpers)
-
-  private val dataToints = attr("data-toints")
-  private val dataTab = attr("data-tab")
 
   private def possibleSeoBot(u: User) =
     !u.isVerified && !u.hasTitle && u.count.game < 5 && (
@@ -25,59 +21,35 @@ object header:
     actionMenu(
       u,
       Nil,
-      false  // lila.mod.canImpersonate removed - mod module deleted
+      false
     )
 
   private def userDom(u: User)(using ctx: Context) =
     span(
-      cls := userClass(u.id, none, withOnline = !u.isPatron, withPowerTip = false),
+      cls := userClass(u.id, none, withOnline = true, withPowerTip = false),
       dataHref := userUrl(u.username)
     )(
-      u.isPatron.not.so(lineIcon(u)),
+      lineIcon,
       titleTag(u.title),
       u.username,
       if ctx.blind
       then s" : ${if isOnline.exec(u.id) then trans.site.online.txt() else trans.site.offline.txt()}"
-      else
-        userFlair(u).map: flair =>
-          if ctx.isAuth then a(href := "#"
-, title := trans.site.setFlair.txt())(flair)
-          else flair
+      else emptyFrag
     )
 
   def apply(u: User, info: UserInfo, angle: UserInfo.Angle, social: UserInfo.Social)(using ctx: Context) =
     val showLinks = !possibleSeoBot(u) || isGranted(_.Shadowban)
     frag(
       div(cls := "box__top user-show__header")(
-        u.patronAndColor.match
-          case Some(p) =>
-            h1(cls := s"user-link offline")( // isOnline removed - socket module deleted
-              a(href := "#")(patronIcon(p)),
-              userDom(u)
-            )
-          case None => h1(userDom(u)),
-        div(
-          cls := List(
-            "trophies" -> true,
-            "packed" -> false  // trophies.countTrophiesAndPerfCups removed
-          )
-        )(
-          // perfTrophies and otherTrophies simplified - modules deleted
-          otherTrophies(info),
-          u.plan.active.option(
-            a(
-              href := "#",
-              cls := "trophy award patron icon3d",
-              ariaTitle(trans.patron.patronSince.txt(showDate(u.plan.sinceDate)))
-            )(patronIconChar)
-          )
+        h1(userDom(u)),
+        div(cls := "trophies")(
+          otherTrophies(info)
         ),
         u.enabled.no.option(span(cls := "closed")("CLOSED"))
       ),
       div(cls := "user-show__social")(
         div(cls := "number-menu")(
-          // UserTournament, Simul, RelayTour, ForumPost, Ublog removed - modules deleted
-          a(href := "#", cls := "nm-item")( // routes.Study.byOwnerDefault(u.username)
+          a(href := "#", cls := "nm-item")(
             splitNumber(trans.site.`nbStudies`.pluralSame(info.nbStudies))
           ),
           (ctx.isAuth && ctx.isnt(u))
@@ -140,9 +112,7 @@ object header:
                         trans.site.tpTimeSpentPlaying(
                           lila.core.i18n.translateDuration(playTime.totalDuration)
                         )
-                      ),
-                      playTime.nonEmptyTvDuration.map: tvDuration =>
-                        p(trans.site.tpTimeSpentOnTV(lila.core.i18n.translateDuration(tvDuration)))
+                      )
                     ),
                   (!hideTroll && u.kid.no).option(
                     div(cls := "social_links col2")(
@@ -157,14 +127,11 @@ object header:
                           )
                     )
                   )
-                // teams section removed - team module deleted
                 )
               )
-              // insight section removed - module deleted
             )
           )
       ,
-      // ublog section removed - module deleted
       div(cls := "angles number-menu number-menu--tabs menu-box-pop")(
         a(
           dataTab := "activity",
@@ -182,13 +149,7 @@ object header:
           ),
           href := routes.User.gamesAll(u.username)
         )(
-          trans.site.nbGames.plural(info.user.count.game, info.user.count.game.localize),
-          (info.nbs.playing > 0).option(
-            span(
-              cls := "unread",
-              title := trans.site.nbPlaying.pluralTxt(info.nbs.playing, info.nbs.playing.localize)
-            )(info.nbs.playing)
-          )
+          trans.site.nbGames.plural(info.user.count.game, info.user.count.game.localize)
         )
       )
     )

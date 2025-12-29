@@ -60,7 +60,7 @@ lazy val modules = Seq(
   // Infrastructure (Level 1-3)
   core, coreI18n,
   ui, common, tree, i18n,
-  db, room,
+  db,
   
   // Core (Level 4)
   memo,
@@ -128,10 +128,6 @@ lazy val i18n = module("i18n",
   }.taskValue
 )
 
-lazy val room = module("room",
-  Seq(common),
-  Seq(lettuce)
-)
 
 lazy val tree = module("tree",
   Seq(core),
@@ -185,7 +181,7 @@ lazy val security = module("security",
 // ============================================================
 
 lazy val game = module("game",
-  Seq(tree, memo),  // removed rating dependency
+  Seq(tree, memo, ui, coreI18n),  // removed rating dependency
   Seq(compression) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 )
 
@@ -195,7 +191,7 @@ lazy val analyse = module("analyse",
 ).dependsOn(coreI18n % "test->test")
 
 lazy val study = module("study",
-  Seq(tree, memo, room, ui),
+  Seq(tree, memo, ui),
   Seq(lettuce) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 ).dependsOn(common % "test->test")
 

@@ -12,7 +12,7 @@ import reactivemongo.api.bson.collection.BSONCollection
 import reactivemongo.api.bson.{ BSONDocumentHandler, BSONHandler }
 
 import lila.core.id.{ GameFullId, GameId, GamePlayerId, TeamId }
-import lila.core.perf.{ PerfKey, UserWithPerfs }
+import lila.core.perf.PerfKey
 import lila.core.user.User
 import lila.core.userId.{ UserId, UserIdOf }
 
@@ -36,17 +36,12 @@ opaque type OnStart = GameId => Funit
 object OnStart extends FunctionWrapper[OnStart, GameId => Funit]
 
 case class GameStart(id: GameId)
-case class PerfsUpdate(game: Game, perfs: ByColor[UserWithPerfs])
 
 case class TvSelect(gameId: GameId, speed: Speed, channel: String, data: JsObject)
 case class ChangeFeatured(mgs: JsObject)
 
 case class StartGame(game: Game, users: ByColor[Option[LightUser]])
-case class FinishGame(
-    game: Game,
-    // users and perfs BEFORE the game result is applied
-    usersBeforeGame: ByColor[Option[UserWithPerfs]]
-)
+case class FinishGame(game: Game)
 case class AbortedBy(pov: Pov)
 
 case class CorresAlarmEvent(userId: UserId, pov: Pov, opponent: String)
@@ -145,17 +140,16 @@ trait PgnDump:
       initialFen: Option[Fen.Full],
       importedTags: Option[Tags],
       withOpening: Boolean,
-      withRating: Boolean,
       teams: Option[ByColor[TeamId]] = None
   ): Fu[Tags]
 
 trait Namer:
-  def gameVsText(game: Game, withRatings: Boolean = false)(using lightUser: LightUser.Getter): Fu[String]
-  def playerText(player: Player, withRating: Boolean = false)(using lightUser: LightUser.Getter): Fu[String]
-  def gameVsTextBlocking(game: Game, withRatings: Boolean = false)(using
+  def gameVsText(game: Game)(using lightUser: LightUser.Getter): Fu[String]
+  def playerText(player: Player)(using lightUser: LightUser.Getter): Fu[String]
+  def gameVsTextBlocking(game: Game)(using
       lightUser: LightUser.GetterSync
   ): String
-  def playerTextBlocking(player: Player, withRating: Boolean = false)(using
+  def playerTextBlocking(player: Player)(using
       lightUser: LightUser.GetterSync
   ): String
 
@@ -172,7 +166,6 @@ object PgnDump:
       tags: Boolean = true,
       evals: Boolean = true,
       opening: Boolean = true,
-      rating: Boolean = true,
       literate: Boolean = false,
       pgnInJson: Boolean = false,
       delayMoves: Boolean = false,
@@ -194,11 +187,6 @@ object BSONFields:
   val analysed = "an"
   val pgnImport = "pgni"
   val playingUids = "pl"
-
-def allowRated(variant: Variant, clock: Option[Clock.Config]) =
-  variant.standard || clock.exists: c =>
-    c.estimateTotalTime >= Centis(3000) &&
-      c.limitSeconds > 0 || c.incrementSeconds > 1
 
 def isBoardCompatible(clock: Clock.Config): Boolean = Speed(clock) >= Speed.Rapid
 def isBotCompatible(clock: Clock.Config): Boolean = Speed(clock) >= Speed.Bullet

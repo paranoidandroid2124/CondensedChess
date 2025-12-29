@@ -5,6 +5,7 @@ import chess.variant.Variant
 import reactivemongo.api.bson.*
 import reactivemongo.api.bson.exceptions.TypeDoesNotMatchException
 import scalalib.model.Percent
+import chess.{ Color, Square }
 
 import lila.common.Iso.{ *, given }
 import lila.core.net.IpAddress
@@ -148,21 +149,7 @@ trait Handlers:
 
   given BSONHandler[IpAddress] = stringIsoHandler
 
-  import lila.core.relation.Relation
-  given BSONHandler[Relation] =
-    BSONBooleanHandler.as[Relation](if _ then Relation.Follow else Relation.Block, _.isFollow)
-
   given BSONHandler[Color] = BSONBooleanHandler.as[Color](Color.fromWhite(_), _.white)
-
-  import lila.common.{ LilaOpeningFamily, SimpleOpening }
-  given BSONHandler[SimpleOpening] = tryHandler[SimpleOpening](
-    { case BSONString(key) => SimpleOpening.find(key).toTry(s"No such opening: $key") },
-    o => BSONString(o.key.value)
-  )
-  given BSONHandler[LilaOpeningFamily] = tryHandler[LilaOpeningFamily](
-    { case BSONString(key) => LilaOpeningFamily.find(key).toTry(s"No such opening family: $key") },
-    o => BSONString(o.key.value)
-  )
 
   given perfKeyHandler: BSONHandler[PerfKey] =
     BSONStringHandler.as[PerfKey](key => PerfKey(key).err(s"Unknown perf key $key"), _.value)
@@ -239,8 +226,6 @@ trait Handlers:
       t => BSONString(t.getId)
     )
 
-  import lila.core.user.UserMark
-  given markHandler: BSONHandler[UserMark] = valueMapHandler(UserMark.byKey)(_.key)
 
   def valueMapHandler[K, V](mapping: Map[K, V])(toKey: V => K)(using
       keyHandler: BSONHandler[K]

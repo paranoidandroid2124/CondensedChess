@@ -4,27 +4,20 @@ package game
 import _root_.chess.format.pgn.PgnStr
 import _root_.chess.{ ByColor, Centis, Color, Ply }
 
-import lila.core.id.{ SimulId, SwissId, TourId }
 import lila.core.userId.UserId
 
 case class GameMetadata(
     source: Option[Source],
     pgnImport: Option[PgnImport],
-    tournamentId: Option[TourId],
-    swissId: Option[SwissId],
-    simulId: Option[SimulId],
     analysed: Boolean,
-    drawOffers: GameDrawOffers,
-    rules: Set[GameRule]
+    drawOffers: GameDrawOffers
 ):
   def pgnDate = pgnImport.flatMap(_.date)
   def pgnUser = pgnImport.flatMap(_.user)
-  def hasRule(rule: GameRule.type => GameRule) = rules(rule(GameRule))
-  def nonEmptyRules = rules.nonEmpty.option(rules)
 
 val emptyDrawOffers = GameDrawOffers(Set.empty, Set.empty)
 val emptyMetadata =
-  GameMetadata(None, None, None, None, None, analysed = false, emptyDrawOffers, rules = Set.empty)
+  GameMetadata(None, None, analysed = false, emptyDrawOffers)
 
 def newMetadata(source: Source) = emptyMetadata.copy(source = source.some)
 
