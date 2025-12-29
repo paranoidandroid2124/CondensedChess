@@ -1,8 +1,0 @@
-target
-project/target
-core/target
-.bsp
-.idea
-.git
-.DS_Store
-*.log

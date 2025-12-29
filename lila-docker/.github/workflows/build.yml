@@ -1,0 +1,11 @@
+name: Docker Compose Build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./lila-docker build
+      - run: docker image ls
