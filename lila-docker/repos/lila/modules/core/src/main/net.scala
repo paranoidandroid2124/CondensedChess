@@ -7,7 +7,6 @@ import scalalib.SecureRandom
 import java.net.InetAddress
 import scala.util.Try
 
-import lila.core.socket.Sri
 import lila.core.userId.UserId
 
 object net:
@@ -53,14 +52,6 @@ object net:
   opaque type Crawler = Boolean
   object Crawler extends YesNo[Crawler]
 
-  case class LichessMobileUa(
-      version: String,
-      userId: Option[UserId],
-      sri: Sri,
-      osName: String,
-      osVersion: String,
-      device: String
-  )
   case class LichessMobileVersion(major: Int, minor: Int):
     def gte(maj: Int, min: Int) =
       import scala.math.Ordered.orderingToOrdered

@@ -46,16 +46,37 @@ final class Env(
   import game.given
   val evalCache: lila.evalCache.Env = wire[lila.evalCache.Env]
   val analyse: lila.analyse.Env = wire[lila.analyse.Env]
-  // Chesstory: fishnet removed (client-side analysis only)
-  val study: lila.study.Env = wire[lila.study.Env]
+  
+  // Chesstory: Explorer dummy implementation
+  val explorer: lila.core.game.Explorer = id => game.gameRepo.game(id)
+
+  val study: lila.study.Env = new lila.study.Env(
+    appConfig = config,
+    ws = summon[StandaloneWSClient],
+    lightUserApi = user.lightUserApi,
+    gamePgnDump = game.pgnDump,
+    divider = game.divider,
+    gameRepo = game.gameRepo,
+    namer = game.namer,
+    userApi = user.api,
+    explorer = explorer,
+    prefApi = pref.api,
+    analyser = analyse.analyser,
+    analysisJson = lila.tree.AnalysisJson,
+    annotator = analyse.annotator,
+    mongo = mongo,
+    net = net,
+    cacheApi = memo.cacheApi
+  )
+  
   val llm: lila.llm.Env = wire[lila.llm.Env]
   val web: lila.web.Env = wire[lila.web.Env]
   val api: lila.api.Env = wire[lila.api.Env]
 
   val preloader = wire[mashup.Preload]
-  val socialInfo = wire[mashup.UserInfo.SocialApi]
-  val userNbGames = wire[mashup.UserInfo.NbGamesApi]
-  val userInfo = wire[mashup.UserInfo.UserInfoApi]
+  val socialInfo = new mashup.UserInfo.SocialApi(user.noteApi, pref.api)
+  val userNbGames = new mashup.UserInfo.NbGamesApi(game.cached, game.crosstableApi)
+  val userInfo = new mashup.UserInfo.UserInfoApi(user.perfsRepo, study.studyRepo)
   val gamePaginator = wire[mashup.GameFilterMenu.PaginatorBuilder]
   val pageCache = wire[http.PageCache]
 

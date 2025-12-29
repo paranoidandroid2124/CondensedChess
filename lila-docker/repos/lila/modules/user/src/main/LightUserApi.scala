@@ -2,10 +2,10 @@ package lila.user
 
 import reactivemongo.api.bson.*
 
-import lila.core.LightUser
+import lila.core.user.{ User, LightUser }
+import lila.core.userId.*
 import lila.db.dsl.{ *, given }
 import lila.memo.{ CacheApi, Syncache }
-import lila.core.plan.{ PatronMonths, PatronColor, PatronColorChoice }
 
 import BSONFields as F
 
@@ -14,29 +14,12 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
 
   val async = LightUser.Getter: id =>
     if id.isGhost then fuccess(LightUser.ghost.some) else cache.async(id)
-  val asyncFallback = LightUser.GetterFallback: id =>
-    if id.isGhost then fuccess(LightUser.ghost)
-    else cache.async(id).dmap(_ | LightUser.fallback(id.into(UserName)))
+
   val sync = LightUser.GetterSync: id =>
     if id.isGhost then LightUser.ghost.some else cache.sync(id)
-  val syncFallback = LightUser.GetterSyncFallback: id =>
-    if id.isGhost then LightUser.ghost else cache.sync(id) | LightUser.fallback(id.into(UserName))
 
-  export cache.{ asyncMany, invalidate, preloadOne, preloadMany }
 
-  def asyncFallbackName(name: UserName) = async(name.id).dmap(_ | LightUser.fallback(name))
-
-  def asyncManyFallback(ids: Seq[UserId]): Fu[Seq[LightUser]] = ids.parallel(asyncFallback)
-
-  def asyncManyOptions(ids: Seq[Option[UserId]]): Fu[Seq[Option[LightUser]]] = ids.parallel(_.so(async))
-
-  val isBotSync: LightUser.IsBotSync = LightUser.IsBotSync(id => sync(id).exists(_.isBot))
-
-  def preloadUser(user: User): Unit = cache.set(user.id, user.light.some)
-  def preloadUsers(users: Seq[User]): Unit = users.foreach(preloadUser)
-
-  def asyncIdMapFallback(ids: Set[UserId]): Fu[LightUser.IdMap] =
-    asyncManyFallback(ids.toSeq).map(_.mapBy(_.id))
+  def invalidate(id: UserId): Unit = cache.invalidate(id)
 
   private val cache: Syncache[UserId, Option[LightUser]] = cacheApi.sync[UserId, Option[LightUser]](
     name = "user.light",
@@ -50,7 +33,7 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
           .recover:
             case _: reactivemongo.api.bson.exceptions.BSONValueNotFoundException => LightUser.ghost.some
     ,
-    default = id => LightUser(id, id.into(UserName), None, None, PatronMonths.zero, None).some,
+    default = id => LightUser.ghost.some,
     strategy = Syncache.Strategy.WaitAfterUptime(10.millis),
     expireAfter = Syncache.ExpireAfter.Write(15.minutes)
   )
@@ -60,32 +43,13 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
       doc
         .getAsTry[UserName](F.username)
         .map: name =>
-          val planOpt = doc.child(F.plan)
-          val patronMonths = for
-            plan <- planOpt
-            if ~plan.getAsOpt[Boolean]("active")
-            months <- plan.getAsOpt[PatronMonths]("months")
-            lifetime = ~plan.getAsOpt[Boolean]("lifetime")
-          yield if lifetime then PatronMonths.lifetime else months
-          val patronColor = for
-            plan <- planOpt
-            if patronMonths.isDefined
-            color <- plan.getAsOpt[Int]("color").flatMap(PatronColor.map.get)
-          yield PatronColorChoice(color)
           LightUser(
-            id = name.id,
-            name = name,
-            title = doc.getAsOpt[chess.PlayerTitle](F.title),
-            flair = doc.getAsOpt[Flair](F.flair).filter(FlairApi.exists),
-            patronMonths = patronMonths | PatronMonths.zero,
-            patronColor = patronColor
+            id = UserId(name.value.toLowerCase),
+            name = name.value
           )
 
   private val projection =
     $doc(
       F.id -> false,
-      F.username -> true,
-      F.title -> true,
-      F.plan -> true,
-      F.flair -> true
+      F.username -> true
     ).some

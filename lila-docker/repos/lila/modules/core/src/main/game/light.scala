@@ -1,9 +1,8 @@
 package lila.core
 package game
 
-import _root_.chess.{ Color, Status, IntRating }
+import _root_.chess.{ Color, Status }
 import _root_.chess.variant.Variant
-import _root_.chess.rating.{ IntRatingDiff, RatingProvisional }
 
 import lila.core.id.GameId
 import lila.core.userId.UserId
@@ -27,11 +26,7 @@ case class LightGame(
 case class LightPlayer(
     color: Color,
     aiLevel: Option[Int],
-    userId: Option[UserId] = None,
-    rating: Option[IntRating] = None,
-    ratingDiff: Option[IntRatingDiff] = None,
-    provisional: RatingProvisional = RatingProvisional.No,
-    berserk: Boolean = false
+    userId: Option[UserId] = None
 )
 
 case class LightPov(game: LightGame, color: Color):

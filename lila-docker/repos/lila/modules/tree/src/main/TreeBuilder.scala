@@ -21,7 +21,6 @@ object TreeBuilder:
       logChessError: LogChessError
   ): Root =
     val withClocks: Option[Vector[Centis]] = withFlags.clocks.so(game.bothClockStates)
-    val drawOfferPlies = game.drawOffers.normalizedPlies
     val setup = chess.Position.AndFullMoveNumber(game.variant, initialFen)
     val fen = Fen.write(setup)
     val infos: Vector[Info] = analysis.so(_.infos.toVector)
@@ -61,10 +60,7 @@ object TreeBuilder:
         eval = info.map(makeEval),
         glyphs = Glyphs.fromList(advice.map(_.judgment.glyph).toList),
         comments = Node.Comments(
-          drawOfferPlies(ply)
-            .option(makeLichessComment(Comment(s"${!ply.turn} offers draw")))
-            .toList :::
-            advice
+          advice
               .map(_.makeComment(false))
               .toList
               .map(makeLichessComment)

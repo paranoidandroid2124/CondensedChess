@@ -2,14 +2,9 @@ package lila.user
 
 import java.time.Duration
 
-import lila.core.perf.UserWithPerfs
-import lila.core.user.{ Emails, PlayTime }
-
-case class WithPerfsAndEmails(user: UserWithPerfs, emails: Emails)
 
 case class TotpToken(value: String) extends AnyVal
 
-case class UserDelete(requested: Instant, done: Boolean = false)
 
 object PlayTime:
   extension (p: PlayTime)

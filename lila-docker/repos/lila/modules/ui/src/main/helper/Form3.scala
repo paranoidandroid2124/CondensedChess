@@ -4,10 +4,9 @@ import play.api.data.*
 import scalatags.Text.TypedTag
 
 import lila.core.i18n.{ I18nKey as trans, Translate }
-import lila.core.user.FlairApi
 import lila.ui.ScalatagsTemplate.{ *, given }
 
-final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: FlairApi):
+final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper):
   import formHelper.{ transKey, given }
 
   private val idPrefix = "form3"
@@ -257,30 +256,6 @@ final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: F
         case d => d
     )
 
-  private lazy val exceptEmojis = data("except-emojis") := flairApi.adminFlairs.mkString(" ")
-  def flairPickerGroup(field: Field, current: Option[Flair])(using Context): Tag =
-    group(field, trans.site.flair(), half = true): f =>
-      flairPicker(f, current)
-
-  def flairPicker(field: Field, current: Option[Flair], anyFlair: Boolean = false)(using
-      ctx: Context
-  ): Frag =
-    frag(
-      div(cls := "form-control emoji-details")(
-        div(cls := "emoji-popup-button")(
-          st.select(st.id := id(field), name := field.name, cls := "form-control")(
-            current.map(f => option(value := f, selected := ""))
-          ),
-          img(src := current.fold(Url(""))(formHelper.flairSrc(_)))
-        ),
-        div(
-          cls := "flair-picker none",
-          (!Granter.opt(_.LichessTeam) && !anyFlair).option(exceptEmojis)
-        )(
-          button(cls := "button button-metal emoji-remove")("clear")
-        )
-      )
-    )
 
   object file:
     def image(name: String): Frag =

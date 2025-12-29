@@ -17,16 +17,8 @@ final class Env(
     gameRepo: lila.core.game.GameRepo,
     namer: lila.core.game.Namer,
     userApi: lila.core.user.UserApi,
-    flairApi: lila.core.user.FlairApi,
     explorer: lila.core.game.Explorer,
-    notifyApi: lila.core.notify.NotifyApi,
-    federations: lila.core.fide.Federation.FedsOf,
-    federationNames: lila.core.fide.Federation.NamesOf,
     prefApi: lila.core.pref.PrefApi,
-    relationApi: lila.core.relation.RelationApi,
-    socketKit: lila.core.socket.SocketKit,
-    socketReq: lila.core.socket.SocketRequester,
-    chatApi: lila.core.chat.ChatApi,
     analyser: lila.tree.Analyser,
     analysisJson: lila.tree.AnalysisJson,
     annotator: lila.tree.Annotator,
@@ -43,12 +35,10 @@ final class Env(
   private lazy val studyDb = mongo.asyncDb("study", appConfig.get[String]("study.mongodb.uri"))
 
   def version(studyId: StudyId): Fu[SocketVersion] =
-    socket.rooms.ask[SocketVersion](studyId.into(RoomId))(GetVersion.apply)
+    fuccess(SocketVersion(0)) // Socket removed - simplified
 
   def isConnected(studyId: StudyId, userId: UserId): Fu[Boolean] =
-    socket.isPresent(studyId, userId)
-
-  private lazy val socket: StudySocket = wire[StudySocket]
+    fuccess(false) // Socket removed - simplified
 
   val studyRepo = StudyRepo(studyDb(CollName("study")))
   val chapterRepo = ChapterRepo(studyDb(CollName("study_chapter_flat")))
@@ -84,16 +74,7 @@ final class Env(
   lazy val gifExport = GifExport(ws, appConfig.get[String]("game.gifUrl"))
 
   def findConnectedUsersIn(studyId: StudyId)(filter: Iterable[UserId] => Fu[List[UserId]]): Fu[List[UserId]] =
-    studyRepo
-      .membersById(studyId)
-      .flatMap:
-        _.map(_.members.keys)
-          .filter(_.nonEmpty)
-          .so: members =>
-            filter(members).flatMap:
-              _.parallel: streamer =>
-                isConnected(studyId, streamer).dmap(_.option(streamer))
-              .dmap(_.flatten)
+    fuccess(Nil) // Socket removed - simplified
 
   lila.common.Cli.handle:
     case "study" :: "rank" :: "reset" :: Nil =>

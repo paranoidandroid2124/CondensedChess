@@ -6,7 +6,6 @@ import scalalib.newtypes.SameRuntime
 
 import lila.core.id.*
 import lila.core.study.StudyOrder as StudyOrder
-import lila.core.ublog.{ BlogsBy, QualityFilter as BlogQualityFilter }
 
 object LilaRouter:
 
@@ -68,6 +67,4 @@ object LilaRouter:
   given QueryStringBindable[Color] =
     strQueryString[Color](Color.fromName, "Invalid chess color, should be white or black", _.name)
   given QueryStringBindable[Uci] = strQueryString[Uci](Uci.apply, "Invalid UCI move", _.uci)
-  given QueryStringBindable[BlogsBy] = strQueryString[BlogsBy](BlogsBy.fromName, "Invalid order", _.toString)
-  given QueryStringBindable[BlogQualityFilter] =
-    strQueryString[BlogQualityFilter](BlogQualityFilter.fromName, "Invalid quality", _.name)
+  given QueryStringBindable[Uci] = strQueryString[Uci](Uci.apply, "Invalid UCI move", _.uci)

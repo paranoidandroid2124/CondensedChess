@@ -66,10 +66,6 @@ trait AssetHelper:
 
   def cdnUrl(path: String) = Url(s"$assetBaseUrl$path")
 
-  def flairSrc(flair: Flair): Url = staticAssetUrl(s"$flairVersion/flair/img/$flair.webp")
-
-  def iconFlair(flair: Flair): Tag = decorativeImg(cls := "icon-flair", src := flairSrc(flair))
-
   def imagePreload(url: Url) =
     raw(s"""<link rel="preload" href="$url" as="image" fetchpriority="high">""")
 
@@ -80,25 +76,7 @@ trait AssetHelper:
 
   def fingerprintTag: EsmList = Esm("bits.fipr")
 
-  def hcaptchaScript(re: lila.core.security.HcaptchaForm[?]): EsmList =
-    re.enabled.so(esmInitBit("hcaptcha"))
 
   def analyseNvuiTag(using ctx: Context) = ctx.blind.option(Esm("analyse.nvui"))
 
   def pathUrl(path: String): Url = Url(s"${netBaseUrl}$path")
-
-  def fenThumbnailUrl(
-      fen: chess.format.StandardFen,
-      color: Option[chess.Color] = None,
-      variant: chess.variant.Variant = chess.variant.Standard
-  )(using ctx: Context): Url = cdnUrl:
-    routes.Export
-      .fenThumbnail(
-        fen.value,
-        color,
-        none,
-        Option.when(variant.exotic)(variant.key),
-        ctx.pref.theme.some,
-        ctx.pref.pieceSet.some
-      )
-      .url

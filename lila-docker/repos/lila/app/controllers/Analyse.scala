@@ -14,25 +14,16 @@ final class Analyse(
     roundC: => Round
 ) extends LilaController(env):
 
-  def requestAnalysis(id: GameId) = AuthOrScoped(_.Web.Mobile) { ctx ?=> me ?=>
-    Found(env.game.gameRepo.game(id)): game =>
-      env.fishnet
-        .analyser(
-          game,
-          lila.fishnet.Work.Sender(
-            userId = me,
-            ip = ctx.ip.some,
-            mod = isGranted(_.UserEvaluate) || isGranted(_.Relay),
-            system = false
-          )
-        )
-        .map:
-          _.error.fold(NoContent)(BadRequest(_))
-  }
+  def home = Anon:
+    Ok(views.html.analyse.home()).fuccess
 
-  def replay(pov: Pov, userTv: Option[lila.user.User])(using ctx: Context) =
-    // Simplified: redirect to game round page
-    fuccess(Redirect(routes.Round.watcher(pov.gameId, pov.color)))
+  def replay(id: String) = replayWithMoves(id, "")
+
+  def replayWithMoves(id: String, moves: String) = Anon:
+    env.game.gameRepo.game(id).map:
+      case Some(game) =>
+        Ok(views.html.analyse.replay(game, moves))
+      case _ => NotFound(views.html.analyse.notFound())
 
   def embed(gameId: GameId, color: Color) = embedReplayGame(gameId, color)
 

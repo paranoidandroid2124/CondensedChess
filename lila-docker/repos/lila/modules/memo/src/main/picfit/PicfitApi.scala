@@ -24,11 +24,6 @@ final class PicfitApi(
 
   import PicfitApi.{ *, given }
 
-  Bus.sub[lila.core.user.UserDelete]: del =>
-    for
-      ids <- coll.primitive[ImageId]($doc("user" -> del.id), "_id")
-      _ <- deleteByIds(ids)
-    yield ()
 
   def uploadFile(
       file: FilePart,

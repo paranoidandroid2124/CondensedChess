@@ -18,7 +18,6 @@ object NewTreeBuilder:
       logChessError: TreeBuilder.LogChessError
   ): NewRoot =
     val withClocks: Option[Vector[Centis]] = withFlags.clocks.so(game.bothClockStates)
-    val drawOfferPlies = game.drawOffers.normalizedPlies
 
     val setup = chess.Position.AndFullMoveNumber(game.variant, initialFen)
     val openingOf: OpeningOf =
@@ -62,9 +61,6 @@ object NewTreeBuilder:
           eval = info.map(TreeBuilder.makeEval),
           glyphs = Glyphs.fromList(advice.map(_.judgment.glyph).toList),
           comments = Node.Comments(
-            drawOfferPlies(ply)
-              .option(TreeBuilder.makeLichessComment(Comment(s"${!ply.turn} offers draw")))
-              .toList :::
               advice
                 .map(_.makeComment(false))
                 .toList

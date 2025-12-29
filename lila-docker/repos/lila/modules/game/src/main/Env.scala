@@ -29,9 +29,7 @@ final class Env(
     userApi: lila.core.user.UserApi,
     mongoCache: lila.memo.MongoCache.Api,
     lightUserApi: lila.core.user.LightUserApi,
-    cacheApi: lila.memo.CacheApi,
-    getTourName: => lila.core.tournament.GetTourName,
-    fideIdOf: lila.core.user.PublicFideIdOf
+    cacheApi: lila.memo.CacheApi
 )(using scheduler: Scheduler)(using Executor, Materializer):
   private val config = appConfig.get[GameConfig]("game")(using AutoConfig.loader)
 
@@ -69,7 +67,7 @@ final class Env(
 
   lazy val importer = wire[lila.game.importer.Importer]
 
-  lazy val userGameApi = UserGameApi(lightUserApi, getTourName)
+  lazy val userGameApi = UserGameApi(lightUserApi, fuccess(none)) // getTourName removed
 
   lazy val api: lila.core.game.GameApi = new:
     export gameRepo.{ incBookmarks, getSourceAndUserIds }
