@@ -1,0 +1,240 @@
+import com.typesafe.sbt.packager.Keys.{ bashScriptExtraDefines, scriptClasspath }
+import play.sbt.PlayCommands
+import play.sbt.PlayInternalKeys.playDependencyClasspath
+import play.sbt.routes.RoutesKeys
+
+import BuildSettings.*
+import Dependencies.*
+
+lazy val root = Project("lila", file("."))
+  .enablePlugins(JavaServerAppPackaging, RoutesCompiler)
+  .dependsOn(api)
+  .aggregate(api)
+  .settings(buildSettings)
+
+organization := "org.lichess"
+Compile / run / fork := true
+javaOptions ++= Seq("-Xms64m", "-Xmx512m", "-Dlogger.file=conf/logger.dev.xml")
+javaOptions ++= {
+  if (sys.props("java.specification.version").toInt > 21)
+    Seq("--enable-native-access=ALL-UNNAMED")
+  else
+    Seq.empty
+}
+ThisBuild / scalacOptions ++= Seq("-unchecked", "-deprecation")
+ThisBuild / usePipelining := false
+// shorter prod classpath
+scriptClasspath := Seq("*")
+Compile / resourceDirectory := baseDirectory.value / "conf"
+// the following settings come from the PlayScala plugin, which I removed
+shellPrompt := PlayCommands.playPrompt
+// all dependencies from outside the project (all dependency jars)
+playDependencyClasspath := (Runtime / externalDependencyClasspath).value
+ivyLoggingLevel := UpdateLogging.DownloadOnly
+Compile / mainClass := Some("lila.app.Lila")
+// Adds the Play application directory to the command line args passed to Play
+bashScriptExtraDefines += "addJava \"-Duser.dir=$(realpath \"$(cd \"${app_home}/..\"; pwd -P)\"  $(is_cygwin && echo \"fix\"))\"\n"
+Compile / RoutesKeys.routes / sources ++= {
+  val dirs = (Compile / unmanagedResourceDirectories).value
+  (dirs * "routes").get ++ (dirs * "*.routes").get
+}
+Compile / RoutesKeys.generateReverseRouter := false
+Compile / RoutesKeys.generateForwardRouter := true
+target := baseDirectory.value / "target"
+Compile / sourceDirectory := baseDirectory.value / "app"
+Compile / scalaSource := baseDirectory.value / "app"
+Universal / sourceDirectory := baseDirectory.value / "dist"
+
+// format: off
+libraryDependencies ++= akka.bundle ++ playWs.bundle ++ macwire.bundle ++ scalalib.bundle ++ chess.bundle ++ Seq(
+  play.json, play.logback, compression, hasher,
+  reactivemongo.driver, maxmind, scalatags,
+  kamon.core, kamon.influxdb, kamon.metrics,
+  scaffeine, caffeine, lettuce, uaparser, nettyTransport, reactivemongo.shaded, catsMtl
+) ++ tests.bundle
+
+// ============================================================
+// CHESSTORY: Analysis-only lightweight configuration
+// ============================================================
+lazy val modules = Seq(
+  // Infrastructure (Level 1-3)
+  core, coreI18n,
+  ui, common, tree, i18n,
+  db, room,
+  
+  // Core (Level 4)
+  memo,
+  
+  // User & Security (Level 5)
+  user, pref, mailer, oauth,
+  
+  // Analysis Core (Level 5-6)
+  game,
+  analyse,
+  study,
+  
+  // Analysis Pipeline (Level 7)
+  security,
+  llm,
+  evalCache,
+  
+  // Web
+  web
+)
+
+lazy val moduleRefs = modules map projectToRef
+lazy val moduleCPDeps = moduleRefs map { sbt.ClasspathDependency(_, None) }
+
+// ============================================================
+// Infrastructure Modules
+// ============================================================
+
+lazy val core = module("core",
+  Seq(),
+  Seq(catsMtl, scalatags, galimatias) ++ scalalib.bundle ++ reactivemongo.bundle ++ tests.bundle
+)
+
+lazy val coreI18n = module("coreI18n",
+  Seq(),
+  Seq(scalatags) ++ scalalib.bundle
+)
+
+lazy val common = module("common",
+  Seq(core),
+  Seq(kamon.core, scaffeine, apacheText, chess.playJson) ++ flexmark.bundle
+)
+
+lazy val db = module("db",
+  Seq(common),
+  Seq(hasher) ++ macwire.bundle
+)
+
+lazy val memo = module("memo",
+  Seq(db),
+  Seq(scaffeine) ++ playWs.bundle
+)
+
+lazy val i18n = module("i18n",
+  Seq(common, coreI18n),
+  tests.bundle
+).settings(
+  Compile / resourceGenerators += Def.task {
+    I18n.serialize(
+      sourceDir = new File("translation/source"),
+      destDir = new File("translation/dest"),
+      dbs = "study site settings preferences oauthScope onboarding".split(' ').toList,
+      outputDir = (Compile / resourceManaged).value
+    )
+  }.taskValue
+)
+
+lazy val room = module("room",
+  Seq(common),
+  Seq(lettuce)
+)
+
+lazy val tree = module("tree",
+  Seq(core),
+  Seq(chess.playJson)
+)
+
+lazy val ui = module("ui",
+  Seq(core, coreI18n),
+  Seq()
+).enablePlugins(RoutesCompiler).settings(
+  Compile / RoutesKeys.generateForwardRouter := false,
+  Compile / RoutesKeys.routes / sources ++= {
+    val dirs = baseDirectory.value / ".." / ".." / "conf"
+    (dirs * "routes").get ++ (dirs * "*.routes").get
+  }
+)
+
+// ============================================================
+// User & Security Modules
+// ============================================================
+
+// Chesstory: rating module removed (not needed for analysis-only system)
+
+lazy val user = module("user",
+  Seq(db, memo),  // removed rating dependency
+  Seq(hasher) ++ tests.bundle ++ playWs.bundle
+)
+
+lazy val pref = module("pref",
+  Seq(memo, ui),
+  Seq()
+)
+
+lazy val oauth = module("oauth",
+  Seq(memo, ui),
+  Seq()
+)
+
+lazy val mailer = module("mailer",
+  Seq(memo, coreI18n),
+  Seq(hasher, play.mailer)
+)
+
+lazy val security = module("security",
+  Seq(oauth, user, mailer),
+  Seq(maxmind, hasher, uaparser) ++ tests.bundle
+)
+
+// ============================================================
+// Analysis Core Modules
+// ============================================================
+
+lazy val game = module("game",
+  Seq(tree, memo),  // removed rating dependency
+  Seq(compression) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
+)
+
+lazy val analyse = module("analyse",
+  Seq(tree, memo, ui),
+  tests.bundle
+).dependsOn(coreI18n % "test->test")
+
+lazy val study = module("study",
+  Seq(tree, memo, room, ui),
+  Seq(lettuce) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
+).dependsOn(common % "test->test")
+
+// ============================================================
+// Analysis Pipeline Modules
+// ============================================================
+
+// Chesstory: fishnet module removed (using client-side analysis only)
+
+lazy val llm = module("llm",
+  Seq(memo),
+  playWs.bundle ++ tests.bundle
+)
+
+lazy val evalCache = module("evalCache",
+  Seq(tree, memo),
+  Seq()
+)
+
+// ============================================================
+// Web Module
+// ============================================================
+
+lazy val web = module("web",
+  Seq(ui, memo),
+  playWs.bundle ++ tests.bundle ++ Seq(
+    play.logback, play.server, play.netty,
+    kamon.prometheus,
+  )
+)
+
+// ============================================================
+// API Module (aggregates all modules)
+// ============================================================
+
+lazy val api = module("api",
+  moduleCPDeps,
+  Seq(play.api, play.json, hasher, kamon.core, kamon.influxdb, lettuce) ++ tests.bundle ++ flexmark.bundle
+).settings(
+  Runtime / aggregate := false,
+  Test / aggregate := true
+) aggregate (moduleRefs: _*)
