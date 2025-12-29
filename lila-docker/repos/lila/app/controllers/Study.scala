@@ -11,7 +11,7 @@ import lila.common.{ Bus, HTTPRequest }
 import lila.core.id.RelayRoundId
 import lila.core.misc.lpv.LpvEmbed
 import lila.core.net.IpAddress
-import lila.core.socket.Sri
+// Sri removed
 import lila.core.study.StudyOrder
 import lila.core.data.ErrorMsg
 import lila.study.JsonView.JsData
@@ -294,7 +294,7 @@ final class Study(
 
   def apiChapterDelete(id: StudyId, chapterId: StudyChapterId) = ScopedBody(_.Study.Write) { _ ?=> me ?=>
     Found(env.study.api.byIdAndOwnerOrAdmin(id, me)): study =>
-      env.study.api.deleteChapter(study.id, chapterId)(Who(me.userId, Sri("api"))).inject(NoContent)
+      env.study.api.deleteChapter(study.id, chapterId)(Who(me.id)).inject(NoContent)
   }
 
   def clearChat(id: StudyId) = Auth { _ ?=> me ?=>
@@ -305,21 +305,21 @@ final class Study(
       .inject(Redirect(routes.Study.show(id)))
   }
 
-  private def doImportPgn(id: StudyId, data: StudyForm.importPgn.Data, sri: Sri)(
+  private def doImportPgn(id: StudyId, data: StudyForm.importPgn.Data)(
       f: (List[Chapter], Option[ErrorMsg]) => Result
   )(using ctx: Context, me: Me): Future[Result] =
     val chapterDatas = data.toChapterDatas
     limit.studyPgnImport(me, rateLimited, cost = chapterDatas.size):
       env.study.api
-        .importPgns(id, chapterDatas, sticky = data.sticky, ctx.pref.showRatings)(Who(me, sri))
+        .importPgns(id, chapterDatas, sticky = data.sticky, ctx.pref.showRatings)(Who(me))
         .map(f.tupled)
 
   def importPgn(id: StudyId) = AuthBody { ctx ?=> me ?=>
-    get("sri").so: sri =>
+    // get("sri").so: sri => // sri removed
       bindForm(StudyForm.importPgn.form)(
         doubleJsonFormError,
         data =>
-          doImportPgn(id, data, Sri(sri)): (_, errors) =>
+          doImportPgn(id, data): (_, errors) =>
             errors.fold(NoContent)(BadRequest(_))
       )
   }
@@ -328,7 +328,7 @@ final class Study(
     bindForm(StudyForm.importPgn.form)(
       jsonFormError,
       data =>
-        doImportPgn(id, data, Sri("api")): (chapters, errors) =>
+        doImportPgn(id, data): (chapters, errors) =>
           import lila.study.ChapterPreview.json.given
           val previews = chapters.map(env.study.preview.fromChapter(_))
           JsonOk(Json.obj("chapters" -> previews, "error" -> errors))
@@ -357,7 +357,7 @@ final class Study(
 
   def cloneApply(id: StudyId) = Auth { ctx ?=> me ?=>
     val cost = if isGranted(_.Coach) || me.hasTitle then 1 else 3
-    limit.studyClone(me.userId -> ctx.ip, rateLimited, cost):
+    limit.studyClone(me.id -> ctx.ip, rateLimited, cost):
       Found(env.study.api.byId(id)) { prev =>
         CanView(prev, prev.settings.cloneable.some) {
           env.study.api

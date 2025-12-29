@@ -3,9 +3,9 @@ package lila.user
 import reactivemongo.api.bson.*
 import lila.core.user.{ User, UserEnabled, RoleDbKey }
 import lila.core.userId.*
-import lila.db.dsl.*
+import lila.db.dsl.{ *, given }
 
-final class UserRepo(c: Coll)(using ec: Executor) extends lila.core.user.UserRepo(c):
+final class UserRepo(val coll: Coll)(using ec: Executor):
 
   import lila.user.BSONHandlers.given
 
@@ -16,11 +16,10 @@ final class UserRepo(c: Coll)(using ec: Executor) extends lila.core.user.UserRep
     val ids = us.map(_.id).filter(_.noGhost)
     ids.nonEmpty.so(coll.byIds[User, UserId](ids))
 
-  def me(id: UserId): Fu[Option[lila.core.user.Me]] = byId(id)
+  def me(id: UserId): Fu[Option[lila.core.user.Me]] = byId(id).map(_.map(lila.core.user.Me(_)))
 
   def isEnabled(id: UserId): Fu[Boolean] =
     id.noGhost.so(coll.exists($doc("enabled" -> true) ++ $id(id)))
-
 
   def userIdsWithRoles(roles: List[RoleDbKey]): Fu[Set[UserId]] =
     coll.distinctEasy[UserId, Set]("_id", $doc("roles".$in(roles)))
@@ -38,10 +37,9 @@ final class UserRepo(c: Coll)(using ec: Executor) extends lila.core.user.UserRep
   ): Fu[Unit] =
     val now = java.time.Instant.now()
     val doc = $doc(
-      "_id" -> name.id,
+      "_id" -> name.id.value,
       "username" -> name.value,
       "email" -> email.value,
-      "bpass" -> passwordHash.bytes,
       "bpass" -> passwordHash.bytes,
       "enabled" -> true,
       "roles" -> List.empty[String],

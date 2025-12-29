@@ -10,12 +10,8 @@ import scalalib.paginator.Paginator
 import lila.app.{ *, given }
 import lila.common.HTTPRequest
 import lila.common.Json.given
-import lila.core.user.LightPerf
 import lila.core.userId.UserSearch
 import lila.game.GameFilter
-import lila.rating.PerfType
-import lila.rating.UserPerfsExt.best8Perfs
-import lila.user.WithPerfsAndEmails
 
 final class User(
     override val env: Env,
@@ -106,7 +102,7 @@ final class User(
         case u => notFound(u.isEmpty)
 
   def showMini(username: UserStr) = Open:
-    Found(env.user.api.withPerfs(username)): user =>
+    Found(env.user.repo.byId(username.id)): user =>
       if user.enabled.yes || isGrantedOpt(_.UserModView)
       then
         ctx.userId.traverse(env.game.crosstableApi(user.id, _)).flatMap: crosstable =>
@@ -118,101 +114,27 @@ final class User(
               import lila.game.JsonView.given
               Ok:
                 Json.obj(
-                  "crosstable" -> crosstable,
-                  "perfs" -> lila.user.JsonView.perfsJson(user.perfs, user.perfs.best8Perfs)
+                  "crosstable" -> crosstable
                 )
           )
-      else Ok(views.user.bits.miniClosed(user.user, relation = None))
+      else Ok(views.user.bits.miniClosed(user, relation = None))
 
   def online = Anon:
-    val max = 50
-    negotiateJson:
-      env.user.cached.getTop50Online.map: users =>
-        Ok:
-          Json.toJson:
-            users
-              .take(getInt("nb").fold(10)(_.min(max)))
-              .map: u =>
-                env.user.jsonView.full(u.user, u.perfs.some, withProfile = true)
+    JsonOk(JsArray())
 
   def ratingHistory(username: UserStr) = Open:
     Ok(lila.core.data.SafeJsonStr("[]")).as(JSON).toFuccess
 
-  private def apiGames(u: UserModel, filter: String, page: Int)(using BodyContext[?]) =
-    userGames(u, filter, page).flatMap(env.game.userGameApi.jsPaginator).map { res =>
-      Ok(res ++ Json.obj("filter" -> GameFilter.All.name))
-    }
-
-  private def userGames(
-      u: UserModel,
-      filterName: String,
-      page: Int
-  )(using ctx: BodyContext[?]): Fu[Paginator[GameModel]] =
-    limit.userGames(
-      ctx.ip,
-      fuccess(Paginator.empty[GameModel]),
-      cost = page,
-      msg = s"on ${u.username}"
-    ):
-      lila.mon.http.userGamesCost.increment(page.toLong)
-      for
-        pag <- env.gamePaginator(
-          user = u,
-          nbs = none,
-          filter = lila.app.mashup.GameFilterMenu.currentOf(GameFilter.all, filterName),
-          me = ctx.me,
-          page = page
-        )
-        _ <- lightUserApi.preloadMany(pag.currentPageResults.flatMap(_.userIds))
-      yield pag
-
   def list = Open:
-    env.user.cached.top10.get {}.flatMap { leaderboards =>
-      negotiate(
-        html = for
-          nbAllTime <- env.user.cached.top10NbGame.get {}
-          topOnline <- env.user.cached.getTop50Online
-          page <- renderPage:
-            views.user.list(List.empty, topOnline, leaderboards, nbAllTime)
-        yield Ok(page),
-        json =
-          given OWrites[LightPerf] = OWrites(env.user.jsonView.lightPerfIsOnline)
-          import lila.user.JsonView.leaderboardsWrites
-          JsonOk(leaderboards)
-      )
-    }
+    negotiate(
+      html = Ok(views.user.list(List.empty, List.empty, Nil, List.empty)),
+      json = JsonOk(JsArray())
+    )
 
   def apiList = Anon:
-    env.user.cached.top10.get {}.map { leaderboards =>
-      import env.user.jsonView.lightPerfIsOnlineWrites
-      import lila.user.JsonView.leaderboardsWrites
-      JsonOk(leaderboards)
-    }
-
-  def top(perfKey: PerfKey, page: Int) = Open:
-    Reasonable(page, Max(20)):
-      env.user.cached
-        .topPerfPager(perfKey, page)
-        .flatMap: pager =>
-          negotiate(
-            Ok.page(views.user.list.top(perfKey, pager)),
-            topNbJson(pager.currentPageResults)
-          )
-
-  def topNbApi(nb: Int, perfKey: PerfKey) = Anon:
-    if nb == 1 && perfKey == PerfKey.standard then
-      env.user.cached.top10.get {}.map { leaderboards =>
-        import env.user.jsonView.lightPerfIsOnlineWrites
-        import lila.user.JsonView.leaderboardStandardTopOneWrites
-        JsonOk(leaderboards)
-      }
-    else env.user.cached.firstPageOf(perfKey).dmap(_.take(nb)).map(topNbJson)
-
-  private def topNbJson(users: Seq[LightPerf]) =
-    given OWrites[LightPerf] = OWrites(env.user.jsonView.lightPerfIsOnline)
-    Ok(Json.obj("users" -> users))
-
-  def writeNote(username: UserStr) = AuthBody: ctx ?=> me ?=>
+    JsonOk(JsArray())
+ 
+  // top and topNbApi removed
     bindForm(lila.user.UserForm.note)(
       err => BadRequest(err.errors.toString).toFuccess,
       data =>

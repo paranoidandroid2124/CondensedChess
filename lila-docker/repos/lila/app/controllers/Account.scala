@@ -81,8 +81,7 @@ final class Account(
     def limited = rateLimited:
       "Please don't poll this endpoint. Stream https://lichess.org/api#tag/board/get/apistreamevent instead."
     limit.apiMe(me, limited):
-      env.user.perfsRepo.perfsOf(me.value).map: perfs =>
-        JsonOk(env.user.jsonView.full(me.value, Some(perfs), withProfile = true))
+      JsonOk(env.user.jsonView.full(me.value, None, withProfile = true))
   }
 
   def apiNowPlaying = Scoped()(JsonOk(Json.obj("nowPlaying" -> JsArray())))

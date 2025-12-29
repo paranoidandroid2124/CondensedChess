@@ -1,16 +1,6 @@
 package lila.user
 
-import java.time.Duration
-
-
 case class TotpToken(value: String) extends AnyVal
-
-
-object PlayTime:
-  extension (p: PlayTime)
-    def totalDuration = Duration.ofSeconds(p.total)
-    def tvDuration = Duration.ofSeconds(p.tv)
-    def nonEmptyTvDuration = Option.when(p.tv > 0)(p.tvDuration)
 
 object nameRules:
   // what new usernames should be like -- now split into further parts for clearer error messages

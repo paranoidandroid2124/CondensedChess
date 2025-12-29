@@ -36,6 +36,7 @@ trait Context:
     playAcceptLanguages(req).view.map(toLanguage).toSet + defaultLanguage ++
       user.flatMap(_.lang.map(Language.apply)).toSet
 
+import lila.core.user.Me
 object Context:
   given ctxMe(using ctx: Context): Option[Me] = ctx.me
 

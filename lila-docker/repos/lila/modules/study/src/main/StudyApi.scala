@@ -138,7 +138,7 @@ final class StudyApi(
                 data = data.form.toChapterData,
                 sticky = study.settings.sticky,
                 withRatings
-              )(Who(user.id, Sri(""))) >> byIdWithLastChapter(studyId)
+              )(Who(user.id)) >> byIdWithLastChapter(studyId)
             .rescue: _ =>
               fuccess(none)
           case _ => fuccess(none)
@@ -721,7 +721,7 @@ final class StudyApi(
             if tag.value.isEmpty
             then ctags - tag.name
             else ctags + tag
-          doSetTags(study, chapter, newTags, Who(me.userId, Sri("")))
+          doSetTags(study, chapter, newTags, Who(me.id))
 
   def sortChapters(studyId: StudyId, chapterIds: List[StudyChapterId])(who: Who): Funit =
     sequenceStudy(studyId): study =>

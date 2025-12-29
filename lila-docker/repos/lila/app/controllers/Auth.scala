@@ -279,7 +279,7 @@ final class Auth(env: Env, accountC: => Account) extends LilaController(env):
         rateLimited,
         enforce = env.net.rateLimit,
         ipCost = cost.toInt
-      )(me.userId.into(UserIdOrEmail), req)(_ => run)
+      )(me.id.into(UserIdOrEmail), req)(_ => run)
 
   private def passwordCost(req: RequestHeader): Fu[Float] =
     env.security.ipTrust

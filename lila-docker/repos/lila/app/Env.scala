@@ -37,7 +37,10 @@ final class Env(
   val i18n: lila.i18n.Env.type = lila.i18n.Env
   val mongo: lila.db.Env = wire[lila.db.Env]
   val memo: lila.memo.Env = wire[lila.memo.Env]
-  val user: lila.user.Env = wire[lila.user.Env]
+  val user: lila.user.Env = new lila.user.Env(
+    db = mongo.mainDb,
+    cacheApi = memo.cacheApi
+  )
   val mailer: lila.mailer.Env = wire[lila.mailer.Env]
   val oAuth: lila.oauth.Env = wire[lila.oauth.Env]
   val security: lila.security.Env = wire[lila.security.Env]
@@ -76,7 +79,7 @@ final class Env(
   val preloader = wire[mashup.Preload]
   val socialInfo = new mashup.UserInfo.SocialApi(user.noteApi, pref.api)
   val userNbGames = new mashup.UserInfo.NbGamesApi(game.cached, game.crosstableApi)
-  val userInfo = new mashup.UserInfo.UserInfoApi(user.perfsRepo, study.studyRepo)
+  val userInfo = new mashup.UserInfo.UserInfoApi(study.studyRepo)
   val gamePaginator = wire[mashup.GameFilterMenu.PaginatorBuilder]
   val pageCache = wire[http.PageCache]
 

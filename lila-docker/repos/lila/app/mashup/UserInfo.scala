@@ -4,7 +4,6 @@ package mashup
 import play.api.data.Form
 
 import lila.core.data.SafeJsonStr
-import lila.core.perf.UserWithPerfs
 import lila.core.user.User
 import lila.game.Crosstable
 import lila.core.security.IsProxy
@@ -12,7 +11,7 @@ import lila.core.security.IsProxy
 // Simplified UserInfo - many modules deleted for analysis-focused app
 case class UserInfo(
     nbs: UserInfo.NbGames,
-    user: UserWithPerfs,
+    user: User,
     ratingChart: Option[SafeJsonStr],
     nbStudies: Int,
     insightVisible: Boolean
@@ -65,7 +64,7 @@ object UserInfo:
         withCrosstable.so:
           me
             .filter(u.isnt(_))
-            .traverse(me => crosstableApi.withMatchup(me.userId, u.id).mon(_.user.segment("crosstable")))
+            .traverse(me => crosstableApi.withMatchup(me.id, u.id).mon(_.user.segment("crosstable")))
         ,
         gameCached.nbPlaying(u.id).mon(_.user.segment("nbPlaying")),
         gameCached.nbImportedBy(u.id).mon(_.user.segment("nbImported"))
@@ -73,7 +72,6 @@ object UserInfo:
 
   // Simplified UserInfoApi - many modules deleted
   final class UserInfoApi(
-      perfsRepo: lila.user.UserPerfsRepo,
       studyRepo: lila.study.StudyRepo
   )(using Executor):
     def fetch(user: User, nbs: NbGames, withUblog: Boolean = false)(using
@@ -81,10 +79,9 @@ object UserInfo:
         proxy: IsProxy
     ): Fu[UserInfo] =
       (
-        perfsRepo.withPerfs(user),
         fuccess(none[SafeJsonStr]),
         studyRepo.countByOwner(user.id).recoverDefault.mon(_.user.segment("nbStudies")),
         fuccess(false) // insightVisible - module deleted
-      ).mapN((withPerfs, chart, studies, insight) => UserInfo(nbs, withPerfs, chart, studies, insight))
+      ).mapN((chart, studies, insight) => UserInfo(nbs, user, chart, studies, insight))
 
     def preloadTeams(info: UserInfo) = fuccess(())
