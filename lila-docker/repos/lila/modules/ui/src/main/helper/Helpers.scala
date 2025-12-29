@@ -1,15 +1,10 @@
 package lila.ui
 
-trait Helpers
-    extends AssetHelper
-    with FormHelper
-    with UserHelper
-    with DateHelper
-    with HtmlHelper
-    with NumberHelper
-    with I18nHelper
-    with StringHelper
-    with GameHelper
-    with FlashHelper
-    with ChessHelper
-    with PaginatorHelper
+import play.api.i18n.Lang
+import java.time.Month
+import java.time.format.TextStyle
+
+// Minimal helpers trait for UI components
+trait Helpers:
+  def showMonth(m: Month)(using lang: Lang): String =
+    m.getDisplayName(TextStyle.FULL, lang.locale)

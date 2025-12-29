@@ -127,7 +127,6 @@ object MoveAnalyzer:
         userMoveMotifs = userMotifs,
         severity = severity
       )
-    }
 
 
   // ============================================================

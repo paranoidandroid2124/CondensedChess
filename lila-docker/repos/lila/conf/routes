@@ -4,13 +4,10 @@
 # Account
 GET   /account/info                    controllers.Account.info
 GET   /api/account                     controllers.Account.apiMe
-GET   /api/account/email               controllers.Account.apiEmail
 GET   /account/profile                 controllers.Account.profile
 POST  /account/profile                 controllers.Account.profileApply
 GET   /account/passwd                  controllers.Account.passwd
 POST  /account/passwd                  controllers.Account.passwdApply
-GET   /account/email                   controllers.Account.email
-POST  /account/email                   controllers.Account.emailApply
 GET   /account/username                controllers.Account.username
 POST  /account/username                controllers.Account.usernameApply
 GET   /account/close                   controllers.Account.close

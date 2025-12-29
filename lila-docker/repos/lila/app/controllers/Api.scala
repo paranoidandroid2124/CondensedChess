@@ -39,9 +39,9 @@ final class Api(env: Env, gameC: => Game) extends LilaController(env):
       if ctx.me.exists(_.isVerified) then 1
       else (if env.socket.isOnline.exec(name.id) then 2 else 4) + ctx.isAnon.so(3)
     userShowApiRateLimit(rateLimited, cost = cost):
-      env.user.api.withPerfs(name).map { userOpt =>
+      env.user.repo.byId(name.id).map { userOpt =>
         toApiResult(userOpt.map { u =>
-          env.user.jsonView.full(u.user, u.perfs.some, withProfile = getBoolOpt("profile") | true)
+          env.user.jsonView.full(u, withProfile = getBoolOpt("profile") | true)
         })
       }.map(toHttp)
 
@@ -210,7 +210,7 @@ final class Api(env: Env, gameC: => Game) extends LilaController(env):
   ): Option[SourceIdentity[T]] =
     ctx.me.fold(some[SourceIdentity[T]](identity)): me =>
       val limiter = if ctx.isMobileOauth then GlobalConcurrencyLimitUserMobile else GlobalConcurrencyLimitUser
-      limiter.compose[T](me.userId)
+      limiter.compose[T](me.id)
 
   private[controllers] def GlobalConcurrencyLimitPerIpAndUserOption[T, U: UserIdOf](
       about: Option[U]

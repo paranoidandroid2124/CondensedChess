@@ -2,7 +2,8 @@ package lila.user
 
 import reactivemongo.api.bson.*
 
-import lila.core.user.{ User, LightUser }
+import lila.core.user.User
+import lila.core.LightUser
 import lila.core.userId.*
 import lila.db.dsl.{ *, given }
 import lila.memo.{ CacheApi, Syncache }
@@ -45,7 +46,7 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
         .map: name =>
           LightUser(
             id = UserId(name.value.toLowerCase),
-            name = name.value
+            name = name
           )
 
   private val projection =

@@ -1,21 +1,53 @@
 package lila.core
 
-import java.time.Instant
-import scalalib.model.Days
+import scalalib.model.{ Days, Max }
 import lila.core.userId.*
 import lila.core.email.EmailAddress
+import play.api.libs.json.JsObject
 
 object user:
+
+  trait Note
+  trait NoteApi:
+    def getForMyPermissions(user: User, max: Max = Max(30))(using me: Me): Fu[List[Note]]
+    def toUserForMod(id: UserId, max: Max = Max(50)): Fu[List[Note]]
+    def recentToUserForMod(id: UserId): Fu[Option[Note]]
+    def byUsersForMod(ids: List[UserId]): Fu[List[Note]]
+    def write(to: UserId, text: String, modOnly: Boolean, dox: Boolean)(using me: MyId): Funit
+    def lichessWrite(to: User, text: String): Funit
+    def byId(id: String): Fu[Option[Note]]
+    def delete(id: String): Funit
+    def setDox(id: String, dox: Boolean): Funit
+    // def search(query: String, page: Int, withDox: Boolean): Fu[scalalib.paginator.Paginator[Note]]
+
+  trait JsonView:
+    def full(u: User): JsObject
+    def disabled(u: LightUser): JsObject
+    def ghost: JsObject
 
   opaque type UserEnabled = Boolean
   object UserEnabled extends TotalWrapper[UserEnabled, Boolean]:
     extension (e: UserEnabled)
       def yes: Boolean = e.value
+      def no: Boolean = !e.value
 
   case class UserDelete(requested: Instant, done: Boolean = false)
 
   opaque type RoleDbKey = String
   object RoleDbKey extends TotalWrapper[RoleDbKey, String]
+
+  opaque type TotpSecret = Array[Byte]
+  object TotpSecret extends TotalWrapper[TotpSecret, Array[Byte]]
+
+  opaque type FlagCode = String
+  object FlagCode extends TotalWrapper[FlagCode, String]:
+    def from(codes: Iterable[String]): List[FlagCode] = codes.toList.map(FlagCode.apply)
+
+  type FlagName = String
+
+  case class Flag(code: FlagCode, name: FlagName, shortName: Option[String]):
+    override def toString = code
+  trait FlagApi
 
   case class User(
       id: UserId,
@@ -26,6 +58,7 @@ object user:
       seenAt: Option[Instant] = None,
       lang: Option[String] = None
   ):
+
     def light = LightUser(id, username)
     
     def myId: MyId = MyId(id.value)

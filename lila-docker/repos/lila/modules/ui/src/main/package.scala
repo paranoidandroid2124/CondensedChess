@@ -6,6 +6,8 @@ import scalatags.Text.all.Frag
 import lila.core.data.SafeJsonStr
 import lila.core.i18n.I18nKey
 
+// Import core lilaism extensions including .some
+export lila.core.lilaism.Lilaism.{ *, given }
 
 case class PageModule(name: String, data: JsValue | SafeJsonStr)
 case class Esm(key: String, init: WithNonce[Frag] = _ => ScalatagsExtensions.emptyFrag)

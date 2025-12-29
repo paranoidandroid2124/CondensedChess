@@ -54,7 +54,7 @@ case class Page(
   def hrefLangs(path: LangPath): Page = copy(withHrefLangs = path.some)
   def transformHead(f: Update[Frag]): Page = copy(transformHead = transformHead.compose(f))
   def preloadImage(url: Url)(helper: AssetHelper): Page =
-    transformHead(head => frag(head, helper.imagePreload(url)))
+    transformHead(head => frag(head, helper.imagePreload(Some(url))))
   def preloadImage(url: Option[Url])(helper: AssetHelper): Page =
     url.fold(this)(preloadImage(_)(helper))
 

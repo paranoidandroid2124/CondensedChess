@@ -25,25 +25,17 @@ package router.router:
   export lila.ui.LilaRouter.given
 
 package router.team:
-
-  export lila.core.id.TeamId
   export lila.core.userId.UserStr
   export lila.ui.LilaRouter.given
 
 package router.clas:
-
-  export scalalib.model.Days
-  export lila.core.id.{ ClasId, ClasInviteId }
   export lila.core.userId.UserStr
   export lila.ui.LilaRouter.given
 
 package router.appeal:
-
   export lila.core.userId.UserStr
   export lila.ui.LilaRouter.given
 
 package router.report:
-
   export lila.core.userId.UserStr
-  export lila.core.id.ReportId
   export lila.ui.LilaRouter.given

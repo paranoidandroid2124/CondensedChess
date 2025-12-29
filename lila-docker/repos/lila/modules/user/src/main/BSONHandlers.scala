@@ -3,6 +3,7 @@ package lila.user
 import reactivemongo.api.bson.*
 import lila.core.user.{ User, UserEnabled, RoleDbKey }
 import lila.db.dsl.{ *, given }
+import lila.db.BSON
 
 object BSONFields:
   val id = "_id"
@@ -12,7 +13,9 @@ object BSONFields:
   val createdAt = "createdAt"
   val seenAt = "seenAt"
   val lang = "lang"
-  val title = "title"
+  val bpass = "bpass"
+  val salt = "salt"
+  val sha512 = "sha512"
 
 object BSONHandlers:
 
@@ -42,4 +45,3 @@ object BSONHandlers:
         lang -> o.lang
       )
 
-  private[user] given BSONDocumentHandler[lila.user.LightCount] = Macros.handler

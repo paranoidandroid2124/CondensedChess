@@ -9,9 +9,7 @@ import lila.common.Bus
 @Module
 final class Env(
     db: lila.db.Db,
-    cacheApi: lila.memo.CacheApi,
-    isOnline: lila.core.socket.IsOnline,
-    onlineIds: lila.core.socket.OnlineIds
+    cacheApi: lila.memo.CacheApi
 )(using Executor, Scheduler):
 
   val repo = UserRepo(db(CollName("user4")))
@@ -22,17 +20,13 @@ final class Env(
 
   export lightUserApi.{
     async as lightUser,
-    sync as lightUserSync,
-    isBotSync
+    sync as lightUserSync
   }
 
-  lazy val jsonView = wire[JsonView]
+  // Mock isOnline as always false since socket is gone
+  private val isOnlineFunc: UserId => Boolean = _ => false
+  lazy val jsonView = new JsonView(isOnlineFunc)
 
   lazy val cached: Cached = wire[Cached]
 
-  Bus.sub[lila.core.mod.MarkCheater]:
-    case lila.core.mod.MarkCheater(userId, true) =>
-      repo.userIdsWithRoles(List(RoleDbKey("admin"))) // Dummy logic to keep Bus sub for now or remove if possible
-
-  Bus.sub[lila.core.mod.MarkBooster]: m =>
-    ()
+  // Moderation/Cheater markings removed

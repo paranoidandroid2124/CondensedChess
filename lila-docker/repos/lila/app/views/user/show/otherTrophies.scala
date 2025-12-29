@@ -1,13 +1,3 @@
-package views.user
-package show
-
-import lila.app.UiEnv.{ *, given }
-import lila.user.{ Trophy, TrophyKind }
-
+package views.user.show
 object otherTrophies:
-
-  import bits.awards.*
-
-  // Simplified - trophies, coach, streamer modules deleted
-  def apply(info: lila.app.mashup.UserInfo)(using ctx: Context) =
-    emptyFrag  // No trophies to display - modules deleted
+  def apply(u: lila.user.User) = scalatags.Text.all.emptyFrag
