@@ -11,8 +11,7 @@ import scala.concurrent.blocking
 
 import lila.common.String.html.nl2br
 import lila.common.autoconfig.*
-import lila.core.i18n.I18nKey.emails as trans
-import lila.core.i18n.Translate
+
 
 final class Mailer(
     config: Mailer.Config,
@@ -113,12 +112,12 @@ object Mailer:
 
   object txt:
 
-    private def serviceNote(using Translate): String = s"""
-${trans.common_note("https://lichess.org").render}
+    private def serviceNote: String = s"""
+Note: If you did not request this, you can ignore this email. The link will expire.
 
-${trans.common_contact("https://lichess.org/contact").render}"""
+For help, visit: https://lichess.org/contact"""
 
-    def addServiceNote(body: String)(using Translate) = s"""$body
+    def addServiceNote(body: String) = s"""$body
 
 $serviceNote"""
 
@@ -143,32 +142,29 @@ $serviceNote"""
       href := "https://lichess.org/"
     )(span(itemprop := "name")("lichess.org"))
 
-    def serviceNote(using Translate) =
+    def serviceNote =
       publisher(
         small(
-          trans.common_note(Mailer.html.noteLink),
-          " ",
-          trans.common_contact(noteContact),
-          " ",
-          lila.core.i18n.I18nKey.site.readAboutOur(
-            a(href := "https://lichess.org/privacy")(
-              lila.core.i18n.I18nKey.site.privacyPolicy()
-            )
-          )
+          "This is a service email from lichess.org. ",
+          "For help, visit ",
+          noteContact,
+          ". Read about our ",
+          a(href := "https://lichess.org/privacy")("privacy policy"),
+          "."
         )
       )
 
-    def standardEmail(body: String)(using Translate): Frag =
+    def standardEmail(body: String): Frag =
       emailMessage(
         pDesc(nl2br(body)),
         serviceNote
       )
 
-    def url(u: String, clickOrPaste: Boolean = true)(using Translate) =
+    def url(u: String, clickOrPaste: Boolean = true) =
       frag(
         meta(itemprop := "url", content := u),
         p(a(itemprop := "target", href := u)(u)),
-        clickOrPaste.option(p(trans.common_orPaste()))
+        clickOrPaste.option(p("Or paste this link into your browser."))
       )
 
     private[Mailer] def wrap(subject: String, htmlBody: Frag): Frag =

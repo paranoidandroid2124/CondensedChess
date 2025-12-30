@@ -5,7 +5,6 @@ import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
 
 import lila.core.config.*
-import lila.core.socket.{ GetVersion, SocketVersion }
 
 @Module
 final class Env(
@@ -18,7 +17,6 @@ final class Env(
     namer: lila.core.game.Namer,
     userApi: lila.core.user.UserApi,
     explorer: lila.core.game.Explorer,
-    prefApi: lila.core.pref.PrefApi,
     analyser: lila.tree.Analyser,
     analysisJson: lila.tree.AnalysisJson,
     annotator: lila.tree.Annotator,
@@ -32,15 +30,19 @@ final class Env(
     lila.core.config.RateLimit
 ):
 
+  // Local type aliases for removed socket types
+  private case class SocketVersion(value: Int)
+
   private lazy val studyDb = mongo.asyncDb("study", appConfig.get[String]("study.mongodb.uri"))
 
-  def version(studyId: StudyId): Fu[SocketVersion] =
-    fuccess(SocketVersion(0)) // Socket removed - simplified
+  def version(studyId: StudyId): Fu[Int] =
+    fuccess(0) // Socket removed - simplified
 
   def isConnected(studyId: StudyId, userId: UserId): Fu[Boolean] =
     fuccess(false) // Socket removed - simplified
 
   val studyRepo = StudyRepo(studyDb(CollName("study")))
+
   val chapterRepo = ChapterRepo(studyDb(CollName("study_chapter_flat")))
   private val topicRepo = StudyTopicRepo(studyDb(CollName("study_topic")))
   private val userTopicRepo = StudyUserTopicRepo(studyDb(CollName("study_user_topic")))
@@ -83,11 +85,3 @@ final class Env(
 
   lila.common.Bus.sub[lila.tree.StudyAnalysisProgress]:
     case lila.tree.StudyAnalysisProgress(analysis, complete) => serverEvalMerger(analysis, complete)
-
-  lila.common.Bus.sub[lila.core.user.UserDelete]: del =>
-    for
-      studyIds <- studyRepo.deletePrivateByOwner(del.id)
-      _ <- chapterRepo.deleteByStudyIds(studyIds)
-      _ <- studyRepo.anonymizeAllOf(del.id)
-      _ <- topicApi.userTopicsDelete(del.id)
-    yield ()

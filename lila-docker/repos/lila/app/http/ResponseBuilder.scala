@@ -129,10 +129,3 @@ trait ResponseBuilder(using Executor)
     Forbidden.page(views.site.message.noLame),
     forbiddenJson("The access to this resource is restricted.")
   )
-
-  def playbanJsonError(ban: lila.playban.TempBan): Result =
-    Forbidden(
-      jsonError(
-        s"Banned from playing for ${ban.remainingMinutes} minutes. Reason: Too many aborts, unplayed games, or rage quits."
-      ) + ("minutes" -> JsNumber(ban.remainingMinutes))
-    ).as(JSON)

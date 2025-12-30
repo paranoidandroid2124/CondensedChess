@@ -1,8 +1,8 @@
 package lila.security
 
 import play.api.mvc.RequestHeader
+import reactivemongo.api.bson.*
 import reactivemongo.akkastream.{ AkkaStreamCursor, cursorProducer }
-import reactivemongo.api.bson.{ BSONDocumentHandler, BSONDocumentReader, BSONNull, Macros }
 
 import scala.concurrent.blocking
 
@@ -10,14 +10,13 @@ import lila.common.HTTPRequest
 import lila.core.id.SessionId
 import lila.core.net.{ ApiVersion, IpAddress, UserAgent }
 import lila.core.misc.oauth.AccessTokenId
-import lila.core.security.FingerHash
-import lila.core.socket.Sri
+import lila.core.security.{ FingerHash, IsProxy }
+import lila.common.extensions.*
 import lila.db.dsl.{ *, given }
 
-final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Executor):
+final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using executor: Executor):
 
   import SessionStore.*
-  import FingerHash.given
 
   private val authCache = cacheApi[SessionId, Option[AuthInfo]](65_536, "security.session.info"):
     _.expireAfterAccess(5.minutes).buildAsyncFuture[SessionId, Option[AuthInfo]]: id =>
@@ -40,7 +39,7 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       blocking:
         ids.foreach(blockingUncache)
     }
-  // blocks loading values! https://github.com/ben-manes/caffeine/issues/148
+
   private def blockingUncache(sessionId: SessionId) =
     authCache.underlying.synchronous.invalidate(sessionId)
 
@@ -51,8 +50,8 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       apiVersion: Option[ApiVersion],
       up: Boolean,
       fp: Option[FingerPrint],
-      proxy: lila.core.security.IsProxy,
-      pwned: IsPwned
+      proxy: IsProxy,
+      pwned: Boolean
   ): Funit =
     coll.insert
       .one:
@@ -63,38 +62,13 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
           "ua" -> HTTPRequest.userAgent(req).some.filter(_ != UserAgent.zero),
           "date" -> nowInstant,
           "up" -> up,
-          "api" -> apiVersion, // lichobile
-          "fp" -> fp.flatMap(lila.security.FingerHash.from),
-          "proxy" -> proxy.yes.option(proxy),
-          "pwned" -> pwned.yes.option(true)
+          "api" -> apiVersion,
+          "fp" -> fp.flatMap(_.hash),
+          "proxy" -> proxy.name.isDefined.option(proxy),
+          "pwned" -> pwned.option(true)
         )
       .void
 
-  private[security] def upsertOAuth(
-      userId: UserId,
-      tokenId: AccessTokenId,
-      mobile: Option[lila.core.net.LichessMobileUa],
-      req: RequestHeader
-  ): Funit =
-    val id = s"TOK-${tokenId.value.take(20)}"
-    val ua = mobile
-      .map(Mobile.LichessMobileUaTrim.write)
-      .getOrElse(HTTPRequest.userAgent(req).value)
-    coll.update
-      .one(
-        $id(id),
-        $doc(
-          "_id" -> id,
-          "user" -> userId,
-          "ip" -> HTTPRequest.ipAddress(req),
-          "ua" -> ua,
-          "date" -> nowInstant,
-          "up" -> true,
-          "fp" -> mobile.map(_.sri.value)
-        ),
-        upsert = true
-      )
-      .void
 
   def delete(sessionId: SessionId): Funit =
     for _ <- coll.update.one($id(sessionId), $set("up" -> false))
@@ -124,7 +98,6 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
     for _ <- coll.delete.one($doc("user" -> userId))
     yield uncacheAllOf(userId)
 
-  private given BSONDocumentHandler[UserSession] = Macros.handler[UserSession]
   def openSessions(userId: UserId, nb: Int): Fu[List[UserSession]] =
     coll
       .find($doc("user" -> userId, "up" -> true))
@@ -139,14 +112,14 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       .cursor[UserSession](ReadPref.sec)
 
   def setFingerPrint(id: SessionId, fp: FingerPrint): Fu[FingerHash] =
-    lila.security.FingerHash.from(fp) match
+    fp.hash match
       case None => fufail(s"Can't hash $id's fingerprint $fp")
       case Some(hash) =>
         for
           _ <- coll.updateField($id(id), "fp", hash)
-          _ = authInfo(id).foreach:
-            _.foreach: i =>
-              authCache.put(id, fuccess(i.copy(hasFp = true).some))
+          _ = authInfo(id).map(_.foreach { i =>
+            authCache.put(id, fuccess(i.copy(hasFp = true).some))
+          })
         yield hash
 
   def chronoInfoByUser(user: User): Fu[List[Info]] =
@@ -162,14 +135,12 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       .cursor[Info]()
       .list(1000)
 
-  // remains of never-confirmed accounts that got cleaned up
   private[security] def deletePreviousSessions(user: User) =
     coll.delete.one($doc("user" -> user.id, "date".$lt(user.createdAt))).void
 
   private case class DedupInfo(_id: SessionId, ip: String, ua: String):
     def compositeKey = s"$ip $ua"
   private given BSONDocumentReader[DedupInfo] = Macros.reader
-
   def dedup(userId: UserId, keepSessionId: SessionId): Funit =
     coll
       .find(
@@ -223,16 +194,14 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       $doc("ip" -> ip, "date" -> $gt(nowInstant.minusMinutes(since.toMinutes.toInt)))
 
   private[security] def recentByPrintExists(fp: FingerPrint): Fu[Boolean] =
-    lila.security.FingerHash.from(fp).so { hash =>
+    fp.hash.so { hash =>
       coll.secondary.exists:
         $doc("fp" -> hash, "date" -> $gt(nowInstant.minusDays(7)))
     }
 
 object SessionStore:
-
   case class Info(ip: IpAddress, ua: UserAgent, fp: Option[FingerHash], date: Instant):
     def datedIp = Dated(ip, date)
     def datedFp = fp.map { Dated(_, date) }
     def datedUa = Dated(ua, date)
-
   given BSONDocumentReader[Info] = Macros.reader[Info]

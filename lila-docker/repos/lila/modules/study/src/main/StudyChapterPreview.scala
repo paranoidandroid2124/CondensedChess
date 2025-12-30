@@ -6,7 +6,6 @@ import chess.{ ByColor, Color, FideId, Outcome }
 import play.api.libs.json.*
 import reactivemongo.api.bson.*
 
-import lila.core.fide.Federation
 import lila.db.dsl.{ *, given }
 
 case class ChapterPreview(
@@ -30,8 +29,6 @@ case class ChapterPreview(
 
 final class ChapterPreviewApi(
     chapterRepo: ChapterRepo,
-    federationsOf: Federation.FedsOf,
-    federationNamesOf: Federation.NamesOf,
     cacheApi: lila.memo.CacheApi
 )(using Executor):
 
@@ -73,19 +70,11 @@ final class ChapterPreviewApi(
     jsonList(studyId).map(ChapterPreview.json.readFirstId)
 
   private def listAll(studyId: StudyId): Fu[List[ChapterPreview]] =
-    for
-      withoutFeds <- chapterRepo.coll:
-        _.find(chapterRepo.$studyId(studyId), projection.some)
-          .sort(chapterRepo.$sortOrder)
-          .cursor[ChapterPreview]()
-          .listAll()
-      federations <- federationsOf(withoutFeds.flatMap(_.fideIds))
-    yield withoutFeds.map: chap =>
-      chap.copy(
-        players = chap.players.map:
-          _.map: player =>
-            player.copy(fed = player.fideId.flatMap(federations.get))
-      )
+    chapterRepo.coll:
+      _.find(chapterRepo.$studyId(studyId), projection.some)
+        .sort(chapterRepo.$sortOrder)
+        .cursor[ChapterPreview]()
+        .listAll()
 
   def fromChapter(chapter: Chapter) =
     import chapter.*
@@ -102,13 +91,7 @@ final class ChapterPreviewApi(
     )
 
   object federations:
-    private val cache = cacheApi[StudyId, JsObject](512, "study.chapterPreview.federations"):
-      _.expireAfterWrite(1.minute).buildAsyncFuture: studyId =>
-        for
-          chapters <- dataList(studyId)
-          fedNames <- federationNamesOf(chapters.flatMap(_.fideIds))
-        yield JsObject(fedNames.map((id, name) => id.value -> JsString(name)))
-    export cache.get
+    def apply(studyId: StudyId): Fu[JsObject] = fuccess(Json.obj())
 
   def invalidate(studyId: StudyId): Unit =
     jsonList.cache.synchronous().invalidate(studyId)

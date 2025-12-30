@@ -96,5 +96,8 @@ case class Game(
   def pov(c: Color) = Pov(this, c)
   def povs: ByColor[Pov] = ByColor(pov)
 
+  // synthetic games are created from positions, not real games
+  def synthetic = source.exists(_ == Source.Position)
+
   override def toString = s"""Game($id)"""
 end Game

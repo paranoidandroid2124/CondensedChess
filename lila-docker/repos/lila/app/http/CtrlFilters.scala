@@ -9,25 +9,11 @@ import lila.common.HTTPRequest
 import lila.core.perm.{ Granter, Permission }
 import lila.core.security.IsProxy
 
+// Chesstory: Simplified CtrlFilters for analysis-only system
+// Removed: NoCurrentGame, NoPlayban, NoPlaybanOrCurrent (game/playban dependencies)
 trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder:
 
   export Granter.{ apply as isGranted, opt as isGrantedOpt }
-
-  def NoCurrentGame(a: => Fu[Result])(using ctx: Context): Fu[Result] =
-    ctx.me
-      .soUse(env.preloader.currentGameMyTurn)
-      .flatMap:
-        _.fold(a): current =>
-          negotiate(keyPages.home(Results.Forbidden), currentGameJsonError(current))
-
-  private def currentGameJsonError(current: lila.app.mashup.Preload.CurrentGame) = fuccess:
-    Forbidden(
-      jsonError:
-        s"You are already playing ${current.opponent}"
-    ).as(JSON)
-
-  def NoPlaybanOrCurrent(a: => Fu[Result])(using Context): Fu[Result] =
-    NoPlayban(NoCurrentGame(a))
 
   def IfGranted(perm: Permission.Selector)(f: => Fu[Result])(using ctx: Context): Fu[Result] =
     if isGrantedOpt(perm) then f
@@ -75,13 +61,6 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
   def NoShadowban[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] =
     if ctx.me.exists(_.marks.troll) then notFound else a
 
-  def NoPlayban(a: => Fu[Result])(using ctx: Context): Fu[Result] =
-    ctx.userId
-      .so(env.playban.api.currentBan)
-      .flatMap:
-        _.fold(a): ban =>
-          negotiate(keyPages.home(Results.Forbidden), playbanJsonError(ban))
-
   def AuthOrTrustedIp(f: => Fu[Result])(using ctx: Context): Fu[Result] =
     if ctx.isAuth then f
     else
@@ -101,7 +80,6 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
 
   def XhrOrRedirectHome(res: => Fu[Result])(using ctx: Context): Fu[Result] =
     if HTTPRequest.isXhr(ctx.req) then res
-    // routes.Lobby.home removed - lobby module deleted
     else Redirect(routes.User.show(ctx.me.map(_.username).getOrElse(UserStr(""))))
 
   def Reasonable(
@@ -125,6 +103,5 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
   def NoCrawlers[A](computation: => A)(using ctx: Context, default: Zero[A]): A =
     if HTTPRequest.isCrawler(ctx.req).yes then default.zero else computation
 
-  // clas module deleted - NotManaged simplified
   def NotManaged(result: => Fu[Result])(using ctx: Context): Fu[Result] =
     result  // Always allow - clas module removed

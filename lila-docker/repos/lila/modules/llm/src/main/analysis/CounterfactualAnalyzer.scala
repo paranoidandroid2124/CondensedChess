@@ -1,8 +1,10 @@
 package lila.llm
 
 import lila.llm.model.*
+import lila.llm.model.Motif.{ *, given }
 
 import _root_.chess.*
+import _root_.chess.format.Uci
 
 /**
  * Counterfactual Analyzer
@@ -39,14 +41,12 @@ object CounterfactualAnalyzer:
 
     // 1. Check for missed tactical opportunities (Motifs in best but not in user)
     val missedTactics = bestMotifs.filter {
-      case _: CheckMotif | _: ForkMotif | _: PinMotif | _: Skewer | _: DiscoveredAttack => true
-      case m: CaptureMotif if m.captureType == CaptureType.Sacrifice => true
+      case _: Motif.Check | _: Motif.Fork | _: Motif.Pin | _: Motif.Skewer | _: Motif.DiscoveredAttack => true
+      case m: Motif.Capture if m.captureType == Motif.CaptureType.Sacrifice => true
       case _ => false
     }
 
     // 2. Find the "Punisher" - the move in the user's line that makes it bad
-    // Usually, if the user makes a mistake (Move 1), the engine responds (Move 2) 
-    // to punish it. Move 2 is the punisher.
     val punishmentMove = userLine.moves.lift(1) 
 
     // 3. Match against Hypotheses (Human-like mistakes)
@@ -64,7 +64,7 @@ object CounterfactualAnalyzer:
     }
 
     Some(TacticalDivergence(
-      divergencePly = 1, // Currently simplified to the immediate next move
+      divergencePly = 1,
       punishmentMove = punishmentMove,
       reason = reason,
       materialLoss = if (cpLoss > 100) cpLoss else 0,
@@ -98,8 +98,8 @@ object CounterfactualAnalyzer:
       severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok"
     )
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-
-    Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption).map(_.after)
+  private def moveAfter(pos: Position, uciStr: String): Option[Position] =
+    Uci(uciStr).flatMap {
+      case m: Uci.Move => pos.move(m).toOption.map(_.after)
+      case _ => None
+    }

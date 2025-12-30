@@ -30,8 +30,8 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
             then h2("Lichess Mobile")
             else strong(code(prompt.redirectUri.clientOrigin))
           ),
-          prompt.redirectUri.insecure.option(flashMessage("warning")("Does not use a secure connection")),
-          postForm(action := authorizeUrl)(
+          prompt.redirectUri.insecure.option(div(cls := "flash-warning")("Does not use a secure connection")),
+          form(method := "post", action := authorizeUrl)(
             p(
               "Grant access to your ",
               strong(otherUserRequested.fold(me.username)(_.name)),
@@ -42,9 +42,9 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
             else
               ul(cls := "oauth__scopes"):
                 prompt.scopes.value.map: scope =>
-                  li(cls := List("danger" -> OAuthScope.dangerList.has(scope)))(scope.name())
+                  li(cls := List("danger" -> OAuthScope.dangerList.has(scope)))(scope.name)
             ,
-            form3.actions(
+            div(cls := "form-actions")(
               a(href := prompt.cancelUrl)("Cancel"),
               otherUserRequested match
                 case Some(otherUser) =>
@@ -53,9 +53,9 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
                     otherUser.name
                   )
                 case None =>
-                  submitButton(
+                  button(
+                    tpe := "submit",
                     cls := buttonClass(prompt),
-                    dataIcon := isDanger.option(Icon.CautionTriangle),
                     disabled := true,
                     id := "oauth-authorize",
                     title := s"The website ${prompt.redirectUri.host | prompt.redirectUri.withoutQuery} will get access to your Lichess account. Continue?"
@@ -66,7 +66,7 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
         )
 
   private def switchLoginUrl(to: Option[UserName])(using ctx: Context) =
-    addQueryParams(routes.Auth.login.url, Map("switch" -> to.fold("1")(_.value), "referrer" -> ctx.req.uri))
+    s"${routes.Auth.login.url}?switch=${to.fold("1")(_.value)}&referrer=${ctx.req.uri}"
 
   private def footer(
       prompt: AuthorizationRequest.Prompt,
@@ -79,7 +79,7 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
           "Not ",
           me.username,
           "? ",
-          a(href := switchLoginUrl(none))(trans.site.signIn())
+          a(href := switchLoginUrl(none))("Sign in")
         )
       },
       if prompt.looksLikeLichessMobile

@@ -51,6 +51,6 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
 
   private val projection =
     $doc(
-      F.id -> false,
+      "_id" -> false,
       F.username -> true
     ).some

@@ -23,14 +23,14 @@ final class StudyUi(helpers: Helpers):
         )("Clone the study")
       ),
       p(
-        a(href := routes.Study.show(s.id), cls := "text", dataIcon := Icon.LessThan)(trans.site.cancel())
+        a(href := routes.Study.show(s.id), cls := "text", dataIcon := Icon.LessThan)("Cancel")
       )
     )
 
   private def studyButton(s: IdName, chapterCount: Int) =
     val btn =
       if Study.maxChapters <= chapterCount then submitButton(cls := "disabled", st.disabled)
-      else submitButton
+      else submitButton()
 
     btn(name := "as", value := s.id, cls := "button submit")(s.name)
 
@@ -41,29 +41,30 @@ final class StudyUi(helpers: Helpers):
   )(using Context) =
     div(cls := "study-create")(
       postForm(action := routes.Study.create)(
-        form3.hidden("gameId", data.gameId),
-        form3.hidden("orientation", data.orientation.map(_.key)),
-        form3.hidden("fen", data.fen.map(_.value)),
-        form3.hidden("pgn", data.pgnStr),
-        form3.hidden("variant", data.variant.map(_.key)),
-        h2(trans.study.whereDoYouWantToStudyThat()),
+        input(tpe := "hidden", name := "gameId", value := data.gameId),
+        input(tpe := "hidden", name := "orientation", value := data.orientation.map(_.key)),
+        input(tpe := "hidden", name := "fen", value := data.fen.map(_.value)),
+        input(tpe := "hidden", name := "pgn", value := data.pgnStr),
+        input(tpe := "hidden", name := "variant", value := data.variant.map(_.key)),
+        h2("Where do you want to study that?"),
         p(
           submitButton(
             name := "as",
             value := "study",
             cls := "submit button large new text",
             dataIcon := Icon.StudyBoard
-          )(trans.study.createStudy())
+          )("Create a new study")
         ),
         div(cls := "studies")(
           div(
-            h2(trans.study.myStudies()),
+            h2("My studies"),
             owner.map(studyButton)
           ),
           div(
-            h2(trans.study.studiesIContributeTo()),
+            h2("Studies I contribute to"),
             contrib.map(studyButton)
           )
         )
       )
     )
+

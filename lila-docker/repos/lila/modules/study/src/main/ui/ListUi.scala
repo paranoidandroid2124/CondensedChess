@@ -12,27 +12,26 @@ import ScalatagsTemplate.{ *, given }
 
 final class ListUi(helpers: Helpers, bits: StudyBits):
   import helpers.{ *, given }
-  import trans.study as trs
 
   def all(pag: Paginator[WithChaptersAndLiked], order: StudyOrder)(using Context) =
     page(
-      title = trs.allStudies.txt(),
+      title = "All studies",
       active = "all",
       order = order,
       pag = pag,
       searchFilter = "",
-      url = routes.Study.all(_)
+      url = routes.Study.all(_, 1)
     )
       .hrefLangs(lila.ui.LangPath(routes.Study.allDefault()))
 
   def byOwner(pag: Paginator[WithChaptersAndLiked], order: StudyOrder, owner: User)(using Context) =
     page(
-      title = trs.studiesCreatedByX.txt(owner.titleUsername),
+      title = s"Studies created by ${owner.username}",
       active = "owner",
       order = order,
       pag = pag,
       searchFilter = s"owner:${owner.username}",
-      url = routes.Study.byOwner(owner.username, _)
+      url = routes.Study.byOwner(owner.username, _, 1)
     )
 
   def mine(pag: Paginator[WithChaptersAndLiked], order: StudyOrder, topics: StudyTopics)(using
@@ -40,12 +39,12 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
       me: Me
   ) =
     page(
-      title = trs.myStudies.txt(),
+      title = "My studies",
       active = "mine",
       order = order,
       pag = pag,
       searchFilter = s"owner:${me.username}",
-      url = routes.Study.mine(_),
+      url = routes.Study.mine(_, 1),
       topics = topics.some
     )
 
@@ -54,12 +53,12 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
       order: StudyOrder
   )(using Context) =
     page(
-      title = trs.myFavoriteStudies.txt(),
+      title = "My favorite studies",
       active = "mineLikes",
       order = order,
       pag = pag,
       searchFilter = "",
-      url = routes.Study.mineLikes(_)
+      url = routes.Study.mineLikes(_, 1)
     )
 
   def mineMember(pag: Paginator[WithChaptersAndLiked], order: StudyOrder, topics: StudyTopics)(using
@@ -67,44 +66,44 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
       me: Me
   ) =
     page(
-      title = trs.studiesIContributeTo.txt(),
+      title = "Studies I contribute to",
       active = "mineMember",
       order = order,
       pag = pag,
       searchFilter = s"member:${me.username}",
-      url = routes.Study.mineMember(_),
+      url = routes.Study.mineMember(_, 1),
       topics = topics.some
     )
 
   def minePublic(pag: Paginator[WithChaptersAndLiked], order: StudyOrder)(using Context)(using me: Me) =
     page(
-      title = trs.myPublicStudies.txt(),
+      title = "My public studies",
       active = "minePublic",
       order = order,
       pag = pag,
       searchFilter = s"owner:${me.username}",
-      url = routes.Study.minePublic(_)
+      url = routes.Study.minePublic(_, 1)
     )
 
   def minePrivate(pag: Paginator[WithChaptersAndLiked], order: StudyOrder)(using Context)(using me: Me) =
     page(
-      title = trs.myPrivateStudies.txt(),
+      title = "My private studies",
       active = "minePrivate",
       order = order,
       pag = pag,
       searchFilter = s"owner:${me.username}",
-      url = routes.Study.minePrivate(_)
+      url = routes.Study.minePrivate(_, 1)
     )
 
   def search(pag: Paginator[WithChaptersAndLiked], order: StudyOrder, text: String)(using Context) =
     Page(text)
       .css("analyse.study.index")
-      .js(infiniteScrollEsmInit):
+      .js(Esm("analyse.study.index")):
         main(cls := "page-menu")(
           menu("search", Orders.default),
           main(cls := "page-menu__content study-index box")(
             div(cls := "box__top")(
-              searchForm(trans.search.search.txt(), text, order),
+              searchForm("Search studies", text, order),
               bits.orderSelect(order, "search", url = o => routes.Study.search(text, 1, o.some)),
               bits.newForm()
             ),
@@ -123,7 +122,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
   )(using Context): Page =
     Page(title)
       .css("analyse.study.index")
-      .js(infiniteScrollEsmInit):
+      .js(Esm("analyse.study.index")):
         main(cls := "page-menu")(
           menu(active, order, topics.so(_.value)),
           main(cls := "page-menu__content study-index box")(
@@ -142,7 +141,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
     if pager.currentPageResults.isEmpty then
       div(cls := "nostudies")(
         iconTag(Icon.StudyBoard),
-        p(trs.noneYet())
+        p("No studies yet")
       )
     else
       div(cls := "studies list infinite-scroll")(
@@ -154,28 +153,29 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
 
   def menu(active: String, order: StudyOrder, topics: List[StudyTopic] = Nil)(using ctx: Context) =
     val nonMineOrder = if order == StudyOrder.mine then StudyOrder.hot else order
+    def activeCls(key: String) = (active == key || active.startsWith(s"$key:")).option("active")
     lila.ui.bits.pageMenuSubnav(
-      a(cls := active.active("all"), href := routes.Study.all(nonMineOrder))(trs.allStudies()),
+      a(cls := activeCls("all"), href := routes.Study.all(nonMineOrder, 1))("All studies"),
       ctx.isAuth.option(bits.authLinks(active, nonMineOrder)),
       a(cls := List("active" -> active.startsWith("topic")), href := routes.Study.topics):
-        trs.topics()
+        "Topics"
       ,
       topics.map: topic =>
-        a(cls := active.active(s"topic:$topic"), href := routes.Study.byTopic(topic.value, order))(
+        a(cls := activeCls(s"topic:$topic"), href := routes.Study.byTopic(topic.value, order, 1))(
           topic.value
         ),
-      a(cls := active.active("staffPicks"), href := routes.Study.staffPicks)("Staff picks"),
+      a(cls := activeCls("staffPicks"), href := routes.Study.staffPicks)("Staff picks"),
       a(
         cls := "text",
         dataIcon := Icon.InfoCircle,
         href := "/@/lichess/blog/study-chess-the-lichess-way/V0KrLSkA"
-      )(trs.whatAreStudies())
+      )("What are studies?")
     )
 
-  def searchForm(placeholder: String, value: String, order: StudyOrder) =
+  def searchForm(placeholder: String, initValue: String, order: StudyOrder) =
     form(cls := "search", action := routes.Study.search(), method := "get")(
-      form3.hidden("order", order.key),
-      input(name := "q", st.placeholder := placeholder, st.value := value, enterkeyhint := "search"),
+      input(tpe := "hidden", name := "order", value := order.key),
+      input(name := "q", st.placeholder := placeholder, st.value := initValue, enterkeyhint := "search"),
       submitButton(cls := "button", dataIcon := Icon.Search)
     )
 
@@ -184,27 +184,31 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
     def topicsList(topics: StudyTopics, order: StudyOrder = Orders.default) =
       div(cls := "topic-list")(
         topics.value.map: t =>
-          a(href := routes.Study.byTopic(t.value, order))(t.value)
+          a(href := routes.Study.byTopic(t.value, order, 1))(t.value)
       )
 
     def index(popular: StudyTopics, mine: Option[StudyTopics], myForm: Option[Form[?]])(using Context) =
-      Page(trans.study.topics.txt())
+      Page("Study topics")
         .css("analyse.study.index", "bits.form3", "bits.tagify")
         .js(Esm("analyse.study.topic.form")):
           main(cls := "page-menu")(
             menu("topic", StudyOrder.mine, mine.so(_.value)),
             main(cls := "page-menu__content study-topics box box-pad")(
-              h1(cls := "box__top")(trans.study.topics()),
+              h1(cls := "box__top")("Study topics"),
               myForm.map { form =>
                 frag(
-                  h2(trans.study.myTopics()),
+                  h2("My topics"),
                   postForm(cls := "form3", action := routes.Study.topics)(
-                    form3.textarea(form("topics"))(rows := 10, attrData("max") := StudyTopics.userMax),
-                    form3.submit(trans.site.save())
+                    textarea(
+                      name := "topics",
+                      rows := 10,
+                      attrData("max") := StudyTopics.userMax
+                    )(form("topics").value.getOrElse("")),
+                    submitButton("Save")
                   )
                 )
               },
-              h2(trans.study.popularTopics()),
+              h2("Popular topics"),
               topicsList(popular)
             )
           )
@@ -216,10 +220,10 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
         myTopics: Option[StudyTopics]
     )(using Context) =
       val active = s"topic:$topic"
-      val url = (o: StudyOrder) => routes.Study.byTopic(topic.value, o)
+      val url = (o: StudyOrder) => routes.Study.byTopic(topic.value, o, 1)
       Page(topic.value)
         .css("analyse.study.index")
-        .js(infiniteScrollEsmInit):
+        .js(Esm("analyse.study.index")):
           main(cls := "page-menu")(
             menu(active, order, myTopics.so(_.value)),
             main(cls := "page-menu__content study-index box")(

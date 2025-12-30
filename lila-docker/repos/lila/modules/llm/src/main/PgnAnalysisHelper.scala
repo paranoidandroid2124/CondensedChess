@@ -2,6 +2,8 @@ package lila.llm
 
 import chess.*
 import chess.format.{ Fen, Uci }
+import chess.format.pgn.{ Parser, PgnStr }
+import chess.Replay
 
 /**
  * PGN Analysis Helper

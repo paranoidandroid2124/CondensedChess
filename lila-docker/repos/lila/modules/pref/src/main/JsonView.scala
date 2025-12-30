@@ -2,6 +2,7 @@ package lila.pref
 
 import play.api.libs.json.*
 
+// Simplified JsonView for analysis-only system
 def toJson(p: Pref, lichobileCompat: Boolean) = Json.obj(
   "dark" -> (p.bg != Pref.Bg.LIGHT),
   "transp" -> (p.bg == Pref.Bg.TRANSPARENT),
@@ -12,36 +13,14 @@ def toJson(p: Pref, lichobileCompat: Boolean) = Json.obj(
   "theme3d" -> p.theme3d,
   "pieceSet3d" -> p.pieceSet3d,
   "soundSet" -> p.soundSet,
-  "autoQueen" -> p.autoQueen,
-  "autoThreefold" -> p.autoThreefold,
-  "takeback" -> p.takeback,
-  "moretime" -> p.moretime,
-  "clockTenths" -> p.clockTenths,
-  "clockBar" -> p.clockBar,
-  "clockSound" -> p.clockSound,
-  "premove" -> p.premove,
   "animation" -> p.animation,
   "pieceNotation" -> p.pieceNotation,
-  "captured" -> p.captured,
-  "follow" -> p.follow,
   "highlight" -> p.highlight,
   "destination" -> p.destination,
   "coords" -> p.coords,
-  "replay" -> p.replay,
-  "challenge" -> p.challenge,
-  "message" -> p.message,
-  "submitMove" -> {
-    if lichobileCompat then Pref.SubmitMove.lichobile.serverToApp(p.submitMove)
-    else p.submitMove
-  },
-  "confirmResign" -> p.confirmResign,
-  "insightShare" -> p.insightShare,
   "keyboardMove" -> p.keyboardMove,
   "voiceMove" -> p.hasVoice,
   "zen" -> p.zen,
-  "ratings" -> p.ratings,
   "moveEvent" -> p.moveEvent,
-  "rookCastle" -> p.rookCastle,
-  "flairs" -> p.flairs,
-  "sayGG" -> p.sayGG
+  "rookCastle" -> p.rookCastle
 )

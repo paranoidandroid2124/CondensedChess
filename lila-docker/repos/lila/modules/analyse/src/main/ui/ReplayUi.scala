@@ -9,6 +9,7 @@ import play.api.libs.json.*
 import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
 import lila.common.Json.given
+import lila.i18n.I18nKeys as trans
 
 final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
   import helpers.{ *, given }

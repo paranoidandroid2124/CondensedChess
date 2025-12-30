@@ -2,8 +2,9 @@ package lila.study
 
 import scalalib.paginator.Paginator
 
-import lila.core.i18n.I18nKey
 import lila.core.study.StudyOrder
+import lila.core.user.Me
+import lila.core.user.Me.*
 import lila.db.dsl.{ *, given }
 import lila.db.paginator.{ Adapter, CachedAdapter }
 
@@ -31,49 +32,49 @@ final class StudyPager(
       order,
       page,
       fuccess(9999).some
-    )
+    )(using me)
 
   def byOwner(owner: User, order: StudyOrder, page: Int)(using me: Option[Me]) =
     paginator(
       selectOwnerId(owner.id) ++ accessSelect,
       order,
       page
-    )
+    )(using me)
 
   def mine(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
-      selectOwnerId(me),
+      selectOwnerId(me.userId),
       order,
       page
-    )
+    )(using Some(me))
 
   def minePublic(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectOwnerId(me) ++ selectPublic,
       order,
       page
-    )
+    )(using Some(me))
 
   def minePrivate(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectOwnerId(me) ++ selectPrivateOrUnlisted,
       order,
       page
-    )
+    )(using Some(me))
 
   def mineMember(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
       selectMemberId(me) ++ $doc("ownerId".$ne(me.userId)),
       order,
       page
-    )
+    )(using Some(me))
 
   def mineLikes(order: StudyOrder, page: Int)(using me: Me) =
     paginator(
-      selectLiker(me) ++ accessSelect ++ $doc("ownerId".$ne(me.userId)),
+      selectLiker(me) ++ accessSelect(using Some(me)) ++ $doc("ownerId".$ne(me.userId)),
       order,
       page
-    )
+    )(using Some(me))
 
   def byTopic(topic: StudyTopic, order: StudyOrder, page: Int)(using me: Option[Me]) =
     val onlyMine = me.ifTrue(order == StudyOrder.mine)
@@ -82,7 +83,7 @@ final class StudyPager(
       order,
       page,
       hint = onlyMine.isDefined.option($doc("uids" -> 1, "rank" -> -1))
-    )
+    )(using me)
 
   private def accessSelect(using me: Option[Me]) =
     me.fold(selectPublic): u =>
@@ -96,7 +97,7 @@ final class StudyPager(
       page: Int,
       nbResults: Option[Fu[Int]] = none,
       hint: Option[Bdoc] = none
-  )(using Option[Me]): Fu[Paginator[Study.WithChaptersAndLiked]] = studyRepo.coll: coll =>
+  )(using me: Option[Me]): Fu[Paginator[Study.WithChaptersAndLiked]] = studyRepo.coll: coll =>
     val adapter = Adapter[Study](
       collection = coll,
       selector = selector,
@@ -114,7 +115,7 @@ final class StudyPager(
         case StudyOrder.relevant => $sort.desc("rank")
       ,
       hint = hint
-    ).mapFutureList(withChaptersAndLiking())
+    ).mapFutureList(studies => withChaptersAndLiking()(studies)(using me))
     Paginator(
       adapter = nbResults.fold(adapter): nb =>
         CachedAdapter(adapter, nb),
@@ -155,12 +156,12 @@ object Orders:
     List(StudyOrder.hot, StudyOrder.newest, StudyOrder.popular, StudyOrder.alphabetical, StudyOrder.relevant)
   private val byKey = list.mapBy(_.toString)
   def apply(key: String): StudyOrder = byKey.getOrElse(key, default)
-  val name: StudyOrder => I18nKey =
-    case StudyOrder.hot => I18nKey.study.hot
-    case StudyOrder.newest => I18nKey.study.dateAddedNewest
-    case StudyOrder.oldest => I18nKey.study.dateAddedOldest
-    case StudyOrder.updated => I18nKey.study.recentlyUpdated
-    case StudyOrder.popular => I18nKey.study.mostPopular
-    case StudyOrder.alphabetical => I18nKey.study.alphabetical
-    case StudyOrder.mine => I18nKey.study.myStudies
-    case StudyOrder.relevant => I18nKey.study.relevant
+  val name: StudyOrder => String =
+    case StudyOrder.hot => "Hot"
+    case StudyOrder.newest => "Newest"
+    case StudyOrder.oldest => "Oldest"
+    case StudyOrder.updated => "Recently updated"
+    case StudyOrder.popular => "Most popular"
+    case StudyOrder.alphabetical => "Alphabetical"
+    case StudyOrder.mine => "My studies"
+    case StudyOrder.relevant => "Relevant"

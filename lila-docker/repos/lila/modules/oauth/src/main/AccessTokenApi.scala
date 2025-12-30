@@ -33,28 +33,26 @@ final class AccessTokenApi(
   yield token
 
   def create(setup: OAuthTokenForm.Data, isStudent: Boolean)(using me: MyId, ua: UserAgent): Fu[AccessToken] =
-    for
-      noBot <- fuccess(isStudent) >>| userApi.isManaged(me)
-      plain = Bearer.randomPersonal()
-      token = AccessToken(
-        id = AccessToken.idFrom(plain),
-        plain = plain,
-        userId = me,
-        description = setup.description.some,
-        created = nowInstant.some,
-        scopes = TokenScopes:
-          setup.scopes
-            .flatMap(OAuthScope.byKey.get)
-            .filterNot(_ == OAuthScope.Bot.Play && noBot)
-            .filterNot(_ == OAuthScope.Web.Mobile)
-            .toList
-        ,
-        clientOrigin = None,
-        userAgent = ua.some,
-        expires = None
-      )
-      res <- createAndRotate(token)
-    yield res
+    val noBot = isStudent // Simplified: removed isManaged check
+    val plain = Bearer.randomPersonal()
+    val token = AccessToken(
+      id = AccessToken.idFrom(plain),
+      plain = plain,
+      userId = me,
+      description = setup.description.some,
+      created = nowInstant.some,
+      scopes = TokenScopes:
+        setup.scopes
+          .flatMap(OAuthScope.byKey.get)
+          .filterNot(_ == OAuthScope.Bot.Play && noBot)
+          .filterNot(_ == OAuthScope.Web.Mobile)
+          .toList
+      ,
+      clientOrigin = None,
+      userAgent = ua.some,
+      expires = None
+    )
+    createAndRotate(token)
 
   def create(granted: AccessTokenRequest.Granted)(using ua: UserAgent): Fu[AccessToken] =
     val plain = Bearer.random()
@@ -74,33 +72,8 @@ final class AccessTokenApi(
   def adminChallengeTokens(
       setup: OAuthTokenForm.AdminChallengeTokensData,
       admin: User
-  )(using ua: UserAgent): Fu[Map[UserId, AccessToken]] = for
-    users <- userApi.enabledByIds(setup.usernames)
-    scope = OAuthScope.Challenge.Write
-    tokens <- users.sequentially: user =>
-      coll
-        .one[AccessToken]:
-          $doc(
-            F.userId -> user.id,
-            F.clientOrigin -> setup.description,
-            F.scopes -> scope.key
-          )
-        .getOrElse:
-          val plain = Bearer.randomPersonal()
-          createAndRotate:
-            AccessToken(
-              id = AccessToken.idFrom(plain),
-              plain = plain,
-              userId = user.id,
-              description = s"Challenge admin: ${admin.username}".some,
-              created = nowInstant.some,
-              scopes = TokenScopes(List(scope)),
-              clientOrigin = setup.description.some,
-              userAgent = ua.some,
-              expires = Some(nowInstant.plusMonths(6))
-            )
-        .map(user.id -> _)
-  yield tokens.toMap
+  )(using ua: UserAgent): Fu[Map[UserId, AccessToken]] = 
+    fuccess(Map.empty) // Stubbed: Admin feature not needed for analysis-only system
 
   def listPersonal(using me: MyId): Fu[List[AccessToken]] =
     coll
@@ -205,11 +178,8 @@ final class AccessTokenApi(
         bearers.map(AccessToken.idFrom),
         readPref = _.sec
       )(_.id)
-      .flatMap: tokens =>
-        userApi.filterDisabled(tokens.flatten.map(_.userId)).map { closedUserIds =>
-          val openTokens = tokens.map(_.filter(token => !closedUserIds(token.userId)))
-          bearers.zip(openTokens).toMap
-        }
+      .map: tokens =>
+        bearers.zip(tokens).toMap // Simplified: removed filterDisabled check
 
   def secretScanning(scans: List[AccessTokenApi.GithubSecretScan]): Fu[List[(AccessToken, String)]] = for
     found <- test(scans.map(_.token))

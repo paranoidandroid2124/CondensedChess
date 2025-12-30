@@ -1,6 +1,7 @@
 package lila.llm
 
 import lila.llm.model.*
+import lila.llm.model.Motif.{ *, given }
 
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }
@@ -119,14 +120,14 @@ object MoveAnalyzer:
         else if cpLoss >= 50 then "inaccuracy"
         else "ok"
       
-      CounterfactualMatch(
+      Some(CounterfactualMatch(
         userMove = userMove,
         bestMove = bestMove,
         cpLoss = cpLoss,
         missedMotifs = missedMotifs,
         userMoveMotifs = userMotifs,
         severity = severity
-      )
+      ))
 
 
   // ============================================================
@@ -177,15 +178,6 @@ object MoveAnalyzer:
           )
       }
 
-      // 3. "Recaptures" (Retaking)
-      // If the last move was a capture by opponent, we usually want to recapture
-      // (This requires knowing the last move, which we don't have in pure FEN. 
-      //  We can infer 'to' square from previous position if available, but for now skip.)
-
-      // 4. "Tension Release" (Pawn Breaks)
-      // If there are pawn tension, resolving it is natural
-      // (Simplified logic: Pawn captures are already covered above)
-
       candidates.result().take(3) // Limit to top 3 most "obvious" candidates
     }.getOrElse(Nil)
 
@@ -202,8 +194,7 @@ object MoveAnalyzer:
       detectPawnMotifs(mv, pos, color, san, plyIndex),
       detectPieceMotifs(mv, pos, color, san, plyIndex),
       detectKingMotifs(mv, pos, color, san, plyIndex),
-      detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex),
-      detectThreatMotifs(mv, pos, nextPos, color, san, plyIndex)
+      detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex)
     )
 
   // ============================================================
@@ -233,31 +224,24 @@ object MoveAnalyzer:
     
     // Check for tactical complexity
     val tacticsCount = motifs.count {
-      case _: CheckMotif | _: ForkMotif | _: PinMotif => true
-      case m: CaptureMotif if m.captureType != CaptureType.Normal => true
+      case _: Motif.Check | _: Motif.Fork | _: Motif.Pin => true
+      case m: Motif.Capture if m.captureType != Motif.CaptureType.Normal => true
       case _ => false
     }
 
     if tacticsCount >= 2 then builder += VariationTag.Sharp
     else if line.moves.length > 5 && tacticsCount == 0 then builder += VariationTag.Solid
 
-    // Prophylaxis: Significantly improves score compared to the threat (Null Move score)
-    // Heuristic: If threat score is bad < -100 (from our perspective) and this line is > -50
-    // Or simply if score delta is large (> 150cp)
     threat.foreach { t =>
-      // threat.scoreCp is from our perspective (e.g. if we skipped move, opponent kills us => low score)
-      // Actually, standard null move returns score from opponent perspective?
-      // Let's assume AnalysisModels normalized it. If threat is -500 (we are losing)
-      // and line is 0 (equal), then we prevented it.
       if t.scoreCp < -100 && line.scoreCp > t.scoreCp + 100 then
         builder += VariationTag.Prophylaxis
     }
 
     // Simplification: Winning score (> 200) + Excanges
     if line.scoreCp > 200 then
-      val captures = motifs.count(_.isInstanceOf[CaptureMotif])
+      val captures = motifs.count(_.isInstanceOf[Motif.Capture])
       val exchanges = motifs.count {
-        case m: CaptureMotif => m.captureType == CaptureType.Exchange
+        case m: Motif.Capture => m.captureType == Motif.CaptureType.Exchange
         case _ => false
       }
       if captures > 0 || exchanges > 0 then
@@ -265,6 +249,7 @@ object MoveAnalyzer:
 
     builder.result()
 
+  private def detectPawnMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != Pawn then return Nil
     
     var motifs = List.empty[Motif]
@@ -303,6 +288,7 @@ object MoveAnalyzer:
 
     motifs
 
+  private def detectPieceMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
     val role = mv.piece.role
 
@@ -339,6 +325,7 @@ object MoveAnalyzer:
 
     motifs
 
+  private def detectKingMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != King then return Nil
     var motifs = List.empty[Motif]
     if mv.castle.isDefined then
@@ -382,20 +369,18 @@ object MoveAnalyzer:
       else CheckType.Normal
       
       val kingSq = nextPos.board.kingPosOf(!color).getOrElse(mv.dest) // Fallback to dest if king not found (unlikely)
-      motifs = motifs :+ CheckMotif(mv.piece.role, kingSq, checkType, plyIndex, Some(san))
+      motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, plyIndex, Some(san))
     
     // Capture
     if mv.captures then
-      // mv.capture returns Option[Square] (the captured square), not the role
-      // For en passant, captured pawn is on mv.capture, not mv.dest
       val capturedRole = mv.capture.flatMap(pos.board.roleAt).getOrElse(pos.board.roleAt(mv.dest).getOrElse(Pawn))
       val captureType = determineCaptureType(mv.piece.role, capturedRole)
-      motifs = motifs :+ CaptureMotif(mv.piece.role, capturedRole, mv.dest, captureType, plyIndex, Some(san))
+      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, captureType, plyIndex, Some(san))
     
     // Fork detection
     val forkTargetsList = detectForkTargets(mv, nextPos, color)
     if forkTargetsList.size >= 2 then
-      motifs = motifs :+ ForkMotif(mv.piece.role, forkTargetsList, mv.dest, color, plyIndex, Some(san))
+      motifs = motifs :+ Motif.Fork(mv.piece.role, forkTargetsList, mv.dest, color, plyIndex, Some(san))
     
     // Pin / Skewer detection
     detectLineTactics(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
@@ -416,7 +401,7 @@ object MoveAnalyzer:
     val val2 = pieceValue(victim)
     if val2 < val1 then CaptureType.Sacrifice
     else if val2 == val1 then CaptureType.Exchange
-    else CaptureType.Normal
+    else CaptureType.Winning
 
   private def detectForkTargets(mv: Move, nextPos: Position, color: Color): List[Role] =
     val sq = mv.dest
@@ -455,8 +440,6 @@ object MoveAnalyzer:
       val ray = Bitboard.ray(sq, targetSq)
       val occupiedBehind = occupied & ray & ~Bitboard(targetSq) & ~Bitboard(sq)
       
-      // Select the nearest square such that the targetSq is between us and it
-      // Manual Chebyshev distance: max(|file diff|, |rank diff|)
       def chebyshevDist(a: Square, b: Square): Int =
         Math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
       
@@ -466,9 +449,9 @@ object MoveAnalyzer:
           board.roleAt(behindSq).flatMap { behindRole =>
             if (board.colorAt(behindSq).contains(!color)) {
               if (pieceValue(targetRole) < pieceValue(behindRole))
-                Some(PinMotif(role, targetRole, behindRole, color, plyIndex, san))
+                Some(Motif.Pin(role, targetRole, behindRole, color, plyIndex, san))
               else if (pieceValue(targetRole) > pieceValue(behindRole))
-                Some(Skewer(role, targetRole, behindRole, color, plyIndex, san))
+                Some(Motif.Skewer(role, targetRole, behindRole, color, plyIndex, san))
               else None
             } else None
           }
@@ -484,10 +467,6 @@ object MoveAnalyzer:
       san: Option[String]
   ): List[Motif] =
     val movedPiece = mv.piece.role
-    // Note: orig and dest are available via mv.orig/mv.dest if needed
-    
-    // A discovery happens if a line was opened from 'orig'
-    // Find our long-range pieces that might be attacking through 'orig'
     val longRangePieces = pos.board.byColor(color) & (pos.board.bishops | pos.board.rooks | pos.board.queens)
     
     longRangePieces.squares.flatMap { pieceSq =>
@@ -504,12 +483,11 @@ object MoveAnalyzer:
         case Queen  => pieceSq.queenAttacks(nextPos.board.occupied)
         case _      => Bitboard.empty
       
-      // New targets after moving the blocking piece
       val newTargets = (attacksAfter & ~attacksBefore) & nextPos.board.byColor(!color)
       
       newTargets.squares.flatMap { targetSq =>
         nextPos.board.roleAt(targetSq).map { targetRole =>
-          DiscoveredAttack(movedPiece, role, targetRole, color, plyIndex, san)
+          Motif.DiscoveredAttack(movedPiece, role, targetRole, color, plyIndex, san)
         }
       }
     }
@@ -537,7 +515,7 @@ object MoveAnalyzer:
     duties.collect { 
       case (defenderSq, tasks) if tasks.size >= 2 =>
         val role = board.roleAt(defenderSq).getOrElse(Pawn)
-        Overloading(role, defenderSq, tasks, color, plyIndex, san)
+        Motif.Overloading(role, defenderSq, tasks, color, plyIndex, san)
     }.toList
 
   private def detectInterference(
@@ -556,14 +534,11 @@ object MoveAnalyzer:
     
     oppDefenders.squares.foreach { defenderSq =>
       val role = board.roleAt(defenderSq).getOrElse(Queen)
-      
-      // Interference: blocker is between defenderSq and some other piece it was defending
       val opponentPieces = board.byColor(oppColor) & ~Bitboard(defenderSq)
       opponentPieces.squares.foreach { targetSq =>
-        // If blockerSq is strictly between defenderSq and targetSq, coordination is broken
         if (Bitboard.between(defenderSq, targetSq).contains(blockerSq)) {
           val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
-          blockedDefenses += Interference(
+          blockedDefenses += Motif.Interference(
              interferingPiece = mv.piece.role,
              interferingSquare = blockerSq,
              blockedPiece1 = role,
@@ -577,10 +552,6 @@ object MoveAnalyzer:
     }
     
     blockedDefenses.result()
-
-  // ============================================================
-  // STATE MOTIF DETECTION
-  // ============================================================
 
   private def detectStateMotifs(pos: Position, plyIndex: Int): List[Motif] =
     val board = pos.board
@@ -618,7 +589,6 @@ object MoveAnalyzer:
       File.all.lift(fIdx).forall { f =>
         oppPawnsByFile.get(f).forall { oppPawns =>
           oppPawns.forall { oppPawn =>
-            // Opponent pawn must be STRICTLY behind our pawn (not on same rank)
             if color.white then oppPawn.rank.value < pawnSq.rank.value
             else oppPawn.rank.value > pawnSq.rank.value
           }
@@ -631,67 +601,33 @@ object MoveAnalyzer:
       case (Some(wk), Some(bk)) =>
         val fDiff = (wk.file.value - bk.file.value).abs
         val rDiff = (wk.rank.value - bk.rank.value).abs
-        // Opposition: The side NOT to move has the opposition
-        // In endgame context, we don't have side-to-move here, so we report both kings' squares
-        // The consumer of this motif should determine context from plyIndex (even=White, odd=Black to move)
-        val sideWithOpposition = if plyIndex % 2 == 0 then Black else White // Opposite of side to move
+        val sideWithOpposition = if plyIndex % 2 == 0 then Black else White
         if fDiff == 0 && rDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
         else if rDiff == 0 && fDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
         else Nil
       case _ => Nil
 
-  private def detectThreatMotifs(
-      mv: Move, 
-      pos: Position, 
-      nextPos: Position,
-      color: Color, 
-      san: String, 
-      plyIndex: Int
-  ): List[Motif] =
-    // If this move creates a threat that must be addressed immediately
-    // Heuristic: Does the opponent have a piece that can be captured next?
-    // This is partly covered by Fork/Pin, but 'Threat' can be simpler (e.g. attacking a piece)
-    Nil // Placeholder: complex threat analysis usually requires Engine input
-
-  /**
-   * Null Move Analysis: What is the threat if we skip our turn?
-   * Scores and ranks threats by tactical severity, returning only the most dangerous ones.
-   */
-  /**
-   * Null Move Analysis: What is the threat if we skip our turn?
-   * Scores and ranks threats by tactical severity, returning interesting motifs from the most dangerous moves.
-   */
   def detectThreats(fen: String, color: Color): List[Motif] =
     Fen.read(chess.variant.Standard, Fen.Full(fen)).map { pos =>
       val oppColor = !color
       val oppPos = if pos.color == oppColor then pos else pos.withColor(oppColor)
       
-      // Group motifs by move so we can detect combinations (e.g. Check AND Fork)
       val threateningMoves = oppPos.legalMoves.flatMap { mv =>
         val san = mv.toSanStr.toString
         val motifs = detectTacticalMotifs(mv, oppPos, mv.after, oppColor, san, 0)
         
-        // Static Exchange guard: Filter out "Winning Captures" that are actually defended
         val filteredMotifs = motifs.filter {
-          case c: CaptureMotif if c.captureType == CaptureType.Winning =>
-            // Check if the target square (where capture happens) is defended by the other side
-            // If it IS defended, this "winning" capture might just be a trade or even a loss.
+          case c: Motif.Capture if c.captureType == CaptureType.Winning =>
             val targetSquare = mv.dest
-            val defender = color // The side we're analyzing threats FOR (opponent's perspective)
+            val defender = color
             val isDefended = oppPos.board.attackers(targetSquare, defender).nonEmpty
             
-            // If the target is defended, we need the value difference to be significant
-            // to still consider it a "real" winning threat.
-            // Simple heuristic: If defended, only keep if attacker is minor and target is major (or similar high-value trade)
             if (isDefended) {
-              // Get the value of attacker and target (in pawn units: P=1, N/B=3, R=5, Q=9)
               val attackerValue = oppPos.board.roleAt(mv.orig).map(pieceValue).getOrElse(0)
               val targetValue = oppPos.board.roleAt(targetSquare).map(pieceValue).getOrElse(0)
-              // Only keep if we win significantly (e.g., knight takes rook on defended square)
-              // Net gain must be at least 2 pawn units (e.g., minor takes rook)
               targetValue - attackerValue >= 2
             } else {
-              true // Undefended = free win, keep it
+              true
             }
           case _ => true
         }
@@ -702,46 +638,35 @@ object MoveAnalyzer:
         } else None
       }
 
-      // Filter noise and select top threats
       threateningMoves
-        .filter(_._2 > 0)     // Only actual threats
-        .sortBy(-_._2)        // Highest impact first
-        .take(2)              // Focus on the top 2 most critical threats
-        .flatMap(_._1)        // Flatten to list of motifs for the prompt
+        .filter(_._2 > 0)
+        .sortBy(-_._2)
+        .take(2)
+        .flatMap(_._1)
     }.getOrElse(Nil).distinct
 
-  /**
-   * Scores a move based on the combination of motifs it generates.
-   * Detecting combinations (Check + Fork) is critical for high-quality alerts.
-   */
   private def scoreMoveThreat(motifs: List[Motif]): Int =
-    val givesCheck = motifs.exists(_.isInstanceOf[CheckMotif])
-    val forks = motifs.exists(_.isInstanceOf[ForkMotif])
-    val skewers = motifs.exists(_.isInstanceOf[Skewer])
-    val discovered = motifs.exists(_.isInstanceOf[DiscoveredAttack])
+    val givesCheck = motifs.exists(_.isInstanceOf[Motif.Check])
+    val forks = motifs.exists(_.isInstanceOf[Motif.Fork])
+    val skewers = motifs.exists(_.isInstanceOf[Motif.Skewer])
+    val discovered = motifs.exists(_.isInstanceOf[Motif.DiscoveredAttack])
     val winningCapture = motifs.collectFirst { 
-      case c: CaptureMotif if c.captureType == CaptureType.Winning => true 
+      case c: Motif.Capture if c.captureType == CaptureType.Winning => true 
     }.getOrElse(false)
 
     var score = 0
     
-    // Base scores for tactical themes
     if (givesCheck) score += 50
     if (forks) score += 80
     if (skewers) score += 70
     if (discovered) score += 60
     if (winningCapture) score += 60
 
-    // Bonus for combinations (The "Guard" logic fix)
-    if (givesCheck && forks) score += 50      // Check-Fork is deadly
-    if (givesCheck && winningCapture) score += 40 // Check-WinningCapture is forcing
-    if (discovered && givesCheck) score += 40 // Discovered check is often mating
+    if (givesCheck && forks) score += 50
+    if (givesCheck && winningCapture) score += 40
+    if (discovered && givesCheck) score += 40
 
     score
-
-  // ============================================================
-  // HELPERS
-  // ============================================================
 
   private def isSmotheredPattern(pos: Position, color: Color): Boolean =
     pos.board.kingPosOf(!color).exists { kingSq =>
