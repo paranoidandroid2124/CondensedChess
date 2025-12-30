@@ -13,7 +13,6 @@ import lila.db.ByteArray
 object BinaryFormat:
 
   object pgn:
-
     def write(moves: Vector[SanStr]): ByteArray = ByteArray:
       format.pgn.Binary.writeMoves(moves).get
 
@@ -22,6 +21,8 @@ object BinaryFormat:
 
     def read(ba: ByteArray, nb: Int): Vector[SanStr] =
       format.pgn.Binary.readMoves(ba.value.toList, nb).get.toVector
+
+  case class CastleLastMove(castles: Castles, lastMove: Option[Uci.Move])
 
   object clockHistory:
     private val logger = lila.log("clockHistory")

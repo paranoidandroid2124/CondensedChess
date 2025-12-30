@@ -4,7 +4,6 @@ import play.api.i18n.Lang
 import java.time.YearMonth
 import chess.format.Fen
 
-import lila.core.i18n.Translate
 import lila.core.config.ImageGetOrigin
 import lila.ui.ScalatagsTemplate.{ *, given }
 
@@ -80,9 +79,9 @@ object bits:
       )
     )
 
-  def fenAnalysisLink(fen: Fen.Full)(using Translate) =
+  def fenAnalysisLink(fen: Fen.Full) =
     a(href := routes.UserAnalysis.parseArg(ChessHelper.underscoreFen(fen)))(
-      lila.core.i18n.I18nKey.site.analysis()
+      "Analysis"
     )
 
   private val dataSitekey = attr("data-sitekey")

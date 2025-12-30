@@ -1,6 +1,5 @@
 package lila.ui
 
-import lila.core.i18n.I18nModule
 import ScalatagsTemplate.*
 
 opaque type LangPath = String
@@ -24,7 +23,6 @@ case class Page(
     body: Option[Frag] = None,
     fullTitle: Option[String] = None,
     cssKeys: List[String] = Nil,
-    i18nModules: List[I18nModule.Selector] = List(_.site, _.timeago, _.preferences),
     modules: EsmList = Nil,
     pageModule: Option[PageModule] = None,
     openGraph: Option[OpenGraph] = None,
@@ -40,9 +38,6 @@ case class Page(
   def js(pm: PageModule): Page = copy(pageModule = pm.some)
   @scala.annotation.targetName("jsModuleOption")
   def js(pm: Option[PageModule]): Page = copy(pageModule = pm)
-  def i18n(mods: I18nModule.Selector*): Page = copy(i18nModules = i18nModules ::: mods.toList)
-  def i18nOpt(cond: Boolean, mods: => I18nModule.Selector*): Page =
-    if cond then copy(i18nModules = i18nModules.appendedAll(mods)) else this
   def graph(og: OpenGraph): Page = copy(openGraph = og.some)
   def graph(title: String, description: String, url: Url): Page = graph(OpenGraph(title, description, url))
   def flag(f: PageFlags.type => PageFlags, v: Boolean = true): Page =

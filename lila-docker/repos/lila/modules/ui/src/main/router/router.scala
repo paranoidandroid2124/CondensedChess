@@ -6,7 +6,7 @@ package routes:
   export chess.Color
   export chess.format.Uci
   export chess.opening.OpeningKey
-  export lila.core.i18n.Language
+  export scalalib.model.Language
   export lila.core.id.*
   export lila.core.userId.UserStr
   export lila.core.study.StudyOrder
@@ -18,7 +18,7 @@ package router.router:
   export chess.Color
   export chess.format.Uci
   export chess.opening.OpeningKey
-  export lila.core.i18n.Language
+  export scalalib.model.Language
   export lila.core.id.*
   export lila.core.userId.UserStr
   export lila.core.study.StudyOrder

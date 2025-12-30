@@ -58,8 +58,8 @@ libraryDependencies ++= akka.bundle ++ playWs.bundle ++ macwire.bundle ++ scalal
 // ============================================================
 lazy val modules = Seq(
   // Infrastructure (Level 1-3)
-  core, coreI18n,
-  ui, common, tree, i18n,
+  core,
+  ui, common, tree,
   db,
   
   // Core (Level 4)
@@ -94,11 +94,6 @@ lazy val core = module("core",
   Seq(catsMtl, scalatags, galimatias) ++ scalalib.bundle ++ reactivemongo.bundle ++ tests.bundle
 )
 
-lazy val coreI18n = module("coreI18n",
-  Seq(),
-  Seq(scalatags) ++ scalalib.bundle
-)
-
 lazy val common = module("common",
   Seq(core),
   Seq(kamon.core, scaffeine, apacheText, chess.playJson) ++ flexmark.bundle
@@ -114,19 +109,7 @@ lazy val memo = module("memo",
   Seq(scaffeine) ++ playWs.bundle
 )
 
-lazy val i18n = module("i18n",
-  Seq(common, coreI18n),
-  tests.bundle
-).settings(
-  Compile / resourceGenerators += Def.task {
-    I18n.serialize(
-      sourceDir = new File("translation/source"),
-      destDir = new File("translation/dest"),
-      dbs = "study site settings preferences oauthScope onboarding".split(' ').toList,
-      outputDir = (Compile / resourceManaged).value
-    )
-  }.taskValue
-)
+
 
 
 lazy val tree = module("tree",
@@ -135,7 +118,7 @@ lazy val tree = module("tree",
 )
 
 lazy val ui = module("ui",
-  Seq(core, coreI18n),
+  Seq(core),
   Seq()
 ).enablePlugins(RoutesCompiler).settings(
   Compile / RoutesKeys.generateForwardRouter := false,
@@ -167,7 +150,7 @@ lazy val oauth = module("oauth",
 )
 
 lazy val mailer = module("mailer",
-  Seq(memo, coreI18n),
+  Seq(memo),
   Seq(hasher, play.mailer)
 )
 
@@ -181,14 +164,14 @@ lazy val security = module("security",
 // ============================================================
 
 lazy val game = module("game",
-  Seq(tree, memo, ui, coreI18n),  // removed rating dependency
+  Seq(tree, memo, ui),  // removed rating dependency
   Seq(compression) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 )
 
 lazy val analyse = module("analyse",
   Seq(tree, memo, ui),
   tests.bundle
-).dependsOn(coreI18n % "test->test")
+)
 
 lazy val study = module("study",
   Seq(tree, memo, ui),
