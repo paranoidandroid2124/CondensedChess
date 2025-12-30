@@ -4,9 +4,9 @@ import lila.core.security.FingerHash
 
 opaque type FingerPrint = String
 object FingerPrint extends OpaqueString[FingerPrint]:
-  extension (a: FingerPrint) def hash: Option[FingerHash] = FingerHash.from(a)
+  extension (a: FingerPrint) def hash: Option[FingerHash] = FingerHashGenerator.from(a)
 
-object FingerHash:
+object FingerHashGenerator:
 
   val length = 12
 

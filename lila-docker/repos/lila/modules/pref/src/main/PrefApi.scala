@@ -7,16 +7,16 @@ import reactivemongo.api.bson.*
 import lila.db.dsl.{ *, given }
 import lila.memo.CacheApi.*
 
+// Simplified PrefApi for analysis-only system
+// Removed: getMessage, getInsightShare, getChallenge, getStudyInvite, followable, mentionable, isolate, setBot, agree
 final class PrefApi(
     val coll: Coll,
     cacheApi: lila.memo.CacheApi
-)(using Executor)
-    extends lila.core.pref.PrefApi:
+)(using Executor):
 
   import PrefHandlers.given
 
-  lila.common.Bus.sub[lila.core.user.UserDelete]: del =>
-    coll.delete.one($id(del.id)).void
+  // UserDelete event subscription removed (not needed for analysis-only)
 
   private def fetchPref(id: UserId): Fu[Option[Pref]] = coll.find($id(id)).one[Pref]
 
@@ -63,58 +63,12 @@ final class PrefApi(
       .map: opponent =>
         myPov.fold(ByColor(myPref, opponent), ByColor(opponent, myPref))
 
-  def getMessage(userId: UserId): Future[Int] = get(userId, _.message)
-  def getInsightShare(userId: UserId): Future[Int] = get(userId, _.insightShare)
-  def getChallenge(userId: UserId): Future[Int] = get(userId, _.challenge)
-  def getStudyInvite(userId: UserId): Future[Int] = get(userId, _.studyInvite)
-
-  def followable(userId: UserId): Fu[Boolean] =
-    coll.primitiveOne[Boolean]($id(userId), "follow").map(_ | Pref.default.follow)
-
-  private def unfollowableIds(userIds: List[UserId]): Fu[Set[UserId]] =
-    coll.secondary.distinctEasy[UserId, Set](
-      "_id",
-      $inIds(userIds) ++ $doc("follow" -> false)
-    )
-
-  def followableIds(userIds: List[UserId]): Fu[Set[UserId]] =
-    unfollowableIds(userIds).map(userIds.toSet.diff)
-
-  def followables(userIds: List[UserId]): Fu[List[Boolean]] =
-    followableIds(userIds).map: followables =>
-      userIds.map(followables.contains)
-
-  private def unmentionableIds(userIds: Set[UserId]): Fu[Set[UserId]] =
-    coll.secondary.distinctEasy[UserId, Set](
-      "_id",
-      $inIds(userIds) ++ $doc("mention" -> false)
-    )
-
-  def mentionableIds(userIds: Set[UserId]): Fu[Set[UserId]] =
-    unmentionableIds(userIds).map(userIds.diff)
-
-  def setPref(user: User, pre: Pref): Funit =
-    val pref = pre.isolate(user.marks.isolate)
+  def setPref(user: User, pref: Pref): Funit =
     for _ <- coll.update.one($id(pref.id), pref, upsert = true)
     yield cache.put(pref.id, fuccess(pref.some))
 
   def setPref(user: User, change: Pref => Pref): Funit =
     get(user).map(change).flatMap(setPref(user, _))
-
-  def isolate(user: User) = setPref(user, identity[Pref])
-
-  def agree(user: User): Funit =
-    for _ <- coll.update.one($id(user.id), $set("agreement" -> Pref.Agreement.current), upsert = true)
-    yield cache.invalidate(user.id)
-
-  def setBot(user: User): Funit = setPref(
-    user,
-    _.copy(
-      takeback = Pref.Takeback.NEVER,
-      moretime = Pref.Moretime.NEVER,
-      insightShare = lila.core.pref.InsightShare.EVERYBODY
-    )
-  )
 
   def saveNewUserPrefs(user: User, req: RequestHeader): Funit =
     val reqPref = RequestPref.fromRequest(req)

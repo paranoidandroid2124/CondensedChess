@@ -29,6 +29,9 @@ final class Analyse(
 
   val AcceptsPgn = Accepting("application/x-chess-pgn")
 
+  def requestAnalysis(id: String) = Anon:
+    NotFound("Stub").fuccess
+
   def embedReplayGame(gameId: GameId, color: Color) = Anon:
     InEmbedContext:
       env.game.gameRepo.game(gameId).map:

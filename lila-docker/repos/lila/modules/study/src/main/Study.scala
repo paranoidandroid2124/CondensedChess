@@ -20,10 +20,10 @@ case class Study(
     likes: Study.Likes,
     description: Option[String] = None,
     topics: Option[StudyTopics] = None,
-    flair: Option[Flair] = None,
     createdAt: Instant,
     updatedAt: Instant
 ) extends hub.Study:
+
 
   import Study.*
 

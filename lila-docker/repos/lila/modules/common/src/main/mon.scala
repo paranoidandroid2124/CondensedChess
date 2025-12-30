@@ -168,12 +168,8 @@ object mon:
     object farming:
       val bot = counter("round.farming.bot").withoutTags()
       val provisional = counter("round.farming.provisional").withoutTags()
-  object playban:
-    def outcome(out: String) = counter("playban.outcome").withTag("outcome", out)
-    object ban:
-      val count = counter("playban.ban.count").withoutTags()
-      val mins = histogram("playban.ban.mins").withoutTags()
   object explorer:
+
     object index:
       def count(success: Boolean) = counter("explorer.index.count").withTag("success", successTag(success))
       val time = timer("explorer.index.time").withoutTags()

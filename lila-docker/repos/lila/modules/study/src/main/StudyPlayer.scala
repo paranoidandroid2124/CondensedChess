@@ -2,8 +2,8 @@ package lila.study
 
 import chess.{ ByColor, PlayerName, PlayerTitle, FideId, Centis, IntRating }
 import chess.format.pgn.Tags
-import lila.core.fide.Federation
 
+// Chesstory: removed Federation - analysis system doesn't need it
 type Players = ByColor[StudyPlayer]
 
 case class StudyPlayer(
@@ -17,9 +17,6 @@ case class StudyPlayer(
 
 object StudyPlayer:
 
-  case class WithFed(player: StudyPlayer, fed: Option[Federation.Id]):
-    export player.*
-
   type Id = FideId | PlayerName
 
   def fromTags(tags: Tags): Option[Players] =
@@ -31,21 +28,23 @@ object StudyPlayer:
   object json:
     import play.api.libs.json.*
     import lila.common.Json.given
-    given studyPlayerWithFedWrites: OWrites[StudyPlayer.WithFed] =
+    given studyPlayerWrites: OWrites[StudyPlayer] =
       OWrites: p =>
-        Json
-          .obj("name" -> p.name)
-          .add("title" -> p.title)
-          .add("rating" -> p.rating)
-          .add("fideId" -> p.fideId)
-          .add("team" -> p.team)
-          .add("fed" -> p.fed)
-    given chapterPlayerWrites: OWrites[ChapterPlayer] = OWrites: p =>
-      Json.toJsObject(p.studyPlayer).add("clock" -> p.clock)
+        Json.obj(
+          "name" -> p.name,
+          "title" -> p.title,
+          "rating" -> p.rating,
+          "fideId" -> p.fideId,
+          "team" -> p.team
+        ).value.foldLeft(Json.obj()):
+          case (obj, (k, JsNull)) => obj
+          case (obj, (k, v)) => obj + (k -> v)
 
-case class ChapterPlayer(player: StudyPlayer, fed: Option[Federation.Id], clock: Option[Centis]):
+    given chapterPlayerWrites: OWrites[ChapterPlayer] = OWrites: p =>
+      Json.toJsObject(p.player) + ("clock" -> Json.toJson(p.clock))
+
+case class ChapterPlayer(player: StudyPlayer, clock: Option[Centis]):
   export player.*
-  def studyPlayer = StudyPlayer.WithFed(player, fed)
 
 object ChapterPlayer:
 
@@ -54,4 +53,5 @@ object ChapterPlayer:
       .fromTags(tags)
       .map:
         _.zip(clocks).map: (player, clock) =>
-          ChapterPlayer(player, fed = none, clock)
+          ChapterPlayer(player, clock)
+

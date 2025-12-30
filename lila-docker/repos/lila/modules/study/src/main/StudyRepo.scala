@@ -133,7 +133,6 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
           $setsAndUnsets(
             "position" -> s.position.some,
             "name" -> s.name.some,
-            "flair" -> s.flair,
             "settings" -> s.settings.some,
             "visibility" -> s.visibility.some,
             "description" -> s.description,

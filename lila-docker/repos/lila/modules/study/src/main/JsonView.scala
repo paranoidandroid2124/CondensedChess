@@ -4,11 +4,11 @@ import chess.Square
 import play.api.libs.json.*
 
 import lila.common.Json.{ *, given }
-import lila.core.i18n.Translate
-import lila.core.socket.Sri
 import lila.tree.Node.Shape
 import lila.core.pref.Pref
+import lila.core.LightUser
 
+// Chesstory: Removed i18n.Translate and socket.Sri dependencies - hardcoded English
 final class JsonView(
     studyRepo: StudyRepo,
     lightUserApi: lila.core.user.LightUserApi
@@ -53,7 +53,7 @@ final class JsonView(
             "id" -> chapter.id,
             "ownerId" -> chapter.ownerId,
             "setup" -> chapter.setup,
-            "tags" -> chapter.tagsExport,
+            "tags" -> (chapter.tagsExport: chess.format.pgn.Tags),
             "features" -> Json.obj(
               "computer" -> allowed(_.computer),
               "explorer" -> allowed(_.explorer)
@@ -92,7 +92,6 @@ final class JsonView(
         "topics" -> s.study.topicsOrEmpty,
         "members" -> s.study.members.members.values.take(Study.previewNbMembers)
       )
-      .add("flair", s.study.flair)
 
   private def addChapterMode(c: Chapter)(js: JsObject): JsObject =
     js.add("practice", c.isPractice)
@@ -102,7 +101,8 @@ final class JsonView(
   private[study] given Writes[StudyMember.Role] = Writes: r =>
     JsString(r.id)
   private[study] given Writes[StudyMember] = Writes: m =>
-    Json.obj("user" -> lightUserApi.syncFallback(m.id), "role" -> m.role)
+    val user: LightUser = lightUserApi.sync(m.id).getOrElse(LightUser.ghost)
+    Json.obj("user" -> user, "role" -> (m.role: StudyMember.Role))
 
   private[study] given Writes[StudyMembers] = Writes: m =>
     Json.toJson(m.members)
@@ -112,18 +112,18 @@ final class JsonView(
       .obj(
         "id" -> s.id,
         "name" -> s.name,
-        "members" -> s.members,
-        "position" -> s.position,
+        "members" -> (s.members: StudyMembers),
+        "position" -> (s.position: Position.Ref),
         "ownerId" -> s.ownerId,
-        "settings" -> s.settings,
-        "visibility" -> s.visibility,
+        "settings" -> (s.settings: Settings),
+        "visibility" -> (s.visibility: lila.core.study.Visibility),
         "createdAt" -> s.createdAt,
         "secondsSinceUpdate" -> (nowSeconds - s.updatedAt.toSeconds).toInt,
-        "from" -> s.from,
+        "from" -> (s.from: Study.From),
         "likes" -> s.likes
       )
       .add("isNew" -> s.isNew)
-      .add("flair" -> s.flair)
+
 
 object JsonView:
 
@@ -138,48 +138,47 @@ object JsonView:
     "updatedAt" -> study.updatedAt
   )
 
-  def glyphs(using Translate): JsObject =
-    import lila.core.i18n.I18nKey.study as trans
+  // Chesstory: Hardcoded English glyphs - no i18n
+  def glyphs: JsObject =
     import chess.format.pgn.Glyph
     import Glyph.MoveAssessment.*
     import Glyph.PositionAssessment.*
     import Glyph.Observation.*
     Json.obj(
       "move" -> List(
-        good.copy(name = trans.goodMove.txt()),
-        mistake.copy(name = trans.mistake.txt()),
-        brilliant.copy(name = trans.brilliantMove.txt()),
-        blunder.copy(name = trans.blunder.txt()),
-        interesting.copy(name = trans.interestingMove.txt()),
-        dubious.copy(name = trans.dubiousMove.txt()),
-        only.copy(name = trans.onlyMove.txt()),
-        zugzwang.copy(name = trans.zugzwang.txt())
+        good.copy(name = "Good move"),
+        mistake.copy(name = "Mistake"),
+        brilliant.copy(name = "Brilliant move"),
+        blunder.copy(name = "Blunder"),
+        interesting.copy(name = "Interesting move"),
+        dubious.copy(name = "Dubious move"),
+        only.copy(name = "Only move"),
+        zugzwang.copy(name = "Zugzwang")
       ),
       "position" -> List(
-        equal.copy(name = trans.equalPosition.txt()),
-        unclear.copy(name = trans.unclearPosition.txt()),
-        whiteSlightlyBetter.copy(name = trans.whiteIsSlightlyBetter.txt()),
-        blackSlightlyBetter.copy(name = trans.blackIsSlightlyBetter.txt()),
-        whiteQuiteBetter.copy(name = trans.whiteIsBetter.txt()),
-        blackQuiteBetter.copy(name = trans.blackIsBetter.txt()),
-        whiteMuchBetter.copy(name = trans.whiteIsWinning.txt()),
-        blackMuchBetter.copy(name = trans.blackIsWinning.txt())
+        equal.copy(name = "Equal position"),
+        unclear.copy(name = "Unclear position"),
+        whiteSlightlyBetter.copy(name = "White is slightly better"),
+        blackSlightlyBetter.copy(name = "Black is slightly better"),
+        whiteQuiteBetter.copy(name = "White is better"),
+        blackQuiteBetter.copy(name = "Black is better"),
+        whiteMuchBetter.copy(name = "White is winning"),
+        blackMuchBetter.copy(name = "Black is winning")
       ),
       "observation" -> List(
-        novelty.copy(name = trans.novelty.txt()),
-        development.copy(name = trans.development.txt()),
-        initiative.copy(name = trans.initiative.txt()),
-        attack.copy(name = trans.attack.txt()),
-        counterplay.copy(name = trans.counterplay.txt()),
-        timeTrouble.copy(name = trans.timeTrouble.txt()),
-        compensation.copy(name = trans.withCompensation.txt()),
-        withIdea.copy(name = trans.withTheIdea.txt())
+        novelty.copy(name = "Novelty"),
+        development.copy(name = "Development"),
+        initiative.copy(name = "Initiative"),
+        attack.copy(name = "Attack"),
+        counterplay.copy(name = "Counterplay"),
+        timeTrouble.copy(name = "Time trouble"),
+        compensation.copy(name = "With compensation"),
+        withIdea.copy(name = "With the idea")
       )
     )
 
   private given Reads[Square] = Reads: v =>
     (v.asOpt[String].flatMap { Square.fromKey(_) }).fold[JsResult[Square]](JsError(Nil))(JsSuccess(_))
-  private[study] given Writes[Sri] = writeAs(_.value)
   private[study] given Writes[lila.core.study.Visibility] = writeAs(_.toString)
   private[study] given Writes[Study.From] = Writes:
     case Study.From.Scratch => JsString("scratch")
@@ -220,5 +219,6 @@ object JsonView:
 
   private[study] given Writes[Chapter.ServerEval] = Json.writes
 
+  // Who no longer has sri field - simplified for analysis system
   private[study] given OWrites[Who] = OWrites: w =>
-    Json.obj("u" -> w.u, "s" -> w.sri)
+    Json.obj("u" -> w.u)

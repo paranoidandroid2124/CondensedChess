@@ -18,9 +18,9 @@ final class StudyBits(helpers: Helpers):
       else Orders.withoutMine
     lila.ui.bits.mselect(
       "orders",
-      span(Orders.name(order)()),
-      orders.map: o =>
-        a(href := url(o), cls := (order == o).option("current"))(Orders.name(o)())
+      span(Orders.name(order)),
+      Orders.list.map: o =>
+        a(href := url(o), cls := (order == o).option("current"))(Orders.name(o))
     )
 
   def newForm()(using Context) =
@@ -28,22 +28,22 @@ final class StudyBits(helpers: Helpers):
       submitButton(
         cls := "button button-green",
         dataIcon := Icon.PlusButton,
-        title := trans.study.createStudy.txt()
+        title := "Create a new study"
       )
     )
 
   def authLinks(active: String, order: StudyOrder)(using Context) =
     def activeCls(c: String) = cls := (c == active).option("active")
     frag(
-      a(activeCls("mine"), href := routes.Study.mine(order))(trans.study.myStudies()),
-      a(activeCls("mineMember"), href := routes.Study.mineMember(order))(
-        trans.study.studiesIContributeTo()
+      a(activeCls("mine"), href := routes.Study.mine(order, 1))("My studies"),
+      a(activeCls("mineMember"), href := routes.Study.mineMember(order, 1))(
+        "Studies I contribute to"
       ),
-      a(activeCls("minePublic"), href := routes.Study.minePublic(order))(trans.study.myPublicStudies()),
-      a(activeCls("minePrivate"), href := routes.Study.minePrivate(order))(
-        trans.study.myPrivateStudies()
+      a(activeCls("minePublic"), href := routes.Study.minePublic(order, 1))("My public studies"),
+      a(activeCls("minePrivate"), href := routes.Study.minePrivate(order, 1))(
+        "My private studies"
       ),
-      a(activeCls("mineLikes"), href := routes.Study.mineLikes(order))(trans.study.myFavoriteStudies())
+      a(activeCls("mineLikes"), href := routes.Study.mineLikes(order, 1))("My favorite studies")
     )
 
   def widget(s: Study.WithChaptersAndLiked, tag: Tag = h2)(using ctx: Context) =
@@ -51,16 +51,14 @@ final class StudyBits(helpers: Helpers):
       a(cls := "overlay", href := routes.Study.show(s.study.id), title := s.study.name),
       div(cls := "top")(
         div(cls := "study__icon")(
-          s.study.flair
-            .map(iconFlair)
-            .getOrElse(iconTag(Icon.StudyBoard))
+          iconTag(Icon.StudyBoard)
         ),
         div(
           tag(cls := "study-name")(s.study.name),
           span(
             (!s.study.isPublic).option(
               frag(
-                iconTag(Icon.Padlock)(cls := "private", ariaTitle(trans.study.`private`.txt())),
+                iconTag(Icon.Padlock)(cls := "private", ariaTitle("Private")),
                 " "
               )
             ),
@@ -78,7 +76,7 @@ final class StudyBits(helpers: Helpers):
         ol(cls := "chapters")(
           s.chapters.map: name =>
             li(cls := "text", dataIcon := Icon.DiscBigOutline)(
-              if ctx.userId.exists(s.study.isMember) then name
+              if ctx.userId.exists(s.study.isMember) then name.value
               else removeMultibyteSymbols(name.value)
             )
         ),
@@ -93,3 +91,4 @@ final class StudyBits(helpers: Helpers):
         )
       )
     )
+

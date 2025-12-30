@@ -8,10 +8,10 @@ import lila.core.game.Namer
 import lila.core.id.GameFullId
 import lila.tree.{ Branches, Root }
 
+// Chesstory: Removed chatApi dependency - analysis system doesn't need chat notifications
 final private class ChapterMaker(
     net: lila.core.config.NetConfig,
     lightUser: lila.core.user.LightUserApi,
-    chatApi: lila.core.chat.ChatApi,
     gameRepo: lila.core.game.GameRepo,
     pgnDump: lila.core.game.PgnDump,
     namer: lila.core.game.Namer
@@ -34,27 +34,27 @@ final private class ChapterMaker(
       case None => fuccess(fromFenOrBlank(study, data, order, userId))
 
   private def fromPgn(study: Study, pgn: PgnStr, data: Data, order: Int, userId: UserId): Fu[Chapter] =
-    for
-      contributors <- lightUser.asyncMany(study.members.contributorIds.toList)
-      parsed <- StudyPgnImport.result(pgn, contributors.flatten).toFuture.recoverWith { case e: Exception =>
-        fufail(ValidationException(e.getMessage))
-      }
-    yield Chapter.make(
-      studyId = study.id,
-      name = getChapterNameFromPgn(data, parsed),
-      setup = Chapter.Setup(
-        none,
-        parsed.variant,
-        resolveOrientation(data, parsed.root, userId, parsed.tags)
-      ),
-      root = parsed.root,
-      tags = parsed.tags,
-      order = order,
-      ownerId = userId,
-      practice = data.isPractice,
-      gamebook = data.isGamebook,
-      conceal = data.isConceal.option(parsed.root.ply)
-    )
+    // Simplified: removed asyncMany call - just use sync for contributors
+    val contributors = study.members.contributorIds.toList.flatMap(id => lightUser.sync(id))
+    StudyPgnImport.result(pgn, contributors).toFuture.recoverWith { case e: Exception =>
+      fufail(ValidationException(e.getMessage))
+    }.map: parsed =>
+      Chapter.make(
+        studyId = study.id,
+        name = getChapterNameFromPgn(data, parsed),
+        setup = Chapter.Setup(
+          none,
+          parsed.variant,
+          resolveOrientation(data, parsed.root, userId, parsed.tags)
+        ),
+        root = parsed.root,
+        tags = parsed.tags,
+        order = order,
+        ownerId = userId,
+        practice = data.isPractice,
+        gamebook = data.isGamebook,
+        conceal = data.isConceal.option(parsed.root.ply)
+      )
 
   private def getChapterNameFromPgn(data: Data, parsed: StudyPgnImport.Result): StudyChapterName =
     def vsFromPgnTags = for
@@ -126,12 +126,12 @@ final private class ChapterMaker(
   ): Fu[Chapter] =
     for
       root <- makeRoot(game, data.pgn, initialFen)
-      tags <- pgnDump.tags(game, initialFen, none, withOpening = true, withRatings)
+      tags <- pgnDump.tags(game, initialFen, none, withOpening = true, none)  // Fixed: withRatings removed, teamIds = none
       name <-
         if data.isDefaultName then
-          StudyChapterName.from(namer.gameVsText(game, withRatings)(using lightUser.async))
+          StudyChapterName.from(namer.gameVsText(game)(using lightUser.async))
         else fuccess(data.name)
-      _ = notifyChat(study, game, userId)
+
     yield Chapter.make(
       studyId = study.id,
       name = name,
@@ -151,18 +151,7 @@ final private class ChapterMaker(
       conceal = data.isConceal.option(root.ply)
     )
 
-  def notifyChat(study: Study, game: Game, userId: UserId) =
-    if study.isPublic then
-      List(game.hasUserId(userId).option(game.id.value), s"${game.id}/w".some).flatten.foreach { chatId =>
-        chatApi.write(
-          chatId = ChatId(chatId),
-          userId = userId,
-          text = s"I'm studying this game on ${net.domain}/study/${study.id}",
-          publicSource = none,
-          _.round,
-          persist = false
-        )
-      }
+  // Removed notifyChat - analysis system doesn't need chat notifications
 
   private[study] def makeRoot(
       game: Game,

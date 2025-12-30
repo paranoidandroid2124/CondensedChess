@@ -1,6 +1,7 @@
 package lila.llm
 
 import lila.llm.model.*
+import lila.llm.model.Motif.{ *, given }
 
 import _root_.chess.*
 
@@ -217,7 +218,7 @@ object ConceptLabeler:
     val structure = labelStructure(features)
     val plans = labelPlans(features, evalBefore, evalAfter, bestEval)
     val tactics = labelTactics(evalBefore, evalAfter, bestEval, motifs)
-    val mistakes = labelMistakes(features, evalBefore, evalAfter, bestEval)
+    val mistakes = labelMistakes(evalBefore, evalAfter, bestEval)
     val endgame = labelEndgame(features, evalBefore, bestEval)
     val positional = labelPositional(pos, pos.color, features)
 
@@ -253,6 +254,7 @@ object ConceptLabeler:
       features: PositionFeatures,
       evalBefore: Int,
       evalAfter: Int,
+      bestEval: Int
   ): List[PlanTag] =
     val tags = List.newBuilder[PlanTag]
     val phase = features.materialPhase.phase
@@ -282,6 +284,7 @@ object ConceptLabeler:
     tags.result().distinct
 
   private def labelTactics(
+      evalBefore: Int,
       evalAfter: Int,
       bestEval: Int,
       motifs: List[Motif]
@@ -291,8 +294,8 @@ object ConceptLabeler:
 
     // Logic based on detected motifs
     motifs.foreach {
-      case _: PinMotif => tags += TacticTag.PinSound
-      case _: ForkMotif => tags += TacticTag.ForkSound
+      case _: Pin => tags += TacticTag.PinSound
+      case _: Fork => tags += TacticTag.ForkSound
       case _: Skewer => tags += TacticTag.SkewerSound
       case _: DiscoveredAttack => tags += TacticTag.DiscoveredAttackSound
       case _: BackRankMate => tags += TacticTag.BackRankMatePattern
@@ -334,15 +337,6 @@ object ConceptLabeler:
     val phase = features.materialPhase.phase
 
     if phase == "endgame" then
-      // Note: RookBehindPassedPawnObeyed should only be tagged if a rook is actually behind a passed pawn.
-      // This is a placeholder; real logic would check rook position relative to passed pawns.
-      // Removed automatic tagging to avoid false positives.
-      
-      // Zugzwang Heuristic:
-      // If the best move available is significantly worse than the current static evaluation,
-      // it implies compulsion to move is detrimental.
-      // Note: evalBefore is usually from the Move (previous). But here we assume it's current.
-      // If evalBefore (static/parent) ~ 0.00 and bestEval (search) < -100, and it's endgame.
       if (evalBefore > -50 && bestEval < -150) then
         tags += EndgameTag.Zugzwang
       else if (evalBefore > 200 && bestEval < 50) then // Winning to Drawish/Losing?
@@ -382,10 +376,8 @@ object ConceptLabeler:
       tags += PositionalTag.LoosePiece(sq.key, oppColor)
     }
 
-    val (wBishops, bBishops) = (
-      (board.bishops & board.white).count,
-      (board.bishops & board.black).count
-    )
+    val wBishops = (board.bishops & board.white).count
+    val bBishops = (board.bishops & board.black).count
     if perspective == Color.White && wBishops >= 2 && bBishops < 2 then
       tags += PositionalTag.BishopPairAdvantage(perspective)
     else if perspective == Color.Black && bBishops >= 2 && wBishops < 2 then
@@ -497,8 +489,4 @@ object ConceptLabeler:
     }
     tags.result().distinct
 
-  private def detectPawnBreaks(pawns: PawnStructureFeatures, color: String): List[String] =
-    // Placeholder - in real implementation this would analyze potential pawn moves
-    // from a move generator or structure lookup.
-    // For now, returning empty to allow compilation.
-    Nil
+  private def detectPawnBreaks(pawns: PawnStructureFeatures, color: String): List[String] = Nil

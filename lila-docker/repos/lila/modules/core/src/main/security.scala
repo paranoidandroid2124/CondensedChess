@@ -12,6 +12,7 @@ import lila.core.userId.{ UserId, UserName }
 case class GarbageCollect(userId: UserId)
 case class CloseAccount(userId: UserId)
 case class ReopenAccount(user: User)
+case class AskAreRelated(users: PairOf[UserId], promise: Promise[Boolean])
 
 trait LilaCookie:
   import play.api.mvc.*
@@ -49,3 +50,41 @@ case class UserSignup(
 
 trait SecurityApi:
   def shareAnIpOrFp(u1: UserId, u2: UserId): Fu[Boolean]
+
+trait SpamApi:
+  def detect(text: String): Boolean
+  def replace(text: String): String
+
+case class IsProxy(name: Option[String]):
+  def yes: Boolean = name.isDefined
+  def isEmpty: Boolean = name.isEmpty
+  def isTor: Boolean = name.contains("Tor")
+
+object IsProxy:
+  val empty = IsProxy(None)
+  val torIdx = "Tor"
+  val tor = IsProxy(Some(torIdx))
+  def apply(name: String): IsProxy = IsProxy(if (name.isEmpty) None else Some(name))
+
+trait Ip2ProxyApi:
+  def ofReq(req: RequestHeader): Fu[IsProxy]
+  def ofIp(ip: lila.core.net.IpAddress): Fu[IsProxy]
+  def keepProxies(ips: Seq[lila.core.net.IpAddress]): Fu[Map[lila.core.net.IpAddress, String]]
+
+trait UserTrustApi:
+  def get(id: UserId): Fu[Int]
+
+trait Hcaptcha:
+  def verify(response: String, ip: Option[lila.core.net.IpAddress]): Fu[Boolean]
+
+trait FloodApi:
+  def allowRequest(req: RequestHeader): Fu[Boolean]
+  def allowMessage(source: FloodSource, text: String): Boolean
+
+opaque type FloodSource = String
+object FloodSource extends TotalWrapper[FloodSource, String]:
+  def apply(ip: lila.core.net.IpAddress): FloodSource = ip.value.asInstanceOf[FloodSource]
+  def apply(userId: UserId): FloodSource = userId.value.asInstanceOf[FloodSource]
+
+opaque type FingerHash = String
+object FingerHash extends TotalWrapper[FingerHash, String]

@@ -4,8 +4,6 @@ import play.api.i18n.Lang
 import scalatags.Text.all.*
 
 import lila.core.config.BaseUrl
-import lila.core.i18n.I18nKey.emails as trans
-import lila.core.i18n.Translator
 import lila.core.lilaism.LilaException
 
 final class AutomaticEmail(
@@ -13,7 +11,7 @@ final class AutomaticEmail(
     mailer: Mailer,
     baseUrl: BaseUrl,
     lightUser: lila.core.user.LightUserApi
-)(using Executor, Translator):
+)(using Executor):
 
   import Mailer.html.*
 
@@ -29,10 +27,10 @@ The Lichess team"""
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
-          subject = trans.welcome_subject.txt(user.username),
-          text = Mailer.txt.addServiceNote(trans.welcome_text.txt(profileUrl, editUrl)),
+          subject = s"Welcome to Lichess, ${user.username}!",
+          text = Mailer.txt.addServiceNote(s"Your profile: $profileUrl\nEdit your profile: $editUrl"),
           htmlBody = standardEmail(
-            trans.welcome_text.txt(profileUrl, editUrl)
+            s"Your profile: $profileUrl\nEdit your profile: $editUrl"
           ).some
         )
 
@@ -47,7 +45,7 @@ Following your request, the Lichess account "${user.username}" will be deleted i
 $regards
 """
     userApi.email(user.id).flatMapz { email =>
-      given Lang = user.lang.flatMap(Lang.get).getOrElse(lila.core.i18n.defaultLang)
+      given Lang = user.lang.flatMap(Lang.get).getOrElse(Lang("en"))
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
@@ -57,4 +55,4 @@ $regards
         )
     }
 
-  private def userLang(user: User): Lang = user.lang.flatMap(Lang.get).getOrElse(lila.core.i18n.defaultLang)
+  private def userLang(user: User): Lang = user.lang.flatMap(Lang.get).getOrElse(Lang("en"))

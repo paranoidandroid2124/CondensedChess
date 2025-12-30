@@ -5,11 +5,11 @@ import chess.format.{ Fen, Uci, UciCharPair, UciPath }
 import play.api.libs.json.*
 
 import lila.core.perm.Granter
-import lila.core.relay.GetCrowd
 import lila.db.dsl.bsonWriteOpt
 import lila.tree.Node.Comment
 import lila.tree.{ Advice, Analysis, Branch, Info, Node, Root }
 
+// Chesstory: Removed socket and relay dependencies - simplified for analysis-only system
 object ServerEval:
 
   final class Requester(
@@ -26,8 +26,7 @@ object ServerEval:
         .so:
           for
             isOfficial <- fuccess(official) >>|
-              fuccess(userId.is(UserId.lichess)) >>|
-              userApi.me(userId).map(_.soUse(Granter.opt(_.Relay)))
+              fuccess(userId.is(UserId.lichess))
             _ <- chapterRepo.startServerEval(chapter)
           yield lila.common.Bus.pub(
             lila.core.fishnet.Bus.StudyChapterRequest(
@@ -48,9 +47,9 @@ object ServerEval:
             )
           )
 
+  // Chesstory: Simplified Merger - removed socket dependency
   final class Merger(
       sequencer: StudySequencer,
-      socket: StudySocket,
       chapterRepo: ChapterRepo,
       divider: lila.core.game.Divider,
       analysisJson: lila.tree.AnalysisJson
@@ -151,6 +150,7 @@ object ServerEval:
         forceVariation = false
       )
 
+    // Simplified: no socket push, just log progress
     private def sendProgress(
         studyId: StudyId,
         chapterId: StudyChapterId,
@@ -160,24 +160,8 @@ object ServerEval:
       chapterRepo
         .byId(chapterId)
         .flatMapz: chapter =>
-          reallySendToChapter(studyId, chapter, complete).mapz:
-            socket.onServerEval(
-              studyId,
-              ServerEval.Progress(
-                chapterId = chapter.id,
-                tree = lila.study.TreeBuilder(chapter.root, chapter.setup.variant),
-                analysis = analysisJson.bothPlayers(chapter.root.ply, analysis),
-                division = divisionOf(chapter)
-              )
-            )
-
-    private def reallySendToChapter(studyId: StudyId, chapter: Chapter, complete: Boolean): Fu[Boolean] =
-      if complete || chapter.relay.isEmpty
-      then fuTrue
-      else
-        lila.common.Bus
-          .ask[Int, GetCrowd](GetCrowd(studyId, _))
-          .map(_ < 5000)
+          logger.info(s"Analysis progress: study=$studyId chapter=$chapterId complete=$complete")
+          funit
 
     def divisionOf(chapter: Chapter) =
       divider(

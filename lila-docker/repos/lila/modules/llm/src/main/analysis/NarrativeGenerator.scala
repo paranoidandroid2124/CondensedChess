@@ -70,14 +70,14 @@ object NarrativeGenerator:
 
   def describeMove(move: String, motifs: List[Motif], evalDiff: Int): String =
     val motifText = motifs.take(3).map {
-      case _: CheckMotif => "delivers a check"
-      case m: CaptureMotif => 
-        if m.captureType == CaptureType.Sacrifice then "sacrifices material for position"
+      case _: Motif.Check => "delivers a check"
+      case m: Motif.Capture => 
+        if m.captureType == Motif.CaptureType.Sacrifice then "sacrifices material for position"
         else "captures material"
-      case m: ForkMotif => s"forks the ${m.targets.mkString(" and ")}"
-      case _: PinMotif => "creates a pin"
-      case _: PawnAdvance => "advances the pawn"
-      case _: RookLift => "lifts the rook for an attack"
+      case m: Motif.Fork => s"forks the ${m.targets.mkString(" and ")}"
+      case _: Motif.Pin => "creates a pin"
+      case _: Motif.PawnAdvance => "advances the pawn"
+      case _: Motif.RookLift => "lifts the rook for an attack"
       case _ => "improves the position"
     }.mkString(", and ")
 

@@ -65,3 +65,6 @@ instance.lock
 
 # deploy bearer
 .lila-cli
+
+*.log
+compile_errors*.txt

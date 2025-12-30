@@ -28,9 +28,28 @@ POST  /password/reset/send             controllers.Auth.passwordResetApply
 GET   /analysis                        controllers.Analyse.home
 GET   /analysis/:id                    controllers.Analyse.replay(id)
 GET   /analysis/:id/:moves             controllers.Analyse.replayWithMoves(id, moves)
-GET   /study                           controllers.Study.index(page: Int ?= 1)
-GET   /study/all                       controllers.Study.all(page: Int ?= 1)
-GET   /study/:id                       controllers.Study.show(id)
+POST  /analysis/:id/request            controllers.Analyse.requestAnalysis(id)
+# Study
+GET   /study                           controllers.Study.allDefault(page: Int ?= 1)
+GET   /study/search                    controllers.Study.search(text ?= "", page: Int ?= 1, order: Option[StudyOrder] ?= None)
+GET   /study/all/:order                controllers.Study.all(order: StudyOrder, page: Int ?= 1)
+GET   /study/by-owner/:username/:order controllers.Study.byOwner(username: UserStr, order: StudyOrder, page: Int ?= 1)
+GET   /study/mine/:order               controllers.Study.mine(order: StudyOrder, page: Int ?= 1)
+GET   /study/mine-likes/:order         controllers.Study.mineLikes(order: StudyOrder, page: Int ?= 1)
+GET   /study/mine-member/:order        controllers.Study.mineMember(order: StudyOrder, page: Int ?= 1)
+GET   /study/mine-public/:order        controllers.Study.minePublic(order: StudyOrder, page: Int ?= 1)
+GET   /study/mine-private/:order       controllers.Study.minePrivate(order: StudyOrder, page: Int ?= 1)
+GET   /study/by-topic/:name/:order     controllers.Study.byTopic(name, order: StudyOrder, page: Int ?= 1)
+GET   /study/topics                    controllers.Study.topics
+POST  /study/topics                    controllers.Study.setTopics
+GET   /study/staff-picks               controllers.Study.staffPicks
+POST  /study/:id/clone                 controllers.Study.cloneApply(id: StudyId)
+GET   /study/$id<\w{8}>.pgn            controllers.Study.pgn(id: StudyId)
+POST  /study/$id<\w{8}>/delete         controllers.Study.delete(id: StudyId)
+GET   /study/$id<\w{8}>/$chapterId<\w{8}> controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
+GET   /study/:id                       controllers.Study.show(id: StudyId)
+POST  /study                           controllers.Study.create
+GET   /study/create                    controllers.Study.createAs
 
 # User Analysis
 GET   /analysis/help                   controllers.UserAnalysis.help
@@ -38,14 +57,6 @@ GET   /analysis/pgn/*pgn               controllers.UserAnalysis.pgn(pgn)
 GET   /analysis/*something             controllers.UserAnalysis.parseArg(something)
 GET   /embed/analysis                  controllers.UserAnalysis.embed
 GET   /api/cloud-eval                  controllers.Api.cloudEval
-
-# Study Details
-GET   /study/mine/:order               controllers.Study.mine(order: StudyOrder, page: Int ?= 1)
-GET   /study/search                    controllers.Study.search(q ?= "", page: Int ?= 1, order: Option[StudyOrder] ?= None)
-POST  /study                           controllers.Study.create
-GET   /study/$id<\w{8}>.pgn            controllers.Study.pgn(id: StudyId)
-POST  /study/$id<\w{8}>/delete         controllers.Study.delete(id: StudyId)
-GET   /study/$id<\w{8}>/$chapterId<\w{8}>        controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
 
 # User
 GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

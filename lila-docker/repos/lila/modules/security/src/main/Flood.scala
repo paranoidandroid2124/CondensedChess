@@ -14,6 +14,10 @@ final class Flood(using Executor) extends lila.core.security.FloodApi:
     .expireAfterAccess(1.minute)
     .build[Source, Messages]()
 
+  def allowRequest(req: play.api.mvc.RequestHeader): Fu[Boolean] =
+    // Real implementation would track IP/Session
+    fuTrue
+
   def allowMessage(source: Source, text: String): Boolean =
     val msg = Message(text, nowInstant)
     val msgs = ~cache.getIfPresent(source)
@@ -26,7 +30,6 @@ final class Flood(using Executor) extends lila.core.security.FloodApi:
 
 object Flood:
 
-  // ui/chat/src/preset.ts
   private val passList = Set(
     "Hello",
     "Good luck",

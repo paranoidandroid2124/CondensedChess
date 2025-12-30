@@ -1,6 +1,6 @@
 package lila.user
 
-case class TotpToken(value: String) extends AnyVal
+// TotpToken moved to lila.core.user.TotpToken
 
 object nameRules:
   // what new usernames should be like -- now split into further parts for clearer error messages

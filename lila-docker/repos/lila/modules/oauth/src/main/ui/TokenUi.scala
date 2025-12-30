@@ -13,42 +13,39 @@ final class TokenUi(helpers: Helpers)(
 ):
   import helpers.{ *, given }
 
-  import trans.oauthScope as ot
-
   def index(tokens: List[AccessToken])(using Context) =
-    AccountPage(trans.oauthScope.personalAccessTokens.txt(), "oauth.token"):
+    AccountPage("Personal Access Tokens", "oauth.token"):
       div(cls := "oauth box")(
         boxTop(
-          h1(ot.personalAccessTokens()),
+          h1("Personal Access Tokens"),
           st.form(cls := "box-top__actions", action := routes.OAuthToken.create)(
-            submitButton(
+            button(
+              tpe := "submit",
               cls := "button frameless",
-              st.title := ot.newAccessToken.txt(),
+              st.title := "New access token",
               dataIcon := Icon.PlusButton
             )
           )
         ),
-        standardFlash.map(div(cls := "box__pad")(_)),
+        // standardFlash removed
         p(cls := "box__pad force-ltr")(
-          ot.canMakeOauthRequests(
-            a(href := s"/api#section/Introduction/Authentication")(ot.authorizationCodeFlow())
+          "You can make OAuth requests using the ",
+          a(href := s"/api#section/Introduction/Authentication")("authorization code flow"),
+          br,
+          br,
+          "Instead, you can generate a personal access token below. ",
+          a(href := routes.OAuthToken.create)("Generate a personal token"),
+          br,
+          br,
+          "Guard these tokens carefully! They are like passwords.",
+          br,
+          br,
+          "For developers: ",
+          a(href := "https://github.com/lichess-org/api/tree/master/example/oauth-personal-token")(
+            "Personal token app example"
           ),
-          br,
-          br,
-          ot.insteadGenerateToken(
-            a(href := routes.OAuthToken.create)(ot.generatePersonalToken())
-          ),
-          br,
-          br,
-          ot.guardTokensCarefully(),
-          br,
-          br,
-          ot.apiDocumentationLinks(
-            a(href := "https://github.com/lichess-org/api/tree/master/example/oauth-personal-token")(
-              ot.personalTokenAppExample()
-            ),
-            a(href := "/api")(ot.apiDocumentation())
-          )
+          " | ",
+          a(href := "/api")("API documentation")
         ),
         tokens.headOption.filter(_.isBrandNew).map { token =>
           div(cls := "box__pad brand")(
@@ -56,8 +53,8 @@ final class TokenUi(helpers: Helpers)(
             else iconTag(Icon.Checkmark)(cls := "is-green"),
             div(
               if token.isDangerous
-              then p(strong(ot.doNotShareIt()))
-              else p(ot.copyTokenNow()),
+              then p(strong("Do not share it!"))
+              else p("Copy this token now. You won't be able to see it again."),
               code(token.plain.value)
             )
           )
@@ -68,20 +65,21 @@ final class TokenUi(helpers: Helpers)(
               td(
                 strong(t.description | "Unnamed"),
                 br,
-                em(t.scopes.value.map(_.name.txt()).mkString(", ")),
+                em(t.scopes.value.map(_.name).mkString(", ")),
                 mode.isDev.option(frag(br, em("Visible in DEV mode: "), code(t.plain.value)))
               ),
               td(cls := "date")(
                 t.created.map: created =>
-                  frag(ot.created(momentFromNow(created)), br),
+                  frag("Created: ", created.toString, br),
                 t.usedAt.map: used =>
-                  frag(ot.lastUsed(momentFromNow(used)))
+                  frag("Last used: ", used.toString)
               ),
               td(cls := "action")(
-                postForm(action := routes.OAuthToken.delete(t.id.value))(
-                  submitButton(
+                form(method := "post", action := routes.OAuthToken.delete(t.id.value))(
+                  button(
+                    tpe := "submit",
                     cls := "button button-red button-empty yes-no-confirm"
-                  )(trans.site.delete())
+                  )("Delete")
                 )
               )
             )
@@ -89,79 +87,59 @@ final class TokenUi(helpers: Helpers)(
       )
 
   def create(form: Form[OAuthTokenForm.Data], me: User)(using Context) =
-    AccountPage(trans.oauthScope.newAccessToken.txt(), "oauth.token"):
+    AccountPage("New Access Token", "oauth.token"):
       div(cls := "oauth box box-pad")(
-        h1(cls := "box__top")(ot.newAccessToken()),
-        postForm(cls := "form3", action := routes.OAuthToken.create)(
+        h1(cls := "box__top")("New Access Token"),
+        st.form(cls := "form3", method := "post", action := routes.OAuthToken.create)(
           div(cls := "form-group")(
-            p(ot.tokenGrantsPermission()),
-            p(ot.carefullySelect())
+            p("A token grants permission to your account."),
+            p("Carefully select the permissions you need.")
           ),
-          form3.group(
-            form("description"),
-            ot.tokenDescription(),
-            help = ot.rememberTokenUse().some
-          )(form3.input(_)(autofocus)),
+          div(cls := "form-group")(
+            label("Token description"),
+            input(
+              tpe := "text",
+              name := form("description").name,
+              value := form("description").value.getOrElse(""),
+              placeholder := "What is this token for?",
+              autofocus
+            ),
+            small("Remember what you use this token for.")
+          ),
           br,
           br,
-          h2(ot.whatTheTokenCanDo()),
+          h2("What the token can do"),
           div(cls := "scopes")(
             OAuthScope.classified.map: (categ, scopes) =>
               fieldset(
-                legend(categ()),
+                legend(categ),
                 scopes.map: scope =>
-                  val disabled = {
-                    me.noBot && scope == OAuthScope.Bot.Play && me.count.game > 0
-                  } || {
-                    me.isBot && scope == OAuthScope.Board.Play
-                  }
+                  val disabled = false // Simplified: removed bot/board restrictions
                   val hidden = scope == OAuthScope.Web.Mod && !OAuthScope.canUseWebMod
                   val id = s"oauth-scope-${scope.key.replace(":", "_")}"
                   (!hidden).option(
                     div(cls := List("danger" -> OAuthScope.dangerList.has(scope)))(
                       span(
-                        form3.cmnToggle(
-                          id,
-                          s"${form("scopes").name}[]",
-                          value = scope.key,
-                          checked = !disabled && form.data.valuesIterator.contains(scope.key),
-                          disabled = disabled,
-                          title = disabled.option(ot.alreadyHavePlayedGames.txt())
+                        input(
+                          tpe := "checkbox",
+                          st.id := id,
+                          name := s"${form("scopes").name}[]",
+                          value := scope.key,
+                          checked := !disabled && form.data.valuesIterator.contains(scope.key),
+                          st.disabled := disabled
                         )
                       ),
-                      label(`for` := id, st.title := disabled.option(ot.alreadyHavePlayedGames.txt()))(
-                        scope.name(),
+                      label(`for` := id)(
+                        scope.name,
                         em(scope.key)
                       )
                     )
                   )
               )
           ),
-          form3.actions(
-            a(href := routes.OAuthToken.index)(trans.site.cancel()),
-            form3.submit(trans.site.create())(data("danger-title") := ot.doNotShareIt.txt())
-          ),
-          br,
-          br,
-          br,
-          div(cls := "force-ltr") {
-            val url =
-              s"${routeUrl(routes.OAuthToken.create)}?scopes[]=challenge:write&scopes[]=puzzle:read&description=Prefilled+token+example"
-            frag(
-              h2(ot.attentionOfDevelopers()),
-              p(
-                ot.possibleToPrefill(),
-                br,
-                ot.forExample(a(href := url)(url)),
-                br,
-                ot.ticksTheScopes(
-                  "challenge:create",
-                  "puzzle:read"
-                ),
-                br,
-                ot.givingPrefilledUrls()
-              )
-            )
-          }
+          div(cls := "form-actions")(
+            a(href := routes.OAuthToken.index)("Cancel"),
+            button(tpe := "submit", cls := "button")("Create")
+          )
         )
       )

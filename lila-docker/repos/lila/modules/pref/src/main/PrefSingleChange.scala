@@ -2,6 +2,7 @@ package lila.pref
 
 import monocle.syntax.all.*
 
+// Simplified PrefSingleChange for analysis-only system
 object PrefSingleChange:
 
   type Change[A] = lila.common.Form.SingleChange.Change[Pref, A]
@@ -30,40 +31,12 @@ object PrefSingleChange:
       _.copy(voice = v.some),
     changing(_.keyboardMove): v =>
       _.copy(keyboardMove = v | Pref.KeyboardMove.NO),
-    changing(_.autoQueen): v =>
-      _.copy(autoQueen = v),
-    changing(_.premove): v =>
-      _.copy(premove = v == 1),
-    changing(_.takeback): v =>
-      _.copy(takeback = v),
-    changing(_.autoThreefold): v =>
-      _.copy(autoThreefold = v),
-    changing(_.submitMove): v =>
-      _.copy(submitMove = v),
-    changing(_.confirmResign): v =>
-      _.copy(confirmResign = v),
-    changing(_.moretime): v =>
-      _.copy(moretime = v),
-    changing(_.clockSound): v =>
-      _.copy(clockSound = v == 1),
-    changing(_.pieceNotation): v =>
-      _.copy(pieceNotation = v),
-    changing(_.ratings): v =>
-      _.copy(ratings = v),
-    changing(_.follow): v =>
-      _.copy(follow = v == 1),
-    changing(_.challenge): v =>
-      _.copy(challenge = v),
-    changing(_.message): v =>
-      _.copy(message = v),
     changing(_.board.brightness): v =>
       _.focus(_.board.brightness).replace(v),
     changing(_.board.opacity): v =>
       _.focus(_.board.opacity).replace(v),
     changing(_.board.hue): v =>
-      _.focus(_.board.hue).replace(v),
-    changing(_.sayGG): v =>
-      _.copy(sayGG = v)
+      _.focus(_.board.hue).replace(v)
   ).map: change =>
     change.field -> change
   .toMap

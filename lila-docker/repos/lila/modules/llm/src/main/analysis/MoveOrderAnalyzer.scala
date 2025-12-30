@@ -80,8 +80,8 @@ object MoveOrderAnalyzer:
             isTransposition = true
           ))
         else
-          detectBrokenProtection(pos, moveA, moveB, afterA, afterB)
-            .orElse(detectIntermezzo(pos, moveA, moveB, afterA, afterB))
+          detectBrokenProtection(pos, moveA, moveB, afterA)
+            .orElse(detectIntermezzo(pos, moveA, moveB, afterA))
     }.flatten
 
   private def detectBrokenProtection(

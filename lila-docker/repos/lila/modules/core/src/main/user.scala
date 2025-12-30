@@ -32,12 +32,15 @@ object user:
       def no: Boolean = !e.value
 
   case class UserDelete(requested: Instant, done: Boolean = false)
+  case class TotpToken(value: String) extends AnyVal
 
   opaque type RoleDbKey = String
   object RoleDbKey extends TotalWrapper[RoleDbKey, String]
 
   opaque type TotpSecret = Array[Byte]
-  object TotpSecret extends TotalWrapper[TotpSecret, Array[Byte]]
+  object TotpSecret extends TotalWrapper[TotpSecret, Array[Byte]]:
+    extension (s: TotpSecret)
+      def verify(token: TotpToken): Boolean = false
 
   opaque type FlagCode = String
   object FlagCode extends TotalWrapper[FlagCode, String]:
@@ -56,7 +59,9 @@ object user:
       roles: List[RoleDbKey],
       createdAt: Instant,
       seenAt: Option[Instant] = None,
-      lang: Option[String] = None
+      lang: Option[String] = None,
+      totpSecret: Option[TotpSecret] = None,
+      email: Option[EmailAddress] = None
   ):
 
     def light = LightUser(id, username)
@@ -94,6 +99,9 @@ object user:
     val username = "username"
     val createdAt = "createdAt"
     val seenAt = "seenAt"
+    val bpass = "bpass"
+    val salt = "salt"
+    val sha512 = "sha512"
 
   /* User who is currently logged in */
   opaque type Me = lila.core.user.User
@@ -102,5 +110,6 @@ object user:
     given Conversion[Me, lila.core.user.User] = identity
     given Conversion[Me, UserId] = _.id
     extension (me: Me)
+      def userId: UserId = me.id
       def myId: MyId = MyId(me.id.value)
       def lightMe: LightUser.Me = LightUser.Me(me.light)

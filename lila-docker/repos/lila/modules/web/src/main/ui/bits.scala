@@ -3,22 +3,21 @@ package ui
 
 import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
-import lila.core.i18n.Translate
 
 object bits:
 
-  object splitNumber extends NumberHelper:
+  object splitNumber:
     private val NumberFirstRegex = """(\d++)\s(.+)""".r
     private val NumberLastRegex = """\s(\d++)$""".r.unanchored
 
-    def apply(s: Frag)(using ctx: Context)(using Translate): Frag =
+    def apply(s: Frag)(using ctx: Context): Frag =
       if ctx.blind then s
       else
         val rendered = s.render
         rendered match
           case NumberFirstRegex(number, html) =>
             frag(
-              strong((~number.toIntOption).localize),
+              strong(~number.toIntOption),
               br,
               raw(html)
             )
@@ -26,7 +25,7 @@ object bits:
             frag(
               raw(rendered.dropRight(n.length + 1)),
               br,
-              strong((~n.toIntOption).localize)
+              strong(~n.toIntOption)
             )
           case h => raw(h.replaceIf('\n', "<br>"))
 

@@ -24,3 +24,4 @@ trait Pref:
   def animationMillis: Int
   def pieceNotationIsLetter: Boolean
   def currentBg: String
+  def showRatings: Boolean = true  // Default to true for analysis system

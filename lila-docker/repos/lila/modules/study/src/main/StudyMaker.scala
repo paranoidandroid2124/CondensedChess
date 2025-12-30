@@ -62,8 +62,8 @@ final private class StudyMaker(
     // given play.api.i18n.Lang = lila.core.i18n.defaultLang
     for
       root <- chapterMaker.makeRoot(pov.game, data.form.pgnStr, initialFen)
-      tags <- pgnDump.tags(pov.game, initialFen, none, withOpening = true, withRatings)
-      name <- StudyChapterName.from(namer.gameVsText(pov.game, withRatings)(using lightUserApi.async))
+      tags <- pgnDump.tags(pov.game, initialFen, none, withOpening = true, none)
+      name <- StudyChapterName.from(namer.gameVsText(pov.game)(using lightUserApi.async))
       study = Study.make(user, Study.From.Game(pov.gameId), data.id, StudyName("Game study").some)
       chapter = Chapter.make(
         studyId = study.id,
@@ -82,8 +82,6 @@ final private class StudyMaker(
         conceal = None
       )
     yield Study.WithChapter(study.withChapter(chapter), chapter)
-  }.addEffect { swc =>
-    chapterMaker.notifyChat(swc.study, pov.game, user.id)
   }
 
 object StudyMaker:

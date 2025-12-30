@@ -189,7 +189,7 @@ object Motif:
     val category = MotifCategory.Tactical
 
   enum CheckType:
-    case Normal, Discovered, Double
+    case Normal, Discovered, Double, Mate, Smothered
 
   /** Capture (with sacrifice detection) */
   case class Capture(
@@ -203,7 +203,7 @@ object Motif:
     val category = MotifCategory.Tactical
 
   enum CaptureType:
-    case Normal, Sacrifice, Exchange, Recapture
+    case Normal, Sacrifice, Exchange, Recapture, Winning
 
   /** Pin - piece attacks through an enemy piece to a more valuable piece behind */
   case class Pin(
