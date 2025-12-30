@@ -4,8 +4,6 @@ import play.api.i18n.Lang
 import play.api.mvc.RequestHeader
 import scalalib.model.Language
 
-import lila.core.i18n.{ toLanguage, Translate, defaultLanguage, playAcceptLanguages }
-import lila.core.net.IpAddress
 import lila.core.net.IpAddress
 import lila.core.pref.Pref
 
@@ -18,7 +16,6 @@ trait Context:
   def me: Option[Me]
   def user: Option[User]
   def userId: Option[UserId]
-  def translate: Translate
   def pref: Pref
   def ip: IpAddress
   def blind: Boolean
@@ -33,7 +30,7 @@ trait Context:
   def speechSynthesis = pref.hasSpeech || blind
   inline def noBot = !isBot
   lazy val acceptLanguages: Set[Language] =
-    playAcceptLanguages(req).view.map(toLanguage).toSet + defaultLanguage ++
+    Set(Language("en")) ++
       user.flatMap(_.lang.map(Language.apply)).toSet
 
 import lila.core.user.Me

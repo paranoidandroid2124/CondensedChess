@@ -4,7 +4,6 @@ import play.api.libs.json.JsValue
 import scalatags.Text.all.Frag
 
 import lila.core.data.SafeJsonStr
-import lila.core.i18n.I18nKey
 
 // Import core lilaism extensions including .some
 export lila.core.lilaism.Lilaism.{ *, given }
