@@ -1,0 +1,188 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] Executing in batch mode. For better performance use sbt's shell
+[info] set current project to game (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 40 Scala sources to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\target\scala-3.7.4\classes ...
+[error] -- [E040] Syntax Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Env.scala:29:43 
+[error] 29 |    userApi: lila.core.user.UserApi Minimal,
+[error]    |                                           ^
+[error]    |                                   an identifier expected, but ',' found
+[error] -- [E040] Syntax Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\FavoriteOpponents.scala:4:43 
+[error] 4 |    userApi: lila.core.user.UserApi Minimal,
+[error]   |                                           ^
+[error]   |                                     an identifier expected, but ',' found
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:50:6 
+[error] 50 |    g.replayable && g.playedPlies > 4 &&
+[error]    |    ^^^^^^^^^^^^
+[error]    |value replayable is not a member of lila.core.game.Game - did you mean g.playable?
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:66:11 
+[error] 66 |    @chess.targetName("drawReasonPosition")
+[error]    |     ^^^^^^^^^^^^^^^^
+[error]    |     type targetName is not a member of chess
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:79:10 
+[error] 79 |        g.start.withClock(c.start)
+[error]    |        ^^^^^^^
+[error]    |value start is not a member of lila.core.game.Game - did you mean g.started?
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:82:8 
+[error] 82 |      g.drawOffers.lastBy(color).exists(_ >= g.ply - 20)
+[error]    |      ^^^^^^^^^^^^
+[error]    |      value drawOffers is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:89:11 
+[error] 89 |        !g.swissPreventsDraw &&
+[error]    |         ^^^^^^^^^^^^^^^^^^^
+[error]    |         value swissPreventsDraw is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:90:11 
+[error] 90 |        !g.rulePreventsDraw
+[error]    |         ^^^^^^^^^^^^^^^^^^
+[error]    |         value rulePreventsDraw is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:142:18 
+[error] 142 |          updated.playableCorrespondenceClock.map(Event.CorrespondenceClock.apply)
+[error]     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value playableCorrespondenceClock is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:178:11 
+[error] 178 |    @chess.targetName("drawReasonHistory")
+[error]     |     ^^^^^^^^^^^^^^^^
+[error]     |     type targetName is not a member of chess
+[error] -- [E120] Naming Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:179:8 
+[error] 179 |    def drawReason =
+[error]     |        ^
+[error]     |Conflicting definitions:
+[error]     |def drawReason(g: lila.core.game.Game): Option[lila.game.DrawReason] in object GameExt at line 67 and
+[error]     |def drawReason(g: lila.core.game.Game): Option[lila.game.DrawReason] in object GameExt at line 179
+[error]     |have the same type (g: lila.core.game.Game): Option after erasure.
+[error]     |
+[error]     |Consider adding a @targetName annotation to one of the conflicting definitions
+[error]     |for disambiguation.
+[error]     |
+[error]     | longer explanation available when compiling with `-explain`
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:247:9 
+[error] 247 |    game.clockConfig.forall: c =>
+[error]     |    ^^^^^^^^^^^^^^^^
+[error]     |    value clockConfig is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Game.scala:255:13 
+[error] 255 |    if !game.clockConfig.forall(lila.core.game.isBotCompatible) then false.some
+[error]     |        ^^^^^^^^^^^^^^^^
+[error]     |        value clockConfig is not a member of lila.core.game.Game
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GameDiff.scala:97:41 
+[error] 97 |      dTry(s"$name$blursBits", player(_).blurs, Blurs.blursHandler.writeTry)
+[error]    |                               ^^^^^^^^^^^^^^^
+[error]    |                    value blurs is not a member of lila.core.game.Player
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GameRepo.scala:308:25 
+[error] 308 |        Query.variant(pk.variant),
+[error]     |                      ^^^^^^^^^^
+[error]     |                    value variant is not a member of lila.game.PerfKey
+[error] -- [E107] Syntax Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GamesByIdsStream.scala:22:40 
+[error] 22 |          case lila.core.game.FinishGame(game, _) if watchedIds(game.id) =>
+[error]    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |Wrong number of argument patterns for lila.core.game.FinishGame; expected: (lila.core.game.Game)
+[error]    |
+[error]    | longer explanation available when compiling with `-explain`
+[error] -- [E107] Syntax Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GamesByUsersStream.scala:24:27 
+[error] 24 |            case FinishGame(game, _) if matches(game) => queue.offer(game)
+[error]    |                 ^^^^^^^^^^^^^^^^^^^
+[error]    |Wrong number of argument patterns for lila.core.game.FinishGame; expected: (lila.core.game.Game)
+[error]    |
+[error]    | longer explanation available when compiling with `-explain`
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GamesByUsersStream.scala:46:23 
+[error] 46 |          "rated" -> g.rated,
+[error]    |                     ^^^^^^^
+[error]    |value rated is not a member of lila.core.game.Game - did you mean g.started?
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GamesByUsersStream.scala:57:30 
+[error] 57 |                "rating" -> p.rating
+[error]    |                            ^^^^^^^^
+[error]    |                   value rating is not a member of lila.core.game.Player
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GifExport.scala:36:18 
+[error] 36 |    (lightUserApi.preloadMany(pov.game.userIds) >>
+[error]    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |     value preloadMany is not a member of lila.core.user.LightUserApi
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\GifExport.scala:59:17 
+[error] 59 |    lightUserApi.preloadMany(game.userIds) >>
+[error]    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |    value preloadMany is not a member of lila.core.user.LightUserApi
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Importer.scala:57:7 
+[error] 48 |    val dbGame = lila.core.game
+[error] 49 |      .newImportedGame(
+[error] 50 |        chess = game,
+[error] 51 |        players = ByColor: c =>
+[error] 52 |          lila.game.Player.makeImported(c, tags.names(c)),
+[error] 53 |        source = lila.core.game.Source.Import,
+[error] 54 |        pgnImport = PgnImport.make(user = user, date = tags.anyDate, pgn = pgn).some
+[error] 55 |      )
+[error] 56 |      .sloppy
+[error] 57 |      .start
+[error]    |                 ^
+[error]    |value start is not a member of lila.core.game.Game - did you mean sloppy.started?
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\JsonView.scala:64:24 
+[error] 64 |      "hasMoved" -> pov.hasMoved,
+[error]    |                    ^^^^^^^^^^^^
+[error]    |      value hasMoved is not a member of lila.core.game.Pov.
+[error]    |      An extension method was tried, but could not be fully constructed:
+[error]    |
+[error]    |          lila.game.hasMoved(pov)
+[error]    |
+[error]    |          failed with:
+[error]    |
+[error]    |              Found:    (pov : lila.core.game.Pov)
+[error]    |              Required: lila.core.game.Player
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\JsonView.scala:71:8 
+[error] 71 |    pov.remainingSeconds.foreach { s => res = res + ("secondsLeft" -> JsNumber(s.value)) }
+[error]    |    ^^^^^^^^^^^^^^^^^^^^
+[error]    |value remainingSeconds is not a member of lila.core.game.Pov, but could be made available as an extension method.
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import lila.game.Pov.remainingSeconds
+[error]    |
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\JsonView.scala:142:39 
+[error] 142 |      "emerg" -> c.config.emergSeconds.value
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value value is not a member of Int, but could be made available as an extension method.
+[error]     |
+[error]     |The following import might fix the problem:
+[error]     |
+[error]     |  import akka.util.Helpers.Requiring
+[error]     |
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\PgnDump.scala:15:33 
+[error] 15 |    lightUserApi: lila.core.user.LightUserApiMinimal
+[error]    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |       type LightUserApiMinimal is not a member of object lila.core.user
+[error] -- [E007] Type Mismatch Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\PgnDump.scala:40:5 
+[error] 38 |    p.aiLevel.fold(
+[error] 39 |      u.fold(p.nameSplit.map(_._1.value).orElse(p.name.map(_.value)).getOrElse("Anonymous"))(_.name)
+[error] 40 |    )("lichess AI level " + _)
+[error]    |    ^
+[error]    |    Found:    String | lila.core.userId.UserName
+[error]    |    Required: String
+[error]    |
+[error]    | longer explanation available when compiling with `-explain`
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Player.scala:77:53 
+[error] 77 |      name = doc.getAsOpt[PlayerName](name).orElse(p.name)
+[error]    |                                                   ^^^^^^
+[error]    |                value name is not a member of lila.core.game.LightPlayer
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\Pov.scala:13:55 
+[error] 13 |    def hasMoved: Boolean = pov.game.player(pov.color).hasMoved(pov.game.playedPlies)
+[error]    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |      value hasMoved is not a member of lila.core.game.Player.
+[error]    |      An extension method was tried, but could not be fully constructed:
+[error]    |
+[error]    |          lila.game.Pov.hasMoved(pov.game.player(pov.color))
+[error]    |
+[error]    |          failed with:
+[error]    |
+[error]    |              Found:    lila.core.game.Player
+[error]    |              Required: lila.core.game.Pov
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\UserGameApi.scala:18:21 
+[error] 18 |      _ <- lightUser.preloadMany(pag.currentPageResults.flatMap(_.userIds))
+[error]    |           ^^^^^^^^^^^^^^^^^^^^^
+[error]    |        value preloadMany is not a member of lila.core.user.LightUserApi
+[error] -- [E008] Not Found Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\game\src\main\package.scala:14:48 
+[error] 14 |  !(game.fromPosition && users.count(_.exists(_.isBot)) == 1)
+[error]    |                                              ^^^^^^^
+[error]    |                      value isBot is not a member of lila.core.user.User
+[error] 31 errors found
+[error] (Compile / compileIncremental) Compilation failed
+[error] Total time: 22 s, completed 2025. 12. 30. 오전 8:56:06
