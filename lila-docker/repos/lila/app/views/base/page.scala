@@ -34,7 +34,7 @@ object page:
       s"---board-hue:${ctx.pref.board.hue};" +
       zoomable.so(s"---zoom:$pageZoom;")
 
-  def apply(p: Page)(using ctx: PageContext): RenderedPage =
+  def apply(p: Page)(using ctx: lila.api.PageContext): RenderedPage =
     import ctx.pref
     val allModules = p.modules ++
       p.pageModule.so(module => esmPage(module.name)) ++

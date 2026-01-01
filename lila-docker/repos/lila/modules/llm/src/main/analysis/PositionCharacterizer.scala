@@ -1,7 +1,6 @@
 package lila.llm.analysis
 
 import _root_.chess.*
-import lila.llm.model.*
 
 case class PositionNature(
     natureType: NatureType,
@@ -16,12 +15,17 @@ enum NatureType:
 object PositionCharacterizer:
 
   def characterize(pos: Position): PositionNature =
-    val tension = calculateTension(pos)
+    val baseTension = calculateTension(pos)
     val fluidity = calculateFluidity(pos.board)
     
+    // Phase 12: Boost tension if position has check or high attack density
+    val isCheck = pos.check.yes
+    val checkBoost = if (isCheck) 0.3 else 0.0
+    val tension = Math.min(1.0, baseTension + checkBoost)
+    
     val natureType = 
-      if (tension > 0.7) NatureType.Chaos
-      else if (tension > 0.4 || fluidity > 0.6) NatureType.Dynamic
+      if (tension > 0.5 || isCheck) NatureType.Chaos     // Phase 12: Lower threshold + check = Chaos
+      else if (tension > 0.3 || fluidity > 0.5) NatureType.Dynamic  // Phase 12: Adjusted thresholds
       else if (fluidity < 0.3) NatureType.Static
       else NatureType.Transition
 
@@ -70,7 +74,7 @@ object PositionCharacterizer:
     
     openFilesCount.toDouble / centerFiles.size
 
-  private def deriveDescription(nt: NatureType, tension: Double): String = nt match
+  private def deriveDescription(nt: NatureType, _tension: Double): String = nt match
     case NatureType.Static => "A solid, maneuvering position with a fixed structure."
     case NatureType.Dynamic => "A dynamic position with active piece play and open lines."
     case NatureType.Chaos => "A high-tension tactical battlefield."

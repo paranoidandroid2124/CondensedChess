@@ -3,6 +3,9 @@ package lila.security
 import com.github.blemale.scaffeine.Cache
 
 import lila.core.security.FloodSource as Source
+import lila.core.lilaism.Core.{ *, given }
+import scala.concurrent.duration.*
+import java.time.Instant
 
 final class Flood(using Executor) extends lila.core.security.FloodApi:
 
@@ -16,7 +19,7 @@ final class Flood(using Executor) extends lila.core.security.FloodApi:
 
   def allowRequest(req: play.api.mvc.RequestHeader): Fu[Boolean] =
     // Real implementation would track IP/Session
-    fuTrue
+    Future.successful(true)
 
   def allowMessage(source: Source, text: String): Boolean =
     val msg = Message(text, nowInstant)

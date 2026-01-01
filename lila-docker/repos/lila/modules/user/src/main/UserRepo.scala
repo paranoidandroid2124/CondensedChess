@@ -26,3 +26,12 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
 
   def filterExists(ids: Set[UserId]): Fu[Set[UserId]] =
     coll.distinctEasy[UserId, List]("_id", $doc("_id" $in ids)).map(_.toSet)
+
+  def exists(id: UserId): Fu[Boolean] = coll.exists($id(id))
+
+  def autocomplete(term: String): Fu[List[String]] =
+    coll
+      .find($doc(BSONFields.username $regex s"^$term"), $doc(BSONFields.username -> true).some)
+      .cursor[BSONDocument]()
+      .collect[List](10, reactivemongo.api.Cursor.FailOnError[List[BSONDocument]]())
+      .map(_.flatMap(_.getAsOpt[String](BSONFields.username)))

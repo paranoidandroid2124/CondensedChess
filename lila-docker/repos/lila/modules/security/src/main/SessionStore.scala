@@ -7,12 +7,20 @@ import reactivemongo.akkastream.{ AkkaStreamCursor, cursorProducer }
 import scala.concurrent.blocking
 
 import lila.common.HTTPRequest
+import lila.core.userId.UserId
+import lila.core.user.User
+import lila.core.lilaism.Core.{ *, given }
 import lila.core.id.SessionId
 import lila.core.net.{ ApiVersion, IpAddress, UserAgent }
 import lila.core.misc.oauth.AccessTokenId
 import lila.core.security.{ FingerHash, IsProxy }
 import lila.common.extensions.*
 import lila.db.dsl.{ *, given }
+import java.time.Instant
+import scala.concurrent.duration.*
+import reactivemongo.api.bson.Macros
+
+case class AuthInfo(userId: UserId, hasFp: Boolean)
 
 final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using executor: Executor):
 
@@ -64,7 +72,7 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
           "up" -> up,
           "api" -> apiVersion,
           "fp" -> fp.flatMap(_.hash),
-          "proxy" -> proxy.name.isDefined.option(proxy),
+          "proxy" -> proxy.name,
           "pwned" -> pwned.option(true)
         )
       .void
@@ -113,12 +121,12 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
 
   def setFingerPrint(id: SessionId, fp: FingerPrint): Fu[FingerHash] =
     fp.hash match
-      case None => fufail(s"Can't hash $id's fingerprint $fp")
+      case None => Future.failed(Exception(s"Can't hash $id's fingerprint $fp"))
       case Some(hash) =>
         for
           _ <- coll.updateField($id(id), "fp", hash)
           _ = authInfo(id).map(_.foreach { i =>
-            authCache.put(id, fuccess(i.copy(hasFp = true).some))
+            authCache.put(id, Future.successful(i.copy(hasFp = true).some))
           })
         yield hash
 
@@ -194,10 +202,11 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
       $doc("ip" -> ip, "date" -> $gt(nowInstant.minusMinutes(since.toMinutes.toInt)))
 
   private[security] def recentByPrintExists(fp: FingerPrint): Fu[Boolean] =
-    fp.hash.so { hash =>
-      coll.secondary.exists:
-        $doc("fp" -> hash, "date" -> $gt(nowInstant.minusDays(7)))
-    }
+    fp.hash match
+      case None => Future.successful(false)
+      case Some(hash) =>
+        coll.secondary.exists:
+          $doc("fp" -> hash, "date" -> $gt(nowInstant.minusDays(7)))
 
 object SessionStore:
   case class Info(ip: IpAddress, ua: UserAgent, fp: Option[FingerHash], date: Instant):

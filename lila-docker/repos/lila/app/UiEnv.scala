@@ -5,7 +5,6 @@ import lila.web.ui.*
 
 object UiEnv
     extends ScalatagsTemplate
-    with lila.pref.PrefHelper
     with SecurityHelper
     with Helpers
     with AssetFullHelper:
@@ -47,7 +46,7 @@ object UiEnv
 
   def helpers: Helpers = this
   def assetHelper: AssetFullHelper = this
-  def prefHelper: lila.pref.PrefHelper = this
+
 
   def flagApi = lila.user.Flags
 

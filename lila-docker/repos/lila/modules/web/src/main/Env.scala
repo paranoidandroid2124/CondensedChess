@@ -2,6 +2,7 @@ package lila.web
 
 import com.softwaremill.macwire.*
 import play.api.libs.ws.StandaloneWSClient
+import scala.concurrent.duration.*
 
 @Module
 final class Env(
@@ -11,10 +12,9 @@ final class Env(
     ws: StandaloneWSClient,
     net: lila.core.config.NetConfig,
     getFile: lila.common.config.GetRelativeFile
-)(using mode: play.api.Mode, scheduler: Scheduler)(using Executor):
+)(using mode: play.api.Mode, scheduler: akka.actor.Scheduler)(using scala.concurrent.ExecutionContext):
 
   val config = WebConfig.loadFrom(appConfig)
-  export config.pagerDuty as pagerDutyConfig
   export net.baseUrl
 
   val analyseEndpoints = WebConfig.analyseEndpoints(appConfig)
@@ -26,19 +26,12 @@ final class Env(
 
   val referrerRedirect = wire[ReferrerRedirect]
 
-  val github = wire[GitHub]
-
   private lazy val influxEvent = new InfluxEvent(
     ws = ws,
     endpoint = config.influxEventEndpoint,
     env = config.influxEventEnv
   )
   if mode.isProd then scheduler.scheduleOnce(5.seconds)(influxEvent.start())
-  private lazy val pagerDuty = wire[PagerDuty]
-
-  lila.common.Bus.sub[lila.core.socket.Announce]:
-    case lila.core.socket.Announce(msg, date, _) if msg.contains("will restart") =>
-      pagerDuty.lilaRestart(date)
 
   object settings:
     import lila.core.data.{ Strings, UserIds }
@@ -48,26 +41,26 @@ final class Env(
     val apiTimeline = settingStore[Int](
       "apiTimelineEntries",
       default = 10,
-      text = "API timeline entries to serve".some
+      text = Some("API timeline entries to serve")
     )
     val noDelaySecret = settingStore[Strings](
       "noDelaySecrets",
       default = Strings(Nil),
-      text = "Secret tokens that allows fetching ongoing games without the delay. Separated by commas.".some
+      text = Some("Secret tokens that allows fetching ongoing games without the delay. Separated by commas.")
     )
     val prizeTournamentMakers = settingStore[UserIds](
       "prizeTournamentMakers",
       default = UserIds(Nil),
       text =
-        "User IDs who can make prize tournaments (arena & swiss) without a warning. Separated by commas.".some
+        Some("User IDs who can make prize tournaments (arena & swiss) without a warning. Separated by commas.")
     )
     val apiExplorerGamesPerSecond = settingStore[Int](
       "apiExplorerGamesPerSecond",
       default = 300,
-      text = "Opening explorer games per second".some
+      text = Some("Opening explorer games per second")
     )
     val sitewideCoepCredentiallessHeader = settingStore[Boolean](
       "sitewideCoepCredentiallessHeader",
       default = true,
-      text = "Enable COEP:credentialless header site-wide in supported browsers (Chromium)".some
+      text = Some("Enable COEP:credentialless header site-wide in supported browsers (Chromium)")
     )

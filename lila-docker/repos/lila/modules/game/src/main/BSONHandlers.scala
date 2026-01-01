@@ -20,8 +20,10 @@ object BSONHandlers:
   )
 
   given gameHandler: lila.db.BSON[Game] with
-    def reads(r: Reader): Game = ???
+    def reads(r: Reader): Game = 
+      throw new UnsupportedOperationException("Game loading from DB disabled - Study-only system")
     def writes(w: Writer, o: Game) = BSONDocument()
 
   given lightGameReader: lila.db.BSONReadOnly[lila.core.game.LightGame] with
-    def reads(r: Reader): lila.core.game.LightGame = ???
+    def reads(r: Reader): lila.core.game.LightGame = 
+      throw new UnsupportedOperationException("LightGame loading from DB disabled - Study-only system")

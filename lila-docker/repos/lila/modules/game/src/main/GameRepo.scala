@@ -17,7 +17,8 @@ final class GameRepo(c: Coll)(using Executor) extends lila.core.game.GameRepo(c)
   def recentAnalysableGamesByUserId(userId: UserId, nb: Int): Fu[List[Game]] = fuccess(Nil)
   def deleteAllSinglePlayerOf(id: UserId): Fu[List[GameId]] = fuccess(Nil)
   def lastPlayedPlayingId(userId: UserId): Fu[Option[GameId]] = fuccess(None)
-  def sortedCursor(user: UserId, pk: PerfKey): reactivemongo.akkastream.AkkaStreamCursor[Game] = ???
+  def sortedCursor(user: UserId, pk: PerfKey): reactivemongo.akkastream.AkkaStreamCursor[Game] = 
+    throw new UnsupportedOperationException("Game cursor disabled - Study-only system")
   
   override given gameHandler: reactivemongo.api.bson.BSONDocumentHandler[Game] = BSONHandlers.gameHandler
   override given statusHandler: reactivemongo.api.bson.BSONHandler[chess.Status] = BSONHandlers.statusHandler

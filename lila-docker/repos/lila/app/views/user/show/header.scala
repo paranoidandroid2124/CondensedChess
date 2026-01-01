@@ -20,6 +20,7 @@ object header:
     )
 
   def apply(u: User, info: UserInfo, angle: UserInfo.Angle, social: UserInfo.Social)(using ctx: Context) =
+    val hideTroll = u.marks.troll && ctx.isnt(u)
     frag(
       div(cls := "box__top user-show__header")(
         h1(userDom(u)),
@@ -34,7 +35,6 @@ object header:
       ),
       // standardFlash was here
       standardFlash,
-      val hideTroll = u.marks.troll && ctx.isnt(u)
       div(id := "us_profile")(
         div(cls := "profile-side")(
              div(cls := "user-infos")(

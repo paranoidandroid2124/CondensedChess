@@ -5,12 +5,10 @@ import play.api.mvc.*
 
 import lila.common.HTTPRequest
 import lila.core.config.NetConfig
-import lila.core.net.LichessMobileUa
 
 final class HttpFilter(
     net: NetConfig,
-    sitewideCoepCredentiallessHeader: () => Boolean,
-    parseMobileUa: RequestHeader => Option[LichessMobileUa]
+    sitewideCoepCredentiallessHeader: () => Boolean
 )(using val mat: Materializer)(using Executor)
     extends Filter
     with ResponseHeaders:
@@ -25,22 +23,18 @@ final class HttpFilter(
         .map(fuccess)
         .getOrElse:
           handle(req).map: result =>
-            monitoring(req, startTime):
-              addContextualResponseHeaders(req):
-                addEmbedderPolicyHeaders(req):
-                  result
+            logging(req, startTime)(result)
+            addContextualResponseHeaders(req):
+              addEmbedderPolicyHeaders(req):
+                result
 
-  private def monitoring(req: RequestHeader, startTime: Long)(result: Result) =
-    val actionName = HTTPRequest.actionName(req)
-    val reqTime = nowMillis - startTime
-    val statusCode = result.header.status
-    val mobile = parseMobileUa(req)
-    val client = if mobile.isDefined then "mobile" else HTTPRequest.clientName(req)
-    lila.mon.http.count(actionName, client, req.method, statusCode).increment()
-    lila.mon.http.time(actionName).record(reqTime)
-    if net.logRequests then logger.info(s"$statusCode $client $req $actionName ${reqTime}ms")
-    mobile.foreach: m =>
-      lila.mon.http.mobileCount(actionName, m.version, m.userId.isDefined, m.osName).increment()
+  private def logging(req: RequestHeader, startTime: Long)(result: Result) =
+    if net.logRequests then
+      val actionName = HTTPRequest.actionName(req)
+      val reqTime = nowMillis - startTime
+      val statusCode = result.header.status
+      val client = HTTPRequest.clientName(req)
+      logger.info(s"$statusCode $client $req $actionName ${reqTime}ms")
     result
 
   private def serveAssets(res: Fu[Result]) =

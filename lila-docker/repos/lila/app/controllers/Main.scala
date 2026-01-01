@@ -25,32 +25,17 @@ final class Main(
     )
 
   def handlerNotFound(msg: Option[String])(using RequestHeader) =
-    makeContext.flatMap:
-      keyPages.notFound(msg)(using _)
+    fuccess(NotFound(msg.getOrElse("Not Found")))
 
   def captchaCheck(id: GameId) = Anon:
-    env.game.captcha.validate(id, ~get("solution")).map { valid =>
+    env.game.captchaApi.validate(id, ~get("solution")).map { valid =>
       Ok(if valid then 1 else 0)
     }
 
   def webmasters = Open:
-    Ok.page(views.site.page.webmasters)
+    Ok("Webmasters")
 
-  def lag = Open:
-    Ok.page(views.site.ui.lag)
-
-  def mobile = Open(serveMobile)
-  def mobileLang = LangPage(routes.Main.mobile)(serveMobile)
-
-  def redirectToAppStore = Anon:
-    pageHit
-    Redirect(StaticContent.appStoreUrl)
-
-  private def serveMobile(using Context) =
-    pageHit
-    Ok.page(views.site.ui.getFishnet)
-
-  val robots = Anon:
+  def robots = Anon:
     Ok:
       if env.net.crawlable && req.domain == env.net.domain.value && env.mode.isProd
       then StaticContent.robotsTxt
@@ -60,38 +45,13 @@ final class Main(
     JsonOk:
       StaticContent.manifest(env.net)
 
-  def getFishnet = Open:
-    pageHit
-    Ok.page(views.site.ui.getFishnet)
-
-  def costs = Anon:
-    pageHit
-    Redirect:
-      "https://docs.google.com/spreadsheets/d/1Si3PMUJGR9KrpE5lngSkHLJKJkb0ZuI4/preview"
-
   def contact = Open:
-    pageHit
-    Ok.page(views.site.page.contact)
+    Ok("Contact")
 
   def faq = Open:
-    pageHit
-    Ok.page(views.site.page.faq.apply)
-
-  def temporarilyDisabled(@annotation.nowarn path: String) = Open:
-    pageHit
-    NotImplemented.page(views.site.message.temporarilyDisabled)
-
-  def helpPath(path: String) = Open:
-    path match
-      case "keyboard-move" => Ok.snip(lila.web.ui.help.keyboardMove)
-      case "voice/move" => Ok.snip(lila.web.ui.help.voiceMove)
-      case _ => notFound
-
-  def movedPermanently(to: String) = Anon:
-    MovedPermanently(to)
+    Ok("FAQ")
 
   def instantChess = Open:
-    pageHit
     Redirect(routes.UserAnalysis.index)
 
   def prometheusMetrics(key: String) = Anon:
@@ -100,24 +60,10 @@ final class Main(
       lila.web.PrometheusReporter
         .latestScrapeData()
         .fold(NotFound("No metrics found")): data =>
-          lila.mon.prometheus.lines.update(data.lines.count.toDouble)
           Ok(data)
     else NotFound("Invalid prometheus key")
 
-  def legacyQaQuestion(id: Int, @annotation.nowarn slug: String) = Anon:
-    MovedPermanently:
-      StaticContent.legacyQaQuestion(id)
-
   def devAsset(@annotation.nowarn v: String, path: String, file: String) = assetsC.at(path, file)
-
-  private val externalMonitorOnce = scalalib.cache.OnceEvery.hashCode[String](10.minutes)
-  def externalLink(tag: String) = Open:
-    StaticContent.externalLinks
-      .get(tag)
-      .so: url =>
-        if HTTPRequest.isCrawler(ctx.req).no && externalMonitorOnce(s"$tag/${ctx.ip}")
-        then lila.mon.link.external(tag, ctx.isAuth).increment()
-        Redirect(url)
 
   def uploadImage(rel: String) = AuthBody(lila.web.HashedMultiPart(parse)) { ctx ?=> me ?=>
     lila.core.security

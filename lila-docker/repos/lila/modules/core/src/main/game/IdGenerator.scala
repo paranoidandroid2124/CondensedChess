@@ -2,7 +2,7 @@ package lila.core
 package game
 
 import scalalib.ThreadLocalRandom
-import lila.core.id.GameId
+import lila.core.id.{ GameId, GamePlayerId }
 
 trait IdGenerator:
   def game: Fu[GameId]
@@ -11,3 +11,4 @@ trait IdGenerator:
 
 object IdGenerator:
   def uncheckedGame: GameId = GameId(ThreadLocalRandom.nextString(GameId.size))
+  def uncheckedPlayer: GamePlayerId = GamePlayerId(ThreadLocalRandom.nextString(GamePlayerId.size))

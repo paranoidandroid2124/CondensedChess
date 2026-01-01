@@ -4,22 +4,18 @@ package ui
 import play.api.i18n.Lang
 import scalalib.model.Language
 
-import lila.core.i18n.I18nModule
-import lila.core.report.ScoreThresholds
 import lila.ui.*
 
 import ScalatagsTemplate.{ *, given }
 
 final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
-    popularAlternateLanguages: List[Language],
-    reportScoreThreshold: () => ScoreThresholds,
-    reportScore: () => Int
+    popularAlternateLanguages: List[Language]
 ):
   import helpers.{ *, given }
-  import assetHelper.{ defaultCsp, netConfig, cashTag, siteName }
+  import assetHelper.{ *, given }
 
   val doctype = raw("<!DOCTYPE html>")
-  def htmlTag(using lang: Lang) = html(st.lang := lang.code, dir := isRTL(lang).option("rtl"))
+  def htmlTag(using lang: Lang) = html(st.lang := lang.code)
   val topComment = raw("""<!-- Lichess is open source! See https://lichess.org/source -->""")
   val charset = raw("""<meta charset="utf-8">""")
   val viewport = raw:
@@ -44,26 +40,8 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     ctx.pref.pieceNotationIsLetter.not.option(fontPreload("lichess-chess.woff2"))
   )
 
-  def allNotifications(challenges: Int, notifs: Int)(using Translate) =
-    val challengeTitle = trans.challenge.challengesX.txt(challenges)
-    val notifTitle = trans.site.notificationsX.txt(notifs)
-    spaceless:
-      s"""
-<div>
-  <button id="challenge-toggle" class="toggle link" type="button">
-    <span title="$challengeTitle" role="status" aria-label="$challengeTitle" class="data-count" data-count="$challenges" data-icon="${Icon.Swords}"></span>
-  </button>
-  <div id="challenge-app" class="dropdown"></div>
-</div>
-<div>
-  <button id="notify-toggle" class="toggle link" type="button">
-    <span title="$notifTitle" role="status" aria-label="$notifTitle" class="data-count" data-count="$notifs" data-icon="${Icon.BellOutline}"></span>
-  </button>
-  <div id="notify-app" class="dropdown"></div>
-</div>"""
-
   def clinput(using ctx: Context) =
-    val label = trans.search.search.txt()
+    val label = "Search"
     div(id := "clinput")(
       a(cls := "link", dataIcon := Icon.Search),
       input(
@@ -73,11 +51,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
         placeholder := label,
         enterkeyhint := "search"
       )
-    )
-
-  val warnNoAutoplay =
-    div(id := "warn-no-autoplay")(
-      a(dataIcon := Icon.Mute, targetBlank, href := s"${routes.Main.faq}#autoplay")
     )
 
   def botImage = img(
@@ -98,23 +71,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
         "",
         s"""<link id="favicon" rel="icon" type="image/png" href="$assetBaseUrl/assets/logo/lichess-favicon-32.png" sizes="32x32">"""
       )
-  def blindModeForm(using ctx: Context) = raw:
-    s"""<form id="blind-mode" action="${routes.Main.toggleBlindMode}" method="POST"><input type="hidden" name="enable" value="${
-        if ctx.blind then 0 else 1
-      }"><input type="hidden" name="redirect" value="${ctx.req.path}"><button type="submit">${trans.site.accessibility
-        .txt()} - ${
-        if ctx.blind then trans.site.disableBlindMode.txt() else trans.site.enableBlindMode.txt()
-      } </button>&nbsp;-&nbsp;${a(href := "https://lichess.org/page/blind-mode-tutorial")(
-        "Blind mode tutorial"
-      )}</form>"""
-
-  def zenZone(using Translate) = spaceless:
-    s"""
-<div id="zenzone">
-  <a href="/" class="zen-home"></a>
-  <a data-icon="${Icon.Checkmark}" id="zentog" class="text fbt active">${trans.preferences.zenMode
-        .txt()}</a>
-</div>"""
 
   def dasher(me: User) =
     div(cls := "dasher")(
@@ -123,21 +79,17 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     )
 
   def anonDasher(using ctx: Context) =
-    val prefs = trans.preferences.preferences.txt()
+    val prefs = "Preferences"
     frag(
       div(cls := "signin-or-signup")(
-        a(href := s"${routes.Auth.login.url}?referrer=${ctx.req.path}", cls := "signin")(trans.site.signIn()),
-        a(href := routes.Auth.signup, cls := "button signup")(trans.site.signUp())
+        a(href := s"${routes.Auth.login.url}?referrer=${ctx.req.path}", cls := "signin")("Sign in"),
+        a(href := routes.Auth.signup, cls := "button signup")("Sign up")
       ),
       div(cls := "dasher")(
         button(cls := "toggle anon link", title := prefs, aria.label := prefs, dataIcon := Icon.Gear),
         div(id := "dasher_app", cls := "dropdown")
       )
     )
-
-  def sitePreload(i18nMods: List[I18nModule.Selector], modules: EsmList)(using ctx: Context) =
-    val i18nModules = i18nMods.map(mod => s"i18n/${mod(I18nModule)}.${ctx.lang.code}")
-    scriptsPreload(i18nModules ::: "site" :: modules.map(_.map(_.key)).flatten)
 
   def scriptsPreload(keys: List[String]) =
     frag(cashTag, assetHelper.manifest.jsAndDeps("manifest" :: keys).map(jsTag))
@@ -176,13 +128,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
       .filter(100 >=)
   } | 80
 
-  // val dailyNewsAtom = link(
-  //   href := routes.Feed.atom,
-  //   st.title := "Lichess Updates Feed",
-  //   tpe := "application/atom+xml",
-  //   rel := "alternate"
-  // )
-
   val dataVapid = attr("data-vapid")
   def dataSocketDomains = attr("data-socket-domains") := netConfig.socketDomains.mkString(",")
   val dataNonce = attr("data-nonce")
@@ -216,18 +161,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
 </style>"""
 
   def bottomHtml(using ctx: Context) = frag(
-    ctx.me
-      .exists(_.enabled.yes)
-      .option(
-        div(id := "friend_box")(
-          div(cls := "friend_box_title")(
-            trans.site.nbFriendsOnline.plural(0, iconTag(Icon.UpTriangle))
-          ),
-          div(cls := "content_wrap none")(
-            div(cls := "content list")
-          )
-        )
-      ),
     Option.when(netConfig.socketDomains.nonEmpty)(networkAlert),
     spinnerMask
   )
@@ -239,52 +172,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
 <input type="checkbox" id="tn-tg" class="topnav-toggle fullscreen-toggle" autocomplete="off" aria-label="Navigation">
 <label for="tn-tg" class="fullscreen-mask"></label>
 <label for="tn-tg" class="hbg"><span class="hbg__in"></span></label>"""
-
-    private def privileges(using Context) = Option.empty[Tag]
-    /*
-      if Granter.opt(_.SeeReport) then
-        val threshold = reportScoreThreshold()
-        val maxScore = reportScore()
-        a(
-          cls := List(
-            "link data-count report-maxScore link-center" -> true,
-            "report-maxScore--high" -> (maxScore > threshold.high),
-            "report-maxScore--low" -> (maxScore <= threshold.mid)
-          ),
-          title := "Moderation",
-          href := routes.Report.list,
-          dataCount := maxScore,
-          dataIcon := Icon.Agent
-        ).some
-      else if Granter.opt(_.PublicChatView) then
-        a(
-          cls := "link",
-          title := "Moderation",
-          href := routes.Mod.publicChat,
-          dataIcon := Icon.Agent
-        ).some
-      else
-        (Granter.opt(_.Pages) || Granter.opt(_.ManageEvent)).option(
-          a(
-            cls := "link",
-            title := "Content",
-            href := Granter.opt(_.Pages).option(routes.Cms.index).orElse(routes.Event.manager.some),
-            dataIcon := Icon.InkQuill
-          )
-        )
-      */
-
-    private def teamRequests(nb: Int)(using Translate) = Option.empty[Tag]
-      /*
-      Option.when(nb > 0):
-        a(
-          cls := "link data-count link-center",
-          href := routes.Team.requests,
-          dataCount := nb,
-          dataIcon := Icon.Group,
-          title := trans.team.teams.txt()
-        )
-      */
 
     private val siteNameFrag: Frag =
       if siteName == "lichess.org" then frag("lichess", span(".org"))
@@ -301,51 +188,24 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
       header(id := "top")(
         div(cls := "site-title-nav")(
           (!isAppealUser).option(topnavToggle),
-          a(cls := "site-title", href := langHref("/"))(
-            if ctx.kid.yes then span(title := trans.site.kidMode.txt(), cls := "kiddo")(":)")
-            else ctx.isBot.option(botImage),
+          a(cls := "site-title", href := "/")(
+            ctx.isBot.option(botImage),
             div(cls := "site-icon", dataIcon := Icon.Logo),
             div(cls := "site-name")(siteNameFrag)
           ),
-          (!isAppealUser).option(
-            frag(
-              topnav,
-              (ctx.kid.no && !ctx.me.exists(_.isPatron) && !zenable).option(
-                a(cls := "site-title-nav__donate")(
-                  href := routes.Plan.index()
-                )(trans.patron.donate())
-              )
-            )
-          ),
+          (!isAppealUser).option(topnav),
           ctx.blind.option(h2("Navigation"))
         ),
         div(cls := "site-buttons")(
-          warnNoAutoplay,
           (!isAppealUser).option(clinput),
-          privileges,
-          teamRequests(ctx.teamNbRequests),
           if isAppealUser then
             postForm(action := routes.Auth.logout):
-              submitButton(cls := "button button-red link")(trans.site.logOut())
+              submitButton(cls := "button button-red link")("Log out")
           else
             ctx.me
               .map: me =>
-                frag(allNotifications(challenges, notifications), dasher(me))
+                dasher(me)
               .getOrElse:
                 error.not.option(anonDasher)
         )
       )
-
-  private val rtlCache = scala.collection.mutable.HashMap.empty[Lang, Boolean]
-
-  private def isRTL(lang: Lang): Boolean =
-    rtlCache.getOrElseUpdate(
-      lang,
-      lang.locale
-        .getDisplayName(lang.locale)
-        .headOption
-        .map(_.getDirectionality)
-        .exists: dir =>
-          dir == Character.DIRECTIONALITY_RIGHT_TO_LEFT ||
-            dir == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
-    )

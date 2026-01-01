@@ -33,54 +33,15 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
         if _ then Unauthorized.page(views.auth.pubOrTor)
         else res
 
-  def NoEngine[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] =
-    if ctx.me.exists(_.marks.engine)
-    then Forbidden.page(views.site.message.noEngine)
-    else a
+  def NoBooster[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] = a
 
-  def NoBooster[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] =
-    if ctx.me.exists(_.marks.boost)
-    then Forbidden.page(views.site.message.noBooster)
-    else a
+  def NoLame[A <: Result](a: => Fu[A])(using Context): Fu[Result] = a
 
-  def NoLame[A <: Result](a: => Fu[A])(using Context): Fu[Result] =
-    NoEngine(NoBooster(a))
-
-  def NoBot[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] =
-    if ctx.isBot then notForBotAccounts
-    else a
-
-  def NoLameOrBotOpt[A <: Result](a: => Fu[A])(using Context): Fu[Result] =
-    NoLame(NoBot(a))
-
-  def NoLameOrBot[A <: Result](a: => Fu[A])(using me: Me)(using Context): Fu[Result] =
-    if me.isBot then notForBotAccounts
-    else if me.lame then notForLameAccounts
-    else a
-
-  def NoShadowban[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] =
-    if ctx.me.exists(_.marks.troll) then notFound else a
-
-  def AuthOrTrustedIp(f: => Fu[Result])(using ctx: Context): Fu[Result] =
-    if ctx.isAuth then f
-    else
-      env.security.ip2proxy
-        .ofReq(ctx.req)
-        .flatMap: ip =>
-          if ip.isSafeish then f
-          else Redirect(routes.Auth.login)
-
-  private val csrfForbiddenResult = Forbidden("Cross origin request forbidden")
-
-  def CSRF(f: => Fu[Result])(using req: RequestHeader): Fu[Result] =
-    if env.security.csrfRequestHandler.check(req) then f else csrfForbiddenResult
-
-  def XhrOnly(res: => Fu[Result])(using ctx: Context): Fu[Result] =
-    if HTTPRequest.isXhr(ctx.req) then res else notFound
+  def NoShadowban[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] = a
 
   def XhrOrRedirectHome(res: => Fu[Result])(using ctx: Context): Fu[Result] =
     if HTTPRequest.isXhr(ctx.req) then res
-    else Redirect(routes.User.show(ctx.me.map(_.username).getOrElse(UserStr(""))))
+    else Redirect("/")
 
   def Reasonable(
       page: Int,

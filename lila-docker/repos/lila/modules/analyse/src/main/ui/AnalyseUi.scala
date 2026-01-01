@@ -31,7 +31,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       withForecast: Boolean = false,
       inlinePgn: Option[String] = None
   )(using ctx: Context): Page =
-    Page(trans.site.analysis.txt())
+    Page("Analysis")
       .css("analyse.free")
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(withForecast.option("analyse.forecast"))
@@ -50,12 +50,9 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
             .add("inlinePgn", inlinePgn) ++
             explorerAndCevalConfig
         )
-      .i18n(_.study)
-      .i18nOpt(ctx.speechSynthesis, _.nvui)
-      .i18nOpt(ctx.blind, _.keyboardMove)
       .graph(
         title = "Chess analysis board",
-        url = routeUrl(routes.UserAnalysis.index),
+        url = lila.ui.Url(routeUrl(routes.UserAnalysis.index)),
         description = "Analyse chess positions and variations on an interactive chess board"
       )
       .flag(_.zoom):
@@ -95,9 +92,9 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           div(cls := "analyse__controls")
         )
 
-  private def chess960selector(num: Option[Int])(using Translate) =
+  private def chess960selector(num: Option[Int]) =
     div(cls := "jump-960")(
-      num.map(pos => label(`for` := "chess960-position")(trans.site.chess960StartPosition(pos))),
+      num.map(pos => label(`for` := "chess960-position")(s"Chess960 position $pos")),
       br,
       form(
         cls := "control-960",
@@ -112,16 +109,15 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           max := 959,
           value := num
         ),
-        form3.submit(trans.site.loadPosition(), icon = none)
+        form3.submit("Load position", icon = none)
       )
     )
 
   private def iconByVariant(variant: Variant): Icon =
     PerfKey.byVariant(variant).fold(Icon.CrownElite)(_.perfIcon)
 
-  def titleOf(pov: Pov)(using Translate) =
-    val opening = pov.game.opening.fold(trans.site.analysis.txt())(_.opening.name)
-    s"${playerText(pov.game.whitePlayer)} vs ${playerText(pov.game.blackPlayer)}: $opening"
+  def titleOf(pov: Pov) =
+    s"${playerText(pov.game.whitePlayer)} vs ${playerText(pov.game.blackPlayer)}"
 
   object bits:
 

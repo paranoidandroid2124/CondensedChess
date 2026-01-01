@@ -1,9 +1,10 @@
 package lila.security
 
 import lila.core.security.FingerHash
+import scalalib.newtypes.TotalWrapper
 
 opaque type FingerPrint = String
-object FingerPrint extends OpaqueString[FingerPrint]:
+object FingerPrint extends TotalWrapper[FingerPrint, String]:
   extension (a: FingerPrint) def hash: Option[FingerHash] = FingerHashGenerator.from(a)
 
 object FingerHashGenerator:
@@ -14,12 +15,12 @@ object FingerHashGenerator:
     try
       import java.util.Base64
       import org.apache.commons.codec.binary.Hex
-      lila.core.security.FingerHash {
+      Some(lila.core.security.FingerHash {
         Base64.getEncoder
           .encodeToString(Hex.decodeHex(normalize(print).toArray))
           .take(length)
-      }.some
-    catch case _: Exception => none
+      })
+    catch case _: Exception => Option.empty
 
   private def normalize(fp: FingerPrint): String =
     val str = fp.value.replace("-", "")

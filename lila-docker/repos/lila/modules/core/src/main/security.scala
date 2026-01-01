@@ -50,6 +50,7 @@ case class UserSignup(
 
 trait SecurityApi:
   def shareAnIpOrFp(u1: UserId, u2: UserId): Fu[Boolean]
+  def canUploadImages(rel: String): Boolean = true
 
 trait SpamApi:
   def detect(text: String): Boolean
@@ -57,8 +58,11 @@ trait SpamApi:
 
 case class IsProxy(name: Option[String]):
   def yes: Boolean = name.isDefined
+  def no: Boolean = name.isEmpty
   def isEmpty: Boolean = name.isEmpty
   def isTor: Boolean = name.contains("Tor")
+  def isFloodish: Boolean = name.isDefined
+  def isVpn: Boolean = name.exists(n => n.contains("VPN") || n.contains("Proxy"))
 
 object IsProxy:
   val empty = IsProxy(None)
@@ -76,6 +80,12 @@ trait UserTrustApi:
 
 trait Hcaptcha:
   def verify(response: String, ip: Option[lila.core.net.IpAddress]): Fu[Boolean]
+
+// Simplified HcaptchaForm for forms that may require captcha
+trait HcaptchaForm[A]:
+  def form: play.api.data.Form[A]
+  def enabled: Boolean = false
+  def apply(key: String): play.api.data.Field = form(key)
 
 trait FloodApi:
   def allowRequest(req: RequestHeader): Fu[Boolean]

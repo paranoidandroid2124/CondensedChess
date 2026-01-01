@@ -17,7 +17,7 @@ case class UserInfo(
     insightVisible: Boolean
 ):
   def teamIds: List[Nothing] = Nil
-  def ranks: Nothing = ???
+  def ranks: List[Nothing] = Nil // Study-only system - no ranking
   export nbs.crosstable
 
 object UserInfo:
@@ -28,7 +28,7 @@ object UserInfo:
     case Other extends Angle("other")
 
   case class Social(
-      notes: List[lila.user.Note],
+      notes: List[lila.core.user.Note],
       followable: Boolean,
       blocked: Boolean
   )

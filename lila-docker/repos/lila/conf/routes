@@ -21,11 +21,21 @@ POST  /logout                          controllers.Auth.logout
 GET   /signup                          controllers.Auth.signup
 POST  /signup                          controllers.Auth.signupPost
 GET   /signup/confirm/:token           controllers.Auth.signupConfirmEmail(token)
+POST  /signup/confirm/:token           controllers.Auth.signupConfirmEmailPost(token)
 GET   /password/reset                  controllers.Auth.passwordReset
 POST  /password/reset/send             controllers.Auth.passwordResetApply
+GET   /password/reset/confirm/:token   controllers.Auth.passwordResetConfirm(token)
+POST  /password/reset/confirm/:token   controllers.Auth.passwordResetConfirmApply(token)
+GET   /auth/magic-link                 controllers.Auth.magicLink
+POST  /auth/magic-link/apply           controllers.Auth.magicLinkApply
+GET   /auth/magic-link/sent            controllers.Auth.magicLinkSent
+GET   /auth/check-email                controllers.Auth.checkYourEmail
+POST  /auth/fix-email                  controllers.Auth.fixEmail
+GET   /auth/token/:token               controllers.Auth.loginWithToken(token, referrer: Option[String] ?= None)
+POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token, referrer: Option[String] ?= None)
 
 # Analysis and Study
-GET   /analysis                        controllers.Analyse.home
+GET   /analysis                        controllers.UserAnalysis.index
 GET   /analysis/:id                    controllers.Analyse.replay(id)
 GET   /analysis/:id/:moves             controllers.Analyse.replayWithMoves(id, moves)
 POST  /analysis/:id/request            controllers.Analyse.requestAnalysis(id)
@@ -56,7 +66,12 @@ GET   /analysis/help                   controllers.UserAnalysis.help
 GET   /analysis/pgn/*pgn               controllers.UserAnalysis.pgn(pgn)
 GET   /analysis/*something             controllers.UserAnalysis.parseArg(something)
 GET   /embed/analysis                  controllers.UserAnalysis.embed
-GET   /api/cloud-eval                  controllers.Api.cloudEval
+# GET   /api/cloud-eval                  controllers.Api.cloudEval
+
+# LLM Analysis
+POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
+POST  /api/llm/game-analysis           controllers.LlmController.analyzeGame
+POST  /api/llm/position-analysis       controllers.LlmController.analyzePosition
 
 # User
 GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)
@@ -68,8 +83,8 @@ GET   /api/player                      controllers.User.apiList
 GET   /player/online                   controllers.User.online
 
 # Game
-GET   /game/export/$gameId<\w{8}>.pgn  controllers.Game.exportOne(gameId: GameId)
-POST  /game/delete/$gameId<\w{8}>      controllers.Game.delete(gameId: GameId)
+# GET   /game/export/$gameId<\w{8}>.pgn  controllers.Game.exportOne(gameId: GameId)
+# POST  /game/delete/$gameId<\w{8}>      controllers.Game.delete(gameId: GameId)
 
 # Importer
 GET   /import                          controllers.Importer.importGame
@@ -97,10 +112,10 @@ POST   /account/oauth/token/create     controllers.OAuthToken.createApply
 POST   /account/oauth/token/:id/delete controllers.OAuthToken.delete(id)
 
 # API
-GET   /api/status                      controllers.Api.status
-GET   /api/user/:user                  controllers.Api.user(user: UserStr)
-GET   /api/game/:id                    controllers.Api.game(id: GameId)
-GET   /api/stream/game/:id             controllers.Api.moveStream(id: GameId)
+# GET   /api/status                      controllers.Api.status
+# GET   /api/user/:user                  controllers.Api.user(user: UserStr)
+# GET   /api/game/:id                    controllers.Api.game(id: GameId)
+# GET   /api/stream/game/:id             controllers.Api.moveStream(id: GameId)
 
 # Assets & Static
 GET   /assets/*file                    controllers.ExternalAssets.at(path="public", file)

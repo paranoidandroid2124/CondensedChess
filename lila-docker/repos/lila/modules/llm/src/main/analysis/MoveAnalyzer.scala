@@ -1,6 +1,7 @@
-package lila.llm
+package lila.llm.analysis
 
 import lila.llm.model.*
+import lila.llm.model.strategic.{ VariationLine, VariationTag, CounterfactualMatch, Hypothesis }
 import lila.llm.model.Motif.{ *, given }
 
 import _root_.chess.*
@@ -35,24 +36,6 @@ case class CandidateMove(
     reason: String = ""
 )
 
-/** Counterfactual comparison result */
-case class CounterfactualMatch(
-    userMove: String,
-    bestMove: String,
-    cpLoss: Int,
-    missedMotifs: List[Motif],
-    userMoveMotifs: List[Motif],
-    severity: String // "blunder" | "mistake" | "inaccuracy" | "ok"
-)
-
-/** Hypothesis - human-like candidate move */
-case class Hypothesis(
-    move: String,
-    candidateType: CandidateType,
-    rationale: String,
-    featuresDelta: Map[String, Int],
-    eval: Option[EngineEval]
-)
 
 /**
  * Unified Move Analyzer
@@ -126,7 +109,8 @@ object MoveAnalyzer:
         cpLoss = cpLoss,
         missedMotifs = missedMotifs,
         userMoveMotifs = userMotifs,
-        severity = severity
+        severity = severity,
+        userLine = lila.llm.model.strategic.VariationLine(List(userMove), 0, None, Nil)
       ))
 
 
@@ -157,10 +141,8 @@ object MoveAnalyzer:
            if pieceValue(victim) >= pieceValue(role) then
              candidates += Hypothesis(
                move = uci,
-               candidateType = CandidateType.Capture,
-               rationale = s"Captures the ${victim.name}",
-               featuresDelta = Map.empty, // To be filled if analyzed deeper
-               eval = None
+               candidateType = CandidateType.Capture.name,
+               rationale = s"Captures the ${victim.name}"
              )
       }
 
@@ -171,10 +153,8 @@ object MoveAnalyzer:
         if uci != engineBestMove then
           candidates += Hypothesis(
             move = uci,
-            candidateType = CandidateType.Check,
-            rationale = "Forcing check",
-            featuresDelta = Map.empty,
-            eval = None
+            candidateType = CandidateType.Check.name,
+            rationale = "Forcing check"
           )
       }
 
@@ -249,7 +229,7 @@ object MoveAnalyzer:
 
     builder.result()
 
-  private def detectPawnMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectPawnMotifs(mv: Move, _pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != Pawn then return Nil
     
     var motifs = List.empty[Motif]
@@ -288,7 +268,7 @@ object MoveAnalyzer:
 
     motifs
 
-  private def detectPieceMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectPieceMotifs(mv: Move, _pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
     val role = mv.piece.role
 
@@ -325,7 +305,7 @@ object MoveAnalyzer:
 
     motifs
 
-  private def detectKingMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectKingMotifs(mv: Move, _pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != King then return Nil
     var motifs = List.empty[Motif]
     if mv.castle.isDefined then
@@ -344,7 +324,7 @@ object MoveAnalyzer:
     else if mv.dest.file == File.A || mv.dest.file == File.H then KingStepType.ToCorner
     else KingStepType.Other
 
-  private def detectTacticalMotifs(
+  def detectTacticalMotifs(
       mv: Move, 
       pos: Position, 
       nextPos: Position,
@@ -371,11 +351,28 @@ object MoveAnalyzer:
       val kingSq = nextPos.board.kingPosOf(!color).getOrElse(mv.dest) // Fallback to dest if king not found (unlikely)
       motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, plyIndex, Some(san))
     
-    // Capture
+    // Capture (enhanced with Exchange Sacrifice detection)
     if mv.captures then
       val capturedRole = mv.capture.flatMap(pos.board.roleAt).getOrElse(pos.board.roleAt(mv.dest).getOrElse(Pawn))
       val captureType = determineCaptureType(mv.piece.role, capturedRole)
-      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, captureType, plyIndex, Some(san))
+      
+      // Detect Positional Sacrifice with ROI (any meaningful material sacrifice)
+      // Cases: Rook for minor piece, Minor piece for pawn, Queen sacrifice
+      val isMaterialSacrifice = (
+        // Rook for minor piece (classic exchange sacrifice)
+        (mv.piece.role == Rook && (capturedRole == Knight || capturedRole == Bishop)) ||
+        // Minor piece for pawn (positional sacrifice)
+        ((mv.piece.role == Knight || mv.piece.role == Bishop) && capturedRole == Pawn) ||
+        // Queen sacrifice for compensation
+        (mv.piece.role == Queen && capturedRole != Queen)
+      )
+      
+      val sacrificeROI = if (isMaterialSacrifice) {
+        detectExchangeSacrificeROI(mv, nextPos, color)
+      } else None
+      
+      val finalCaptureType = if (sacrificeROI.isDefined) CaptureType.ExchangeSacrifice else captureType
+      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, finalCaptureType, plyIndex, Some(san), sacrificeROI)
     
     // Fork detection
     val forkTargetsList = detectForkTargets(mv, nextPos, color)
@@ -393,6 +390,12 @@ object MoveAnalyzer:
 
     // Interference detection
     detectInterference(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
+
+    // Deflection detection (NEW - Phase 11)
+    detectDeflection(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
+
+    // Decoy detection (NEW - Phase 11)  
+    detectDecoy(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
     motifs
 
@@ -557,8 +560,57 @@ object MoveAnalyzer:
     val board = pos.board
     List.concat(
       detectPawnStructure(board, plyIndex),
-      detectOpposition(board, plyIndex)
+      detectOpposition(board, plyIndex),
+      detectOpenFiles(board, plyIndex),
+      detectWeakBackRank(pos, plyIndex),
+      detectSpaceAdvantage(board, plyIndex)
     )
+
+  // ===== FIX 6: New Motif Detectors =====
+  private def detectOpenFiles(board: Board, plyIndex: Int): List[Motif] =
+    var motifs = List.empty[Motif]
+    for file <- File.all do
+      val whitePawns = board.byPiece(White, Pawn) & Bitboard.file(file)
+      val blackPawns = board.byPiece(Black, Pawn) & Bitboard.file(file)
+      
+      if whitePawns.isEmpty && blackPawns.isEmpty then
+        // Open file - check who controls it
+        val whiteRooks = (board.byPiece(White, Rook) | board.byPiece(White, Queen)) & Bitboard.file(file)
+        val blackRooks = (board.byPiece(Black, Rook) | board.byPiece(Black, Queen)) & Bitboard.file(file)
+        
+        if whiteRooks.nonEmpty && blackRooks.isEmpty then
+          motifs = motifs :+ OpenFileControl(file, White, plyIndex)
+        else if blackRooks.nonEmpty && whiteRooks.isEmpty then
+          motifs = motifs :+ OpenFileControl(file, Black, plyIndex)
+    motifs
+
+  private def detectWeakBackRank(pos: Position, plyIndex: Int): List[Motif] =
+    var motifs = List.empty[Motif]
+    val board = pos.board
+    
+    for color <- List(White, Black) do
+      val backRank = if color.white then Rank.First else Rank.Eighth
+      board.kingPosOf(color).foreach { kingSq =>
+        if kingSq.rank == backRank then
+          // Check if king is trapped on back rank (no escape squares)
+          val escapeRank = if color.white then Rank.Second else Rank.Seventh
+          val escapeSquares = kingSq.kingAttacks & Bitboard.rank(escapeRank)
+          val blockedByOwn = escapeSquares & board.byColor(color)
+          
+          if escapeSquares.count > 0 && blockedByOwn.count == escapeSquares.count then
+            motifs = motifs :+ WeakBackRank(color, plyIndex)
+      }
+    motifs
+
+  private def detectSpaceAdvantage(board: Board, plyIndex: Int): List[Motif] =
+    // Count pawns on rank 4/5 for White, rank 5/4 for Black
+    val whiteCentralPawns = (board.byPiece(White, Pawn) & (Bitboard.rank(Rank.Fourth) | Bitboard.rank(Rank.Fifth))).count
+    val blackCentralPawns = (board.byPiece(Black, Pawn) & (Bitboard.rank(Rank.Fourth) | Bitboard.rank(Rank.Fifth))).count
+    
+    val diff = whiteCentralPawns - blackCentralPawns
+    if diff >= 2 then List(SpaceAdvantage(White, diff, plyIndex))
+    else if diff <= -2 then List(SpaceAdvantage(Black, -diff, plyIndex))
+    else Nil
 
   private def detectPawnStructure(board: Board, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
@@ -684,3 +736,236 @@ object MoveAnalyzer:
     case Rook   => 5
     case Queen  => 9
     case King   => 100
+
+  // ============================================================
+  // PHASE 11: EXCHANGE SACRIFICE DETECTION
+  // ============================================================
+
+  /**
+   * Detect compensation for Exchange Sacrifice (Rook for minor piece).
+   * Returns SacrificeROI if positional compensation exists.
+   */
+  private def detectExchangeSacrificeROI(mv: Move, nextPos: Position, color: Color): Option[SacrificeROI] = {
+    val board = nextPos.board
+    var reasons = List.empty[String]
+    var totalValue = 0
+    
+    // 1. Open file created for remaining rook?
+    val capturedFile = mv.dest.file
+    val ownPawnsOnFile = (board.pawns & board.byColor(color)).squares.count(_.file == capturedFile)
+    val enemyPawnsOnFile = (board.pawns & board.byColor(!color)).squares.count(_.file == capturedFile)
+    if (ownPawnsOnFile == 0) {
+      val hasRookOnFile = (board.rooks & board.byColor(color)).squares.exists(_.file == capturedFile)
+      if (hasRookOnFile || enemyPawnsOnFile == 0) {
+        reasons = reasons :+ "open_file"
+        totalValue += 150
+      }
+    }
+    
+    // 2. King exposed (weakened shelter)?
+    val enemyKingPos = board.kingPosOf(!color)
+    enemyKingPos.foreach { kingSq =>
+      // Check if king is on back rank with reduced pawn cover
+      val kingFile = kingSq.file
+      val kingFileIdx = kingFile.value
+      val adjacentFileIndices = List(kingFileIdx - 1, kingFileIdx, kingFileIdx + 1).filter(i => i >= 0 && i <= 7)
+      val adjacentFiles = adjacentFileIndices.flatMap(i => File.all.lift(i))
+      val pawnShieldCount = adjacentFiles.count { f =>
+        (board.pawns & board.byColor(!color)).squares.exists(sq => 
+          sq.file == f && (if (!color).white then sq.rank.value >= kingSq.rank.value else sq.rank.value <= kingSq.rank.value)
+        )
+      }
+      if (pawnShieldCount <= 1) {
+        reasons = reasons :+ "king_exposed"
+        totalValue += 200
+      }
+    }
+    
+    // 3. Piece activity gain (bishop pair, dominant piece)?
+    val ownBishops = (board.bishops & board.byColor(color)).count
+    if (ownBishops >= 2) {
+      reasons = reasons :+ "bishop_pair"
+      totalValue += 50
+    }
+    
+    // Only return ROI if there's meaningful compensation
+    if (reasons.nonEmpty && totalValue >= 150) {
+      Some(SacrificeROI(reasons.mkString("+"), totalValue))
+    } else None
+  }
+
+  // ============================================================
+  // PHASE 11: ZWISCHENZUG DETECTION
+  // ============================================================
+
+  /**
+   * Detect Zwischenzug (intermediate move) in a PV line.
+   * Called when analyzing consecutive moves where:
+   * 1. Previous move was a capture
+   * 2. Current move is NOT a recapture on that square
+   * 3. Current move creates a strong threat (check, fork, winning capture)
+   */
+  def detectZwischenzug(
+      prevMove: Uci.Move,
+      prevPos: Position,
+      currentMove: Uci.Move, 
+      currentPos: Position,
+      plyIndex: Int
+  ): Option[Motif.Zwischenzug] = {
+    // 1. Check if previous move was a capture
+    val prevMoveObj = prevPos.move(prevMove).toOption
+    val wasCapture = prevMoveObj.exists(_.captures)
+    
+    if (!wasCapture) return None
+    
+    // 2. Expected recapture square = destination of previous move
+    val expectedRecaptureSquare = prevMove.dest
+    
+    // 3. Is current move a recapture? If so, not a Zwischenzug
+    if (currentMove.dest == expectedRecaptureSquare) return None
+    
+    // 4. Does current move create a strong threat?
+    val color = currentPos.color
+    currentPos.move(currentMove).toOption.flatMap { mv =>
+      val afterPos = mv.after
+      
+      // Check threat types
+      val givesCheck = afterPos.check.yes
+      val forkTargets = detectForkTargets(mv, afterPos, color)
+      val hasFork = forkTargets.size >= 2
+      
+      // Winning capture threat on next move
+      val hasWinningCaptureThreat = afterPos.legalMoves.exists { nextMv =>
+        nextMv.captures && {
+          val victim = afterPos.board.roleAt(nextMv.dest)
+          val attacker = nextMv.piece.role
+          victim.exists(v => pieceValue(v) > pieceValue(attacker))
+        }
+      }
+      
+      val threatType = 
+        if (givesCheck && afterPos.checkMate) "MateThreat"
+        else if (givesCheck) "Check"
+        else if (hasFork) "Fork"
+        else if (hasWinningCaptureThreat) "WinningCapture"
+        else ""
+      
+      if (threatType.nonEmpty) {
+        Some(Motif.Zwischenzug(
+          intermediateMove = currentMove.uci,
+          threatType = threatType,
+          expectedRecaptureSquare = expectedRecaptureSquare,
+          plyIndex = plyIndex,
+          move = Some(mv.toSanStr.toString)
+        ))
+      } else None
+    }
+  }
+
+  // ============================================================
+  // PHASE 11: DEFLECTION DETECTION
+  // ============================================================
+
+  /**
+   * Detect Deflection - forcing a defending piece away from its duties.
+   * Example: Attacking a piece that defends the king or a valuable target.
+   */
+  private def detectDeflection(
+      mv: Move,
+      pos: Position,
+      nextPos: Position,
+      color: Color,
+      plyIndex: Int,
+      san: Option[String]
+  ): Option[Motif.Deflection] = {
+    val opponent = !color
+    val board = pos.board
+    
+    // The moved piece attacks enemy pieces in next position
+    val attackedSquares = mv.dest match {
+      case dest =>
+        val role = mv.piece.role
+        role match {
+          case Pawn   => dest.pawnAttacks(color)
+          case Knight => dest.knightAttacks
+          case Bishop => dest.bishopAttacks(nextPos.board.occupied)
+          case Rook   => dest.rookAttacks(nextPos.board.occupied)
+          case Queen  => dest.queenAttacks(nextPos.board.occupied)
+          case King   => dest.kingAttacks
+        }
+    }
+    val attackedEnemies = attackedSquares & board.byColor(opponent)
+    
+    // For each attacked enemy piece, check if it's defending something important
+    attackedEnemies.squares.flatMap { defenderSq =>
+      board.roleAt(defenderSq).flatMap { defenderRole =>
+        // What does this defender protect?
+        val defenderAttacks = defenderRole match {
+          case Pawn   => defenderSq.pawnAttacks(opponent)
+          case Knight => defenderSq.knightAttacks
+          case Bishop => defenderSq.bishopAttacks(board.occupied)
+          case Rook   => defenderSq.rookAttacks(board.occupied)
+          case Queen  => defenderSq.queenAttacks(board.occupied)
+          case King   => defenderSq.kingAttacks
+        }
+        val protectedFriendlies = (defenderAttacks & board.byColor(opponent)).squares
+        
+        // Is it protecting something more valuable than itself?
+        val protectsValuable = protectedFriendlies.exists { sq =>
+          board.roleAt(sq).exists(r => pieceValue(r) >= pieceValue(defenderRole))
+        }
+        
+        if (protectsValuable) {
+          Some(Motif.Deflection(defenderRole, defenderSq, opponent, plyIndex, san))
+        } else None
+      }
+    }.headOption
+  }
+
+  // ============================================================
+  // PHASE 11: DECOY DETECTION  
+  // ============================================================
+
+  /**
+   * Detect Decoy - luring a piece to a vulnerable square.
+   * Example: Sacrifice to force king/piece to a fork or check square.
+   */
+  private def detectDecoy(
+      mv: Move,
+      pos: Position,
+      nextPos: Position,
+      color: Color,
+      plyIndex: Int,
+      san: Option[String]
+  ): Option[Motif.Decoy] = {
+    // For decoy, we typically sacrifice to lure a piece
+    // Check if we're offering our piece (capture available for opponent)
+    val isOffering = nextPos.legalMoves.exists { oppMv =>
+      oppMv.captures && oppMv.dest == mv.dest
+    }
+    
+    if (!isOffering) return None
+    
+    // Simulate opponent capture on our piece
+    val captureScenarios = nextPos.legalMoves.filter(m => m.captures && m.dest == mv.dest)
+    
+    captureScenarios.flatMap { oppCapture =>
+      val afterCaptureOpt = nextPos.move(oppCapture.toUci.asInstanceOf[Uci.Move]).toOption
+      
+      afterCaptureOpt.flatMap { afterCapture =>
+        val afterPos = afterCapture.after
+        
+        // Check if we now have a winning move (fork, check, etc.)
+        val hasWinningResponse = afterPos.legalMoves.exists { ourResponse =>
+          ourResponse.after.check.yes || {
+            val forkTargets = detectForkTargets(ourResponse, ourResponse.after, color)
+            forkTargets.size >= 2
+          }
+        }
+        
+        if (hasWinningResponse) {
+          Some(Motif.Decoy(oppCapture.piece.role, mv.dest, !color, plyIndex, san))
+        } else None
+      }
+    }.headOption
+  }

@@ -71,6 +71,12 @@ final class StudyApi(
   def byIdWithChapterOrFallback(id: StudyId, chapterId: StudyChapterId): Fu[Option[Study.WithChapter]] =
     byIdWithChapter(id, chapterId).orElse(byIdWithChapter(id))
 
+  def byStudyIdAndMaybeChapterId(id: StudyId, chapterId: Option[String]) =
+    chapterId.map(lila.core.id.StudyChapterId.apply).fold(byIdWithChapter(id))(byIdWithChapter(id, _))
+
+  def byStudyIdAndChapterId(id: StudyId, chapterId: lila.core.id.StudyChapterId) =
+    byIdWithChapter(id, chapterId)
+
   def byIdWithFirstChapter(id: StudyId): Fu[Option[Study.WithChapter]] =
     byIdWithChapterFinder(id, chapterRepo.firstByStudy(id))
 

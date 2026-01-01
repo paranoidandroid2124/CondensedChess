@@ -3,6 +3,7 @@ package lila.security
 import play.api.ConfigLoader
 import lila.core.net.IpAddress
 import lila.common.autoconfig.{ *, given }
+import lila.core.lilaism.Core.{ *, given }
 
 trait Hcaptcha extends lila.core.security.Hcaptcha
 
@@ -18,4 +19,4 @@ object Hcaptcha:
   given ConfigLoader[Config] = AutoConfig.loader
 
 final class HcaptchaSkip extends Hcaptcha:
-  def verify(response: String, ip: Option[IpAddress]): Fu[Boolean] = fuTrue
+  def verify(response: String, ip: Option[IpAddress]): Fu[Boolean] = Future.successful(true)

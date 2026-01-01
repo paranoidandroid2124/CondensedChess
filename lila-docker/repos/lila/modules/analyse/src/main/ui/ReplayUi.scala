@@ -9,7 +9,6 @@ import play.api.libs.json.*
 import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
 import lila.common.Json.given
-import lila.i18n.I18nKeys as trans
 
 final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
   import helpers.{ *, given }
@@ -62,26 +61,24 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
 
     val imageLinks = frag(
       copyMeLink(
-        cdnUrl(
-          routes.Export.gif(pov.gameId, pov.color, ctx.pref.theme.some, ctx.pref.pieceSet.some).url
-        ),
-        trans.site.gameAsGIF()
+        cdnUrl(s"/export/${pov.gameId}.gif"),
+        "Game as GIF"
       )(cls := "game-gif"),
       copyMeLink(
-        fenThumbnailUrl(Fen.write(pov.game.position).opening, pov.color.some, pov.game.variant),
-        trans.site.screenshotCurrentPosition()
+        fenThumbnailUrl(Fen.write(pov.game.position).value, pov.color.some, pov.game.variant),
+        "Screenshot current position"
       )(cls := "position-gif")
     )
 
     val shareLinks = frag(
-      a(dataIcon := Icon.Expand, cls := "text embed-howto")(trans.site.embedInYourWebsite()),
-      copyMeInput(routeUrl(routes.Round.watcher(pov.gameId, pov.color)).value)
+      a(dataIcon := Icon.Expand, cls := "text embed-howto")("Embed in your website"),
+      copyMeInput(s"/$gameId")
     )
     val pgnLinks = frag(
-      copyMeContent(pathUrl(s"${routes.Game.exportOne(game.id)}?literate=1"), trans.site.downloadAnnotated()),
-      copyMeContent(pathUrl(s"${routes.Game.exportOne(game.id)}?evals=0&clocks=0"), trans.site.downloadRaw()),
-      game.isPgnImport.option:
-        copyMeContent(pathUrl(s"${routes.Game.exportOne(game.id)}?imported=1"), trans.site.downloadImported())
+      copyMeContent(pathUrl(s"/game/export/${game.id}.pgn?literate=1"), "Download annotated"),
+      copyMeContent(pathUrl(s"/game/export/${game.id}.pgn?evals=0&clocks=0"), "Download raw"),
+      game.pgnImport.isDefined.option:
+        copyMeContent(pathUrl(s"/game/export/${game.id}.pgn?imported=1"), "Download imported")
     )
 
     analyseUi.bits
@@ -90,9 +87,6 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(ctx.blind.option("round.nvui"))
       .css(ctx.pref.hasKeyboardMove.option("keyboardMove"))
-      .i18n(_.study)
-      .i18nOpt(ctx.speechSynthesis, _.nvui)
-      .i18nOpt(ctx.blind, _.keyboardMove, _.nvui)
       .js(analyseNvuiTag)
       .js:
         analyseUi.bits.analyseModule(
@@ -100,17 +94,17 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
           Json
             .obj(
               "data" -> data,
-              "userId" -> ctx.userId,
-              "chat" -> chatOption._1F
+              "userId" -> ctx.userId
             )
-            .add("hunter" -> Granter.opt(_.ViewBlurs)) ++
+            .add("chat", chatOption.map(_._1))
+            .add("hunter", false) ++
             analyseUi.explorerAndCevalConfig
         )
       .graph(graph):
         frag(
           main(cls := "analyse")(
             st.aside(cls := "analyse__side")(gameSide),
-            chatOption._2F,
+            chatOption.map(_._2),
             div(cls := "analyse__board main-board")(chessgroundBoard),
             div(cls := "analyse__tools")(div(cls := "ceval")),
             div(cls := "analyse__controls"),
@@ -122,20 +116,19 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
                       span(
                         role := "tab",
                         cls := "computer-analysis",
-                        dataPanel := "computer-analysis",
-                        textAndTitle(trans.site.computerAnalysis)
-                      )
+                        dataPanel := "computer-analysis"
+                      )("Computer analysis")
                     ),
-                    (!game.isPgnImport).option(
+                    game.pgnImport.isEmpty.option(
                       frag(
                         (game.ply > 1).option(
-                          span(role := "tab", dataPanel := "move-times", textAndTitle(trans.site.moveTimes))
+                          span(role := "tab", dataPanel := "move-times")("Move times")
                         ),
                         crosstable.isDefined.option:
-                          span(role := "tab", dataPanel := "ctable", textAndTitle(trans.site.crosstable))
+                          span(role := "tab", dataPanel := "ctable")("Crosstable")
                       )
                     ),
-                    span(role := "tab", dataPanel := "fen-pgn", textAndTitle(trans.study.shareAndExport))
+                    span(role := "tab", dataPanel := "fen-pgn")("Share & export")
                   ),
                   div(cls := "analyse__underboard__panels")(
                     analysable.option(
@@ -143,12 +136,12 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
                         if hasAnalysis then div(id := "acpl-chart-container")(canvas(id := "acpl-chart"))
                         else
                           postForm(
-                            cls := s"future-game-analysis${ctx.isAuth.not.so(" must-login")}",
-                            action := routes.Analyse.requestAnalysis(gameId)
+                            cls := s"future-game-analysis${if (ctx.isAuth) "" else " must-login"}",
+                            action := routeUrl(routes.Analyse.requestAnalysis(gameId.value))
                           ):
                             submitButton(cls := "button text"):
                               span(cls := "is3 text", dataIcon := Icon.BarChart)(
-                                trans.site.requestAComputerAnalysis()
+                                "Request a computer analysis"
                               )
                       )
                     ),
@@ -183,12 +176,12 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
           ),
           ctx.blind.option:
             div(cls := "blind-content none")(
-              h2(trans.nvui.pgnAndFen()),
+              h2("PGN & FEN"),
               button(cls := "copy-pgn", attr("data-pgn") := pgn):
-                trans.nvui.copyToClipboard("PGN")
+                "Copy PGN"
               ,
               button(cls := "copy-fen"):
-                trans.nvui.copyToClipboard("FEN")
+                "Copy FEN"
               ,
               pgnLinks,
               div(
