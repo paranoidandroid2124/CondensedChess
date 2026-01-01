@@ -169,7 +169,7 @@ lazy val game = module("game",
 )
 
 lazy val analyse = module("analyse",
-  Seq(tree, memo, ui),
+  Seq(tree, memo, ui, llm),
   tests.bundle
 )
 

@@ -29,7 +29,8 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       pov: Pov,
       chess960PositionNum: Option[Int] = None,
       withForecast: Boolean = false,
-      inlinePgn: Option[String] = None
+      inlinePgn: Option[String] = None,
+      narrative: Option[Frag] = None
   )(using ctx: Context): Page =
     Page("Analysis")
       .css("analyse.free")
@@ -59,7 +60,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
         main(
           cls := List(
             "analyse" -> true,
-            "analyse--wiki" -> pov.game.variant.standard
+            "analyse--bookmaker" -> pov.game.variant.standard
           )
         )(
           pov.game.synthetic.option(
@@ -80,9 +81,13 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
               ),
               pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
               pov.game.variant.standard.option(
-                fieldset(cls := "analyse__wiki empty toggle-box toggle-box--toggle", id := "wikibook-field")(
-                  legend(tabindex := 0)("WikiBook"),
-                  div(cls := "analyse__wiki-text")
+                fieldset(
+                  cls := s"analyse__bookmaker ${narrative.isEmpty.option("empty")} toggle-box toggle-box--toggle",
+                  id := "bookmaker-field",
+                  narrative.isDefined.option(attr("data-bookmaker") := "true")
+                )(
+                  legend(tabindex := 0)("Bookmaker"),
+                  div(cls := "analyse__bookmaker-text")(narrative)
                 )
               )
             )

@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import chess.*
 import chess.format.pgn.*
-import chess.format.{ Fen, Uci }
+import chess.format.Uci
 
 /**
  * Narrative Utility Functions
@@ -29,6 +29,36 @@ object NarrativeUtils:
           }
         }
       case _ => uciMoves
+  
+  /**
+   * Converts a list of UCI move strings to the final FEN string.
+   */
+  def uciListToFen(fen: String, uciMoves: List[String]): String =
+    val variant = chess.variant.Standard
+    var current = chess.format.Fen.read(variant, chess.format.Fen.Full(fen))
+    uciMoves.foreach { moveStr =>
+      current = current.flatMap { sit =>
+        Uci(moveStr).flatMap {
+          case u: Uci.Move => sit.move(u).toOption.map(_.after)
+          case _ => None
+        }
+      }
+    }
+    current.map(sit => chess.format.Fen.write(sit).value).getOrElse(fen)
+  
+  /**
+   * Converts a SAN string to a UCI string based on the given FEN.
+   * Returns None if the move is illegal or cannot be parsed.
+   */
+  def sanToUci(fen: String, san: String): Option[String] =
+    val pgn = s"[Variant \"Standard\"]\n[FEN \"$fen\"]\n\n$san"
+    Parser.full(PgnStr(pgn)).toOption.flatMap { parsed =>
+      Replay.makeReplay(parsed.toGame, parsed.mainline).replay.chronoMoves.lastOption.flatMap {
+        case m: chess.Move => Some(m.toUci.uci)
+        case d: chess.Drop => Some(d.toUci.uci)
+        case _ => None
+      }
+    }
 
 
   /**

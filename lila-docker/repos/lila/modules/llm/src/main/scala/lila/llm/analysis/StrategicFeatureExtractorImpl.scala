@@ -51,7 +51,7 @@ class StrategicFeatureExtractorImpl(
     // For White: higher score is better, sort descending (-score)
     // For Black: lower score is better (more negative), sort ascending (score)
     val sortedVars = varsWithPlayed.sortBy(v => if (color.white) -v.effectiveScore else v.effectiveScore)
-    val defaultVar = VariationLine(Nil, 0, None, Nil)
+    val defaultVar = VariationLine(moves = Nil, scoreCp = 0, mate = None, tags = Nil)
     val bestVar = sortedVars.headOption.getOrElse(defaultVar)
     
     // ===== FIX 8: Perspective Correction & Score Unification =====

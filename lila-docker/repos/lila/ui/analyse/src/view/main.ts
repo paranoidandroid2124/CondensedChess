@@ -13,7 +13,7 @@ import type * as studyDeps from '../study/studyDeps';
 import { relayView } from '../study/relay/relayView';
 import { studyView } from '../study/studyView';
 import { viewContext, renderBoard, renderMain, renderTools, renderUnderboard } from './components';
-import { wikiToggleBox } from '../wiki';
+import { bookmakerToggleBox } from '../bookmaker';
 import { watchers } from 'lib/view/watchers';
 import { renderChat } from 'lib/chat/renderChat';
 import { displayColumns } from 'lib/device';
@@ -56,27 +56,27 @@ function analyseView(ctrl: AnalyseCtrl, deps?: typeof studyDeps): VNode {
         hook: onInsert(elm => {
           if (ctrl.opts.$side && ctrl.opts.$side.length) {
             $(elm).replaceWith(ctrl.opts.$side);
-            wikiToggleBox();
+            bookmakerToggleBox();
           }
         }),
       },
       [
         ctrl.forecast && forecastView(ctrl, ctrl.forecast),
         !ctrl.synthetic &&
-          playable(ctrl.data) &&
+        playable(ctrl.data) &&
+        hl(
+          'div.back-to-game',
           hl(
-            'div.back-to-game',
-            hl(
-              'a.button.button-empty.text',
-              {
-                attrs: {
-                  href: router.game(ctrl.data, ctrl.data.player.color),
-                  'data-icon': licon.Back,
-                },
+            'a.button.button-empty.text',
+            {
+              attrs: {
+                href: router.game(ctrl.data, ctrl.data.player.color),
+                'data-icon': licon.Back,
               },
-              i18n.site.backToGame,
-            ),
+            },
+            i18n.site.backToGame,
           ),
+        ),
       ],
     ),
     ctrl.chatCtrl && renderChat(ctrl.chatCtrl, { insert: v => fixChatHeight(v.elm) }),

@@ -14,7 +14,13 @@ trait Helpers:
 
   // UI Helper Stubs
   def momentFromNowWithPreload(d: java.time.Instant): Frag = frag(d.toString)
-  def chessgroundMini(fen: String | chess.format.BoardFen, color: chess.Color, lastMove: Option[chess.format.Uci]): Tag => Tag = t => t
+  def chessgroundMini(fen: String | chess.format.BoardFen, color: chess.Color, lastMove: Option[chess.format.Uci]): Tag => Tag = t =>
+    t(
+      cls := "mini-board pv-line",
+      attr("data-fen") := fen.toString,
+      attr("data-color") := color.name,
+      attr("data-lastmove") := lastMove.map(_.uci).getOrElse("")
+    )
   def cgWrapContent: Frag = raw("")
   def gameLink(g: lila.core.game.Game, color: chess.Color, ownerLink: Boolean = false, tv: Boolean = false): String = s"/${g.id}"
   def variantLink(v: chess.variant.Variant, perf: Any = None): Tag = span(v.name)

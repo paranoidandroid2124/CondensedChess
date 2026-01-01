@@ -110,7 +110,12 @@ object MoveAnalyzer:
         missedMotifs = missedMotifs,
         userMoveMotifs = userMotifs,
         severity = severity,
-        userLine = lila.llm.model.strategic.VariationLine(List(userMove), 0, None, Nil)
+        userLine = lila.llm.model.strategic.VariationLine(
+          moves = List(userMove),
+          scoreCp = 0,
+          mate = None,
+          tags = Nil
+        )
       ))
 
 

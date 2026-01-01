@@ -4,6 +4,7 @@ import _root_.chess.*
 import _root_.chess.format.Uci
 import lila.llm.model.*
 import lila.llm.model.strategic.{FullGameNarrative, MomentNarrative, GameMetadata, VariationLine}
+// import scala.util.{ Either, Left, Right } // Removed as it caused warnings
 
 /**
  * The central hub for chess position analysis. 
@@ -111,6 +112,7 @@ object CommentaryEngine:
         moves = pv,
         scoreCp = 0, 
         mate = None,
+        resultingFen = Some(NarrativeUtils.uciListToFen(fen, pv)),
         tags = Nil
       )
       assessExtended(
@@ -180,7 +182,7 @@ object CommentaryEngine:
       initialFen: Option[String] = None
   ): List[ExtendedAnalysisData] = {
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
-       case Right(plyDataList) =>
+       case scala.util.Right(plyDataList) =>
          val plyMap = plyDataList.map(p => p.ply -> p).toMap
          val startFen = initialFen.getOrElse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
@@ -215,7 +217,7 @@ object CommentaryEngine:
                )
              } else None
            }
-       case Left(err) => 
+       case scala.util.Left(_) => 
          Nil
      }
   }
@@ -229,7 +231,7 @@ object CommentaryEngine:
      val metadata = providedMetadata.getOrElse(extractMetadata(pgn))
      
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
-       case Right(plyDataList) =>
+       case scala.util.Right(plyDataList) =>
           // FIX 2: Single moveEvals construction (used for key moments AND analysis)
           val moveEvals = plyDataList.map { p =>
              val vars = evals.getOrElse(p.ply, Nil)
@@ -290,19 +292,18 @@ object CommentaryEngine:
           )
            
           FullGameNarrative(gameIntro, momentNarratives, conclusion, allThemes)
-           
-       case Left(err) =>
-         FullGameNarrative(
-           gameIntro = "Analysis Failed",
-           keyMomentNarratives = Nil,
-           conclusion = s"Could not parse game: $err",
-           overallThemes = Nil
-         )
-     }
+       case scala.util.Left(err) =>
+          FullGameNarrative(
+            gameIntro = "Analysis Failed",
+            keyMomentNarratives = Nil,
+            conclusion = s"Could not parse game: $err",
+            overallThemes = Nil
+          )
+      }
   }
 
   private def extractMetadata(pgn: String): GameMetadata = {
-    import chess.format.pgn.{ Parser, PgnStr, Tag }
+    import chess.format.pgn.{ Parser, PgnStr }
     Parser.full(PgnStr(pgn)).toOption.map { parsed =>
       val tags = parsed.tags.value
       def get(name: String) = tags.find(_.name.name == name).map(_.value).getOrElse("Unknown")
