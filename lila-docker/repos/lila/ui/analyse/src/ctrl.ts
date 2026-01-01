@@ -34,7 +34,7 @@ import { storedBooleanProp, storedBooleanPropWithEffect } from 'lib/storage';
 import type { AnaMove } from './study/interfaces';
 import { valid as crazyValid } from './crazy/crazyCtrl';
 import { PromotionCtrl } from 'lib/game/promotion';
-import wikiTheory, { wikiClear, type WikiTheory } from './wiki';
+import bookmakerNarrative, { bookmakerClear, type BookmakerNarrative } from './bookmaker';
 import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
@@ -76,7 +76,7 @@ export default class AnalyseCtrl implements CevalHandler {
   study?: StudyCtrl;
   promotion: PromotionCtrl;
   chatCtrl?: ChatCtrl;
-  wiki?: WikiTheory;
+  bookmaker?: BookmakerNarrative;
 
   // state flags
   justPlayed?: string; // pos
@@ -142,7 +142,7 @@ export default class AnalyseCtrl implements CevalHandler {
     );
 
     if (this.data.forecast) this.forecast = new ForecastCtrl(this.data.forecast, this.data, redraw);
-    if (this.opts.wiki) this.wiki = wikiTheory();
+    if (this.opts.wiki) this.bookmaker = bookmakerNarrative();
     if (site.blindMode)
       site.asset.loadEsm<NvuiPlugin>('analyse.nvui', { init: this }).then(nvui => {
         this.nvui = nvui;
@@ -261,10 +261,10 @@ export default class AnalyseCtrl implements CevalHandler {
     } else return treePath.root;
   };
 
-  enableWiki = (v: boolean) => {
-    this.wiki = v ? wikiTheory() : undefined;
-    if (this.wiki) this.wiki(this.nodeList);
-    else wikiClear();
+  enableBookmaker = (v: boolean) => {
+    this.bookmaker = v ? bookmakerNarrative() : undefined;
+    if (this.bookmaker) this.bookmaker(this.nodeList);
+    else bookmakerClear();
   };
 
   private setPath = (path: Tree.Path): void => {
@@ -275,7 +275,7 @@ export default class AnalyseCtrl implements CevalHandler {
     this.onMainline = this.tree.pathIsMainline(path);
     this.fenInput = undefined;
     this.pgnInput = undefined;
-    if (this.wiki && this.data.game.variant.key === 'standard') this.wiki(this.nodeList);
+    if (this.bookmaker && this.data.game.variant.key === 'standard') this.bookmaker(this.nodeList);
     this.idbTree.saveMoves();
     this.idbTree.revealNode();
   };
@@ -634,9 +634,9 @@ export default class AnalyseCtrl implements CevalHandler {
       (count.nodes >= 10 || count.comments > 0) &&
       !(await confirm(
         'Delete ' +
-          plural('move', count.nodes) +
-          (count.comments ? ' and ' + plural('comment', count.comments) : '') +
-          '?',
+        plural('move', count.nodes) +
+        (count.comments ? ' and ' + plural('comment', count.comments) : '') +
+        '?',
       ))
     )
       return;

@@ -1,4 +1,4 @@
-package lila.llm.model
+package lila.llm.model.strategic
 
 import play.api.libs.json.*
 
@@ -9,6 +9,7 @@ case class VariationLine(
     moves: List[String],
     scoreCp: Int,
     mate: Option[Int] = None,
+    resultingFen: Option[String] = None,
     tags: List[VariationTag] = Nil
 ):
   /** Material + Positional evaluation unified into CP */
@@ -23,7 +24,7 @@ object VariationLine:
  * Semantic tags for variations to help labels and narratives.
  */
 enum VariationTag:
-  case Sharp, Solid, Prophylaxis, Simplification, Mistake, Good, Excellent, Inaccuracy, Blunder
+  case Sharp, Solid, Prophylaxis, Simplification, Mistake, Good, Excellent, Inaccuracy, Blunder, Forced
 
 object VariationTag:
   given Reads[VariationTag] = Reads:

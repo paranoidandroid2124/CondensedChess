@@ -59,19 +59,7 @@ case class BiasFactor(
 enum GamePhase:
   case Opening, Middlegame, Endgame
 
-case class VariationLine(
-    moves: List[String],
-    scoreCp: Int,
-    mate: Option[Int],
-    tags: List[VariationTag] = Nil
-):
-  def effectiveScore: Int = mate match
-    case Some(m) if m > 0 => 20000 - m
-    case Some(m) => -20000 - m
-    case None => scoreCp
-
-enum VariationTag:
-  case Prophylaxis, Simplification, Sharp, Solid, Mistake, Good, Excellent, Forced, Blunder
+// (VariationLine and VariationTag moved to Variation.scala)
 
 enum StructureTag:
   case IqpWhite, IqpBlack, HangingPawnsWhite, SpaceAdvantageWhite, KingExposedBlack, MinorityAttackCandidate, DoubledPawns

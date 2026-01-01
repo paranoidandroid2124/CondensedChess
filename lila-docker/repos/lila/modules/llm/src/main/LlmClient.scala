@@ -19,7 +19,31 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
     if !config.enabled then Future.successful(None)
     else
       val prompt = buildPrompt(request)
-      callGemini(prompt).map(parseCommentResponse)
+      val vars = request.eval.fold(Nil): e =>
+        if e.variations.nonEmpty then
+          e.variations.map: v =>
+            lila.llm.model.strategic.VariationLine(
+              moves = v.moves,
+              scoreCp = v.scoreCp,
+              mate = v.mate,
+              tags = Nil
+            )
+        else
+          e.pv.getOrElse(Nil) match
+            case Nil => Nil
+            case moves =>
+              List(
+                lila.llm.model.strategic.VariationLine(
+                  moves = moves,
+                  scoreCp = e.cp,
+                  mate = e.mate,
+                  resultingFen = Some(lila.llm.analysis.NarrativeUtils.uciListToFen(request.fen, moves)),
+                  tags = Nil
+                )
+              )
+      
+      callGemini(prompt).map: textOpt =>
+        parseCommentResponse(textOpt).map(_.copy(variations = vars))
 
   /** Generate full game analysis commentary */
   def analyzeGame(request: FullAnalysisRequest): Future[Option[FullAnalysisResponse]] =
@@ -88,21 +112,28 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
     val openingStr = req.context.opening.getOrElse("Unknown")
     val lastMoveStr = req.lastMove.getOrElse("(game start)")
 
-    val variations: List[lila.llm.model.strategic.VariationLine] = req.eval.map { e =>
-       if (e.variations.nonEmpty) {
-          e.variations.map { v =>
-             lila.llm.model.strategic.VariationLine(
-               moves = v.moves,
-               scoreCp = v.scoreCp,
-               mate = v.mate,
-               tags = Nil
-             )
-          }
-       } else {
-          val moves = e.pv.getOrElse(Nil)
-          if (moves.nonEmpty) List(lila.llm.model.strategic.VariationLine(moves, e.cp, e.mate, Nil)) else Nil
-       }
-    }.getOrElse(Nil)
+    val variations: List[lila.llm.model.strategic.VariationLine] = req.eval.fold(Nil): e =>
+      if e.variations.nonEmpty then
+        e.variations.map: v =>
+          lila.llm.model.strategic.VariationLine(
+            moves = v.moves,
+            scoreCp = v.scoreCp,
+            mate = v.mate,
+            tags = Nil
+          )
+      else
+        e.pv.getOrElse(Nil) match
+          case Nil => Nil
+          case moves =>
+            List(
+              lila.llm.model.strategic.VariationLine(
+                moves = moves,
+                scoreCp = e.cp,
+                mate = e.mate,
+                resultingFen = Some(lila.llm.analysis.NarrativeUtils.uciListToFen(req.fen, moves)),
+                tags = Nil
+              )
+            )
     
     // Phase 2: Use Extended Assessment with Semantic Layer
     val extendedData = lila.llm.analysis.CommentaryEngine.assessExtended(
@@ -218,9 +249,11 @@ Output JSON:
     textOpt.flatMap { text =>
       try
         val json = Json.parse(text)
+        val variationsJson = (json \ "variations").asOpt[List[lila.llm.model.strategic.VariationLine]].getOrElse(Nil)
         Some(CommentResponse(
           commentary = (json \ "commentary").as[String],
-          concepts = (json \ "concepts").asOpt[List[String]].getOrElse(Nil)
+          concepts = (json \ "concepts").asOpt[List[String]].getOrElse(Nil),
+          variations = variationsJson
         ))
       catch
         case _: Throwable => None
@@ -259,7 +292,11 @@ case class CommentRequest(
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]
 
-case class CommentResponse(commentary: String, concepts: List[String])
+case class CommentResponse(
+    commentary: String, 
+    concepts: List[String],
+    variations: List[lila.llm.model.strategic.VariationLine] = Nil
+)
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]
 

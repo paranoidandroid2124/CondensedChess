@@ -26,7 +26,7 @@ import { view as cevalView } from 'lib/ceval';
 import { render as trainingView } from '../view/roundTraining';
 import { render as renderKeyboardMove } from 'keyboardMove';
 import { renderChat } from 'lib/chat/renderChat';
-import { wikiToggleBox } from '../wiki';
+import { bookmakerToggleBox } from '../bookmaker';
 import crazyView from '../crazy/crazyView';
 import { watchers } from 'lib/view/watchers';
 import type StudyCtrl from './studyCtrl';
@@ -54,17 +54,17 @@ export function studyView(ctrl: AnalyseCtrl, study: StudyCtrl, deps: typeof stud
     ctrl.study?.practice
       ? deps?.studyPracticeView.side(study!)
       : hl(
-          'aside.analyse__side',
-          {
-            hook: onInsert(elm => {
-              if (ctrl.opts.$side && ctrl.opts.$side.length) {
-                $(elm).replaceWith(ctrl.opts.$side);
-                wikiToggleBox();
-              }
-            }),
-          },
-          deps?.studyView.studySideNodes(study, true),
-        ),
+        'aside.analyse__side',
+        {
+          hook: onInsert(elm => {
+            if (ctrl.opts.$side && ctrl.opts.$side.length) {
+              $(elm).replaceWith(ctrl.opts.$side);
+              wikiToggleBox();
+            }
+          }),
+        },
+        deps?.studyView.studySideNodes(study, true),
+      ),
   );
 }
 
@@ -90,15 +90,15 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
     chaptersTab,
     ctrl.members.size() > 0 && makeTab('members', i18n.study.nbMembers(ctrl.members.size())),
     withSearch &&
-      hl('span.search.narrow', {
-        attrs: { ...dataIcon(licon.Search) },
-        hook: bind('click', () => ctrl.search.open(true)),
-      }),
+    hl('span.search.narrow', {
+      attrs: { ...dataIcon(licon.Search) },
+      hook: bind('click', () => ctrl.search.open(true)),
+    }),
     ctrl.members.isOwner() &&
-      hl('span.more.narrow', {
-        attrs: { ...dataIcon(licon.Hamburger), title: i18n.study.editStudy },
-        hook: bind('click', () => ctrl.form.open(!ctrl.form.open()), ctrl.redraw),
-      }),
+    hl('span.more.narrow', {
+      attrs: { ...dataIcon(licon.Hamburger), title: i18n.study.editStudy },
+      hook: bind('click', () => ctrl.form.open(!ctrl.form.open()), ctrl.redraw),
+    }),
   ]);
 
   const content = (activeTab === 'members' ? memberView : chapterView)(ctrl);
@@ -112,28 +112,28 @@ export function studySideNodes(ctrl: StudyCtrl, withSearch: boolean): LooseVNode
 export function contextMenu(ctrl: StudyCtrl, path: Tree.Path, node: Tree.Node): VNode[] {
   return ctrl.vm.mode.write
     ? [
-        hl(
-          'a',
-          {
-            attrs: dataIcon(licon.BubbleSpeech),
-            hook: bind('click', () => {
-              ctrl.vm.toolTab('comments');
-              ctrl.commentForm.start(ctrl.currentChapter().id, path, node);
-            }),
-          },
-          i18n.study.commentThisMove,
-        ),
-        hl(
-          'a.glyph-icon',
-          {
-            hook: bind('click', () => {
-              ctrl.vm.toolTab('glyphs');
-              ctrl.ctrl.userJump(path);
-            }),
-          },
-          i18n.study.annotateWithGlyphs,
-        ),
-      ]
+      hl(
+        'a',
+        {
+          attrs: dataIcon(licon.BubbleSpeech),
+          hook: bind('click', () => {
+            ctrl.vm.toolTab('comments');
+            ctrl.commentForm.start(ctrl.currentChapter().id, path, node);
+          }),
+        },
+        i18n.study.commentThisMove,
+      ),
+      hl(
+        'a.glyph-icon',
+        {
+          hook: bind('click', () => {
+            ctrl.vm.toolTab('glyphs');
+            ctrl.ctrl.userJump(path);
+          }),
+        },
+        i18n.study.annotateWithGlyphs,
+      ),
+    ]
     : [];
 }
 
@@ -167,11 +167,11 @@ export function underboard(ctrl: AnalyseCtrl): LooseVNodes {
       panel = study.vm.mode.write
         ? commentForm.view(ctrl)
         : commentForm.viewDisabled(
-            ctrl,
-            study.members.canContribute()
-              ? 'Press REC to comment moves'
-              : 'Only the study members can comment on moves',
-          );
+          ctrl,
+          study.members.canContribute()
+            ? 'Press REC to comment moves'
+            : 'Only the study members can comment on moves',
+        );
       break;
     case 'glyphs':
       panel = ctrl.path
@@ -233,61 +233,61 @@ function buttons(root: AnalyseCtrl): VNode {
     hl('div.left-buttons.tabs-horiz', { attrs: { role: 'tablist' } }, [
       // distinct classes (sync, write) allow snabbdom to differentiate buttons
       !!showSticky &&
-        hl(
-          'a.mode.sync',
-          {
-            attrs: { title: i18n.study.allSyncMembersRemainOnTheSamePosition },
-            class: { on: ctrl.vm.mode.sticky },
-            hook: bind('click', ctrl.toggleSticky),
-          },
-          [ctrl.vm.behind ? hl('span.behind', '' + ctrl.vm.behind) : hl('i.is'), 'SYNC'],
-        ),
+      hl(
+        'a.mode.sync',
+        {
+          attrs: { title: i18n.study.allSyncMembersRemainOnTheSamePosition },
+          class: { on: ctrl.vm.mode.sticky },
+          hook: bind('click', ctrl.toggleSticky),
+        },
+        [ctrl.vm.behind ? hl('span.behind', '' + ctrl.vm.behind) : hl('i.is'), 'SYNC'],
+      ),
       canContribute &&
-        hl(
-          'a.mode.write',
-          {
-            attrs: { title: i18n.study.shareChanges },
-            class: { on: ctrl.vm.mode.write },
-            hook: bind('click', ctrl.toggleWrite),
-          },
-          [hl('i.is'), 'REC'],
-        ),
+      hl(
+        'a.mode.write',
+        {
+          attrs: { title: i18n.study.shareChanges },
+          class: { on: ctrl.vm.mode.write },
+          hook: bind('click', ctrl.toggleWrite),
+        },
+        [hl('i.is'), 'REC'],
+      ),
       toolButton({ ctrl, tab: 'tags', hint: i18n.study.pgnTags, icon: iconTag(licon.Tag) }),
       canContribute &&
-        toolButton({
-          ctrl,
-          tab: 'comments',
-          hint: i18n.study.commentThisPosition,
-          icon: iconTag(licon.BubbleSpeech),
-          onClick() {
-            ctrl.commentForm.start(ctrl.vm.chapterId, root.path, root.node);
-          },
-          count: (root.node.comments || []).length,
-        }),
+      toolButton({
+        ctrl,
+        tab: 'comments',
+        hint: i18n.study.commentThisPosition,
+        icon: iconTag(licon.BubbleSpeech),
+        onClick() {
+          ctrl.commentForm.start(ctrl.vm.chapterId, root.path, root.node);
+        },
+        count: (root.node.comments || []).length,
+      }),
       canContribute &&
-        toolButton({
-          ctrl,
-          tab: 'glyphs',
-          hint: i18n.study.annotateWithGlyphs,
-          icon: hl('i.glyph-icon'),
-          count: (root.node.glyphs || []).length,
-        }),
+      toolButton({
+        ctrl,
+        tab: 'glyphs',
+        hint: i18n.study.annotateWithGlyphs,
+        icon: hl('i.glyph-icon'),
+        count: (root.node.glyphs || []).length,
+      }),
       (canContribute || root.data.analysis) &&
-        toolButton({
-          ctrl,
-          tab: 'serverEval',
-          hint: i18n.site.computerAnalysis,
-          icon: iconTag(licon.BarChart),
-          count: root.data.analysis && '✓',
-        }),
+      toolButton({
+        ctrl,
+        tab: 'serverEval',
+        hint: i18n.site.computerAnalysis,
+        icon: iconTag(licon.BarChart),
+        count: root.data.analysis && '✓',
+      }),
       toolButton({ ctrl, tab: 'multiBoard', hint: 'Multiboard', icon: iconTag(licon.Multiboard) }),
       toolButton({ ctrl, tab: 'share', hint: i18n.study.shareAndExport, icon: iconTag(shareIcon()) }),
       !ctrl.relay &&
-        !ctrl.data.chapter.gamebook &&
-        hl('span.help', {
-          attrs: { title: i18n.study.getTheTour, ...dataIcon(licon.InfoCircle) },
-          hook: bind('click', ctrl.startTour),
-        }),
+      !ctrl.data.chapter.gamebook &&
+      hl('span.help', {
+        attrs: { title: i18n.study.getTheTour, ...dataIcon(licon.InfoCircle) },
+        hook: bind('click', ctrl.startTour),
+      }),
     ]),
     gbButton && hl('div.right', gbButton),
   ]);
@@ -325,24 +325,24 @@ function sideTrailerNodes(study: StudyCtrl): LooseVNodes {
   const resizeId = displayColumns() > 2 && `studySide/${study?.data.id}`;
   return [
     resizeId &&
-      verticalResize({
-        selector: '.study-list',
-        key: 'study-list',
-        id: resizeId,
-        min: () => 28,
-        max: () => 28 * 64,
-        initialMaxHeight: () => 28 * 6,
-      }),
+    verticalResize({
+      selector: '.study-list',
+      key: 'study-list',
+      id: resizeId,
+      min: () => 28,
+      max: () => 28 * 64,
+      initialMaxHeight: () => 28 * 6,
+    }),
     showChat && renderChat(study.ctrl.chatCtrl!),
     showChat &&
-      resizeId &&
-      verticalResize({
-        key: 'study-chat',
-        id: resizeId,
-        min: () => 34,
-        max: () => window.innerHeight,
-        initialMaxHeight: () => window.innerHeight / 3,
-      }),
+    resizeId &&
+    verticalResize({
+      key: 'study-chat',
+      id: resizeId,
+      min: () => 34,
+      max: () => window.innerHeight,
+      initialMaxHeight: () => window.innerHeight / 3,
+    }),
     hl('div.chat__members.none', { hook: onInsert(watchers) }),
   ];
 }

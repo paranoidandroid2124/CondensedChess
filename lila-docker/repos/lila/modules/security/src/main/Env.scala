@@ -5,7 +5,8 @@ import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
 import scala.concurrent.duration.*
 
-import lila.common.config.Secret
+import lila.core.config.Secret
+import lila.common.Executor
 
 @Module
 final class Env(
@@ -17,19 +18,19 @@ final class Env(
     cacheApi: lila.memo.CacheApi
 )(using val system: akka.actor.ActorSystem, val executor: Executor)(using StandaloneWSClient):
 
-  private val settings = new SecurityConfig.Loader(config).load()
+  private val settings = config.get[SecurityConfig]("security")
   
   import settings.*
 
-  lazy val securityColl = db(collection.security)
-  lazy val firewallColl = db(collection.firewall)
+  lazy val securityColl = db.mainDb(collection.security)
+  lazy val firewallColl = db.mainDb(collection.firewall)
 
   lazy val sessionStore = new SessionStore(securityColl, cacheApi)
 
   lazy val api = new SecurityApi(userEnv.repo, sessionStore)
 
-  lazy val firewall = new Firewall(firewallColl, cacheApi)
-  lazy val flood = new Flood(cacheApi)
+  lazy val firewall = new Firewall(firewallColl, settings, system.scheduler)
+  lazy val flood = new Flood()
   
   // Stubs/Simplified components for analysis-only
   lazy val hcaptcha = new Hcaptcha(settings.hcaptcha)

@@ -42,8 +42,37 @@ final class UserAnalysis(
     val pov = makePov(decodedFen, variant)
     val orientation = get("color").flatMap(chess.Color.fromName) | pov.color
     
-    Ok.page:
-      Page("Analysis").wrap(_ => div("Analysis Board"))
+    val analyseUi = new lila.analyse.ui.AnalyseUi(lila.ui.Helpers)(env.web.analyseEndpoints)
+    
+    val data = Json.obj(
+      "game" -> Json.obj(
+        "fen" -> (decodedFen | variant.initialFen).value,
+        "variant" -> variant.key.value
+      ),
+      "orientation" -> orientation.name,
+      "pref" -> Json.obj()
+    )
+
+    // For better UX, we could fetch narrative asynchronously, 
+    // but for now let's try to provide it if possible
+    env.llm.api.commentPosition(
+      fen = (decodedFen | variant.initialFen).value,
+      lastMove = None,
+      eval = None,
+      opening = None,
+      phase = "middlegame",
+      ply = pov.game.ply
+    ).map: narrativeOpt =>
+      val narrativeFrag = narrativeOpt.map: res =>
+        lila.analyse.ui.BookmakerRenderer.render(res.commentary, res.variations, (decodedFen | variant.initialFen).value)
+      
+      Ok.page:
+        analyseUi.userAnalysis(
+          data = data,
+          pov = pov,
+          chess960PositionNum = chess960PositionNum,
+          narrative = narrativeFrag
+        )
 
   def pgn(pgn: String) = index
 
