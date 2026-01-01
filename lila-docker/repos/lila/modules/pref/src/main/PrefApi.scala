@@ -14,6 +14,8 @@ final class PrefApi(
     cacheApi: lila.memo.CacheApi
 )(using Executor):
 
+  def agree(user: User): Funit = funit
+
   import PrefHandlers.given
 
   // UserDelete event subscription removed (not needed for analysis-only)

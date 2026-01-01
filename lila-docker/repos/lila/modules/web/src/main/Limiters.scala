@@ -1,9 +1,11 @@
 package lila.web
 
 import play.api.mvc.RequestHeader
+import scala.concurrent.duration.*
 
 import lila.core.net.{ IpAddress, Bearer }
-import lila.core.socket.Sri
+import lila.core.userId.UserId
+import lila.core.user.Me
 import lila.core.security.IsProxy
 import lila.memo.RateLimit
 import lila.common.HTTPRequest
@@ -23,7 +25,7 @@ final class Limiters(using Executor, lila.core.config.RateLimit):
 
   val setupBotAi = RateLimit[UserId](20, 1.day, key = "setup.post.bot.ai")
 
-  val boardApiConcurrency = ConcurrencyLimit[Either[Sri, UserId]](
+  val boardApiConcurrency = ConcurrencyLimit[UserId](
     name = "Board API hook Stream API concurrency per user",
     key = "boardApiHook.concurrency.limit.user",
     ttl = 10.minutes,
@@ -46,16 +48,6 @@ final class Limiters(using Executor, lila.core.config.RateLimit):
   val userGames = RateLimit[IpAddress](credits = 500, duration = 10.minutes, key = "user_games.web.ip")
 
   val crosstable = RateLimit[IpAddress](credits = 30, duration = 10.minutes, key = "crosstable.api.ip")
-
-  val relay: RateLimiter[(UserId, IpAddress)] = combine(
-    RateLimit[UserId](credits = 100 * 10, duration = 24.hour, key = "broadcast.round.user"),
-    RateLimit[IpAddress](credits = 100 * 10, duration = 24.hour, key = "broadcast.round.ip")
-  )
-
-  val relayTour: RateLimiter[(UserId, IpAddress)] = combine(
-    RateLimit[UserId](credits = 10 * 10, duration = 24.hour, key = "broadcast.tournament.user"),
-    RateLimit[IpAddress](credits = 10 * 10, duration = 24.hour, key = "broadcast.tournament.ip")
-  )
 
   val eventStream = RateLimit[Bearer](30, 10.minutes, "api.stream.event.bearer")
 
@@ -142,8 +134,6 @@ final class Limiters(using Executor, lila.core.config.RateLimit):
   )
 
   val studyPgn = RateLimit[IpAddress](credits = 31, duration = 1.minute, key = "export.study.pgn.ip")
-
-  val relayPgn = RateLimit[IpAddress](credits = 61, duration = 1.minute, key = "export.relay.pgn.ip")
 
   val teamKick =
     RateLimit.composite[IpAddress](key = "team.kick.api.ip")(("fast", 10, 2.minutes), ("slow", 50, 1.day))

@@ -1,6 +1,7 @@
 package lila.core
 package game
 
+import _root_.chess.format.Fen
 import _root_.chess.format.UciDump
 import _root_.chess.variant.{ Variant }
 import _root_.chess.{
@@ -101,3 +102,14 @@ case class Game(
 
   override def toString = s"""Game($id)"""
 end Game
+
+object Game:
+  def make(variant: Variant, fen: Option[Fen.Full]): Game =
+    val chess = ChessGame(variant, fen)
+    new Game(
+      id = IdGenerator.uncheckedGame,
+      players = ByColor(Player.make(_, none)),
+      chess = chess,
+      status = Status.Created,
+      metadata = newMetadata(Source.Position)
+    )

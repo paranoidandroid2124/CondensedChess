@@ -57,7 +57,7 @@ trait ResponseBuilder(using Executor)
   def rateLimited(msg: String = rateLimitedMsg)(using ctx: Context): Fu[Result] = negotiate(
     html =
       if HTTPRequest.isSynchronousHttp(ctx.req)
-      then TooManyRequests.page(views.site.message.rateLimited(msg))
+      then TooManyRequests.page(views.site.message.rateLimited(msg.some))
       else TooManyRequests(msg).toFuccess,
     json = TooManyRequests(jsonError(msg))
   )

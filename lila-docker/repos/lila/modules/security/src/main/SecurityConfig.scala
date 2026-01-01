@@ -8,6 +8,10 @@ import lila.common.config.{ *, given }
 import lila.core.config.*
 
 import SecurityConfig.*
+import scalalib.newtypes.TotalWrapper
+
+opaque type LameNameCheck = Boolean
+object LameNameCheck extends TotalWrapper[LameNameCheck, Boolean]
 
 @Module
 final private class SecurityConfig(

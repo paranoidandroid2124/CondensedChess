@@ -3,14 +3,19 @@ package lila.security
 import com.roundeights.hasher.Implicits.*
 import play.api.libs.ws.DefaultBodyReadables.*
 import play.api.libs.ws.StandaloneWSClient
+import lila.core.lilaism.Core.{ *, given }
+import scalalib.future.extensions.*
 
 opaque type IsPwned = Boolean
 object IsPwned extends YesNo[IsPwned]
 
 final class PwnedApi(ws: StandaloneWSClient, rangeUrl: String)(using Executor):
 
+  private val logger = lila.log("security")
+
   def isPwned(pass: lila.core.security.ClearPassword): Fu[IsPwned] =
-    rangeUrl.nonEmpty.so:
+    if rangeUrl.isEmpty then Future.successful(IsPwned(false))
+    else
       val (prefix, suffix) = pass.value.sha1.hex.toUpperCase.splitAt(5)
       val url = s"${rangeUrl}${prefix}"
       ws.url(url)
@@ -23,6 +28,4 @@ final class PwnedApi(ws: StandaloneWSClient, rangeUrl: String)(using Executor):
           case res =>
             logger.warn(s"Pwnd ${url} ${res.status} ${res.body[String].take(200)}")
             IsPwned(false)
-        .monValue: result =>
-          _.security.pwned.get(result.yes)
-        .recoverDefault(IsPwned(false))
+        .recover { case _ => IsPwned(false) }

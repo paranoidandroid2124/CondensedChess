@@ -11,6 +11,10 @@ import lila.common.LameName
 import lila.core.security.ClearPassword
 import lila.core.user.{ TotpSecret, TotpToken }
 import lila.core.email.EmailAddress
+import lila.core.userId.UserName
+import lila.core.lilaism.Core.{ *, given }
+import scalalib.future.extensions.*
+import lila.common.{ so => _, Form => _, * }
 
 final class SecurityForm(
     userRepo: lila.user.UserRepo,
@@ -33,7 +37,7 @@ final class SecurityForm(
       .verifying("usernameUnacceptable", u => !lameNameCheck.value || !LameName.username(u))
       .verifying(
         "usernameAlreadyUsed",
-        u => u.id.noGhost && !userRepo.exists(u).await(3.seconds, "signupUsername")
+        u => u.id.noGhost && !userRepo.exists(u.id).await(3.seconds, "signupUsername")
       )
 
     def website(using RequestHeader) = Form:
@@ -67,4 +71,4 @@ object SecurityForm:
       username: UserName,
       password: String
   ) extends AnySignupData:
-    def fp = none
+    def fp = Option.empty

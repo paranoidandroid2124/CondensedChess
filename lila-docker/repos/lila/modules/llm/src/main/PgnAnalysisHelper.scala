@@ -91,6 +91,7 @@ object PgnAnalysisHelper:
       uci <- Uci(uciMove)
       move <- uci match
         case m: Uci.Move => pos.move(m).toOption
+        case _: Uci.Drop => None // Drops not supported for UCI to SAN conversion
     yield move.toSanStr.toString
 
   /**

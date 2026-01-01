@@ -10,9 +10,11 @@ import lila.app.{ *, given }
 import lila.common.HTTPRequest
 import scalalib.model.Language
 import lila.core.perm.Permission
-import lila.i18n.LangPicker
+import lila.core.i18n.LangPicker
 import lila.oauth.{ EndpointScopes, OAuthScope, OAuthScopes, OAuthServer, TokenScopes }
 import lila.ui.{ Page, Snippet }
+import play.filters.csrf.CSRF
+import lila.api.PageContext
 
 abstract private[controllers] class LilaController(val env: Env)
     extends BaseController
@@ -34,8 +36,8 @@ abstract private[controllers] class LilaController(val env: Env)
   given lila.core.i18n.Translator = env.translator
   given reqBody(using r: BodyContext[?]): Request[?] = r.body
 
-  given (using codec: Codec, pc: PageContext): Writeable[Page] =
-    Writeable(page => codec.encode(views.base.page(page).html))
+  given (using codec: Codec, pc: lila.api.PageContext): Writeable[Page] =
+    Writeable(page => codec.encode(views.base.page(page)(using pc).html))
 
   given Conversion[Page, Fu[Page]] = fuccess(_)
   given Conversion[Snippet, Fu[Snippet]] = fuccess(_)
@@ -256,7 +258,8 @@ abstract private[controllers] class LilaController(val env: Env)
         scoped <- env.security.api.oauthScoped(req, accepted)
         res <- f(scoped)
       yield OAuthServer.responseHeaders(accepted, scoped.scopes)(res)
-    .rescue(handleScopedFail(accepted, _))
+    .rescue: (e: OAuthServer.AuthError) =>
+      handleScopedFail(accepted, e)
 
   def handleScopedFail(accepted: EndpointScopes, e: OAuthServer.AuthError) = e match
     case e @ lila.oauth.OAuthServer.MissingScope(_, available) =>
@@ -329,8 +332,7 @@ abstract private[controllers] class LilaController(val env: Env)
     if req.method == "HEAD" then NoContent.withDateHeaders(lastModified(updatedAt))
     else f
 
-  def pageHit(using req: RequestHeader): Unit =
-    if HTTPRequest.isHuman(req) then lila.mon.http.path(req.path).increment()
+  def pageHit(using req: RequestHeader): Unit = ()
 
   def LangPage(call: Call)(f: Context ?=> Fu[Result])(language: Language): EssentialAction =
     LangPage(call.url)(f)(language)
@@ -338,8 +340,8 @@ abstract private[controllers] class LilaController(val env: Env)
     if ctx.isAuth
     then redirectWithQueryString(path)
     else
-      import LangPicker.ByHref
-      LangPicker.byHref(language, ctx.req) match
+      import lila.core.i18n.LangPicker.ByHref
+      lila.core.i18n.LangPicker.byHref(language, ctx.req) match
         case ByHref.NotFound => notFound(using ctx)
         case ByHref.Redir(code) =>
           redirectWithQueryString(s"/$code${~path.some.filter("/" !=)}")
@@ -357,7 +359,7 @@ abstract private[controllers] class LilaController(val env: Env)
 
   // given (using req: RequestHeader): lila.chat.AllMessages = lila.chat.AllMessages(HTTPRequest.isLitools(req))
 
-  def anyCaptcha = env.game.captcha.any
+  def anyCaptcha = env.game.captchaApi.any
 
   def bindForm[T, R](form: Form[T])(error: Form[T] => R, success: T => R)(using Request[?], FormBinding): R =
     val bound =

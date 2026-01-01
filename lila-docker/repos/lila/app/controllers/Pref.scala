@@ -1,103 +1,43 @@
 package controllers
 
 import play.api.mvc.*
-import play.api.libs.json.*
-
 import lila.app.{ *, given }
 import lila.common.HTTPRequest
-import lila.common.Json.given
 
-final class Pref(env: Env) extends LilaController(env):
-
-  private def api = env.pref.api
-  private def forms = lila.pref.PrefForm
-
-  def apiGet = Scoped(_.Preference.Read, _.Web.Mobile) { _ ?=> me ?=>
-    env.pref.api.get(me).map { prefs =>
-      JsonOk:
-        Json
-          .obj("prefs" -> lila.pref.toJson(prefs, lichobileCompat = false))
-          .add("language" -> me.lang)
-    }
-  }
+final class Pref(
+    env: Env
+) extends LilaController(env):
 
   private val redirects = Map(
     "game-display" -> "display",
-    "site" -> "privacy"
+    "game-behavior" -> "behavior",
+    "privacy" -> "privacy"
   )
 
-  def form(categSlug: String) =
+  def form(categSlug: String) = Open:
     redirects.get(categSlug) match
-      case Some(redir) => Action(Redirect(routes.Pref.form(redir)))
+      case Some(redir) => Redirect(routes.Pref.form(redir)).toFuccess
       case None =>
-        Auth { ctx ?=> me ?=>
-          lila.pref.PrefCateg(categSlug) match
-            case None if categSlug == "notification" =>
-              NotImplemented("Notification preferences not available - notify module removed").toFuccess
-            case None => notFound
-            case Some(categ) => Ok.page(views.account.pref(me, forms.prefOf(ctx.pref), categ))
-        }
+        ctx.me.fold(fuccess(Redirect(routes.Main.contact))): me =>
+          env.pref.api.get(me).map: pref =>
+            Ok.page(views.account.pref(me, forms.prefOf(pref), categSlug))
 
   def formApply = AuthBody { ctx ?=> me ?=>
-    def onSuccess(data: lila.pref.PrefForm.PrefData) =
-      api.setPref(me, data(ctx.pref)).inject(Ok("saved"))
-    val form = forms.pref(lichobile = HTTPRequest.isLichobile(req))
-    bindForm(form)(
-      _ =>
-        form
-          .bindFromRequest(lila.pref.FormCompatLayer(ctx.pref, ctx.body))
-          .fold(
-            err => BadRequest(err.toString).toFuccess,
-            onSuccess
-          ),
-      onSuccess
+    implicit val _ = ctx
+    bindForm(forms.prefOf(ctx.pref))(
+      err =>
+        negotiate(
+          BadRequest.page(views.account.pref(me, err, "gen")),
+          BadRequest(errorsAsJson(err))
+        ),
+      pref => env.pref.api.setPref(me, pref).inject(NoContent)
     )
   }
 
-  def notifyFormApply = AuthBody { ctx ?=> me ?=>
-    NotImplemented("Notification preferences not available - notify module removed").toFuccess
-  }
-
-  def set(name: String) = OpenBody:
-    if name == "zoom"
-    then Ok.withCookies(env.security.lilaCookie.cookie("zoom", (getInt("v") | 85).toString))
-    else if name == "agreement" then
-      ctx.me
-        .so(api.agree(_))
-        .inject:
-          if HTTPRequest.isXhr(ctx.req) then NoContent else Redirect(routes.UserAnalysis.index)
-    else
-      lila.pref.PrefSingleChange.changes
-        .get(name)
-        .so: change =>
-          bindForm(change.form)(
-            form => fuccess(BadRequest(form.errors.flatMap(_.messages).mkString("\n"))),
-            v =>
-              ctx.me
-                .so(api.setPref(_, change.update(v)))
-                .inject(env.security.lilaCookie.session(name, v.toString))
-                .map: cookie =>
-                  Ok(()).withCookies(cookie)
-          )
-
-  def apiSet(name: String) = ScopedBody(_.Web.Mobile) { ctx ?=> me ?=>
-    lila.pref.PrefSingleChange.changes
-      .get(name)
-      .so: change =>
-        bindForm(change.form)(
-          jsonFormError,
-          v => api.setPref(me, change.update(v)).inject(NoContent)
-        )
-  }
-
-  def network = Auth { ctx ?=> me ?=>
-    Ok.page(views.account.pref.network(ctx.pref.isUsingAltSocket))
-  }
-
-  def networkPost = AuthBody { ctx ?=> me ?=>
-    for _ <- bindForm(forms.cfRoutingForm)(
-        _ => funit,
-        cfRouting => env.pref.api.setPref(me, ctx.pref.copy(usingAltSocket = cfRouting.some))
-      )
-    yield Redirect(routes.Pref.network)
+  def set(name: String) = Auth { ctx ?=> me ?=>
+    HTTPRequest.get("v", ctx.req).fold(fuccess(BadRequest)): v =>
+      env.pref.api
+        .set(me, name, v)
+        .inject(Ok)
+        .recover { case _: Exception => BadRequest }
   }

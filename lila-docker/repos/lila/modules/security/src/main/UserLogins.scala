@@ -2,6 +2,8 @@ package lila.security
 
 import reactivemongo.api.bson.*
 
+import lila.core.userId.UserId
+import lila.core.lilaism.Core.{ *, given }
 import lila.core.net.{ IpAddress, UserAgent }
 import lila.core.security.{ FingerHash, IsProxy }
 import lila.db.dsl.{ *, given }
@@ -37,4 +39,4 @@ object UserLogins:
         case (acc, Dated(v, _)) if acc.contains(v) => acc
         case (acc, Dated(v, date)) => acc + (v -> date)
       .view
-      .map(Dated.apply)
+      .map { case (v, d) => Dated(v, d) }

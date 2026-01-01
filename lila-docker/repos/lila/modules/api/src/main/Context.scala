@@ -4,10 +4,7 @@ import play.api.i18n.Lang
 import play.api.mvc.{ Request, RequestHeader }
 
 import lila.common.HTTPRequest
-import lila.core.i18n.Translate
 import lila.core.net.IpAddress
-import lila.core.notify.UnreadCount
-import lila.core.user.KidMode
 import lila.oauth.TokenScopes
 import lila.pref.Pref
 import lila.ui.Nonce
@@ -23,9 +20,10 @@ final class LoginContext(
   def user: Option[User] = Me.raw(me)
   def userId: Option[UserId] = user.map(_.id)
   def username: Option[UserName] = user.map(_.username)
-  def isBot = me.exists(_.isBot)
-  def troll = user.exists(_.marks.troll)
+  def isBot = false // Simplified: bots not supported in analysis-only system
+  def troll = false // Simplified: no moderation marks
   def isAppealUser = me.exists(_.enabled.no)
+  def kid = lila.core.user.KidMode(false)
   def isWebAuth = isAuth && oauth.isEmpty
   def isOAuth = isAuth && oauth.isDefined
   def isMobileOauth = oauth.exists(_.has(_.Web.Mobile))
@@ -43,30 +41,24 @@ class Context(
 ) extends lila.ui.Context:
   export loginContext.*
   def ip: IpAddress = HTTPRequest.ipAddress(req)
-  lazy val mobileApiVersion = lila.security.Mobile.Api.requestVersion(req)
+  lazy val mobileApiVersion: Option[lila.core.net.ApiVersion] = None // Simplified
   lazy val blind = req.cookies.get(lila.web.WebConfig.blindCookie.name).exists(_.value.nonEmpty)
   def isMobileApi = mobileApiVersion.isDefined
-  def kid = KidMode(HTTPRequest.isKid(req) || loginContext.user.exists(_.kid.yes))
   def withLang(l: Lang) = new Context(req, l, loginContext, pref)
   def updatePref(f: Update[Pref]) = new Context(req, lang, loginContext, f(pref))
-  def canVoiceChat = kid.no && me.exists(!_.marks.troll)
-  lazy val translate = Translate(lila.i18n.Translator, lang)
 
 object Context:
   export lila.api.{ Context, BodyContext, LoginContext, PageContext, EmbedContext }
   given (using ctx: Context): Option[Me] = ctx.me
   given (using ctx: Context): Option[MyId] = ctx.myId
-  given (using ctx: Context): KidMode = ctx.kid
-  given ctxToTranslate(using ctx: Context): Translate = ctx.translate
   given (using page: PageContext): Context = page.ctx
   given (using embed: EmbedContext): Context = embed.ctx
 
-  import lila.i18n.LangPicker
   import lila.pref.RequestPref
   def minimal(req: RequestHeader) =
-    Context(req, LangPicker(req), LoginContext.anon, RequestPref.fromRequest(req))
+    Context(req, Lang.defaultLang, LoginContext.anon, RequestPref.fromRequest(req))
   def minimalBody[A](req: Request[A]) =
-    BodyContext(req, LangPicker(req), LoginContext.anon, RequestPref.fromRequest(req))
+    BodyContext(req, Lang.defaultLang, LoginContext.anon, RequestPref.fromRequest(req))
 
 final class BodyContext[A](
     val body: Request[A],
@@ -78,13 +70,13 @@ final class BodyContext[A](
 /* data necessary to render the lichess website layout */
 case class PageData(
     teamNbRequests: Int,
-    nbNotifications: UnreadCount,
+    nbNotifications: Int,
     nonce: Option[Nonce],
     error: Boolean = false
 )
 
 object PageData:
-  def anon(nonce: Option[Nonce]) = PageData(0, UnreadCount(0), nonce)
+  def anon(nonce: Option[Nonce]) = PageData(0, 0, nonce)
   def error(nonce: Option[Nonce]) = anon(nonce).copy(error = true)
 
 final class PageContext(val ctx: Context, val data: PageData) extends lila.ui.PageContext:

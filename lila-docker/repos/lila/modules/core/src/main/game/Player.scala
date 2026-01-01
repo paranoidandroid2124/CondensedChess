@@ -26,6 +26,13 @@ case class Player(
 object Player:
   given Eq[Player] = Eq.by(p => (p.id, p.userId))
 
+  def make(color: Color, aiLevel: Option[Int]): Player =
+    Player(
+      id = IdGenerator.uncheckedPlayer,
+      color = color,
+      aiLevel = aiLevel
+    )
+
 
 trait NewPlayer:
   def apply(color: Color, user: Option[lila.core.user.User]): Player

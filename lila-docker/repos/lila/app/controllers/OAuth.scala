@@ -32,7 +32,7 @@ final class OAuth(env: Env, apiC: => Api) extends LilaController(env):
   private def withPrompt(f: AuthorizationRequest.Prompt => Fu[Result])(using ctx: Context): Fu[Result] =
     reqToAuthorizationRequest.prompt match
       case Right(prompt) =>
-        AuthorizationRequest.logPrompt(prompt, ctx.me)
+        AuthorizationRequest.logPrompt(prompt, ctx.me.map(_.id))
         f(prompt)
       case Left(error) =>
         BadRequest.page(views.site.message("Bad authorization request")(stringFrag(error.description)))
@@ -50,10 +50,10 @@ final class OAuth(env: Env, apiC: => Api) extends LilaController(env):
     withPrompt: prompt =>
       allow:
         for
-          authorized <- prompt.authorize(me, env.oAuth.legacyClientApi.apply)
+          authorized <- prompt.authorize(me.id, env.oAuth.legacyClientApi.apply)
           code <- env.oAuth.authorizationApi.create(authorized)
         yield SeeOther(authorized.redirectUrl(code))
-      .rescue: error =>
+      .rescue: (error: lila.oauth.Protocol.Error) =>
         SeeOther(prompt.redirectUri.error(error, prompt.state))
   }
 

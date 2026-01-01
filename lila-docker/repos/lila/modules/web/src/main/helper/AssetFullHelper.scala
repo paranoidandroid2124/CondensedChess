@@ -5,10 +5,10 @@ import play.api.libs.json.JsValue
 import lila.core.config.NetConfig
 import lila.core.data.SafeJsonStr
 import lila.ui.ScalatagsTemplate.{ *, given }
-import lila.ui.{ ContentSecurityPolicy, Context, Optionce }
+import lila.ui.{ ContentSecurityPolicy, Context, Optionce, Nonce, Esm }
 
 trait AssetFullHelper:
-  self: lila.ui.AssetHelper & lila.ui.I18nHelper =>
+  self: lila.ui.AssetHelper =>
   def netConfig: NetConfig
   def manifest: AssetManifest
   def analyseEndpoints: lila.ui.AnalyseEndpoints
@@ -23,8 +23,27 @@ trait AssetFullHelper:
 
   def assetVersion = lila.core.net.AssetVersion.current
 
-  def assetUrl(path: String): Url =
-    Url(s"$assetBaseUrl/assets/${manifest.hashed(path).getOrElse(s"_$assetVersion/$path")}")
+  // Asset URL helpers
+  def assetBaseUrl: String = netConfig.assetBaseUrl.value
+  def netBaseUrl: String = netConfig.baseUrl.value
+  
+  override def assetUrl(path: String): String =
+    s"$assetBaseUrl/assets/${manifest.hashed(path).getOrElse(s"_$assetVersion/$path")}"
+  
+  override def staticAssetUrl(path: String): String =
+    s"$assetBaseUrl/assets/$path"
+  
+  override def staticCompiledUrl(path: String): String =
+    s"$assetBaseUrl/assets/compiled/$path"
+
+  def preload(url: String, as: String, crossOrigin: Boolean, tpe: Option[String]): Frag =
+    link(rel := "preload", href := url, attr("as") := as, tpe.map(t => attr("type") := t))
+  
+  def embedJsUnsafe(code: String)(nonce: Option[Nonce]): Frag = 
+    nonce.fold(script(raw(code)))(n => script(attr("nonce") := n.value, raw(code)))
+
+  override def iifeModule(path: String): Frag = 
+    script(src := staticAssetUrl(path))
 
   private val dataCssKey = attr("data-css-key")
   def cssTag(key: String): Frag =
@@ -46,10 +65,10 @@ trait AssetFullHelper:
   def chessgroundTag: Frag = script(tpe := "module", src := assetUrl("npm/chessground.min.js"))
 
   def basicCsp(using ctx: Context): ContentSecurityPolicy =
-    val sockets = socketDomains.map { x => s"wss://$x${(!ctx.req.secure).so(s" ws://$x")}" }
+    val sockets = socketDomains.map { x => s"wss://$x${if !ctx.req.secure then s" ws://$x" else ""}" }
     // include both ws and wss when insecure because requests may come through a secure proxy
     val localDev =
-      (!ctx.req.secure).so(List("http://127.0.0.1:3000", "http://localhost:8666"))
+      if !ctx.req.secure then List("http://127.0.0.1:3000", "http://localhost:8666") else Nil
     lila.web.ContentSecurityPolicy.page(
       netConfig.assetDomain,
       netConfig.assetDomain.value :: sockets ::: analyseEndpoints.explorer :: analyseEndpoints.tablebase :: localDev

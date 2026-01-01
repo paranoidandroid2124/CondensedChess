@@ -10,8 +10,7 @@ final class WebConfig(
     val apiToken: Secret,
     val influxEventEndpoint: String,
     val influxEventEnv: String,
-    val prometheusKey: String,
-    val pagerDuty: WebConfig.PagerDuty
+    val prometheusKey: String
 )
 
 object WebConfig:
@@ -21,30 +20,24 @@ object WebConfig:
     val maxAge = 365.days
     def make(lilaCookie: LilaCookie)(enable: Boolean) = lilaCookie.cookie(
       name,
-      enable.so("1"),
+      if enable then "1" else "",
       maxAge = maxAge.toSeconds.toInt.some,
       httpOnly = true.some
     )
 
-  final class PagerDuty(val serviceId: String, val apiKey: Secret)
-
   def loadFrom(c: Configuration) =
     WebConfig(
       c.get[Secret]("api.token"),
-      c.get[String]("api.influx_event.endpoint"),
-      c.get[String]("api.influx_event.env"),
-      c.get[String]("kamon.prometheus.lilaKey"),
-      new PagerDuty(
-        c.get[String]("pagerDuty.serviceId"),
-        c.get[Secret]("pagerDuty.apiKey")
-      )
+      c.getOptional[String]("api.influx_event.endpoint").getOrElse(""),
+      c.getOptional[String]("api.influx_event.env").getOrElse(""),
+      c.getOptional[String]("kamon.prometheus.lilaKey").getOrElse("")
     )
 
   def analyseEndpoints(c: Configuration) =
     lila.ui.AnalyseEndpoints(
-      explorer = c.get[String]("explorer.endpoint"),
-      tablebase = c.get[String]("explorer.tablebase_endpoint"),
-      externalEngine = c.get[String]("externalEngine.endpoint")
+      explorer = c.getOptional[String]("explorer.endpoint").getOrElse(""),
+      tablebase = c.getOptional[String]("explorer.tablebase_endpoint").getOrElse(""),
+      externalEngine = c.getOptional[String]("externalEngine.endpoint").getOrElse("")
     )
 
   def netConfig(c: Configuration) = NetConfig(
@@ -55,8 +48,8 @@ object WebConfig:
     assetBaseUrl = c.get[AssetBaseUrl]("net.asset.base_url"),
     stageBanner = c.get[Boolean]("net.stage.banner"),
     siteName = c.get[String]("net.site.name"),
-    socketDomains = c.get[List[String]]("net.socket.domains"),
-    socketAlts = c.get[List[String]]("net.socket.alts"),
+    socketDomains = c.getOptional[List[String]]("net.socket.domains").getOrElse(Nil),
+    socketAlts = c.getOptional[List[String]]("net.socket.alts").getOrElse(Nil),
     crawlable = c.get[Boolean]("net.crawlable"),
     rateLimit = c.get[RateLimit]("net.ratelimit"),
     email = c.get[EmailAddress]("net.email"),

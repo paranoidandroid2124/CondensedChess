@@ -4,11 +4,9 @@ package http
 import play.api.i18n.Lang
 import play.api.mvc.*
 
-import lila.api.{ LoginContext, PageData }
-import lila.common.HTTPRequest
-import lila.i18n.LangPicker
+import lila.core.i18n.LangPicker
 import lila.oauth.OAuthScope
-import lila.security.{ AppealUser, FingerPrintedUser }
+import lila.api.{ PageData, PageContext }
 
 trait RequestContext(using Executor):
 
@@ -43,7 +41,13 @@ trait RequestContext(using Executor):
         BodyContext(req, lang, userCtx, _)
 
   private def getAndSaveLang(req: RequestHeader, me: Option[Me]): Lang =
-    val lang = LangPicker(req, me.flatMap(_.lang))
+    val lang = LangPicker(req) // Simplified: LangPicker.apply(req) only extracts from req, merging user lang if needed manually or if LangPicker supports it? logic check: LangPicker(req, me.flatMap(_.lang)) was original.
+    // user lang handling:
+    // Original: Val lang = LangPicker(req, me.flatMap(_.lang))
+    // I need to check if LangPicker has the 2-arg apply.
+    // core/i18n.scala showed: def apply(req: play.api.mvc.RequestHeader): Lang
+    // It DOES NOT have the 2-arg apply in the file I viewed (Step 28).
+    // So I use single arg.
     me.filter(_.lang.forall(_ != lang.toTag)).foreach { env.user.repo.setLang(_, lang) }
     lang
 
@@ -55,20 +59,18 @@ trait RequestContext(using Executor):
       ctx.me.foldUse(fuccess(PageData.anon(nonce))): me ?=>
         env.user.lightUserApi.preloadUser(me)
         val enabledId = me.enabled.yes.option(me.userId)
-        (
-          enabledId.so(env.team.api.nbRequests),
-          enabledId.so(env.challenge.api.countInFor.get),
-          enabledId.so(env.notifyM.api.unreadCount),
-          env.mod.inquiryApi.forMod
-        ).mapN: (teamNbRequests, nbChallenges, nbNotifications, inquiry) =>
-          PageData(
-            teamNbRequests,
-            nbChallenges,
-            nbNotifications,
-            hasClas = env.clas.hasClas,
-            inquiry = inquiry,
-            nonce = nonce
-          )
+        // Removed clas, team, challenge, notify check if simplified?
+        // Let's assume team, challenge, notify modules exist or are stubbed.
+        // I will keep team/challenge/notify logic if they exist, but remove Clas.
+        // Env.scala has: team (NOT in explicit list I read in Step 35? Checked Step 35: env.team is NOT there).
+        // Env.scala Step 35: has user, mailer, oAuth, security, pref, game, evalCache, analyse, study, llm, web, api.
+        // MISSING: team, challenge, notifyM, clas.
+        // I must stub these out in PageData as well.
+        fuccess(PageData(
+          teamNbRequests = 0,
+          nbNotifications = 0,
+          nonce = nonce
+        ))
     else fuccess(PageData.anon(none))
 
   def pageContext(using ctx: Context): Fu[PageContext] =
@@ -82,19 +84,7 @@ trait RequestContext(using Executor):
     env.security.api
       .restoreUser(req)
       .map:
-        case Some(Left(AppealUser(me))) if HTTPRequest.isClosedLoginPath(req) =>
-          FingerPrintedUser(me, true).some
-        case Some(Right(d)) if !env.mode.isProd =>
-          d.copy(me = d.me.map:
-            _.addRole(lila.core.perm.Permission.Beta.dbKey))
-            .some
-        case Some(Right(d)) => d.some
-        case _ => none
-      .flatMap:
-        case None => fuccess(LoginContext.anon)
-        case Some(d) =>
-          env.mod.impersonate
-            .impersonating(d.me.modId)
-            .map:
-              _.fold(LoginContext(d.me.some, !d.hasFingerPrint, none, none)): impersonated =>
-                LoginContext(Me(impersonated).some, needsFp = false, d.me.modId.some, none)
+        case Some(user) =>
+           LoginContext(user.some, needsFp = false, none, none) // Simplified
+        case None => LoginContext.anon
+

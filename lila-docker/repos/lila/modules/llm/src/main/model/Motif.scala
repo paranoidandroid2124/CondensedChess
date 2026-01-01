@@ -20,7 +20,7 @@ sealed trait Motif:
   def category: MotifCategory
 
 enum MotifCategory:
-  case Pawn, Piece, King, Tactical, Structural, Endgame
+  case Pawn, Piece, King, Tactical, Structural, Endgame, Positional
 
 object Motif:
 
@@ -191,19 +191,36 @@ object Motif:
   enum CheckType:
     case Normal, Discovered, Double, Mate, Smothered
 
-  /** Capture (with sacrifice detection) */
+  /** Capture (with sacrifice detection and ROI for exchange sacrifices) */
   case class Capture(
       piece: Role,
       captured: Role,
       square: Square,
       captureType: CaptureType,
       plyIndex: Int,
-      move: Option[String]
+      move: Option[String],
+      sacrificeROI: Option[SacrificeROI] = None  // NEW: For exchange sacrifice compensation
   ) extends Motif:
     val category = MotifCategory.Tactical
 
+  /** Sacrifice ROI - explains compensation for material sacrifice */
+  case class SacrificeROI(
+      reason: String,         // "open_file", "king_exposed", "passed_pawn", "piece_activity"
+      expectedValue: Int      // Estimated CP compensation
+  )
+
   enum CaptureType:
-    case Normal, Sacrifice, Exchange, Recapture, Winning
+    case Normal, Sacrifice, Exchange, Recapture, Winning, ExchangeSacrifice  // Added ExchangeSacrifice
+
+  /** Zwischenzug - intermediate move instead of expected recapture */
+  case class Zwischenzug(
+      intermediateMove: String,
+      threatType: String,     // "Check", "Fork", "MateTheat", "WinningCapture"
+      expectedRecaptureSquare: Square,
+      plyIndex: Int,
+      move: Option[String]
+  ) extends Motif:
+    val category = MotifCategory.Tactical
 
   /** Pin - piece attacks through an enemy piece to a more valuable piece behind */
   case class Pin(
@@ -272,17 +289,8 @@ object Motif:
   ) extends Motif:
     val category = MotifCategory.Tactical
 
-  /** Remove the Defender - capturing or deflecting a piece that protects another */
-  case class RemoveDefender(
-      defenderRole: Role,
-      defenderSquare: Square,
-      protectedRole: Role,
-      protectedSquare: Square,
-      color: Color,
-      plyIndex: Int,
-      move: Option[String]
-  ) extends Motif:
-    val category = MotifCategory.Tactical
+  // NOTE: RemoveDefender was removed - Deflection covers the same concept
+  // (attacking a piece to force it away from defensive duties)
 
   /** Overloading - a piece is defending too many things at once */
   case class Overloading(
@@ -461,3 +469,33 @@ object Motif:
       move: Option[String] = None
   ) extends Motif:
     val category = MotifCategory.Endgame
+
+  // ============================================================
+  // FIX 6: NEW POSITIONAL MOTIFS
+  // ============================================================
+
+  /** Open file control - rook/queen on an open file */
+  case class OpenFileControl(
+      file: File,
+      color: Color,
+      plyIndex: Int,
+      move: Option[String] = None
+  ) extends Motif:
+    val category = MotifCategory.Positional
+
+  /** Weak back rank - king trapped on back rank */
+  case class WeakBackRank(
+      color: Color,
+      plyIndex: Int,
+      move: Option[String] = None
+  ) extends Motif:
+    val category = MotifCategory.Positional
+
+  /** Space advantage - significant central pawn presence */
+  case class SpaceAdvantage(
+      color: Color,
+      pawnDelta: Int,
+      plyIndex: Int,
+      move: Option[String] = None
+  ) extends Motif:
+    val category = MotifCategory.Positional

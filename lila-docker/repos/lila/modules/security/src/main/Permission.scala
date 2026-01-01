@@ -1,7 +1,7 @@
 package lila.security
 
 import lila.core.perm.Permission
-import lila.core.user.RoleDbKey
+import lila.core.user.{ User, RoleDbKey }
 
 object Permission:
 

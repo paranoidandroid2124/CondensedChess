@@ -1,6 +1,7 @@
-package lila.llm
+package lila.llm.analysis
 
 import lila.llm.model.*
+import lila.llm.model.strategic.*
 import lila.llm.model.Motif.{ *, given }
 
 import _root_.chess.*
@@ -27,8 +28,8 @@ object CounterfactualAnalyzer:
    */
   def analyzeDivergence(
       fen: String,
-      userLine: VariationLine,
-      bestLine: VariationLine,
+      userLine: lila.llm.model.strategic.VariationLine,
+      bestLine: lila.llm.model.strategic.VariationLine,
       hypotheses: List[Hypothesis] = Nil
   ): Option[TacticalDivergence] =
     val cpLoss = bestLine.effectiveScore - userLine.effectiveScore
@@ -78,8 +79,8 @@ object CounterfactualAnalyzer:
       fen: String,
       userMove: String,
       bestMove: String,
-      userLine: VariationLine,
-      bestLine: VariationLine
+      userLine: lila.llm.model.strategic.VariationLine,
+      bestLine: lila.llm.model.strategic.VariationLine
   ): CounterfactualMatch =
     val cpLoss = bestLine.effectiveScore - userLine.effectiveScore
     val userMotifs = MoveAnalyzer.tokenizePv(fen, userLine.moves)
@@ -95,7 +96,36 @@ object CounterfactualAnalyzer:
       cpLoss = cpLoss,
       missedMotifs = missedMotifs,
       userMoveMotifs = userMotifs,
-      severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok"
+      severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok",
+      userLine = userLine
+    )
+
+  /**
+   * FIX 2: Counterfactual with pre-normalized cpLoss (handles mate scores properly)
+   */
+  def createMatchNormalized(
+      fen: String,
+      userMove: String,
+      bestMove: String,
+      userLine: lila.llm.model.strategic.VariationLine,
+      bestLine: lila.llm.model.strategic.VariationLine,
+      cpLoss: Int
+  ): CounterfactualMatch =
+    val userMotifs = MoveAnalyzer.tokenizePv(fen, userLine.moves)
+    val bestMotifs = MoveAnalyzer.tokenizePv(fen, bestLine.moves)
+    
+    val missedMotifs = bestMotifs.filterNot(bm => 
+      userMotifs.exists(um => um.getClass == bm.getClass)
+    )
+
+    CounterfactualMatch(
+      userMove = userMove,
+      bestMove = bestMove,
+      cpLoss = cpLoss,
+      missedMotifs = missedMotifs,
+      userMoveMotifs = userMotifs,
+      severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok",
+      userLine = userLine
     )
 
   private def moveAfter(pos: Position, uciStr: String): Option[Position] =

@@ -11,6 +11,9 @@ object bits:
 
   val engineFullName = "Stockfish 17.1"
 
+  // Stub for hcaptcha - always returns empty frag since we're removing the captcha dependency
+  def hcaptcha(form: Any): Frag = raw("")
+
   def subnav(mods: Modifier*) = st.aside(cls := "subnav"):
     st.nav(cls := "subnav__inner")(mods)
 

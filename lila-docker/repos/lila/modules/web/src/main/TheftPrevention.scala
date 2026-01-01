@@ -11,11 +11,11 @@ trait TheftPrevention:
   self: lila.web.ResponseBuilder =>
 
   protected def PreventTheft(pov: Pov)(ok: => Fu[Result])(using Context): Fu[Result] =
-    if isTheft(pov) then Redirect(routes.Round.watcher(pov.gameId, pov.color))
+    if isTheft(pov) then Redirect(routes.Analyse.replay(pov.gameId.value))
     else ok
 
   protected def isTheft(pov: Pov)(using ctx: Context) =
-    pov.game.isPgnImport || pov.player.isAi || {
+    pov.game.pgnImport.isDefined || pov.player.isAi || {
       (pov.player.userId, ctx.userId) match
         case (Some(_), None) => true
         case (Some(playerUserId), Some(userId)) => playerUserId != userId
@@ -27,17 +27,19 @@ trait TheftPrevention:
   protected def isMyPov(pov: Pov)(using Context) = !isTheft(pov)
 
   protected def playablePovForReq(game: lila.core.game.Game)(using ctx: Context) =
-    (!game.isPgnImport && game.playable).so:
+    (!game.pgnImport.isDefined && game.playable).option {
       ctx.userId
         .flatMap(game.player)
-        .orElse:
+        .orElse {
           ctx.req.cookies
             .get(anonCookieName)
             .map(c => GamePlayerId(c.value))
             .flatMap(game.playerById)
             .filterNot(_.hasUser)
+        }
         .filterNot(_.isAi)
         .map { Pov(game, _) }
+    }.flatten
 
   protected lazy val theftResponse = Unauthorized(
     jsonError("This game requires authentication")

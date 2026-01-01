@@ -1,5 +1,7 @@
 package lila.security
 
+import lila.core.lilaism.Core.{ *, given }
+
 import com.roundeights.hasher.Implicits.*
 import scalalib.SecureRandom
 

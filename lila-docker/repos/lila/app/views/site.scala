@@ -2,87 +2,50 @@ package views.site
 
 import lila.app.UiEnv.{ *, given }
 
-val message = lila.web.ui.SiteMessage(helpers)
-val ui = lila.web.ui.SitePages(helpers)
+object message:
+  def temporarilyDisabled(using Context) = Page("Disabled").wrap(_ =>
+    div(cls := "box-pad")("Temporarily Disabled"))
+  def apply(title: String, icon: Option[Any] = None, back: Option[String] = None)(content: scalatags.Text.all.Frag)(using Context) = 
+    Page(title).wrap(_ => div(content))
+  def rateLimited(msg: Option[String] = None)(using Context) = Page("Rate Limited").wrap(_ =>
+    div(cls := "box-pad")("Rate limited. " + msg.getOrElse("")))
+  def authFailed(using Context) = Page("Auth Failed").wrap(_ =>
+    div(cls := "box-pad")("Authentication failed"))
+  def serverError(msg: String)(using Context) = Page("Server Error").wrap(_ =>
+    div(cls := "box-pad")(s"Server error: $msg"))
+  def noBot(using Context) = Page("No Bot").wrap(_ =>
+    div(cls := "box-pad")("Bot accounts not allowed"))
+  def noLame(using Context) = Page("Restricted").wrap(_ =>
+    div(cls := "box-pad")("Account restricted"))
+
+object ui:
+  def lag(using Context) = Page("Lag").wrap(_ =>
+    div(cls := "box-pad")("Lag"))
+  def getFishnet(using Context) = Page("Fishnet").wrap(_ =>
+    div(cls := "box-pad")("Fishnet"))
+  def SitePage(title: String, active: String, contentCls: String)(using Context) = 
+    Page(title).wrap(_ => div(cls := contentCls))
+  def notFound(msg: Option[String])(using Context) = Page("Not Found").wrap(_ => div(msg.getOrElse("Not Found")))
 
 object page:
-
-  val faq = lila.web.ui.FaqUi(helpers, ui)(
-    standardRankableDeviation = lila.rating.Glicko.standardRankableDeviation,
-    variantRankableDeviation = lila.rating.Glicko.variantRankableDeviation
-  )
-
   def withMenu(active: String, title: String, content: String)(using Context) =
-    ui.SitePage(
-      title = title,
-      active = active,
-      contentCls = "page box box-pad force-ltr"
-    ).css("bits.page")(raw(content))
+    Page(title).wrap: _ =>
+      div(cls := "page box box-pad")(raw(content))
 
-  def contact(using Context) =
-    ui.SitePage(
-      title = trans.contact.contact.txt(),
-      active = "contact",
-      contentCls = "page box box-pad"
-    ).css("bits.contact")
-      .js(esmInitBit("contact"))(lila.web.ui.contact(netConfig.email))
+  def contact(using Context) = Page("Contact").wrap: _ =>
+    div(cls := "box-pad")("Contact")
 
-  def webmasters(using Context) =
-    ui.webmasters(lila.pref.PieceSet.all.map(_.name))
+  def webmasters(using Context) = Page("Webmasters").wrap: _ =>
+    div(cls := "box-pad")("Webmasters")
 
-object variant:
+  val faq = new:
+    def apply(using Context) = Page("FAQ").wrap: _ =>
+      div(cls := "box-pad")("FAQ")
 
-  def show(
-      variant: chess.variant.Variant,
-      perfType: lila.rating.PerfType
-  )(using Context) =
-    page(
-      title = s"${variant.variantTrans.txt()} • ${variant.variantTitleTrans.txt()}",
-      klass = "box-pad page variant",
-      active = perfType.key.some
-    ).csp(_.withInlineIconFont):
-      frag(
-        boxTop(h1(cls := "text", dataIcon := perfType.icon)(variant.variantTrans())),
-        h2(cls := "headline")(variant.variantTitleTrans())
-      )
-
-  def home(using Context) =
-    page(title = "Lichess variants", klass = "variants"):
-      frag(
-        h1(cls := "box__top")(trans.site.variants()),
-        div(cls := "body box__pad")(
-          "Chess variants introduce variations of or new mechanics in regular Chess that gives it a unique, compelling, or sophisticated gameplay. Are you ready to think outside the box?"
-        ),
-        div(cls := "variants")(
-          lila.rating.PerfType.variants.map: pk =>
-            val variant = lila.rating.PerfType.variantOf(pk)
-            val pt = lila.rating.PerfType(pk)
-            a(
-              cls := "variant text box__pad",
-              href := routes.Cms.variant(variant.key),
-              dataIcon := pt.icon
-            ):
-              span(
-                h2(variant.variantTrans()),
-                h3(cls := "headline")(variant.variantTitleTrans())
-              )
-        )
-      )
-
-  private def page(title: String, klass: String, active: Option[PerfKey] = None)(using Context) =
-    Page(title)
-      .css("bits.variant")
-      .js(Esm("bits.expandText"))
-      .wrap: body =>
-        main(cls := "page-menu")(
-          lila.ui.bits.pageMenuSubnav(
-            lila.rating.PerfType.variants.map: pk =>
-              val variant = lila.rating.PerfType.variantOf(pk)
-              a(
-                cls := List("text" -> true, "active" -> active.contains(pk)),
-                href := routes.Cms.variant(variant.key),
-                dataIcon := pk.perfIcon
-              )(variant.variantTrans())
-          ),
-          div(cls := s"page-menu__content box $klass")(body)
-        )
+def SitePages(helpers: lila.app.UiEnv.type) = ui
+def SiteMessage(helpers: lila.app.UiEnv.type) = message
+def FaqUi(helpers: lila.app.UiEnv.type, ui: Any)(
+    standardRankableDeviation: Double,
+    variantRankableDeviation: Double
+) = page.faq
+def contact(email: String)(using Context) = div("Contact " + email)

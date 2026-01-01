@@ -80,7 +80,7 @@ final class Env(
   val socialInfo = new mashup.UserInfo.SocialApi(user.noteApi, pref.api)
   val userNbGames = new mashup.UserInfo.NbGamesApi(game.cached, game.crosstableApi)
   val userInfo = new mashup.UserInfo.UserInfoApi(study.studyRepo)
-  val gamePaginator = wire[mashup.GameFilterMenu.PaginatorBuilder]
+
   val pageCache = wire[http.PageCache]
 
 end Env

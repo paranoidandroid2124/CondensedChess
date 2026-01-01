@@ -1,4 +1,10 @@
+
 package lila.security
+
+import lila.core.userId.UserId
+import lila.core.security.ClearPassword
+import lila.core.lilaism.Core.{ *, given }
+import scalalib.future.extensions.*
 
 final class Cli(
     authenticator: Authenticator,

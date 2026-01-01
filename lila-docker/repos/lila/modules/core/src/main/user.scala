@@ -31,7 +31,13 @@ object user:
       def yes: Boolean = e.value
       def no: Boolean = !e.value
 
-  case class UserDelete(requested: Instant, done: Boolean = false)
+  opaque type KidMode = Boolean
+  object KidMode extends TotalWrapper[KidMode, Boolean]:
+    extension (k: KidMode)
+      def yes: Boolean = k.value
+      def no: Boolean = !k.value
+
+  case class UserDelete(id: UserId, requested: Instant, done: Boolean = false)
   case class TotpToken(value: String) extends AnyVal
 
   opaque type RoleDbKey = String
@@ -89,9 +95,11 @@ object user:
     val async: LightUser.Getter
     val sync: LightUser.GetterSync
     def invalidate(id: UserId): Unit
+    def preloadMany(ids: Seq[UserId]): Fu[Unit] = scala.concurrent.Future.unit
 
   abstract class UserRepo:
     def byId[U: UserIdOf](u: U): Fu[Option[lila.core.user.User]]
+    def autocomplete(term: String): Fu[List[String]]
 
   object BSONFields:
     val enabled = "enabled"
@@ -102,6 +110,7 @@ object user:
     val bpass = "bpass"
     val salt = "salt"
     val sha512 = "sha512"
+    val email = "email"
 
   /* User who is currently logged in */
   opaque type Me = lila.core.user.User

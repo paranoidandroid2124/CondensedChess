@@ -64,7 +64,7 @@ object PlanMatcher:
       case m: PawnAdvance   => m.file.isKingside
       case m: RookLift      => m.file.isKingside
       case m: Motif.Check   => m.targetSquare.file.isKingside
-      case m: PieceLift     => true
+      case _: PieceLift     => true
       case m: Fork          => m.targets.contains(King)
       case _                => false
 
@@ -165,8 +165,8 @@ object PlanMatcher:
   ): Option[PlanMatch] =
     val relevantMotifs = motifs.filter:
       case m: PawnAdvance    => m.file.isCentral
-      case m: Centralization => true
-      case m: Outpost        => true
+      case _: Centralization => true
+      case _: Outpost        => true
       case _                 => false
 
     if (relevantMotifs.isEmpty) None
@@ -183,14 +183,14 @@ object PlanMatcher:
 
   private def scorePieceActivation(
       motifs: List[Motif],
-      ctx: IntegratedContext,
+      _ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val relevantMotifs = motifs.filter:
-      case m: Fianchetto     => true
-      case m: Outpost        => true
-      case m: Centralization => true
-      case m: PieceLift      => true
+      case _: Fianchetto     => true
+      case _: Outpost        => true
+      case _: Centralization => true
+      case _: PieceLift      => true
       case _                 => false
 
     if (relevantMotifs.size < 2) None
@@ -203,7 +203,7 @@ object PlanMatcher:
 
   private def scoreRookActivation(
       motifs: List[Motif],
-      ctx: IntegratedContext,
+      _ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val rookMotifs = motifs.collect { 
@@ -260,7 +260,7 @@ object PlanMatcher:
 
   private def scorePromotion(
       motifs: List[Motif],
-      ctx: IntegratedContext,
+      _ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val promoMotifs = motifs.collect { case m: PawnPromotion => m }
@@ -277,13 +277,13 @@ object PlanMatcher:
 
   private def scoreDefensiveConsolidation(
       motifs: List[Motif],
-      ctx: IntegratedContext,
+      _ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val defensiveMotifs = motifs.filter:
       case m: KingStep if m.stepType == KingStepType.ToCorner => true
       case m: KingStep if m.stepType == KingStepType.Evasion => true
-      case m: Castling => true
+      case _: Castling => true
       case m: Capture if m.captureType == CaptureType.Exchange => true
       case _ => false
 

@@ -6,6 +6,12 @@ import scala.concurrent.{ ExecutionContext, Future }
 /** High-level API for LLM commentary features */
 final class LlmApi(client: LlmClient)(using ec: ExecutionContext):
 
+  def commentPosition(req: CommentRequest): Future[Option[CommentResponse]] = 
+    client.commentPosition(req)
+
+  def analyzeGame(req: FullAnalysisRequest): Future[Option[FullAnalysisResponse]] = 
+    client.analyzeGame(req)
+
   /** Generate commentary for a single position (real-time analysis) */
   def commentPosition(
       fen: String,
@@ -34,6 +40,9 @@ final class LlmApi(client: LlmClient)(using ec: ExecutionContext):
       evals = evals,
       options = AnalysisOptions(style, focusOn)
     ))
+
+  def analyzeGameLocal(req: FullAnalysisRequest): Future[Option[FullAnalysisResponse]] =
+    client.analyzeGameLocal(req)
 
   /** Quick comment for a critical moment */
   def criticalMomentComment(
