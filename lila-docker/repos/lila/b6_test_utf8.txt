@@ -1,0 +1,17 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\test-classes ...
+[error] -- [E171] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\NarrativeContextBuilderTest.scala:661:37 
+[error] 661 |      missedMotifs = List(Motif.Check(color = Color.Black, plyIndex = 1)),
+[error]     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |missing argument for parameter piece of method apply in object Check: (piece: chess.Role, targetSquare: chess.Square,
+[error]     |  checkType: lila.llm.model.Motif.CheckType, color: chess.Color, plyIndex: Int,
+[error]     |  move: Option[String]): lila.llm.model.Motif.Check
+[error] one error found
+[error] (Test / compileIncremental) Compilation failed
+[error] Total time: 11 s, completed 2026. 1. 5. 오전 10:49:33

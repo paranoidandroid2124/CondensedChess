@@ -16,7 +16,8 @@ trait StrategicFeatureExtractor {
 case class BaseAnalysisData(
     nature: PositionNature,
     motifs: List[Motif],
-    plans: List[PlanMatch]
+    plans: List[PlanMatch],
+    planSequence: Option[lila.llm.model.PlanSequence] = None
 )
 
 case class AnalysisMetadata(

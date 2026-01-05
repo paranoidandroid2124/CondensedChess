@@ -213,7 +213,11 @@ class StrategicFeatureExtractorImpl(
       // DEBT 4: Populate concept summary from detected features
       conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, positionalFeatures, endgameFeatures),
       prevMove = metadata.prevMove,
-      ply = metadata.ply
+      ply = metadata.ply,
+      evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
+      isWhiteToMove = color.white,
+      phase = baseData.nature.natureType.toString.toLowerCase,
+      planSequence = baseData.planSequence
     )
   }
   

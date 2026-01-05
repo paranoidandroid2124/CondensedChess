@@ -9,6 +9,7 @@ case class VariationLine(
     moves: List[String],
     scoreCp: Int,
     mate: Option[Int] = None,
+    depth: Int = 0,
     resultingFen: Option[String] = None,
     tags: List[VariationTag] = Nil
 ):

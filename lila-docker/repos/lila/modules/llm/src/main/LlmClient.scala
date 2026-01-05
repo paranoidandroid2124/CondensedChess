@@ -7,6 +7,8 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 
+import lila.llm.model.{ProbeRequest, ProbeResult}
+
 /** LLM Client for Gemini API integration.
   * Provides chess commentary generation.
   */
@@ -17,33 +19,47 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
   /** Generate commentary for a single position */
   def commentPosition(request: CommentRequest): Future[Option[CommentResponse]] =
     if !config.enabled then Future.successful(None)
+    else if (request.probeResults.nonEmpty) then
+      commentPositionRefined(request, request.probeResults)
     else
-      val prompt = buildPrompt(request)
-      val vars = request.eval.fold(Nil): e =>
-        if e.variations.nonEmpty then
-          e.variations.map: v =>
-            lila.llm.model.strategic.VariationLine(
-              moves = v.moves,
-              scoreCp = v.scoreCp,
-              mate = v.mate,
-              tags = Nil
-            )
-        else
-          e.pv.getOrElse(Nil) match
-            case Nil => Nil
-            case moves =>
-              List(
-                lila.llm.model.strategic.VariationLine(
-                  moves = moves,
-                  scoreCp = e.cp,
-                  mate = e.mate,
-                  resultingFen = Some(lila.llm.analysis.NarrativeUtils.uciListToFen(request.fen, moves)),
-                  tags = Nil
-                )
-              )
+      val (prompt, probeReqs) = buildPrompt(request)
+      val vars = buildVariations(request)
       
       callGemini(prompt).map: textOpt =>
-        parseCommentResponse(textOpt).map(_.copy(variations = vars))
+        parseCommentResponse(textOpt).map(_.copy(
+          variations = vars,
+          probeRequests = probeReqs
+        ))
+
+  /** Generate commentary enriched with probe results */
+  def commentPositionRefined(request: CommentRequest, probeResults: List[lila.llm.model.ProbeResult]): Future[Option[CommentResponse]] =
+    if !config.enabled then Future.successful(None)
+    else
+      // 1. Recalculate expected probes for stateless validation
+      val variations = buildVariations(request)
+      val extendedData = lila.llm.analysis.CommentaryEngine.assessExtended(
+        fen = request.fen,
+        variations = variations,
+        playedMove = request.lastMove,
+        opening = request.context.opening,
+        phase = Some(request.context.phase),
+        ply = request.context.ply,
+        prevMove = request.lastMove
+      )
+      
+      val expectedRequests = extendedData.map(d => lila.llm.analysis.NarrativeContextBuilder.build(d, d.toContext, None).probeRequests).getOrElse(Nil)
+      val expectedMoves = expectedRequests.flatMap(_.moves).toSet
+      
+      // 2. Filter valid results (security: only allow results for moves we actually requested)
+      val validResults = probeResults.filter(pr => pr.probedMove.exists(expectedMoves.contains))
+      
+      if (validResults.isEmpty) then 
+        // fallback to normal if no valid probes
+        commentPosition(request.copy(probeResults = Nil))
+      else
+        val prompt = buildRefinedPrompt(request, validResults, extendedData)
+        callGemini(prompt).map: textOpt =>
+          parseCommentResponse(textOpt).map(_.copy(variations = variations))
 
   /** Generate full game analysis commentary */
   def analyzeGame(request: FullAnalysisRequest): Future[Option[FullAnalysisResponse]] =
@@ -107,12 +123,77 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
     
     Future.successful(Some(response))
 
-  private def buildPrompt(req: CommentRequest): String =
+  private def buildPrompt(req: CommentRequest): (String, List[ProbeRequest]) =
     val evalStr = req.eval.map(e => s"cp=${e.cp}, mate=${e.mate.getOrElse("none")}").getOrElse("unknown")
     val openingStr = req.context.opening.getOrElse("Unknown")
     val lastMoveStr = req.lastMove.getOrElse("(game start)")
+    
+    val variations: List[lila.llm.model.strategic.VariationLine] = buildVariations(req)
+    
+    // Phase 2: Use Extended Assessment with Semantic Layer
+    val extendedData = lila.llm.analysis.CommentaryEngine.assessExtended(
+      fen = req.fen,
+      variations = variations,
+      playedMove = req.lastMove,
+      opening = req.context.opening,
+      phase = Some(req.context.phase),
+      ply = req.context.ply,
+      prevMove = req.lastMove
+    )
 
-    val variations: List[lila.llm.model.strategic.VariationLine] = req.eval.fold(Nil): e =>
+    val narrativeCtx = extendedData.map(d => lila.llm.analysis.NarrativeContextBuilder.build(d, d.toContext, None))
+    val enrichedContext = narrativeCtx.map(ctx => lila.llm.NarrativeGenerator.describeHierarchical(ctx)).getOrElse("Analysis unavailable.")
+    val probeRequests = narrativeCtx.map(_.probeRequests).getOrElse(Nil)
+
+    val prompt = s"""You are a specialized chess coach and author providing deep insights.
+
+## POSITION INFO
+- FEN: ${req.fen}
+- Last Move: $lastMoveStr
+- Evaluation: $evalStr
+- Opening: $openingStr
+- Phase: ${req.context.phase} (Ply: ${req.context.ply})
+
+## EXPERT SEMANTIC ANALYSIS
+$enrichedContext
+
+## RULES
+- Write a detailed, engaging paragraph (3-5 sentences) in **Chess Book style**.
+- Use **bold** for key moves and concepts.
+- Focus strictly on the STRATEGIC FACTORS identified above.
+- If the move was a mistake, explicitly compare it to the better **Alternatives** listed in the analysis.
+- Connect the last move to the practical assessment (e.g., "White ignores the threat...").
+- Do NOT hallucinate.
+
+Output JSON: {"commentary": "...", "concepts": ["..."]}"""
+    (prompt, probeRequests)
+
+  private def buildRefinedPrompt(req: CommentRequest, probeResults: List[ProbeResult], extendedData: Option[lila.llm.model.ExtendedAnalysisData]): String =
+    val narrativeCtx = extendedData.map(d => lila.llm.analysis.NarrativeContextBuilder.build(d, d.toContext, None, probeResults))
+    val enrichedContext = narrativeCtx.map(ctx => lila.llm.NarrativeGenerator.describeHierarchical(ctx)).getOrElse("Analysis unavailable.")
+
+    s"""You are a specialized chess coach and author providing deep insights.
+       |Enriched with verified engine evidence for alternative lines.
+       |
+       |## POSITION INFO
+       |- FEN: ${req.fen}
+       |- Last Move: ${req.lastMove.getOrElse("(start)")}
+       |- Evaluation: ${req.eval.map(e => s"cp=${e.cp}").getOrElse("?")}
+       |- Opening: ${req.context.opening.getOrElse("Unknown")}
+       |- Phase: ${req.context.phase}
+       |
+       |## EXPERT SEMANTIC ANALYSIS (INCLUDING PROBE EVIDENCE)
+       |$enrichedContext
+       |
+       |## RULES
+       |- Write a final, definitive book-style commentary.
+       |- Use the "WhyNot" evidence to explain why specific alternatives (Ghost Plans) fail.
+       |- Be authoritative and instructive.
+       |- Output JSON: {"commentary": "...", "concepts": ["..."]}
+       |""".stripMargin
+
+  private def buildVariations(req: CommentRequest): List[lila.llm.model.strategic.VariationLine] =
+    req.eval.fold(Nil): e =>
       if e.variations.nonEmpty then
         e.variations.map: v =>
           lila.llm.model.strategic.VariationLine(
@@ -134,41 +215,6 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
                 tags = Nil
               )
             )
-    
-    // Phase 2: Use Extended Assessment with Semantic Layer
-    val extendedData = lila.llm.analysis.CommentaryEngine.assessExtended(
-      fen = req.fen,
-      variations = variations,
-      playedMove = req.lastMove,
-      opening = req.context.opening,
-      phase = Some(req.context.phase),
-      ply = req.context.ply,
-      prevMove = req.lastMove
-    )
-
-    val enrichedContext = extendedData.map(d => lila.llm.NarrativeGenerator.describeExtended(d)).getOrElse("Analysis unavailable.")
-
-    s"""You are a specialized chess coach and author providing deep insights.
-
-## POSITION INFO
-- FEN: ${req.fen}
-- Last Move: $lastMoveStr
-- Evaluation: $evalStr
-- Opening: $openingStr
-- Phase: ${req.context.phase} (Ply: ${req.context.ply})
-
-## EXPERT SEMANTIC ANALYSIS
-$enrichedContext
-
-## RULES
-- Write a detailed, engaging paragraph (3-5 sentences) in **Chess Book style**.
-- Use **bold** for key moves and concepts.
-- Focus strictly on the STRATEGIC FACTORS identified above.
-- If the move was a mistake, explicitly compare it to the better **Alternatives** listed in the analysis.
-- Connect the last move to the practical assessment (e.g., "White ignores the threat...").
-- Do NOT hallucinate.
-
-Output JSON: {"commentary": "...", "concepts": ["..."]}"""
 
   private def buildFullAnalysisPrompt(req: FullAnalysisRequest, semantic: List[lila.llm.model.ExtendedAnalysisData]): String =
     val movesText = req.evals.map { e =>
@@ -287,7 +333,8 @@ case class CommentRequest(
     fen: String,
     lastMove: Option[String],
     eval: Option[EvalData],
-    context: PositionContext
+    context: PositionContext,
+    probeResults: List[ProbeResult] = Nil // NEW: for refined commentary
 )
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]
@@ -295,12 +342,13 @@ object CommentRequest:
 case class CommentResponse(
     commentary: String, 
     concepts: List[String],
-    variations: List[lila.llm.model.strategic.VariationLine] = Nil
+    variations: List[lila.llm.model.strategic.VariationLine] = Nil,
+    probeRequests: List[ProbeRequest] = Nil // NEW: for client-side probing
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]
 
-case class AnalysisVariation(moves: List[String], scoreCp: Int, mate: Option[Int])
+case class AnalysisVariation(moves: List[String], scoreCp: Int, mate: Option[Int], depth: Int = 0)
 object AnalysisVariation:
   given Reads[AnalysisVariation] = Json.reads[AnalysisVariation]
   given Writes[AnalysisVariation] = Json.writes[AnalysisVariation]
@@ -312,6 +360,7 @@ case class MoveEval(
     fen: Option[String] = None,
     cp: Int = 0, 
     mate: Option[Int] = None,
+    depth: Int = 0,
     best: Option[String] = None,  // UCI of best move
     variation: Option[String] = None, // Space-separated UCI moves
     pv: List[String] = Nil,
@@ -321,7 +370,7 @@ case class MoveEval(
   def getVariations: List[AnalysisVariation] =
     if variations.nonEmpty then variations
     else variation.map { v =>
-      List(AnalysisVariation(v.split(" ").toList, cp, mate))
+      List(AnalysisVariation(v.split(" ").toList, cp, mate, depth))
     }.getOrElse(Nil)
 
 object MoveEval:
@@ -334,11 +383,12 @@ object MoveEval:
       // Check if eval is nested: { eval: { cp, mate, best, variation } }
       val evalObj = (json \ "eval").toOption
       
-      val (cp, mate, best, variation) = evalObj match
+      val (cp, mate, depth, best, variation) = evalObj match
         case Some(e) =>
           (
             (e \ "cp").asOpt[Int].getOrElse(0),
             (e \ "mate").asOpt[Int],
+            (e \ "depth").asOpt[Int].getOrElse(0),
             (e \ "best").asOpt[String],
             (e \ "variation").asOpt[String]
           )
@@ -347,6 +397,7 @@ object MoveEval:
           (
             (json \ "cp").asOpt[Int].getOrElse(0),
             (json \ "mate").asOpt[Int],
+            (json \ "depth").asOpt[Int].getOrElse(0),
             (json \ "best").asOpt[String],
             (json \ "variation").asOpt[String]
           )
@@ -354,7 +405,7 @@ object MoveEval:
       val pv = (json \ "pv").asOpt[List[String]].getOrElse(Nil)
       val variations = (json \ "variations").asOpt[List[AnalysisVariation]].getOrElse(Nil)
       
-      JsSuccess(MoveEval(ply, fen, cp, mate, best, variation, pv, variations))
+      JsSuccess(MoveEval(ply, fen, cp, mate, depth, best, variation, pv, variations))
 
 case class AnalysisOptions(style: String = "balanced", focusOn: List[String] = Nil)
 object AnalysisOptions:

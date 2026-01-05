@@ -1,0 +1,24 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\test-classes ...
+[error] -- [E171] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\NarrativeContextBuilderTest.scala:792:33 
+[error] 792 |    val cand1 = AnalyzedCandidate(
+[error]     |                ^
+[error]     |missing argument for parameter prophylaxisResults of method apply in object AnalyzedCandidate: (move: String, score: Int, motifs: List[lila.llm.model.Motif],
+[error]     |  prophylaxisResults: List[lila.llm.model.strategic.PreventedPlan],
+[error]     |  futureContext: String, line: lila.llm.model.strategic.VariationLine):
+[error]     |  lila.llm.model.strategic.AnalyzedCandidate
+[error] 793 |      move = "e2e4",
+[error] 794 |      score = 30,
+[error] 795 |      futureContext = "Center",
+[error] 796 |      motifs = Nil,
+[error] 797 |      line = VariationLine(List("e2e4", "e7e5"), 30, None, None, Nil)
+[error] 798 |    )
+[error] one error found
+[error] (Test / compileIncremental) Compilation failed
+[error] Total time: 10 s, completed 2026. 1. 5. 오전 11:48:41

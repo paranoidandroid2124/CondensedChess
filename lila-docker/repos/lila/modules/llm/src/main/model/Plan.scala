@@ -5,7 +5,20 @@ import chess.Color
 case class PlanScoringResult(
     topPlans: List[PlanMatch],
     confidence: Double,
-    phase: String // Opening, Middlegame, Endgame
+    phase: String, // Opening, Middlegame, Endgame
+    compatibilityEvents: List[CompatibilityEvent] = Nil // A4 Trace
+)
+
+/**
+ * A4: Compatibility event tracking for debugging suppressed/adjusted plans.
+ */
+case class CompatibilityEvent(
+  planName: String,
+  originalScore: Double,
+  finalScore: Double,
+  delta: Double,
+  reason: String,          // e.g. "conflict: attack ⟂ simplification"
+  eventType: String        // "downweight" | "removed" | "boosted"
 )
 
 case class PlanMatch(
@@ -34,9 +47,10 @@ sealed trait Plan:
   def id: PlanId
   def name: String
   def category: PlanCategory
+  def color: Color
 
 enum PlanCategory:
-  case Attack, Positional, Structural, Endgame, Defensive
+  case Attack, Positional, Structural, Endgame, Defensive, Transition
 
 object Plan:
 
@@ -180,14 +194,64 @@ object Plan:
     val name = s"$where Counterplay"
     val category = PlanCategory.Defensive
 
+  // ============================================================
+  // TRANSITION PLANS
+  // ============================================================
+
+  case class Simplification(color: Color) extends Plan:
+    val id = PlanId.Simplification
+    val name = "Simplification into Endgame"
+    val category = PlanCategory.Transition
+
+  case class QueenTrade(color: Color) extends Plan:
+    val id = PlanId.QueenTrade
+    val name = "Trading Queens"
+    val category = PlanCategory.Transition
+
+  // ============================================================
+  // ADDITIONAL PLANS (PHASE 4 EXPANSION)
+  // ============================================================
+
+  case class Blockade(color: Color, square: String) extends Plan:
+    val id = PlanId.Blockade
+    val name = s"Blockade on $square"
+    val category = PlanCategory.Structural
+
+  case class PawnChain(color: Color) extends Plan:
+    val id = PlanId.PawnChain
+    val name = "Pawn Chain Maintenance"
+    val category = PlanCategory.Structural
+
+  case class MinorityAttack(color: Color) extends Plan:
+    val id = PlanId.MinorityAttack
+    val name = "Minority Attack"
+    val category = PlanCategory.Structural
+
+  case class SpaceAdvantage(color: Color) extends Plan:
+    val id = PlanId.SpaceAdvantage
+    val name = "Exploiting Space Advantage"
+    val category = PlanCategory.Positional
+
+  case class Zugzwang(color: Color) extends Plan:
+    val id = PlanId.Zugzwang
+    val name = "Inducing Zugzwang"
+    val category = PlanCategory.Endgame
+
+  case class Sacrifice(color: Color, piece: String) extends Plan:
+    val id = PlanId.Sacrifice
+    val name = s"$piece Sacrifice"
+    val category = PlanCategory.Attack
+
 enum PlanId:
   // Attack
-  case KingsideAttack, QueensideAttack, CentralBreakthrough, PawnStorm, PerpetualCheck, DirectMate
+  case KingsideAttack, QueensideAttack, CentralBreakthrough, PawnStorm, PerpetualCheck, DirectMate, Sacrifice
   // Positional
-  case CentralControl, PieceActivation, MinorPieceManeuver, RookActivation, FileControl
+  case CentralControl, PieceActivation, MinorPieceManeuver, RookActivation, FileControl, SpaceAdvantage
   // Structural
-  case PassedPawnCreation, PassedPawnPush, WeakPawnAttack, PawnBreakPreparation
+  case PassedPawnCreation, PassedPawnPush, WeakPawnAttack, PawnBreakPreparation, Blockade, PawnChain, MinorityAttack
   // Endgame
-  case KingActivation, Opposition, Triangulation, Promotion, Fortress
+  case KingActivation, Opposition, Triangulation, Promotion, Fortress, Zugzwang
   // Defensive
   case DefensiveConsolidation, Prophylaxis, Exchange, Counterplay
+  // Transition
+  case Simplification, QueenTrade

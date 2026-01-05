@@ -2,6 +2,7 @@ package lila.llm
 
 import lila.llm.model.*
 import lila.llm.model.Motif.{ *, given }
+import lila.llm.analysis.*
 
 import _root_.chess.*
 
@@ -141,6 +142,7 @@ enum PositionalTag:
   case BishopPairAdvantage(side: Color)
   case BadBishop(side: Color)
   case GoodBishop(side: Color)
+  case Battery(side: Color)
 
   def toSnakeCase: String = this match
     case OpenFile(f, c) => s"${c.name.toLowerCase}_open_${f}_file"
@@ -165,6 +167,7 @@ enum PositionalTag:
     case BishopPairAdvantage(c) => s"${c.name.toLowerCase}_bishop_pair_advantage"
     case BadBishop(c) => s"${c.name.toLowerCase}_bad_bishop"
     case GoodBishop(c) => s"${c.name.toLowerCase}_good_bishop"
+    case Battery(c) => s"${c.name.toLowerCase}_battery"
 
 case class ConceptLabels(
     structureTags: List[StructureTag] = Nil,
@@ -220,7 +223,7 @@ object ConceptLabeler:
     val tactics = labelTactics(evalBefore, evalAfter, bestEval, motifs)
     val mistakes = labelMistakes(evalBefore, evalAfter, bestEval)
     val endgame = labelEndgame(features, evalBefore, bestEval)
-    val positional = labelPositional(pos, pos.color, features)
+    val positional = labelPositional(pos, pos.color, features, motifs)
 
     ConceptLabels(
       structureTags = structure,
@@ -266,8 +269,14 @@ object ConceptLabeler:
     if phase == "endgame" then
       tags += PlanTag.KingActivationGood
 
-    if features.pawns.whitePassedPawns > 0 || features.pawns.blackPassedPawns > 0 then
-      if phase == "endgame" then tags += PlanTag.PromotionThreat
+    // FIX: PromotionThreat must be color-aware with STRICT rank conditions
+    // L1 normalizes passedPawnRank: higher value = closer to promotion for BOTH colors
+    // We want pawns that are very close to promotion (White rank >= 6, Black rank <= 3, normalized >= 5)
+    if phase == "endgame" then
+      val wPassedNearPromotion = features.pawns.whitePassedPawns > 0 && features.pawns.whitePassedPawnRank >= 5
+      val bPassedNearPromotion = features.pawns.blackPassedPawns > 0 && features.pawns.blackPassedPawnRank >= 5
+      if wPassedNearPromotion then tags += PlanTag.PromotionThreat
+      if bPassedNearPromotion then tags += PlanTag.PromotionThreat
 
     val evalGain = evalAfter - evalBefore
     if evalGain > SUCCESS_THRESHOLD_CP then
@@ -301,6 +310,7 @@ object ConceptLabeler:
       case _: BackRankMate => tags += TacticTag.BackRankMatePattern
       case _: Overloading => tags += TacticTag.OverloadingSound
       case _: Interference => tags += TacticTag.InterferenceSound
+      case _: Clearance => tags += TacticTag.ClearanceSound
       case _ => ()
     }
 
@@ -351,7 +361,8 @@ object ConceptLabeler:
   def labelPositional(
       position: Position,
       perspective: Color,
-      features: PositionFeatures
+      features: PositionFeatures,
+      motifs: List[Motif]
   ): List[PositionalTag] =
     val board = position.board
     val tags = List.newBuilder[PositionalTag]
@@ -398,6 +409,13 @@ object ConceptLabeler:
         tags += PositionalTag.DryPosition
       case _ => ()
 
+    // Battery Detection
+    motifs.collect {
+      case Motif.Battery(_, _, _, c, _, _) => c
+    }.distinct.foreach { c =>
+      tags += PositionalTag.Battery(c)
+    }
+
     tags.result().distinct
 
   // ============================================================
@@ -422,13 +440,49 @@ object ConceptLabeler:
 
   private def detectWeakSquares(board: Board, color: Color): List[Square] =
     val pawns = board.pawns & board.byColor(color)
+    // FIX: If no pawns for this color, no weak squares can be defined
+    if (pawns.isEmpty) return Nil
+    
+    // Check relevant ranks (5th/6th for Black's weak squares from White's perspective)
+    // If color=Black (opponent), we look for holes in Black's camp
     val rank34 = if color == Color.White then Rank.Third.bb | Rank.Fourth.bb else Rank.Sixth.bb | Rank.Fifth.bb
     val relevantSquares = rank34 & ~pawns
     
+    // Key central squares only
+    val centralFiles = Bitboard.file(File.C) | Bitboard.file(File.D) | Bitboard.file(File.E) | Bitboard.file(File.F)
+    
     relevantSquares.squares.filter { sq =>
-      val protectedByPawn = (sq.pawnAttacks(!color) & pawns).nonEmpty
-      !protectedByPawn
-    }.take(3)
+      // EXPLICIT PAWN DEFENSE CHECK - Structural Hole Logic
+      val r = sq.rank.value
+      val f = sq.file.value
+      
+      val (defRank, pushRank) = if color == Color.White 
+        then (r - 1, r - 2)  // White defenders are below
+        else (r + 1, r + 2)  // Black defenders are above
+        
+      val adjFiles = List(f - 1, f + 1).filter(v => v >= 0 && v <= 7)
+      
+      val isDefendedNow = adjFiles.exists { af =>
+        Square.at(af, defRank).exists(s => pawns.contains(s))
+      }
+      
+      val isDefendableLater = adjFiles.exists { af =>
+        val pushSq = Square.at(af, defRank)  // e.g. e6
+        val originSq = Square.at(af, pushRank) // e.g. e7
+        
+        // Check if pawn exists at origin AND path is clear (pushSq empty)
+        originSq.exists(s => pawns.contains(s)) && pushSq.exists(s => !board.occupied.contains(s))
+      }
+      
+      val isCentral = centralFiles.contains(sq)
+      val isWeak = !isDefendedNow && !isDefendableLater && isCentral
+      
+      if (isWeak) {
+        println(s"[DEBUG] WeakSquare($sq, $color): DefendedNow=$isDefendedNow, DefendableLater=$isDefendableLater")
+      }
+      
+      isWeak
+    }.take(2)
 
   private def detectAbuseOfOpenFiles(board: Board, color: Color): List[File] =
     val rooks = board.rooks & board.byColor(color)
@@ -450,12 +504,16 @@ object ConceptLabeler:
     }
 
   private def detectLoosePieces(board: Board, color: Color): List[Square] =
+    // Get pieces of the specified color (excluding king and pawns)
     val ourPieces = (board.byColor(color) ^ board.kings) & ~board.pawns
     
     ourPieces.squares.filter { sq =>
-      val attackers = board.attackers(sq, !color)
-      val defenders = board.attackers(sq, color)
-      attackers.nonEmpty && defenders.isEmpty
+      // Verify piece actually belongs to this color
+      board.colorAt(sq).contains(color) && {
+        val attackers = board.attackers(sq, !color)
+        val defenders = board.attackers(sq, color)
+        attackers.nonEmpty && defenders.isEmpty
+      }
     }
 
   private def rookOnSeventh(board: Board, color: Color): Boolean =

@@ -1,0 +1,137 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\test-classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:4:22 
+[warn] 4 |import lila.llm.model.*
+[warn]   |                      ^
+[warn]   |                      unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:21 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                     ^^^^^
+[warn]   |                     unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:28 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                            ^^^^^
+[warn]   |                            unused import
+[warn] three warnings found
+[info] done compiling
+
+=== TEST: IQP White ===
+FEN: rnbqk2r/pp2bppp/4pn2/8/3P4/2N2N2/PP3PPP/R1BQ1RK1 w KQkq - 0 8
+Structure: List(IqpWhite)
+Plans: List(CentralControlGood)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), BadBishop(White), DryPosition)
+
+=== TEST: Hanging Pawns White ===
+FEN: r2q1rk1/p4ppp/1p2pn2/8/2PP4/5N2/P4PPP/R2Q1RK1 w - - 0 14
+Structure: List(HangingPawnsWhite)
+Plans: List(CentralControlGood)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), DryPosition)
+
+=== TEST: King Exposed ===
+FEN: 8/8/8/8/8/8/8/4K3 w - - 0 1
+Structure: List(KingExposedWhite)
+Plans: List(KingActivationGood)
+Tactics: List()
+Positional: List(DynamicPosition)
+
+=== TEST: Open d-file ===
+FEN: r4rk1/ppp2ppp/2n5/4p3/8/2NR1N2/PPP2PPP/3R2K1 w - - 0 1
+Structure: List()
+Plans: List(CentralControlGood)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), OpenFile(d,White), DryPosition)
+
+=== TEST: Battery White ===
+FEN: 3k4/8/8/8/8/8/3R4/3Q3K w - - 0 1
+Structure: List(KingExposedWhite, KingExposedBlack)
+Plans: List(KingActivationGood)
+Tactics: List()
+Positional: List(OpenFile(d,White), DynamicPosition, Battery(White))
+
+=== TEST: Weak Back Rank ===
+FEN: 1R4k1/5ppp/8/8/8/8/8/6K1 w - - 0 1
+Structure: List(KingExposedWhite)
+Plans: List(KingActivationGood, PromotionThreat)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), OpenFile(b,White), WeakBackRank(Black), DynamicPosition)
+
+=== TEST: Bad Bishop ===
+FEN: 8/8/8/3P4/8/2B5/1P1P1P1P/4K3 w - - 0 1
+Structure: List()
+Plans: List(KingActivationGood, PromotionThreat)
+Tactics: List()
+Positional: List(BadBishop(White))
+
+=== TEST: Bishop Pair ===
+FEN: r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1
+Structure: List()
+Plans: List(CentralControlGood)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), BishopPairAdvantage(White), DryPosition)
+
+=== TEST: Clearance ===
+FEN: 3k4/8/8/8/3R4/8/8/3Q3K w - - 0 1
+Structure: List(KingExposedWhite, KingExposedBlack)
+Plans: List(KingActivationGood, PieceActivationGood)
+Tactics: List(DiscoveredAttackSound)
+Positional: List(OpenFile(d,White), DynamicPosition)
+
+=== TEST: Discovered Check ===
+FEN: 4k3/8/8/4B3/8/8/4R3/4K3 w - - 0 1
+Structure: List(KingExposedWhite, KingExposedBlack)
+Plans: List(KingActivationGood, PieceActivationGood)
+Tactics: List(DiscoveredAttackSound)
+Positional: List(OpenFile(e,White), DynamicPosition)
+
+=== TEST: Pin ===
+FEN: rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 1
+Structure: List()
+Plans: List(CentralControlGood, PieceActivationGood)
+Tactics: List(PinSound)
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), DryPosition)
+
+=== TEST: Fork ===
+FEN: r1bqkb1r/pppp1ppp/2n2n2/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1
+Structure: List()
+Plans: List(CentralControlGood, PieceActivationGood)
+Tactics: List(ForkSound)
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), DryPosition)
+
+=== TEST: Central Control ===
+FEN: r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4
+Structure: List()
+Plans: List(CentralControlGood)
+Tactics: List()
+Positional: List(WeakSquare(c5,Black), WeakSquare(d5,Black), DryPosition)
+
+=== TEST: Promotion ===
+FEN: 8/P7/8/2k5/8/5b2/4K3/8 w - - 0 1
+Structure: List(KingExposedWhite, KingExposedBlack)
+Plans: List(KingActivationGood, PromotionThreat)
+Tactics: List()
+Positional: List(LoosePiece(f3,Black), DynamicPosition)
+[32mlila.llm.analysis.Layer2VerificationTest:[0m
+[32m  + [0m[32mSTRUCTURE: IQP[0m [90m0.632s[0m
+[32m  + [0m[32mSTRUCTURE: Hanging Pawns[0m [90m0.01s[0m
+[32m  + [0m[32mSTRUCTURE: King Exposed[0m [90m0.004s[0m
+[32m  + [0m[32mPOSITIONAL: Open File[0m [90m0.011s[0m
+[32m  + [0m[32mPOSITIONAL: Battery[0m [90m0.01s[0m
+[32m  + [0m[32mPOSITIONAL: Weak Back Rank (Opponent)[0m [90m0.009s[0m
+[32m  + [0m[32mPOSITIONAL: Bad Bishop[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Bishop Pair[0m [90m0.009s[0m
+[32m  + [0m[32mTACTIC: Clearance[0m [90m0.102s[0m
+[32m  + [0m[32mTACTIC: Discovered Attack[0m [90m0.003s[0m
+[32m  + [0m[32mTACTIC: Pin[0m [90m0.022s[0m
+[32m  + [0m[32mTACTIC: Fork[0m [90m0.047s[0m
+[32m  + [0m[32mPLAN: Central Control[0m [90m0.004s[0m
+[32m  + [0m[32mPLAN: Promotion Threat[0m [90m0.005s[0m
+[info] Passed: Total 14, Failed 0, Errors 0, Passed 14
+[success] Total time: 10 s, completed 2026. 1. 2. 오후 7:11:40

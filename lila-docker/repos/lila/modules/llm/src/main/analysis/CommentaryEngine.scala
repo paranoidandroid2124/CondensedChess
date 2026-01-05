@@ -4,6 +4,8 @@ import _root_.chess.*
 import _root_.chess.format.Uci
 import lila.llm.model.*
 import lila.llm.model.strategic.{FullGameNarrative, MomentNarrative, GameMetadata, VariationLine}
+import lila.llm.analysis.L3.*
+import lila.llm.analysis.PositionAnalyzer
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
 
 /**
@@ -44,31 +46,77 @@ object CommentaryEngine:
       opening: Option[String] = None,
       phase: Option[String] = None
   ): Option[PositionAssessment] =
-    _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).map { initialPos =>
-      val motifs = MoveAnalyzer.tokenizePv(fen, pv)
-      
-      val lastPos = pv.foldLeft(initialPos) { (p, uciStr) =>
-        Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
+    _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
+      PositionAnalyzer.extractFeatures(fen, 1).map { features =>
+        val motifs = MoveAnalyzer.tokenizePv(fen, pv)
+        
+        val lastPos = pv.foldLeft(initialPos) { (p, uciStr) =>
+          Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
+        }
+
+        val nature = PositionCharacterizer.characterize(lastPos)
+        val currentPhase = determinePhase(lastPos)
+        
+        // L3 Phase 1: Classification
+        val dummyPv = List(PvLine(pv, 0, None, 0))
+        val classification = PositionClassifier.classify(
+          features = features,
+          multiPv = dummyPv,
+          currentEval = 0,
+          tacticalMotifsCount = motifs.size
+        )
+
+        // L3 Phase 2: Threat Analysis (Dual Perspective)
+        val ownThreats = ThreatAnalyzer.analyze(
+           motifs = motifs,
+           multiPv = dummyPv,
+           phase1 = classification,
+           sideToMove = lastPos.color.name
+        )
+        val oppThreats = ThreatAnalyzer.analyze(
+           motifs = motifs,
+           multiPv = dummyPv,
+           phase1 = classification,
+           sideToMove = (!lastPos.color).name
+        )
+        
+        // L3 Phase 3: Break & Pawn Play (Dual Perspective)
+        val pawnAnalysis = BreakAnalyzer.analyze(
+          features = features,
+          motifs = motifs,
+          phase1 = classification,
+          sideToMove = lastPos.color.name
+        )
+        val oppPawnAnalysis = BreakAnalyzer.analyze(
+          features = features,
+          motifs = motifs,
+          phase1 = classification,
+          sideToMove = (!lastPos.color).name
+        )
+        
+        val ctx = IntegratedContext(
+          evalCp = 0, // General assess (no PV evaluation yet)
+          classification = Some(classification),
+          pawnAnalysis = Some(pawnAnalysis),
+          opponentPawnAnalysis = Some(oppPawnAnalysis),
+          threatsToUs = Some(ownThreats),
+          threatsToThem = Some(oppThreats),
+          openingName = opening,
+          isWhiteToMove = lastPos.color == White,
+          features = Some(features),
+          initialPos = Some(initialPos)
+        )
+        
+        val planScoring = PlanMatcher.matchPlans(motifs, ctx, lastPos.color)
+
+        PositionAssessment(
+          pos = lastPos,
+          motifs = motifs,
+          plans = planScoring,
+          nature = nature,
+          phase = currentPhase
+        )
       }
-
-      val nature = PositionCharacterizer.characterize(lastPos)
-      val currentPhase = determinePhase(lastPos)
-      
-      val ctx = IntegratedContext(
-        eval = 0.0,
-        phase = phase.getOrElse(currentPhase.toString.toLowerCase),
-        openingName = opening
-      )
-      
-      val planScoring = PlanMatcher.matchPlans(motifs, ctx, lastPos.color)
-
-      PositionAssessment(
-        pos = lastPos,
-        motifs = motifs,
-        plans = planScoring,
-        nature = nature,
-        phase = currentPhase
-      )
     }
 
   private def determinePhase(pos: Position): GamePhase =
@@ -133,47 +181,130 @@ object CommentaryEngine:
       opening: Option[String] = None,
       phase: Option[String] = None,
       ply: Int = 0,
-      prevMove: Option[String] = None
+      prevMove: Option[String] = None,
+      prevPlanSequence: Option[PlanSequence] = None,
+      prevAnalysis: Option[ExtendedAnalysisData] = None
   ): Option[ExtendedAnalysisData] =
-    _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).map { initialPos =>
-      
-      val mainPv = variations.headOption.map(_.moves).getOrElse(Nil)
-      val motifs = MoveAnalyzer.tokenizePv(fen, mainPv)
-      
-      val lastPos = mainPv.foldLeft(initialPos) { (p, uciStr) =>
-        Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
+    _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
+      PositionAnalyzer.extractFeatures(fen, 1).map { features =>
+        val mainPv = variations.headOption.map(_.moves).getOrElse(Nil)
+        val motifs = MoveAnalyzer.tokenizePv(fen, mainPv)
+        
+        val lastPos = mainPv.foldLeft(initialPos) { (p, uciStr) =>
+          Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
+        }
+
+        val nature = PositionCharacterizer.characterize(lastPos)
+        val currentPhase = determinePhase(lastPos)
+        
+        // L3 Phase 1: Classification
+        // Convert VariationLine to PvLine
+        val multiPv = variations.map { v =>
+          PvLine(v.moves, v.scoreCp, v.mate, v.depth)
+        }
+        val classification = PositionClassifier.classify(
+          features = features,
+          multiPv = multiPv,
+          currentEval = variations.headOption.map(_.scoreCp).getOrElse(0),
+          tacticalMotifsCount = motifs.size
+        )
+
+        // L3 Phase 2: Threat Analysis (Dual Perspective)
+        val ownThreats = ThreatAnalyzer.analyze(
+           motifs = motifs,
+           multiPv = multiPv,
+           phase1 = classification,
+           sideToMove = initialPos.color.name
+        )
+        val oppThreats = ThreatAnalyzer.analyze(
+           motifs = motifs,
+           multiPv = multiPv,
+           phase1 = classification,
+           sideToMove = (!initialPos.color).name
+        )
+
+        // L3 Phase 3: Break & Pawn Play & Threat Integration for PlanMatcher
+        val pawnAnalysis = BreakAnalyzer.analyze(
+          features = features,
+          motifs = motifs,
+          phase1 = classification,
+          sideToMove = initialPos.color.name
+        )
+        
+        val oppPawnAnalysis = BreakAnalyzer.analyze(
+          features = features,
+          motifs = motifs,
+          phase1 = classification,
+          sideToMove = (!initialPos.color).name
+        )
+
+        // FIX: Extract evalCp properly from variations head
+        val evalCp = variations.headOption.map(_.scoreCp).getOrElse(0)
+
+        // Update counterThreatBetter assessments
+        val (finalUs, finalThem) = (ownThreats, oppThreats) match {
+          case (toThem, toUs) =>
+            val ourMax = toThem.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)
+            val theirMax = toUs.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)
+            val counterBetter = ourMax > theirMax + 100 && theirMax < 500 // We have better counter, and their threat isn't overwhelming
+            (toThem.copy(counterThreatBetter = counterBetter, defense = toThem.defense.copy(counterIsBetter = counterBetter)), 
+             toUs.copy(counterThreatBetter = counterBetter, defense = toUs.defense.copy(counterIsBetter = counterBetter)))
+        }
+
+        val ctx = IntegratedContext(
+          evalCp = evalCp,
+          classification = Some(classification),
+          pawnAnalysis = Some(pawnAnalysis),
+          opponentPawnAnalysis = Some(oppPawnAnalysis),
+          threatsToUs = Some(finalThem),
+          threatsToThem = Some(finalUs),
+          openingName = opening,
+          isWhiteToMove = initialPos.color == White, // Corrected: use FEN side-to-move for probes
+          features = Some(features),  // A5: L1 Snapshot injection
+          initialPos = Some(initialPos)
+        )
+        
+        val planScoring = PlanMatcher.matchPlans(motifs, ctx, initialPos.color)
+        val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
+
+        // PHASE 5: Transition Logic
+        val currentSequence = TransitionAnalyzer.analyze(
+          currentPlans = activePlans,
+          previousPlan = prevPlanSequence.map(_.currentPlans.primary.plan),
+          previousMomentum = prevPlanSequence.map(_.momentum).getOrElse(0.0),
+          planHistory = prevPlanSequence.map(_.planHistory).getOrElse(Nil),
+          ctx = ctx
+        )
+
+        val baseData = BaseAnalysisData(
+          nature = nature,
+          motifs = motifs,
+          plans = planScoring.topPlans,
+          planSequence = Some(currentSequence)
+        )
+        
+        val meta = AnalysisMetadata(
+          color = initialPos.color,
+          ply = ply,
+          prevMove = prevMove
+        )
+
+        semanticExtractor.extract(
+          fen = fen,
+          metadata = meta,
+          baseData = baseData,
+          vars = variations,
+          playedMove = playedMove
+        ).copy(
+          planSequence = Some(currentSequence),
+          tacticalThreatToUs = ctx.tacticalThreatToUs,
+          tacticalThreatToThem = ctx.tacticalThreatToThem,
+          evalCp = evalCp,
+          isWhiteToMove = initialPos.color == White,
+          phase = ctx.phase,
+          integratedContext = Some(ctx)  // Fix 1: Preserve full IntegratedContext
+        )
       }
-
-      val nature = PositionCharacterizer.characterize(lastPos)
-      val currentPhase = determinePhase(lastPos)
-      
-      val ctx = IntegratedContext(
-        eval = 0.0,
-        phase = phase.getOrElse(currentPhase.toString.toLowerCase),
-        openingName = opening
-      )
-      
-      val planScoring = PlanMatcher.matchPlans(motifs, ctx, lastPos.color)
-
-      val baseData = BaseAnalysisData(
-        nature = nature,
-        motifs = motifs,
-        plans = planScoring.topPlans
-      )
-      
-      val meta = AnalysisMetadata(
-        color = lastPos.color,
-        ply = ply,
-        prevMove = prevMove
-      )
-
-      semanticExtractor.extract(
-        fen = fen,
-        metadata = meta,
-        baseData = baseData,
-        vars = variations,
-        playedMove = playedMove
-      )
     }
 
   def analyzeGame(
@@ -200,23 +331,31 @@ object CommentaryEngine:
            val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
            val keyPlies = keyMoments.map(_.ply).toSet
 
-           plyDataList.flatMap { plyData =>
-             val ply = plyData.ply
-             
-             if (keyPlies.contains(ply)) {
-               val variations = evals.getOrElse(ply, Nil)
-               val prevFen = if (ply == 1) startFen else plyMap.get(ply - 1).map(_.fen).getOrElse(startFen)
-               val ctxMove = if (ply > 1) plyMap.get(ply - 1).map(_.playedUci) else None
+            val (results, _, _) = plyDataList.foldLeft((List.empty[ExtendedAnalysisData], Option.empty[PlanSequence], Option.empty[ExtendedAnalysisData])) {
+              case ((acc, prevSeq, prevAnalysis), plyData) =>
+                val ply = plyData.ply
+                if (keyPlies.contains(ply)) {
+                  val variations = evals.getOrElse(ply, Nil)
+                  val prevFen = if (ply == 1) startFen else plyMap.get(ply - 1).map(_.fen).getOrElse(startFen)
+                  val ctxMove = if (ply > 1) plyMap.get(ply - 1).map(_.playedUci) else None
 
-               assessExtended(
-                 fen = prevFen,
-                 variations = variations,
-                 playedMove = Some(plyData.playedUci),
-                 ply = ply,
-                 prevMove = ctxMove
-               )
-             } else None
-           }
+                  val analysis = assessExtended(
+                    fen = prevFen,
+                    variations = variations,
+                    playedMove = Some(plyData.playedUci),
+                    ply = ply,
+                    prevMove = ctxMove,
+                    prevPlanSequence = prevSeq,
+                    prevAnalysis = prevAnalysis
+                  )
+                  
+                  analysis match {
+                    case Some(data) => (acc :+ data, data.planSequence, Some(data))
+                    case None => (acc, prevSeq, prevAnalysis)
+                  }
+                } else (acc, prevSeq, prevAnalysis)
+            }
+            results
        case scala.util.Left(_) => 
          Nil
      }
@@ -253,26 +392,23 @@ object CommentaryEngine:
           // FIX 3: Defensive ply-based pairing instead of zip
           val dataByPly = keyMomentsWithData.map(d => d.ply -> d).toMap
           
-          val momentNarratives = keyMoments.flatMap { moment =>
-            dataByPly.get(moment.ply).map { data =>
-              // FIX 1: Include describeExtended for rich semantic context
-              val extended = lila.llm.NarrativeGenerator.describeExtended(data)
-              val bookStyle = lila.llm.NarrativeGenerator.describeCandidatesBookStyle(
-                candidates = data.candidates,
-                fen = data.fen,
-                ply = moment.ply
-              )
-              
-              // Full narrative = extended analysis + book-style candidate breakdown
-              val fullText = s"$extended\n\n$bookStyle"
-              
-              MomentNarrative(
-                ply = moment.ply,
-                momentType = moment.momentType,
-                narrative = fullText,
-                analysisData = data
-              )
-            }
+          val (momentNarratives, _) = keyMoments.foldLeft((List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData])) {
+            case ((acc, prevAnalysis), moment) =>
+              dataByPly.get(moment.ply) match {
+                case Some(data) =>
+                  // build NarrativeContext using current data and prevAnalysis
+                  val ctx = NarrativeContextBuilder.build(data, data.toContext, prevAnalysis)
+                  val fullText = lila.llm.NarrativeGenerator.describeHierarchical(ctx)
+                  
+                  val momentNarrative = MomentNarrative(
+                    ply = moment.ply,
+                    momentType = moment.momentType,
+                    narrative = fullText,
+                    analysisData = data
+                  )
+                  (acc :+ momentNarrative, Some(data))
+                case None => (acc, prevAnalysis)
+              }
           }
            
           val gameIntro = lila.llm.NarrativeTemplates.gameIntro(
