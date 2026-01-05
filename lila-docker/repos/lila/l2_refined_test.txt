@@ -1,0 +1,47 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\test-classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:4:22 
+[warn] 4 |import lila.llm.model.*
+[warn]   |                      ^
+[warn]   |                      unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:21 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                     ^^^^^
+[warn]   |                     unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:28 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                            ^^^^^
+[warn]   |                            unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:20:33 
+[warn] 20 |  def analyzeStatic(fen: String, description: String, 
+[warn]    |                                 ^^^^^^^^^^^
+[warn]    |                                 unused explicit parameter
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:48:50 
+[warn] 48 |  def analyzeMove(fen: String, uciParams: String, description: String,
+[warn]    |                                                  ^^^^^^^^^^^
+[warn]    |                                               unused explicit parameter
+[warn] 5 warnings found
+[info] done compiling
+[32mlila.llm.analysis.Layer2VerificationTest:[0m
+[32m  + [0m[32mSTRUCTURE: IQP[0m [90m0.433s[0m
+[32m  + [0m[32mSTRUCTURE: Hanging Pawns[0m [90m0.01s[0m
+[32m  + [0m[32mSTRUCTURE: King Exposed[0m [90m0.003s[0m
+[32m  + [0m[32mPOSITIONAL: Open File[0m [90m0.013s[0m
+[32m  + [0m[32mPOSITIONAL: Battery[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Weak Back Rank (Opponent)[0m [90m0.01s[0m
+[32m  + [0m[32mPOSITIONAL: Bad Bishop[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Bishop Pair[0m [90m0.013s[0m
+[32m  + [0m[32mTACTIC: Clearance[0m [90m0.048s[0m
+[32m  + [0m[32mTACTIC: Discovered Attack[0m [90m0.003s[0m
+[32m  + [0m[32mTACTIC: Pin[0m [90m0.012s[0m
+[32m  + [0m[32mTACTIC: Fork[0m [90m0.031s[0m
+[32m  + [0m[32mPLAN: Central Control[0m [90m0.002s[0m
+[32m  + [0m[32mPLAN: Promotion Threat[0m [90m0.004s[0m
+[info] Passed: Total 14, Failed 0, Errors 0, Passed 14
+[success] Total time: 8 s, completed 2026. 1. 2. 오후 5:31:34

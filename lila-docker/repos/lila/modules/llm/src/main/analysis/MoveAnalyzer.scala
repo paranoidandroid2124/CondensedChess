@@ -170,7 +170,7 @@ object MoveAnalyzer:
   // MOVE MOTIF DETECTION (from MotifTokenizer)
   // ============================================================
 
-  private def detectMoveMotifs(mv: Move, pos: Position, plyIndex: Int): List[Motif] =
+  def detectMoveMotifs(mv: Move, pos: Position, plyIndex: Int): List[Motif] =
     val color = pos.color
     val san = mv.toSanStr.toString
     val nextPos = mv.after
@@ -249,6 +249,21 @@ object MoveAnalyzer:
         plyIndex = plyIndex,
         move = Some(san)
       )
+
+    val beforeBoard = _pos.board
+    val wPassed = PositionAnalyzer.passedPawns(Color.White, beforeBoard.pawns & beforeBoard.white, beforeBoard.pawns & beforeBoard.black)
+    val bPassed = PositionAnalyzer.passedPawns(Color.Black, beforeBoard.pawns & beforeBoard.black, beforeBoard.pawns & beforeBoard.white)
+    val passedSquares = if color == Color.White then wPassed else bPassed
+
+    if (passedSquares.contains(mv.orig)) {
+       motifs = motifs :+ PassedPawnPush(
+         file = mv.dest.file,
+         toRank = mv.dest.rank.value + 1,
+         color = color,
+         plyIndex = plyIndex,
+         move = Some(san)
+       )
+    }
 
     // Pawn Break (capture)
     if mv.captures then
@@ -354,7 +369,7 @@ object MoveAnalyzer:
       else CheckType.Normal
       
       val kingSq = nextPos.board.kingPosOf(!color).getOrElse(mv.dest) // Fallback to dest if king not found (unlikely)
-      motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, plyIndex, Some(san))
+      motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, color, plyIndex, Some(san))
     
     // Capture (enhanced with Exchange Sacrifice detection)
     if mv.captures then
@@ -377,7 +392,7 @@ object MoveAnalyzer:
       } else None
       
       val finalCaptureType = if (sacrificeROI.isDefined) CaptureType.ExchangeSacrifice else captureType
-      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, finalCaptureType, plyIndex, Some(san), sacrificeROI)
+      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, finalCaptureType, color, plyIndex, Some(san), sacrificeROI)
     
     // Fork detection
     val forkTargetsList = detectForkTargets(mv, nextPos, color)
@@ -402,14 +417,17 @@ object MoveAnalyzer:
     // Decoy detection (NEW - Phase 11)  
     detectDecoy(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
+    // Clearance detection (L2 Completion)
+    detectClearance(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
+
     motifs
 
   private def determineCaptureType(attacker: Role, victim: Role): CaptureType =
     val val1 = pieceValue(attacker)
     val val2 = pieceValue(victim)
-    if val2 < val1 then CaptureType.Sacrifice
+    if val2 > val1 then CaptureType.Winning
     else if val2 == val1 then CaptureType.Exchange
-    else CaptureType.Winning
+    else CaptureType.Normal // Default to Normal for BxP, Sacrifice requires ROI/context
 
   private def detectForkTargets(mv: Move, nextPos: Position, color: Color): List[Role] =
     val sq = mv.dest
@@ -561,14 +579,15 @@ object MoveAnalyzer:
     
     blockedDefenses.result()
 
-  private def detectStateMotifs(pos: Position, plyIndex: Int): List[Motif] =
+  def detectStateMotifs(pos: Position, plyIndex: Int): List[Motif] =
     val board = pos.board
     List.concat(
       detectPawnStructure(board, plyIndex),
-      detectOpposition(board, plyIndex),
+      detectOpposition(board, pos.color, plyIndex),
       detectOpenFiles(board, plyIndex),
       detectWeakBackRank(pos, plyIndex),
-      detectSpaceAdvantage(board, plyIndex)
+      detectSpaceAdvantage(board, plyIndex),
+      detectBattery(board, plyIndex)  // L2 Completion
     )
 
   // ===== FIX 6: New Motif Detectors =====
@@ -653,12 +672,14 @@ object MoveAnalyzer:
       }
     }
 
-  private def detectOpposition(board: Board, plyIndex: Int): List[Motif] =
+  private def detectOpposition(board: Board, color: Color, plyIndex: Int): List[Motif] =
     (board.kingPosOf(White), board.kingPosOf(Black)) match
       case (Some(wk), Some(bk)) =>
         val fDiff = (wk.file.value - bk.file.value).abs
         val rDiff = (wk.rank.value - bk.rank.value).abs
-        val sideWithOpposition = if plyIndex % 2 == 0 then Black else White
+        // Side with opposition is the one NOT whose turn it is.
+        // If it's White's turn (color == White) and opposition exists, Black has the opposition.
+        val sideWithOpposition = !color
         if fDiff == 0 && rDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
         else if rDiff == 0 && fDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
         else Nil
@@ -793,10 +814,10 @@ object MoveAnalyzer:
       totalValue += 50
     }
     
-    // Only return ROI if there's meaningful compensation
-    if (reasons.nonEmpty && totalValue >= 150) {
-      Some(SacrificeROI(reasons.mkString("+"), totalValue))
-    } else None
+    // Only return ROI if there's meaningful compensation (tightened threshold)
+    if totalValue >= 250 || (reasons.size >= 2 && totalValue >= 150) then 
+      Some(SacrificeROI(reasons.mkString(","), totalValue))
+    else None
   }
 
   // ============================================================
@@ -860,6 +881,7 @@ object MoveAnalyzer:
           intermediateMove = currentMove.uci,
           threatType = threatType,
           expectedRecaptureSquare = expectedRecaptureSquare,
+          color = color,
           plyIndex = plyIndex,
           move = Some(mv.toSanStr.toString)
         ))
@@ -973,4 +995,156 @@ object MoveAnalyzer:
         } else None
       }
     }.headOption
+  }
+
+  // ============================================================
+  // L2 COMPLETION: CLEARANCE DETECTION
+  // ============================================================
+
+  /**
+   * Detect Clearance - moving a piece to clear a line/square for another piece.
+   * Example: Moving a rook so that the queen can use the file.
+   */
+  private def detectClearance(
+      mv: Move,
+      pos: Position,
+      nextPos: Position,
+      color: Color,
+      plyIndex: Int,
+      san: Option[String]
+  ): Option[Motif.Clearance] = {
+    val board = pos.board
+    val nextBoard = nextPos.board
+    val origSq = mv.orig
+    val destSq = mv.dest
+    val movedRole = mv.piece.role
+    
+    // Only detect for long-range pieces clearing lines
+    if (!List(Rook, Queen, Bishop).contains(movedRole)) return None
+    
+    // Check if a friendly piece now has access to a line that was blocked
+    val friendlyLongRange = (nextBoard.byColor(color) & 
+      (nextBoard.rooks | nextBoard.bishops | nextBoard.queens)) &
+      ~Bitboard(destSq)
+    
+    friendlyLongRange.squares.flatMap { friendlySq =>
+      val friendlyRole = nextBoard.roleAt(friendlySq).getOrElse(Queen)
+      
+      // Check if this piece can now attack through where the moved piece was
+      val attacksAfter = friendlyRole match {
+        case Bishop => friendlySq.bishopAttacks(nextBoard.occupied)
+        case Rook   => friendlySq.rookAttacks(nextBoard.occupied)
+        case Queen  => friendlySq.queenAttacks(nextBoard.occupied)
+        case _      => Bitboard.empty
+      }
+      
+      val attacksBefore = friendlyRole match {
+        case Bishop => friendlySq.bishopAttacks(board.occupied)
+        case Rook   => friendlySq.rookAttacks(board.occupied)
+        case Queen  => friendlySq.queenAttacks(board.occupied)
+        case _      => Bitboard.empty
+      }
+      
+      // New attack squares = squares accessible after but not before
+      val newAttacks = attacksAfter & ~attacksBefore
+      
+      // Was the original square of the moved piece on the ray?
+      val ray = Bitboard.ray(friendlySq, origSq)
+      val clearedRay = ray.nonEmpty && (newAttacks & nextBoard.byColor(!color)).nonEmpty
+      
+      if (clearedRay) {
+        val clearanceType = 
+          if (friendlySq.file == origSq.file) Motif.ClearanceType.File
+          else if (friendlySq.rank == origSq.rank) Motif.ClearanceType.Rank
+          else Motif.ClearanceType.Diagonal
+          
+        Some(Motif.Clearance(
+          clearingPiece = movedRole,
+          clearingFrom = origSq,
+          clearedLine = clearanceType,
+          beneficiary = friendlyRole,
+          color = color,
+          plyIndex = plyIndex,
+          move = san
+        ))
+      } else None
+    }.headOption
+  }
+
+  // ============================================================
+  // L2 COMPLETION: BATTERY DETECTION
+  // ============================================================
+
+  /**
+   * Detect Battery - two pieces aligned on the same line (Q+B on diagonal, R+R on file).
+   * Used for detectStateMotifs at end of PV.
+   */
+  private def detectBattery(board: Board, plyIndex: Int): List[Motif.Battery] = {
+    val batteries = List.newBuilder[Motif.Battery]
+    
+    for (color <- List(White, Black)) {
+      val queens = board.byPiece(color, Queen)
+      val rooks = board.byPiece(color, Rook)
+      val bishops = board.byPiece(color, Bishop)
+      val enemyPieces = board.byColor(!color)
+      
+      // Helper: Check if there's an enemy piece between or beyond two squares on a line
+      def hasTargetOnLine(sq1: Square, sq2: Square, axis: Motif.BatteryAxis): Boolean = {
+        val ray = axis match {
+          case Motif.BatteryAxis.File => Bitboard.file(sq1.file)
+          case Motif.BatteryAxis.Rank => Bitboard.rank(sq1.rank)
+          case Motif.BatteryAxis.Diagonal => Bitboard.ray(sq1, sq2)
+        }
+        // Check if any enemy piece is on this line
+        (ray & enemyPieces).nonEmpty
+      }
+      
+      // Queen + Rook on same file/rank - ONLY if enemy target exists on line
+      queens.foreach { queenSq =>
+        rooks.foreach { rookSq =>
+          if (queenSq.file == rookSq.file && queenSq != rookSq) {
+            if (hasTargetOnLine(queenSq, rookSq, Motif.BatteryAxis.File)) {
+              batteries += Motif.Battery(Queen, Rook, Motif.BatteryAxis.File, color, plyIndex, None)
+            }
+          } else if (queenSq.rank == rookSq.rank && queenSq != rookSq) {
+            if (hasTargetOnLine(queenSq, rookSq, Motif.BatteryAxis.Rank)) {
+              batteries += Motif.Battery(Queen, Rook, Motif.BatteryAxis.Rank, color, plyIndex, None)
+            }
+          }
+        }
+      }
+      
+      // Queen + Bishop on same diagonal - ONLY if enemy target exists
+      queens.foreach { queenSq =>
+        bishops.foreach { bishopSq =>
+          if (queenSq != bishopSq) {
+            val fileDiff = (queenSq.file.value - bishopSq.file.value).abs
+            val rankDiff = (queenSq.rank.value - bishopSq.rank.value).abs
+            if (fileDiff == rankDiff && fileDiff > 0) {
+              if (hasTargetOnLine(queenSq, bishopSq, Motif.BatteryAxis.Diagonal)) {
+                batteries += Motif.Battery(Queen, Bishop, Motif.BatteryAxis.Diagonal, color, plyIndex, None)
+              }
+            }
+          }
+        }
+      }
+      
+      // Rook + Rook on same file/rank - ONLY if enemy target exists
+      val rookList = rooks.squares.toList
+      if (rookList.size >= 2) {
+        val r1 = rookList(0)
+        val r2 = rookList(1)
+        if (r1.file == r2.file) {
+          if (hasTargetOnLine(r1, r2, Motif.BatteryAxis.File)) {
+            batteries += Motif.Battery(Rook, Rook, Motif.BatteryAxis.File, color, plyIndex, None)
+          }
+        } else if (r1.rank == r2.rank) {
+          if (hasTargetOnLine(r1, r2, Motif.BatteryAxis.Rank)) {
+            batteries += Motif.Battery(Rook, Rook, Motif.BatteryAxis.Rank, color, plyIndex, None)
+          }
+        }
+      }
+    }
+    
+    batteries.result()
   }

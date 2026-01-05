@@ -1,0 +1,315 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\test-classes ...
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:4:22 
+[warn] 4 |import lila.llm.model.*
+[warn]   |                      ^
+[warn]   |                      unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:21 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                     ^^^^^
+[warn]   |                     unused import
+[warn] -- [E198] Unused Symbol Warning: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:6:28 
+[warn] 6 |import _root_.chess.{Board, Color}
+[warn]   |                            ^^^^^
+[warn]   |                            unused import
+[warn] three warnings found
+[info] done compiling
+
+=== TEST: IQP White ===
+FEN: rnbqk2r/pp2bppp/4pn2/8/3P4/2N2N2/PP3PPP/R1BQ1RK1 w KQkq - 0 8
+--- Derived Concepts ---
+Structure: IqpWhite
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(g1,Black), BadBishop(White), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Hanging Pawns White ===
+FEN: r2q1rk1/p4ppp/1p2pn2/8/2PP4/5N2/P4PPP/R2Q1RK1 w - - 0 14
+--- Derived Concepts ---
+Structure: HangingPawnsWhite
+Plans: CentralControlGood
+Positional: WeakSquare(b5,Black), WeakSquare(e5,Black), LoosePiece(g1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: King Exposed Check ===
+FEN: r4rk1/ppp2ppp/2n5/3qp3/8/2NQ1N2/PPP2PPP/R4RK1 w - - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(g1,Black), LoosePiece(d5,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Open d-file Control ===
+FEN: r4rk1/ppp2ppp/2n5/4p3/8/2NR1N2/PPP2PPP/3R2K1 w - - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(d,White), LoosePiece(g1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Rook on 7th ===
+FEN: 6k1/R4ppp/8/8/8/8/5PPP/6K1 w - - 0 1
+--- Derived Concepts ---
+Plans: KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(a,White), RookOnSeventh(White), DynamicPosition
+------------------------
+
+=== TEST: Battery on d-file ===
+FEN: 3k4/8/8/8/8/8/3R4/3Q3K w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(d,White), LoosePiece(h1,Black), DynamicPosition, Battery(White)
+------------------------
+
+=== TEST: Bishop Pair ===
+FEN: r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), BishopPairAdvantage(White), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Bishop Quality ===
+FEN: 8/ppp2ppp/8/8/4P3/2B5/PPP2PPP/4K3 w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite
+Plans: CentralControlGood, KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition
+------------------------
+
+=== TEST: Opposite Color Bishops ===
+FEN: 8/8/4k3/8/4B3/8/8/2b1K3 w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OppositeColorBishops, DynamicPosition
+------------------------
+
+=== TEST: Position Nature ===
+FEN: rnbqkbnr/ppp2ppp/8/3pp3/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 2
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Weak Square Detection ===
+FEN: r1bqkbnr/pp2pppp/2n5/2pp4/3P4/2N2N2/PPP1PPPP/R1BQKB1R w KQkq - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Clearance for Queen ===
+FEN: 3k4/8/8/8/3R4/8/8/3Q3K w - - 0 1
+Move: d4h4
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood, PieceActivationGood
+Tactics: DiscoveredAttackSound, ClearanceSound
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(d,White), LoosePiece(h1,Black), DynamicPosition
+------------------------
+
+=== TEST: Discovered Attack ===
+FEN: r3k2r/8/8/4B3/8/8/8/R3K2R w KQkq - 0 1
+Move: e5c3
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood, PieceActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(a,White), OpenFile(h,White), LoosePiece(e1,Black), LoosePiece(a8,Black), DynamicPosition
+------------------------
+
+=== TEST: Pin Knight ===
+FEN: rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 1
+Move: c1g5
+--- Derived Concepts ---
+Plans: CentralControlGood
+Tactics: PinSound, TacticalPatternMiss
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition
+Mistakes: TacticalMiss
+------------------------
+Tactics: List(PinSound, TacticalPatternMiss)
+
+=== TEST: Back Rank Mate Threat ===
+FEN: 6k1/5ppp/8/8/8/8/8/R3K3 w Q - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite
+Plans: KingActivationGood, PromotionThreat
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(a,White), LoosePiece(e1,Black), DynamicPosition
+------------------------
+
+=== TEST: Knight Fork attempt ===
+FEN: r1bqkb1r/pppp1ppp/2n2n2/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1
+Move: e5d7
+--- Derived Concepts ---
+Plans: CentralControlGood, PieceActivationGood
+Tactics: ForkSound
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition
+------------------------
+Tactics detected: List(ForkSound)
+
+=== TEST: Central Control Plan ===
+FEN: r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: King Activation Endgame ===
+FEN: 8/8/4k3/8/4P3/4K3/8/8 w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood, PromotionThreat
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), DynamicPosition
+------------------------
+
+=== TEST: Piece Activation ===
+FEN: rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood, PieceActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Promotion Threat ===
+FEN: 8/P7/8/2k5/8/5b2/4K3/8 w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood, PromotionThreat
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(f3,Black), DynamicPosition
+------------------------
+
+============================================================
+COMPREHENSIVE L2 FEATURE VERIFICATION REPORT
+============================================================
+
+=== TEST: IQP Position ===
+FEN: rnbqk2r/pp2bppp/4pn2/8/3P4/2N2N2/PP3PPP/R1BQ1RK1 w KQkq - 0 8
+--- Derived Concepts ---
+Structure: IqpWhite
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(g1,Black), BadBishop(White), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Hanging Pawns ===
+FEN: r2q1rk1/p4ppp/1p2pn2/8/2PP4/5N2/P4PPP/R2Q1RK1 w - - 0 14
+--- Derived Concepts ---
+Structure: HangingPawnsWhite
+Plans: CentralControlGood
+Positional: WeakSquare(b5,Black), WeakSquare(e5,Black), LoosePiece(g1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Passed Pawn ===
+FEN: 8/P7/8/2k5/8/5b2/4K3/8 w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood, PromotionThreat
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(f3,Black), DynamicPosition
+------------------------
+
+=== TEST: Locked Center ===
+FEN: rnbqkbnr/ppp2ppp/8/3pp3/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 2
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+=== TEST: Battery Position ===
+FEN: 3k4/8/8/8/8/8/3R4/3Q3K w - - 0 1
+--- Derived Concepts ---
+Structure: KingExposedWhite, KingExposedBlack
+Plans: KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(d,White), LoosePiece(h1,Black), DynamicPosition, Battery(White)
+------------------------
+
+=== TEST: Rook 7th Rank ===
+FEN: 6k1/R4ppp/8/8/8/8/5PPP/6K1 w - - 0 1
+--- Derived Concepts ---
+Plans: KingActivationGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(a,White), RookOnSeventh(White), DynamicPosition
+------------------------
+
+=== TEST: Mixed Middlegame ===
+FEN: r1bq1rk1/ppp2ppp/2n1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQ - 0 1
+--- Derived Concepts ---
+Plans: CentralControlGood
+Positional: WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), BishopPairAdvantage(White), BadBishop(White), DryPosition, Battery(White), Battery(Black)
+------------------------
+
+============================================================
+TOTAL UNIQUE L2 TAGS DETECTED: 23
+============================================================
+  - HangingPawnsWhite
+  - IqpWhite
+  - KingExposedBlack
+  - KingExposedWhite
+  - black_battery
+  - black_loose_piece_e1
+  - black_loose_piece_f3
+  - black_loose_piece_g1
+  - black_loose_piece_h1
+  - black_weak_a5
+  - black_weak_b5
+  - black_weak_e5
+  - central_control_good
+  - dry_position
+  - dynamic_position
+  - king_activation_good
+  - promotion_threat
+  - white_bad_bishop
+  - white_battery
+  - white_bishop_pair_advantage
+  - white_open_a_file
+  - white_open_d_file
+  - white_rook_on_seventh
+[32mlila.llm.analysis.Layer2VerificationTest:[0m
+[32m  + [0m[32mSTRUCTURE: IQP (Isolated Queen Pawn)[0m [90m0.385s[0m
+[32m  + [0m[32mSTRUCTURE: Hanging Pawns[0m [90m0.007s[0m
+[91m==> X [0m[91mlila.llm.analysis.Layer2VerificationTest[0m.[91mSTRUCTURE: King Exposed[0m  [90m0.023s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:141 Expected king exposure indicator, got List() + List(WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(g1,Black), LoosePiece(d5,Black), DryPosition, Battery(White), Battery(Black))
+140:           labels.positionalTags.exists(_.toString.contains("KingSafety")),
+[7m141:           s"Expected king exposure indicator, got ${labels.structureTags} + ${labels.positionalTags}")[0m
+142:  }
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.Layer2VerificationTest.$init$$$anonfun$3[0m[1m([0m[1mLayer2VerificationTest.scala[0m:[1m141[0m[1m)[0m
+[32m  + [0m[32mPOSITIONAL: Open File Control[0m [90m0.008s[0m
+[32m  + [0m[32mPOSITIONAL: Rook on 7th Rank[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Battery[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Bishop Pair Advantage[0m [90m0.007s[0m
+[91m==> X [0m[91mlila.llm.analysis.Layer2VerificationTest[0m.[91mPOSITIONAL: Good/Bad Bishop[0m  [90m0.004s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:186 Expected Bishop quality tag, got List(WeakSquare(a5,Black), WeakSquare(b5,Black), LoosePiece(e1,Black), DryPosition)
+185:    assert(labels.positionalTags.exists(t => t.toString.contains("Bishop")),
+[7m186:           s"Expected Bishop quality tag, got ${labels.positionalTags}")[0m
+187:  }
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.Layer2VerificationTest.$init$$$anonfun$8[0m[1m([0m[1mLayer2VerificationTest.scala[0m:[1m186[0m[1m)[0m
+[32m  + [0m[32mPOSITIONAL: Opposite Color Bishops[0m [90m0.003s[0m
+[32m  + [0m[32mPOSITIONAL: Dynamic vs Dry Position[0m [90m0.005s[0m
+[32m  + [0m[32mPOSITIONAL: Weak Square[0m [90m0.004s[0m
+[32m  + [0m[32mTACTIC: Clearance[0m [90m0.039s[0m
+[91m==> X [0m[91mlila.llm.analysis.Layer2VerificationTest[0m.[91mTACTIC: Discovered Attack[0m  [90m0.008s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:232 Expected tactical tag, got List()
+231:           labels.tacticTags.nonEmpty,
+[7m232:           s"Expected tactical tag, got ${labels.tacticTags}")[0m
+233:  }
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.Layer2VerificationTest.$init$$$anonfun$13[0m[1m([0m[1mLayer2VerificationTest.scala[0m:[1m232[0m[1m)[0m
+[32m  + [0m[32mTACTIC: Pin Detection[0m [90m0.012s[0m
+[91m==> X [0m[91mlila.llm.analysis.Layer2VerificationTest[0m.[91mTACTIC: Back Rank Weakness[0m  [90m0.006s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\Layer2VerificationTest.scala:248 Expected WeakBackRank, got List(WeakSquare(a5,Black), WeakSquare(b5,Black), OpenFile(a,White), LoosePiece(e1,Black), DynamicPosition)
+247:    assert(labels.positionalTags.exists(_.toString.contains("WeakBackRank")),
+[7m248:           s"Expected WeakBackRank, got ${labels.positionalTags}")[0m
+249:  }
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.Layer2VerificationTest.$init$$$anonfun$15[0m[1m([0m[1mLayer2VerificationTest.scala[0m:[1m248[0m[1m)[0m
+[32m  + [0m[32mTACTIC: Fork Setup[0m [90m0.03s[0m
+[32m  + [0m[32mPLAN: Central Control[0m [90m0.005s[0m
+[32m  + [0m[32mPLAN: King Activation (Endgame)[0m [90m0.003s[0m
+[32m  + [0m[32mPLAN: Piece Activation (Eval Gain)[0m [90m0.004s[0m
+[32m  + [0m[32mPLAN: Promotion Threat[0m [90m0.002s[0m
+[32m  + [0m[32mCOMPREHENSIVE: All L2 Features Report[0m [90m0.03s[0m
+[error] Failed: Total 21, Failed 4, Errors 0, Passed 17
+[error] Failed tests:
+[error] 	lila.llm.analysis.Layer2VerificationTest
+[error] (Test / testOnly) sbt.TestsFailedException: Tests unsuccessful
+[error] Total time: 8 s, completed 2026. 1. 2. 오후 5:27:55

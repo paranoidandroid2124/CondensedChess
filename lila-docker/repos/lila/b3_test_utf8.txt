@@ -1,0 +1,50 @@
+﻿[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16970 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] set current project to llm (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[32mlila.llm.analysis.NarrativeContextBuilderTest:[0m
+[32m  + [0m[32mA1: buildThreatTable populates ThreatRows from IntegratedContext.threatsToUs[0m [90m0.179s[0m
+[32m  + [0m[32mA2: buildPawnPlayTable populates from IntegratedContext.pawnAnalysis[0m [90m0.007s[0m
+[32m  + [0m[32mA3: buildHeader populates from IntegratedContext.classification[0m [90m0.005s[0m
+[32m  + [0m[32mA4: buildPlanTable truncates to 5 and preserves order[0m [90m0.021s[0m
+[32m  + [0m[32mA5: buildL1Snapshot uses ctx.features for openFiles[0m [90m0.357s[0m
+[32m  + [0m[32mA6: buildDelta calculates evalChange and motif diff[0m [90m0.007s[0m
+[32m  + [0m[32mA7: buildCandidates converts UCI to SAN[0m [90m0.414s[0m
+[32m  + [0m[32mA8: buildPhaseContext detects phase transition trigger[0m [90m0.001s[0m
+[32m  + [0m[32mtoContext returns integratedContext when populated[0m [90m0.0s[0m
+[32m  + [0m[32mtoContext falls back to minimal when integratedContext is None[0m [90m0.002s[0m
+[32m  + [0m[32mdescribeHierarchical outputs PHASE section (A8)[0m [90m0.007s[0m
+[32m  + [0m[32mProbe: emits LEGAL UCI moves when a high-score plan is not represented in top MultiPV moves[0m [90m0.012s[0m
+[32m  + [0m[32mProbe: does not emit when the plan is already represented in top MultiPV moves[0m [90m0.002s[0m
+[32m  + [0m[32mProbe: score threshold prevents noisy probes[0m [90m0.0s[0m
+[32m  + [0m[32mB1: ChoiceType derived from classification.choiceTopology (OnlyMove)[0m [90m0.002s[0m
+[32m  + [0m[32mB5: Targets extracted from threatsToUs/Them with deduplication[0m [90m0.002s[0m
+[32m  + [0m[32mB8: PlanConcurrency shows conflict when secondary was downweighted[0m [90m0.007s[0m
+[32m  + [0m[32mB8: PlanConcurrency shows independent when no compatibility events[0m [90m0.001s[0m
+[32m  + [0m[32mB8: PlanConcurrency shows synergy when secondary was boosted[0m [90m0.001s[0m
+[91m==> X [0m[91mlila.llm.analysis.NarrativeContextBuilderTest[0m.[91mB3: DivergePly populated when counterfactual exists with punisher[0m  [90m0.021s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\NarrativeContextBuilderTest.scala:595 assertion failed
+594:    
+[7m595:    assert(narrativeCtx.meta.isDefined)[0m
+596:    val div = narrativeCtx.meta.get.divergence
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.NarrativeContextBuilderTest.$init$$$anonfun$20[0m[1m([0m[1mNarrativeContextBuilderTest.scala[0m:[1m595[0m[1m)[0m
+[91m==> X [0m[91mlila.llm.analysis.NarrativeContextBuilderTest[0m.[91mB3: DivergePly is None when no counterfactual[0m  [90m0.001s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\NarrativeContextBuilderTest.scala:608 assertion failed
+607:    
+[7m608:    assert(narrativeCtx.meta.isDefined)[0m
+609:    assertEquals(narrativeCtx.meta.get.divergence, None)
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.NarrativeContextBuilderTest.$init$$$anonfun$21[0m[1m([0m[1mNarrativeContextBuilderTest.scala[0m:[1m608[0m[1m)[0m
+[91m==> X [0m[91mlila.llm.analysis.NarrativeContextBuilderTest[0m.[91mB3: DivergePly punisherMove is None when userLine has only 1 move[0m  [90m0.001s[0m munit.FailException: modules\llm\src\test\scala\lila\llm\analysis\NarrativeContextBuilderTest.scala:634 assertion failed
+633:    
+[7m634:    assert(narrativeCtx.meta.isDefined)[0m
+635:    val div = narrativeCtx.meta.get.divergence
+[90m    at [0m[90mmunit.FunSuite.assert[0m[90m([0m[90mFunSuite.scala[0m:[90m13[0m[90m)[0m
+[1m    at [0m[1mlila.llm.analysis.NarrativeContextBuilderTest.$init$$$anonfun$22[0m[1m([0m[1mNarrativeContextBuilderTest.scala[0m:[1m634[0m[1m)[0m
+[error] Failed: Total 22, Failed 3, Errors 0, Passed 19
+[error] Failed tests:
+[error] 	lila.llm.analysis.NarrativeContextBuilderTest
+[error] (Test / testOnly) sbt.TestsFailedException: Tests unsuccessful
+[error] Total time: 3 s, completed 2026. 1. 5. 오전 10:33:34

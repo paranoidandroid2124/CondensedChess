@@ -183,6 +183,7 @@ object Motif:
       piece: Role,
       targetSquare: Square,
       checkType: CheckType,
+      color: Color,      // Color of the checking side
       plyIndex: Int,
       move: Option[String]
   ) extends Motif:
@@ -197,6 +198,7 @@ object Motif:
       captured: Role,
       square: Square,
       captureType: CaptureType,
+      color: Color,      // Color of the capturing side
       plyIndex: Int,
       move: Option[String],
       sacrificeROI: Option[SacrificeROI] = None  // NEW: For exchange sacrifice compensation
@@ -217,6 +219,7 @@ object Motif:
       intermediateMove: String,
       threatType: String,     // "Check", "Fork", "MateTheat", "WinningCapture"
       expectedRecaptureSquare: Square,
+      color: Color,      // Color of the side playing the intermediate move
       plyIndex: Int,
       move: Option[String]
   ) extends Motif:
@@ -349,6 +352,21 @@ object Motif:
       move: Option[String]
   ) extends Motif:
     val category = MotifCategory.Tactical
+
+  /** Clearance - moving a piece to clear a line/square for another piece */
+  case class Clearance(
+      clearingPiece: Role,
+      clearingFrom: Square,
+      clearedLine: ClearanceType,
+      beneficiary: Role,      // The piece that benefits from the cleared line
+      color: Color,
+      plyIndex: Int,
+      move: Option[String]
+  ) extends Motif:
+    val category = MotifCategory.Tactical
+
+  enum ClearanceType:
+    case File, Rank, Diagonal, Square
 
   // ============================================================
   // STRUCTURAL MOTIFS (Position State)

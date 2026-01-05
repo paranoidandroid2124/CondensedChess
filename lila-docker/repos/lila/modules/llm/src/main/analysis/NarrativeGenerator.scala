@@ -325,6 +325,24 @@ object NarrativeGenerator:
       }
     }
 
+    // STRATEGIC FLOW (Phase 5 Integration)
+    data.planSequence.foreach { seq =>
+      seq.previousPlan.foreach { prev =>
+        val curr = seq.currentPlans.primary.plan
+        if (prev.id != curr.id) { // Only explain when plan actually changes
+           val justification = lila.llm.analysis.TransitionAnalyzer.explainTransition(
+             prev, 
+             curr, 
+             data.toContext,
+             isTacticalThreatToUs = Some(data.tacticalThreatToUs),
+             isTacticalThreatToThem = Some(data.tacticalThreatToThem),
+             phase = Some(data.phase)
+           )
+           parts += s"STRATEGIC FLOW: $justification"
+        }
+      }
+    }
+
     // 1. Practical Outlook (Human Context)
     data.practicalAssessment.foreach { assessment =>
       parts += s"PRACTICAL ASSESSMENT: ${assessment.verdict}."
@@ -595,3 +613,146 @@ object NarrativeGenerator:
 
     parts.result().mkString("\n")
 
+  // ============================================================
+  // 7. PHASE 6: HIERARCHICAL NARRATIVE OUTPUT
+  // ============================================================
+  
+  /**
+   * Generate hierarchical narrative using NarrativeContext.
+   * Format: Header → Summary → Evidence Tables → Delta
+   */
+  def describeHierarchical(ctx: NarrativeContext): String = {
+    val parts = List.newBuilder[String]
+    
+    // === HEADER ===
+    parts += s"=== CONTEXT [${ctx.header.phase} | ${ctx.header.criticality} | ${ctx.header.choiceType} | ${ctx.header.riskLevel}] ==="
+    parts += ""
+    
+    // === SUMMARY (5 lines) ===
+    parts += "=== SUMMARY ==="
+    parts += s"• Primary Plan: ${ctx.summary.primaryPlan}"
+    ctx.summary.keyThreat.foreach(t => parts += s"• Key Threat: $t")
+    parts += s"• Choice Type: ${ctx.summary.choiceType}"
+    parts += s"• Tension: ${ctx.summary.tensionPolicy}"
+    parts += s"• Eval: ${ctx.summary.evalDelta}"
+    parts += ""
+    
+    // === THREATS TABLE ===
+    if (ctx.threats.toUs.nonEmpty || ctx.threats.toThem.nonEmpty) {
+      parts += "=== THREATS ==="
+      if (ctx.threats.toUs.nonEmpty) {
+        parts += s"TO US: ${ctx.threats.toUs.map(_.toNarrative).mkString("; ")}"
+      }
+      if (ctx.threats.toThem.nonEmpty) {
+        parts += s"TO THEM: ${ctx.threats.toThem.map(_.toNarrative).mkString("; ")}"
+      }
+      parts += ""
+    }
+    
+    // === PAWN PLAY ===
+    if (ctx.pawnPlay.breakReady || ctx.pawnPlay.tensionPolicy != "Ignore") {
+      parts += "=== PAWN PLAY ==="
+      if (ctx.pawnPlay.breakReady) {
+        parts += s"Break: ${ctx.pawnPlay.breakFile.getOrElse("?")} ready (${ctx.pawnPlay.breakImpact} impact)"
+      }
+      parts += s"Tension: ${ctx.pawnPlay.tensionPolicy} (${ctx.pawnPlay.tensionReason})"
+      if (ctx.pawnPlay.passedPawnUrgency != "Background") {
+        parts += s"Passer: ${ctx.pawnPlay.passedPawnUrgency}${ctx.pawnPlay.passerBlockade.map(b => s" - blockaded at $b").getOrElse("")}"
+      }
+      parts += ""
+    }
+    
+    // === PLANS (Top 5) ===
+    if (ctx.plans.top5.nonEmpty) {
+      parts += "=== PLANS ==="
+      ctx.plans.top5.foreach { p =>
+        val evidenceStr = if (p.evidence.nonEmpty) s" (${p.evidence.mkString(", ")})" else ""
+        parts += s"${p.rank}. ${p.name} ${f"${p.score}%.2f"}$evidenceStr"
+      }
+      ctx.plans.suppressed.foreach { s =>
+        val status = if (s.isRemoved) "removed" else "downweighted"
+        parts += s"[$status: ${s.name} - ${s.reason}]"
+      }
+      parts += ""
+    }
+    
+    // === L1 SNAPSHOT ===
+    val l1Items = List(
+      Some(s"Material: ${ctx.l1Snapshot.material}"),
+      ctx.l1Snapshot.imbalance.map(i => s"Imbalance: $i"),
+      ctx.l1Snapshot.kingSafetyUs.map(k => s"King(us): $k"),
+      ctx.l1Snapshot.kingSafetyThem.map(k => s"King(them): $k"),
+      ctx.l1Snapshot.mobility.map(m => s"Mobility: $m"),
+      ctx.l1Snapshot.centerControl.map(c => s"Center: $c")
+    ).flatten
+    
+    if (l1Items.size > 1 || ctx.l1Snapshot.openFiles.nonEmpty) {
+      parts += "=== L1 SNAPSHOT ==="
+      parts += l1Items.mkString(" | ")
+      if (ctx.l1Snapshot.openFiles.nonEmpty) {
+        parts += s"Open files: ${ctx.l1Snapshot.openFiles.mkString(", ")}"
+      }
+      parts += ""
+    }
+    
+    // === DELTA ===
+    ctx.delta.foreach { d =>
+      parts += "=== DELTA ==="
+      val evalSign = if (d.evalChange >= 0) "+" else ""
+      parts += s"Eval: $evalSign${d.evalChange}cp"
+      if (d.newMotifs.nonEmpty) parts += s"New: ${d.newMotifs.mkString(", ")}"
+      if (d.lostMotifs.nonEmpty) parts += s"Lost: ${d.lostMotifs.mkString(", ")}"
+      d.structureChange.foreach(s => parts += s"Structure: $s")
+      parts += ""
+    }
+    
+    // === PHASE CONTEXT (A8) ===
+    parts += "=== PHASE ==="
+    parts += s"Current: ${ctx.phase.current} (${ctx.phase.reason})"
+    ctx.phase.transitionTrigger.foreach(t => parts += s"Trigger: $t")
+    parts += ""
+    
+    // === STRATEGIC FLOW ===
+    ctx.strategicFlow.foreach { flow =>
+      parts += "=== STRATEGIC FLOW ==="
+      parts += flow
+      parts += ""
+    }
+    
+    // === META SIGNALS (B-axis) ===
+    ctx.meta.foreach { m =>
+      parts += "=== META ==="
+      parts += s"Choice: ${m.choiceType}"
+      if (m.targets.attackTargets.nonEmpty)
+        parts += s"Attack: ${m.targets.attackTargets.map((sq, r) => s"$sq($r)").mkString(", ")}"
+      if (m.targets.defendTargets.nonEmpty)
+        parts += s"Defend: ${m.targets.defendTargets.map((sq, r) => s"$sq($r)").mkString(", ")}"
+      parts += s"Plans: ${m.planConcurrency.primary}${m.planConcurrency.secondary.map(s => s" + $s ${m.planConcurrency.relationship}").getOrElse("")}"
+      m.divergence.foreach(d => parts += s"Diverge: ply ${d.divergePly}${d.punisherMove.map(p => s" punished by $p").getOrElse("")}")
+      m.errorClass.foreach(e => parts += s"Error: ${e.errorSummary}")
+      m.whyNot.foreach(w => parts += s"WhyNot: $w")
+      parts += ""
+    }
+    
+    // === CANDIDATES ===
+    if (ctx.candidates.nonEmpty) {
+      parts += "=== CANDIDATES ==="
+      ctx.candidates.zipWithIndex.foreach { case (c, idx) =>
+        val label = ('a' + idx).toChar
+        val whyNotStr = c.whyNot.map(w => s" — $w").getOrElse("")
+        val alertStr = c.tacticalAlert.map(a => s" [!$a]").getOrElse("")
+        parts += s"$label) ${c.move}${c.annotation} (${c.planAlignment}, ${c.practicalDifficulty})$alertStr$whyNotStr"
+      }
+    }
+    
+    // === PROBE REQUESTS (Phase 6.5) ===
+    if (ctx.probeRequests.nonEmpty) {
+      parts += ""
+      parts += "=== PROBE REQUESTS (Evidence Augmentation) ==="
+      ctx.probeRequests.foreach { pr =>
+        parts += s"• ${pr.id}: Probing moves [${pr.moves.mkString(", ")}] at depth ${pr.depth}"
+      }
+    }
+    
+    parts.result().mkString("\n")
+  }

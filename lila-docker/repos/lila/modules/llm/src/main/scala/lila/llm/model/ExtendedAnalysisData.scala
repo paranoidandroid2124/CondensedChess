@@ -31,8 +31,29 @@ case class ExtendedAnalysisData(
 
     // Context
     prevMove: Option[String],
-    ply: Int
-)
+    ply: Int,
+    evalCp: Int,             // White POV centipawns
+    isWhiteToMove: Boolean,
+    phase: String = "middlegame",
+    planSequence: Option[PlanSequence] = None,
+    tacticalThreatToUs: Boolean = false,
+    tacticalThreatToThem: Boolean = false,
+    
+    // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
+    integratedContext: Option[lila.llm.analysis.IntegratedContext] = None
+) {
+  /** Returns stored IntegratedContext or constructs minimal fallback */
+  def toContext: lila.llm.analysis.IntegratedContext = {
+    integratedContext.getOrElse {
+      lila.llm.analysis.IntegratedContext(
+        evalCp = evalCp,
+        isWhiteToMove = isWhiteToMove,
+        threatsToUs = None,
+        threatsToThem = None
+      )
+    }
+  }
+}
 
 object ExtendedAnalysisData {
   import play.api.libs.json._
