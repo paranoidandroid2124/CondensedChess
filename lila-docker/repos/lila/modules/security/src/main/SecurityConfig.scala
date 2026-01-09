@@ -26,7 +26,8 @@ final private class SecurityConfig(
     @ConfigName("pwned.range_url") val pwnedRangeUrl: String,
     @ConfigName("proxyscrape.url") val proxyscrapeUrl: String,
     @ConfigName("password.bpass.secret") val passwordBPassSecret: Secret
-)
+):
+    def proxyMultiplier(v: Int): Int = v
 
 private object SecurityConfig:
 

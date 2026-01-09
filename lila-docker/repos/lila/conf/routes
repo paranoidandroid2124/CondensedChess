@@ -13,6 +13,7 @@ POST  /account/username                controllers.Account.usernameApply
 GET   /account/close                   controllers.Account.close
 POST  /account/close                   controllers.Account.closeConfirm
 
+
 # Authentication
 GET   /login                           controllers.Auth.login
 POST  /login                           controllers.Auth.authenticate
@@ -31,7 +32,7 @@ POST  /auth/magic-link/apply           controllers.Auth.magicLinkApply
 GET   /auth/magic-link/sent            controllers.Auth.magicLinkSent
 GET   /auth/check-email                controllers.Auth.checkYourEmail
 POST  /auth/fix-email                  controllers.Auth.fixEmail
-GET   /auth/token/:token               controllers.Auth.loginWithToken(token, referrer: Option[String] ?= None)
+GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token, referrer: Option[String] ?= None)
 
 # Analysis and Study
@@ -96,6 +97,9 @@ GET   /editor                          controllers.Editor.index
 GET   /editor.json                     controllers.Editor.data
 GET   /editor/*urlFen                  controllers.Editor.load(urlFen)
 
+# Export
+GET   /puzzle/:id/thumbnail            controllers.Export.puzzleThumbnail(id: PuzzleId, theme: Option[String] ?= None, piece: Option[String] ?= None)
+
 # Preferences
 POST  /pref/:name                      controllers.Pref.set(name)
 GET   /account/preferences/:categ      controllers.Pref.form(categ)
@@ -121,6 +125,8 @@ POST   /account/oauth/token/:id/delete controllers.OAuthToken.delete(id)
 GET   /assets/*file                    controllers.ExternalAssets.at(path="public", file)
 GET   /manifest.json                   controllers.Main.manifest
 GET   /robots.txt                      controllers.Main.robots
+
+GET   /contact                         controllers.Main.contact
 
 # Catch-all
 GET   /*path                           controllers.User.redirect(path)

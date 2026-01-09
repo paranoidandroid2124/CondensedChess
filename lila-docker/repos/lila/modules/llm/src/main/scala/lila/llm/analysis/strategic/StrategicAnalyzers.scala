@@ -73,6 +73,10 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
   }
 }
 
+trait StrategicAnalyzer
+
+class StrategicAnalyzers
+
 class ActivityAnalyzerImpl extends ActivityAnalyzer {
   
   def analyze(board: Board, color: Color): List[PieceActivity] = {
@@ -81,8 +85,18 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       board.pieceAt(square).map { piece =>
         val mobility = calculateMobility(board, piece, square)
         val isBadBishop = checkBadBishop(board, piece, square)
-        // Pawns naturally have limited mobility; don't mark blocked pawns as "trapped"
-        val isTrapped = piece.role != Pawn && mobility == 0
+        
+        // P1 FIX: Distinguish undeveloped from truly trapped
+        // "Trapped" means: no safe moves AND under attack OR deeply embedded
+        // Undeveloped piece on home rank with 0 mobility is NOT trapped, just undeveloped
+        val isOnHomeRank = isHomeSquare(piece, square)
+        val isUnderAttack = board.attackers(square, !color).nonEmpty
+        
+        // Only mark as trapped if:
+        // 1. Not a pawn (pawns have natural limited mobility)
+        // 2. No legal squares to move
+        // 3. Either under attack OR not on home square (truly stuck, not just undeveloped)
+        val isTrapped = piece.role != Pawn && mobility == 0 && (!isOnHomeRank || isUnderAttack)
         
         PieceActivity(
           piece = piece.role,
@@ -96,11 +110,37 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       }
     }
   }
+  
+  // Check if piece is on its typical starting square
+  private def isHomeSquare(piece: chess.Piece, square: chess.Square): Boolean = {
+    val homeRank = if (piece.color.white) Rank.First else Rank.Eighth
+    val pawnHomeRank = if (piece.color.white) Rank.Second else Rank.Seventh
+    
+    piece.role match {
+      case Pawn => square.rank == pawnHomeRank
+      case King => false  // King safety is handled separately
+      case _ => square.rank == homeRank  // Rooks, Knights, Bishops, Queens
+    }
+  }
 
   private def calculateMobility(board: Board, piece: chess.Piece, square: chess.Square): Int = {
     val occupied = board.occupied
     val targets = piece.role match {
-      case Pawn => Bitboard.empty // Simplified
+      case Pawn => 
+        // Forward moves
+        val direction = if (piece.color.white) 1 else -1
+        val forward1 = Square.at(square.file.value, square.rank.value + direction)
+        val f1 = forward1.filterNot(sq => board.pieceAt(sq).isDefined).map(sq => sq.file.bb & sq.rank.bb).getOrElse(Bitboard.empty)
+        
+        val f2 = if (f1.nonEmpty && isHomeSquare(piece, square)) {
+          val forward2 = Square.at(square.file.value, square.rank.value + (2 * direction))
+          forward2.filterNot(sq => board.pieceAt(sq).isDefined).map(sq => sq.file.bb & sq.rank.bb).getOrElse(Bitboard.empty)
+        } else Bitboard.empty
+        
+        // Captures
+        val captures = square.pawnAttacks(piece.color) & board.byColor(!piece.color)
+        f1 | f2 | captures
+        
       case Knight => square.knightAttacks
       case Bishop => square.bishopAttacks(occupied)
       case Rook => square.rookAttacks(occupied)
@@ -296,16 +336,34 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
 
   private def detectHoles(board: Board, color: Color): List[chess.Square] = {
     val ranks = if (color.white) List(Rank.Third, Rank.Fourth) else List(Rank.Sixth, Rank.Fifth)
-    // Square.all is List[Square]
     val relevantSquares = Square.all.filter(s => ranks.contains(s.rank))
     
     val friendlyPawns = board.byPiece(color, Pawn)
+    if (friendlyPawns.isEmpty) return Nil  // No pawn structure => no meaningful "holes"
+    
+    val homePawnRank = if (color.white) Rank.Second else Rank.Seventh
+    val pawnsOnHomeRank = friendlyPawns.squares.count(_.rank == homePawnRank)
+    val totalPawns = board.pawns.count
+    
+    // P1 FIX: No meaningful holes if too few pawns remain (Endgame noise) or in starting position
+    if (totalPawns <= 2 || pawnsOnHomeRank >= 6) return Nil
     
     var attacks = Bitboard.empty
     friendlyPawns.squares.foreach { sq =>
        attacks = attacks | sq.pawnAttacks(color)
     }
-    relevantSquares.filter(s => !attacks.contains(s))
+    
+    val rawHoles = relevantSquares.filter(s => !attacks.contains(s))
+    
+    // Prioritize central squares (c, d, e, f files) and limit to max 4
+    val centerFiles = Set(2, 3, 4, 5) // c, d, e, f
+    val sortedHoles = rawHoles.sortBy { sq =>
+      val centralityScore = if (centerFiles.contains(sq.file.value)) 0 else 1
+      val advancementScore = if (color.white) -sq.rank.value else sq.rank.value
+      (centralityScore, advancementScore)
+    }
+    
+    sortedHoles.take(4) // Return at most 4 holes
   }
 
   // NEW: Detect Outposts and Open Files
@@ -345,7 +403,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
           // Check if square is defended by us
           val defended = isDefendedBy(board, sq, color)
           if (attacked && !defended) {
-            features += PositionalTag.LoosePiece(sq, color)
+            features += PositionalTag.LoosePiece(sq, role, color)
           }
         }
       }
@@ -496,6 +554,19 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     if (ourKingside > theirKingside + 1) {
       features += PositionalTag.PawnMajority(color, "kingside", ourKingside - theirKingside)
     }
+
+    // Phase 24: Minority Attack (The inverse of majority - fewer pawns attacking a chain)
+    // Heuristic: We have fewer pawns (but > 0), they have majority, and we have open lines.
+    // Carlson Structure / Carlsbad often has White minority attack on Q-side (2 vs 3).
+    if (ourQueenside > 0 && ourQueenside < theirQueenside && theirQueenside >= 2) {
+      // Check if we are advancing or have semi-open files
+      val semiOpen = ourQueenside < 4 // implied by having fewer pawns than files?
+      // Simple heuristic: 2 vs 3 or 1 vs 2 on queenside is a classic minority attack setup
+      features += PositionalTag.MinorityAttack(color, "queenside")
+    }
+    if (ourKingside > 0 && ourKingside < theirKingside && theirKingside >= 2) {
+      features += PositionalTag.MinorityAttack(color, "kingside")
+    }
     
     features.toList.distinct
   }
@@ -594,7 +665,12 @@ class PracticalityScorerImpl extends PracticalityScorer {
     val safeMargin = 50
     val safeMoveCount = variations.count(v => (bestScore - v.effectiveScore).abs <= safeMargin)
     val forgivenessIndex = math.min(1.0, (safeMoveCount - 1) / 4.0)
-    val forgivenessPenalty = (1.0 - forgivenessIndex) * -50.0
+    
+    // P1 FIX: Early opening phase threshold (starts with 32)
+    val isOpening = board.occupied.count >= 28
+    val isStartingPosition = board.occupied.count >= 30
+    
+    val forgivenessPenalty = if (isStartingPosition) 0.0 else (1.0 - forgivenessIndex) * -50.0
 
     val myWeaknesses = structure.filter(_.color == color)
     val myWeaknessPenalty = myWeaknesses.map { w =>
@@ -607,10 +683,14 @@ class PracticalityScorerImpl extends PracticalityScorer {
        }
     }.sum
     val badBishopPenalty = activity.collect { 
-      case a if a.isBadBishop && board.colorAt(a.square).contains(color) => -30.0 
+      case a if a.isBadBishop && board.colorAt(a.square).contains(color) && !isOpening => -30.0 
     }.sum
 
     var practicalScoreTerm = engineScore.toDouble + mobilityScore + forgivenessPenalty + badBishopPenalty + myWeaknessPenalty
+
+    // P1 FIX: Higher noise floor for "Under Pressure" in early opening
+    val pressureThreshold = if (isOpening) -150.0 else -50.0
+    val advantageThreshold = if (isOpening) 150.0 else 50.0
 
     endgame.foreach { eg =>
       if (eg.hasOpposition && engineScore.abs < 50) {
@@ -618,8 +698,11 @@ class PracticalityScorerImpl extends PracticalityScorer {
       }
     }
 
-    val verdict = if (practicalScoreTerm - engineScore > 50) "Practical Advantage"
-                  else if (practicalScoreTerm - engineScore < -50) "Under Pressure"
+    // P1 FIX: Align verdict with absolute practical score, not just the delta
+    // Thresholds: [-inf, -30) = Under Pressure, [-30, 30] = Balanced, (30, inf] = Comfortable
+    val finalScore = practicalScoreTerm
+    val verdict = if (finalScore > 30.0) "Comfortable"
+                  else if (finalScore < -30.0) "Under Pressure"
                   else "Balanced"
 
     val biasFactors = List(

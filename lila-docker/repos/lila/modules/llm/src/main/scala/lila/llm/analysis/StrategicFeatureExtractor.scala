@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.model.{ ExtendedAnalysisData, PlanMatch, Motif }
+import lila.llm.model.{ ExtendedAnalysisData, PlanMatch, Motif, PositionNature }
 import chess.Color
 
 trait StrategicFeatureExtractor {

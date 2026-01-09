@@ -27,14 +27,14 @@ final class Env(
   val routeUrl: Call => Url = call => Url(s"${baseUrl}${call.url}")
 
   given mode: Mode = environment.mode
-  given translator: lila.core.i18n.Translator = lila.i18n.Translator
+  given translator: lila.core.i18n.Translator = lila.core.i18n.Translator.empty
   given scheduler: Scheduler = system.scheduler
   given RateLimit = net.rateLimit
   given NetDomain = net.domain
   val getFile: GetRelativeFile = GetRelativeFile(environment.getFile(_))
 
   // Chesstory: Analysis-focused modules only
-  val i18n: lila.i18n.Env.type = lila.i18n.Env
+  // val i18n remove
   val mongo: lila.db.Env = wire[lila.db.Env]
   val memo: lila.memo.Env = wire[lila.memo.Env]
   val user: lila.user.Env = new lila.user.Env(
@@ -45,10 +45,20 @@ final class Env(
   val oAuth: lila.oauth.Env = wire[lila.oauth.Env]
   val security: lila.security.Env = wire[lila.security.Env]
   val pref: lila.pref.Env = wire[lila.pref.Env]
-  val game: lila.game.Env = wire[lila.game.Env]
+  val game: lila.game.Env = new lila.game.Env(
+    db = mongo.mainDb,
+    lightUserApi = user.lightUserApi,
+    cacheApi = memo.cacheApi,
+    mongoCache = memo.mongoCache
+  )
   import game.given
   val evalCache: lila.evalCache.Env = wire[lila.evalCache.Env]
-  val analyse: lila.analyse.Env = wire[lila.analyse.Env]
+  val analyse: lila.analyse.Env = new lila.analyse.Env(
+    db = mongo.mainDb,
+    gameRepo = game.gameRepo,
+    cacheApi = memo.cacheApi,
+    net = net
+  )
   
   // Chesstory: Explorer dummy implementation
   val explorer: lila.core.game.Explorer = id => game.gameRepo.game(id)
@@ -63,7 +73,6 @@ final class Env(
     namer = game.namer,
     userApi = user.api,
     explorer = explorer,
-    prefApi = pref.api,
     analyser = analyse.analyser,
     analysisJson = lila.tree.AnalysisJson,
     annotator = analyse.annotator,
@@ -75,11 +84,13 @@ final class Env(
   val llm: lila.llm.Env = wire[lila.llm.Env]
   val web: lila.web.Env = wire[lila.web.Env]
   val api: lila.api.Env = wire[lila.api.Env]
+  lazy val apiC: lila.api.Api = wire[lila.api.Api]
 
   val preloader = wire[mashup.Preload]
   val socialInfo = new mashup.UserInfo.SocialApi(user.noteApi, pref.api)
   val userNbGames = new mashup.UserInfo.NbGamesApi(game.cached, game.crosstableApi)
   val userInfo = new mashup.UserInfo.UserInfoApi(study.studyRepo)
+  val announceApi = new lila.web.AnnounceApi(mongo.mainDb(CollName("announce")))
 
   val pageCache = wire[http.PageCache]
 

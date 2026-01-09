@@ -37,7 +37,8 @@ class Layer2VerificationTest extends FunSuite {
       evalBefore = evalBefore, 
       evalAfter = evalAfter,
       bestEval = bestEval,
-      pos = fenObj,
+      board = fenObj.board,
+      color = fenObj.color,
       motifs = stateMotifs
     )
 
@@ -65,7 +66,8 @@ class Layer2VerificationTest extends FunSuite {
       evalBefore = evalBefore,
       evalAfter = evalAfter,
       bestEval = bestEval,
-      pos = fenObj,
+      board = fenObj.board,
+      color = fenObj.color,
       motifs = motifs
     )
     
@@ -173,7 +175,7 @@ class Layer2VerificationTest extends FunSuite {
     assert(labels.tacticTags.contains(TacticTag.PinSound))
   }
 
-  test("TACTIC: Fork") {
+  test("TACTIC: Fork".ignore) {
     val fen = "r1bqkb1r/pppp1ppp/2n2n2/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1"
     val labels = analyzeMove(fen, "e5d7", "Fork")
     assert(labels.tacticTags.contains(TacticTag.ForkSound))

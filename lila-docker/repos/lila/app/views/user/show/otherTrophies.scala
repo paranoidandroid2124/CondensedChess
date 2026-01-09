@@ -1,3 +1,4 @@
 package views.user.show
+import lila.app.UiEnv.{ *, given }
 object otherTrophies:
-  def apply(u: lila.user.User) = scalatags.Text.all.emptyFrag
+  def apply(u: User) = emptyFrag

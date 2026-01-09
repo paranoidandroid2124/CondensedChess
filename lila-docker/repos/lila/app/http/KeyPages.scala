@@ -5,7 +5,7 @@ import play.api.mvc.*
 import lila.app.Context
 
 final class KeyPages(val env: Env)(using Executor)
-    extends lila.web.ResponseWriter:
+    extends Results with lila.web.ResponseWriter:
 
   def home(status: Results.Status)(using ctx: Context): Fu[Result] =
     fuccess(status("Home"))

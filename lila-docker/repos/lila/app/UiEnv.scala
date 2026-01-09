@@ -7,14 +7,21 @@ object UiEnv
     extends ScalatagsTemplate
     with SecurityHelper
     with Helpers
+    with AssetHelper
     with AssetFullHelper:
+
+  trait IsOnline:
+    def exec(userId: UserId): Boolean
 
   export lila.core.lilaism.Lilaism.{ *, given }
   export lila.core.id.ImageId
   export lila.common.extensions.*
   export lila.common.String.html.richText
   export lila.ui.{ Page, Nonce, OpenGraph, PageModule, EsmList, Icon }
+  def esmPage(name: String): EsmList = List(lila.ui.Esm(name).some)
   export lila.api.Context.{ ctxToTranslate as _, *, given }
+  
+  override val siteName = "Chesstory"
 
   private var envVar: Option[Env] = None
   def setEnv(e: Env) = envVar = Some(e)
@@ -30,24 +37,27 @@ object UiEnv
   def apiVersion = lila.security.Mobile.Api.currentVersion
 
   // helpers dependencies
-  def assetBaseUrl = netConfig.assetBaseUrl
-  def netBaseUrl = netConfig.baseUrl
+  override def assetBaseUrl = netConfig.assetBaseUrl.value
+  override def netBaseUrl = netConfig.baseUrl.value
+  override def assetVersion: String = lila.core.net.AssetVersion.current.value
+  override def safeJsonValue(v: play.api.libs.json.JsValue) = lila.common.String.html.safeJsonValue(v)
+  override def preload(url: String, as: String, crossOrigin: Boolean, tpe: Option[String]) = 
+    super[AssetFullHelper].preload(url, as, crossOrigin, tpe)
+  override def embedJsUnsafe(code: String)(nonce: Option[Nonce]) = 
+    super[AssetFullHelper].embedJsUnsafe(code)(nonce)
+  override def iconTag(icon: Icon): Tag = helpers.iconTag(icon)
+  override def iconTag(icon: Icon, text: Frag): Tag = helpers.iconTag(icon, text)
+
   def routeUrl = netConfig.routeUrl
-  protected val ratingApi = lila.rating.ratingApi
-  protected lazy val flairApi = env.user.flairApi
-  def isOnline = env.socket.isOnline
+  def isOnline: IsOnline = new IsOnline:
+    def exec(userId: UserId) = false
   def lightUserSync = env.user.lightUserSync
   def manifest = env.web.manifest
   def analyseEndpoints = env.web.analyseEndpoints
-  protected val translator = lila.i18n.Translator
-  val langList = lila.i18n.LangList
-
-  protected lazy val namer = lila.game.Namer
+  protected val translator = lila.core.i18n.Translator
+  val langList = lila.core.i18n.LangList
 
   def helpers: Helpers = this
   def assetHelper: AssetFullHelper = this
 
-
-  def flagApi = lila.user.Flags
-
-  def lightUserFallback = env.user.lightUserSyncFallback
+  lazy val ui = lila.game.ui.GameUi(this)

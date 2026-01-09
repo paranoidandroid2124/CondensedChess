@@ -1,5 +1,7 @@
 package lila.security
 
+import lila.core.lilaism.Core.*
+
 import lila.core.id.SessionId
 import lila.core.net.{ IpAddress, UserAgent, ApiVersion }
 import java.time.Instant
@@ -20,3 +22,7 @@ object UserSession:
   given BSONDocumentReader[UserSession] = Macros.reader
 
 case class Dated[A](value: A, date: Instant)
+
+case class Appeal(
+  saveAuthentication: lila.core.userId.UserId => Fu[SessionId]
+)

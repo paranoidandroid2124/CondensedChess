@@ -66,6 +66,8 @@ case class Game(
     history.lastMove.map(UciDump.lastMove(_, variant))
 
   def perfKey: PerfKey = PerfKey(variant, speed)
+  def rated = false
+  def offline = false
 
   def started = status >= Status.Started
   def aborted = status == Status.Aborted

@@ -13,7 +13,7 @@ import lila.core.perm.Permission
 import lila.core.i18n.LangPicker
 import lila.oauth.{ EndpointScopes, OAuthScope, OAuthScopes, OAuthServer, TokenScopes }
 import lila.ui.{ Page, Snippet }
-import play.filters.csrf.CSRF
+// import play.filters.csrf.CSRF
 import lila.api.PageContext
 
 abstract private[controllers] class LilaController(val env: Env)
@@ -77,7 +77,7 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleOpenBody(f))
 
   private def handleOpenBody[A](f: BodyContext[A] ?=> Fu[Result])(using Request[A]): Fu[Result] =
-    CSRF:
+    // CSRF:
       makeBodyContext.flatMap:
         f(using _)
 
@@ -91,7 +91,7 @@ abstract private[controllers] class LilaController(val env: Env)
       else handleOpen(f)
 
   private def handleOpen(f: Context ?=> Fu[Result])(using RequestHeader): Fu[Result] =
-    CSRF:
+    // CSRF:
       makeContext.flatMap:
         f(using _)
 
@@ -154,7 +154,7 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleAuth(f))
 
   private def handleAuth(f: Context ?=> Me ?=> Fu[Result])(using RequestHeader): Fu[Result] =
-    CSRF:
+    // CSRF:
       makeContext.flatMap: ctx =>
         ctx.me.fold(authenticationFailed(using ctx))(f(using ctx)(using _))
 
@@ -169,7 +169,7 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleAuthBody(f))
 
   private def handleAuthBody[A](f: BodyContext[A] ?=> Me ?=> Fu[Result])(using Request[A]): Fu[Result] =
-    CSRF:
+    // CSRF:
       makeBodyContext.flatMap: ctx =>
         ctx.me.fold(authenticationFailed(using ctx))(f(using ctx)(using _))
 

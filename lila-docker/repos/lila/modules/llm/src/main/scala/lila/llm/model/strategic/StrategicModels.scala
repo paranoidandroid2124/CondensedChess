@@ -68,7 +68,7 @@ enum PositionalTag:
   case Outpost(square: Square, color: Color)
   case OpenFile(file: chess.File, color: Color)
   case WeakSquare(square: Square, color: Color)
-  case LoosePiece(square: Square, color: Color)
+  case LoosePiece(square: Square, role: Role, color: Color)
   case WeakBackRank(color: Color)
   case BishopPairAdvantage(color: Color)
   case BadBishop(color: Color)
@@ -84,6 +84,14 @@ enum PositionalTag:
   // Phase 11: New positional tags
   case ColorComplexWeakness(color: Color, squareColor: String, squares: List[Square])  // "light" or "dark"
   case PawnMajority(color: Color, flank: String, count: Int)  // "queenside" or "kingside"
+  case MinorityAttack(color: Color, flank: String)
+  // Phase 29: Queen and Tactical motifs
+  // case QueenActivity(color: Color)
+  // case QueenManeuver(color: Color)
+  case MateNet(color: Color)
+  // case PerpetualCheck(color: Color)
+  case RemovingTheDefender(target: Role, color: Color)
+  case Initiative(color: Color)
 
 enum PlanTag:
   case KingsideAttackGood, CentralControlGood, PromotionThreat
@@ -101,11 +109,19 @@ case class CounterfactualMatch(
     userLine: lila.llm.model.strategic.VariationLine 
 )
 
+// Phase 22.5: Dual intent - separates immediate move purpose from downstream consequences
+case class MoveIntent(
+    immediate: String,           // What the move itself does (e.g., "Development")
+    downstream: Option[String]   // Tactics that emerge later in PV (e.g., "Tactical shot (fork)")
+)
+
 case class AnalyzedCandidate(
     move: String,
     score: Int, // Normalized CP
     motifs: List[lila.llm.model.Motif],
     prophylaxisResults: List[PreventedPlan],
-    futureContext: String, // e.g. "Leads to opposite colored bishops"
+    futureContext: String, // Kept for backward compatibility
+    moveIntent: MoveIntent = MoveIntent("Positional maneuvering", None), // Default for backward compat
+    facts: List[lila.llm.model.Fact] = Nil, // Phase 23: Verified Facts
     line: VariationLine
 )

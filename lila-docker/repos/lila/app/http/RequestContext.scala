@@ -4,9 +4,11 @@ package http
 import play.api.i18n.Lang
 import play.api.mvc.*
 
+import lila.api.{ PageData, PageContext }
+import lila.common.HTTPRequest
+import lila.common.extensions.*
 import lila.core.i18n.LangPicker
 import lila.oauth.OAuthScope
-import lila.api.{ PageData, PageContext }
 
 trait RequestContext(using Executor):
 
@@ -15,20 +17,20 @@ trait RequestContext(using Executor):
   def makeContext(using req: RequestHeader): Fu[Context] = for
     userCtx <- makeUserContext(req)
     lang = getAndSaveLang(req, userCtx.me)
-    pref <- env.pref.api.get(userCtx.me, req)
+    pref <- env.pref.api.get(Me.raw(userCtx.me), req)
   yield Context(req, lang, userCtx, pref)
 
   def makeBodyContext[A](using req: Request[A]): Fu[BodyContext[A]] = for
     userCtx <- makeUserContext(req)
     lang = getAndSaveLang(req, userCtx.me)
-    pref <- env.pref.api.get(userCtx.me, req)
+    pref <- env.pref.api.get(Me.raw(userCtx.me), req)
   yield BodyContext(req, lang, userCtx, pref)
 
   def oauthContext(scoped: OAuthScope.Scoped)(using req: RequestHeader): Fu[Context] =
     val lang = getAndSaveLang(req, scoped.me.some)
     val userCtx = LoginContext(scoped.me.some, false, none, scoped.scopes.some)
     env.pref.api
-      .get(scoped.me, req)
+      .get(Me.raw(scoped.me), req)
       .map:
         Context(req, lang, userCtx, _)
 
@@ -36,7 +38,7 @@ trait RequestContext(using Executor):
     val lang = getAndSaveLang(req, scoped.me.some)
     val userCtx = LoginContext(scoped.me.some, false, none, scoped.scopes.some)
     env.pref.api
-      .get(scoped.me, req)
+      .get(Me.raw(scoped.me), req)
       .map:
         BodyContext(req, lang, userCtx, _)
 
@@ -48,7 +50,7 @@ trait RequestContext(using Executor):
     // core/i18n.scala showed: def apply(req: play.api.mvc.RequestHeader): Lang
     // It DOES NOT have the 2-arg apply in the file I viewed (Step 28).
     // So I use single arg.
-    me.filter(_.lang.forall(_ != lang.toTag)).foreach { env.user.repo.setLang(_, lang) }
+    me.filter(_.lang.forall(_ != lang.code)).foreach { env.user.repo.setLang(_, lang) }
     lang
 
   private def pageDataBuilder(using ctx: Context): Fu[PageData] =
@@ -85,6 +87,5 @@ trait RequestContext(using Executor):
       .restoreUser(req)
       .map:
         case Some(user) =>
-           LoginContext(user.some, needsFp = false, none, none) // Simplified
+           LoginContext(Some(lila.api.Me(user)), needsFp = false, none, none)
         case None => LoginContext.anon
-

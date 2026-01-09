@@ -33,18 +33,14 @@ final class Editor(env: Env) extends LilaController(env):
       .decodeUriPath(urlFen)
       .filter(_.nonEmpty)
       .map(Fen.Full.clean)
-    Ok.page:
-      views.boardEditor(fen, positionsJson, endgamePositionsJson)
+    Ok(s"Editor for ${fen.fold("")(_.value)}")
 
   def data = Open:
-    JsonOk(views.boardEditor.jsData())
+    JsonOk(positionsJson ++ endgamePositionsJson)
 
   def game(id: GameId) = Open:
     Found(env.game.gameRepo.game(id)): game =>
-      Redirect:
-        if game.playable
-        then routes.Round.watcher(game.id, Color.white).url
-        else editorUrl(get("fen").fold(Fen.write(game.chess))(Fen.Full.clean), game.variant)
+      Redirect(editorUrl(get("fen").fold(Fen.write(game.chess))(Fen.Full.clean), game.variant))
 
   private[controllers] def editorUrl(fen: Fen.Full, variant: Variant): String =
     if fen == Fen.initial && variant.standard then routes.Editor.index.url

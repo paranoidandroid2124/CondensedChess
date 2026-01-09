@@ -72,6 +72,11 @@ final class PrefApi(
   def setPref(user: User, change: Pref => Pref): Funit =
     get(user).map(change).flatMap(setPref(user, _))
 
+  def set(user: User, name: String, value: String): Funit =
+    setPref(user, _.set(name, value))
+
   def saveNewUserPrefs(user: User, req: RequestHeader): Funit =
     val reqPref = RequestPref.fromRequest(req)
     (reqPref != Pref.default).so(setPref(user, reqPref.copy(id = user.id)))
+
+  def followable(userId: UserId): Fu[Boolean] = Future.successful(true)

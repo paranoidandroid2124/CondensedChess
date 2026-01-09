@@ -2,7 +2,7 @@ package views.game
 package side
 
 import lila.app.UiEnv.{ *, given }
-import lila.game.GameExt.perfType
+import lila.i18n.trans
 
 private val separator = " • "
 private val dataUserTv = attr("data-user-tv")
@@ -33,24 +33,24 @@ def meta(
     import pov.*
     div(cls := "game__meta")(
       st.section(
-        div(cls := "game__meta__infos", dataIcon := ui.gameIcon(game))(
+        div(cls := "game__meta__infos")(
           div(
             div(cls := "header")(
               div(cls := "setup")(
-                views.bookmark.toggle(game, bookmarked),
+                div(), // bookmarked
                 if game.sourceIs(_.Import) then
                   div(
-                    a(href := routes.Importer.importGame, title := trans.site.importGame.txt())("IMPORT"),
+                    a(href := routes.Importer.importGame, title := "Import")("IMPORT"),
                     separator,
-                    variantLink(game.variant, game.perfType, initialFen = initialFen, shortName = true)
+                    variantLink(game.variant, None)
                   )
                 else
                   frag(
-                    ui.widgets.showClock(game),
+                    div("clock"),
                     separator,
-                    ratedName(game.rated),
+                    "Analysis",
                     separator,
-                    variantLink(game.variant, game.perfType, initialFen, shortName = true)
+                    variantLink(game.variant, None)
                   )
               ),
               game.pgnImport.flatMap(_.date).fold(momentFromNowWithPreload(game.createdAt))(frag(_))
@@ -59,14 +59,7 @@ def meta(
               .flatMap(_.user)
               .map: importedBy =>
                 small(
-                  trans.site.importedByX(userIdLink(importedBy.some, None, withOnline = false)),
-                  ctx
-                    .is(importedBy)
-                    .option(form(cls := "delete", method := "post", action := routes.Game.delete(game.id)):
-                      submitButton(
-                        cls := "button-link yes-no-confirm",
-                        title := trans.site.deleteThisImportedGame.txt()
-                      )(trans.site.delete.txt()))
+                  trans.site.importedByX(userIdLink(importedBy.some, withOnline = false))
                 )
           )
         ),
@@ -90,7 +83,7 @@ def meta(
           game.winner.map: winner =>
             frag(
               separator,
-              winner.color.fold(trans.site.whiteIsVictorious, trans.site.blackIsVictorious)()
+              winner.color.fold(trans.site.whiteIsVictorious, trans.site.blackIsVictorious)
             )
         )
       ),

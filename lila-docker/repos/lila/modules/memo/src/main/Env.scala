@@ -44,7 +44,7 @@ final class Env(
 
   val settingStore = wire[SettingStore.Builder]
 
-  val mongoCacheApi = wire[MongoCache.Api]
+  val mongoCache = wire[MongoCache.Api]
 
   val mongoRateLimitApi = wire[MongoRateLimitApi]
 

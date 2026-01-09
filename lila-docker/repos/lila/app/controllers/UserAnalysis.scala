@@ -61,8 +61,8 @@ final class UserAnalysis(
       eval = None,
       opening = None,
       phase = "middlegame",
-      ply = pov.game.ply
-    ).map: narrativeOpt =>
+      ply = pov.game.ply.value
+    ).flatMap: narrativeOpt =>
       val narrativeFrag = narrativeOpt.map: res =>
         lila.analyse.ui.BookmakerRenderer.render(res.commentary, res.variations, (decodedFen | variant.initialFen).value)
       

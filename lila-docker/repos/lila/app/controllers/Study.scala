@@ -182,5 +182,14 @@ final class Study(
     else if ctx.isAnon then unauthorized
     else forbidden
 
+  def topics = Open { _ ?=> fuccess(NotFound) }
+  def setTopics = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def staffPicks = Open { _ ?=> fuccess(NotFound) }
+  def cloneApply(id: lila.core.id.StudyId) = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def pgn(id: lila.core.id.StudyId) = Open { _ ?=> fuccess(NotFound) }
+  def delete(id: lila.core.id.StudyId) = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def create = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def createAs = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+
   private def renderPage(frag: Context ?=> scalatags.Text.all.Frag)(using ctx: Context): Fu[Page] =
     fuccess(Page("Study").wrap(_ => div(frag)))

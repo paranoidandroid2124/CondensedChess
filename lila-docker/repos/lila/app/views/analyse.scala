@@ -12,5 +12,5 @@ object analyse:
         def compose(f: Any => Any) = lila.web.ContentSecurityPolicy.default
 
   object embed:
-    def lpv(pgn: Any, args: Any*) = emptyFrag
+    def lpv(pgn: Any, board: Boolean = true, title: String = "") = emptyFrag
     def userAnalysis(args: Any*) = emptyFrag

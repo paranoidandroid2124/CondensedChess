@@ -33,7 +33,14 @@ object PlayServer:
         .info:
           val java = System.getProperty("java.version")
           val mem = Runtime.getRuntime.maxMemory() / 1024 / 1024
-          s"lila ${config.mode} / java $java, memory: ${mem}MB"
+          """
+   ______ __                         __                       
+  / ____// /_   ___   _____ _____ / /_ ____   _____ __  __ 
+ / /    / __ \ / _ \ / ___// ___// __// __ \ / ___// / / / 
+/ /___ / / / //  __/(__  )(__  )/ /_ / /_/ // /   / /_/ /  
+\____//_/ /_/ \___//____//____/ \__/ \____//_/    \__, /   
+                                                 /____/    
+""" + s"Chesstory ${config.mode} / java $java, memory: ${mem}MB"
 
       val environment: Environment = Environment(config.rootDir, process.classLoader, config.mode)
 

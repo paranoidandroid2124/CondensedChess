@@ -37,12 +37,12 @@ object embed:
     cls := List("simple-board" -> ctx.pref.simpleBoard),
     page.ui.dataSoundSet := lila.pref.SoundSet.silent.key,
     page.ui.dataAssetUrl,
-    page.ui.dataAssetVersion := assetVersion.value,
+    page.ui.dataAssetVersion := assetVersion,
     page.ui.dataTheme := ctx.bg,
     page.ui.dataPieceSet := ctx.pieceSet.name,
     page.ui.dataBoard := ctx.boardClass,
     page.ui.dataSocketDomains,
-    style := page.boardStyle(zoomable = false)
+    style := page.boardStyle(zoomable = false)(using ctx.ctx)
   )
 
   /* a heavier embed that loads site.ts and connects to WS */
@@ -54,7 +54,7 @@ object embed:
       csp: Update[ContentSecurityPolicy] = identity,
       i18nModules: List[I18nModule.Selector] = Nil
   )(body: Modifier*)(using ctx: EmbedContext) = lila.ui.Snippet:
-    val allModules = modules ++ pageModule.so(module => esmPage(module.name))
+    val allModules: EsmList = modules ++ pageModule.fold(Nil)(module => esmPage(module.name))
     frag(
       page.ui.doctype,
       page.ui.htmlTag(using ctx.lang)(
@@ -69,7 +69,7 @@ object embed:
           cssTag("lib.theme.embed"),
           cssKeys.map(cssTag),
           page.ui.sitePreload(List[I18nModule.Selector](_.site, _.timeago) ++ i18nModules, allModules),
-          page.ui.lichessFontFaceCss
+          page.ui.chesstoryFontFaceCss
         ),
         st.body(bodyModifiers)(
           body,

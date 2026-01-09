@@ -3,6 +3,18 @@ package pref
 
 import lila.core.userId.UserId
 
+trait PrefTheme:
+  def name: String
+  def file: String
+
+trait PrefPieceSet:
+  def name: String
+
+trait PrefBoard:
+  def opacity: Int
+  def brightness: Int
+  def hue: Int
+
 trait Pref:
   val id: UserId
   val coords: Int
@@ -24,4 +36,16 @@ trait Pref:
   def animationMillis: Int
   def pieceNotationIsLetter: Boolean
   def currentBg: String
-  def showRatings: Boolean = true  // Default to true for analysis system
+  def showRatings: Boolean = true
+
+  def themeColor: String
+  def themeColorClass: Option[String]
+
+  def board: PrefBoard
+
+  def currentTheme: PrefTheme
+  def currentTheme3d: PrefTheme
+  def realTheme: PrefTheme
+
+  def currentPieceSet: PrefPieceSet
+  def realPieceSet: PrefPieceSet

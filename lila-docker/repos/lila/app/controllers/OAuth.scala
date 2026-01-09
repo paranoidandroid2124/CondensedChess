@@ -12,7 +12,8 @@ import lila.common.Json.given
 import lila.core.net.Bearer
 import lila.oauth.{ AccessTokenRequest, AuthorizationRequest, OAuthScopes }
 
-import Api.ApiResult
+import lila.api.Api
+import lila.api.Api.ApiResult
 
 final class OAuth(env: Env, apiC: => Api) extends LilaController(env):
 

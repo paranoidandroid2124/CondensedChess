@@ -20,8 +20,13 @@ final class Env(
 
   export lightUserApi.{
     async as lightUser,
-    sync as lightUserSync
+    sync as lightUserSync,
+    fallback as lightUserSyncFallback
   }
+
+  lazy val noteApi = new NoteApi(db(CollName("note")))
+  
+  lazy val flairApi = new FlairApi(lila.common.config.GetRelativeFile((_: String) => new java.io.File("")))
 
   // Mock isOnline as always false since socket is gone
   private val isOnlineFunc: UserId => Boolean = _ => false

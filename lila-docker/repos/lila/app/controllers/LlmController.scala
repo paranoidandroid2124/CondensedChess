@@ -4,12 +4,12 @@ import play.api.mvc._
 import play.api.libs.json._
 import lila.api.Context
 import lila.app._
-import lila.llm.{ LlmClient, FullAnalysisRequest, AnalysisOptions, MoveEval, AnalysisVariation }
+import lila.llm.{ LlmApi, LlmClient, FullAnalysisRequest, AnalysisOptions, MoveEval, AnalysisVariation }
 import lila.llm.model.strategic.VariationLine
 import scala.concurrent.Future
 
 final class LlmController(
-    api: lila.llm.LlmApi,
+    api: LlmApi,
     env: Env
 ) extends LilaController(env):
 

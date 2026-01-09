@@ -13,8 +13,9 @@ object Lilaism extends LilaLibraryExtensions:
   export lila.core.data.{ Markdown, Html, JsonStr, Url }
   export lila.core.perf.PerfKey
   export lila.core.email.EmailAddress
-  export lila.core.user.{ User, Me }
+  export lila.core.user.{ User, Me, NbGames }
   export lila.core.game.{ Game, Pov }
+  export lila.i18n.trans
 
   def some[A](a: A): Option[A] = Some(a)
 

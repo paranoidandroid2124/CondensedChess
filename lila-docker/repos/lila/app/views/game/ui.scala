@@ -25,6 +25,6 @@ def widgets(
     notes: Map[GameId, String] = Map(),
     user: Option[User] = None,
     ownerLink: Boolean = false
-)(using ctx: lila.ui.Context): Frag =
+)(using ctx: lila.api.Context): Frag =
   games.map: g =>
     ui.widgets(g, notes.get(g.id), user, ownerLink)(emptyFrag)  // tournament/simul/swiss links removed

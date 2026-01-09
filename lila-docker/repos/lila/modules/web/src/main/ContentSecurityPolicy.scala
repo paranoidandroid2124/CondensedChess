@@ -3,6 +3,18 @@ package lila.web
 import lila.core.config.AssetDomain
 
 object ContentSecurityPolicy:
+  lazy val default = lila.ui.ContentSecurityPolicy(
+    defaultSrc = List("'none'"),
+    connectSrc = Nil,
+    styleSrc = Nil,
+    frameSrc = Nil,
+    workerSrc = Nil,
+    imgSrc = Nil,
+    mediaSrc = Nil,
+    scriptSrc = Nil,
+    fontSrc = Nil,
+    baseUri = List("'none'")
+  )
 
   def page(assetDomain: AssetDomain, connectSrcs: List[String]) =
     lila.ui.ContentSecurityPolicy(

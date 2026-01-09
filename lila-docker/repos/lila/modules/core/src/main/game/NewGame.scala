@@ -3,7 +3,7 @@ package game
 
 import _root_.chess.format.Fen
 import _root_.chess.{ ByColor, Game as ChessGame, Status }
-import scalalib.ThreadLocalRandom
+
 
 import lila.core.id.GameId
 

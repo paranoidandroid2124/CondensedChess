@@ -12,6 +12,7 @@ import scalatags.text.Builder
 // collection of lila attrs
 trait ScalatagsAttrs:
   val dataTag = attr("data-tag")
+  val dataTab = attr("data-tab")
   val dataIcon = attr("data-icon")
   val dataHref = attr("data-href")
   val dataCount = attr("data-count")

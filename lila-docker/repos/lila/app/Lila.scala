@@ -45,7 +45,7 @@ final class LilaComponents(
     .info:
       val appVersionCommit = ~configuration.getOptional[String]("app.version.commit")
       val appVersionDate = ~configuration.getOptional[String]("app.version.date")
-      s"lila version: $appVersionCommit $appVersionDate"
+      s"Chesstory version: $appVersionCommit $appVersionDate"
 
   import _root_.controllers.*
 
@@ -88,8 +88,7 @@ final class LilaComponents(
   val httpFilters = Seq(
     lila.web.HttpFilter(
       env.net,
-      env.web.settings.sitewideCoepCredentiallessHeader.get,
-      lila.security.Mobile.LichessMobileUa.parse
+      env.web.settings.sitewideCoepCredentiallessHeader.get
     )
   )
 
@@ -116,34 +115,21 @@ final class LilaComponents(
   
   // Core controllers only
   // Core controllers for analysis-only system
+  lazy val apiC = env.apiC
   lazy val account: Account = wire[Account]
   lazy val analyse: Analyse = wire[Analyse]
-  // lazy val api: Api = wire[Api]
   lazy val auth: Auth = wire[Auth]
-  // lazy val dasher: Dasher = wire[Dasher]
-  // lazy val dev: Dev = wire[Dev]
   lazy val editor: Editor = wire[Editor]
   lazy val `export`: Export = wire[Export]
-  // lazy val fishnet: Fishnet = wire[Fishnet]
-  // lazy val game: Game = wire[Game]
-  // lazy val github: Github = wire[Github]
-  // lazy val i18n: I18n = wire[I18n]
   lazy val importer: Importer = wire[Importer]
   lazy val main: Main = wire[Main]
   lazy val oAuth: OAuth = wire[OAuth]
   lazy val oAuthToken: OAuthToken = wire[OAuthToken]
-  // lazy val plan: Plan = wire[Plan]
   lazy val pref: Pref = wire[Pref]
-  // lazy val push: Push = wire[Push]
-  // lazy val round: Round = wire[Round]
-  // lazy val search: Search = wire[Search]
-  // lazy val setup: Setup = wire[Setup]
   lazy val study: Study = wire[Study]
-  // lazy val timeline: Timeline = wire[Timeline]
   lazy val user: User = wire[User]
   lazy val userAnalysis: UserAnalysis = wire[UserAnalysis]
   lazy val llmController: LlmController = new LlmController(env.llm.api, env)
-  // lazy val opening: Opening = wire[Opening]
 
   val router: Router = wire[_root_.router.router.Routes]
 

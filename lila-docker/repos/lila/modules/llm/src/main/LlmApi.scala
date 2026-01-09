@@ -2,9 +2,19 @@ package lila.llm
 
 import play.api.libs.json.*
 import scala.concurrent.{ ExecutionContext, Future }
+import lila.llm.model.ProbeResult
+import lila.llm.analysis.{
+  ProbeOrchestrator, 
+  ProbeOrchestratorConfig,
+  InitialCommentaryResult,
+  RefinedCommentaryResult
+}
 
 /** High-level API for LLM commentary features */
 final class LlmApi(client: LlmClient)(using ec: ExecutionContext):
+
+  // P2: ProbeOrchestrator for 2-call flow
+  private val orchestrator = new ProbeOrchestrator(client)
 
   def commentPosition(req: CommentRequest): Future[Option[CommentResponse]] = 
     client.commentPosition(req)
@@ -27,6 +37,35 @@ final class LlmApi(client: LlmClient)(using ec: ExecutionContext):
       eval = eval,
       context = PositionContext(opening, phase, ply)
     ))
+
+  // ============================================================
+  // P2: 2-CALL PROBE LOOP ENDPOINTS
+  // ============================================================
+
+  /**
+   * P2 Phase 1: Get initial commentary with probe requests.
+   * Returns draft immediately + list of probes for client to execute.
+   */
+  def commentWithProbes(req: CommentRequest): Future[InitialCommentaryResult] =
+    orchestrator.getInitialCommentary(req)
+
+  /**
+   * P2 Phase 2: Refine commentary with probe results.
+   * Uses FutureSnapshot for accurate PVDelta.
+   * Falls back to cached draft if refinement fails.
+   */
+  def refineWithProbes(req: CommentRequest, probeResults: List[ProbeResult]): Future[RefinedCommentaryResult] =
+    orchestrator.refineWithProbes(req, probeResults)
+
+  /**
+   * P2: Get cached draft (for timeout scenarios).
+   */
+  def getCachedDraft(fen: String): Option[analysis.CachedDraft] =
+    orchestrator.getCachedDraft(fen)
+
+  // ============================================================
+  // EXISTING ENDPOINTS
+  // ============================================================
 
   /** Generate full game analysis with annotations */
   def analyzeFullGame(
@@ -69,3 +108,4 @@ final class LlmApi(client: LlmClient)(using ec: ExecutionContext):
         phase = phase,
         ply = 0
       ).map(_.map(_.commentary))
+

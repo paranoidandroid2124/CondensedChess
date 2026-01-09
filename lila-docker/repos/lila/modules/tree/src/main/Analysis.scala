@@ -17,6 +17,9 @@ trait Annotator:
 trait AnalysisJson:
   def bothPlayers(startedAtPly: Ply, analysis: Analysis, withAccuracy: Boolean = true): JsObject
 
+object AnalysisJson extends AnalysisJson:
+  def bothPlayers(startedAtPly: Ply, analysis: Analysis, withAccuracy: Boolean = true): JsObject = JsObject.empty
+
 case class Analysis(
     id: Analysis.Id,
     infos: List[Info],

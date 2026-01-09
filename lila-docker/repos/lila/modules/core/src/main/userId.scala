@@ -3,6 +3,7 @@ package lila.core
 import scalalib.newtypes.*
 
 import lila.core.user.Me
+import play.api.mvc.PathBindable
 
 object userId:
 
@@ -26,7 +27,7 @@ object userId:
     val watcherbot: UserId = "watcherbot"
     def isOfficial[U: UserIdOf](user: U) = lichess.is(user) || broadcaster.is(user)
 
-  trait UserIdOf[U]:
+  trait UserIdOf[-U]:
     def apply(u: U): UserId
     extension (u: U)
       inline def id: UserId = apply(u)
@@ -70,6 +71,7 @@ object userId:
       def validate: Option[UserStr] = e.couldBeUsername.option(e)
       def validateId: Option[UserId] = validate.map(_.id)
     given UserIdOf[UserStr] = n => UserId(n.value.toLowerCase)
+    given PathBindable[UserStr] = PathBindable.bindableString.transform(UserStr(_), _.value)
     // these conversions are using when generating routes containing UserStr
     // so we can give them usernames and userIds
     given Conversion[UserName, UserStr] = _.value
