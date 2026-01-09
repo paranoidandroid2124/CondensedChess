@@ -8,6 +8,9 @@ import lila.ui.*
 
 import ScalatagsTemplate.{ *, given }
 
+case class PieceSetImages(assetHelper: lila.web.ui.AssetFullHelper):
+  def load(name: String): Frag = ""
+
 final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     popularAlternateLanguages: List[Language]
 ):
@@ -16,7 +19,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
 
   val doctype = raw("<!DOCTYPE html>")
   def htmlTag(using lang: Lang) = html(st.lang := lang.code)
-  val topComment = raw("""<!-- Lichess is open source! See https://lichess.org/source -->""")
+  val topComment = raw("""<!-- Chesstory Analysis Engine -->""")
   val charset = raw("""<meta charset="utf-8">""")
   val viewport = raw:
     """<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">"""
@@ -32,12 +35,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
   val noTranslate = raw("""<meta name="google" content="notranslate">""")
 
   private def fontPreload(path: String) = preload(assetUrl(s"font/$path"), "font", true, "font/woff2".some)
+  def imagePreload(url: String): Frag = preload(url, "image", false, None)
 
   def fontsPreload(using ctx: Context) = frag(
-    fontPreload("lichess.woff2"),
+    fontPreload("chesstory.woff2"),
     fontPreload("noto-sans-latin.woff2"),
     fontPreload("roboto-latin.woff2"),
-    ctx.pref.pieceNotationIsLetter.not.option(fontPreload("lichess-chess.woff2"))
+    ctx.pref.pieceNotationIsLetter.not.option(fontPreload("chesstory-chess.woff2"))
   )
 
   def clinput(using ctx: Context) =
@@ -65,11 +69,11 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
   val favicons = raw:
     List(512, 256, 192, 128, 64)
       .map: px =>
-        s"""<link rel="icon" type="image/png" href="$assetBaseUrl/assets/logo/lichess-favicon-$px.png" sizes="${px}x$px">"""
+        s"""<link rel="icon" type="image/png" href="$assetBaseUrl/assets/logo/chesstory-favicon-$px.png" sizes="${px}x$px">"""
       .mkString(
         "",
         "",
-        s"""<link id="favicon" rel="icon" type="image/png" href="$assetBaseUrl/assets/logo/lichess-favicon-32.png" sizes="32x32">"""
+        s"""<link id="favicon" rel="icon" type="image/png" href="$assetBaseUrl/assets/logo/chesstory-favicon-32.png" sizes="32x32">"""
       )
 
   def dasher(me: User) =
@@ -150,13 +154,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
   private val spaceRegex = """\s{2,}+""".r
   def spaceless(html: String) = raw(spaceRegex.replaceAllIn(html.replace("\\n", ""), ""))
 
-  def lichessFontFaceCss = spaceless:
+  def chesstoryFontFaceCss = spaceless:
     s"""
 <style>
   @font-face {
-    font-family: 'lichess';
+    font-family: 'chesstory';
     font-display: block;
-    src: url('${assetUrl("font/lichess.woff2")}') format('woff2')
+    src: url('${assetUrl("font/chesstory.woff2")}') format('woff2')
   }
 </style>"""
 
@@ -164,6 +168,9 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     Option.when(netConfig.socketDomains.nonEmpty)(networkAlert),
     spinnerMask
   )
+
+  def sitePreload(i18n: List[lila.core.i18n.I18nModule.Selector], modules: EsmList)(using Context): Frag = ""
+
 
   object siteHeader:
 
@@ -173,9 +180,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
 <label for="tn-tg" class="fullscreen-mask"></label>
 <label for="tn-tg" class="hbg"><span class="hbg__in"></span></label>"""
 
-    private val siteNameFrag: Frag =
-      if siteName == "lichess.org" then frag("lichess", span(".org"))
-      else frag(siteName)
+    private val siteNameFrag: Frag = frag(siteName)
 
     def apply(
         zenable: Boolean,

@@ -29,7 +29,7 @@ def show(
         ) ++ views.analyse.ui.explorerAndCevalConfig
       )
     )
-    .i18n(_.study):
+    .i18n(x => x):
       main(cls := "analyse")
 
 def privateStudy(study: lila.study.Study)(using Context) =

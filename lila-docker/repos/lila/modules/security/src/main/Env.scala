@@ -5,8 +5,10 @@ import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
 import scala.concurrent.duration.*
 
-import lila.core.config.Secret
-import lila.common.Executor
+import lila.core.i18n.LangPicker
+import lila.oauth.OAuthScope
+import lila.core.lilaism.Core.*
+import lila.core.security.{ ClearPassword, IsProxy }
 
 @Module
 final class Env(
@@ -16,7 +18,7 @@ final class Env(
     oauthEnv: lila.oauth.Env,
     mailerEnv: lila.mailer.Env,
     cacheApi: lila.memo.CacheApi
-)(using val system: akka.actor.ActorSystem, val executor: Executor)(using StandaloneWSClient):
+)(using val system: akka.actor.ActorSystem, val executor: Executor, mode: play.api.Mode, rateLimit: lila.core.config.RateLimit)(using StandaloneWSClient):
 
   private val settings = config.get[SecurityConfig]("security")
   
@@ -32,23 +34,53 @@ final class Env(
   lazy val firewall = new Firewall(firewallColl, settings, system.scheduler)
   lazy val flood = new Flood()
   
-  // Stubs/Simplified components for analysis-only
-  lazy val hcaptcha = new Hcaptcha(settings.hcaptcha)
-  lazy val forms = new SecurityForm(hcaptcha, userEnv.repo)
-  lazy val passwordHasher = new PasswordHasher(settings.passwordBPassSecret)
-  lazy val geoIp = new Ip2Proxy(settings.ip2Proxy, cacheApi)
-  lazy val emailConfirm = new EmailConfirm(settings.emailConfirm)
-  lazy val userLogins = new UserLogins(securityColl)
-  lazy val pwned = new PwnedApi(settings.pwnedRangeUrl)
-  lazy val spam = new Spam(userEnv.repo)
-  lazy val firewallApi = firewall // simplified alias
+  // Simplified components for analysis-only system
+  lazy val hcaptcha: Hcaptcha = new HcaptchaSkip()
+  lazy val lameNameCheck = LameNameCheck(false)
+  lazy val passwordHasher = new PasswordHasher(settings.passwordBPassSecret, logRounds = 10)
+  lazy val authenticator = new Authenticator(passwordHasher, userEnv.repo)
+  lazy val forms = new SecurityForm(userEnv.repo, authenticator, lameNameCheck)
+  lazy val spam = new Spam(() => lila.core.data.Strings(Nil))
+  lazy val signup = new Signup(userEnv.repo, authenticator)
+
+  trait PwnedStub:
+    def isPwned(pass: ClearPassword): Fu[IsPwned]
+  lazy val pwned: PwnedStub = new PwnedStub:
+    def isPwned(pass: ClearPassword): Fu[IsPwned] = Future.successful(IsPwned(false))
+
+  trait IpTrustStub:
+    def rateLimitCostFactor(req: play.api.mvc.RequestHeader, f: lila.security.SecurityConfig => Int): Fu[Float]
+    def isPubOrTor(req: play.api.mvc.RequestHeader): Fu[Boolean]
+  lazy val ipTrust: IpTrustStub = new IpTrustStub:
+    def rateLimitCostFactor(req: play.api.mvc.RequestHeader, f: lila.security.SecurityConfig => Int): Fu[Float] = Future.successful(1.0f)
+    def isPubOrTor(req: play.api.mvc.RequestHeader): Fu[Boolean] = Future.successful(false)
+
+  trait Ip2ProxyStub:
+    def ofReq(req: play.api.mvc.RequestHeader): Fu[IsProxy]
+    def ofIp(ip: lila.core.net.IpAddress): Fu[IsProxy]
+  lazy val ip2proxy: Ip2ProxyStub = new Ip2ProxyStub:
+    def ofReq(req: play.api.mvc.RequestHeader): Fu[IsProxy] = Future.successful(IsProxy.empty)
+    def ofIp(ip: lila.core.net.IpAddress): Fu[IsProxy] = Future.successful(IsProxy.empty)
+
+  trait LilaCookieStub extends lila.core.security.LilaCookie:
+    def cookie(
+        name: String,
+        value: String,
+        maxAge: Option[Int] = None,
+        httpOnly: Option[Boolean] = None
+    ): play.api.mvc.Cookie = play.api.mvc.Cookie(name, value, maxAge)
+
+    def withSession(remember: Boolean)(f: play.api.mvc.Session => play.api.mvc.Session): play.api.mvc.Cookie
+    def newSession: play.api.mvc.Cookie
+    def session(uri: String, req: play.api.mvc.RequestHeader): play.api.mvc.Cookie =
+      play.api.mvc.Cookie("lila-session", "TODO")
+    def ensure(req: play.api.mvc.RequestHeader)(res: play.api.mvc.Result): play.api.mvc.Result = res
+    def isRememberMe(req: play.api.mvc.RequestHeader): Boolean = false
+  lazy val lilaCookie: LilaCookieStub = new LilaCookieStub:
+    def withSession(remember: Boolean)(f: play.api.mvc.Session => play.api.mvc.Session): play.api.mvc.Cookie =
+      play.api.mvc.Cookie("lila", "session")
+    def newSession: play.api.mvc.Cookie = play.api.mvc.Cookie("lila", "new")
+
+  lazy val firewallApi = firewall
   
-  lazy val lilaCookie = new LilaCookie(sessionStore, settings.loginTokenSecret)
-
-  lazy val signup = new Signup(
-    userRepo = userEnv.repo,
-    emailConfirm = emailConfirm,
-    timeline = None // Stubbed
-  )
-
-  def cli = new Cli(this)
+  def cli = new Cli(authenticator, firewall)

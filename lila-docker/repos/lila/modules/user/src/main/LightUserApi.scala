@@ -19,8 +19,12 @@ final class LightUserApi(repo: UserRepo, cacheApi: CacheApi)(using Executor)
   val sync = LightUser.GetterSync: id =>
     if id.isGhost then LightUser.ghost.some else cache.sync(id)
 
+  val fallback = LightUser.GetterSyncFallback: id =>
+    sync(id) | LightUser.fallback(UserName(id.value))
+
 
   def invalidate(id: UserId): Unit = cache.invalidate(id)
+  def preloadUser(user: User): Funit = funit
 
   private val cache: Syncache[UserId, Option[LightUser]] = cacheApi.sync[UserId, Option[LightUser]](
     name = "user.light",

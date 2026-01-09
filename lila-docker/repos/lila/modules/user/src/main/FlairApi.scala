@@ -24,3 +24,4 @@ final class FlairApi(getFile: lila.common.config.GetRelativeFile)(using Executor
   export FlairApi.{ find, formField, adminFlairs }
   
   // No logic, purely Analysis Only
+  def get(userId: UserId): Option[String] = None

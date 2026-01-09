@@ -15,12 +15,22 @@ import lila.core.userId.UserName
 import lila.core.lilaism.Core.{ *, given }
 import scalalib.future.extensions.*
 import lila.common.{ so => _, Form => _, * }
+import lila.pref.Pref
 
 final class SecurityForm(
     userRepo: lila.user.UserRepo,
     authenticator: Authenticator,
     lameNameCheck: LameNameCheck
 )(using ec: Executor, mode: play.api.Mode):
+  
+  def prefOf(pref: Pref) = Form:
+    mapping(
+      "theme" -> optional(text),
+      "theme3d" -> optional(text),
+      "pieceSet" -> optional(text),
+      "pieceSet3d" -> optional(text),
+      "bg" -> optional(text)
+    )((_, _, _, _, _) => pref)(_ => None)
 
   import SecurityForm.*
 

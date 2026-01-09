@@ -35,3 +35,6 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
       .cursor[BSONDocument]()
       .collect[List](10, reactivemongo.api.Cursor.FailOnError[List[BSONDocument]]())
       .map(_.flatMap(_.getAsOpt[String](BSONFields.username)))
+
+  def setLang(user: User, lang: play.api.i18n.Lang): Funit =
+    coll.update.one($id(user.id), $set(BSONFields.lang -> lang.code)).void

@@ -22,10 +22,10 @@ trait Helpers:
       attr("data-lastmove") := lastMove.map(_.uci).getOrElse("")
     )
   def cgWrapContent: Frag = raw("")
-  def gameLink(g: lila.core.game.Game, color: chess.Color, ownerLink: Boolean = false, tv: Boolean = false): String = s"/${g.id}"
-  def variantLink(v: chess.variant.Variant, perf: Any = None): Tag = span(v.name)
-  def playerUsername(light: Any, user: Option[Any], withRating: Boolean): Tag = span("User")
-  def userIdLink(userId: Option[lila.core.userId.UserId], withOnline: Boolean = true, klass: Option[String] = None): Tag = 
+  def gameLink(g: lila.core.game.Game, _color: chess.Color, _ownerLink: Boolean = false, _tv: Boolean = false): String = s"/${g.id}"
+  def variantLink(v: chess.variant.Variant, _perf: Any = None): Tag = span(v.name)
+  def playerUsername(_light: Any, _user: Option[Any], _withRating: Boolean): Tag = span("User")
+  def userIdLink(userId: Option[lila.core.userId.UserId], withOnline: Boolean = true, _klass: Option[String] = None): Tag = 
     a(href := userId.fold("#")(id => s"/@/${id.value}"))(userId.fold("Anonymous")(_.value))
   def showRatingDiff(diff: Int): Frag = frag(s"${if (diff > 0) "+" else ""}$diff")
   def aiNameFrag(level: Int): Frag = frag(s"AI level $level")
@@ -57,6 +57,9 @@ trait Helpers:
   
   def chessgroundBoard: Tag = div(cls := "cg-wrap")(raw(""))
   def playerText(p: lila.core.game.Player): Tag = span(p.userId.fold("Anonymous")(_.value))
+  def playerLink(p: lila.core.game.Player, withOnline: Boolean = true, withDiff: Boolean = false, withBerserk: Boolean = false): Tag = 
+    p.userId.fold(span("Anonymous"))(id => userIdLink(Some(id), withOnline))
+  def gameEndStatus(game: lila.core.game.Game): Frag = frag(game.status.name)
 
   def globalErrorNamed(form: play.api.data.Form[?], name: String): Frag = 
     form.globalError.filter(_.message == name).map(e => div(cls := "error")(e.message)).getOrElse(frag())
@@ -64,9 +67,14 @@ trait Helpers:
     field.errors.map(e => div(cls := "error")(e.message)).headOption.getOrElse(frag())
   
   def langHref(url: play.api.mvc.Call)(using Context): String = url.url
-  def userLink(user: Any, withOnline: Boolean = true): Tag = span("User")
-  def fingerprintTag: Frag = raw("")
+  def userLink(_user: Any, withOnline: Boolean = true): Tag = span("User")
+  def fingerprintTag: EsmList = Nil
+  def dailyNewsAtom: Option[Tag] = None
   def hcaptchaScript(form: Any): Frag = raw("")
+  def userClass(id: lila.core.userId.UserId, withOnline: Boolean = false): String = "user-link"
+  def lineIcon: Tag = span(cls := "line-icon")
+  def userUrl(username: lila.core.userId.UserName): String = s"/@/${username.value}"
+  def showDate(d: java.time.Instant): String = d.toString
 
   object form3:
     def submit(text: Frag, icon: Option[Icon] = None): Tag = 

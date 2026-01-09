@@ -2,6 +2,7 @@ package lila.ui
 
 import ScalatagsTemplate.*
 
+
 opaque type LangPath = String
 object LangPath extends OpaqueString[LangPath]:
   def apply(call: play.api.mvc.Call): LangPath = LangPath(call.url)
@@ -12,7 +13,7 @@ case class OpenGraph(
     url: Url,
     `type`: String = "website",
     image: Option[Url] = None,
-    siteName: String = "lichess.org"
+    siteName: String = "chesstory.com"
 )
 
 enum PageFlags:
@@ -29,6 +30,7 @@ case class Page(
     csp: Option[Update[ContentSecurityPolicy]] = None,
     atomLinkTag: Option[Tag] = None,
     withHrefLangs: Option[LangPath] = None,
+    i18nModules: List[lila.core.i18n.I18nModule.Selector] = Nil,
     flags: Set[PageFlags] = Set.empty,
     transform: Update[Frag] = identity,
     transformHead: Update[Frag] = identity
@@ -62,6 +64,8 @@ case class Page(
   def append(postlude: Frag): Page = transform(body => frag(body, postlude))
 
   def markdownTextarea = css("bits.markdownTextarea").js(Esm("bits.markdownTextarea"))
+
+  def i18n(f: lila.core.i18n.I18nModule.Selector): Page = copy(i18nModules = f :: i18nModules)
 
 final class RenderedPage(val html: String)
 

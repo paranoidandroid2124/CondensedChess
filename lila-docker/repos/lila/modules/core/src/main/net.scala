@@ -7,7 +7,7 @@ import scalalib.SecureRandom
 import java.net.InetAddress
 import scala.util.Try
 
-import lila.core.userId.UserId
+
 
 object net:
 

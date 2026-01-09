@@ -120,17 +120,9 @@ object bits:
   def markdownTextarea(picfitIdPrefix: Option[String])(textareaTag: Tag)(using
       imageGetOrigin: ImageGetOrigin
   )(using Me) =
-    val canUploadImages = false
     div(
       cls := "markdown-textarea",
       attr("data-image-download-origin") := imageGetOrigin,
-      attr("data-image-count-max") := picfitIdPrefix.match
-        case Some(p) if p.startsWith("forum") => 5
-        case Some(p) if p.startsWith("team") => 2
-        case _ => 1,
-      // canUploadImages logic removed
-      picfitIdPrefix.flatMap(imageDesignWidth).map(dw => attr("data-image-design-width") := dw)
-    )(
       div(cls := "comment-header")(
         button(cls := "header-tab write active", tpe := "button")("Write"),
         button(

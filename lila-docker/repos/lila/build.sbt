@@ -155,7 +155,7 @@ lazy val mailer = module("mailer",
 )
 
 lazy val security = module("security",
-  Seq(oauth, user, mailer),
+  Seq(oauth, user, mailer, pref),
   Seq(maxmind, hasher, uaparser) ++ tests.bundle
 )
 

@@ -6,7 +6,7 @@ import lila.common.Json.given
 opaque type Featured = Boolean
 object Featured extends YesNo[Featured]
 
-case class PieceSet private[pref] (name: String, featured: Featured = Featured.No):
+case class PieceSet private[pref] (name: String, featured: Featured = Featured.No) extends lila.core.pref.PrefPieceSet:
 
   override def toString = name
 

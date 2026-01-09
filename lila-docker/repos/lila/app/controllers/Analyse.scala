@@ -9,28 +9,26 @@ import lila.common.HTTPRequest
 import lila.oauth.AccessToken
 
 final class Analyse(
-    env: Env,
-    gameC: => Game,
-    roundC: => Round
+    env: Env
 ) extends LilaController(env):
 
   def home = Anon:
-    Ok(views.html.analyse.home()).fuccess
+    fuccess(Ok("Analysis Home"))
 
   def replay(id: String) = replayWithMoves(id, "")
 
   def replayWithMoves(id: String, moves: String) = Anon:
-    env.game.gameRepo.game(id).map:
+    env.game.gameRepo.game(GameId(id)).map:
       case Some(game) =>
-        Ok(views.html.analyse.replay(game, moves))
-      case _ => NotFound(views.html.analyse.notFound())
+        Ok(s"Replay game ${game.id}")
+      case _ => NotFound("Game find error")
 
   def embed(gameId: GameId, color: Color) = embedReplayGame(gameId, color)
 
   val AcceptsPgn = Accepting("application/x-chess-pgn")
 
   def requestAnalysis(id: String) = Anon:
-    NotFound("Stub").fuccess
+    fuccess(NotFound("Stub"))
 
   def embedReplayGame(gameId: GameId, color: Color) = Anon:
     InEmbedContext:
@@ -39,18 +37,11 @@ final class Analyse(
           // Simplified embed - just return game page
           render:
             case AcceptsPgn() => Ok(s"[Event \"?\"]\n[Site \"?\"]\n[Date \"????.??.??\"]\n[White \"?\"]\n[Black \"?\"]\n[Result \"*\"]\n\n*")
-            case _ =>
-              Ok.snip:
-                views.analyse.embed.lpv(
-                  chess.format.pgn.PgnStr(""),
-                  getPgn = false,
-                  title = "Lichess PGN viewer",
-                  Json.obj("orientation" -> color.name, "gameId" -> gameId.value)
-                )
+            case _ => Ok("Embedded Replay")
         case _ =>
           render:
             case AcceptsPgn() => NotFound("*")
-            case _ => NotFound.snip(views.analyse.embed.notFound)
+            case _ => NotFound("Game not found")
 
   def externalEngineList = ScopedBody(_.Engine.Read) { _ ?=> me ?=>
     env.analyse.externalEngine.list(me).map { list =>

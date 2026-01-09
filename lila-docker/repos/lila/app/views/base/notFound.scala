@@ -1,6 +1,7 @@
 package views.base
 
 import lila.app.UiEnv.{ *, given }
+import lila.i18n.trans
 
 def notFound(msg: Option[String]) =
   Page(msg | "Page not found").css("bits.not-found"):
@@ -10,10 +11,12 @@ def notFound(msg: Option[String]) =
         div(
           strong("Page not found!"),
           msg.map(em(_)),
-          p(
-            "Return to ",
-            a(href := routes.Lobby.home)("the homepage"),
-            span(cls := "or-play")(", or play this mini-game")
+          p(cls := "text")(
+            trans.pageNotFound,
+            br,
+            a(href := routes.UserAnalysis.index.url)("the homepage"),
+            br,
+            a(href := routes.Main.contact.url)("Contact")
           )
         )
       ),

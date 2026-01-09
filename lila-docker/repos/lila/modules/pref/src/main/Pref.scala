@@ -96,6 +96,25 @@ case class Pref(
 
   def forceDarkBg = copy(bg = Pref.Bg.DARK)
 
+  def set(name: String, value: String): Pref = name match
+    case "bg"           => copy(bg = Pref.Bg.fromString.get(value) | bg)
+    case "bgImg"        => copy(bgImg = value.some)
+    case "theme"        => copy(theme = value)
+    case "pieceSet"     => copy(pieceSet = value)
+    case "theme3d"      => copy(theme3d = value)
+    case "pieceSet3d"   => copy(pieceSet3d = value)
+    case "soundSet"     => copy(soundSet = value)
+    case "animation"    => copy(animation = value.toIntOption | animation)
+    case "highlight"    => copy(highlight = value == "1")
+    case "destination"  => copy(destination = value == "1")
+    case "coords"       => copy(coords = value.toIntOption | coords)
+    case "keyboardMove" => copy(keyboardMove = value.toIntOption | keyboardMove)
+    case "zen"          => copy(zen = value.toIntOption | zen)
+    case "rookCastle"   => copy(rookCastle = value.toIntOption | rookCastle)
+    case "moveEvent"    => copy(moveEvent = value.toIntOption | moveEvent)
+    case "pieceNotation" => copy(pieceNotation = value.toIntOption | pieceNotation)
+    case _              => this
+
 object Pref:
 
   val defaultBgImg = "//lichess1.org/assets/images/background/landscape.jpg"
@@ -104,7 +123,7 @@ object Pref:
       brightness: Int,
       opacity: Int,
       hue: Int
-  )
+  ) extends lila.core.pref.PrefBoard
 
   trait BooleanPref:
     val NO = 0

@@ -1,7 +1,7 @@
 package lila.core
 package security
 
-import play.api.data.{ Form, Mapping }
+import play.api.data.Mapping
 import play.api.mvc.RequestHeader
 
 import lila.core.email.EmailAddress
@@ -50,7 +50,6 @@ case class UserSignup(
 
 trait SecurityApi:
   def shareAnIpOrFp(u1: UserId, u2: UserId): Fu[Boolean]
-  def canUploadImages(rel: String): Boolean = true
 
 trait SpamApi:
   def detect(text: String): Boolean

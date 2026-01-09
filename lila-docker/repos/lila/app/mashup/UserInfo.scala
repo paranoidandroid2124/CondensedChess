@@ -13,11 +13,8 @@ case class UserInfo(
     nbs: UserInfo.NbGames,
     user: User,
     ratingChart: Option[SafeJsonStr],
-    nbStudies: Int,
-    insightVisible: Boolean
+    nbStudies: Int
 ):
-  def teamIds: List[Nothing] = Nil
-  def ranks: List[Nothing] = Nil // Study-only system - no ranking
   export nbs.crosstable
 
 object UserInfo:
@@ -40,11 +37,11 @@ object UserInfo:
     def apply(u: User)(using ctx: Context): Fu[Social] =
       given scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.parasitic
       (
-        ctx.me.soUse(_ ?=> noteApi.getForMyPermissions(u).mon(_.user.segment("notes"))),
-        ctx.isAuth.so(prefApi.followable(u.id).mon(_.user.segment("followable"))),
+        ctx.me.foldUse(fuccess(Nil))(_ ?=> noteApi.getForMyPermissions(u)),
+        if ctx.isAuth then prefApi.followable(u.id) else fuccess(false),
         fuccess(false) // blocked - relation module deleted
       ).mapN { (notes, followable, blocked) =>
-         Social(notes.getOrElse(Nil), followable.getOrElse(false), blocked)
+         Social(notes, followable, blocked)
       }
 
   case class NbGames(
@@ -64,10 +61,10 @@ object UserInfo:
         withCrosstable.so:
           me
             .filter(u.isnt(_))
-            .traverse(me => crosstableApi.withMatchup(me.id, u.id).mon(_.user.segment("crosstable")))
+            .traverse(me => crosstableApi.withMatchup((me: User).id, u.id))
         ,
-        gameCached.nbPlaying(u.id).mon(_.user.segment("nbPlaying")),
-        gameCached.nbImportedBy(u.id).mon(_.user.segment("nbImported"))
+        gameCached.nbPlaying(u.id),
+        gameCached.nbImportedBy(u.id)
       ).mapN(NbGames.apply)
 
   // Simplified UserInfoApi - many modules deleted
@@ -80,8 +77,7 @@ object UserInfo:
     ): Fu[UserInfo] =
       (
         fuccess(none[SafeJsonStr]),
-        studyRepo.countByOwner(user.id).recoverDefault.mon(_.user.segment("nbStudies")),
-        fuccess(false) // insightVisible - module deleted
-      ).mapN((chart, studies, insight) => UserInfo(nbs, user, chart, studies, insight))
+        studyRepo.countByOwner(user.id).recoverDefault
+      ).mapN((chart, studies) => UserInfo(nbs, user, chart, studies))
 
     def preloadTeams(info: UserInfo) = fuccess(())

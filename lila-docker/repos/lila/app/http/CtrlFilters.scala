@@ -2,6 +2,8 @@ package lila.app
 package http
 
 import alleycats.Zero
+import scalatags.Text.all.*
+import lila.i18n.trans
 import play.api.http.*
 import play.api.mvc.*
 
@@ -30,7 +32,7 @@ trait CtrlFilters(using Executor) extends ControllerHelpers with ResponseBuilder
     env.security.ipTrust
       .isPubOrTor(ctx.req)
       .flatMap:
-        if _ then Unauthorized.page(views.auth.pubOrTor)
+        if _ then Unauthorized.page(lila.ui.Page("Unauthorized").body(views.auth.pubOrTor))
         else res
 
   def NoBooster[A <: Result](a: => Fu[A])(using ctx: Context): Fu[Result] = a

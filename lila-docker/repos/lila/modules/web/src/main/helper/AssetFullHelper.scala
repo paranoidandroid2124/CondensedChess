@@ -5,7 +5,7 @@ import play.api.libs.json.JsValue
 import lila.core.config.NetConfig
 import lila.core.data.SafeJsonStr
 import lila.ui.ScalatagsTemplate.{ *, given }
-import lila.ui.{ ContentSecurityPolicy, Context, Optionce, Nonce, Esm }
+import lila.ui.{ ContentSecurityPolicy, Context, Nonce, Esm }
 
 trait AssetFullHelper:
   self: lila.ui.AssetHelper =>
@@ -13,7 +13,7 @@ trait AssetFullHelper:
   def manifest: AssetManifest
   def analyseEndpoints: lila.ui.AnalyseEndpoints
 
-  export lila.common.String.html.safeJsonValue
+  def safeJsonValue(v: play.api.libs.json.JsValue) = lila.common.String.html.safeJsonValue(v)
 
   private lazy val socketDomains = netConfig.socketDomains ::: netConfig.socketAlts
 
@@ -21,7 +21,7 @@ trait AssetFullHelper:
     if netConfig.siteName == "localhost:9663" then "lichess.dev"
     else netConfig.siteName
 
-  def assetVersion = lila.core.net.AssetVersion.current
+  def assetVersion: String = lila.core.net.AssetVersion.current.value
 
   // Asset URL helpers
   def assetBaseUrl: String = netConfig.assetBaseUrl.value
@@ -77,5 +77,5 @@ trait AssetFullHelper:
   def embedCsp: ContentSecurityPolicy =
     lila.web.ContentSecurityPolicy.embed(netConfig.assetDomain)
 
-  def defaultCsp(using nonce: Optionce)(using Context): ContentSecurityPolicy =
+  def defaultCsp(using nonce: Option[Nonce])(using Context): ContentSecurityPolicy =
     nonce.foldLeft(basicCsp)(_.withNonce(_))

@@ -1,0 +1,1199 @@
+
+==================================================
+--- FEN COVERAGE (27 scenarios) ---
+
+[OpeningIntro (mocked Najdorf at start position)] ply=1
+FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+Played: a2a3
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== OPENING EVENT (MASTERS) ===
+[OUT OF BOOK] Move a3 leaves known theory (ply 1)
+• Theory moves were: e4, d4, Nf3
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 0 escapes) | King(them): Exposed (0 attackers, 0 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.25); bishop on c1 (mobility: 0.0)
+• Practical Assessment: Comfortable (Score: 90.0)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: style choice
+Plans: None
+
+=== CANDIDATES ===
+a) a3! (Positional maneuvering, clean)
+b) a4 (Positional maneuvering, clean)
+c) Na3 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a4_6084e790: Probing moves [a2a4] at depth 20
+• competitive_b1a3_6084e790: Probing moves [b1a3] at depth 20
+
+[OpeningOutOfBook (Najdorf 6.g4)] ply=11
+FEN: rnbqkb1r/1p2pppp/p2p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 1
+Played: g2g4
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | Medium] ===
+
+=== OPENING EVENT (MASTERS) ===
+[NOVELTY CANDIDATE] g4 at ply 11
+• Engine loss: 0cp (acceptable)
+• Evidence: Stable evaluation with constructive plans
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Exploiting Space Advantage (0.70)
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: -0.5
+
+=== DECISION RATIONALE ===
+Focus: d5 (Heuristic Logic)
+Logic: Focus on d5 (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: Exploiting Space Advantage 0.70 (Space advantage)
+   • Support: Greater piece mobility, Easier maneuvering between flanks
+   • Blocker: Overextended pawns can be weak
+   • Missing: Completion of development to utilize space
+
+=== L1 SNAPSHOT ===
+Material: = | King(them): Exposed (0 attackers, 1 escapes) | Mobility: Advantage (+11)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Exploiting Space Advantage
+• Key Weaknesses: dark-square weakness (Holes) at d5, f5, a5, g5; dark-square weakness (Hanging Pawns) at a6, b7
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); queen on d1 (mobility: 0.2222222222222222); king on e1 (mobility: 0.25)
+• Positional Features: bad bishop(white); weak square(black at d5); weak square(black at f5)
+• Practical Assessment: Comfortable (Score: 62.68620268620268)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Minority Attack
+
+=== PHASE ===
+Current: Opening (Material: 76, Minors: 8, Queens present)
+
+=== META ===
+Choice: narrow choice
+STRATEGIC: Target: d5 (Weak square); Target: a6 (Weak complex (Black)); Target: b7 (Weak complex (Black)); Target: a5 (Weak complex (Black)); Target: f5 (Weak square)
+Plans: Exploiting Space Advantage
+
+=== CANDIDATES ===
+a) g4! (Positional maneuvering, clean)
+
+[OpeningPin motif (Ruy Lopez Bb5)] ply=5
+FEN: r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 1
+Played: f1b5
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | Low] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== DECISION RATIONALE ===
+Focus: c6 (Heuristic Logic)
+Logic: Focus on c6 (probe needed for validation)
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Material/c6/200cp/1moves
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 1 escapes) | King(them): Exposed (0 attackers, 1 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.25); bishop on c1 (mobility: 0.0)
+• Practical Assessment: Comfortable (Score: 89.86161986161986)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: c6 (Attack: Material)
+Plans: None
+
+=== CANDIDATES ===
+a) Bb5! (Positional maneuvering, clean)
+
+[Middlegame (open files d/e)] ply=20
+FEN: r3k2r/ppp2ppp/2n2n2/3b4/3B4/2N2N2/PPP2PPP/R3K2R w KQkq - 0 10
+Played: a1b1
+--------------------
+=== CONTEXT [Middlegame | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== L1 SNAPSHOT ===
+Material: =
+Open files: d, e
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Transitional phase, Opposite-color bishops, white king unsafe
+• Piece Issues: rook on a1 (mobility: 0.21428571428571427); rook on h1 (mobility: 0.14285714285714285); pawn on c2 (mobility: 0.0)
+• Positional Features: opposite color bishops(both); king stuck center(white)
+• Practical Assessment: Comfortable (Score: 71.3736263736264)
+
+=== PHASE ===
+Current: Middlegame (Material: 50, Minors: 6, Queens traded)
+
+=== META ===
+Choice: style choice
+Plans: None
+
+=== CANDIDATES ===
+a) Rb1! (Positional maneuvering, clean)
+b) Rc1 (Positional maneuvering, clean)
+c) Rd1 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a1c1_ff9ec1b2: Probing moves [a1c1] at depth 20
+• competitive_a1d1_ff9ec1b2: Probing moves [a1d1] at depth 20
+
+[Endgame (K+P vs K)] ply=60
+FEN: 8/8/8/4k3/8/8/4P3/4K3 w - - 0 1
+Played: e1d1
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Dynamic play
+• Practical Assessment: Balanced (Score: -5.0)
+
+=== PHASE ===
+Current: Endgame (Material: 1, Minors: 0, Queens traded)
+
+=== META ===
+Choice: style choice
+Plans: None
+
+=== CANDIDATES ===
+a) Kd1! (Positional maneuvering, clean)
+b) Kd2 (Positional maneuvering, clean)
+c) Kf1 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_e1d2_6ab7ebf0: Probing moves [e1d2] at depth 20
+• competitive_e1f1_6ab7ebf0: Probing moves [e1f1] at depth 20
+
+[Endgame (advanced passed pawn)] ply=70
+FEN: 8/3k4/3P4/8/8/8/8/4K3 w - - 0 1
+Played: e1d1
+--------------------
+=== CONTEXT [Endgame | Normal | NarrowChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: +2.0
+
+=== DECISION RATIONALE ===
+Focus: d7 (Heuristic Logic)
+Logic: Focus on d7 (probe needed for validation)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Dynamic play, white has hanging pawn at d6
+• Piece Issues: pawn on d6 (mobility: 0.0)
+• Practical Assessment: Comfortable (Score: 175.0)
+
+=== OPPONENT Current ===
+• Current: Suggested Plan: Blockade on d7 (Passed pawn successfully blockaded by king on d7)
+
+=== PHASE ===
+Current: Endgame (Material: 1, Minors: 0, Queens traded)
+
+=== META ===
+Choice: narrow choice
+STRATEGIC: Target: d7 (Blockade by king)
+Plans: None
+Diverge: ply 70
+Error: 포지셔널(50cp)
+
+=== CANDIDATES ===
+a) Kd1 (Positional maneuvering, clean)
+
+[L1: IQP (isolated queen pawn)] ply=15
+FEN: rnbqk2r/pp2bppp/4pn2/8/3P4/2N2N2/PP3PPP/R1BQ1RK1 w KQkq - 0 8
+Played: a1b1
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== L1 SNAPSHOT ===
+Material: -3 | Imbalance: Bishop pair (them) | King(us): Exposed (0 attackers, 1 escapes)
+Open files: c
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle
+• Key Weaknesses: light-square weakness (Holes) at c4, d4, e4, f4; light-square weakness (Backward Pawn) at d4; light-square weakness (Hanging Pawns) at a2, b2
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); bishop on c1 (mobility: 0.38461538461538464); queen on d1 (mobility: 0.25925925925925924)
+• Positional Features: bad bishop(white); weak square(black at c5); weak square(black at e5)
+• Practical Assessment: Balanced (Score: -19.26536426536427)
+
+=== PHASE ===
+Current: Opening (Material: 71, Minors: 7, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: c4 (Weak complex (White)); Target: b2 (Weak complex (White)); Target: e5 (Weak square); Target: d6 (Weak complex (Black)); Target: e4 (Weak complex (White))
+Plans: None
+
+=== CANDIDATES ===
+a) Rb1! (Positional maneuvering, clean)
+b) a3 (Positional maneuvering, clean)
+c) a4 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a3_a4aa8938: Probing moves [a2a3] at depth 20
+• competitive_a2a4_a4aa8938: Probing moves [a2a4] at depth 20
+
+[L1: Hanging Pawns] ply=27
+FEN: r2q1rk1/p4ppp/1p2pn2/8/2PP4/5N2/P4PPP/R2Q1RK1 w - - 0 14
+Played: a1b1
+--------------------
+=== CONTEXT [Middlegame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Exploiting Space Advantage (0.70)
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== PLANS ===
+1. Suggested Plan: Exploiting Space Advantage 0.70 (Space advantage)
+   • Support: Greater piece mobility, Easier maneuvering between flanks
+   • Blocker: Overextended pawns can be weak
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 1 escapes) | King(them): Exposed (0 attackers, 1 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Exploiting Space Advantage
+• Key Weaknesses: light-square weakness (Holes) at c4, d4, e4, f4; light-square weakness (Hanging Pawns) at c4, d4; dark-square weakness (Holes) at e5, c6, d6, b5
+• Piece Issues: rook on a1 (mobility: 0.14285714285714285); rook on f1 (mobility: 0.07142857142857142); king on g1 (mobility: 0.125)
+• Positional Features: weak square(black at e5); weak square(black at c6)
+• Practical Assessment: Balanced (Score: 10.952380952380949)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Exploiting Space Advantage (Space advantage)
+
+=== PHASE ===
+Current: Middlegame (Material: 56, Minors: 2, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: c4 (Weak complex (White)); Target: d4 (Weak complex (White)); Target: e5 (Weak square); Target: d6 (Weak complex (Black)); Target: e4 (Weak complex (White))
+Plans: Exploiting Space Advantage
+
+=== CANDIDATES ===
+a) Rb1! (Positional maneuvering, clean)
+b) Rc1 (Positional maneuvering, clean)
+c) a3 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a1c1_e849505: Probing moves [a1c1] at depth 20
+• competitive_a2a3_e849505: Probing moves [a2a3] at depth 20
+
+[L1: Backward Pawn (d6)] ply=15
+FEN: r1bqk2r/1p2bppp/p1np1n2/2p1p3/2P1P3/2N2N2/PP1PBPPP/R1BQ1RK1 w kq - 0 8
+Played: a1b1
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Low] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 1 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle
+• Key Weaknesses: dark-square weakness (Holes) at d5, f5, d6, a5; dark-square weakness (Backward Pawn) at d6
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); bishop on c1 (mobility: 0.0); queen on d1 (mobility: 0.14814814814814814)
+• Positional Features: weak square(black at d5); weak square(black at f5)
+• Practical Assessment: Comfortable (Score: 82.35856735856736)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: d5 (Weak square); Target: d6 (Weak complex (Black)); Target: a5 (Weak complex (Black)); Target: f5 (Weak square)
+Plans: None
+
+=== CANDIDATES ===
+a) Rb1! (Positional maneuvering, clean)
+b) a3 (Positional maneuvering, clean)
+c) a4 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a3_71549b31: Probing moves [a2a3] at depth 20
+• competitive_a2a4_71549b31: Probing moves [a2a4] at depth 20
+
+[L1: Locked Center (d4/e4 vs d5/e5)] ply=3
+FEN: rnbqkbnr/ppp2ppp/8/3pp3/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 2
+Played: a2a3
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: maintain (tension_active)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/a3/80cp/2moves
+
+=== PAWN PLAY ===
+Tension: Maintain (flexibility needed)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, white has hanging pawn at e4
+• Piece Issues: rook on a1 (mobility: 0.0); bishop on c1 (mobility: 0.38461538461538464); queen on d1 (mobility: 0.2222222222222222)
+• Practical Assessment: Comfortable (Score: 109.82905982905983)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: style choice
+TACTICAL: CRITICAL TARGET: a3 (Attack: Positional)
+Plans: None
+
+=== CANDIDATES ===
+a) a3! (Prophylactic defense, clean)
+b) a4 (Prophylactic defense, clean)
+c) Na3 (Prophylactic defense, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a4_8738f445: Probing moves [a2a4] at depth 20
+• competitive_b1a3_8738f445: Probing moves [b1a3] at depth 20
+
+[L1: King Safety (early attack)] ply=9
+FEN: rnb1k2r/pppp1ppp/5n2/4p3/2B1P2q/5N2/PPPP1bPP/RNBQK2R w KQkq - 2 5
+Played: e1e2
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Material/f2/200cp/1moves
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, white has hanging pawn at e4
+• Key Weaknesses: light-square weakness (Hanging Pawns) at g2, h2
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.25); bishop on c1 (mobility: 0.0)
+• Positional Features: bad bishop(white)
+• Practical Assessment: Comfortable (Score: 82.44403744403743)
+• Compensation: Positional Compensation (Invested: 100)
+
+=== PHASE ===
+Current: Opening (Material: 77, Minors: 8, Queens present)
+
+=== META ===
+Choice: style choice
+TACTICAL: CRITICAL TARGET: f2 (Attack: Material)
+STRATEGIC: Target: g2 (Weak complex (White)); Target: h2 (Weak complex (White))
+Plans: None
+
+=== CANDIDATES ===
+a) Ke2! (Prophylactic defense, clean)
+b) Kf1 (Prophylactic defense, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_e1f1_20608d3f: Probing moves [e1f1] at depth 20
+
+[L1: Line Control (Alekhine's gun)] ply=21
+FEN: 2r2rk1/pp1b1ppp/1q2pn2/3p4/3P4/2N2N2/PP1QPPPP/R2R2K1 w - - 0 1
+Played: a1b1
+--------------------
+=== CONTEXT [Middlegame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 2 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+
+=== L1 SNAPSHOT ===
+Material: = | King(them): Exposed (0 attackers, 1 escapes)
+Open files: c
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Open File Control, white connected rooks
+• Key Weaknesses: light-square weakness (Hanging Pawns) at a2, b2; dark-square weakness (Holes) at c5, e5, d6, a5; dark-square weakness (Hanging Pawns) at a7, b7
+• Piece Issues: rook on a1 (mobility: 0.14285714285714285); rook on d1 (mobility: 0.2857142857142857); king on g1 (mobility: 0.25)
+• Positional Features: weak square(black at c5); weak square(black at e5); connected rooks(white)
+• Practical Assessment: Comfortable (Score: 56.99735449735449)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Open File Control (Control of 2 file)
+
+=== PHASE ===
+Current: Middlegame (Material: 64, Minors: 4, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: b2 (Weak complex (White)); Target: b7 (Weak complex (Black)); Target: d6 (Weak complex (Black)); Target: a7 (Weak complex (Black)); Target: a2 (Weak complex (White))
+Plans: Open File Control
+
+=== CANDIDATES ===
+a) Rab1! (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 2-file)]
+b) Rac1 (Positional maneuvering, clean)
+c) a3 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 2-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a1c1_8f463bcb: Probing moves [a1c1] at depth 20
+• competitive_a2a3_8f463bcb: Probing moves [a2a3] at depth 20
+
+[L1: Opposite Castling Race] ply=23
+FEN: r1r3k1/pp1bppbp/3p1np1/8/3NPPP1/2N1B3/PPPQ3P/2KR3R b - - 0 12
+Played: a7a5
+--------------------
+=== CONTEXT [Middlegame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Minority Attack (0.85)
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: +0.2
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== PLANS ===
+1. Suggested Plan: Minority Attack 0.85 (Queenside pawn push on 0-file (Minority Attack strategy))
+   • Support: Creating weaknesses in opponent's pawn structure, Queenside space advantage
+   • Blocker: Opening lines for opponent's pieces
+   • Missing: Need to advance terminal pawn (a or b file)
+2. Suggested Plan: Exploiting Space Advantage 0.70 (Space advantage)
+   • Support: Greater piece mobility, Easier maneuvering between flanks
+   • Blocker: Overextended pawns can be weak
+3. Suggested Plan: Queenside Attack 0.30 (Queenside expansion: a5)
+   • Missing: Need to open files for major pieces
+
+=== L1 SNAPSHOT ===
+Material: -9 | Imbalance: Bishop pair (them) | King(them): Exposed (0 attackers, 1 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Minority Attack, Exploiting Space Advantage
+• Key Weaknesses: light-square weakness (Holes) at c4, d4, e4, f4; dark-square weakness (Holes) at d5, a5, b5, g5; dark-square weakness (Hanging Pawns) at a7, b7
+• Piece Issues: pawn on d6 (mobility: 0.25); pawn on g6 (mobility: 0.25); pawn on f7 (mobility: 0.0)
+• Positional Features: bishop pair advantage(black); bad bishop(black); weak square(white at c4); weak square(white at d4); connected rooks(black)
+• Practical Assessment: Comfortable (Score: 32.170329670329664)
+• Compensation: Positional Compensation (Invested: 900)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Exploiting Space Advantage (Space advantage)
+
+=== PHASE ===
+Current: Middlegame (Material: 61, Minors: 6, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: d5 (Weak complex (Black)); Target: c4 (Weak square); Target: a5 (Weak complex (Black)); Target: e4 (Weak complex (White)); Target: b5 (Weak complex (Black))
+Plans: Minority Attack + Exploiting Space Advantage independent
+Diverge: ply 23
+
+=== CANDIDATES ===
+a) Rab8! (Positional maneuvering, clean)
+b) a6 (Positional maneuvering, clean)
+c) a5 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a7a6_9d562e16: Probing moves [a7a6] at depth 20
+• competitive_a7a5_9d562e16: Probing moves [a7a5] at depth 20
+
+[L1: Fortress / Blockade] ply=17
+FEN: r1bq1rk1/2p1bppp/p1np1n2/1p2p3/4P3/1BP2N2/PP1P1PPP/RNBQR1K1 w - - 0 9
+Played: a2a3
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== L1 SNAPSHOT ===
+Material: = | King(them): Exposed (1 attackers, 1 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle
+• Key Weaknesses: dark-square weakness (Holes) at d5, f5, c6, a5
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.125); bishop on c1 (mobility: 0.0)
+• Positional Features: bad bishop(white); weak square(black at d5); weak square(black at f5)
+• Practical Assessment: Comfortable (Score: 77.497964997965)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: d5 (Weak square); Target: a5 (Weak complex (Black)); Target: f5 (Weak square); Target: c6 (Weak complex (Black))
+Plans: None
+
+=== CANDIDATES ===
+a) a3! (Positional maneuvering, clean)
+b) a4 (Positional maneuvering, clean)
+c) Na3 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a4_51a762b9: Probing moves [a2a4] at depth 20
+• competitive_b1a3_51a762b9: Probing moves [b1a3] at depth 20
+
+[L2: Open file control] ply=21
+FEN: r4rk1/ppp2ppp/2n5/4p3/8/2NR1N2/PPP2PPP/3R2K1 w - - 0 1
+Played: a2a3
+--------------------
+=== CONTEXT [Middlegame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 3 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+2. Suggested Plan: Queenside Attack 0.30 (Queenside expansion: a3)
+
+=== L1 SNAPSHOT ===
+Material: +2 | King(them): Exposed (0 attackers, 1 escapes) | Mobility: Advantage (+11) | Center: Dominant
+Open files: d
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Open File Control, Queenside Attack
+• Piece Issues: king on g1 (mobility: 0.25); pawn on c2 (mobility: 0.0); pawn on f2 (mobility: 0.0)
+• Positional Features: open file(white); doubled rooks(white)
+• Practical Assessment: Comfortable (Score: 68.57142857142858)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Open File Control (Control of 3 file)
+
+=== PHASE ===
+Current: Middlegame (Material: 42, Minors: 3, Queens traded)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: d-file (Open file control)
+Plans: Open File Control + Queenside Attack independent
+
+=== CANDIDATES ===
+a) a3! (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
+b) a4 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
+c) b3 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• FileControl_open_file_control_30e57219: Probing moves [d1d2, d3d2, d3d4] at depth 20
+• competitive_a2a4_30e57219: Probing moves [a2a4] at depth 20
+• competitive_b2b3_30e57219: Probing moves [b2b3] at depth 20
+
+[L2: Battery (Q+R aligned)] ply=45
+FEN: 3k4/8/8/8/8/8/3R4/3Q3K w - - 0 1
+Played: d1a1
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Key Threat: LOW: Check on d8
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 0 file, Control of 3 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+
+=== L1 SNAPSHOT ===
+Material: +14 | Imbalance: Rook imbalance (1v0) | Mobility: Advantage (+26) | Center: Dominant
+Open files: a, b, c, d, e, f, g, h
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, white control of 3-file
+• Positional Features: open file(white)
+• Practical Assessment: Balanced (Score: 10.701058201058203)
+
+=== PHASE ===
+Current: Endgame (Material: 14, Minors: 0, Queens present)
+
+=== META ===
+Choice: style choice
+TACTICAL: CRITICAL TARGET: d8 (Defend: Positional)
+STRATEGIC: Target: a-file (Plan: Open File Control); Target: d-file (Open file control)
+Plans: Open File Control
+
+=== CANDIDATES ===
+a) Qa1+! (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+b) Qa4+ (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+c) Qb1+ (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 1-file); OpenFileControl(Rook on 3-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_d1a4_474ce228: Probing moves [d1a4] at depth 20
+• competitive_d1b1_474ce228: Probing moves [d1b1] at depth 20
+
+[L2: Weak back rank] ply=55
+FEN: 1R4k1/5ppp/8/8/8/8/8/6K1 w - - 0 1
+Played: b8a8
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Confirmed Plan: Forced Mate
+• Key Threat: URGENT: Forced Mate available
+• Choice Type: style choice
+• Tension: maximum (shattered)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/3moves
+
+=== PLANS ===
+1. Confirmed Plan: Forced Mate 1.00 (Checkmate is available)
+2. Suggested Plan: Open File Control 0.80 (Control of 0 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+3. Suggested Plan: Kingside Attack 0.10 (Kingside pressure: Ra8#)
+   • Blocker: Strong defensive pawn shield
+   • Missing: Need more pieces in the attack zone
+
+=== L1 SNAPSHOT ===
+Material: +2 | Imbalance: Rook imbalance (1v0) | King(them): Exposed (1 attackers, 1 escapes) | Mobility: Advantage (+13)
+Open files: a, b, c, d, e
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, Kingside Attack
+• Key Weaknesses: dark-square weakness (Holes) at c5, d5, e5, f5
+• Positional Features: open file(white); weak square(black at c5); weak square(black at d5)
+• Practical Assessment: Balanced (Score: 6.071428571428573)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Kingside Attack (Kingside pressure: Ra8#)
+
+=== PHASE ===
+Current: Endgame (Material: 8, Minors: 0, Queens traded)
+
+=== META ===
+Choice: style choice
+TACTICAL: CRITICAL TARGET: g8 (Defend: Positional)
+STRATEGIC: Target: d5 (Weak square); Target: a-file (Plan: Open File Control); Target: e5 (Weak complex (Black)); Target: c5 (Weak square); Target: b-file (Open file control)
+Plans: Open File Control + Kingside Attack independent
+
+=== CANDIDATES ===
+a) Ra8#! (Sharp attack with check, clean) [Evidence: Check(Rook on 62); OpenFileControl(Rook on 0-file)]
+b) Rb1 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 1-file)]
+c) Rb2 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 1-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_b8b1_76b9f3bd: Probing moves [b8b1] at depth 20
+• competitive_b8b2_76b9f3bd: Probing moves [b8b2] at depth 20
+
+[L2: Discovered attack (bishop move e5f6)] ply=51
+FEN: 4k3/8/8/4B3/8/8/4R3/4K3 w - - 0 1
+Played: e5f6
+--------------------
+=== CONTEXT [Endgame | Normal | NarrowChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: +5.0
+
+=== DECISION RATIONALE ===
+Focus: e8 (Heuristic Logic)
+Logic: Focus on e8 (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 4 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+
+=== L1 SNAPSHOT ===
+Material: +8 | Imbalance: Rook imbalance (1v0) | Mobility: Advantage (+22) | Center: Dominant
+Open files: a, b, c, d, e, f, g, h
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, white control of 4-file
+• Positional Features: open file(white)
+• Practical Assessment: Comfortable (Score: 492.8571428571429)
+
+=== PHASE ===
+Current: Endgame (Material: 8, Minors: 1, Queens traded)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: e8 (Defend: Material)
+STRATEGIC: Target: e-file (Open file control)
+Plans: Open File Control
+
+=== CANDIDATES ===
+a) Bf6+! (Sharp attack with check, clean) [Evidence: Check(Bishop on 60); DiscoveredAttack(Rook from e2 on King on e8); OpenFileControl(Rook on 4-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• FileControl_open_file_control_e50cbf1b: Probing moves [e2e3, e2e4] at depth 20
+
+[L2: Pin (Bg5)] ply=7
+FEN: rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 1
+Played: c1g5
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Exploiting Space Advantage (0.70)
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: +0.8
+
+=== DECISION RATIONALE ===
+Focus: f6 (Heuristic Logic)
+Logic: Focus on f6 (probe needed for validation)
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Material/f6/200cp/1moves
+
+=== PLANS ===
+1. Suggested Plan: Exploiting Space Advantage 0.70 (Space advantage)
+   • Support: Greater piece mobility, Easier maneuvering between flanks
+   • Blocker: Overextended pawns can be weak
+   • Missing: Completion of development to utilize space
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 1 escapes) | Center: Dominant
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Exploiting Space Advantage
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); bishop on c1 (mobility: 0.38461538461538464); queen on d1 (mobility: 0.18518518518518517)
+• Practical Assessment: Comfortable (Score: 177.82458282458282)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Exploiting Space Advantage (Space advantage)
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: f6 (Attack: Material)
+Plans: Exploiting Space Advantage
+
+=== CANDIDATES ===
+a) Bg5! (Positional pressure, clean) [Evidence: Pin(Knight on f6 to Queen on d8)]
+
+[L2: Fork (Ne5d7)] ply=9
+FEN: r1bqkb1r/pppp1ppp/2n2n2/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1
+Played: e5d7
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: knight Sacrifice (1.10)
+• Key Threat: LOW: Capture on d7
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: +1.2
+
+=== DECISION RATIONALE ===
+Focus: d7 (Heuristic Logic)
+Logic: Focus on d7 (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: knight Sacrifice 1.10 (Tactical ExchangeSacrifice to achieve strategic objective)
+   • Support: Strong overall position allows for material sacrifice
+2. Suggested Plan: Central Control 0.45 (Central influence: Nxd7)
+   • Support: Solid central pawn structure
+   • Missing: Completion of development needed
+
+=== L1 SNAPSHOT ===
+Material: +1 | King(us): Exposed (0 attackers, 1 escapes) | King(them): Exposed (1 attackers, 1 escapes) | Center: Weak
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, knight Sacrifice, Central Control
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.25); bishop on c1 (mobility: 0.0)
+• Practical Assessment: Comfortable (Score: 229.5838420838421)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: knight Sacrifice (Tactical ExchangeSacrifice to achieve strategic objective)
+
+=== PHASE ===
+Current: Opening (Material: 77, Minors: 8, Queens present)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: d7 (Defend: Positional)
+Plans: knight Sacrifice + Central Control independent
+
+=== CANDIDATES ===
+a) Nxd7! (Establishing outpost, clean) [Evidence: Outpost(Knight on 51)]
+
+[L2: Clearance (Rd4h4)] ply=61
+FEN: 3k4/8/8/8/3R4/8/8/3Q3K w - - 0 1
+Played: d4h4
+--------------------
+=== CONTEXT [Endgame | Normal | NarrowChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Key Threat: LOW: Check on d8
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: +3.0
+
+=== DECISION RATIONALE ===
+Focus: d8 (Heuristic Logic)
+Logic: Focus on d8 (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 3 file, Control of 7 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+
+=== L1 SNAPSHOT ===
+Material: +14 | Imbalance: Rook imbalance (1v0) | Mobility: Advantage (+28) | Center: Dominant
+Open files: a, b, c, d, e, f, g, h
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, white control of 3-file
+• Positional Features: open file(white)
+• Practical Assessment: Comfortable (Score: 287.1825396825397)
+
+=== PHASE ===
+Current: Endgame (Material: 14, Minors: 0, Queens present)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: d8 (Defend: Material)
+STRATEGIC: Target: d-file (Open file control); Target: h-file (Plan: Open File Control)
+Plans: Open File Control
+
+=== CANDIDATES ===
+a) Rh4+! (Sharp attack with check, clean) [Evidence: Check(Rook on 59); DiscoveredAttack(Queen from d1 on King on d8); OpenFileControl(Rook on 3-file); OpenFileControl(Rook on 7-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• FileControl_open_file_control_16f9fc28: Probing moves [d4d2, d4d3, d4d5] at depth 20
+
+[L1: Passed pawn on 7th (a7)] ply=65
+FEN: 8/P7/8/2k5/8/5b2/4K3/8 w - - 0 1
+Played: e2d2
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (passed_pawn)
+• Eval: Eval: 0.0
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Dynamic play
+• Piece Issues: pawn on a7 (mobility: 0.25)
+• Practical Assessment: Balanced (Score: 0.0)
+
+=== PHASE ===
+Current: Endgame (Material: 4, Minors: 1, Queens traded)
+
+=== META ===
+Choice: style choice
+Plans: None
+
+=== CANDIDATES ===
+a) Kd2! (Prophylactic defense, clean)
+b) Kd3 (Prophylactic defense, clean)
+c) Ke1 (Prophylactic defense, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_e2d3_2d9f179b: Probing moves [e2d3] at depth 20
+• competitive_e2e1_2d9f179b: Probing moves [e2e1] at depth 20
+
+[L3: Chaos tactical storm] ply=19
+FEN: r1bq1rk1/pp3ppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 w - - 0 9
+Played: a1b1
+--------------------
+=== CONTEXT [Opening | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== L1 SNAPSHOT ===
+Material: +3 | Imbalance: Bishop pair (us) | King(us): Exposed (0 attackers, 1 escapes) | King(them): Exposed (1 attackers, 1 escapes)
+Open files: c
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, white bishop pair
+• Key Weaknesses: light-square weakness (Holes) at c4, e4, d3, a4; light-square weakness (Hanging Pawns) at a2, b2; dark-square weakness (Holes) at c5, e5, d6, a5
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); bishop on c1 (mobility: 0.07692307692307693); queen on d1 (mobility: 0.2222222222222222)
+• Positional Features: bishop pair advantage(white); bad bishop(white); good bishop(white); weak square(black at c5); weak square(black at e5)
+• Practical Assessment: Comfortable (Score: 44.224664224664224)
+
+=== PHASE ===
+Current: Opening (Material: 73, Minors: 7, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: c4 (Weak complex (White)); Target: b2 (Weak complex (White)); Target: b7 (Weak complex (Black)); Target: e5 (Weak square); Target: d3 (Weak complex (White))
+Plans: None
+
+=== CANDIDATES ===
+a) Rb1! (Positional maneuvering, clean)
+b) a3 (Positional maneuvering, clean)
+c) a4 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_a2a3_698d1ee8: Probing moves [a2a3] at depth 20
+• competitive_a2a4_698d1ee8: Probing moves [a2a4] at depth 20
+
+[Tactic: Forced mate pattern (Re8#)] ply=41
+FEN: 6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1
+Played: e1e8
+--------------------
+=== CONTEXT [Endgame | Forced | NarrowChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Confirmed Plan: Forced Mate in 1
+• Key Threat: URGENT: Forced Mate in 1 available
+• Choice Type: narrow choice
+• Tension: maximum (shattered)
+• Eval: Eval: +39.0
+
+=== DECISION RATIONALE ===
+Focus: g8 (Heuristic Logic)
+Logic: Focus on g8 (probe needed for validation)
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/100cp/2moves
+
+=== PLANS ===
+1. Confirmed Plan: Forced Mate in 1 1.00 (Checkmate is available)
+2. Suggested Plan: Open File Control 0.80 (Control of 4 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+3. Suggested Plan: Rook Activation 0.40 (Rook activation: Re8#)
+   • Support: 5 open files available for rooks
+4. Suggested Plan: Kingside Attack 0.10 (Kingside pressure: Re8#)
+   • Blocker: Strong defensive pawn shield
+   • Missing: Need more pieces in the attack zone
+
+=== L1 SNAPSHOT ===
+Material: +5 | Imbalance: Rook imbalance (1v0) | Mobility: Advantage (+12) | Center: Dominant
+Open files: a, b, c, d, e
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, Rook Activation
+• Key Weaknesses: light-square weakness (Holes) at c4, d4, e4, f4; dark-square weakness (Holes) at c5, d5, e5, f5
+• Piece Issues: king on g1 (mobility: 0.25)
+• Positional Features: open file(white); weak square(black at c5); weak square(black at d5)
+• Practical Assessment: Comfortable (Score: 3882.1428571428573)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Rook Activation (Rook activation: Re8#)
+
+=== PHASE ===
+Current: Endgame (Material: 11, Minors: 0, Queens traded)
+
+=== META ===
+Choice: narrow choice
+TACTICAL: CRITICAL TARGET: g8 (Defend: Positional)
+STRATEGIC: Target: d5 (Weak square); Target: c4 (Weak complex (White)); Target: d4 (Weak complex (White)); Target: e5 (Weak complex (Black)); Target: c5 (Weak square)
+Plans: Open File Control + Rook Activation independent
+
+=== CANDIDATES ===
+a) Re8#! (Sharp attack with check, clean) [Evidence: RookLift(Rook to rank 8); Check(Rook on 62); OpenFileControl(Rook on 4-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• FileControl_open_file_control_e93ab534: Probing moves [e1e2, e1e3, e1e4] at depth 20
+
+[NEGATIVE: Battery no target] ply=47
+FEN: 8/8/8/k7/8/8/3R4/3Q3K w - - 0 1
+Played: d1a1
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Open File Control (0.80)
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== PLANS ===
+1. Suggested Plan: Open File Control 0.80 (Control of 0 file, Control of 3 file)
+   • Support: Infiltration path for major pieces, Restricts opponent's lateral mobility
+   • Blocker: File can be contested by opponent rooks
+
+=== L1 SNAPSHOT ===
+Material: +14 | Imbalance: Rook imbalance (1v0) | Mobility: Advantage (+26) | Center: Dominant
+Open files: a, b, c, d, e, f, g, h
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Tactical complexity, Open File Control, white control of 3-file
+• Positional Features: open file(white)
+• Practical Assessment: Balanced (Score: 10.701058201058203)
+
+=== PHASE ===
+Current: Endgame (Material: 14, Minors: 0, Queens present)
+
+=== META ===
+Choice: style choice
+TACTICAL: CRITICAL TARGET: a5 (Defend: Positional)
+STRATEGIC: Target: a-file (Plan: Open File Control); Target: d-file (Open file control)
+Plans: Open File Control
+
+=== CANDIDATES ===
+a) Qa1+! (Sharp attack with check, clean) [Evidence: Check(Queen on 32); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+b) Qa4+ (Sharp attack with check, clean) [Evidence: Check(Queen on 32); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+c) Qb1 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 1-file); OpenFileControl(Rook on 3-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_d1a4_e6ecd7ee: Probing moves [d1a4] at depth 20
+• competitive_d1b1_e6ecd7ee: Probing moves [d1b1] at depth 20
+
+[Edge: Pawnless board (should not invent weak squares)] ply=80
+FEN: 8/8/8/8/8/8/8/4K3 w - - 0 1
+Played: e1d1
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | Medium] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== L1 SNAPSHOT ===
+Material: = | King(them): Exposed (0 attackers, 0 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Dynamic play
+• Practical Assessment: Balanced (Score: -12.5)
+
+=== PHASE ===
+Current: Endgame (Material: 0, Minors: 0, Queens traded)
+
+=== META ===
+Choice: style choice
+Plans: None
+
+=== CANDIDATES ===
+a) Kd1! (Positional maneuvering, clean)
+b) Kd2 (Positional maneuvering, clean)
+c) Ke2 (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_e1d2_dbbcec6d: Probing moves [e1d2] at depth 20
+• competitive_e1e2_dbbcec6d: Probing moves [e1e2] at depth 20
+
+[Edge: Symmetric queen endgame] ply=90
+FEN: 6k1/5ppp/8/3q4/3Q4/8/5P1P/6K1 w - - 0 1
+Played: d4a1
+--------------------
+=== CONTEXT [Endgame | Normal | StyleChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: No clear plan
+• Choice Type: style choice
+• Tension: ignore (quiet)
+• Eval: Eval: 0.0
+
+=== THREATS ===
+TO THEM: LOW OPPORTUNITY: Positional/80cp/2moves
+
+=== L1 SNAPSHOT ===
+Material: -1 | King(us): Exposed (1 attackers, 1 escapes)
+Open files: a, b, c, d, e
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Dynamic play, white control of 3-file, white has hanging piece at d4
+• Key Weaknesses: light-square weakness (Holes) at c4, d4, e4, f4; dark-square weakness (Holes) at c5, d5, e5, f5
+• Positional Features: open file(white); weak square(black at c5); weak square(black at d5)
+• Practical Assessment: Balanced (Score: -1.9444444444444429)
+
+=== PHASE ===
+Current: Endgame (Material: 23, Minors: 0, Queens present)
+
+=== META ===
+Choice: style choice
+STRATEGIC: Target: d5 (Weak square); Target: c4 (Weak complex (White)); Target: d4 (Weak complex (White)); Target: e5 (Weak complex (Black)); Target: c5 (Weak square)
+Plans: None
+
+=== CANDIDATES ===
+a) Qa1! (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+b) Qa4 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+c) Qa7 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• competitive_d4a4_bef9383a: Probing moves [d4a4] at depth 20
+• competitive_d4a7_bef9383a: Probing moves [d4a7] at depth 20
+
+==================================================
+TOTAL ISSUES: 0
