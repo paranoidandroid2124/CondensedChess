@@ -1,89 +1,103 @@
-# [lichess.org](https://lichess.org)
+# Chesstory
 
-[![Build server](https://github.com/lichess-org/lila/actions/workflows/server.yml/badge.svg)](https://github.com/lichess-org/lila/actions/workflows/server.yml)
-[![Build assets](https://github.com/lichess-org/lila/actions/workflows/assets.yml/badge.svg)](https://github.com/lichess-org/lila/actions/workflows/assets.yml)
-[![Crowdin](https://d322cqt584bo4o.cloudfront.net/lichess/localized.svg)](https://crowdin.com/project/lichess)
-[![Mastodon](https://img.shields.io/mastodon/follow/109298525492334687?domain=mastodon.online)](https://mastodon.online/@lichess)
-[![Bluesky](https://img.shields.io/badge/Bluesky-0285FF?logo=bluesky&logoColor=fff)](https://bsky.app/profile/lichess.org)
-[![Discord](https://img.shields.io/discord/280713822073913354?label=Discord&logo=discord&style=flat)](https://discord.gg/lichess)
+AI-powered chess storytelling platform that transforms your games into engaging narratives.
 
-<img src="https://raw.githubusercontent.com/lichess-org/lila/master/public/images/home-bicolor.png" alt="Lichess homepage" title="Lichess comes with light and dark theme, this screenshot shows both." />
+> 🎯 **A [Lichess](https://lichess.org) fork** focused on narrative-driven chess analysis with AI commentary.
 
-Lila (li[chess in sca]la) is a free online chess game server focused on [realtime](https://lichess.org/games) gameplay and ease of use.
+## What is Chesstory?
 
-It features a [search engine](https://lichess.org/games/search),
-[computer analysis](https://lichess.org/ief49lif) distributed with [fishnet](https://github.com/lichess-org/fishnet),
-[tournaments](https://lichess.org/tournament),
-[simuls](https://lichess.org/simul),
-[forums](https://lichess.org/forum),
-[teams](https://lichess.org/team),
-[tactic trainer](https://lichess.org/training),
-a [mobile app](https://lichess.org/mobile),
-and a [shared analysis board](https://lichess.org/study).
-The UI is available in more than [140 languages](https://crowdin.com/project/lichess) thanks to the community.
+Chesstory analyzes your chess games and generates **book-style narratives** that explain:
+- Why certain moves were played
+- Strategic plans and tactical motifs
+- Key turning points and critical moments
+- Alternative possibilities you might have missed
 
-Lichess is written in [Scala 3](https://www.scala-lang.org/),
-and relies on the [Play 2.8](https://www.playframework.com/) framework.
-[scalatags](https://com-lihaoyi.github.io/scalatags/) is used for templating.
-Pure chess logic is contained in the [scalachess](https://github.com/lichess-org/scalachess) submodule.
-The server is fully asynchronous, making heavy use of Scala Futures and [Akka streams](https://akka.io).
-WebSocket connections are handled by a [separate server](https://github.com/lichess-org/lila-ws) that communicates using [redis](https://redis.io/).
-Lichess talks to [Stockfish](https://stockfishchess.org/) deployed in an [AI cluster](https://github.com/lichess-org/fishnet) of donated servers.
-It uses [MongoDB](https://www.mongodb.com) to store more than 4.7 billion games, which are indexed by [elasticsearch](https://github.com/elastic/elasticsearch).
-HTTP requests and WebSocket connections can be proxied by [nginx](https://nginx.org).
-The web client is written in [TypeScript](https://www.typescriptlang.org/) and [snabbdom](https://github.com/snabbdom/snabbdom), using [Sass](https://sass-lang.com/) to generate CSS.
-All rated games are published in a [free PGN database](https://database.lichess.org).
-Browser testing done with [Browserstack](https://www.browserstack.com).
-Proxy detection done with [IP2Proxy database](https://www.ip2location.com/database/ip2proxy).
-Please help us [translate Lichess with Crowdin](https://crowdin.com/project/lichess).
+Unlike traditional computer analysis that shows cold numbers, Chesstory tells the **story** of your game.
 
-See [lichess.org/source](https://lichess.org/source) for a list of repositories.
+## Features
 
-[Join us on Discord](https://discord.gg/lichess) for more info.
-Use [GitHub issues](https://github.com/lichess-org/lila/issues) for bug reports and feature requests.
+| Feature | Status |
+|---------|--------|
+| Standard Chess Analysis | ✅ |
+| Freestyle Chess (Chess960) | ✅ |
+| AI Narrative Generation | ✅ |
+| Motif Detection (34 types) | ✅ |
+| Plan Matching (24 types) | ✅ |
+| Stockfish 17.1 WASM | ✅ |
 
-## Installation
+## Quick Start
 
-```
-./lila.sh # thin wrapper around sbt
-run
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Git
+
+### Installation
+
+```bash
+git clone https://github.com/paranoidandroid2124/CondensedChess.git
+cd CondensedChess/lila-docker
+./lila-docker start
 ```
 
-The Wiki describes [how to setup a development environment](https://github.com/lichess-org/lila/wiki/Lichess-Development-Onboarding).
+### Environment Variables
 
-## HTTP API
+Create or edit `settings.env`:
 
-Feel free to use the [Lichess API](https://lichess.org/api) in your applications and websites.
+```env
+# Required for AI narratives
+GEMINI_API_KEY=your-api-key-here
+GEMINI_MODEL=gemini-3.0-flash-preview
+```
 
-## Supported browsers
+Get your API key from [Google AI Studio](https://aistudio.google.com/apikey).
 
-| Name              | Version | Notes                                             |
-| ----------------- | ------- | ------------------------------------------------- |
-| Firefox           | 115+    | Full support (recommended)                        |
-| Chromium / Chrome | 112+    | Full support                                      |
-| Edge              | 109+    | Full support                                      |
-| Opera             | 91+     | Reasonable support                                |
-| Safari            | 13.1+   | Reasonable support                                |
+### Access
 
-Older browsers will not work.
-For your own sake, please upgrade. Security and performance, think about it!
+- **Main Site**: http://localhost:8080/
+- **Analysis Board**: http://localhost:8080/analysis
+
+## Development
+
+### UI Development (Watch Mode)
+```bash
+./lila-docker ui --watch
+```
+
+### Restart Backend (After Scala Changes)
+```bash
+./lila-docker lila restart
+```
+
+### Full Build
+```bash
+docker compose run --rm -w /lila ui node ui/build.mjs
+```
+
+## Architecture
+
+See [modules/llm/ARCHITECTURE.md](modules/llm/ARCHITECTURE.md) for detailed technical documentation.
+
+### Key Components
+
+```
+modules/llm/           # AI Commentary Engine
+├── analysis/          # Motif detection, plan matching
+├── model/             # Motif & Plan definitions
+└── LlmClient.scala    # Gemini API integration
+
+ui/analyse/            # Analysis Board UI
+├── src/narrative/     # Narrative display components
+└── src/bookmaker.ts   # Story generation orchestration
+```
 
 ## License
 
-Lila is licensed under the GNU Affero General Public License 3 or any later
-version at your choice. See [copying](https://github.com/lichess-org/lila/blob/master/COPYING.md) for
-details.
+Chesstory is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
 
-## Production architecture (as of July 2022)
-
-![Lichess production server architecture diagram](https://raw.githubusercontent.com/lichess-org/lila/master/public/images/architecture.png)
+This project is a fork of [Lichess](https://github.com/lichess-org/lila). See [COPYING.md](COPYING.md) for full license details and attribution.
 
 ## Credits
 
-See [lichess.org/thanks](https://lichess.org/thanks) and the contributors here:
-
-[![GitHub contributors](https://contrib.rocks/image?repo=lichess-org/lila)](https://github.com/lichess-org/lila/graphs/contributors)
-
-## Competence development program
-
-Lichess would like to support its contributors in their competence development by covering costs of relevant training materials and activities. This is a small way to further empower contributors who have given their time to Lichess and to enable or improve additional contributions to Lichess in the future. For more information, including how to apply, check [Competence Development for Lichess contributors](https://lichess.org/page/competence-development).
+- [Lichess](https://lichess.org) - The original open-source chess platform
+- [Stockfish](https://stockfishchess.org/) - Chess engine
+- [Google Gemini](https://ai.google.dev/) - AI text generation
