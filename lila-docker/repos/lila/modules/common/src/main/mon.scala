@@ -353,11 +353,6 @@ object mon:
     object mailcheckApi:
       def fetch(success: Boolean, ok: Boolean) =
         timer("mailcheck.fetch").withTags(tags("success" -> successTag(success), "ok" -> ok))
-    object hCaptcha:
-      def hit(client: String, result: String) =
-        counter("hcaptcha.hit").withTags(tags("client" -> client, "result" -> result))
-      def form(client: String, result: String) =
-        counter("hcaptcha.form").withTags(tags("client" -> client, "result" -> result))
     object pwned:
       def get(res: Boolean) = timer("security.pwned.result").withTag("res", res)
     object geoip:

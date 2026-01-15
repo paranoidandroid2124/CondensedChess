@@ -2,7 +2,7 @@ package lila.app
 
 import com.softwaremill.macwire.*
 import play.api.libs.ws.StandaloneWSClient
-import play.api.mvc.{ Call, ControllerComponents, SessionCookieBaker }
+import play.api.mvc.{ Call, ControllerComponents }
 import play.api.{ Configuration, Environment, Mode }
 
 import lila.core.config.*
@@ -16,8 +16,7 @@ final class Env(
     val config: Configuration,
     val controllerComponents: ControllerComponents,
     environment: Environment,
-    shutdown: akka.actor.CoordinatedShutdown,
-    cookieBaker: SessionCookieBaker
+    shutdown: akka.actor.CoordinatedShutdown
 )(using val system: akka.actor.ActorSystem, val executor: Executor)(using
     StandaloneWSClient,
     akka.stream.Materializer
@@ -27,7 +26,6 @@ final class Env(
   val routeUrl: Call => Url = call => Url(s"${baseUrl}${call.url}")
 
   given mode: Mode = environment.mode
-  given translator: lila.core.i18n.Translator = lila.core.i18n.Translator.empty
   given scheduler: Scheduler = system.scheduler
   given RateLimit = net.rateLimit
   given NetDomain = net.domain
@@ -51,7 +49,6 @@ final class Env(
     cacheApi = memo.cacheApi,
     mongoCache = memo.mongoCache
   )
-  import game.given
   val evalCache: lila.evalCache.Env = wire[lila.evalCache.Env]
   val analyse: lila.analyse.Env = new lila.analyse.Env(
     db = mongo.mainDb,
@@ -86,10 +83,6 @@ final class Env(
   val api: lila.api.Env = wire[lila.api.Env]
   lazy val apiC: lila.api.Api = wire[lila.api.Api]
 
-  val preloader = wire[mashup.Preload]
-  val socialInfo = new mashup.UserInfo.SocialApi(user.noteApi, pref.api)
-  val userNbGames = new mashup.UserInfo.NbGamesApi(game.cached, game.crosstableApi)
-  val userInfo = new mashup.UserInfo.UserInfoApi(study.studyRepo)
   val announceApi = new lila.web.AnnounceApi(mongo.mainDb(CollName("announce")))
 
   val pageCache = wire[http.PageCache]

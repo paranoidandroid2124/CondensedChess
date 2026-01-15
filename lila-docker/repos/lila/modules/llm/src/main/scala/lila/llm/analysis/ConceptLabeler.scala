@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model.*
 import lila.llm.model.Motif.{ *, given }
-import lila.llm.analysis.*
+
 
 import _root_.chess.*
 

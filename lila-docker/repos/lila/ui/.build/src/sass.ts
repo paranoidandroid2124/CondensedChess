@@ -63,7 +63,7 @@ export async function sass(): Promise<any> {
       const urlTargetTouched = await sourcesWithUrls(modified.filter(isUrlTarget));
       const transitiveTouched = [...partialTouched, ...urlTargetTouched].flatMap(p => [...dependsOn(p)]);
       const concreteTouched = [...new Set([...transitiveTouched, ...modified])].filter(isConcrete);
-      const themesTouched = partialTouched.some(src => src.startsWith('ui/lib/css/theme/_theme.'));
+      const themesTouched = partialTouched.some(src => src.startsWith('ui/lib/css/theme/_theme.') || src.startsWith('ui\\lib\\css\\theme\\_theme.'));
       remaining = remaining
         ? new Set([...remaining, ...concreteTouched].filter(x => concreteAll.has(x)))
         : concreteAll;
@@ -98,36 +98,60 @@ async function compile(sources: string[], logAll = true): Promise<string[]> {
   const sassBin =
     process.env.SASS_PATH ??
     (await fs.promises.realpath(
-      join(env.buildDir, 'node_modules', `sass-embedded-${ps.platform}-${ps.arch}`, 'dart-sass', 'sass'),
+      join(env.buildDir, 'node_modules', `sass-embedded-${ps.platform}-${ps.arch}`, 'dart-sass', ps.platform === 'win32' ? 'sass.bat' : 'sass'),
     ));
   if (!(await readable(sassBin))) env.exit(`Sass executable not found '${c.cyan(sassBin)}'`, 'sass');
 
-  return new Promise(resolveWithErrors => {
-    if (!sources.length) return resolveWithErrors([]);
-    if (logAll) sources.forEach(src => env.log(`Building '${c.cyan(src)}'`, 'sass'));
-    else env.log('Building', 'sass');
+  if (!sources.length) return [];
+  if (logAll) sources.forEach(src => env.log(`Building '${c.cyan(src)}'`, 'sass'));
+  else env.log('Building', 'sass');
 
-    const sassArgs = ['--no-error-css', '--stop-on-error', '--no-color', '--quiet', '--quiet-deps'];
-    sassPs?.removeAllListeners();
-    sassPs = cps.spawn(
-      sassBin,
-      sassArgs.concat(
-        env.prod ? ['--style=compressed', '--no-source-map'] : ['--embed-sources'],
-        sources.map((src: string) => `${src}:${absTempCss(src)}`),
-      ),
-    );
+  const chunkSize = 10;
+  const chunks = [];
+  for (let i = 0; i < sources.length; i += chunkSize) {
+    chunks.push(sources.slice(i, i + chunkSize));
+  }
 
-    sassPs.stderr?.on('data', (buf: Buffer) => sassError(buf.toString('utf8')));
-    sassPs.stdout?.on('data', (buf: Buffer) => sassError(buf.toString('utf8')));
-    sassPs.on('close', async (code: number) => {
-      sassPs = undefined;
-      if (code === 0) resolveWithErrors([]);
-      else
-        Promise.all(sources.map(async s => ({ s, exists: await readable(absTempCss(s)) })))
-          .then(srcExists => resolveWithErrors(srcExists.filter(({ exists }) => !exists).map(({ s }) => s)))
-          .catch(() => resolveWithErrors(sources));
+  const allErrors: string[] = [];
+
+  for (const chunk of chunks) {
+    const chunkErrors = await new Promise<string[]>(resolveChunk => {
+      const sassArgs = [
+        '--no-error-css',
+        '--stop-on-error',
+        '--no-color',
+        '--quiet',
+        '--quiet-deps',
+        `--load-path=${env.rootDir.replaceAll('\\', '/')}`,
+        `--load-path=${env.uiDir.replaceAll('\\', '/')}`,
+        `--load-path=${join(env.uiDir, 'analyse').replaceAll('\\', '/')}`,
+        `--load-path=${join(env.uiDir, 'bits').replaceAll('\\', '/')}`
+      ];
+
+      const psInstance = cps.spawn(
+        sassBin,
+        sassArgs.concat(
+          env.prod ? ['--style=compressed', '--no-source-map'] : ['--embed-sources'],
+          chunk.map((src: string) => `${src.replaceAll('\\', '/')}:${absTempCss(src).replaceAll('\\', '/')}`),
+        ),
+        { shell: true }
+      );
+
+      psInstance.stderr?.on('data', (buf: Buffer) => sassError(buf.toString('utf8')));
+      psInstance.stdout?.on('data', (buf: Buffer) => sassError(buf.toString('utf8')));
+      psInstance.on('close', async (code: number) => {
+        if (code === 0) resolveChunk([]);
+        else {
+          Promise.all(chunk.map(async s => ({ s, exists: await readable(absTempCss(s)) })))
+            .then(srcExists => resolveChunk(srcExists.filter(({ exists }) => !exists).map(({ s }) => s)))
+            .catch(() => resolveChunk(chunk));
+        }
+      });
     });
-  });
+    allErrors.push(...chunkErrors);
+  }
+
+  return allErrors;
 }
 
 // recursively parse scss file and its imports to build dependency and color maps
@@ -187,9 +211,9 @@ async function parseThemeColorDefs() {
   const defaultThemeColors = await loadThemeColors(join(env.themeDir, '_theme.default.scss'));
   themeColorMap.set('default', defaultThemeColors);
 
-  const themeFiles = await glob(join(env.themeDir, '_*.scss'), { absolute: false });
+  const themeFiles = await glob(join(env.themeDir, '_*.scss').replaceAll('\\', '/'), { absolute: false });
   for (const themeFile of themeFiles ?? []) {
-    const theme = /_theme\.([^/]+)\.scss/.exec(themeFile)?.[1];
+    const theme = /_theme\.([^/\\]+)\.scss/.exec(themeFile)?.[1];
     if (!theme || theme === 'default') continue;
 
     const colorDefMap = await loadThemeColors(themeFile);
@@ -236,14 +260,16 @@ async function buildColorWrap() {
   const cssVars = new Set<string>();
   for (const color of colorMixMap.keys()) cssVars.add(`m-${color}`);
 
-  for (const file of await glob(join(env.themeDir, '_*.scss'))) {
+  for (const file of await glob(join(env.themeDir, '_*.scss').replaceAll('\\', '/'))) {
+    // on windows we might get backslashes or forward slashes depending on glob result
     if (!file.includes('theme.')) continue;
+    env.log(`Parsing theme file: ${file}`, 'sass');
     for (const line of (await fs.promises.readFile(file, 'utf8')).split('\n')) {
       if (line.indexOf('--') === -1) continue;
-      const commentIndex = line.indexOf('//');
-      if (commentIndex !== -1 && commentIndex < line.indexOf(':')) continue;
+      // relaxed check: accept anything with --c- or --m-
       if (!/--[cm]/.test(line)) continue;
-      cssVars.add(line.split(':')[0].trim().replace('--', ''));
+      const variable = line.split(':')[0].trim().replace('--', '');
+      cssVars.add(variable);
     }
   }
   const scssWrap =
@@ -300,7 +326,7 @@ async function sourcesWithUrls(urls: string[]) {
   for (const [target, hash] of Object.entries(await symlinkTargetHashes(urls))) {
     const url = relative(env.hashOutDir, join(env.outDir, target));
     const depSet = importMap.get(url) ?? new Set<string>();
-    depSet.delete([...depSet].find(f => f.startsWith('public/hashed/')) ?? '');
+    depSet.delete([...depSet].find(f => f.startsWith('public/hashed/') || f.startsWith('public\\hashed\\')) ?? '');
     depSet.forEach(i => importers.add(i));
     depSet.add(join('public/hashed', hashedBasename(url, hash)));
     importMap.set(url, depSet);
@@ -312,7 +338,7 @@ function urlReplacements() {
   const replacements: Record<string, Record<string, string>> = {};
   for (const [url, depSet] of importMap) {
     if (!url.startsWith('../')) continue;
-    const hashed = [...depSet].find(f => f.startsWith('public/hashed/'));
+    const hashed = [...depSet].find(f => f.startsWith('public/hashed/') || f.startsWith('public\\hashed\\'));
     if (!hashed) continue;
     for (const src of [...dependsOn(url)].filter(isConcrete)) {
       replacements[src] ??= {};
@@ -323,7 +349,7 @@ function urlReplacements() {
 }
 
 function dependsOn(srcFile: string, bset = new Set<string>()): Set<string> {
-  if (srcFile.startsWith('public/hashed/') || bset.has(srcFile)) return bset;
+  if (srcFile.startsWith('public/hashed/') || srcFile.startsWith('public\\hashed\\') || bset.has(srcFile)) return bset;
   bset.add(srcFile);
   for (const dep of importMap.get(srcFile) ?? []) dependsOn(dep, bset);
   return bset;
@@ -348,13 +374,13 @@ function absTempCss(scss: string) {
 }
 
 function isConcrete(src: string) {
-  return src.startsWith('ui/') && !basename(src).startsWith('_');
+  return (src.startsWith('ui/') || src.startsWith('ui\\')) && !basename(src).startsWith('_');
 }
 
 function isPartial(src: string) {
-  return src.startsWith('ui/') && basename(src).startsWith('_');
+  return (src.startsWith('ui/') || src.startsWith('ui\\')) && basename(src).startsWith('_');
 }
 
 function isUrlTarget(src: string) {
-  return src.startsWith('public/');
+  return src.startsWith('public/') || src.startsWith('public\\');
 }

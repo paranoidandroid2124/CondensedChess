@@ -27,15 +27,15 @@ function localEvalNodes(ctrl: CevalHandler, evs: NodeEvals): Array<VNode | strin
   if (status) return [status];
   if (!evs.client) {
     if (!ceval.analysable) return ['Engine cannot analyze this position'];
-    if (state === CevalState.Failed) return [i18n.site.engineFailed];
-    const localEvalText = state === CevalState.Loading ? loadingText(ctrl) : i18n.site.calculatingMoves;
-    return [evs.server && ctrl.nextNodeBest() ? i18n.site.usingServerAnalysis : localEvalText];
+    if (state === CevalState.Failed) return ['Engine failed'];
+    const localEvalText = state === CevalState.Loading ? loadingText(ctrl) : 'Calculating moves';
+    return [evs.server && ctrl.nextNodeBest() ? 'Using server analysis' : localEvalText];
   }
   const t: Array<VNode | string> = [];
   if (!ceval.opts.custom && ceval.canGoDeeper)
     t.push(
       hl('a.deeper', {
-        attrs: { title: i18n.site.goDeeper, 'data-icon': licon.PlusButton },
+        attrs: { title: 'Go deeper', 'data-icon': licon.PlusButton },
         hook: bind('click', ceval.goDeeper),
       }),
     );
@@ -43,8 +43,8 @@ function localEvalNodes(ctrl: CevalHandler, evs: NodeEvals): Array<VNode | strin
 
   t.push(depthText);
   if (evs.client.cloud && !ceval.isComputing)
-    t.push(hl('span.cloud', { attrs: { title: i18n.site.cloudAnalysis } }, 'Cloud'));
-  if (ceval.isInfinite) t.push(hl('span.infinite', { attrs: { title: i18n.site.infiniteAnalysis } }, '∞'));
+    t.push(hl('span.cloud', { attrs: { title: 'Cloud analysis' } }, 'Cloud'));
+  if (ceval.isInfinite) t.push(hl('span.infinite', { attrs: { title: 'Infinite analysis' } }, '∞'));
   if (npsText) t.push(' · ' + npsText);
   return t;
 }
@@ -58,22 +58,21 @@ function localInfo(ctrl: CevalHandler, ev?: Tree.ClientEval | false): EvalInfo {
   const info = {
     npsText: '',
     knps: 0,
-    depthText: i18n.site.calculatingMoves,
+    depthText: 'Calculating moves',
   };
 
   if (!ev) return info;
 
   const ceval = ctrl.ceval;
-  info.depthText = i18n.site.depthX(ev.depth || 0) + (ceval.isDeeper() || ceval.isInfinite ? '/99' : '');
+  info.depthText = `depth ${ev.depth || 0}` + (ceval.isDeeper() || ceval.isInfinite ? '/99' : '');
 
   if (!ceval.isComputing) return info;
 
   const knps = ev.nodes / (ev?.millis ?? Number.POSITIVE_INFINITY);
 
   if (knps > 0) {
-    info.npsText = `${
-      knps > 1000 ? (knps / 1000).toFixed(knps > 10000 ? 0 : 1) + ' Mn/s' : Math.round(knps) + ' kn/s'
-    }`;
+    info.npsText = `${knps > 1000 ? (knps / 1000).toFixed(knps > 10000 ? 0 : 1) + ' Mn/s' : Math.round(knps) + ' kn/s'
+      }`;
     info.knps = knps;
   }
   return info;
@@ -83,34 +82,34 @@ const threatButton = (ctrl: CevalHandler): VNode | null =>
   ctrl.ceval.download
     ? null
     : hl('button.show-threat', {
-        class: { active: ctrl.threatMode(), hidden: !!ctrl.getNode().check },
-        attrs: { 'data-icon': licon.Target, title: i18n.site.showThreat + ' (x)' },
-        hook: bind('click', () => ctrl.toggleThreatMode()),
-      });
+      class: { active: ctrl.threatMode(), hidden: !!ctrl.getNode().check },
+      attrs: { 'data-icon': licon.Target, title: 'Show threat (x)' },
+      hook: bind('click', () => ctrl.toggleThreatMode()),
+    });
 
 function engineName(ctrl: CevalCtrl): VNode[] {
   const engine = ctrl.engines.active;
   return engine
     ? [
-        hl('span', { attrs: { title: engine.name } }, engine.short ?? engine.name),
-        ctrl.engines.isExternalEngineInfo(engine)
+      hl('span', { attrs: { title: engine.name } }, engine.short ?? engine.name),
+      ctrl.engines.isExternalEngineInfo(engine)
+        ? hl(
+          'span.technology.good',
+          { attrs: { title: 'Engine running outside of the browser' } },
+          engine.tech,
+        )
+        : engine.requires.includes('simd')
           ? hl(
-              'span.technology.good',
-              { attrs: { title: 'Engine running outside of the browser' } },
-              engine.tech,
-            )
-          : engine.requires.includes('simd')
-            ? hl(
-                'span.technology.good',
-                { attrs: { title: 'Multi-threaded WebAssembly with SIMD' } },
-                engine.tech,
-              )
-            : engine.requires.includes('sharedMem')
-              ? hl('span.technology.good', { attrs: { title: 'Multi-threaded WebAssembly' } }, engine.tech)
-              : engine.requires.includes('wasm')
-                ? hl('span.technology', { attrs: { title: 'Single-threaded WebAssembly' } }, engine.tech)
-                : hl('span.technology', { attrs: { title: 'Single-threaded JavaScript' } }, engine.tech),
-      ]
+            'span.technology.good',
+            { attrs: { title: 'Multi-threaded WebAssembly with SIMD' } },
+            engine.tech,
+          )
+          : engine.requires.includes('sharedMem')
+            ? hl('span.technology.good', { attrs: { title: 'Multi-threaded WebAssembly' } }, engine.tech)
+            : engine.requires.includes('wasm')
+              ? hl('span.technology', { attrs: { title: 'Single-threaded WebAssembly' } }, engine.tech)
+              : hl('span.technology', { attrs: { title: 'Single-threaded JavaScript' } }, engine.tech),
+    ]
     : [];
 }
 
@@ -202,29 +201,29 @@ export function renderCeval(ctrl: CevalHandler): VNode[] {
 
   const body: LooseVNodes = enabled
     ? [
-        pearl,
-        hl('div.engine', [
-          threatMode ? [i18n.site.showThreat] : engineName(ceval),
-          hl(
-            'span.info',
-            ctrl.outcome()
-              ? [i18n.site.gameOver]
-              : ctrl.getNode().threefold
-                ? [i18n.site.threefoldRepetition]
-                : threatMode
-                  ? [threatInfo(ctrl, threat)]
-                  : localEvalNodes(ctrl, { client, server }),
-          ),
-        ]),
-      ]
+      pearl,
+      hl('div.engine', [
+        threatMode ? ['Show threat'] : engineName(ceval),
+        hl(
+          'span.info',
+          ctrl.outcome()
+            ? ['Game over']
+            : ctrl.getNode().threefold
+              ? ['Threefold repetition']
+              : threatMode
+                ? [threatInfo(ctrl, threat)]
+                : localEvalNodes(ctrl, { client, server }),
+        ),
+      ]),
+    ]
     : [
-        pearl,
-        hl('div.engine', [
-          engineName(ceval),
-          hl('br'),
-          ceval.analysable ? i18n.site.inLocalBrowser : 'Illegal positions cannot be analyzed',
-        ]),
-      ];
+      pearl,
+      hl('div.engine', [
+        engineName(ceval),
+        hl('br'),
+        ceval.analysable ? 'In local browser' : 'Illegal positions cannot be analyzed',
+      ]),
+    ];
 
   const settingsGear = hl('button.settings-gear', {
     attrs: { role: 'button', 'data-icon': licon.Gear, title: 'Engine settings' },
@@ -256,7 +255,7 @@ export function renderCeval(ctrl: CevalHandler): VNode[] {
 export function renderCevalSwitch(ctrl: CevalHandler): VNode | false {
   return (
     ctrl.cevalEnabled() !== 'force' &&
-    hl('div.switch', { attrs: { role: 'button', title: i18n.site.toggleLocalEvaluation + ' (L)' } }, [
+    hl('div.switch', { attrs: { role: 'button', title: 'Toggle local evaluation (L)' } }, [
       hl('input#analyse-toggle-ceval.cmn-toggle.cmn-toggle--subtle', {
         attrs: { type: 'checkbox', disabled: !ctrl.ceval.analysable, checked: ctrl.cevalEnabled() },
         props: { checked: !ctrl.ceval.isPaused && ctrl.cevalEnabled() },
@@ -479,5 +478,5 @@ function loadingText(ctrl: CevalHandler): string {
   const d = ctrl.ceval.download;
   return d?.total
     ? `Downloaded ${Math.round((d.bytes * 100) / d.total)}% of ${Math.round(d.total / 1000 / 1000)}MB`
-    : i18n.site.loadingEngine;
+    : 'Loading engine';
 }

@@ -1,7 +1,6 @@
 /// <reference path="./tree.d.ts" />
 /// <reference path="./chessground.d.ts" />
 /// <reference path="./cash.d.ts" />
-/// <reference path="./i18n.d.ts" />
 
 // file://./../../site/src/site.ts
 interface Site {
@@ -28,7 +27,6 @@ interface Site {
     loadIife(path: string, opts?: AssetUrlOpts): Promise<void>;
     loadEsm<T>(key: string, opts?: EsmModuleOpts): Promise<T>;
     loadPieces: Promise<void>;
-    loadI18n(catalog: string): Promise<void>;
   };
   unload: { expected: boolean };
   redirect(o: RedirectTo, beep?: boolean): void;
@@ -38,7 +36,6 @@ interface Site {
   displayLocale: string; // file://./../../common/src/i18n.ts
   blindMode: boolean;
   load: Promise<void>; // DOMContentLoaded promise
-  quantity(n: number): 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
   quietMode?: boolean;
   analysis?: any; // expose the analysis ctrl
   // file://./../../.build/src/manifest.ts
@@ -46,7 +43,6 @@ interface Site {
     css: Manifest;
     js: Manifest;
     hashed: Manifest;
-    i18n?: Manifest;
   };
 }
 
@@ -178,7 +174,6 @@ interface Fipr {
 interface Window {
   site: Site;
   fipr: Fipr;
-  i18n: I18n;
   readonly chrome?: unknown;
   readonly moment: any;
   readonly stripeHandler: any;
@@ -312,7 +307,6 @@ declare namespace PowerTip {
 
 declare const site: Site;
 declare const fipr: Fipr;
-declare const i18n: I18n;
 declare module 'tablesort';
 declare const $html: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts
 declare const $trim: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts

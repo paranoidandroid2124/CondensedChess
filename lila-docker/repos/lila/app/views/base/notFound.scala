@@ -1,7 +1,6 @@
 package views.base
 
 import lila.app.UiEnv.{ *, given }
-import lila.i18n.trans
 
 def notFound(msg: Option[String]) =
   Page(msg | "Page not found").css("bits.not-found"):
@@ -12,7 +11,7 @@ def notFound(msg: Option[String]) =
           strong("Page not found!"),
           msg.map(em(_)),
           p(cls := "text")(
-            trans.pageNotFound,
+            "Page not found",
             br,
             a(href := routes.UserAnalysis.index.url)("the homepage"),
             br,

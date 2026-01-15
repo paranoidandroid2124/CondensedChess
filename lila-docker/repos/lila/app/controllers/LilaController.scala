@@ -8,13 +8,10 @@ import play.api.mvc.*
 
 import lila.app.{ *, given }
 import lila.common.HTTPRequest
-import scalalib.model.Language
 import lila.core.perm.Permission
-import lila.core.i18n.LangPicker
 import lila.oauth.{ EndpointScopes, OAuthScope, OAuthScopes, OAuthServer, TokenScopes }
 import lila.ui.{ Page, Snippet }
 // import play.filters.csrf.CSRF
-import lila.api.PageContext
 
 abstract private[controllers] class LilaController(val env: Env)
     extends BaseController
@@ -33,7 +30,6 @@ abstract private[controllers] class LilaController(val env: Env)
   given Executor = env.executor
   given Scheduler = env.scheduler
   given FormBinding = parse.formBinding(parse.DefaultMaxTextLength)
-  given lila.core.i18n.Translator = env.translator
   given reqBody(using r: BodyContext[?]): Request[?] = r.body
 
   given (using codec: Codec, pc: lila.api.PageContext): Writeable[Page] =
@@ -334,20 +330,6 @@ abstract private[controllers] class LilaController(val env: Env)
 
   def pageHit(using req: RequestHeader): Unit = ()
 
-  def LangPage(call: Call)(f: Context ?=> Fu[Result])(language: Language): EssentialAction =
-    LangPage(call.url)(f)(language)
-  def LangPage(path: String)(f: Context ?=> Fu[Result])(language: Language): EssentialAction = Open:
-    if ctx.isAuth
-    then redirectWithQueryString(path)
-    else
-      import lila.core.i18n.LangPicker.ByHref
-      lila.core.i18n.LangPicker.byHref(language, ctx.req) match
-        case ByHref.NotFound => notFound(using ctx)
-        case ByHref.Redir(code) =>
-          redirectWithQueryString(s"/$code${~path.some.filter("/" !=)}")
-        case ByHref.Refused(_) => redirectWithQueryString(path)
-        case ByHref.Found(lang) =>
-          f(using ctx.withLang(lang))
 
 
   def meOrFetch[U: UserIdOf](id: U)(using ctx: Context): Fu[Option[lila.user.User]] =

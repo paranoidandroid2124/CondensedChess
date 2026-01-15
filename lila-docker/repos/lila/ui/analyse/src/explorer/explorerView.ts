@@ -1,6 +1,6 @@
 import type { VNode } from 'snabbdom';
 import * as licon from 'lib/licon';
-import { displayLocale, numberFormat } from 'lib/i18n';
+import { displayLocale, numberFormat } from 'lib/format';
 import perfIcons from 'lib/game/perfIcons';
 import { bind, dataIcon, type MaybeVNode, type LooseVNodes, hl } from 'lib/view';
 import { view as renderConfig } from './explorerConfig';
@@ -37,23 +37,23 @@ function showMoveTable(ctrl: AnalyseCtrl, data: OpeningData): VNode | null {
   const movesWithCurrent =
     data.moves.length > 1
       ? [
-          ...data.moves,
-          {
-            white: data.white,
-            black: data.black,
-            draws: data.draws,
-            uci: '',
-            san: 'Σ',
-          } as OpeningMoveStats,
-        ]
+        ...data.moves,
+        {
+          white: data.white,
+          black: data.black,
+          draws: data.draws,
+          uci: '',
+          san: 'Σ',
+        } as OpeningMoveStats,
+      ]
       : data.moves;
 
   return hl('table.moves', [
     hl('thead', [
       hl('tr', [
-        hl('th', i18n.site.move),
-        hl('th', { attrs: { colspan: 2 } }, i18n.site.games),
-        hl('th', i18n.site.whiteDrawBlack),
+        hl('th', 'Move'),
+        hl('th', { attrs: { colspan: 2 } }, 'Games'),
+        hl('th', 'White / Draw / Black'),
       ]),
     ]),
     hl(
@@ -89,7 +89,7 @@ function moveStatsTooltip(ctrl: AnalyseCtrl, move: OpeningMoveStats): string {
       : `${g.white.name} ${result} ${g.black.name}`;
   }
   if (ctrl.explorer.opts.showRatings) {
-    if (move.averageRating) return i18n.site.averageRatingX(move.averageRating);
+    if (move.averageRating) return `Average rating: ${move.averageRating}`;
     if (move.averageOpponentRating)
       return `Performance rating: ${move.performance}, average opponent: ${move.averageOpponentRating}`;
   }
@@ -115,36 +115,32 @@ function showGameTable(ctrl: AnalyseCtrl, fen: FEN, title: string, games: Openin
         fen,
         onClick: (e, _) => {
           const $tr = $(e.target as HTMLElement).parents('tr');
-          if (!$tr.length) return;
           const id = $tr.data('id');
-          if (ctrl.study && ctrl.study.members.canContribute()) {
-            ctrl.explorer.gameMenu(id);
-            ctrl.redraw();
-          } else openGame(ctrl, id);
+          openGame(ctrl, id);
         },
       }),
       games.map(game => {
         return openedId === game.id
           ? gameActions(ctrl, game)
           : hl('tr', { key: game.id, attrs: { 'data-id': game.id, 'data-uci': game.uci || '' } }, [
-              ctrl.explorer.opts.showRatings &&
-                hl(
-                  'td',
-                  [game.white, game.black].map(p => hl('span', '' + p.rating)),
-                ),
-              hl(
-                'td',
-                [game.white, game.black].map(p => hl('span', p.name)),
-              ),
-              hl('td', showResult(game.winner)),
-              hl('td', game.month || game.year),
-              !isMasters &&
-                hl(
-                  'td',
-                  game.speed &&
-                    hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]) } }),
-                ),
-            ]);
+            ctrl.explorer.opts.showRatings &&
+            hl(
+              'td',
+              [game.white, game.black].map(p => hl('span', '' + p.rating)),
+            ),
+            hl(
+              'td',
+              [game.white, game.black].map(p => hl('span', p.name)),
+            ),
+            hl('td', showResult(game.winner)),
+            hl('td', game.month || game.year),
+            !isMasters &&
+            hl(
+              'td',
+              game.speed &&
+              hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
+            ),
+          ]);
       }),
     ),
   ]);
@@ -159,11 +155,7 @@ function openGame(ctrl: AnalyseCtrl, gameId: string) {
 }
 
 function gameActions(ctrl: AnalyseCtrl, game: OpeningGame): VNode {
-  const send = (insert: boolean) => {
-    ctrl.study!.explorerGame(game.id, insert);
-    ctrl.explorer.gameMenu(null);
-    ctrl.redraw();
-  };
+
   return hl('tr', { key: game.id + '-m' }, [
     hl('td.game_menu', { attrs: { colspan: ctrl.explorer.db() === 'masters' ? 4 : 5 } }, [
       hl(
@@ -176,18 +168,6 @@ function gameActions(ctrl: AnalyseCtrl, game: OpeningGame): VNode {
           { attrs: dataIcon(licon.Eye), hook: bind('click', _ => openGame(ctrl, game.id)) },
           'View',
         ),
-        ctrl.study &&
-          hl(
-            'a.text',
-            { attrs: dataIcon(licon.BubbleSpeech), hook: bind('click', _ => send(false), ctrl.redraw) },
-            'Cite',
-          ),
-        ctrl.study &&
-          hl(
-            'a.text',
-            { attrs: dataIcon(licon.PlusButton), hook: bind('click', _ => send(true), ctrl.redraw) },
-            'Insert',
-          ),
         hl(
           'a.text',
           { attrs: dataIcon(licon.X), hook: bind('click', _ => ctrl.explorer.gameMenu(null), ctrl.redraw) },
@@ -202,7 +182,7 @@ const closeButton = (ctrl: AnalyseCtrl): VNode =>
   hl(
     'button.button.button-empty.text',
     { attrs: dataIcon(licon.X), hook: bind('click', ctrl.toggleExplorer, ctrl.redraw) },
-    i18n.site.close,
+    'Close',
   );
 
 const showEmpty = (ctrl: AnalyseCtrl, data?: OpeningData): VNode => {
@@ -211,18 +191,18 @@ const showEmpty = (ctrl: AnalyseCtrl, data?: OpeningData): VNode => {
     explorerTitle(ctrl.explorer),
     openingTitle(ctrl, data),
     hl('div.message', [
-      hl('strong', isTooDeep ? i18n.site.maxDepthReached : i18n.site.noGameFound),
+      hl('strong', isTooDeep ? 'Max depth reached' : 'No game found'),
       !!data?.queuePosition
         ? hl('p.explanation', `Indexing ${data.queuePosition} other players first ...`)
         : !(ctrl.explorer.config.fullHouse() || isTooDeep) &&
-          hl('p.explanation', i18n.site.maybeIncludeMoreGamesFromThePreferencesMenu),
+        hl('p.explanation', 'Maybe include more games from the preferences menu'),
     ]),
   ]);
 };
 
 const showGameEnd = (ctrl: AnalyseCtrl, title: string): VNode =>
   hl('div.data.empty', [
-    hl('div.title', i18n.site.gameOver),
+    hl('div.title', 'Game over'),
     hl('div.message', [hl('i', { attrs: dataIcon(licon.InfoCircle) }), hl('h3', title), closeButton(ctrl)]),
   ]);
 
@@ -247,8 +227,8 @@ function show(ctrl: AnalyseCtrl): MaybeVNode {
   const data = ctrl.explorer.current();
   if (data && isOpening(data)) {
     const moveTable = showMoveTable(ctrl, data),
-      recentTable = showGameTable(ctrl, data.fen, i18n.site.recentGames, data.recentGames || []),
-      topTable = showGameTable(ctrl, data.fen, i18n.site.topGames, data.topGames || []);
+      recentTable = showGameTable(ctrl, data.fen, 'Recent games', data.recentGames || []),
+      topTable = showGameTable(ctrl, data.fen, 'Top games', data.topGames || []);
     if (moveTable || recentTable || topTable)
       lastShow = hl('div.data', [
         explorerTitle(ctrl.explorer),
@@ -269,20 +249,20 @@ function show(ctrl: AnalyseCtrl): MaybeVNode {
       );
     if (data.moves.length)
       lastShow = hl('div.data', [
-        row('loss', i18n.site.winning),
-        row('unknown', i18n.site.unknown),
-        row('syzygy-loss', i18n.site.winOr50MovesByPriorMistake, i18n.site.unknownDueToRounding),
+        row('loss', 'Winning'),
+        row('unknown', 'Unknown'),
+        row('syzygy-loss', 'Win or 50 moves by prior mistake', 'Unknown due to rounding'),
         row('maybe-loss', 'Win or 50 moves'),
-        row('blessed-loss', i18n.site.winPreventedBy50MoveRule),
-        row('draw', i18n.site.drawn),
-        row('cursed-win', i18n.site.lossSavedBy50MoveRule),
+        row('blessed-loss', 'Win prevented by 50 move rule'),
+        row('draw', 'Drawn'),
+        row('cursed-win', 'Loss saved by 50 move rule'),
         row('maybe-win', 'Loss or 50 moves'),
-        row('syzygy-win', i18n.site.lossOr50MovesByPriorMistake, i18n.site.unknownDueToRounding),
-        row('win', i18n.site.losing),
+        row('syzygy-win', 'Loss or 50 moves by prior mistake', 'Unknown due to rounding'),
+        row('win', 'Losing'),
       ]);
-    else if (data.checkmate) lastShow = showGameEnd(ctrl, i18n.site.checkmate);
-    else if (data.stalemate) lastShow = showGameEnd(ctrl, i18n.site.stalemate);
-    else if (data.variant_win || data.variant_loss) lastShow = showGameEnd(ctrl, 'variantEnding');
+    else if (data.checkmate) lastShow = showGameEnd(ctrl, 'Checkmate');
+    else if (data.stalemate) lastShow = showGameEnd(ctrl, 'Stalemate');
+    else if (data.variant_win || data.variant_loss) lastShow = showGameEnd(ctrl, 'Variant ending');
     else lastShow = showEmpty(ctrl);
   }
   return lastShow;
@@ -317,7 +297,7 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
           explorer.reload,
         ),
       },
-      i18n.site.player,
+      'Player',
     );
   const active = (nodes: LooseVNodes, title: string) =>
     hl(
@@ -329,8 +309,8 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
       nodes,
     );
   const playerName = explorer.config.data.playerName.value();
-  const masterDbExplanation = i18n.site.masterDbExplanation(2200, '1952', '2024-08'),
-    lichessDbExplanation = i18n.site.lichessDbExplanation;
+  const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08',
+    lichessDbExplanation = '10 billion games played on Lichess';
   const data = explorer.current();
   const queuePosition = data && isOpening(data) && data.queuePosition;
   return hl('div.explorer-title', [
@@ -343,29 +323,29 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
     db === 'player'
       ? playerName
         ? active(
-            [
-              hl(`strong${playerName.length > 14 ? '.long' : ''}`, playerName),
-              ` ${i18n.site[explorer.config.data.color() === 'white' ? 'asWhite' : 'asBlack']}`,
-              explorer.isIndexing() &&
-                !explorer.config.data.open() &&
-                hl('i.ddloader', {
-                  attrs: {
-                    title: queuePosition
-                      ? `Indexing ${queuePosition} other players first ...`
-                      : 'Indexing ...',
-                  },
-                }),
-            ],
-            i18n.site.switchSides,
-          )
+          [
+            hl(`strong${playerName.length > 14 ? '.long' : ''}`, playerName),
+            ` ${explorer.config.data.color() === 'white' ? 'as White' : 'as Black'}`,
+            explorer.isIndexing() &&
+            !explorer.config.data.open() &&
+            hl('i.ddloader', {
+              attrs: {
+                title: queuePosition
+                  ? `Indexing ${queuePosition} other players first ...`
+                  : 'Indexing ...',
+              },
+            }),
+          ],
+          'Switch sides',
+        )
         : active([hl('strong', 'Player'), ' database'], '')
       : playerLink(),
   ]);
 };
 
 function showTitle(variant: Variant) {
-  if (variant.key === 'standard' || variant.key === 'fromPosition') return i18n.site.openingExplorer;
-  return i18n.site.xOpeningExplorer(variant.name);
+  if (variant.key === 'standard' || variant.key === 'fromPosition') return 'Opening explorer';
+  return `${variant.name} opening explorer`;
 }
 
 function showConfig(ctrl: AnalyseCtrl): VNode {

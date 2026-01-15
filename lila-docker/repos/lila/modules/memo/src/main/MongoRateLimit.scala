@@ -64,6 +64,32 @@ final class MongoRateLimit[K](
             case _ =>
               op
 
+  def either[A <: Matchable](
+      k: K,
+      cost: Cost = 1,
+      msg: => String = "",
+      limitedMsg: => String = "Rate limit exceeded"
+  )(op: => Fu[A])(using Executor): Fu[Either[RateLimit.Limited, A]] =
+    if cost < 1 then op.map(Right(_))
+    else
+      sequencer(k):
+        val dbKey = makeDbKey(k)
+        coll
+          .one[Entry]($id(dbKey))
+          .flatMap:
+            case None =>
+              (coll.insert.one(Entry(dbKey, cost, makeClearAt)) >> op).map(Right(_))
+            case Some(Entry(_, spent, clearAt)) if spent < credits =>
+              (coll.update.one($id(dbKey), Entry(dbKey, spent + cost, clearAt), upsert = true) >> op).map(Right(_))
+            case Some(Entry(_, _, clearAt)) if clearAt.isBeforeNow =>
+              (coll.update.one($id(dbKey), Entry(dbKey, cost, makeClearAt), upsert = true) >> op).map(Right(_))
+            case Some(Entry(_, _, clearAt)) if enforce =>
+              if log then logger.info(s"$credits/$duration $k cost: $cost $msg")
+              monitor.increment()
+              fuccess(Left(RateLimit.Limited(key = name, msg = limitedMsg, until = clearAt)))
+            case _ =>
+              op.map(Right(_))
+
 object MongoRateLimit:
   case class Entry(_id: String, v: Int, e: Instant):
     inline def until = e

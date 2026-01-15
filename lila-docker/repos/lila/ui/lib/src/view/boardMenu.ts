@@ -22,16 +22,16 @@ export const boardMenu = (
 ): MaybeVNode =>
   toggle()
     ? h(
-        'div.board-menu',
-        { hook: onInsert(onClickAway(() => toggle(false))) },
-        content(new BoardMenu(redraw)),
-      )
+      'div.board-menu',
+      { hook: onInsert(onClickAway(() => toggle(false))) },
+      content(new BoardMenu(redraw)),
+    )
     : undefined;
 
 export class BoardMenu {
   anonymous: boolean = !myUserId();
 
-  constructor(readonly redraw: Redraw) {}
+  constructor(readonly redraw: Redraw) { }
 
   flip = (name: string, active: boolean, onChange: () => void): VNode =>
     h(
@@ -46,7 +46,7 @@ export class BoardMenu {
 
   zenMode = (enabled = true): VNode =>
     this.cmnToggle({
-      name: i18n.preferences.zenMode,
+      name: 'Zen Mode',
       id: 'zen',
       checked: $('body').hasClass('zen'),
       change: () => pubsub.emit('zen'),
@@ -55,7 +55,7 @@ export class BoardMenu {
 
   voiceInput = (toggle: Toggle, enabled = true): VNode =>
     this.cmnToggle({
-      name: i18n.preferences.inputMovesWithVoice,
+      name: 'Voice Input',
       id: 'voice',
       checked: toggle(),
       change: toggle,
@@ -65,7 +65,7 @@ export class BoardMenu {
 
   keyboardInput = (toggle: Toggle, enabled = true): VNode =>
     this.cmnToggle({
-      name: i18n.preferences.inputMovesWithTheKeyboard,
+      name: 'Keyboard Input',
       id: 'keyboard',
       checked: toggle(),
       change: toggle,
@@ -75,7 +75,7 @@ export class BoardMenu {
 
   blindfold = (toggle: Toggle, enabled = true): VNode =>
     this.cmnToggle({
-      name: i18n.preferences.blindfold,
+      name: 'Blindfold',
       id: 'blindfold',
       checked: toggle(),
       change: toggle,
@@ -84,7 +84,7 @@ export class BoardMenu {
 
   confirmMove = (toggle: Toggle, enabled = true): VNode =>
     this.cmnToggle({
-      name: i18n.preferences.moveConfirmation,
+      name: 'Move Confirmation',
       id: 'confirmmove',
       checked: toggle(),
       change: toggle,

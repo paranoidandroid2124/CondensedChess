@@ -3,7 +3,7 @@ import type AnalyseCtrl from '../ctrl';
 import { defined, notNull } from 'lib';
 import * as licon from 'lib/licon';
 import { iconTag, type MaybeVNode, type MaybeVNodes } from 'lib/view';
-import { formatClockTimeVerbal } from 'lib/game/clock/clockView';
+
 
 interface ClockOpts {
   centis: number | undefined;
@@ -24,13 +24,7 @@ export default function renderClocks(ctrl: AnalyseCtrl, path: Tree.Path): [VNode
 
   if (!centis.some(notNull)) return;
 
-  const study = ctrl.study;
-
-  const lastMoveAt = study
-    ? study.isClockTicking(path)
-      ? study.relay?.lastMoveAt(study.vm.chapterId)
-      : undefined
-    : ctrl.autoplay.lastMoveAt;
+  const lastMoveAt = ctrl.autoplay.lastMoveAt;
 
   if (lastMoveAt) {
     const spent = (Date.now() - lastMoveAt) / 10;
@@ -38,8 +32,8 @@ export default function renderClocks(ctrl: AnalyseCtrl, path: Tree.Path): [VNode
     if (centis[i]) centis[i] = Math.max(0, centis[i]! - spent);
   }
 
-  const showTenths = !study?.relay;
-  const pause = !!ctrl.study?.isRelayAwayFromLive();
+  const showTenths = true;
+  const pause = false;
 
   return [
     renderClock({
@@ -83,7 +77,7 @@ function clockContent(opts: ClockOpts): MaybeVNodes {
 }
 
 function clockContentNvui(opts: ClockOpts): MaybeVNode {
-  return !opts.centis && opts.centis !== 0 ? 'None' : formatClockTimeVerbal(opts.centis * 10);
+  return !opts.centis && opts.centis !== 0 ? 'None' : (opts.centis / 100).toString() + 's';
 }
 
 const pad2 = (num: number): string => (num < 10 ? '0' : '') + num;

@@ -14,6 +14,7 @@ export class StockfishWebEngine implements CevalEngine {
   failed: Error;
   protocol: Protocol;
   module?: StockfishWeb;
+  private blobUrl?: string;
 
   constructor(
     readonly info: BrowserEngineInfo,
@@ -34,12 +35,25 @@ export class StockfishWebEngine implements CevalEngine {
   async boot(): Promise<void> {
     const [root, js] = [this.info.assets.root, this.info.assets.js];
     const scriptUrl = site.asset.url(`${root}/${js}`, { documentOrigin: true });
-    const makeModule = await import(scriptUrl);
+
+    // Fetch the worker script and create a Blob URL to avoid pthread sub-worker
+    // URL resolution issues with hashed asset filenames in cloud environments.
+    const response = await fetch(scriptUrl);
+    if (!response.ok) throw new Error(`Failed to fetch engine script: ${response.status}`);
+    const scriptText = await response.text();
+    const blob = new Blob([scriptText], { type: 'text/javascript' });
+    this.blobUrl = URL.createObjectURL(blob);
+
+    const makeModule = await import(this.blobUrl);
     const module: StockfishWeb = await makeModule.default({
       wasmMemory: sharedWasmMemory(this.info.minMem!),
-      locateFile: (file: string) => site.asset.url(`${root}/${file}`),
-      mainScriptUrlOrBlob: scriptUrl,
+      locateFile: (file: string) => {
+        const path = file.includes('/') ? file : `${root}/${file}`;
+        return site.asset.url(path);
+      },
+      mainScriptUrlOrBlob: this.blobUrl,
     });
+
     if (this.info.tech === 'NNUE') {
       if (this.info.variants?.length === 1) {
         const model = this.info.variants[0].toLowerCase(); // set variant first for fairy stockfish
@@ -99,5 +113,9 @@ export class StockfishWebEngine implements CevalEngine {
   destroy = (): void => {
     this.module?.uci('quit');
     this.module = undefined;
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = undefined;
+    }
   };
 }

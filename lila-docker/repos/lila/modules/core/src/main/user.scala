@@ -80,7 +80,6 @@ case class User(
     roles: List[RoleDbKey],
     createdAt: Instant,
     seenAt: Option[Instant] = None,
-    lang: Option[String] = None,
     totpSecret: Option[TotpSecret] = None,
     email: Option[EmailAddress] = None,
     tier: UserTier = UserTier.Free,
@@ -137,7 +136,6 @@ object BSONFields:
   val tier = "tier"
   val expiresAt = "expiresAt"
   val totpSecret = "totp"
-  val lang = "lang"
 
 /* User who is currently logged in */
 opaque type Me <: lila.core.user.User = lila.core.user.User

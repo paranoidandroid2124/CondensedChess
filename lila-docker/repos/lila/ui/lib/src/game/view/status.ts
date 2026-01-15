@@ -68,59 +68,58 @@ export default function status(d: GameData): string {
 }
 export function statusOf(d: StatusData): string {
   const winnerSuffix = d.winner
-    ? ' • ' + i18n.site[d.winner === 'white' ? 'whiteIsVictorious' : 'blackIsVictorious']
+    ? ' • ' + (d.winner === 'white' ? 'White is victorious' : 'Black is victorious')
     : '';
   switch (d.status) {
     case 'started':
-      return i18n.site.playingRightNow;
+      return 'Playing right now';
     case 'aborted':
-      return i18n.site.gameAborted + winnerSuffix;
+      return 'Game aborted' + winnerSuffix;
     case 'mate':
-      return i18n.site.checkmate + winnerSuffix;
+      return 'Checkmate' + winnerSuffix;
     case 'resign':
-      return i18n.site[d.winner === 'white' ? 'blackResigned' : 'whiteResigned'] + winnerSuffix;
+      return (d.winner === 'white' ? 'Black resigned' : 'White resigned') + winnerSuffix;
     case 'stalemate':
-      return i18n.site.stalemate + winnerSuffix;
+      return 'Stalemate' + winnerSuffix;
     case 'timeout':
       switch (d.winner) {
         case 'white':
-          return i18n.site.blackLeftTheGame + winnerSuffix;
+          return 'Black left the game' + winnerSuffix;
         case 'black':
-          return i18n.site.whiteLeftTheGame + winnerSuffix;
+          return 'White left the game' + winnerSuffix;
         default:
-          return `${d.ply % 2 === 0 ? i18n.site.whiteLeftTheGame : i18n.site.blackLeftTheGame} • ${i18n.site.draw}`;
+          return `${d.ply % 2 === 0 ? 'White left the game' : 'Black left the game'} • Draw`;
       }
     case 'draw': {
       if (d.fiftyMoves || d.fen.split(' ')[4] === '100')
-        return `${i18n.site.fiftyMovesWithoutProgress} • ${i18n.site.draw}`;
-      if (d.threefold) return `${i18n.site.threefoldRepetition} • ${i18n.site.draw}`;
+        return 'Fifty moves without progress • Draw';
+      if (d.threefold) return 'Threefold repetition • Draw';
       if (insufficientMaterial(d.variant, d.fen))
-        return `${i18n.site.insufficientMaterial} • ${i18n.site.draw}`;
-      if (d.drawOffers?.some(turn => turn >= d.ply)) return i18n.site.drawByMutualAgreement;
-      return i18n.site.draw;
+        return 'Insufficient material • Draw';
+      if (d.drawOffers?.some(turn => turn >= d.ply)) return 'Draw by mutual agreement';
+      return 'Draw';
     }
     case 'insufficientMaterialClaim':
-      return `${i18n.site.drawClaimed} • ${i18n.site.insufficientMaterial}`;
+      return 'Draw claimed • Insufficient material';
     case 'outoftime':
-      return `${d.ply % 2 === 0 ? i18n.site.whiteTimeOut : i18n.site.blackTimeOut}${
-        winnerSuffix || ` • ${i18n.site.draw}`
-      }`;
+      return `${d.ply % 2 === 0 ? 'White ran out of time' : 'Black ran out of time'}${winnerSuffix || ' • Draw'
+        }`;
     case 'noStart':
-      return (d.winner === 'white' ? i18n.site.blackDidntMove : i18n.site.whiteDidntMove) + winnerSuffix;
+      return (d.winner === 'white' ? "Black didn't move" : "White didn't move") + winnerSuffix;
     case 'cheat':
-      return i18n.site.cheatDetected + winnerSuffix;
+      return 'Cheat detected' + winnerSuffix;
     case 'variantEnd':
       switch (d.variant) {
         case 'kingOfTheHill':
-          return i18n.site.kingInTheCenter + winnerSuffix;
+          return 'King in the center' + winnerSuffix;
         case 'threeCheck':
-          return i18n.site.threeChecks + winnerSuffix;
+          return 'Three checks' + winnerSuffix;
       }
-      return i18n.site.variantEnding + winnerSuffix;
+      return 'Variant ending' + winnerSuffix;
     case 'unknownFinish':
       return d.winner
-        ? i18n.site[d.winner === 'white' ? 'whiteIsVictorious' : 'blackIsVictorious']
-        : i18n.site.finished;
+        ? (d.winner === 'white' ? 'White is victorious' : 'Black is victorious')
+        : 'Finished';
     default:
       return d.status + winnerSuffix;
   }

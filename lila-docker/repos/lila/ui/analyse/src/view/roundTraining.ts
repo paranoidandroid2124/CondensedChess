@@ -1,6 +1,6 @@
 import { h, thunk, type VNode } from 'snabbdom';
 import type AnalyseCtrl from '../ctrl';
-import { findTag } from '../study/studyChapters';
+
 import { getPlayer } from 'lib/game';
 import * as licon from 'lib/licon';
 import { bind, dataIcon } from 'lib/view';
@@ -10,7 +10,7 @@ type AdviceKind = 'inaccuracy' | 'mistake' | 'blunder';
 
 interface Advice {
   kind: AdviceKind;
-  i18n: I18nPlural;
+  plural: (nb: number) => (string | VNode)[];
   symbol: string;
 }
 
@@ -25,16 +25,27 @@ const renderPlayer = (ctrl: AnalyseCtrl, color: Color): VNode => {
   return h(
     'span',
     p.name ||
-      (p.ai && 'Stockfish level ' + p.ai) ||
-      (ctrl.study && findTag(ctrl.study.data.chapter.tags, color)) ||
-      'Anonymous',
+    (p.ai && 'Stockfish level ' + p.ai) ||
+    'Anonymous',
   );
 };
 
 const advices: Advice[] = [
-  { kind: 'inaccuracy', i18n: i18n.site.numberInaccuracies, symbol: '?!' },
-  { kind: 'mistake', i18n: i18n.site.numberMistakes, symbol: '?' },
-  { kind: 'blunder', i18n: i18n.site.numberBlunders, symbol: '??' },
+  {
+    kind: 'inaccuracy',
+    plural: nb => [h('strong', nb), nb === 1 ? ' Inaccuracy' : ' Inaccuracies'],
+    symbol: '?!',
+  },
+  {
+    kind: 'mistake',
+    plural: nb => [h('strong', nb), nb === 1 ? ' Mistake' : ' Mistakes'],
+    symbol: '?',
+  },
+  {
+    kind: 'blunder',
+    plural: nb => [h('strong', nb), nb === 1 ? ' Blunder' : ' Blunders'],
+    symbol: '??',
+  },
 ];
 
 function playerTable(ctrl: AnalyseCtrl, color: Color): VNode {
@@ -46,12 +57,12 @@ function playerTable(ctrl: AnalyseCtrl, color: Color): VNode {
     ...advices.map(a => error(d.analysis![color][a.kind], color, a)),
     h('div.advice-summary__acpl', [
       h('strong', sideData.acpl),
-      h('span', ` ${i18n.site.averageCentipawnLoss}`),
+      h('span', ' Average centipawn loss'),
     ]),
     h('div.advice-summary__accuracy', [
       h('strong', [sideData.accuracy, '%']),
       h('span', [
-        i18n.site.accuracy,
+        'Accuracy',
         ' ',
         h('a', {
           attrs: { 'data-icon': licon.InfoCircle, href: '/page/accuracy', target: '_blank' },
@@ -65,7 +76,7 @@ const error = (nb: number, color: Color, advice: Advice) =>
   h(
     'div.advice-summary__error' + (nb ? `.symbol.${advice.kind}` : ''),
     { attrs: nb ? { 'data-color': color, 'data-symbol': advice.symbol } : {} },
-    advice.i18n.asArray(nb, h('strong', nb)),
+    advice.plural(nb),
   );
 
 const doRender = (ctrl: AnalyseCtrl): VNode => {
@@ -82,17 +93,15 @@ const doRender = (ctrl: AnalyseCtrl): VNode => {
     },
     [
       playerTable(ctrl, 'white'),
-      ctrl.study
-        ? null
-        : h(
-            'a.button.text',
-            {
-              class: { active: !!ctrl.retro },
-              attrs: dataIcon(licon.PlayTriangle),
-              hook: bind('click', ctrl.toggleRetro, ctrl.redraw),
-            },
-            i18n.site.learnFromYourMistakes,
-          ),
+      h(
+        'a.button.text',
+        {
+          class: { active: !!ctrl.retro },
+          attrs: dataIcon(licon.PlayTriangle),
+          hook: bind('click', ctrl.toggleRetro, ctrl.redraw),
+        },
+        'Learn from your mistakes',
+      ),
       playerTable(ctrl, 'black'),
     ],
   );
@@ -119,19 +128,15 @@ export function puzzleLink(ctrl: AnalyseCtrl): VNode | undefined {
 }
 
 export function render(ctrl: AnalyseCtrl): VNode | undefined {
-  if (ctrl.study?.practice) return;
-
   if (
     !ctrl.data.analysis ||
-    !ctrl.showFishnetAnalysis() ||
-    (ctrl.study && ctrl.study.vm.toolTab() !== 'serverEval')
+    !ctrl.showFishnetAnalysis()
   )
     return h('div.analyse__round-training', puzzleLink(ctrl));
 
   // don't cache until the analysis is complete!
   const buster = ctrl.data.analysis.partial ? Math.random() : '';
-  let cacheKey = '' + buster + !!ctrl.retro;
-  if (ctrl.study) cacheKey += ctrl.study.data.chapter.id;
+  const cacheKey = '' + buster + !!ctrl.retro;
 
   return h('div.analyse__round-training', [
     h('div.analyse__acpl', thunk('div.advice-summary', doRender, [ctrl, cacheKey])),

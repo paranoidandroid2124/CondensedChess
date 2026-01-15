@@ -69,12 +69,6 @@ final class AccessTokenApi(
         expires = nowInstant.plusMonths(12).some
       )
 
-  def adminChallengeTokens(
-      setup: OAuthTokenForm.AdminChallengeTokensData,
-      admin: User
-  )(using ua: UserAgent): Fu[Map[UserId, AccessToken]] = 
-    fuccess(Map.empty) // Stubbed: Admin feature not needed for analysis-only system
-
   def listPersonal(using me: MyId): Fu[List[AccessToken]] =
     coll
       .find:

@@ -566,14 +566,12 @@ object Motif:
     val category = MotifCategory.Endgame
   */
 
-  /*
   case class StalemateThreat(
       color: Color,
       plyIndex: Int,
       move: Option[String] = None
   ) extends Motif:
     val category = MotifCategory.Endgame
-  */
 
   // ============================================================
   // FIX 6: NEW POSITIONAL MOTIFS

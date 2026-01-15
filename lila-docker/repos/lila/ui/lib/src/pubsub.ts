@@ -1,4 +1,4 @@
-import type { Line } from '@/chat/interfaces';
+
 import type { Data as WatchersData } from '@/view/watchers';
 
 export type PubsubEventKey = keyof PubsubEvents;
@@ -10,25 +10,25 @@ export interface PubsubEvents {
   'analysis.chart.click': (index: number) => void;
   'analysis.comp.toggle': (enabled: boolean) => void;
   'analysis.server.progress': (analyseData: any) => void;
+  'analysis.bookmaker.hover': (data: { fen: string; color: string; lastmove: string | undefined } | null) => void;
+  'analysis.bookmaker.move': (data: { uci: string; san: string | undefined }) => void;
   'board.change': (is3d: boolean) => void;
   'challenge-app.open': () => void;
   'chart.panning': () => void;
-  'chat.permissions': (perms: { local: boolean }) => void;
-  'chat.writeable': (writeable: boolean) => void;
+
   'content-loaded': (el?: HTMLElement) => void;
   flip: (flip: boolean) => void;
   jump: (ply: string) => void;
   'botdev.import.book': (key: string, oldKey?: string) => void;
   'notify-app.set-read': (user: string) => void;
-  'voiceChat.toggle': (enabled: boolean) => void;
+
   ply: (ply: number, isMainline?: boolean) => void;
   'ply.trigger': () => void;
   'round.suggestion': (text: string | null) => void;
   'socket.close': () => void;
   'socket.in.blockedBy': (userId: string) => void;
   'socket.in.challenges': (data: any) => void;
-  'socket.in.chat_reinstate': (userId: string) => void;
-  'socket.in.chat_timeout': (userId: string) => void;
+
   'socket.in.crowd': (data: {
     nb: number;
     users?: string[];
@@ -51,12 +51,11 @@ export interface PubsubEvents {
   ) => void;
   'socket.in.following_playing': (titleName: string) => void;
   'socket.in.following_stopped_playing': (titleName: string) => void;
-  'socket.in.message': (line: Line) => void;
+
   'socket.in.mlat': (millis: number) => void;
-  'socket.in.msgNew': (data: { text: string; user: UserId; date: number }) => void;
-  'socket.in.msgType': (userId: UserId) => void;
+
   'socket.in.notifications': (data: { notifications: Paginator<any>; unread: number }) => void;
-  'socket.in.voiceChat': (uids: UserId[]) => void;
+
   'socket.in.redirect': (d: RedirectTo) => void;
   'socket.in.reload': (data: any) => void;
   'socket.in.sk1': (signed: string) => void;

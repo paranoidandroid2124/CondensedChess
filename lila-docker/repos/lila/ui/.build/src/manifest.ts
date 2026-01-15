@@ -8,7 +8,6 @@ import { taskOk } from './task.ts';
 import { shallowSort, isContained } from './algo.ts';
 
 const manifest = {
-  i18n: {} as Manifest,
   js: {} as Manifest,
   css: {} as Manifest,
   hashed: {} as Manifest,
@@ -24,7 +23,6 @@ export type ManifestUpdate = Partial<Omit<typeof manifest, 'dirty'>>;
 export function stopManifest(clear = false): void {
   clearTimeout(writeTimer);
   if (clear) {
-    manifest.i18n = {};
     manifest.js = {};
     manifest.css = {};
     manifest.hashed = {};
@@ -50,26 +48,35 @@ export function updateManifest(update: ManifestUpdate = {}): void {
 
 async function writeManifest() {
   if (!(env.manifestOk() && taskOk())) return;
-  const commitMessage = cps
-    .execSync('git log -1 --pretty=%s', { encoding: 'utf-8' })
-    .trim()
-    .replaceAll("'", '&#39;')
-    .replaceAll('"', '&quot;');
+  let commitMessage = 'Unknown Commit';
+  let commitHash = 'local';
+  try {
+    commitMessage = cps
+      .execSync('git log -1 --pretty=%s', { encoding: 'utf-8' })
+      .trim()
+      .replaceAll("'", '&#39;')
+      .replaceAll('"', '&quot;');
+    commitHash = cps.execSync('git rev-parse -q HEAD', { encoding: 'utf-8' }).trim();
+  } catch (e) {
+    // Ignore git errors
+  }
 
   const clientJs: string[] = [
     'if (!window.site) window.site={};',
     'const s=window.site;',
     's.info={};',
-    `s.info.commit='${cps.execSync('git rev-parse -q HEAD', { encoding: 'utf-8' }).trim()}';`,
+    `s.info.commit='${commitHash}';`,
     `s.info.message='${commitMessage}';`,
     `s.debug=${env.debug};`,
     's.asset={loadEsm:(m,o)=>import(`/assets/compiled/${m}${s.manifest.js[m]?"."+s.manifest.js[m]:""}.js`)' +
-      '.then(x=>(x.initModule||x.default)(o.init))};',
+    '.then(x=>(x.initModule||x.default)(o.init)),' +
+    'loadEsmPage:(m,o)=>s.asset.loadEsm(m,o)};',
     // a light version of loadEsm for embeds. on pages this will be overwritten by site.js
   ];
   if (env.remoteLog) clientJs.push(await jsLogger());
 
-  const pairLine = ([name, info]: [string, SplitAsset]) => `'${name.replaceAll("'", "\\'")}':'${info.hash}'`;
+  const pairLine = ([name, info]: [string, SplitAsset]) => `'${name.replaceAll('\\', '/').replaceAll("'", "\\'")}':'${info.hash}'`;
+
   const jsLines = Object.entries(manifest.js)
     .filter(([name, _]) => !/lib\.[A-Z0-9]{8}/.test(name))
     .map(pairLine)
@@ -87,7 +94,7 @@ async function writeManifest() {
   const clientManifest = hashable + `\ns.info.date='${new Date().toISOString().split('.')[0] + '+00:00'}';\n`;
   const serverManifest = JSON.stringify(
     {
-      js: compactManifest({ manifest: { hash }, ...manifest.js, ...manifest.i18n }),
+      js: compactManifest({ manifest: { hash }, ...manifest.js }),
       css: compactManifest(manifest.css),
       hashed: compactManifest(manifest.hashed),
     },

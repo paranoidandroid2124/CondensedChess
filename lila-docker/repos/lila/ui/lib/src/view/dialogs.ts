@@ -7,7 +7,7 @@ import { escapeHtml } from '../index';
 export async function alert(msg: string): Promise<void> {
   await domDialog({
     htmlText: $html`<div>${escapeHtmlAddBreaks(msg)}</div>
-    <span><button class="button">${i18n.site.ok}</button></span>`,
+    <span><button class="button">OK</button></span>`,
     class: 'alert',
     modal: true,
     noCloseButton: true,
@@ -33,8 +33,8 @@ export async function info(msg: string, autoDismiss?: Millis): Promise<Dialog> {
 // non-blocking window.confirm-alike
 export async function confirm(
   msg: string,
-  ok: string = i18n.site.ok,
-  cancel: string = i18n.site.cancel,
+  ok: string = 'OK',
+  cancel: string = 'Cancel',
 ): Promise<boolean> {
   return (
     (
@@ -67,8 +67,8 @@ export async function prompt(
     htmlText: $html`<div>${escapeHtmlAddBreaks(msg)}</div>
       <input type="text"${valid(def) ? '' : ' class="invalid"'} value="${escapeHtml(def)}">
       <span>
-        <button class="button button-empty cancel">${i18n.site.cancel}</button>
-        <button class="button ok${valid(def) ? '"' : ' disabled" disabled'}>${i18n.site.ok}</button>
+        <button class="button button-empty cancel">Cancel</button>
+        <button class="button ok${valid(def) ? '"' : ' disabled" disabled'}>OK</button>
       </span>`,
     class: 'alert',
     noCloseButton: true,
@@ -130,9 +130,9 @@ export async function choose(
       (mustChoose
         ? ''
         : $html`
-        <button class="button button-empty cancel">${i18n.site.cancel}</button>`) +
+        <button class="button button-empty cancel">Cancel</button>`) +
       $html`
-        <button class="button ok">${i18n.site.ok}</button>
+        <button class="button ok">OK</button>
       </span>`,
     class: 'alert',
     noCloseButton: mustChoose,
@@ -168,14 +168,14 @@ const onClick = (a: HTMLLinkElement): boolean => {
     htmlText: $html`
       <div class="link-popup__content">
         <div class="link-popup__content__title">
-          <h2>${i18n.site.youAreLeavingLichess}</h2>
-          <p class="link-popup__content__advice">${i18n.site.neverTypeYourPassword}</p>
+          <h2>You are leaving Chesstory</h2>
+          <p class="link-popup__content__advice">Never type your password on another site.</p>
         </div>
       </div>
       <div class="link-popup__actions">
-        <button class="cancel button-link" type="button">${i18n.site.cancel}</button>
+        <button class="cancel button-link" type="button">Cancel</button>
         <a href="${a.href}" target="_blank" class="button button-red button-no-upper">
-          ${i18n.site.proceedToX(url.host)}
+          Continue to ${url.host}
         </a>
       </div>`,
     modal: true,

@@ -31,3 +31,10 @@ services:
       - "6379:6379"
     profiles:
       - base
+    networks:
+      - default
+
+networks:
+  default:
+    name: lila-network
+    driver: bridge

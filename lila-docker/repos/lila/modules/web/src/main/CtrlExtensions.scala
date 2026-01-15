@@ -1,6 +1,5 @@
 package lila.web
 
-import play.api.i18n.Lang
 import play.api.mvc.*
 
 import lila.common.HTTPRequest
@@ -13,7 +12,6 @@ trait CtrlExtensions extends play.api.mvc.ControllerHelpers with ResponseHeaders
 
   def baseUrl: BaseUrl
 
-  given (using ctx: Context): Lang = ctx.lang
   given (using ctx: Context): RequestHeader = ctx.req
   given (using ctx: Context): Pref = ctx.pref
   given (using req: RequestHeader): UserAgent = HTTPRequest.userAgent(req)

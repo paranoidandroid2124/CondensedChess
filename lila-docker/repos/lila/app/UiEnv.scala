@@ -34,8 +34,6 @@ object UiEnv
   given lila.core.config.NetDomain = env.net.domain
   given (using ctx: PageContext): Option[Nonce] = ctx.nonce
 
-  def apiVersion = lila.security.Mobile.Api.currentVersion
-
   // helpers dependencies
   override def assetBaseUrl = netConfig.assetBaseUrl.value
   override def netBaseUrl = netConfig.baseUrl.value
@@ -54,8 +52,6 @@ object UiEnv
   def lightUserSync = env.user.lightUserSync
   def manifest = env.web.manifest
   def analyseEndpoints = env.web.analyseEndpoints
-  protected val translator = lila.core.i18n.Translator
-  val langList = lila.core.i18n.LangList
 
   def helpers: Helpers = this
   def assetHelper: AssetFullHelper = this

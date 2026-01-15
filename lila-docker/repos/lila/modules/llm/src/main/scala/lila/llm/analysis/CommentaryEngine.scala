@@ -330,7 +330,7 @@ object CommentaryEngine:
                ply = p.ply,
                cp = bestV.map(_.scoreCp).getOrElse(0),
                mate = bestV.flatMap(_.mate),
-               variations = vars.map(v => lila.llm.AnalysisVariation(v.moves, v.scoreCp, v.mate))
+               variations = vars
              )
            }
 
@@ -388,7 +388,7 @@ object CommentaryEngine:
                ply = p.ply,
                cp = bestV.map(_.scoreCp).getOrElse(0),
                mate = bestV.flatMap(_.mate),
-               variations = vars.map(v => lila.llm.AnalysisVariation(v.moves, v.scoreCp, v.mate))
+               variations = vars
              )
            }
            

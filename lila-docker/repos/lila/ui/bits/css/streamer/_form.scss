@@ -11,6 +11,7 @@
     flex-direction: column;
     padding: 2em 2em 0;
     row-gap: 2em;
+
     @include mq-at-least-picture {
       flex-direction: row;
     }
@@ -19,7 +20,7 @@
       @extend %flex-column;
       row-gap: 2em;
 
-      > span {
+      >span {
         @extend %flex-center;
         justify-content: center;
         column-gap: 1em;
@@ -32,6 +33,7 @@
       height: min(350px, calc(100vw - 4em));
     }
   }
+
   .twitch-link-box,
   .youtube-link-box {
     display: flex;
@@ -39,13 +41,16 @@
     align-items: center;
     justify-content: start;
     gap: 1em;
+
     &.linked button.link {
       display: none;
     }
+
     &:not(.linked) button.unlink {
       display: none;
     }
   }
+
   .status {
     @extend %box-radius;
 
@@ -84,7 +89,7 @@
   text-indent: -2.2em;
 
   &::before {
-    font-family: 'lichess';
+    font-family: 'chesstory';
     content: $licon-Checkmark;
     font-size: 1.5em;
     margin-inline-end: 0.5em;
@@ -105,7 +110,7 @@
     border-top: $border;
   }
 
-  .forms > *:first-child {
+  .forms>*:first-child {
     margin-top: 40px;
   }
 

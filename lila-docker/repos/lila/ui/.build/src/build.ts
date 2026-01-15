@@ -11,7 +11,6 @@ import { sync } from './sync.ts';
 import { hash } from './hash.ts';
 import { stopManifest } from './manifest.ts';
 import { env, errorMark, c } from './env.ts';
-import { i18n } from './i18n.ts';
 import { definedUnique } from './algo.ts';
 import { clean } from './clean.ts';
 
@@ -36,7 +35,7 @@ export async function build(pkgs: string[]): Promise<void> {
     } finally {
       monitor(pkgs);
     }
-    await Promise.all([i18n(), sync().then(hash).then(sass), tsc(), esbuild()]);
+    await Promise.all([sync().then(hash).then(sass), tsc(), esbuild()]);
   } catch (e) {
     env.log(`${errorMark} ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
     if (env.watch) env.log(c.grey('Watching...'));

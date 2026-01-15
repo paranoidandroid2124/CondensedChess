@@ -9,9 +9,9 @@ class BinaryCLMTest extends munit.FunSuite:
 
   val _0_ = "00000000"
   def write(all: CastleLastMove): List[String] =
-    (BinaryFormat.castleLastMove.write(all)).showBytes.split(',').toList
+    (BinaryFormat.castleLastMoveFormat.write(all)).showBytes.split(',').toList
   def read(bytes: List[String]): CastleLastMove =
-    BinaryFormat.castleLastMove.read(ByteArray.parseBytes(bytes))
+    BinaryFormat.castleLastMoveFormat.read(ByteArray.parseBytes(bytes))
 
   test("binary CastleLastMove write"):
     val clmt = CastleLastMove.init

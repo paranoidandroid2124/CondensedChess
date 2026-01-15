@@ -13,6 +13,22 @@ export interface MoveEval {
     };
 }
 
+function formatSeconds(totalSeconds: number): string {
+    const seconds = Math.max(0, Math.floor(totalSeconds));
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    if (minutes > 0) return `${minutes}m`;
+    return `${seconds}s`;
+}
+
+function announce(msg: string): void {
+    const site = (window as any).site;
+    if (site?.announce) site.announce({ msg });
+    else alert(msg);
+}
+
 export class WasmAnalysis {
 
     private isRunning = false;
@@ -69,7 +85,7 @@ export class WasmAnalysis {
 
         } catch (e) {
             console.error("WASM Analysis failed", e);
-            alert("Analysis failed.");
+            announce("Analysis failed.");
         } finally {
             this.isRunning = false;
             this.ctrl.redraw();
@@ -182,11 +198,22 @@ export class WasmAnalysis {
 
         if (res.ok) {
             const json = await res.json();
-            if (this.ctrl.wiki) {
-                alert("Analysis integration: " + (json.summary || "Done"));
+            if (this.ctrl.opts.bookmaker) {
+                announce("Analysis integration: " + (json.summary || "Done"));
+            }
+        } else if (res.status === 401) {
+            announce('Login required to use AI analysis.');
+        } else if (res.status === 429) {
+            try {
+                const data = await res.json();
+                const seconds = data?.ratelimit?.seconds;
+                if (typeof seconds === 'number') announce(`LLM quota exceeded. Try again in ${formatSeconds(seconds)}.`);
+                else announce('LLM quota exceeded.');
+            } catch {
+                announce('LLM quota exceeded.');
             }
         } else {
-            alert("Server failed to process analysis.");
+            announce("Server failed to process analysis.");
         }
     };
 

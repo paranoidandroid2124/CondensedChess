@@ -4,7 +4,7 @@ import type { Classes, Hooks } from 'snabbdom';
 import { ops as treeOps, path as treePath } from 'lib/tree/tree';
 import { isSafari } from 'lib/device';
 import { enrichText, innerHTML } from 'lib/richText';
-import { authorText } from '../study/studyComments';
+
 import { playable } from 'lib/game';
 import type { Conceal } from '../interfaces';
 import type { DiscloseState } from '../idbTree';
@@ -42,7 +42,7 @@ export class InlineView {
   readonly inline: boolean = true;
   private glyphs = ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'];
 
-  constructor(readonly ctrl: AnalyseCtrl) {}
+  constructor(readonly ctrl: AnalyseCtrl) { }
 
   renderNodes([child, ...siblings]: Tree.Node[], args: Args): LooseVNodes {
     if (!child) return;
@@ -50,13 +50,13 @@ export class InlineView {
     return child.forceVariation && isMainline
       ? hl('interrupt', this.lines([child, ...siblings], args))
       : [
-          this.moveNode(child, args),
-          parentDisclose !== 'collapsed' && [
-            this.commentNodes(child),
-            siblings[0] && hl('interrupt', this.lines(siblings, args)),
-          ],
-          this.renderNodes(this.ctrl.visibleChildren(child), this.childArgs(child, args, true)),
-        ];
+        this.moveNode(child, args),
+        parentDisclose !== 'collapsed' && [
+          this.commentNodes(child),
+          siblings[0] && hl('interrupt', this.lines(siblings, args)),
+        ],
+        this.renderNodes(this.ctrl.visibleChildren(child), this.childArgs(child, args, true)),
+      ];
   }
 
   commentNodes(node: Tree.Node, classes: Classes = {}): LooseVNodes[] {
@@ -64,21 +64,19 @@ export class InlineView {
     return node.comments
       .map(comment =>
         this.ctrl.retro?.hideComputerLine(node)
-          ? hl('comment', i18n.site.learnFromThisMistake)
+          ? hl('comment', 'Learn from this mistake')
           : (!this.isFishnetComment(comment) || this.ctrl.showFishnetAnalysis()) &&
-            hl('comment', {
-              class: {
-                inaccuracy: comment.text.startsWith('Inaccuracy.'),
-                mistake: comment.text.startsWith('Mistake.'),
-                blunder: comment.text.startsWith('Blunder.'),
-                ...classes,
-              },
-              hook: innerHTML(comment.text, text =>
-                node.comments?.[1]
-                  ? `<span class="by">${authorText(comment.by)}</span> ` + enrichText(text)
-                  : enrichText(text),
-              ),
-            }),
+          hl('comment', {
+            class: {
+              inaccuracy: comment.text.startsWith('Inaccuracy.'),
+              mistake: comment.text.startsWith('Mistake.'),
+              blunder: comment.text.startsWith('Blunder.'),
+              ...classes,
+            },
+            hook: innerHTML(comment.text, text =>
+              enrichText(text),
+            ),
+          }),
       )
       .filter(Boolean);
   }
@@ -96,11 +94,11 @@ export class InlineView {
     return (!isMainline || this.inline) && args.parenthetical
       ? hl('inline', this.sidelineNodes(lines, lineArgs))
       : hl('lines', { class: { anchor } }, [
-          parentDisclose === 'expanded' && this.disclosureConnector(parentPath),
-          lines.map(line =>
-            hl('line', [parentDisclose && hl('branch'), this.sidelineNodes([line], lineArgs)]),
-          ),
-        ]);
+        parentDisclose === 'expanded' && this.disclosureConnector(parentPath),
+        lines.map(line =>
+          hl('line', [parentDisclose && hl('branch'), this.sidelineNodes([line], lineArgs)]),
+        ),
+      ]);
   }
 
   private sidelineNodes([child, ...siblings]: Tree.Node[], args: Args): LooseVNodes {
@@ -141,8 +139,7 @@ export class InlineView {
     const path = parentPath + node.id;
     const currentPath =
       (!ctrl.synthetic && playable(ctrl.data) && ctrl.initialPath) ||
-      ctrl.retro?.current()?.prev.path ||
-      ctrl.study?.data.chapter.relayPath;
+      ctrl.retro?.current()?.prev.path;
     const withIndex =
       (!isMainline || this.inline) &&
       (node.ply % 2 === 1 ||

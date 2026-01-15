@@ -11,18 +11,16 @@ final class PageCache(cacheApi: lila.memo.CacheApi):
     _.expireAfterWrite(1.seconds).buildAsync()
 
   def apply(compute: () => Fu[Result])(using ctx: Context): Fu[Result] =
-    if ctx.isAnon && langs(ctx.lang.language) && defaultPrefs(ctx.req) && !hasCookies(ctx.req) then
+    if ctx.isAnon && defaultPrefs(ctx.req) && !hasCookies(ctx.req) then
       cache.getFuture(cacheKey(ctx), _ => compute())
     else compute()
 
   private def cacheKey(ctx: Context) =
-    s"${HTTPRequest.actionName(ctx.req)}(${ctx.lang.language})"
+    HTTPRequest.actionName(ctx.req)
 
   private def defaultPrefs(req: RequestHeader) =
     lila.pref.RequestPref.fromRequest(req) == lila.pref.Pref.default
 
-  private val langs =
-    Set("en", "ru", "tr", "de", "es", "fr", "pt", "it", "pl", "ar", "fa", "id", "nl", "nb", "sv")
 
   private def hasCookies(req: RequestHeader) =
     lila.security.EmailConfirm.cookie.has(req)

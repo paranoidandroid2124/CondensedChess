@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { relative, join, resolve } from 'node:path';
+import { relative, join, resolve, dirname } from 'node:path';
 import { makeTask } from './task.ts';
 import { type Manifest, updateManifest } from './manifest.ts';
 import { env, c } from './env.ts';
@@ -23,7 +23,7 @@ export async function hash(): Promise<void> {
   if (withClient.globs.length) hashRuns.push({ globs: withClient.globs, omit: false });
   if (serverOnly.globs.length) hashRuns.push({ globs: serverOnly.globs, omit: true });
 
-  await fs.promises.mkdir(env.hashOutDir).catch(() => {});
+  await fs.promises.mkdir(env.hashOutDir).catch(() => { });
   const symlinkHashes = await symlinkTargetHashes();
   await Promise.all(
     hashRuns.map(({ globs, catalog, omit, pkg }) =>
@@ -75,7 +75,7 @@ export async function symlinkTargetHashes(newLinks?: string[]) {
         try {
           const [target, stale] = await Promise.all([fs.promises.readlink(absSymlink), isLinkStale(symlink)]);
           if (!stale) targetHashes[relative(env.outDir, resolve(env.hashOutDir, target))] = hash;
-        } catch {}
+        } catch { }
       }),
     ),
   );
@@ -83,7 +83,8 @@ export async function symlinkTargetHashes(newLinks?: string[]) {
 }
 
 export function hashedBasename(path: string, hash: string) {
-  const name = path.slice(path.lastIndexOf('/') + 1);
+  const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  const name = path.slice(lastSlash + 1);
   const extPos = name.lastIndexOf('.');
   return extPos < 0 ? `${name}.${hash}` : `${name.slice(0, extPos)}.${hash}${name.slice(extPos)}`;
 }
@@ -115,12 +116,22 @@ async function hashAndLink(name: string) {
     .update(await fs.promises.readFile(src))
     .digest('hex')
     .slice(0, 8);
-  const link = join(env.hashOutDir, hashedBasename(name, hash));
+  const hb = hashedBasename(name, hash);
+  const link = join(env.hashOutDir, hb);
+  // Ensure the subdirectory exists in public/hashed/ (e.g. font/, images/, etc.)
+  if (hb !== name) {
+    await fs.promises.mkdir(dirname(link), { recursive: true }).catch(() => { });
+  }
   const [{ mtime }] = await Promise.all([
-    fs.promises.stat(join(env.outDir, name)),
-    fs.promises.symlink(relative(env.outDir, name), link).catch(() => {}),
+    fs.promises.stat(src),
+    fs.promises.symlink(relative(dirname(link), src), link).catch(() => {
+      // Fallback to copy if symlink fails (common on Windows without Dev Mode)
+      return fs.promises.copyFile(src, link);
+    }),
   ]);
-  await fs.promises.lutimes(link, mtime, mtime);
+  try {
+    await fs.promises.lutimes(link, mtime, mtime);
+  } catch { }
   return hash;
 }
 

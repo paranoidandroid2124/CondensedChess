@@ -1,13 +1,11 @@
 package lila.app
 package http
 
-import play.api.i18n.Lang
 import play.api.mvc.*
 
 import lila.api.{ PageData, PageContext }
 import lila.common.HTTPRequest
 import lila.common.extensions.*
-import lila.core.i18n.LangPicker
 import lila.oauth.OAuthScope
 
 trait RequestContext(using Executor):
@@ -16,42 +14,28 @@ trait RequestContext(using Executor):
 
   def makeContext(using req: RequestHeader): Fu[Context] = for
     userCtx <- makeUserContext(req)
-    lang = getAndSaveLang(req, userCtx.me)
     pref <- env.pref.api.get(Me.raw(userCtx.me), req)
-  yield Context(req, lang, userCtx, pref)
+  yield Context(req, userCtx, pref)
 
   def makeBodyContext[A](using req: Request[A]): Fu[BodyContext[A]] = for
     userCtx <- makeUserContext(req)
-    lang = getAndSaveLang(req, userCtx.me)
     pref <- env.pref.api.get(Me.raw(userCtx.me), req)
-  yield BodyContext(req, lang, userCtx, pref)
+  yield BodyContext(req, userCtx, pref)
 
   def oauthContext(scoped: OAuthScope.Scoped)(using req: RequestHeader): Fu[Context] =
-    val lang = getAndSaveLang(req, scoped.me.some)
     val userCtx = LoginContext(scoped.me.some, false, none, scoped.scopes.some)
     env.pref.api
       .get(Me.raw(scoped.me), req)
       .map:
-        Context(req, lang, userCtx, _)
+        Context(req, userCtx, _)
 
   def oauthBodyContext[A](scoped: OAuthScope.Scoped)(using req: Request[A]): Fu[BodyContext[A]] =
-    val lang = getAndSaveLang(req, scoped.me.some)
     val userCtx = LoginContext(scoped.me.some, false, none, scoped.scopes.some)
     env.pref.api
       .get(Me.raw(scoped.me), req)
       .map:
-        BodyContext(req, lang, userCtx, _)
+        BodyContext(req, userCtx, _)
 
-  private def getAndSaveLang(req: RequestHeader, me: Option[Me]): Lang =
-    val lang = LangPicker(req) // Simplified: LangPicker.apply(req) only extracts from req, merging user lang if needed manually or if LangPicker supports it? logic check: LangPicker(req, me.flatMap(_.lang)) was original.
-    // user lang handling:
-    // Original: Val lang = LangPicker(req, me.flatMap(_.lang))
-    // I need to check if LangPicker has the 2-arg apply.
-    // core/i18n.scala showed: def apply(req: play.api.mvc.RequestHeader): Lang
-    // It DOES NOT have the 2-arg apply in the file I viewed (Step 28).
-    // So I use single arg.
-    me.filter(_.lang.forall(_ != lang.code)).foreach { env.user.repo.setLang(_, lang) }
-    lang
 
   private def pageDataBuilder(using ctx: Context): Fu[PageData] =
     if HTTPRequest.isSynchronousHttp(ctx.req)

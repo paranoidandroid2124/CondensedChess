@@ -37,14 +37,11 @@ export const bind = (ctrl: AnalyseCtrl) => {
       ctrl.redraw();
     });
   kbd.bind('space', () => {
-    const gb = ctrl.gamebookPlay();
-    if (gb) gb.onSpace();
-    else if (ctrl.practice || ctrl.study?.practice) return;
+    if (ctrl.practice) return;
     else if (ctrl.cevalEnabled()) ctrl.playBestMove();
     else if (ctrl.isCevalAllowed() && ctrl.ceval.analysable) ctrl.cevalEnabled(!ctrl.cevalEnabled());
   });
 
-  if (ctrl.study?.practice) return;
 
   kbd
     .bind('f', ctrl.flip)
@@ -122,30 +119,12 @@ export const bind = (ctrl: AnalyseCtrl) => {
     ['i', '?!'],
   ].forEach(([key, symbol]) => kbd.bind(key, () => ctrl.jumpToGlyphSymbol(ctrl.bottomColor(), symbol)));
 
-  if (!ctrl.study) return;
-
-  keyToMouseEvent('d', 'mousedown', '.study__buttons .comments');
-  keyToMouseEvent('g', 'mousedown', '.study__buttons .glyphs');
-
-  kbd.bind('p', ctrl.study.goToPrevChapter);
-  kbd.bind('n', ctrl.study.goToNextChapter);
-  // ! ? !! ?? !? ?! □ ⨀
-  for (let i = 1; i < 9; i++)
-    kbd.bind(i.toString(), () => ctrl.study?.glyphForm.toggleGlyph(i === 8 ? 22 : i));
-  // = ∞ ⩲ ⩱ ± ∓ +- -+
-  for (let i = 1; i < 9; i++)
-    kbd.bind(`shift+${i}`, () => ctrl.study?.glyphForm.toggleGlyph(i === 1 ? 10 : 11 + i));
-  // N ↑↑ ↑ → ⇆ ⊕ =∞ ∆
-  const observationIds = [146, 32, 36, 40, 132, 138, 44, 140];
-  for (let i = 1; i < 9; i++)
-    kbd.bind(`ctrl+shift+${i}`, () => ctrl.study?.glyphForm.toggleGlyph(observationIds[i - 1]));
-  kbd.bind('mod+z', ctrl.study.undoShapeChange);
 };
 
 export function view(ctrl: AnalyseCtrl): VNode {
   return snabDialog({
     class: 'help.keyboard-help',
-    htmlUrl: xhr.url('/analysis/help', { study: !!ctrl.study }),
+    htmlUrl: xhr.url('/analysis/help', {}),
     modal: true,
     onClose() {
       ctrl.keyboardHelp = false;

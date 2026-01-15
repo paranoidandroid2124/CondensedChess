@@ -4,16 +4,17 @@ package ui
 import lila.api.Context
 import scalatags.Text.all.*
 import lila.core.id.GameId
-import lila.core.game.{ Game, Pov }
+import lila.core.game.Game
 
 final class GameUi(helpers: lila.ui.Helpers):
   import helpers.*
 
-  def mini(game: Game)(using Context): Frag = span()
+  def mini(_game: Game)(using _ctx: Context): Frag = span()
   
-  def crosstable(cross: lila.game.Crosstable.WithMatchup, gameId: Option[GameId])(using Context): Frag = span()
+  def crosstable(_cross: lila.game.Crosstable.WithMatchup, _gameId: Option[GameId])(using _ctx: Context): Frag = span()
   
-  def widgets(game: Game, notes: Option[String], user: Option[lila.user.User], ownerLink: Boolean)(content: Frag)(using Context): Frag = span()
+  def widgets(_game: Game, _notes: Option[String], _user: Option[lila.user.User], _ownerLink: Boolean)(content: Frag)(using _ctx: Context): Frag =
+    span(content)
   
   def gameEndStatus(game: Game): Frag = span("Finished")
 

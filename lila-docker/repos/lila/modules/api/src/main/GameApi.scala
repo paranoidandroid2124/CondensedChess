@@ -2,14 +2,10 @@ package lila.api
 
 import chess.format.Fen
 import play.api.libs.json.*
-import scalalib.Json.given
-import scalalib.paginator.Paginator
 
 import lila.analyse.{ Analysis, JsonView as analysisJson }
 import lila.common.Json.given
 import lila.core.config.*
-import lila.db.dsl.{ *, given }
-import lila.db.paginator.Adapter
 
 /* Chesstory: Simplified GameApi for analysis-only system
  * Removed: real-time game queries, rating fields, opening detection

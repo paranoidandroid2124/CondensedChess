@@ -1,5 +1,5 @@
 import { h, type VNode, type VNodeChildren } from 'snabbdom';
-import { numberFormat } from '../i18n';
+import { numberFormat } from '../format';
 
 const ratio2percent = (r: number): string => Math.round(100 * r) + '%';
 
@@ -13,7 +13,7 @@ export function numberRow(name: string, value: any, typ?: string): VNode {
     h(
       'td',
       {
-        attrs: typ === 'percent' ? { title: i18n.site.nbGames(value[0]) } : {},
+        attrs: typ === 'percent' ? { title: `${value[0]} games` } : {},
       },
       typ === 'raw'
         ? value

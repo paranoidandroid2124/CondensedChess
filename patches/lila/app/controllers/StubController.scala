@@ -12,6 +12,8 @@ import lila.core.id.*
 final class StubController(env: Env) extends LilaController(env):
   def stub = Open:
     Redirect(routes.UserAnalysis.index)
+  def stubSocket = Open:
+    fuccess(NotFound("Socket stub - CondensedChess"))
   def stub1(@annotation.nowarn p1: String) = Open:
     Redirect(routes.UserAnalysis.index)
   def stub2(@annotation.nowarn p1: String, @annotation.nowarn p2: String) = Open:

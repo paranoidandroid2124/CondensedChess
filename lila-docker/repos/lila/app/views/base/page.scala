@@ -6,15 +6,12 @@ import lila.app.UiEnv.{ *, given }
 import scalalib.model.Language
 import lila.common.String.html.safeJsonValue
 import lila.ui.{ RenderedPage, PageFlags }
-import lila.i18n.trans
 
 object page:
 
   val pieceSetImages = lila.web.ui.PieceSetImages(assetHelper)
 
-  val ui = lila.web.ui.layout(helpers, assetHelper)(
-    popularAlternateLanguages = lila.core.i18n.LangList.popularAlternateLanguages.map(l => Language(l.code))
-  )
+  val ui = lila.web.ui.layout(helpers, assetHelper)
   import ui.*
 
   private val topnav = lila.web.ui.TopNav(helpers)
@@ -43,7 +40,7 @@ object page:
     val playing = p.flags(PageFlags.playing)
     val pageFrag = frag(
       doctype,
-      page.ui.htmlTag(using ctx.lang)(
+      page.ui.htmlTag(
         (ctx.impersonatedBy.isEmpty && !ctx.blind)
           .option(cls := ctx.pref.themeColorClass),
         topComment,
@@ -64,7 +61,7 @@ object page:
           ctx.blind.option(cssTag("bits.blind")),
           p.cssKeys.map(cssTag),
           meta(
-            content := p.openGraph.fold(trans.site.siteDescription.txt())(o => o.description),
+            content := p.openGraph.fold("Chesstory - AI Chess Analysis")(o => o.description),
             name := "description"
           ),
           link(rel := "mask-icon", href := staticAssetUrl("logo/chesstory.svg"), attr("color") := "black"),
@@ -85,7 +82,7 @@ object page:
           boardPreload,
           manifests,
           p.withHrefLangs.map(hrefLangs),
-          sitePreload(p.i18nModules, allModules),
+          sitePreload(allModules),
           chesstoryFontFaceCss,
           pieceSetImages.load(ctx.pref.currentPieceSet.name),
           (ctx.pref.bg === lila.pref.Pref.Bg.SYSTEM || ctx.impersonatedBy.isDefined)
@@ -121,9 +118,6 @@ object page:
           dataBoard3d := pref.currentTheme3d.name,
           dataPieceSet3d := pref.currentPieceSet3d.name,
           dataAnnounce := env.announceApi.current.map(a => safeJsonValue(a.json).value),
-          attr("data-i18n-catalog") := assetHelper.manifest
-            .js(s"i18n/${ctx.lang.code}")
-            .map(name => staticAssetUrl(s"compiled/$name")),
           style := boardStyle(p.flags(PageFlags.zoom))
         )(
           zenable.option(div()),
@@ -148,7 +142,12 @@ object page:
           bottomHtml,
           ctx.nonce.map(inlineJs(_, allModules)),
           modulesInit(allModules, ctx.nonce),
-          p.pageModule.map { mod => frag(jsonScript(mod.data)) }
+          p.pageModule.map { mod =>
+            frag(
+              jsonScript(mod.data),
+              ctx.nonce.map(n => embedJsUnsafe(s"site.load.then(() => site.asset.loadEsmPage('${mod.name}'))")(n.some))
+            )
+          }
         )
       )
     )

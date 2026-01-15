@@ -33,9 +33,9 @@ object page:
           description = ui.describeUser(u)
         )
       )
-      .js(pageModule(info))
-      .js(esModules())
-      .css("user.show")
+      // .js(pageModule(info))
+      // .js(esModules())
+      // .css("user.show")
       .flag(_.noRobots, !indexable(u)):
         main(cls := "page-menu", ui.dataUsername := u.username)(
           st.aside(cls := "page-menu__menu")(side(u, Map.empty, none)),  // ranks empty
@@ -60,10 +60,10 @@ object page:
     val filterName = userGameFilterTitleNoTag(u, info.nbs, filters.current)
     val pageName = (games.currentPage > 1).so(s" - page ${games.currentPage}")
     Page(s"${u.username} $filterName$pageName")
-      .js(pageModule(info))
-      .js(esModules(filters.current.name == "search"))
-      .css("user.show")
-      .css((filters.current.name == "search").option("user.show.search"))
+      // .js(pageModule(info))
+      // .js(esModules(filters.current.name == "search"))
+      // .css("user.show")
+      // .css((filters.current.name == "search").option("user.show.search"))
       .flag(_.noRobots, !indexable(u)):
         main(cls := "page-menu", ui.dataUsername := u.username)(
           st.aside(cls := "page-menu__menu")(side(u, Map.empty, none)),  // ranks empty

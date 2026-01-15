@@ -468,7 +468,7 @@ object NarrativeLexicon {
       s"occupying the semi-open $extra-file to exert long-term pressure",
       s"placing the rook on the semi-open $extra-file for better activity"
     ))
-    case "SeventhRankInvasion" => pick(bead, List(
+    case "SeventhRankInvasion" | "RookOnSeventh" => pick(bead, List(
       "invading the seventh rank with the rook",
       "poking into the enemy's seventh rank",
       "establishing a rook on the seventh rank to paralyze the defense",
@@ -499,12 +499,7 @@ object NarrativeLexicon {
       "bringing the rooks into coordination",
       "linking the rooks for mutual protection"
     ))
-    case "RookOnSeventh" | "SeventhRankInvasion" => pick(bead, List(
-      "invading the seventh rank with the rook",
-      "poking into the enemy's seventh rank",
-      "establishing a rook on the seventh rank to paralyze the defense",
-      "creating a 'rook on the seventh' situation that is technically winning"
-    ))
+
     case _ => ""
   }
 

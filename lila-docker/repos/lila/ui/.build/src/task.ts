@@ -164,7 +164,7 @@ async function watchGlob({ cwd, path: globPath }: CwdPath, key: TaskKey): Promis
 }
 
 async function onFsEvent(fsw: FSWatch, event: string, filename: string | null) {
-  const fullpath = join(fsw.cwd, filename ?? '');
+  const fullpath = join(fsw.cwd, filename ?? '').replaceAll('\\', '/');
 
   if (event === 'change')
     try {
@@ -174,7 +174,7 @@ async function onFsEvent(fsw: FSWatch, event: string, filename: string | null) {
       event = 'rename';
     }
   for (const watch of [...fsw.keys].map(k => tasks.get(k)!)) {
-    const fullglobs = definedUnique(watch.includes.map(({ cwd, path }) => join(cwd, path)));
+    const fullglobs = definedUnique(watch.includes.map(({ cwd, path }) => join(cwd, path).replaceAll('\\', '/')));
     if (!mm.isMatch(fullpath, fullglobs)) {
       if (event === 'change') continue;
       if (fullglobs.some(glob => fullpath.startsWith(mm.scan(glob).base))) {

@@ -63,11 +63,7 @@ trait ResponseBuilder(using Executor)
   )
 
   def negotiateApi(html: => Fu[Result], api: ApiVersion => Fu[Result])(using ctx: Context): Fu[Result] =
-    lila.security.Mobile.Api
-      .requestVersion(ctx.req)
-      .match
-        case Some(v) => api(v).dmap(_.withHeaders(VARY -> "Accept").as(JSON))
-        case None => negotiate(html, api(ApiVersion.mobile))
+    negotiate(html, api(ApiVersion.mobile).dmap(_.withHeaders(VARY -> "Accept").as(JSON)))
 
   def negotiate(html: => Fu[Result], json: => Fu[Result])(using ctx: Context): Fu[Result] =
     if HTTPRequest.acceptsJson(ctx.req) || ctx.isOAuth
@@ -88,21 +84,13 @@ trait ResponseBuilder(using Executor)
     then keyPages.notFound(msg)
     else msg.fold(notFoundText())(notFoundText)
 
-  def notFoundEmbed(using EmbedContext): Fu[Result] = notFoundEmbed(none)
-  def notFoundEmbed(msg: Option[String])(using EmbedContext): Fu[Result] = keyPages.notFoundEmbed(msg)
+  def notFoundEmbed: Fu[Result] = notFoundEmbed(none)
+  def notFoundEmbed(msg: Option[String]): Fu[Result] = fuccess(keyPages.notFoundEmbed(msg))
 
   def authenticationFailed(using ctx: Context): Fu[Result] =
     negotiate(
-      html = Redirect(
-        if HTTPRequest.isClosedLoginPath(ctx.req)
-        then routes.Auth.login.url
-        else
-          HTTPRequest.queryStringGet(ctx.req, "login") match
-            case Some(login) => s"${routes.Auth.login.url}?as=$login"
-            case _ => routes.Auth.signup.url
-      ).withCookies(env.security.lilaCookie.session(env.security.api.AccessUri, ctx.req)),
-      json = env.security.lilaCookie.ensure(ctx.req):
-        Unauthorized(jsonError("Login required"))
+      html = Redirect(routes.Auth.magicLink.url),
+      json = Unauthorized(jsonError("Login required"))
     )
 
   def authorizationFailed(using ctx: Context): Fu[Result] =
@@ -125,7 +113,7 @@ trait ResponseBuilder(using Executor)
     forbiddenJson("This API endpoint is not for Bot accounts.")
   )
 
-  def notForLameAccounts(using Context, Me): Fu[Result] = negotiate(
+  def notForLameAccounts(using Context): Fu[Result] = negotiate(
     Forbidden.page(views.site.message.noLame),
     forbiddenJson("The access to this resource is restricted.")
   )

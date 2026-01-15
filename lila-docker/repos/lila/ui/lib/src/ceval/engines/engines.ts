@@ -7,7 +7,7 @@ import { ExternalEngine } from './externalEngine';
 import { storedStringProp, type StoredProp } from '@/storage';
 import { isAndroid, isIos, isIPad, features as browserSupport } from '@/device';
 import { xhrHeader } from '@/xhr';
-import { lichessRules } from 'chessops/compat';
+
 import { log } from '@/permalog';
 
 export class Engines {
@@ -34,35 +34,6 @@ export class Engines {
   };
 
   makeEngineMap(): Map<string, WithMake> {
-    type Hash = string;
-    type Variant = [VariantKey, Hash];
-    const variantMap = (v: VariantKey): string => (v === 'threeCheck' ? '3check' : v.toLowerCase());
-    const makeVariant = ([key, nnue]: Variant): WithMake => ({
-      info: {
-        id: `__fsfnnue-${key === 'kingOfTheHill' ? 'koth' : variantMap(key)}`,
-        name: 'Fairy Stockfish 14+ NNUE',
-        short: 'FSF 14+',
-        tech: 'NNUE',
-        requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
-        variants: [key],
-        cloudEval: true,
-        assets: {
-          root: 'npm/stockfish-web',
-          nnue: [`${variantMap(key)}-${nnue}.nnue`],
-          js: 'fsf14.js',
-        },
-      },
-      make: (e: BrowserEngineInfo) => new StockfishWebEngine(e, this.status, variantMap),
-    });
-    const variants: Variant[] = [
-      ['antichess', 'dd3cbe53cd4e'],
-      ['atomic', '2cf13ff256cc'],
-      ['crazyhouse', '8ebf84784ad2'],
-      ['horde', '28173ddccabe'],
-      ['kingOfTheHill', '978b86d0e6a4'],
-      ['threeCheck', 'cb5f517c228b'],
-      ['racingKings', '636b95f085e3'],
-    ];
     const browserEngines: WithMake[] = [
       {
         info: {
@@ -76,7 +47,7 @@ export class Engines {
           assets: {
             root: 'npm/stockfish-web',
             nnue: ['nn-9067e33176e8.nnue'],
-            js: 'sf171-7.js',
+            js: 'sf17_1-7.js',
           },
         },
         make: (e: BrowserEngineInfo) => new StockfishWebEngine(e, this.status),
@@ -92,7 +63,7 @@ export class Engines {
           cloudEval: true,
           assets: {
             root: 'npm/stockfish-web',
-            js: 'sf171-79.js',
+            js: 'sf17_1-79.js',
           },
         },
         make: (e: BrowserEngineInfo) => new StockfishWebEngine(e, this.status),
@@ -115,7 +86,8 @@ export class Engines {
         },
         make: (e: BrowserEngineInfo) => new ThreadedEngine(e, this.status),
       },
-      ...variants.map(makeVariant),
+      // ...variants.map(makeVariant),
+      /*
       {
         info: {
           id: '__fsfhce',
@@ -132,6 +104,8 @@ export class Engines {
         make: (e: BrowserEngineInfo) =>
           new StockfishWebEngine(e, this.status, v => (v === 'threeCheck' ? '3check' : v.toLowerCase())),
       },
+      */
+      /*
       {
         info: {
           id: '__sf11mv',
@@ -153,6 +127,7 @@ export class Engines {
             v === 'antichess' ? 'giveaway' : lichessRules(v),
           ),
       },
+      */
       {
         info: {
           id: '__sf11hce',

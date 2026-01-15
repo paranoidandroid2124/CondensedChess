@@ -29,6 +29,20 @@ export const readDests = (lines?: string): Dests | null => {
   }, new Map());
 };
 
+const charByKey = Object.entries(uciChar).reduce<Record<string, string>>((acc, [ch, key]) => {
+  acc[key] = ch;
+  return acc;
+}, {});
+
+export const writeDests = (dests: Dests): string => {
+  if (!dests.size) return '';
+  return Array.from(dests, ([orig, dests]) => {
+    const origChar = charByKey[orig];
+    const destChars = dests.map(d => charByKey[d]).join('');
+    return origChar + destChars;
+  }).join(' ');
+};
+
 export const readDrops = (line?: string | null): Key[] | null =>
   line ? (line.match(/.{2}/g) as Key[]) || [] : null;
 

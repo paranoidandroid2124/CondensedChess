@@ -2,6 +2,7 @@ import type { Package } from './parse.ts';
 import fs from 'node:fs';
 import ps from 'node:process';
 import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { definedUnique, isEquivalent } from './algo.ts';
 import { updateManifest } from './manifest.ts';
 import { taskOk } from './task.ts';
@@ -9,7 +10,7 @@ import { taskOk } from './task.ts';
 // state, logging, status
 
 export const env = new (class {
-  readonly rootDir = resolve(dirname(new URL(import.meta.url).pathname), '../../..');
+  readonly rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
   readonly uiDir = join(this.rootDir, 'ui');
   readonly outDir = join(this.rootDir, 'public');
   readonly cssOutDir = join(this.outDir, 'css');
@@ -48,7 +49,7 @@ export const env = new (class {
   manifestOk(): boolean {
     return (
       isEquivalent(this.building, [...this.packages.values()]) &&
-      (['tsc', 'esbuild', 'sass', 'i18n'] as const).map(b => this.status[b]).every(x => x === 0)
+      (['tsc', 'esbuild', 'sass'] as const).map(b => this.status[b]).every(x => x === 0)
     );
   }
 
@@ -98,7 +99,7 @@ export const env = new (class {
   }
 
   done(ctx: Context, code: number | undefined): void {
-    if (code !== undefined && code !== this.status[ctx] && ['tsc', 'esbuild', 'sass', 'i18n'].includes(ctx)) {
+    if (code !== undefined && code !== this.status[ctx] && ['tsc', 'esbuild', 'sass'].includes(ctx)) {
       this.log(
         `${code === 0 ? 'Done' : c.red('Failed')}` + (this.watch ? ` - ${c.grey('Watching')}...` : ''),
         ctx,
@@ -124,7 +125,7 @@ export const env = new (class {
       ps.on('exit', () => {
         try {
           if (ps.pid === Number(fs.readFileSync(env.lockFile))) fs.unlinkSync(env.lockFile);
-        } catch {}
+        } catch { }
       });
     } catch {
       const pid = parseInt(fs.readFileSync(env.lockFile, 'utf8'), 10);
@@ -132,7 +133,7 @@ export const env = new (class {
         try {
           ps.kill(pid, strategy === 'kill' ? 'SIGINT' : 0);
           if (strategy === 'check') return false;
-        } catch {}
+        } catch { }
         fs.unlinkSync(env.lockFile); // it's a craplet
         if (strategy !== 'acquire') return this.instanceLock('acquire');
       }

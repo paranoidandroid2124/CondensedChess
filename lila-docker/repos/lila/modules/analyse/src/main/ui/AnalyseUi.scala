@@ -36,17 +36,14 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       .css("analyse.free")
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(withForecast.option("analyse.forecast"))
-      .css(ctx.blind.option("round.nvui"))
-      .css(ctx.pref.hasKeyboardMove.option("keyboardMove"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))
-      .js(analyseNvuiTag)
       .js:
         bits.analyseModule(
           "userAnalysis",
           Json
             .obj(
               "data" -> data,
-              "wiki" -> pov.game.variant.standard
+              "bookmaker" -> pov.game.variant.standard
             )
             .add("inlinePgn", inlinePgn) ++
             explorerAndCevalConfig

@@ -131,8 +131,6 @@ function hiliteVariations(ctrl: AnalyseCtrl, autoShapes: DrawShape[]) {
     opacity: ctrl.variationArrowOpacity() || 0,
     lineWidth: 12,
   };
-  const chap = ctrl.study?.data.chapter;
-  const isGamebookEditor = chap?.gamebook && !ctrl.study?.gamebookPlay;
   for (const [i, node] of visible.entries()) {
     const existing = autoShapes.find(s => s.orig + s.dest === node.uci);
     if (existing) existing.modifiers = { hilite: i === ctrl.fork.selectedIndex ? 'white' : undefined };
@@ -140,7 +138,7 @@ function hiliteVariations(ctrl: AnalyseCtrl, autoShapes: DrawShape[]) {
       autoShapes.push({
         orig: node.uci!.slice(0, 2) as Key,
         dest: node.uci?.slice(2, 4) as Key,
-        brush: !isGamebookEditor ? 'variation' : i === 0 ? 'paleGreen' : 'paleRed',
+        brush: 'variation',
         modifiers: { hilite: i === ctrl.fork.selectedIndex ? '#3291ff' : '#aaa' },
         below: true,
       });

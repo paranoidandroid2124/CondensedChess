@@ -17,9 +17,7 @@ trait AssetFullHelper:
 
   private lazy val socketDomains = netConfig.socketDomains ::: netConfig.socketAlts
 
-  def siteName: String =
-    if netConfig.siteName == "localhost:9663" then "lichess.dev"
-    else netConfig.siteName
+  def siteName: String = "chesstory"
 
   def assetVersion: String = lila.core.net.AssetVersion.current.value
 
@@ -28,7 +26,11 @@ trait AssetFullHelper:
   def netBaseUrl: String = netConfig.baseUrl.value
   
   override def assetUrl(path: String): String =
-    s"$assetBaseUrl/assets/${manifest.hashed(path).getOrElse(s"_$assetVersion/$path")}"
+    val hashed = manifest.hashed(path)
+    val url = hashed.getOrElse:
+       if (netConfig.assetDomain == netConfig.domain) path
+       else s"_$assetVersion/$path"
+    s"$assetBaseUrl/assets/$url"
   
   override def staticAssetUrl(path: String): String =
     s"$assetBaseUrl/assets/$path"
@@ -37,7 +39,13 @@ trait AssetFullHelper:
     s"$assetBaseUrl/assets/compiled/$path"
 
   def preload(url: String, as: String, crossOrigin: Boolean, tpe: Option[String]): Frag =
-    link(rel := "preload", href := url, attr("as") := as, tpe.map(t => attr("type") := t))
+    link(
+      rel := "preload",
+      href := url,
+      attr("as") := as,
+      crossOrigin.option(crossorigin.empty),
+      tpe.map(t => attr("type") := t)
+    )
   
   def embedJsUnsafe(code: String)(nonce: Option[Nonce]): Frag = 
     nonce.fold(script(raw(code)))(n => script(attr("nonce") := n.value, raw(code)))
@@ -60,7 +68,6 @@ trait AssetFullHelper:
           case json: JsValue => safeJsonValue(json).value
           case json => json.toString
 
-  def roundNvuiTag(using ctx: Context) = ctx.blind.option(Esm("round.nvui"))
   def cashTag: Frag = iifeModule("javascripts/vendor/cash.min.js")
   def chessgroundTag: Frag = script(tpe := "module", src := assetUrl("npm/chessground.min.js"))
 

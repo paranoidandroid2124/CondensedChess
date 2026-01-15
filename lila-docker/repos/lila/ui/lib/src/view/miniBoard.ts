@@ -2,8 +2,8 @@
 
 import { h, type VNode } from 'snabbdom';
 import * as domData from '@/data';
-import { lichessClockIsRunning, setClockWidget } from '@/game/clock/clockWidget';
-import { uciToMove, fenColor } from '@/game/chess';
+
+import { uciToMove } from '@/game/chess';
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { pubsub } from '@/pubsub';
 import { wsSend } from '@/socket';
@@ -48,19 +48,11 @@ export const initMiniGame = (node: Element, withCg?: typeof makeChessground): st
       },
     },
     $el = $(node).removeClass('mini-game--init'),
-    $cg = $el.find('.cg-wrap'),
-    turnColor = fenColor(fen);
+    $cg = $el.find('.cg-wrap');
 
   domData.set($cg[0] as Element, 'chessground', (withCg ?? makeChessground)($cg[0] as HTMLElement, config));
 
-  ['white', 'black'].forEach((color: Color) =>
-    $el.find('.mini-game__clock--' + color).each(function (this: HTMLElement) {
-      setClockWidget(this, {
-        time: parseInt(this.getAttribute('data-time')!),
-        pause: color !== turnColor || !lichessClockIsRunning(fen, color),
-      });
-    }),
-  );
+  // Clocks will be updated by static HTML or other means
   return node.getAttribute('data-live');
 };
 
@@ -80,14 +72,10 @@ export const updateMiniGame = (node: HTMLElement, data: MiniGameUpdateData): voi
       fen: data.fen,
       lastMove: uciToMove(lm),
     });
-  const turnColor = fenColor(data.fen);
+
   const updateClock = (time: number | undefined, color: Color) => {
     const clockEl = node?.querySelector('.mini-game__clock--' + color) as HTMLElement;
-    if (clockEl && !isNaN(time!))
-      setClockWidget(clockEl, {
-        time: time!,
-        pause: color !== turnColor || !lichessClockIsRunning(data.fen, color),
-      });
+    if (clockEl && !isNaN(time!)) clockEl.innerText = (time! / 100).toString() + 's';
   };
   updateClock(data.wc, 'white');
   updateClock(data.bc, 'black');

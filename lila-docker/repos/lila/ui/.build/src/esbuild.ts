@@ -29,7 +29,7 @@ export async function esbuild(): Promise<any> {
     plugins,
   };
 
-  await fs.promises.mkdir(env.jsOutDir).catch(() => {});
+  await fs.promises.mkdir(env.jsOutDir).catch(() => { });
   return Promise.all([
     inlineTask(),
     makeTask({
@@ -69,7 +69,7 @@ function inlineTask() {
   const inlineToModule: Record<string, string> = {};
   for (const [pkg, bundle] of env.tasks('bundle'))
     if (bundle.inline)
-      inlineToModule[join(pkg.root, bundle.inline)] = bundle.module
+      inlineToModule[join(pkg.root, bundle.inline).replaceAll('\\', '/')] = bundle.module
         ? basename(bundle.module, '.ts')
         : basename(bundle.inline, '.inline.ts');
   return makeTask({
@@ -194,9 +194,9 @@ function condenseLiterals(text: string) {
     isHtml
       ? str.trim().replace(/\s+/g, ' ').replace(/>\s+</g, '><')
       : str
-          .trim()
-          .replace(/(?:\n[ \t]*){2,}/g, '\n\n')
-          .replace(/\n[ \t]+/g, ' ');
+        .trim()
+        .replace(/(?:\n[ \t]*){2,}/g, '\n\n')
+        .replace(/\n[ \t]+/g, ' ');
 
   const out: string[] = [];
 

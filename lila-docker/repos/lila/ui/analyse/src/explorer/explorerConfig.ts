@@ -123,10 +123,10 @@ export class ExplorerConfigCtrl {
 
   toggleMany =
     <T>(c: Prop<T[]>) =>
-    (value: T) => {
-      if (!c().includes(value)) c(c().concat([value]));
-      else if (c().length > 1) c(c().filter(v => v !== value));
-    };
+      (value: T) => {
+        if (!c().includes(value)) c(c().concat([value]));
+        else if (c().length > 1) c(c().filter(v => v !== value));
+      };
 
   toggleColor = () => this.data.color(opposite(this.data.color()));
 
@@ -158,7 +158,7 @@ export function view(ctrl: ExplorerConfigCtrl): VNode[] {
       h(
         'button.button.button-green.text',
         { attrs: dataIcon(licon.Checkmark), hook: bind('click', ctrl.toggleOpen) },
-        i18n.site.allSet,
+        'All set',
       ),
     ),
   ];
@@ -171,7 +171,7 @@ const playerDb = (ctrl: ExplorerConfigCtrl) => {
   return h('div.player-db', [
     ctrl.data.playerName.open() ? playerModal(ctrl) : undefined,
     h('section.name', [
-      h('label', i18n.site.player),
+      h('label', 'Player'),
       h('div', [
         h(
           'div.choices',
@@ -190,7 +190,7 @@ const playerDb = (ctrl: ExplorerConfigCtrl) => {
             attrs: dataIcon(licon.ChasingArrows),
             hook: bind('click', ctrl.toggleColor, ctrl.root.redraw),
           },
-          ` ${i18n.site[ctrl.data.color() === 'white' ? 'asWhite' : 'asBlack']}`,
+          ` ${ctrl.data.color() === 'white' ? 'as White' : 'as Black'}`,
         ),
       ]),
     ]),
@@ -203,9 +203,9 @@ const playerDb = (ctrl: ExplorerConfigCtrl) => {
 const masterDb = (ctrl: ExplorerConfigCtrl) =>
   h('div', [
     h('section.date', [
-      h('label', [i18n.site.since, yearInput(ctrl.data.byDb().since, () => '', ctrl.root.redraw)]),
+      h('label', ['Since', yearInput(ctrl.data.byDb().since, () => '', ctrl.root.redraw)]),
       h('label', [
-        i18n.site.until,
+        'Until',
         yearInput(ctrl.data.byDb().until, ctrl.data.byDb().since, ctrl.root.redraw),
       ]),
     ]),
@@ -213,21 +213,21 @@ const masterDb = (ctrl: ExplorerConfigCtrl) =>
 
 const radioButton =
   <T>(ctrl: ExplorerConfigCtrl, storage: Prop<T[]>, render?: (t: T) => VNode) =>
-  (v: T) =>
-    h(
-      'button',
-      {
-        attrs: { 'aria-pressed': `${storage().includes(v)}`, title: render ? ucfirst('' + v) : '' },
-        hook: bind('click', _ => ctrl.toggleMany(storage)(v), ctrl.root.redraw),
-      },
-      render ? render(v) : i18n(v as string),
-    );
+    (v: T) =>
+      h(
+        'button',
+        {
+          attrs: { 'aria-pressed': `${storage().includes(v)}`, title: render ? ucfirst('' + v) : '' },
+          hook: bind('click', _ => ctrl.toggleMany(storage)(v), ctrl.root.redraw),
+        },
+        render ? render(v) : ucfirst('' + v),
+      );
 
 const lichessDb = (ctrl: ExplorerConfigCtrl) =>
   h('div', [
     speedSection(ctrl),
     h('section.rating', [
-      h('label', i18n.site.averageElo),
+      h('label', 'Average rating'),
       h('div.choices', allRatings.map(radioButton(ctrl, ctrl.data.rating))),
     ]),
     monthSection(ctrl),
@@ -235,13 +235,13 @@ const lichessDb = (ctrl: ExplorerConfigCtrl) =>
 
 const speedSection = (ctrl: ExplorerConfigCtrl) =>
   h('section.speed', [
-    h('label', i18n.site.timeControl),
-    h('div.choices', allSpeeds.map(radioButton(ctrl, ctrl.data.speed, s => iconTag(perfIcons[s])))),
+    h('label', 'Time control'),
+    h('div.choices', allSpeeds.map(radioButton(ctrl, ctrl.data.speed, s => iconTag(perfIcons[s]!)))),
   ]);
 
 const modeSection = (ctrl: ExplorerConfigCtrl) =>
   h('section.mode', [
-    h('label', i18n.site.mode),
+    h('label', 'Mode'),
     h('div.choices', allModes.map(radioButton(ctrl, ctrl.data.mode))),
   ]);
 
@@ -313,9 +313,9 @@ const yearInput = (prop: StoredProp<Month>, after: () => Month, redraw: Redraw) 
 
 const monthSection = (ctrl: ExplorerConfigCtrl) =>
   h('section.date', [
-    h('label', [i18n.site.since, monthInput(ctrl.data.byDb().since, () => '', ctrl.root.redraw)]),
+    h('label', ['Since', monthInput(ctrl.data.byDb().since, () => '', ctrl.root.redraw)]),
     h('label', [
-      i18n.site.until,
+      'Until',
       monthInput(ctrl.data.byDb().until, ctrl.data.byDb().since, ctrl.root.redraw),
     ]),
   ]);
@@ -345,7 +345,7 @@ const playerModal = (ctrl: ExplorerConfigCtrl) => {
       h('div.input-wrapper', [
         h('input', {
           attrs: {
-            placeholder: i18n.study.searchByUsername,
+            placeholder: 'Search by username',
             spellcheck: 'false',
           },
           hook: onInsert<HTMLInputElement>(input =>
@@ -370,9 +370,9 @@ const playerModal = (ctrl: ExplorerConfigCtrl) => {
             ),
             name && ctrl.data.playerName.previous().includes(name)
               ? h('button.remove', {
-                  attrs: dataIcon(licon.X),
-                  hook: bind('click', () => ctrl.removePlayer(name), ctrl.root.redraw),
-                })
+                attrs: dataIcon(licon.X),
+                hook: bind('click', () => ctrl.removePlayer(name), ctrl.root.redraw),
+              })
               : null,
           ]),
         ),

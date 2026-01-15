@@ -103,21 +103,21 @@ export function snabDialog(o: SnabDialogOpts): VNode {
     },
     [
       o.noCloseButton ||
-        hl(
-          'div.close-button-anchor',
-          hl('button.close-button', { attrs: { 'data-icon': licon.X, 'aria-label': i18n.site.close } }),
-        ),
+      hl(
+        'div.close-button-anchor',
+        hl('button.close-button', { attrs: { 'data-icon': licon.X, 'aria-label': 'Close' } }),
+      ),
       hl(
         `div.${o.noScrollable ? 'not-' : ''}scrollable`,
         hl(
           'div.dialog-content' +
-            (o.class
-              ? '.' +
-                o.class
-                  .split(/[. ]/)
-                  .filter(x => x)
-                  .join('.')
-              : ''),
+          (o.class
+            ? '.' +
+            o.class
+              .split(/[. ]/)
+              .filter(x => x)
+              .join('.')
+            : ''),
           {
             attrs: o.attrs?.view,
             hook: onInsert(async view => {

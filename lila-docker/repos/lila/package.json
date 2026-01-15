@@ -9,10 +9,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ],
-    "patchedDependencies": {
-      "@toast-ui/editor": "ui/bits/patches/@toast-ui__editor.patch"
-    }
+    ]
   },
   "dependencies": {
     "@lichess-org/chessground": "9.9.0",
@@ -48,7 +45,7 @@
     "metals": "tail -F .metals/metals.log | stdbuf -oL cut -c 21- | rg -v '(notification for request|handleCancellation)'",
     "serverlog": "pnpm journal & pnpm metals",
     "i18n-file-gen": "pnpx tsx bin/i18n-file-gen.ts",
-    "multilog": "pnpm serverlog & ui/build -w"
+    "multilog": "pnpm serverlog & node ui/build.mjs -w"
   },
   "browserslist": [
     "defaults",

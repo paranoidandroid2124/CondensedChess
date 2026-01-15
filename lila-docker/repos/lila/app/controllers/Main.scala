@@ -1,11 +1,7 @@
 package controllers
-import play.api.libs.json.*
 import play.api.mvc.*
 
 import lila.app.{ *, given }
-import lila.common.HTTPRequest
-import lila.common.Json.given
-import lila.core.id.{ GameFullId, ImageId }
 import lila.web.{ StaticContent, WebForms }
 
 /* Chesstory: Analysis-only main controller
@@ -24,7 +20,7 @@ final class Main(
           lila.web.WebConfig.blindCookie.make(env.security.lilaCookie)(enable != "0")
     )
 
-  def handlerNotFound(msg: Option[String])(using RequestHeader) =
+  def handlerNotFound(msg: Option[String]) =
     fuccess(NotFound(msg.getOrElse("Not Found")))
 
   def captchaCheck(id: GameId) = Anon:

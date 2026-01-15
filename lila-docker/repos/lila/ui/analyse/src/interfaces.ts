@@ -1,21 +1,16 @@
-import type { VNode } from 'snabbdom';
 import type { Player, Status, Source, Clock } from 'lib/game';
 import type { ForecastData } from './forecast/interfaces';
-import type { StudyPracticeData, Goal as PracticeGoal } from './study/practice/interfaces';
-import type { RelayData } from './study/relay/interfaces';
-import type { ChatCtrl, ChatPlugin, ChatOpts } from 'lib/chat/interfaces';
+
+
 import type { ExplorerOpts } from './explorer/interfaces';
-import type { StudyDataFromServer } from './study/interfaces';
+
 import type { AnalyseSocketSend } from './socket';
 import type { ExternalEngineInfo } from 'lib/ceval';
 import type { Coords, MoveEvent } from 'lib/prefs';
 import type { EnhanceOpts } from 'lib/richText';
 
-import type * as studyDeps from './study/studyDeps';
 
-export interface NvuiPlugin {
-  render(deps?: typeof studyDeps): VNode;
-}
+
 
 export interface AnalyseApi {
   socketReceive(type: string, data: any): boolean;
@@ -43,7 +38,7 @@ export interface AnalyseData {
   forecast?: ForecastData;
   sidelines?: Tree.Node[][];
   treeParts: Tree.NodeOptionalChildren[];
-  practiceGoal?: PracticeGoal;
+  practiceGoal?: any;
   clock?: Clock;
   pref: AnalysePref;
   userTv?: {
@@ -62,7 +57,6 @@ export interface AnalysePref {
   highlight?: boolean;
   showCaptured?: boolean;
   animationDuration?: number;
-  keyboardMove: boolean;
   moveEvent: MoveEvent;
 }
 
@@ -144,18 +138,17 @@ export interface AnalyseOpts {
   hunter: boolean;
   explorer: ExplorerOpts;
   socketSend: AnalyseSocketSend;
-  study?: StudyDataFromServer;
+  study?: any;
   tagTypes?: string;
-  practice?: StudyPracticeData;
-  relay?: RelayData;
+  practice?: any;
+  relay?: any;
   $side?: Cash;
   $underboard?: Cash;
-  chat: ChatOpts & {
-    plugin: ChatPlugin;
+  chat: any & {
     enhance: EnhanceOpts;
-    instance?: ChatCtrl;
+    instance?: any;
   };
-  wiki?: boolean;
+  bookmaker?: boolean;
   inlinePgn?: string;
   externalEngineEndpoint: string;
   embed?: boolean;

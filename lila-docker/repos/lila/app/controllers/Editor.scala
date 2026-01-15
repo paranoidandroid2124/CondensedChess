@@ -33,7 +33,7 @@ final class Editor(env: Env) extends LilaController(env):
       .decodeUriPath(urlFen)
       .filter(_.nonEmpty)
       .map(Fen.Full.clean)
-    Ok(s"Editor for ${fen.fold("")(_.value)}")
+    Ok.page(views.boardEditor(fen))
 
   def data = Open:
     JsonOk(positionsJson ++ endgamePositionsJson)

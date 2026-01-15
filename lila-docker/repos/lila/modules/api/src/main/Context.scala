@@ -1,8 +1,7 @@
 package lila.api
 
-import play.api.i18n.Lang
-import play.api.mvc.{ Request, RequestHeader }
 
+import play.api.mvc.{ Request, RequestHeader }
 import lila.common.HTTPRequest
 import lila.core.net.IpAddress
 import lila.oauth.TokenScopes
@@ -35,7 +34,6 @@ object LoginContext:
 /* Data available in every HTTP request */
 class Context(
     val req: RequestHeader,
-    val lang: Lang,
     val loginContext: LoginContext,
     val pref: Pref
 ) extends lila.ui.Context:
@@ -44,8 +42,7 @@ class Context(
   lazy val mobileApiVersion: Option[lila.core.net.ApiVersion] = None // Simplified
   lazy val blind = req.cookies.get(lila.web.WebConfig.blindCookie.name).exists(_.value.nonEmpty)
   def isMobileApi = mobileApiVersion.isDefined
-  def withLang(l: Lang) = new Context(req, l, loginContext, pref)
-  def updatePref(f: Update[Pref]) = new Context(req, lang, loginContext, f(pref))
+  def updatePref(f: Update[Pref]) = new Context(req, loginContext, f(pref))
 
 object Context:
   export lila.api.{ Context, BodyContext, LoginContext, PageContext, EmbedContext }
@@ -56,16 +53,15 @@ object Context:
 
   import lila.pref.RequestPref
   def minimal(req: RequestHeader) =
-    Context(req, Lang.defaultLang, LoginContext.anon, RequestPref.fromRequest(req))
+    Context(req, LoginContext.anon, RequestPref.fromRequest(req))
   def minimalBody[A](req: Request[A]) =
-    BodyContext(req, Lang.defaultLang, LoginContext.anon, RequestPref.fromRequest(req))
+    BodyContext(req, LoginContext.anon, RequestPref.fromRequest(req))
 
 final class BodyContext[A](
     val body: Request[A],
-    lang: Lang,
     userContext: LoginContext,
     pref: Pref
-) extends Context(body, lang, userContext, pref)
+) extends Context(body, userContext, pref)
 
 /* data necessary to render the lichess website layout */
 case class PageData(
@@ -90,7 +86,6 @@ final class EmbedContext(val ctx: Context, val bg: String, val nonce: Nonce):
   def pieceSet = ctx.pref.realPieceSet
 
 object EmbedContext:
-  given (using config: EmbedContext): Lang = config.lang
   def apply(ctx: Context): EmbedContext = new EmbedContext(
     ctx,
     bg = ctx.req.queryString.get("bg").flatMap(_.headOption).filterNot("auto".==) | "system",
