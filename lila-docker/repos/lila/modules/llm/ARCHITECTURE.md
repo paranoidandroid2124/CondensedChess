@@ -1,13 +1,10 @@
-# LLM Commentary Module - Architecture Documentation
+# Chesstory LLM Module - Architecture
 
 ## Overview
 
-This module provides AI-powered chess commentary by analyzing positions and moves
-using a combination of motif detection, plan matching, and LLM-based text generation.
+The LLM module provides AI-powered chess commentary by analyzing positions and moves using motif detection, plan matching, and Gemini-based text generation.
 
----
-
-## Architecture Decisions (2024-12-25)
+## Architecture Decisions
 
 ### 1. No Fishnet Usage
 
@@ -20,30 +17,24 @@ using a combination of motif detection, plan matching, and LLM-based text genera
 
 **Alternative**: Client-side Stockfish WASM + Lichess Cloud Eval API
 
----
-
 ### 2. Eval Data Sources
 
 | Source | Use Case | Limit |
 |--------|----------|-------|
-| **Lichess Cloud Eval API** | First ~15 plies (cached positions) | 3000 req/day per user IP |
-| **Client WASM Worker** | Uncached positions, sidelines | None (user's CPU) |
+| **Lichess Cloud Eval API** | Cached positions (first ~15 plies) | 3000 req/day per IP |
+| **Stockfish 17.1 WASM** | Uncached positions, sidelines | None (user's CPU) |
 
-**Flow**:
-```
-User's Browser
-├── Lichess Cloud Eval API (direct call, CC0 license)
-│   └── https://lichess.org/api/cloud-eval?fen=...&multiPv=3
-└── WASM Worker (fallback for cache miss)
-    ↓
-POST /api/llm/comment { fen, played, eval: { cp, pvs } }
-    ↓
-CounterfactualAnalyzer + LLM → Commentary Text
-```
+### 3. Supported Variants
 
----
+| Variant | Status |
+|---------|--------|
+| Standard Chess | ✅ Supported |
+| Freestyle Chess (Chess960) | ✅ Supported |
+| Other variants | ❌ Removed |
 
-### 3. License Compliance
+> **Note**: Non-standard variants (Crazyhouse, Atomic, etc.) have been removed to focus on core functionality.
+
+### 4. License Compliance
 
 | Component | License | Our Obligation |
 |-----------|---------|----------------|
@@ -52,26 +43,32 @@ CounterfactualAnalyzer + LLM → Commentary Text
 | Stockfish WASM | GPL-3.0 | Distribute with source |
 | Lichess Cloud Eval | CC0 | None (public domain) |
 
-**Conclusion**: Project will be fully open-source under AGPL.
+**Conclusion**: Project is fully open-source under AGPL-3.0.
 
 ---
 
 ## Module Structure
 
 ```
-modules/llm/src/main/
-├── model/
-│   ├── Motif.scala       # 34 motif case classes
-│   └── Plan.scala        # 24 plan types
-├── analysis/
-│   ├── MotifTokenizer.scala     # PV → Motifs
-│   ├── PlanMatcher.scala        # Motifs → Plans
-│   ├── PositionCharacterizer.scala
-│   ├── CounterfactualAnalyzer.scala  # (planned)
-│   └── CommentaryEngine.scala   # Orchestration
-├── LlmClient.scala       # Gemini API client
-├── LlmApi.scala          # Service layer
-└── LlmConfig.scala       # Configuration
+modules/llm/
+├── src/main/
+│   ├── model/
+│   │   ├── Motif.scala              # 34 motif case classes
+│   │   └── Plan.scala               # 24 plan types
+│   ├── analysis/
+│   │   ├── BookStyleRenderer.scala  # Narrative text generation
+│   │   ├── ConceptLabeler.scala     # Semantic labeling
+│   │   ├── MotifTokenizer.scala     # PV → Motifs
+│   │   ├── NarrativeLexicon.scala   # Template library
+│   │   ├── PlanMatcher.scala        # Motifs → Plans
+│   │   └── PositionCharacterizer.scala
+│   ├── Env.scala                    # Module initialization
+│   ├── LlmApi.scala                 # Service layer
+│   ├── LlmClient.scala              # Gemini API client
+│   ├── LlmConfig.scala              # Environment config
+│   └── PgnAnalysisHelper.scala      # PGN parsing utilities
+└── docs/
+    └── CpContract.md                # CP score specification
 ```
 
 ---
@@ -83,40 +80,63 @@ modules/llm/src/main/
 | Motif detection (34 types) | ✅ Complete |
 | Plan matching (24 types) | ✅ Complete |
 | PositionCharacterizer | ✅ Complete |
-| CommentaryEngine | ✅ Complete |
-| API endpoint `/api/llm/comment` | ✅ Complete |
-| CounterfactualAnalyzer | ⏳ Pending |
-| Frontend integration | ⏳ Pending |
+| BookStyleRenderer | ✅ Complete |
+| NarrativeLexicon | ✅ Complete |
+| ConceptLabeler | ✅ Complete |
+| LlmClient (Gemini) | ✅ Complete |
+| Frontend narrative UI | ✅ Complete |
+| Variant restriction | ✅ Complete |
 
 ---
 
-## API Schema
+## Configuration
 
-### Request
-```json
-{
-  "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-  "lastMove": "e2e4",
-  "played": "e7e5",
-  "eval": {
-    "cp": 35,
-    "depth": 20,
-    "pvs": [
-      { "moves": ["e7e5", "g1f3"], "cp": 30 },
-      { "moves": ["c7c5", "g1f3"], "cp": 35 }
-    ]
-  },
-  "context": {
-    "opening": "Italian Game",
-    "phase": "opening",
-    "ply": 2
-  }
+### Environment Variables
+
+```env
+GEMINI_API_KEY=your-api-key     # Required for AI narratives
+GEMINI_MODEL=gemini-2.0-flash   # Optional, default: gemini-3-flash-preview
+```
+
+### Initialization
+
+The module auto-disables if `GEMINI_API_KEY` is not set:
+
+```scala
+if (config.enabled) {
+  // Initialize LLM services
+} else {
+  lila.log("llm").warn("LLM module disabled: GEMINI_API_KEY not set")
 }
 ```
 
-### Response
-```json
-{
-  "commentary": "The most natural response, occupying the center..."
-}
+---
+
+## Data Flow
+
 ```
+Browser
+├── Stockfish 17.1 WASM (local analysis)
+│   └── Position eval + PV lines
+└── POST /api/llm/comment
+    ├── MotifTokenizer: PV → Motifs
+    ├── PlanMatcher: Motifs → Plans
+    ├── PositionCharacterizer: Context extraction
+    ├── BookStyleRenderer: Template selection
+    └── LlmClient: Gemini API (optional polish)
+        ↓
+    Narrative JSON response
+```
+
+---
+
+## Frontend Integration
+
+### Narrative Controller
+`ui/analyse/src/narrative/narrativeCtrl.ts`
+
+### Narrative View
+`ui/analyse/src/narrative/narrativeView.ts`
+
+### Bookmaker Orchestration
+`ui/analyse/src/bookmaker.ts`
