@@ -205,8 +205,6 @@ trait Handlers:
       )
   )
 
-  val langByCodeHandler: BSONHandler[play.api.i18n.Lang] =
-    stringAnyValHandler(_.code, play.api.i18n.Lang.apply)
 
   import chess.PlayerTitle
   given BSONHandler[PlayerTitle] = tryHandler(

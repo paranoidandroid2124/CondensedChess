@@ -24,7 +24,7 @@ interface MsgBase {
 interface MsgIn extends MsgBase {
   v?: Version;
 }
-interface MsgOut extends MsgBase {}
+interface MsgOut extends MsgBase { }
 interface MsgAck extends MsgOut {
   at: number;
 }
@@ -225,8 +225,8 @@ class WsSocket {
     this.connectSchedule = setTimeout(() => {
       document.body.classList.add('offline');
       document.body.classList.remove('online');
-      if (isOnline()) $('#network-status').text(i18n?.site?.reconnecting ?? 'Reconnecting');
-      else $('#network-status').text(i18n?.site?.noNetwork ?? 'Offline');
+      if (isOnline()) $('#network-status').text('Reconnecting');
+      else $('#network-status').text('Offline');
       this.tryOtherUrl = true;
       this.connect();
     }, delay);
@@ -243,9 +243,9 @@ class WsSocket {
     const pingData =
       this.options.isAuth && this.pongCount % 10 === 2
         ? JSON.stringify({
-            t: 'p',
-            l: Math.round(0.1 * this.averageLag),
-          })
+          t: 'p',
+          l: Math.round(0.1 * this.averageLag),
+        })
         : 'null';
     try {
       this.ws!.send(pingData);
@@ -326,7 +326,7 @@ class WsSocket {
     const ws = this.ws;
     if (ws) {
       this.debug('Disconnect');
-      ws.onerror = ws.onclose = ws.onopen = ws.onmessage = () => {};
+      ws.onerror = ws.onclose = ws.onopen = ws.onmessage = () => { };
       ws.close();
     }
   };

@@ -208,8 +208,10 @@ export default class EditorCtrl {
   }
 
   makeAnalysisUrl(legalFen: string, orientation: Color = 'white'): string {
-    const variant = this.rules === 'chess' ? '' : lichessVariant(this.rules) + '/';
-    return `/analysis/${variant}${urlFen(legalFen)}?color=${orientation}`;
+    // Our analysis routing expects `/analysis/:variant/:fen` (even for standard),
+    // so always include the variant segment.
+    const variant = lichessVariant(this.rules);
+    return `/analysis/${variant}/${urlFen(legalFen)}?color=${orientation}`;
   }
 
   makeEditorUrl(fen: string, orientation: Color = 'white'): string {

@@ -15,7 +15,6 @@ object Lilaism extends LilaLibraryExtensions:
   export lila.core.email.EmailAddress
   export lila.core.user.{ User, Me, NbGames }
   export lila.core.game.{ Game, Pov }
-  export lila.i18n.trans
 
   def some[A](a: A): Option[A] = Some(a)
 
@@ -26,7 +25,6 @@ object Lilaism extends LilaLibraryExtensions:
 
   given cats.Show[play.api.mvc.Call] = cats.Show.show(_.url)
 
-  given cats.Eq[play.api.i18n.Lang] = cats.Eq.fromUniversalEquals
 
   import play.api.Mode
   extension (mode: Mode)

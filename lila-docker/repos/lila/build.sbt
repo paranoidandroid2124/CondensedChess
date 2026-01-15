@@ -14,7 +14,7 @@ lazy val root = Project("lila", file("."))
 
 organization := "org.lichess"
 Compile / run / fork := true
-javaOptions ++= Seq("-Xms64m", "-Xmx512m", "-Dlogger.file=conf/logger.dev.xml")
+javaOptions ++= Seq("-Xms1g", "-Xmx4g", "-Dlogger.file=conf/logger.dev.xml")
 javaOptions ++= {
   if (sys.props("java.specification.version").toInt > 21)
     Seq("--enable-native-access=ALL-UNNAMED")

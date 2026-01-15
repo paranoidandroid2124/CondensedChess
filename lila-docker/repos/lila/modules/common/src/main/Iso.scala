@@ -23,5 +23,3 @@ object Iso:
 
   given StringIso[IpAddress] = string[IpAddress](IpAddress.unchecked, _.value)
 
-  import play.api.i18n.Lang
-  given StringIso[Lang] = string[Lang](Lang.apply, _.toString)

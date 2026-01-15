@@ -4,7 +4,7 @@ $env:MOCK_EMAIL="true"
 $env:ENABLE_MONITORING="false"
 $env:ENABLE_RATE_LIMITING="false"
 $env:LILA_REDIS_URI="redis://localhost:6379"
-$env:LILA_DB_DUAL_URL="mongodb://localhost:27017,localhost:27017"
+$env:LILA_DB_DUAL_URL="mongodb://127.0.0.1:27017?directConnection=true"
 $env:HTTP_PORT="9663"
 
 # Important Java options from lila.sh

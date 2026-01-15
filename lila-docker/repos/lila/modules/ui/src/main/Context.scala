@@ -1,6 +1,5 @@
 package lila.ui
 
-import play.api.i18n.Lang
 import play.api.mvc.RequestHeader
 import scalalib.model.Language
 
@@ -10,7 +9,6 @@ import lila.core.pref.Pref
 /* Data available in every HTTP request */
 trait Context:
   val req: RequestHeader
-  val lang: Lang
   def isAuth: Boolean
   def isOAuth: Boolean
   def me: Option[Me]
@@ -29,9 +27,7 @@ trait Context:
   def flash(name: String): Option[String] = req.flash.get(name)
   def speechSynthesis = pref.hasSpeech || blind
   inline def noBot = !isBot
-  lazy val acceptLanguages: Set[Language] =
-    Set(Language("en")) ++
-      user.flatMap(_.lang.map(Language.apply)).toSet
+  lazy val acceptLanguages: Set[Language] = Set(Language("en"))
 
 import lila.core.user.Me
 object Context:

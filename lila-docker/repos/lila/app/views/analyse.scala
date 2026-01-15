@@ -1,16 +1,27 @@
 package views
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv
+import lila.app.UiEnv.*
+import lila.analyse.ui.AnalyseUi
+import scala.annotation.unused
 
 object analyse:
+
+  lazy val analyseUi = AnalyseUi(UiEnv)(UiEnv.analyseEndpoints)
+
   object ui:
-    def userAnalysis(args: Any*)(using Context) = 
-      Page("Analysis").wrap(_ => div("Analysis Board"))
+    def userAnalysis(
+        data: play.api.libs.json.JsObject,
+        pov: lila.core.game.Pov
+    )(using Context) =
+      analyseUi.userAnalysis(data, pov)
+
     val explorerAndCevalConfig = play.api.libs.json.Json.obj()
+
     object bits:
       def cspExternalEngine = new:
-        def compose(f: Any => Any) = lila.web.ContentSecurityPolicy.default
+        def compose(_f: Any => Any) = lila.web.ContentSecurityPolicy.default
 
   object embed:
-    def lpv(pgn: Any, board: Boolean = true, title: String = "") = emptyFrag
-    def userAnalysis(args: Any*) = emptyFrag
+    def lpv(@unused pgn: Any, @unused board: Boolean = true, @unused title: String = "") = emptyFrag
+    def userAnalysis(_args: Any*) = emptyFrag

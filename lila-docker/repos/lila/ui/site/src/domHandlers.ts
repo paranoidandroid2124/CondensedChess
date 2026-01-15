@@ -74,8 +74,8 @@ export function addDomHandlers() {
       if (!e.isTrusted) return;
       e.preventDefault();
       const [confirmText, cancelText] = this.classList.contains('yes-no-confirm')
-        ? [i18n.site.yes, i18n.site.no]
-        : [i18n.site.ok, i18n.site.cancel];
+        ? ['Yes', 'No']
+        : ['OK', 'Cancel'];
       if (await confirm(this.title || 'Confirm this action?', confirmText, cancelText))
         (e.target as HTMLElement)?.click();
     },

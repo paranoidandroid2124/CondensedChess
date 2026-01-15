@@ -1,10 +1,30 @@
 package views
 
-import lila.app.UiEnv
-import play.twirl.api.Html
+import chess.format.Fen
+import play.api.libs.json.Json
+
+import lila.app.UiEnv.{ * }
+import lila.ui.PageModule
 
 object boardEditor:
-  def apply(fen: String, positionsJson: play.api.libs.json.JsValue, endgamePositionsJson: play.api.libs.json.JsValue)(using lila.api.Context): Html = Html("Board Editor Stub")
-  
-  object jsData:
-    def apply()(using lila.api.Context): play.api.libs.json.JsValue = play.api.libs.json.Json.obj()
+
+  def apply(fen: Option[Fen.Full])(using ctx: Context): Page =
+    Page("Board editor")
+      .css("editor")
+      .flag(_.zoom)
+      .js:
+        PageModule(
+          "editor",
+          Json.obj(
+            "baseUrl" -> routes.Editor.index.url,
+            "fen" -> fen.map(_.value),
+            "is3d" -> false,
+            "animation" -> Json.obj("duration" -> ctx.pref.animationMillis),
+            "embed" -> false,
+            "options" -> Json.obj("coordinates" -> true)
+          )
+        )
+      .wrap: _ =>
+        main(cls := "page-small")(
+          div(id := "board-editor")
+        )

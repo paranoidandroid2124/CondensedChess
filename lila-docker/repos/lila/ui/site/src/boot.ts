@@ -8,8 +8,6 @@ import {
   alert,
 } from 'lib/view';
 import { text as xhrText } from 'lib/xhr';
-import { display as announceDisplay } from './announce';
-import OnlineFriends from './friends';
 import powertip from './powertip';
 import serviceWorker from './serviceWorker';
 import { watchers } from 'lib/view/watchers';
@@ -21,7 +19,6 @@ import { updateTimeAgo, renderTimeAgo } from './renderTimeAgo';
 import { pubsub } from 'lib/pubsub';
 import { once } from 'lib/storage';
 import { addExceptionListeners } from './unhandledError';
-import { eventuallySetupDefaultConnection } from 'lib/socket';
 
 export function boot() {
   addExceptionListeners();
@@ -39,9 +36,6 @@ export function boot() {
     pubsub.on('content-loaded', toggleBoxInit);
   });
   requestIdleCallback(() => {
-    const friendsEl = document.getElementById('friend_box');
-    if (friendsEl) new OnlineFriends(friendsEl);
-
     const chatMembers = document.querySelector('.chat__members') as HTMLElement | null;
     if (chatMembers) watchers(chatMembers);
 
@@ -72,9 +66,6 @@ export function boot() {
 
     console.info('Lichess is open source! See https://lichess.org/source');
 
-    // if not already connected by a ui module, setup default connection
-    eventuallySetupDefaultConnection();
-
     if (isUnsupportedBrowser() && once('upgrade.nag', { days: 14 })) {
       pubsub
         .after('polyfill.dialog')
@@ -92,7 +83,7 @@ export function boot() {
     pubsub.on('socket.in.finish', e =>
       document.querySelectorAll('.mini-game-' + e.id).forEach((el: HTMLElement) => finishMiniGame(el, e.win)),
     );
-    pubsub.on('socket.in.announce', announceDisplay);
+    // pubsub.on('socket.in.announce', announceDisplay); // Chesstory: removed
     pubsub.on('socket.in.tournamentReminder', (data: { id: string; name: string }) => {
       if ($('#announce').length || document.body.dataset.tournamentId === data.id) return;
       const url = '/tournament/' + data.id;
@@ -104,7 +95,7 @@ export function boot() {
               .append(
                 $(`<a class="withdraw text" data-icon="${licon.Pause}">`)
                   .attr('href', url + '/withdraw')
-                  .text(i18n.site.pause)
+                  .text('Pause')
                   .on('click', function (this: HTMLAnchorElement) {
                     xhrText(this.href, { method: 'post' });
                     $('#announce').remove();
@@ -114,7 +105,7 @@ export function boot() {
               .append(
                 $(`<a class="text" data-icon="${licon.PlayTriangle}">`)
                   .attr('href', url)
-                  .text(i18n.site.resume),
+                  .text('Resume'),
               ),
           ),
       );

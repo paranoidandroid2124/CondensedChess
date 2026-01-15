@@ -31,24 +31,29 @@ export default new (class implements SoundI {
   }
 
   async load(name: Name, path?: Path): Promise<Sound | undefined> {
-    if (!this.ctx) return;
-    if (path) this.paths.set(name, path);
-    else path = this.paths.get(name) ?? this.resolvePath(name);
-    if (!path) return;
-    if (this.sounds.has(path)) return this.sounds.get(path);
+    try {
+      if (!this.ctx) return;
+      if (path) this.paths.set(name, path);
+      else path = this.paths.get(name) ?? this.resolvePath(name);
+      if (!path) return;
+      if (this.sounds.has(path)) return this.sounds.get(path);
 
-    const result = await fetch(path);
-    if (!result.ok) throw new Error(`${path} failed ${result.status}`);
+      const result = await fetch(path);
+      if (!result.ok) throw new Error(`${path} failed ${result.status}`);
 
-    const arrayBuffer = await result.arrayBuffer();
-    const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
-      if (this.ctx?.decodeAudioData.length === 1)
-        this.ctx?.decodeAudioData(arrayBuffer).then(resolve).catch(reject);
-      else this.ctx?.decodeAudioData(arrayBuffer, resolve, reject);
-    });
-    const sound = new Sound(this.ctx, audioBuffer);
-    this.sounds.set(path, sound);
-    return sound;
+      const arrayBuffer = await result.arrayBuffer();
+      const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
+        if (this.ctx?.decodeAudioData.length === 1)
+          this.ctx?.decodeAudioData(arrayBuffer).then(resolve).catch(reject);
+        else this.ctx?.decodeAudioData(arrayBuffer, resolve, reject);
+      });
+      const sound = new Sound(this.ctx, audioBuffer);
+      this.sounds.set(path, sound);
+      return sound;
+    } catch (e) {
+      console.warn('sound load failed', name, path, e);
+      return;
+    }
   }
 
   resolvePath(name: Name): string | undefined {
@@ -208,7 +213,7 @@ export default new (class implements SoundI {
   };
 
   preloadBoardSounds() {
-    for (const name of ['move', 'capture', 'check', 'checkmate', 'genericNotify']) this.load(name);
+    for (const name of ['move', 'capture', 'check', 'checkmate', 'genericNotify']) void this.load(name);
   }
 
   async resumeWithTest(): Promise<boolean> {

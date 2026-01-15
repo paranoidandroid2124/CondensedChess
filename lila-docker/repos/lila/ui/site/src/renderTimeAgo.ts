@@ -1,4 +1,4 @@
-import { commonDateFormat, toDate, formatAgo } from 'lib/i18n';
+import { commonDateFormat, toDate, formatAgo } from 'lib/format';
 
 interface ElementWithDate extends Element {
   lichessDate: Date;
@@ -44,7 +44,7 @@ export const updateTimeAgo = (interval: number): void => {
 // format the diff second to *** time remaining
 const formatRemaining = (seconds: number): string =>
   seconds < 1
-    ? i18n.timeago.completed
+    ? 'Completed'
     : seconds < 3600
-      ? i18n.timeago.nbMinutesRemaining(Math.floor(seconds / 60))
-      : i18n.timeago.nbHoursRemaining(Math.floor(seconds / 3600));
+      ? `${Math.floor(seconds / 60)} minutes remaining`
+      : `${Math.floor(seconds / 3600)} hours remaining`;

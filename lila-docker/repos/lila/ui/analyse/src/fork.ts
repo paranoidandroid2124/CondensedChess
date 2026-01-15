@@ -12,7 +12,7 @@ export class ForkCtrl {
   private hoveringIndex: number | undefined;
   private mostRecent: Tree.Node | undefined;
 
-  constructor(private ctrl: AnalyseCtrl) {}
+  constructor(private ctrl: AnalyseCtrl) { }
 
   get forks(): Tree.Node[] {
     return this.ctrl.visibleChildren();
@@ -101,8 +101,6 @@ export function view(ctrl: AnalyseCtrl, concealOf?: ConcealOf) {
     ctrl.visibleChildren().map((node, it) => {
       const classes = {
         selected: it === ctrl.fork.selectedIndex && !isTouchDevice(),
-        correct: ctrl.isGamebook() && it === 0,
-        wrong: ctrl.isGamebook() && it > 0,
       };
       const conceal = isMainline && concealOf(true)(ctrl.path + node.id, node);
       if (!conceal)

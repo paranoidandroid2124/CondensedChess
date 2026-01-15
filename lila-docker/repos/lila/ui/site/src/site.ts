@@ -5,7 +5,7 @@ import powertip from './powertip';
 import * as assets from './asset';
 import { unload, redirect, reload } from './reload';
 import { display as announceDisplay } from './announce';
-import { displayLocale } from 'lib/i18n';
+import { displayLocale } from 'lib/format';
 import sound from './sound';
 import { api } from 'lib/api';
 import { loadPolyfills } from './polyfill';
@@ -31,4 +31,6 @@ site.sound = sound;
 (window as any).lichess = api;
 loadPolyfills();
 addWindowHandlers();
-site.load.then(boot);
+if (site.load) site.load.then(boot);
+else console.warn('site.load is undefined, boot skipped');
+

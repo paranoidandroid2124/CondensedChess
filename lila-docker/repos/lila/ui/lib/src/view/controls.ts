@@ -61,7 +61,7 @@ export function rangeConfig(read: () => number, write: (value: number) => void):
 
 export const boolPrefXhrToggle = (prefKey: string, val: boolean, effect: () => void = site.reload): Toggle =>
   baseToggle(val, async v => {
-    await xhr.text(`/pref/${prefKey}`, { method: 'post', body: xhr.form({ [prefKey]: v ? '1' : '0' }) });
+    await xhr.text(`/pref/${prefKey}?v=${v ? '1' : '0'}`, { method: 'post' });
     effect();
   });
 
@@ -75,7 +75,7 @@ export function copyMeInput(content: string, inputAttrs: Attrs = {}): VNode {
       attrs: { readonly: true, spellcheck: false, value: content, ...inputAttrs },
     }),
     h('button.copy-me__button.button.button-metal', {
-      attrs: { 'data-icon': licon.Clipboard, title: i18n.site.copyToClipboard },
+      attrs: { 'data-icon': licon.Clipboard, title: 'Copy to clipboard' },
     }),
   ]);
 }
@@ -114,15 +114,15 @@ export const spinnerHtml: string = $html`
     <svg viewBox="-2 -2 54 54">
       <g mask="url(#mask)" fill="none">
         ${pathAttrs.map(
-          (a, i) =>
-            '<path id="' +
-            String.fromCharCode(97 + i) +
-            '" stroke-width="' +
-            a['stroke-width'] +
-            '" d="' +
-            a.d +
-            '"/>',
-        )}
+  (a, i) =>
+    '<path id="' +
+    String.fromCharCode(97 + i) +
+    '" stroke-width="' +
+    a['stroke-width'] +
+    '" d="' +
+    a.d +
+    '"/>',
+)}
       </g>
     </svg>
   </div>`;

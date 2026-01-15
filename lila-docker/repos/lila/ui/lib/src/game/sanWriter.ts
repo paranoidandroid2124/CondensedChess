@@ -159,15 +159,32 @@ export function sanToUci(san: string, legalSans: SanToUci): Uci | undefined {
   return;
 }
 
+const nvui = {
+  sanTakes: 'takes',
+  sanCheck: 'check',
+  sanCheckmate: 'checkmate',
+  sanPromotesTo: 'promotes to',
+  sanDroppedOn: 'dropped on',
+  sanLongCastling: 'long castling',
+  sanShortCastling: 'short castling',
+  gameStart: 'game start',
+  king: 'King',
+  queen: 'Queen',
+  rook: 'Rook',
+  bishop: 'Bishop',
+  knight: 'Knight',
+  pawn: 'Pawn',
+};
+
 const sanToWords = (san: string): string =>
   san
     .split('')
     .map(c => {
-      if (c === 'x') return i18n.nvui.sanTakes;
-      if (c === '+') return i18n.nvui.sanCheck;
-      if (c === '#') return i18n.nvui.sanCheckmate;
-      if (c === '=') return i18n.nvui.sanPromotesTo;
-      if (c === '@') return i18n.nvui.sanDroppedOn;
+      if (c === 'x') return nvui.sanTakes;
+      if (c === '+') return nvui.sanCheck;
+      if (c === '#') return nvui.sanCheckmate;
+      if (c === '=') return nvui.sanPromotesTo;
+      if (c === '@') return nvui.sanDroppedOn;
       const code = c.charCodeAt(0);
       if (code > 48 && code < 58) return c; // 1-8
       if (code > 96 && code < 105) return c.toUpperCase(); // a-h
@@ -175,21 +192,21 @@ const sanToWords = (san: string): string =>
       return role ? transRole(role) : c;
     })
     .join(' ')
-    .replace('O - O - O', i18n.nvui.sanLongCastling)
-    .replace('O - O', i18n.nvui.sanShortCastling);
+    .replace('O - O - O', nvui.sanLongCastling)
+    .replace('O - O', nvui.sanShortCastling);
 
 const transRole = (role: Role): string =>
-  (i18n.nvui[role as keyof typeof i18n.nvui] as string) || (role as string);
+  (nvui[role as keyof typeof nvui] as string) || (role as string);
 
 export function speakable(san?: San): string {
   const text = !san
-    ? i18n.nvui.gameStart
+    ? nvui.gameStart
     : sanToWords(san)
-        .replace(/^A /, '"A"') // "A takes" & "A 3" are mispronounced
-        .replace(/(\d) E (\d)/, '$1,E $2') // Strings such as 1E5 are treated as scientific notation
-        .replace(/C /, 'c ') // Capital C is pronounced as "degrees celsius" when it comes after a number (e.g. R8c3)
-        .replace(/F /, 'f ') // Capital F is pronounced as "degrees fahrenheit" when it comes after a number (e.g. R8f3)
-        .replace(/(\d) H (\d)/, '$1H$2') // "H" is pronounced as "hour" when it comes after a number with a space (e.g. Rook 5 H 3)
-        .replace(/(\d) H (\d)/, '$1H$2');
+      .replace(/^A /, '"A"') // "A takes" & "A 3" are mispronounced
+      .replace(/(\d) E (\d)/, '$1,E $2') // Strings such as 1E5 are treated as scientific notation
+      .replace(/C /, 'c ') // Capital C is pronounced as "degrees celsius" when it comes after a number (e.g. R8c3)
+      .replace(/F /, 'f ') // Capital F is pronounced as "degrees fahrenheit" when it comes after a number (e.g. R8f3)
+      .replace(/(\d) H (\d)/, '$1H$2') // "H" is pronounced as "hour" when it comes after a number with a space (e.g. Rook 5 H 3)
+      .replace(/(\d) H (\d)/, '$1H$2');
   return text;
 }

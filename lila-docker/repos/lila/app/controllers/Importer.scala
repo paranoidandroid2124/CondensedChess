@@ -1,18 +1,17 @@
 package controllers
 
-import play.api.mvc.*
-import lila.app.{ *, given }
+import lila.app.*
 
 final class Importer(env: Env) extends LilaController(env):
 
   def importGame = Open { _ ?=>
-    fuccess(Ok("Import game stub"))
+    fuccess(Redirect(routes.UserAnalysis.index))
   }
 
   def sendGame = Open { _ ?=>
-    fuccess(NotFound)
+    fuccess(Redirect(routes.UserAnalysis.index))
   }
 
   def apiSendGame = Open { _ ?=>
-    fuccess(NotFound)
+    fuccess(Redirect(routes.UserAnalysis.index))
   }

@@ -1,24 +1,45 @@
 package lila.web
 package ui
 
-import play.api.i18n.Lang
-import scalalib.model.Language
 
 import lila.ui.*
 
 import ScalatagsTemplate.{ *, given }
 
 case class PieceSetImages(assetHelper: lila.web.ui.AssetFullHelper):
-  def load(name: String): Frag = ""
+  def load(name: String): Frag =
+    import assetHelper.*
 
-final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
-    popularAlternateLanguages: List[Language]
-):
+    val safeName = name.filter: c =>
+      (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+
+    def piece(file: String) = assetUrl(s"piece/$safeName/$file")
+
+    raw(
+      s"""<style id="piece-set-vars">
+  body{
+    ---white-pawn:url("${piece("wP.svg")}");
+    ---white-knight:url("${piece("wN.svg")}");
+    ---white-bishop:url("${piece("wB.svg")}");
+    ---white-rook:url("${piece("wR.svg")}");
+    ---white-queen:url("${piece("wQ.svg")}");
+    ---white-king:url("${piece("wK.svg")}");
+    ---black-pawn:url("${piece("bP.svg")}");
+    ---black-knight:url("${piece("bN.svg")}");
+    ---black-bishop:url("${piece("bB.svg")}");
+    ---black-rook:url("${piece("bR.svg")}");
+    ---black-queen:url("${piece("bQ.svg")}");
+    ---black-king:url("${piece("bK.svg")}");
+  }
+</style>"""
+    )
+
+final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
   import helpers.{ *, given }
   import assetHelper.{ *, given }
 
   val doctype = raw("<!DOCTYPE html>")
-  def htmlTag(using lang: Lang) = html(st.lang := lang.code)
+  def htmlTag = html()
   val topComment = raw("""<!-- Chesstory Analysis Engine -->""")
   val charset = raw("""<meta charset="utf-8">""")
   val viewport = raw:
@@ -86,8 +107,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     val prefs = "Preferences"
     frag(
       div(cls := "signin-or-signup")(
-        a(href := s"${routes.Auth.login.url}?referrer=${ctx.req.path}", cls := "signin")("Sign in"),
-        a(href := routes.Auth.signup, cls := "button signup")("Sign up")
+        a(href := s"${routes.Auth.magicLink.url}?referrer=${ctx.req.path}", cls := "signin")("Sign in")
       ),
       div(cls := "dasher")(
         button(cls := "toggle anon link", title := prefs, aria.label := prefs, dataIcon := Icon.Gear),
@@ -115,11 +135,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     s"""<link rel="alternate" hreflang="$langStr" href="$netBaseUrl$path"/>"""
 
   def hrefLangs(path: LangPath) = raw:
-    val pathEnd = if path.value == "/" then "" else path.value
-    hrefLang("x-default", path.value) + hrefLang("en", path.value) +
-      popularAlternateLanguages.map { l =>
-        hrefLang(l.value, s"/$l$pathEnd")
-      }.mkString
+    hrefLang("x-default", path.value) + hrefLang("en", path.value)
 
   def pageZoom(using ctx: Context): Int = {
     def oldZoom = ctx.req.session.get("zoom2").flatMap(_.toIntOption).map(_ - 100)
@@ -169,7 +185,9 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper)(
     spinnerMask
   )
 
-  def sitePreload(i18n: List[lila.core.i18n.I18nModule.Selector], modules: EsmList)(using Context): Frag = ""
+  def sitePreload(modules: EsmList)(using Context): Frag =
+    val keys = "site" :: modules.flatMap(_.map(_.key))
+    scriptsPreload("manifest" :: keys)
 
 
   object siteHeader:

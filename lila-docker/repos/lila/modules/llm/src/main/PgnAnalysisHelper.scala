@@ -2,8 +2,7 @@ package lila.llm
 
 import chess.*
 import chess.format.{ Fen, Uci }
-import chess.format.pgn.{ Parser, PgnStr }
-import chess.Replay
+import chess.format.pgn.{ Parser, PgnStr, San }
 
 /**
  * PGN Analysis Helper
@@ -67,6 +66,7 @@ object PgnAnalysisHelper:
       prevEvalCp: Int,
       engineBestMoveUci: String
   ): Option[String] =
+    val cpLoss = (prevEvalCp - evalCp).abs
     val isWhite = plyData.color.white
     val actualLoss = if (isWhite) prevEvalCp - evalCp else evalCp - prevEvalCp
     
@@ -91,7 +91,7 @@ object PgnAnalysisHelper:
       uci <- Uci(uciMove)
       move <- uci match
         case m: Uci.Move => pos.move(m).toOption
-        case _: Uci.Drop => None // Drops not supported for UCI to SAN conversion
+        case d: Uci.Drop => None // Engine won't suggest drops in standard chess analysis usually
     yield move.toSanStr.toString
 
   /**

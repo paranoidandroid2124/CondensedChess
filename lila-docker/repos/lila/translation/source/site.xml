@@ -510,7 +510,7 @@
   <string name="setTheBoard">Set the board</string>
   <string name="popularOpenings">Popular openings</string>
   <string name="endgamePositions">Endgame positions</string>
-  <string name="chess960StartPosition">Chess960 start position: %s</string>
+  <string name="chess960StartPosition">Freestyle Chess start position: %s</string>
   <string name="startPosition">Starting position</string>
   <string name="clearBoard">Clear board</string>
   <string name="loadPosition">Load position</string>
@@ -729,7 +729,7 @@
   <string name="playSelectedMove">play selected move</string>
   <string name="newTournament">New tournament</string>
   <string name="tournamentHomeTitle">Chess tournaments featuring various time controls and variants</string>
-  <string name="tournamentHomeDescription">Play fast-paced chess tournaments! Join an official scheduled tournament, or create your own. Bullet, Blitz, Classical, Chess960, King of the Hill, Threecheck, and more options available for endless chess fun.</string>
+  <string name="tournamentHomeDescription">Play fast-paced chess tournaments! Join an official scheduled tournament, or create your own. Bullet, Blitz, Classical, Freestyle Chess, King of the Hill, Threecheck, and more options available for endless chess fun.</string>
   <string name="tournamentNotFound">Tournament not found</string>
   <string name="tournamentDoesNotExist">This tournament does not exist.</string>
   <string name="tournamentMayHaveBeenCanceled">The tournament may have been cancelled if all players left before it started.</string>

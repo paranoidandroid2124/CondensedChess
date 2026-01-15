@@ -106,19 +106,6 @@ final class OAuth(env: Env, apiC: => Api) extends LilaController(env):
     )
   }
 
-  def challengeTokens = ScopedBody(_.Web.Mod) { ctx ?=> me ?=>
-    if isGranted(_.ApiChallengeAdmin) then
-      bindForm(lila.oauth.OAuthTokenForm.adminChallengeTokens())(
-        jsonFormError,
-        data =>
-          env.oAuth.tokenApi
-            .adminChallengeTokens(data, me)
-            .map: tokens =>
-              JsonOk(tokens.view.mapValues(_.plain).toMap)
-      )
-    else Unauthorized(jsonError("Missing permission"))
-  }
-
   def testTokens = AnonBodyOf(parse.tolerantText): body =>
     val bearers = Bearer.from(body.trim.split(',').view.take(1000).toList)
     limit

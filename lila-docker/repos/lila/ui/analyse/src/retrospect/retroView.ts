@@ -6,15 +6,15 @@ import { bind, dataIcon, hl, type VNode, spinnerVdom as spinner } from 'lib/view
 
 function skipOrViewSolution(ctrl: RetroCtrl) {
   return hl('div.choices', [
-    hl('a', { hook: bind('click', ctrl.viewSolution, ctrl.redraw) }, i18n.site.viewTheSolution),
-    hl('a', { hook: bind('click', ctrl.skip) }, i18n.site.skipThisMove),
+    hl('a', { hook: bind('click', ctrl.viewSolution, ctrl.redraw) }, 'View the solution'),
+    hl('a', { hook: bind('click', ctrl.skip) }, 'Skip this move'),
   ]);
 }
 
 function jumpToNext(ctrl: RetroCtrl) {
   return hl('a.half.continue', { hook: bind('click', ctrl.jumpToNext) }, [
     hl('i', { attrs: dataIcon(licon.PlayTriangle) }),
-    i18n.site.next,
+    'Next',
   ]);
 }
 
@@ -26,9 +26,8 @@ function renderEvalProgress(node: Tree.Node): VNode {
     'div.progress',
     hl('div', {
       attrs: {
-        style: `width: ${
-          node.ceval ? (100 * Math.max(0, node.ceval.depth - minDepth)) / (maxDepth - minDepth) + '%' : 0
-        }`,
+        style: `width: ${node.ceval ? (100 * Math.max(0, node.ceval.depth - minDepth)) / (maxDepth - minDepth) + '%' : 0
+          }`,
       },
     }),
   );
@@ -40,13 +39,14 @@ const feedback = {
       hl('div.player', [
         hl('div.no-square', hl('piece.king.' + ctrl.color)),
         hl('div.instruction', [
+          hl('strong', [
+            renderIndexAndMove(ctrl.current()!.fault.node, false, true),
+            ' was played',
+          ]),
           hl(
-            'strong',
-            i18n.site.xWasPlayed.asArray(
-              hl('move', renderIndexAndMove(ctrl.current()!.fault.node, false, true)),
-            ),
+            'em',
+            ctrl.color === 'white' ? 'Find a better move for White' : 'Find a better move for Black',
           ),
-          hl('em', i18n.site[ctrl.color === 'white' ? 'findBetterMoveForWhite' : 'findBetterMoveForBlack']),
           skipOrViewSolution(ctrl),
         ]),
       ]),
@@ -58,9 +58,9 @@ const feedback = {
       hl('div.player', [
         hl('div.icon.off', '!'),
         hl('div.instruction', [
-          hl('strong', i18n.site.youBrowsedAway),
+          hl('strong', 'You browsed away'),
           hl('div.choices.off', [
-            hl('a', { hook: bind('click', ctrl.jumpToNext) }, i18n.site.resumeLearning),
+            hl('a', { hook: bind('click', ctrl.jumpToNext) }, 'Resume learning'),
           ]),
         ]),
       ]),
@@ -71,8 +71,8 @@ const feedback = {
       hl('div.player', [
         hl('div.icon', '✗'),
         hl('div.instruction', [
-          hl('strong', i18n.site.youCanDoBetter),
-          hl('em', i18n.site[ctrl.color === 'white' ? 'tryAnotherMoveForWhite' : 'tryAnotherMoveForBlack']),
+          hl('strong', 'You can do better'),
+          hl('em', ctrl.color === 'white' ? 'Try another move for White' : 'Try another move for Black'),
           skipOrViewSolution(ctrl),
         ]),
       ]),
@@ -82,7 +82,7 @@ const feedback = {
     return [
       hl(
         'div.half.top',
-        hl('div.player', [hl('div.icon', '✓'), hl('div.instruction', hl('strong', i18n.study.goodMove))]),
+        hl('div.player', [hl('div.icon', '✓'), hl('div.instruction', hl('strong', 'Good move'))]),
       ),
       jumpToNext(ctrl),
     ];
@@ -94,13 +94,8 @@ const feedback = {
         hl('div.player', [
           hl('div.icon', '✓'),
           hl('div.instruction', [
-            hl('strong', i18n.site.solution),
-            hl(
-              'em',
-              i18n.site.bestWasX.asArray(
-                hl('strong', renderIndexAndMove(ctrl.current()!.solution.node, false, false)),
-              ),
-            ),
+            hl('strong', 'Solution'),
+            hl('em', ['Best was ', renderIndexAndMove(ctrl.current()!.solution.node, false, false)]),
           ]),
         ]),
       ),
@@ -113,7 +108,7 @@ const feedback = {
         'div.half.top',
         hl('div.player.center', [
           hl('div.instruction', [
-            hl('strong', i18n.site.evaluatingYourMove),
+            hl('strong', 'Evaluating your move'),
             renderEvalProgress(ctrl.node()),
           ]),
         ]),
@@ -125,7 +120,7 @@ const feedback = {
       return [
         hl(
           'div.half.top',
-          hl('div.player', [hl('div.icon', spinner()), hl('div.instruction', i18n.site.waitingForAnalysis)]),
+          hl('div.player', [hl('div.icon', spinner()), hl('div.instruction', 'Waiting for analysis')]),
         ),
       ];
     const nothing = !ctrl.completion()[1];
@@ -135,33 +130,31 @@ const feedback = {
         hl('div.instruction', [
           hl(
             'em',
-            i18n.site[
-              nothing
-                ? ctrl.color === 'white'
-                  ? 'noMistakesFoundForWhite'
-                  : 'noMistakesFoundForBlack'
-                : ctrl.color === 'white'
-                  ? 'doneReviewingWhiteMistakes'
-                  : 'doneReviewingBlackMistakes'
-            ],
+            nothing
+              ? ctrl.color === 'white'
+                ? 'No mistakes found for White'
+                : 'No mistakes found for Black'
+              : ctrl.color === 'white'
+                ? 'Done reviewing White mistakes'
+                : 'Done reviewing Black mistakes',
           ),
           hl('div.choices.end', [
             !nothing &&
-              hl(
-                'a',
-                {
-                  key: 'reset',
-                  hook: bind('click', ctrl.reset),
-                },
-                i18n.site.doItAgain,
-              ),
+            hl(
+              'a',
+              {
+                key: 'reset',
+                hook: bind('click', ctrl.reset),
+              },
+              'Do it again',
+            ),
             hl(
               'a',
               {
                 key: 'flip',
                 hook: bind('click', ctrl.flip),
               },
-              i18n.site[ctrl.color === 'white' ? 'reviewBlackMistakes' : 'reviewWhiteMistakes'],
+              ctrl.color === 'white' ? 'Review Black mistakes' : 'Review White mistakes',
             ),
           ]),
         ]),
@@ -185,7 +178,7 @@ export default function (root: AnalyseCtrl): VNode | undefined {
     completion = ctrl.completion();
   return hl('div.retro-box.training-box.sub-box', [
     hl('div.title', [
-      hl('span', i18n.site.learnFromYourMistakes),
+      hl('span', 'Learn from your mistakes'),
       hl('span', `${Math.min(completion[0] + 1, completion[1])} / ${completion[1]}`),
       hl('button.fbt', {
         hook: bind('click', root.toggleRetro, root.redraw),

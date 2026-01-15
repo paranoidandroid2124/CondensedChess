@@ -1,20 +1,17 @@
 package lila.study
 package ui
 
-import lila.common.String.removeMultibyteSymbols
 import lila.core.study.StudyOrder
 import lila.ui.*
-
 import ScalatagsTemplate.{ *, given }
 
+// Chesstory: Aggressively simplified Study bits UI
 final class StudyBits(helpers: Helpers):
   import helpers.{ *, given }
 
   def orderSelect(order: StudyOrder, active: String, url: StudyOrder => Call)(using Context) =
     val orders =
-      if active == "search" then Orders.search
-      else if active == "all" then Orders.withoutSelector
-      else if active.startsWith("topic") then Orders.list
+      if active == "all" then Orders.withoutSelector
       else Orders.withoutMine
     lila.ui.bits.mselect(
       "orders",
@@ -30,20 +27,6 @@ final class StudyBits(helpers: Helpers):
         dataIcon := Icon.PlusButton,
         title := "Create a new study"
       )
-    )
-
-  def authLinks(active: String, order: StudyOrder)(using Context) =
-    def activeCls(c: String) = cls := (c == active).option("active")
-    frag(
-      a(activeCls("mine"), href := routes.Study.mine(order, 1))("My studies"),
-      a(activeCls("mineMember"), href := routes.Study.mineMember(order, 1))(
-        "Studies I contribute to"
-      ),
-      a(activeCls("minePublic"), href := routes.Study.minePublic(order, 1))("My public studies"),
-      a(activeCls("minePrivate"), href := routes.Study.minePrivate(order, 1))(
-        "My private studies"
-      ),
-      a(activeCls("mineLikes"), href := routes.Study.mineLikes(order, 1))("My favorite studies")
     )
 
   def widget(s: Study.WithChaptersAndLiked, tag: Tag = h2)(using ctx: Context) =
@@ -75,10 +58,7 @@ final class StudyBits(helpers: Helpers):
       div(cls := "body")(
         ol(cls := "chapters")(
           s.chapters.map: name =>
-            li(cls := "text", dataIcon := Icon.DiscBigOutline)(
-              if ctx.userId.exists(s.study.isMember) then name.value
-              else removeMultibyteSymbols(name.value)
-            )
+            li(cls := "text", dataIcon := Icon.DiscBigOutline)(name.value)
         ),
         ol(cls := "members")(
           s.study.members.members.values
@@ -91,4 +71,3 @@ final class StudyBits(helpers: Helpers):
         )
       )
     )
-

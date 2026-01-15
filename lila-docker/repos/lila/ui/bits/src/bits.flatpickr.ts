@@ -1,5 +1,5 @@
 import flatpickr from 'flatpickr';
-import { use24h } from 'lib/i18n';
+import { use24h } from 'lib/format';
 import type { Options } from 'flatpickr/dist/types/options';
 
 site.load.then(() => {

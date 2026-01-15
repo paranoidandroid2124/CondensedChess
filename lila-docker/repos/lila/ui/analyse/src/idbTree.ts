@@ -9,7 +9,7 @@ export class IdbTree {
   private moveDb?: ObjectStorage<MoveState>;
   private collapseDb?: ObjectStorage<Tree.Path[]>;
 
-  constructor(private ctrl: AnalyseCtrl) {}
+  constructor(private ctrl: AnalyseCtrl) { }
 
   someCollapsedOf(collapsed: boolean, path = ''): boolean {
     return (
@@ -88,25 +88,25 @@ export class IdbTree {
   }
 
   onAddNode(node: Tree.Node, path: Tree.Path): void {
-    if (this.ctrl.study || this.ctrl.synthetic || this.dirty) return;
+    if (this.ctrl.synthetic || this.dirty) return;
     this.dirty = !this.ctrl.tree.pathExists(path + node.id);
   }
 
   clear = async (): Promise<void> => {
     await this.collapseDb?.remove(this.id);
-    if (!this.ctrl.study && !this.ctrl.synthetic) await this.moveDb?.put(this.id, { root: undefined });
+    if (!this.ctrl.synthetic) await this.moveDb?.put(this.id, { root: undefined });
     site.reload();
   };
 
   async saveMoves(force = false): Promise<IDBValidKey | undefined> {
-    if (this.ctrl.study || this.ctrl.synthetic || !(this.dirty || force)) return;
+    if (this.ctrl.synthetic || !(this.dirty || force)) return;
     return this.moveDb?.put(this.id, { root: this.ctrl.tree.root });
   }
 
   async merge(): Promise<void> {
     if (!('indexedDB' in window) || !window.indexedDB) return;
     try {
-      if (!this.ctrl.study && !this.ctrl.synthetic) {
+      if (!this.ctrl.synthetic) {
         this.moveDb ??= await objectStorage<MoveState>({ store: 'analyse-state', db: 'lichess' });
         const state = await this.moveDb.get(this.ctrl.data.game.id);
         if (state?.root) {
@@ -130,7 +130,7 @@ export class IdbTree {
   }
 
   private get id(): string {
-    return this.ctrl.study?.data.chapter.id ?? this.ctrl.data.game.id;
+    return this.ctrl.data.game.id;
   }
 
   private async saveCollapsed() {
@@ -142,11 +142,11 @@ export class IdbTree {
     const [first, second, third] = node.children.filter(n => this.ctrl.showFishnetAnalysis() || !n.comp);
     return Boolean(
       first?.forceVariation ||
-        third ||
-        (second && treeOps.hasBranching(second, 6)) ||
-        (isMainline &&
-          this.ctrl.treeView.mode === 'column' &&
-          (second || first?.comments?.filter(Boolean).length)),
+      third ||
+      (second && treeOps.hasBranching(second, 6)) ||
+      (isMainline &&
+        this.ctrl.treeView.mode === 'column' &&
+        (second || first?.comments?.filter(Boolean).length)),
     );
   }
 

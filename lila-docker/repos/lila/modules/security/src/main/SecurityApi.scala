@@ -12,7 +12,6 @@ final class SecurityApi(
 )(using Executor):
 
   val sessionIdKey = "sid"
-  val AccessUri = "access"
 
   def reqSessionId(req: play.api.mvc.RequestHeader): Option[SessionId] =
     req.cookies.get(sessionIdKey).map(_.value).map(SessionId.apply)
@@ -68,16 +67,18 @@ final class SecurityApi(
   def rememberForm = Form(single("remember" -> boolean))
 
   def authenticate(login: String, pass: String): Fu[Option[lila.core.user.User]] =
-    userRepo.byId(lila.core.userId.UserId(login.toLowerCase)).flatMap:
-      case Some(u) => fuccess(Some(u)) // Auto-authenticate for now, or check pass if needed
-      case _ => fuccess(None)
+    fuccess(None)
 
   def logout(sid: SessionId): Funit =
     sessionStore.delete(sid)
 
   def restoreUser(req: play.api.mvc.RequestHeader): Fu[Option[lila.core.user.User]] =
-    // Simplified analysis-only implementation
-    Future.successful(None)
+    reqSessionId(req).fold(fuccess(None)): sid =>
+      sessionStore
+        .authInfo(sid)
+        .flatMap:
+          case Some(info) => userRepo.byId(info.userId)
+          case None       => fuccess(None)
     
   def oauthScoped(req: play.api.mvc.RequestHeader, accepted: EndpointScopes): lila.oauth.OAuthServer.AuthFu =
     lila.oauth.OAuthServer.NoSuchToken.raise

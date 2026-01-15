@@ -34,7 +34,6 @@ trait Helpers:
   def esmInitBit(name: String): Esm = Esm(name)
   def routeUrl(call: play.api.mvc.Call): String = call.url
   def standardFlash: Frag = raw("")
-  def analyseNvuiTag: Esm = Esm("analyse.nvui")
 
   // Missing helpers added for stabilization
   def submitButton(mods: Modifier*): Tag = button(tpe := "submit", mods)

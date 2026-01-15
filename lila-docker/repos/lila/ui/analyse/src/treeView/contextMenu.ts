@@ -1,7 +1,7 @@
 import * as licon from 'lib/licon';
 import { type VNode, onInsert, hl } from 'lib/view';
 import type AnalyseCtrl from '../ctrl';
-import * as studyView from '../study/studyView';
+
 import { patch, nodeFullName } from '../view/util';
 import { renderVariationPgn } from '../pgnExport';
 import { isTouchDevice } from 'lib/device';
@@ -127,25 +127,25 @@ function view(ctrl: AnalyseCtrl, path: Tree.Path, coords: Coords): VNode {
     [
       hl('p.title', nodeFullName(node)),
 
-      canPromote && action(licon.UpTriangle, i18n.site.promoteVariation, () => ctrl.promote(path, false)),
+      canPromote && action(licon.UpTriangle, 'Promote variation', () => ctrl.promote(path, false)),
 
-      !onMainline && action(licon.Checkmark, i18n.site.makeMainLine, () => ctrl.promote(path, true)),
+      !onMainline && action(licon.Checkmark, 'Make main line', () => ctrl.promote(path, true)),
 
-      path && ctrl.study && studyView.contextMenu(ctrl.study, path, node),
+
 
       path &&
-        onMainline &&
-        action(licon.InternalArrow, i18n.site.forceVariation, () => ctrl.forceVariation(path, true)),
+      onMainline &&
+      action(licon.InternalArrow, 'Force variation', () => ctrl.forceVariation(path, true)),
 
       idbTree.someCollapsedOf(false) &&
-        action(licon.MinusButton, 'Collapse all', () => idbTree.setCollapsedFrom('', true)),
+      action(licon.MinusButton, 'Collapse all', () => idbTree.setCollapsedFrom('', true)),
 
       idbTree.someCollapsedOf(true) &&
-        action(licon.PlusButton, 'Expand all', () => idbTree.setCollapsedFrom('', false)),
+      action(licon.PlusButton, 'Expand all', () => idbTree.setCollapsedFrom('', false)),
 
       action(
         licon.Clipboard,
-        onMainline ? i18n.site.copyMainLinePgn : i18n.site.copyVariationPgn,
+        onMainline ? 'Copy main line PGN' : 'Copy variation PGN',
         () =>
           navigator.clipboard.writeText(
             renderVariationPgn(ctrl.data.game, ctrl.tree.getNodeList(extendedPath)),
@@ -155,13 +155,13 @@ function view(ctrl: AnalyseCtrl, path: Tree.Path, coords: Coords): VNode {
       ),
 
       path &&
-        action(
-          licon.Trash,
-          i18n.site.deleteFromHere,
-          () => ctrl.deleteNode(path),
-          () => ctrl.pendingDeletionPath(path),
-          () => ctrl.pendingDeletionPath(null),
-        ),
+      action(
+        licon.Trash,
+        'Delete from here',
+        () => ctrl.deleteNode(path),
+        () => ctrl.pendingDeletionPath(path),
+        () => ctrl.pendingDeletionPath(null),
+      ),
     ],
   );
 }

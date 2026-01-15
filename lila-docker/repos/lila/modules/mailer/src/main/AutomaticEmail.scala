@@ -34,6 +34,27 @@ The Lichess team"""
           ).some
         )
 
+  def magicLinkLogin(email: EmailAddress, url: String): Funit =
+    given Lang = Lang("en")
+    mailer.canSend.so:
+      val body =
+        s"""Hello,
+           |
+           |Use this link to log in:
+           |$url
+           |
+           |If you did not request this, you can ignore this email.
+           |
+           |$regards
+           |""".stripMargin
+      mailer.sendOrSkip:
+        Mailer.Message(
+          to = email,
+          subject = "Your login link",
+          text = Mailer.txt.addServiceNote(body),
+          htmlBody = standardEmail(body).some
+        )
+
   // Social/Game/Patron emails removed for Analysis-Only version
 
   def delete(user: User): Funit =
@@ -45,7 +66,7 @@ Following your request, the Lichess account "${user.username}" will be deleted i
 $regards
 """
     userApi.email(user.id).flatMapz { email =>
-      given Lang = user.lang.flatMap(Lang.get).getOrElse(Lang("en"))
+      given Lang = Lang("en")
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
@@ -55,4 +76,4 @@ $regards
         )
     }
 
-  private def userLang(user: User): Lang = user.lang.flatMap(Lang.get).getOrElse(Lang("en"))
+  private def userLang(user: User): Lang = Lang("en")

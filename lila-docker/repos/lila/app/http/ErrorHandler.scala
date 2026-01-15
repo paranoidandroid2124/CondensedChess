@@ -6,15 +6,13 @@ import play.api.mvc.*
 import play.api.mvc.Results.*
 import play.api.routing.*
 import play.api.{ Configuration, Environment, UsefulException }
-
-import lila.api.{ LoginContext, PageContext }
-import lila.common.HTTPRequest
+import scala.annotation.unused
 
 final class ErrorHandler(
     environment: Environment,
     config: Configuration,
     router: => Router,
-    mainC: => controllers.Main
+    @unused mainC: => controllers.Main
 )(using Executor)
     extends DefaultHttpErrorHandler(environment, config, router.some)
     with lila.web.ResponseWriter:

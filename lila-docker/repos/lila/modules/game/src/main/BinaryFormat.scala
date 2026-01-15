@@ -157,7 +157,7 @@ object BinaryFormat:
 
     def readClockLimit(i: Int) = Clock.LimitSeconds(if i < 181 then i * 60 else (i - 180) * 15)
 
-  object castleLastMove:
+  object castleLastMoveFormat:
 
     def write(clmt: CastleLastMove): ByteArray = ByteArray:
 

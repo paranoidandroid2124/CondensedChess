@@ -13,6 +13,14 @@ import lila.llm.analysis.NarrativeUtils
  */
 object BookmakerRenderer:
 
+  private def escapeHtml(text: String): String =
+    text
+      .replace("&", "&amp;")
+      .replace("<", "&lt;")
+      .replace(">", "&gt;")
+      .replace("\"", "&quot;")
+      .replace("'", "&#39;")
+
   /**
    * Main entry point for rendering a Bookmaker panel.
    * @param commentary The raw text from the LLM.
@@ -42,14 +50,20 @@ object BookmakerRenderer:
    * NOTE: This uses raw HTML injection; ensure input text is sanitized.
    */
   private def renderTextWithMoves(text: String, sanToUciMap: Map[String, String]): Frag =
+    val safeText = escapeHtml(text)
+
     // Match standard SAN moves like Nf3, e4, O-O, etc.
     val moveRegex = """\b([NBKRQ]?[a-h]x?[a-h]?[1-8][+#]?|O-O(?:-O)?|1\.\s+[a-h][1-8])\b""".r
-    val html = moveRegex.replaceAllIn(text, m => 
+
+    val withMoveChips = moveRegex.replaceAllIn(safeText, m =>
       val san = m.group(1)
       val uciAttr = sanToUciMap.get(san).map(u => s""" data-uci="$u"""").getOrElse("")
       s"""<span class="move-chip" data-san="$san"$uciAttr>$san</span>"""
     )
-    raw(html)
+
+    // Support Markdown-style emphasis used by the LLM prompt (**...**).
+    val withBold = """\*\*(.+?)\*\*""".r.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
+    raw(withBold)
 
   /**
    * Renders a list of interactive variation lines with mini-board hover support.

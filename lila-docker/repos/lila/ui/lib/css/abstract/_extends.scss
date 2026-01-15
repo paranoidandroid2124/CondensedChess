@@ -139,6 +139,7 @@
   @include if-transp {
     @include back-blur();
   }
+
   box-shadow: -1px 5px 6px rgba(0, 0, 0, 0.3);
 }
 
@@ -146,9 +147,9 @@
   @include if-transp {
     @include back-blur();
   }
-  box-shadow:
-    0 14px 28px rgba(0, 0, 0, 0.25),
-    0 10px 10px rgba(0, 0, 0, 0.22);
+
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25),
+  0 10px 10px rgba(0, 0, 0, 0.22);
 }
 
 %button-shadow {
@@ -209,6 +210,7 @@
 %box-padding-horiz {
   padding: 0 var(---box-padding);
 }
+
 %box-margin-horiz {
   margin-left: var(---box-padding);
   margin-right: var(---box-padding);
@@ -254,7 +256,7 @@
   // padding-bottom: 75%; /* 4/3 */
   width: 100%;
 
-  > * {
+  >* {
     @extend %abs-100;
 
     border: none;
@@ -264,7 +266,7 @@
 %data-icon {
   font-size: 1.2em;
   vertical-align: middle;
-  font-family: 'lichess';
+  font-family: 'chesstory';
   font-style: normal;
   font-weight: normal;
   text-transform: none;

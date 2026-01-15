@@ -2,7 +2,7 @@ package views.game
 package side
 
 import lila.app.UiEnv.{ *, given }
-import lila.i18n.trans
+import scala.annotation.unused
 
 private val separator = " • "
 private val dataUserTv = attr("data-user-tv")
@@ -11,23 +11,23 @@ private val dataTime = attr("data-time")
 def apply(
     pov: Pov,
     initialFen: Option[chess.format.Fen.Full],
-    tour: Option[Any],  // tournament module removed
-    simul: Option[Any],  // simul module removed
+    _tour: Option[Any],  // tournament module removed
+    _simul: Option[Any],  // simul module removed
     userTv: Option[User] = None,
-    bookmarked: Boolean
+    @unused bookmarked: Boolean
 )(using ctx: Context): Option[Frag] =
   ctx.noBlind.option:
     frag(
-      meta(pov, initialFen, none, none, userTv, bookmarked)
+      meta(pov, initialFen, _tour, _simul, userTv, bookmarked)
     )
 
 def meta(
     pov: Pov,
     initialFen: Option[chess.format.Fen.Full],
-    tour: Option[Any],  // tournament module removed
-    simul: Option[Any],  // simul module removed
+    _tour: Option[Any],  // tournament module removed
+    _simul: Option[Any],  // simul module removed
     userTv: Option[User] = None,
-    bookmarked: Boolean
+    @unused bookmarked: Boolean
 )(using ctx: Context): Option[Frag] =
   ctx.noBlind.option:
     import pov.*
@@ -59,7 +59,7 @@ def meta(
               .flatMap(_.user)
               .map: importedBy =>
                 small(
-                  trans.site.importedByX(userIdLink(importedBy.some, withOnline = false))
+                  frag("Imported by ", userIdLink(importedBy.some, withOnline = false))
                 )
           )
         ),
@@ -83,7 +83,7 @@ def meta(
           game.winner.map: winner =>
             frag(
               separator,
-              winner.color.fold(trans.site.whiteIsVictorious, trans.site.blackIsVictorious)
+              winner.color.fold("White is victorious", "Black is victorious")
             )
         )
       ),
@@ -92,7 +92,8 @@ def meta(
           .positionNumber(initialFen | chess.format.Fen.initial)
           .map: number =>
             st.section(
-              trans.site.chess960StartPosition(
+              frag(
+                "Chess960 start position ",
                 a(
                   targetBlank,
                   href := "https://chess960.net/wp-content/uploads/2018/02/chess960-starting-positions.pdf"

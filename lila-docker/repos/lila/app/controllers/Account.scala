@@ -2,20 +2,16 @@ package controllers
 
 import play.api.libs.json.*
 import play.api.mvc.*
-import lila.app.{ *, given }
-import lila.web.AnnounceApi
-import lila.api.Api
+import lila.app.*
 
 final class Account(
-    env: Env,
-    auth: Auth,
-    apiC: => Api
+    env: Env
 ) extends LilaController(env):
 
-  def profile = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def username = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def profileApply = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def usernameApply = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def profile = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def username = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def profileApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def usernameApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
 
   def info = Auth { ctx ?=> me ?=>
     negotiateJson:
@@ -49,24 +45,19 @@ final class Account(
         )
   }
 
-  def passwd = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def passwdApply = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def twoFactor = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def close = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def closeConfirm = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def delete = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def deleteConfirm = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def passwd = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def passwdApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def twoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def close = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def closeConfirm = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def delete = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def deleteConfirm = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
   def deleteDone = Open { _ ?=> Ok("Scheduled for deletion") }
-  def kid = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def kid = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
   def apiKid = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("kid" -> false)) }
-  def kidPost = Auth { _ ?=> _ ?=> fuccess(NotFound) }
+  def kidPost = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
   def apiKidPost = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("ok" -> true)) }
-  def security = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def signout(sessionId: String) = Auth { _ ?=> _ ?=> fuccess(NotFound) }
-  def reopen = Open { _ ?=> fuccess(NotFound) }
-  def reopenApply = Open { _ ?=> fuccess(NotFound) }
-  def reopenSent = Open { _ ?=> fuccess(NotFound) }
-  def reopenLogin(token: String) = Open { _ ?=> fuccess(NotFound) }
-  def data = Auth { _ ?=> me ?=> fuccess(NotFound) }
+  def security = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def data = Auth { _ ?=> me ?=> fuccess(Redirect(routes.UserAnalysis.index)) }

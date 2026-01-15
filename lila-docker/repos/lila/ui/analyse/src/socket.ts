@@ -2,8 +2,10 @@ import { initial as initialBoardFEN } from '@lichess-org/chessground/fen';
 import { ops as treeOps } from 'lib/tree/tree';
 import type AnalyseCtrl from './ctrl';
 import type { EvalGetData, EvalPutData, ServerEvalData } from './interfaces';
-import type { AnaDests, AnaDrop, AnaMove, ChapterData, EditChapterData } from './study/interfaces';
-import type { FormData as StudyFormData } from './study/studyForm';
+
+export interface AnaMove { [key: string]: any }
+export interface AnaDrop { [key: string]: any }
+export interface AnaDests { [key: string]: any }
 
 interface DestsCache {
   [fen: string]: AnaDests;
@@ -35,38 +37,9 @@ interface GameUpdate {
 }
 
 export interface StudySocketSendParams {
-  setPath: (d: ReqPosition) => void;
-  deleteNode: (d: ReqPosition & { jumpTo: string }) => void;
-  promote: (d: ReqPosition & { toMainline: boolean }) => void;
-  forceVariation: (d: ReqPosition & { force: boolean }) => void;
-  shapes: (d: ReqPosition & { shapes: Tree.Shape[] }) => void;
-  setComment: (d: ReqPosition & { text: string }) => void;
-  deleteComment: (d: ReqPosition & { id: string }) => void;
-  setGamebook: (d: ReqPosition & { gamebook: { deviation?: string; hint?: string } }) => void;
-  toggleGlyph: (d: ReqPosition & { id: number }) => void;
-  explorerGame: (d: ReqPosition & { gameId: string; insert: boolean }) => void;
-  setChapter: (chapterId: string) => void;
-  setRole: (d: { userId: string; role: string }) => void;
-  addChapter: (d: ChapterData & { sticky?: boolean; showRatings?: boolean }) => void;
-  editChapter: (d: EditChapterData) => void;
-  descStudy: (desc: string) => void;
-  descChapter: (d: { id: string; desc: string }) => void;
-  deleteChapter: (chapterId: string) => void;
-  clearAnnotations: (chapterId: string) => void;
-  clearVariations: (chapterId: string) => void;
-  sortChapters: (chapterIds: string[]) => void;
-  setTag: (d: { chapterId: string; name: string; value: string }) => void;
   anaMove: (d: AnaMove & MoveOpts) => void;
   anaDrop: (d: AnaDrop & MoveOpts) => void;
   anaDests: (d: AnaDestsReq) => void;
-  like: (d: { liked: boolean }) => void;
-  kick: (username: string) => void;
-  editStudy: (d: StudyFormData) => void;
-  setTopics: (topics: string[]) => void;
-  requestAnalysis: (chapterId: string) => void;
-  invite: (username: string) => void;
-  relaySync: (sync: boolean) => void;
-  leave: () => void;
 }
 
 export interface EvalCacheSocketParams {
@@ -105,11 +78,11 @@ export function make(send: AnalyseSocketSend, ctrl: AnalyseCtrl): Socket {
     anaDestsCache =
       ctrl.data.game.variant.key === 'standard' && ctrl.tree.root.fen.split(' ', 1)[0] === initialBoardFEN
         ? {
-            '': {
-              path: '',
-              dests: 'iqy muC gvx ltB bqs pxF jrz nvD ksA owE',
-            },
-          }
+          '': {
+            path: '',
+            dests: 'iqy muC gvx ltB bqs pxF jrz nvD ksA owE',
+          },
+        }
         : {};
   }
   clearCache();
@@ -121,20 +94,10 @@ export function make(send: AnalyseSocketSend, ctrl: AnalyseCtrl): Socket {
     }, 1000);
 
   function currentChapterId(): string | undefined {
-    if (ctrl.study) return ctrl.study.vm.chapterId;
     return undefined;
   }
 
-  function addStudyData(req: { ch?: string } & MoveOpts, isWrite = false) {
-    const c = currentChapterId();
-    if (c) {
-      req.ch = c;
-      if (isWrite) {
-        if (ctrl.study!.isWriting()) {
-          if (!ctrl.study!.vm.mode.sticky) req.sticky = false;
-        } else req.write = false;
-      }
-    }
+  function addStudyData(_req: { ch?: string } & MoveOpts, _isWrite = false) {
   }
 
   const handlers = {
@@ -213,7 +176,7 @@ export function make(send: AnalyseSocketSend, ctrl: AnalyseCtrl): Socket {
         handler(data);
         return true;
       }
-      return !!ctrl.study?.socketHandler(type, data);
+      return false;
     },
     sendAnaMove,
     sendAnaDrop,

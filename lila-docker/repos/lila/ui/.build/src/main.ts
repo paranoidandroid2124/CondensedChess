@@ -12,7 +12,6 @@ const args: Record<string, string> = {
   '--tsc': '',
   '--sass': '',
   '--esbuild': '',
-  '--i18n': '',
   '--no-color': '',
   '--no-time': '',
   '--no-context': '',
@@ -53,7 +52,6 @@ Exclusive Options:    (any of these will disable other functions)
   --tsc               run tsc on {package}/tsconfig.json and dependencies
   --sass              run sass on {package}/css/build/*.scss and dependencies
   --esbuild           run esbuild (given in {package}/package.json/lichess/bundles array)
-  --i18n              build @types/lichess/i18n.d.ts and translation/js files
 
 Recommended:
    ./build -w         # clean and watch for changes
@@ -79,12 +77,11 @@ argv
   .filter(x => x.startsWith('--') && !Object.keys(args).includes(x.split('=')[0]))
   .forEach(arg => env.exit(`Unknown argument '${arg}'`));
 
-if (['--tsc', '--sass', '--esbuild', '--i18n'].filter(x => argv.includes(x)).length) {
+if (['--tsc', '--sass', '--esbuild'].filter(x => argv.includes(x)).length) {
   // including one or more of these disables the others
   env.begin('sass', boolArg('--sass'));
   env.begin('tsc', boolArg('--tsc'));
   env.begin('esbuild', boolArg('--esbuild'));
-  env.begin('i18n', boolArg('--i18n'));
   env.begin('sync', false);
   env.begin('hash', false);
 }

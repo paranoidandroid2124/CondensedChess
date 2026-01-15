@@ -37,45 +37,34 @@ export function renderControls(ctrl: AnalyseCtrl) {
       ),
     },
     [
-      ctrl.study?.practice
-        ? [
-            hl('button.fbt', {
-              attrs: { title: i18n.site.analysis, 'data-act': 'analysis', 'data-icon': licon.Microscope },
-            }),
-          ]
-        : [
-            displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileCevalTab(ctrl),
-            hl('button.fbt', {
-              attrs: {
-                title: i18n.site.openingExplorerAndTablebase,
-                'data-act': 'opening-explorer',
-                'data-icon': licon.Book,
-              },
-              class: {
-                hidden: !ctrl.explorer.allowed() || (!!ctrl.retro && !isMobileUi()),
-                active: ctrl.activeControlBarTool() === 'opening-explorer',
-              },
-            }),
-            displayColumns() > 1 && !ctrl.retro && !ctrl.ongoing && renderPracticeTab(ctrl),
-          ],
+      displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileCevalTab(ctrl),
+      hl('button.fbt', {
+        attrs: {
+          title: 'Opening explorer and Tablebase',
+          'data-act': 'opening-explorer',
+          'data-icon': licon.Book,
+        },
+        class: {
+          hidden: !ctrl.explorer.allowed() || (!!ctrl.retro && !isMobileUi()),
+          active: ctrl.activeControlBarTool() === 'opening-explorer',
+        },
+      }),
+      displayColumns() > 1 && !ctrl.retro && !ctrl.ongoing && renderPracticeTab(ctrl),
       hl('div.jumps', [
-        (!isMobileUi() || ctrl.study?.practice) && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
+        !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
         isMobileUi() &&
-          !scrubHelpAcknowledged() &&
-          !ctrl.study?.practice &&
-          hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, licon.InfoCircle),
+        !scrubHelpAcknowledged() &&
+        hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, licon.InfoCircle),
         jumpButton(licon.GreaterThan, 'next', canJumpNext),
-        (!isMobileUi() || ctrl.study?.practice) &&
-          jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
+        !isMobileUi() &&
+        jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
       ]),
       [
-        ctrl.study?.practice
-          ? hl('div.noop')
-          : hl('button.fbt', {
-              class: { active: ctrl.activeControlBarTool() === 'action-menu' },
-              attrs: { title: i18n.site.menu, 'data-act': 'menu', 'data-icon': licon.Hamburger },
-            }),
+        hl('button.fbt', {
+          class: { active: ctrl.activeControlBarTool() === 'action-menu' },
+          attrs: { title: 'Menu', 'data-act': 'menu', 'data-icon': licon.Hamburger },
+        }),
       ],
     ],
   );
@@ -84,7 +73,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
 function renderPracticeTab(ctrl: AnalyseCtrl): LooseVNode {
   return hl('button.fbt', {
     attrs: {
-      title: i18n.site.practiceWithComputer,
+      title: 'Practice with computer',
       'data-act': 'engine-mode',
       'data-mode': 'practice',
       'data-icon': licon.Bullseye,
@@ -114,7 +103,7 @@ function renderMobileCevalTab(ctrl: AnalyseCtrl): LooseVNode {
       engineMode === 'ceval' && [
         hl('div.bar'),
         cevalView.renderCevalSwitch(ctrl),
-        evalstr && ctrl.showAnalysis() && !ctrl.isGamebook() && hl('eval', evalstr),
+        evalstr && ctrl.showAnalysis() && hl('eval', evalstr),
       ],
       engineMode === 'practice' && evalstr && hl('eval', evalstr),
       engineMode === 'retro' && ctrl.retro?.completion().join('/'),
@@ -144,7 +133,6 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   else if (action === 'scrub-help') scrubHelp(ctrl);
   else if (action === 'opening-explorer') ctrl.toggleExplorer();
   else if (action === 'menu') ctrl.toggleActionMenu();
-  else if (action === 'analysis') window.open(ctrl.study?.practice?.analysisUrl(), '_blank');
   else if (action === 'engine-mode' && !e.target.closest<HTMLElement>('.switch')) {
     const mode = e.target.dataset.mode as EngineMode;
     if (ctrl.activeControlBarTool()) {
@@ -191,7 +179,7 @@ function scrubHelp(ctrl: AnalyseCtrl) {
       <p>
         Move your finger slowly to scrub through moves one by one.
       </p>
-      <button class="button">${i18n.site.ok}</button>`,
+      <button class="button">OK</button>`,
     actions: [{ selector: 'button', result: 'ok' }],
     noCloseButton: true,
     show: true,

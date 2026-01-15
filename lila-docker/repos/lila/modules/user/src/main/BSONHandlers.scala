@@ -33,7 +33,6 @@ object BSONHandlers:
       roles = doc.getAsOpt[List[RoleDbKey]](BSONFields.roles) | Nil
       createdAt <- doc.getAsOpt[Instant](BSONFields.createdAt)
       seenAt = doc.getAsOpt[Instant](BSONFields.seenAt)
-      lang = doc.getAsOpt[String](BSONFields.lang)
       totpSecret = doc.getAsOpt[TotpSecret](BSONFields.totpSecret)
       email = doc.getAsOpt[EmailAddress](BSONFields.email)
       tier = doc.getAsOpt[UserTier](BSONFields.tier) | UserTier.Free
@@ -45,7 +44,6 @@ object BSONHandlers:
       roles = roles,
       createdAt = createdAt,
       seenAt = seenAt,
-      lang = lang,
       totpSecret = totpSecret,
       email = email,
       tier = tier,
@@ -60,7 +58,6 @@ object BSONHandlers:
       BSONFields.roles -> u.roles,
       BSONFields.createdAt -> u.createdAt,
       BSONFields.seenAt -> u.seenAt,
-      BSONFields.lang -> u.lang,
       BSONFields.totpSecret -> u.totpSecret,
       BSONFields.email -> u.email,
       BSONFields.tier -> u.tier,

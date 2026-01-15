@@ -69,6 +69,7 @@ case class Game(
   def rated = false
   def offline = false
 
+  def start = copy(status = Status.Started)
   def started = status >= Status.Started
   def aborted = status == Status.Aborted
   def finished = status >= Status.Mate

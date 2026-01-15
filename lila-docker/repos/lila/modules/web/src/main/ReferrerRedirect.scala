@@ -10,8 +10,8 @@ import lila.common.HTTPRequest
 
 final class ReferrerRedirect(baseUrl: BaseUrl):
 
-  private val sillyLoginReferrersSet = Set("/login", "/signup", "/mobile")
-  private val loginPattern = """/\w\w/(login|signup|mobile)""".r.pattern
+  private val sillyLoginReferrersSet = Set("/login", "/mobile")
+  private val loginPattern = """/\w\w/(login|mobile)""".r.pattern
   def sillyLoginReferrers(ref: String) = sillyLoginReferrersSet(ref) || loginPattern.matcher(ref).matches
 
   private lazy val parsedBaseUrl = URL.parse(baseUrl.value)

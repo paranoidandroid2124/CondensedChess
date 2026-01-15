@@ -63,9 +63,23 @@ object BookStyleRenderer:
   private object AppendixRenderer:
     def render(ctx: NarrativeContext): String =
       val sb = new StringBuilder()
-      sb.append("# Narrative Appendix (Lossless)\n\n")
+      sb.append("# Narrative Appendix (Lossless)\n")
+      sb.append("> [!NOTE]\n")
+      sb.append("> Units: 100cp = 1.0 pawn. Scores are from White's perspective (+ is better for White).\n")
+      sb.append("> Field paths match the hierarchy in this appendix.\n\n")
+      
+      renderKeyFacts(sb, ctx)
+      
       renderValue(sb, "", ctx)
       sb.toString()
+
+    private def renderKeyFacts(sb: StringBuilder, ctx: NarrativeContext): Unit =
+      sb.append("## KEY FACTS\n")
+      ctx.plans.top5.headOption.foreach(p => sb.append(s"- Top Plan: ${p.name}\n"))
+      ctx.threats.toUs.headOption.foreach(t => sb.append(s"- Primary Threat: ${t.kind}${t.square.map(s => s" on $s").getOrElse("")} (${t.lossIfIgnoredCp}cp)\n"))
+      ctx.candidates.headOption.foreach(c => sb.append(s"- Recommended: ${c.move}${c.annotation}\n"))
+      ctx.semantic.flatMap(_.practicalAssessment).foreach(a => sb.append(s"- Engine Score: ${a.engineScore}\n"))
+      sb.append("\n")
 
     private def renderValue(sb: StringBuilder, path: String, value: Any): Unit = value match {
       case Some(v) => renderValue(sb, path, v)
@@ -611,18 +625,21 @@ object BookStyleRenderer:
 
     if (alternatives.size >= 2) {
       val a1 = describe(alternatives(0))
+      val v1 = renderExpectedResponse(alternatives(0), bead)
       val a2 = describe(alternatives(1))
+      val v2 = renderExpectedResponse(alternatives(1), bead)
       variant(bead,
-        s"Alternatively, $a1 or $a2 are both worth considering.",
-        s"$a1 and $a2 remain solid alternatives.",
-        s"One could also try $a1, maintaining the balance."
+        s"Alternatively, $a1$v1 or $a2$v2 are both worth considering.",
+        s"$a1$v1 and $a2$v2 remain solid alternatives.",
+        s"One could also try $a1$v1, maintaining the balance."
       )
     } else {
       val c = alternatives.head
+      val v = renderExpectedResponse(c, bead)
       variant(bead,
-        s"Alternatively, ${describe(c)} is worth considering.",
-        s"${describe(c)} remains a solid alternative.",
-        s"One could also try ${describe(c)}."
+        s"Alternatively, ${describe(c)}$v is worth considering.",
+        s"${describe(c)}$v remains a solid alternative.",
+        s"One could also try ${describe(c)}$v."
       )
     }
 
@@ -683,18 +700,17 @@ object BookStyleRenderer:
     // FIX #3: threats.toUs = threats FROM opponent TO us = opponent's opportunities
     // (previously incorrectly used threats.toThem which means threats WE pose TO them)
     val oppThreat = ctx.threats.toUs.headOption.filter(_.lossIfIgnoredCp >= 50).map { t =>
-      val threatDesc = t.kind.toLowerCase match {
-        case "positional" => 
-          t.square.map(s => s"positional pressure on $s").getOrElse {
-            ctx.plans.suppressed.headOption.map(p => s"${humanize(p.name)}").getOrElse("positional pressure")
+      val threatDesc = t.square match {
+        case Some(s) => 
+          t.kind.toLowerCase match {
+            case "positional" => s"positional pressure on $s"
+            case "tactical" => s"a tactical shot on $s"
+            case "material" => s"material on $s"
+            case other => s"$other on $s"
           }
-        case "tactical" => 
-          t.square.map(s => s"a tactical shot on $s").getOrElse {
-             ctx.opponentPlan.map(op => s"a tactical attack via ${humanize(op.name)}").getOrElse("tactical threats")
-          }
-        case "material" =>
-          t.square.map(s => s"material on $s").getOrElse("material threats")
-        case other => s"$other${t.square.map(s => s" on $s").getOrElse("")}"
+        case None =>
+          // Phase 30: Use suppressed plan as fallback for ANY threat kind if square is None
+          ctx.plans.suppressed.headOption.map(p => humanize(p.name)).getOrElse(s"${t.kind} threats")
       }
       rec.use("threats.toUs[0]", s"${t.kind} (${t.lossIfIgnoredCp}cp)", "Opponent opportunities (threats to us)")
       NarrativeLexicon.getOpponentThreat(bead, t.kind, threatDesc)
@@ -753,7 +769,7 @@ object BookStyleRenderer:
 
     def renderTable: String =
       val header = "| Field | Status | Value | Reason |\n|-------|--------|-------|--------|"
-      val rows = entries.result().map(e => s"| ${e.field} | ${e.status} | ${e.value.take(30)} | ${e.reason} |")
+      val rows = entries.result().map(e => s"| ${e.field} | ${e.status} | ${e.value.take(100)} | ${e.reason} |")
       (header :: rows).mkString("\n")
 
 

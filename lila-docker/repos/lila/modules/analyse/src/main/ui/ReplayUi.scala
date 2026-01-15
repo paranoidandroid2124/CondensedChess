@@ -85,9 +85,6 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
       .page(analyseUi.titleOf(pov))
       .css("analyse.round")
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
-      .css(ctx.blind.option("round.nvui"))
-      .css(ctx.pref.hasKeyboardMove.option("keyboardMove"))
-      .js(analyseNvuiTag)
       .js:
         analyseUi.bits.analyseModule(
           "replay",

@@ -1,8 +1,7 @@
 package controllers
 
 import play.api.mvc.*
-import lila.app.{ *, given }
-import lila.common.HTTPRequest
+import lila.app.*
 
 final class Pref(
     env: Env
@@ -34,10 +33,36 @@ final class Pref(
     )
   }
 
-  def set(name: String) = Auth { ctx ?=> me ?=>
+  def set(name: String) = Open { ctx ?=>
     get("v").fold(fuccess(BadRequest)): v =>
-      env.pref.api
-        .set(me, name, v)
-        .inject(Ok)
-        .recover { case _: Exception => BadRequest }
+      name match
+        // Board zoom is a purely local UI preference (used by layout.pageZoom via the `zoom` cookie),
+        // so keep it available to anonymous users without touching the DB.
+        case "zoom" =>
+          v.toIntOption
+            .filter(z => z >= 0 && z <= 100)
+            .fold(fuccess(BadRequest)): zoom =>
+              fuccess(
+                Ok.withCookies(
+                  Cookie(
+                    name = "zoom",
+                    value = zoom.toString,
+                    maxAge = (60 * 60 * 24 * 365 * 5).some,
+                    path = "/",
+                    httpOnly = false
+                  )
+                )
+              )
+
+        case _ =>
+          ctx.me.fold(fuccess(Unauthorized)): me =>
+            env.pref.api
+              .set(me, name, v)
+              .inject(Ok)
+              .recover { case _: Exception => BadRequest }
+  }
+
+  def options = Auth { ctx ?=> me ?=>
+    env.pref.api.get(me).map: pref =>
+      Ok(lila.pref.ui.DasherJson(pref, none)(using ctx)).as(JSON)
   }

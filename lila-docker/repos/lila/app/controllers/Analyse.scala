@@ -1,10 +1,9 @@
 package controllers
 
-import chess.format.Fen
-import play.api.libs.json.{ Json, JsArray }
+import play.api.libs.json.JsArray
 import play.api.mvc.*
 
-import lila.app.{ *, given }
+import lila.app.*
 import lila.common.HTTPRequest
 import lila.oauth.AccessToken
 
@@ -20,7 +19,7 @@ final class Analyse(
   def replayWithMoves(id: String, moves: String) = Anon:
     env.game.gameRepo.game(GameId(id)).map:
       case Some(game) =>
-        Ok(s"Replay game ${game.id}")
+        Ok(s"Replay game ${game.id} (moves: $moves)")
       case _ => NotFound("Game find error")
 
   def embed(gameId: GameId, color: Color) = embedReplayGame(gameId, color)
@@ -28,16 +27,16 @@ final class Analyse(
   val AcceptsPgn = Accepting("application/x-chess-pgn")
 
   def requestAnalysis(id: String) = Anon:
-    fuccess(NotFound("Stub"))
+    fuccess(Redirect(routes.UserAnalysis.index.url + s"?game=$id"))
 
   def embedReplayGame(gameId: GameId, color: Color) = Anon:
     InEmbedContext:
       env.game.gameRepo.game(gameId).map:
-        case Some(game) =>
+        case Some(_) =>
           // Simplified embed - just return game page
           render:
             case AcceptsPgn() => Ok(s"[Event \"?\"]\n[Site \"?\"]\n[Date \"????.??.??\"]\n[White \"?\"]\n[Black \"?\"]\n[Result \"*\"]\n\n*")
-            case _ => Ok("Embedded Replay")
+            case _ => Ok(s"Embedded Replay ($color)")
         case _ =>
           render:
             case AcceptsPgn() => NotFound("*")

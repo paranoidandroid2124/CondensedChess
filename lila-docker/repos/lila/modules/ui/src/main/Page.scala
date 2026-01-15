@@ -30,7 +30,6 @@ case class Page(
     csp: Option[Update[ContentSecurityPolicy]] = None,
     atomLinkTag: Option[Tag] = None,
     withHrefLangs: Option[LangPath] = None,
-    i18nModules: List[lila.core.i18n.I18nModule.Selector] = Nil,
     flags: Set[PageFlags] = Set.empty,
     transform: Update[Frag] = identity,
     transformHead: Update[Frag] = identity
@@ -65,7 +64,6 @@ case class Page(
 
   def markdownTextarea = css("bits.markdownTextarea").js(Esm("bits.markdownTextarea"))
 
-  def i18n(f: lila.core.i18n.I18nModule.Selector): Page = copy(i18nModules = f :: i18nModules)
 
 final class RenderedPage(val html: String)
 

@@ -1,21 +1,19 @@
 package views
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 
 object account:
   object pref:
-    def apply(user: User, form: Any, categ: String)(using Context) = 
+    def apply(_user: User, _form: Any, _categ: String)(using _ctx: Context) =
       Page("Preferences").wrap(_ => div("Preferences"))
-    def network(args: Any*)(using Context) = 
+    def network(_args: Any*)(using _ctx: Context) =
       Page("Network").wrap(_ => div("Network"))
 
 object oAuth:
-  def authorize(prompt: lila.oauth.AuthorizationRequest.Prompt, user: User, url: String)(using Context) = 
+  def authorize(_prompt: lila.oauth.AuthorizationRequest.Prompt, _user: User, _url: String)(using _ctx: Context) =
     Page("Authorize").wrap(_ => div("Authorize"))
   object token:
-    def index(tokens: Any)(using Context) = 
+    def index(_tokens: Any)(using _ctx: Context) =
       Page("OAuth Tokens").wrap(_ => div("OAuth Tokens"))
-    def create(form: Any, me: User)(using Context) = 
+    def create(_form: Any, _me: User)(using _ctx: Context) =
       Page("Create OAuth Token").wrap(_ => div("Create OAuth Token"))
-
-
