@@ -341,7 +341,7 @@ abstract private[controllers] class LilaController(val env: Env)
 
   // given (using req: RequestHeader): lila.chat.AllMessages = lila.chat.AllMessages(HTTPRequest.isLitools(req))
 
-  def anyCaptcha = env.game.captchaApi.any
+  // Captcha removed - not used in Chesstory
 
   def bindForm[T, R](form: Form[T])(error: Form[T] => R, success: T => R)(using Request[?], FormBinding): R =
     val bound =

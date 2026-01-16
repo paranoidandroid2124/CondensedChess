@@ -53,7 +53,7 @@ object ServerEval:
       chapterRepo: ChapterRepo,
       divider: lila.core.game.Divider,
       @unused analysisJson: lila.tree.AnalysisJson
-  )(using Executor, @unused Scheduler):
+  )(using Executor):
 
     def apply(analysis: Analysis, complete: Boolean): Funit = analysis.id match
       case Analysis.Id.Study(studyId, chapterId) =>
