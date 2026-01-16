@@ -1,8 +1,6 @@
 package lila.llm.model
 
 import chess.{Color, Square}
-import lila.llm.analysis.L3._
-import lila.llm.analysis.PlanMatcher.ActivePlans
 
 /**
  * Phase 6: Narrative Context

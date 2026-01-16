@@ -3,6 +3,7 @@ package lila.study
 import com.softwaremill.macwire.*
 import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
+import scala.annotation.unused
 
 import lila.core.config.*
 
@@ -35,10 +36,10 @@ final class Env(
 
   private lazy val studyDb = mongo.asyncDb("study", appConfig.get[String]("study.mongodb.uri"))
 
-  def version(studyId: StudyId): Fu[Int] =
+  def version(@unused studyId: StudyId): Fu[Int] =
     fuccess(0) // Socket removed - simplified
 
-  def isConnected(studyId: StudyId, userId: UserId): Fu[Boolean] =
+  def isConnected(@unused studyId: StudyId, @unused userId: UserId): Fu[Boolean] =
     fuccess(false) // Socket removed - simplified
 
   val studyRepo = StudyRepo(studyDb(CollName("study")))
@@ -75,7 +76,7 @@ final class Env(
 
   lazy val gifExport = GifExport(ws, appConfig.get[String]("game.gifUrl"))
 
-  def findConnectedUsersIn(studyId: StudyId)(filter: Iterable[UserId] => Fu[List[UserId]]): Fu[List[UserId]] =
+  def findConnectedUsersIn(@unused studyId: StudyId)(@unused filter: Iterable[UserId] => Fu[List[UserId]]): Fu[List[UserId]] =
     fuccess(Nil) // Socket removed - simplified
 
   lila.common.Cli.handle:

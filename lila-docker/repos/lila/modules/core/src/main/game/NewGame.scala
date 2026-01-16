@@ -3,7 +3,6 @@ package game
 
 import _root_.chess.format.Fen
 import _root_.chess.{ ByColor, Game as ChessGame, Rated, Status }
-import scalalib.ThreadLocalRandom
 import scalalib.model.Days
 
 import lila.core.id.GameId

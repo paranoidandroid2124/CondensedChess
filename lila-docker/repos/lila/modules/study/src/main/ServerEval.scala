@@ -3,8 +3,8 @@ package lila.study
 import chess.format.pgn.Glyphs
 import chess.format.{ Fen, Uci, UciCharPair, UciPath }
 import play.api.libs.json.*
+import scala.annotation.unused
 
-import lila.core.perm.Granter
 import lila.db.dsl.bsonWriteOpt
 import lila.tree.Node.Comment
 import lila.tree.{ Advice, Analysis, Branch, Info, Node, Root }
@@ -14,7 +14,7 @@ object ServerEval:
 
   final class Requester(
       chapterRepo: ChapterRepo,
-      userApi: lila.core.user.UserApi
+      @unused userApi: lila.core.user.UserApi
   )(using Executor):
 
     private val onceEvery = scalalib.cache.OnceEvery[StudyChapterId](5.minutes)
@@ -52,8 +52,8 @@ object ServerEval:
       sequencer: StudySequencer,
       chapterRepo: ChapterRepo,
       divider: lila.core.game.Divider,
-      analysisJson: lila.tree.AnalysisJson
-  )(using Executor, Scheduler):
+      @unused analysisJson: lila.tree.AnalysisJson
+  )(using Executor, @unused Scheduler):
 
     def apply(analysis: Analysis, complete: Boolean): Funit = analysis.id match
       case Analysis.Id.Study(studyId, chapterId) =>
