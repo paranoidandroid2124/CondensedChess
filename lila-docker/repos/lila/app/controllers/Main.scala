@@ -23,10 +23,9 @@ final class Main(
   def handlerNotFound(msg: Option[String]) =
     fuccess(NotFound(msg.getOrElse("Not Found")))
 
+  // Captcha removed - not used in Chesstory
   def captchaCheck(id: GameId) = Anon:
-    env.game.captchaApi.validate(id, ~get("solution")).map { valid =>
-      Ok(if valid then 1 else 0)
-    }
+    Ok(1) // Always valid (captcha disabled)
 
   def webmasters = Open:
     Ok("Webmasters")
