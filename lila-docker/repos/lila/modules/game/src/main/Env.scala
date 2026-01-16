@@ -18,8 +18,3 @@ final class Env(
 
   lazy val pgnDump = PgnDump(lightUserApi)
 
-  lazy val crosstableApi = CrosstableApi()
-
-  lazy val favoriteOpponents = FavoriteOpponents()
-
-  lazy val captchaApi = CaptchaApi()

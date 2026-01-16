@@ -1,15 +1,14 @@
 package lila.api
 
 import lila.common.Bus
-import lila.core.perm.Granter
-import lila.db.dsl.{ *, given }
+import scala.annotation.unused
 
 /* Chesstory: Simplified account termination (analysis-only system)
  * Removed: playban, plan, push, round, chat, ranking dependencies
  * Most functionality is stubbed out for the minimal analysis backend
  */
 final class AccountTermination(
-    userRepo: lila.user.UserRepo,
+    @unused userRepo: lila.user.UserRepo,
     securityStore: lila.security.SessionStore,
     tokenApi: lila.oauth.AccessTokenApi
 )(using Executor):

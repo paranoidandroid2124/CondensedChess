@@ -5,13 +5,14 @@ import chess.variant.*
 import chess.format.Fen
 import chess.format.pgn.PgnStr
 import play.api.libs.json.*
+import scala.annotation.unused
 
 import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
 import lila.common.Json.given
 
 final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
-  import helpers.{ *, given }
+  import helpers.*
   import analyseUi.bits.dataPanel
 
   def forCrawler(
@@ -20,7 +21,7 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
       graph: OpenGraph,
       gameSide: Option[Frag],
       crosstable: Option[Tag]
-  )(using Context) =
+  )(using @unused ctx: Context) =
     Page(analyseUi.titleOf(pov))
       .css("analyse.round")
       .graph(graph)

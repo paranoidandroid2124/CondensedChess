@@ -2,7 +2,7 @@ package lila.analyse
 package ui
 
 import lila.llm.model.strategic.VariationLine
-import lila.ui.ScalatagsTemplate.{ *, given }
+import lila.ui.ScalatagsTemplate.*
 import lila.llm.analysis.NarrativeUtils
 
 /**

@@ -9,7 +9,7 @@ import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
 
 final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
-  import helpers.{ *, given }
+  import helpers.*
 
   def miniSpan(fen: Fen.Board, color: Color = chess.White, lastMove: Option[Uci] = None) =
     chessgroundMini(fen, color, lastMove)(span)

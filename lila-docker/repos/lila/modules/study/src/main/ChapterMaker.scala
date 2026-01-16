@@ -3,6 +3,7 @@ package lila.study
 import chess.format.Fen
 import chess.format.pgn.{ PgnStr, Tags }
 import chess.variant.Variant
+import scala.annotation.unused
 
 import lila.core.game.Namer
 import lila.core.id.GameFullId
@@ -121,7 +122,7 @@ final private class ChapterMaker(
       data: Data,
       order: Int,
       userId: UserId,
-      withRatings: Boolean,
+      @unused withRatings: Boolean,
       initialFen: Option[Fen.Full] = None
   ): Fu[Chapter] =
     for
