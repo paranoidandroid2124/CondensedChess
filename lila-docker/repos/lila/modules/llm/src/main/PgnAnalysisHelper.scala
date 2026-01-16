@@ -2,7 +2,7 @@ package lila.llm
 
 import chess.*
 import chess.format.{ Fen, Uci }
-import chess.format.pgn.{ Parser, PgnStr, San }
+import chess.format.pgn.{ Parser, PgnStr }
 
 /**
  * PGN Analysis Helper

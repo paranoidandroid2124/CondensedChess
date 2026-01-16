@@ -14,7 +14,7 @@ final class LlmClient(ws: StandaloneWSClient, config: LlmConfig)(using ec: Execu
 
   private val endpoint = s"https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent"
 
-  def commentPositionRefined(request: CommentRequest, probeResults: Any): Future[Option[CommentResponse]] = 
+  def commentPositionRefined(request: CommentRequest, _probeResults: Any): Future[Option[CommentResponse]] = 
     commentPosition(request) // Fallback for now
 
   /** Generate commentary for a single position */
