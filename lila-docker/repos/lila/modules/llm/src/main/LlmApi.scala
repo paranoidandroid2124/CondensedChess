@@ -1,6 +1,5 @@
 package lila.llm
 
-import play.api.libs.json.*
 import scala.concurrent.{ ExecutionContext, Future }
 
 /** High-level API for LLM commentary features */

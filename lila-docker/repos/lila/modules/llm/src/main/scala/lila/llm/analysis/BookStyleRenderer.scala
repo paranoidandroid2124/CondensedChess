@@ -2,7 +2,6 @@ package lila.llm.analysis
 
 import lila.llm.model._
 import lila.llm.model.strategic._
-import chess.Square
 
 /**
  * Book Style Renderer
