@@ -62,11 +62,12 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
 }
 
 function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
-  if (!ctrl.opts.bookmaker || ctrl.data.game.variant.key !== 'standard') return;
+  if (!ctrl.opts.bookmaker) return;
 
   return hl('aside.analyse__side', {
     hook: {
       insert: () => bookmakerToggleBox(),
+      update: () => bookmakerToggleBox(),
     },
   }, [
     hl(

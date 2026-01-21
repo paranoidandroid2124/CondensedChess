@@ -23,11 +23,15 @@ case class IntegratedContext(
   def evalFor(color: Color): Int = if (color == White) evalCp else -evalCp
 
   /** Derive phase from classification or fallback to "middlegame" */
-  def phase: String = classification.map(_.gamePhase.phaseType match {
-    case lila.llm.analysis.L3.GamePhaseType.Opening => "opening"
+  def phase: String = phaseEnum match {
+    case lila.llm.analysis.L3.GamePhaseType.Opening    => "opening"
     case lila.llm.analysis.L3.GamePhaseType.Middlegame => "middlegame"
-    case lila.llm.analysis.L3.GamePhaseType.Endgame => "endgame"
-  }).getOrElse("middlegame")
+    case lila.llm.analysis.L3.GamePhaseType.Endgame    => "endgame"
+  }
+
+  def phaseEnum: lila.llm.analysis.L3.GamePhaseType = classification
+    .map(_.gamePhase.phaseType)
+    .getOrElse(lila.llm.analysis.L3.GamePhaseType.Middlegame)
 
   // ============================================================
   // NUMERIC-BASED THREAT ASSESSMENT (replaces label-based)
@@ -40,7 +44,7 @@ case class IntegratedContext(
   
   /** Strategic threat TO US: 3-5 moves, >= 100cp loss (structure, passer, file) */
   def strategicThreatToUs: Boolean = threatsToUs.exists(_.threats.exists(t =>
-    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= 100 && !tacticalThreatToUs
+    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToUs
   ))
   
   /** Tactical threat TO THEM: 1-2 moves, >= 200cp (we have forcing attack) */
@@ -50,7 +54,7 @@ case class IntegratedContext(
   
   /** Strategic threat TO THEM: 3-5 moves, >= 100cp (we have positional pressure) */
   def strategicThreatToThem: Boolean = threatsToThem.exists(_.threats.exists(t =>
-    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= 100 && !tacticalThreatToThem
+    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToThem
   ))
   
   /** Max loss if we ignore threats TO US */
@@ -123,10 +127,23 @@ object PlanMatcher:
     val rawPlans = allScorers.flatten
     val (compatiblePlans, events) = applyCompatWithEvents(rawPlans, ctx, side)
     val sortedPlans = compatiblePlans.sortBy(-_.score)
-    val confidence = sortedPlans.headOption.map(_.score).getOrElse(0.0)
+
+    // Fail-closed fallback: always provide at least one plan so renderers and callers
+    // don't need to handle "no plan" as a special case.
+    val plans =
+      if (sortedPlans.nonEmpty) sortedPlans
+      else
+        val fallbackPlan =
+          ctx.phaseEnum match
+            case lila.llm.analysis.L3.GamePhaseType.Opening => Plan.PieceActivation(side)
+            case lila.llm.analysis.L3.GamePhaseType.Endgame => Plan.KingActivation(side)
+            case _                                          => Plan.CentralControl(side)
+        List(PlanMatch(fallbackPlan, 0.25, Nil, Nil, Nil, Nil))
+
+    val confidence = plans.headOption.map(_.score).getOrElse(0.0)
 
     PlanScoringResult(
-      topPlans = sortedPlans.take(5),
+      topPlans = plans.take(5),
       confidence = confidence,
       phase = ctx.phase,
       compatibilityEvents = events
@@ -243,7 +260,7 @@ object PlanMatcher:
     
     val hasBlockade = result.exists(_.plan.isInstanceOf[Plan.Blockade])
     val hasSimplification = result.exists(_.plan.isInstanceOf[Plan.Simplification])
-    if (hasBlockade && hasSimplification && ctx.phase == "endgame" && ctx.evalFor(side) > 100) {
+    if (hasBlockade && hasSimplification && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame && ctx.evalFor(side) > 100) {
       result = result.map {
         case p if p.plan.isInstanceOf[Plan.Blockade] =>
           val newScore = p.score + 0.2
@@ -259,7 +276,7 @@ object PlanMatcher:
     
     val hasSpace = result.exists(_.plan.isInstanceOf[Plan.SpaceAdvantage])
     val hasProphylaxis = result.exists(_.plan.isInstanceOf[Plan.Prophylaxis])
-    if (hasSpace && hasProphylaxis && ctx.phase == "middlegame") {
+    if (hasSpace && hasProphylaxis && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Middlegame) {
       result = result.map {
         case p if p.plan.isInstanceOf[Plan.Prophylaxis] =>
           val newScore = p.score + 0.1
@@ -304,11 +321,11 @@ object PlanMatcher:
     if (relevantMotifs.isEmpty || (ctx.phase == "opening" && relevantMotifs.size < 2)) None
     else
       val baseScore = relevantMotifs.size * 0.2
-      val phaseMultiplier = ctx.phase match
-        case "opening"    => 0.7
-        case "middlegame" => 1.4
-        case "endgame"    => 0.5
-        case _            => 1.0
+      val phaseMultiplier = ctx.phaseEnum match
+        case lila.llm.analysis.L3.GamePhaseType.Opening    => 0.7
+        case lila.llm.analysis.L3.GamePhaseType.Middlegame => 1.4
+        case lila.llm.analysis.L3.GamePhaseType.Endgame    => 0.5
+        case _                                             => 1.0
 
       val evidence = relevantMotifs.take(3).map: m =>
         EvidenceAtom(m, 0.2, s"Kingside pressure: ${m.move.getOrElse("")}")
@@ -353,13 +370,13 @@ object PlanMatcher:
       case _              => false
 
     // P1 FIX: Flank attacks require more evidence in the opening
-    if (relevantMotifs.isEmpty || (ctx.phase == "opening" && relevantMotifs.size < 2)) None
+    if (relevantMotifs.isEmpty || (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening && relevantMotifs.size < 2)) None
     else
       val baseScore = relevantMotifs.size * 0.25
-      val phaseMultiplier = ctx.phase match
-        case "middlegame" => 1.2
-        case "endgame"    => 0.8
-        case _            => 1.0
+      val phaseMultiplier = ctx.phaseEnum match
+        case lila.llm.analysis.L3.GamePhaseType.Middlegame => 1.2
+        case lila.llm.analysis.L3.GamePhaseType.Endgame    => 0.8
+        case _                                             => 1.0
 
       val evidence = relevantMotifs.take(3).map: m =>
         EvidenceAtom(m, 0.25, s"Queenside expansion: ${m.move.getOrElse("")}")
@@ -404,7 +421,7 @@ object PlanMatcher:
       else return None
 
     // Only in middlegame/endgame
-    if (ctx.phase == "opening") return None
+    if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening) return None
 
     val evidence = stormPawns.take(3).map: m =>
       EvidenceAtom(m, 0.3, s"Pawn storm: ${m.move.getOrElse("")}")
@@ -457,7 +474,7 @@ object PlanMatcher:
     // P1 FIX: Detect if immediate mate is present in threats
     // We check threatsToThem because DirectMate is an attacking plan for 'side'
     val hasImmediateMate = ctx.threatsToThem.exists(_.threats.exists(t => 
-      t.kind.toString == "Mate" && t.turnsToImpact <= 2
+      t.kind == lila.llm.analysis.L3.ThreatKind.Mate && t.turnsToImpact <= 2
     ))
     val evalForSide = ctx.evalFor(side)
 
@@ -506,9 +523,9 @@ object PlanMatcher:
     if (relevantMotifs.isEmpty) None
     else
       val baseScore = relevantMotifs.size * 0.3
-      val phaseMultiplier = ctx.phase match
-        case "opening" => 1.5
-        case _         => 0.8
+      val phaseMultiplier = ctx.phaseEnum match
+        case lila.llm.analysis.L3.GamePhaseType.Opening => 1.5
+        case _                                          => 0.8
 
       val evidence = relevantMotifs.take(3).map: m =>
         EvidenceAtom(m, 0.3, s"Central influence: ${m.move.getOrElse("")}")
@@ -552,9 +569,12 @@ object PlanMatcher:
       case _: Outpost        => true
       case _: Centralization => true
       case _: PieceLift      => true
+      case _: Pin            => true
+      case _: Maneuver       => true
       case _                 => false
 
-    if (relevantMotifs.size < 2) None
+    val minEvidence = if ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening then 1 else 2
+    if (relevantMotifs.size < minEvidence) None
     else
       val baseScore = relevantMotifs.size * 0.25
       val evidence = relevantMotifs.take(3).map: m =>
@@ -634,7 +654,7 @@ object PlanMatcher:
       case _ => false
     }
 
-    if (pawnMotifs.isEmpty || (ctx.phase != "endgame" && !isAdvanced)) None
+    if (pawnMotifs.isEmpty || (ctx.phaseEnum != lila.llm.analysis.L3.GamePhaseType.Endgame && !isAdvanced)) None
     else
       val evidence = pawnMotifs.take(2).map: m =>
         EvidenceAtom(m, 0.5, s"Passed pawn advance: ${m.move.getOrElse("")}")
@@ -654,14 +674,14 @@ object PlanMatcher:
 
         if (ctx.pawnAnalysis.exists(_.blockadeSquare.isDefined)) blockers += "Passed pawn is currently blockaded"
         
-        if (ctx.phase != "endgame") missing += "Plan is most effective in endgame"
+        if (ctx.phaseEnum != lila.llm.analysis.L3.GamePhaseType.Endgame) missing += "Plan is most effective in endgame"
         if (ourPassers == 0) missing += "Need to create a passed pawn first"
         if (f.kingSafety.whiteCastledSide == "none" && side == White) missing += "King activation needed"
       }
       
       // Additional gating: suppress if no passers and no advanced pawns
       val ourPassers = ctx.features.map(f => if (side == White) f.pawns.whitePassedPawns else f.pawns.blackPassedPawns).getOrElse(0)
-      val finalScore = (0.8 + (if (isAdvanced) 0.5 else 0.0) + (if (ctx.phase == "endgame") 0.4 else 0.0)) * (if (ourPassers > 0) 1.0 else 0.3)
+      val finalScore = (0.8 + (if (isAdvanced) 0.5 else 0.0) + (if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame) 0.4 else 0.0)) * (if (ourPassers > 0) 1.0 else 0.3)
 
       Some(PlanMatch(
         Plan.PassedPawnPush(side), 
@@ -684,7 +704,7 @@ object PlanMatcher:
     val kingMoves = motifs.collect:
       case m: KingStep if m.stepType == KingStepType.Activation => m
 
-    if (ctx.phase == "endgame" && kingMoves.nonEmpty)
+    if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame && kingMoves.nonEmpty)
       val evidence = kingMoves.take(2).map: m =>
         EvidenceAtom(m, 0.4, s"King march: ${m.move.getOrElse("")}")
       
@@ -927,7 +947,7 @@ object PlanMatcher:
     
   private def scoreZugzwang(motifs: List[Motif], ctx: IntegratedContext, side: Color): Option[PlanMatch] =
     val zugMotifs = motifs.collect { case m: Zugzwang => m }
-    if (zugMotifs.nonEmpty && ctx.phase == "endgame")
+    if (zugMotifs.nonEmpty && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame)
        val evidence = zugMotifs.map(m => EvidenceAtom(m, 1.0, "Zugzwang pattern"))
        val supports = List("Opponent has exhausted useful moves", "Dominant piece placement")
        val blockers = List("Stalemate risks if not careful")

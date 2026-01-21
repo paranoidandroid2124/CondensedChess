@@ -6,7 +6,9 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
+import java.nio.charset.StandardCharsets
 import lila.llm.model._
+import lila.llm.PgnAnalysisHelper
 
 /**
  * P3: Client for Lichess Opening Explorer API (Masters Database).
@@ -14,9 +16,13 @@ import lila.llm.model._
  */
 final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionContext):
   private val mastersUrl = "https://explorer.lichess.ovh/masters"
-  private val requestTimeout = 800.millis
+  private val mastersPgnUrl = "https://explorer.lichess.ovh/master/pgn"
+  private val requestTimeout = 2000.millis
+  private val pgnTimeout = 2000.millis
   private val cacheTtl = 10.minutes
   private val maxCacheEntries = 2000
+  private val maxPgnSnippets = 2
+  private val snippetMaxPlies = 8 // 4 moves from the matched position
 
   private val cache = TrieMap.empty[String, (Long, Option[OpeningReference])]
   private val inFlight = TrieMap.empty[String, Future[Option[OpeningReference]]]
@@ -26,38 +32,111 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
    */
   def fetchMasters(fen: String): Future[Option[OpeningReference]] =
     val now = System.currentTimeMillis()
+    val fenKey = normalizeFen(fen)
 
-    cache.get(fen) match
+    cache.get(fenKey) match
       case Some((ts, refOpt)) if (now - ts) <= cacheTtl.toMillis =>
         Future.successful(refOpt)
       case _ =>
         inFlight.getOrElseUpdate(
-          fen,
+          fenKey,
           ws.url(mastersUrl)
-            .withQueryStringParameters("fen" -> fen)
+            .withQueryStringParameters("fen" -> fenKey)
             .withRequestTimeout(requestTimeout)
             .get()
-            .map { response =>
+            .flatMap { response =>
               if response.status == 200 then
-                parseExplorerResponse(response.body[String])
+                enrichWithSnippets(fenKey, parseExplorerResponse(response.body[String]))
               else
                 if (response.status != 404) then
-                  lila.log("llm").warn(s"Explorer API error: ${response.status} for FEN $fen")
-                None
+                  lila.log("llm").warn(s"Explorer API error: ${response.status} for FEN $fenKey")
+                Future.successful(None)
             }
             .recover { case e: Throwable =>
               lila.log("llm").error(s"Explorer API call failed: ${e.getMessage}")
               None
             }
             .map { refOpt =>
-              cache.put(fen, System.currentTimeMillis() -> refOpt)
+              cache.put(fenKey, System.currentTimeMillis() -> refOpt)
               pruneCache()
               refOpt
             }
             .andThen { case _ =>
-              inFlight.remove(fen)
+              inFlight.remove(fenKey)
             }
         )
+
+  private def normalizeFen(fen: String): String =
+    val parts = fen.trim.split("\\s+").toList
+    parts match
+      case a :: b :: c :: d :: _ => s"$a $b $c $d 0 1"
+      case _                     => fen.trim
+
+  private def fenKey4(fen: String): String =
+    fen.trim.split("\\s+").take(4).mkString(" ")
+
+  private def enrichWithSnippets(fen: String, refOpt: Option[OpeningReference]): Future[Option[OpeningReference]] =
+    refOpt match
+      case None => Future.successful(None)
+      case Some(ref) if ref.sampleGames.isEmpty => Future.successful(Some(ref))
+      case Some(ref) =>
+        val targetFenKey = fenKey4(fen)
+        val games = ref.sampleGames.take(maxPgnSnippets)
+        Future
+          .traverse(games) { g =>
+            fetchPgnSnippet(gameId = g.id, targetFenKey = targetFenKey).map(sn => g.copy(pgn = sn))
+          }
+          .map { enriched =>
+            val updated = ref.sampleGames.zipWithIndex.map { (g, idx) =>
+              enriched.lift(idx).getOrElse(g)
+            }
+            Some(ref.copy(sampleGames = updated))
+          }
+
+  private def fetchPgnSnippet(gameId: String, targetFenKey: String): Future[Option[String]] =
+    ws.url(s"$mastersPgnUrl/$gameId")
+      .withRequestTimeout(pgnTimeout)
+      .get()
+      .map { response =>
+        if response.status != 200 then None
+        else
+          val bytes = response.body[Array[Byte]]
+          val pgn = String(bytes, StandardCharsets.UTF_8)
+          PgnAnalysisHelper.extractPlyData(pgn).toOption.flatMap { plyData =>
+            val idxOpt = plyData.indexWhere(p => fenKey4(p.fen) == targetFenKey) match
+              case -1 => None
+              case i  => Some(i)
+            idxOpt.flatMap { idx =>
+              val slice = plyData.drop(idx).take(snippetMaxPlies)
+              Option.when(slice.nonEmpty)(formatPlySnippet(slice))
+            }
+          }
+      }
+      .recover { case e: Throwable =>
+        lila.log("llm").debug(s"Explorer PGN fetch failed for $gameId: ${e.getMessage}")
+        None
+      }
+
+  private def formatPlySnippet(plys: List[PgnAnalysisHelper.PlyData]): String =
+    val sb = new StringBuilder()
+    var lastMoveNo: Option[Int] = None
+    var lastWasWhite = false
+
+    plys.foreach { p =>
+      val moveNo = (p.ply + 1) / 2
+      val prefix =
+        if (p.ply % 2 == 1) s"$moveNo."
+        else if (lastWasWhite && lastMoveNo.contains(moveNo)) "" else s"$moveNo..."
+
+      if (sb.nonEmpty) sb.append(" ")
+      if (prefix.nonEmpty) sb.append(prefix).append(" ")
+      sb.append(p.playedMove)
+
+      lastMoveNo = Some(moveNo)
+      lastWasWhite = (p.ply % 2 == 1)
+    }
+
+    sb.toString()
 
   private def parseExplorerResponse(body: String): Option[OpeningReference] =
     try
@@ -83,6 +162,14 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
       }
 
       val topGames = (json \ "topGames").asOpt[List[JsValue]].getOrElse(Nil).map { g =>
+        val monthNum =
+          (g \ "month").asOpt[Int].orElse {
+            (g \ "month").asOpt[String].flatMap { s =>
+              // either "2019-08" or "08"
+              s.split("-").lastOption.flatMap(_.toIntOption)
+            }
+          }.getOrElse(1)
+
         ExplorerGame(
           id = (g \ "id").as[String],
           winner = (g \ "winner").asOpt[String].flatMap {
@@ -99,7 +186,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
             (g \ "black" \ "rating").asOpt[Int].getOrElse(0)
           ),
           year = (g \ "year").asOpt[Int].getOrElse(0),
-          month = (g \ "month").asOpt[Int].getOrElse(1)
+          month = monthNum
         )
       }
 

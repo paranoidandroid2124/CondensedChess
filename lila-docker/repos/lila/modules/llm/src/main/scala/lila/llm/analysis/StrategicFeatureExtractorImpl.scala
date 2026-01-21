@@ -53,8 +53,19 @@ class StrategicFeatureExtractorImpl(
     // For White: higher score is better, sort descending (-score)
     // For Black: lower score is better (more negative), sort ascending (score)
     val sortedVars = varsWithPlayed.sortBy(v => if (color.white) -v.effectiveScore else v.effectiveScore)
+
+    // ===== Phase 14: Attach SAN-aware PV parsing for book-style rendering =====
+    // We preserve both resultingFen and parsedMoves so renderers can cite short sample lines.
+    val sortedVarsParsed = sortedVars.map { v =>
+      val parsedMoves = if (v.moves.nonEmpty) lila.llm.analysis.MoveAnalyzer.parsePv(fen, v.moves) else Nil
+      val resultingFen = v.resultingFen.orElse {
+        if (v.moves.nonEmpty) Some(lila.llm.analysis.NarrativeUtils.uciListToFen(fen, v.moves)) else None
+      }
+      v.copy(parsedMoves = parsedMoves, resultingFen = resultingFen)
+    }
+
     val defaultVar = VariationLine(moves = Nil, scoreCp = 0, mate = None, tags = Nil)
-    val bestVar = sortedVars.headOption.getOrElse(defaultVar)
+    val bestVar = sortedVarsParsed.headOption.getOrElse(defaultVar)
     
     // ===== FIX 8: Perspective Correction & Score Unification =====
     // Use normalized score logic for consistent scaling
@@ -102,7 +113,11 @@ class StrategicFeatureExtractorImpl(
     // Note: inputs are now normalized, so analyzer's scoreDiff will be correct
     val preventedPlans = prophylaxisAnalyzer.analyze(board, color, normalizedBestVar, threatLineRaw, threatPlanId)
 
-    val pieceActivity = activityAnalyzer.analyze(board, color)
+    // PracticalityScorer expects activity for BOTH sides (it computes mobility diff),
+    // so we must provide a complete list rather than only the side-to-move.
+    val pieceActivity =
+      activityAnalyzer.analyze(board, chess.Color.White) ++
+        activityAnalyzer.analyze(board, chess.Color.Black)
     val structuralWeaknesses = structureAnalyzer.analyze(board)
     val positionalFeatures = structureAnalyzer.detectPositionalFeatures(board, color)
     
@@ -133,7 +148,7 @@ class StrategicFeatureExtractorImpl(
 
     // ===== FIX 1 continued: Counterfactual with injected played line =====
     val counterfactual = playedMove.flatMap { move =>
-      val userLine = sortedVars.find(_.moves.headOption.contains(move))
+      val userLine = sortedVarsParsed.find(_.moves.headOption.contains(move))
       
       userLine.flatMap { ul =>
         if (bestVar.moves.headOption != Some(move)) {
@@ -156,7 +171,7 @@ class StrategicFeatureExtractorImpl(
 
     // ===== FIX 4 continued: Tag AFTER sorting =====
     // Generate Extended Analysis Data
-    val analyzedVars = lila.llm.analysis.MoveAnalyzer.analyzeVariations(fen, sortedVars, threatLineRaw)
+    val analyzedVars = lila.llm.analysis.MoveAnalyzer.analyzeVariations(fen, sortedVarsParsed, threatLineRaw)
     val bestScoreNorm = analyzedVars.headOption.map(v => normalizeScore(v)).getOrElse(0)
     
     val enrichedAlternatives = analyzedVars.map { v =>
@@ -170,7 +185,7 @@ class StrategicFeatureExtractorImpl(
     }.take(3)
 
     // ===== NEW: Deep Analysis of Top Candidates (Multi-PV) =====
-    val candidates = sortedVars.take(3).map { candidateVar =>
+    val candidates = sortedVarsParsed.take(3).map { candidateVar =>
       val candScore = normalizeScore(candidateVar)
       val candMotifs = lila.llm.analysis.MoveAnalyzer.tokenizePv(fen, candidateVar.moves)
       

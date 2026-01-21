@@ -153,7 +153,7 @@ class TransitionLogicTest extends FunSuite {
     tacticalThreatToThem: Boolean = false,
     isWhiteToMove: Boolean = true
   ): IntegratedContext = {
-    val mockNature = NatureResult(NatureType.Static, 0, 0, 0, false)
+    val mockNature = NatureResult(lila.llm.analysis.L3.NatureType.Static, 0, 0, 0, false)
     val mockCrit = CriticalityResult(CriticalityType.Normal, 0, None, 0)
     val mockTopo = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 0, 0, None, 0, 0, None)
     val mockPhase = GamePhaseResult(GamePhaseType.Middlegame, 30, true, 4)

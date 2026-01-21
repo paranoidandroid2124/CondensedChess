@@ -247,7 +247,7 @@ export default class AnalyseCtrl implements CevalHandler {
   };
 
   enableBookmaker = (v: boolean) => {
-    this.bookmaker = v ? bookmakerNarrative() : undefined;
+    this.bookmaker = v ? bookmakerNarrative(this) : undefined;
     if (this.bookmaker) this.bookmaker(this.nodeList);
     else bookmakerClear();
   };
@@ -260,7 +260,7 @@ export default class AnalyseCtrl implements CevalHandler {
     this.onMainline = this.tree.pathIsMainline(path);
     this.fenInput = undefined;
     this.pgnInput = undefined;
-    if (this.bookmaker && this.data.game.variant.key === 'standard') this.bookmaker(this.nodeList);
+    if (this.bookmaker) this.bookmaker(this.nodeList);
     this.idbTree.saveMoves();
     this.idbTree.revealNode();
   };

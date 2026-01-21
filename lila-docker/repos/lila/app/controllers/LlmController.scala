@@ -6,6 +6,7 @@ import lila.app.{ *, given }
 import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest }
 import lila.analyse.ui.BookmakerRenderer
 
+import lila.common.HTTPRequest
 import scala.concurrent.duration.*
 
 final class LlmController(
@@ -15,21 +16,21 @@ final class LlmController(
 
   // Chesstory: Use local analysis engine (CommentaryEngine) directly
   private val llmQuota =
-    env.memo.mongoRateLimitApi[lila.core.userId.UserId](
+    env.memo.mongoRateLimitApi[String](
       name = "llm.request.user",
       credits = 40,
       duration = 1.day
     )
 
-  private def withQuota(cost: Int, msg: => String)(op: => Fu[Result])(using me: Me): Fu[Result] =
+  private def withQuota(cost: Int, msg: => String, key: String)(op: => Fu[Result]): Fu[Result] =
     llmQuota
-      .either(me.userId, cost = cost, msg = msg, limitedMsg = "LLM quota exceeded")(op)
+      .either(key, cost = cost, msg = msg, limitedMsg = "LLM quota exceeded")(op)
       .map:
         case Right(res) => res
         case Left(limited) => TooManyRequests(Json.toJson(limited)).as(JSON)
 
   def analyzeGameLocal = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 20, msg = "game-analysis-local"):
+    withQuota(cost = 20, msg = "game-analysis-local", key = me.userId.value):
       ctx.body.body.validate[FullAnalysisRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
@@ -48,7 +49,7 @@ final class LlmController(
   }
 
   def analyzeGame = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 20, msg = "game-analysis"):
+    withQuota(cost = 20, msg = "game-analysis", key = me.userId.value):
       ctx.body.body.validate[FullAnalysisRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
@@ -66,8 +67,9 @@ final class LlmController(
       )
   }
 
-  def analyzePosition = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 1, msg = "position-analysis"):
+  def analyzePosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    val rateLimitKey = ctx.me.map(_.userId.value).getOrElse(HTTPRequest.ipAddressStr(ctx.body))
+    withQuota(cost = 1, msg = "position-analysis", key = rateLimitKey):
       ctx.body.body.validate[CommentRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         commentReq =>
@@ -85,33 +87,65 @@ final class LlmController(
               case None           => ServiceUnavailable("LLM Commentary unavailable")
             }
       )
-  }
 
-  def bookmakerPosition = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 1, msg = "bookmaker-position"):
-      ctx.body.body.validate[CommentRequest].fold(
-        errors => BadRequest(JsError.toJson(errors)).toFuccess,
-        commentReq =>
-          api
-            .commentPosition(
-              fen = commentReq.fen,
-              lastMove = commentReq.lastMove,
-              eval = commentReq.eval,
-              opening = commentReq.context.opening,
-              phase = commentReq.context.phase,
-              ply = commentReq.context.ply
-            )
-            .map {
-              case Some(response) =>
-                val html = BookmakerRenderer
-                  .render(
-                    commentary = response.commentary,
-                    variations = response.variations,
-                    fenBefore = commentReq.fen
-                  )
-                  .toString
-                Ok(Json.obj("html" -> html, "concepts" -> response.concepts))
-              case None => ServiceUnavailable("LLM Commentary unavailable")
-            }
-      )
-  }
+  def bookmakerPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    // GEMINI DISABLED FOR LEXICON AUDIT
+    ctx.body.body.validate[CommentRequest].fold(
+      errors => BadRequest(JsError.toJson(errors)).toFuccess,
+      commentReq =>
+        api
+          .bookmakerCommentPosition(
+            fen = commentReq.fen,
+            lastMove = commentReq.lastMove,
+            eval = commentReq.eval,
+            variations = commentReq.variations,
+            probeResults = commentReq.probeResults,
+            opening = commentReq.context.opening,
+            phase = commentReq.context.phase,
+            ply = commentReq.context.ply
+          )
+          .map {
+            case Some(response) =>
+              val html = BookmakerRenderer
+                .render(
+                  commentary = response.commentary,
+                  variations = response.variations,
+                  fenBefore = commentReq.fen
+                )
+                .toString
+              Ok(
+                Json.obj(
+                  "html" -> html,
+                  "concepts" -> response.concepts,
+                  "probeRequests" -> response.probeRequests
+                )
+              )
+            case None => ServiceUnavailable("Lexicon Commentary unavailable")
+          }
+    )
+
+  def bookmakerBriefing = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    // Briefing is cheap (no Gemini call), so we can skip or use lighter rate limiting
+    ctx.body.body.validate[CommentRequest].fold(
+      errors => BadRequest(JsError.toJson(errors)).toFuccess,
+      commentReq =>
+        api
+          .briefCommentPosition(
+            fen = commentReq.fen,
+            lastMove = commentReq.lastMove,
+            eval = commentReq.eval,
+            opening = commentReq.context.opening,
+            phase = commentReq.context.phase,
+            ply = commentReq.context.ply
+          ) match
+          case Some(response) =>
+            val html = BookmakerRenderer
+              .render(
+                commentary = response.commentary,
+                variations = response.variations,
+                fenBefore = commentReq.fen
+              )
+              .toString
+            Ok(Json.obj("html" -> html, "concepts" -> response.concepts)).toFuccess
+          case None => NotFound("Briefing unavailable").toFuccess
+    )

@@ -43,7 +43,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           Json
             .obj(
               "data" -> data,
-              "bookmaker" -> pov.game.variant.standard
+              "bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
             )
             .add("inlinePgn", inlinePgn) ++
             explorerAndCevalConfig
@@ -57,7 +57,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
         main(
           cls := List(
             "analyse" -> true,
-            "analyse--bookmaker" -> pov.game.variant.standard
+            "analyse--bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
           )
         )(
           pov.game.synthetic.option(
@@ -77,11 +77,11 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
                     )(v.variantTrans())
               ),
               pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
-              pov.game.variant.standard.option(
+              (pov.game.variant.standard || pov.game.variant.chess960).option(
                 fieldset(
-                  cls := s"analyse__bookmaker ${narrative.isEmpty.option("empty")} toggle-box toggle-box--toggle",
+                  cls := "analyse__bookmaker toggle-box toggle-box--toggle",
                   id := "bookmaker-field",
-                  narrative.isDefined.option(attr("data-bookmaker") := "true")
+                  attr("data-bookmaker") := "true"
                 )(
                   legend(tabindex := 0)("Bookmaker"),
                   div(cls := "analyse__bookmaker-text")(narrative)

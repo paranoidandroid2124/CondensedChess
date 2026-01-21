@@ -82,7 +82,9 @@ class RookNarrativeTest extends FunSuite {
     )
     
     NarrativeContext(
+       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+       ply = 1,
        summary = NarrativeSummary("Improving", None, "StyleChoice", "Maintain", "+0.0"),
        phase = PhaseContext("Middlegame", "Material equality", None),
        snapshots = List(L1Snapshot("=", None, None, None, None, Some("Dominant"), Nil)),
@@ -116,7 +118,9 @@ class RookNarrativeTest extends FunSuite {
   def createSacrificeCtx(reason: String, value: Int): NarrativeContext = {
     val roi = Motif.SacrificeROI(reason, value)
     NarrativeContext(
+       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+       ply = 1,
        summary = NarrativeSummary("Sacrificing", None, "StyleChoice", "Maintain", "+1.2"),
        phase = PhaseContext("Middlegame", "Exchange down", None),
        snapshots = List(L1Snapshot("-2", None, None, None, None, None, Nil)),

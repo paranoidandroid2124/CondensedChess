@@ -1,9 +1,8 @@
 package lila.llm.model
 
-import lila.llm.model.{ Motif, PlanMatch, FactScope, PositionNature }
+import lila.llm.model.{ Motif, PlanMatch, PositionNature }
 import lila.llm.model.strategic._
 import lila.llm.analysis.L3._ // For PositionClassification if needed
-import lila.llm.model.strategic._
 
 // The SSOT (Single Source of Truth) for LLM Prompt Generation
 case class ExtendedAnalysisData(

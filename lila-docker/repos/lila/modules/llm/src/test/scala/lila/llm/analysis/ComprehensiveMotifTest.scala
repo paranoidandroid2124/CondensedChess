@@ -82,7 +82,8 @@ class ComprehensiveMotifTest extends FunSuite {
 
   test("Knight: Rerouting (Positive)") {
     // Nf3-d2 (Retreat/Reroute)
-    val fen = "rnbqkb1r/pppppppp/5n2/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1"
+    // Ensure d2 is empty so the knight can legally reroute there.
+    val fen = "rnbqkb1r/pppppppp/5n2/8/8/5N2/PPP1PPPP/RNBQKB1R w KQkq - 0 1"
     assertMoveMotif(
       fen, "f3d2",
       { case m: Motif.Maneuver if m.purpose == "rerouting" => true; case _ => false },
@@ -99,9 +100,8 @@ class ComprehensiveMotifTest extends FunSuite {
   }
   
   test("Bishop: Pin (State)") {
-    // White King d1, Pawn c2. Black Bishop b4 pins c2 to King.
-    // This is a static state motif.
-    val fen = "4k3/8/8/8/1b6/8/2P5/3K4 w - - 0 1"
+    // Black bishop pins a white knight to the king (static absolute pin).
+    val fen = "4k3/8/8/8/1b6/2N5/8/4K3 w - - 0 1"
     assertMotif(
       fen,
       { case m: Motif.Pin => true; case _ => false },
@@ -210,9 +210,9 @@ class ComprehensiveMotifTest extends FunSuite {
   // =========================================================================================
 
   test("Knight: Outpost") {
-    // Knight on e5 supported by d4 pawn, no f7/d7 pawns to kick it easily
+    // Knight on e5 supported by d4 pawn; black has pawns but does not control e5 with pawns, so it's a hole/outpost.
     assertPositionalTag(
-      "rnbqkb1r/ppp2ppp/5n2/3PN3/8/8/PPPP1PPP/RNBQKB1R b KQkq - 0 4", 
+      "6k1/8/pp5p/4N3/3P4/8/8/6K1 w - - 0 1",
       Color.White,
       { case PositionalTag.Outpost(sq, _) => sq.key == "e5"; case _ => false },
       "Knight Outpost on e5"
@@ -220,9 +220,9 @@ class ComprehensiveMotifTest extends FunSuite {
   }
   
   test("Knight: Strong Knight (Octopus)") {
-    // Knight deep in enemy territory
+    // Strong knight on a supported outpost square
     assertPositionalTag(
-      "8/8/8/4N3/8/8/8/k6K w - - 0 1", // e5 is rank 5. 
+      "6k1/8/pp5p/4N3/3P4/8/8/6K1 w - - 0 1",
       Color.White,
       { case PositionalTag.StrongKnight(_, _) => true; case _ => false },
       "Strong Knight"
@@ -231,7 +231,8 @@ class ComprehensiveMotifTest extends FunSuite {
 
   test("Bishop: Bishop Pair") {
     assertPositionalTag(
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      // Black is missing one bishop, so White has the bishop pair advantage.
+      "rn1qkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       Color.White,
       { case PositionalTag.BishopPairAdvantage(_) => true; case _ => false },
       "Bishop Pair"
@@ -331,7 +332,8 @@ class ComprehensiveMotifTest extends FunSuite {
   test("King: King Stuck in Center") {
     // Middlegame, king on e1, open file?
     assertPositionalTag(
-      "r1bqk2r/ppp2ppp/2n1pn2/3p4/3P4/2N1PN2/PPP2PPP/R2QKB1R w KQkq - 0 1",
+      // Remove the e-pawn shield so the king sits on the e-file without pawn cover.
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
       Color.White,
       { case PositionalTag.KingStuckCenter(_) => true; case _ => false },
       "King Stuck Center"

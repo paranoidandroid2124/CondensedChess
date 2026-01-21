@@ -154,7 +154,14 @@ object PositionAnalyzer:
   def extractFeatures(fen: String, plyCount: Int): Option[PositionFeatures] =
     Fen.read(chess.variant.Standard, Fen.Full(fen)).map { position =>
       val board = position.board
-      val nature = NarrativeUtils.characterizePosition(position)
+      val material = fen.takeWhile(_ != ' ')
+      val nature =
+        PositionCharacterizer.characterize(
+          pos = position,
+          features = Nil,
+          evalCp = None,
+          material = material
+        )
 
       PositionFeatures(
         fen = fen,

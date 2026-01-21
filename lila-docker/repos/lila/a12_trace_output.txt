@@ -1,0 +1,17 @@
+# Outline Diagnostics
+Questions: 0 | Evidence used: 
+
+## Outline Structure
+- Context
+- Evidence
+- MainMove
+- Alternatives
+- WrapUp
+
+## Trace Table
+| Field | Status | Value | Reason |
+|-------|--------|-------|--------|
+| plans.top5[0] | USED | Pawn Chain Maintenance | Context plan |
+| engineEvidence.variations | USED | 2 | Evidence fallback from engine PV |
+| candidates[0] | USED | b3 | Main move |
+| candidates[Bd2] | USED | Bd2 | Alternative |

@@ -96,7 +96,7 @@ object CounterfactualAnalyzer:
       cpLoss = cpLoss,
       missedMotifs = missedMotifs,
       userMoveMotifs = userMotifs,
-      severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok",
+      severity = Thresholds.classifySeverity(cpLoss),
       userLine = userLine
     )
 
@@ -124,7 +124,7 @@ object CounterfactualAnalyzer:
       cpLoss = cpLoss,
       missedMotifs = missedMotifs,
       userMoveMotifs = userMotifs,
-      severity = if (cpLoss >= 300) "blunder" else if (cpLoss >= 100) "mistake" else if (cpLoss >= 50) "inaccuracy" else "ok",
+      severity = Thresholds.classifySeverity(cpLoss),
       userLine = userLine
     )
 

@@ -1,0 +1,38 @@
+=== Layer 4 Deep Probe Verification ===
+
+[Scenario: Competitive Choice (Ruy Lopez Exchange)]
+FEN: r1bqkbnr/ppp2ppp/2p5/4p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5
+Detected Probes (2):
+  - ID: competitive_e1g1_f3b97752
+  - Targets: e1g1
+  - Reason: Competitive Alternative: e1g1
+  - ID: competitive_b1c3_f3b97752
+  - Targets: b1c3
+  - Reason: Competitive Alternative: b1c3
+
+[Scenario: Aggressive Sacrifice (Greek Gift Bait)]
+FEN: r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - 4 8
+Detected Probes (3):
+  - ID: tension_53c63f6a
+  - Targets: d4c5, c3d5
+  - Reason: Tension release test
+  - ID: competitive_c1d2_53c63f6a
+  - Targets: c1d2
+  - Reason: Competitive Alternative: c1d2
+  - ID: aggressive_why_not_c4d5_53c63f6a
+  - Targets: c4d5
+  - Reason: Aggressive Alternative: c4d5
+
+[Scenario: Strategic Ghost (Outpost on d5)]
+FEN: r1bqk2r/1p2bppp/p1np1n2/2p1p3/2P1P3/2N2N2/PP1PBPPP/R1BQ1RK1 w kq - 0 8
+Detected Probes (3):
+  - ID: pv_repair_c3d5_71549b31
+  - Targets: c3d5
+  - Reason: PV validation probe
+  - ID: competitive_c1e3_71549b31
+  - Targets: c1e3
+  - Reason: Competitive Alternative: c1e3
+  - ID: competitive_h2h3_71549b31
+  - Targets: h2h3
+  - Reason: Competitive Alternative: h2h3
+
