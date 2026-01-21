@@ -1,6 +1,8 @@
 .analyse {
   &__side {
     align-self: start;
+    display: flex;
+    flex-direction: column;
 
     .back-to-game {
       margin-top: 2em;
@@ -15,36 +17,83 @@
         margin: 0 auto;
       }
     }
+
     .analyse__bookmaker {
-      margin: 2vh 0;
+      margin: 0;
       flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+
       @include mq-at-least-col3 {
-        flex: 1 1 0;
+        flex: 1 1 auto; // Changed from 1 1 0 to ensure it stretches
       }
 
-      &.empty {
-        visibility: hidden;
+      &-text {
+        flex: 1 1 auto;
+        overflow-y: auto;
+      }
+
+      .bookmaker-briefing {
+        font-style: italic;
+        opacity: 0.8;
+        border-left: 2px solid var(--primary-color);
+        padding-left: 0.5em;
+        margin-bottom: 1em;
+      }
+
+      .bookmaker-thinking {
+        font-size: 0.9em;
+        color: var(--secondary-color);
+        margin-top: 1em;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+
+        &::after {
+          content: '';
+          width: 8px;
+          height: 8px;
+          background: var(--secondary-color);
+          border-radius: 50%;
+          display: inline-block;
+          animation: pulse 1.5s infinite ease-in-out;
+        }
       }
     }
   }
+
   &--bookmaker .analyse__side {
-    @extend %flex-column;
-    align-self: auto;
+    height: 100%;
+    align-self: stretch;
+    min-width: 250px;
+    max-width: 400px;
   }
-  &__bookmaker {
-    overflow-y: auto;
-    padding: 1rem 1rem 0 1rem;
-    scrollbar-gutter: stable both-edges;
+
+  // Override toggle-box defaults for this specific use case
+  fieldset.analyse__bookmaker {
+    padding: 1.5rem;
+    background: $m-sub_bg;
+    border: $border;
+    border-radius: $box-radius;
+    margin-bottom: 1em;
+    scrollbar-gutter: stable;
+
+    legend {
+      background: $m-sub_bg;
+      border: $border;
+    }
 
     p {
       text-align: justify;
       line-height: 1.5;
     }
+
     h1,
     h2 {
       @include fluid-size('font-size', 17px, 23px);
       margin-bottom: 1rem;
     }
+
     h3 {
       font-size: 1.2em;
       font-weight: bold;
@@ -53,3 +102,19 @@
   }
 }
 
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+}

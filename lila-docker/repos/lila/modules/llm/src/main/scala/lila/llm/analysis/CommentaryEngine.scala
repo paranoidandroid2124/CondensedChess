@@ -56,7 +56,14 @@ object CommentaryEngine:
           Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
         }
 
-        val nature = NarrativeUtils.characterizePosition(lastPos)
+        val lastFen = _root_.chess.format.Fen.write(lastPos).value
+        val nature =
+          PositionCharacterizer.characterize(
+            pos = lastPos,
+            features = Nil,
+            evalCp = Some(0), // No PV evaluation available in assess()
+            material = lastFen.takeWhile(_ != ' ')
+          )
         val currentPhase = determinePhase(lastPos)
         
         // L3 Phase 1: Classification
@@ -198,7 +205,15 @@ object CommentaryEngine:
           Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(p.move(_).toOption).map(_.after).getOrElse(p)
         }
 
-        val nature = NarrativeUtils.characterizePosition(lastPos)
+        val lastFen = _root_.chess.format.Fen.write(lastPos).value
+        val bestScore = variations.headOption.map(_.scoreCp).getOrElse(0)
+        val nature =
+          PositionCharacterizer.characterize(
+            pos = lastPos,
+            features = Nil,
+            evalCp = Some(bestScore), // Best PV score
+            material = lastFen.takeWhile(_ != ' ')
+          )
         val currentPhase = determinePhase(lastPos)
         
         // L3 Phase 1: Classification

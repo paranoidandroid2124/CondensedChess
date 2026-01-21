@@ -67,6 +67,7 @@ POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLoca
 POST  /api/llm/game-analysis           controllers.LlmController.analyzeGame
 POST  /api/llm/position-analysis       controllers.LlmController.analyzePosition
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
+POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

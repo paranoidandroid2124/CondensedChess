@@ -90,7 +90,7 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
-        'analyse--bookmaker': ctrl.data.game.variant.key === 'standard' && !!ctrl.opts.bookmaker,
+        'analyse--bookmaker': !!ctrl.opts.bookmaker,
       },
     },
     kids,

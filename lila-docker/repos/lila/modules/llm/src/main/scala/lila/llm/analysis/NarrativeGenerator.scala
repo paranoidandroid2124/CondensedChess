@@ -13,13 +13,6 @@ import lila.llm.analysis.NarrativeLexicon.Style
  */
 object NarrativeGenerator:
 
-  /**
-   * Converts PascalCase or camelCase to lowercase spaced words.
-   * e.g., "BadBishop" -> "bad bishop", "NarrowChoice" -> "narrow choice"
-   */
-  private def humanize(s: String): String =
-    s.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase
-
   // ============================================================
   // 1. POSITION STRUCTURE NARRATIVE
   // ============================================================
@@ -715,8 +708,8 @@ object NarrativeGenerator:
 
     parts += s"• Primary Plan: ${toneWrap(planConfidence, "plan")}${ctx.summary.primaryPlan}"
     ctx.summary.keyThreat.foreach(t => parts += s"• Key Threat: $t")
-    parts += s"• Choice Type: ${humanize(ctx.summary.choiceType)}"
-    parts += s"• Tension: ${humanize(ctx.summary.tensionPolicy)}"
+    parts += s"• Choice Type: ${lila.llm.analysis.NarrativeUtils.humanize(ctx.summary.choiceType)}"
+    parts += s"• Tension: ${lila.llm.analysis.NarrativeUtils.humanize(ctx.summary.tensionPolicy)}"
     parts += s"• Eval: ${ctx.summary.evalDelta}"
     parts += ""
     
@@ -817,7 +810,10 @@ object NarrativeGenerator:
       if (s.positionalFeatures.nonEmpty) {
         val filtered = s.positionalFeatures.filter(_.tagType != "LoosePiece").take(5)
         if (filtered.nonEmpty) {
-          val feats = filtered.map(f => s"${humanize(f.tagType)}(${f.color.toLowerCase}${f.square.map(sq => s" at $sq").getOrElse("")})")
+          val feats =
+            filtered.map(f =>
+              s"${lila.llm.analysis.NarrativeUtils.humanize(f.tagType)}(${f.color.toLowerCase}${f.square.map(sq => s" at $sq").getOrElse("")})"
+            )
           parts += s"• Positional Features: ${feats.mkString("; ")}"
         }
       }
@@ -866,7 +862,7 @@ object NarrativeGenerator:
     // === META SIGNALS (B-axis) ===
     ctx.meta.foreach { m =>
       parts += "=== META ==="
-      parts += s"Choice: ${humanize(m.choiceType.toString)}"
+      parts += s"Choice: ${lila.llm.analysis.NarrativeUtils.humanize(m.choiceType.toString)}"
       if (m.targets.tactical.nonEmpty)
         parts += s"TACTICAL: ${m.targets.tactical.map(t => s"${toneWrap(t.confidence, "target")}${t.ref.label} (${t.reason})").mkString("; ")}"
       if (m.targets.strategic.nonEmpty)

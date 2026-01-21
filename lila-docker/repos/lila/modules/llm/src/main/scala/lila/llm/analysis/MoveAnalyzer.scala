@@ -129,11 +129,7 @@ object MoveAnalyzer:
         userMotifs.exists(um => um.getClass == bm.getClass)
       )
       
-      val severity = 
-        if cpLoss >= 300 then "blunder"
-        else if cpLoss >= 100 then "mistake"
-        else if cpLoss >= 50 then "inaccuracy"
-        else "ok"
+      val severity = Thresholds.classifySeverity(cpLoss)
       
       Some(CounterfactualMatch(
         userMove = userMove,
@@ -940,6 +936,7 @@ object MoveAnalyzer:
     val board = pos.board
     List.concat(
       detectPawnStructure(board, plyIndex),
+      detectPins(board, plyIndex),
       detectOpposition(board, pos.color, plyIndex),
       detectOpenFiles(board, plyIndex),
       detectWeakBackRank(pos, plyIndex),
@@ -947,6 +944,65 @@ object MoveAnalyzer:
       detectBattery(board, plyIndex),  // L2 Completion
       detectImbalance(board, plyIndex) // Phase 25: Knight vs Bishop
     )
+
+  private def detectPins(board: Board, plyIndex: Int): List[Motif] =
+    // Static absolute pins (to king) for bishops, rooks, and queens.
+    // Keep conservative to avoid noise: only detect pins to the king.
+    val motifs = List.newBuilder[Motif]
+
+    def addRayPins(from: Square, role: Role, attacker: Color, deltas: List[(Int, Int)]): Unit =
+      deltas.foreach { (df, dr) =>
+        var f = from.file.value + df
+        var r = from.rank.value + dr
+        var pinned: Option[(Square, Role)] = None
+
+        def stopRay(): Unit =
+          f = 99
+          r = 99
+
+        while (f >= 0 && f <= 7 && r >= 0 && r <= 7) do
+          Square.at(f, r) match
+            case None => stopRay()
+            case Some(sq) =>
+              (board.colorAt(sq), board.roleAt(sq)) match
+                case (None, _) =>
+                  f += df; r += dr
+                case (Some(hitColor), Some(hitRole)) if hitColor == attacker =>
+                  stopRay()
+                case (Some(_), Some(hitRole)) =>
+                  pinned match
+                    case None =>
+                      pinned = Some((sq, hitRole))
+                      f += df; r += dr
+                    case Some((pinnedSq, pinnedRole)) =>
+                      if (hitRole == King) then
+                        motifs += Motif.Pin(
+                          pinningPiece = role,
+                          pinnedPiece = pinnedRole,
+                          targetBehind = King,
+                          color = attacker,
+                          plyIndex = plyIndex,
+                          move = None,
+                          pinningSq = Some(from),
+                          pinnedSq = Some(pinnedSq),
+                          behindSq = Some(sq)
+                        )
+                      stopRay()
+                case _ => stopRay()
+      }
+
+    for attacker <- List(White, Black) do
+      (board.bishops & board.byColor(attacker)).squares.foreach { from =>
+        addRayPins(from, Bishop, attacker, List((1, 1), (1, -1), (-1, 1), (-1, -1)))
+      }
+      (board.rooks & board.byColor(attacker)).squares.foreach { from =>
+        addRayPins(from, Rook, attacker, List((1, 0), (-1, 0), (0, 1), (0, -1)))
+      }
+      (board.queens & board.byColor(attacker)).squares.foreach { from =>
+        addRayPins(from, Queen, attacker, List((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)))
+      }
+
+    motifs.result().distinct
 
   // ===== FIX 6: New Motif Detectors =====
   private def detectOpenFiles(board: Board, plyIndex: Int): List[Motif] =
@@ -1042,6 +1098,27 @@ object MoveAnalyzer:
           motifs = motifs :+ IsolatedPawn(pawnSq.file, pawnSq.rank.value + 1, color, plyIndex)
         if isPassed(pawnSq, color, oppPawnsByFile) then 
           motifs = motifs :+ PassedPawn(pawnSq.file, pawnSq.rank.value + 1, color, isProtected = false, plyIndex)
+        if isBackward(pawnSq, color, pawnsByFile, oppPawnsByFile) then
+          motifs = motifs :+ BackwardPawn(pawnSq.file, pawnSq.rank.value + 1, color, plyIndex)
+      }
+
+      pawnsByFile.foreach { (file, sqs) =>
+        if sqs.size >= 2 then motifs = motifs :+ Motif.DoubledPawns(file, color, plyIndex)
+      }
+
+      val chainPairs = scala.collection.mutable.Set[(File, File)]()
+      pawns.squares.foreach { baseSq =>
+        val supported = baseSq.pawnAttacks(color) & pawns
+        supported.squares.foreach { tipSq =>
+          val (base, tip) =
+            if (color.white && baseSq.rank.value <= tipSq.rank.value) (baseSq, tipSq)
+            else if (!color.white && baseSq.rank.value >= tipSq.rank.value) (baseSq, tipSq)
+            else (tipSq, baseSq)
+          chainPairs += ((base.file, tip.file))
+        }
+      }
+      chainPairs.foreach { case (baseFile, tipFile) =>
+        motifs = motifs :+ Motif.PawnChain(baseFile, tipFile, color, plyIndex)
       }
     motifs
 
@@ -1059,12 +1136,44 @@ object MoveAnalyzer:
       File.all.lift(fIdx).forall { f =>
         oppPawnsByFile.get(f).forall { oppPawns =>
           oppPawns.forall { oppPawn =>
-            if color.white then oppPawn.rank.value < pawnSq.rank.value
-            else oppPawn.rank.value > pawnSq.rank.value
+            if color.white then oppPawn.rank.value <= pawnSq.rank.value
+            else oppPawn.rank.value >= pawnSq.rank.value
           }
         }
       }
     }
+
+  private def isBackward(
+      pawnSq: Square,
+      color: Color,
+      pawnsByFile: Map[File, List[Square]],
+      oppPawnsByFile: Map[File, List[Square]]
+  ): Boolean =
+    // Minimal heuristic:
+    // - no adjacent friendly pawn can support later
+    // - and the pawn is blocked from advancing by enemy pawn control on its advance square
+    val rank = pawnSq.rank.value
+    val fileValue = pawnSq.file.value
+    val adjacentFiles = List(fileValue - 1, fileValue + 1).filter(f => f >= 0 && f <= 7)
+
+    val canBeSupportedLater = adjacentFiles.exists { adjFileIdx =>
+      File.all.lift(adjFileIdx).exists { adjFile =>
+        pawnsByFile.get(adjFile).exists(_.exists { supportSq =>
+          if (color.white) supportSq.rank.value <= rank else supportSq.rank.value >= rank
+        })
+      }
+    }
+
+    if (canBeSupportedLater) false
+    else
+      val advanceSqOpt = Square.at(pawnSq.file.value, if (color.white) pawnSq.rank.value + 1 else pawnSq.rank.value - 1)
+      advanceSqOpt.exists { advanceSq =>
+        // If enemy pawns control the advance square, it's a more realistic backward pawn.
+        val enemyPawnAttacks = oppPawnsByFile.values.flatten.foldLeft(Bitboard.empty) { (bb, oppPawnSq) =>
+          bb | oppPawnSq.pawnAttacks(!color)
+        }
+        enemyPawnAttacks.contains(advanceSq)
+      }
 
   private def detectOpposition(board: Board, color: Color, plyIndex: Int): List[Motif] =
     (board.kingPosOf(White), board.kingPosOf(Black)) match

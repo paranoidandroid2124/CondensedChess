@@ -4,6 +4,7 @@ package ui
 import lila.llm.model.strategic.VariationLine
 import lila.ui.ScalatagsTemplate.*
 import lila.llm.analysis.NarrativeUtils
+import scalalib.StringUtils.escapeHtmlRaw
 
 /**
  * Bookmaker Renderer
@@ -13,19 +14,13 @@ import lila.llm.analysis.NarrativeUtils
  */
 object BookmakerRenderer:
 
-  private def escapeHtml(text: String): String =
-    text
-      .replace("&", "&amp;")
-      .replace("<", "&lt;")
-      .replace(">", "&gt;")
-      .replace("\"", "&quot;")
-      .replace("'", "&#39;")
+  /** Use scalalib's escapeHtmlRaw for consistency */
+  private def escapeHtml(text: String): String = escapeHtmlRaw(text)
 
   /**
    * Main entry point for rendering a Bookmaker panel.
    * @param commentary The raw text from the LLM.
    * @param variations Structured Multi-PV data.
-   * @param fenBefore The FEN of the current position.
    */
   def render(commentary: String, variations: List[VariationLine], fenBefore: String): Frag =
     // Pre-build SAN→UCI mapping from engine-generated variations
@@ -63,7 +58,17 @@ object BookmakerRenderer:
 
     // Support Markdown-style emphasis used by the LLM prompt (**...**).
     val withBold = """\*\*(.+?)\*\*""".r.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
-    raw(withBold)
+
+    // Preserve paragraph structure for book-style output.
+    val normalized = withBold.replace("\r\n", "\n")
+    val paragraphs = normalized
+      .split("\n\n+")
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(p => s"<p>${p.replace("\n", "<br/>")}</p>")
+      .mkString
+
+    raw(paragraphs)
 
   /**
    * Renders a list of interactive variation lines with mini-board hover support.

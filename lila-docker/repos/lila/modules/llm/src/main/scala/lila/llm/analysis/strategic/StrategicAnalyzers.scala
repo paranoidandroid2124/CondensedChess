@@ -431,8 +431,12 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
       val ourPawns = board.pawns & board.byColor(color)
       val centerPawns = ourPawns.squares.filter(p => p.file.value >= 2 && p.file.value <= 5) // C-F files
       val sameColorPawns = centerPawns.count(_.isLight == isLightSquare)
+      val advancedCenterPawns =
+        centerPawns.count(p => if (color.white) p.rank.value >= 3 else p.rank.value <= 6)
       
-      if (centerPawns.nonEmpty) {
+      // Avoid early-opening noise: with pawns still on home ranks, "bad bishop" is usually not yet a meaningful claim.
+      // Require at least some central pawn commitment before tagging.
+      if (centerPawns.nonEmpty && advancedCenterPawns >= 2) {
         if (sameColorPawns >= (centerPawns.size / 2) + 1) {
           features += PositionalTag.BadBishop(color)
         } else if (sameColorPawns == 0) {
@@ -636,11 +640,12 @@ class EndgameAnalyzerImpl extends EndgameAnalyzer {
     // Heuristic: Zugzwang requires legal move generation which is currently inaccessible via Board
     val isZugzwang = false
 
-    if (hasOpposition || controlledKeys.nonEmpty || isZugzwang) Some(EndgameFeature(
+    // Always return a result when in an endgame material window; callers can decide if it's meaningful.
+    Some(EndgameFeature(
       hasOpposition = hasOpposition,
-      isZugzwang = isZugzwang, 
-      keySquaresControlled = controlledKeys 
-    )) else None
+      isZugzwang = isZugzwang,
+      keySquaresControlled = controlledKeys
+    ))
   }
 }
 

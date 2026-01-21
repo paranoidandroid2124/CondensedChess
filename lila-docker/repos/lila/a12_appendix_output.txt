@@ -1,0 +1,658 @@
+# Narrative Appendix (Lossless)
+> [!NOTE]
+> Units: 100cp = 1.0 pawn. Scores are from White's perspective (+ is better for White).
+> Field paths match the hierarchy in this appendix.
+
+## KEY FACTS
+- Top Plan: Pawn Chain Maintenance
+- Recommended: b3!
+- Engine Score (White POV): 20
+
+- fen = r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - 4 8
+## Context
+- header.phase = Opening
+- header.criticality = Normal
+- header.choiceType = StyleChoice
+- header.riskLevel = High
+- header.taskMode = ExplainTactics
+
+- ply = 10
+- playedMove = None
+- playedSan = None
+- counterfactual = None
+## Summary
+- summary.primaryPlan = Pawn Chain Maintenance (1.10)
+- summary.keyThreat = None
+- summary.choiceType = StyleChoice
+- summary.tensionPolicy = Maintain (tension_active)
+- summary.evalDelta = Eval: +0.2
+
+## Threats
+- threats.toUs = []
+### threats.toThem[0] (ThreatRow)
+- threats.toThem[0].kind = Positional
+- threats.toThem[0].side = THEM
+- threats.toThem[0].square = None
+- threats.toThem[0].lossIfIgnoredCp = 100
+- threats.toThem[0].turnsToImpact = 2
+- threats.toThem[0].bestDefense = None
+- threats.toThem[0].defenseCount = 0
+- threats.toThem[0].insufficientData = false
+### threats.toThem[0].confidence (Engine)
+
+- threats.toThem[0].isTopCandidateDefense = false
+
+
+## PawnPlay
+- pawnPlay.breakReady = false
+- pawnPlay.breakFile = None
+- pawnPlay.breakImpact = Low
+- pawnPlay.tensionPolicy = Maintain
+- pawnPlay.tensionReason = flexibility needed
+- pawnPlay.passedPawnUrgency = Background
+- pawnPlay.passerBlockade = None
+- pawnPlay.counterBreak = false
+- pawnPlay.primaryDriver = tension_active
+
+## Plans
+### plans.top5[0] (PlanRow)
+- plans.top5[0].rank = 1
+- plans.top5[0].name = Pawn Chain Maintenance
+- plans.top5[0].score = 1.1
+- plans.top5[0].evidence[0] = Pawn chain structure
+- plans.top5[0].evidence[1] = Pawn chain structure
+- plans.top5[0].supports[0] = Solid pawn structure
+- plans.top5[0].supports[1] = Long-term positional stability
+- plans.top5[0].blockers[0] = Inflexible pawns can become targets
+- plans.top5[0].missingPrereqs = []
+### plans.top5[0].confidence (Heuristic)
+
+- plans.top5[0].isEstablished = false
+
+- plans.suppressed = []
+
+## Snapshots
+### snapshots[0] (L1Snapshot)
+- snapshots[0].material = =
+- snapshots[0].imbalance = None
+- snapshots[0].kingSafetyUs = Exposed (0 attackers, 1 escapes)
+- snapshots[0].kingSafetyThem = Exposed (0 attackers, 1 escapes)
+- snapshots[0].mobility = None
+- snapshots[0].centerControl = None
+- snapshots[0].openFiles = []
+
+- delta = None
+## Phase
+- phase.current = Opening
+- phase.reason = Material: 78, Minors: 8, Queens present
+- phase.transitionTrigger = None
+
+## Candidates
+### candidates[0] (CandidateInfo)
+- candidates[0].move = b3
+- candidates[0].uci = b2b3
+- candidates[0].annotation = !
+- candidates[0].planAlignment = Positional maneuvering
+- candidates[0].downstreamTactic = None
+- candidates[0].tacticalAlert = None
+- candidates[0].practicalDifficulty = clean
+- candidates[0].whyNot = None
+- candidates[0].tags = []
+- candidates[0].tacticEvidence = []
+- candidates[0].probeLines = []
+- candidates[0].facts = []
+
+### candidates[1] (CandidateInfo)
+- candidates[1].move = Bd2
+- candidates[1].uci = c1d2
+- candidates[1].annotation = 
+- candidates[1].planAlignment = Positional maneuvering
+- candidates[1].downstreamTactic = None
+- candidates[1].tacticalAlert = None
+- candidates[1].practicalDifficulty = clean
+- candidates[1].whyNot = None
+- candidates[1].tags = []
+- candidates[1].tacticEvidence = []
+- candidates[1].probeLines = []
+- candidates[1].facts = []
+
+## ProbeRequests
+### probeRequests[0] (ProbeRequest)
+- probeRequests[0].id = tension_53c63f6a
+- probeRequests[0].fen = r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - 4 8
+- probeRequests[0].moves[0] = c4d5
+- probeRequests[0].moves[1] = d4c5
+- probeRequests[0].depth = 20
+- probeRequests[0].purpose = None
+- probeRequests[0].questionId = None
+- probeRequests[0].questionKind = None
+- probeRequests[0].multiPv = None
+- probeRequests[0].planId = None
+- probeRequests[0].planName = Tension release test
+- probeRequests[0].planScore = None
+- probeRequests[0].baselineMove = b2b3
+- probeRequests[0].baselineEvalCp = 20
+- probeRequests[0].baselineMate = None
+- probeRequests[0].baselineDepth = 20
+
+### probeRequests[1] (ProbeRequest)
+- probeRequests[1].id = competitive_c1d2_53c63f6a
+- probeRequests[1].fen = r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - 4 8
+- probeRequests[1].moves[0] = c1d2
+- probeRequests[1].depth = 20
+- probeRequests[1].purpose = None
+- probeRequests[1].questionId = None
+- probeRequests[1].questionKind = None
+- probeRequests[1].multiPv = None
+- probeRequests[1].planId = None
+- probeRequests[1].planName = Competitive Alternative: c1d2
+- probeRequests[1].planScore = None
+- probeRequests[1].baselineMove = b2b3
+- probeRequests[1].baselineEvalCp = 20
+- probeRequests[1].baselineMate = None
+- probeRequests[1].baselineDepth = 20
+
+## Meta
+### meta.choiceType (StyleChoice)
+
+### meta.targets (Targets)
+- meta.targets.tactical = []
+### meta.targets.strategic[0] (TargetEntry)
+### meta.targets.strategic[0].ref (TargetSquare)
+- meta.targets.strategic[0].ref.key = c4
+
+- meta.targets.strategic[0].reason = Weak complex (White)
+### meta.targets.strategic[0].confidence (Heuristic)
+
+- meta.targets.strategic[0].priority = 3
+
+### meta.targets.strategic[1] (TargetEntry)
+### meta.targets.strategic[1].ref (TargetSquare)
+- meta.targets.strategic[1].ref.key = e5
+
+- meta.targets.strategic[1].reason = Weak square
+### meta.targets.strategic[1].confidence (Heuristic)
+
+- meta.targets.strategic[1].priority = 3
+
+### meta.targets.strategic[2] (TargetEntry)
+### meta.targets.strategic[2].ref (TargetSquare)
+- meta.targets.strategic[2].ref.key = d3
+
+- meta.targets.strategic[2].reason = Weak complex (White)
+### meta.targets.strategic[2].confidence (Heuristic)
+
+- meta.targets.strategic[2].priority = 3
+
+### meta.targets.strategic[3] (TargetEntry)
+### meta.targets.strategic[3].ref (TargetSquare)
+- meta.targets.strategic[3].ref.key = d6
+
+- meta.targets.strategic[3].reason = Weak complex (Black)
+### meta.targets.strategic[3].confidence (Heuristic)
+
+- meta.targets.strategic[3].priority = 3
+
+### meta.targets.strategic[4] (TargetEntry)
+### meta.targets.strategic[4].ref (TargetSquare)
+- meta.targets.strategic[4].ref.key = a4
+
+- meta.targets.strategic[4].reason = Weak complex (White)
+### meta.targets.strategic[4].confidence (Heuristic)
+
+- meta.targets.strategic[4].priority = 3
+
+
+### meta.planConcurrency (PlanConcurrency)
+- meta.planConcurrency.primary = Pawn Chain Maintenance
+- meta.planConcurrency.secondary = None
+- meta.planConcurrency.relationship = independent
+
+- meta.divergence = None
+- meta.errorClass = None
+- meta.whyNot = None
+
+- strategicFlow = None
+## Semantic Layer
+### semantic.structuralWeaknesses[0] (WeakComplexInfo)
+- semantic.structuralWeaknesses[0].owner = White
+- semantic.structuralWeaknesses[0].squareColor = light
+- semantic.structuralWeaknesses[0].squares[0] = c4
+- semantic.structuralWeaknesses[0].squares[1] = e4
+- semantic.structuralWeaknesses[0].squares[2] = d3
+- semantic.structuralWeaknesses[0].squares[3] = a4
+- semantic.structuralWeaknesses[0].isOutpost = false
+- semantic.structuralWeaknesses[0].cause = Holes
+
+### semantic.structuralWeaknesses[1] (WeakComplexInfo)
+- semantic.structuralWeaknesses[1].owner = Black
+- semantic.structuralWeaknesses[1].squareColor = dark
+- semantic.structuralWeaknesses[1].squares[0] = c5
+- semantic.structuralWeaknesses[1].squares[1] = e5
+- semantic.structuralWeaknesses[1].squares[2] = d6
+- semantic.structuralWeaknesses[1].squares[3] = a5
+- semantic.structuralWeaknesses[1].isOutpost = false
+- semantic.structuralWeaknesses[1].cause = Holes
+
+### semantic.pieceActivity[0] (PieceActivityInfo)
+- semantic.pieceActivity[0].piece = rook
+- semantic.pieceActivity[0].square = a1
+- semantic.pieceActivity[0].mobilityScore = 0.07142857142857142
+- semantic.pieceActivity[0].isTrapped = false
+- semantic.pieceActivity[0].isBadBishop = false
+- semantic.pieceActivity[0].keyRoutes = []
+- semantic.pieceActivity[0].coordinationLinks = []
+
+### semantic.pieceActivity[1] (PieceActivityInfo)
+- semantic.pieceActivity[1].piece = bishop
+- semantic.pieceActivity[1].square = c1
+- semantic.pieceActivity[1].mobilityScore = 0.07692307692307693
+- semantic.pieceActivity[1].isTrapped = false
+- semantic.pieceActivity[1].isBadBishop = true
+- semantic.pieceActivity[1].keyRoutes = []
+- semantic.pieceActivity[1].coordinationLinks = []
+
+### semantic.pieceActivity[2] (PieceActivityInfo)
+- semantic.pieceActivity[2].piece = queen
+- semantic.pieceActivity[2].square = d1
+- semantic.pieceActivity[2].mobilityScore = 0.2222222222222222
+- semantic.pieceActivity[2].isTrapped = false
+- semantic.pieceActivity[2].isBadBishop = false
+- semantic.pieceActivity[2].keyRoutes = []
+- semantic.pieceActivity[2].coordinationLinks = []
+
+### semantic.pieceActivity[3] (PieceActivityInfo)
+- semantic.pieceActivity[3].piece = rook
+- semantic.pieceActivity[3].square = f1
+- semantic.pieceActivity[3].mobilityScore = 0.07142857142857142
+- semantic.pieceActivity[3].isTrapped = false
+- semantic.pieceActivity[3].isBadBishop = false
+- semantic.pieceActivity[3].keyRoutes = []
+- semantic.pieceActivity[3].coordinationLinks = []
+
+### semantic.pieceActivity[4] (PieceActivityInfo)
+- semantic.pieceActivity[4].piece = king
+- semantic.pieceActivity[4].square = g1
+- semantic.pieceActivity[4].mobilityScore = 0.125
+- semantic.pieceActivity[4].isTrapped = false
+- semantic.pieceActivity[4].isBadBishop = false
+- semantic.pieceActivity[4].keyRoutes = []
+- semantic.pieceActivity[4].coordinationLinks = []
+
+### semantic.pieceActivity[5] (PieceActivityInfo)
+- semantic.pieceActivity[5].piece = pawn
+- semantic.pieceActivity[5].square = a2
+- semantic.pieceActivity[5].mobilityScore = 0.5
+- semantic.pieceActivity[5].isTrapped = false
+- semantic.pieceActivity[5].isBadBishop = false
+- semantic.pieceActivity[5].keyRoutes = []
+- semantic.pieceActivity[5].coordinationLinks = []
+
+### semantic.pieceActivity[6] (PieceActivityInfo)
+- semantic.pieceActivity[6].piece = pawn
+- semantic.pieceActivity[6].square = b2
+- semantic.pieceActivity[6].mobilityScore = 0.5
+- semantic.pieceActivity[6].isTrapped = false
+- semantic.pieceActivity[6].isBadBishop = false
+- semantic.pieceActivity[6].keyRoutes = []
+- semantic.pieceActivity[6].coordinationLinks = []
+
+### semantic.pieceActivity[7] (PieceActivityInfo)
+- semantic.pieceActivity[7].piece = bishop
+- semantic.pieceActivity[7].square = e2
+- semantic.pieceActivity[7].mobilityScore = 0.07692307692307693
+- semantic.pieceActivity[7].isTrapped = false
+- semantic.pieceActivity[7].isBadBishop = false
+- semantic.pieceActivity[7].keyRoutes = []
+- semantic.pieceActivity[7].coordinationLinks = []
+
+### semantic.pieceActivity[8] (PieceActivityInfo)
+- semantic.pieceActivity[8].piece = pawn
+- semantic.pieceActivity[8].square = f2
+- semantic.pieceActivity[8].mobilityScore = 0.0
+- semantic.pieceActivity[8].isTrapped = false
+- semantic.pieceActivity[8].isBadBishop = false
+- semantic.pieceActivity[8].keyRoutes = []
+- semantic.pieceActivity[8].coordinationLinks = []
+
+### semantic.pieceActivity[9] (PieceActivityInfo)
+- semantic.pieceActivity[9].piece = pawn
+- semantic.pieceActivity[9].square = g2
+- semantic.pieceActivity[9].mobilityScore = 0.5
+- semantic.pieceActivity[9].isTrapped = false
+- semantic.pieceActivity[9].isBadBishop = false
+- semantic.pieceActivity[9].keyRoutes = []
+- semantic.pieceActivity[9].coordinationLinks = []
+
+### semantic.pieceActivity[10] (PieceActivityInfo)
+- semantic.pieceActivity[10].piece = pawn
+- semantic.pieceActivity[10].square = h2
+- semantic.pieceActivity[10].mobilityScore = 0.5
+- semantic.pieceActivity[10].isTrapped = false
+- semantic.pieceActivity[10].isBadBishop = false
+- semantic.pieceActivity[10].keyRoutes = []
+- semantic.pieceActivity[10].coordinationLinks = []
+
+### semantic.pieceActivity[11] (PieceActivityInfo)
+- semantic.pieceActivity[11].piece = knight
+- semantic.pieceActivity[11].square = c3
+- semantic.pieceActivity[11].mobilityScore = 0.625
+- semantic.pieceActivity[11].isTrapped = false
+- semantic.pieceActivity[11].isBadBishop = false
+- semantic.pieceActivity[11].keyRoutes = []
+- semantic.pieceActivity[11].coordinationLinks = []
+
+### semantic.pieceActivity[12] (PieceActivityInfo)
+- semantic.pieceActivity[12].piece = pawn
+- semantic.pieceActivity[12].square = e3
+- semantic.pieceActivity[12].mobilityScore = 0.25
+- semantic.pieceActivity[12].isTrapped = false
+- semantic.pieceActivity[12].isBadBishop = false
+- semantic.pieceActivity[12].keyRoutes = []
+- semantic.pieceActivity[12].coordinationLinks = []
+
+### semantic.pieceActivity[13] (PieceActivityInfo)
+- semantic.pieceActivity[13].piece = knight
+- semantic.pieceActivity[13].square = f3
+- semantic.pieceActivity[13].mobilityScore = 0.625
+- semantic.pieceActivity[13].isTrapped = false
+- semantic.pieceActivity[13].isBadBishop = false
+- semantic.pieceActivity[13].keyRoutes = []
+- semantic.pieceActivity[13].coordinationLinks = []
+
+### semantic.pieceActivity[14] (PieceActivityInfo)
+- semantic.pieceActivity[14].piece = pawn
+- semantic.pieceActivity[14].square = c4
+- semantic.pieceActivity[14].mobilityScore = 0.25
+- semantic.pieceActivity[14].isTrapped = false
+- semantic.pieceActivity[14].isBadBishop = false
+- semantic.pieceActivity[14].keyRoutes = []
+- semantic.pieceActivity[14].coordinationLinks = []
+
+### semantic.pieceActivity[15] (PieceActivityInfo)
+- semantic.pieceActivity[15].piece = pawn
+- semantic.pieceActivity[15].square = d4
+- semantic.pieceActivity[15].mobilityScore = 0.25
+- semantic.pieceActivity[15].isTrapped = false
+- semantic.pieceActivity[15].isBadBishop = false
+- semantic.pieceActivity[15].keyRoutes = []
+- semantic.pieceActivity[15].coordinationLinks = []
+
+### semantic.pieceActivity[16] (PieceActivityInfo)
+- semantic.pieceActivity[16].piece = pawn
+- semantic.pieceActivity[16].square = c5
+- semantic.pieceActivity[16].mobilityScore = 0.25
+- semantic.pieceActivity[16].isTrapped = false
+- semantic.pieceActivity[16].isBadBishop = false
+- semantic.pieceActivity[16].keyRoutes = []
+- semantic.pieceActivity[16].coordinationLinks = []
+
+### semantic.pieceActivity[17] (PieceActivityInfo)
+- semantic.pieceActivity[17].piece = pawn
+- semantic.pieceActivity[17].square = d5
+- semantic.pieceActivity[17].mobilityScore = 0.25
+- semantic.pieceActivity[17].isTrapped = false
+- semantic.pieceActivity[17].isBadBishop = false
+- semantic.pieceActivity[17].keyRoutes = []
+- semantic.pieceActivity[17].coordinationLinks = []
+
+### semantic.pieceActivity[18] (PieceActivityInfo)
+- semantic.pieceActivity[18].piece = knight
+- semantic.pieceActivity[18].square = c6
+- semantic.pieceActivity[18].mobilityScore = 0.625
+- semantic.pieceActivity[18].isTrapped = false
+- semantic.pieceActivity[18].isBadBishop = false
+- semantic.pieceActivity[18].keyRoutes = []
+- semantic.pieceActivity[18].coordinationLinks = []
+
+### semantic.pieceActivity[19] (PieceActivityInfo)
+- semantic.pieceActivity[19].piece = pawn
+- semantic.pieceActivity[19].square = e6
+- semantic.pieceActivity[19].mobilityScore = 0.25
+- semantic.pieceActivity[19].isTrapped = false
+- semantic.pieceActivity[19].isBadBishop = false
+- semantic.pieceActivity[19].keyRoutes = []
+- semantic.pieceActivity[19].coordinationLinks = []
+
+### semantic.pieceActivity[20] (PieceActivityInfo)
+- semantic.pieceActivity[20].piece = knight
+- semantic.pieceActivity[20].square = f6
+- semantic.pieceActivity[20].mobilityScore = 0.625
+- semantic.pieceActivity[20].isTrapped = false
+- semantic.pieceActivity[20].isBadBishop = false
+- semantic.pieceActivity[20].keyRoutes = []
+- semantic.pieceActivity[20].coordinationLinks = []
+
+### semantic.pieceActivity[21] (PieceActivityInfo)
+- semantic.pieceActivity[21].piece = pawn
+- semantic.pieceActivity[21].square = a7
+- semantic.pieceActivity[21].mobilityScore = 0.5
+- semantic.pieceActivity[21].isTrapped = false
+- semantic.pieceActivity[21].isBadBishop = false
+- semantic.pieceActivity[21].keyRoutes = []
+- semantic.pieceActivity[21].coordinationLinks = []
+
+### semantic.pieceActivity[22] (PieceActivityInfo)
+- semantic.pieceActivity[22].piece = pawn
+- semantic.pieceActivity[22].square = b7
+- semantic.pieceActivity[22].mobilityScore = 0.5
+- semantic.pieceActivity[22].isTrapped = false
+- semantic.pieceActivity[22].isBadBishop = false
+- semantic.pieceActivity[22].keyRoutes = []
+- semantic.pieceActivity[22].coordinationLinks = []
+
+### semantic.pieceActivity[23] (PieceActivityInfo)
+- semantic.pieceActivity[23].piece = bishop
+- semantic.pieceActivity[23].square = e7
+- semantic.pieceActivity[23].mobilityScore = 0.07692307692307693
+- semantic.pieceActivity[23].isTrapped = false
+- semantic.pieceActivity[23].isBadBishop = false
+- semantic.pieceActivity[23].keyRoutes = []
+- semantic.pieceActivity[23].coordinationLinks = []
+
+### semantic.pieceActivity[24] (PieceActivityInfo)
+- semantic.pieceActivity[24].piece = pawn
+- semantic.pieceActivity[24].square = f7
+- semantic.pieceActivity[24].mobilityScore = 0.0
+- semantic.pieceActivity[24].isTrapped = false
+- semantic.pieceActivity[24].isBadBishop = false
+- semantic.pieceActivity[24].keyRoutes = []
+- semantic.pieceActivity[24].coordinationLinks = []
+
+### semantic.pieceActivity[25] (PieceActivityInfo)
+- semantic.pieceActivity[25].piece = pawn
+- semantic.pieceActivity[25].square = g7
+- semantic.pieceActivity[25].mobilityScore = 0.5
+- semantic.pieceActivity[25].isTrapped = false
+- semantic.pieceActivity[25].isBadBishop = false
+- semantic.pieceActivity[25].keyRoutes = []
+- semantic.pieceActivity[25].coordinationLinks = []
+
+### semantic.pieceActivity[26] (PieceActivityInfo)
+- semantic.pieceActivity[26].piece = pawn
+- semantic.pieceActivity[26].square = h7
+- semantic.pieceActivity[26].mobilityScore = 0.5
+- semantic.pieceActivity[26].isTrapped = false
+- semantic.pieceActivity[26].isBadBishop = false
+- semantic.pieceActivity[26].keyRoutes = []
+- semantic.pieceActivity[26].coordinationLinks = []
+
+### semantic.pieceActivity[27] (PieceActivityInfo)
+- semantic.pieceActivity[27].piece = rook
+- semantic.pieceActivity[27].square = a8
+- semantic.pieceActivity[27].mobilityScore = 0.07142857142857142
+- semantic.pieceActivity[27].isTrapped = false
+- semantic.pieceActivity[27].isBadBishop = false
+- semantic.pieceActivity[27].keyRoutes = []
+- semantic.pieceActivity[27].coordinationLinks = []
+
+### semantic.pieceActivity[28] (PieceActivityInfo)
+- semantic.pieceActivity[28].piece = bishop
+- semantic.pieceActivity[28].square = c8
+- semantic.pieceActivity[28].mobilityScore = 0.07692307692307693
+- semantic.pieceActivity[28].isTrapped = false
+- semantic.pieceActivity[28].isBadBishop = true
+- semantic.pieceActivity[28].keyRoutes = []
+- semantic.pieceActivity[28].coordinationLinks = []
+
+### semantic.pieceActivity[29] (PieceActivityInfo)
+- semantic.pieceActivity[29].piece = queen
+- semantic.pieceActivity[29].square = d8
+- semantic.pieceActivity[29].mobilityScore = 0.2222222222222222
+- semantic.pieceActivity[29].isTrapped = false
+- semantic.pieceActivity[29].isBadBishop = false
+- semantic.pieceActivity[29].keyRoutes = []
+- semantic.pieceActivity[29].coordinationLinks = []
+
+### semantic.pieceActivity[30] (PieceActivityInfo)
+- semantic.pieceActivity[30].piece = rook
+- semantic.pieceActivity[30].square = f8
+- semantic.pieceActivity[30].mobilityScore = 0.07142857142857142
+- semantic.pieceActivity[30].isTrapped = false
+- semantic.pieceActivity[30].isBadBishop = false
+- semantic.pieceActivity[30].keyRoutes = []
+- semantic.pieceActivity[30].coordinationLinks = []
+
+### semantic.pieceActivity[31] (PieceActivityInfo)
+- semantic.pieceActivity[31].piece = king
+- semantic.pieceActivity[31].square = g8
+- semantic.pieceActivity[31].mobilityScore = 0.125
+- semantic.pieceActivity[31].isTrapped = false
+- semantic.pieceActivity[31].isBadBishop = false
+- semantic.pieceActivity[31].keyRoutes = []
+- semantic.pieceActivity[31].coordinationLinks = []
+
+### semantic.positionalFeatures[0] (PositionalTagInfo)
+- semantic.positionalFeatures[0].tagType = BadBishop
+- semantic.positionalFeatures[0].square = None
+- semantic.positionalFeatures[0].file = None
+- semantic.positionalFeatures[0].color = white
+- semantic.positionalFeatures[0].detail = None
+
+### semantic.positionalFeatures[1] (PositionalTagInfo)
+- semantic.positionalFeatures[1].tagType = WeakSquare
+- semantic.positionalFeatures[1].square = c5
+- semantic.positionalFeatures[1].file = None
+- semantic.positionalFeatures[1].color = black
+- semantic.positionalFeatures[1].detail = None
+
+### semantic.positionalFeatures[2] (PositionalTagInfo)
+- semantic.positionalFeatures[2].tagType = WeakSquare
+- semantic.positionalFeatures[2].square = e5
+- semantic.positionalFeatures[2].file = None
+- semantic.positionalFeatures[2].color = black
+- semantic.positionalFeatures[2].detail = None
+
+### semantic.positionalFeatures[3] (PositionalTagInfo)
+- semantic.positionalFeatures[3].tagType = ColorComplexWeakness
+- semantic.positionalFeatures[3].square = None
+- semantic.positionalFeatures[3].file = None
+- semantic.positionalFeatures[3].color = white
+- semantic.positionalFeatures[3].detail = light squares: c4,e4,d3,a4
+
+- semantic.compensation = None
+- semantic.endgameFeatures = None
+### semantic.practicalAssessment (PracticalInfo)
+- semantic.practicalAssessment.engineScore = 20
+- semantic.practicalAssessment.practicalScore = 1.7763568394002505E-14
+- semantic.practicalAssessment.verdict = Balanced
+
+- semantic.preventedPlans = []
+- semantic.conceptSummary[0] = Positional battle
+- semantic.conceptSummary[1] = Pawn Chain Maintenance
+
+## OpponentPlan
+- opponentPlan.rank = 1
+- opponentPlan.name = Pawn Chain Maintenance
+- opponentPlan.score = 1.1
+- opponentPlan.evidence[0] = Pawn chain structure
+- opponentPlan.evidence[1] = Pawn chain structure
+- opponentPlan.evidence[2] = Pawn chain structure
+- opponentPlan.evidence[3] = Pawn chain structure
+- opponentPlan.evidence[4] = Pawn chain structure
+- opponentPlan.evidence[5] = Pawn chain structure
+- opponentPlan.supports = []
+- opponentPlan.blockers = []
+- opponentPlan.missingPrereqs = []
+### opponentPlan.confidence (Heuristic)
+
+- opponentPlan.isEstablished = false
+
+- decision = None
+- openingEvent = None
+- openingData = None
+## UpdatedBudget
+- updatedBudget.introUsed = false
+- updatedBudget.eventsUsed = 0
+- updatedBudget.maxEvents = 2
+- updatedBudget.theoryEnded = false
+- updatedBudget.lastPlyWithData = 10
+
+## EngineEvidence
+- engineEvidence.depth = 20
+### engineEvidence.variations[0] (VariationLine)
+- engineEvidence.variations[0].moves[0] = b2b3
+- engineEvidence.variations[0].scoreCp = 20
+- engineEvidence.variations[0].mate = None
+- engineEvidence.variations[0].depth = 20
+- engineEvidence.variations[0].resultingFen = r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/1PN1PN2/P3BPPP/R1BQ1RK1 b - - 0 1
+### engineEvidence.variations[0].tags[0] (Excellent)
+
+### engineEvidence.variations[0].parsedMoves[0] (PvMove)
+- engineEvidence.variations[0].parsedMoves[0].uci = b2b3
+- engineEvidence.variations[0].parsedMoves[0].san = b3
+- engineEvidence.variations[0].parsedMoves[0].from = b2
+- engineEvidence.variations[0].parsedMoves[0].to = b3
+- engineEvidence.variations[0].parsedMoves[0].piece = P
+- engineEvidence.variations[0].parsedMoves[0].isCapture = false
+- engineEvidence.variations[0].parsedMoves[0].capturedPiece = None
+- engineEvidence.variations[0].parsedMoves[0].givesCheck = false
+
+
+### engineEvidence.variations[1] (VariationLine)
+- engineEvidence.variations[1].moves[0] = c1d2
+- engineEvidence.variations[1].scoreCp = 15
+- engineEvidence.variations[1].mate = None
+- engineEvidence.variations[1].depth = 20
+- engineEvidence.variations[1].resultingFen = r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP1BBPPP/R2Q1RK1 b - - 1 1
+### engineEvidence.variations[1].tags[0] (Excellent)
+
+### engineEvidence.variations[1].parsedMoves[0] (PvMove)
+- engineEvidence.variations[1].parsedMoves[0].uci = c1d2
+- engineEvidence.variations[1].parsedMoves[0].san = Bd2
+- engineEvidence.variations[1].parsedMoves[0].from = c1
+- engineEvidence.variations[1].parsedMoves[0].to = d2
+- engineEvidence.variations[1].parsedMoves[0].piece = B
+- engineEvidence.variations[1].parsedMoves[0].isCapture = false
+- engineEvidence.variations[1].parsedMoves[0].capturedPiece = None
+- engineEvidence.variations[1].parsedMoves[0].givesCheck = false
+
+
+
+## AuthorQuestions
+- authorQuestions = []
+## AuthorEvidence
+- authorEvidence = []
+## Facts
+### facts[0] (TargetPiece)
+- facts[0].square = 26
+### facts[0].role (Pawn)
+
+- facts[0].attackers[0] = 35
+- facts[0].defenders[0] = 12
+### facts[0].scope (Now)
+
+
+### facts[1] (TargetPiece)
+- facts[1].square = 27
+### facts[1].role (Pawn)
+
+- facts[1].attackers[0] = 34
+- facts[1].attackers[1] = 42
+- facts[1].defenders[0] = 3
+- facts[1].defenders[1] = 20
+- facts[1].defenders[2] = 21
+### facts[1].scope (Now)
+
+
+

@@ -94,7 +94,9 @@ class KnightNarrativeTest extends FunSuite {
 
   def createCtx(move: String, evidence: String, plan: String): NarrativeContext = {
     NarrativeContext(
+       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+       ply = 1,
        summary = NarrativeSummary("Improving", None, "StyleChoice", "Maintain", "+0.0"),
        phase = PhaseContext("Middlegame", "Material equality", None),
        snapshots = List(L1Snapshot("=", None, None, None, None, None, Nil)),

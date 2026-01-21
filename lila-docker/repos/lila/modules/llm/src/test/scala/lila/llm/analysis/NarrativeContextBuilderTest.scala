@@ -20,7 +20,7 @@ class NarrativeContextBuilderTest extends FunSuite {
   def minimalData(ctx: Option[IntegratedContext] = None): ExtendedAnalysisData = 
     ExtendedAnalysisData(
       fen = testFen,
-      nature = PositionNature(lila.llm.analysis.NatureType.Dynamic, 0.5, 0.5, "Dynamic position"),
+      nature = PositionNature(lila.llm.model.NatureType.Dynamic, 0.5, 0.5, "Dynamic position"),
       motifs = Nil,
       plans = Nil,
       preventedPlans = Nil,
@@ -111,7 +111,7 @@ class NarrativeContextBuilderTest extends FunSuite {
   
   test("A3: buildHeader populates from IntegratedContext.classification") {
     val classification = PositionClassification(
-      nature = NatureResult(NatureType.Dynamic, 3, 2, 1, false),
+      nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 3, 2, 1, false),
       criticality = CriticalityResult(CriticalityType.CriticalMoment, 0, None, 5),
       choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.OnlyMove, 100, 50, None, 50, 60, Some("PV2 drops piece")),
       gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 28, true, 4),
@@ -247,7 +247,7 @@ class NarrativeContextBuilderTest extends FunSuite {
   
   test("A8: buildPhaseContext detects phase transition trigger") {
     val classification = PositionClassification(
-      nature = NatureResult(NatureType.Dynamic, 3, 2, 1, false),
+      nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 3, 2, 1, false),
       criticality = CriticalityResult(CriticalityType.Normal, 0, None, 0),
       choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 50, 40, None, 10, 15, None),
       gamePhase = GamePhaseResult(GamePhaseType.Endgame, 12, false, 0),
@@ -286,7 +286,9 @@ class NarrativeContextBuilderTest extends FunSuite {
 
   test("describeHierarchical outputs PHASE section (A8)") {
     val ctx = lila.llm.model.NarrativeContext(
+      fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       header = lila.llm.model.ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
+      ply = 1,
       summary = lila.llm.model.NarrativeSummary("Kingside Attack", None, "StyleChoice", "Maintain", "+50"),
       threats = lila.llm.model.ThreatTable(Nil, Nil),
       pawnPlay = lila.llm.model.PawnPlayTable(false, None, "Low", "Maintain", "No breaks", "Background", None, false, "quiet"),
@@ -391,7 +393,7 @@ class NarrativeContextBuilderTest extends FunSuite {
 
   test("B1: ChoiceType derived from classification.choiceTopology (OnlyMove)") {
     val classification = PositionClassification(
-      nature = NatureResult(NatureType.Dynamic, 2, 1, 0, false),
+      nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 2, 1, 0, false),
       criticality = CriticalityResult(CriticalityType.Normal, 0, None, 1),
       choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.OnlyMove, 100, -50, None, 150, 150, Some("loses_material")),
       gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 50, true, 4),
@@ -1247,7 +1249,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       evalCp = 100,
       isWhiteToMove = true,
       classification = Some(PositionClassification(
-        nature = NatureResult(NatureType.Dynamic, 0, 0, 0, false),
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 0, 0, 0, false),
         criticality = CriticalityResult(CriticalityType.CriticalMoment, 50, None, 0), // Non-StyleChoice
         choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.NarrowChoice, 100, 50, None, 2, 0, None),
         gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),
@@ -1278,7 +1280,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       evalCp = 100,
       isWhiteToMove = true,
       classification = Some(PositionClassification(
-        nature = NatureResult(NatureType.Dynamic, 0, 0, 0, false),
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 0, 0, 0, false),
         criticality = CriticalityResult(CriticalityType.CriticalMoment, 50, None, 0),
         choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.NarrowChoice, 100, 50, None, 2, 0, None),
         gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),
@@ -1378,7 +1380,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       evalCp = 100,
       isWhiteToMove = true,
       classification = Some(PositionClassification(
-        nature = NatureResult(NatureType.Static, 0, 0, 0, false),
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Static, 0, 0, 0, false),
         criticality = CriticalityResult(CriticalityType.Normal, 0, None, 0),
         choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 10, 5, None, 3, 0, None), // StyleChoice
         gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),
@@ -1405,7 +1407,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       evalCp = 100,
       isWhiteToMove = true,
       classification = Some(PositionClassification(
-        nature = NatureResult(NatureType.Dynamic, 0, 0, 0, false),
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 0, 0, 0, false),
         criticality = CriticalityResult(CriticalityType.CriticalMoment, 50, None, 0),
         choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.NarrowChoice, 100, 50, None, 2, 0, None),
         gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),
@@ -1457,7 +1459,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       evalCp = 100,
       isWhiteToMove = true,
       classification = Some(PositionClassification(
-        nature = NatureResult(NatureType.Dynamic, 0, 0, 0, false),
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Dynamic, 0, 0, 0, false),
         criticality = CriticalityResult(CriticalityType.CriticalMoment, 50, None, 0),
         choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.NarrowChoice, 100, 50, None, 2, 0, None),
         gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),

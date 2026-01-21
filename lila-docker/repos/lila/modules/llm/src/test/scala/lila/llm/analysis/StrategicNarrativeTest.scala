@@ -13,6 +13,7 @@ class StrategicNarrativeTest extends FunSuite {
     weaknesses: List[WeakComplex] = Nil,
     concepts: List[String] = Nil
   ): String = {
+    val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     // 1. Construct Semantic Section
     val semantic = SemanticSection(
       positionalFeatures = positional.map(p => convertPositionalTag(p)),
@@ -27,7 +28,9 @@ class StrategicNarrativeTest extends FunSuite {
 
     // 2. Construct Minimal Context
     val ctx = NarrativeContext(
+      fen = fen,
       header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
+      ply = 1,
       summary = NarrativeSummary("Plan A", None, "StyleChoice", "Maintain", "0.0"),
       threats = ThreatTable(Nil, Nil),
       pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Reason", "Background", None, false, "quiet"),
@@ -35,7 +38,17 @@ class StrategicNarrativeTest extends FunSuite {
       snapshots = Nil,
       delta = None,
       phase = PhaseContext("Middlegame", "Reason", None),
-      candidates = List(CandidateInfo("e4", None, "", "Attack", None, None, "clean", None)),
+      candidates = List(
+        CandidateInfo(
+          move = "e4",
+          uci = None,
+          annotation = "",
+          planAlignment = "Attack",
+          tacticalAlert = None,
+          practicalDifficulty = "clean",
+          whyNot = None
+        )
+      ),
       facts = Nil,
       probeRequests = Nil,
       meta = None,
@@ -69,7 +82,7 @@ class StrategicNarrativeTest extends FunSuite {
   }
 
   private def convertWeakComplex(wc: WeakComplex): WeakComplexInfo = 
-    WeakComplexInfo("light", wc.squares.map(_.key), wc.isOutpost, wc.cause)
+    WeakComplexInfo(owner = wc.color.name.capitalize, squareColor = "light", squares = wc.squares.map(_.key), isOutpost = wc.isOutpost, cause = wc.cause)
 
 
   // =================================================================================

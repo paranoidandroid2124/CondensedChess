@@ -68,6 +68,7 @@ body {
   }
 
   ---chat-height: fit-content(0);
+
   &--wiki {
     ---chat-height: 0;
   }
@@ -77,16 +78,15 @@ body {
   }
 
   grid-template-rows: auto auto auto minmax(20em, 40vh);
-  grid-template-areas:
-    'board'
-    'controls'
-    'kb-move'
-    'tools'
-    'side'
-    'round-training'
-    'under'
-    'chat'
-    'uchat';
+  grid-template-areas: 'board'
+  'controls'
+  'kb-move'
+  'tools'
+  'side'
+  'round-training'
+  'under'
+  'chat'
+  'uchat';
 
   @include mq-at-least-col2 {
     grid-template-columns: var(---col2-uniboard-width) $analyse-block-gap $col2-uniboard-table;
@@ -104,6 +104,7 @@ body {
     &__side {
       margin: $analyse-block-gap 0 0 0;
     }
+
     .chat__members {
       margin: calc($analyse-block-gap / 2) 0 0 0;
     }
@@ -130,18 +131,19 @@ body {
 
   @include mq-at-least-col3 {
     grid-template-columns:
-      $col3-uniboard-side $analyse-block-gap var(---col3-uniboard-width)
-      $analyse-block-gap $col3-uniboard-table;
+      $col3-uniboard-side $analyse-block-gap var(---col3-uniboard-width) $analyse-block-gap $col3-uniboard-table;
     grid-template-rows: auto $chat-height auto 2.5em 1fr;
     grid-template-areas:
       'side    . board   gauge tools'
-      'chat    . board   gauge tools'
-      'uchat   . kb-move .     controls'
-      'uchat   . under   .     controls'
-      'uchat   . under   .     round-training';
+      'side    . board   gauge tools'
+      'side    . kb-move .     controls'
+      'side    . under   .     controls'
+      'side    . under   .     round-training';
 
     &__side {
+      grid-row: 1 / 6;
       margin-top: 0;
+      height: 100%;
     }
 
     .mchat {

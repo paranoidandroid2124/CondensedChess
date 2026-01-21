@@ -70,8 +70,8 @@ class BishopNarrativeTest extends FunSuite {
       ("GoodBishop", List("good bishop", "activating", "strong", "unobstructed")),
       ("BadBishop", List("bad bishop", "struggling", "restricted", "blocked")),
       ("BishopPairAdvantage", List("bishop pair", "leveraging", "long-range", "coordination")),
-      ("OppositeColorBishops", List("opposite-colored", "complexities", "draw")),
-      ("ColorComplexWeakness", List("color complex", "dominating", "exploiting", "light or dark"))
+      ("OppositeColorBishops", List("opposite-colored", "opposite-coloured", "complexities", "draw")),
+      ("ColorComplexWeakness", List("color complex", "colour complex", "dominating", "exploiting", "light or dark"))
     )
 
     themes.foreach { case (tagType, keywords) =>
@@ -86,7 +86,9 @@ class BishopNarrativeTest extends FunSuite {
 
   def createCtx(move: String, evidence: String, plan: String): NarrativeContext = {
     NarrativeContext(
+       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+       ply = 1,
        summary = NarrativeSummary("Improving", None, "StyleChoice", "Maintain", "+0.0"),
        phase = PhaseContext("Middlegame", "Material equality", None),
        snapshots = List(L1Snapshot("=", None, None, None, None, None, Nil)),
@@ -131,7 +133,9 @@ class BishopNarrativeTest extends FunSuite {
     )
     
     NarrativeContext(
+       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+       ply = 1,
        summary = NarrativeSummary("Improving", None, "StyleChoice", "Maintain", "+0.0"),
        phase = PhaseContext("Middlegame", "Material equality", None),
        snapshots = List(L1Snapshot("=", None, None, None, None, Some("Dominant"), Nil)),

@@ -4,7 +4,6 @@ import chess.{ Color, Square }
 import lila.llm.model._
 import lila.llm.model.strategic._
 import lila.llm.analysis.L3._
-import lila.llm.analysis.PlanMatcher.ActivePlans
 
 /**
  * Phase 6: NarrativeContext Builder
@@ -25,6 +24,11 @@ object NarrativeContextBuilder:
     prevOpeningRef: Option[OpeningReference] = None,  // For BranchPoint/TheoryEnds detection
     openingBudget: OpeningEventBudget = OpeningEventBudget()  // Passed from game-level tracker
   ): NarrativeContext = {
+    // Phase 2: We can now probe from non-root FENs (e.g., after playedMove for recapture branching).
+    // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
+    // so they don't pollute candidate lists and meta signals.
+    val rootProbeResults = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
+
     // A7/B7: Candidates built early to extract top move SAN/UCI for threat linkage
     val baseCandidates = buildCandidates(data)
     val color = if (data.isWhiteToMove) Color.White else Color.Black
@@ -43,10 +47,23 @@ object NarrativeContextBuilder:
     val delta = prevAnalysis.map(prev => buildDelta(prev, data, phase.transitionTrigger))
     
     // B7: Enriched candidates with probe results
-    val candidates = buildCandidatesEnriched(data, ctx, probeResults)
+    val candidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
+
+    val playedSan = data.prevMove.flatMap { uci =>
+      NarrativeUtils.uciListToSan(data.fen, List(uci)).headOption
+    }
+
+    // Phase 1: AuthorQuestions (used for Phase 2 evidence planning as well)
+    val authorQuestions =
+      AuthorQuestionGenerator.generate(
+        data = data,
+        ctx = ctx,
+        candidates = candidates,
+        playedSan = playedSan
+      )
     
     // B5: Build targets early for use in meta and decision
-    val targets = buildTargets(data, ctx, probeResults)
+    val targets = buildTargets(data, ctx, rootProbeResults)
     
     // Phase 6.5: Evidence Augmentation (Probe Loop)
     val planScoring = PlanScoringResult(
@@ -55,11 +72,22 @@ object NarrativeContextBuilder:
       phase = ctx.phase
     )
     val multiPv = data.alternatives.map(v => PvLine(v.moves, v.scoreCp, v.mate, v.depth))
-    val probeRequests = ProbeDetector.detect(ctx, planScoring, multiPv, data.fen)
+    val probeRequests =
+      ProbeDetector
+        .detect(
+          ctx = ctx,
+          planScoring = planScoring,
+          multiPv = multiPv,
+          fen = data.fen,
+          playedMove = data.prevMove,
+          candidates = candidates,
+          authorQuestions = authorQuestions
+        )
+        .distinctBy(_.id)
     
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
-    val meta = buildMetaSignals(data, ctx, targets, probeResults)
+    val meta = buildMetaSignals(data, ctx, targets, rootProbeResults)
 
     val strategicFlow = data.planSequence.flatMap { seq =>
       seq.previousPlan.flatMap { prev =>
@@ -86,7 +114,7 @@ object NarrativeContextBuilder:
 
     // Phase F: Decision Rationale (Synthesis)
     val decision = if (header.choiceType != "StyleChoice") {
-      Some(calculateDecisionRationale(data, ctx, candidates, semantic, targets, probeResults))
+      Some(calculateDecisionRationale(data, ctx, candidates, semantic, targets, rootProbeResults))
     } else None
 
     // Phase A9: Opening Event Detection (event-driven, not per-move)
@@ -100,16 +128,33 @@ object NarrativeContextBuilder:
       case None => openingBudget.updatePly(data.ply)
     }
 
+    val authorEvidence =
+      AuthorEvidenceBuilder.build(
+        fen = data.fen,
+        ply = data.ply,
+        playedMove = data.prevMove,
+        bestMove = candidates.headOption.flatMap(_.uci),
+        authorQuestions = authorQuestions,
+        probeResults = probeResults
+      )
+
     NarrativeContext(
+      fen = data.fen,
       header = header,
+      ply = data.ply,
+      playedMove = data.prevMove,
+      playedSan = playedSan,
+      counterfactual = data.counterfactual,
       summary = summary,
       threats = threats,
       pawnPlay = pawnPlay,
       plans = plans,
-      snapshots = List(buildL1Snapshot(ctx)),
+      snapshots = List(l1),
       delta = delta,
       phase = phase,
       candidates = candidates,
+      authorQuestions = authorQuestions,
+      authorEvidence = authorEvidence,
       facts = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now) ++ 
               FactExtractor.extractStaticFacts(board, color) ++
               FactExtractor.extractEndgameFacts(board, color),
@@ -209,7 +254,7 @@ object NarrativeContextBuilder:
         .find(t => t.attackSquares.headOption.flatMap(str => chess.Square.fromKey(str)).exists(sq => NarrativeUtils.isVerifiedThreat(data.fen, sq, if (!data.isWhiteToMove) chess.Color.White else chess.Color.Black)))
         .map { t =>
           val urgency = 
-            if (t.lossIfIgnoredCp >= 800 || t.kind.toString == "Mate") "URGENT"
+            if (t.lossIfIgnoredCp >= 800 || t.kind == ThreatKind.Mate) "URGENT"
             else if (t.lossIfIgnoredCp >= 300) "IMPORTANT"
             else "LOW"
           val attacker = t.motifs.headOption.map(_.takeWhile(_ != '(')).getOrElse("attacker")
@@ -221,8 +266,8 @@ object NarrativeContextBuilder:
       .map(c => c.choiceTopology.topologyType.toString)
       .getOrElse("Unknown")
     
-    val hasMateThreatToUs = ctx.threatsToUs.exists(_.threats.exists(_.kind.toString == "Mate"))
-    val hasMateThreatToThem = ctx.threatsToThem.exists(_.threats.exists(_.kind.toString == "Mate"))
+    val hasMateThreatToUs = ctx.threatsToUs.exists(_.threats.exists(_.kind == ThreatKind.Mate))
+    val hasMateThreatToThem = ctx.threatsToThem.exists(_.threats.exists(_.kind == ThreatKind.Mate))
     val hasMateCandidate = data.candidates.exists { cand =>
       cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
     }
@@ -828,6 +873,21 @@ object NarrativeContextBuilder:
     
     val enriched = existing.map { c =>
       val probe = probeResults.find(pr => pr.probedMove == c.uci)
+
+      // Probe PV samples (a1/a2): convert probe reply PVs into SAN lines, starting from opponent reply.
+      val probeLines = probe.flatMap { pr =>
+        val moveUciOpt = c.uci
+        val replyPvs = pr.replyPvs.getOrElse {
+          if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil
+        }
+
+        moveUciOpt.map { moveUci =>
+          replyPvs.take(2).flatMap { pv =>
+            val san = NarrativeUtils.uciListToSan(data.fen, moveUci :: pv.take(6)).drop(1).mkString(" ")
+            Option(san).map(_.trim).filter(_.nonEmpty)
+          }
+        }
+      }.getOrElse(Nil)
       
       // 1. Logic for tags
       val probeTags = probe.map { pr =>
@@ -856,7 +916,8 @@ object NarrativeContextBuilder:
 
       c.copy(
         whyNot = whyNot.orElse(c.whyNot),
-        tags = (c.tags ++ probeTags).distinct
+        tags = (c.tags ++ probeTags).distinct,
+        probeLines = probeLines
       )
     }
     
@@ -880,7 +941,12 @@ object NarrativeContextBuilder:
         tacticalAlert = None,
         practicalDifficulty = "complex",
         whyNot = Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote"),
-        tags = ghostTags
+        tags = ghostTags,
+        probeLines =
+          pr.replyPvs.getOrElse(if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil).take(2).flatMap { pv =>
+            val sanLine = NarrativeUtils.uciListToSan(data.fen, uci :: pv.take(6)).drop(1).mkString(" ")
+            Option(sanLine).map(_.trim).filter(_.nonEmpty)
+          }
       )
     }
     
@@ -1133,8 +1199,16 @@ object NarrativeContextBuilder:
   }
 
   private def convertWeakComplex(wc: WeakComplex): WeakComplexInfo = {
-    val squareColor = if (wc.color == chess.Color.White) "light" else "dark"
+    val owner = wc.color.name.capitalize
+    val distinctColors = wc.squares.map(_.isLight).distinct
+    val squareColor =
+      distinctColors match
+        case Nil          => "mixed"
+        case true :: Nil  => "light"
+        case false :: Nil => "dark"
+        case _            => "mixed"
     WeakComplexInfo(
+      owner = owner,
       squareColor = squareColor,
       squares = wc.squares.map(_.key),
       isOutpost = wc.isOutpost,

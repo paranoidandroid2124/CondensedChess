@@ -12,6 +12,13 @@ import chess.format.Uci
 object NarrativeUtils:
 
   /**
+   * Converts PascalCase or camelCase to lowercase spaced words.
+   * e.g., "BadBishop" -> "bad bishop", "NarrowChoice" -> "narrow choice"
+   */
+  def humanize(s: String): String =
+    s.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase
+
+  /**
    * Converts a list of UCI move strings to SAN (Standard Algebraic Notation).
    */
   def uciListToSan(fen: String, uciMoves: List[String]): List[String] =
@@ -60,6 +67,102 @@ object NarrativeUtils:
       }
     }
 
+  /**
+   * Parses a SAN snippet (may include move numbers like "7." / "7..." and punctuation)
+   * into a list of UCI moves, validating legality step-by-step from the given FEN.
+   *
+   * Returns None if any SAN token cannot be applied legally.
+   */
+  def sanLineToUciList(fen: String, sanLine: String): Option[List[String]] =
+    val raw = sanLine.trim
+    if (raw.isEmpty) return Some(Nil)
+
+    val tokens =
+      raw
+        .split("\\s+")
+        .toList
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filterNot(t => t.matches("^[0-9]+\\.{1,3}$")) // "7." or "7..."
+        .filterNot(t => t == "..." || t == "…")
+        .filterNot(t => t == "1-0" || t == "0-1" || t == "1/2-1/2" || t == "*")
+
+    val ucis = scala.collection.mutable.ListBuffer.empty[String]
+    var currentFen = fen
+    var ok = true
+    val it = tokens.iterator
+    while (it.hasNext && ok) {
+      val san = it.next()
+      sanToUci(currentFen, san) match
+        case None => ok = false
+        case Some(uci) =>
+          ucis += uci
+          currentFen = uciListToFen(currentFen, List(uci))
+    }
+    Option.when(ok)(ucis.toList)
+
+  /**
+   * Converts a UCI string to SAN string based on the given FEN.
+   * Returns None if the move is illegal or cannot be parsed.
+   * 
+   * This is the single source of truth for UCI→SAN conversion.
+   */
+  def uciToSan(fen: String, uciMove: String): Option[String] =
+    for
+      pos <- chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen))
+      uci <- Uci(uciMove)
+      move <- uci match
+        case m: Uci.Move => pos.move(m).toOption
+        case _: Uci.Drop => None
+    yield move.toSanStr.toString
+
+  /**
+   * Best-effort UCI to SAN-like format without board context.
+   * e2e4 → e4, e7e8q → e8=Q
+   */
+  def formatUciAsSan(uci: String): String =
+    if (uci.length < 4) uci
+    else
+      val dest = uci.substring(2, 4)
+      val promotion = if (uci.length > 4) s"=${uci(4).toUpper}" else ""
+      s"$dest$promotion"
+
+  /**
+   * Converts UCI → SAN when possible, otherwise falls back to a lightweight SAN-like format.
+   */
+  def uciToSanOrFormat(fen: String, uciMove: String): String =
+    uciToSan(fen, uciMove).getOrElse(formatUciAsSan(uciMove))
+
+  /**
+   * Formats a SAN line with correct move numbers starting at `startPly`.
+   *
+   * Example:
+   * - startPly=13, sans=["c3","O-O","d4"] → "7. c3 O-O 8. d4"
+   * - startPly=14, sans=["...dxc4","Bg2"] → "7... dxc4 8. Bg2"
+   */
+  def formatSanWithMoveNumbers(startPly: Int, sans: List[String]): String =
+    if (sans.isEmpty) return ""
+    val sb = new StringBuilder()
+    var ply = startPly
+    var lastMoveNo: Option[Int] = None
+    var lastWasWhite = false
+
+    sans.foreach { san =>
+      val moveNo = (ply + 1) / 2
+      val prefix =
+        if (ply % 2 == 1) s"$moveNo."
+        else if (lastWasWhite && lastMoveNo.contains(moveNo)) "" else s"$moveNo..."
+
+      if (sb.nonEmpty) sb.append(" ")
+      if (prefix.nonEmpty) sb.append(prefix).append(" ")
+      sb.append(san)
+
+      lastMoveNo = Some(moveNo)
+      lastWasWhite = (ply % 2 == 1)
+      ply += 1
+    }
+
+    sb.toString()
 
   /**
    * Converts a list of Square objects to algebraic notation string.
@@ -137,68 +240,6 @@ object NarrativeUtils:
       isOccupiedByVictim && isAttackedByOpponent
     }
 
-  // ============================================================
-  // POSITION CHARACTERIZATION (Migrated from PositionCharacterizer)
-  // ============================================================
-  
-  import lila.llm.model.PositionNature
-  import lila.llm.model.NatureType
 
-  def characterizePosition(pos: chess.Position): PositionNature =
-    val baseTension = calculateTension(pos)
-    val fluidity = calculateFluidity(pos.board)
-    
-    // Phase 12: Boost tension if check
-    val isCheck = pos.check.yes
-    val checkBoost = if (isCheck) 0.3 else 0.0
-    val tension = Math.min(1.0, baseTension + checkBoost)
-    
-    val natureType = 
-      if (tension > 0.5 || isCheck) NatureType.Chaos
-      else if (tension > 0.3 || fluidity > 0.5) NatureType.Dynamic
-      else if (fluidity < 0.3) NatureType.Static
-      else NatureType.Transition
 
-    PositionNature(
-      natureType = natureType,
-      tension = tension,
-      stability = 1.0 - (tension * 0.5),
-      description = deriveDescription(natureType, tension)
-    )
 
-  private def calculateTension(pos: chess.Position): Double =
-    val board = pos.board
-    val occupied = board.occupied
-    
-    var attackCount = 0
-    board.foreach { (color, role, sq) =>
-      val targets: chess.Bitboard = role match
-        case chess.Pawn   => sq.pawnAttacks(color)
-        case chess.Knight => sq.knightAttacks
-        case chess.Bishop => sq.bishopAttacks(occupied)
-        case chess.Rook   => sq.rookAttacks(occupied)
-        case chess.Queen  => sq.queenAttacks(occupied)
-        case chess.King   => sq.kingAttacks
-      
-      attackCount += (targets & board.byColor(!color)).count
-    }
-
-    val pieceCount = board.nbPieces
-    if (pieceCount == 0) 0.0
-    else Math.min(1.0, attackCount.toDouble / (pieceCount.toDouble * 1.5))
-
-  private def calculateFluidity(board: chess.Board): Double =
-    val pawns = board.pawns
-    val totalPawns = pawns.count
-    if (totalPawns == 0) return 1.0
-    
-    val centerFiles = List(chess.File.C, chess.File.D, chess.File.E, chess.File.F)
-    val openFilesCount = centerFiles.count(f => (pawns & chess.Bitboard.file(f)).isEmpty)
-    
-    openFilesCount.toDouble / centerFiles.size
-
-  private def deriveDescription(nt: NatureType, _tension: Double): String = nt match
-    case NatureType.Static => "A solid, maneuvering position with a fixed structure."
-    case NatureType.Dynamic => "A dynamic position with active piece play and open lines."
-    case NatureType.Chaos => "A high-tension tactical battlefield."
-    case NatureType.Transition => "A fluid position transitioning between structures."

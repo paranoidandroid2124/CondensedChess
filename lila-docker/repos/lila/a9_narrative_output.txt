@@ -1,0 +1,118 @@
+
+==================================================
+--- GAME INTRO ---
+In this encounter between **Unknown** and **Unknown** (Unknown, Unknown), the game concluded with *****. Let's examine the critical moments.
+
+--- KEY MOMENT NARRATIVES ---
+
+[Ply 1] (OpeningIntro)
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | Low] ===
+
+=== OPENING EVENT (MASTERS) ===
+[INTRO] B99: Sicilian Najdorf
+• Theme: Asymmetrical pawn structure
+• Main moves: e4 (5000g), a3 (100g)
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Piece Activation (0.25)
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: -0.5
+
+=== DECISION RATIONALE ===
+Logic: General improvement (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: Piece Activation 0.25
+
+=== L1 SNAPSHOT ===
+Material: = | King(us): Exposed (0 attackers, 0 escapes) | King(them): Exposed (0 attackers, 0 escapes)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Piece Activation
+• Piece Issues: rook on a1 (mobility: 0.0); knight on b1 (mobility: 0.25); bishop on c1 (mobility: 0.0)
+• Practical Assessment: Under Pressure (Score: -50.0)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Piece Activation
+
+=== PHASE ===
+Current: Opening (Material: 78, Minors: 8, Queens present)
+
+=== META ===
+Choice: narrow choice
+Plans: Piece Activation
+
+=== CANDIDATES ===
+a) e4! (Positional maneuvering, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• evidence_free_tempo_latent_CentralBreak_D_3dd5512c: Probing moves [a7a6, h7h6, a7a5, h7h5] at depth 20
+• evidence_immediate_latent_CentralBreak_D_3dd5512c: Probing moves [d7d6, d7d5] at depth 20
+• evidence_refute_latent_CentralBreak_D_3dd5512c: Probing moves [c7c6, d7d6, e7e6] at depth 20
+
+[Ply 11] (Blunder)
+--------------------
+=== CONTEXT [Opening | Normal | NarrowChoice | High] ===
+
+=== SUMMARY ===
+• Primary Plan: Suggested Plan: Pawn Chain Maintenance (0.70)
+• Choice Type: narrow choice
+• Tension: ignore (quiet)
+• Eval: Eval: -3.0
+
+=== DECISION RATIONALE ===
+Focus: d5 (Heuristic Logic)
+Logic: Focus on d5 (probe needed for validation)
+
+=== PLANS ===
+1. Suggested Plan: Pawn Chain Maintenance 0.70 (Pawn chain structure, Pawn chain structure)
+   • Support: Solid pawn structure, Long-term positional stability
+   • Blocker: Inflexible pawns can become targets
+2. Suggested Plan: Exploiting Space Advantage 0.70 (Space advantage)
+   • Support: Greater piece mobility, Easier maneuvering between flanks
+   • Blocker: Overextended pawns can be weak
+   • Missing: Completion of development to utilize space
+
+=== L1 SNAPSHOT ===
+Material: = | King(them): Exposed (0 attackers, 1 escapes) | Mobility: Advantage (+11)
+
+=== SEMANTIC CONTEXT ===
+• Strategic Themes: Positional battle, Pawn Chain Maintenance, Exploiting Space Advantage
+• Key Weaknesses: mixed-square weakness (Holes) at d5, f5, a5, g5; light-square weakness (Hanging Pawns) at a6, b7
+• Piece Issues: rook on a1 (mobility: 0.07142857142857142); queen on d1 (mobility: 0.2222222222222222); king on e1 (mobility: 0.25)
+• Positional Features: weak square(black at d5); weak square(black at f5)
+• Practical Assessment: Under Pressure (Score: -273.32621082621085)
+
+=== OPPONENT Anticipated ===
+• Anticipated: Suggested Plan: Minority Attack
+
+=== DELTA ===
+Eval: -300cp
+New: PawnAdvance, PawnChain, SpaceAdvantage
+Structure: Pawn chain established
+
+=== PHASE ===
+Current: Opening (Material: 76, Minors: 8, Queens present)
+
+=== STRATEGIC FLOW ===
+White shifts focus from Piece Activation to Pawn Chain Maintenance in this stage of the opening.
+
+=== META ===
+Choice: narrow choice
+STRATEGIC: Target: d5 (Weak square); Target: a6 (Weak complex (Black)); Target: b7 (Weak complex (Black)); Target: a5 (Weak complex (Black)); Target: f5 (Weak square)
+Plans: Pawn Chain Maintenance + Exploiting Space Advantage independent
+
+=== CANDIDATES ===
+a) g4! (Prophylactic defense, clean)
+
+=== PROBE REQUESTS (Evidence Augmentation) ===
+• evidence_recapture_recapture_2a068049: Probing moves [f6g4, c8g4] at depth 20
+• evidence_free_tempo_latent_CentralBreak_E_2a068049: Probing moves [a6a5, h7h6, h7h5, b7b6] at depth 20
+• evidence_immediate_latent_CentralBreak_E_2a068049: Probing moves [e7e6, e7e5] at depth 20
+• evidence_refute_latent_CentralBreak_E_2a068049: Probing moves [d6d5, e7e6, e7e5] at depth 20
+
+--- CONCLUSION ---
+The game ended in a draw. Both sides missed opportunities to tip the balance, with themes like Piece Activation, Pawn Chain Maintenance, Exploiting Space Advantage emerging.
+==================================================

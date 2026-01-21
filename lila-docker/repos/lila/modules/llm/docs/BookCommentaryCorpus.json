@@ -1,0 +1,2063 @@
+{
+  "version": 2,
+  "language": "en",
+  "note": "Updated for SSOT Phase 5: focus on beat structure over specific phrases",
+  "cases": [
+    {
+      "id": "philidor_h6",
+      "title": "Philidor / Legal's-mate motif: 4...h6?",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "d7d6",
+        "f1c4",
+        "c8g4",
+        "b1c3"
+      ],
+      "ply": 8,
+      "playedMove": "h7h6",
+      "opening": "Philidor Defence",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "g8f6",
+            "d2d4",
+            "f8e7",
+            "e1g1",
+            "e8g8"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b8c6",
+            "h2h3",
+            "g4h5",
+            "d2d4"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "h7h6",
+            "f3e5",
+            "d6e5",
+            "d1g4",
+            "g8f6",
+            "g4g7"
+          ],
+          "scoreCp": 95,
+          "depth": 18
+        }
+      ],
+      "referenceExcerpt": "4 ... h6?\nDefinitely an unnecessary pawn move! ...\n5 Nxe5!!\nNow if Black captures the knight with 5 ... dxe5 White replies with 6 Qxg4 ...",
+      "expect": {
+        "minChars": 350,
+        "minParagraphs": 3,
+        "mustContain": [
+          "h6"
+        ],
+        "mustNotContain": [
+          "qxg7"
+        ],
+        "minBeats": 6,
+        "mustHaveBeats": [
+          "Context",
+          "MainMove",
+          "Alternatives"
+        ]
+      }
+    },
+    {
+      "id": "philidor_h6_no_legals_mate",
+      "title": "Philidor-ish: 4.d3 ...h6?! (no Legal's mate)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "d7d6",
+        "f1c4",
+        "c8g4",
+        "d2d3"
+      ],
+      "ply": 8,
+      "playedMove": "h7h6",
+      "opening": "Philidor Defence",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "g8f6",
+            "e1g1",
+            "f8e7",
+            "c2c3"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b8c6",
+            "c2c3",
+            "g8f6",
+            "h2h3"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "h7h6",
+            "f3e5",
+            "d6e5",
+            "d1g4",
+            "g8f6"
+          ],
+          "scoreCp": 60,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "minParagraphs": 3,
+        "mustContain": [
+          "h6"
+        ],
+        "mustNotContain": [
+          "legal's mate",
+          "nd5#"
+        ],
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      }
+    },
+    {
+      "id": "qid_tension_release",
+      "title": "Queen's Indian: early tension release (9.cxd5)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "d2d4",
+        "g8f6",
+        "g1f3",
+        "e7e6",
+        "c2c4",
+        "b7b6",
+        "g2g3",
+        "c8b7",
+        "f1g2",
+        "f8b4",
+        "c1d2",
+        "b4e7",
+        "b1c3",
+        "c7c6",
+        "d2f4",
+        "d7d5"
+      ],
+      "ply": 17,
+      "playedMove": "c4d5",
+      "opening": "Queen's Indian Defence",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "e1g1",
+            "e8g8",
+            "d1c2",
+            "b8d7"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "f3e5",
+            "e8g8",
+            "e2e3",
+            "c6c5"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c4d5",
+            "f6d5",
+            "c3d5",
+            "c6d5"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        }
+      ],
+      "referenceExcerpt": "Best practice is often to maintain the uncertainty (tension) in the centre as long as possible, developing for both scenarios. After an early release of tension, the cramped side can often place pieces on their most natural squares.",
+      "expect": {
+        "minChars": 400,
+        "minParagraphs": 3,
+        "mustContain": [
+          "cxd5"
+        ],
+        "minBeats": 6,
+        "mustHaveBeats": [
+          "Context",
+          "Evidence",
+          "MainMove",
+          "Alternatives"
+        ],
+        "minEvidenceBranches": 2
+      },
+      "probeResults": [
+        {
+          "id": "fixture_keep_tension_dxc4",
+          "fen": "rn1qk2r/pb2bppp/1pp1pn2/3p4/2PP1B2/2N2NP1/PP2PPBP/R2Q1RK1 b kq - 1 1",
+          "evalCp": 15,
+          "bestReplyPv": [
+            "d1c2",
+            "b8d7"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "keep_tension_branches",
+          "questionId": "planclash_23e5d8e6",
+          "questionKind": "PlanClash",
+          "probedMove": "d5c4",
+          "depth": 18
+        },
+        {
+          "id": "fixture_keep_tension_c5",
+          "fen": "rn1qk2r/pb2bppp/1pp1pn2/3p4/2PP1B2/2N2NP1/PP2PPBP/R2Q1RK1 b kq - 1 1",
+          "evalCp": 25,
+          "bestReplyPv": [
+            "c4d5",
+            "e6d5"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "keep_tension_branches",
+          "questionId": "planclash_23e5d8e6",
+          "questionKind": "PlanClash",
+          "probedMove": "c6c5",
+          "depth": 18
+        }
+      ]
+    },
+    {
+      "id": "startpos_e4_best",
+      "title": "Sanity check: best move still shows alternatives (1.e4)",
+      "analysisFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "ply": 1,
+      "playedMove": "e2e4",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "d7d6"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d2d4",
+            "d7d5",
+            "c2c4",
+            "e7e6"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c2c4",
+            "e7e5",
+            "b1c3",
+            "g8f6"
+          ],
+          "scoreCp": 10,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 250,
+        "minParagraphs": 3,
+        "mustContain": [
+          "e4"
+        ],
+        "mustNotContain": [
+          "Stronger is",
+          "The game begins"
+        ],
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "Evidence",
+          "MainMove",
+          "Alternatives"
+        ]
+      }
+    },
+    {
+      "id": "ruy_c3_prepare_d4",
+      "title": "Ruy Lopez Exchange: 7.c3! (preparing d4)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "g8f6",
+        "d2d3",
+        "f8c5",
+        "b5c6",
+        "d7c6",
+        "e1g1",
+        "f6d7"
+      ],
+      "ply": 13,
+      "playedMove": "c2c3",
+      "opening": "Ruy Lopez, Exchange Variation",
+      "phase": "Opening",
+      "openingRef": {
+        "eco": "C68",
+        "name": "Ruy Lopez: Exchange Variation",
+        "totalGames": 412,
+        "topMoves": [
+          {
+            "uci": "c2c3",
+            "san": "c3",
+            "total": 215,
+            "white": 90,
+            "draws": 95,
+            "black": 30,
+            "performance": 2620
+          },
+          {
+            "uci": "b1d2",
+            "san": "Nbd2",
+            "total": 118,
+            "white": 45,
+            "draws": 55,
+            "black": 18,
+            "performance": 2610
+          },
+          {
+            "uci": "h2h3",
+            "san": "h3",
+            "total": 79,
+            "white": 30,
+            "draws": 35,
+            "black": 14,
+            "performance": 2590
+          }
+        ],
+        "sampleGames": [
+          {
+            "id": "sample1",
+            "winner": null,
+            "white": {
+              "name": "Carlsen, Magnus",
+              "rating": 2863
+            },
+            "black": {
+              "name": "Caruana, Fabiano",
+              "rating": 2835
+            },
+            "year": 2020,
+            "month": 6,
+            "pgn": "7. c3 O-O 8. d4 Bd6 9. Nc3"
+          }
+        ]
+      },
+      "variations": [
+        {
+          "moves": [
+            "c2c3",
+            "e8g8",
+            "d3d4",
+            "c5d6",
+            "d4e5",
+            "d6e5"
+          ],
+          "scoreCp": 40,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b1d2",
+            "e8g8",
+            "d3d4",
+            "e5d4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "h2h3",
+            "h7h6",
+            "b1d2",
+            "e8g8"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        }
+      ],
+      "referenceExcerpt": "7 c3!\nPreparing to play d4 and gain control of the centre.\n...",
+      "expect": {
+        "minChars": 350,
+        "minParagraphs": 3,
+        "mustContain": [
+          "c3"
+        ],
+        "mustNotContain": [
+          "Stronger is"
+        ],
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "OpeningTheory",
+          "MainMove",
+          "Alternatives"
+        ]
+      }
+    },
+    {
+      "id": "london_cxd4_recapture",
+      "title": "London System: early ...cxd4 (recapture choice)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "d2d4",
+        "d7d5",
+        "c1f4",
+        "g8f6",
+        "e2e3",
+        "e7e6",
+        "g1f3",
+        "c7c5",
+        "c2c3"
+      ],
+      "ply": 10,
+      "playedMove": "c5d4",
+      "opening": "London System",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "b8c6",
+            "f1d3",
+            "c5d4",
+            "c3d4"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c5d4",
+            "e3d4",
+            "b8c6",
+            "b1d2"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d8b6",
+            "b1d2",
+            "b8c6",
+            "f1d3"
+          ],
+          "scoreCp": 10,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 350,
+        "minParagraphs": 3,
+        "mustContain": [
+          "cxd4"
+        ],
+        "mustNotContain": [
+          "legal's mate",
+          "nd5#"
+        ],
+        "minBeats": 6,
+        "mustHaveBeats": [
+          "Context",
+          "Evidence",
+          "MainMove",
+          "Alternatives"
+        ],
+        "minEvidenceBranches": 2
+      },
+      "probeResults": [
+        {
+          "id": "fixture_recapture_exd4",
+          "fen": "rnbqkb1r/pp3ppp/4pn2/3p4/3p1B2/2P1PN2/PP3PPP/RN1QKB1R w KQkq - 0 2",
+          "evalCp": 20,
+          "bestReplyPv": [
+            "b8c6"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "recapture_branches",
+          "questionId": "recapture_ff76d33",
+          "questionKind": "StructuralCommitment",
+          "probedMove": "e3d4",
+          "depth": 18
+        },
+        {
+          "id": "fixture_recapture_cxd4",
+          "fen": "rnbqkb1r/pp3ppp/4pn2/3p4/3p1B2/2P1PN2/PP3PPP/RN1QKB1R w KQkq - 0 2",
+          "evalCp": 25,
+          "bestReplyPv": [
+            "b8c6"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "recapture_branches",
+          "questionId": "recapture_ff76d33",
+          "questionKind": "StructuralCommitment",
+          "probedMove": "c3d4",
+          "depth": 18
+        }
+      ]
+    },
+    {
+      "id": "catalan_open_dxc4",
+      "title": "Open Catalan: early ...dxc4 (pawn grab)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "d2d4",
+        "g8f6",
+        "c2c4",
+        "e7e6",
+        "g2g3",
+        "d7d5",
+        "f1g2"
+      ],
+      "ply": 8,
+      "playedMove": "d5c4",
+      "opening": "Catalan Opening",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "c7c5",
+            "d4c5",
+            "f8c5",
+            "g1f3"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "f8e7",
+            "g1f3",
+            "e8g8",
+            "e1g1"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d5c4",
+            "g1f3",
+            "f8e7",
+            "e1g1"
+          ],
+          "scoreCp": 10,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "minParagraphs": 3,
+        "mustContain": [
+          "dxc4"
+        ],
+        "mustNotContain": [
+          "legal's mate",
+          "nd5#"
+        ],
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "MainMove",
+          "Alternatives"
+        ]
+      }
+    },
+    {
+      "id": "reversed_sicilian_cxd5",
+      "title": "Reversed Sicilian (English): early tension release (cxd5)",
+      "startFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "preMovesUci": [
+        "c2c4",
+        "e7e5",
+        "b1c3",
+        "g8f6",
+        "g2g3",
+        "d7d5"
+      ],
+      "ply": 7,
+      "playedMove": "c4d5",
+      "opening": "English Opening",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "g1f3",
+            "b8c6",
+            "c4d5",
+            "f6d5"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c4d5",
+            "f6d5",
+            "g1f3",
+            "b8c6"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d2d4",
+            "e5d4",
+            "d1d4",
+            "b8c6"
+          ],
+          "scoreCp": 10,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "minParagraphs": 3,
+        "mustContain": [
+          "cxd5"
+        ],
+        "mustNotContain": [
+          "legal's mate",
+          "nd5#"
+        ],
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "MainMove",
+          "Alternatives"
+        ]
+      }
+    },
+    {
+      "id": "greek_gift_sac",
+      "title": "Greek Gift Sacrifice: 1.Bxh7+ (Tactical explosion)",
+      "analysisFen": "r1bq1rk1/pp1nbppp/2p1p3/3pP3/5B2/2PBP3/PP1N1PPP/R2QK2R w KQ - 0 1",
+      "ply": 15,
+      "playedMove": "d3h7",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d3h7",
+            "g8h7",
+            "f3g5",
+            "h7g8",
+            "d1h5"
+          ],
+          "scoreCp": 150,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "e1g1",
+            "b7b6",
+            "f1e1"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "Greek Gift"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "greek_gift"
+      ],
+      "probeResults": [
+        {
+          "id": "fixture_greek_gift_accept",
+          "fen": "r1bq1rk1/pp1nbppp/2p1p3/3pP3/5B2/2PBP3/PP1N1PPP/R2QK2R w KQ - 0 1",
+          "evalCp": 150,
+          "bestReplyPv": [
+            "g8h7",
+            "f3g5",
+            "h7g8",
+            "d1h5"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "tactical_prep",
+          "probedMove": "d3h7",
+          "depth": 18
+        }
+      ]
+    },
+    {
+      "id": "exchange_sac_c3",
+      "title": "Sicilian Defense: ...Rxc3 (Strategic Exchange Sacrifice)",
+      "analysisFen": "2r1k2r/pp2ppbp/3p1np1/q7/3NP3/2N1BP2/PPPQ2PP/R3KB1R b KQk - 0 1",
+      "ply": 20,
+      "playedMove": "c8c3",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "c8c3",
+            "b2c3",
+            "e8g8",
+            "f1d3"
+          ],
+          "scoreCp": -20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "e8g8",
+            "f1e2",
+            "f8c8"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "Rxc3",
+          "hanging pawns"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ],
+        "mustHaveEvidencePurposes": [
+          "engine_alternatives"
+        ]
+      },
+      "virtualMotifs": [
+        "hanging_pawns"
+      ],
+      "probeResults": [
+        {
+          "id": "fixture_exchange_sac_bxc3",
+          "fen": "r3k2r/pp2ppbp/3p1np1/q7/3NP3/2r1BP2/PPPQ2PP/R3KB1R w KQkq - 0 1",
+          "evalCp": -20,
+          "bestReplyPv": [
+            "b2c3",
+            "e8g8",
+            "f1d3"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "recapture_branches",
+          "probedMove": "b2c3",
+          "depth": 18
+        },
+        {
+          "id": "fixture_exchange_sac_qxc3",
+          "fen": "r3k2r/pp2ppbp/3p1np1/q7/3NP3/2r1BP2/PPPQ2PP/R3KB1R w KQkq - 0 1",
+          "evalCp": 30,
+          "bestReplyPv": [
+            "d2c3",
+            "e8g8"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "recapture_branches",
+          "probedMove": "d2c3",
+          "depth": 18
+        }
+      ]
+    },
+    {
+      "id": "iqp_blockade",
+      "title": "Isolated Queen Pawn: Blockading d4/d5",
+      "analysisFen": "r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N2N2/PP2BPPP/R1BQ1RK1 b - - 0 1",
+      "ply": 15,
+      "playedMove": "d5c4",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d5c4",
+            "e2c4",
+            "b7b6",
+            "a2a3"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b8a6",
+            "c4d5",
+            "e6d5"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "isolated",
+          "pawn"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "iqp"
+      ]
+    },
+    {
+      "id": "minority_attack_carlsbad",
+      "title": "Minority Attack in Carlsbad structure (b4-b5)",
+      "analysisFen": "r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - 0 1",
+      "ply": 18,
+      "playedMove": "a2a3",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b2b4",
+            "c5b4",
+            "a3b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 250,
+        "mustContain": [
+          "minority attack"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "minority_attack"
+      ],
+      "probeResults": [
+        {
+          "id": "fixture_minority_b4",
+          "fen": "r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/P1N1PN2/1P2BPPP/R1BQ1RK1 w - - 0 1",
+          "evalCp": 40,
+          "bestReplyPv": [
+            "b2b4",
+            "c5b4",
+            "a3b4"
+          ],
+          "deltaVsBaseline": 0,
+          "keyMotifs": [],
+          "purpose": "keep_tension_branches",
+          "probedMove": "b2b4",
+          "depth": 18
+        }
+      ]
+    },
+    {
+      "id": "bad_bishop_endgame",
+      "title": "Bad Bishop vs Good Knight: 1.Nd4 (Conversion)",
+      "analysisFen": "4k3/1p4p1/2p1p2p/p1P1P1p1/2NP2P1/1P6/5P1P/6K1 w - - 0 1",
+      "ply": 40,
+      "playedMove": "c4d6",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "c4d6",
+            "e8d7",
+            "d6b7"
+          ],
+          "scoreCp": 400,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "f2f3",
+            "e8d7",
+            "g1f2"
+          ],
+          "scoreCp": 150,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "bad bishop"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "bad_bishop",
+        "knight_domination"
+      ]
+    },
+    {
+      "id": "zugzwang_pawn_endgame",
+      "title": "Pawn Endgame: Zugzwang (Precision)",
+      "analysisFen": "8/8/6p1/5pP1/5P2/4K3/8/3k4 w - - 0 1",
+      "ply": 60,
+      "playedMove": "e3d4",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "e3d4",
+            "d1d2",
+            "d4e5",
+            "d2e3",
+            "e5f5"
+          ],
+          "scoreCp": 1000,
+          "depth": 20
+        },
+        {
+          "moves": [
+            "e3f3",
+            "d1e1",
+            "f3g3",
+            "e1f1"
+          ],
+          "scoreCp": 0,
+          "depth": 20
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "zugzwang"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "zugzwang"
+      ]
+    },
+    {
+      "id": "prophylaxis_kh1",
+      "title": "Prophylaxis: 1.Kh1 (Deep defense)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3pP3/5B2/2PBP3/PP1N1PPP/R2QK2R w KQ - 0 1",
+      "ply": 20,
+      "playedMove": "h1g1",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "g1h1",
+            "f7f5",
+            "e5f6"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "h2h4",
+            "f7f5",
+            "h4h5"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "prophylactic"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "prophylaxis"
+      ]
+    },
+    {
+      "id": "interference_tactic",
+      "title": "Interference Tactic: Cutting off defense",
+      "analysisFen": "3r2k1/pp3ppp/4p3/1b6/4P3/P4P2/BP4PP/3R2K1 w - - 0 1",
+      "ply": 25,
+      "playedMove": "d1d8",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d1d8",
+            "b5e8",
+            "d8e8"
+          ],
+          "scoreCp": 2000,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "a3a4",
+            "b5a6",
+            "b2b4"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "interference"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "interference"
+      ]
+    },
+    {
+      "id": "passed_pawn_push",
+      "title": "Passed Pawn: 1.d6 (Structural push)",
+      "analysisFen": "3r2k1/pp3ppp/8/3P4/8/8/PP3PPP/3R2K1 w - - 0 1",
+      "ply": 30,
+      "playedMove": "d5d6",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "d5d6",
+            "g8f8",
+            "f2f4",
+            "f8e8"
+          ],
+          "scoreCp": 120,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 250,
+        "mustContain": [
+          "passed pawn"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "passed_pawn"
+      ]
+    },
+    {
+      "id": "deflection_sacrifice",
+      "title": "Deflection: 1.Qd8+ (Forcing move)",
+      "analysisFen": "6k1/pp3ppp/4r3/3Q4/8/5P2/PP4PP/6K1 w - - 0 1",
+      "ply": 28,
+      "playedMove": "d5d8",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d5d8",
+            "e6e8",
+            "d8e8"
+          ],
+          "scoreCp": 2000,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "g2g3",
+            "h7h6",
+            "g1g2"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "deflection"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "deflection"
+      ]
+    },
+    {
+      "id": "king_hunt_sac",
+      "title": "King Hunt: 1.Bxf7+ (Luring the king)",
+      "analysisFen": "r1bqk2r/ppppbppp/2n5/4P3/2B5/2P2N2/PP3PPP/RNBQK2R w KQkq - 0 1",
+      "ply": 12,
+      "playedMove": "c4f7",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "c4f7",
+            "e8f7",
+            "f3g5",
+            "f7g8",
+            "d1d5"
+          ],
+          "scoreCp": 250,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "e1g1",
+            "d7d6",
+            "e5d6"
+          ],
+          "scoreCp": 40,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "king hunt"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "king_hunt"
+      ]
+    },
+    {
+      "id": "battery_open_file",
+      "title": "Rook Battery: Doubling on the d-file",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 22,
+      "playedMove": "d1d2",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d1d2",
+            "b7b6",
+            "d3d1"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 240,
+        "mustContain": [
+          "battery"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "battery"
+      ]
+    },
+    {
+      "id": "bishop_pair_open",
+      "title": "Bishop Pair: Dominance in open position",
+      "analysisFen": "4r1k1/pp3ppp/8/3b4/8/P1B2P2/1P4PP/4R1K1 w - - 0 1",
+      "ply": 35,
+      "playedMove": "e1e8",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "e1e8",
+            "d5c6",
+            "e8e1"
+          ],
+          "scoreCp": 50,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c3d4",
+            "a7a6",
+            "e1d1"
+          ],
+          "scoreCp": 40,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "bishop pair"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "bishop_pair"
+      ]
+    },
+    {
+      "id": "hanging_pawns_center",
+      "title": "Hanging Pawns: c4/d4 (Structural tension)",
+      "analysisFen": "rn1qk2r/pb2bppp/1p2pn2/2pp4/2PP4/2N2NP1/PP2PPBP/R1BQ1RK1 w KQkq - 0 1",
+      "ply": 15,
+      "playedMove": "c4d5",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "c4d5",
+            "e6d5",
+            "d4c5",
+            "b6c5"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b2b3",
+            "e8g8",
+            "c1b2"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "hanging pawns"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "hanging_pawns"
+      ]
+    },
+    {
+      "id": "opposite_bishops_attack",
+      "title": "Opposite-Colored Bishops: Attacking the King",
+      "analysisFen": "4r1k1/pp3p1p/2b3p1/8/8/P1B2B2/1P3PPP/4R1K1 w - - 0 1",
+      "ply": 30,
+      "playedMove": "e1e8",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "e1e8",
+            "c6e8",
+            "f3b7"
+          ],
+          "scoreCp": 60,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "f3c6",
+            "b7c6",
+            "e1e8"
+          ],
+          "scoreCp": 55,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 240,
+        "mustContain": [
+          "opposite-colored bishops"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "opposite_bishops"
+      ]
+    },
+    {
+      "id": "simplification_trade",
+      "title": "Simplification: Trading into a won endgame",
+      "analysisFen": "4r1k1/1p3ppp/8/3R4/8/P4P2/1P4PP/6K1 w - - 0 1",
+      "ply": 45,
+      "playedMove": "d5b5",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "d5b5",
+            "e8e7",
+            "g1f2",
+            "f7f6"
+          ],
+          "scoreCp": 150,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "g1f2",
+            "f7f6",
+            "d5b5"
+          ],
+          "scoreCp": 140,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "simplification"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "simplification"
+      ]
+    },
+    {
+      "id": "zugzwang_mutual",
+      "title": "Mutual Zugzwang: Pawn Endgame (Precision)",
+      "analysisFen": "8/8/p1p5/PpP5/1P1K4/8/8/8 w - - 0 1",
+      "ply": 55,
+      "playedMove": "d4c4",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "d4c3",
+            "c6d5",
+            "c3d3"
+          ],
+          "scoreCp": 0,
+          "depth": 20
+        },
+        {
+          "moves": [
+            "d4e4",
+            "c6d6",
+            "e4f5"
+          ],
+          "scoreCp": 0,
+          "depth": 20
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "zugzwang"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "zugzwang"
+      ]
+    },
+    {
+      "id": "smothered_mate_prep",
+      "title": "Smothered Mate Prep: 1.Nb5 (Tactical motif)",
+      "analysisFen": "r1bq1rk1/pp1n1ppp/2n1p3/2ppP3/3P1B2/2N5/PPP1QPPP/2KR1BNR w - - 0 1",
+      "ply": 15,
+      "playedMove": "c3b5",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "c3b5",
+            "a7a6",
+            "b5d6"
+          ],
+          "scoreCp": 45,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "e1c1",
+            "b8c6",
+            "g1f3"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 280,
+        "mustContain": [
+          "smothered mate"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "smothered_mate"
+      ]
+    },
+    {
+      "id": "knight_domination_endgame",
+      "title": "Knight Domination: 1.Nb6 (Outplaying a bishop)",
+      "analysisFen": "4k3/1p4p1/2p1p2p/p1P1P1p1/2NP2P1/1P6/5P1P/6K1 w - - 0 1",
+      "ply": 42,
+      "playedMove": "c4b6",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "c4b6",
+            "e8d7",
+            "b6c8",
+            "d7c8"
+          ],
+          "scoreCp": 180,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "f2f3",
+            "e8d7",
+            "g1f2"
+          ],
+          "scoreCp": 150,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 280,
+        "mustContain": [
+          "dominate"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "knight_domination"
+      ]
+    },
+    {
+      "id": "opening_novelty_e5",
+      "title": "Opening Novelty: Handling an early ...e5 break",
+      "analysisFen": "rnbqk2r/ppppbppp/2n5/4P3/2B5/2P2N2/PP3PPP/RNBQK2R w KQkq - 0 1",
+      "ply": 10,
+      "playedMove": "e1g1",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "e1g1",
+            "d7d6",
+            "e5d6"
+          ],
+          "scoreCp": 40,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d1d5",
+            "e8g8",
+            "e1g1"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "novelty"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "novelty"
+      ]
+    },
+    {
+      "id": "rook_lift_attack",
+      "title": "Rook Lift: 1.Rd3 (Attacking the king)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 24,
+      "playedMove": "d3d4",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d3d4",
+            "f7f5",
+            "d4h4"
+          ],
+          "scoreCp": 40,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d1d2",
+            "b7b6",
+            "a2a3"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 240,
+        "mustContain": [
+          "rook lift"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "rook_lift"
+      ]
+    },
+    {
+      "id": "outside_passed_pawn",
+      "title": "Outside Passed Pawn: a-pawn advantage",
+      "analysisFen": "8/8/p1k5/PpP5/1P1K4/8/8/8 w - - 0 1",
+      "ply": 58,
+      "playedMove": "d4e5",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "d4e5",
+            "c6c7",
+            "e5d5"
+          ],
+          "scoreCp": 100,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d4c3",
+            "c6d5",
+            "c3d3"
+          ],
+          "scoreCp": 0,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 240,
+        "mustContain": [
+          "passed pawn"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "passed_pawn"
+      ]
+    },
+    {
+      "id": "zwischenzug_tactics",
+      "title": "Zwischenzug: 1.h4 (Tactical intermediate)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/7P/2NRBN2/PPP2PP1/3R2K1 w - - 0 1",
+      "ply": 26,
+      "playedMove": "h4h5",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "h4h5",
+            "h7h6",
+            "g2g4"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d1d2",
+            "b7b6",
+            "a2a3"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 250,
+        "mustContain": [
+          "zwischenzug"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "zwischenzug"
+      ]
+    },
+    {
+      "id": "pawn_break_f4",
+      "title": "Pawn Break: 1.f4 (Kingside storm prep)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 21,
+      "playedMove": "f2f4",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "f2f4",
+            "g7g6",
+            "f4e5"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 280,
+        "mustContain": [
+          "storm"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "pawn_storm"
+      ]
+    },
+    {
+      "id": "trapped_piece_rim",
+      "title": "Trapped Piece: 1.g4 (Minor piece on the rim)",
+      "analysisFen": "r1bqk2r/ppppbppp/2n1p3/4P2n/2B3P1/2P2N2/PP1P1P1P/RNBQK2R w KQkq - 0 1",
+      "ply": 18,
+      "playedMove": "g4h5",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "g4h5",
+            "g7g6",
+            "h5g6"
+          ],
+          "scoreCp": 350,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "h2h3",
+            "d7d6",
+            "e5d6"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 280,
+        "mustContain": [
+          "trapped"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "trapped_piece"
+      ]
+    },
+    {
+      "id": "stalemate_resource",
+      "title": "Stalemate Trick: 1.Rh1+ (Defensive resource)",
+      "analysisFen": "8/8/8/8/8/5k2/7r/5K2 b - - 0 1",
+      "ply": 65,
+      "playedMove": "h2h1",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "h2h1",
+            "f1h1"
+          ],
+          "scoreCp": 0,
+          "depth": 20
+        },
+        {
+          "moves": [
+            "h2d2",
+            "f1e1",
+            "d2d1"
+          ],
+          "scoreCp": -1000,
+          "depth": 20
+        }
+      ],
+      "expect": {
+        "minChars": 240,
+        "mustContain": [
+          "stalemate"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "stalemate_trick"
+      ]
+    },
+    {
+      "id": "underpromotion_knight",
+      "title": "Underpromotion: 1.e8=N+ (Tactical necessity)",
+      "analysisFen": "8/4P1k1/8/8/8/8/8/1K4n1 w - - 0 1",
+      "ply": 55,
+      "playedMove": "e7e8n",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "e7e8n",
+            "g7f8",
+            "e8f6"
+          ],
+          "scoreCp": 200,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "e7e8q",
+            "g1f3",
+            "q8h8"
+          ],
+          "scoreCp": 0,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 250,
+        "mustContain": [
+          "underpromotion"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "underpromotion"
+      ]
+    },
+    {
+      "id": "kingside_pawn_storm",
+      "title": "Pawn Storm: 1.g4 (Attacking the king)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 23,
+      "playedMove": "g2g4",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "g2g4",
+            "h7h6",
+            "g4g5"
+          ],
+          "scoreCp": 50,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 300,
+        "mustContain": [
+          "pawn storm"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "pawn_storm"
+      ]
+    },
+    {
+      "id": "quiet_improvement_move",
+      "title": "Quiet Improvement: 1.Re1 (Improving the rook)",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 25,
+      "playedMove": "d3e1",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "d3e1",
+            "b7b6",
+            "e3d3"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 220,
+        "mustContain": [
+          "prophylactic"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "prophylaxis"
+      ]
+    },
+    {
+      "id": "repetition_decision_move",
+      "title": "Repetition: Deciding for/against a draw",
+      "analysisFen": "4r1k1/pp3ppp/8/3b4/8/P1B2P2/1P4PP/4R1K1 w - - 0 1",
+      "ply": 38,
+      "playedMove": "e1d1",
+      "phase": "Endgame",
+      "variations": [
+        {
+          "moves": [
+            "e1d1",
+            "d5c6",
+            "d1e1"
+          ],
+          "scoreCp": 10,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "c3d4",
+            "a7a6",
+            "e1d1"
+          ],
+          "scoreCp": 15,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "repeat"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "repetition"
+      ]
+    },
+    {
+      "id": "central_liquidation_move",
+      "title": "Central Liquidation: 1.cxd5 (Clearing the center)",
+      "analysisFen": "rn1qk2r/pb2bppp/1pp1pn2/2pp4/2PP4/2N2NP1/PP2PPBP/R1BQ1RK1 w KQkq - 0 1",
+      "ply": 18,
+      "playedMove": "c4d5",
+      "phase": "Opening",
+      "variations": [
+        {
+          "moves": [
+            "c4d5",
+            "e6d5",
+            "d4c5"
+          ],
+          "scoreCp": 30,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "b2b3",
+            "e8g8",
+            "c1b2"
+          ],
+          "scoreCp": 20,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minChars": 200,
+        "mustContain": [
+          "liquidation"
+        ],
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      },
+      "virtualMotifs": [
+        "liquidate"
+      ]
+    },
+    {
+      "id": "final_sanity_check",
+      "title": "Final Sanity Check: Complex position",
+      "analysisFen": "r4rk1/pp1nbppp/2p1p3/3p4/8/2NRBN2/PPP2PPP/3R2K1 w - - 0 1",
+      "ply": 30,
+      "playedMove": "a2a3",
+      "phase": "Middlegame",
+      "variations": [
+        {
+          "moves": [
+            "a2a3",
+            "b7b6",
+            "b2b4"
+          ],
+          "scoreCp": 25,
+          "depth": 18
+        },
+        {
+          "moves": [
+            "d1d2",
+            "b7d6",
+            "e3f4"
+          ],
+          "scoreCp": 35,
+          "depth": 18
+        }
+      ],
+      "expect": {
+        "minBeats": 5,
+        "mustHaveBeats": [
+          "Context",
+          "MainMove"
+        ]
+      }
+    }
+  ]
+}

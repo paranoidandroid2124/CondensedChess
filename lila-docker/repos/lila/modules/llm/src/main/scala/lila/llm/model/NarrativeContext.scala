@@ -1,6 +1,8 @@
 package lila.llm.model
 
-import chess.{Color, Square}
+import chess.Color
+import lila.llm.model.authoring.{ AuthorQuestion, QuestionEvidence }
+import play.api.libs.json.*
 
 /**
  * Phase 6: Narrative Context
@@ -9,8 +11,19 @@ import chess.{Color, Square}
  * Format: Header → Summary → Evidence Tables → Delta
  */
 case class NarrativeContext(
+  // === POSITION CONTEXT ===
+  // FEN used for analysis (position before `playedMove` in move-annotation mode).
+  fen: String,
+
   // === HEADER (Context) ===
   header: ContextHeader,
+
+  // === MOVE ANNOTATION CONTEXT ===
+  // When present, BookStyleRenderer should frame the prose as an annotation of `playedMove`.
+  ply: Int,
+  playedMove: Option[String] = None, // UCI
+  playedSan: Option[String] = None,  // SAN (derived from `fen` used for analysis)
+  counterfactual: Option[lila.llm.model.strategic.CounterfactualMatch] = None,
   
   // === SUMMARY (5 lines) ===
   summary: NarrativeSummary,
@@ -54,9 +67,13 @@ case class NarrativeContext(
   
   // === UPDATED BUDGET (for game-level accumulation) ===
   updatedBudget: OpeningEventBudget = OpeningEventBudget(),
-  
+
   // === PHASE 14: ENGINE EVIDENCE (raw PV for book-style rendering) ===
   engineEvidence: Option[lila.llm.model.strategic.EngineEvidence] = None,
+
+  // === PHASE 1: AUTHOR QUESTIONS (book-style "decision points") ===
+  authorQuestions: List[AuthorQuestion] = Nil,
+  authorEvidence: List[QuestionEvidence] = Nil,
 
   // === PHASE 23: VERIFIED FACTS (Truth Maintenance) ===
   facts: List[Fact] = Nil
@@ -214,6 +231,7 @@ case class CandidateInfo(
   whyNot: Option[String],       // Refutation reason if inferior
   tags: List[CandidateTag] = Nil, // Sharp, Solid, etc.
   tacticEvidence: List[String] = Nil, // P12: Evidence for tactical labels (motifs, victims)
+  probeLines: List[String] = Nil, // Bookmaker: optional a1/a2 reply samples from probes (SAN)
   facts: List[Fact] = Nil // Phase 23: Verified facts for this move
 )
 
@@ -323,6 +341,7 @@ case class MetaSignals(
  * Wrapper for structural weakness with narrative-friendly format.
  */
 case class WeakComplexInfo(
+  owner: String,                // "White" | "Black" (side that owns the weakness)
   squareColor: String,          // "light" | "dark"
   squares: List[String],        // ["f3", "g2", "h3"]
   isOutpost: Boolean,
@@ -517,3 +536,28 @@ case class ExplorerGame(
 )
 
 case class ExplorerPlayer(name: String, rating: Int)
+
+object ExplorerPlayer:
+  given Reads[ExplorerPlayer] = Json.reads[ExplorerPlayer]
+  given Writes[ExplorerPlayer] = Json.writes[ExplorerPlayer]
+
+object ExplorerMove:
+  given Reads[ExplorerMove] = Json.reads[ExplorerMove]
+  given Writes[ExplorerMove] = Json.writes[ExplorerMove]
+
+object ExplorerGame:
+  private given Reads[Color] = Reads {
+    case JsString(s) if s.equalsIgnoreCase("white") => JsSuccess(chess.White)
+    case JsString(s) if s.equalsIgnoreCase("black") => JsSuccess(chess.Black)
+    case other                                       => JsError(s"Invalid Color: $other")
+  }
+  private given Writes[Color] = Writes { c =>
+    JsString(if c == chess.White then "white" else "black")
+  }
+
+  given Reads[ExplorerGame] = Json.reads[ExplorerGame]
+  given Writes[ExplorerGame] = Json.writes[ExplorerGame]
+
+object OpeningReference:
+  given Reads[OpeningReference] = Json.reads[OpeningReference]
+  given Writes[OpeningReference] = Json.writes[OpeningReference]

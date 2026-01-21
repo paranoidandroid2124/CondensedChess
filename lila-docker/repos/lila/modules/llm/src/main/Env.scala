@@ -2,6 +2,7 @@ package lila.llm
 
 import com.softwaremill.macwire.*
 import play.api.libs.ws.StandaloneWSClient
+import lila.llm.analysis.OpeningExplorerClient
 
 @Module
 final class Env(
@@ -12,7 +13,9 @@ final class Env(
 
   lazy val client: LlmClient = LlmClient(ws, config)
 
-  lazy val api: LlmApi = LlmApi(client)
+  private lazy val openingExplorer = OpeningExplorerClient(ws)
+
+  lazy val api: LlmApi = LlmApi(client, openingExplorer)
 
   if config.enabled then
     lila.log("llm").info(s"LLM module enabled with model: ${config.model}")

@@ -1,8 +1,6 @@
 package lila.llm.analysis
 
 import lila.llm.model._
-import chess.format.{ Fen, Uci }
-import chess.variant.Standard
 
 /**
  * A9 Event Detector: Detects opening-related events for narrative generation.
@@ -211,32 +209,8 @@ object OpeningEventDetector:
   private def uciToSan(uci: String, fen: String, topMoves: List[ExplorerMove]): String = {
     // Fast path: lookup in topMoves
     topMoves.find(_.uci == uci).map(_.san).getOrElse {
-      // Convert using board context when possible
-      uciToSanFromFen(fen, uci).getOrElse(formatUciAsSan(uci))
+      NarrativeUtils.uciToSanOrFormat(fen, uci)
     }
-  }
-
-  /**
-   * Convert UCI to SAN using board context from FEN.
-   */
-  private def uciToSanFromFen(fen: String, uciMove: String): Option[String] =
-    for
-      pos <- Fen.read(Standard, Fen.Full(fen))
-      uci <- Uci(uciMove)
-      move <- uci match
-        case m: Uci.Move => pos.move(m).toOption
-        case _: Uci.Drop => None
-    yield move.toSanStr.toString
-
-  /**
-   * Best-effort UCI to SAN-like format without board context.
-   * e2e4 → e4, e7e8q → e8=Q
-   */
-  private def formatUciAsSan(uci: String): String = {
-    if (uci.length < 4) return uci
-    val dest = uci.substring(2, 4)
-    val promotion = if (uci.length > 4) s"=${uci(4).toUpper}" else ""
-    s"$dest$promotion"
   }
 
   /**

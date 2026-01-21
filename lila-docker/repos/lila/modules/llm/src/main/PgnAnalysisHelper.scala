@@ -73,26 +73,21 @@ object PgnAnalysisHelper:
     // Convert engine UCI to SAN for readability
     val engineBestMoveSan = convertUciToSan(plyData.fen, engineBestMoveUci).getOrElse(engineBestMoveUci)
     
-    if (actualLoss >= 300)
+    if (actualLoss >= lila.llm.analysis.Thresholds.BLUNDER_CP)
       Some(s"Ply ${plyData.ply}: BLUNDER. Played **${plyData.playedMove}** instead of **$engineBestMoveSan**. Lost ~${actualLoss / 100.0} pawns.")
-    else if (actualLoss >= 100)
+    else if (actualLoss >= lila.llm.analysis.Thresholds.MISTAKE_CP)
       Some(s"Ply ${plyData.ply}: MISTAKE. Played **${plyData.playedMove}** instead of **$engineBestMoveSan**. Lost ~${actualLoss / 100.0} pawns.")
-    else if (actualLoss >= 50)
+    else if (actualLoss >= lila.llm.analysis.Thresholds.INACCURACY_CP)
       Some(s"Ply ${plyData.ply}: INACCURACY. Played **${plyData.playedMove}**, better was **$engineBestMoveSan**.")
     else
       None
 
   /**
    * Helper to convert UCI move string to SAN string using FEN context.
+   * Delegates to NarrativeUtils.uciToSan for single source of truth.
    */
   private def convertUciToSan(fen: String, uciMove: String): Option[String] =
-    for
-      pos <- Fen.read(chess.variant.Standard, Fen.Full(fen))
-      uci <- Uci(uciMove)
-      move <- uci match
-        case m: Uci.Move => pos.move(m).toOption
-        case d: Uci.Drop => None // Engine won't suggest drops in standard chess analysis usually
-    yield move.toSanStr.toString
+    lila.llm.analysis.NarrativeUtils.uciToSan(fen, uciMove)
 
   /**
    * Helper to get the side-to-move correctly from FEN, not from ply parity.

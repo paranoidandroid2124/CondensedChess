@@ -12,6 +12,10 @@ case class ProbeRequest(
   moves: List[String], // UCI format moves to probe (e.g. "e2e4")
   depth: Int,          // Target depth for the WASM engine
   // Optional metadata for UI/debugging and downstream prompt shaping
+  purpose: Option[String] = None, // e.g. "recapture_branches", "reply_multipv"
+  questionId: Option[String] = None,
+  questionKind: Option[String] = None,
+  multiPv: Option[Int] = None,
   planId: Option[String] = None,
   planName: Option[String] = None,
   planScore: Option[Double] = None,
@@ -31,11 +35,17 @@ object ProbeRequest:
  */
 case class ProbeResult(
   id: String,
+  fen: Option[String] = None, // Base FEN the probe was run from (critical when probing non-root branches)
   evalCp: Int,               // White POV centipawns (same convention as IntegratedContext.evalCp)
   bestReplyPv: List[String], // UCI moves of the refutation/support line after the probed move
+  // Optional: MultiPV reply lines (first element should correspond to bestReplyPv)
+  replyPvs: Option[List[List[String]]] = None,
   deltaVsBaseline: Int,      // evalCp - baselineEvalCp (same POV). Negative = worse than baseline.
   keyMotifs: List[String],   // Motifs detected in the probe line
   // Optional metadata to make ProbeResult self-describing (critical for B-axis "Why-not")
+  purpose: Option[String] = None,
+  questionId: Option[String] = None,
+  questionKind: Option[String] = None,
   probedMove: Option[String] = None, // The probed candidate move (UCI)
   mate: Option[Int] = None,          // Mate distance if applicable
   depth: Option[Int] = None,         // Depth reached by the client engine

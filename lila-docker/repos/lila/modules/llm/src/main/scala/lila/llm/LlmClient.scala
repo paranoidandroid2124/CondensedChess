@@ -173,7 +173,11 @@ case class CommentRequest(
     fen: String,
     lastMove: Option[String],
     eval: Option[EvalData],
-    context: PositionContext
+    context: PositionContext,
+    // Bookmaker Stage 2: optional MultiPV payload (sent by client-side Stockfish)
+    variations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
+    // Bookmaker Stage 2 (optional): probe evidence from client to enable a1/a2 sub-branches
+    probeResults: Option[List[lila.llm.model.ProbeResult]] = None
 )
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]
