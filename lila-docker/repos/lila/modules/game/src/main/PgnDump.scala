@@ -31,12 +31,12 @@ final class PgnDump(
     tags(game, initialFen, None, flags.opening, teams).map: ts =>
       Pgn(ts, InitialComments.empty, tree, Ply.initial.next)
 
-  private def gameUrl(id: GameId) = s"https://lichess.org/$id"
+  private def gameUrl(id: GameId) = s"/$id"
 
   def player(p: Player, u: Option[LightUser]): String =
     p.aiLevel.fold(
       u.fold(p.name.map(_.value).getOrElse("Anonymous"))(_.name.value)
-    )("lichess AI level " + _)
+    )("AI level " + _)
 
   def tags(
       game: Game,

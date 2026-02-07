@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model.*
 import lila.llm.model.strategic.{ VariationLine, VariationTag, CounterfactualMatch, Hypothesis }
-import lila.llm.model.Motif.{ *, given }
+import lila.llm.model.Motif.*
 
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }

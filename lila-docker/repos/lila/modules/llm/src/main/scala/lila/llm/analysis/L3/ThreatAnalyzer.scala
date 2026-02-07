@@ -54,13 +54,7 @@ object ThreatAnalyzer:
   ): ThreatAnalysis =
     val isWhiteToMove = sideToMove.equalsIgnoreCase("white")
     
-    // Step 1: Extract threats from OPPONENT's motifs only
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
-    
-    val board = motifs.headOption.flatMap {
-      case m: lila.llm.model.Motif.Check => Some(chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty))
-      case _ => None
-    }.getOrElse(chess.Board.empty) // This is expensive, better to pass board count directly
 
     // Step 2: Correct with MultiPV data (side-aware)
     val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, isWhiteToMove, fen)
@@ -183,7 +177,7 @@ object ThreatAnalyzer:
       case m: Motif.Pin => List(m.pinnedPiece.name, m.targetBehind.name)
       case m: Motif.Skewer => List(m.frontPiece.name, m.backPiece.name)
       case m: Motif.DiscoveredAttack => List(m.target.name)
-      case m: Motif.Check => List("King")
+      case _: Motif.Check => List("King")
       case m: Motif.Capture => List(m.captured.name)
       case _ => Nil
 
@@ -227,7 +221,6 @@ object ThreatAnalyzer:
       val hasSignificantThreat = pv2IsMate || pv2IsPawnCapture || evalLoss >= MATERIAL_THREAT_THRESHOLD
       
       // P1 FIX: High threshold for implied threats in quiet positions (noise reduction)
-      val PieceCountThreshold = 22 // Suppression below this count for positional threats
       val totalPieces = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board.occupied.count).getOrElse(32)
       val isSuppressedOpening = totalPieces >= 31 // Start position has 32 pieces
       

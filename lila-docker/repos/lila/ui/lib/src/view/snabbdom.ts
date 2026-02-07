@@ -57,7 +57,31 @@ export const dataIcon = (icon: string): Attrs => ({
   'data-icon': icon,
 });
 
-export const iconTag = (icon: string): VNode => snabH('i', { attrs: dataIcon(icon) });
+export const iconTag = (name: string): VNode => {
+  if (icons[name as keyof typeof icons]) return icon(name as any);
+  return snabH('i', { attrs: dataIcon(name) });
+};
+
+import { icons } from '../icons';
+export function icon(name: keyof typeof icons, className?: string): VNode {
+  return snabH(
+    'svg',
+    {
+      class: { [`story-icon`]: true, [`story-icon-${name}`]: true, [className || '']: !!className },
+      attrs: {
+        viewBox: '0 0 24 24',
+        width: '20',
+        height: '20',
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '2',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+      },
+    },
+    [snabH('path', { attrs: { d: icons[name] } })],
+  );
+}
 
 export type LooseVNode = VNodeChildElement | boolean;
 export type LooseVNodes = LooseVNode | LooseVNodes[];

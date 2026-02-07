@@ -54,7 +54,7 @@
   background-color: $c-bad;
 
   &::before {
-    content: $licon-X;
+    content: $story-icon-X;
     color: $c-bad;
   }
 }
@@ -76,7 +76,7 @@
   }
 
   &::before {
-    content: $licon-Checkmark;
+    content: $story-icon-Checkmark;
     color: $c-good;
   }
 }

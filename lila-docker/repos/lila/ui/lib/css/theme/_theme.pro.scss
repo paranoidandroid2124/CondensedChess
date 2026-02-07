@@ -1,0 +1,76 @@
+@import 'theme.default';
+
+// Color Palette: "Insight Hub" (Soft Dark)
+$c-bg: #161A25; // Calm Dark Navy
+$c-bg-page: #0d1016;
+$c-bg-low: #1c212e;
+$c-bg-zebra: #191e2b;
+$c-bg-zebra2: #202635;
+$c-bg-popup: #1c212e;
+$c-bg-opaque: #161A25;
+$c-body-gradient: #161A25;
+$c-border: #2a3449;
+
+// Typography & Text
+$c-font: #E2E8F0; // Soft White
+$c-shade: #94A3B8; // Muted Blue-Grey
+$c-paper: #F1F5F9;
+
+// Accents (Data Visualization Colors)
+$c-primary: #3B82F6; // Trustworthy Blue
+$c-secondary: #06B6D4; // Chesstory Cyan
+$c-good: #06B6D4;
+$c-bad: #EF4444; // Error/Blunder Red
+$c-accent: #F59E0B; // Warning/Best Move Amber
+$c-brag: #8B5CF6; // Violet
+
+// Glass/Surface overrides (Subtle)
+$glass-surface: rgba(28, 33, 46, 0.95); // High opacity for readability
+$glass-border: rgba(255, 255, 255, 0.05);
+
+html.pro {
+    @include shared-color-defs;
+
+    --c-primary-dim: #{rgba(#3B82F6, 0.2)};
+    --c-link-hover: #60A5FA;
+    --c-border-page: #{$c-border};
+
+    // Chesstory: keep core layout logic in `ui/analyse/css/_layout.scss`,
+    // but give analysis panels a distinct "workspace card" look.
+    main.analyse {
+        padding: 2rem;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    .analyse__side,
+    .analyse__tools,
+    .analyse__underboard,
+    .analyse__controls,
+    .study__metadata,
+    .study__chapters,
+    .study__members,
+    .study-index,
+    .study-desc {
+        background: #{$c-bg-low};
+        border: 1px solid #{$c-border};
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+        overflow: hidden;
+    }
+
+    .study__metadata h2,
+    .study-index h1 {
+        background: $c-bg !important;
+        border-bottom: 1px solid $c-border !important;
+        padding: 1rem !important;
+    }
+
+    // Reduce "lichess green strip" feel in evaluation/engine UI.
+    .ceval,
+    .analyse__tools .ceval {
+        --c-good: #{$c-secondary};
+    }
+
+    @include pro-mix;
+}

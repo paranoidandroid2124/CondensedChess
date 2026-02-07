@@ -1,46 +1,38 @@
+<!doctype html>
 <html>
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Embed demo • Chesstory</title>
     <style>
       body {
         font-family: 'Noto Sans', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, Sans-Serif;
         background: #262e36;
         color: rgb(173, 177, 181);
-        padding-top: 5em;
+        padding: 5em 1.5em 3em;
         display: flex;
         flex-flow: column;
         align-items: center;
         gap: 3em;
       }
-      iframe {
+      main {
+        max-width: 760px;
         width: 100%;
+        line-height: 1.6;
       }
-      textarea {
-        width: 800px;
-        background: #222222;
-        color: #f8f8f8;
-        height: 5em;
+      a {
+        color: #ebd488;
       }
     </style>
   </head>
   <body>
-    <h1>Broadcast embed demo</h1>
-    <h2>1000px wide, default settings</h2>
-    <iframe
-      src="https://lichess.org/embed/broadcast/fide-world-rapidblitz-team-championships-2024--rapid-matches-1-10/round-9/1wyZfsUJ"
-      style="max-width: 1000px; aspect-ratio: 4/3"
-      frameborder="0"
-    ></iframe>
-    <textarea>
-<iframe src="https://lichess.org/embed/broadcast/fide-world-rapidblitz-team-championships-2024--rapid-matches-1-10/round-9/1wyZfsUJ" style="max-width: 1000px; aspect-ratio: 4/3;" frameborder="0"></iframe>
-    </textarea>
-    <h2>600px wide, white theme, custom board and pieces</h2>
-    <iframe
-      src="https://lichess.org/embed/broadcast/sixdays-budapest-july-2024--gm-a/round-9/GRmikgAP?bg=light&theme=green&pieceSet=cooke"
-      style="max-width: 600px; aspect-ratio: 4/3"
-      frameborder="0"
-    ></iframe>
-    <textarea>
-<iframe src="https://lichess.org/embed/broadcast/sixdays-budapest-july-2024--gm-a/round-9/GRmikgAP?bg=light&theme=green&pieceSet=cooke" style="max-width: 600px; aspect-ratio: 4/3;" frameborder="0"></iframe>
-    </textarea>
+    <main>
+      <h1>Embed demo</h1>
+      <p>
+        This page existed in the upstream codebase to demonstrate broadcast embeds.
+        Chesstory does not ship the broadcast feature, so the external embeds were removed.
+      </p>
+      <p><a href="/">Back to home</a></p>
+    </main>
   </body>
 </html>

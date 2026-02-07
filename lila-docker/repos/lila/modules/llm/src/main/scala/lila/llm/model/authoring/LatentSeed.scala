@@ -1,6 +1,6 @@
 package lila.llm.model.authoring
 
-import chess.{ Color, File, Role, Square }
+import chess.{ File, Role, Square }
 import lila.llm.model.PlanId
 
 /**

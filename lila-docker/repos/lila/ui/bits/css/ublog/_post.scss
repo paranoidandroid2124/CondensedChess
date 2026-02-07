@@ -71,10 +71,10 @@
     cursor: pointer;
     &::before {
       margin: 0 0.4em;
-      content: $licon-HeartOutline;
+      content: $story-icon-HeartOutline;
     }
     &.ublog-post__like--liked::before {
-      content: $licon-Heart;
+      content: $story-icon-Heart;
     }
     &--mini {
       margin-inline-start: 1rem;

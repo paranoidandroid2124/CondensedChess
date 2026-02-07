@@ -1,9 +1,6 @@
 package lila.llm.analysis
 
 import lila.llm.MoveEval
-import lila.llm.model.strategic._
-import chess.format.Fen
-import chess.variant.Standard
 
 case class KeyMoment(
     ply: Int, 

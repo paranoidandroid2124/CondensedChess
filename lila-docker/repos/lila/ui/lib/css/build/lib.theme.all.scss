@@ -7,5 +7,6 @@
   @include default-mix;
 }
 
+@import '../theme/theme.pro';
 @import '../theme/theme.light';
 @import '../theme/theme.transp';

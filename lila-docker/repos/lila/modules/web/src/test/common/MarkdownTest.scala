@@ -8,7 +8,7 @@ import lila.core.misc.lpv.LpvEmbed
 class MarkdownTest extends munit.FunSuite:
 
   val render: Markdown => Html =
-    new MarkdownRender(assetDomain = AssetDomain("lichess1.org").some, header = true)("test")
+    new MarkdownRender(assetDomain = AssetDomain("chesstory.com").some, header = true)("test")
 
   test("autolinks add rel"):
     val md = Markdown("https://example.com")
@@ -67,8 +67,8 @@ class MarkdownTest extends munit.FunSuite:
     )
   test("markdown image whitelist pass - exact domain match to AssetDomain conf"):
     assertEquals(
-      render(Markdown("![image](https://lichess1.org/image.png)")),
-      Html("""<p><img src="https://lichess1.org/image.png" alt="image" /></p>
+      render(Markdown("![image](https://chesstory.com/image.png)")),
+      Html("""<p><img src="https://chesstory.com/image.png" alt="image" /></p>
 """)
     )
   test("markdown image whitelist pass - exact domain match to one from list"):

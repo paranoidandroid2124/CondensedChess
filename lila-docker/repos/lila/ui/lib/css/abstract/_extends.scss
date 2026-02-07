@@ -1,13 +1,18 @@
 %base-font-fallback {
-  font-family: 'Noto Sans', Sans-Serif;
+  font-family: 'Roboto', 'Noto Sans', 'Segoe UI', Sans-Serif;
 }
 
 %base-font {
-  font-family: 'Noto Sans', Sans-Serif;
+  font-family: 'Roboto', 'Noto Sans', 'Segoe UI', Sans-Serif;
+}
+
+%story-font {
+  font-family: 'Georgia', Serif;
+  line-height: 1.6;
 }
 
 %roboto {
-  font-family: 'Roboto', Sans-Serif;
+  font-family: 'Roboto', 'Noto Sans', Sans-Serif;
   font-weight: 300;
 }
 
@@ -53,47 +58,53 @@
 }
 
 %metal-bg {
-  background-image: linear-gradient(to bottom, $c-metal-top, $c-metal-bottom);
+  background: $c-bg-low;
 }
 
 %metal {
-  background: linear-gradient(to bottom, $c-metal-top, $c-metal-bottom);
-  text-shadow: 0 1px 0 $c-font-shadow;
+  background: $c-bg-low;
+  border: 1px solid $c-border;
+  border-radius: $box-radius-size;
+  text-shadow: none;
 }
 
 %metal-hover {
-  background: linear-gradient(to bottom, $c-metal-top-hover, $c-metal-bottom-hover);
-  text-shadow: 0 1px 0 $c-font-shadow;
+  background: mix($c-bg-low, $c-primary, 95%);
+  border-color: $c-primary;
+  text-shadow: none;
 }
 
 %metal-inverse {
-  background: linear-gradient(to bottom, $m-clearer_bg-page--mix-80, $m-clearer_body-gradient--mix-75);
-  color: $m-dimmer_font--mix-60;
-  text-shadow: 0 1px 0 $c-clearer;
+  background: $c-paper;
+  color: $c-bg;
+  border: 1px solid $c-border;
+  text-shadow: none;
 }
 
 %metal-inverse-hover {
-  background: linear-gradient(to bottom, $m-clearer_bg-page--mix-70, $m-clearer_body-gradient--mix-65);
-  color: $m-dimmer_font--mix-90;
-  text-shadow: 0 1px 0 $c-clearer;
+  background: #fff;
+  border-color: $c-primary;
+  text-shadow: none;
 }
 
 %metal-light {
-  background: linear-gradient(to bottom, hsl(0, 0%, 90%), hsl(0, 0%, 80%));
-  text-shadow: 0 1px 0 #fff;
+  background: $c-paper;
+  border: 1px solid $c-border;
 }
 
 %metal-light-hover {
-  background: linear-gradient(to bottom, hsl(0, 0%, 95%), hsl(0, 0%, 85%));
-  text-shadow: 0 1px 0 #fff;
+  background: #fff;
+  border-color: $c-primary;
 }
 
 %metal-dark {
-  background: linear-gradient(to bottom, hsl(37, 7%, 22%), hsl(37, 5%, 19%));
+  background: $c-bg;
+  border: 1px solid $c-border;
 }
 
 %metal-dark-hover {
-  background: linear-gradient(to bottom, hsl(37, 7%, 25%), hsl(37, 5%, 22%));
+  background: $c-bg-low;
+  border-color: $c-primary;
 }
 
 %active-inset-shadow {

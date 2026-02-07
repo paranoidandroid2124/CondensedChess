@@ -118,6 +118,9 @@ async function hashAndLink(name: string) {
     .slice(0, 8);
   const hb = hashedBasename(name, hash);
   const link = join(env.hashOutDir, hb);
+  // On Windows, an existing stale symlink can make copyFile fail with EACCES.
+  // Remove first so we can recreate the link (or copy) deterministically.
+  await fs.promises.unlink(link).catch(() => { });
   // Ensure the subdirectory exists in public/hashed/ (e.g. font/, images/, etc.)
   if (hb !== name) {
     await fs.promises.mkdir(dirname(link), { recursive: true }).catch(() => { });

@@ -13,7 +13,7 @@
 
   &.online .line {
     &::before {
-      content: $licon-Disc;
+      content: $story-icon-Disc;
     }
     opacity: 0.9;
 
@@ -42,15 +42,15 @@
     }
 
     &::before {
-      content: $licon-DiscOutline;
+      content: $story-icon-DiscOutline;
     }
 
     &.patron::before {
-      content: $licon-Wings !important;
+      content: $story-icon-Wings !important;
     }
 
     &.moderator::before {
-      content: $licon-Agent;
+      content: $story-icon-Agent;
     }
   }
   .rating {

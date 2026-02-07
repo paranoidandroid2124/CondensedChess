@@ -24,10 +24,10 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
       .csp(_.withLegacyUnsafeInlineScripts):
         main(cls := "oauth box box-pad force-ltr")(
           div(cls := "oauth__top")(
-            iconTag(Icon.Logo)(cls := "oauth__logo", alt := "lichess logo"),
+            iconTag(Icon.Logo)(cls := "oauth__logo", alt := "Chesstory logo"),
             h1("Authorize"),
             if mobile
-            then h2("Lichess Mobile")
+            then h2("Mobile App")
             else strong(code(prompt.redirectUri.clientOrigin))
           ),
           prompt.redirectUri.insecure.option(div(cls := "flash-warning")("Does not use a secure connection")),
@@ -58,7 +58,7 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
                     cls := buttonClass(prompt),
                     disabled := true,
                     id := "oauth-authorize",
-                    title := s"The website ${prompt.redirectUri.host | prompt.redirectUri.withoutQuery} will get access to your Lichess account. Continue?"
+                    title := s"The website ${prompt.redirectUri.host | prompt.redirectUri.withoutQuery} will get access to your Chesstory account. Continue?"
                   )("Authorize")
             ),
             footer(prompt, isDanger, otherUserRequested)
@@ -83,11 +83,11 @@ final class AuthorizeUi(helpers: Helpers)(lightUserFallback: UserId => LightUser
         )
       },
       if prompt.looksLikeLichessMobile
-      then p("Not using Lichess Mobile? ", a(href := prompt.cancelUrl)("Cancel"))
+      then p("Not using the mobile app? ", a(href := prompt.cancelUrl)("Cancel"))
       else
         frag(
           (!prompt.trusted).option(
-            p(cls := List("danger" -> isDanger))("Not owned or operated by lichess.org")
+            p(cls := List("danger" -> isDanger))("Not owned or operated by Chesstory")
           ),
           p(cls := "oauth__redirect")("Will redirect to ", prompt.redirectUri.withoutQuery)
         )

@@ -22,7 +22,8 @@ object NarrativeContextBuilder:
     probeResults: List[ProbeResult] = Nil,
     openingRef: Option[OpeningReference] = None,
     prevOpeningRef: Option[OpeningReference] = None,  // For BranchPoint/TheoryEnds detection
-    openingBudget: OpeningEventBudget = OpeningEventBudget()  // Passed from game-level tracker
+    openingBudget: OpeningEventBudget = OpeningEventBudget(),  // Passed from game-level tracker
+    afterAnalysis: Option[ExtendedAnalysisData] = None
   ): NarrativeContext = {
     // Phase 2: We can now probe from non-root FENs (e.g., after playedMove for recapture branching).
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
@@ -43,8 +44,28 @@ object NarrativeContextBuilder:
     val pawnPlay = buildPawnPlayTable(ctx)
     val plans = buildPlanTable(data, ctx)
     val l1 = buildL1Snapshot(ctx)
-    val phase = buildPhaseContext(ctx, prevAnalysis)
-    val delta = prevAnalysis.map(prev => buildDelta(prev, data, phase.transitionTrigger))
+    val phase0 = buildPhaseContext(ctx, prevAnalysis)
+    val afterPhaseTrigger =
+      afterAnalysis
+        .filter(_ => data.prevMove.isDefined)
+        .flatMap(after =>
+          Option.when(after.phase != data.phase)(
+            s"Transition from ${data.phase.capitalize} to ${after.phase.capitalize}"
+          )
+        )
+
+    val phase =
+      afterPhaseTrigger match
+        case Some(t) => phase0.copy(transitionTrigger = Some(t))
+        case None    => phase0
+
+    val afterDelta =
+      afterAnalysis
+        .filter(_ => data.prevMove.isDefined)
+        .map(after => buildDelta(data, after, afterPhaseTrigger))
+
+    val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data, phase.transitionTrigger))
+    val delta = afterDelta.orElse(prevDelta)
     
     // B7: Enriched candidates with probe results
     val candidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
@@ -170,7 +191,8 @@ object NarrativeContextBuilder:
       engineEvidence = Some(lila.llm.model.strategic.EngineEvidence(
         depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
         variations = data.alternatives
-      ))
+      )),
+      deltaAfterMove = afterDelta.isDefined
     )
   }
 
@@ -586,10 +608,17 @@ object NarrativeContextBuilder:
   private def buildCandidates(data: ExtendedAnalysisData): List[CandidateInfo] = {
     data.candidates.zipWithIndex.map { case (cand, idx) =>
       val bestScore = data.candidates.headOption.map(_.score).getOrElse(0)
-      val annotation = if (idx == 0) "!" 
-                       else if (cand.score < bestScore - 300) "??"
-                       else if (cand.score < bestScore - 100) "?"
-                       else ""
+      val secondScore = data.candidates.lift(1).map(_.score).getOrElse(bestScore)
+      val bestGap = bestScore - secondScore
+      val cpDiff = bestScore - cand.score
+      val annotation =
+        if idx == 0 then
+          // Avoid overusing "!"; only mark when the best move is clearly separated.
+          if bestGap >= Thresholds.MISTAKE_CP then "!" else ""
+        else if cpDiff >= Thresholds.DOUBLE_QUESTION_CP then "??"
+        else if cpDiff >= Thresholds.SINGLE_QUESTION_CP then "?"
+        else if cpDiff >= Thresholds.DUBIOUS_CP then "?!"
+        else ""
       
       // A7: SAN conversion
       val sanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(2))
@@ -786,6 +815,10 @@ object NarrativeContextBuilder:
     phaseTrigger: Option[String] = None
   ): MoveDelta = {
     val evalChange = current.evalCp - prev.evalCp
+
+    val prevOpenFiles = prev.positionalFeatures.collect { case PositionalTag.OpenFile(f, _) => f }.toSet
+    val currOpenFiles = current.positionalFeatures.collect { case PositionalTag.OpenFile(f, _) => f }.toSet
+    val openFileCreated = (currOpenFiles -- prevOpenFiles).toList.sortBy(_.char).headOption.map(_.char.toString)
     
     val prevMotifs = prev.motifs.map(_.getClass.getSimpleName).toSet
     val currMotifs = current.motifs.map(_.getClass.getSimpleName).toSet
@@ -807,7 +840,7 @@ object NarrativeContextBuilder:
       newMotifs = newMotifs,
       lostMotifs = lostMotifs,
       structureChange = structureChange,
-      openFileCreated = None,
+      openFileCreated = openFileCreated,
       phaseChange = phaseTrigger
     )
   }

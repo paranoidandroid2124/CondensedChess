@@ -108,13 +108,13 @@
   .descending::after {
     margin-inline-start: 1ch;
     font-family: 'chesstory';
-    content: $licon-DownTriangle;
+    content: $story-icon-DownTriangle;
   }
 
   .ascending::after {
     margin-inline-start: 1ch;
     font-family: 'chesstory';
-    content: $licon-UpTriangle;
+    content: $story-icon-UpTriangle;
   }
 
   @media (max-width: at-most($x-large)) {

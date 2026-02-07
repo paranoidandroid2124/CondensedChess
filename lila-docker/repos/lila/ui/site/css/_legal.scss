@@ -1,0 +1,232 @@
+// Chesstory Legal Pages (Privacy Policy, Terms of Service)
+// Professional styling for legal content pages
+
+// Color variables (matching theme.pro)
+$c-bg-page: #0d1016;
+$c-bg: #161A25;
+$c-bg-low: #1c212e;
+$c-border: #2a3449;
+$c-font: #E2E8F0;
+$c-shade: #94A3B8;
+$c-primary: #3B82F6;
+
+.legal-page {
+    min-height: 100vh;
+    padding: 2rem 0 4rem;
+    background-color: #F8F9FA;
+}
+
+body.dark .legal-page,
+body.pro .legal-page,
+html.dark .legal-page,
+html.pro .legal-page {
+    background-color: $c-bg-page;
+}
+
+.legal-container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.legal-content {
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 3rem 4rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+body.dark .legal-content,
+body.pro .legal-content,
+html.dark .legal-content,
+html.pro .legal-content {
+    background: $c-bg-low;
+    border-color: $c-border;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.legal-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+body.dark .legal-header,
+body.pro .legal-header,
+html.dark .legal-header,
+html.pro .legal-header {
+    border-color: $c-border;
+}
+
+.legal-header h1 {
+    font-family: 'Georgia', serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem 0;
+    color: #161A25;
+}
+
+body.dark .legal-header h1,
+body.pro .legal-header h1,
+html.dark .legal-header h1,
+html.pro .legal-header h1 {
+    color: $c-font;
+}
+
+.legal-meta {
+    font-size: 0.9rem;
+    color: $c-shade;
+    margin: 0;
+}
+
+.legal-section {
+    margin-bottom: 2.5rem;
+}
+
+.legal-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.legal-section h2 {
+    font-family: 'Georgia', serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #161A25;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid $c-primary;
+    display: inline-block;
+}
+
+body.dark .legal-section h2,
+body.pro .legal-section h2,
+html.dark .legal-section h2,
+html.pro .legal-section h2 {
+    color: $c-font;
+}
+
+.legal-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 1.5rem 0 0.75rem 0;
+}
+
+body.dark .legal-section h3,
+body.pro .legal-section h3,
+html.dark .legal-section h3,
+html.pro .legal-section h3 {
+    color: #CBD5E1;
+}
+
+.legal-section p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: #4B5563;
+    margin: 0 0 1rem 0;
+}
+
+body.dark .legal-section p,
+body.pro .legal-section p,
+html.dark .legal-section p,
+html.pro .legal-section p {
+    color: #94A3B8;
+}
+
+.legal-section ul {
+    margin: 0.5rem 0 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.legal-section li {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: #4B5563;
+    margin-bottom: 0.5rem;
+}
+
+body.dark .legal-section li,
+body.pro .legal-section li,
+html.dark .legal-section li,
+html.pro .legal-section li {
+    color: #94A3B8;
+}
+
+.legal-section strong {
+    color: #1F2937;
+    font-weight: 600;
+}
+
+body.dark .legal-section strong,
+body.pro .legal-section strong,
+html.dark .legal-section strong,
+html.pro .legal-section strong {
+    color: #E2E8F0;
+}
+
+.legal-section a {
+    color: $c-primary;
+    text-decoration: none;
+}
+
+.legal-section a:hover {
+    text-decoration: underline;
+}
+
+.legal-footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid #E2E8F0;
+    text-align: center;
+    font-size: 0.95rem;
+    color: $c-shade;
+}
+
+body.dark .legal-footer,
+body.pro .legal-footer,
+html.dark .legal-footer,
+html.pro .legal-footer {
+    border-color: $c-border;
+}
+
+.legal-link {
+    color: $c-primary;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.legal-link:hover {
+    text-decoration: underline;
+}
+
+// Responsive
+@media (max-width: 768px) {
+    .legal-content {
+        padding: 2rem 1.5rem;
+    }
+
+    .legal-header h1 {
+        font-size: 2rem;
+    }
+
+    .legal-section h2 {
+        font-size: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .legal-container {
+        padding: 0 1rem;
+    }
+
+    .legal-content {
+        padding: 1.5rem 1rem;
+        border-radius: 12px;
+    }
+
+    .legal-header h1 {
+        font-size: 1.75rem;
+    }
+}

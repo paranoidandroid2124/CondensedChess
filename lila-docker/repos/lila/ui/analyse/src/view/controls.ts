@@ -1,7 +1,7 @@
 import { renderEval, view as cevalView } from 'lib/ceval';
 import { repeater, myUserId } from 'lib';
 import * as licon from 'lib/licon';
-import { type VNode, type LooseVNode, onInsert, hl } from 'lib/view';
+import { type VNode, type LooseVNode, onInsert, hl, icon } from 'lib/view';
 import { displayColumns, isTouchDevice } from 'lib/device';
 import { addPointerListeners } from 'lib/pointer';
 import * as control from '../control';
@@ -42,20 +42,21 @@ export function renderControls(ctrl: AnalyseCtrl) {
         attrs: {
           title: 'Opening explorer and Tablebase',
           'data-act': 'opening-explorer',
-          'data-icon': licon.Book,
         },
         class: {
           hidden: !ctrl.explorer.allowed() || (!!ctrl.retro && !isMobileUi()),
           active: ctrl.activeControlBarTool() === 'opening-explorer',
         },
-      }),
+      }, [
+        icon(licon.Book as any)
+      ]),
       displayColumns() > 1 && !ctrl.retro && !ctrl.ongoing && renderPracticeTab(ctrl),
       hl('div.jumps', [
         !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
         isMobileUi() &&
         !scrubHelpAcknowledged() &&
-        hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, licon.InfoCircle),
+        hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, [icon(licon.InfoCircle as any)]),
         jumpButton(licon.GreaterThan, 'next', canJumpNext),
         !isMobileUi() &&
         jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
@@ -63,8 +64,10 @@ export function renderControls(ctrl: AnalyseCtrl) {
       [
         hl('button.fbt', {
           class: { active: ctrl.activeControlBarTool() === 'action-menu' },
-          attrs: { title: 'Menu', 'data-act': 'menu', 'data-icon': licon.Hamburger },
-        }),
+          attrs: { title: 'Menu', 'data-act': 'menu' },
+        }, [
+          icon(licon.Hamburger as any)
+        ]),
       ],
     ],
   );
@@ -76,13 +79,14 @@ function renderPracticeTab(ctrl: AnalyseCtrl): LooseVNode {
       title: 'Practice with computer',
       'data-act': 'engine-mode',
       'data-mode': 'practice',
-      'data-icon': licon.Bullseye,
     },
     class: {
       active: !!ctrl.practice && !ctrl.activeControlBarTool(),
       latent: !!ctrl.practice && !!ctrl.activeControlBarTool(),
     },
-  });
+  }, [
+    icon(licon.Bullseye as any)
+  ]);
 }
 
 function renderMobileCevalTab(ctrl: AnalyseCtrl): LooseVNode {
@@ -163,8 +167,8 @@ function scrubControl(ctrl: AnalyseCtrl, dx: number | 'pointerup') {
   ctrl.redraw();
 }
 
-const jumpButton = (icon: string, effect: string, enabled: boolean): VNode =>
-  hl('button.fbt.move', { class: { disabled: !enabled }, attrs: { 'data-act': effect, 'data-icon': icon } });
+const jumpButton = (iconName: string, effect: string, enabled: boolean): VNode =>
+  hl('button.fbt.move', { class: { disabled: !enabled }, attrs: { 'data-act': effect } }, [icon(iconName as any)]);
 
 function isMobileUi() {
   return displayColumns() === 1 && isTouchDevice();

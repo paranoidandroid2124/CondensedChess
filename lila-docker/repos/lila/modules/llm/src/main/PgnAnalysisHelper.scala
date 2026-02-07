@@ -1,7 +1,7 @@
 package lila.llm
 
 import chess.*
-import chess.format.{ Fen, Uci }
+import chess.format.Fen
 import chess.format.pgn.{ Parser, PgnStr }
 
 /**

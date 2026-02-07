@@ -3,7 +3,7 @@ package lila.llm.analysis
 import chess.*
 import lila.llm.model.*
 import lila.llm.model.Motif.*
-import lila.llm.analysis.L3.{PawnPlayAnalysis, PositionClassification, ThreatAnalysis, ThreatSeverity, RiskLevel}
+import lila.llm.analysis.L3.{PawnPlayAnalysis, PositionClassification, ThreatAnalysis, RiskLevel}
 import chess.Color.White
 
 case class IntegratedContext(
@@ -325,7 +325,6 @@ object PlanMatcher:
         case lila.llm.analysis.L3.GamePhaseType.Opening    => 0.7
         case lila.llm.analysis.L3.GamePhaseType.Middlegame => 1.4
         case lila.llm.analysis.L3.GamePhaseType.Endgame    => 0.5
-        case _                                             => 1.0
 
       val evidence = relevantMotifs.take(3).map: m =>
         EvidenceAtom(m, 0.2, s"Kingside pressure: ${m.move.getOrElse("")}")

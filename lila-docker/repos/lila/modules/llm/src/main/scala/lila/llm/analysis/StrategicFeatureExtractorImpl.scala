@@ -1,9 +1,7 @@
 package lila.llm.analysis
 
-import lila.llm.model.{ Motif, ExtendedAnalysisData, FactScope, PositionNature, NatureType }
-import lila.llm.model.Fact
+import lila.llm.model.{ Motif, ExtendedAnalysisData, FactScope, PositionNature }
 import lila.llm.model.strategic.{ VariationLine, VariationTag, PreventedPlan, PositionalTag, EndgameFeature }
-import chess.Queen
 import lila.llm.analysis.strategic._
 import chess.format.Fen
 import chess.variant.Standard
@@ -314,7 +312,6 @@ class StrategicFeatureExtractorImpl(
     activeColor: chess.Color,
     board: chess.Board
   ): lila.llm.model.strategic.MoveIntent = {
-    import lila.llm.model.Plan
     
     // Split motifs by ply index
     val immediateMotifs = candMotifs.filter(_.plyIndex == 0)  // First move in PV

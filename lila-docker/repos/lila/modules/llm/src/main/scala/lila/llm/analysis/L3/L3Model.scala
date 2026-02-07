@@ -1,6 +1,6 @@
 package lila.llm.analysis.L3
 
-import chess.{Color, Square, Role}
+import chess.{Square, Role}
 
 // ============================================================
 // Phase 1: Position Classification - Data Structures

@@ -114,4 +114,4 @@ object NewTreeBuilder:
     tree.map(_.updateValue(_.setComp).toVariation)
 
   private def formatError(id: GameId, err: chess.ErrorStr) =
-    s"TreeBuilder https://lichess.org/$id $err"
+    s"TreeBuilder /$id $err"

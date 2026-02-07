@@ -35,16 +35,15 @@ final class LlmController(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
           api
-            .analyzeFullGame(
+            .analyzeFullGameLocal(
               pgn = analysisReq.pgn,
               evals = analysisReq.evals,
               style = analysisReq.options.style,
               focusOn = analysisReq.options.focusOn
             )
-            .map {
+            .map:
               case Some(response) => Ok(Json.toJson(response))
-              case None           => ServiceUnavailable("LLM Analysis unavailable")
-            }
+              case None           => ServiceUnavailable("Narrative Analysis unavailable")
       )
   }
 
@@ -100,6 +99,9 @@ final class LlmController(
             eval = commentReq.eval,
             variations = commentReq.variations,
             probeResults = commentReq.probeResults,
+            afterFen = commentReq.afterFen,
+            afterEval = commentReq.afterEval,
+            afterVariations = commentReq.afterVariations,
             opening = commentReq.context.opening,
             phase = commentReq.context.phase,
             ply = commentReq.context.ply
@@ -116,6 +118,8 @@ final class LlmController(
               Ok(
                 Json.obj(
                   "html" -> html,
+                  "commentary" -> response.commentary,
+                  "variations" -> response.variations,
                   "concepts" -> response.concepts,
                   "probeRequests" -> response.probeRequests
                 )

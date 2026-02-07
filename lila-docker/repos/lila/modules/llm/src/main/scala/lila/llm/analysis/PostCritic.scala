@@ -32,8 +32,11 @@ object PostCritic:
       val deduped1 = limitSentence(deduped0, "The position is roughly balanced.", max = 1)
       val deduped2 = limitSentence(deduped1, "White can play for a small edge.", max = 2)
       val deduped3 = limitSentence(deduped2, "Black can play for a small edge.", max = 2)
+      val familyDeduped = collapseFamilyDuplicates(deduped3)
+      val boilerplateRewritten = rewriteBoilerplate(familyDeduped)
+      val terminalToneSanitized = sanitizeTerminalTone(boilerplateRewritten)
 
-      cleanup(deduped3)
+      cleanup(terminalToneSanitized)
 
   private def evalCpWhite(ctx: NarrativeContext): Int =
     ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).orElse {
@@ -118,3 +121,60 @@ object PostCritic:
       .replaceAll(" ,", ",")                   // " ,"
       .replaceAll("\\n{3,}", "\n\n")           // collapse extra blank lines
       .trim
+
+  private def rewriteBoilerplate(text: String): String =
+    text
+      .replace("The game remains tense and double-edged.", "The struggle stays sharp, with chances for both players.")
+      .replace("The position is roughly equal.", "The evaluation is near level.")
+      .replace("Accuracy is required to hold the balance.", "Precise moves are needed to preserve equality.")
+      .replace("In practical terms, this is comfortable to play.", "From a practical standpoint, this structure is straightforward to handle.")
+      .replace("Both sides are still coordinating pieces.", "Piece coordination is still a key theme.")
+      .replace("The plan is clear:", "Strategic focus:")
+      .replace("usually reduces tactical noise and favors precise maneuvering.", "typically lowers tactical volatility and rewards precise coordination.")
+      .replace("often steers the position toward a structured endgame battle.", "often redirects play into a structured technical struggle.")
+      .replace(
+        "Sufficient Positional Compensation provides sufficient compensation for the material.",
+        "White has positional compensation for the material investment."
+      )
+
+  private def sanitizeTerminalTone(text: String): String =
+    val hasMateMove = """\*\*[^*\n]*#\*\*""".r.findFirstIn(text).isDefined
+    if !hasMateMove then text
+    else
+      text
+        .replace("often redirects play into a structured technical struggle.", "it becomes a forcing sequence with little room for maneuver.")
+        .replace("the game often shifts into a calmer technical phase.", "the line stays forcing until resolution.")
+
+  private def collapseFamilyDuplicates(text: String): String =
+    val families = List(
+      "balanced" -> List("roughly equal", "about level", "essentially balanced", "dynamically balanced"),
+      "playable" -> List("another good option", "also playable here", "deserves attention"),
+      "comfortable" -> List("comfortable to play", "easier side to press with", "more comfortable here"),
+      "planlead" -> List(
+        "key theme:",
+        "strategic focus:",
+        "strategic priority:",
+        "practical roadmap centers on",
+        "play revolves around",
+        "current play is organized around"
+      )
+    )
+
+    val lines = text.split("\n").toList
+    val seen = scala.collection.mutable.HashSet.empty[String]
+
+    val kept = lines.filter { line =>
+      val lower = line.toLowerCase
+      val matchedFamily = families.collectFirst {
+        case (fam, needles) if needles.exists(lower.contains) => fam
+      }
+      matchedFamily match
+        case None => true
+        case Some(fam) =>
+          if seen.contains(fam) then false
+          else
+            seen += fam
+            true
+    }
+
+    kept.mkString("\n")

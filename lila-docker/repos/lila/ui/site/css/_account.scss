@@ -1,0 +1,307 @@
+// Chesstory Account Settings (Profile, Close, Delete)
+// Professional settings layout
+
+// Color variables (matching theme.pro)
+$c-bg-page: #0d1016;
+$c-bg: #161A25;
+$c-bg-low: #1c212e;
+$c-border: #2a3449;
+$c-font: #E2E8F0;
+$c-shade: #94A3B8;
+$c-primary: #3B82F6;
+$c-bad: #EF4444;
+
+.account-page {
+    min-height: 100vh;
+    padding: 4rem 0;
+    background-color: #F8F9FA;
+
+    body.dark &,
+    body.pro &,
+    html.dark &,
+    html.pro & {
+        background-color: $c-bg-page;
+    }
+}
+
+.account-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 3rem;
+}
+
+.account-sidebar {
+    .account-title {
+        font-family: 'Georgia', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 2rem;
+        color: #161A25;
+
+        body.dark &,
+        body.pro &,
+        html.dark &,
+        html.pro & {
+            color: $c-font;
+        }
+    }
+}
+
+.account-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    a {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #64748B;
+        font-weight: 500;
+        transition: all 0.2s;
+
+        &:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: #161A25;
+        }
+
+        &.active {
+            background: #161A25;
+            color: #fff;
+        }
+
+        body.dark &,
+        body.pro &,
+        html.dark &,
+        html.pro & {
+            color: $c-shade;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.05);
+                color: #E2E8F0;
+            }
+
+            &.active {
+                background: $c-font;
+                color: #161A25;
+            }
+        }
+    }
+}
+
+.account-card {
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 2.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+
+    body.dark &,
+    body.pro &,
+    html.dark &,
+    html.pro & {
+        background: $c-bg-low;
+        border-color: $c-border;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    h2 {
+        font-family: 'Georgia', serif;
+        font-size: 1.75rem;
+        margin: 0 0 0.5rem 0;
+        color: #161A25;
+
+        &.danger {
+            color: $c-bad;
+        }
+
+        body.dark &,
+        body.pro &,
+        html.dark &,
+        html.pro & {
+            color: $c-font;
+        }
+    }
+
+    p.desc {
+        color: #64748B;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    hr {
+        border: 0;
+        border-top: 1px solid #E2E8F0;
+        margin: 1.5rem 0;
+
+        body.dark &,
+        body.pro &,
+        html.dark &,
+        html.pro & {
+            border-color: $c-border;
+        }
+    }
+}
+
+.account-form {
+    .form-group {
+        margin-bottom: 1.5rem;
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #374151;
+
+            body.dark &,
+            body.pro &,
+            html.dark &,
+            html.pro & {
+                color: #CBD5E1;
+            }
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            font-size: 1rem;
+
+            body.dark &,
+            body.pro &,
+            html.dark &,
+            html.pro & {
+                background: $c-bg;
+                border-color: $c-border;
+                color: $c-font;
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+        }
+
+        p.help {
+            font-size: 0.85rem;
+            color: $c-shade;
+            margin-top: 0.5rem;
+            line-height: 1.4;
+        }
+    }
+}
+
+.field-error {
+    color: $c-bad;
+    font-size: 0.85rem;
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.form-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: $c-bad;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.btn-primary {
+    background: #161A25;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    font-size: 1rem;
+
+    &:hover {
+        background: $c-primary;
+        transform: translateY(-2px);
+    }
+
+    body.dark &,
+    body.pro &,
+    html.dark &,
+    html.pro & {
+        background: $c-font;
+        color: #161A25;
+
+        &:hover {
+            background: $c-primary;
+            color: #fff;
+        }
+    }
+}
+
+.btn-danger {
+    background: $c-bad;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    font-size: 1rem;
+
+    &:hover {
+        background: #DC2626;
+        transform: translateY(-2px);
+    }
+}
+
+.warning-box,
+.danger-box {
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.warning-box {
+    background: rgba(245, 158, 11, 0.05);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    color: #B45309;
+}
+
+.danger-box {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #B91C1C;
+}
+
+.mt-2 {
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .account-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .account-sidebar {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .account-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}

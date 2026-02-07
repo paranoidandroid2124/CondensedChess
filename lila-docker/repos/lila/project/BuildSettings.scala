@@ -7,6 +7,7 @@ object BuildSettings {
 
   val lilaVersion = "4.0"
   val globalScalaVersion = "3.7.4"
+  private val isDocker = new java.io.File("/.dockerenv").exists
 
   def buildSettings =
     Defaults.coreDefaultSettings ++ Seq(
@@ -16,6 +17,11 @@ object BuildSettings {
       javacOptions ++= Seq("--release", "21"),
       organization := "org.lichess",
       version := lilaVersion,
+      // Avoid writing compilation outputs on Windows bind mounts; stale/partial `.tasty` can cause "error while loading ... .tasty".
+      target := {
+        if (isDocker) file("/tmp/lila-target") / thisProject.value.id
+        else baseDirectory.value / "target"
+      },
       Compile / doc / sources := Seq.empty,
       Compile / packageDoc / publishArtifact := false,
       Compile / packageSrc / publishArtifact := false

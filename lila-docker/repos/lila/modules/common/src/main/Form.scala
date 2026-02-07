@@ -275,7 +275,7 @@ object Form:
   object fideId:
     import chess.FideId
     given Formatter[FideId] =
-      val urlRegex = """(?:lichess\.org/fide|fide\.com/profile)/(\d+)""".r.unanchored
+      val urlRegex = """(?:https?://)?[^/]+/(?:fide|profile)/(\d+)""".r.unanchored
       formatter.stringTryFormatter(s =>
         s.toIntOption match
           case Some(i) => Right(FideId(i))

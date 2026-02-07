@@ -133,7 +133,7 @@
   &::after {
     @extend %data-icon;
     color: $m-font_dimmer--mix-85;
-    content: $licon-AccountCircle;
+    content: $story-icon-AccountCircle;
     font-size: 2rem;
   }
 }

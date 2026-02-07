@@ -9,36 +9,41 @@
   @return mix(#000, $color, $weight);
 }
 
-$site-hue: 37;
+$site-hue: 220;
 
 // top level $c-variables must be valid css format (rgba, hsla, hex) to be mixable by ui/build
 
-$c-bg: hsl(37, 7%, 14%); // $c-bg-high
-$c-bg-page: hsl(37, 10%, 8%);
-$c-bg-low: hsl(37, 7%, 22%);
-$c-bg-zebra: hsl(37, 5%, 19%);
-$c-bg-zebra2: hsl(37, 5%, 24%);
-$c-bg-popup: hsl(37, 7%, 22%);
-$c-bg-opaque: hsla(37, 7%, 14%);
-$c-body-gradient: hsl(37, 12%, 16%);
-$c-border: hsl(0, 0%, 25%);
-$c-font: hsl(0, 0%, 73%);
-$c-primary: hsl(209, 79%, 56%);
-$c-secondary: hsl(88, 62%, 37%);
-$c-good: hsl(88, 62%, 37%);
-$c-accent: hsl(22, 100%, 42%);
-$c-bad: hsl(0, 60%, 50%);
-$c-brag: hsl(37, 74%, 43%);
-$c-clas: rgb(127, 90, 240);
-$c-shade: hsl(0, 0%, 30%);
-$c-inaccuracy: hsl(202, 78%, 62%);
-$c-mistake: hsl(41, 100%, 45%);
-$c-blunder: hsl(0, 69%, 60%);
-$c-brilliant: hsl(129, 71%, 45%);
-$c-interesting: hsl(307, 80%, 70%);
-$c-paper: hsl(60, 56%, 91%);
-$c-dark: #333;
-$c-dimmer: #000;
+$c-bg: hsl(220, 15%, 10%); // Deep Navy Main
+$c-bg-page: hsl(220, 15%, 8%); // Darker Navy Page
+$c-bg-low: hsl(220, 15%, 13%); // Surface
+$c-bg-zebra: hsl(220, 12%, 11%);
+$c-bg-zebra2: hsl(220, 12%, 14%);
+$c-bg-popup: hsl(220, 15%, 14%);
+$c-bg-opaque: hsla(220, 15%, 10%);
+$c-body-gradient: hsl(220, 20%, 12%);
+$c-border: hsl(220, 10%, 20%);
+$c-font: hsl(220, 10%, 85%); // Off-white text
+
+// Premium Accents
+$c-primary: hsl(265, 90%, 75%); // Vibrant Violet
+$c-secondary: hsl(40, 95%, 55%); // Gold/Amber
+$c-good: hsl(150, 60%, 45%);
+$c-accent: hsl(40, 95%, 55%); // Gold as accent
+$c-bad: hsl(350, 70%, 60%);
+$c-brag: hsl(40, 95%, 45%);
+
+$c-clas: rgb(140, 100, 255);
+$c-shade: hsl(220, 10%, 25%);
+
+$c-inaccuracy: hsl(200, 70%, 60%);
+$c-mistake: hsl(40, 90%, 50%);
+$c-blunder: hsl(350, 70%, 60%);
+$c-brilliant: hsl(160, 80%, 50%);
+$c-interesting: hsl(280, 70%, 70%);
+
+$c-paper: hsl(220, 10%, 90%);
+$c-dark: #1a1c22;
+$c-dimmer: #111216;
 $c-clearer: #fff;
 $c-mv-branch-white: #fff;
 $c-mv-branch-black: #000;
@@ -145,11 +150,3 @@ $patron-colors: $patron-colors-dark;
   --c-paco9: #{map-get($patron-colors, 9)};
   --c-paco10: #{map-get($patron-colors, 10)};
 }
- 
-
- 
-
- 
-
- 
-

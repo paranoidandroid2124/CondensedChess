@@ -23,6 +23,9 @@ javaOptions ++= {
 }
 ThisBuild / scalacOptions ++= Seq("-unchecked", "-deprecation")
 ThisBuild / usePipelining := false
+// Docker Desktop on Windows (bind mount) can break zinc's transactional classfile manager
+// with `NoSuchFileException: .../classes.bak/...`, cascading into many compile errors.
+ThisBuild / incOptions := incOptions.value.withClassfileManagerType(xsbti.compile.DeleteImmediatelyManagerType.of())
 // shorter prod classpath
 scriptClasspath := Seq("*")
 Compile / resourceDirectory := baseDirectory.value / "conf"
@@ -40,7 +43,6 @@ Compile / RoutesKeys.routes / sources ++= {
 }
 Compile / RoutesKeys.generateReverseRouter := false
 Compile / RoutesKeys.generateForwardRouter := true
-target := baseDirectory.value / "target"
 Compile / sourceDirectory := baseDirectory.value / "app"
 Compile / scalaSource := baseDirectory.value / "app"
 Universal / sourceDirectory := baseDirectory.value / "dist"

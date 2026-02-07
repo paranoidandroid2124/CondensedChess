@@ -81,7 +81,7 @@ object OAuthScope:
 
   object Web:
     case object Login extends OAuthScope("web:login", "Web login")
-    case object Mobile extends OAuthScope("web:mobile", "Official Lichess mobile app")
+    case object Mobile extends OAuthScope("web:mobile", "Official mobile app")
     case object Mod extends OAuthScope("web:mod", "Web mod")
 
   case class Scoped(me: Me, scopes: TokenScopes):

@@ -39,7 +39,7 @@ object email:
       def similarTo(other: EmailAddress) =
         e.normalize.eliminateDomainAlias == other.normalize.eliminateDomainAlias
 
-      def isNoReply = e.startsWith("noreply.") && e.endsWith("@lichess.org")
+      def isNoReply = e.startsWith("noreply.") && e.endsWith("@chesstory.com")
       def isBlank = e.startsWith("noreply.blanked.")
       def isSendable = !e.isNoReply && !e.isBlank
 
@@ -76,7 +76,7 @@ object email:
 
     def from(str: String): Option[EmailAddress] = isValid(str).option(EmailAddress(str))
 
-    val clasIdRegex = """^noreply\.class\.(\w{8})\.[\w-]+@lichess\.org""".r
+    val clasIdRegex = """^noreply\.class\.(\w{8})\.[\w-]+@chesstory\.com""".r
 
   opaque type NormalizedEmailAddress = String
   object NormalizedEmailAddress extends OpaqueString[NormalizedEmailAddress]

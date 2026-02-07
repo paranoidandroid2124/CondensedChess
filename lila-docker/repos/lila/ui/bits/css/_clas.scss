@@ -502,7 +502,7 @@ $c-bg-clas-over-dim: $m-clas_white--mix-20;
       &::before {
         @extend %data-icon;
 
-        content: $licon-Shield;
+        content: $story-icon-Shield;
         font-size: 3em;
       }
     }

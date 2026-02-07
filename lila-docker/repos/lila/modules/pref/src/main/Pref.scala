@@ -43,6 +43,7 @@ case class Pref(
     if bg == Bg.LIGHT then "light".some
     else if bg == Bg.TRANSPARENT then "transp".some
     else if bg == Bg.SYSTEM then none
+    else if bg == Bg.PRO then "pro".some
     else "dark".some
 
   def realSoundSet = SoundSet(soundSet)
@@ -92,6 +93,7 @@ case class Pref(
     if bg == Pref.Bg.TRANSPARENT then "transp"
     else if bg == Pref.Bg.LIGHT then "light"
     else if bg == Pref.Bg.SYSTEM then "system"
+    else if bg == Pref.Bg.PRO then "pro"
     else "dark"
 
   def forceDarkBg = copy(bg = Pref.Bg.DARK)
@@ -117,7 +119,7 @@ case class Pref(
 
 object Pref:
 
-  val defaultBgImg = "//lichess1.org/assets/images/background/landscape.jpg"
+  val defaultBgImg = "/assets/images/background/landscape.jpg"
 
   case class BoardPref(
       brightness: Int,
@@ -139,13 +141,15 @@ object Pref:
     val DARKBOARD = 300
     val TRANSPARENT = 400
     val SYSTEM = 500
+    val PRO = 600
 
     val choices = Seq(
       LIGHT -> "Light",
       DARK -> "Dark",
       DARKBOARD -> "Dark Board",
       TRANSPARENT -> "Transparent",
-      SYSTEM -> "Device theme"
+      SYSTEM -> "Device theme",
+      PRO -> "Analyst Pro"
     )
 
     val fromString = Map(
@@ -153,7 +157,8 @@ object Pref:
       "dark" -> DARK,
       "darkBoard" -> DARKBOARD,
       "transp" -> TRANSPARENT,
-      "system" -> SYSTEM
+      "system" -> SYSTEM,
+      "pro" -> PRO
     )
 
     val asString = fromString.map(_.swap)
@@ -255,7 +260,7 @@ object Pref:
 
   lazy val default = Pref(
     id = UserId(""),
-    bg = Bg.DARK,
+    bg = Bg.PRO,
     bgImg = none,
     is3d = false,
     theme = Theme.default.name,

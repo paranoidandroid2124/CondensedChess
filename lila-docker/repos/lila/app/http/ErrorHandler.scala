@@ -18,7 +18,7 @@ final class ErrorHandler(
     with lila.web.ResponseWriter:
 
   override def onProdServerError(req: RequestHeader, exception: UsefulException) =
-    fuccess(InternalServerError("Sorry, something went wrong."))
+    fuccess(InternalServerError(exception.getMessage))
 
   override def onClientError(req: RequestHeader, statusCode: Int, msg: String): Fu[Result] =
     fuccess(Status(statusCode)(msg))

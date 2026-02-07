@@ -1,6 +1,5 @@
 package lila.llm
 
-import lila.llm.model.*
 import lila.llm.model.strategic.VariationLine
 
 import _root_.chess.*

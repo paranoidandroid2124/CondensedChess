@@ -1,13 +1,28 @@
 /* eslint no-restricted-syntax:"error" */ // no side effects allowed due to re-export by index.ts
 
 // Rich Text helper functions
-// Refactored for https://github.com/lichess-org/lila/issues/7342 request
+// Refactored to keep autolink fast and predictable
 import type { VNode, Hooks } from 'snabbdom';
 import { escapeHtml } from './index';
 
 // from https://github.com/bryanwoods/autolink-js/blob/master/autolink.js
-export const linkRegex: RegExp =
-  /(^|[\s\n]|<[A-Za-z]*\/?>)((?:(?:https?|ftp):\/\/|lichess\.org)[\-A-Z0-9+\u0026\u2019@#\/%?=()~_|!:,.;]*[\-A-Z0-9+\u0026@#\/%=~()_|])/gi;
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const internalHostPattern = (() => {
+  const hosts = new Set<string>(['chesstory.com']);
+  if (typeof location !== 'undefined') {
+    hosts.add(location.host);
+    hosts.add(location.hostname);
+  }
+  return Array.from(hosts)
+    .filter(Boolean)
+    .map(escapeRegex)
+    .join('|');
+})();
+
+export const linkRegex: RegExp = new RegExp(
+  `(^|[\\s\\n]|<[A-Za-z]*\\/?>)((?:(?:https?|ftp):\\/\\/|(?:${internalHostPattern}))[\\-A-Z0-9+\\u0026\\u2019@#\\/%?=()~_|!:,.;]*[\\-A-Z0-9+\\u0026@#\\/%=~()_|])`,
+  'gi',
+);
 export const newLineRegex: RegExp = /\n/g;
 export const userPattern: RegExp = /(^|[^\w@#/])@([a-z0-9_-]{2,30})/gi;
 
@@ -52,6 +67,8 @@ export const expandMentions = (html: string): string => html.replace(userPattern
 
 export function enrichText(text: string, allowNewlines = true): string {
   let html = autolink(escapeHtml(text), toLink);
+  // Support Markdown-style emphasis used by the Bookmaker prompt (**...**).
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   if (allowNewlines) html = html.replace(newLineRegex, '<br>');
   return html;
 }
@@ -60,7 +77,10 @@ export function richHTML(text: string, newLines = true): Hooks {
   return innerHTML(text, t => enrichText(t, newLines));
 }
 
-const linkPattern = /\b\b(?:https?:\/\/)?(lichess\.org\/[-–—\w+&'@#\/%?=()~|!:,.;]+[\w+&@#\/%=~|])/gi;
+const linkPattern = new RegExp(
+  `\\b\\b(?:https?:\\/\\/)?((?:${internalHostPattern})\\/[-–—\\w+&'@#\\/%?=()~|!:,.;]+[\\w+&@#\\/%=~|])`,
+  'gi',
+);
 const pawnDropPattern = /^[a-h][2-7]$/;
 export const movePattern: RegExp =
   /\b(\d+)\s*(\.+)\s*(?:[o0-]+[o0]|[NBRQKP\u2654\u2655\u2656\u2657\u2658\u2659]?[a-h]?[1-8]?[x@]?[a-h][1-8](?:=[NBRQK\u2654\u2655\u2656\u2657\u2658\u2659])?)\+?#?[!\?=]{0,5}/gi;

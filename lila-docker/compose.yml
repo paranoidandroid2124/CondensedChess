@@ -251,18 +251,6 @@ services:
     profiles:
       - push
 
-  picfit:
-    build:
-      context: docker
-      dockerfile: picfit.Dockerfile
-    ports:
-      - 3001:3001
-    volumes:
-      - ./conf/picfit.json:/mnt/config.json
-      - ./docker/assets:/uploads
-    profiles:
-      - thumbnails
-
   mailpit:
     image: axllent/mailpit:v1.27.7
     restart: unless-stopped

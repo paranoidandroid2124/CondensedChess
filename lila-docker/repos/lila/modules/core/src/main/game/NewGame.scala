@@ -4,6 +4,7 @@ package game
 import _root_.chess.format.Fen
 import _root_.chess.{ ByColor, Game as ChessGame, Rated, Status }
 import scalalib.model.Days
+import scala.annotation.unused
 
 import lila.core.id.GameId
 
@@ -39,11 +40,11 @@ def newGame(
 private def newSloppy(
     chess: ChessGame,
     players: ByColor[Player],
-    rated: Rated,
+    @unused rated: Rated,
     source: Source,
     pgnImport: Option[PgnImport],
-    daysPerTurn: Option[Days] = None,
-    rules: Set[GameRule] = Set.empty
+    @unused daysPerTurn: Option[Days] = None,
+    @unused rules: Set[GameRule] = Set.empty
 ): Game =
   val createdAt = nowInstant
   new Game(
@@ -55,4 +56,3 @@ private def newSloppy(
     createdAt = createdAt,
     movedAt = createdAt
   )
-

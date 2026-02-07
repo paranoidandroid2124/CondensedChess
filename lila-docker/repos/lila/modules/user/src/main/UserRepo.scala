@@ -33,6 +33,15 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
 
   def exists(id: UserId): Fu[Boolean] = coll.exists($id(id))
 
+  def disable(id: UserId): Funit =
+    coll.update.one($id(id), $set(BSONFields.enabled -> false)).void
+
+  def delete(id: UserId): Funit =
+    coll.delete.one($id(id)).void
+
+  def updateUsername(id: UserId, newName: UserName): Funit =
+    coll.update.one($id(id), $set(BSONFields.username -> newName)).void
+
   def autocomplete(term: String): Fu[List[String]] =
     coll
       .find($doc(BSONFields.username $regex s"^$term"), $doc(BSONFields.username -> true).some)

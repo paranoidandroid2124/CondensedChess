@@ -1,8 +1,6 @@
 package lila.llm.analysis.L3
 
-import chess._
 import lila.llm.analysis.PositionFeatures
-import lila.llm.model.Motif
 
 /**
  * Phase 1: Position Classifier

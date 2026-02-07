@@ -1,5 +1,5 @@
 import * as licon from 'lib/licon';
-import { type VNode, onInsert, hl } from 'lib/view';
+import { type VNode, onInsert, hl, domDialog } from 'lib/view';
 import type AnalyseCtrl from '../ctrl';
 
 import { patch, nodeFullName } from '../view/util';
@@ -127,6 +127,11 @@ function view(ctrl: AnalyseCtrl, path: Tree.Path, coords: Coords): VNode {
     [
       hl('p.title', nodeFullName(node)),
 
+      ctrl.canWriteStudy() &&
+        action(licon.BubbleSpeech, ctrl.studyCommentText(path) ? 'Edit note' : 'Add note', () =>
+          void openStudyNote(ctrl, path),
+        ),
+
       canPromote && action(licon.UpTriangle, 'Promote variation', () => ctrl.promote(path, false)),
 
       !onMainline && action(licon.Checkmark, 'Make main line', () => ctrl.promote(path, true)),
@@ -164,4 +169,42 @@ function view(ctrl: AnalyseCtrl, path: Tree.Path, coords: Coords): VNode {
       ),
     ],
   );
+}
+
+async function openStudyNote(ctrl: AnalyseCtrl, path: Tree.Path): Promise<void> {
+  const node = ctrl.tree.nodeAtPath(path);
+  if (!node) return;
+
+  const dlg = await domDialog({
+    class: 'alert',
+    modal: true,
+    show: true,
+    focus: 'textarea',
+    htmlText: `
+      <h2>Study note</h2>
+      <textarea rows="10" style="width:100%;resize:vertical"></textarea>
+      <span>
+        <button class="button button-empty cancel">Cancel</button>
+        <button class="button ok">Save</button>
+      </span>
+      <p style="margin:0.5em 0 0;opacity:.7">Ctrl/⌘ + Enter to save</p>
+    `,
+  });
+
+  const textarea = dlg.view.querySelector<HTMLTextAreaElement>('textarea')!;
+  textarea.value = ctrl.studyCommentText(path);
+
+  const save = () => {
+    ctrl.setStudyComment(path, textarea.value);
+    dlg.close('ok');
+  };
+
+  dlg.view.querySelector<HTMLButtonElement>('.cancel')!.addEventListener('click', () => dlg.close('cancel'));
+  dlg.view.querySelector<HTMLButtonElement>('.ok')!.addEventListener('click', save);
+  textarea.addEventListener('keydown', (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      save();
+    }
+  });
 }

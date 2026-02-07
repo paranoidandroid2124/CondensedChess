@@ -1,0 +1,160 @@
+// Chesstory Error Pages (404, 500, Rate Limited, etc.)
+// Uses same layout principles as landing and auth pages
+
+// Color variables (matching theme.pro)
+$c-bg-page: #0d1016;
+$c-bg: #161A25;
+$c-bg-low: #1c212e;
+$c-border: #2a3449;
+$c-font: #E2E8F0;
+$c-shade: #94A3B8;
+$c-primary: #3B82F6;
+
+.error-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #F8F9FA;
+    font-family: 'Roboto', 'Noto Sans', 'Segoe UI', sans-serif;
+}
+
+body.dark .error-page,
+body.pro .error-page,
+html.dark .error-page,
+html.pro .error-page {
+    background-color: $c-bg-page;
+}
+
+.error-container {
+    max-width: 600px;
+    width: 100%;
+    margin: auto;
+    padding: 2rem;
+    text-align: center;
+}
+
+.error-code {
+    font-family: 'Georgia', serif;
+    font-size: 8rem;
+    font-weight: 900;
+    line-height: 1;
+    margin: 0;
+    color: #161A25;
+    opacity: 0.1;
+
+    body.dark &,
+    body.pro & {
+        color: #E2E8F0;
+    }
+}
+
+.error-title {
+    font-family: 'Georgia', serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: -2rem 0 1.5rem 0;
+    color: #161A25;
+
+    body.dark &,
+    body.pro & {
+        color: #E2E8F0;
+    }
+}
+
+.error-message {
+    font-size: 1.2rem;
+    color: #64748B;
+    margin-bottom: 3rem;
+    line-height: 1.6;
+
+    body.dark &,
+    body.pro & {
+        color: #94A3B8;
+    }
+}
+
+.error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+}
+
+.error-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 1rem 2rem;
+    background: #161A25;
+    color: #fff;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: transform 0.2s, background 0.2s;
+
+    &:hover {
+        transform: translateY(-2px);
+        background: #3B82F6;
+    }
+
+    body.dark &,
+    body.pro & {
+        background: #E2E8F0;
+        color: #161A25;
+
+        &:hover {
+            background: #3B82F6;
+            color: #fff;
+        }
+    }
+}
+
+.error-secondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: transparent;
+    color: #64748B;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+
+    &:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: #161A25;
+    }
+
+    body.dark &,
+    body.pro & {
+        border-color: #2a3449;
+        color: #94A3B8;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #E2E8F0;
+        }
+    }
+}
+
+.error-visual {
+    margin-bottom: 2rem;
+    font-size: 5rem;
+    opacity: 0.8;
+}
+
+// Responsive
+@media (max-width: 500px) {
+    .error-code {
+        font-size: 5rem;
+    }
+
+    .error-title {
+        font-size: 1.8rem;
+        margin-top: -1rem;
+    }
+
+    .error-actions {
+        flex-direction: column;
+    }
+}

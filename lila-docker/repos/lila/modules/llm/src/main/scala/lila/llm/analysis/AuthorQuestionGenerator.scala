@@ -113,14 +113,15 @@ object AuthorQuestionGenerator:
       val t = seriousThreat.get
       val threatHint = t.attackSquares.headOption.map(sq => s" (watch $sq)").getOrElse("")
       val defenseHint = t.bestDefense.filter(_.nonEmpty).map(toSanMaybe)
-      val impactWord = if t.turnsToImpact == 1 then "move" else "moves"
 
       val q =
         defenseHint match
           case Some(d) => s"What is the defensive task here — can $us meet the threat with $d$threatHint?"
           case None    => s"What is the defensive task here, and how should $us meet the opponent’s threat$threatHint?"
 
-      val why = Some(s"There is immediate pressure: ignoring it can cost roughly ${t.lossIfIgnoredCp}cp within ${t.turnsToImpact} $impactWord.")
+      val why = Some(
+        s"There is immediate pressure: ${defensiveTaskConsequence(t.kind.toString, t.turnsToImpact)}"
+      )
 
       Some(
         AuthorQuestion(
@@ -132,6 +133,21 @@ object AuthorQuestionGenerator:
           anchors = List("defense", "threat")
         )
       )
+
+  private def defensiveTaskConsequence(kind: String, turnsToImpact: Int): String =
+    val horizon =
+      if turnsToImpact <= 1 then "on the next move"
+      else if turnsToImpact <= 2 then "within the next few moves"
+      else "in a short sequence"
+    kind.toLowerCase match
+      case "mate" =>
+        s"if ignored, king safety collapses $horizon."
+      case "material" =>
+        s"if ignored, material can be lost $horizon."
+      case "positional" =>
+        s"if ignored, the position can become passive and hard to untangle $horizon."
+      case _ =>
+        s"if ignored, the opponent can seize the initiative $horizon."
 
   private def buildConversionPlanQuestion(
     ctx: IntegratedContext,

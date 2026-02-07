@@ -63,7 +63,6 @@ object NarrativeUtils:
       Replay.makeReplay(parsed.toGame, parsed.mainline).replay.chronoMoves.lastOption.flatMap {
         case m: chess.Move => Some(m.toUci.uci)
         case d: chess.Drop => Some(d.toUci.uci)
-        case _ => None
       }
     }
 
@@ -75,31 +74,31 @@ object NarrativeUtils:
    */
   def sanLineToUciList(fen: String, sanLine: String): Option[List[String]] =
     val raw = sanLine.trim
-    if (raw.isEmpty) return Some(Nil)
+    if raw.isEmpty then Some(Nil)
+    else
+      val tokens =
+        raw
+          .split("\\s+")
+          .toList
+          .map(_.trim)
+          .filter(_.nonEmpty)
+          .filterNot(t => t.matches("^[0-9]+\\.{1,3}$")) // "7." or "7..."
+          .filterNot(t => t == "..." || t == "…")
+          .filterNot(t => t == "1-0" || t == "0-1" || t == "1/2-1/2" || t == "*")
 
-    val tokens =
-      raw
-        .split("\\s+")
-        .toList
-        .map(_.trim)
-        .filter(_.nonEmpty)
-        .filterNot(t => t.matches("^[0-9]+\\.{1,3}$")) // "7." or "7..."
-        .filterNot(t => t == "..." || t == "…")
-        .filterNot(t => t == "1-0" || t == "0-1" || t == "1/2-1/2" || t == "*")
-
-    val ucis = scala.collection.mutable.ListBuffer.empty[String]
-    var currentFen = fen
-    var ok = true
-    val it = tokens.iterator
-    while (it.hasNext && ok) {
-      val san = it.next()
-      sanToUci(currentFen, san) match
-        case None => ok = false
-        case Some(uci) =>
-          ucis += uci
-          currentFen = uciListToFen(currentFen, List(uci))
-    }
-    Option.when(ok)(ucis.toList)
+      val ucis = scala.collection.mutable.ListBuffer.empty[String]
+      var currentFen = fen
+      var ok = true
+      val it = tokens.iterator
+      while (it.hasNext && ok) {
+        val san = it.next()
+        sanToUci(currentFen, san) match
+          case None => ok = false
+          case Some(uci) =>
+            ucis += uci
+            currentFen = uciListToFen(currentFen, List(uci))
+      }
+      Option.when(ok)(ucis.toList)
 
   /**
    * Converts a UCI string to SAN string based on the given FEN.
@@ -141,28 +140,62 @@ object NarrativeUtils:
    * - startPly=14, sans=["...dxc4","Bg2"] → "7... dxc4 8. Bg2"
    */
   def formatSanWithMoveNumbers(startPly: Int, sans: List[String]): String =
-    if (sans.isEmpty) return ""
-    val sb = new StringBuilder()
-    var ply = startPly
-    var lastMoveNo: Option[Int] = None
-    var lastWasWhite = false
+    if sans.isEmpty then ""
+    else
+      val sb = new StringBuilder()
+      var ply = startPly
+      var lastMoveNo: Option[Int] = None
+      var lastWasWhite = false
 
-    sans.foreach { san =>
-      val moveNo = (ply + 1) / 2
-      val prefix =
-        if (ply % 2 == 1) s"$moveNo."
-        else if (lastWasWhite && lastMoveNo.contains(moveNo)) "" else s"$moveNo..."
+      sans.foreach { san =>
+        val moveNo = (ply + 1) / 2
+        val prefix =
+          if (ply % 2 == 1) s"$moveNo."
+          else if (lastWasWhite && lastMoveNo.contains(moveNo)) "" else s"$moveNo..."
 
-      if (sb.nonEmpty) sb.append(" ")
-      if (prefix.nonEmpty) sb.append(prefix).append(" ")
-      sb.append(san)
+        if (sb.nonEmpty) sb.append(" ")
+        if (prefix.nonEmpty) sb.append(prefix).append(" ")
+        sb.append(san)
 
-      lastMoveNo = Some(moveNo)
-      lastWasWhite = (ply % 2 == 1)
-      ply += 1
-    }
+        lastMoveNo = Some(moveNo)
+        lastWasWhite = (ply % 2 == 1)
+        ply += 1
+      }
 
-    sb.toString()
+      sb.toString()
+
+  /**
+   * Infer absolute ply from a full FEN string.
+   *
+   * Formula:
+   * - White to move at fullmove N -> ply = (N - 1) * 2
+   * - Black to move at fullmove N -> ply = (N - 1) * 2 + 1
+   */
+  def plyFromFen(fen: String): Option[Int] =
+    val parts = fen.trim.split("\\s+")
+    if parts.length < 6 then None
+    else
+      val sideOffset =
+        parts(1) match
+          case "w" => Some(0)
+          case "b" => Some(1)
+          case _   => None
+      val fullMove = parts(5).toIntOption.filter(_ >= 1)
+      for
+        fm <- fullMove
+        so <- sideOffset
+      yield (fm - 1) * 2 + so
+
+  /**
+   * Resolve a stable ply for book-style move annotation.
+   *
+   * In move-annotation mode (`playedMove` defined), `fen` is the position before
+   * the played move, so the annotated move ply is `fenPly + 1`.
+   */
+  def resolveAnnotationPly(fen: String, playedMove: Option[String], fallbackPly: Int): Int =
+    plyFromFen(fen)
+      .map(_ + (if playedMove.exists(_.nonEmpty) then 1 else 0))
+      .getOrElse(fallbackPly)
 
   /**
    * Converts a list of Square objects to algebraic notation string.
@@ -239,7 +272,6 @@ object NarrativeUtils:
       val isAttackedByOpponent = board.attackers(sq, !victimColor).nonEmpty
       isOccupiedByVictim && isAttackedByOpponent
     }
-
 
 
 

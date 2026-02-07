@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    const app = window.LichessAnalysis;
+    const app = window.ChesstoryAnalysis;
     if (app) {
         const btn = document.createElement('button');
         btn.className = 'button button-metal';

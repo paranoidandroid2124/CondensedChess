@@ -270,15 +270,15 @@ function show(ctrl: AnalyseCtrl): MaybeVNode {
 
 const explorerTitle = (explorer: ExplorerCtrl) => {
   const db = explorer.db();
-  const otherLink = (name: string, title: string) =>
+  const otherLink = (dbKey: ExplorerDb, label: string, title: string) =>
     hl(
       'button.button-link',
       {
-        key: name,
+        key: dbKey,
         attrs: { title },
-        hook: bind('click', () => explorer.config.data.db(name.toLowerCase() as ExplorerDb), explorer.reload),
+        hook: bind('click', () => explorer.config.data.db(dbKey), explorer.reload),
       },
-      name,
+      label,
     );
   const playerLink = () =>
     hl(
@@ -310,16 +310,16 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
     );
   const playerName = explorer.config.data.playerName.value();
   const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08',
-    lichessDbExplanation = '10 billion games played on Lichess';
+    onlineDbExplanation = 'Large community database';
   const data = explorer.current();
   const queuePosition = data && isOpening(data) && data.queuePosition;
   return hl('div.explorer-title', [
     db === 'masters'
       ? active([hl('strong', 'Masters'), ' database'], masterDbExplanation)
-      : explorer.config.allDbs.includes('masters') && otherLink('Masters', masterDbExplanation),
+      : explorer.config.allDbs.includes('masters') && otherLink('masters', 'Masters', masterDbExplanation),
     db === 'lichess'
-      ? active([hl('strong', 'Lichess'), ' database'], lichessDbExplanation)
-      : otherLink('Lichess', lichessDbExplanation),
+      ? active([hl('strong', 'Online'), ' database'], onlineDbExplanation)
+      : otherLink('lichess', 'Online', onlineDbExplanation),
     db === 'player'
       ? playerName
         ? active(

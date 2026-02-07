@@ -34,7 +34,7 @@
 
   &::before {
     color: $c-brag;
-    content: $licon-InfoCircle;
+    content: $story-icon-InfoCircle;
     font-size: 4em;
   }
 }
@@ -44,7 +44,7 @@
 
   &::before {
     color: $c-secondary;
-    content: $licon-UploadCloud;
+    content: $story-icon-UploadCloud;
     font-size: 4em;
   }
 }
@@ -55,7 +55,7 @@
 
   &::before {
     color: $c-good;
-    content: $licon-Checkmark;
+    content: $story-icon-Checkmark;
     font-size: 4em;
   }
 }

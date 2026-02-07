@@ -141,6 +141,44 @@
       @include transition(opacity);
     }
 
+    // Chesstory: simplified topnav (single list)
+    .topnav__main {
+      flex: 1 0 100%;
+      list-style: none;
+      margin: 0;
+      padding: 1rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .topnav__link {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      font-size: 1.1em;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+
+      &.is-active {
+        background: rgba($c-primary, 0.18);
+        border-color: rgba($c-primary, 0.45);
+      }
+
+      &:active {
+        background: $c-primary;
+        color: $c-over;
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba($c-primary, 0.25);
+      }
+    }
+
     section {
       flex: 1 0 50%;
       margin-top: 1rem;

@@ -1,7 +1,7 @@
 package lila.llm
 
 import scala.concurrent.{ ExecutionContext, Future }
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, OpeningExplorerClient }
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.strategic.VariationLine
 
@@ -33,6 +33,7 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       phase: String,
       ply: Int
   ): Option[CommentResponse] =
+    val _ = ply
     val pv = eval.flatMap(_.pv).getOrElse(Nil)
     CommentaryEngine.assess(fen, pv, opening, Some(phase)).map { assessment =>
       val bead = Math.abs(fen.hashCode)
@@ -57,10 +58,15 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       eval: Option[EvalData],
       variations: Option[List[VariationLine]],
       probeResults: Option[List[lila.llm.model.ProbeResult]] = None,
+      afterFen: Option[String] = None,
+      afterEval: Option[EvalData] = None,
+      afterVariations: Option[List[VariationLine]] = None,
       opening: Option[String],
       phase: String,
       ply: Int
   ): Future[Option[CommentResponse]] =
+    val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
+
     val varsFromEval =
       eval.flatMap(_.pv).filter(_.nonEmpty).map { pv =>
         List(
@@ -74,10 +80,24 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       }
 
     val vars = variations.filter(_.nonEmpty).orElse(varsFromEval).getOrElse(Nil)
+
+    val afterVarsFromEval =
+      afterEval.flatMap(_.pv).filter(_.nonEmpty).map { pv =>
+        List(
+          VariationLine(
+            moves = pv,
+            scoreCp = afterEval.map(_.cp).getOrElse(0),
+            mate = afterEval.flatMap(_.mate),
+            depth = 0
+          )
+        )
+      }
+
+    val afterVars = afterVariations.filter(_.nonEmpty).orElse(afterVarsFromEval).getOrElse(Nil)
     if vars.isEmpty then Future.successful(None)
     else
       val shouldFetchMasters =
-        phase.toLowerCase.contains("opening") && ply >= 13
+        phase.toLowerCase.contains("opening") && effectivePly >= 13
 
       val mastersFut =
         if shouldFetchMasters then openingExplorer.fetchMasters(fen)
@@ -90,16 +110,33 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
           playedMove = lastMove,
           opening = opening,
           phase = Some(phase),
-          ply = ply,
+          ply = effectivePly,
           prevMove = lastMove
         )
 
         dataOpt.map { data =>
+          val afterDataOpt =
+            afterFen
+              .filter(_.nonEmpty)
+              .filter(_ => afterVars.nonEmpty)
+              .flatMap { f =>
+                CommentaryEngine.assessExtended(
+                  fen = f,
+                  variations = afterVars,
+                  playedMove = None,
+                  opening = opening,
+                  phase = Some(phase),
+                  ply = effectivePly,
+                  prevMove = None
+                )
+              }
+
           val ctx = NarrativeContextBuilder.build(
             data = data,
             ctx = data.toContext,
             probeResults = probeResults.getOrElse(Nil),
-            openingRef = openingRef
+            openingRef = openingRef,
+            afterAnalysis = afterDataOpt
           )
           val prose = BookStyleRenderer.render(ctx)
 
@@ -124,6 +161,24 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       evals = evals,
       options = AnalysisOptions(style, focusOn)
     ))
+
+  /** Generate full game narrative locally (no external LLM). */
+  def analyzeFullGameLocal(
+      pgn: String,
+      evals: List[MoveEval],
+      style: String = "book",
+      focusOn: List[String] = List("mistakes", "turning_points")
+  ): Future[Option[GameNarrativeResponse]] =
+    Future {
+      val _ = (style, focusOn)
+      // `style` and `focusOn` are currently unused by the local engine, but kept for API symmetry.
+      val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
+      val narrative = CommentaryEngine.generateFullGameNarrative(
+        pgn = pgn,
+        evals = evalMap
+      )
+      Some(GameNarrativeResponse.fromNarrative(narrative))
+    }
 
   /** Quick comment for a critical moment */
   def criticalMomentComment(

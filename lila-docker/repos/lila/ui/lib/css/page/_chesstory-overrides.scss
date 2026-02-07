@@ -1,0 +1,79 @@
+// Chesstory look & feel overrides (keep selectors shallow; rely on theme variables where possible)
+
+html.pro {
+  // Global typography
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Georgia', serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  // App chrome
+  body {
+    // Softer background than legacy gradient
+    background: $c-bg-page;
+    ---site-header-height: 64px;
+    ---site-header-margin: 0px;
+    ---main-margin: 1.25rem;
+    ---block-gap: 16px;
+  }
+
+  #main-wrap {
+    ---main-max-width: 1600px;
+  }
+
+  // Header: simplify the "lichess" chrome into a product header
+  body > header {
+    height: 64px;
+    max-width: none;
+    margin: 0;
+    padding: 0 1.25rem;
+    border-bottom: 1px solid $c-border;
+    background: $c-bg;
+
+    .site-title {
+      gap: 0.75rem;
+      text-decoration: none;
+    }
+
+    .site-icon {
+      font-size: 1.4rem;
+      opacity: 0.9;
+    }
+
+    .site-name {
+      font-family: 'Georgia', serif;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+  }
+
+  // Buttons: less "uppercase/metal", more product UI
+  .button {
+    text-transform: none;
+    letter-spacing: 0;
+    border-radius: 10px;
+    padding: 0.75em 1.1em;
+  }
+
+  // Inputs: clearer borders and slightly rounder corners
+  input,
+  textarea,
+  select {
+    border-radius: 10px;
+    border-color: $c-border;
+  }
+
+  // Simple content pages (privacy/terms)
+  .page-box {
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: $c-bg-low;
+    border: 1px solid $c-border;
+    border-radius: 12px;
+  }
+}

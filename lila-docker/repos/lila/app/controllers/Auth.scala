@@ -82,23 +82,14 @@ final class Auth(env: Env) extends LilaController(env):
   )
 
   def magicLink = Open:
-    val html =
-      s"""<html><head><title>Login</title></head><body>
-         |<h1>Login</h1>
-         |<form method="post" action="${routes.Auth.magicLinkApply.url}">
-         |  <label>Email</label><br/>
-         |  <input name="email" type="email" autocomplete="email" required />
-         |  <button type="submit">Send magic link</button>
-         |</form>
-         |</body></html>""".stripMargin
-    fuccess(Ok(html).as("text/html"))
+    Ok.page(views.auth.magicLink())
 
   def magicLinkApply = OpenBody:
     bindForm(magicLinkForm)(
-      _ => BadRequest("Invalid email").toFuccess,
+      _ => Ok.page(views.auth.magicLink(Some("Invalid email address"))),
       emailStr =>
         val email = EmailAddress(emailStr)
-        limit.magicLink(EmailAddress(email.normalize.value).value, TooManyRequests("Too many login emails, try again later").toFuccess):
+        limit.magicLink(EmailAddress(email.normalize.value).value, Ok.page(views.auth.magicLink(Some("Too many login emails, try again later")))):
           val token = env.security.loginToken.generate(email, 15.minutes)
           val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
           env.mailer.automaticEmail.magicLinkLogin(email, url)
@@ -107,24 +98,17 @@ final class Auth(env: Env) extends LilaController(env):
           val exposeMockLink = mockEmail && env.mode != Mode.Prod
 
           if exposeMockLink then
-            val html =
-              s"""<html><head><title>Magic link (dev)</title></head><body>
-                 |<h1>Magic link (dev)</h1>
-                 |<p>Email sending is in mock mode. Use this link to log in:</p>
-                 |<p><a href="$url">$url</a></p>
-                 |<p><a class="button" href="$url">Log in</a></p>
-                 |</body></html>""".stripMargin
-            Ok(html).as("text/html").toFuccess
+            Ok.page(views.auth.magicLinkDev(url))
           else Redirect(routes.Auth.magicLinkSent).toFuccess
     )
 
   def magicLinkSent = Open:
-    fuccess(Ok("Check your email for the login link."))
+    Ok.page(views.auth.magicLinkSent())
   def checkYourEmail = signup
   def fixEmail = signup
 
   def loginWithToken(token: String) = Open:
-    env.security.loginToken.read(token).fold(fuccess(Unauthorized("Invalid or expired login link"))): email =>
+    env.security.loginToken.read(token).fold(Ok.page(views.auth.loginError("Invalid or expired login link. Please request a new one."))): email =>
       env.user.repo.upsertEmailUser(email).flatMap: user =>
         given Context = ctx
         authenticateUser(user, remember = true)

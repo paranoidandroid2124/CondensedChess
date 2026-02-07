@@ -22,14 +22,14 @@
 }
 
 html[dir='rtl'] {
-  [data-icon='#{$licon-Wings}'],
-  [data-icon='#{$licon-PlayTriangle}'],
-  [data-icon='#{$licon-GreaterThan}'],
-  [data-icon='#{$licon-LessThan}'],
-  [data-icon='#{$licon-JumpFirst}'],
-  [data-icon='#{$licon-JumpPrev}'],
-  [data-icon='#{$licon-JumpNext}'],
-  [data-icon='#{$licon-JumpLast}'] {
+  [data-icon='#{$story-icon-Wings}'],
+  [data-icon='#{$story-icon-PlayTriangle}'],
+  [data-icon='#{$story-icon-GreaterThan}'],
+  [data-icon='#{$story-icon-LessThan}'],
+  [data-icon='#{$story-icon-JumpFirst}'],
+  [data-icon='#{$story-icon-JumpPrev}'],
+  [data-icon='#{$story-icon-JumpNext}'],
+  [data-icon='#{$story-icon-JumpLast}'] {
     &:not(.no-mirror)::before {
       display: inline-block;
       transform: scaleX(-1);

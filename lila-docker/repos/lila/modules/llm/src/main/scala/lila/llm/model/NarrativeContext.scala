@@ -76,7 +76,12 @@ case class NarrativeContext(
   authorEvidence: List[QuestionEvidence] = Nil,
 
   // === PHASE 23: VERIFIED FACTS (Truth Maintenance) ===
-  facts: List[Fact] = Nil
+  facts: List[Fact] = Nil,
+
+  // === DELTA MODE ===
+  // True when `delta` represents the immediate before/after of a played move.
+  // (As opposed to a cross-moment delta when narrating key moments of a game.)
+  deltaAfterMove: Boolean = false
 )
 
 

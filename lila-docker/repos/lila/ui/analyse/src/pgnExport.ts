@@ -39,7 +39,8 @@ function renderPgnTags(game: Game): string {
   let txt = '';
   const tags: Array<[string, string]> = [];
   if (game.variant.key !== 'standard') tags.push(['Variant', game.variant.name]);
-  if (game.initialFen && game.initialFen !== INITIAL_FEN) tags.push(['FEN', game.initialFen]);
+  const initialFen = game.initialFen || (game.id === 'synthetic' ? game.fen : undefined);
+  if (initialFen && initialFen !== INITIAL_FEN) tags.push(['SetUp', '1'], ['FEN', initialFen]);
   if (tags.length) txt = tags.map(t => '[' + t[0] + ' "' + t[1] + '"]').join('\n') + '\n\n';
   return txt;
 }
