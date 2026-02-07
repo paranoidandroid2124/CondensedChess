@@ -1,4 +1,3 @@
-import { view as cevalView } from 'lib/ceval';
 import * as licon from 'lib/licon';
 import { type VNode, hl } from 'lib/view';
 import { playable } from 'lib/game';
@@ -16,9 +15,11 @@ import { renderControls } from './controls';
 
 let resizeCache: {
   columns: number;
-  chat: HTMLElement | null;
+  main: HTMLElement | null;
   board: HTMLElement | null;
-  meta: HTMLElement | null;
+  observer: ResizeObserver | null;
+  raf: number | null;
+  boardRectSig: string;
 };
 
 export default function () {
@@ -29,13 +30,13 @@ export default function () {
 }
 
 function analyseView(ctrl: AnalyseCtrl): VNode {
+  bindLayoutObserver(ctrl);
   const ctx = viewContext(ctrl);
   return renderMain(
     ctx,
     ctrl.keyboardHelp && keyboardView(ctrl),
     renderSide(ctrl),
     renderBoard(ctx),
-    ctx.gaugeOn && cevalView.renderGauge(ctrl),
     crazyView(ctrl, ctrl.topColor(), 'top'),
     renderTools(ctx),
     crazyView(ctrl, ctrl.bottomColor(), 'bottom'),
@@ -82,8 +83,57 @@ function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
 
 function resizeHandler(ctrl: AnalyseCtrl) {
   window.addEventListener('resize', () => {
+    scheduleBoardSync(ctrl);
     if (resizeCache.columns !== displayColumns()) ctrl.redraw();
     resizeCache.columns = displayColumns();
   });
-  return { columns: displayColumns(), chat: null, board: null, meta: null };
+  return {
+    columns: displayColumns(),
+    main: null,
+    board: null,
+    observer: null,
+    raf: null,
+    boardRectSig: '',
+  };
+}
+
+function bindLayoutObserver(ctrl: AnalyseCtrl): void {
+  const main = document.querySelector('main.analyse') as HTMLElement | null;
+  if (!main || resizeCache.main === main) return;
+
+  resizeCache.observer?.disconnect();
+  resizeCache.main = main;
+  resizeCache.board = main.querySelector('.analyse__board') as HTMLElement | null;
+  resizeCache.boardRectSig = '';
+
+  resizeCache.observer = new ResizeObserver(() => scheduleBoardSync(ctrl));
+  resizeCache.observer.observe(main);
+  if (resizeCache.board) resizeCache.observer.observe(resizeCache.board);
+
+  scheduleBoardSync(ctrl);
+}
+
+function scheduleBoardSync(ctrl: AnalyseCtrl): void {
+  if (resizeCache.raf !== null) cancelAnimationFrame(resizeCache.raf);
+  resizeCache.raf = requestAnimationFrame(() => {
+    resizeCache.raf = null;
+    syncBoard(ctrl);
+  });
+}
+
+function syncBoard(ctrl: AnalyseCtrl): void {
+  if (!resizeCache.main) return;
+
+  if (!resizeCache.board || !resizeCache.main.contains(resizeCache.board))
+    resizeCache.board = resizeCache.main.querySelector('.analyse__board') as HTMLElement | null;
+  const board = resizeCache.board;
+  if (!board) return;
+  resizeCache.observer?.observe(board);
+
+  const rect = board.getBoundingClientRect();
+  const sig = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+  if (sig === resizeCache.boardRectSig) return;
+
+  resizeCache.boardRectSig = sig;
+  ctrl.withCg(cg => cg.redrawAll());
 }

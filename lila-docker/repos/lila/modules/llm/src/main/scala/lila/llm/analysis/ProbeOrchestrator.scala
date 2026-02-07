@@ -1,7 +1,6 @@
 package lila.llm.analysis
 
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.concurrent.duration._
 import java.util.concurrent.ConcurrentHashMap
 import lila.llm.model._
 import lila.llm.{ CommentRequest, CommentResponse }

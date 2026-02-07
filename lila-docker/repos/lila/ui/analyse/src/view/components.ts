@@ -9,7 +9,7 @@ import {
   bind,
   bindNonPassive,
   onInsert,
-  dataIcon,
+  icon,
   hl,
 } from 'lib/view';
 import { playable } from 'lib/game';
@@ -51,6 +51,7 @@ export interface ViewContext {
 
 export function viewContext(ctrl: AnalyseCtrl): ViewContext {
   const playerBars = undefined;
+  const gaugeOn = false;
   return {
     ctrl,
     concealOf: makeConcealOf(ctrl),
@@ -58,8 +59,8 @@ export function viewContext(ctrl: AnalyseCtrl): ViewContext {
     gamebookPlayView: undefined,
     playerBars,
     playerStrips: renderPlayerStrips(ctrl),
-    gaugeOn: ctrl.showEvalGauge(),
-    needsInnerCoords: ctrl.data.pref.showCaptured || !!ctrl.showEvalGauge() || !!playerBars,
+    gaugeOn,
+    needsInnerCoords: ctrl.data.pref.showCaptured || !!playerBars,
   };
 }
 
@@ -93,8 +94,31 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'analyse--bookmaker': !!ctrl.opts.bookmaker,
       },
     },
-    kids,
+    [renderSidebar(ctrl), ...kids],
   );
+}
+
+function renderSidebar(ctrl: AnalyseCtrl): VNode {
+  return hl('div.analyse__sidebar', [
+    hl('button.fbt', {
+      attrs: {
+        title: 'Opening explorer',
+        'data-act': 'opening-explorer',
+      },
+      class: {
+        active: ctrl.activeControlBarTool() === 'opening-explorer',
+      },
+    }, [icon(licon.Book as any)]),
+    hl('button.fbt', {
+      attrs: {
+        title: 'Analysis Menu',
+        'data-act': 'menu',
+      },
+      class: {
+        active: ctrl.activeControlBarTool() === 'action-menu',
+      },
+    }, [icon(licon.Hamburger as any)]),
+  ]);
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
@@ -110,7 +134,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
   ]);
 }
 
-export function renderBoard({ ctrl, playerBars, playerStrips }: ViewContext) {
+export function renderBoard({ ctrl, playerBars, playerStrips }: ViewContext, skipInfo = false) {
   return hl(
     'div.analyse__board.main-board',
     {
@@ -137,10 +161,10 @@ export function renderBoard({ ctrl, playerBars, playerStrips }: ViewContext) {
           ),
     },
     [
-      playerStrips,
-      playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
+      !skipInfo && playerStrips,
+      !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
       chessground.render(ctrl),
-      playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
+      !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
       ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
     ],
   );
@@ -219,18 +243,17 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
         hl(
           'button.button.button-thin.bottom-item.bottom-action.text',
           {
-            attrs: dataIcon(licon.PlayTriangle),
             hook: bind('click', _ => {
               const pgn = $('.copyables .pgn textarea').val() as string;
               if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.changePgn(pgn, true);
             }),
           },
-          'Import PGN',
+          [icon(licon.PlayTriangle as any), ' Import PGN'],
         ),
         hl(
           'div.bottom-item.bottom-error',
-          { attrs: dataIcon(licon.CautionTriangle), class: { 'is-error': !!ctrl.pgnError } },
-          renderPgnError(ctrl.pgnError),
+          { class: { 'is-error': !!ctrl.pgnError } },
+          [icon(licon.CautionTriangle as any), renderPgnError(ctrl.pgnError)],
         ),
       ]),
     ]),

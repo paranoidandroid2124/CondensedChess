@@ -15,6 +15,58 @@
     }
 
     display: flex;
+    align-items: center;
+
+    // Chesstory: simplified topnav (no section dropdowns)
+    .topnav__main {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      @include margin-direction(0, 0.6rem, 0, 0.6rem);
+    }
+
+    .topnav__link {
+      @include if-light {
+        text-shadow: 0 1px 0 $c-font-shadow;
+      }
+      @include if-transp {
+        text-shadow: 0.5px 1px 1px #000;
+      }
+
+      color: $c-font-page;
+      display: inline-flex;
+      align-items: center;
+      height: var(---nav-section);
+      padding: 0 0.9rem;
+      text-decoration: none;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition:
+        background 120ms ease-in-out,
+        border-color 120ms ease-in-out,
+        color 120ms ease-in-out;
+
+      &:hover,
+      &:focus-visible {
+        background: $c-bg-header-dropdown;
+        border-color: $c-border;
+      }
+
+      &.is-active {
+        background: rgba($c-primary, 0.18);
+        border-color: rgba($c-primary, 0.45);
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba($c-primary, 0.25);
+      }
+    }
 
     section {
       position: relative;

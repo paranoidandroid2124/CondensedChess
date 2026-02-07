@@ -21,7 +21,7 @@ $star-width: 1.8rem;
   &::before {
     @extend %data-icon;
     @include inline-start(0);
-    content: $licon-StarOutline;
+    content: $story-icon-StarOutline;
     display: block;
     position: absolute;
     font-size: $star-width;
@@ -34,7 +34,7 @@ $star-width: 1.8rem;
 }
 .cmn-favourite:checked + label {
   &::before {
-    content: $licon-Star;
+    content: $story-icon-Star;
     color: $c-brag;
   }
 }

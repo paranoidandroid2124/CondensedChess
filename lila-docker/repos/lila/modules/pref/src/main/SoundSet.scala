@@ -8,7 +8,7 @@ final class SoundSet private (val key: String, val name: String):
 
 object SoundSet:
 
-  val default = new SoundSet("standard", "Standard")
+  val default = new SoundSet("sfx", "SFX")
   val silent = new SoundSet("silent", "Silent")
   val speech = new SoundSet("speech", "Speech")
 
@@ -17,12 +17,7 @@ object SoundSet:
     default,
     new SoundSet("piano", "Piano"),
     new SoundSet("nes", "NES"),
-    new SoundSet("sfx", "SFX"),
     new SoundSet("futuristic", "Futuristic"),
-    new SoundSet("lisp", "Lisp"),
-    new SoundSet("woodland", "WoodLand"),
-    new SoundSet("robot", "Robot"),
-    new SoundSet("music", "Pentatonic"),
     speech
   )
 

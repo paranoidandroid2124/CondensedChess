@@ -53,7 +53,7 @@ export const userLine = (u: HasLine): VNode | undefined =>
           moderator: !!u.moderator,
           ...(u.patronColor ? { [`paco${u.patronColor}`]: true } : {}),
         },
-        attrs: u.patronColor ? { title: 'Lichess Patron' } : {},
+        attrs: u.patronColor ? { title: 'Patron' } : {},
       })
     : undefined;
 

@@ -3,6 +3,11 @@ import { storedBooleanPropWithEffect } from 'lib/storage';
 import { pubsub } from 'lib/pubsub';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type AnalyseCtrl from './ctrl';
+import { initMiniBoards } from 'lib/view/miniBoard';
+import { Chessground as makeChessground } from '@lichess-org/chessground';
+import { uciToMove } from '@lichess-org/chessground/util';
+import { treePath } from 'lib/tree';
+import * as studyApi from './studyApi';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -12,6 +17,62 @@ let lastRequestedFen: string | null = null;
 let lastShownHtml = '';
 let handlersBound = false;
 let activeProbeSession = 0;
+
+type PendingBookmakerStudySync = {
+    payload: studyApi.BookmakerSyncPayload;
+    savedAt: number;
+};
+
+const pendingBookmakerStudySync = new Map<string, PendingBookmakerStudySync>();
+const maxPendingBookmakerSync = 200;
+
+function rememberBookmakerStudySync(payload: studyApi.BookmakerSyncPayload): void {
+    const key = payload.commentPath;
+    pendingBookmakerStudySync.set(key, { payload, savedAt: Date.now() });
+
+    if (pendingBookmakerStudySync.size <= maxPendingBookmakerSync) return;
+
+    const oldest = [...pendingBookmakerStudySync.entries()].sort((a, b) => a[1].savedAt - b[1].savedAt);
+    for (const [k] of oldest.slice(0, pendingBookmakerStudySync.size - maxPendingBookmakerSync)) pendingBookmakerStudySync.delete(k);
+}
+
+export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
+    if (!ctrl?.canWriteStudy()) return;
+
+    const entries = [...pendingBookmakerStudySync.values()].sort((a, b) => a.savedAt - b.savedAt);
+    if (!entries.length) return;
+
+    for (const entry of entries) ctrl.syncBookmaker(entry.payload);
+
+    pendingBookmakerStudySync.clear();
+}
+
+type BookmakerPreviewState = {
+    cg?: CgApi;
+    container?: HTMLElement;
+};
+
+let bookmakerPreview: BookmakerPreviewState = {};
+let bookmakerPreviewOrientation: Color = 'white';
+
+const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.showEval', true, value => {
+    const $scope = $('.analyse__bookmaker-text');
+    $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !value);
+    $scope
+        .find('.bookmaker-score-toggle')
+        .attr('aria-pressed', value ? 'true' : 'false')
+        .text(value ? 'Eval: On' : 'Eval: Off');
+});
+
+function applyBookmakerEvalDisplay(): void {
+    const value = bookmakerEvalDisplay();
+    const $scope = $('.analyse__bookmaker-text');
+    $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !value);
+    $scope
+        .find('.bookmaker-score-toggle')
+        .attr('aria-pressed', value ? 'true' : 'false')
+        .text(value ? 'Eval: On' : 'Eval: Off');
+}
 
 type ProbeRequest = {
     id: string;
@@ -50,6 +111,13 @@ function initBookmakerHandlers(): void {
 
     // Use delegated handlers so Bookmaker remains functional across Snabbdom redraws.
     $(document)
+        .on('mouseover.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
+            const board = this.dataset.board;
+            if (board) updateBookmakerPreview(board);
+        })
+        .on('mouseleave.bookmaker', '.analyse__bookmaker-text', () => {
+            hideBookmakerPreview();
+        })
         .on('mouseenter.bookmaker', '.analyse__bookmaker-text .pv-line', function (this: HTMLElement) {
             const fen = $(this).data('fen');
             const color = $(this).data('color') || 'white';
@@ -63,7 +131,66 @@ function initBookmakerHandlers(): void {
             const uci = $(this).data('uci');
             const san = $(this).data('san');
             if (uci) pubsub.emit('analysis.bookmaker.move', { uci, san });
+        })
+        .on('click.bookmaker', '.analyse__bookmaker-text .bookmaker-score-toggle', e => {
+            e.preventDefault();
+            bookmakerEvalDisplay(!bookmakerEvalDisplay());
         });
+}
+
+function mountBookmakerPreview(root: HTMLElement): void {
+    // Destroy previous chessground if the markup was replaced.
+    try {
+        bookmakerPreview.cg?.destroy?.();
+    } catch {
+        /* noop */
+    }
+    bookmakerPreview = {};
+
+    const container = root.querySelector('.bookmaker-pv-preview') as HTMLElement | null;
+    if (!container) return;
+
+    container.classList.remove('is-active');
+    container.innerHTML =
+        '<div class="pv-board"><div class="pv-board-square"><div class="cg-wrap is2d"></div></div></div>';
+
+    const wrap = container.querySelector('.cg-wrap') as HTMLElement | null;
+    if (!wrap) return;
+
+    bookmakerPreview.container = container;
+    bookmakerPreview.cg = makeChessground(wrap, {
+        fen: 'start',
+        orientation: bookmakerPreviewOrientation,
+        coordinates: false,
+        viewOnly: true,
+        drawable: { enabled: false, visible: false },
+    });
+}
+
+function updateBookmakerPreview(board: string): void {
+    const container = bookmakerPreview.container;
+    const cg = bookmakerPreview.cg;
+    if (!container || !cg) return;
+
+    const parts = board.split('|');
+    if (parts.length < 2) return;
+    const fen = parts[0];
+    const uci = parts[1] as Uci;
+    if (!fen || !uci) return;
+
+    container.classList.add('is-active');
+    cg.set({
+        fen,
+        lastMove: uciToMove(uci),
+        orientation: bookmakerPreviewOrientation,
+        coordinates: false,
+        viewOnly: true,
+        drawable: { enabled: false, visible: false },
+    });
+}
+
+function hideBookmakerPreview(): void {
+    bookmakerPreview.container?.classList.remove('is-active');
 }
 
 export function bookmakerToggleBox() {
@@ -88,6 +215,7 @@ export function bookmakerToggleBox() {
             .on('keypress', e => e.key === 'Enter' && toggle());
     });
 
+    applyBookmakerEvalDisplay();
     bookmakerRestore();
 }
 
@@ -172,24 +300,13 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         });
     };
 
-    const evalToEvalData = (ceval: any): any | null => {
-        const pv0 = ceval?.pvs?.[0];
-        if (!ceval || (!Array.isArray(ceval?.pvs) && typeof ceval?.cp !== 'number' && typeof ceval?.mate !== 'number'))
-            return null;
-        return {
-            cp: typeof ceval.cp === 'number' ? ceval.cp : 0,
-            mate: typeof ceval.mate === 'number' ? ceval.mate : null,
-            pv: Array.isArray(pv0?.moves) ? pv0.moves.slice(0, 24) : null,
-        };
-    };
-
     const evalToVariations = (ceval: any, maxPvs: number): any[] | null => {
         if (!ceval || !Array.isArray(ceval.pvs)) return null;
         return ceval.pvs
-            .filter(pv => Array.isArray(pv?.moves) && pv.moves.length)
+            .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
             .slice(0, maxPvs)
-            .map(pv => ({
-                moves: pv.moves.slice(0, 24),
+            .map((pv: any) => ({
+                moves: pv.moves.slice(0, 40),
                 scoreCp: typeof pv.cp === 'number' ? pv.cp : 0,
                 mate: typeof pv.mate === 'number' ? pv.mate : null,
                 depth: typeof pv.depth === 'number' ? pv.depth : typeof ceval.depth === 'number' ? ceval.depth : 0,
@@ -299,9 +416,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
             const replyPvs = Array.isArray(ev.pvs)
                 ? ev.pvs
-                    .filter(pv => Array.isArray(pv?.moves) && pv.moves.length)
+                    .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
                     .slice(0, Math.max(1, Math.min(4, multiPv)))
-                    .map(pv => pv.moves.slice(0, 12))
+                    .map((pv: any) => pv.moves.slice(0, 12))
                 : [];
 
             const bestReplyPv = replyPvs[0] ?? [];
@@ -330,7 +447,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     const show = (html: string) => {
         lastShownHtml = html;
         $('.analyse__bookmaker').toggleClass('empty', !html);
-        $('.analyse__bookmaker-text').html(html);
+        const $text = $('.analyse__bookmaker-text');
+        bookmakerPreviewOrientation = ctrl?.getOrientation() ?? 'white';
+        $text.html(html);
+        applyBookmakerEvalDisplay();
+        if (html) {
+            initMiniBoards($text[0] as HTMLElement);
+            mountBookmakerPreview($text[0] as HTMLElement);
+        }
     };
 
     const phaseOf = (ply: number): string => {
@@ -352,14 +476,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             const playedMove = typeof node.uci === 'string' && prevNode?.fen ? node.uci : null;
             const analysisFen = playedMove ? prevNode!.fen : fen;
             const analysisCeval = playedMove ? prevNode?.ceval : node.ceval;
+            const commentPath = ctrl?.path ?? '';
+            const originPath = playedMove ? treePath.init(commentPath) : commentPath;
 
             if (requestsBlocked) {
                 if (blockedHtml) show(blockedHtml);
                 return;
             }
             if (cache.has(fen)) return show(cache.get(fen)!);
-
-            const briefingEvalData = evalToEvalData(analysisCeval);
 
             // Any new request cancels in-flight probe batches.
             activeProbeSession++;
@@ -368,35 +492,15 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
             lastRequestedFen = fen;
             try {
-                // Stage 1: Fast Briefing
-                const briefingRes = await fetch('/api/llm/bookmaker-briefing', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fen: analysisFen,
-                        lastMove: playedMove || null,
-                        eval: briefingEvalData,
-                        context: {
-                            opening: null,
-                            phase: phaseOf(node.ply),
-                            ply: node.ply,
-                        },
-                    }),
-                });
-
-                if (lastRequestedFen !== fen) return;
-
-                if (briefingRes.ok) {
-                    const data = await briefingRes.json();
-                    const briefingHtml = typeof data?.html === 'string' ? data.html : '';
-                    show(`<div class="bookmaker-briefing">${briefingHtml}</div><div class="bookmaker-thinking">AI is deep thinking...</div>`);
-                }
+                // Stage 1 (briefing) intentionally disabled: it was low-signal and caused flicker.
+                // Keep the panel responsive with a simple placeholder until the full commentary is ready.
+                show('<div class="bookmaker-thinking">Analyzing position…</div>');
 
                 // Build analysis evidence for the move (or current position if no played move).
                 // Prefer existing ceval if it already has enough MultiPV; otherwise run a dedicated search.
-                const targetDepth = 18;
-                const targetMultiPv = 3;
-                const analysisTimeoutMs = 10000;
+                const targetDepth = 20;
+                const targetMultiPv = 5;
+                const analysisTimeoutMs = 15000;
 
                 let analysisEval: any = analysisCeval;
                 let variations = evalToVariations(analysisEval, targetMultiPv);
@@ -413,7 +517,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     if (playedEv) {
                         const replyPv = Array.isArray(playedEv.pvs) ? playedEv.pvs[0]?.moves : null;
                         const playedVar = {
-                            moves: [playedMove, ...(Array.isArray(replyPv) ? replyPv.slice(0, 16) : [])],
+                            moves: [playedMove, ...(Array.isArray(replyPv) ? replyPv.slice(0, 28) : [])],
                             scoreCp: typeof playedEv.cp === 'number' ? playedEv.cp : 0,
                             mate: typeof playedEv.mate === 'number' ? playedEv.mate : null,
                             depth: typeof playedEv.depth === 'number' ? playedEv.depth : targetDepth,
@@ -431,6 +535,35 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         }
                         : null;
 
+                // Delta support: also provide the post-move position so the server can compute before/after changes.
+                const afterFen = playedMove ? fen : null;
+                let afterEval: any = playedMove ? node.ceval : null;
+                let afterVariations = afterFen ? evalToVariations(afterEval, 1) : null;
+                // If the post-move ceval isn't ready yet, derive a PV from the analysed played-move line.
+                // This avoids triggering an extra engine search just to compute a before/after delta.
+                if (afterFen && (!afterVariations || !afterVariations.length) && playedMove && Array.isArray(variations)) {
+                    const playedLine = variations.find(v => Array.isArray(v?.moves) && v.moves[0] === playedMove);
+                    if (playedLine) {
+                        const tail = Array.isArray(playedLine.moves) ? playedLine.moves.slice(1) : [];
+                        afterVariations = [
+                            {
+                                moves: tail.slice(0, 40),
+                                scoreCp: typeof playedLine.scoreCp === 'number' ? playedLine.scoreCp : 0,
+                                mate: typeof playedLine.mate === 'number' ? playedLine.mate : null,
+                                depth: typeof playedLine.depth === 'number' ? playedLine.depth : 0,
+                            },
+                        ];
+                    }
+                }
+                const afterEvalData =
+                    afterVariations && afterVariations.length
+                        ? {
+                            cp: typeof afterVariations[0].scoreCp === 'number' ? afterVariations[0].scoreCp : 0,
+                            mate: afterVariations[0].mate ?? null,
+                            pv: Array.isArray(afterVariations[0].moves) ? afterVariations[0].moves : null,
+                        }
+                        : null;
+
                 // Stage 2: Full Deep Analysis
                 const res = await fetch('/api/llm/bookmaker-position', {
                     method: 'POST',
@@ -440,6 +573,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         lastMove: playedMove || null,
                         eval: evalData,
                         variations,
+                        afterFen,
+                        afterEval: afterEvalData,
+                        afterVariations,
                         context: {
                             opening: null,
                             phase: phaseOf(node.ply),
@@ -455,6 +591,12 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     const html = typeof data?.html === 'string' ? data.html : '';
                     cache.set(fen, html);
                     show(html);
+
+                    const commentary = typeof data?.commentary === 'string' ? (data.commentary as string) : '';
+                    const vLines = Array.isArray(data?.variations) ? (data.variations as any[]) : variations || [];
+                    const payload = { commentPath, originPath, commentary, variations: vLines };
+                    if (commentary) rememberBookmakerStudySync(payload);
+                    if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
 
                     const probeRequests = Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
                     const baselineCp =
@@ -480,6 +622,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                         eval: evalData,
                                         variations,
                                         probeResults,
+                                        afterFen,
+                                        afterEval: afterEvalData,
+                                        afterVariations,
                                         context: {
                                             opening: null,
                                             phase: phaseOf(node.ply),
@@ -495,6 +640,21 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     const refinedHtml = typeof refined?.html === 'string' ? refined.html : html;
                                     cache.set(fen, refinedHtml);
                                     show(refinedHtml);
+
+                                    const commentary =
+                                        typeof refined?.commentary === 'string'
+                                            ? (refined.commentary as string)
+                                            : typeof data?.commentary === 'string'
+                                                ? (data.commentary as string)
+                                                : '';
+                                    const vLines = Array.isArray(refined?.variations)
+                                        ? (refined.variations as any[])
+                                        : Array.isArray(data?.variations)
+                                            ? (data.variations as any[])
+                                            : variations || [];
+                                    const payload = { commentPath, originPath, commentary, variations: vLines };
+                                    if (commentary) rememberBookmakerStudySync(payload);
+                                    if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
                                 }
                             } catch {
                                 /* noop */
@@ -518,7 +678,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     requestsBlocked = true;
                     show(blockedHtml);
                 } else {
-                    // If full analysis fails, at least we keep the briefing if we had it
+                    // Full analysis failed; remove the placeholder if still present.
                     $('.bookmaker-thinking').remove();
                 }
             } catch {
@@ -541,5 +701,6 @@ export function bookmakerRestore(): void {
     if (!$text.html() && lastShownHtml) {
         $('.analyse__bookmaker').toggleClass('empty', !lastShownHtml);
         $text.html(lastShownHtml);
+        applyBookmakerEvalDisplay();
     }
 }

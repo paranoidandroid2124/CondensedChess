@@ -3,8 +3,6 @@ package lila.llm.analysis
 import _root_.chess.*
 import _root_.chess.format.Uci
 import lila.llm.model.*
-import lila.llm.model.{ OpeningReference }
-import lila.llm.model.{ FullGameNarrative, MomentNarrative, GameMetadata }
 import lila.llm.model.strategic.VariationLine
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PositionAnalyzer

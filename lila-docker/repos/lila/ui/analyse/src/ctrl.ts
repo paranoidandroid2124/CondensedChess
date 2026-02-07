@@ -12,7 +12,7 @@ import type { CevalHandler, EvalMeta, CevalOpts } from 'lib/ceval';
 import { CevalCtrl, isEvalBetter, sanIrreversible } from 'lib/ceval';
 import { TreeView } from './treeView/treeView';
 import type { Prop, Toggle } from 'lib';
-import { defined, prop, toggle, debounce, throttle, requestIdleCallback, propWithEffect } from 'lib';
+import { defined, prop, toggle, debounce, throttle, requestIdleCallback, propWithEffect, myUserId, myUsername } from 'lib';
 import { pubsub } from 'lib/pubsub';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import { lichessRules, scalachessCharPair } from 'chessops/compat';
@@ -39,6 +39,7 @@ import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
 import pgnImport from './pgnImport';
 import ForecastCtrl from './forecast/forecastCtrl';
+import * as studyApi from './studyApi';
 
 import type { PgnError } from 'chessops/pgn';
 
@@ -111,6 +112,11 @@ export default class AnalyseCtrl implements CevalHandler {
   pgnInput?: string;
   pgnError?: string;
 
+  // study write queue (HTTP only, no sockets)
+  private studyWriteQueue: Array<() => Promise<void>> = [];
+  private studyWriting = false;
+  studyWriteError?: string;
+
   // other paths
   initialPath: Tree.Path;
   contextMenuPath?: Tree.Path;
@@ -138,7 +144,7 @@ export default class AnalyseCtrl implements CevalHandler {
     );
 
     if (this.data.forecast) this.forecast = new ForecastCtrl(this.data.forecast, this.data, redraw);
-    if (this.opts.bookmaker) this.bookmaker = bookmakerNarrative();
+    if (this.opts.bookmaker) this.bookmaker = bookmakerNarrative(this);
 
     this.narrative = makeNarrative(this);
 
@@ -204,7 +210,101 @@ export default class AnalyseCtrl implements CevalHandler {
       }
     });
     this.mergeIdbThenShowTreeView();
-    (window as any).lichess.analysis = api(this);
+    const analysisApi = api(this);
+    const globals = window as any;
+    if (globals.chesstory) globals.chesstory.analysis = analysisApi;
+    if (globals.lichess) globals.lichess.analysis = analysisApi;
+  }
+
+  private studyRef(): studyApi.StudyRef | null {
+    const s = this.opts.study as { id?: string; chapterId?: string } | undefined;
+    if (!s?.id || !s?.chapterId) return null;
+    return { id: s.id, chapterId: s.chapterId };
+  }
+
+  canWriteStudy(): boolean {
+    const s = this.opts.study as { canWrite?: boolean } | undefined;
+    return !!s?.canWrite;
+  }
+
+  private enqueueStudyWrite(task: (ref: studyApi.StudyRef) => Promise<void>): void {
+    if (!this.canWriteStudy() || this.studyWriteError) return;
+    const ref = this.studyRef();
+    if (!ref) return;
+
+    // Bind the study/chapter at enqueue-time so chapter switches don't corrupt queued writes.
+    const bound = () => task(ref);
+    this.studyWriteQueue.push(bound);
+    if (!this.studyWriting) void this.flushStudyWrites();
+    this.redraw();
+  }
+
+  private async flushStudyWrites(): Promise<void> {
+    if (this.studyWriting) return;
+    this.studyWriting = true;
+    this.redraw();
+    try {
+      while (this.studyWriteQueue.length) {
+        const task = this.studyWriteQueue.shift();
+        if (task) await task();
+      }
+    } catch (e) {
+      this.studyWriteQueue = [];
+      this.studyWriteError = e instanceof Error ? e.message : String(e);
+      console.warn('Study sync failed', e);
+    } finally {
+      this.studyWriting = false;
+      this.redraw();
+    }
+  }
+
+  isStudyWriting(): boolean {
+    return this.studyWriting || this.studyWriteQueue.length > 0;
+  }
+
+  studyCommentText(path: Tree.Path): string {
+    const uid = myUserId();
+    if (!uid) return '';
+    const node = this.tree.nodeAtPath(path);
+    const comment = node?.comments?.find(c => typeof c.by === 'object' && c.by.id === uid);
+    return comment?.text || '';
+  }
+
+  setStudyComment(path: Tree.Path, text: string): void {
+    const uid = myUserId();
+    const normalized = text.trim().length ? text : '';
+    if (uid) {
+      const name = myUsername() || uid;
+      this.tree.updateAt(path, node => {
+        const comments = (node.comments || []).slice();
+        const idx = comments.findIndex(c => typeof c.by === 'object' && c.by.id === uid);
+        if (!normalized) {
+          if (idx >= 0) comments.splice(idx, 1);
+        } else if (idx >= 0) {
+          comments[idx].text = normalized;
+        } else {
+          comments.push({
+            id: `local-${Date.now()}`,
+            by: { id: uid, name },
+            text: normalized,
+          });
+        }
+        node.comments = comments.length ? comments : undefined;
+      });
+      this.redraw();
+    }
+
+    this.enqueueStudyWrite(async ref => {
+      const res = await studyApi.setNodeComment(ref, path, text);
+      this.tree.updateAt(res.path as Tree.Path, node => {
+        node.comments = res.node.comments;
+      });
+      this.redraw();
+    });
+  }
+
+  syncBookmaker(payload: studyApi.BookmakerSyncPayload): void {
+    this.enqueueStudyWrite(ref => studyApi.bookmakerSync(ref, payload));
   }
 
   initialize(data: AnalyseData, merge: boolean): void {
@@ -518,12 +618,25 @@ export default class AnalyseCtrl implements CevalHandler {
 
   userNewPiece = (piece: Piece, pos: Key): void => {
     if (crazyValid(this.chessground, this.node.drops, piece, pos)) {
+      const before = { fen: this.node.fen, path: this.path };
       this.justPlayed = roleToChar(piece.role).toUpperCase() + '@' + pos;
       this.justDropped = piece.role;
       this.justCaptured = undefined;
       site.sound.move();
       this.applyUci(this.justPlayed as Uci);
       this.redraw();
+      if (this.path !== before.path) {
+        this.enqueueStudyWrite(ref =>
+          studyApi.anaDrop(ref, {
+            role: piece.role,
+            pos,
+            fen: before.fen,
+            path: before.path,
+            variant: this.data.game.variant.key,
+            ch: ref.chapterId,
+          }).then(() => { }),
+        );
+      }
     } else this.jump(this.path);
   };
 
@@ -541,9 +654,23 @@ export default class AnalyseCtrl implements CevalHandler {
   sendMove = (orig: Key, dest: Key, capture?: JustCaptured, prom?: Role): void => {
     if (capture) this.justCaptured = capture;
     if (this.practice) this.practice.onUserMove();
+    const before = { fen: this.node.fen, path: this.path };
     const uci = (orig + dest + (prom ? roleToChar(prom) : '')) as Uci;
     this.applyUci(uci);
     this.redraw();
+    if (this.path !== before.path) {
+      this.enqueueStudyWrite(ref =>
+        studyApi.anaMove(ref, {
+          orig,
+          dest,
+          fen: before.fen,
+          path: before.path,
+          variant: this.data.game.variant.key,
+          promotion: prom,
+          ch: ref.chapterId,
+        }).then(() => { }),
+      );
+    }
   };
 
   onPremoveSet = () => { };
@@ -589,6 +716,7 @@ export default class AnalyseCtrl implements CevalHandler {
       ))
     )
       return;
+    if (path) this.enqueueStudyWrite(ref => studyApi.deleteNode(ref, path));
     this.tree.deleteNodeAt(path);
     if (treePath.contains(this.path, path)) this.userJump(treePath.init(path));
     else this.jump(this.path);
@@ -648,11 +776,13 @@ export default class AnalyseCtrl implements CevalHandler {
   }
 
   promote(path: Tree.Path, toMainline: boolean): void {
+    if (path) this.enqueueStudyWrite(ref => studyApi.promoteNode(ref, path, toMainline));
     this.tree.promoteAt(path, toMainline);
     this.jump(path);
   }
 
   forceVariation(path: Tree.Path, force: boolean): void {
+    if (path) this.enqueueStudyWrite(ref => studyApi.forceVariationNode(ref, path, force));
     this.tree.forceVariationAt(path, force);
     this.jump(path);
   }

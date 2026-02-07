@@ -15,6 +15,9 @@ final class UserApi(userRepo: UserRepo)(using
     byIds,
     me,
     isEnabled,
+    disable,
+    delete,
+    updateUsername,
     userIdsWithRoles,
     filterExists
   }

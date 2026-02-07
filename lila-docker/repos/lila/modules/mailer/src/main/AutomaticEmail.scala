@@ -17,7 +17,7 @@ final class AutomaticEmail(
 
   val regards = """Regards,
 
-The Lichess team"""
+The Chesstory team"""
 
   def welcomeEmail(user: User, email: EmailAddress)(using Lang): Funit =
     mailer.canSend.so:
@@ -27,7 +27,7 @@ The Lichess team"""
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
-          subject = s"Welcome to Lichess, ${user.username}!",
+          subject = s"Welcome to Chesstory, ${user.username}!",
           text = Mailer.txt.addServiceNote(s"Your profile: $profileUrl\nEdit your profile: $editUrl"),
           htmlBody = standardEmail(
             s"Your profile: $profileUrl\nEdit your profile: $editUrl"
@@ -61,7 +61,7 @@ The Lichess team"""
     val body =
       s"""Hello,
 
-Following your request, the Lichess account "${user.username}" will be deleted in 7 days from now.
+Following your request, the Chesstory account "${user.username}" will be deleted in 7 days from now.
 
 $regards
 """
@@ -70,7 +70,7 @@ $regards
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
-          subject = "lichess.org account deletion",
+          subject = "Chesstory account deletion",
           text = Mailer.txt.addServiceNote(body),
           htmlBody = standardEmail(body).some
         )

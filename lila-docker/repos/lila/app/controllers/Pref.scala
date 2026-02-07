@@ -29,7 +29,12 @@ final class Pref(
           BadRequest.page(views.account.pref(me, err, "gen")),
           BadRequest(errorsAsJson(err))
         ),
-      pref => env.pref.api.setPref(me, pref).inject(NoContent)
+      pref =>
+        env.pref.api.setPref(me, pref) >>
+          negotiate(
+            fuccess(Redirect(routes.Pref.form("display")).flashing("success" -> "Preferences updated")),
+            fuccess(NoContent)
+          )
     )
   }
 

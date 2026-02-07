@@ -16,7 +16,7 @@ const site = window.site;
 // site.manifest is fetched
 // site.info, site.debug are populated by ui/build
 // site.quietMode is set elsewhere
-// window.lichess is initialized in ui/api/src/api.ts
+// The public API is exposed on window.chesstory (legacy alias: window.lichess)
 site.sri = randomToken();
 site.displayLocale = displayLocale;
 site.blindMode = document.body.classList.contains('blind-mode');
@@ -28,9 +28,10 @@ site.redirect = redirect;
 site.reload = reload;
 site.announce = announceDisplay;
 site.sound = sound;
-(window as any).lichess = api;
+const globals = window as any;
+globals.chesstory = api;
+if (!globals.lichess) globals.lichess = api;
 loadPolyfills();
 addWindowHandlers();
 if (site.load) site.load.then(boot);
 else console.warn('site.load is undefined, boot skipped');
-

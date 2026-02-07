@@ -80,6 +80,19 @@ object BookCommentaryCorpusRunner:
 
   final case class Metrics(chars: Int, paragraphs: Int)
 
+  final case class QualityMetrics(
+      lexicalDiversity: Double,
+      sentenceCount: Int,
+      uniqueSentenceRatio: Double,
+      duplicateSentenceCount: Int,
+      boilerplateHits: Int,
+      mateToneConflictHits: Int,
+      moveTokenCount: Int,
+      scoreTokenCount: Int,
+      variationAnchorCoverage: Double,
+      qualityScore: Int
+  )
+
   final case class OutlineMetrics(
       beats: Int,
       kinds: List[String],
@@ -96,14 +109,19 @@ object BookCommentaryCorpusRunner:
       fen: Option[String],
       prose: Option[String],
       metrics: Option[Metrics],
+      quality: Option[QualityMetrics],
+      qualityFindings: List[String],
+      advisoryFindings: List[String],
       outline: Option[OutlineMetrics],
       failures: List[String]
   ):
     def passed: Boolean = failures.isEmpty
 
   def main(args: Array[String]): Unit =
-    val corpusPath = args.headOption.getOrElse("modules/llm/docs/BookCommentaryCorpus.json")
-    val outPath = args.lift(1).getOrElse("modules/llm/docs/BookCommentaryCorpusReport.md")
+    val strictQuality = args.contains("--strict-quality")
+    val positional = args.filterNot(_.startsWith("--"))
+    val corpusPath = positional.headOption.getOrElse("modules/llm/docs/BookCommentaryCorpus.json")
+    val outPath = positional.lift(1).getOrElse("modules/llm/docs/BookCommentaryCorpusReport.md")
 
     val corpus =
       readJsonFile(Paths.get(corpusPath)).flatMap(_.validate[Corpus].asEither.left.map(_.toString)) match
@@ -117,10 +135,17 @@ object BookCommentaryCorpusRunner:
     writeText(Paths.get(outPath), report)
 
     val failed = results.count(!_.passed)
+    val advisories = results.map(_.advisoryFindings.size).sum
     val total = results.size
-    if (failed == 0) println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
+    if (failed == 0 && (!strictQuality || advisories == 0))
+      println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
+      if (advisories > 0)
+        println(s"[corpus] ⚠ Non-blocking advisories: $advisories (run with --strict-quality to fail on advisories).")
     else
-      System.err.println(s"[corpus] ❌ $failed/$total cases failed expectations. Wrote `$outPath`.")
+      if (failed > 0)
+        System.err.println(s"[corpus] ❌ $failed/$total cases failed expectations. Wrote `$outPath`.")
+      else
+        System.err.println(s"[corpus] ❌ Strict quality mode: advisory findings detected ($advisories). Wrote `$outPath`.")
       sys.exit(1)
 
   private def runCase(c: CorpusCase): CaseResult =
@@ -138,7 +163,7 @@ object BookCommentaryCorpusRunner:
         Option.when(c.variations.isEmpty)("Missing `variations` (need at least 1 PV line).")
       ).flatten
 
-    if (baseFailures.nonEmpty) return CaseResult(c, fenOpt, None, None, None, baseFailures)
+    if (baseFailures.nonEmpty) return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, baseFailures)
 
     val fen = fenOpt.get
 
@@ -165,6 +190,9 @@ object BookCommentaryCorpusRunner:
           fen = Some(fen),
           prose = None,
           metrics = None,
+          quality = None,
+          qualityFindings = Nil,
+          advisoryFindings = Nil,
           outline = None,
           failures = List("Analysis failed (invalid FEN, illegal PV, or internal exception).")
         )
@@ -186,6 +214,9 @@ object BookCommentaryCorpusRunner:
 
         val prose = BookStyleRenderer.render(enrichedCtx)
         val metrics = computeMetrics(prose)
+        val quality = computeQualityMetrics(prose, fen, c.variations)
+        val qualityFindings = qualityFindingsFrom(quality)
+        val advisoryFindings = advisoryFindingsFrom(quality)
 
         val outlineOpt =
           try
@@ -210,11 +241,147 @@ object BookCommentaryCorpusRunner:
 
         val expectationFailures = c.expect.toList.flatMap(checkExpectations(prose, metrics, outlineOpt, _))
 
-        CaseResult(c, Some(fen), Some(prose), Some(metrics), outlineOpt, expectationFailures)
+        CaseResult(
+          c = c,
+          fen = Some(fen),
+          prose = Some(prose),
+          metrics = Some(metrics),
+          quality = Some(quality),
+          qualityFindings = qualityFindings,
+          advisoryFindings = advisoryFindings,
+          outline = outlineOpt,
+          failures = expectationFailures
+        )
 
   private def computeMetrics(prose: String): Metrics =
     val paras = prose.split("\n\n").iterator.map(_.trim).count(_.nonEmpty)
     Metrics(chars = prose.length, paragraphs = paras)
+
+  private val moveTokenRegex =
+    """(?i)\b(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b""".r
+  private val scoreTokenRegex = """(?i)(?:\([+\-]\d+\.\d\)|\bmate\b|\bcp\b|#[0-9]+)""".r
+  private val tokenRegex = """[A-Za-z][A-Za-z0-9'\-]{1,}""".r
+  private val sentenceSplitRegex = """(?<=[\.\!\?])\s+|\n+""".r
+
+  private val boilerplateLexicon = List(
+    "is another good option",
+    "is also playable here",
+    "deserves attention",
+    "both sides have their chances",
+    "the game remains tense",
+    "the position is roughly equal",
+    "in practical terms, this is comfortable to play",
+    "accuracy is required to hold the balance",
+    "the plan is clear:",
+    "both sides are still coordinating pieces",
+    "usually reduces tactical noise and favors precise maneuvering",
+    "often steers the position toward a structured endgame battle",
+    "sufficient positional compensation provides sufficient compensation for the material"
+  )
+
+  private def computeQualityMetrics(prose: String, fen: String, vars: List[VariationLine]): QualityMetrics =
+    val lower = prose.toLowerCase
+
+    val tokens = tokenRegex.findAllIn(lower).toList
+    val uniqueTokens = tokens.distinct
+    val lexicalDiversity =
+      if tokens.isEmpty then 0.0
+      else uniqueTokens.size.toDouble / tokens.size.toDouble
+
+    val sentences = extractSentences(prose)
+    val sentenceNorm = sentences.map(normalizeSentence).filter(_.length >= 8)
+    val uniqueSentenceCount = sentenceNorm.distinct.size
+    val sentenceCount = sentenceNorm.size
+    val uniqueSentenceRatio =
+      if sentenceCount == 0 then 1.0
+      else uniqueSentenceCount.toDouble / sentenceCount.toDouble
+    val duplicateSentenceCount = (sentenceCount - uniqueSentenceCount).max(0)
+
+    val boilerplateHits =
+      boilerplateLexicon.map(p => occurrencesOf(lower, p)).sum
+
+    val hasMateMove = """\*\*[^*\n]*#\*\*""".r.findFirstIn(prose).nonEmpty
+    val mateToneConflictHits =
+      if !hasMateMove then 0
+      else
+        List(
+          "structured endgame battle",
+          "calmer technical phase",
+          "structured technical struggle"
+        ).map(p => occurrencesOf(lower, p)).sum
+
+    val moveTokenCount = moveTokenRegex.findAllIn(prose).length
+    val scoreTokenCount = scoreTokenRegex.findAllIn(prose).length
+
+    val anchors = vars.take(3).flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves).headOption).map(_.toLowerCase)
+    val covered = anchors.count(a => lower.contains(a))
+    val variationAnchorCoverage =
+      if anchors.isEmpty then 1.0
+      else covered.toDouble / anchors.size.toDouble
+
+    val qualityScore = {
+      var s = 100
+      if lexicalDiversity < 0.34 then s -= 20
+      else if lexicalDiversity < 0.42 then s -= 10
+      if uniqueSentenceRatio < 0.70 then s -= 20
+      else if uniqueSentenceRatio < 0.82 then s -= 10
+      s -= math.min(24, boilerplateHits * 8)
+      s -= math.min(20, mateToneConflictHits * 10)
+      if variationAnchorCoverage < 0.34 then s -= 20
+      else if variationAnchorCoverage < 0.67 then s -= 10
+      if moveTokenCount < 6 then s -= 10
+      s.max(0).min(100)
+    }
+
+    QualityMetrics(
+      lexicalDiversity = lexicalDiversity,
+      sentenceCount = sentenceCount,
+      uniqueSentenceRatio = uniqueSentenceRatio,
+      duplicateSentenceCount = duplicateSentenceCount,
+      boilerplateHits = boilerplateHits,
+      mateToneConflictHits = mateToneConflictHits,
+      moveTokenCount = moveTokenCount,
+      scoreTokenCount = scoreTokenCount,
+      variationAnchorCoverage = variationAnchorCoverage,
+      qualityScore = qualityScore
+    )
+
+  private def qualityFindingsFrom(q: QualityMetrics): List[String] =
+    List(
+      Option.when(q.lexicalDiversity < 0.34)(f"Low lexical diversity: ${q.lexicalDiversity}%.2f"),
+      Option.when(q.uniqueSentenceRatio < 0.75)(f"Low sentence uniqueness: ${q.uniqueSentenceRatio}%.2f"),
+      Option.when(q.boilerplateHits >= 2)(s"Boilerplate phrase hits: ${q.boilerplateHits}"),
+      Option.when(q.mateToneConflictHits > 0)(s"Mate-tone conflict hits: ${q.mateToneConflictHits}"),
+      Option.when(q.variationAnchorCoverage < 0.50)(f"Low variation anchor coverage: ${q.variationAnchorCoverage}%.2f"),
+      Option.when(q.moveTokenCount < 6)(s"Low move-token density: ${q.moveTokenCount}"),
+      Option.when(q.qualityScore < 70)(s"Low quality score: ${q.qualityScore}/100")
+    ).flatten
+
+  private def advisoryFindingsFrom(q: QualityMetrics): List[String] =
+    List(
+      Option.when(q.qualityScore < 90)(s"Advisory: quality score below target (90): ${q.qualityScore}"),
+      Option.when(q.boilerplateHits >= 1)(s"Advisory: boilerplate phrase present (${q.boilerplateHits})"),
+      Option.when(q.mateToneConflictHits > 0)(s"Advisory: mate-tone conflict present (${q.mateToneConflictHits})"),
+      Option.when(q.lexicalDiversity < 0.70)(f"Advisory: lexical diversity soft-low: ${q.lexicalDiversity}%.2f")
+    ).flatten
+
+  private def extractSentences(text: String): List[String] =
+    sentenceSplitRegex
+      .split(text.replace("\r\n", "\n"))
+      .toList
+      .map(_.trim)
+      .filter(_.nonEmpty)
+
+  private def normalizeSentence(s: String): String =
+    s.toLowerCase
+      .replaceAll("""[*`_>\[\]\(\)]""", " ")
+      .replaceAll("""[^a-z0-9\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+
+  private def occurrencesOf(haystack: String, needle: String): Int =
+    if needle.isEmpty then 0
+    else haystack.sliding(needle.length).count(_ == needle)
 
   private def checkExpectations(
       prose: String,
@@ -292,10 +459,40 @@ object BookCommentaryCorpusRunner:
     val total = results.size
     val failed = results.count(!_.passed)
     val passed = total - failed
+    val qualityList = results.flatMap(_.quality)
+    val avgQuality = average(qualityList.map(_.qualityScore.toDouble))
+    val avgLexical = average(qualityList.map(_.lexicalDiversity))
+    val avgAnchorCoverage = average(qualityList.map(_.variationAnchorCoverage))
+    val lowQualityCases = results.filter(_.quality.exists(_.qualityScore < 70))
+    val advisoryCases = results.filter(_.advisoryFindings.nonEmpty)
+    val advisoryCount = results.map(_.advisoryFindings.size).sum
+
+    val crossCaseSentenceMap = repeatedSentencesAcrossCases(results)
+    val topRepeatedSentences = crossCaseSentenceMap.toList.sortBy((_, c) => -c).take(12)
 
     sb.append("# Book Commentary Corpus Report\n\n")
     sb.append(s"- Corpus: `$corpusPath`\n")
     sb.append(s"- Results: $passed/$total passed\n\n")
+    if qualityList.nonEmpty then
+      sb.append("## Quality Summary\n\n")
+      sb.append(f"- Avg quality score: $avgQuality%.1f / 100\n")
+      sb.append(f"- Avg lexical diversity: $avgLexical%.3f\n")
+      sb.append(f"- Avg variation-anchor coverage: $avgAnchorCoverage%.3f\n")
+      sb.append(s"- Low-quality cases (<70): ${lowQualityCases.size}\n")
+      if lowQualityCases.nonEmpty then
+        sb.append("- Case IDs: ")
+        sb.append(lowQualityCases.map(_.c.id).mkString(", "))
+        sb.append("\n")
+      sb.append(s"- Advisory findings (non-blocking): $advisoryCount across ${advisoryCases.size} cases\n")
+      sb.append("\n")
+
+      sb.append("## Cross-Case Repetition\n\n")
+      if topRepeatedSentences.isEmpty then sb.append("- No sentence repeated across 3+ cases.\n\n")
+      else
+        topRepeatedSentences.foreach { (s, n) =>
+          sb.append(s"""- [$n cases] "$s"\n""")
+        }
+        sb.append("\n")
 
     results.foreach { r =>
       sb.append(s"## ${r.c.id}: ${r.c.title}\n\n")
@@ -303,6 +500,18 @@ object BookCommentaryCorpusRunner:
       sb.append(s"- `playedMove`: `${r.c.playedMove}`\n")
       r.fen.foreach(f => sb.append(s"- `analysisFen`: `$f`\n"))
       r.metrics.foreach { m => sb.append(s"- Metrics: ${m.chars} chars, ${m.paragraphs} paragraphs\n") }
+      r.quality.foreach { q =>
+        sb.append(
+          f"- Quality: score=${q.qualityScore}%d/100, lexical=${q.lexicalDiversity}%.3f, uniqueSent=${q.uniqueSentenceRatio}%.3f, anchorCoverage=${q.variationAnchorCoverage}%.3f\n"
+        )
+        sb.append(s"- Quality details: sentences=${q.sentenceCount}, dup=${q.duplicateSentenceCount}, boilerplate=${q.boilerplateHits}, mateToneConflict=${q.mateToneConflictHits}, moveTokens=${q.moveTokenCount}, scoreTokens=${q.scoreTokenCount}\n")
+      }
+      if r.qualityFindings.nonEmpty then
+        sb.append("- Quality findings:\n")
+        r.qualityFindings.foreach(f => sb.append(s"  - $f\n"))
+      if r.advisoryFindings.nonEmpty then
+        sb.append("- Advisory findings:\n")
+        r.advisoryFindings.foreach(f => sb.append(s"  - $f\n"))
       r.outline.foreach { o =>
         val kinds = if (o.kinds.nonEmpty) o.kinds.mkString(", ") else "-"
         sb.append(s"- Outline: ${o.beats} beats ($kinds)\n")
@@ -334,6 +543,25 @@ object BookCommentaryCorpusRunner:
     }
 
     sb.toString
+
+  private def repeatedSentencesAcrossCases(results: List[CaseResult]): Map[String, Int] =
+    val perCaseSentenceSets = results.flatMap(_.prose).map { prose =>
+      extractSentences(prose)
+        .map(normalizeSentence)
+        .filter(_.length >= 24)
+        .toSet
+    }
+    perCaseSentenceSets
+      .flatten
+      .groupBy(identity)
+      .view
+      .mapValues(_.size)
+      .filter(_._2 >= 3)
+      .toMap
+
+  private def average(xs: List[Double]): Double =
+    if xs.isEmpty then 0.0
+    else xs.sum / xs.size
 
   private def readJsonFile(path: Path): Either[String, JsValue] =
     try

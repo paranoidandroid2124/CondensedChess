@@ -69,12 +69,12 @@ $hover-bg: $m-primary_bg--mix-30;
       }
       &::before {
         @extend %data-icon;
-        content: $licon-LessThan;
+        content: $story-icon-LessThan;
         font-size: 1.5em;
         color: $c-font-dim;
       }
       main.has-relay-tour &::before {
-        content: $licon-RadioTower;
+        content: $story-icon-RadioTower;
       }
       main.has-relay-tour & {
         background: $c-bg-zebra;
@@ -362,11 +362,11 @@ $hover-bg: $m-primary_bg--mix-30;
     white-space: pre-line;
     &::before {
       @extend %data-icon;
-      content: $licon-InfoCircle;
+      content: $story-icon-InfoCircle;
       font-size: 2.5em;
     }
     &.pinned::before {
-      content: $licon-RadioTower;
+      content: $story-icon-RadioTower;
     }
     small {
       color: $c-font-dim;

@@ -57,12 +57,12 @@ object AuthorizationRequest:
     def maybeLegacy: Boolean = codeChallengeMethod.isEmpty && codeChallenge.isEmpty
 
     lazy val trusted =
-      List("lichess.org", "discotron.lichess.org", "www.lichess4545.com", "wiki.lichess.ovh").has:
+      List("chesstory.com", "www.chesstory.com").has:
         ~redirectUri.host
 
     lazy val lichessMobileAttributes = List(
-      clientId == ClientId("lichess_mobile"),
-      redirectUri.value.toString == "org.lichess.mobile://login-callback",
+      clientId == ClientId("chesstory_mobile"),
+      redirectUri.value.toString == "org.chesstory.mobile://login-callback",
       scope.has(OAuthScope.Web.Mobile.key)
     )
     lazy val looksLikeLichessMobile = lichessMobileAttributes.forall(identity)
@@ -106,4 +106,4 @@ object AuthorizationRequest:
     if prompt.mimicsLichessMobile
     then
       val reqInfo = lila.common.HTTPRequest.print(req)
-      logger.warn(s"OAuth prompt looks like lichess mobile: ${me.fold("anon")(_.value)} $reqInfo")
+      logger.warn(s"OAuth prompt looks like chesstory mobile: ${me.fold("anon")(_.value)} $reqInfo")

@@ -55,7 +55,8 @@ export interface Api {
   analysis?: any;
 }
 
-// this object is available to extensions as window.lichess
+// This object is available to extensions as window.chesstory.
+// window.lichess remains as a legacy alias for compatibility.
 export const api: Api = {
   initializeDom: (root?: HTMLElement) => {
     pubsub.emit('content-loaded', root);

@@ -51,10 +51,12 @@
 
   .pv-board {
     position: absolute;
+    top: 0;
     width: 80%;
     @include inline-start(34px);
     max-width: 240px;
-    z-index: 1;
+    z-index: $z-cg__board_overlay-100;
+    pointer-events: none;
 
     .pv-board-square {
       @extend %square;

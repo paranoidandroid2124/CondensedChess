@@ -1,8 +1,8 @@
 package lila.llm.analysis
 
-import lila.llm.model.*
 import lila.llm.model.strategic.*
-import lila.llm.model.Motif.{ *, given }
+import lila.llm.model.strategic.*
+import lila.llm.model.Motif
 
 import _root_.chess.*
 import _root_.chess.format.Uci
@@ -128,8 +128,3 @@ object CounterfactualAnalyzer:
       userLine = userLine
     )
 
-  private def moveAfter(pos: Position, uciStr: String): Option[Position] =
-    Uci(uciStr).flatMap {
-      case m: Uci.Move => pos.move(m).toOption.map(_.after)
-      case _ => None
-    }

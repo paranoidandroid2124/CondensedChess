@@ -61,7 +61,7 @@ object userId:
     val historicalRegex = "[a-zA-Z0-9_-]{2,30}".r
     val anonymous: UserName = "Anonymous"
     val lichess: UserName = "lichess"
-    val anonMod: String = "A Lichess Moderator"
+    val anonMod: String = "A Moderator"
 
   // maybe an Id, maybe a Name... something that's probably cased wrong
   opaque type UserStr = String

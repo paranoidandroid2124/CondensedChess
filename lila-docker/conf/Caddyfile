@@ -33,8 +33,9 @@ handle_path /static* {
 }
 
 handle_path /display* {
-	rewrite * /display
-	reverse_proxy picfit:3001
+	root * /static/errors
+	rewrite * /picfit-placeholder.png
+	file_server
 }
 
 handle_path /embed/* {

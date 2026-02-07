@@ -26,7 +26,7 @@ const repairChapter = idOrDiag => {
     console.log('Cannot find chapter for diag ' + diag._id);
     return [];
   }
-  if (debug) console.log('https://lichess.org/study/' + chapter.studyId + '/' + chapter._id);
+  if (debug) console.log('https://chesstory.com/study/' + chapter.studyId + '/' + chapter._id);
   const moves = chapter.root;
   const moveList = Object.entries(moves);
   const moveIndexes = diag.root.map(d => moveList.findIndex(([k, _]) => k == d.k));

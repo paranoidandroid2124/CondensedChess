@@ -3,8 +3,7 @@ package http
 
 import play.api.mvc.*
 
-final class KeyPages(val env: Env)
-    extends Results with lila.web.ResponseWriter:
+final class KeyPages(val env: Env)(using Executor) extends CtrlPage:
 
   def home(status: Results.Status): Fu[Result] =
     fuccess(status("Home"))
@@ -12,8 +11,8 @@ final class KeyPages(val env: Env)
   def homeHtml: Fu[lila.ui.RenderedPage] =
     fuccess(lila.ui.RenderedPage("Home"))
 
-  def notFound(msg: Option[String]): Fu[Result] =
-    fuccess(NotFound(msg | "Not Found"))
+  def notFound(msg: Option[String])(using Context): Fu[Result] =
+    NotFound.page(views.site.message.notFound(msg))
 
   def notFoundEmbed(msg: Option[String]): Result =
     NotFound(msg | "Not Found")

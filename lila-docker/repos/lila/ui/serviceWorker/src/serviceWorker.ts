@@ -17,8 +17,8 @@ sw.addEventListener('push', (event: PushEvent) => {
   const data = event.data!.json();
   return event.waitUntil(
     sw.registration.showNotification(data.title, {
-      badge: assetUrl('logo/lichess-mono-128.png'),
-      icon: assetUrl('logo/lichess-favicon-192.png'),
+      badge: assetUrl('logo/chesstory-favicon-128.png'),
+      icon: assetUrl('logo/chesstory-favicon-192.png'),
       body: data.body,
       tag: data.tag,
       data: data.payload,

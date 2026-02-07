@@ -30,9 +30,6 @@ object BreakAnalyzer:
   // ============================================================
   
   private val HIGH_TENSION_THRESHOLD = 2      // Tension squares to force resolution
-  private val CRITICAL_PASSER_RANK_WHITE = 6  // Rank 7 = critical for white
-  private val CRITICAL_PASSER_RANK_BLACK = 3  // Rank 2 = critical for black (0-indexed: 1)
-  private val MINORITY_ATTACK_FILES = Set(0, 1, 2)  // a, b, c files
   
   // ============================================================
   // MAIN ENTRY POINT
@@ -107,7 +104,6 @@ object BreakAnalyzer:
     motifs: List[Motif],
     isWhite: Boolean
   ): (Boolean, Option[String], Int) =
-    val central = features.centralSpace
     
     // Check for existing PawnBreak motifs from L2
     val pawnBreakMotifs = motifs.collect {
@@ -116,7 +112,8 @@ object BreakAnalyzer:
     
     if pawnBreakMotifs.nonEmpty then
       val primaryBreak = pawnBreakMotifs.head
-      val file = primaryBreak.file.toString.toLowerCase
+      // `chess.File.toString` is numeric in some contexts; use `.char` for file letter.
+      val file = primaryBreak.file.char.toString.toLowerCase
       val impact = estimateBreakImpact(features, file, isWhite)
       (true, Some(file), impact)
     else
@@ -128,7 +125,6 @@ object BreakAnalyzer:
     isWhite: Boolean
   ): (Boolean, Option[String], Int) =
     val central = features.centralSpace
-    val pawns = features.pawns
     
     // Check for d4-d5 or e4-e5 type central breaks
     // If center is locked, no immediate break
@@ -329,7 +325,6 @@ object BreakAnalyzer:
     advanceOrCapture: Boolean
   ): TensionPolicy =
     val tension = features.centralSpace.pawnTensionCount
-    val lockedCenter = features.centralSpace.lockedCenter
     
     // Item 1 fix: Don't ignore tension if tension > 0, even if center is "locked"
     if tension == 0 then

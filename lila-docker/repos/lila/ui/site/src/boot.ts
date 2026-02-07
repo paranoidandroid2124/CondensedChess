@@ -64,12 +64,12 @@ export function boot() {
 
     serviceWorker();
 
-    console.info('Lichess is open source! See https://lichess.org/source');
+    console.info('Chesstory is open source.');
 
     if (isUnsupportedBrowser() && once('upgrade.nag', { days: 14 })) {
       pubsub
         .after('polyfill.dialog')
-        .then(() => alert('Your browser is out of date.\nLichess may not work properly.'));
+        .then(() => alert('Your browser is out of date.\nChesstory may not work properly.'));
     }
 
     // socket default receive handlers
@@ -117,21 +117,7 @@ export function boot() {
           document.documentElement.className = e.matches ? 'light' : 'dark';
       });
 
-    mirrorCheck();
   }, 800);
 }
 
 const isUnsupportedBrowser = () => isWebkit({ below: '15.4' });
-
-function mirrorCheck() {
-  const mirrors: string[] = [
-    'chess.shark-stars.com',
-    'lootverse.org',
-    'phantomstride.org',
-    'raksharealm.org',
-    'ludicfrontiers.org',
-    'lichess.dscs2009.com',
-    'sidequest-circus.org',
-  ];
-  if (mirrors.includes(location.host)) location.href = 'https://lichess.org' + location.pathname;
-}

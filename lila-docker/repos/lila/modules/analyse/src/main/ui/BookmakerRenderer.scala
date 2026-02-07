@@ -10,7 +10,7 @@ import scalalib.StringUtils.escapeHtmlRaw
  * Bookmaker Renderer
  * 
  * Transforms raw LLM text and engine variation data into 
- * interactive HTML fragments for the Lichess AI commentary UI.
+ * interactive HTML fragments for the Chesstory AI commentary UI.
  */
 object BookmakerRenderer:
 
@@ -30,8 +30,17 @@ object BookmakerRenderer:
     }.toMap
     
     div(cls := "bookmaker-content")(
+      div(cls := "bookmaker-toolbar")(
+        button(
+          cls := "bookmaker-score-toggle",
+          attr("type") := "button",
+          attr("aria-pressed") := "true"
+        )("Eval: On")
+      ),
+      // Hover preview board (mounted by client; stays hidden until hover).
+      div(cls := "bookmaker-pv-preview"),
       div(cls := "commentary")(
-        renderTextWithMoves(commentary, sanToUciMap)
+        renderTextWithMoves(commentary, sanToUciMap, variations, fenBefore)
       ),
       variations.nonEmpty.option:
         div(cls := "alternatives")(
@@ -44,28 +53,68 @@ object BookmakerRenderer:
    * Wraps chess moves appearing in the text in span tags for client-side interaction.
    * NOTE: This uses raw HTML injection; ensure input text is sanitized.
    */
-  private def renderTextWithMoves(text: String, sanToUciMap: Map[String, String]): Frag =
-    val safeText = escapeHtml(text)
+  private def renderTextWithMoves(
+      text: String,
+      sanToUciMap: Map[String, String],
+      variations: List[VariationLine],
+      fenBefore: String
+  ): Frag =
+    // Support Markdown-style emphasis used by the LLM prompt (**...**).
+    val boldRegex = """\*\*(.+?)\*\*""".r
 
     // Match standard SAN moves like Nf3, e4, O-O, etc.
     val moveRegex = """\b([NBKRQ]?[a-h]x?[a-h]?[1-8][+#]?|O-O(?:-O)?|1\.\s+[a-h][1-8])\b""".r
 
-    val withMoveChips = moveRegex.replaceAllIn(safeText, m =>
-      val san = m.group(1)
-      val uciAttr = sanToUciMap.get(san).map(u => s""" data-uci="$u"""").getOrElse("")
-      s"""<span class="move-chip" data-san="$san"$uciAttr>$san</span>"""
-    )
+    // Detect LLM "alternative" lines like: a) Bb5 ...  b) Bc4 ...  c) d4 ...
+    // When possible, replace them with the structured engine variations so each move can drive a mini-board hover preview.
+    val pvLineRegex = """^\s*([a-z])\)\s+.*$""".r
 
-    // Support Markdown-style emphasis used by the LLM prompt (**...**).
-    val withBold = """\*\*(.+?)\*\*""".r.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
+    val inlineVariationHtml: Map[Char, String] =
+      variations.zipWithIndex.map { (v, idx) =>
+        val labelChar = (idx + 97).toChar
+        val label = s"$labelChar)"
+        val sanList = NarrativeUtils.uciListToSan(fenBefore, v.moves)
+        val renderedSans = sanList.take(12)
+        val fensAfterEach = fenAfterEachMove(fenBefore, v.moves).take(renderedSans.size)
+        val pv = span(cls := "pv-line pv-line--inline")(
+          strong(label),
+          " ",
+          renderedSans.zip(v.moves).zip(fensAfterEach).map { case ((san, uci), fenAfter) =>
+            span(cls := "pv-san", attr("data-board") := s"$fenAfter|$uci")(san)
+          },
+          span(cls := "eval-badge eval-badge--inline")(
+            s" (${normalizedScore(v.scoreCp)})"
+          )
+        )
+        labelChar -> pv.toString
+      }.toMap
+
+    def renderNormalLine(line: String): String =
+      val safeLine = escapeHtml(line)
+      val withMoveChips = moveRegex.replaceAllIn(safeLine, m =>
+        val san = m.group(1)
+        val uciAttr = sanToUciMap.get(san).map(u => s""" data-uci="$u"""").getOrElse("")
+        s"""<span class="move-chip" data-san="$san"$uciAttr>$san</span>"""
+      )
+      boldRegex.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
+
+    def renderLine(line: String): String =
+      line match
+        case pvLineRegex(label) =>
+          val key = label.toLowerCase.head
+          inlineVariationHtml.getOrElse(key, renderNormalLine(line))
+        case _ => renderNormalLine(line)
 
     // Preserve paragraph structure for book-style output.
-    val normalized = withBold.replace("\r\n", "\n")
+    val normalized = text.replace("\r\n", "\n")
     val paragraphs = normalized
       .split("\n\n+")
       .map(_.trim)
       .filter(_.nonEmpty)
-      .map(p => s"<p>${p.replace("\n", "<br/>")}</p>")
+      .map { p =>
+        val renderedLines = p.split("\n").map(renderLine).mkString("<br/>")
+        s"<p>$renderedLines</p>"
+      }
       .mkString
 
     raw(paragraphs)
@@ -77,24 +126,17 @@ object BookmakerRenderer:
     div(cls := "variation-list")(
       vars.zipWithIndex.map { (v, idx) =>
         val label = (idx + 97).toChar.toString + ")"
-        val fenAfter = v.resultingFen.getOrElse(NarrativeUtils.uciListToFen(fen, v.moves))
         val sanList = NarrativeUtils.uciListToSan(fen, v.moves)
-        val sanText = sanList.take(6).mkString(" ")
-        
-        // Always show mini-boards from White's perspective for consistency
-        val color = chess.White
-        val lastMoveUci = v.moves.lastOption
+        val renderedSans = sanList.take(8)
+        val fensAfterEach = fenAfterEachMove(fen, v.moves).take(renderedSans.size)
         
         div(cls := "variation-item")(
-          span(
-            cls := "pv-line mini-board", 
-            attr("data-fen") := fenAfter,
-            attr("data-color") := color.name,
-            lastMoveUci.map(m => attr("data-lastmove") := m).getOrElse(emptyFrag)
-          )(
+          span(cls := "pv-line")(
             strong(label),
             " ",
-            sanText
+            renderedSans.zip(v.moves).zip(fensAfterEach).map { case ((san, uci), fenAfter) =>
+              span(cls := "pv-san", attr("data-board") := s"$fenAfter|$uci")(san)
+            }
           ),
           span(cls := "eval-badge")(
             s" (${normalizedScore(v.scoreCp)})"
@@ -102,6 +144,13 @@ object BookmakerRenderer:
         )
       }
     )
+
+  private def fenAfterEachMove(startFen: String, ucis: List[String]): List[String] =
+    var current = startFen
+    ucis.map { uci =>
+      current = NarrativeUtils.uciListToFen(current, List(uci))
+      current
+    }
 
   private def normalizedScore(cp: Int): String =
     f"${cp / 100.0}%+.1f"

@@ -65,45 +65,45 @@ object MotifTokenizer:
   // ============================================================
 
   private def detectPawnMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
-    if (mv.piece.role != Pawn) return Nil
-    
-    var motifs = List.empty[Motif]
+    if mv.piece.role != Pawn then Nil
+    else
+      var motifs = List.empty[Motif]
 
-    // Pawn Advance (non-capture)
-    if (!mv.captures) {
-      motifs = motifs :+ PawnAdvance(
-        file = mv.dest.file,
-        fromRank = mv.orig.rank.value + 1,
-        toRank = mv.dest.rank.value + 1,
-        color = color,
-        plyIndex = plyIndex,
-        move = Some(san)
-      )
-    }
+      // Pawn Advance (non-capture)
+      if (!mv.captures) {
+        motifs = motifs :+ PawnAdvance(
+          file = mv.dest.file,
+          fromRank = mv.orig.rank.value + 1,
+          toRank = mv.dest.rank.value + 1,
+          color = color,
+          plyIndex = plyIndex,
+          move = Some(san)
+        )
+      }
 
-    // Pawn Break (capture that opens/challenges structure)
-    if (mv.captures) {
-      motifs = motifs :+ PawnBreak(
-        file = mv.orig.file,
-        targetFile = mv.dest.file,
-        color = color,
-        plyIndex = plyIndex,
-        move = Some(san)
-      )
-    }
+      // Pawn Break (capture that opens/challenges structure)
+      if (mv.captures) {
+        motifs = motifs :+ PawnBreak(
+          file = mv.orig.file,
+          targetFile = mv.dest.file,
+          color = color,
+          plyIndex = plyIndex,
+          move = Some(san)
+        )
+      }
 
-    // Pawn Promotion
-    mv.promotion.foreach { promotedTo =>
-      motifs = motifs :+ PawnPromotion(
-        file = mv.dest.file,
-        promotedTo = promotedTo,
-        color = color,
-        plyIndex = plyIndex,
-        move = Some(san)
-      )
-    }
+      // Pawn Promotion
+      mv.promotion.foreach { promotedTo =>
+        motifs = motifs :+ PawnPromotion(
+          file = mv.dest.file,
+          promotedTo = promotedTo,
+          color = color,
+          plyIndex = plyIndex,
+          move = Some(san)
+        )
+      }
 
-    motifs
+      motifs
 
   // ============================================================
   // PIECE MOTIFS
@@ -167,16 +167,17 @@ object MotifTokenizer:
   // ============================================================
 
   private def detectKingMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
-    if (mv.piece.role != King) return Nil
-    var motifs = List.empty[Motif]
-    if (mv.castle.isDefined) {
-      val side = if (mv.dest.file == _root_.chess.File.G) CastlingSide.Kingside else CastlingSide.Queenside
-      motifs = motifs :+ Castling(side, color, plyIndex, Some(san))
-    } else {
-      val stepType = determineKingStepType(mv, color)
-      motifs = motifs :+ KingStep(stepType, color, plyIndex, Some(san))
-    }
-    motifs
+    if mv.piece.role != King then Nil
+    else
+      var motifs = List.empty[Motif]
+      if (mv.castle.isDefined) {
+        val side = if (mv.dest.file == _root_.chess.File.G) CastlingSide.Kingside else CastlingSide.Queenside
+        motifs = motifs :+ Castling(side, color, plyIndex, Some(san))
+      } else {
+        val stepType = determineKingStepType(mv, color)
+        motifs = motifs :+ KingStep(stepType, color, plyIndex, Some(san))
+      }
+      motifs
 
   private def determineKingStepType(mv: Move, color: Color): KingStepType =
     val relFrom = Motif.relativeRank(mv.orig.rank.value + 1, color)
@@ -294,17 +295,18 @@ object MotifTokenizer:
     safeMoves.isEmpty && isSquareAttacked(sq, !color, pos.board)
 
   private def detectRemoveDefender(mv: Move, pos: Position, nextPos: Position, color: Color, san: String, plyIndex: Int): Option[Motif] =
-    if (!mv.captures) return None
-    val victimSq = mv.dest
-    val victimPiece = pos.board.pieceAt(victimSq).get
-    pos.board.pieceMap.find { case (protectedSq, protectedPiece) =>
-      protectedPiece.color != color && 
-      protectedSq != victimSq &&
-      wasDefendedBy(protectedSq, victimSq, victimPiece.role, pos.board, !color) &&
-      isNowHanging(protectedSq, nextPos)
-    }.map { case (sq, piece) =>
-      RemovingTheDefender(mv.piece.role, victimPiece.role, piece.role, sq, color, plyIndex, Some(san))
-    }
+    if !mv.captures then None
+    else
+      val victimSq = mv.dest
+      val victimPiece = pos.board.pieceAt(victimSq).get
+      pos.board.pieceMap.find { case (protectedSq, protectedPiece) =>
+        protectedPiece.color != color && 
+        protectedSq != victimSq &&
+        wasDefendedBy(protectedSq, victimSq, victimPiece.role, pos.board, !color) &&
+        isNowHanging(protectedSq, nextPos)
+      }.map { case (sq, piece) =>
+        RemovingTheDefender(mv.piece.role, victimPiece.role, piece.role, sq, color, plyIndex, Some(san))
+      }
 
   private def isNowHanging(sq: Square, pos: Position): Boolean =
     pos.board.colorAt(sq).flatMap { color =>
@@ -325,8 +327,7 @@ object MotifTokenizer:
       case King   => sq.kingAttacks
     (targets & nextPos.board.byColor(!color)).squares.flatMap(nextPos.board.roleAt)
 
-  private def detectPin(mv: Move, nextPos: Position, color: Color, san: String, plyIndex: Int): List[Motif] = Nil
-  private def detectSkewer(mv: Move, nextPos: Position, color: Color, san: String, plyIndex: Int): List[Motif] = Nil
+
 
   // ============================================================
   // STATE-BASED MOTIF DETECTION
@@ -403,13 +404,7 @@ object MotifTokenizer:
   private def detectDoubledPieces(board: Board, plyIndex: Int): List[Motif] = Nil
   private def detectBattery(board: Board, plyIndex: Int): List[Motif] = Nil
 
-  private def isOnSameDiagonal(sq1: Square, sq2: Square): Boolean =
-    val fileDiff = (sq1.file.value - sq2.file.value).abs
-    val rankDiff = (sq1.rank.value - sq2.rank.value).abs
-    fileDiff == rankDiff && fileDiff > 0
 
-  private def isCloserToEnemy(sq1: Square, sq2: Square, color: Color): Boolean =
-    if (color.white) sq1.rank.value > sq2.rank.value else sq1.rank.value < sq2.rank.value
 
   private def detectOpposition(board: Board, plyIndex: Int): List[Motif] =
     (board.kingPosOf(White), board.kingPosOf(Black)) match

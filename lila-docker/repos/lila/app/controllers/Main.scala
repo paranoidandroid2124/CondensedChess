@@ -12,6 +12,17 @@ final class Main(
     assetsC: ExternalAssets
 ) extends LilaController(env):
 
+  def landing = Open:
+    Ok.page(views.pages.landing()
+      .flag(_.noHeader)
+      .flag(_.fullScreen))
+
+  def privacy = Open:
+    Ok.page(views.pages.privacy())
+
+  def terms = Open:
+    Ok.page(views.pages.terms())
+
   def toggleBlindMode = OpenBody:
     bindForm(WebForms.blind)(
       _ => BadRequest,

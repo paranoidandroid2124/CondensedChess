@@ -177,7 +177,11 @@ case class CommentRequest(
     // Bookmaker Stage 2: optional MultiPV payload (sent by client-side Stockfish)
     variations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
     // Bookmaker Stage 2 (optional): probe evidence from client to enable a1/a2 sub-branches
-    probeResults: Option[List[lila.llm.model.ProbeResult]] = None
+    probeResults: Option[List[lila.llm.model.ProbeResult]] = None,
+    // Bookmaker delta: optional post-move position to compute before/after differences.
+    afterFen: Option[String] = None,
+    afterEval: Option[EvalData] = None,
+    afterVariations: Option[List[lila.llm.model.strategic.VariationLine]] = None
 )
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]

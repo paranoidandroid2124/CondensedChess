@@ -115,7 +115,7 @@ object Mailer:
     private def serviceNote: String = s"""
 Note: If you did not request this, you can ignore this email. The link will expire.
 
-For help, visit: https://lichess.org/contact"""
+For help, visit: https://chesstory.com/contact"""
 
     def addServiceNote(body: String) = s"""$body
 
@@ -133,23 +133,23 @@ $serviceNote"""
       div(itemprop := "potentialAction", itemscope, itemtype := "http://schema.org/ViewAction")
     def metaName(cont: String) = meta(itemprop := "name", content := cont)
     val publisher = div(itemprop := "publisher", itemscope, itemtype := "http://schema.org/Organization")
-    val noteContact = a(itemprop := "url", href := "https://lichess.org/contact")(
-      span(itemprop := "name")("lichess.org/contact")
+    val noteContact = a(itemprop := "url", href := "https://chesstory.com/contact")(
+      span(itemprop := "name")("chesstory.com/contact")
     )
 
     private val noteLink = a(
       itemprop := "url",
-      href := "https://lichess.org/"
-    )(span(itemprop := "name")("lichess.org"))
+      href := "https://chesstory.com/"
+    )(span(itemprop := "name")("chesstory.com"))
 
     def serviceNote =
       publisher(
         small(
-          "This is a service email from lichess.org. ",
+          "This is a service email from Chesstory. ",
           "For help, visit ",
           noteContact,
           ". Read about our ",
-          a(href := "https://lichess.org/privacy")("privacy policy"),
+          a(href := "https://chesstory.com/privacy")("privacy policy"),
           "."
         )
       )

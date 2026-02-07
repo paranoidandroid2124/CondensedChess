@@ -1,5 +1,5 @@
 .analyse__tools {
-  @extend %box-neat-force, %flex-column;
+  @extend %box-neat, %flex-column;
 
   position: relative;
   background: $c-bg-box;

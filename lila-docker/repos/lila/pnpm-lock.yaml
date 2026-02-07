@@ -26,9 +26,6 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.46.3
         version: 8.46.3(eslint@9.39.1)(typescript@5.9.3)
-      ab:
-        specifier: github:lichess-org/ab-stub
-        version: https://codeload.github.com/lichess-org/ab-stub/tar.gz/94236bf34dbc9c05daf50f4c9842d859b9142be0
       chessops:
         specifier: ^0.15
         version: 0.15.0
@@ -681,10 +678,6 @@ packages:
     engines: {node: '>=14.20.0', npm: '>=8.0.0'}
     peerDependencies:
       prop-types: ^15.7.2
-
-  ab@https://codeload.github.com/lichess-org/ab-stub/tar.gz/94236bf34dbc9c05daf50f4c9842d859b9142be0:
-    resolution: {tarball: https://codeload.github.com/lichess-org/ab-stub/tar.gz/94236bf34dbc9c05daf50f4c9842d859b9142be0}
-    version: 1.0.0
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -2532,8 +2525,6 @@ snapshots:
   '@yaireo/tagify@4.17.9(prop-types@15.8.1)':
     dependencies:
       prop-types: 15.8.1
-
-  ab@https://codeload.github.com/lichess-org/ab-stub/tar.gz/94236bf34dbc9c05daf50f4c9842d859b9142be0: {}
 
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:

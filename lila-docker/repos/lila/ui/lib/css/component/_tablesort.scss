@@ -6,7 +6,7 @@ th[role='columnheader']:not(.no-sort) {
 th[role='columnheader']:not(.no-sort):after {
   @extend %data-icon;
   @include prevent-select;
-  content: $licon-UpTriangle;
+  content: $story-icon-UpTriangle;
   display: inline;
   margin-inline-start: 0.5em;
   color: $c-accent;
@@ -16,7 +16,7 @@ th[role='columnheader']:not(.no-sort):after {
 }
 
 th[aria-sort='descending']:not(.no-sort):after {
-  content: $licon-DownTriangle;
+  content: $story-icon-DownTriangle;
 }
 
 th[aria-sort]:not(.no-sort) {

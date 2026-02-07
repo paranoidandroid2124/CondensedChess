@@ -107,13 +107,13 @@
     }
 
     [data-mode='practice']::before {
-      content: $licon-Bullseye;
+      content: $story-icon-Bullseye;
       padding-inline-end: 8px;
     }
 
     [data-mode='retro']::before {
       font-size: 1.5em;
-      content: $licon-GraduateCap;
+      content: $story-icon-GraduateCap;
     }
 
     [data-mode='practice'].active::after,
@@ -123,11 +123,11 @@
       right: 1px;
       font-size: 0.9em;
       color: $m-bg_secondary--mix-50;
-      content: $licon-X;
+      content: $story-icon-X;
     }
 
     [data-mode='ceval']::after {
-      content: $licon-Cogs;
+      content: $story-icon-Cogs;
       color: $c-font-dimmer;
       padding-inline-end: 10px;
     }

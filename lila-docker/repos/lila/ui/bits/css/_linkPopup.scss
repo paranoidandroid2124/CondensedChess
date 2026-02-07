@@ -10,7 +10,7 @@
 
     &::before {
       @extend %data-icon;
-      content: $licon-InfoCircle;
+      content: $story-icon-InfoCircle;
       font-size: 5em;
       opacity: 0.5;
       @include margin-inline-end(2rem);

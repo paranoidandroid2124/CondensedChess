@@ -475,6 +475,25 @@ final class StudyApi(
               )
               doSetComment(study, Position(chapter, position.path), comment, who)
 
+  def setExternalComment(
+      studyId: StudyId,
+      position: Position.Ref,
+      text: CommentStr,
+      authorName: String
+  )(who: Who) =
+    val name = authorName.trim.take(40).filter(ch => ch.isLetterOrDigit || " -_+./".contains(ch))
+    if name.isEmpty then fuccess(())
+    else
+      sequenceStudyWithChapter(studyId, position.chapterId):
+        case Study.WithChapter(study, chapter) =>
+          Contribute(who.u, study):
+            val comment = Comment(
+              id = Comment.Id.make,
+              text = text,
+              by = Comment.Author.External(name)
+            )
+            doSetComment(study, Position(chapter, position.path), comment, who)
+
   private def doSetComment(study: Study, position: Position, comment: Comment, who: Who): Funit =
     position.chapter.setComment(comment, position.path) match
       case Some(newChapter) =>

@@ -31,19 +31,59 @@
       &-text {
         flex: 1 1 auto;
         overflow-y: auto;
+        position: relative;
+      }
+
+      .bookmaker-pv-preview {
+        position: sticky;
+        top: 0;
+        z-index: $z-cg__board_overlay-100;
+        height: 0;
+        pointer-events: none;
+
+        .pv-board {
+          display: none;
+          position: absolute;
+          top: 0.4rem;
+          left: 0;
+          right: 0;
+          width: 90%;
+          max-width: 360px;
+          margin: 0 auto;
+          padding: 0.35rem;
+          border: 1px solid $c-border;
+          border-radius: 8px;
+          background: linear-gradient(145deg, $c-bg-low, $c-bg-box);
+        }
+
+        .pv-board-square {
+          @extend %square;
+
+          .cg-wrap {
+            @extend %abs-100;
+          }
+
+          cg-board {
+            @extend %popup-shadow;
+          }
+        }
+
+        &.is-active .pv-board {
+          display: block;
+        }
       }
 
       .bookmaker-briefing {
         font-style: italic;
         opacity: 0.8;
-        border-left: 2px solid var(--primary-color);
+        border-left: 2px solid $c-primary;
         padding-left: 0.5em;
         margin-bottom: 1em;
       }
 
       .bookmaker-thinking {
         font-size: 0.9em;
-        color: var(--secondary-color);
+        color: $c-secondary;
         margin-top: 1em;
         display: flex;
         align-items: center;
@@ -53,7 +93,7 @@
           content: '';
           width: 8px;
           height: 8px;
-          background: var(--secondary-color);
+          background: $c-secondary;
           border-radius: 50%;
           display: inline-block;
           animation: pulse 1.5s infinite ease-in-out;
@@ -65,39 +105,190 @@
   &--bookmaker .analyse__side {
     height: 100%;
     align-self: stretch;
-    min-width: 250px;
-    max-width: 400px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
-  // Override toggle-box defaults for this specific use case
+  // Override toggle-box defaults for a Premium, Glass-like card
   fieldset.analyse__bookmaker {
     padding: 1.5rem;
-    background: $m-sub_bg;
-    border: $border;
-    border-radius: $box-radius;
-    margin-bottom: 1em;
+    background: linear-gradient(145deg, $c-bg-low, $c-bg-box);
+    border: 1px solid $c-border;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5em;
     scrollbar-gutter: stable;
+    transition: all 0.3s ease;
+
+    &:hover {
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      border-color: $c-primary-dim;
+    }
 
     legend {
-      background: $m-sub_bg;
-      border: $border;
+      background: $c-bg-low;
+      border: 1px solid $c-border;
+      border-radius: 4px;
+      padding: 0.2em 0.8em;
+      font-weight: 600;
+      color: $c-font;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
 
     p {
-      text-align: justify;
-      line-height: 1.5;
-    }
-
-    h1,
-    h2 {
-      @include fluid-size('font-size', 17px, 23px);
+      text-align: left;
+      line-height: 1.6;
+      font-size: 1.05em;
+      color: $c-font;
       margin-bottom: 1rem;
     }
 
+    h1,
+    h2,
     h3 {
-      font-size: 1.2em;
-      font-weight: bold;
-      margin-bottom: 0.7rem;
+      font-weight: 700;
+      color: $c-font;
+      margin-bottom: 0.5rem;
+    }
+
+    // Highlight key terms
+    strong {
+      color: $c-primary;
+      font-weight: 600;
+    }
+
+    .bookmaker-content {
+      .bookmaker-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 0.6rem;
+      }
+
+      .bookmaker-score-toggle {
+        @extend %button-none;
+
+        font-size: 0.75rem;
+        line-height: 1;
+        padding: 0.3rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid $c-border;
+        background: $c-bg-low;
+        color: $c-font-dim;
+        cursor: pointer;
+        transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+
+        &:hover {
+          border-color: $c-primary;
+          color: $c-primary;
+        }
+      }
+
+      &.bookmaker-hide-eval {
+        .eval-badge,
+        .eval-badge--inline {
+          display: none;
+        }
+      }
+    }
+
+    .commentary {
+      .pv-line--inline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px;
+        margin: 0.5rem 0;
+        padding: 0.35rem 0.5rem;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.02);
+        font-family: 'Roboto Mono', monospace;
+
+        strong {
+          color: $c-font-dim;
+          font-weight: normal;
+          margin-right: 0.25rem;
+        }
+
+        .pv-san {
+          @extend %san;
+
+          cursor: help;
+        }
+
+        .eval-badge--inline {
+          margin-left: auto;
+          font-size: 0.8em;
+          padding: 0.1em 0.4em;
+          border-radius: 3px;
+          background: $c-bg-zebra;
+          color: $c-font-dim;
+          font-family: 'Roboto Mono', monospace;
+          box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
+        }
+      }
+    }
+
+    .variation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid $c-border;
+
+      .variation-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.02);
+        transition: background 0.2s, transform 0.1s;
+
+        &:hover {
+          background: $m-primary_bg--mix-20;
+          transform: translateX(3px);
+        }
+
+        .pv-line {
+          font-family: 'Roboto Mono', monospace;
+          font-size: 0.95em;
+          color: $c-font;
+          cursor: pointer;
+          flex: 1;
+
+          strong {
+            color: $c-font-dim;
+            margin-right: 0.5em;
+            font-weight: normal;
+          }
+
+          .pv-san {
+            @extend %san;
+
+            margin-inline-start: 4px;
+            cursor: help;
+          }
+
+          &:hover {
+            color: $c-primary;
+            text-decoration: none; // Handled by container hover
+          }
+        }
+
+        .eval-badge {
+          margin-left: 1rem;
+          font-size: 0.8em;
+          padding: 0.1em 0.4em;
+          border-radius: 3px;
+          background: $c-bg-zebra;
+          color: $c-font-dim;
+          font-family: 'Roboto Mono', monospace;
+          box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
+        }
+      }
     }
   }
 }

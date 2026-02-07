@@ -12,10 +12,9 @@ import { opposite, parseUci } from 'chessops/util';
 import { parseFen, makeBoardFen } from 'chessops/fen';
 import { renderEval } from '../util';
 import { setupPosition } from 'chessops/variant';
-import { uciToMove } from '@lichess-org/chessground/util';
 import { renderCevalSettings } from './settings';
 import type CevalCtrl from '../ctrl';
-import { Chessground as makeChessground } from '@lichess-org/chessground';
+import { renderBoardPreview } from '@/view/boardPreview';
 import { isTouchDevice } from '@/device';
 
 type EvalInfo = { knps: number; npsText: string; depthText: string };
@@ -355,13 +354,15 @@ export function renderPvs(ctrl: CevalHandler): VNode | undefined {
           el.addEventListener('mouseover', (e: MouseEvent) => {
             const ceval = ctrl.ceval;
             setHovering(ceval, getElFen(el), getElUci(e));
-            const pvBoard = (e.target as HTMLElement).dataset.board;
-            if (pvBoard) {
-              pvIndex = Number((e.target as HTMLElement).dataset.moveIndex);
-              pvMoves = getElPvMoves(e);
-              const [fen, uci] = pvBoard.split('|');
-              ceval.setPvBoard({ fen, uci });
-            }
+            pvMoves = getElPvMoves(e);
+
+            const pvEl = $(e.target as any).closest('[data-board]')[0] as HTMLElement | undefined;
+            const pvBoard = pvEl?.dataset.board || pvMoves.find(notNull) || undefined;
+            if (!pvBoard) return;
+
+            pvIndex = pvEl?.dataset.moveIndex ? Number(pvEl.dataset.moveIndex) : 0;
+            const [fen, uci] = pvBoard.split('|');
+            if (fen && uci) ceval.setPvBoard({ fen, uci });
           });
           el.addEventListener(
             'wheel',
@@ -451,27 +452,7 @@ function renderPvBoard(ctrl: CevalHandler): VNode | undefined {
   const ceval = ctrl.ceval;
   const pvBoard = ceval.pvBoard();
   if (!pvBoard) return;
-  const { fen, uci } = pvBoard;
-  const orientation = ctrl.getOrientation();
-  const cgConfig = {
-    fen,
-    lastMove: uciToMove(uci),
-    orientation,
-    coordinates: false,
-    viewOnly: true,
-    drawable: {
-      enabled: false,
-      visible: false,
-    },
-  };
-  const cgVNode = hl('div.cg-wrap.is2d', {
-    hook: {
-      insert: (vnode: any) => (vnode.elm._cg = makeChessground(vnode.elm, cgConfig)),
-      update: (vnode: any) => vnode.elm._cg?.set(cgConfig),
-      destroy: (vnode: any) => vnode.elm._cg?.destroy(),
-    },
-  });
-  return hl('div.pv-board', hl('div.pv-board-square', cgVNode));
+  return renderBoardPreview(pvBoard, ctrl.getOrientation());
 }
 
 function loadingText(ctrl: CevalHandler): string {

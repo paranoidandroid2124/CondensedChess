@@ -3,9 +3,29 @@ import type AnalyseCtrl from '../ctrl';
 import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 
-export interface NarrativeResponse {
-    analysis: any; // Define structure based on API response
-    // e.g. "game_overview": string, "key_moments": ...
+interface VariationLine {
+    moves: string[];
+    scoreCp: number;
+    mate?: number | null;
+    depth?: number;
+    tags?: string[];
+}
+
+interface GameNarrativeMoment {
+    ply: number;
+    momentType: string;
+    fen: string;
+    narrative: string;
+    concepts: string[];
+    variations: VariationLine[];
+}
+
+export interface GameNarrativeResponse {
+    schema: string;
+    intro: string;
+    moments: GameNarrativeMoment[];
+    conclusion: string;
+    themes: string[];
 }
 
 function magicLinkHref(): string {
@@ -25,9 +45,11 @@ function formatSeconds(totalSeconds: number): string {
 export class NarrativeCtrl {
     enabled: Prop<boolean>;
     loading: Prop<boolean> = prop(false);
-    content: Prop<string | null> = prop(null);
+    data: Prop<GameNarrativeResponse | null> = prop(null);
     error: Prop<string | null> = prop(null);
     needsLogin: Prop<boolean> = prop(false);
+
+    pvBoard: Prop<{ fen: string; uci: string } | null> = prop(null);
 
     constructor(readonly root: AnalyseCtrl) {
         this.enabled = storedBooleanProp('analyse.narrative.enabled', false);
@@ -37,7 +59,7 @@ export class NarrativeCtrl {
 
     toggle = () => {
         this.enabled(!this.enabled());
-        if (this.enabled() && !this.content() && !this.loading()) {
+        if (this.enabled() && !this.data() && !this.loading()) {
             this.fetchNarrative();
         }
         this.root.redraw();
@@ -47,30 +69,26 @@ export class NarrativeCtrl {
         this.loading(true);
         this.error(null);
         this.needsLogin(false);
+        this.pvBoard(null);
         this.root.redraw();
         try {
             const pgn = pgnExport.renderFullTxt(this.root);
 
-            // Basic eval extraction (optimistic)
-            // We'd ideally want to traverse the tree and get evals for each move
-            // But for now, let's just send the PGN and let the server handle re-eval 
-            // or we rely on whatever evals are in the PGN comments if pgnExport includes them.
-            // Actually pgnExport usually exports what's in the tree.
+            const evals = extractMoveEvals(this.root);
 
-            const res = await fetch('/api/llm/game-analysis', {
+            const res = await fetch('/api/llm/game-analysis-local', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pgn: pgn,
-                    evals: [], // We can iterate tree to populate this if needed
+                    evals,
                     options: { style: 'book', focusOn: ['mistakes', 'turning_points'] }
                 })
             });
 
             if (res.ok) {
                 const data = await res.json();
-                // TODO: Parse into a nicer format
-                this.content(JSON.stringify(data, null, 2));
+                this.data(data as GameNarrativeResponse);
             } else if (res.status === 401) {
                 this.needsLogin(true);
                 this.error('Login required to use AI commentary.');
@@ -99,4 +117,47 @@ export class NarrativeCtrl {
 
 export function make(root: AnalyseCtrl): NarrativeCtrl {
     return new NarrativeCtrl(root);
+}
+
+function extractMoveEvals(ctrl: AnalyseCtrl): any[] {
+    const evals: any[] = [];
+
+    for (const node of ctrl.mainline) {
+        // Skip the initial position (ply 0) to match PGN ply numbering
+        if (node.ply < 1) continue;
+        const ev: any = node.ceval || node.eval;
+        if (!ev) continue;
+
+        const cp = typeof ev.cp === 'number' ? ev.cp : 0;
+        const mate = typeof ev.mate === 'number' ? ev.mate : null;
+        const depth = typeof ev.depth === 'number' ? ev.depth : 0;
+
+        const pvs: any[] = Array.isArray(ev.pvs) ? ev.pvs : [];
+        const variations = pvs
+            .map(pv => {
+                const moves = Array.isArray(pv?.moves)
+                    ? pv.moves
+                    : typeof pv?.moves === 'string'
+                        ? pv.moves.trim().split(/\s+/).filter(Boolean)
+                        : [];
+                if (!moves.length) return null;
+                return {
+                    moves,
+                    scoreCp: typeof pv?.cp === 'number' ? pv.cp : cp,
+                    mate: typeof pv?.mate === 'number' ? pv.mate : mate,
+                    depth,
+                };
+            })
+            .filter(Boolean);
+
+        evals.push({
+            ply: node.ply,
+            cp,
+            mate,
+            pv: variations?.[0]?.moves ?? [],
+            variations,
+        });
+    }
+
+    return evals;
 }

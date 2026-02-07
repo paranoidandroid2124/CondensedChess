@@ -43,8 +43,8 @@ object UiEnv
     super[AssetFullHelper].preload(url, as, crossOrigin, tpe)
   override def embedJsUnsafe(code: String)(nonce: Option[Nonce]) = 
     super[AssetFullHelper].embedJsUnsafe(code)(nonce)
-  override def iconTag(icon: Icon): Tag = helpers.iconTag(icon)
-  override def iconTag(icon: Icon, text: Frag): Tag = helpers.iconTag(icon, text)
+  override def iconTag(icon: Icon): Tag = super[Helpers].iconTag(icon)
+  override def iconTag(icon: Icon, text: Frag): Tag = super[Helpers].iconTag(icon, text)
 
   def routeUrl = netConfig.routeUrl
   def isOnline: IsOnline = new IsOnline:

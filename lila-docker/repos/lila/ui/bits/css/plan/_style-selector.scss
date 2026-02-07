@@ -41,7 +41,7 @@
       position: relative;
       &::after {
         @extend %data-icon;
-        content: $licon-Padlock;
+        content: $story-icon-Padlock;
         position: absolute;
         opacity: 1;
         top: 50%;

@@ -28,17 +28,17 @@ object RawHtml:
   private val urlPattern = (
     """(?i)\b[a-z](?>""" + // pull out first char for perf.
       """ttp(?<=http)s?://(\w[-\w.~!$&';=:@]{0,100})|""" + // http(s) links
-      """(?<![/@.-].)(?:\w{1,15}+\.){1,3}(?>com|org|edu))""" + // "lichess.org", etc
+      """(?<![/@.-].)(?:\w{1,15}+\.){1,3}(?>com|org|edu))""" + // "example.com", etc
       """([/?#][-–—\w/.~!$&'()*+,;=:#?@%]{0,300}+)?""" + // path, params
       """(?![\w/~$&*+=#@%])""" // neg lookahead
   ).r.pattern
 
   private val USER_LINK = """/@/([\w-]{2,30}+)?""".r
 
-  // Matches a lichess username with an '@' prefix if it is used as a single
+  // Matches a username with an '@' prefix if it is used as a single
   // word (i.e. preceded and followed by space or appropriate punctuation):
   // Yes: everyone says @ornicar is a pretty cool guy
-  // No: contact@lichess.org, @1, http://example.com/@happy0, @lichess.org
+  // No: contact@example.com, @1, http://example.com/@happy0, @example.com
   val atUsernameRegex = """@(?<![\w@#/\[]@)([\w-]{2,30}+)(?![@\w-]|\.\w)""".r
 
   private val atUsernamePat = atUsernameRegex.pattern

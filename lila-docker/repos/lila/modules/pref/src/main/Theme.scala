@@ -23,6 +23,7 @@ sealed trait ThemeObject:
 object Theme extends ThemeObject:
 
   val all = List(
+    Theme("blue", "blue.png", Featured.Yes), // New Default for Chesstory
     Theme("brown", "brown.png", Featured.Yes), // 52/1 poll votes [for]/[against]
     Theme("wood", "wood.jpg"), // 14/20
     Theme("wood2", "wood2.jpg"), // 7/26
@@ -32,7 +33,6 @@ object Theme extends ThemeObject:
     Theme("maple2", "maple2.jpg"), // 9/20
     Theme("horsey", "horsey.jpg", Featured.Yes), // 20/11
     Theme("leather", "leather.jpg"), // 6/24
-    Theme("blue", "blue.png", Featured.Yes), // 29/4
     Theme("blue2", "blue2.jpg", Featured.Yes), // 18/13
     Theme("blue3", "blue3.jpg", Featured.Yes), // 23/9
     Theme("canvas", "canvas2.jpg"), // 14/17

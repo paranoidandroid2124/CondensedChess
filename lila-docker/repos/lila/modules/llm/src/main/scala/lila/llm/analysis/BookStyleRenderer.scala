@@ -82,7 +82,10 @@ object BookStyleRenderer:
         }
 
         if (needsNewParagraph && sb.nonEmpty) sb.append("\n\n")
-        else if (sb.nonEmpty) sb.append(" ")
+        else if (sb.nonEmpty) {
+          if (lastKind.contains(OutlineBeatKind.MoveHeader)) sb.append(": ")
+          else sb.append(" ")
+        }
 
         sb.append(text)
         lastKind = Some(b.kind)
@@ -106,6 +109,7 @@ object BookStyleRenderer:
         case OutlineBeatKind.OpeningTheory => generateOpeningTheory(ctx, bead)
         case OutlineBeatKind.Alternatives => generateAlternatives(ctx, bead)
         case OutlineBeatKind.WrapUp => generateWrapUp(ctx, bead)
+        case OutlineBeatKind.PsychologicalVerdict => ""
 
   // ===========================================================================
   // Beat Text Generators
@@ -114,7 +118,7 @@ object BookStyleRenderer:
   private def generateContext(ctx: NarrativeContext, bead: Int): String =
     val phase = ctx.phase.current
     val evalOpt = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
-    val evalText = evalOpt.map(NarrativeLexicon.evalOutcomeClauseFromCp).getOrElse("The position is unclear")
+    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x52dce729, cp)).getOrElse("The position is unclear")
     NarrativeLexicon.getOpening(bead, phase, evalText)
 
   private def generateDecision(beat: OutlineBeat, ctx: NarrativeContext): String =
@@ -157,7 +161,7 @@ object BookStyleRenderer:
     ctx.candidates.headOption.map { main =>
       val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None)
       val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
-      val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(evalScore)
+      val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore)
 
       NarrativeLexicon.getMainFlow(bead, main.move, main.annotation, intent, None, None, evalTerm)
     }.getOrElse("")
@@ -184,10 +188,20 @@ object BookStyleRenderer:
   // ===========================================================================
 
   private def softenText(text: String, bead: Int): String =
-    if text.isEmpty then return text
-    val hedges = List("It seems that ", "Possibly, ", "One consideration is that ", "Perhaps ")
-    val hedge = NarrativeLexicon.pick(bead, hedges)
-    s"$hedge${text.head.toLower}${text.tail}"
+    val trimmed = text.trim
+    if trimmed.isEmpty then text
+    else
+      val isQuestion =
+        trimmed.endsWith("?") ||
+          trimmed.matches("(?i)^(what|how|why|can|should|is|are|do|does|did|will|would|could)\\b.*")
+
+      val prefix =
+        if isQuestion then NarrativeLexicon.pick(bead, List("A key question: ", "Worth asking: ", "One practical question: "))
+        else NarrativeLexicon.pick(bead, List("It seems that ", "Possibly, ", "Perhaps ", "In some lines, "))
+
+      if isQuestion then s"$prefix$trimmed"
+      else if trimmed.length == 1 then s"$prefix${trimmed.toLowerCase}"
+      else s"$prefix${trimmed.head.toLower}${trimmed.tail}"
 
   private def formatCp(cp: Int): String =
     val sign = if cp >= 0 then "+" else ""

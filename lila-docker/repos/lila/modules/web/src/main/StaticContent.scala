@@ -20,33 +20,24 @@ Allow: /game/export/gif/thumbnail/
 
   def manifest(net: NetConfig) =
     Json.obj(
-      "name" -> net.domain,
-      "short_name" -> "Lichess",
+      "name" -> net.siteName,
+      "short_name" -> net.siteName,
       "start_url" -> "/",
       "display" -> "standalone",
-      "background_color" -> "#161512",
-      "theme_color" -> "#161512",
-      "description" -> "The (really) free, no-ads, open source chess server.",
-      "icons" -> List(32, 64, 128, 192, 256, 512, 1024).map: size =>
+      "background_color" -> "#161A25",
+      "theme_color" -> "#161A25",
+      "description" -> "AI chess analysis, simplified.",
+      "icons" -> List(32, 64, 128, 192, 256, 512).map: size =>
         Json.obj(
-          "src" -> s"//${net.assetDomain}/assets/logo/lichess-favicon-$size.png",
+          "src" -> s"//${net.assetDomain}/assets/logo/chesstory-favicon-$size.png",
           "sizes" -> s"${size}x$size",
           "type" -> "image/png"
         ),
-      "related_applications" -> Json.arr(
-        Json.obj(
-          "platform" -> "play",
-          "url" -> "https://play.google.com/store/apps/details?id=org.lichess.mobileapp"
-        ),
-        Json.obj(
-          "platform" -> "itunes",
-          "url" -> "https://itunes.apple.com/us/app/lichess-free-online-chess/id968371784"
-        )
-      )
+      "related_applications" -> Json.arr()
     )
 
-  val mobileAndroidUrl = "https://play.google.com/store/apps/details?id=org.lichess.mobileV2"
-  val mobileIosUrl = "https://apps.apple.com/app/lichess/id1662361230"
+  val mobileAndroidUrl = "https://chesstory.com"
+  val mobileIosUrl = "https://chesstory.com"
 
   def appStoreUrl(using req: RequestHeader) =
     if HTTPRequest.isAndroid(req) then mobileAndroidUrl else mobileIosUrl
@@ -73,7 +64,7 @@ Allow: /game/export/gif/thumbnail/
   )
   def swagUrl(countryCode: Option[String]) =
     val tld = swagStoreTlds.getOrElse(countryCode.getOrElse(""), "net")
-    s"https://lichess.myspreadshop.$tld/"
+    s"https://chesstory.com"
 
   val variantsJson =
     JsArray(chess.variant.Variant.list.all.map { v =>
@@ -84,14 +75,7 @@ Allow: /game/export/gif/thumbnail/
       )
     })
 
-  val externalLinks = Map(
-    "mastodon" -> "https://mastodon.online/@lichess",
-    "github" -> "https://github.com/lichess-org",
-    "discord" -> "https://discord.gg/lichess",
-    "bluesky" -> "https://bsky.app/profile/lichess.org",
-    "youtube" -> "https://youtube.com/@LichessDotOrg",
-    "twitch" -> "https://www.twitch.tv/lichessdotorg"
-  )
+  val externalLinks = Map.empty[String, String]
 
   def legacyQaQuestion(id: Int) =
     val analysis = routes.UserAnalysis.index.url

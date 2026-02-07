@@ -649,14 +649,6 @@ object NarrativeGenerator:
       case "rationale" => "Heuristic Logic"
       case _        => ""
     }
-    // Note: Uncertain is not in the current enum, defaulting to Heuristic if seen or adding here if needed
-    case _ => category match {
-      case "plan"   => "Tentative Plan: "
-      case "threat" => "Potential Threat: "
-      case "target" => "Speculative Target: "
-      case "rationale" => "Tentative Logic"
-      case _        => "Tentative: "
-    }
   }
 
   /**

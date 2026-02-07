@@ -65,7 +65,7 @@
     background: $c-good;
 
     &::before {
-      content: $licon-Checkmark;
+      content: $story-icon-Checkmark;
     }
   }
 
@@ -73,7 +73,7 @@
     background: $c-bad;
 
     &::before {
-      content: $licon-X;
+      content: $story-icon-X;
     }
   }
 }

@@ -1,6 +1,7 @@
 package lila.core.user
 
 import scalalib.model.Days
+import scala.annotation.unused
 import lila.core.lilaism.Core.*
 import lila.core.userId.*
 import lila.core.email.EmailAddress
@@ -109,6 +110,9 @@ trait UserApi:
   def email(id: UserId): Fu[Option[EmailAddress]]
   def isEnabled(id: UserId): Fu[Boolean]
   def userIdsWithRoles(roles: List[RoleDbKey]): Fu[Set[UserId]]
+  def disable(id: UserId): Funit
+  def delete(id: UserId): Funit
+  def updateUsername(id: UserId, newName: UserName): Funit
   def isCreatedSince(id: UserId, since: Instant): Fu[Boolean]
   def accountAge(id: UserId): Fu[Days]
 
@@ -117,7 +121,7 @@ trait LightUserApi:
   val sync: LightUser.GetterSync
   val fallback: LightUser.GetterSyncFallback
   def invalidate(id: UserId): Unit
-  def preloadMany(_ids: Seq[UserId]): Fu[Unit] = scala.concurrent.Future.unit
+  def preloadMany(@unused _ids: Seq[UserId]): Fu[Unit] = scala.concurrent.Future.unit
 
 abstract class UserRepo:
   def byId[U: UserIdOf](u: U): Fu[Option[lila.core.user.User]]

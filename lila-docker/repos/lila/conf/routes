@@ -2,7 +2,7 @@
 # Run `./lila.sh playRoutes` after modifying this file
 
 # Account
-GET   /                                controllers.UserAnalysis.index
+GET   /                                controllers.Main.landing
 GET   /account/info                    controllers.Account.info
 GET   /api/account                     controllers.Account.apiMe
 GET   /account/profile                 controllers.Account.profile
@@ -13,6 +13,8 @@ GET   /account/username                controllers.Account.username
 POST  /account/username                controllers.Account.usernameApply
 GET   /account/close                   controllers.Account.close
 POST  /account/close                   controllers.Account.closeConfirm
+GET   /account/delete                  controllers.Account.delete
+POST  /account/delete                  controllers.Account.deleteConfirm
 
 
 # Authentication
@@ -50,10 +52,20 @@ GET   /study/mine/:order               controllers.Study.mine(order: StudyOrder,
 # POST  /study/:id/clone                 controllers.Study.cloneApply(id: StudyId)
 # GET   /study/$id<\w{8}>.pgn            controllers.Study.pgn(id: StudyId)
 POST  /study/$id<\w{8}>/delete         controllers.Study.delete(id: StudyId)
+POST  /study/$id<\w{8}>/$chapterId<\w{8}>/import-pgn controllers.Study.importPgn(id: StudyId, chapterId: StudyChapterId)
 GET   /study/$id<\w{8}>/$chapterId<\w{8}> controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
 GET   /study/:id                       controllers.Study.show(id: StudyId)
 POST  /study                           controllers.Study.create
 GET   /study/create                    controllers.Study.createAs
+
+# Study API (no sockets, HTTP only)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-move controllers.Study.anaMove(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-drop controllers.Study.anaDrop(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/delete-node controllers.Study.deleteNode(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/promote controllers.Study.promoteNode(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/force-variation controllers.Study.forceVariationNode(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/comment controllers.Study.setNodeComment(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/bookmaker-sync controllers.Study.bookmakerSync(id: StudyId, chapterId: StudyChapterId)
 
 # User Analysis
 # GET   /analysis/help                   controllers.UserAnalysis.help
@@ -123,6 +135,8 @@ GET   /manifest.json                   controllers.Main.manifest
 GET   /robots.txt                      controllers.Main.robots
 
 GET   /contact                         controllers.Main.contact
+GET   /privacy                         controllers.Main.privacy
+GET   /terms                           controllers.Main.terms
 
 # Catch-all
 GET   /*path                           controllers.User.redirect(path)

@@ -9,7 +9,7 @@
     @extend %data-icon;
   }
   i::before {
-    content: $licon-Wings !important;
+    content: $story-icon-Wings !important;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;

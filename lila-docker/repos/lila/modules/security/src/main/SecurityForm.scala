@@ -30,7 +30,28 @@ final class SecurityForm(
       "pieceSet" -> optional(text),
       "pieceSet3d" -> optional(text),
       "bg" -> optional(text)
-    )((_, _, _, _, _) => pref)(_ => None)
+    )(
+      (theme, theme3d, pieceSet, pieceSet3d, bg) =>
+        List(
+          theme.map("theme" -> _),
+          theme3d.map("theme3d" -> _),
+          pieceSet.map("pieceSet" -> _),
+          pieceSet3d.map("pieceSet3d" -> _),
+          bg.map("bg" -> _)
+        ).flatten.foldLeft(pref) { case (p, (name, value)) =>
+          p.set(name, value)
+        }
+    )(p =>
+      Some(
+        (
+          p.theme.some,
+          p.theme3d.some,
+          p.pieceSet.some,
+          p.pieceSet3d.some,
+          p.currentBg.some
+        )
+      )
+    )
 
   import SecurityForm.*
 

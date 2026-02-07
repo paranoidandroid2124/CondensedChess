@@ -123,9 +123,10 @@ object AuthorEvidenceBuilder:
                   .sortBy(_.evalCp.getOrElse(0)) // Sort by eval (lower is worse for us, assuming us POV? No, eval is white POV usually)
                   // We want to show the "refutation", i.e. lines where we suffer.
               
-              // Sort logic depends on side to move.
-              // If White to move, low eval is bad for White.
-              val isWhite = ply % 2 == 0
+              // `ply` is the played-move ply (odd=White move, even=Black move).
+              // In latent_plan_immediate, we are evaluating "play this now" from the
+              // same side that made the played move.
+              val isWhite = ply % 2 == 1
               val ordered = 
                 if (isWhite) branches.sortBy(_.evalCp.getOrElse(0)) // Show worst first
                 else branches.sortBy(b => -b.evalCp.getOrElse(0)) // Black to move, high eval is bad for Black

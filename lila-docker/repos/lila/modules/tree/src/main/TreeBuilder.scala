@@ -132,4 +132,4 @@ object TreeBuilder:
     result.fold(root)(b => root.addChild(b.setComp))
 
   private def formatError(id: GameId, err: chess.ErrorStr) =
-    s"TreeBuilder https://lichess.org/$id ${err.value.linesIterator.toList.headOption}"
+    s"TreeBuilder /$id ${err.value.linesIterator.toList.headOption}"

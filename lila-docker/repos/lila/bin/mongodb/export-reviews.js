@@ -2,11 +2,11 @@ const text = () =>
   aggregate().forEach(coach => {
     print();
     print('===================================');
-    print('https://lichess.org/coach/' + coach._id);
+    print('https://chesstory.com/coach/' + coach._id);
     print('===================================');
     print();
     coach.reviews.forEach(review => {
-      print(review.score + '/5' + ' by https://lichess.org/' + review.from);
+      print(review.score + '/5' + ' by https://chesstory.com/' + review.from);
       print('       ' + review.text);
       print('-----------------------------------');
     });

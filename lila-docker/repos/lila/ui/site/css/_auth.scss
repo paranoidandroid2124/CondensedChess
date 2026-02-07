@@ -1,0 +1,367 @@
+// Chesstory Auth Pages
+// Magic link login, confirmation, and error pages
+// Uses same layout principles as landing page
+
+// Color variables (matching theme.pro)
+$c-bg-page: #0d1016;
+$c-bg: #161A25;
+$c-bg-low: #1c212e;
+$c-border: #2a3449;
+$c-font: #E2E8F0;
+$c-shade: #94A3B8;
+$c-primary: #3B82F6;
+$c-good: #06B6D4;
+$c-bad: #EF4444;
+$c-accent: #F59E0B;
+
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #F8F9FA;
+    font-family: 'Roboto', 'Noto Sans', 'Segoe UI', sans-serif;
+}
+
+body.dark .auth-page,
+body.pro .auth-page,
+html.dark .auth-page,
+html.pro .auth-page {
+    background-color: $c-bg;
+}
+
+// Reuse landing-container
+.auth-page .landing-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.auth-container {
+    max-width: 480px;
+    width: 100%;
+    margin: auto;
+    padding: 2rem;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-card {
+    width: 100%;
+    background: #fff;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+body.dark .auth-card,
+body.pro .auth-card,
+html.dark .auth-card,
+html.pro .auth-card {
+    background: $c-bg-low;
+    border-color: $c-border;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.auth-card.text-center {
+    text-align: center;
+}
+
+.auth-title {
+    font-family: 'Georgia', serif;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: #161A25;
+}
+
+body.dark .auth-title,
+body.pro .auth-title,
+html.dark .auth-title,
+html.pro .auth-title {
+    color: $c-font;
+}
+
+.auth-subtitle {
+    font-size: 1rem;
+    color: #64748B;
+    margin: 0 0 2rem 0;
+    line-height: 1.5;
+}
+
+body.dark .auth-subtitle,
+body.pro .auth-subtitle,
+html.dark .auth-subtitle,
+html.pro .auth-subtitle {
+    color: $c-shade;
+}
+
+.auth-message {
+    font-size: 1.1rem;
+    color: #64748B;
+    margin: 1rem 0 2rem 0;
+    line-height: 1.6;
+}
+
+body.dark .auth-message,
+body.pro .auth-message,
+html.dark .auth-message,
+html.pro .auth-message {
+    color: $c-shade;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.auth-form input[type="email"] {
+    width: 100%;
+    padding: 1rem 1.25rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    background: #F8F9FA;
+    color: #161A25;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.auth-form input[type="email"]::placeholder {
+    color: $c-shade;
+}
+
+.auth-form input[type="email"]:focus {
+    outline: none;
+    border-color: $c-primary;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+body.dark .auth-form input[type="email"],
+body.pro .auth-form input[type="email"],
+html.dark .auth-form input[type="email"],
+html.pro .auth-form input[type="email"] {
+    background: $c-bg;
+    border-color: $c-border;
+    color: $c-font;
+}
+
+body.dark .auth-form input[type="email"]::placeholder,
+body.pro .auth-form input[type="email"]::placeholder,
+html.dark .auth-form input[type="email"]::placeholder,
+html.pro .auth-form input[type="email"]::placeholder {
+    color: #64748B;
+}
+
+body.dark .auth-form input[type="email"]:focus,
+body.pro .auth-form input[type="email"]:focus,
+html.dark .auth-form input[type="email"]:focus,
+html.pro .auth-form input[type="email"]:focus {
+    border-color: $c-primary;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.auth-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: #161A25;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.auth-submit .arrow {
+    transition: transform 0.2s;
+}
+
+.auth-submit:hover {
+    background: $c-primary;
+    transform: translateY(-2px);
+}
+
+.auth-submit:hover .arrow {
+    transform: translateX(4px);
+}
+
+body.dark .auth-submit,
+body.pro .auth-submit,
+html.dark .auth-submit,
+html.pro .auth-submit {
+    background: $c-font;
+    color: #161A25;
+}
+
+body.dark .auth-submit:hover,
+body.pro .auth-submit:hover,
+html.dark .auth-submit:hover,
+html.pro .auth-submit:hover {
+    background: $c-primary;
+    color: #fff;
+}
+
+.auth-note {
+    font-size: 0.875rem;
+    color: $c-shade;
+    margin-top: 1.5rem;
+}
+
+.auth-note a {
+    color: $c-primary;
+    text-decoration: none;
+}
+
+.auth-note a:hover {
+    text-decoration: underline;
+}
+
+.auth-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: $c-bad;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+// Icons
+.auth-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    line-height: 1;
+}
+
+.auth-success-icon {
+    color: $c-good;
+    background: rgba(6, 182, 212, 0.1);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+
+.auth-error-icon {
+    color: $c-bad;
+    background: rgba(239, 68, 68, 0.1);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+
+.auth-dev-icon {
+    color: $c-accent;
+    background: rgba(245, 158, 11, 0.1);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+
+.auth-dev-link {
+    margin: 2rem 0;
+}
+
+.auth-url code {
+    display: block;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    word-break: break-all;
+    margin-top: 1rem;
+}
+
+body.dark .auth-url code,
+body.pro .auth-url code,
+html.dark .auth-url code,
+html.pro .auth-url code {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+// Responsive
+@media (max-width: 560px) {
+    .auth-container {
+        padding: 1rem;
+    }
+
+    .auth-card {
+        padding: 2rem 1.5rem;
+    }
+
+    .auth-title {
+        font-size: 1.5rem;
+    }
+}
+
+// Reuse landing header/footer styles
+.auth-page .landing-header {
+    padding: 2rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.auth-page .landing-header .logo {
+    font-weight: 900;
+    font-size: 1.5rem;
+    letter-spacing: -0.5px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.auth-page .landing-footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.875rem;
+    color: $c-shade;
+    border-top: 1px solid #E2E8F0;
+}
+
+body.dark .auth-page .landing-footer,
+body.pro .auth-page .landing-footer,
+html.dark .auth-page .landing-footer,
+html.pro .auth-page .landing-footer {
+    border-color: $c-border;
+}
+
+.auth-page .btn-text {
+    color: inherit;
+    text-decoration: none;
+    margin-left: 20px;
+    font-weight: 500;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.auth-page .btn-text:hover {
+    color: $c-primary;
+}

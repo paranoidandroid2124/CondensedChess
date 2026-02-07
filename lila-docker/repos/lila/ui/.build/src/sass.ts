@@ -288,8 +288,10 @@ async function buildColorWrap() {
 
 function parseColor(colorMix: string) {
   const [clrs, opval] = colorMix.split('--');
+  if (!opval) return undefined;
   const [c1, c2] = clrs.split('_');
   const [op, valstr] = opval.split('-');
+  if (!valstr) return undefined;
   const val = parseInt(valstr);
   const validColor = (c: string) => themeColorMap.get('default')?.has(c) || clr(c).isValid();
   return validColor(c1) &&

@@ -98,8 +98,8 @@ export class WasmAnalysis {
     };
 
     private analyzeCurrentNode = async (): Promise<MoveEval | null> => {
-        // 1. Try Lichess Cloud Eval first (Client-side, User IP quota)
-        // Optimization: Mostly useful for openings (Ply < 30) or common positions
+        // 1. Try cloud eval first (disabled)
+        // Optimization (when enabled): Mostly useful for openings (Ply < 30) or common positions
         if (this.ctrl.node.ply < 40) {
             const cloud = await this.fetchCloudEval(this.ctrl.node.fen);
             if (cloud) return cloud;
@@ -140,35 +140,9 @@ export class WasmAnalysis {
     };
 
     private fetchCloudEval = async (fen: string): Promise<MoveEval | null> => {
-        try {
-            const res = await fetch(`https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}`, {
-                headers: { 'Accept': 'application/json' }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                // Map Lichess API response to MoveEval
-                // Data format: { fen, knodes, depth, pvs: [ { moves, cp, mate } ] }
-                if (data.pvs && data.pvs.length > 0) {
-                    const bestPv = data.pvs[0];
-                    const moves = bestPv.moves.split(' ');
-                    return {
-                        ply: this.ctrl.node.ply,
-                        fen: fen,
-                        eval: {
-                            cp: bestPv.cp,
-                            mate: bestPv.mate,
-                            best: moves[0],
-                            variation: bestPv.moves
-                        }
-                    };
-                }
-            }
-            return null;
-        } catch (e) {
-            // Ignore errors (rate limit, network), fallback to WASM
-            return null;
-        }
+        // Chesstory: Disable third-party cloud eval. Use local/WASM evaluation only.
+        void fen;
+        return null;
     };
 
     private checkServerCache = async (): Promise<boolean> => {

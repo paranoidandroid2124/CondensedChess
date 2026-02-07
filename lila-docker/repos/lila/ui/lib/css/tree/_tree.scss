@@ -118,7 +118,7 @@ $disclosure-btn-size: calc(15px + var(---button-size-pointer-adjust, 0px));
     @extend %data-icon;
     vertical-align: baseline;
     font-size: 13px;
-    content: $licon-DiscBigOutline;
+    content: $story-icon-DiscBigOutline;
   }
 }
 

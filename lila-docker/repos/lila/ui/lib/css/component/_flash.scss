@@ -7,7 +7,7 @@
   &::before {
     @extend %data-icon;
 
-    content: $licon-Checkmark;
+    content: $story-icon-Checkmark;
     @include margin-inline-end(2rem);
     font-size: 1.5em;
   }
@@ -28,7 +28,7 @@
     color: $c-over;
 
     &::before {
-      content: $licon-InfoCircle;
+      content: $story-icon-InfoCircle;
     }
   }
 
@@ -37,7 +37,7 @@
     color: $c-over;
 
     &::before {
-      content: $licon-CautionCircle;
+      content: $story-icon-CautionCircle;
     }
   }
 

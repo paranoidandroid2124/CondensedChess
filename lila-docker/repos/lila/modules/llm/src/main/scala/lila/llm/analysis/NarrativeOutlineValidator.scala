@@ -144,7 +144,7 @@ object NarrativeOutlineValidator:
     beats.map { b =>
       if !b.questionKinds.contains(AuthorQuestionKind.TacticalTest) then b
       else
-        val anchors = b.allAnchors
+        val anchors = b.allAnchors.filter(isUserFacingAnchor)
         val textLower = b.text.toLowerCase
         val mentioned = anchors.exists(a => textLower.contains(a.toLowerCase))
 
@@ -153,31 +153,39 @@ object NarrativeOutlineValidator:
           anchors.headOption match
             case Some(anchor) =>
               rec.drop("outline.tactical_theme", anchor, "Forced theme mention (TACTICAL_TEST_THEME)")
-              b.copy(text = s"(Theme: $anchor) ${b.text}")
+              // Avoid leaking validation/debug text into user-facing prose.
+              b.copy(confidenceLevel = b.confidenceLevel * 0.7)
             case None => b
     }
 
   private def validateMustMention(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
     beats.map { b =>
-      val anchors = b.allAnchors
-      if anchors.isEmpty then b
+      // Only enforce user-facing anchors (moves/squares), and never append debug notes.
+      if b.text.trim.isEmpty then b
       else
-        val textLower = b.text.toLowerCase
-        val missing = anchors.filterNot(a => textLower.contains(a.toLowerCase))
-
-        if missing.isEmpty then b
+        val anchors = b.allAnchors.filter(isUserFacingAnchor)
+        if anchors.isEmpty then b
         else
-          val step1Text = missing.foldLeft(b.text) { (txt, anchor) =>
-            if txt.toLowerCase.contains(anchor.toLowerCase) then txt
-            else s"$txt [Note: $anchor]"
-          }
+          val textLower = b.text.toLowerCase
+          val missing = anchors.filterNot(a => textLower.contains(a.toLowerCase))
 
-          if step1Text != b.text then
-            rec.drop("outline.must_mention", missing.mkString(","), "Appended missing anchors (MUST_MENTION step 1)")
-            b.copy(text = step1Text)
+          if missing.isEmpty then b
           else
-            rec.drop("outline.must_mention_step2", missing.mkString(","), "Downgraded confidence (MUST_MENTION step 2)")
+            rec.drop("outline.must_mention", missing.mkString(","), "Missing anchors (MUST_MENTION)")
             b.copy(confidenceLevel = b.confidenceLevel * 0.7)
+    }
+
+  private def isUserFacingAnchor(anchor: String): Boolean =
+    val a = anchor.trim
+    if a.isEmpty then false
+    else {
+      val isUci = a.matches("(?i)^[a-h][1-8][a-h][1-8][qrbn]?$")
+      val isSquare = a.matches("(?i)^[a-h][1-8]$")
+      val isSan =
+        a == "O-O" || a == "O-O-O" ||
+          a.matches("(?i)^[kqrbn]?[a-h]?[1-8]?x?[a-h][1-8](=[qrbn])?[+#]?$") ||
+          a.matches("(?i)^\\.{3}[kqrbn]?[a-h]?[1-8]?x?[a-h][1-8](=[qrbn])?[+#]?$")
+      isUci || isSquare || isSan
     }
 
   private def reconcileEvidenceMetadata(beats: List[OutlineBeat]): List[OutlineBeat] =

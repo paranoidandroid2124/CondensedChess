@@ -2,16 +2,30 @@ package controllers
 
 import play.api.libs.json.*
 import play.api.mvc.*
-import lila.app.*
+import lila.app.{ *, given }
 
 final class Account(
     env: Env
 ) extends LilaController(env):
 
-  def profile = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def username = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def profileApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def usernameApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  private val forms = new lila.user.UserForm
+
+  def profile = Auth { ctx ?=> me ?=>
+    val form = forms.username(me)
+    Ok.page(views.account.profile(me, form))
+  }
+
+  def profileApply = AuthBody { ctx ?=> me ?=>
+    bindForm(forms.username(me))(
+      err => BadRequest.page(views.account.profile(me, err)),
+      name =>
+        if name.id == me.username.id then
+          env.user.api.updateUsername(me.id, name) inject
+            Redirect(routes.Account.profile).flashing("success" -> "Username updated")
+        else
+          fuccess(BadRequest("Username mismatch"))
+    )
+  }
 
   def info = Auth { ctx ?=> me ?=>
     negotiateJson:
@@ -45,19 +59,39 @@ final class Account(
         )
   }
 
-  def passwd = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def passwdApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def twoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def close = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def closeConfirm = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def delete = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def deleteConfirm = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def deleteDone = Open { _ ?=> Ok("Scheduled for deletion") }
-  def kid = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def close = Auth { ctx ?=> me ?=>
+    Ok.page(views.account.close(me))
+  }
+
+  def closeConfirm = Auth { ctx ?=> me ?=>
+    val logoutF = env.security.api.reqSessionId(ctx.req).fold(funit)(env.security.api.logout)
+    (env.user.api.disable(me.id) >> logoutF).inject(
+      Redirect(routes.Main.landing).flashing("success" -> "Account closed")
+    )
+  }
+
+  def delete = Auth { ctx ?=> me ?=>
+    Ok.page(views.account.delete(me))
+  }
+
+  def deleteConfirm = Auth { ctx ?=> me ?=>
+    val logoutF = env.security.api.reqSessionId(ctx.req).fold(funit)(env.security.api.logout)
+    (env.user.api.delete(me.id) >> logoutF).inject(
+      Redirect(routes.Main.landing).flashing("success" -> "Account and data permanently deleted")
+    )
+  }
+
+  def username = profile
+  def usernameApply = profileApply
+
+  def passwd = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def passwdApply = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def twoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def kid = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
   def apiKid = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("kid" -> false)) }
-  def kidPost = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def kidPost = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
   def apiKidPost = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("ok" -> true)) }
-  def security = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
-  def data = Auth { _ ?=> me ?=> fuccess(Redirect(routes.UserAnalysis.index)) }
+  def security = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
+  def data = Auth { _ ?=> me ?=> fuccess(Redirect(routes.Account.profile)) }

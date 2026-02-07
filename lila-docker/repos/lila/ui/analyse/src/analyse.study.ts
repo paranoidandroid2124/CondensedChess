@@ -1,46 +1,19 @@
-type StudyPageOpts = {
-  study?: { name?: string };
-};
+import { patch } from './view/util';
+import makeStart from './start';
+import type { AnalyseSocketSend } from './socket';
 
-function renderDisabledMessage(title: string) {
-  const host =
-    (document.querySelector('main.analyse') as HTMLElement | null) ??
-    (document.getElementById('main-wrap') as HTMLElement | null) ??
-    document.body;
+export { patch };
 
-  const box = document.createElement('div');
-  box.className = 'box';
-  box.innerHTML = `
-    <div class="box__top"><h1>${escapeHtml(title)}</h1></div>
-    <div class="box__pad">
-      <p>This study view is disabled in CondensedChess.</p>
-      <p><a class="button" href="/analysis">Go to analysis</a></p>
-    </div>
-  `;
-  host.appendChild(box);
-}
+const start = makeStart(patch as any);
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, c => {
-    switch (c) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return c;
-    }
-  });
-}
-
-export function initModule(opts?: StudyPageOpts) {
-  renderDisabledMessage(opts?.study?.name ?? 'Study');
+export async function initModule({ cfg }: { cfg: any }) {
+  try {
+    await site.asset.loadPieces;
+  } catch (e) {
+    console.warn('loadPieces failed', e);
+  }
+  cfg.socketSend = ((_: any, ..._args: any[]) => {}) as AnalyseSocketSend;
+  start(cfg);
 }
 
 export default initModule;

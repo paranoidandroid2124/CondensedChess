@@ -24,7 +24,7 @@ const hasMultipleSolutionsCp = (
 ): boolean => winningChances.hasMultipleSolutions(color, toEv(bestEval), toEv(secondBestEval));
 
 describe('similarEvals', () => {
-  // taken from https://github.com/lichess-org/tactics/issues/101
+  // taken from upstream tactics issue #101
   each<[Color, number, number]>([
     ['black', -9600, -3500],
     ['white', 400, 350],
@@ -64,7 +64,7 @@ describe('similarEvals', () => {
 
 describe('hasMultipleSolutions', () => {
   each<[Color, CentipawnsOrMate, CentipawnsOrMate]>([
-    // https://lichess.org/training/ZIRBc
+    // upstream training puzzle example
     // It is unclear if this should not be a false positive
     // but try to report more puzzles like that for the moment to get more opinions
     ['black', '#-16', -420],
