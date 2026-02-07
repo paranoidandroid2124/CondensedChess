@@ -1,4 +1,0 @@
-uci
-isready
-quit
-
