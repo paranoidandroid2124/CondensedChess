@@ -68,3 +68,4 @@ instance.lock
 
 *.log
 compile_errors*.txt
+.tmp_sf_in.txt
