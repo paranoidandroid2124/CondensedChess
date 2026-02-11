@@ -2859,19 +2859,18 @@ object NarrativeOutlineBuilder:
     val templates =
       if role.equalsIgnoreCase("engine_primary") then
         List(
-          s"Strategically, **$move** works best when follow-up tempi keep coordination and king safety aligned$planHint.",
-          s"The practical upside of **$move** is smoother piece flow$planHint, but only if sequencing after **$move** stays accurate.",
-          s"With **$move**, conversion quality depends on whether activity stays coordinated as exchanges begin$planHint.",
-          s"If **$move** is handled accurately, structure and initiative reinforce each other$planHint instead of drifting apart.",
-          s"**$move** remains robust when defensive coverage and active plans stay synchronized through the next phase$planHint."
+          s"With **$move**, conversion around **$move** can stay smoother$planHint, but initiative around **$move** can swing when **$move** hands away a tempo.",
+          s"Handled precisely, **$move** keeps coordination and king safety linked$planHint through the next phase.",
+          s"From a practical-conversion view, **$move** stays reliable$planHint when defensive coverage remains synchronized.",
+          s"**$move** keeps practical burden manageable$planHint by preserving coordination before exchanges."
         )
       else
         List(
           s"In practical terms, **$move** is judged by conversion ease$planHint, because defensive coordination can diverge quickly.$practicalHint",
           s"After **$move**, king safety and tempo stay linked, so one inaccurate sequence can hand over initiative$planHint.$practicalHint",
           s"With **$move**, a move-order slip can expose coordination gaps$planHint, and recovery windows are short.$practicalHint",
-          s"After **$move**, sequence accuracy matters because structure and activity can separate quickly$planHint.$practicalHint",
-          s"Strategically, **$move** needs connected follow-up through the next phase$planHint, or practical control leaks away.$practicalHint"
+          s"After **$move**, sequence accuracy matters because coordination and activity can separate quickly$planHint.$practicalHint",
+          s"Strategically, **$move** needs connected follow-up through the next phase$planHint, or initiative control leaks away.$practicalHint"
         )
     val implication = selectNonRepeatingTemplate(
       templates = templates.map(_.trim).filter(_.nonEmpty).distinct,
@@ -3082,8 +3081,7 @@ object NarrativeOutlineBuilder:
         val localSeed = bead ^ 0x1a2b3c4d ^ Math.abs(rest.hashCode)
         NarrativeLexicon.pick(localSeed, List(
           s"it yields a modest practical concession once $rest appears",
-          s"after $rest, practical handling is less demanding for the other side",
-          s"once $rest appears, defending choices narrow and plan execution becomes harder",
+          s"after $rest, execution around $rest eases the defensive task",
           s"it grants a cleaner practical route to the opponent after $rest"
         ))
       case decisiveLoss(rest) =>
