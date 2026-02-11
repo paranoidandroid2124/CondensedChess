@@ -736,31 +736,31 @@ object NarrativeLexicon {
 
     val templates =
       if key.contains("promotion") then List(
-        s"The turning point came via $route$pivot, where promotion motifs began to drive every continuation.",
+        s"$route$pivot marked the promotion turning point, as promotion motifs began to drive every continuation.",
         s"From $route$pivot, the turning point was the promotion race and its forcing tempo count.",
         s"$route$pivot created the key turning point, after which promotion threats dictated priorities.",
         s"$route$pivot marked the turning point because promotion timing outweighed slower strategic plans."
       )
       else if key.contains("exchange") then List(
-        s"The turning point came after $route$pivot, when exchange timing started to define the evaluation.",
+        s"$route$pivot marked the exchange turning point, with exchange timing starting to define the evaluation.",
         s"From $route$pivot, the decisive shift was the exchange sequence and resulting simplification.",
         s"$route$pivot became the turning point once exchanges reshaped piece activity and defensive resources.",
         s"The critical turning point was $route$pivot, where exchange decisions fixed the practical balance."
       )
       else if key.contains("tactical") then List(
-        s"The turning point came via $route$pivot, when forcing tactical pressure became hard to defuse.",
+        s"$route$pivot marked the tactical turning point, once forcing tactical pressure became hard to defuse.",
         s"From $route$pivot, the decisive shift was king safety and concrete tactical accuracy.",
         s"$route$pivot marked the turning point because tactical threats began to override long-term plans.",
         s"The critical turning point was $route$pivot, where tactical forcing lines dictated move order."
       )
       else if key.contains("structural") then List(
-        s"The turning point came after $route$pivot, when structural features began to dominate planning.",
+        s"$route$pivot marked the structural turning point, when structural features began to dominate planning.",
         s"From $route$pivot, the decisive shift was structural transformation and piece rerouting.",
         s"$route$pivot became the turning point once structure and square control outweighed short tactics.",
         s"The key turning point was $route$pivot, where structural shifts fixed the strategic roadmap."
       )
       else List(
-        s"The turning point came from $route$pivot, when initiative control shifted to one side.",
+        s"$route$pivot marked the initiative turning point, as initiative control shifted to one side.",
         s"From $route$pivot, the decisive shift was initiative management rather than static factors.",
         s"$route$pivot marked the turning point because tempo and initiative started to decide the play.",
         s"The critical turning point was $route$pivot, where initiative swings determined the practical outcome."
@@ -859,9 +859,9 @@ object NarrativeLexicon {
     val axisText = axisLabel(axis, bead ^ 0x13a5b7c9)
     val leadTemplates =
       if confidence >= 0.78 then List(
-        "The working hypothesis is that",
-        "The strongest read is that",
-        "The clearest strategic read is that"
+        "Working hypothesis:",
+        "Strongest read:",
+        "Clearest read:"
       )
       else if confidence >= 0.58 then List(
         "The working hypothesis is that",
@@ -1042,7 +1042,7 @@ object NarrativeLexicon {
           pick(bead ^ 0x2a2a2a2a, List(
             "The split should surface in immediate move-order fights.",
             "This difference is expected to matter right away in concrete sequencing.",
-            s"The practical divergence should surface as **$alternativeMove** enters the next tactical phase."
+            s"As **$alternativeMove** enters concrete tactical play, **$alternativeMove** usually exposes the split."
           ))
         case HypothesisHorizon.Medium =>
           pick(bead ^ 0x4b4b4b4b, List(
@@ -1085,7 +1085,7 @@ object NarrativeLexicon {
     pick(bead ^ 0x19f8b4ad, List(
       s"The decisive split is **$mainMove** versus **$altMove**: $axisContrast with $horizonBlend.",
       s"The key difference is between **$mainMove** and **$altMove**; the contrast is $axisContrast across $horizonBlend.",
-      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, and the payoff window is $horizonBlend."
+      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, with practical timing shaped by $horizonBlend."
     ))
   }
 
