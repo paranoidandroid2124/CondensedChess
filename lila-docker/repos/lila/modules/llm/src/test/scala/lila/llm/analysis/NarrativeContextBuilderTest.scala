@@ -1517,6 +1517,109 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(delta.planAdvancements.exists(_.contains("Locked center")), s"Should include blocker removal, got: ${delta.planAdvancements}")
   }
 
+  test("F9: positive long-horizon probe evidence keeps a Long card in top-2") {
+    val ctx = IntegratedContext(evalCp = 45, isWhiteToMove = true)
+    val candidate = AnalyzedCandidate(
+      move = "g1f3",
+      score = 45,
+      motifs = Nil,
+      prophylaxisResults = Nil,
+      futureContext = "development",
+      line = VariationLine(List("g1f3"), 45, depth = 20)
+    )
+    val snapshot = FutureSnapshot(
+      resolvedThreatKinds = List("Counterplay"),
+      newThreatKinds = Nil,
+      targetsDelta = TargetsDelta(Nil, Nil, List("f-file control"), Nil),
+      planBlockersRemoved = List("Piece congestion"),
+      planPrereqsMet = List("conversion route synchronized")
+    )
+    val probe = ProbeResult(
+      id = "long_positive",
+      evalCp = 45,
+      bestReplyPv = List("d7d5"),
+      deltaVsBaseline = 0,
+      keyMotifs = List("coordination route"),
+      purpose = Some("convert_reply_multipv"),
+      probedMove = Some("g1f3"),
+      futureSnapshot = Some(snapshot)
+    )
+    val data = minimalData(Some(ctx)).copy(
+      candidates = List(candidate),
+      alternatives = List(VariationLine(List("g1f3", "d7d5"), 45, depth = 20))
+    )
+
+    val result = NarrativeContextBuilder.build(data, ctx, None, List(probe))
+    val enriched = result.candidates.find(_.uci.contains("g1f3")).getOrElse(fail("candidate not found"))
+    val top = enriched.hypotheses.sortBy(h => -h.confidence)
+    assert(top.nonEmpty, "Hypotheses should be populated")
+    assert(top.take(2).exists(_.horizon == HypothesisHorizon.Long), clue(top.mkString(" | ")))
+    assert(
+      top
+        .take(2)
+        .filter(_.horizon == HypothesisHorizon.Long)
+        .exists(_.supportSignals.exists(_.toLowerCase.contains("long-horizon"))),
+      clue(top.mkString(" | "))
+    )
+  }
+
+  test("F10: long-horizon conflict evidence can suppress Long card selection") {
+    val ctx = IntegratedContext(evalCp = 90, isWhiteToMove = true)
+    val best = AnalyzedCandidate(
+      move = "g1f3",
+      score = 90,
+      motifs = Nil,
+      prophylaxisResults = Nil,
+      futureContext = "development",
+      line = VariationLine(List("g1f3"), 90, depth = 20)
+    )
+    val risky = AnalyzedCandidate(
+      move = "c2c4",
+      score = -80,
+      motifs = Nil,
+      prophylaxisResults = Nil,
+      futureContext = "expansion",
+      line = VariationLine(List("c2c4"), -80, depth = 20)
+    )
+    val failingSnapshot = FutureSnapshot(
+      resolvedThreatKinds = Nil,
+      newThreatKinds = List("Mate"),
+      targetsDelta = TargetsDelta(Nil, Nil, Nil, Nil),
+      planBlockersRemoved = Nil,
+      planPrereqsMet = Nil
+    )
+    val failingProbe = ProbeResult(
+      id = "long_negative",
+      evalCp = -80,
+      bestReplyPv = List("d7d5"),
+      deltaVsBaseline = -160,
+      keyMotifs = List("king safety"),
+      probedMove = Some("c2c4"),
+      l1Delta = Some(
+        L1DeltaSnapshot(
+          materialDelta = 0,
+          kingSafetyDelta = -2,
+          centerControlDelta = -1,
+          openFilesDelta = 0,
+          mobilityDelta = -1,
+          collapseReason = Some("King exposed and structure collapsed")
+        )
+      ),
+      futureSnapshot = Some(failingSnapshot)
+    )
+    val data = minimalData(Some(ctx)).copy(
+      candidates = List(best, risky),
+      alternatives = List(
+        VariationLine(List("g1f3", "d7d5"), 90, depth = 20),
+        VariationLine(List("c2c4", "d7d5"), -80, depth = 20)
+      )
+    )
+
+    val result = NarrativeContextBuilder.build(data, ctx, None, List(failingProbe))
+    val riskyCandidate = result.candidates.find(_.uci.contains("c2c4")).getOrElse(fail("risky candidate not found"))
+    assert(!riskyCandidate.hypotheses.take(2).exists(_.horizon == HypothesisHorizon.Long), clue(riskyCandidate.hypotheses))
+  }
+
   // ============================================================
   // PHASE G (A9): OPENING EVENT LAYER TESTS
   // ============================================================

@@ -237,7 +237,41 @@ case class CandidateInfo(
   tags: List[CandidateTag] = Nil, // Sharp, Solid, etc.
   tacticEvidence: List[String] = Nil, // P12: Evidence for tactical labels (motifs, victims)
   probeLines: List[String] = Nil, // Bookmaker: optional a1/a2 reply samples from probes (SAN)
-  facts: List[Fact] = Nil // Phase 23: Verified facts for this move
+  facts: List[Fact] = Nil, // Phase 23: Verified facts for this move
+  hypotheses: List[HypothesisCard] = Nil // Hypothesis-space cards (ranked top-2 per candidate)
+)
+
+/**
+ * Structured hypothesis-space axes for strategic tradeoff narration.
+ */
+enum HypothesisAxis:
+  case Plan
+  case Structure
+  case Initiative
+  case Conversion
+  case KingSafety
+  case PieceCoordination
+  case PawnBreakTiming
+  case EndgameTrajectory
+
+/**
+ * Time horizon of a hypothesis claim.
+ */
+enum HypothesisHorizon:
+  case Short
+  case Medium
+  case Long
+
+/**
+ * Hypothesis card attached to each candidate.
+ */
+case class HypothesisCard(
+  axis: HypothesisAxis,
+  claim: String,
+  supportSignals: List[String],
+  conflictSignals: List[String],
+  confidence: Double,
+  horizon: HypothesisHorizon
 )
 
 // ============================================================
