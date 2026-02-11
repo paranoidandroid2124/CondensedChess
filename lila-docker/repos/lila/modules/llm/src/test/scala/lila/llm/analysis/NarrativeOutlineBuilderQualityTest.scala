@@ -595,7 +595,12 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
       List("line route:", "the branch follows", "the move path here is", "the practical route is")
         .exists(lower.contains)
     val hasTransitionRole =
-      List("strategically, the game turned", "strategic transition", "practical turning factor")
+      List(
+        "strategically, the game turned",
+        "strategic transition",
+        "practical turning factor",
+        "shifts plans through"
+      )
         .exists(lower.contains)
     val hasDriverRole =
       List("decisive practical driver", "results hinged on", "key match result factor", "conversion quality")

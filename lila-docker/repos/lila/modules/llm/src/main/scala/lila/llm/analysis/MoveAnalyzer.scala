@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.*
-import lila.llm.model.strategic.{ VariationLine, VariationTag, CounterfactualMatch, Hypothesis }
+import lila.llm.model.strategic.{ VariationLine, VariationTag }
 import lila.llm.model.Motif.*
 
 import _root_.chess.*
@@ -15,27 +15,6 @@ case class EngineEval(
 ):
   def score: Int = 
     cp.getOrElse(mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(0))
-
-/** Candidate move type */
-enum CandidateType(val name: String):
-  case EngineBest extends CandidateType("engine_best")
-  case EngineSecond extends CandidateType("engine_second")
-  case UserMove extends CandidateType("user_move")
-  case Fork extends CandidateType("fork")
-  case Pin extends CandidateType("pin")
-  case Capture extends CandidateType("capture")
-  case Check extends CandidateType("check")
-  case CentralBreak extends CandidateType("central_break")
-  case PieceImprovement extends CandidateType("piece_improvement")
-
-/** Candidate move for analysis */
-case class CandidateMove(
-    uci: String,
-    candidateType: CandidateType,
-    priority: Double,
-    reason: String = ""
-)
-
 
 /**
  * Unified Move Analyzer
@@ -104,97 +83,6 @@ object MoveAnalyzer:
     }.getOrElse(Nil)
 
   // ============================================================
-  // COUNTERFACTUAL ANALYSIS
-  // ============================================================
-
-  /**
-   * Compare user move against engine's best move.
-   * Returns counterfactual match with missed opportunities.
-   */
-  def compareMove(
-      fen: String,
-      userMove: String,
-      bestMove: String,
-      userEval: Int,
-      bestEval: Int
-  ): Option[CounterfactualMatch] =
-      val cpLoss = bestEval - userEval
-      
-      // Tokenize both lines (just the first move for now)
-      val bestMotifs = tokenizePv(fen, List(bestMove))
-      val userMotifs = tokenizePv(fen, List(userMove))
-      
-      // Missed motifs = in best but not in user
-      val missedMotifs = bestMotifs.filterNot(bm => 
-        userMotifs.exists(um => um.getClass == bm.getClass)
-      )
-      
-      val severity = Thresholds.classifySeverity(cpLoss)
-      
-      Some(CounterfactualMatch(
-        userMove = userMove,
-        bestMove = bestMove,
-        cpLoss = cpLoss,
-        missedMotifs = missedMotifs,
-        userMoveMotifs = userMotifs,
-        severity = severity,
-        userLine = lila.llm.model.strategic.VariationLine(
-          moves = List(userMove),
-          scoreCp = 0,
-          mate = None,
-          tags = Nil
-        )
-      ))
-
-
-  // ============================================================
-  // HYPOTHESIS GENERATION (Human-like Candidates)
-  // ============================================================
-
-  /**
-   * Generates "human-like" candidate moves that might be mistakes.
-   * Used for counterfactual analysis (e.g., "Why not capture here?").
-   */
-  def generateHypotheses(
-      fen: String,
-      engineBestMove: String,
-  ): List[Hypothesis] =
-    Fen.read(chess.variant.Standard, Fen.Full(fen)).map { pos =>
-      val legalMoves = pos.legalMoves
-      val candidates = List.newBuilder[Hypothesis]
-
-      // 1. "The Trap" / Natural Captures
-      // Moves that capture material but might be bad
-      legalMoves.filter(_.captures).foreach { mv =>
-         val uci = mv.toUci.uci
-         if uci != engineBestMove then
-           val role = mv.piece.role
-           val victim = pos.board.roleAt(mv.dest).getOrElse(Pawn)
-           // If it looks like a free piece or favorable trade
-           if pieceValue(victim) >= pieceValue(role) then
-             candidates += Hypothesis(
-               move = uci,
-               candidateType = CandidateType.Capture.name,
-               rationale = s"Captures the ${victim.name}"
-             )
-      }
-
-      // 2. "Checks"
-      // Checks are always tempting
-      legalMoves.filter(m => m.after.check.yes).foreach { mv =>
-        val uci = mv.toUci.uci
-        if uci != engineBestMove then
-          candidates += Hypothesis(
-            move = uci,
-            candidateType = CandidateType.Check.name,
-            rationale = "Forcing check"
-          )
-      }
-
-      candidates.result().take(3) // Limit to top 3 most "obvious" candidates
-    }.getOrElse(Nil)
-
-    // ============================================================
   // MOVE MOTIF DETECTION (from MotifTokenizer)
   // ============================================================
 
