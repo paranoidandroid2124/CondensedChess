@@ -515,8 +515,6 @@ case class OpeningReference(
   totalGames: Int,
   topMoves: List[ExplorerMove],
   sampleGames: List[ExplorerGame],
-  isNoveltyCandidate: Boolean = false,
-  outOfBook: Boolean = false,
   description: Option[String] = None
 )
 

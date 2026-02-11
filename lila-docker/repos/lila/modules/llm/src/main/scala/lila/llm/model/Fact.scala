@@ -8,8 +8,6 @@ import chess.{ Square, Role, Color }
 sealed trait FactScope
 object FactScope {
   case object Now extends FactScope
-  case class PV(lineId: String, plyOffset: Int) extends FactScope
-  case object Hypothesis extends FactScope
 }
 
 /**
