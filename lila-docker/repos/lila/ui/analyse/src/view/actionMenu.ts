@@ -1,9 +1,8 @@
-```
 import { isEmpty } from 'lib';
 import * as licon from 'lib/licon';
 import { displayColumns } from 'lib/device';
-import type { LooseVNodes, MaybeVNodes, ToggleSettings } from 'lib/view';
-import { domDialog, bind, hl, toggle, confirm, icon } from 'lib/view';
+import type { VNode, LooseVNodes, MaybeVNodes, ToggleSettings } from 'lib/view';
+import { domDialog, bind, hl, toggle, confirm, dataIcon } from 'lib/view';
 import type { AutoplayDelay } from '../autoplay';
 import type AnalyseCtrl from '../ctrl';
 import { cont as contRoute } from 'lib/game/router';
@@ -107,7 +106,7 @@ async function overwriteStudyChapter(ctrl: AnalyseCtrl): Promise<void> {
   if (!ok) return;
 
   xhr
-    .text(`/ study / ${ s.id } /${s.chapterId}/import - pgn`, {
+    .text(`/study/${s.id}/${s.chapterId}/import-pgn`, {
       method: 'post',
       body: xhr.form({ pgn: pgnExport.renderFullTxt(ctrl) }),
     })
@@ -129,7 +128,7 @@ function studyTools(ctrl: AnalyseCtrl): VNode | null {
   if (!s?.id || !s?.chapterId) return null;
 
   const status = ctrl.studyWriteError
-    ? `Sync failed: ${ ctrl.studyWriteError } `
+    ? `Sync failed: ${ctrl.studyWriteError}`
     : ctrl.isStudyWriting()
       ? 'Saving…'
       : s.canWrite
@@ -140,7 +139,7 @@ function studyTools(ctrl: AnalyseCtrl): VNode | null {
 
   return hl('div.action-menu__study', [
     hl('h2', 'Study'),
-    hl('div.setting', `${ s.name || 'Study' } • ${ s.chapterName || 'Chapter' } `),
+    hl('div.setting', `${s.name || 'Study'} • ${s.chapterName || 'Chapter'}`),
     hl('div.setting', status),
     chapters.length > 1 &&
       hl('span.setting', [
@@ -155,7 +154,7 @@ function studyTools(ctrl: AnalyseCtrl): VNode | null {
                 el.value = s.chapterId;
                 el.addEventListener('change', () => {
                   const next = el.value;
-                  if (next && next !== s.chapterId) window.location.href = `/ study / ${ s.id }/${next}`;
+                  if (next && next !== s.chapterId) window.location.href = `/study/${s.id}/${next}`;
                 });
               },
 postpatch: (_, vnode) => {

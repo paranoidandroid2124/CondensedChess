@@ -1,30 +1,34 @@
 package lila.llm
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
+import scala.util.control.NonFatal
 import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
+import lila.llm.model.OpeningReference
 import lila.llm.model.strategic.VariationLine
 
-/** High-level API for LLM commentary features */
-final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(using ec: ExecutionContext):
+/** High-level API for LLM commentary features.
+  *
+  * Pipeline: CommentaryEngine → BookStyleRenderer → (optional) GeminiClient.polish
+  * The Gemini polish step is feature-flagged: when GeminiConfig.enabled=false,
+  * the rule-based prose is returned directly.
+  */
+final class LlmApi(
+    openingExplorer: OpeningExplorerClient,
+    geminiClient: GeminiClient,
+    commentaryCache: CommentaryCache
+)(using Executor):
 
-  /** Generate commentary for a single position (real-time analysis) */
-  def commentPosition(
-      fen: String,
-      lastMove: Option[String],
-      eval: Option[EvalData],
-      opening: Option[String],
-      phase: String,
-      ply: Int
-  ): Future[Option[CommentResponse]] =
-    client.commentPosition(CommentRequest(
-      fen = fen,
-      lastMove = lastMove,
-      eval = eval,
-      context = PositionContext(opening, phase, ply)
-    ))
+  private val logger = lila.log("llm.api")
+  private val OpeningRefMinPly = 3
+  private val OpeningRefMaxPly = 24
 
-  /** Generate an instant rule-based briefing for a position */
+  /** Whether Gemini polish is currently active. */
+  def isGeminiEnabled: Boolean = geminiClient.isEnabled
+
+  /** Generate an instant rule-based briefing for a position.
+    * Always local, never Gemini-polished (designed for speed).
+    */
   def briefCommentPosition(
       fen: String,
       lastMove: Option[String],
@@ -38,12 +42,12 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
     CommentaryEngine.assess(fen, pv, opening, Some(phase)).map { assessment =>
       val bead = Math.abs(fen.hashCode)
       val intro = NarrativeLexicon.intro(bead, assessment.nature.natureType.toString, assessment.nature.tension, Style.Book)
-      
+
       val bestPlan = assessment.plans.topPlans.headOption.map(_.plan.name).getOrElse("strategic improvement")
       val intent = lastMove.map(m => NarrativeLexicon.intent(bead, m, bestPlan, Style.Book)).getOrElse("")
-      
+
       val briefing = s"$intro\n\n$intent"
-      
+
       CommentResponse(
         commentary = briefing,
         concepts = assessment.plans.topPlans.map(_.plan.name),
@@ -51,7 +55,14 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       )
     }
 
-  /** Generate a deep, rule-based bookmaker commentary (no Gemini). */
+  /** Generate deep bookmaker commentary with optional Gemini polish.
+    *
+    * Flow:
+    * 1. Check server cache → if hit, return immediately
+    * 2. Run CommentaryEngine.assessExtended → BookStyleRenderer.render
+    * 3. If Gemini enabled: polish(prose) → use polished or fallback to rule-based
+    * 4. Store result in server cache
+    */
   def bookmakerCommentPosition(
       fen: String,
       lastMove: Option[String],
@@ -61,6 +72,31 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       afterFen: Option[String] = None,
       afterEval: Option[EvalData] = None,
       afterVariations: Option[List[VariationLine]] = None,
+      opening: Option[String],
+      phase: String,
+      ply: Int
+  ): Future[Option[CommentResponse]] =
+    // ── Server cache check ───────────────────────────────────────────────
+    commentaryCache.get(fen, lastMove) match
+      case Some(cached) =>
+        logger.debug(s"Cache hit: ${fen.take(20)}...")
+        Future.successful(Some(cached))
+      case None =>
+        computeBookmakerResponse(
+          fen, lastMove, eval, variations, probeResults,
+          afterFen, afterEval, afterVariations, opening, phase, ply
+        )
+
+  /** Internal: compute commentary (rule-based + optional Gemini polish). */
+  private def computeBookmakerResponse(
+      fen: String,
+      lastMove: Option[String],
+      eval: Option[EvalData],
+      variations: Option[List[VariationLine]],
+      probeResults: Option[List[lila.llm.model.ProbeResult]],
+      afterFen: Option[String],
+      afterEval: Option[EvalData],
+      afterVariations: Option[List[VariationLine]],
       opening: Option[String],
       phase: String,
       ply: Int
@@ -97,13 +133,15 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
     if vars.isEmpty then Future.successful(None)
     else
       val shouldFetchMasters =
-        phase.toLowerCase.contains("opening") && effectivePly >= 13
+        phase.trim.equalsIgnoreCase("opening") &&
+          effectivePly >= OpeningRefMinPly &&
+          effectivePly <= OpeningRefMaxPly
 
       val mastersFut =
         if shouldFetchMasters then openingExplorer.fetchMasters(fen)
         else Future.successful(None)
 
-      mastersFut.map { openingRef =>
+      mastersFut.flatMap { openingRef =>
         val dataOpt = CommentaryEngine.assessExtended(
           fen = fen,
           variations = vars,
@@ -114,53 +152,62 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
           prevMove = lastMove
         )
 
-        dataOpt.map { data =>
-          val afterDataOpt =
-            afterFen
-              .filter(_.nonEmpty)
-              .filter(_ => afterVars.nonEmpty)
-              .flatMap { f =>
-                CommentaryEngine.assessExtended(
-                  fen = f,
-                  variations = afterVars,
-                  playedMove = None,
-                  opening = opening,
-                  phase = Some(phase),
-                  ply = effectivePly,
-                  prevMove = None
+        dataOpt match
+          case None => Future.successful(None)
+          case Some(data) =>
+            val afterDataOpt =
+              afterFen
+                .filter(_.nonEmpty)
+                .filter(_ => afterVars.nonEmpty)
+                .flatMap { f =>
+                  CommentaryEngine.assessExtended(
+                    fen = f,
+                    variations = afterVars,
+                    playedMove = None,
+                    opening = opening,
+                    phase = Some(phase),
+                    ply = effectivePly,
+                    prevMove = None
+                  )
+                }
+
+            val ctx = NarrativeContextBuilder.build(
+              data = data,
+              ctx = data.toContext,
+              probeResults = probeResults.getOrElse(Nil),
+              openingRef = openingRef,
+              afterAnalysis = afterDataOpt
+            )
+            val prose = BookStyleRenderer.render(ctx)
+
+            // ── Optional Gemini polish ─────────────────────────────────
+            val evalDelta = eval.map(_.cp) // approximate delta
+            val nature = Some(data.nature.description)
+            val tension = Some(data.nature.tension)
+
+            geminiClient
+              .polish(
+                prose = prose,
+                phase = phase,
+                evalDelta = evalDelta,
+                concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
+                fen = fen,
+                nature = nature,
+                tension = tension
+              )
+              .map { polishedOpt =>
+                val finalProse = polishedOpt.getOrElse(prose)
+                val response = CommentResponse(
+                  commentary = finalProse,
+                  concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
+                  variations = data.alternatives,
+                  probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests
                 )
+                // Store in server cache
+                commentaryCache.put(fen, lastMove, response)
+                Some(response)
               }
-
-          val ctx = NarrativeContextBuilder.build(
-            data = data,
-            ctx = data.toContext,
-            probeResults = probeResults.getOrElse(Nil),
-            openingRef = openingRef,
-            afterAnalysis = afterDataOpt
-          )
-          val prose = BookStyleRenderer.render(ctx)
-
-          CommentResponse(
-            commentary = prose,
-            concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
-            variations = data.alternatives,
-            probeRequests = if (probeResults.exists(_.nonEmpty)) Nil else ctx.probeRequests
-          )
-        }
       }
-
-  /** Generate full game analysis with annotations */
-  def analyzeFullGame(
-      pgn: String,
-      evals: List[MoveEval],
-      style: String = "book",
-      focusOn: List[String] = List("mistakes", "turning_points")
-  ): Future[Option[FullAnalysisResponse]] =
-    client.analyzeGame(FullAnalysisRequest(
-      pgn = pgn,
-      evals = evals,
-      options = AnalysisOptions(style, focusOn)
-    ))
 
   /** Generate full game narrative locally (no external LLM). */
   def analyzeFullGameLocal(
@@ -169,10 +216,17 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       style: String = "book",
       focusOn: List[String] = List("mistakes", "turning_points")
   ): Future[Option[GameNarrativeResponse]] =
-    Future {
-      val _ = (style, focusOn)
-      // `style` and `focusOn` are currently unused by the local engine, but kept for API symmetry.
-      val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
+    val _ = (style, focusOn)
+    val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
+    fetchOpeningRefsForPgn(pgn).map { openingRefsByFen =>
+      val narrative = CommentaryEngine.generateFullGameNarrative(
+        pgn = pgn,
+        evals = evalMap,
+        openingRefsByFen = openingRefsByFen
+      )
+      Some(GameNarrativeResponse.fromNarrative(narrative))
+    }.recover { case NonFatal(e) =>
+      logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
       val narrative = CommentaryEngine.generateFullGameNarrative(
         pgn = pgn,
         evals = evalMap
@@ -180,28 +234,28 @@ final class LlmApi(client: LlmClient, openingExplorer: OpeningExplorerClient)(us
       Some(GameNarrativeResponse.fromNarrative(narrative))
     }
 
-  /** Quick comment for a critical moment */
-  def criticalMomentComment(
-      fen: String,
-      move: String,
-      eval: EvalData,
-      prevEval: Option[EvalData],
-      phase: String
-  ): Future[Option[String]] =
-    val evalDiff = prevEval.map(p => eval.cp - p.cp).getOrElse(0)
-    val momentType = 
-      if evalDiff.abs > 200 then "blunder"
-      else if evalDiff.abs > 100 then "mistake"
-      else if evalDiff.abs > 50 then "inaccuracy"
-      else "normal"
+  private def fetchOpeningRefsForPgn(pgn: String): Future[Map[String, OpeningReference]] =
+    val openingFens = PgnAnalysisHelper.extractPlyData(pgn) match
+      case Left(err) =>
+        logger.warn(s"Failed to parse PGN for opening references: $err")
+        Nil
+      case Right(plyData) =>
+        plyData
+          .collect {
+            case pd if pd.ply >= OpeningRefMinPly && pd.ply <= OpeningRefMaxPly => pd.fen
+          }
+          .distinct
 
-    if momentType == "normal" then Future.successful(None)
+    if openingFens.isEmpty then Future.successful(Map.empty)
     else
-      commentPosition(
-        fen = fen,
-        lastMove = Some(move),
-        eval = Some(eval),
-        opening = None,
-        phase = phase,
-        ply = 0
-      ).map(_.map(_.commentary))
+      Future
+        .traverse(openingFens) { fen =>
+          openingExplorer
+            .fetchMasters(fen)
+            .map(refOpt => fen -> refOpt)
+            .recover { case NonFatal(e) =>
+              logger.warn(s"Opening explorer fetch failed for FEN `${fen.take(32)}...`: ${e.getMessage}")
+              fen -> None
+            }
+        }
+        .map(_.collect { case (fen, Some(ref)) => fen -> ref }.toMap)

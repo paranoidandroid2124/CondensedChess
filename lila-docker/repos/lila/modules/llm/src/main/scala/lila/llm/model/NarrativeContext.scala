@@ -537,6 +537,7 @@ case class ExplorerGame(
   black: ExplorerPlayer,
   year: Int,
   month: Int,
+  event: Option[String] = None,
   pgn: Option[String] = None  // Optional: first 8-12 ply for snippet
 )
 

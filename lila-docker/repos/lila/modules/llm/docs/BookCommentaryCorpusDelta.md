@@ -7,11 +7,12 @@
 
 | Metric | Before | After |
 |---|---:|---:|
-| Avg quality score | 97.2 / 100 | 100.0 / 100 |
-| Avg lexical diversity | 0.771 | 0.780 |
-| Avg variation-anchor coverage | 1.000 | 1.000 |
+| Results (passed cases) | 40 / 40 | 40 / 40 |
+| Avg quality score | 97.2 / 100 | 99.3 / 100 |
+| Avg lexical diversity | 0.771 | 0.763 |
+| Avg variation-anchor coverage | 1.000 | 0.983 |
 | Low-quality cases | 0 | 0 |
-| Advisory findings (non-blocking) | 15 across 13 cases | 0 across 0 cases |
+| Advisory findings (non-blocking) | 15 across 13 cases | 6 across 6 cases |
 
 ## Cross-Case Repetition (Top 12)
 
@@ -30,19 +31,20 @@
 - [3 cases] "keep an eye on the pawn on c4 1 attacker no defenders"
 
 ### After
-- [5 cases] "from a practical standpoint white has the easier roadmap"
-- [5 cases] "the position is about level"
-- [4 cases] "white can press with a comparatively straightforward conversion scheme"
-- [4 cases] "neither side has stabilized a lasting edge"
-- [4 cases] "counterplay exists for both sides"
-- [4 cases] "we are firmly in endgame territory"
-- [4 cases] "white has the easier side to press with"
-- [4 cases] "white is just a touch better"
-- [4 cases] "precision is required in this endgame"
-- [3 cases] "it s close to equal with play for both sides"
-- [3 cases] "it drives the initiative"
-- [3 cases] "plans and tactics start to bite"
+- [5 cases] "it drives the initiative"
+- [5 cases] "the opening is already testing tactical accuracy"
+- [4 cases] "piece activity outweighs broad strategic plans"
+- [4 cases] "opening development is still in progress"
+- [4 cases] "this is a concrete middlegame fight"
+- [4 cases] "white has the easier game to play"
+- [4 cases] "the evaluation is close enough that accuracy still matters most"
+- [4 cases] "it improves the piece s scope"
+- [4 cases] "a3 favors structural clarity and methodical handling over complications"
+- [4 cases] "this is a technical endgame phase"
+- [4 cases] "king activity and tempi become decisive"
+- [4 cases] "there is no room for autopilot decisions"
 
 ## Notes
 - This delta tracks non-blocking quality advisories in addition to pass/fail expectations.
+- Current run resolves all corpus expectation failures (40/40 pass).
 - Run strict mode to fail the corpus when advisories remain: `--strict-quality`.

@@ -71,7 +71,10 @@ object NarrativeContextBuilder:
     val candidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
 
     val playedSan = data.prevMove.flatMap { uci =>
-      NarrativeUtils.uciListToSan(data.fen, List(uci)).headOption
+      NarrativeUtils
+        .uciListToSan(data.fen, List(uci))
+        .headOption
+        .orElse(Some(NarrativeUtils.formatUciAsSan(uci)))
     }
 
     // Phase 1: AuthorQuestions (used for Phase 2 evidence planning as well)
@@ -149,12 +152,14 @@ object NarrativeContextBuilder:
       case None => openingBudget.updatePly(data.ply)
     }
 
+    val bestEngineMove = data.alternatives.headOption.flatMap(_.moves.headOption)
+
     val authorEvidence =
       AuthorEvidenceBuilder.build(
         fen = data.fen,
         ply = data.ply,
         playedMove = data.prevMove,
-        bestMove = candidates.headOption.flatMap(_.uci),
+        bestMove = bestEngineMove.orElse(candidates.headOption.flatMap(_.uci)),
         authorQuestions = authorQuestions,
         probeResults = probeResults
       )
@@ -609,8 +614,12 @@ object NarrativeContextBuilder:
     data.candidates.zipWithIndex.map { case (cand, idx) =>
       val bestScore = data.candidates.headOption.map(_.score).getOrElse(0)
       val secondScore = data.candidates.lift(1).map(_.score).getOrElse(bestScore)
-      val bestGap = bestScore - secondScore
-      val cpDiff = bestScore - cand.score
+      def lossFromBest(score: Int): Int =
+        if data.isWhiteToMove then (bestScore - score).max(0)
+        else (score - bestScore).max(0)
+
+      val bestGap = lossFromBest(secondScore)
+      val cpDiff = lossFromBest(cand.score)
       val annotation =
         if idx == 0 then
           // Avoid overusing "!"; only mark when the best move is clearly separated.
@@ -688,8 +697,8 @@ object NarrativeContextBuilder:
       val downstream = cand.moveIntent.downstream
       
       // A7: Enriched whyNot
-      val whyNot = if (idx > 0 && cand.score < bestScore - 50) {
-        val diff = (bestScore - cand.score) / 100.0
+      val whyNot = if (idx > 0 && cpDiff >= 50) {
+        val diff = cpDiff / 100.0
         val refutation = sanMoves.lift(1).map(m => s" after $m").getOrElse("")
         val reason = if (diff > 2.0) "decisive loss" else if (diff > 0.8) "significant disadvantage" else "slight inaccuracy"
         Some(f"$reason ($diff%.1f)$refutation")

@@ -22,3 +22,13 @@ class NarrativeUtilsPlyTest extends FunSuite:
 
   test("resolveAnnotationPly falls back when fen is malformed"):
     assertEquals(NarrativeUtils.resolveAnnotationPly("invalid fen", Some("e2e4"), fallbackPly = 42), 42)
+
+  test("normalizeUciMove handles promotion notation variants"):
+    assertEquals(NarrativeUtils.normalizeUciMove("e7e8q"), "e7e8q")
+    assertEquals(NarrativeUtils.normalizeUciMove("e7e8=Q"), "e7e8q")
+    assertEquals(NarrativeUtils.normalizeUciMove("e7e8Q+"), "e7e8q")
+
+  test("uciEquivalent matches equivalent promotion encodings"):
+    assert(NarrativeUtils.uciEquivalent("e7e8q", "e7e8=Q"))
+    assert(NarrativeUtils.uciEquivalent("e7e8", "e7e8q"))
+    assert(!NarrativeUtils.uciEquivalent("e2e4", "e2e3"))

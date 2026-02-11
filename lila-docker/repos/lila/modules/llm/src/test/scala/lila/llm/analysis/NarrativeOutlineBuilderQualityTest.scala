@@ -1,0 +1,763 @@
+package lila.llm.analysis
+
+import chess.{ Color, Pawn, Square }
+import lila.llm.model.*
+import lila.llm.model.authoring.OutlineBeatKind
+import lila.llm.model.strategic.{ CounterfactualMatch, EngineEvidence, VariationLine }
+import munit.FunSuite
+
+class NarrativeOutlineBuilderQualityTest extends FunSuite:
+
+  test("context starts with a concrete board anchor when a key fact exists"):
+    val ctx = baseContext(
+      playedMove = Some("e2e4"),
+      playedSan = Some("e4"),
+      facts = List(
+        Fact.HangingPiece(
+          square = Square.E4,
+          role = Pawn,
+          attackers = List(Square.D5),
+          defenders = Nil,
+          scope = FactScope.Now
+        )
+      ),
+      threats = ThreatTable(Nil, Nil)
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val context = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+    val firstSentence = context.split("(?<=[.!?])\\s+").headOption.getOrElse("").toLowerCase
+
+    assert(firstSentence.contains("e4"), clue(firstSentence))
+    assert(!firstSentence.startsWith("the opening"), clue(firstSentence))
+
+  test("bad annotation explains cause, consequence, and better alternative"):
+    val badMove = CandidateInfo(
+      move = "h3",
+      uci = Some("h2h3"),
+      annotation = "?",
+      planAlignment = "Quiet move",
+      downstreamTactic = None,
+      tacticalAlert = Some("...Qh4 creates direct king pressure"),
+      practicalDifficulty = "clean",
+      whyNot = Some("it weakens dark squares around the king"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = List("Qh4"),
+      facts = List(Fact.WeakSquare(Square.G3, Color.White, "dark-square holes", FactScope.Now))
+    )
+
+    val bestMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("h2h3"),
+      playedSan = Some("h3"),
+      candidates = List(bestMove, badMove),
+      threats = ThreatTable(
+        List(
+          ThreatRow(
+            kind = "Mate",
+            side = "US",
+            square = Some("h2"),
+            lossIfIgnoredCp = 220,
+            turnsToImpact = 2,
+            bestDefense = Some("Nf3"),
+            defenseCount = 1,
+            insufficientData = false
+          )
+        ),
+        Nil
+      ),
+      counterfactual = Some(
+        CounterfactualMatch(
+          userMove = "h3",
+          bestMove = "Nf3",
+          cpLoss = 180,
+          missedMotifs = Nil,
+          userMoveMotifs = Nil,
+          severity = "mistake",
+          userLine = VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -130)
+        )
+      ),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 12,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 40),
+            VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -130)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+
+    assert(lower.contains("issue:"), clue(main))
+    assert(lower.contains("consequence:"), clue(main))
+    assert(
+      main.contains("Better is **Nf3**") || main.contains("Better is **f3**"),
+      clue(main)
+    )
+
+  test("rank-2 low-loss move is not labeled as the strongest continuation"):
+    val bestMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+    val secondMove = CandidateInfo(
+      move = "Nc3",
+      uci = Some("b1c3"),
+      annotation = "",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = Some("it is slightly less accurate"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("b1c3"),
+      playedSan = Some("Nc3"),
+      candidates = List(bestMove, secondMove),
+      threats = ThreatTable(Nil, Nil),
+      counterfactual = Some(
+        CounterfactualMatch(
+          userMove = "Nc3",
+          bestMove = "Nf3",
+          cpLoss = 20,
+          missedMotifs = Nil,
+          userMoveMotifs = Nil,
+          severity = "ok",
+          userLine = VariationLine(moves = List("b1c3", "d7d5"), scoreCp = 20)
+        )
+      ),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 12,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 40),
+            VariationLine(moves = List("b1c3", "d7d5"), scoreCp = 20)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+
+    assert(!lower.contains("strongest continuation"), clue(main))
+    assert(!lower.contains("fully sound"), clue(main))
+    assert(main.contains("**Nc3**"), clue(main))
+
+  test("high cp-loss annotation explicitly carries negative polarity"):
+    val bestMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+    val badMove = CandidateInfo(
+      move = "h3",
+      uci = Some("h2h3"),
+      annotation = "?",
+      planAlignment = "Quiet move",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = Some("it wastes a critical tempo"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("h2h3"),
+      playedSan = Some("h3"),
+      candidates = List(bestMove, badMove),
+      threats = ThreatTable(Nil, Nil),
+      counterfactual = Some(
+        CounterfactualMatch(
+          userMove = "h3",
+          bestMove = "Nf3",
+          cpLoss = 180,
+          missedMotifs = Nil,
+          userMoveMotifs = Nil,
+          severity = "mistake",
+          userLine = VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -140)
+        )
+      ),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 12,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 40),
+            VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -140)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+
+    val hasNegativePolarity = List("blunder", "mistake", "inaccuracy").exists(lower.contains)
+    assert(hasNegativePolarity, clue(main))
+
+  test("concept-only motif does not force a prefix without corroboration"):
+    val seed = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      threats = ThreatTable(Nil, Nil)
+    )
+    val ctx = seed.copy(
+      semantic = seed.semantic.map(_.copy(conceptSummary = List("OpenFile")))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val context = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+    val lower = context.toLowerCase
+
+    assert(!lower.contains("open-file control is a central strategic objective"), clue(context))
+    assert(!lower.contains("the open file is the key channel for major-piece activity"), clue(context))
+    assert(!lower.contains("file control along the open line can dictate the middlegame"), clue(context))
+
+  test("delta-confirmed motif can still drive prefix"):
+    val seed = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      threats = ThreatTable(Nil, Nil)
+    )
+    val ctx = seed.copy(
+      semantic = seed.semantic.map(_.copy(conceptSummary = List("OpenFile"))),
+      delta = Some(
+        MoveDelta(
+          evalChange = 0,
+          newMotifs = List("OpenFile"),
+          lostMotifs = Nil,
+          structureChange = None,
+          openFileCreated = None,
+          phaseChange = None
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val context = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+    val lower = context.toLowerCase
+
+    val hasOpenFilePrefix = List(
+      "open-file control is a central strategic objective",
+      "the open file is the key channel for major-piece activity",
+      "file control along the open line can dictate the middlegame"
+    ).exists(lower.contains)
+    assert(hasOpenFilePrefix, clue(context))
+
+  test("endgame context suppresses opening-side motif prefixes"):
+    val seed = baseContext(
+      playedMove = Some("e2e4"),
+      playedSan = Some("e4"),
+      threats = ThreatTable(Nil, Nil)
+    )
+    val ctx = seed.copy(
+      phase = PhaseContext("Endgame", "Technical conversion", None),
+      semantic = seed.semantic.map(_.copy(conceptSummary = List("minority_attack")))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val context = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+    val lower = context.toLowerCase
+
+    assert(!lower.contains("minority attack"), clue(context))
+
+  test("theme reinforcement rotates wording for minority attack motifs"):
+    val seed = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      threats = ThreatTable(Nil, Nil)
+    )
+    val semanticWithMinority = seed.semantic.map(_.copy(conceptSummary = List("minority_attack")))
+    val ctx10 = seed.copy(ply = 20, semantic = semanticWithMinority)
+    val ctx11 = seed.copy(ply = 21, semantic = semanticWithMinority)
+
+    val (outline10, _) = NarrativeOutlineBuilder.build(ctx10, new TraceRecorder())
+    val (outline11, _) = NarrativeOutlineBuilder.build(ctx11, new TraceRecorder())
+    val context10 = outline10.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+    val context11 = outline11.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).getOrElse("")
+
+    val s10 = context10
+      .split("(?<=[.!?])\\s+")
+      .find(_.toLowerCase.contains("minority attack"))
+      .map(_.trim)
+      .getOrElse("")
+    val s11 = context11
+      .split("(?<=[.!?])\\s+")
+      .find(_.toLowerCase.contains("minority attack"))
+      .map(_.trim)
+      .getOrElse("")
+
+    assert(s10.nonEmpty, clue(context10))
+    assert(s11.nonEmpty, clue(context11))
+    assertNotEquals(s10, s11)
+
+  test("engine-ranked best move overrides candidate order in annotation mode"):
+    val playedFirst = CandidateInfo(
+      move = "g5",
+      uci = Some("g7g5"),
+      annotation = "",
+      planAlignment = "Pawn push",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it weakens the king's cover"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = List("Nf6"),
+      facts = Nil
+    )
+    val stronger = CandidateInfo(
+      move = "Nf6",
+      uci = Some("g8f6"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("g7g5"),
+      playedSan = Some("g5"),
+      candidates = List(playedFirst, stronger),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 12,
+          variations = List(
+            VariationLine(moves = List("g8f6", "d2d4"), scoreCp = 40),
+            VariationLine(moves = List("g7g5", "d2d4"), scoreCp = -210)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+
+    assert(List("blunder", "mistake", "inaccuracy").exists(lower.contains), clue(main))
+    assert(main.contains("**Nf6**") || main.contains("**f6**"), clue(main))
+
+  test("alternatives explicitly contrast lower-ranked engine choices"):
+    val bestMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+    val nearAlternative = CandidateInfo(
+      move = "Nc3",
+      uci = Some("b1c3"),
+      annotation = "",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = Some("it can drift from the main plan"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+    val lowerAlternative = CandidateInfo(
+      move = "h3",
+      uci = Some("h2h3"),
+      annotation = "",
+      planAlignment = "Quiet move",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "clean",
+      whyNot = Some("it wastes a useful tempo"),
+      tags = Nil,
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      candidates = List(bestMove, nearAlternative, lowerAlternative),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 12,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 35),
+            VariationLine(moves = List("b1c3", "d7d5"), scoreCp = 15),
+            VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -95)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val alternatives = outline.beats.find(_.kind == OutlineBeatKind.Alternatives).map(_.text).getOrElse("")
+    val lower = alternatives.toLowerCase
+
+    assert(lower.contains("engine"), clue(alternatives))
+    assert(lower.contains("3rd"), clue(alternatives))
+    assert(alternatives.contains("**Nf3**"), clue(alternatives))
+
+  test("opening branchpoint with valid sample game emits precedent snippet"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(ExplorerMove("c2c4", "c4", 1000, 400, 300, 300, 2700)),
+      sampleGames = List(
+        ExplorerGame(
+          id = "g1",
+          winner = Some(chess.Black),
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess 2019"),
+          pgn = Some("19... Na4 20. Rab1 Rc5 21. Qe1")
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("b6a4"),
+      playedSan = Some("Na4"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Na4", "Rc5"), "Main line shifts", None))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val all = outline.beats.map(_.text).mkString(" ")
+    val lower = all.toLowerCase
+
+    assert(lower.contains("in magnus carlsen-alexander grischuk"), clue(all))
+    assert(lower.contains("after 19... na4 20. rab1 rc5 21. qe1"), clue(all))
+    assert(lower.contains("won (0-1)"), clue(all))
+    assert(lower.contains("turning point"), clue(all))
+
+  test("branchpoint with multiple sample games emits A/B/C precedent comparison"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(
+        ExplorerMove("b6a4", "Na4", 620, 260, 170, 190, 2740),
+        ExplorerMove("c8e6", "Be6", 540, 220, 160, 160, 2730),
+        ExplorerMove("f8c8", "Rc8", 430, 150, 150, 130, 2720)
+      ),
+      sampleGames = List(
+        ExplorerGame(
+          id = "gA",
+          winner = Some(chess.Black),
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess 2019"),
+          pgn = Some("19... Na4 20. hxg6 hxg6 21. f5")
+        ),
+        ExplorerGame(
+          id = "gB",
+          winner = Some(chess.White),
+          white = ExplorerPlayer("Kramnik, Vladimir", 2800),
+          black = ExplorerPlayer("Svidler, Peter", 2740),
+          year = 2018,
+          month = 1,
+          event = Some("Tata Steel"),
+          pgn = Some("18... Rc7 19. Rxa7 Rb8 20. Rd5")
+        ),
+        ExplorerGame(
+          id = "gC",
+          winner = Some(chess.White),
+          white = ExplorerPlayer("Ding, Liren", 2812),
+          black = ExplorerPlayer("Mamedyarov, Shakhriyar", 2765),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess"),
+          pgn = Some("20... Rc5 21. Be7 Rxc3 22. bxc3")
+        )
+      )
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("b6a4"),
+      playedSan = Some("Na4"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Na4", "Rc7", "Rc5"), "Main line shifts", None))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val all = outline.beats.map(_.text).mkString(" ")
+    val lower = all.toLowerCase
+
+    assert(lower.contains("a)"), clue(all))
+    assert(lower.contains("b)"), clue(all))
+    assert(lower.contains("c)"), clue(all))
+    assert(lower.contains("sequence focus"), clue(all))
+    assert(lower.contains("strategic shift"), clue(all))
+
+  test("precedent snippet is omitted when sample game lacks verification fields"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(ExplorerMove("c2c4", "c4", 1000, 400, 300, 300, 2700)),
+      sampleGames = List(
+        ExplorerGame(
+          id = "g2",
+          winner = None,
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess 2019"),
+          pgn = None
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("b6a4"),
+      playedSan = Some("Na4"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Na4"), "Main line shifts", None))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val opening = outline.beats.find(_.kind == OutlineBeatKind.OpeningTheory).map(_.text).getOrElse("")
+    assert(!opening.toLowerCase.contains("magnus carlsen"), clue(opening))
+
+  test("intro opening event does not emit precedent snippet"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(ExplorerMove("c2c4", "c4", 1000, 400, 300, 300, 2700)),
+      sampleGames = List(
+        ExplorerGame(
+          id = "g3",
+          winner = Some(chess.White),
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess 2019"),
+          pgn = Some("6. Bg5 Nfd7 7. Qd2")
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("c2c4"),
+      playedSan = Some("c4"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.Intro("D85", "Gruenfeld Defense", "Dynamic center", List("c4", "Nf6")))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val opening = outline.beats.find(_.kind == OutlineBeatKind.OpeningTheory).map(_.text).getOrElse("")
+    assert(!opening.toLowerCase.contains("magnus carlsen"), clue(opening))
+
+  test("low-confidence precedent keeps factual single sentence only"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(ExplorerMove("c2c4", "c4", 1000, 400, 300, 300, 2700)),
+      sampleGames = List(
+        ExplorerGame(
+          id = "g5",
+          winner = Some(chess.White),
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = None,
+          pgn = Some("19... Na4 20. Rab1")
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("c8e6"),
+      playedSan = Some("Be6"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Be6"), "Shift", None))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val all = outline.beats.map(_.text).mkString(" ")
+    val lower = all.toLowerCase
+
+    assert(lower.contains("won (1-0)"), clue(all))
+    assert(!lower.contains("turning point"), clue(all))
+
+  test("middlegame annotation can attach precedent snippet when SAN overlaps sample game"):
+    val openingRef = OpeningReference(
+      eco = Some("D77"),
+      name = Some("Neo-Gruenfeld"),
+      totalGames = 1800,
+      topMoves = List(ExplorerMove("g7d4", "Bxd4", 300, 110, 90, 100, 2720)),
+      sampleGames = List(
+        ExplorerGame(
+          id = "g4",
+          winner = Some(chess.Black),
+          white = ExplorerPlayer("Carlsen, Magnus", 2860),
+          black = ExplorerPlayer("Grischuk, Alexander", 2760),
+          year = 2019,
+          month = 6,
+          event = Some("Norway Chess 2019"),
+          pgn = Some("19... Bxd4 20. Nxd4 Rc5 21. Qe1")
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("g7d4"),
+      playedSan = Some("Bxd4"),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 14,
+          variations = List(
+            VariationLine(moves = List("g7d4", "f3d4", "d8d4"), scoreCp = -45),
+            VariationLine(moves = List("c8e6", "d4g7"), scoreCp = -15)
+          )
+        )
+      )
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = None
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+
+    assert(lower.contains("magnus carlsen-alexander grischuk"), clue(main))
+    assert(lower.contains("after 19... bxd4 20. nxd4 rc5 21. qe1"), clue(main))
+    assert(lower.contains("turning point"), clue(main))
+
+  private def baseContext(
+    playedMove: Option[String],
+    playedSan: Option[String],
+    candidates: List[CandidateInfo] = List(
+      CandidateInfo(
+        move = "Nf3",
+        uci = Some("g1f3"),
+        annotation = "!",
+        planAlignment = "Development",
+        downstreamTactic = None,
+        tacticalAlert = None,
+        practicalDifficulty = "clean",
+        whyNot = None,
+        tags = Nil,
+        tacticEvidence = Nil,
+        facts = Nil
+      )
+    ),
+    facts: List[Fact] = Nil,
+    threats: ThreatTable,
+    counterfactual: Option[CounterfactualMatch] = None,
+    engineEvidence: Option[EngineEvidence] = None
+  ): NarrativeContext =
+    NarrativeContext(
+      fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      header = ContextHeader("Middlegame", "Normal", "NarrowChoice", "Low", "ExplainPlan"),
+      ply = 10,
+      playedMove = playedMove,
+      playedSan = playedSan,
+      counterfactual = counterfactual,
+      summary = NarrativeSummary("Central control", None, "NarrowChoice", "Maintain", "+0.2"),
+      threats = threats,
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Test", "Background", None, false, "quiet"),
+      plans = PlanTable(
+        top5 = List(PlanRow(rank = 1, name = "Central control", score = 0.78, evidence = List("space"))),
+        suppressed = Nil
+      ),
+      snapshots = List(L1Snapshot("=", None, None, None, None, Some("Balanced"), Nil)),
+      delta = None,
+      phase = PhaseContext("Opening", "Pieces undeveloped", None),
+      candidates = candidates,
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = Nil,
+          positionalFeatures = Nil,
+          compensation = None,
+          endgameFeatures = None,
+          practicalAssessment = Some(PracticalInfo(5, 4, "Balanced")),
+          preventedPlans = Nil,
+          conceptSummary = Nil
+        )
+      ),
+      facts = facts,
+      engineEvidence = engineEvidence
+    )

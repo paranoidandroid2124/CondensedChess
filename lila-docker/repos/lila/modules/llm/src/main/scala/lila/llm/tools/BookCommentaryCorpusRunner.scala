@@ -3,13 +3,18 @@ package lila.llm.tools
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path, Paths }
 
+import scala.concurrent.{ Await, ExecutionContext }
+import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
+import akka.actor.ActorSystem
+import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
+import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeOutlineBuilder, NarrativeUtils, TraceRecorder }
-import lila.llm.model.{ OpeningReference, ProbeResult }
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeOutlineBuilder, NarrativeUtils, OpeningExplorerClient, TraceRecorder }
+import lila.llm.model.*
 import lila.llm.model.authoring.OutlineBeatKind
 import lila.llm.model.strategic.VariationLine
 
@@ -85,6 +90,9 @@ object BookCommentaryCorpusRunner:
       sentenceCount: Int,
       uniqueSentenceRatio: Double,
       duplicateSentenceCount: Int,
+      repeatedTrigramTypes: Int,
+      repeatedFourgramTypes: Int,
+      maxNgramRepeat: Int,
       boilerplateHits: Int,
       mateToneConflictHits: Int,
       moveTokenCount: Int,
@@ -117,42 +125,88 @@ object BookCommentaryCorpusRunner:
   ):
     def passed: Boolean = failures.isEmpty
 
+  final case class BalancedGateStatus(
+      totalCases: Int,
+      precedentCases: Int,
+      requiredPrecedentCases: Int,
+      repeatedFivegramViolations: Int
+  ):
+    def passed: Boolean =
+      precedentCases >= requiredPrecedentCases && repeatedFivegramViolations == 0
+
   def main(args: Array[String]): Unit =
-    val strictQuality = args.contains("--strict-quality")
-    val positional = args.filterNot(_.startsWith("--"))
-    val corpusPath = positional.headOption.getOrElse("modules/llm/docs/BookCommentaryCorpus.json")
-    val outPath = positional.lift(1).getOrElse("modules/llm/docs/BookCommentaryCorpusReport.md")
+    val strictQuality     = args.contains("--strict-quality")
+    val noOpeningExplorer = args.contains("--no-opening-explorer")
+    val positional        = args.filterNot(_.startsWith("--"))
+    val corpusPath        = positional.headOption.getOrElse("modules/llm/docs/BookCommentaryCorpus.json")
+    val outPath           = positional.lift(1).getOrElse("modules/llm/docs/BookCommentaryCorpusReport.md")
 
-    val corpus =
-      readJsonFile(Paths.get(corpusPath)).flatMap(_.validate[Corpus].asEither.left.map(_.toString)) match
-        case Left(err) =>
-          System.err.println(s"[corpus] Failed to read/parse `$corpusPath`:\n$err")
-          sys.exit(2)
-        case Right(c) => c
+    given ExecutionContext = ExecutionContext.global
+    val actorSystem        = ActorSystem("book-commentary-corpus-runner")
+    given ActorSystem      = actorSystem
 
-    val results = corpus.cases.map(runCase)
-    val report = renderReport(corpusPath, results)
-    writeText(Paths.get(outPath), report)
+    val wsClientOpt =
+      if noOpeningExplorer then None
+      else Some(new StandaloneAhcWSClient(new DefaultAsyncHttpClient()))
+    val openingExplorerOpt = wsClientOpt.map(ws => OpeningExplorerClient(ws))
 
-    val failed = results.count(!_.passed)
-    val advisories = results.map(_.advisoryFindings.size).sum
-    val total = results.size
-    if (failed == 0 && (!strictQuality || advisories == 0))
-      println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
-      if (advisories > 0)
-        println(s"[corpus] ⚠ Non-blocking advisories: $advisories (run with --strict-quality to fail on advisories).")
-    else
-      if (failed > 0)
-        System.err.println(s"[corpus] ❌ $failed/$total cases failed expectations. Wrote `$outPath`.")
+    val fetchOpeningRef: String => Option[OpeningReference] = fen =>
+      openingExplorerOpt.flatMap { explorer =>
+        try Await.result(explorer.fetchMasters(fen), 4.seconds)
+        catch
+          case NonFatal(e) =>
+            System.err.println(
+              s"[corpus] Advisory: Opening Explorer fetch failed for `${fen.take(32)}...`: ${e.getMessage}"
+            )
+            None
+      }
+
+    try
+      val corpus =
+        readJsonFile(Paths.get(corpusPath)).flatMap(_.validate[Corpus].asEither.left.map(_.toString)) match
+          case Left(err) =>
+            System.err.println(s"[corpus] Failed to read/parse `$corpusPath`:\n$err")
+            sys.exit(2)
+          case Right(c) => c
+
+      val results = corpus.cases.map(runCase(_, fetchOpeningRef))
+      val report  = renderReport(corpusPath, results)
+      writeText(Paths.get(outPath), report)
+
+      val failed   = results.count(!_.passed)
+      val advisories = results.map(_.advisoryFindings.size).sum
+      val total    = results.size
+      val gate     = balancedGate(results)
+      val strictOk = advisories == 0 && gate.passed
+      if failed == 0 && (!strictQuality || strictOk) then
+        println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
+        if advisories > 0 then
+          println(s"[corpus] ⚠ Non-blocking advisories: $advisories (run with --strict-quality to fail on advisories).")
+        if !gate.passed then
+          println(
+            s"[corpus] ⚠ Balanced gate not met: precedentCoverage=${gate.precedentCases}/${gate.totalCases} (target >= ${gate.requiredPrecedentCases}), repeated5gram=${gate.repeatedFivegramViolations} (target 0)."
+          )
       else
-        System.err.println(s"[corpus] ❌ Strict quality mode: advisory findings detected ($advisories). Wrote `$outPath`.")
-      sys.exit(1)
+        if failed > 0 then System.err.println(s"[corpus] ❌ $failed/$total cases failed expectations. Wrote `$outPath`.")
+        else if advisories > 0 then
+          System.err.println(s"[corpus] ❌ Strict quality mode: advisory findings detected ($advisories). Wrote `$outPath`.")
+        else
+          System.err.println(
+            s"[corpus] ❌ Strict quality mode: balanced gate failed (precedentCoverage=${gate.precedentCases}/${gate.totalCases}, required >= ${gate.requiredPrecedentCases}; repeated5gram=${gate.repeatedFivegramViolations}). Wrote `$outPath`."
+          )
+        sys.exit(1)
+    finally
+      wsClientOpt.foreach(_.close())
+      actorSystem.terminate()
 
-  private def runCase(c: CorpusCase): CaseResult =
+  private def runCase(
+      c: CorpusCase,
+      fetchOpeningRef: String => Option[OpeningReference]
+  ): CaseResult =
     val fenOpt = c.analysisFen.orElse:
       for
         start <- c.startFen
-        pre <- c.preMovesUci
+        pre   <- c.preMovesUci
       yield NarrativeUtils.uciListToFen(start, pre)
 
     val baseFailures =
@@ -163,9 +217,10 @@ object BookCommentaryCorpusRunner:
         Option.when(c.variations.isEmpty)("Missing `variations` (need at least 1 PV line).")
       ).flatten
 
-    if (baseFailures.nonEmpty) return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, baseFailures)
+    if baseFailures.nonEmpty then return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, baseFailures)
 
-    val fen = fenOpt.get
+    val fen        = fenOpt.get
+    val openingRef = c.openingRef.orElse(fetchOpeningRef(fen))
 
     val dataOpt =
       try
@@ -201,28 +256,37 @@ object BookCommentaryCorpusRunner:
           NarrativeContextBuilder.build(
             data = data,
             ctx = data.toContext,
+            prevAnalysis = None,
             probeResults = c.probeResults.getOrElse(Nil),
-            openingRef = c.openingRef
+            openingRef = openingRef,
+            prevOpeningRef = None,
+            openingBudget = OpeningEventBudget(),
+            afterAnalysis = None
           )
-        
+
         // Inject virtual motifs for corpus validation
         val enrichedCtx = ctx.copy(
-          semantic = Some(ctx.semantic.getOrElse(lila.llm.model.SemanticSection(Nil, Nil, Nil, None, None, None, Nil, Nil)).copy(
-            conceptSummary = (ctx.semantic.map(_.conceptSummary).getOrElse(Nil) ++ c.virtualMotifs.getOrElse(Nil)).distinct
-          ))
+          semantic = Some(
+            ctx.semantic
+              .getOrElse(lila.llm.model.SemanticSection(Nil, Nil, Nil, None, None, None, Nil, Nil))
+              .copy(
+                conceptSummary =
+                  (ctx.semantic.map(_.conceptSummary).getOrElse(Nil) ++ c.virtualMotifs.getOrElse(Nil)).distinct
+              )
+          )
         )
 
-        val prose = BookStyleRenderer.render(enrichedCtx)
-        val metrics = computeMetrics(prose)
-        val quality = computeQualityMetrics(prose, fen, c.variations)
-        val qualityFindings = qualityFindingsFrom(quality)
+        val prose            = BookStyleRenderer.render(enrichedCtx)
+        val metrics          = computeMetrics(prose)
+        val quality          = computeQualityMetrics(prose, fen, c.variations)
+        val qualityFindings  = qualityFindingsFrom(quality)
         val advisoryFindings = advisoryFindingsFrom(quality)
 
         val outlineOpt =
           try
-            val rec = new TraceRecorder()
-            val (outline, _) = NarrativeOutlineBuilder.build(enrichedCtx, rec)
-            val evidenceBeat = outline.beats.find(_.kind == OutlineBeatKind.Evidence)
+            val rec            = new TraceRecorder()
+            val (outline, _)   = NarrativeOutlineBuilder.build(enrichedCtx, rec)
+            val evidenceBeat   = outline.beats.find(_.kind == OutlineBeatKind.Evidence)
             val evidenceBranches =
               evidenceBeat
                 .map(_.text.linesIterator.map(_.trim).count(_.matches("^[a-z]\\)\\s+.+$")))
@@ -236,8 +300,7 @@ object BookCommentaryCorpusRunner:
                 evidence = evidenceBeat.map(_ => EvidenceMetrics(purpose = evidencePurpose, branches = evidenceBranches))
               )
             )
-          catch
-            case NonFatal(_) => None
+          catch case NonFatal(_) => None
 
         val expectationFailures = c.expect.toList.flatMap(checkExpectations(prose, metrics, outlineOpt, _))
 
@@ -257,11 +320,12 @@ object BookCommentaryCorpusRunner:
     val paras = prose.split("\n\n").iterator.map(_.trim).count(_.nonEmpty)
     Metrics(chars = prose.length, paragraphs = paras)
 
-  private val moveTokenRegex =
-    """(?i)\b(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b""".r
+  private val moveTokenRegex  = """(?i)\b(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b""".r
   private val scoreTokenRegex = """(?i)(?:\([+\-]\d+\.\d\)|\bmate\b|\bcp\b|#[0-9]+)""".r
-  private val tokenRegex = """[A-Za-z][A-Za-z0-9'\-]{1,}""".r
+  private val tokenRegex      = """[A-Za-z][A-Za-z0-9'\-]{1,}""".r
   private val sentenceSplitRegex = """(?<=[\.\!\?])\s+|\n+""".r
+  private val openingPrecedentRegex =
+    """(?i)\bin\s+[A-Za-z][A-Za-z\.\-'\s]+-[A-Za-z][A-Za-z\.\-'\s]+\s+\(\d{4}""".r
 
   private val boilerplateLexicon = List(
     "is another good option",
@@ -279,6 +343,16 @@ object BookCommentaryCorpusRunner:
     "sufficient positional compensation provides sufficient compensation for the material"
   )
 
+  private val regressionTemplatePhrases = List(
+    "is playable in practice, but it asks for careful handling",
+    "remains usable, but the downside is that",
+    "engine-wise **",
+    "this sits around the",
+    "is accurate and consistent with the main plan",
+    "is fully sound and matches the position's demands",
+    "is a workable practical choice, but it leaves little room for imprecision"
+  )
+
   private def computeQualityMetrics(prose: String, fen: String, vars: List[VariationLine]): QualityMetrics =
     val lower = prose.toLowerCase
 
@@ -288,10 +362,16 @@ object BookCommentaryCorpusRunner:
       if tokens.isEmpty then 0.0
       else uniqueTokens.size.toDouble / tokens.size.toDouble
 
-    val sentences = extractSentences(prose)
-    val sentenceNorm = sentences.map(normalizeSentence).filter(_.length >= 8)
+    val trigramCounts         = ngramCounts(tokens, 3)
+    val fourgramCounts        = ngramCounts(tokens, 4)
+    val repeatedTrigramTypes  = trigramCounts.count(_._2 >= 3)
+    val repeatedFourgramTypes = fourgramCounts.count(_._2 >= 2)
+    val maxNgramRepeat        = (trigramCounts.valuesIterator ++ fourgramCounts.valuesIterator).foldLeft(0)(Math.max)
+
+    val sentences           = extractSentences(prose)
+    val sentenceNorm        = sentences.map(normalizeSentence).filter(_.length >= 8)
     val uniqueSentenceCount = sentenceNorm.distinct.size
-    val sentenceCount = sentenceNorm.size
+    val sentenceCount       = sentenceNorm.size
     val uniqueSentenceRatio =
       if sentenceCount == 0 then 1.0
       else uniqueSentenceCount.toDouble / sentenceCount.toDouble
@@ -310,10 +390,11 @@ object BookCommentaryCorpusRunner:
           "structured technical struggle"
         ).map(p => occurrencesOf(lower, p)).sum
 
-    val moveTokenCount = moveTokenRegex.findAllIn(prose).length
+    val moveTokenCount  = moveTokenRegex.findAllIn(prose).length
     val scoreTokenCount = scoreTokenRegex.findAllIn(prose).length
 
-    val anchors = vars.take(3).flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves).headOption).map(_.toLowerCase)
+    val anchors =
+      vars.take(3).flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves).headOption).map(_.toLowerCase)
     val covered = anchors.count(a => lower.contains(a))
     val variationAnchorCoverage =
       if anchors.isEmpty then 1.0
@@ -325,6 +406,11 @@ object BookCommentaryCorpusRunner:
       else if lexicalDiversity < 0.42 then s -= 10
       if uniqueSentenceRatio < 0.70 then s -= 20
       else if uniqueSentenceRatio < 0.82 then s -= 10
+      if repeatedTrigramTypes >= 4 then s -= 10
+      else if repeatedTrigramTypes >= 2 then s -= 6
+      if repeatedFourgramTypes >= 2 then s -= 10
+      else if repeatedFourgramTypes >= 1 then s -= 5
+      if maxNgramRepeat >= 4 then s -= 6
       s -= math.min(24, boilerplateHits * 8)
       s -= math.min(20, mateToneConflictHits * 10)
       if variationAnchorCoverage < 0.34 then s -= 20
@@ -338,6 +424,9 @@ object BookCommentaryCorpusRunner:
       sentenceCount = sentenceCount,
       uniqueSentenceRatio = uniqueSentenceRatio,
       duplicateSentenceCount = duplicateSentenceCount,
+      repeatedTrigramTypes = repeatedTrigramTypes,
+      repeatedFourgramTypes = repeatedFourgramTypes,
+      maxNgramRepeat = maxNgramRepeat,
       boilerplateHits = boilerplateHits,
       mateToneConflictHits = mateToneConflictHits,
       moveTokenCount = moveTokenCount,
@@ -351,6 +440,12 @@ object BookCommentaryCorpusRunner:
       Option.when(q.lexicalDiversity < 0.34)(f"Low lexical diversity: ${q.lexicalDiversity}%.2f"),
       Option.when(q.uniqueSentenceRatio < 0.75)(f"Low sentence uniqueness: ${q.uniqueSentenceRatio}%.2f"),
       Option.when(q.boilerplateHits >= 2)(s"Boilerplate phrase hits: ${q.boilerplateHits}"),
+      Option.when(q.repeatedTrigramTypes >= 4)(
+        s"High repeated trigram patterns: ${q.repeatedTrigramTypes}"
+      ),
+      Option.when(q.repeatedFourgramTypes >= 2)(
+        s"High repeated four-gram patterns: ${q.repeatedFourgramTypes}"
+      ),
       Option.when(q.mateToneConflictHits > 0)(s"Mate-tone conflict hits: ${q.mateToneConflictHits}"),
       Option.when(q.variationAnchorCoverage < 0.50)(f"Low variation anchor coverage: ${q.variationAnchorCoverage}%.2f"),
       Option.when(q.moveTokenCount < 6)(s"Low move-token density: ${q.moveTokenCount}"),
@@ -361,6 +456,12 @@ object BookCommentaryCorpusRunner:
     List(
       Option.when(q.qualityScore < 90)(s"Advisory: quality score below target (90): ${q.qualityScore}"),
       Option.when(q.boilerplateHits >= 1)(s"Advisory: boilerplate phrase present (${q.boilerplateHits})"),
+      Option.when(q.repeatedTrigramTypes >= 2)(
+        s"Advisory: repeated trigram templates present (${q.repeatedTrigramTypes})"
+      ),
+      Option.when(q.repeatedFourgramTypes >= 1)(
+        s"Advisory: repeated four-gram templates present (${q.repeatedFourgramTypes})"
+      ),
       Option.when(q.mateToneConflictHits > 0)(s"Advisory: mate-tone conflict present (${q.mateToneConflictHits})"),
       Option.when(q.lexicalDiversity < 0.70)(f"Advisory: lexical diversity soft-low: ${q.lexicalDiversity}%.2f")
     ).flatten
@@ -383,6 +484,9 @@ object BookCommentaryCorpusRunner:
     if needle.isEmpty then 0
     else haystack.sliding(needle.length).count(_ == needle)
 
+  private def precedentMentionCount(prose: String): Int =
+    openingPrecedentRegex.findAllMatchIn(prose).length
+
   private def checkExpectations(
       prose: String,
       metrics: Metrics,
@@ -404,8 +508,10 @@ object BookCommentaryCorpusRunner:
         Option.unless(text.contains(token.toLowerCase))(s"""mustContain failed: "$token"""")
       }
 
+    val effectiveMustNotContain = (e.mustNotContain ++ regressionTemplatePhrases).distinct
+
     val mustNotContainFails =
-      e.mustNotContain.flatMap { token =>
+      effectiveMustNotContain.flatMap { token =>
         Option.when(text.contains(token.toLowerCase))(s"""mustNotContain failed: "$token"""")
       }
 
@@ -453,22 +559,43 @@ object BookCommentaryCorpusRunner:
     List(minCharsFail, minParasFail, minBeatsFail, minEvidenceBranchesFail).flatten ++
       mustContainFails ++ mustNotContainFails ++ mustHaveBeatsFail ++ mustNotHaveBeatsFail ++ mustHaveEvidencePurposesFail
 
+  private def balancedGate(results: List[CaseResult]): BalancedGateStatus =
+    val totalCases = results.size
+    val precedentCases = results.count(_.prose.exists(precedentMentionCount(_) > 0))
+    val requiredPrecedentCases =
+      if totalCases <= 0 then 0
+      else Math.ceil(totalCases.toDouble * 0.8).toInt
+    val repeatedFivegramViolations =
+      repeatedNgramsAcrossCases(results, n = 5, minCases = 4).size
+
+    BalancedGateStatus(
+      totalCases = totalCases,
+      precedentCases = precedentCases,
+      requiredPrecedentCases = requiredPrecedentCases,
+      repeatedFivegramViolations = repeatedFivegramViolations
+    )
+
   private def renderReport(corpusPath: String, results: List[CaseResult]): String =
     val sb = new StringBuilder()
 
-    val total = results.size
-    val failed = results.count(!_.passed)
-    val passed = total - failed
-    val qualityList = results.flatMap(_.quality)
-    val avgQuality = average(qualityList.map(_.qualityScore.toDouble))
-    val avgLexical = average(qualityList.map(_.lexicalDiversity))
+    val total             = results.size
+    val failed            = results.count(!_.passed)
+    val passed            = total - failed
+    val qualityList       = results.flatMap(_.quality)
+    val avgQuality        = average(qualityList.map(_.qualityScore.toDouble))
+    val avgLexical        = average(qualityList.map(_.lexicalDiversity))
     val avgAnchorCoverage = average(qualityList.map(_.variationAnchorCoverage))
-    val lowQualityCases = results.filter(_.quality.exists(_.qualityScore < 70))
-    val advisoryCases = results.filter(_.advisoryFindings.nonEmpty)
-    val advisoryCount = results.map(_.advisoryFindings.size).sum
+    val lowQualityCases   = results.filter(_.quality.exists(_.qualityScore < 70))
+    val advisoryCases     = results.filter(_.advisoryFindings.nonEmpty)
+    val advisoryCount     = results.map(_.advisoryFindings.size).sum
+    val precedentMentions = results.flatMap(_.prose).map(precedentMentionCount).sum
+    val precedentCases    = results.count(_.prose.exists(precedentMentionCount(_) > 0))
+    val gate              = balancedGate(results)
 
     val crossCaseSentenceMap = repeatedSentencesAcrossCases(results)
     val topRepeatedSentences = crossCaseSentenceMap.toList.sortBy((_, c) => -c).take(12)
+    val crossCaseFivegramMap = repeatedNgramsAcrossCases(results, n = 5, minCases = 4)
+    val topRepeatedFivegrams = crossCaseFivegramMap.toList.sortBy((_, c) => -c).take(16)
 
     sb.append("# Book Commentary Corpus Report\n\n")
     sb.append(s"- Corpus: `$corpusPath`\n")
@@ -478,6 +605,10 @@ object BookCommentaryCorpusRunner:
       sb.append(f"- Avg quality score: $avgQuality%.1f / 100\n")
       sb.append(f"- Avg lexical diversity: $avgLexical%.3f\n")
       sb.append(f"- Avg variation-anchor coverage: $avgAnchorCoverage%.3f\n")
+      sb.append(s"- Opening precedent mentions: $precedentMentions across $precedentCases/$total cases\n")
+      sb.append(
+        s"- Balanced gate: ${if gate.passed then "PASS" else "FAIL"} (repeated 5-gram [4+ cases]=${gate.repeatedFivegramViolations}, target=0; precedent coverage=${gate.precedentCases}/${gate.totalCases}, target>=${gate.requiredPrecedentCases})\n"
+      )
       sb.append(s"- Low-quality cases (<70): ${lowQualityCases.size}\n")
       if lowQualityCases.nonEmpty then
         sb.append("- Case IDs: ")
@@ -493,6 +624,13 @@ object BookCommentaryCorpusRunner:
           sb.append(s"""- [$n cases] "$s"\n""")
         }
         sb.append("\n")
+      if topRepeatedFivegrams.isEmpty then sb.append("- No 5-gram pattern repeated across 4+ cases.\n\n")
+      else
+        sb.append("### Repeated 5-gram Patterns\n\n")
+        topRepeatedFivegrams.foreach { (s, n) =>
+          sb.append(s"""- [$n cases] "$s"\n""")
+        }
+        sb.append("\n")
 
     results.foreach { r =>
       sb.append(s"## ${r.c.id}: ${r.c.title}\n\n")
@@ -500,11 +638,14 @@ object BookCommentaryCorpusRunner:
       sb.append(s"- `playedMove`: `${r.c.playedMove}`\n")
       r.fen.foreach(f => sb.append(s"- `analysisFen`: `$f`\n"))
       r.metrics.foreach { m => sb.append(s"- Metrics: ${m.chars} chars, ${m.paragraphs} paragraphs\n") }
+      r.prose.foreach(p => sb.append(s"- Precedent mentions: ${precedentMentionCount(p)}\n"))
       r.quality.foreach { q =>
         sb.append(
           f"- Quality: score=${q.qualityScore}%d/100, lexical=${q.lexicalDiversity}%.3f, uniqueSent=${q.uniqueSentenceRatio}%.3f, anchorCoverage=${q.variationAnchorCoverage}%.3f\n"
         )
-        sb.append(s"- Quality details: sentences=${q.sentenceCount}, dup=${q.duplicateSentenceCount}, boilerplate=${q.boilerplateHits}, mateToneConflict=${q.mateToneConflictHits}, moveTokens=${q.moveTokenCount}, scoreTokens=${q.scoreTokenCount}\n")
+        sb.append(
+          s"- Quality details: sentences=${q.sentenceCount}, dup=${q.duplicateSentenceCount}, triRepeat=${q.repeatedTrigramTypes}, fourRepeat=${q.repeatedFourgramTypes}, maxNgramRepeat=${q.maxNgramRepeat}, boilerplate=${q.boilerplateHits}, mateToneConflict=${q.mateToneConflictHits}, moveTokens=${q.moveTokenCount}, scoreTokens=${q.scoreTokenCount}\n"
+        )
       }
       if r.qualityFindings.nonEmpty then
         sb.append("- Quality findings:\n")
@@ -513,7 +654,7 @@ object BookCommentaryCorpusRunner:
         sb.append("- Advisory findings:\n")
         r.advisoryFindings.foreach(f => sb.append(s"  - $f\n"))
       r.outline.foreach { o =>
-        val kinds = if (o.kinds.nonEmpty) o.kinds.mkString(", ") else "-"
+        val kinds = if o.kinds.nonEmpty then o.kinds.mkString(", ") else "-"
         sb.append(s"- Outline: ${o.beats} beats ($kinds)\n")
         o.evidence.foreach { e =>
           val p = e.purpose.getOrElse("-")
@@ -521,10 +662,9 @@ object BookCommentaryCorpusRunner:
         }
       }
 
-      if (r.failures.nonEmpty) {
+      if r.failures.nonEmpty then
         sb.append("- Failures:\n")
         r.failures.foreach(f => sb.append(s"  - $f\n"))
-      }
 
       r.c.referenceExcerpt.foreach { ex =>
         sb.append("\n**Reference excerpt (for human comparison)**\n\n")
@@ -559,6 +699,26 @@ object BookCommentaryCorpusRunner:
       .filter(_._2 >= 3)
       .toMap
 
+  private def repeatedNgramsAcrossCases(results: List[CaseResult], n: Int, minCases: Int): Map[String, Int] =
+    val perCaseNgramSets = results.flatMap(_.prose).map { prose =>
+      val tokens = tokenRegex.findAllIn(prose.toLowerCase).map(_.trim).filter(_.length >= 3).toList
+      ngrams(tokens, n).toSet
+    }
+    perCaseNgramSets
+      .flatten
+      .groupBy(identity)
+      .view
+      .mapValues(_.size)
+      .filter(_._2 >= minCases)
+      .toMap
+
+  private def ngramCounts(tokens: List[String], n: Int): Map[String, Int] =
+    ngrams(tokens, n).groupBy(identity).view.mapValues(_.size).toMap
+
+  private def ngrams(tokens: List[String], n: Int): List[String] =
+    if n <= 0 || tokens.lengthCompare(n) < 0 then Nil
+    else tokens.sliding(n).map(_.mkString(" ")).toList
+
   private def average(xs: List[Double]): Double =
     if xs.isEmpty then 0.0
     else xs.sum / xs.size
@@ -567,8 +727,7 @@ object BookCommentaryCorpusRunner:
     try
       val raw = Files.readString(path, StandardCharsets.UTF_8)
       Right(Json.parse(raw))
-    catch
-      case NonFatal(e) => Left(e.toString)
+    catch case NonFatal(e) => Left(e.toString)
 
   private def writeText(path: Path, text: String): Unit =
     Files.writeString(path, text, StandardCharsets.UTF_8)

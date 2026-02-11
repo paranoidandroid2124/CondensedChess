@@ -43,9 +43,9 @@ STRATEGIC: Target: c4 (Weak complex (White)); Target: e5 (Weak square); Target: 
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) b3! (Positional maneuvering, clean)
+a) b3 (Positional maneuvering, clean)
 b) Bd2 (competitive alternative) (Positional maneuvering, clean) — verified as a strong alternative
-c) cxd5 (tactical attempt) (Pawn break, clean) — refuted: exd5 is a clear answer (Lost center control)
+c) cxd5?! (tactical attempt) (Pawn break, clean) — refuted: exd5 is a clear answer (Lost center control)
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • tension_53c63f6a: Probing moves [d4c5, c3d5] at depth 20

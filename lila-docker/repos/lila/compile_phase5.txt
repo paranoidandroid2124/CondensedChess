@@ -1,0 +1,27 @@
+[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16989 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] Executing in batch mode. For better performance use sbt's shell
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\ui\target\scala-3.7.4\classes ...
+[info] done compiling
+[info] compiling 1 Scala source to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\analyse\target\scala-3.7.4\classes ...
+[info] done compiling
+[info] compiling 4 Scala sources to C:\Codes\CondensedChess\lila-docker\repos\lila\target\scala-3.7.4\classes ...
+[error] -- [E134] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\app\controllers\AnalystProPlan.scala:11:14 
+[error] 11 |  def index = Auth: ctx =>
+[error]    |              ^^^^
+[error]    |None of the overloaded alternatives of method Auth in class LilaController with types
+[error]    | [A]
+[error]    |  (parser: play.api.mvc.BodyParser[A])
+[error]    |    (f: (lila.app.Context) ?=> (lila.app.Me) ?=>
+[error]    |      scala.concurrent.Future[play.api.mvc.Result]):
+[error]    |      play.api.mvc.EssentialAction
+[error]    | (f: (lila.app.Context) ?=> (lila.app.Me) ?=>
+[error]    |  scala.concurrent.Future[play.api.mvc.Result]): play.api.mvc.EssentialAction
+[error]    |match arguments (<?> => <?>)
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+[error] Total time: 45 s, completed 2026. 2. 11. 오후 4:10:28

@@ -76,3 +76,64 @@ class NarrativeLexiconQualityTest extends FunSuite:
   test("annotation positive is not overhyped"):
     val text = NarrativeLexicon.getAnnotationPositive(bead = 5, playedSan = "Nf3").toLowerCase
     assert(!text.contains("excellent choice"))
+
+  test("opening lead rotates across adjacent plies with same seed"):
+    val p20 = NarrativeLexicon.getOpening(
+      bead = 77,
+      phase = "middlegame",
+      evalText = "White has a small pull.",
+      tactical = false,
+      ply = 20
+    )
+    val p21 = NarrativeLexicon.getOpening(
+      bead = 77,
+      phase = "middlegame",
+      evalText = "White has a small pull.",
+      tactical = false,
+      ply = 21
+    )
+    assertNotEquals(p20, p21)
+
+  test("opening lead and angle start with sentence case"):
+    val text = NarrativeLexicon.getOpening(
+      bead = 91,
+      phase = "opening",
+      evalText = "The position is roughly balanced.",
+      tactical = false,
+      ply = 6
+    )
+    val parts = text.split("\\.\\s+").toList.filter(_.nonEmpty)
+    assert(parts.nonEmpty)
+    assert(parts.head.head.isUpper)
+    if parts.size >= 2 then assert(parts(1).head.isUpper)
+
+  test("motif prefix rotates phrasing across adjacent plies"):
+    val m10 = NarrativeLexicon.getMotifPrefix(bead = 31, motifs = List("deflection"), ply = 10)
+    val m11 = NarrativeLexicon.getMotifPrefix(bead = 31, motifs = List("deflection"), ply = 11)
+    assert(m10.nonEmpty)
+    assert(m11.nonEmpty)
+    assertNotEquals(m10, m11)
+
+  test("motif prefix signal detector matches prefix families"):
+    val positives = List("OpenFile", "StalemateTrap", "RookOnSeventh", "pawnBreak", "GreekGift", "skewerQueen")
+    positives.foreach(m => assert(NarrativeLexicon.isMotifPrefixSignal(m), m))
+
+    val negatives = List("quiet_move", "simple_development", "waiting_move")
+    negatives.foreach(m => assert(!NarrativeLexicon.isMotifPrefixSignal(m), m))
+
+  test("precedent mechanism line rotates wording without collapsing to one stem"):
+    val lines = (0 until 24).map { bead =>
+      NarrativeLexicon.getPrecedentMechanismLine(
+        bead = bead + 17,
+        triggerMove = "Na4",
+        replyMove = Some("Rab1"),
+        pivotMove = Some("Rc5"),
+        mechanism = "ExchangeCascade"
+      )
+    }
+    val normalized =
+      lines
+        .map(_.toLowerCase.replaceAll("""[^a-z\s]""", " ").replaceAll("""\s+""", " ").trim)
+        .map(_.split(" ").take(6).mkString(" "))
+        .toSet
+    assert(normalized.size >= 4)

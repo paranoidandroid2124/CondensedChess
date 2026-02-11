@@ -34,6 +34,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
   )(using ctx: Context): Page =
     Page("Analysis")
       .css("analyse.free")
+      .css("llm.widget")
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(withForecast.option("analyse.forecast"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))

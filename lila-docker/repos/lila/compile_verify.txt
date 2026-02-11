@@ -1,0 +1,150 @@
+[info] welcome to sbt 1.11.7 (Eclipse Adoptium Java 21.0.9)
+[info] loading settings for project lila-build from plugins.sbt...
+[info] loading project definition from C:\Codes\CondensedChess\lila-docker\repos\lila\project
+[info] loading settings for project lila from build.sbt...
+[info] resolving key references (16989 settings) ...
+[info] set current project to lila (in build file:/C:/Codes/CondensedChess/lila-docker/repos/lila/)
+[info] compiling 14 Scala sources to C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\target\scala-3.7.4\classes ...
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\Env.scala:15:59 
+[error] 15 |  lazy val geminiClient    = GeminiClient(ws, geminiConfig)
+[error]    |                                                           ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\Env.scala:18:44 
+[error] 18 |  lazy val commentaryCache = CommentaryCache()
+[error]    |                                            ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\Env.scala:22:54 
+[error] 22 |  lazy val creditApi           = CreditApi(creditColl)
+[error]    |                                                      ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\Env.scala:26:79 
+[error] 26 |  lazy val api: LlmApi = LlmApi(openingExplorer, geminiClient, commentaryCache)
+[error]    |                                                                               ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\scala\lila\llm\tools\BookmakerLiveSmokeTest.scala:39:55 
+[error] 39 |      val geminiClient = GeminiClient(ws, geminiConfig)
+[error]    |                                                       ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\scala\lila\llm\tools\BookmakerLiveSmokeTest.scala:40:43 
+[error] 40 |      val commentaryCache = CommentaryCache()
+[error]    |                                           ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] -- [E172] Type Error: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\llm\src\main\scala\lila\llm\tools\BookmakerLiveSmokeTest.scala:41:63 
+[error] 41 |      val api = LlmApi(explorer, geminiClient, commentaryCache)
+[error]    |                                                               ^
+[error]    |Cannot find an implicit ExecutionContext. You might add
+[error]    |an (implicit ec: ExecutionContext) parameter to your method.
+[error]    |
+[error]    |The ExecutionContext is used to configure how and on which
+[error]    |thread pools asynchronous tasks (such as Futures) will run,
+[error]    |so the specific ExecutionContext that is selected is important.
+[error]    |
+[error]    |If your application does not define an ExecutionContext elsewhere,
+[error]    |consider using Scala's global ExecutionContext by defining
+[error]    |the following:
+[error]    |
+[error]    |implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+[error]    |
+[error]    |The following import might fix the problem:
+[error]    |
+[error]    |  import akka.actor.TypedActor.dispatcher
+[error]    |
+[error] 7 errors found
+[error] (llm / Compile / compileIncremental) Compilation failed
+[error] Total time: 15 s, completed 2026. 2. 11. 오후 1:11:00

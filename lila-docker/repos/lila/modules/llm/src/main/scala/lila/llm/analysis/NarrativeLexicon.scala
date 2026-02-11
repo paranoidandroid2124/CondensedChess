@@ -37,6 +37,71 @@ object NarrativeLexicon {
       case None => s"The game ended in a draw. Both sides missed opportunities to tip the balance, with themes like ${themes.mkString(", ")} emerging."
     }
 
+  def momentBlockLead(bead: Int, phase: String, momentType: String, ply: Int): String = {
+    val p = Option(phase).getOrElse("").trim.toLowerCase
+    val m = Option(momentType).getOrElse("").trim.toLowerCase
+    val phaseLabel =
+      p match {
+        case s if s.contains("opening")    => "opening block"
+        case s if s.contains("endgame")    => "endgame block"
+        case s if s.contains("middlegame") => "middlegame block"
+        case _                             => "critical game block"
+      }
+
+    val templates =
+      if (m.contains("opening")) List(
+        s"In the $phaseLabel around ply $ply, opening choices start to define the long-term plans.",
+        s"This $phaseLabel near ply $ply marks where theory gives way to independent decisions."
+      )
+      else if (m.contains("mate")) List(
+        s"Around ply $ply, this $phaseLabel turns into a forcing tactical sequence.",
+        s"The $phaseLabel near ply $ply becomes concrete: mating motifs now drive the evaluation."
+      )
+      else if (m.contains("blunder") || m.contains("missedwin") || m.contains("swing")) List(
+        s"The $phaseLabel around ply $ply is a genuine turning point in the game.",
+        s"Around ply $ply, this $phaseLabel creates a decisive shift in practical control."
+      )
+      else if (m.contains("pressure") || m.contains("tension")) List(
+        s"This $phaseLabel near ply $ply is defined by cumulative pressure and move-order accuracy.",
+        s"Around ply $ply, the $phaseLabel remains balanced but highly tension-sensitive."
+      )
+      else List(
+        s"In this $phaseLabel around ply $ply, the game's key practical choices become clear.",
+        s"Around ply $ply, this $phaseLabel frames the next strategic decisions."
+      )
+
+    pick(bead ^ 0x5f356495, templates)
+  }
+
+  def hybridBridge(
+    bead: Int,
+    phase: String,
+    primaryPlan: Option[String],
+    tacticalPressure: Boolean,
+    cpWhite: Option[Int],
+    ply: Int = 0
+  ): String = {
+    val phaseText = Option(phase).getOrElse("").trim.toLowerCase
+    val planText = primaryPlan.map(_.replaceAll("""[_\-]+""", " ").trim).filter(_.nonEmpty)
+    val evalHint = cpWhite.map(cp => evalOutcomeClauseFromCp(bead ^ 0x7f4a7c15, cp, ply = ply))
+
+    val strategicTemplates = List(
+      s"Strategically, this phase rewards a coherent plan${planText.map(p => s" around $p").getOrElse("")}.",
+      s"The strategic task is to coordinate pieces and structure${planText.map(p => s" so that $p can be executed").getOrElse("")}."
+    )
+    val tacticalTemplates = List(
+      s"At the same time, tactical accuracy is mandatory because forcing resources are close to the surface.",
+      s"Concrete calculation now matters as much as planning, since one tempo can change the balance."
+    )
+    val phaseHint =
+      if (phaseText.contains("endgame")) Some("Technical precision in the ending is now a major practical factor.")
+      else None
+
+    val base = if (tacticalPressure) pick(bead ^ 0x6d2b79f5, tacticalTemplates) else pick(bead ^ 0x517cc1b7, strategicTemplates)
+    val withPhase = phaseHint.map(h => s"$base $h").getOrElse(base)
+    evalHint.map(e => s"$withPhase $e.").getOrElse(withPhase)
+  }
+
   def intent(bead: Int, move: String, plan: String, style: Style = Style.Book): String = {
     val templates = style match {
       case Style.Dramatic => Seq(
@@ -59,16 +124,8 @@ object NarrativeLexicon {
     pick(bead, templates)
   }
 
-  def scoreDiffAdjective(bead: Int, scoreDiff: Int): String = {
-    val absDiff = scoreDiff.abs
-    val adj = if (absDiff > 500) Seq("crushing", "decisive", "hopeless", "devastating")
-              else if (absDiff > 200) Seq("significant", "clear", "dangerous", "unpleasant")
-              else if (absDiff > 50) Seq("slight", "noticeable", "nagging", "tangible")
-              else Seq("minimal", "negligible", "unclear", "balanced")
-    pick(bead, adj)
-  }
-
   def intro(bead: Int, nature: String, tension: Double, style: Style = Style.Book): String = {
+    val tensionHint = if tension >= 0.7 then "high-tension" else "complex"
     val templates = style match {
       case Style.Coach => Seq(
         s"Pause here. The position is $nature, with high tension. How would you proceed?",
@@ -80,12 +137,12 @@ object NarrativeLexicon {
         s"The board is ablaze! A chaotic $nature battle.",
         s"Tension spikes in this $nature thriller.",
         s"A clash of wills in a sharp $nature landscape.",
-        s"No room for error in this high-octane $nature struggle."
+        s"No room for slow play in this high-octane $nature struggle."
       )
       case _ => Seq( // "Shankland" Standard: Contextual & Professional
         s"The position has taken on a $nature character.",
         s"We have reached a complex $nature middlegame.",
-        s"The struggle is defined by its $nature nature.",
+        s"The struggle is defined by its $tensionHint $nature nature.",
         s"Strategic complexity increases in this $nature position."
       )
     }
@@ -155,7 +212,7 @@ object NarrativeLexicon {
       case Style.Dramatic => Seq(
         s"$move looks tempting, but $reply shuts it down completely ($outcome).",
         s"Disaster awaits after $move due to the crushing $reply ($outcome).",
-        s"A single slip—$move—allows $reply, ending the resistance ($outcome)."
+        s"A single tempo loss with $move allows $reply, ending the resistance ($outcome)."
       )
       case _ => Seq( // "Shankland" Standard: Analytical & Educational
         s"$move fails due to the precise response $reply ($outcome).",
@@ -171,594 +228,320 @@ object NarrativeLexicon {
   // 1.5. HUMAN TOUCH: PSYCHOLOGY & CONCESSION (New Phase 6.5)
   // ===========================================================================
 
-  def getJudgment(bead: Int, context: String): String = {
-    val templates = context match {
-      case "risky" => Seq("ambitious but loose", "creating unnecessary complications", "provocative")
-      case "solid" => Seq("principled", "structurally sound", "pragmatic")
-      case "lazy" => Seq("lazy", "automatic", "superficial")
-      case "greedy" => Seq("materialistic", "greedy", "shortsighted")
-      case _ => Seq("interesting", "notable", "complex")
-    }
-    pick(bead, templates)
-  }
-
-  def getUrgency(bead: Int): String = pick(bead, Seq(
-    "cannot afford to wait",
-    "must act immediately",
-    "has no time for slow maneuvers",
-    "needs to act with urgency"
-  ))
-
-  def getConcession(bead: Int, move: String): String = pick(bead, Seq(
-    s"It is true that $move looks natural,",
-    s"Admittedly, $move seems sufficient,",
-    s"While $move is the standard response,",
-    s"On the surface, $move appears strong,"
-  ))
-
-  def getRebuttal(bead: Int, problem: String): String = pick(bead, Seq(
-    s"however, it fails to address $problem.",
-    s"but it ignores the tactical reality of $problem.",
-    s"yet this leaves the position vulnerable to $problem.",
-    s"nevertheless, the underlying issue of $problem remains."
-  ))
-
-  def getHypothetical(bead: Int, move: String, consequence: String): String = pick(bead, Seq(
-    s"Had they played $move, $consequence would have followed.",
-    s"If $move, then $consequence decides the game.",
-    s"The alternative $move runs into $consequence."
-  ))
-
-  // ===========================================================================
-  // 1. OPENING / CONTEXT SETTERS
-  // ===========================================================================
-  
   def getOpening(bead: Int, phase: String, evalText: String, tactical: Boolean = false, ply: Int = 0): String = {
     val p = phase.toLowerCase
     val localSeed = bead ^ (ply * 0x45d9f3b)
-    val templates = (p, evalText) match {
-      case ("opening", _) => List(
-          s"${if tactical then "The opening has turned tactical quickly" else "The opening phase is still fluid"}. $evalText.",
-          s"${if tactical then "Early tactical motifs are already on the board" else "Early skirmishes are shaping the plans"}. $evalText.",
-          s"${if tactical then "Development now intersects with concrete calculation" else "Development remains the first priority"}. $evalText.",
-          s"${if tactical then "Both kings still need care as the position sharpens" else "Piece coordination and development are still in progress"}. $evalText.",
-          s"${if tactical then "The opening is already testing tactical accuracy" else "It is early, but the strategic contours are visible"}. $evalText.",
-          s"${if tactical then "Opening choices now can trigger forcing sequences" else "Opening play continues, with piece activity at a premium"}. $evalText.",
-          s"${if tactical then "This opening has moved beyond quiet setup ideas" else "The game is still in opening channels"}. $evalText.",
-          s"${if tactical then "The initial deployment phase is still active despite tactical tension" else "The initial deployment phase is not over yet"}. $evalText.",
-          s"${if tactical then "Opening decisions now can immediately shape tactical outcomes" else "Opening decisions now will define the middlegame plan"}. $evalText."
-      )
-      case ("middlegame", _) => List(
-          s"The game transitions into a complex middlegame. $evalText.",
-          s"Middlegame complications begin to arise. $evalText.",
-          s"We are now in the middlegame phase. $evalText.",
-          s"The middlegame is underway. $evalText.",
-          s"This is a full middlegame now. $evalText.",
-          s"Plans and tactics start to bite. $evalText."
-      )
-      case ("endgame", _) => List( // "Shankland" Standard: Technical & Precise
-          s"The position simplifies into an endgame. $evalText.",
-          s"In this endgame, piece activity is paramount. $evalText.",
-          s"Precision is required in this endgame. $evalText.",
-          s"We are firmly in endgame territory. $evalText.",
-          s"Endgame technique will decide a lot here. $evalText.",
-          s"Small details matter in this endgame. $evalText."
-      )
-      case _ => List(
-          s"The position requires careful handling. $evalText.",
-          s"It is a critical moment. $evalText.",
-          s"This is a position that rewards accuracy. $evalText.",
-          s"Both sides need to be careful here. $evalText."
-      )
+
+    val (leadPool, anglePool) = p match {
+      case "opening" if tactical =>
+        (
+          List(
+            "Opening choices are already forcing concrete decisions",
+            "The opening has turned tactical quickly",
+            "Development now intersects with concrete calculation",
+            "The opening is already testing tactical accuracy",
+            "Early tactical motifs are now dictating move-order",
+            "The opening phase now demands concrete tactical precision",
+            "Even development moves now carry immediate tactical weight",
+            "The opening has become a calculation-heavy phase"
+          ),
+          List(
+            "both kings still need careful handling",
+            "piece placement and tactics are now intertwined",
+            "one tempo can trigger forcing play",
+            "there is little room for slow setup moves",
+            "every developing move now has tactical consequences",
+            "initiative can swing on one inaccurate developing move",
+            "move-order slips can immediately invite tactical punishment",
+            "both sides must calculate before committing to development",
+            "one inaccurate developing move can concede practical control"
+          )
+        )
+      case "opening" =>
+        (
+          List(
+            "The opening phase is still fluid",
+            "Opening development is still in progress",
+            "The game remains in opening channels",
+            "This is still an opening structure",
+            "Early plans are still being defined",
+            "Opening priorities are still being negotiated move by move",
+            "Development goals are clear, but the structure is still flexible",
+            "The position remains in a developmental opening stage"
+          ),
+          List(
+            "piece coordination remains central",
+            "central tension is still unresolved",
+            "move-order precision matters more than forcing lines",
+            "both sides are balancing development and structure",
+            "the middlegame plans are only now taking shape",
+            "central commitments are still being timed with care",
+            "small developmental choices can still reshape the structure",
+            "neither side wants to clarify the center too early"
+          )
+        )
+      case "middlegame" =>
+        (
+          List(
+            "The middlegame has fully started",
+            "Plans and tactics now bite at every move",
+            "This is a concrete middlegame fight",
+            "Middlegame complexity is now front and center",
+            "The game has moved into a tactical-strategic mix",
+            "Middlegame priorities now hinge on concrete calculation",
+            "The position now demands active middlegame decision-making",
+            "This middlegame phase rewards concrete, well-timed choices"
+          ),
+          List(
+            "piece coordination and king safety both matter",
+            "move-order nuance can shift practical control",
+            "small structural concessions become long-term targets",
+            "initiative and defensive resources are closely balanced",
+            "automatic play is dangerous in this position",
+            "routine moves can quickly backfire here",
+            "small inaccuracies can hand over momentum immediately",
+            "both sides must balance activity with king safety at each step",
+            "practical control can change after a single move-order slip"
+          )
+        )
+      case "endgame" =>
+        (
+          List(
+            "The position has simplified into an endgame",
+            "This is a technical endgame phase",
+            "Endgame details now dominate the game",
+            "We are firmly in endgame territory",
+            "The game has entered a conversion-oriented endgame",
+            "The struggle has shifted into technical endgame play",
+            "This phase is now about endgame conversion technique",
+            "Endgame precision now outweighs broad strategic plans"
+          ),
+          List(
+            "king activity and tempi become decisive",
+            "piece activity outweighs broad strategic plans",
+            "pawn-structure details carry extra weight",
+            "precision matters more than ambition here",
+            "one tempo can decide the technical outcome",
+            "minor king-route details can decide the evaluation",
+            "the evaluation now depends on accurate technical handling",
+            "practical endgame technique matters more than broad plans"
+          )
+        )
+      case _ =>
+        (
+          List(
+            "The position requires careful handling",
+            "This is a critical decision point",
+            "Accuracy is heavily rewarded here",
+            "Both sides must stay precise"
+          ),
+          List(
+            "the next move can redefine the practical balance",
+            "coordination and calculation are both under pressure",
+            "the position is less stable than it first appears",
+            "a small imbalance can have outsized consequences"
+          )
+        )
     }
-    pick(localSeed, templates)
+
+    val lead = sentenceCase(pickWithPlyRotation(localSeed ^ 0x517cc1b7, ply, leadPool))
+    val angle = sentenceCase(pickWithPlyRotation(localSeed ^ 0x6d2b79f5, ply + 1, anglePool))
+    s"${punctuate(lead)} ${punctuate(angle)} $evalText."
   }
 
-  def getEndgameContext(bead: Int, context: String, evalText: String): String = {
-    val templates = context.toLowerCase match {
-      case s if s.contains("pawn race") => List(
-          s"A sharp pawn race unfolds. $evalText.",
-          s"Both sides race to promote. $evalText.",
-          s"It comes down to a race of passed pawns. $evalText."
-      )
-      case s if s.contains("zugzwang") => List(
-          s"The opponent is in zugzwang. $evalText.",
-          s"A textbook zugzwang position. $evalText.",
-          s"Black is running out of useful moves. $evalText."
-      )
-      case s if s.contains("outside passed pawn") => List(
-          s"The outside passed pawn is decisive. $evalText.",
-          s"White creates a decisive outside passed pawn. $evalText.",
-          s"The distant passed pawn ties down the opponent. $evalText."
-      )
-       case s if s.contains("wrong bishop") => List(
-          s"A theoretical draw due to the wrong bishop. $evalText.",
-          s"Despite the material advantage, it's a wrong bishop draw. $evalText.",
-          s"The bishop cannot control the promotion square. $evalText."
-      )
-      case _ => List(
-          s"Endgame technique will be key. $evalText."
-      )
-    }
-    pick(bead, templates)
-  }
-
-  def getOpposition(bead: Int, isDirect: Boolean): String = {
-    if (isDirect) {
-      pick(bead, List(
-        "securing direct opposition",
-        "taking direct opposition",
-        "winning the opposition",
-        "dominating through direct opposition"
-      ))
-    } else {
-      pick(bead, List(
-        "gaining distant opposition",
-        "maintaining distant opposition",
-        "jockeying for opposition",
-        "controlling the long-range opposition"
-      ))
-    }
-  }
-
-  def getKingActivity(bead: Int, mobility: Int): String = {
-    if (mobility >= 5) {
-      pick(bead, List(
-        "activating the king for the final phase",
-        "bringing the king into the battle",
-        "centralizing the king decisively",
-        "marching the king forward"
-      ))
-    } else {
-      pick(bead, List(
-        "improving king activity",
-        "gradually activating the king",
-        "nudging the king toward the center",
-        "beginning the king's central march"
-      ))
-    }
-  }
-
-  def getZugzwang(bead: Int): String = {
-    pick(bead, List(
-      "ZUGZWANG! Any move worsens the position",
-      "caught in a squeeze, with no safe moves",
-      "suffering from a total lack of constructive options",
-      "in zugzwang, where inactivity is the only move"
-    ))
-  }
-
-  def getPawnPromotion(bead: Int, role: Option[Role]): String = {
-    role match {
-      case Some(Queen) => pick(bead, List("pushing for a new queen", "threatening immediate promotion", "marching toward glory"))
-      case Some(_) => pick(bead, List("preparing an underpromotion", "pushing the passed pawn"))
-      case None => pick(bead, List("advancing the passed pawn", "creating immediate promotion threats"))
-    }
-  }
-
-  def getDoubleCheck(bead: Int): String = {
-    pick(bead, List(
-      "unleashing a devastating double check",
-      "firing from two sides at once",
-      "creating a double check that paralyzes the defense"
-    ))
-  }
-
-  def getStalemate(bead: Int): String = {
-    pick(bead, List(
-      "looking for a desperate stalemate",
-      "setting a stalemate trap",
-      "clinging to hope through stalemate"
-    ))
-  }
-
-  // Phase 24: High-Level Strategic Concepts
-  def getPawnStorm(bead: Int, flank: String): String = {
-    pick(bead, List(
-      s"A pawn storm on the $flank forces the opponent to react.",
-      s"The rolling $flank pawn majority creates serious cramping issues.",
-      s"An aggressive pawn expansion on the $flank dictates play."
-    ))
-  }
-
-  def getHangingPawns(bead: Int, squares: String): String = {
-    pick(bead, List(
-      s"The hanging pawns on $squares require constant vigilance.",
-      s"While the hanging pawns control space, they remain potential targets.",
-      s"The dynamic hanging pawn duo offers both attacking chances and structural liability."
-    ))
-  }
-
-
-
-  def getMinorityAttack(bead: Int, flank: String): String = {
-    pick(bead, List(
-      s"The minority attack on the $flank seeks to create structural weaknesses.",
-      s"A minority attack is underway on the $flank to undermine the pawn chain.",
-      s"Pressuring the $flank via a minority attack is the correct long-term plan."
-    ))
-  }
-
-  // Phase 25: Knight Motifs
-  def getDomination(bead: Int, domPiece: Role, victim: Role): String = {
-    pick(bead, List(
-      s"completely dominating the ${victim.name} with the ${domPiece.name}",
-      s"paralyzing the ${victim.name} via the ${domPiece.name}",
-      s"exerting a crushing grip on the ${victim.name} with the ${domPiece.name}"
-    ))
-  }
-
-  def getManeuver(bead: Int, piece: Role, purpose: String): String = {
-    purpose match {
-      case "rerouting" => pick(bead, List(
-        s"rerouting the ${piece.name} to a more active square",
-        s"transferring the ${piece.name} to a better circuit",
-        s"switching the ${piece.name} to a more promising diagonal or outpost"
-      ))
-      case _ => pick(bead, List(
-        s"improving the scope of the ${piece.name}",
-        s"optimizing the ${piece.name}'s placement",
-        s"finding a superior post for the ${piece.name}"
-      ))
-    }
-  }
-  
-  def getTrappedPiece(bead: Int, piece: Role): String = {
-    pick(bead, List(
-      s"trapping the ${piece.name} with no escape",
-      s"exploiting the trapped ${piece.name}",
-      s"entombing the ${piece.name} with no safe moves"
-    ))
-  }
-
-  def getKnightVsBishop(bead: Int, color: chess.Color, isKnightBetter: Boolean): String = {
-    if (isKnightBetter) pick(bead, List(
-      s"favoring ${color}'s knight in this closed structure",
-      "exploiting the superior knight against the bad bishop",
-      "dominating with the knight on strong outposts"
-    )) else pick(bead, List(
-      "leveraging the bishop's long-range power",
-      "utilizing the bishop in the open position",
-      "overpowering the knight with the bishop pair"
-    ))
-  } 
-
-  def getBlockade(bead: Int): String = pick(bead, List(
-    "establishing a blockade against the passed pawn",
-    "stopping the dangerous passer in its tracks",
-    "using the knight as an ideal blockader"
-  ))
-
-  def getSmotheredMate(bead: Int): String = pick(bead, List(
-    "delivering a classic smothered mate",
-    "suffocating the king for a spectacular finish",
-    "executing the rare and beautiful smothered mate"
-  )) // End Phase 26
-
-  // Phase 27: Bishop Motifs
-  def getPin(bead: Int, pinned: Role, behind: Role): String = {
-    pick(bead, List(
-      s"pinning the ${pinned.name} to the ${behind.name}",
-      s"paralyzing the ${pinned.name} with a pin against the ${behind.name}",
-      s"establishing a troublesome pin on the ${pinned.name}"
-    ))
-  }
-
-  def getSkewer(bead: Int, front: Role, back: Role): String = {
-    pick(bead, List(
-      s"skewering the ${front.name} and ${back.name}",
-      s"firing through the ${front.name} to strike the ${back.name}",
-      s"executing a powerful skewer across the diagonal"
-    ))
-  }
-
-  def getXRay(bead: Int, target: Role): String = {
-    pick(bead, List(
-      s"exerting x-ray pressure on the ${target.name}",
-      s"aiming an x-ray attack through the defense toward the ${target.name}",
-      s"peering through the blockers to target the ${target.name}"
-    ))
-  }
-
-  def getBattery(bead: Int, front: Role, back: Role): String = {
-    pick(bead, List(
-      s"forming a powerful ${front.name} and ${back.name} battery",
-      s"aligning pieces into a dangerous battery",
-      s"backing up the ${front.name} with the ${back.name}"
-    ))
-  }
-
-  def getBishopThemes(bead: Int, theme: String): String = theme match {
-    case "GoodBishop" => pick(bead, List(
-      "A good bishop can exert long-range pressure.",
-      "The good bishop becomes a major strategic asset.",
-      "The strong bishop dominates key diagonals."
-    ))
-    case "BadBishop" => pick(bead, List(
-      "The bad bishop is a long-term problem.",
-      "A bad bishop often becomes a serious positional handicap.",
-      "One side is stuck with a restricted bishop."
-    ))
-    case "BishopPair" => pick(bead, List(
-      "The bishop pair can become a lasting advantage.",
-      "The two bishops promise superior coordination in an open position.",
-      "Long-range pressure from the bishop pair is a persistent theme."
-    ))
-    case "OppositeColorBishops" => pick(bead, List(
-      "Opposite-coloured bishops often keep the game tense even with reduced material.",
-      "With opposite-coloured bishops, plans tend to revolve around colour complexes.",
-      "Opposite-coloured bishops can make defence difficult despite an 'equal' evaluation."
-    ))
-    case "ColorComplex" => pick(bead, List(
-      "Control of the weakened colour complex is a key strategic factor.",
-      "Exploiting holes on the vulnerable colour squares should guide the play.",
-      "Dominating the critical light or dark squares can decide the game."
-    ))
-    case _ => ""
-  }
-
-  def getRookThemes(bead: Int, theme: String, extra: String = ""): String = theme match {
-    case "SemiOpenFileControl" => pick(bead, List(
-      s"applying pressure along the semi-open $extra-file",
-      s"occupying the semi-open $extra-file to exert long-term pressure",
-      s"placing the rook on the semi-open $extra-file for better activity"
-    ))
-    case "SeventhRankInvasion" | "RookOnSeventh" => pick(bead, List(
-      "invading the seventh rank with the rook",
-      "poking into the enemy's seventh rank",
-      "establishing a rook on the seventh rank to paralyze the defense",
-      "creating a 'rook on the seventh' situation that is technically winning"
-    ))
-    case "RookBehindPassedPawn" => pick(bead, List(
-      s"placing the rook behind the passed $extra-pawn (Tarrasch rule)",
-      s"supporting the passed $extra-pawn from behind",
-      s"following the principle of placing rooks behind passed pawns"
-    ))
-    case "KingCutOff" => pick(bead, List(
-      s"cutting off the enemy king along the $extra",
-      s"restricting the enemy king's movement via the $extra",
-      s"controlling the $extra to keep the enemy king trapped"
-    ))
-    case "OpenFile" => pick(bead, List(
-      s"placing the rook on the open $extra-file for better activity",
-      s"applying pressure along the open $extra-file",
-      s"controlling the open $extra-file to restrict the opponent"
-    ))
-    case "DoubledRooks" => pick(bead, List(
-      "doubling the rooks for massive firepower",
-      "stacking the rooks on the file to force a breakthrough",
-      "creating a powerful battery of doubled rooks"
-    ))
-    case "ConnectedRooks" => pick(bead, List(
-      "connecting the rooks to solidify the back rank",
-      "bringing the rooks into coordination",
-      "linking the rooks for mutual protection"
-    ))
-
-    case _ => ""
-  }
-
-  def getQueenThemes(bead: Int, theme: String, extra: String = ""): String = theme match {
-    case "QueenActivity" => pick(bead, List(
-      "maximizing queen activity",
-      "centralizing the queen for dynamic pressure",
-      "leveraging the queen's dominant scope"
-    ))
-    case "QueenManeuver" => pick(bead, List(
-      "repositioning the queen for a more effective attack",
-      "transferring the queen to a stronger sector",
-      "rerouting the queen to exploit central weaknesses"
-    ))
-    case _ => ""
-  }
-
-  def getTacticalThemes(bead: Int, theme: String, extra: String = ""): String = theme match {
-    case "MateNet" => pick(bead, List(
-      "weaving a lethal mate net around the king",
-      "tightening the net for a decisive finish",
-      "entombing the enemy king in a coordinate assault"
-    ))
-    case "PerpetualCheck" => pick(bead, List(
-      "securing a draw through perpetual check",
-      "forcing a repetition via infinite checks",
-      "clinging to a draw in a difficult position through perpetual check"
-    ))
-    case "RemovingTheDefender" => pick(bead, List(
-      s"stripping the defense by removing the $extra",
-      s"eliminating the $extra to expose the target",
-      s"decisively removing the $extra which defended the objective"
-    ))
-    case "Initiative" => pick(bead, List(
-      "seizing the initiative with energetic play",
-      "maintaining the pressure and dictating the flow",
-      "driving the initiative forward through active piece play"
-    ))
-    case "Decoy" => pick(bead, List(
-      "using a clever decoy to lure the opponent into a trap",
-      "luring the piece to an unfavorable square",
-      "setting up a decisive shot via a tactical decoy"
-    ))
-    case "Deflection" => pick(bead, List(
-      "deflecting the defender away from its post",
-      "forcing a piece away from its critical defensive duty",
-      "executing a precise deflection to break the coordination"
-    ))
-    case _ => ""
-  }
-
-  def getSacrificeROI(bead: Int, reason: String): String = {
-    val reasons = reason.split(",").toList
-    val primary = reasons.headOption.getOrElse("unknown")
-    primary match {
-      case "open_file" => pick(bead, List(
-        "sacrificing material to seize a vital open file",
-        "giving up an exchange for long-term control of the file",
-        "accepting material deficit in return for dominant rook activity"
-      ))
-      case "king_exposed" => pick(bead, List(
-        "sacrificing material to expose the enemy king",
-        "exchanging a rook for a minor piece to launch a decisive attack",
-        "accepting a material imbalance to strip the king's pawn shield"
-      ))
-      case "passed_pawn" => pick(bead, List(
-        "sacrificing material to support the advance of a passed pawn",
-        "giving an exchange to clear the path for the promotion race",
-        "trading a rook for a minor piece to secure a decisive passer"
-      ))
-      case "piece_activity" => pick(bead, List(
-        "sacrificing material for superior piece activity and coordination",
-        "improving piece scope at the cost of the exchange",
-        "leveraging dynamic compensation for the material deficit"
-      ))
-      case "bishop_pair" => pick(bead, List(
-        "sacrificing the exchange to keep the powerful bishop pair",
-        "giving up a rook for a knight to maintain the two bishops",
-        "prioritizing the bishop pair over the material balance"
-      ))
-      case _ => pick(bead, List(
-        "sacrificing material for dynamic compensation",
-        "giving up the exchange for positional pressure"
-      ))
-    }
-  }
-  
-  def getTension(bead: Int, policy: String): String = policy.toLowerCase match {
-    case "maintain" => pick(bead, List(
-      "Tension should be maintained for now.",
-      "Keeping the tension is beneficial.",
-      "Neither side should rush to resolve the central tension.",
-      "The central tension remains a key theme.",
-      "It is best to keep the central tension and the position fluid.",
-      "Resolving the tension prematurely would be a mistake.",
-      "The tension in the center defines the struggle.",
-      "Maintaining the central tension is advised."
-    ))
-    case "release" => pick(bead, List(
-      "It is time to release the tension.",
-      "Clarifying the center is the right path.",
-      "A simplified structure is preferable here.",
-      "Resolving the pawn tension helps clarify the plans.",
-      "The best course is to exchange and clear the center."
-    ))
-    case _ => ""
-  }
-
-  // ===========================================================================
-  // 3. TRANSITIONS & CONNECTORS
-  // ===========================================================================
-
-  def getContrast(bead: Int): String = pick(bead, List(
-    "However,", "On the other hand,", "Conversely,", "In contrast,", "Alternatively,", "But,", "Yet,"
-  ))
-
-  def getResultConnector(bead: Int): String = pick(bead, List(
-    "Consequently,", "Therefore,", "As a result,", "Thus,", "This leads to", "This allows"
-  ))
-
-  def getPriority(bead: Int): String = pick(bead, List(
-    "The main task is to",
-    "White must prioritize",
-    "The priority is to",
-    "Key objective:",
-    "Attention must be focused on",
-    "The battle revolves around"
-  ))
-  
-  // ===========================================================================
-  // 4. MAIN MOVE & INTENT
-  // ===========================================================================
-
-  def getMoveIntro(bead: Int, move: String, isMain: Boolean): String = {
-    if (!isMain) return s"**$move**"
-    // Variety in introducing the key move
-    pick(bead, List(
-      s"**$move**",
-      s"White plays **$move**",
-      s"The strong **$move**",
-      s"A precise choice, **$move**",
-      s"**$move** is the recommendation"
-    ))
-  }
-
-  def getIntent(bead: Int, alignment: String, evidence: Option[String]): String = {
+  def getIntent(bead: Int, alignment: String, evidence: Option[String], ply: Int = 0): String = {
     // Phase 21.1: If evidence already contains 'by' or is a gerund, we adjust intro
     val ev = evidence.getOrElse("")
     val hasEv = ev.nonEmpty
+    val localSeed = bead ^ (ply * 0x4eb2d)
+    def choose(options: List[String]): String =
+      pickWithPlyRotation(localSeed ^ Math.abs(alignment.hashCode), ply, options)
     
     alignment.toLowerCase match {
       // Tactical intents
       case s if s.contains("attack") => 
         if (hasEv) s"continues the attack by $ev"
-        else pick(bead, List("continues the attack", "drives the initiative", "keeps the pressure on", "poses serious questions"))
+        else choose(List(
+          "continues the attack",
+          "seizes the initiative",
+          "keeps the pressure on",
+          "poses serious practical questions",
+          "maintains active momentum"
+        ))
       case s if s.contains("defense") || s.contains("prophylactic") => 
         if (hasEv) s"solidifies the position by $ev"
-        else pick(bead, List("prevents counterplay", "solidifies the position", "stops the enemy ideas", "provides necessary defense"))
+        else choose(List(
+          "prevents counterplay",
+          "solidifies the position",
+          "stops the enemy ideas",
+          "provides necessary defense",
+          "keeps defensive resources coordinated"
+        ))
       case s if s.contains("tactical") => 
         if (hasEv) s"creates tactical problems by $ev"
-        else pick(bead, List("creates tactical threats", "complicates the game", "introduces tactical possibilities"))
+        else choose(List(
+          "creates tactical threats",
+          "complicates the game",
+          "introduces tactical possibilities",
+          "forces concrete calculation"
+        ))
       case s if s.contains("pressure") =>
         if (hasEv) s"applies pressure by $ev"
-        else pick(bead, List("applies positional pressure", "maintains the tension", "keeps the opponent under pressure"))
+        else choose(List(
+          "applies positional pressure",
+          "maintains the tension",
+          "keeps the opponent under pressure",
+          "forces uncomfortable defensive choices"
+        ))
       
       // Phase 22: New intent categories
       case s if s.contains("pawn break") =>
         if (hasEv) s"opens the position by $ev"
-        else pick(bead, List("opens the position", "breaks through the center", "challenges the pawn structure"))
+        else choose(List(
+          "opens the position",
+          "breaks through the center",
+          "challenges the pawn structure",
+          "tests the pawn structure directly"
+        ))
       case s if s.contains("rook activation") =>
         if (hasEv) s"activates the rook by $ev"
-        else pick(bead, List("activates the rook", "brings the rook into play", "places the rook on an active file"))
+        else choose(List(
+          "activates the rook",
+          "brings the rook into play",
+          "places the rook on an active file",
+          "improves rook mobility and scope"
+        ))
       case s if s.contains("king activation") =>
         if (hasEv) s"brings the king into the game by $ev"
-        else pick(bead, List("brings the king into the game", "centralizes the king", "advances the king toward the action"))
+        else choose(List(
+          "brings the king into the game",
+          "centralizes the king",
+          "advances the king toward the action",
+          "improves king activity for the ending"
+        ))
       case s if s.contains("centralization") =>
         if (hasEv && !ev.toLowerCase.contains("centraliz")) s"occupies a strong central square by $ev"
         else if (hasEv) s"improves the position by $ev"
-        else pick(bead, List("centralizes the piece", "occupies a strong square", "improves piece placement"))
+        else choose(List(
+          "centralizes the piece",
+          "occupies a strong square",
+          "improves piece placement",
+          "improves central coordination"
+        ))
       case s if s.contains("outpost") =>
         if (hasEv && !ev.toLowerCase.contains("outpost")) s"establishes an outpost by $ev"
         else if (hasEv) s"improves the position by $ev"
-        else pick(bead, List("establishes a strong outpost", "places the piece on an unassailable square"))
+        else choose(List(
+          "establishes a strong outpost",
+          "places the piece on an unassailable square",
+          "anchors a piece on a durable outpost"
+        ))
       case s if s.contains("simplification") =>
         if (hasEv) s"simplifies the position by $ev"
-        else pick(bead, List("simplifies into a favorable endgame", "trades down to an easier position", "heads for the endgame"))
+        else choose(List(
+          "simplifies into a favorable endgame",
+          "trades down to an easier position",
+          "heads for the endgame",
+          "reduces complexity in a favorable way"
+        ))
       case s if s.contains("file control") =>
         if (hasEv) s"seizes the open file by $ev"
-        else pick(bead, List("seizes the open file", "controls the key file", "takes command of the file"))
+        else choose(List(
+          "seizes the open file",
+          "controls the key file",
+          "takes command of the file",
+          "improves major-piece control on the file"
+        ))
       case s if s.contains("passed pawn") =>
         if (hasEv) s"advances the passed pawn by $ev"
-        else pick(bead, List("pushes the passed pawn", "advances the trumping pawn", "creates promotion threats"))
+        else choose(List(
+          "pushes the passed pawn",
+          "advances the trumping pawn",
+          "creates promotion threats",
+          "forces attention to promotion races"
+        ))
       case s if s.contains("opposition") =>
         if (hasEv) s"takes the opposition by $ev"
-        else pick(bead, List("takes the opposition", "gains the opposition", "seizes the key squares"))
+        else choose(List(
+          "takes the opposition",
+          "gains the opposition",
+          "seizes the key squares",
+          "improves king geometry in the ending"
+        ))
       case s if s.contains("zugzwang") =>
         if (hasEv) s"forces zugzwang by $ev"
-        else pick(bead, List("places the opponent in zugzwang", "forces a fatal concession", "squeezes the opponent"))
+        else choose(List(
+          "places the opponent in zugzwang",
+          "forces a fatal concession",
+          "squeezes the opponent",
+          "limits useful moves until concessions appear"
+        ))
       case s if s.contains("pawn run") || s.contains("pawn_race") =>
          if (hasEv) s"pushes for promotion by $ev"
-         else pick(bead, List("races for promotion", "pushes the pawn", "accelerates the pawn"))
+         else choose(List(
+           "races for promotion",
+           "pushes the pawn",
+           "accelerates the pawn",
+           "starts a direct promotion race"
+         ))
       case s if s.contains("shouldering") =>
          if (hasEv) s"shoulders the enemy king by $ev"
-         else pick(bead, List("uses the king to shoulder the opponent", "keeps the enemy king out", "dominates with the king"))
+         else choose(List(
+           "uses the king to shoulder the opponent",
+           "keeps the enemy king out",
+           "dominates with the king",
+           "improves king placement to restrict counterplay"
+         ))
       case s if s.contains("castling") =>
         if (hasEv) s"castles by $ev"
-        else pick(bead, List("castles to safety", "brings the king to safety", "completes the king's evacuation"))
+        else choose(List(
+          "castles to safety",
+          "brings the king to safety",
+          "completes the king's evacuation",
+          "stabilizes king safety before operations"
+        ))
       case s if s.contains("fianchetto") =>
         if (hasEv) s"fianchettoes the bishop by $ev"
-        else pick(bead, List("fianchettoes the bishop", "develops the bishop to the long diagonal"))
+        else choose(List(
+          "fianchettoes the bishop",
+          "develops the bishop to the long diagonal",
+          "activates the bishop on a long diagonal"
+        ))
       case s if s.contains("exchange") =>
         if (hasEv) s"forces an exchange by $ev"
-        else pick(bead, List("forces a favorable exchange", "trades pieces", "simplifies the material"))
+        else choose(List(
+          "forces a favorable exchange",
+          "trades pieces",
+          "simplifies the material",
+          "steers the game toward a cleaner structure"
+        ))
       
       // Development & central control
       case s if s.contains("development") => 
         if (hasEv) s"completes development by $ev"
-        else pick(bead, List("completes development", "brings pieces into play", "improves piece activity", "connects the rooks"))
+        else choose(List(
+          "completes development",
+          "brings pieces into play",
+          "improves piece activity",
+          "connects the rooks",
+          "finishes development with good coordination"
+        ))
       case s if s.contains("central") => 
         if (hasEv) s"fights for the center by $ev"
-        else pick(bead, List("maintains central tension", "fights for the center", "challenges the center"))
+        else choose(List(
+          "maintains central tension",
+          "fights for the center",
+          "challenges the center",
+          "improves central control"
+        ))
       case s if s.contains("maneuvering") =>
         if (hasEv) s"maneuvers the piece by $ev"
-        else pick(bead, List("repositions the piece", "improves the piece's scope", "prepares for the next phase"))
+        else choose(List(
+          "repositions the piece",
+          "improves the piece's scope",
+          "prepares for the next phase",
+          "improves piece routes for later plans"
+        ))
       
       // Final fallback
       case _ => 
@@ -767,22 +550,6 @@ object NarrativeLexicon {
     }
   }
 
-  def getVerification(bead: Int): String = pick(bead, List(
-    " An accurate continuation.",
-    " The best practical chance.",
-    " The most principled line.",
-    " Verified by analysis.",
-    " The critical test."
-  ))
-
-  // ===========================================================================
-  // 5. FLUID NARRATIVE FLOW (Phase 15)
-  // ===========================================================================
-
-  /**
-   * Complex template to integrate move, intent, opponent reply and sample continuation
-   * into a single fluid paragraph without fragmented parentheses.
-   */
   def getMainFlow(
     bead: Int,
     move: String,
@@ -835,7 +602,7 @@ object NarrativeLexicon {
         "Black must defend accurately to avoid drifting into a worse position.",
         "The defensive task is uncomfortable in practice.",
         "Counterplay is hard to generate here.",
-        "One inaccurate move can quickly change the evaluation."
+        "One careless move can quickly change the evaluation."
       )
       case "Balanced" => List(
         "The position is balanced but full of choices.",
@@ -852,39 +619,6 @@ object NarrativeLexicon {
   // 6. ALTERNATIVES & CRITIQUE
   // ===========================================================================
 
-  def getDubiousVerdict(bead: Int, move: String, reason: String): String = pick(bead, List(
-    s"$move is less accurate, $reason.",
-    s"$move is imprecise as it risks $reason.",
-    s"Avoid $move, which ends up $reason.",
-    s"$move falls short because of $reason.",
-    s"$move is a superficial try, $reason.",
-    s"$move looks plausible but fails to $reason."
-  ))
-
-  def getPlayableVerdict(bead: Int, move: String, reason: String): String = pick(bead, List(
-    s"$move is another option$reason.",
-    s"$move is also playable$reason.",
-    s"Alternatively, $move is worth considering$reason.",
-    s"$move remains a solid alternative$reason.",
-    s"One could also try $move$reason."
-  ))
-  
-  // ===========================================================================
-  // 6. THREATS & OPPONENT
-  // ===========================================================================
-  
-  def getOpponentThreat(bead: Int, kind: String, desc: String): String = pick(bead, List(
-    s"The opponent threatens $desc.",
-    s"Black is preparing $desc.",
-    s"Care is needed against $desc.",
-    s"The immediate danger is $desc.",
-    s"Black's idea is $desc."
-  ))
-
-  // ===========================================================================
-  // HELPER: Deterministic Picker
-  // ===========================================================================
-  
   private def pick(seed: Int, options: List[String]): String = {
     if (options.isEmpty) ""
     else {
@@ -893,6 +627,47 @@ object NarrativeLexicon {
       options(Math.floorMod(finalized, options.size))
     }
   }
+
+  /**
+   * Adjacent-ply repetition suppression:
+   * rotate deterministic choices by ply while keeping seed stability.
+   */
+  private def pickWithPlyRotation(seed: Int, ply: Int, options: List[String]): String = {
+    if (options.isEmpty) ""
+    else {
+      val base = {
+        val mixed = scala.util.hashing.MurmurHash3.mixLast(0x7f4a7c15, seed)
+        val finalized = scala.util.hashing.MurmurHash3.finalizeHash(mixed, 1)
+        Math.floorMod(finalized, options.size)
+      }
+      val rotated = if (options.size <= 1) base else Math.floorMod(base + Math.floorMod(ply, options.size), options.size)
+      options(rotated)
+    }
+  }
+
+  private def punctuate(sentence: String): String =
+    val s = sentence.trim
+    if (s.isEmpty || s.endsWith(".") || s.endsWith("!") || s.endsWith("?")) s else s"$s."
+
+  private def sentenceCase(sentence: String): String =
+    val s = sentence.trim
+    if s.isEmpty then s
+    else s"${s.head.toUpper}${s.tail}"
+
+  private def normalizeMotifTag(raw: String): String =
+    Option(raw).getOrElse("").trim
+      .replaceAll("([a-z])([A-Z])", "$1_$2")
+      .toLowerCase
+      .replaceAll("[^a-z0-9]+", "_")
+      .replaceAll("_+", "_")
+      .stripPrefix("_")
+      .stripSuffix("_")
+
+  private def motifMatches(normalizedMotif: String, rawNeedle: String): Boolean =
+    val motif = normalizeMotifTag(normalizedMotif)
+    val needle = normalizeMotifTag(rawNeedle)
+    motif.nonEmpty && needle.nonEmpty &&
+      (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
 
   // ===========================================================================
   // PHASE 5: NEW SSOT SUPPORT FUNCTIONS
@@ -925,6 +700,73 @@ object NarrativeLexicon {
       s"We are now in the $name$statsNote.",
       s"The opening has transposed into the $name$statsNote."
     ))
+  }
+
+  def getPrecedentLead(bead: Int, factualLine: String, anchorMove: Option[String] = None): String = {
+    val factual = factualLine.trim
+    val templates =
+      anchorMove.map(_.trim).filter(_.nonEmpty) match
+        case Some(anchor) =>
+          List(
+            s"Precedent around $anchor: $factual",
+            s"In the $anchor branch, a reference game shows: $factual",
+            s"One model continuation with $anchor was: $factual",
+            s"For this $anchor structure, a relevant game was: $factual"
+          )
+        case None =>
+          List(
+            s"A related precedent: $factual",
+            s"A comparable game showed: $factual",
+            s"A reference game in this structure was: $factual",
+            s"One historical model game was: $factual"
+          )
+    pick(bead ^ 0x2f6e2b1, templates)
+  }
+
+  def getPrecedentMechanismLine(
+    bead: Int,
+    triggerMove: String,
+    replyMove: Option[String],
+    pivotMove: Option[String],
+    mechanism: String
+  ): String = {
+    val route = replyMove.map(r => s"$triggerMove, $r").getOrElse(triggerMove)
+    val pivot = pivotMove.map(p => s", then $p").getOrElse("")
+    val key = Option(mechanism).getOrElse("").toLowerCase
+
+    val templates =
+      if key.contains("promotion") then List(
+        s"The turning point came via $route$pivot, where promotion motifs began to drive every continuation.",
+        s"From $route$pivot, the turning point was the promotion race and its forcing tempo count.",
+        s"$route$pivot created the key turning point, after which promotion threats dictated priorities.",
+        s"$route$pivot marked the turning point because promotion timing outweighed slower strategic plans."
+      )
+      else if key.contains("exchange") then List(
+        s"The turning point came after $route$pivot, when exchange timing started to define the evaluation.",
+        s"From $route$pivot, the decisive shift was the exchange sequence and resulting simplification.",
+        s"$route$pivot became the turning point once exchanges reshaped piece activity and defensive resources.",
+        s"The critical turning point was $route$pivot, where exchange decisions fixed the practical balance."
+      )
+      else if key.contains("tactical") then List(
+        s"The turning point came via $route$pivot, when forcing tactical pressure became hard to defuse.",
+        s"From $route$pivot, the decisive shift was king safety and concrete tactical accuracy.",
+        s"$route$pivot marked the turning point because tactical threats began to override long-term plans.",
+        s"The critical turning point was $route$pivot, where tactical forcing lines dictated move order."
+      )
+      else if key.contains("structural") then List(
+        s"The turning point came after $route$pivot, when structural features began to dominate planning.",
+        s"From $route$pivot, the decisive shift was structural transformation and piece rerouting.",
+        s"$route$pivot became the turning point once structure and square control outweighed short tactics.",
+        s"The key turning point was $route$pivot, where structural shifts fixed the strategic roadmap."
+      )
+      else List(
+        s"The turning point came from $route$pivot, when initiative control shifted to one side.",
+        s"From $route$pivot, the decisive shift was initiative management rather than static factors.",
+        s"$route$pivot marked the turning point because tempo and initiative started to decide the play.",
+        s"The critical turning point was $route$pivot, where initiative swings determined the practical outcome."
+      )
+
+    pick(bead ^ 0x5f356495, templates)
   }
 
   def getAlternative(bead: Int, move: String, whyNot: Option[String]): String = {
@@ -970,31 +812,43 @@ object NarrativeLexicon {
           case Some(side) =>
             val families = cycle match
               case 0 => List(
-                s"From a practical standpoint, $side has the easier roadmap.",
-                s"$side has the easier game to play."
+                s"From a practical standpoint, $side has the cleaner roadmap.",
+                s"$side can follow the more straightforward practical plan.",
+                s"$side has the more comfortable practical route here.",
+                s"$side's practical choices are easier to execute with fewer risks."
               )
               case 1 => List(
                 s"$side can press with a comparatively straightforward conversion scheme.",
-                s"$side's strategic plan is easier to execute without tactical risk."
+                s"$side's strategic plan is easier to execute without tactical risk.",
+                s"$side can improve with lower practical risk move by move.",
+                s"$side can keep improving without forcing tactical concessions."
               )
               case _ => List(
                 s"$side can play on intuition here.",
-                s"$side can improve naturally without forcing complications."
+                s"$side can improve naturally without forcing complications.",
+                s"$side can maintain pressure without overextending.",
+                s"$side can progress with measured moves and minimal tactical exposure."
               )
             pick(localSeed, families)
           case None =>
             val families = cycle match
               case 0 => List(
                 "In practical terms, handling this position is straightforward.",
-                "The position is easier to navigate than it first appears."
+                "The position is easier to navigate than it first appears.",
+                "Practical handling is relatively direct for both sides.",
+                "Both sides can follow understandable plans without immediate tactical chaos."
               )
               case 1 => List(
                 "Plans are relatively clear for both players.",
-                "There are no immediate tactical emergencies for either side."
+                "There are no immediate tactical emergencies for either side.",
+                "The position allows measured play without urgent tactical firefighting.",
+                "Both sides can prioritize structure and coordination over tactics."
               )
               case _ => List(
                 "This is a manageable position from a practical perspective.",
-                "The position allows methodical play without forcing tactics."
+                "The position allows methodical play without forcing tactics.",
+                "Practical decision-making is stable if move order stays accurate.",
+                "Long-term plans matter more than tactical fireworks right now."
               )
             pick(localSeed, families)
       case "Under Pressure" =>
@@ -1008,7 +862,7 @@ object NarrativeLexicon {
               )
               case 1 => List(
                 s"The defensive burden falls on $side.",
-                s"$side has less margin for error here."
+                s"$side has less margin for passive play here."
               )
               case _ => List(
                 s"$side needs concrete accuracy to avoid drifting worse.",
@@ -1022,54 +876,53 @@ object NarrativeLexicon {
                 "The defensive burden is noticeable."
               )
               case 1 => List(
-                "One slip can change the evaluation quickly.",
-                "It is easy to misstep if you relax."
+                "One tempo can change the evaluation quickly.",
+                "It is easy to misstep if you relax.",
+                "A small timing error can hand over practical control.",
+                "A single inexact move can create immediate defensive burdens."
               )
               case _ => List(
                 "A single tempo can swing the position.",
-                "Defensive technique matters more than raw activity here."
+                "Defensive technique matters more than raw activity here.",
+                "Defensive precision is more important than active-looking moves.",
+                "Defensive accuracy is the main practical requirement in this phase."
               )
             pick(localSeed, families)
       case _ =>
         val families = cycle match
           case 0 => List(
-            "The position is dynamically balanced.",
+            "The position remains dynamically balanced.",
             "Counterplay exists for both sides.",
-            "The practical chances are still shared between both players."
+            "The practical chances are still shared between both players.",
+            "Neither side has converted small edges into a stable advantage."
           )
           case 1 => List(
             "Both sides retain tactical resources, so concrete move-order precision matters.",
-            "The position stays tense, and one inaccurate tempo can swing the initiative."
+            "The position stays tense, and one careless tempo can swing the initiative.",
+            "Both players still need concrete accuracy before committing.",
+            "Each side still has tactical resources that punish inaccurate move order."
           )
           case _ => List(
             "Neither side has stabilized a lasting edge.",
-            "The evaluation is close enough that accuracy still matters most."
+            "The margin is narrow enough that practical accuracy remains decisive.",
+            "The game remains balanced, and precision will decide the result.",
+            "Fine margins mean technical accuracy still determines practical outcomes."
           )
         pick(localSeed, families)
     }
   }
 
-  def getThreatPlanLink(bead: Int, threatKind: String, planName: String): String = {
-    pick(bead, List(
-      s"The key is managing the $threatKind while pursuing $planName.",
-      s"Balancing the $threatKind with $planName is the challenge.",
-      s"The $threatKind complicates the plan of $planName."
-    ))
-  }
-
-  def getWeaknessCandidateLink(bead: Int, weakness: String, move: String): String = {
-    pick(bead, List(
-      s"**$move** targets the $weakness directly.",
-      s"The $weakness is exploited by **$move**.",
-      s"**$move** puts pressure on the $weakness."
-    ))
-  }
-
   def getAnnotationPositive(bead: Int, playedSan: String): String = {
     pick(bead, List(
       s"**$playedSan** keeps to the strongest continuation.",
-      s"**$playedSan** is fully sound and matches the position's demands.",
-      s"**$playedSan** is accurate and consistent with the main plan."
+      s"**$playedSan** follows the principal engine roadmap without concession.",
+      s"**$playedSan** fits the position's strategic demands cleanly.",
+      s"**$playedSan** preserves coordination and keeps the best practical structure.",
+      s"With **$playedSan**, the position stays aligned with the main plan.",
+      s"**$playedSan** is a reliable move that maintains the reference continuation.",
+      s"**$playedSan** keeps the technical roadmap compact and stable.",
+      s"**$playedSan** retains a sound technical setup for the next phase.",
+      s"**$playedSan** keeps conversion tasks straightforward in practice."
     ))
   }
 
@@ -1088,13 +941,13 @@ object NarrativeLexicon {
         pick(bead, List(
           s"$markedMove is a clear mistake; it gives the opponent the initiative. Stronger is **$bestSan**.",
           s"$markedMove is a mistake that worsens coordination. Better is **$bestSan**.",
-          s"$markedMove is serious enough to shift practical control; **$bestSan** was preferable."
+          s"$markedMove is a mistake serious enough to shift practical control; **$bestSan** was preferable."
         ))
       case "inaccuracy" =>
         pick(bead, List(
           s"$markedMove is an inaccuracy; **$bestSan** keeps better control.",
-          s"$markedMove is slightly off and concedes practical ease; **$bestSan** is tighter.",
-          s"$markedMove drifts from the best plan; the cleaner move is **$bestSan**."
+          s"$markedMove is an inaccuracy that concedes practical ease; **$bestSan** is tighter.",
+          s"$markedMove is an inaccuracy that drifts from the best plan; the cleaner move is **$bestSan**."
         ))
       case _ =>
         pick(bead, List(
@@ -1104,6 +957,47 @@ object NarrativeLexicon {
         ))
     }
   }
+
+  def getEngineRankContext(bead: Int, rank: Option[Int], bestSan: String, cpLoss: Int = 0): Option[String] =
+    rank match {
+      case Some(2) if cpLoss <= 35 =>
+        Some(pick(bead, List(
+          s"Engine preference still leans to **$bestSan**, but the practical gap is modest.",
+          s"The engine line order is close here; **$bestSan** is still the cleaner reference.",
+          s"Engine-wise, **$bestSan** stays first, with only a small practical difference."
+        )))
+      case Some(2) =>
+        Some(pick(bead, List(
+          s"Engine preference still leans to **$bestSan** as the cleaner move-order.",
+          s"Engine-wise, **$bestSan** remains the first choice in this position.",
+          s"The top engine continuation still starts with **$bestSan**."
+        )))
+      case Some(r) if r >= 3 && cpLoss <= 35 =>
+        Some(pick(bead, List(
+          s"Engine ordering is close here; **$bestSan** remains the cleanest reference line.",
+          s"This line is playable, while **$bestSan** keeps a slightly cleaner move-order.",
+          s"The engine still prefers **$bestSan**, though the practical gap stays small."
+        )))
+      case Some(r) if r >= 3 =>
+        Some(pick(bead, List(
+          s"This sits below the principal engine candidates; **$bestSan** gives a more reliable setup.",
+          s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control.",
+          s"This is outside the top engine choices, and **$bestSan** is the stable reference."
+        )))
+      case None if cpLoss <= 35 =>
+        Some(pick(bead, List(
+          s"This move was not in the sampled MultiPV set; **$bestSan** remains the engine reference.",
+          s"The sampled principal lines still favor **$bestSan**, with a modest practical difference.",
+          s"From the sampled engine lines, **$bestSan** remains the cleaner benchmark."
+        )))
+      case None =>
+        Some(pick(bead, List(
+          s"This move is outside the sampled principal lines; **$bestSan** is the engine reference.",
+          s"The move is not in the main MultiPV set; **$bestSan** is the robust alternative.",
+          s"Engine principal lines do not prioritize this; **$bestSan** is the practical benchmark."
+        )))
+      case _ => None
+    }
 
   private def formatPawnUnits(absCp: Int): String =
     f"${absCp.toDouble / 100}%.1f"
@@ -1189,38 +1083,312 @@ object NarrativeLexicon {
       ))
   }
 
-  def getMotifPrefix(bead: Int, motifs: List[String]): Option[String] = {
-    val m = motifs.map(_.toLowerCase)
-    val prefix = if (m.contains("greek_gift")) Some("A classic Greek Gift sacrifice! ")
-    else if (m.contains("smothered_mate")) Some("Setting up a potential smothered mate. ")
-    else if (m.contains("zugzwang")) Some("A pure zugzwang scenario: each legal move worsens the defender's coordination. ")
-    else if (m.contains("isolated_pawn") || m.contains("iqp")) Some("The battle revolves around the isolated queen's pawn. ")
-    else if (m.contains("hanging_pawns")) Some("The hanging pawns in the center create significant tension. ")
-    else if (m.contains("minority_attack")) Some("White launches a minority attack on the queenside. ")
-    else if (m.contains("opposite_bishops")) Some("Opposite-colored bishops signal an attack on the king. ")
-    else if (m.contains("underpromotion")) Some("A rare and necessary underpromotion! ")
-    else if (m.contains("stalemate_trick")) Some("A desperate but clever stalemate resource. ")
-    else if (m.contains("prophylaxis")) Some("A deep prophylactic move to shore up the defense. ")
-    else if (m.contains("interference")) Some("A tactical interference cutting off the defensive line. ")
-    else if (m.contains("deflection")) Some("A sharp deflection to lure the pieces away. ")
-    else if (m.contains("rook_lift")) Some("A powerful rook lift to join the assault. ")
-    else if (m.contains("bishop_pair")) Some("The bishop pair exerts immense pressure on the open board. ")
-    else if (m.contains("passed_pawn")) Some("The passed pawn is a constant threat that must be addressed. ")
-    else if (m.contains("bad_bishop")) Some("Black is burdened by a bad bishop, restricted by its own pawn structure. ")
-    else if (m.contains("knight_domination")) Some("The knight dominates its counterpart on this outpost. ")
-    else if (m.contains("battery")) Some("A powerful battery on the open file exerts immense pressure. ")
-    else if (m.contains("simplification") || m.contains("simplify")) Some("Endgame technique and simplification will be the decisive factors. ")
-    else if (m.contains("liquidate") || m.contains("pawn_break")) Some("The central liquidation changes the character of the struggle. ")
-    else if (m.contains("zwischenzug")) Some("A clever zwischenzug or intermediate move to seize the initiative. ")
-    else if (m.contains("trapped_piece")) Some("A critical piece is trapped on the rim with no escape. ")
-    else if (m.contains("king_hunt")) Some("A relentless king hunt begins! ")
-    else if (m.contains("pawn_storm")) Some("A massive pawn storm is brewing on the kingside. ")
-    else if (m.contains("repetition")) Some("The game heads toward a repeat of the position. ")
-    else if (m.contains("novelty")) Some("An interesting opening novelty that changes the character of the game. ")
-    else if (m.contains("novelty")) Some("An interesting opening novelty that changes the character of the game. ")
-    else None
+  private val motifPrefixSignals: Set[String] = Set(
+    "bad_bishop",
+    "battery",
+    "bishop_pair",
+    "blockade",
+    "color_complex",
+    "connected_rooks",
+    "deflection",
+    "domination",
+    "doubled_rooks",
+    "exchange_sacrifice",
+    "good_bishop",
+    "greek_gift",
+    "hanging_pawns",
+    "interference",
+    "iqp",
+    "isolated_pawn",
+    "king_cut_off",
+    "king_hunt",
+    "knight_domination",
+    "knight_vs_bishop",
+    "liquidate",
+    "liquidation",
+    "maneuver",
+    "minority_attack",
+    "novelty",
+    "open_file",
+    "opposite_bishops",
+    "passed_pawn",
+    "pawn_break",
+    "pawn_storm",
+    "pin",
+    "pin_queen",
+    "prophylactic",
+    "prophylaxis",
+    "repeat",
+    "repetition",
+    "rook_behind_passed_pawn",
+    "rook_lift",
+    "rook_on_seventh",
+    "semi_open_file_control",
+    "simplification",
+    "simplify",
+    "skewer",
+    "skewer_queen",
+    "smothered_mate",
+    "stalemate",
+    "stalemate_trap",
+    "stalemate_trick",
+    "trapped_piece",
+    "trapped_piece_queen",
+    "underpromotion",
+    "xray",
+    "xray_queen",
+    "zugzwang",
+    "zwischenzug"
+  )
 
-    prefix.map(p => pick(bead, List(p, p.replace("!", ".").replace(".", "!"))))
+  def isMotifPrefixSignal(rawMotif: String): Boolean =
+    val normalized = normalizeMotifTag(rawMotif)
+    normalized.nonEmpty && motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
+
+  def getMotifPrefix(bead: Int, motifs: List[String], ply: Int = 0): Option[String] = {
+    val normalized = motifs.map(normalizeMotifTag).filter(_.nonEmpty)
+    def hasAny(keys: String*): Boolean =
+      keys.exists(k => normalized.exists(m => motifMatches(m, k)))
+
+    val templates =
+      if (hasAny("greek_gift")) Some(List(
+        "A classic Greek Gift sacrifice is in the air.",
+        "The setup hints at a Greek Gift pattern.",
+        "The bishop sacrifice motif on h7/h2 is becoming relevant."
+      ))
+      else if (hasAny("smothered_mate")) Some(List(
+        "A potential smothered mate pattern is forming.",
+        "The geometry of a smothered mate is starting to appear.",
+        "Knight-and-queen coordination points toward smothered mate ideas."
+      ))
+      else if (hasAny("zugzwang")) Some(List(
+        "Zugzwang ideas are central: useful moves are running out.",
+        "This has a zugzwang flavor where every move concedes something.",
+        "The key endgame issue is zugzwang: improving moves are scarce."
+      ))
+      else if (hasAny("isolated_pawn", "iqp")) Some(List(
+        "The isolated-queen-pawn structure is shaping the plans.",
+        "The IQP defines the strategic battle here.",
+        "Play revolves around the strengths and weaknesses of the isolated pawn."
+      ))
+      else if (hasAny("hanging_pawns") && !hasAny("passed_pawn") && !hasAny("bad_bishop")) Some(List(
+        "The hanging pawns in the center are a major strategic factor.",
+        "Central hanging pawns keep the position tense.",
+        "Managing the hanging pawns will decide the middlegame plans."
+      ))
+      else if (hasAny("minority_attack") && !(hasAny("bad_bishop") && ply >= 30) && !hasAny("liquidate", "liquidation")) Some(List(
+        "A minority attack structure is emerging on the queenside.",
+        "Queenside minority attack ideas are now practical.",
+        "The queenside minority attack is becoming a concrete lever."
+      ))
+      else if (hasAny("opposite_bishops")) Some(List(
+        "Opposite-colored bishops sharpen attacking chances.",
+        "With opposite-colored bishops, king attacks gain practical value.",
+        "Opposite-colored bishops increase both drawing and attacking resources."
+      ))
+      else if (hasAny("underpromotion")) Some(List(
+        "An underpromotion resource is becoming relevant.",
+        "Underpromotion choices may be non-standard here.",
+        "A rare underpromotion idea appears in the position."
+      ))
+      else if (hasAny("stalemate", "stalemate_trick", "stalemate_trap")) Some(List(
+        "A stalemate trick is part of the defensive resources.",
+        "Stalemate motifs complicate straightforward conversion.",
+        "The defender has potential stalemate-based counterplay."
+      ))
+      else if (hasAny("prophylaxis", "prophylactic")) Some(List(
+        "A prophylactic idea is a key theme in this position.",
+        "A prophylactic move to restrict counterplay is the central task.",
+        "The strongest plan starts with a prophylactic preventive move."
+      ))
+      else if (hasAny("interference")) Some(List(
+        "Interference motifs are cutting defensive coordination.",
+        "A tactical interference idea is shaping move order.",
+        "Interference on key lines is now the tactical backbone."
+      ))
+      else if (hasAny("deflection")) Some(List(
+        "Deflection ideas are pulling defenders off key squares.",
+        "A deflection motif is dictating tactical priorities.",
+        "The tactical battle revolves around a key deflection."
+      ))
+      else if (hasAny("rook_lift")) Some(List(
+        "A rook lift idea can accelerate the attack.",
+        "Rook lift geometry is becoming available.",
+        "The rook can swing into action via a lift."
+      ))
+      else if (hasAny("good_bishop")) Some(List(
+        "A good bishop is becoming a strong strategic asset.",
+        "Activating the good bishop can improve long-range pressure.",
+        "The good bishop has unobstructed diagonals and lasting influence."
+      ))
+      else if (hasAny("bishop_pair")) Some(List(
+        "The bishop pair is a long-term strategic asset.",
+        "Open-board dynamics favor the bishop pair.",
+        "The bishop pair increases pressure across both wings."
+      ))
+      else if (hasAny("passed_pawn") && !hasAny("rook_behind_passed_pawn")) Some(List(
+        "The passed pawn is now a central practical factor.",
+        "Passed pawn dynamics are starting to dominate plans.",
+        "Containing the passed pawn is becoming urgent."
+      ))
+      else if (hasAny("bad_bishop")) Some(List(
+        "A bad bishop problem is limiting piece quality.",
+        "The bad bishop is restricted by its own pawn chain.",
+        "The bad bishop's scope is a strategic weakness here."
+      ))
+      else if (hasAny("knight_domination")) Some(List(
+        "A knight-domination pattern is emerging.",
+        "The knight is outperforming its counterpart.",
+        "Outpost control gives the knight a stable edge."
+      ))
+      else if (hasAny("battery")) Some(List(
+        "A battery alignment increases tactical pressure.",
+        "Line-piece battery coordination is becoming dangerous.",
+        "The battery motif is shaping immediate threats."
+      ))
+      else if (hasAny("simplification", "simplify")) Some(List(
+        "Simplification choices now define the practical result.",
+        "Trade decisions and simplification are steering the game toward a technical phase.",
+        "The position is entering a conversion-through-simplification stage."
+      ))
+      else if (hasAny("liquidate", "liquidation", "pawn_break")) Some(List(
+        "Central liquidation is changing the position's character.",
+        "A central liquidation sequence is redefining strategic priorities.",
+        "The structure is about to shift through liquidation."
+      ))
+      else if (hasAny("zwischenzug")) Some(List(
+        "Intermediate-move (zwischenzug) resources are available.",
+        "A zwischenzug can reverse move-order assumptions.",
+        "The tactical point is finding the in-between move."
+      ))
+      else if (hasAny("trapped_piece_queen")) Some(List(
+        "A trapped queen motif is now relevant.",
+        "The queen is close to becoming strategically trapped.",
+        "Trapping the queen is becoming a concrete tactical idea."
+      ))
+      else if (hasAny("trapped_piece")) Some(List(
+        "A trapped piece motif is now relevant.",
+        "Piece mobility is restricted enough to create trapping ideas.",
+        "One unit is close to becoming strategically trapped."
+      ))
+      else if (hasAny("king_hunt")) Some(List(
+        "A king hunt scenario is developing.",
+        "King safety has become the primary tactical axis of a king hunt.",
+        "The attack can escalate into a direct king hunt."
+      ))
+      else if (hasAny("pawn_storm")) Some(List(
+        "A pawn storm structure is taking shape on the flank.",
+        "Pawn storm timing is becoming the central attacking question.",
+        "Flank pawn storms are now driving the initiative battle."
+      ))
+      else if (hasAny("repetition", "repeat")) Some(List(
+        "Repeat ideas are now part of the practical decision tree.",
+        "The position allows a repeat if neither side commits.",
+        "Draw-by-repeat resources are becoming relevant."
+      ))
+      else if (hasAny("novelty")) Some(List(
+        "An opening novelty has changed the expected plans.",
+        "This move carries novelty value compared with mainline play.",
+        "The game has left familiar theory with a fresh novelty."
+      ))
+      else if (hasAny("semi_open_file_control")) Some(List(
+        "Semi-open file pressure is now the key strategic lever.",
+        "Control of the semi-open file is becoming the central plan.",
+        "The semi-open file is the main channel for rook activity."
+      ))
+      else if (hasAny("rook_on_seventh")) Some(List(
+        "Rook activity on the seventh rank is becoming practical.",
+        "Seventh-rank invasion ideas are now central.",
+        "A rook on the seventh rank could decide the technical battle."
+      ))
+      else if (hasAny("rook_behind_passed_pawn")) Some(List(
+        "Rook placement behind the passed pawn is the technical priority.",
+        "The key endgame principle is keeping the rook behind the passed pawn.",
+        "Behind-the-passed-pawn rook geometry is becoming decisive."
+      ))
+      else if (hasAny("king_cut_off")) Some(List(
+        "Cutting off the enemy king is the key endgame method.",
+        "King cut-off geometry is becoming the core technical idea.",
+        "The conversion plan revolves around restricting the enemy king."
+      ))
+      else if (hasAny("doubled_rooks")) Some(List(
+        "Doubled rooks can generate immediate file pressure.",
+        "The doubled-rooks setup is becoming the main attacking structure.",
+        "Stacking rooks on one file is the practical plan."
+      ))
+      else if (hasAny("connected_rooks")) Some(List(
+        "Connected rooks improve coordination for both attack and defense.",
+        "Connecting rooks is now a key positional milestone.",
+        "Linking connected rooks makes file-control plans easier to execute."
+      ))
+      else if (hasAny("maneuver")) Some(List(
+        "A rerouting maneuver is now the practical plan.",
+        "Piece transfer to a better square is the main idea.",
+        "A switch in piece placement can improve control."
+      ))
+      else if (hasAny("domination")) Some(List(
+        "A domination pattern is emerging around key squares.",
+        "One side is starting to dominate a critical piece route.",
+        "Positional domination is becoming a stable long-term edge."
+      ))
+      else if (hasAny("knight_vs_bishop")) Some(List(
+        "The knight-versus-bishop balance now defines the strategic fight.",
+        "This structure highlights a direct knight-and-bishop contrast.",
+        "Closed/open square dynamics will decide whether the knight or bishop thrives."
+      ))
+      else if (hasAny("blockade")) Some(List(
+        "Blockade technique is central to the conversion plan.",
+        "Stopping the passed pawn with a blockade is the key task.",
+        "A stable blockade can neutralize the opponent's main counterplay."
+      ))
+      else if (hasAny("pin_queen")) Some(List(
+        "A pin against the queen is a tactical resource in the position.",
+        "Queen pin geometry is becoming a practical motif.",
+        "The tactical point is creating pressure through a queen pin."
+      ))
+      else if (hasAny("pin")) Some(List(
+        "Pin geometry is becoming a concrete tactical factor.",
+        "A pin motif is shaping move-order choices.",
+        "The position features tactical pressure through a pin."
+      ))
+      else if (hasAny("skewer_queen")) Some(List(
+        "A skewer against the queen is becoming a concrete tactical idea.",
+        "Queen-skewer geometry is now part of the calculation tree.",
+        "Skewering the queen is an active tactical theme in the position."
+      ))
+      else if (hasAny("skewer")) Some(List(
+        "A skewer motif is now relevant in the tactical battle.",
+        "Line-based skewer ideas are shaping move order.",
+        "Skewer geometry is part of the current tactical landscape."
+      ))
+      else if (hasAny("xray_queen")) Some(List(
+        "X-ray pressure toward the queen is becoming practical.",
+        "The tactical idea is x-ray pressure on the queen.",
+        "X-ray alignment against the queen is now a concrete resource."
+      ))
+      else if (hasAny("xray")) Some(List(
+        "X-ray pressure is becoming a practical tactical resource.",
+        "Line-piece x-ray geometry now influences move order.",
+        "X-ray motifs are part of the current tactical landscape."
+      ))
+      else if (hasAny("exchange_sacrifice")) Some(List(
+        "An exchange-sacrifice idea can create dominant file control.",
+        "Sacrificing the exchange for initiative is now a practical option.",
+        "Exchange investment for dominant activity is part of the position."
+      ))
+      else if (hasAny("color_complex")) Some(List(
+        "Color complex control is the key strategic battleground.",
+        "The struggle revolves around weak color complex squares.",
+        "Color complex imbalances are guiding both plans."
+      ))
+      else if (hasAny("open_file")) Some(List(
+        "Open-file control is a central strategic objective.",
+        "The open file is the key channel for major-piece activity.",
+        "File control along the open line can dictate the middlegame."
+      ))
+      else None
+
+    templates.map(ts => punctuate(pickWithPlyRotation(bead ^ 0x3c6ef372, ply, ts)))
   }
 
   def getThreatStatement(bead: Int, kind: String, loss: Int): String = {
@@ -1244,12 +1412,12 @@ object NarrativeLexicon {
       ))
       case "positional" => pick(bead ^ 0x33d3c7a, List(
         "ignoring it can tie your pieces to defense.",
-        "key squares and files can slip away.",
+        "key squares and files can be conceded.",
         "you can drift into a passive, hard-to-defend structure."
       ))
       case _ => pick(bead ^ 0x44e4d8b, List(
         "this needs an accurate response.",
-        "the initiative can slip quickly.",
+        "the initiative can swing quickly.",
         "you should address this before starting your own plan."
       ))
 
@@ -1287,11 +1455,6 @@ object NarrativeLexicon {
     }
   }
 
-  def getBriefingFallback(conceptIds: List[String]): String = {
-    if (conceptIds.isEmpty) "The position requires careful consideration."
-    else s"Points to consider: ${conceptIds.take(2).mkString(", ")}."
-  }
-
   private def planDisplay(bead: Int, planName: String, ply: Int): String =
     val localSeed = bead ^ (ply * 0x632be59b)
     planName match
@@ -1322,9 +1485,9 @@ object NarrativeLexicon {
       case other => other
 
   def evalOutcomeClauseFromCp(cp: Int): String =
-    evalOutcomeClauseFromCp(Math.abs(cp.hashCode), cp)
+    evalOutcomeClauseFromCp(Math.abs(cp.hashCode), cp, ply = 0)
 
-  def evalOutcomeClauseFromCp(bead: Int, cp: Int): String = {
+  def evalOutcomeClauseFromCp(bead: Int, cp: Int, ply: Int = 0): String = {
     val absCp = Math.abs(cp)
     val pawns = absCp.toDouble / 100.0
     val approx =
@@ -1332,74 +1495,77 @@ object NarrativeLexicon {
         val sign = if cp >= 0 then "+" else "-"
         Some(f"(≈$sign$pawns%.1f)")
       else None
+    def choose(options: List[String]): String =
+      pickWithPlyRotation(bead ^ 0x2c1b3c6d ^ Math.abs(cp.hashCode), ply, options)
 
     def withApprox(base: String): String =
       approx match
         case Some(a) if Math.abs(bead ^ base.hashCode) % 3 == 0 => s"$base $a"
         case _ => base
 
-    if (cp >= 500) pick(bead, List(
+    if (cp >= 500) choose(List(
       withApprox("White is winning"),
       withApprox("White has a decisive advantage"),
       withApprox("White is completely on top"),
       withApprox("White should convert with correct play"),
       withApprox("White is close to a winning position")
     ))
-    else if (cp >= 300) pick(bead, List(
+    else if (cp >= 300) choose(List(
       withApprox("White holds a clear advantage"),
       withApprox("White is clearly better"),
       withApprox("White is pressing with a stable edge"),
       withApprox("White has the initiative and the better game"),
       withApprox("White has a comfortable plus")
     ))
-    else if (cp >= 100) pick(bead, List(
+    else if (cp >= 100) choose(List(
       withApprox("White has a slight advantage"),
       withApprox("White is a bit better"),
       withApprox("White has the more pleasant position"),
       withApprox("White can play for two results"),
       withApprox("White is slightly ahead in the evaluation")
     ))
-    else if (cp >= 30) pick(bead, List(
+    else if (cp >= 30) choose(List(
       withApprox("White has a small pull"),
       withApprox("White is just a touch better"),
       withApprox("White has a modest edge"),
       withApprox("White can keep up mild pressure"),
       withApprox("White has the easier side to press with")
     ))
-    else if (cp <= -500) pick(bead, List(
+    else if (cp <= -500) choose(List(
       withApprox("Black is winning"),
       withApprox("Black has a decisive advantage"),
       withApprox("Black is completely on top"),
       withApprox("Black should convert with correct play"),
       withApprox("Black is close to a winning position")
     ))
-    else if (cp <= -300) pick(bead, List(
+    else if (cp <= -300) choose(List(
       withApprox("Black holds a clear advantage"),
       withApprox("Black is clearly better"),
       withApprox("Black is pressing with a stable edge"),
       withApprox("Black has the initiative and the better game"),
       withApprox("Black has a comfortable plus")
     ))
-    else if (cp <= -100) pick(bead, List(
+    else if (cp <= -100) choose(List(
       withApprox("Black has a slight advantage"),
       withApprox("Black is a bit better"),
       withApprox("Black has the more pleasant position"),
       withApprox("Black can play for two results"),
       withApprox("Black is slightly ahead in the evaluation")
     ))
-    else if (cp <= -30) pick(bead, List(
+    else if (cp <= -30) choose(List(
       withApprox("Black has a small pull"),
       withApprox("Black is just a touch better"),
       withApprox("Black has a modest edge"),
       withApprox("Black can keep up mild pressure"),
       withApprox("Black has the easier side to press with")
     ))
-    else pick(bead, List(
-      "The position is near parity",
+    else choose(List(
+      "The position is finely balanced",
       "The position is about level",
-      "Neither side has a clear advantage",
+      "Neither side has established a clear advantage",
       "The evaluation is essentially balanced",
-      "It's close to equal, with play for both sides"
+      "It's close to equal, with play for both sides",
+      "The position is practically balanced with chances for both sides"
     ))
   }
 
@@ -1473,7 +1639,9 @@ object NarrativeLexicon {
         pick(bead, List(
           s"The ${roleLabel(pinnedRole)} on ${pinned.key} is pinned$abs to the ${roleLabel(behindRole)} on ${behind.key}.",
           s"There's a pin: the ${roleLabel(pinnedRole)} on ${pinned.key} cannot move without exposing the ${roleLabel(behindRole)} on ${behind.key}.",
-          s"The pin on ${pinned.key} makes that ${roleLabel(pinnedRole)} awkward to handle."
+          s"${pinned.key} is pinned, leaving the ${roleLabel(pinnedRole)} with limited mobility.",
+          s"Because of the pin on ${pinned.key}, coordinating that ${roleLabel(pinnedRole)} now costs tempi.",
+          s"The pin restrains the ${roleLabel(pinnedRole)} on ${pinned.key}, reducing practical flexibility."
         ))
 
       case Fact.Fork(attacker, attackerRole, targets, _) =>
@@ -1559,11 +1727,4 @@ object NarrativeLexicon {
     ))
   }
 
-  def getComplexityNote(bead: Int, sharpness: String): String = {
-    pick(bead, List(
-      s"The position is exceptionally $sharpness, where one slip is fatal.",
-      s"High $sharpness demands extreme precision from both sides.",
-      s"Practically speaking, the $sharpness nature of the battle favors the better prepared."
-    ))
-  }
 }

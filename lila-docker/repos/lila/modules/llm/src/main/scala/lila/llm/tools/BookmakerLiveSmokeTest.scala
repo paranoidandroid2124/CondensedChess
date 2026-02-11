@@ -1,6 +1,7 @@
 package lila.llm.tools
 
 import scala.concurrent.{ Await, ExecutionContext }
+import lila.llm.*
 import scala.concurrent.duration.*
 
 import akka.actor.ActorSystem
@@ -8,7 +9,7 @@ import akka.actor.ActorSystem
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
-import lila.llm.{ CommentResponse, LlmApi, LlmClient, LlmConfig }
+import lila.llm.{ CommentResponse, GeminiClient, GeminiConfig, LlmApi, CommentaryCache }
 import lila.llm.analysis.OpeningExplorerClient
 import lila.llm.model.strategic.VariationLine
 
@@ -17,6 +18,7 @@ import lila.llm.model.strategic.VariationLine
  * - runs the rule-based pipeline
  * - fetches Masters Opening Explorer data (network)
  * - renders book-style prose including Masters citations when available
+ * - Gemini polish disabled (no API key in test mode)
  *
  * Usage (from `lila-docker/repos/lila`):
  *   sbt "llm/runMain lila.llm.tools.BookmakerLiveSmokeTest"
@@ -24,15 +26,20 @@ import lila.llm.model.strategic.VariationLine
 object BookmakerLiveSmokeTest:
 
   def main(args: Array[String]): Unit =
-    given ExecutionContext = ExecutionContext.global
+    given Executor = ExecutionContext.global
     given ActorSystem = ActorSystem("bookmaker-live-smoke-test")
 
     val ws = new StandaloneAhcWSClient(new DefaultAsyncHttpClient())
     try
-      val config = LlmConfig(apiKey = "", model = "disabled", enabled = false)
-      val client = LlmClient(ws, config)
       val explorer = OpeningExplorerClient(ws)
-      val api = LlmApi(client, explorer)
+      val geminiConfig = GeminiConfig(
+        apiKey = "", model = "disabled", enabled = false,
+        temperature = 0.4, maxOutputTokens = 256,
+        contextCacheTtlMinutes = 60, requestTimeoutSeconds = 30
+      )
+      val geminiClient = GeminiClient(ws, geminiConfig)
+      val commentaryCache = CommentaryCache()
+      val api = LlmApi(explorer, geminiClient, commentaryCache)
 
       // Corpus case: ruy_c3_prepare_d4 (ply 13)
       val fen =

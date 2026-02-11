@@ -7,6 +7,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.*
 import scala.sys.process.*
 import scala.util.control.NonFatal
+import java.util.regex.Pattern
 
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
@@ -82,6 +83,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
   private val scoreTokenRegex = """(?i)(?:\([+\-]\d+\.\d\)|\bmate\b|\bcp\b|#[0-9]+)""".r
   private val tokenRegex = """[A-Za-z][A-Za-z0-9'\-]{1,}""".r
   private val sentenceSplitRegex = """(?<=[\.\!\?])\s+|\n+""".r
+  private val moveHeaderPrefixRegex = """^\s*\d+\.(?:\.\.)?\s*[^:\n]{1,40}:\s*""".r
   private val tagRegex = """(?m)^\[(\w+)\s+"(.*)"\]\s*$""".r
   private val jsonStartMarker = "---JSON_START---"
   private val jsonEndMarker = "---JSON_END---"
@@ -105,13 +107,11 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     "blunder",
     "mistake",
     "inaccuracy",
-    "imprecise",
     "misses",
     "slip",
     "inferior",
     "drops",
-    "loses",
-    "error"
+    "loses"
   )
 
   private val strongPositiveNarrativeLexicon = List(
@@ -119,7 +119,8 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     "excellent choice",
     "strong move",
     "very accurate",
-    "precise move"
+    "precise move",
+    "fully sound"
   )
 
   test("per-ply era benchmark quality report (all moves, all 4 games)") {
@@ -221,7 +222,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
             )
             val prose = BookStyleRenderer.render(ctx).trim
             val quality = computeQualityMetrics(prose, pd.fen, pd.playedUci, variations)
-            val firstSentence = extractSentences(prose).headOption.getOrElse("")
+            val firstSentence = extractLeadSentence(prose)
 
             results += PlyResult(
               ply = pd.ply,
@@ -369,6 +370,17 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
       }
       .getOrElse("middlegame")
 
+  private def sortVariationsForSideToMove(fen: String, vars: List[VariationLine]): List[VariationLine] =
+    if fenSideToMoveIsWhite(fen) then vars.sortBy(v => -v.effectiveScore)
+    else vars.sortBy(_.effectiveScore)
+
+  private def fenSideToMoveIsWhite(fen: String): Boolean =
+    Option(fen).getOrElse("").trim.split("\\s+").drop(1).headOption.contains("w")
+
+  private def cpLossForSideToMove(fen: String, bestScore: Int, playedScore: Int): Int =
+    if fenSideToMoveIsWhite(fen) then (bestScore - playedScore).max(0)
+    else (playedScore - bestScore).max(0)
+
   private def computeQualityMetrics(
       prose: String,
       fen: String,
@@ -382,7 +394,8 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     val lexicalDiversity =
       if (tokens.isEmpty) 0.0 else uniqueTokens.size.toDouble / tokens.size.toDouble
 
-    val sentenceNorm = extractSentences(prose).map(normalizeSentence).filter(_.length >= 8)
+    val sentences = extractSentences(prose)
+    val sentenceNorm = sentences.map(normalizeSentence).filter(_.length >= 8)
     val uniqueSentenceCount = sentenceNorm.distinct.size
     val sentenceCount = sentenceNorm.size
     val uniqueSentenceRatio =
@@ -399,18 +412,45 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     val variationAnchorCoverage =
       if (anchors.isEmpty) 1.0 else covered.toDouble / anchors.size.toDouble
 
-    val ranked = vars.sortBy(v => -v.effectiveScore)
+    val ranked = sortVariationsForSideToMove(fen, vars)
     val bestScore = ranked.headOption.map(_.effectiveScore).getOrElse(0)
     val playedIdx = ranked.indexWhere(_.moves.headOption.contains(playedUci))
     val playedMoveRank = if (playedIdx >= 0) playedIdx + 1 else 0
     val playedMoveDeltaCp =
-      if (playedIdx >= 0) (bestScore - ranked(playedIdx).effectiveScore).max(0) else 0
+      if (playedIdx >= 0) cpLossForSideToMove(fen, bestScore, ranked(playedIdx).effectiveScore) else 0
 
-    val hasNegativeLanguage = negativeNarrativeLexicon.exists(lower.contains)
+    val playedSanOpt = NarrativeUtils.uciListToSan(fen, List(playedUci)).headOption.map(_.toLowerCase)
+    def collectFocusText(matches: (String, String) => Boolean): Option[String] =
+      playedSanOpt.flatMap { san =>
+        val hitIndices = sentences.zipWithIndex.collect { case (s, idx) if matches(s, san) => idx }
+        if (hitIndices.isEmpty) None
+        else
+          Some(
+            hitIndices
+              .flatMap(i => List(i - 1, i, i + 1))
+              .filter(i => i >= 0 && i < sentences.size)
+              .distinct
+              .sorted
+              .map(sentences)
+              .mkString(" ")
+              .toLowerCase
+          )
+      }
+
+    val strictFocusLower = collectFocusText { (sentence, san) =>
+      val escaped = Pattern.quote(san)
+      val pattern = s"(?i)(\\*\\*$escaped\\*\\*|(?<![a-z0-9])$escaped(?![a-z0-9]))".r
+      pattern.findFirstIn(sentence).nonEmpty
+    }
+    val broadFocusLower = collectFocusText((sentence, san) => sentence.toLowerCase.contains(san))
+    val focusedLower = strictFocusLower.orElse(broadFocusLower).getOrElse(lower)
+
+    val hasNegativeLanguageFocused = negativeNarrativeLexicon.exists(focusedLower.contains)
+    val hasNegativeLanguageBroad = negativeNarrativeLexicon.exists(lower.contains)
     val hasStrongPositiveLanguage = strongPositiveNarrativeLexicon.exists(lower.contains)
     val engineNarrativeMismatch =
-      (playedMoveRank > 0 && playedMoveDeltaCp >= 140 && !hasNegativeLanguage) ||
-        (playedMoveRank > 0 && playedMoveDeltaCp <= 35 && hasNegativeLanguage) ||
+      (playedMoveRank > 0 && playedMoveDeltaCp >= 140 && !hasNegativeLanguageBroad) ||
+        (playedMoveRank > 0 && playedMoveDeltaCp <= 25 && hasNegativeLanguageFocused) ||
         (playedMoveRank > 0 && playedMoveDeltaCp >= 200 && hasStrongPositiveLanguage)
 
     val qualityScore = {
@@ -456,6 +496,11 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
       .map(_.trim)
       .filter(_.nonEmpty)
 
+  private def extractLeadSentence(text: String): String = {
+    val stripped = moveHeaderPrefixRegex.replaceFirstIn(text.trim, "")
+    extractSentences(stripped).headOption.getOrElse("")
+  }
+
   private def normalizeSentence(s: String): String =
     s.toLowerCase
       .replaceAll("""[*`_>\[\]\(\)]""", " ")
@@ -466,6 +511,70 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
   private def occurrencesOf(haystack: String, needle: String): Int =
     if (needle.isEmpty) 0
     else haystack.sliding(needle.length).count(_ == needle)
+
+  private def buildWorstPlyTaxonomy(summaries: List[GameSummary]): List[(String, Int, List[String])] = {
+    val sampled =
+      summaries.flatMap { gs =>
+        gs.results
+          .sortBy(_.quality.qualityScore)
+          .take(8)
+          .map(r => (gs.game.id, r))
+      }
+
+    val concreteReasonHints = List(
+      "issue:",
+      "after this",
+      "forcing reply",
+      "pin",
+      "hanging",
+      "fork",
+      "skewer",
+      "threat",
+      "does not neutralize",
+      "outside the sampled principal lines"
+    )
+    val templateHints = List(
+      "strategic focus:",
+      "key theme:",
+      "strategic priority:",
+      "the practical roadmap centers on",
+      "current play is organized around",
+      "most sensible plans here converge on"
+    )
+
+    val buckets = scala.collection.mutable.LinkedHashMap.empty[String, scala.collection.mutable.ListBuffer[String]]
+
+    sampled.foreach { case (gameId, r) =>
+      val lower = r.prose.toLowerCase
+      val hasConcreteReason = concreteReasonHints.exists(lower.contains)
+      val templateHits = templateHints.count(lower.contains)
+      val categories = scala.collection.mutable.ListBuffer.empty[String]
+
+      if (r.quality.engineNarrativeMismatch)
+        categories += "Engine/Text polarity mismatch"
+      if (templateHits >= 2 || (templateHits >= 1 && !hasConcreteReason))
+        categories += "Template-heavy position framing"
+      if ((r.quality.scoreTokenCount >= 4 || lower.contains(" cp ")) && !hasConcreteReason)
+        categories += "Numeric-heavy critique with weak causal detail"
+      if ((r.quality.playedMoveRank == 0 || r.quality.playedMoveRank >= 3) &&
+          !lower.contains("better is **") &&
+          !lower.contains("stronger is **") &&
+          !lower.contains("engine reference"))
+        categories += "Lower-rank move not contrasted clearly"
+      if (categories.isEmpty && r.quality.playedMoveDeltaCp >= 80 && !hasConcreteReason)
+        categories += "Why-bad explanation under-specified"
+
+      categories.distinct.foreach { cat =>
+        val sample = s"$gameId ply ${r.ply} (${r.playedUci}, score=${r.quality.qualityScore})"
+        val list = buckets.getOrElseUpdate(cat, scala.collection.mutable.ListBuffer.empty[String])
+        if (!list.contains(sample)) list += sample
+      }
+    }
+
+    buckets.toList
+      .map { case (label, samples) => (label, samples.size, samples.toList) }
+      .sortBy { case (_, count, _) => -count }
+  }
 
   private def average(xs: List[Double]): Double =
     if (xs.isEmpty) 0.0 else xs.sum / xs.size
@@ -503,6 +612,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     val avgRank = average(summaries.map(_.averagePlayedRank))
     val avgSeenRate = average(summaries.map(_.playedMoveSeenRate))
     val mismatchCount = summaries.map(_.engineMismatchCount).sum
+    val taxonomy = buildWorstPlyTaxonomy(summaries)
 
     val sb = new StringBuilder()
     sb.append("# Era Full-Game Per-Ply Commentary Report\n\n")
@@ -517,6 +627,17 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
     sb.append(f"- Average played-move rank (seen plies): $avgRank%.2f\n")
     sb.append(f"- Average played-move cp loss vs best (seen plies): $avgDelta%.2f\n")
     sb.append(s"- Engine/text mismatch plies: $mismatchCount\n\n")
+
+    if (taxonomy.nonEmpty) {
+      sb.append("## Error Taxonomy (sampled worst plies)\n\n")
+      taxonomy.foreach { case (label, count, samples) =>
+        sb.append(s"- $label: $count\n")
+        if (samples.nonEmpty) {
+          sb.append(s"  samples: ${samples.take(3).mkString("; ")}\n")
+        }
+      }
+      sb.append("\n")
+    }
 
     summaries.foreach { gs =>
       val lowShare =
