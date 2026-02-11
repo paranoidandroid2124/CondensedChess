@@ -119,22 +119,49 @@ export const getBestEval = (ctrl: CevalHandler): EvalScore | undefined => {
 let gaugeLast = 0;
 let gaugeTicks: VNode[];
 
-export function renderGauge(ctrl: CevalHandler): VNode | undefined {
+export function renderGauge(ctrl: CevalHandler, isHorizontal = false): VNode | undefined {
   if (ctrl.ongoing || !ctrl.showEvalGauge()) return;
-  gaugeTicks ??= [...Array(8).keys()].map(i =>
-    hl(i === 3 ? 'tick.zero' : 'tick', { attrs: { style: `height: ${(i + 1) * 12.5}%` } }),
-  );
+
   const bestEv = getBestEval(ctrl);
-  let ev;
+  let ev: number;
   if (bestEv) {
     ev = povChances('white', bestEv);
     gaugeLast = ev;
   } else ev = gaugeLast;
+
+  if (isHorizontal) {
+    const whitePct = ((ev + 1) * 50);
+    const labelText = bestEv
+      ? (defined(bestEv.mate) ? '#' + bestEv.mate : renderEval(bestEv.cp!))
+      : '';
+    const advantage = ev > 0.05 ? 'white' : ev < -0.05 ? 'black' : 'equal';
+    return hl(
+      'div.eval-gauge.eval-gauge--horizontal',
+      {
+        class: { empty: !defined(bestEv), reverse: ctrl.getOrientation() === 'black' },
+        attrs: { 'data-advantage': advantage },
+      },
+      [
+        hl('div.white', { attrs: { style: `width: ${whitePct}%` } }),
+        hl('div.black'),
+        labelText ? hl('div.eval-gauge__label', labelText) : undefined,
+      ],
+    );
+  }
+
+  // Vertical mode (legacy)
+  gaugeTicks ??= [...Array(8).keys()].map(i =>
+    hl(i === 3 ? 'tick.zero' : 'tick', { attrs: { style: `height: ${(i + 1) * 12.5}%` } }),
+  );
   return hl(
     'div.eval-gauge',
     { class: { empty: !defined(bestEv), reverse: ctrl.getOrientation() === 'black' } },
     [hl('div.black', { attrs: { style: `height: ${100 - (ev + 1) * 50}%` } }), gaugeTicks],
   );
+}
+
+export function renderHorizontalGauge(ctrl: CevalHandler): VNode | undefined {
+  return renderGauge(ctrl, true);
 }
 
 export function renderCeval(ctrl: CevalHandler): VNode[] {

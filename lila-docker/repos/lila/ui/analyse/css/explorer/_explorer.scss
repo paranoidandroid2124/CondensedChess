@@ -4,19 +4,24 @@
   position: relative;
   flex: 3 1 0px;
   white-space: nowrap;
-
-  @include transition;
-
-  transition-delay: 0.3s;
+  background: rgba(15, 17, 23, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  margin: 0.5rem;
+  padding: 0.5rem;
   overflow-x: hidden;
   overflow-y: auto;
   font-size: 0.9em;
+  transition: all 0.3s ease;
 
   &.reduced {
     flex: 0.3 3 0px;
+    opacity: 0.5;
 
     &:hover {
       flex: 1 2 0px;
+      opacity: 1;
     }
   }
 
@@ -43,38 +48,53 @@
     text-overflow: ellipsis;
     user-select: text;
   }
+
   .explorer-title {
-    @extend %flex-center-nowrap;
-    align-items: stretch;
-    font-size: 0.9rem;
-    line-height: 1.9em;
-    padding: 0;
-    background: $m-secondary_bg--mix-30;
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px 8px 0 0;
+    color: #64748b;
 
     .ddloader {
       padding-inline-start: 7px;
     }
+
     .active {
-      @extend %flex-center-nowrap;
+      display: flex;
+      align-items: center;
+      padding: 0.4rem 0.8rem;
+      color: #f1f5f9;
+      background: rgba(99, 102, 241, 0.15);
+      border-radius: 6px;
+      margin-inline-end: 1rem;
       direction: ltr;
-      padding: 0 7px;
-      color: $c-font-clear;
-      background: $m-secondary_bg--mix-40;
+
       strong {
+        color: #818cf8;
         margin-inline-end: 0.5ch;
       }
+
       &.player {
         cursor: pointer;
       }
     }
+
     .long {
       letter-spacing: -0.1ch;
     }
+
     button {
       display: inline-block;
       padding: 0 0.5ch;
       margin-inline-start: 1px;
       color: $c-font-dim;
+
       &:hover {
         color: $c-font-clear;
         background: $m-secondary_bg--mix-50;
@@ -93,12 +113,15 @@
   }
 
   tr {
-    &:nth-child(even) {
-      background: $c-bg-zebra;
-    }
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 
     &:hover {
-      background: $m-secondary_bg--mix-20;
+      background: rgba(99, 102, 241, 0.05);
+
+      td:first-child {
+        color: #818cf8;
+      }
     }
   }
 
@@ -108,7 +131,9 @@
   }
 
   .moves {
-    will-change: transform, opacity; /* Prevents flicker in Safari */
+    will-change: transform, opacity;
+
+    /* Prevents flicker in Safari */
     th {
       @extend %roboto;
       font-size: 0.8rem;
@@ -116,6 +141,7 @@
       background: $m-secondary_bg--mix-40;
       padding-inline-start: 7px;
     }
+
     td:first-child {
       @extend %san;
 
@@ -152,73 +178,47 @@
     }
   }
 
-  .bar span {
-    text-align: center;
-    display: inline-block;
+  .bar {
+    display: flex;
+    height: 18px;
+    border-radius: 4px;
     overflow: hidden;
-    vertical-align: middle;
-    background-clip: padding-box;
-    border: 0 solid $m-font--fade-83;
-    border-width: 1px 0;
-    height: 16px;
-    line-height: 14px;
-    font-size: 0.9em;
-    transition: width 1s;
+    background: #0f172a;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 
-    &:first-child,
-    /* draw radius when white is at 0% */
-    &[style='width: 0%'] + span:not(:last-child):not([style*='width: 100%']) {
-      @extend %box-radius-inline-start-only;
-    }
+    span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      overflow: hidden;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      border: none;
+      background-clip: padding-box;
 
-    &:last-child,
-    /* draw radius when black is at 0% */
-    &:not(:first-child):has(+ [style='width: 0%']) {
-      @extend %box-radius-inline-end-only;
-    }
+      &:first-child {
+        background: linear-gradient(to right, #6366f1, #818cf8);
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      }
 
-    &[style*='width: 100%'] {
-      border-radius: $box-radius-size;
-    }
-  }
+      &.draws {
+        background: #334155;
+        color: #94a3b8;
+      }
 
-  .white {
-    background: #ccc;
-    box-shadow: 0 -5px 7px rgba(0, 0, 0, 0.25) inset;
-    @include if-light {
-      background: #fff;
-      box-shadow: 0 -5px 7px rgba(0, 0, 0, 0.1) inset;
-    }
-
-    @include if-not-light {
-      color: #222;
+      &:last-child {
+        background: #0f172a;
+        color: #475569;
+      }
     }
   }
 
-  .draws,
-  .black {
-    color: #ddd;
-    box-shadow: 0 5px 7px rgba(255, 255, 255, 0.1) inset;
-    @include if-light {
-      color: #fff;
-      box-shadow: 0 5px 7px rgba(255, 255, 255, 0.2) inset;
-    }
-  }
+  // Legacy color classes removed in favor of integrated .bar span styling
 
-  .draws {
-    background: #666;
-    @include if-light {
-      background: #a0a0a0;
-    }
-  }
 
-  .black {
-    background: #333;
-    @include if-light {
-      background: #555;
-    }
-    color: #ddd;
-  }
 
   .games {
     width: 100%;
@@ -227,6 +227,7 @@
       @include padding-direction(5px, 0, 5px, 7px);
 
       max-width: 110px;
+
       &:nth-child(2) {
         max-width: none;
       }
@@ -300,18 +301,25 @@
 
   .toconf {
     position: absolute;
-    top: 0;
-    @include inline-end(0);
+    top: 0.8rem;
+    right: 0.8rem;
     cursor: pointer;
-    display: block;
-    font-size: 1.2em;
-    width: 1.5em;
-    line-height: 1.5em;
-    text-align: center;
-    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    z-index: 5;
 
     &:hover {
-      opacity: 1;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
     }
   }
 
@@ -362,6 +370,7 @@
   .explorer-box .explorer-title {
     line-height: 3em;
   }
+
   .explorer-box button.toconf {
     font-size: 1.5em;
     margin-top: 2px;

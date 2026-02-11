@@ -80,6 +80,9 @@ POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPositi
 POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
 GET   /api/llm/credits                  controllers.LlmController.creditStatus
 GET   /plan                            controllers.AnalystProPlan.index
+GET   /plan/checkout                   controllers.Checkout.show
+POST  /plan/checkout/process            controllers.Checkout.process
+GET   /plan/checkout/success            controllers.Checkout.success
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)
