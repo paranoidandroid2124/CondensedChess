@@ -708,17 +708,17 @@ object NarrativeLexicon {
       anchorMove.map(_.trim).filter(_.nonEmpty) match
         case Some(anchor) =>
           List(
-            s"Precedent around $anchor: $factual",
             s"In the $anchor branch, a reference game shows: $factual",
-            s"One model continuation with $anchor was: $factual",
-            s"For this $anchor structure, a relevant game was: $factual"
+            s"A model game in the $anchor line runs: $factual",
+            s"Historical guidance around $anchor is clear: $factual",
+            s"$factual This line is anchored by $anchor."
           )
         case None =>
           List(
             s"A related precedent: $factual",
-            s"A comparable game showed: $factual",
-            s"A reference game in this structure was: $factual",
-            s"One historical model game was: $factual"
+            s"A comparable game in this structure showed: $factual",
+            s"One historical model game reads: $factual",
+            s"$factual This precedent remains the closest structural parallel."
           )
     pick(bead ^ 0x2f6e2b1, templates)
   }
@@ -769,19 +769,71 @@ object NarrativeLexicon {
     pick(bead ^ 0x5f356495, templates)
   }
 
+  def getPrecedentRouteLine(
+    bead: Int,
+    triggerMove: String,
+    replyMove: Option[String],
+    pivotMove: Option[String]
+  ): String = {
+    val route = List(Some(triggerMove), replyMove, pivotMove).flatten.map(_.trim).filter(_.nonEmpty)
+    val routeText =
+      route match
+        case a :: b :: c :: Nil => s"$a -> $b -> $c"
+        case a :: b :: Nil      => s"$a -> $b"
+        case a :: Nil           => a
+        case _                  => triggerMove
+    val templates = List(
+      s"Line route: $routeText.",
+      s"The branch follows $routeText.",
+      s"The move path here is $routeText.",
+      s"The practical route is $routeText."
+    )
+    pick(bead ^ 0x11f17f1d, templates)
+  }
+
+  def getPrecedentStrategicTransitionLine(
+    bead: Int,
+    mechanism: String
+  ): String = {
+    val m = mechanism.trim
+    val templates = List(
+      s"Strategically, the game turned on $m.",
+      s"The position's strategic transition was driven by $m.",
+      s"That branch shifts plans through $m.",
+      s"The practical turning factor was $m."
+    )
+    pick(bead ^ 0x284f2d5b, templates)
+  }
+
+  def getPrecedentDecisionDriverLine(
+    bead: Int,
+    mechanism: String
+  ): String = {
+    val m = mechanism.trim
+    val templates = List(
+      s"The decisive practical driver was control of $m.",
+      s"Results hinged on who managed $m more accurately.",
+      s"The key match result factor was handling $m under pressure.",
+      s"Conversion quality around $m separated the outcomes."
+    )
+    pick(bead ^ 0x3124bcf5, templates)
+  }
+
   def getAlternative(bead: Int, move: String, whyNot: Option[String]): String = {
     whyNot match {
       case Some(reason) if reason.nonEmpty =>
         pick(bead, List(
-          s"**$move** is also possible, though $reason.",
-          s"Alternatively, **$move** ($reason).",
-          s"**$move** is worth considering, but $reason."
+          s"**$move** is another candidate, but $reason, so practical timing becomes critical.",
+          s"A practical sideline is **$move**; however, $reason, which changes the conversion route.",
+          s"**$move** keeps options open, yet $reason, and coordination can drift if move order slips.",
+          s"**$move** is playable over the board, although $reason, so initiative management becomes harder."
         ))
       case _ =>
         pick(bead, List(
-          s"**$move** remains a credible candidate.",
-          s"Alternatively, **$move** offers a different strategic route.",
-          s"**$move** stays fully in contention over the board."
+          s"**$move** remains a live candidate, and it steers the game toward a different strategic route.",
+          s"One practical detour is **$move**, where coordination matters more than immediate tactics.",
+          s"**$move** points to a different strategic route, so tempo handling becomes the key test.",
+          s"**$move** is still feasible in practice, while conversion relies on cleaner sequencing."
         ))
     }
   }
@@ -914,15 +966,20 @@ object NarrativeLexicon {
 
   def getAnnotationPositive(bead: Int, playedSan: String): String = {
     pick(bead, List(
-      s"**$playedSan** keeps to the strongest continuation.",
-      s"**$playedSan** follows the principal engine roadmap without concession.",
-      s"**$playedSan** fits the position's strategic demands cleanly.",
-      s"**$playedSan** preserves coordination and keeps the best practical structure.",
-      s"With **$playedSan**, the position stays aligned with the main plan.",
-      s"**$playedSan** is a reliable move that maintains the reference continuation.",
-      s"**$playedSan** keeps the technical roadmap compact and stable.",
-      s"**$playedSan** retains a sound technical setup for the next phase.",
-      s"**$playedSan** keeps conversion tasks straightforward in practice."
+      s"**$playedSan** keeps to the strongest continuation, so coordination remains intact.",
+      s"**$playedSan** follows the principal engine roadmap, while preserving structural clarity.",
+      s"**$playedSan** fits the position's strategic demands, and it limits tactical drift.",
+      s"**$playedSan** preserves coordination and keeps the best practical structure, which eases conversion.",
+      s"With **$playedSan**, the position stays aligned with the main plan, so tempo handling stays simple.",
+      s"**$playedSan** is a reliable move that maintains the reference continuation, while king safety stays stable.",
+      s"**$playedSan** keeps the technical roadmap compact and stable, and move-order risks stay manageable.",
+      s"**$playedSan** keeps conversion tasks straightforward in practice, because structure and activity stay connected.",
+      s"With **$playedSan**, practical conversion remains organized and manageable, so initiative does not drift.",
+      s"**$playedSan** keeps long-term coordination intact while limiting tactical drift, which supports clean follow-up.",
+      s"**$playedSan** steers the position into a stable plan with clear follow-up, and defensive duties remain light.",
+      s"**$playedSan** keeps the game strategically tidy and easier to handle, even if the position stays tense.",
+      s"**$playedSan** supports a controlled continuation with minimal structural risk, so practical choices remain clear.",
+      s"**$playedSan** keeps the practical roadmap readable without forcing complications, while initiative remains balanced."
     ))
   }
 
@@ -933,27 +990,35 @@ object NarrativeLexicon {
     Thresholds.classifySeverity(cpLoss) match {
       case "blunder" =>
         pick(bead, List(
-          s"$markedMove is a blunder; it allows a forcing sequence against your position. **$bestSan** was required.",
-          s"$markedMove is a decisive error and the position starts collapsing. The critical move was **$bestSan**.",
-          s"$markedMove is a blunder that hands over the game flow; **$bestSan** was the only stable route."
+          s"$markedMove is a blunder; it allows a forcing sequence, so your position loses tactical control. **$bestSan** was required.",
+          s"$markedMove is a decisive error, and as a result coordination collapses quickly. The critical move was **$bestSan**.",
+          s"$markedMove is a blunder that hands over game flow, while **$bestSan** was the only stable route.",
+          s"$markedMove is a blunder because it disconnects defense from counterplay; **$bestSan** was necessary.",
+          s"$markedMove is a major error, so king safety and initiative both deteriorate; **$bestSan** held the balance."
         ))
       case "mistake" =>
         pick(bead, List(
-          s"$markedMove is a clear mistake; it gives the opponent the initiative. Stronger is **$bestSan**.",
-          s"$markedMove is a mistake that worsens coordination. Better is **$bestSan**.",
-          s"$markedMove is a mistake serious enough to shift practical control; **$bestSan** was preferable."
+          s"$markedMove is a clear mistake; it gives the opponent initiative, so practical defense becomes harder. Stronger is **$bestSan**.",
+          s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure easier to manage.",
+          s"$markedMove is serious enough to shift practical control, and **$bestSan** was the preferable route.",
+          s"$markedMove is a mistake because it loosens tempo order; **$bestSan** keeps the position connected.",
+          s"$markedMove is inaccurate in practical terms, so **$bestSan** was needed to preserve initiative."
         ))
       case "inaccuracy" =>
         pick(bead, List(
-          s"$markedMove is an inaccuracy; **$bestSan** keeps better control.",
-          s"$markedMove is an inaccuracy that concedes practical ease; **$bestSan** is tighter.",
-          s"$markedMove is an inaccuracy that drifts from the best plan; the cleaner move is **$bestSan**."
+          s"$markedMove is an inaccuracy, and **$bestSan** keeps cleaner control of coordination.",
+          s"$markedMove concedes practical ease, so **$bestSan** is the tighter continuation.",
+          s"$markedMove drifts from the best plan, while **$bestSan** keeps initiative better anchored.",
+          s"$markedMove is slightly loose in timing, and **$bestSan** keeps the structure easier to handle.",
+          s"$markedMove gives up some practical control; therefore **$bestSan** is the cleaner route."
         ))
       case _ =>
         pick(bead, List(
-          s"$markedMove is slightly imprecise; **$bestSan** is cleaner.",
-          s"$markedMove is playable but second-best; **$bestSan** keeps the position simpler.",
-          s"$markedMove is not the top choice here; **$bestSan** remains the reference move."
+          s"$markedMove is slightly imprecise, while **$bestSan** is cleaner in practical terms.",
+          s"$markedMove is playable but second-best, and **$bestSan** keeps the position simpler to convert.",
+          s"$markedMove is not the top choice here, so **$bestSan** remains the reference move.",
+          s"$markedMove can be played, but **$bestSan** keeps better structure and coordination.",
+          s"$markedMove is acceptable yet less direct, whereas **$bestSan** keeps initiative more stable."
         ))
     }
   }
@@ -962,39 +1027,39 @@ object NarrativeLexicon {
     rank match {
       case Some(2) if cpLoss <= 35 =>
         Some(pick(bead, List(
-          s"Engine preference still leans to **$bestSan**, but the practical gap is modest.",
-          s"The engine line order is close here; **$bestSan** is still the cleaner reference.",
-          s"Engine-wise, **$bestSan** stays first, with only a small practical difference."
+          s"Engine preference still leans to **$bestSan**, but the practical gap is modest and coordination themes stay similar.",
+          s"The engine line order is close here; **$bestSan** is still cleaner, while structure remains comparable.",
+          s"By score order, **$bestSan** remains first, although the practical difference stays small."
         )))
       case Some(2) =>
         Some(pick(bead, List(
-          s"Engine preference still leans to **$bestSan** as the cleaner move-order.",
-          s"Engine-wise, **$bestSan** remains the first choice in this position.",
-          s"The top engine continuation still starts with **$bestSan**."
+          s"Engine preference still leans to **$bestSan** as the cleaner move-order, so initiative handling is easier.",
+          s"In engine ordering, **$bestSan** remains first, while this line requires tighter coordination.",
+          s"The top engine continuation starts with **$bestSan**, because it keeps the structure more resilient."
         )))
       case Some(r) if r >= 3 && cpLoss <= 35 =>
         Some(pick(bead, List(
-          s"Engine ordering is close here; **$bestSan** remains the cleanest reference line.",
-          s"This line is playable, while **$bestSan** keeps a slightly cleaner move-order.",
-          s"The engine still prefers **$bestSan**, though the practical gap stays small."
+          s"Engine ordering is still close; **$bestSan** remains the cleanest reference line, while this stays playable.",
+          s"This line is playable, but **$bestSan** keeps a cleaner move-order and easier conversion path.",
+          s"Score ordering still prefers **$bestSan**, though the practical gap stays small and strategic plans overlap."
         )))
       case Some(r) if r >= 3 =>
         Some(pick(bead, List(
-          s"This sits below the principal engine candidates; **$bestSan** gives a more reliable setup.",
-          s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control.",
-          s"This is outside the top engine choices, and **$bestSan** is the stable reference."
+          s"This sits below the principal engine candidates, so **$bestSan** gives the more reliable setup.",
+          s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control of initiative.",
+          s"This is outside the top engine choices, and **$bestSan** remains the stable reference for conversion."
         )))
       case None if cpLoss <= 35 =>
         Some(pick(bead, List(
-          s"This move was not in the sampled MultiPV set; **$bestSan** remains the engine reference.",
-          s"The sampled principal lines still favor **$bestSan**, with a modest practical difference.",
-          s"From the sampled engine lines, **$bestSan** remains the cleaner benchmark."
+          s"This move was not in the sampled MultiPV set, so **$bestSan** remains the engine reference.",
+          s"The sampled principal lines still favor **$bestSan**, with only a modest practical difference in coordination.",
+          s"From sampled engine lines, **$bestSan** remains the cleaner benchmark for strategic stability."
         )))
       case None =>
         Some(pick(bead, List(
-          s"This move is outside the sampled principal lines; **$bestSan** is the engine reference.",
-          s"The move is not in the main MultiPV set; **$bestSan** is the robust alternative.",
-          s"Engine principal lines do not prioritize this; **$bestSan** is the practical benchmark."
+          s"This move is outside sampled principal lines, and **$bestSan** is the engine reference for safer conversion.",
+          s"The move is not in the main MultiPV set, so **$bestSan** is the robust practical alternative.",
+          s"Sampled principal lines do not prioritize this, while **$bestSan** remains the practical benchmark."
         )))
       case _ => None
     }

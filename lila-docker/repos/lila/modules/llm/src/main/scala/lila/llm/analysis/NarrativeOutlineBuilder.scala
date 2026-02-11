@@ -13,6 +13,11 @@ import lila.llm.model.strategic.VariationLine
 object NarrativeOutlineBuilder:
   private val MaxOpeningPrecedents = 3
   private val PrecedentConfidenceThreshold = 0.62
+  private val PrefixFamilyLimits = Map(
+    "sequence" -> 1,
+    "strategic_shift" -> 1,
+    "engine" -> 1
+  )
 
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class AlternativeEngineSignal(
@@ -43,10 +48,22 @@ object NarrativeOutlineBuilder:
     overlap: Int,
     metadataScore: Int
   )
+  private case class CrossBeatRepetitionState(
+    usedStems: scala.collection.mutable.Set[String],
+    prefixCounts: scala.collection.mutable.Map[String, Int]
+  )
+  private enum PrecedentRole:
+    case Sequence
+    case StrategicTransition
+    case DecisionDriver
 
   def build(ctx: NarrativeContext, rec: TraceRecorder): (NarrativeOutline, OutlineDiagnostics) =
     val bead = Math.abs(ctx.hashCode)
     val beats = scala.collection.mutable.ListBuffer.empty[OutlineBeat]
+    val crossBeatState = CrossBeatRepetitionState(
+      scala.collection.mutable.HashSet.empty[String],
+      scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
+    )
     var diag = OutlineDiagnostics()
 
     val isAnnotation = isMoveAnnotation(ctx)
@@ -81,7 +98,7 @@ object NarrativeOutlineBuilder:
 
     // 7. MAIN MOVE
     val moveLevelPrecedent = buildContextPrecedentSentence(ctx, bead)
-    val mainMoveBeat = buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent)
+    val mainMoveBeat = buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, crossBeatState)
     if mainMoveBeat.text.nonEmpty then beats += mainMoveBeat
 
     // Phase 6.8: Psychological Reconstruction
@@ -97,7 +114,7 @@ object NarrativeOutlineBuilder:
     buildOpeningTheoryBeat(ctx, rec, suppressPrecedents = moveLevelPrecedent.nonEmpty).foreach(beats += _)
 
     // 9. ALTERNATIVES
-    val altBeat = buildAlternativesBeat(ctx, rec, bead)
+    val altBeat = buildAlternativesBeat(ctx, rec, bead, crossBeatState)
     if altBeat.text.nonEmpty then beats += altBeat
 
     // 10. WRAP-UP
@@ -465,7 +482,8 @@ object NarrativeOutlineBuilder:
     rec: TraceRecorder,
     isAnnotation: Boolean,
     bead: Int,
-    precedentTextOpt: Option[String]
+    precedentTextOpt: Option[String],
+    crossBeatState: CrossBeatRepetitionState
   ): OutlineBeat =
     if isAnnotation then
       val playedSan = ctx.playedSan.getOrElse("")
@@ -555,18 +573,36 @@ object NarrativeOutlineBuilder:
             alert = alert,
             playedCand = playedCand,
             bestReply = bestReply,
-            threatsToUs = ctx.threats.toUs
+            threatsToUs = ctx.threats.toUs,
+            contextHint = Math.abs(playedSan.hashCode)
           )
-          val combined = List(rankContext.getOrElse(""), reason, bestIntent).filter(_.trim.nonEmpty).mkString(" ")
+          val combined = composeCausalAnnotation(
+            rankContext = rankContext,
+            reason = reason,
+            bestIntent = bestIntent,
+            bead = b ^ 0x3f84d5b5,
+            usedStems = crossBeatState.usedStems.toSet,
+            prefixCounts = crossBeatState.prefixCounts.toMap
+          )
           Option.when(combined.nonEmpty)(combined)
 
       val deltaText = buildDeltaAfterMoveText(ctx, bead).getOrElse("")
       val precedentText = precedentTextOpt.getOrElse("")
       if precedentText.nonEmpty then
         rec.use("openingData.sampleGames", "1", "Move-level precedent")
-      val rawText = List(baseText, detailText.getOrElse(""), deltaText, precedentText).filter(_.trim.nonEmpty).mkString(" ")
-      val tonedText = harmonizeAnnotationTone(rawText, cpLoss, isBest)
-      val text = enforceAnnotationPolarity(tonedText, cpLoss, isBest)
+      val shouldUsePrecedentFallback =
+        precedentText.isEmpty &&
+          ctx.openingData.exists(_.sampleGames.isEmpty) &&
+          ctx.openingEvent.exists(isCoreOpeningEvent)
+      val precedentBridge =
+        if !shouldUsePrecedentFallback then ""
+        else buildPrecedentFallbackSentence(ctx, bead ^ 0x56f839d3, scope = "main").getOrElse("")
+      val rawText = List(baseText, detailText.getOrElse(""), deltaText, precedentBridge, precedentText)
+        .filter(_.trim.nonEmpty)
+        .mkString(" ")
+      val tonedText = harmonizeAnnotationTone(rawText, cpLoss, isBest, bead ^ Math.abs(playedSan.hashCode))
+      val text = enforceAnnotationPolarity(tonedText, cpLoss, isBest, bead ^ Math.abs(bestSan.hashCode))
+      if text.trim.nonEmpty then trackTemplateUsage(text, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
       OutlineBeat(kind = OutlineBeatKind.MainMove, text = text, anchors = List(playedSan, bestSan).filter(_.nonEmpty).distinct)
     else
@@ -587,10 +623,18 @@ object NarrativeOutlineBuilder:
         }
         val precedentText = precedentTextOpt
         precedentText.foreach(_ => rec.use("openingData.sampleGames", "1", "Move-level precedent"))
+        val shouldUsePrecedentFallback =
+          precedentText.isEmpty &&
+            ctx.openingData.exists(_.sampleGames.isEmpty) &&
+            ctx.openingEvent.exists(isCoreOpeningEvent)
+        val precedentBridge =
+          if !shouldUsePrecedentFallback then ""
+          else buildPrecedentFallbackSentence(ctx, bead ^ 0x4f6cdd1d, scope = "main").getOrElse("")
         val mergedText =
-          List(text, prophylaxisText.getOrElse(""), precedentText.getOrElse(""))
+          List(text, prophylaxisText.getOrElse(""), precedentBridge, precedentText.getOrElse(""))
             .filter(_.trim.nonEmpty)
             .mkString(" ")
+        if mergedText.trim.nonEmpty then trackTemplateUsage(mergedText, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
         OutlineBeat(
           kind = OutlineBeatKind.MainMove, 
@@ -618,7 +662,13 @@ object NarrativeOutlineBuilder:
     if precedentSnippets.nonEmpty then
       rec.use("openingData.sampleGames", precedentSnippets.length.toString, "Opening precedents")
 
-    val text = List(openingText.getOrElse(""), precedentSnippets.mkString(" ")).filter(_.trim.nonEmpty).mkString(" ").trim
+    val precedentBridge =
+      if precedentSnippets.nonEmpty || openingText.isEmpty || !openingRef.exists(_.sampleGames.isEmpty) then ""
+      else buildPrecedentFallbackSentence(ctx, Math.abs(ctx.hashCode) ^ 0x19f8b4ad, scope = "opening").getOrElse("")
+    val text = List(openingText.getOrElse(""), precedentBridge, precedentSnippets.mkString(" "))
+      .filter(_.trim.nonEmpty)
+      .mkString(" ")
+      .trim
     if text.isEmpty then None
     else
       val anchors = openingRef.flatMap(_.name).map(_.split(" ").take(2).toList).getOrElse(Nil)
@@ -631,6 +681,39 @@ object NarrativeOutlineBuilder:
         conceptIds = concepts,
         anchors = anchors
       ))
+
+  private def buildPrecedentFallbackSentence(
+    ctx: NarrativeContext,
+    bead: Int,
+    scope: String
+  ): Option[String] =
+    val planHint =
+      ctx.plans.top5.headOption
+        .map(_.name.replaceAll("""[_\-]+""", " ").trim.toLowerCase)
+        .filter(_.nonEmpty)
+    val evalCp = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp))
+    val evalHint = evalCp.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x7f4a7c15, cp, ply = ctx.ply))
+    val templates =
+      scope.trim.toLowerCase match
+        case "opening" =>
+          List(
+            "At this branch, practical handling matters more than memorized reference games.",
+            "This node is best treated as a live practical decision rather than a model-game recall test.",
+            "From here, over-the-board plan execution matters more than historical comparison."
+          )
+        case _ =>
+          val planAware = planHint.map(p => s"around $p").getOrElse("from this structure")
+          List(
+            s"In practical terms, the key is to keep plans coherent $planAware.",
+            s"The position is decided more by accurate follow-up than by historical templates $planAware.",
+            s"From this point, practical move-order discipline is the main guide $planAware."
+          )
+    val rendered = NarrativeLexicon.pick(bead ^ 0x2f6e2b1, templates)
+    val withEval =
+      evalHint match
+        case Some(eval) if scope.trim.equalsIgnoreCase("opening") => s"$rendered $eval."
+        case _                                                    => rendered
+    Option.when(withEval.trim.nonEmpty)(withEval.trim)
 
   private def buildOpeningPrecedentSnippets(
     ctx: NarrativeContext,
@@ -696,39 +779,80 @@ object NarrativeOutlineBuilder:
       "At this branch, master games diverged in three practical directions:",
       "Reference branches from elite games at this point:"
     ))
+    val usedStems = scala.collection.mutable.HashSet.empty[String]
+    val prefixCounts = scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
 
     val items = rankedWithSignals.zipWithIndex.map { case ((line, signal), idx) =>
       val label = ('A' + idx).toChar
-      val route = signal.flatMap(precedentRouteSummary)
-      val mechanism = signal.map(s => precedentMechanismLabel(s.mechanism))
       val itemSeed = bead ^ Math.abs(line.text.hashCode) ^ ((idx + 1) * 0x9e3779b9)
-      val strategicLine =
-        mechanism.map { m =>
-          NarrativeLexicon.pick(itemSeed, List(
-            s"Strategic shift: $m.",
-            s"Strategically, the game turned on $m.",
-            s"The practical turning factor was $m."
-          ))
-        }.getOrElse("")
-      val parts = List(line.text.trim, route.getOrElse(""), strategicLine).filter(_.nonEmpty)
+      val role =
+        idx match
+          case 0 => PrecedentRole.Sequence
+          case 1 => PrecedentRole.StrategicTransition
+          case _ => PrecedentRole.DecisionDriver
+      val roleTemplates = signal.toList.flatMap { s =>
+        role match
+          case PrecedentRole.Sequence =>
+            (0 until 4).toList.map { step =>
+              NarrativeLexicon.getPrecedentRouteLine(
+                bead = itemSeed ^ (step * 0x27d4eb2f),
+                triggerMove = s.triggerMove,
+                replyMove = s.replyMove,
+                pivotMove = s.pivotMove
+              )
+            }
+          case PrecedentRole.StrategicTransition =>
+            val mechanism = precedentMechanismLabel(s.mechanism)
+            (0 until 4).toList.map { step =>
+              NarrativeLexicon.getPrecedentStrategicTransitionLine(
+                bead = itemSeed ^ (step * 0x7f4a7c15),
+                mechanism = mechanism
+              )
+            }
+          case PrecedentRole.DecisionDriver =>
+            val mechanism = precedentMechanismLabel(s.mechanism)
+            (0 until 4).toList.map { step =>
+              NarrativeLexicon.getPrecedentDecisionDriverLine(
+                bead = itemSeed ^ (step * 0x6d2b79f5),
+                mechanism = mechanism
+              )
+            }
+      }.map(_.trim).filter(_.nonEmpty).distinct
+      val roleLine =
+        if roleTemplates.isEmpty then ""
+        else
+          val selected = selectNonRepeatingTemplate(
+            templates = roleTemplates,
+            seed = itemSeed ^ 0x4f1bbcdc,
+            usedStems = usedStems.toSet,
+            prefixCounts = prefixCounts.toMap,
+            prefixLimits = PrefixFamilyLimits
+          )
+          trackTemplateUsage(selected, usedStems, prefixCounts)
+          selected
+
+      val parts = List(line.text.trim, roleLine).filter(_.nonEmpty)
       s"$label) ${parts.mkString(" ")}"
     }
 
-    val summary =
-      buildPrecedentComparisonSummary(
-        rankedWithSignals.flatMap(_._2.map(_.mechanism)),
-        bead
+    val summaryTemplates =
+      buildPrecedentComparisonSummaryTemplates(
+        rankedWithSignals.flatMap(_._2.map(_.mechanism))
       )
+    val summary =
+      if summaryTemplates.isEmpty then ""
+      else
+        val selected = selectNonRepeatingTemplate(
+          templates = summaryTemplates,
+          seed = bead ^ 0x3c6ef372,
+          usedStems = usedStems.toSet,
+          prefixCounts = prefixCounts.toMap,
+          prefixLimits = PrefixFamilyLimits
+        )
+        trackTemplateUsage(selected, usedStems, prefixCounts)
+        selected
 
     List(header, items.mkString(" "), summary).filter(_.nonEmpty).mkString(" ")
-
-  private def precedentRouteSummary(signal: PrecedentSignal): Option[String] =
-    val route = List(Some(signal.triggerMove), signal.replyMove, signal.pivotMove).flatten.map(_.trim).filter(_.nonEmpty)
-    route match
-      case a :: b :: c :: Nil => Some(s"Sequence focus: $a -> $b -> $c.")
-      case a :: b :: Nil      => Some(s"Sequence focus: $a -> $b.")
-      case a :: Nil           => Some(s"Sequence focus: $a.")
-      case _                  => None
 
   private def precedentMechanismLabel(mechanism: PrecedentMechanism): String =
     mechanism match
@@ -743,28 +867,27 @@ object NarrativeOutlineBuilder:
       case PrecedentMechanism.InitiativeSwing =>
         "initiative swings created by faster piece activity"
 
-  private def buildPrecedentComparisonSummary(
-    mechanisms: List[PrecedentMechanism],
-    bead: Int
-  ): String =
-    if mechanisms.isEmpty then ""
+  private def buildPrecedentComparisonSummaryTemplates(
+    mechanisms: List[PrecedentMechanism]
+  ): List[String] =
+    if mechanisms.isEmpty then Nil
     else
       val grouped = mechanisms.groupBy(identity).view.mapValues(_.size).toMap
       val dominant = grouped.maxBy(_._2)._1
       val dominantLabel = precedentMechanismLabel(dominant)
       val diversity = grouped.size
       if diversity >= 2 then
-        NarrativeLexicon.pick(bead ^ 0x1f3d5b79, List(
+        List(
           s"Across these branches, results changed by which side better handled $dominantLabel.",
           s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge.",
           s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel."
-        ))
+        )
       else
-        NarrativeLexicon.pick(bead ^ 0x2d6e9f13, List(
+        List(
           s"All cited branches revolve around $dominantLabel.",
           s"The recurring practical theme across these games is $dominantLabel.",
           s"These precedent lines point to one key driver: $dominantLabel."
-        ))
+        )
 
   private def renderPrecedentBlock(
     line: OpeningPrecedentLine,
@@ -974,7 +1097,12 @@ object NarrativeOutlineBuilder:
   private def isPieceMove(move: String): Boolean =
     Option(move).getOrElse("").headOption.exists(ch => "KQRBN".contains(ch))
 
-  private def buildAlternativesBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): OutlineBeat =
+  private def buildAlternativesBeat(
+    ctx: NarrativeContext,
+    rec: TraceRecorder,
+    bead: Int,
+    crossBeatState: CrossBeatRepetitionState
+  ): OutlineBeat =
     val played = ctx.playedSan.map(_.trim.toLowerCase)
     val deduped = ctx.candidates
       .drop(1)
@@ -1000,16 +1128,31 @@ object NarrativeOutlineBuilder:
 
     val attempted = (0 until 3).toList.map { pass =>
       val usedFamilies = scala.collection.mutable.HashSet.empty[String]
+      val usedStems = scala.collection.mutable.HashSet.empty[String] ++ crossBeatState.usedStems
+      val prefixCounts = scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
+      prefixCounts ++= crossBeatState.prefixCounts
       val passSeed = bead ^ (pass * 0x9e3779b9)
       val lines = alts.zipWithIndex.map { case (c, i) =>
         val localSeed = passSeed ^ ((i + 1) * 0x45d9f3b)
-        val (line, family) = renderAlternativeDiversified(c, i, localSeed, usedFamilies.toSet, signals(i))
+        val role = if i == 0 then "engine_primary" else "practical_secondary"
+        val (line, family) = renderAlternativeDiversified(
+          c = c,
+          idx = i,
+          bead = localSeed,
+          usedFamilies = usedFamilies.toSet,
+          signal = signals(i),
+          usedStems = usedStems.toSet,
+          prefixCounts = prefixCounts.toMap,
+          role = role
+        )
         usedFamilies += family
+        trackTemplateUsage(line, usedStems, prefixCounts)
         line
       }
       (lines, alternativesRepetitionPenalty(lines))
     }
     val lines = attempted.minBy(_._2)._1
+    lines.foreach(line => trackTemplateUsage(line, crossBeatState.usedStems, crossBeatState.prefixCounts))
     OutlineBeat(kind = OutlineBeatKind.Alternatives, text = lines.mkString("\n"), anchors = alts.map(_.move))
 
   private def buildWrapUpBeat(ctx: NarrativeContext, bead: Int): Option[OutlineBeat] =
@@ -1193,6 +1336,63 @@ object NarrativeOutlineBuilder:
     val pawns = cp.toDouble / 100
     f"$sign$pawns%.1f"
 
+  private def composeCausalAnnotation(
+    rankContext: Option[String],
+    reason: String,
+    bestIntent: String,
+    bead: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int]
+  ): String =
+    val rank = rankContext.map(_.trim).filter(_.nonEmpty)
+    val issue = Option(reason).map(_.trim).filter(_.nonEmpty)
+    val better = Option(bestIntent).map(_.trim).filter(_.nonEmpty)
+
+    val reasonBridge =
+      Option.when(rank.nonEmpty && issue.nonEmpty) {
+        selectNonRepeatingTemplate(
+          templates = List(
+            "From a practical perspective,",
+            "In strategic terms,",
+            "That makes the practical picture clear:",
+            "So the practical verdict is straightforward:"
+          ),
+          seed = bead ^ 0x24d8f59c,
+          usedStems = usedStems ++ rank.toSet.map(normalizeStem),
+          prefixCounts = prefixCounts,
+          prefixLimits = PrefixFamilyLimits
+        )
+      }.filter(_.nonEmpty)
+
+    val betterBridge =
+      Option.when(issue.nonEmpty && better.nonEmpty) {
+        selectNonRepeatingTemplate(
+          templates = List(
+            "Therefore,",
+            "As a result,",
+            "So",
+            "For that reason,"
+          ),
+          seed = bead ^ 0x3b5296f1,
+          usedStems = usedStems ++ issue.toSet.map(normalizeStem),
+          prefixCounts = prefixCounts,
+          prefixLimits = PrefixFamilyLimits
+        )
+      }.filter(_.nonEmpty)
+
+    val reasonClause =
+      issue.map { r =>
+        reasonBridge.map(b => s"$b $r").getOrElse(r)
+      }
+    val betterClause =
+      better.map { b =>
+        betterBridge.map(conn => s"$conn $b").getOrElse(b)
+      }
+
+    List(rank.getOrElse(""), reasonClause.getOrElse(""), betterClause.getOrElse(""))
+      .filter(_.trim.nonEmpty)
+      .mkString(" ")
+
   private def buildConcreteAnnotationIssue(
     bead: Int,
     playedSan: String,
@@ -1206,7 +1406,8 @@ object NarrativeOutlineBuilder:
     alert: Option[String],
     playedCand: Option[CandidateInfo],
     bestReply: Option[String],
-    threatsToUs: List[ThreatRow]
+    threatsToUs: List[ThreatRow],
+    contextHint: Int
   ): String =
     val threatIssue = unresolvedThreatIssue(threatsToUs, playedSan, playedUci, bestSan, bestUci)
     val factIssue = playedCand.flatMap(c => extractFactConsequence(c.facts)).map(s => s"Issue: $s")
@@ -1224,7 +1425,7 @@ object NarrativeOutlineBuilder:
     val rankIssue =
       playedRank match
         case Some(r) if r >= 3 =>
-          Some(s"Issue: this is only the ${ordinal(r)} engine option and gives the opponent easier play.")
+          Some(s"Issue: this is only the ${ordinal(r)} engine option. ${buildSeverityTail(bead ^ 0x3d12ab77, cpLoss, contextHint ^ r)}")
         case Some(2) if cpLoss >= Thresholds.INACCURACY_CP =>
           Some("Issue: this is second-tier compared with the engine's main continuation.")
         case None if cpLoss >= Thresholds.INACCURACY_CP =>
@@ -1237,8 +1438,24 @@ object NarrativeOutlineBuilder:
         .find(_.trim.nonEmpty)
         .getOrElse("")
     val consequence = buildIssueConsequence(bead, cpLoss, bestReply, threatsToUs, playedCand)
+    val linkedConsequence =
+      consequence.map { c =>
+        val bridge = selectNonRepeatingTemplate(
+          templates = List(
+            "Therefore,",
+            "As a result,",
+            "So",
+            "For that reason,"
+          ),
+          seed = bead ^ contextHint ^ 0x5f356495,
+          usedStems = Set(normalizeStem(cause)),
+          prefixCounts = Map.empty,
+          prefixLimits = PrefixFamilyLimits
+        )
+        if cause.trim.nonEmpty && bridge.nonEmpty then s"$bridge $c" else c
+      }
 
-    List(cause, consequence.getOrElse("")).filter(_.trim.nonEmpty).mkString(" ")
+    List(cause, linkedConsequence.getOrElse("")).filter(_.trim.nonEmpty).mkString(" ")
 
   private def unresolvedThreatIssue(
     threatsToUs: List[ThreatRow],
@@ -1853,15 +2070,11 @@ object NarrativeOutlineBuilder:
     val r = Option(reply).getOrElse("").trim
     r.nonEmpty && (r.contains("+") || r.contains("#") || r.contains("x"))
 
-  private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean): String =
+  private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean, contextHint: Int): String =
     if text.trim.isEmpty then text
     else if isBest || cpLoss <= 35 then softenNearBestTone(text)
     else if cpLoss >= Thresholds.INACCURACY_CP && !containsNegativeTone(text) then
-      val severityWord = Thresholds.classifySeverity(cpLoss) match
-        case "blunder" => "blunder"
-        case "mistake" => "mistake"
-        case _         => "inaccuracy"
-      s"${text.trim} This is a $severityWord that gives the opponent easier play."
+      s"${text.trim} ${buildSeverityTail(Math.abs(text.hashCode) ^ 0x239b961b, cpLoss, contextHint)}"
     else text
 
   private def softenNearBestTone(text: String): String =
@@ -1888,7 +2101,8 @@ object NarrativeOutlineBuilder:
   private def enforceAnnotationPolarity(
     text: String,
     cpLoss: Int,
-    isBest: Boolean
+    isBest: Boolean,
+    contextHint: Int
   ): String =
     if text.trim.isEmpty then text
     else
@@ -1906,8 +2120,44 @@ object NarrativeOutlineBuilder:
         else neutralized
 
       if severeError && !containsBenchmarkNegativeLexicon(softenedPositive) then
-        s"${softenedPositive.trim} This is a mistake that gives the opponent easier play."
+        s"${softenedPositive.trim} ${buildSeverityTail(Math.abs(softenedPositive.hashCode) ^ 0x6f4b1321, cpLoss, contextHint)}"
       else softenedPositive
+
+  private def buildSeverityTail(bead: Int, cpLoss: Int, contextHint: Int): String =
+    val seed = bead ^ contextHint ^ Math.abs(cpLoss) ^ 0x5bd1e995
+    val templates =
+      Thresholds.classifySeverity(cpLoss) match
+        case "blunder" =>
+          List(
+            "This is a blunder, so forcing control shifts to the opponent.",
+            "Because this blunder loosens coordination, the opponent gets a direct conversion route.",
+            "This loses tactical control; as a result, recovery becomes difficult.",
+            "This blunder concedes initiative, therefore the defensive workload spikes immediately.",
+            "This gives the opponent a forcing path, while your counterplay resources shrink."
+          )
+        case "mistake" =>
+          List(
+            "This is a clear mistake, so practical control swings away quickly.",
+            "This mistake yields an easier conversion plan, because your coordination is slower.",
+            "This concedes initiative, and as a result your defensive options narrow.",
+            "This gives the opponent the cleaner continuation, while your plan becomes reactive.",
+            "This mistake leaves you defending without counterplay, therefore every tempo matters."
+          )
+        case _ =>
+          List(
+            "This is an inaccuracy, so the opponent's play becomes easier to handle.",
+            "This gives up practical initiative, because the move-order becomes less precise.",
+            "This drifts from the best plan; as a result, defensive workload increases.",
+            "This leaves the opponent with a smoother sequence, while your structure is harder to coordinate.",
+            "This practical detour hands over simpler choices, therefore practical pressure rises."
+          )
+    selectNonRepeatingTemplate(
+      templates = templates,
+      seed = seed,
+      usedStems = Set(normalizeStem("This is a mistake that gives the opponent easier play.")),
+      prefixCounts = Map.empty,
+      prefixLimits = PrefixFamilyLimits
+    )
 
   private def containsBenchmarkNegativeLexicon(text: String): Boolean =
     val low = text.toLowerCase
@@ -2053,6 +2303,76 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
       .map(_.replaceAll("""^[\.\u2026]+""", ""))
 
+  private def normalizeStem(text: String): String =
+    Option(text).getOrElse("")
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(7)
+      .mkString(" ")
+
+  private def prefixFamilyOf(text: String): Option[String] =
+    val low = Option(text).getOrElse("").trim.toLowerCase
+    if low.isEmpty then None
+    else if
+      low.startsWith("line route") ||
+      low.startsWith("the branch follows") ||
+      low.startsWith("the move path") ||
+      low.contains("route is")
+    then Some("sequence")
+    else if
+      low.startsWith("strategic shift") ||
+      low.startsWith("strategically") ||
+      low.startsWith("the practical turning factor") ||
+      low.startsWith("the recurring practical theme") ||
+      low.startsWith("shared lesson")
+    then Some("strategic_shift")
+    else if
+      low.startsWith("engine") ||
+      low.contains(" engine ") ||
+      low.contains("multi pv") ||
+      low.contains("principal engine")
+    then Some("engine")
+    else None
+
+  private def selectNonRepeatingTemplate(
+    templates: List[String],
+    seed: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    prefixLimits: Map[String, Int]
+  ): String =
+    val clean = templates.map(_.trim).filter(_.nonEmpty).distinct
+    if clean.isEmpty then ""
+    else
+      val start = Math.floorMod(seed, clean.size)
+      val rotated = (0 until clean.size).toList.map(i => clean(Math.floorMod(start + i, clean.size)))
+      def withinPrefixLimit(t: String): Boolean =
+        prefixFamilyOf(t).forall { family =>
+          prefixCounts.getOrElse(family, 0) < prefixLimits.getOrElse(family, Int.MaxValue)
+        }
+      rotated
+        .find(t => !usedStems.contains(normalizeStem(t)) && withinPrefixLimit(t))
+        .orElse(rotated.find(withinPrefixLimit))
+        .getOrElse(rotated.head)
+
+  private def trackTemplateUsage(
+    template: String,
+    usedStems: scala.collection.mutable.Set[String],
+    prefixCounts: scala.collection.mutable.Map[String, Int]
+  ): Unit =
+    val stem = normalizeStem(template)
+    if stem.nonEmpty then usedStems += stem
+    prefixFamilyOf(template).foreach { family =>
+      prefixCounts.update(family, prefixCounts.getOrElse(family, 0) + 1)
+    }
+
   private def alternativeEngineSignal(
     ctx: NarrativeContext,
     candidate: CandidateInfo,
@@ -2082,7 +2402,10 @@ object NarrativeOutlineBuilder:
   private def appendAlternativeEngineContrast(
     line: String,
     signal: AlternativeEngineSignal,
-    bead: Int
+    bead: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    role: String
   ): String =
     val contrastSeed =
       bead ^
@@ -2096,70 +2419,178 @@ object NarrativeOutlineBuilder:
         case 2           => signal.cpLoss.exists(_ >= 25) || Math.floorMod(contrastSeed, 3) != 0
         case _           => false
       }
+    val preferPracticalWording = role.equalsIgnoreCase("practical_secondary")
 
-    val contrast: Option[String] =
-      if !shouldAttachContrast then None
+    val contrastTemplates: List[String] =
+      if !shouldAttachContrast then Nil
       else signal.rank match
         case Some(2) =>
           val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the top engine move")
           signal.cpLoss match
             case Some(loss) if loss <= 20 =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x11f17f1d, List(
-                s"Engine order keeps $bestRef first, though this remains close in practical terms.",
-                s"$bestRef still tops the engine list, but the gap here is narrow.",
-                s"The engine shows a slight preference for $bestRef, while this stays near-equivalent over the board.",
-                s"$bestRef remains the clean reference continuation, with only a small edge."
-              )))
+              if preferPracticalWording then
+                List(
+                  s"$bestRef still holds the cleaner route, but the practical gap is narrow.",
+                  s"This remains playable over the board, with $bestRef keeping only a small edge.",
+                  s"Compared with $bestRef, the difference is modest in practical play."
+                )
+              else
+                List(
+                  s"Engine order keeps $bestRef first, though this remains close in practical terms.",
+                  s"$bestRef still tops the engine list, but the gap here is narrow.",
+                  s"The engine shows a slight preference for $bestRef, while this stays near-equivalent over the board.",
+                  s"$bestRef remains the clean reference continuation, with only a small edge."
+                )
             case Some(loss) =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x284f2d5b, List(
-                s"The engine still points to $bestRef as cleaner, by about ${formatCpGap(loss)}.",
-                s"$bestRef keeps the better engine score by roughly ${formatCpGap(loss)}.",
-                s"Relative to $bestRef, the engine score trails by roughly ${formatCpGap(loss)}.",
-                s"Engine preference remains with $bestRef; the practical cost is about ${formatCpGap(loss)}.",
-                s"Compared with $bestRef, engine evaluation drops by roughly ${formatCpGap(loss)}."
-              )))
+              if preferPracticalWording then
+                List(
+                  s"Compared with $bestRef, this concedes about ${formatCpGap(loss)} in practical terms.",
+                  s"The practical cost versus $bestRef is roughly ${formatCpGap(loss)}.",
+                  s"Against $bestRef, the score gap is about ${formatCpGap(loss)}."
+                )
+              else
+                List(
+                  s"The engine still points to $bestRef as cleaner, by about ${formatCpGap(loss)}.",
+                  s"In engine terms, $bestRef holds roughly a ${formatCpGap(loss)} edge.",
+                  s"Relative to $bestRef, the engine score trails by roughly ${formatCpGap(loss)}.",
+                  s"Engine preference remains with $bestRef; the practical cost is about ${formatCpGap(loss)}.",
+                  s"Compared with $bestRef, engine evaluation drops by roughly ${formatCpGap(loss)}."
+                )
             case None =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x3124bcf5, List(
-                s"Engine order still favors $bestRef as the cleaner continuation.",
-                s"$bestRef remains the engine reference in this structure.",
-                s"The principal engine route still starts with $bestRef.",
-                s"In the sampled lines, $bestRef remains the benchmark move."
-              )))
+              if preferPracticalWording then
+                List(
+                  s"$bestRef remains the cleaner benchmark continuation in this structure.",
+                  s"Practical handling is usually easier from $bestRef.",
+                  s"$bestRef is still the stable benchmark line."
+                )
+              else
+                List(
+                  s"Engine order still favors $bestRef as the cleaner continuation.",
+                  s"$bestRef remains the engine reference in this structure.",
+                  s"The principal engine route still starts with $bestRef.",
+                  s"In the sampled lines, $bestRef remains the benchmark move."
+                )
         case Some(r) if r >= 3 =>
           val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the principal continuation")
           signal.cpLoss match
             case Some(loss) if loss <= 70 =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x4f31b0b1, List(
-                s"Engine ranking places this around ${ordinal(r)}, with $bestRef ahead by about ${formatCpGap(loss)}.",
-                s"This continuation stays in the ${ordinal(r)} engine group, while $bestRef keeps roughly a ${formatCpGap(loss)} edge.",
-                s"In engine order, $bestRef remains first and this ${ordinal(r)} choice trails by around ${formatCpGap(loss)}."
-              )))
+              if preferPracticalWording then
+                List(
+                  s"As a ${ordinal(r)} practical-tier choice, this trails $bestRef by about ${formatCpGap(loss)}.",
+                  s"As a ${ordinal(r)} option, this line trails $bestRef by around ${formatCpGap(loss)}.",
+                  s"The ${ordinal(r)} choice is workable, but $bestRef still leads by roughly ${formatCpGap(loss)}."
+                )
+              else
+                List(
+                  s"Engine ranking places this around ${ordinal(r)}, with $bestRef ahead by about ${formatCpGap(loss)}.",
+                  s"This continuation stays in the ${ordinal(r)} engine group, while $bestRef keeps roughly a ${formatCpGap(loss)} edge.",
+                  s"In engine order, $bestRef remains first and this ${ordinal(r)} choice trails by around ${formatCpGap(loss)}."
+                )
             case Some(loss) =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x602d4eb7, List(
-                s"This sits in a lower engine tier (about ${ordinal(r)}), and $bestRef leads by roughly ${formatCpGap(loss)}.",
-                s"Engine ranking is clear here: around ${ordinal(r)} for this line, while $bestRef is ahead by ${formatCpGap(loss)}.",
-                s"In engine terms this continuation drops to about ${ordinal(r)}, with $bestRef up by ${formatCpGap(loss)}.",
-                s"Around $bestRef, the principal engine route stays cleaner; this ${ordinal(r)} option is behind by about ${formatCpGap(loss)}."
-              )))
+              if preferPracticalWording then
+                List(
+                  s"As a lower-tier option (around ${ordinal(r)}), this trails $bestRef by roughly ${formatCpGap(loss)}.",
+                  s"The score gap to $bestRef is substantial here (about ${formatCpGap(loss)}).",
+                  s"This ${ordinal(r)} line leaves a large practical deficit versus $bestRef (about ${formatCpGap(loss)})."
+                )
+              else
+                List(
+                  s"This sits in a lower engine tier (about ${ordinal(r)}), and $bestRef leads by roughly ${formatCpGap(loss)}.",
+                  s"Engine ranking is clear here: around ${ordinal(r)} for this line, while $bestRef is ahead by ${formatCpGap(loss)}.",
+                  s"In engine terms this continuation drops to about ${ordinal(r)}, with $bestRef up by ${formatCpGap(loss)}.",
+                  s"Around $bestRef, the principal engine route stays cleaner; this ${ordinal(r)} option is behind by about ${formatCpGap(loss)}."
+                )
             case None =>
-              Some(NarrativeLexicon.pick(contrastSeed ^ 0x72e91c2d, List(
-                s"This is a lower-ranked engine option (around ${ordinal(r)}), while $bestRef remains the stable benchmark.",
-                s"Engine ordering puts this below the principal choices; $bestRef is the cleaner reference line.",
-                s"The sampled engine set keeps this in a lower tier, with $bestRef as the anchor line."
-              )))
-        case _ => None
+              if preferPracticalWording then
+                List(
+                  s"This sits in a lower practical tier (around ${ordinal(r)}), while $bestRef remains the benchmark.",
+                  s"$bestRef stays the stable reference line, with this branch in a lower tier.",
+                  s"As a ${ordinal(r)} option, this is less reliable than $bestRef."
+                )
+              else
+                List(
+                  s"This is a lower-ranked engine option (around ${ordinal(r)}), while $bestRef remains the stable benchmark.",
+                  s"Engine ordering puts this below the principal choices; $bestRef is the cleaner reference line.",
+                  s"The sampled engine set keeps this in a lower tier, with $bestRef as the anchor line."
+                )
+        case _ => Nil
 
     val base = line.trim
+    val contrast =
+      if contrastTemplates.isEmpty then None
+      else
+        Some(
+          selectNonRepeatingTemplate(
+            templates = contrastTemplates,
+            seed = contrastSeed ^ 0x11f17f1d,
+            usedStems = usedStems,
+            prefixCounts = prefixCounts,
+            prefixLimits = PrefixFamilyLimits
+          )
+        )
     contrast match
       case Some(extra) if base.nonEmpty => normalizeAlternativeTemplateLine(s"$base $extra", bead)
       case _                            => normalizeAlternativeTemplateLine(base, bead)
+
+  private def appendStrategicImplication(
+    line: String,
+    move: String,
+    role: String,
+    plan: String,
+    diffLabel: String,
+    signal: AlternativeEngineSignal,
+    bead: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int]
+  ): String =
+    val cleanedPlan = plan.replaceAll("""[_\-]+""", " ").trim
+    val genericPlans = Set("unknown", "development", "positional maneuvering", "quiet move", "general play")
+    val planHint =
+      if cleanedPlan.nonEmpty && !genericPlans.contains(cleanedPlan) then s" around $cleanedPlan"
+      else ""
+    val informativeDiff =
+      diffLabel.nonEmpty &&
+      diffLabel != "unknown" &&
+      List("complex", "sharp", "precise", "narrow", "forcing", "tactical", "risky", "volatile", "critical")
+        .exists(diffLabel.contains)
+    val practicalHint =
+      if informativeDiff then s" The practical burden is $diffLabel." else ""
+    val templates =
+      if role.equalsIgnoreCase("engine_primary") then
+        List(
+          s"Strategically, after **$move**, coordination must stay tight$planHint, so exchanges do not drift out of control.",
+          s"With **$move**, conversion ease hinges on tempo discipline, because king safety can shift quickly.",
+          s"After **$move**, initiative around **$move** depends on precise simplification$planHint.",
+          s"In practical terms, tempo control after **$move** must stay aligned with king safety timing$planHint, so the next phase remains manageable.",
+          s"The strategic test after **$move** is precise conversion timing, because disconnected coordination quickly undermines the plan$planHint."
+        )
+      else
+        List(
+          s"In practical terms, **$move** is judged by conversion ease$planHint, because defensive coordination can diverge quickly.$practicalHint",
+          s"After **$move**, king safety and tempo are linked, so one inexact sequence can hand over initiative$planHint.$practicalHint",
+          s"With **$move**, a tempo-order slip around **$move** can expose conversion-side coordination gaps$planHint, because recovery windows are short.$practicalHint",
+          s"After **$move**, sequence accuracy matters, because king safety and structure can swing quickly$planHint.$practicalHint",
+          s"Strategically, **$move** needs connected coordination through conversion$planHint, so practical control does not leak away.$practicalHint"
+        )
+    val implication = selectNonRepeatingTemplate(
+      templates = templates.map(_.trim).filter(_.nonEmpty).distinct,
+      seed = bead ^ (signal.rank.getOrElse(0) * 0x7f4a7c15) ^ Math.abs(move.hashCode),
+      usedStems = usedStems,
+      prefixCounts = prefixCounts,
+      prefixLimits = PrefixFamilyLimits
+    )
+    if line.trim.isEmpty then implication.trim
+    else s"${line.trim} ${implication.trim}".trim
 
   private def renderAlternativeDiversified(
     c: CandidateInfo,
     idx: Int,
     bead: Int,
     usedFamilies: Set[String],
-    signal: AlternativeEngineSignal
+    signal: AlternativeEngineSignal,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    role: String
   ): (String, String) =
     val rawReason = c.whyNot.flatMap(humanizeWhyNot).map(_.trim).filter(_.nonEmpty).map(_.stripSuffix("."))
     val move = c.move.trim
@@ -2189,49 +2620,49 @@ object NarrativeOutlineBuilder:
     val localBead = bead ^ Math.abs(move.hashCode) ^ (idx + 1) * 0x9e3779b9
     val reason = rawReason.map(r => diversifyAlternativeReason(r, localBead))
 
-    val line =
+    val baseTemplates =
       family match
         case "tradeoff" =>
           val r = reason.getOrElse("it concedes dynamic chances")
-          NarrativeLexicon.pick(localBead, List(
+          List(
             s"**$move** is playable, but $r.",
             s"**$move** can work, although $r.",
             s"From a practical angle, **$move** is viable, yet $r.",
             s"**$move** is a candidate move, but it comes with a concession: $r.",
             s"**$move** stays in range, though $r.",
             s"**$move** is serviceable over the board, but $r."
-          ))
+          )
         case "dynamic" =>
-          NarrativeLexicon.pick(localBead, List(
+          List(
             s"**$move** keeps the game dynamic and can lead to sharper play.",
             s"**$move** invites complications and active piece play.",
             s"With **$move**, the position stays tense and tactical.",
             s"**$move** keeps tactical pressure alive and asks for concrete calculation."
-          ))
+          )
         case "technical" =>
-          NarrativeLexicon.pick(localBead, List(
+          List(
             s"**$move** is the cleaner technical route, aiming for a stable structure.",
             s"**$move** heads for a controlled position with fewer tactical swings.",
             s"**$move** favors structural clarity and methodical handling over complications.",
             s"**$move** is a clean technical route that lightens defensive duties.",
             s"**$move** aims for a technically manageable position with clear conversion paths.",
             s"**$move** keeps the game in a technical channel where precise handling is rewarded."
-          ))
+          )
         case "strategic" =>
           val planHint =
             if plan.nonEmpty && plan != "unknown" then
               val cleaned = plan.replaceAll("""[_\-]+""", " ").trim
               s" around $cleaned"
             else ""
-          NarrativeLexicon.pick(localBead, List(
+          List(
             s"**$move** is a strategic alternative$planHint.",
             s"**$move** points to a different strategic plan$planHint.",
             s"**$move** takes the game into another strategic channel$planHint.",
             s"**$move** keeps a coherent strategic direction$planHint.",
             s"Strategically, **$move** is a viable reroute$planHint."
-          ))
+          )
         case "practical" =>
-          NarrativeLexicon.pick(localBead, List(
+          List(
             s"In practical play, **$move** is reasonable but needs accurate follow-up.",
             s"**$move** is viable over the board, though move-order precision matters.",
             s"**$move** is playable in practice, but concrete calculation is required.",
@@ -2239,11 +2670,42 @@ object NarrativeOutlineBuilder:
             s"**$move** can be handled in a game, provided the next moves are exact.",
             s"**$move** remains practical, but one inaccurate follow-up can change the assessment.$practicalHint",
             s"**$move** is playable in a real game, yet it demands precise sequencing.$practicalHint"
-          ))
+          )
         case _ =>
-          NarrativeLexicon.getAlternative(localBead, move, c.whyNot.flatMap(humanizeWhyNot))
+          List(NarrativeLexicon.getAlternative(localBead, move, c.whyNot.flatMap(humanizeWhyNot)))
 
-    (appendAlternativeEngineContrast(line, signal, localBead ^ 0x63d5a6f1), family)
+    val line =
+      selectNonRepeatingTemplate(
+        templates = baseTemplates.map(_.trim).filter(_.nonEmpty).distinct,
+        seed = localBead ^ 0x3124bcf5,
+        usedStems = usedStems,
+        prefixCounts = prefixCounts,
+        prefixLimits = PrefixFamilyLimits
+      )
+
+    val contrasted =
+      appendAlternativeEngineContrast(
+        line = line,
+        signal = signal,
+        bead = localBead ^ 0x63d5a6f1,
+        usedStems = usedStems + normalizeStem(line),
+        prefixCounts = prefixCounts,
+        role = role
+      )
+    val withImplication =
+      appendStrategicImplication(
+        line = contrasted,
+        move = move,
+        role = role,
+        plan = plan,
+        diffLabel = diffLabel,
+        signal = signal,
+        bead = localBead ^ 0x6d2b79f5,
+        usedStems = usedStems + normalizeStem(contrasted),
+        prefixCounts = prefixCounts
+      )
+
+    (withImplication, family)
 
   private def alternativesRepetitionPenalty(lines: List[String]): Int =
     val stems = lines.map(normalizeAlternativeStem).filter(_.nonEmpty)
@@ -2259,17 +2721,7 @@ object NarrativeOutlineBuilder:
     stemPenalty + ngramPenalty
 
   private def normalizeAlternativeStem(line: String): String =
-    line.toLowerCase
-      .replaceAll("""\*\*[^*]+\*\*""", " ")
-      .replaceAll("""\([^)]*\)""", " ")
-      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
-      .replaceAll("""[^a-z\s]""", " ")
-      .replaceAll("""\s+""", " ")
-      .trim
-      .split(" ")
-      .filter(_.nonEmpty)
-      .take(7)
-      .mkString(" ")
+    normalizeStem(line)
 
   private def normalizeAlternativeTokens(line: String): List[String] =
     line.toLowerCase
@@ -2311,9 +2763,10 @@ object NarrativeOutlineBuilder:
         .replace(
           "keeps the game on its most coherent technical track.",
           NarrativeLexicon.pick(bead ^ 0x4b4b4b4b, List(
-            "keeps the technical roadmap compact and stable.",
-            "retains a sound technical setup for the next phase.",
-            "keeps conversion tasks straightforward in practice."
+            "keeps the continuation strategically clean and practical.",
+            "preserves structural clarity while keeping options flexible.",
+            "stays on a stable plan that is easier to execute.",
+            "maintains practical control without forcing complications."
           ))
         )
       fixedPractical
@@ -2328,9 +2781,9 @@ object NarrativeOutlineBuilder:
       case slightConcession(rest) =>
         val localSeed = bead ^ 0x1a2b3c4d ^ Math.abs(rest.hashCode)
         NarrativeLexicon.pick(localSeed, List(
-          s"it concedes a small practical edge after $rest",
-          s"the opponent finds $rest easier to handle in practice",
-          s"after $rest, practical margins become thinner"
+          s"it yields a modest practical concession once $rest appears",
+          s"the opponent gets a slightly easier practical route after $rest",
+          s"after $rest, practical margins become thinner for your side"
         ))
       case decisiveLoss(rest) =>
         val localSeed = bead ^ 0x2b3c4d5e ^ Math.abs(rest.hashCode)
