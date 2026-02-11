@@ -2,6 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model._
 import lila.llm.model.authoring._
+import lila.llm.model.strategic.VariationLine
 
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
@@ -10,6 +11,38 @@ import lila.llm.model.authoring._
  * All "what to say" decisions happen here; Renderer only handles phrasing.
  */
 object NarrativeOutlineBuilder:
+  private val MaxOpeningPrecedents = 3
+  private val PrecedentConfidenceThreshold = 0.62
+
+  private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
+  private case class AlternativeEngineSignal(
+    rank: Option[Int],
+    cpLoss: Option[Int],
+    bestSan: Option[String]
+  )
+  private enum PrecedentMechanism:
+    case TacticalPressure
+    case ExchangeCascade
+    case PromotionRace
+    case StructuralTransformation
+    case InitiativeSwing
+
+  private case class PrecedentSignal(
+    triggerMove: String,
+    replyMove: Option[String],
+    pivotMove: Option[String],
+    mechanism: PrecedentMechanism,
+    confidence: Double
+  )
+
+  private case class OpeningPrecedentLine(
+    text: String,
+    score: Int,
+    year: Int,
+    game: ExplorerGame,
+    overlap: Int,
+    metadataScore: Int
+  )
 
   def build(ctx: NarrativeContext, rec: TraceRecorder): (NarrativeOutline, OutlineDiagnostics) =
     val bead = Math.abs(ctx.hashCode)
@@ -47,7 +80,8 @@ object NarrativeOutlineBuilder:
     buildTeachingBeat(ctx, rec, bead).foreach(beats += _)
 
     // 7. MAIN MOVE
-    val mainMoveBeat = buildMainMoveBeat(ctx, rec, isAnnotation, bead)
+    val moveLevelPrecedent = buildContextPrecedentSentence(ctx, bead)
+    val mainMoveBeat = buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent)
     if mainMoveBeat.text.nonEmpty then beats += mainMoveBeat
 
     // Phase 6.8: Psychological Reconstruction
@@ -60,7 +94,7 @@ object NarrativeOutlineBuilder:
     }
 
     // 8. OPENING THEORY
-    buildOpeningTheoryBeat(ctx, rec).foreach(beats += _)
+    buildOpeningTheoryBeat(ctx, rec, suppressPrecedents = moveLevelPrecedent.nonEmpty).foreach(beats += _)
 
     // 9. ALTERNATIVES
     val altBeat = buildAlternativesBeat(ctx, rec, bead)
@@ -91,12 +125,15 @@ object NarrativeOutlineBuilder:
     val parts = scala.collection.mutable.ListBuffer[String]()
     val concepts = scala.collection.mutable.ListBuffer[String]()
 
-    // Phase 6 Expansion: Prefix with specific motif if available
+    // Phase 6 Expansion: two-stage lead construction (motif + phase lead) with repeat suppression.
     val phase = ctx.phase.current
-    val motifs = (ctx.semantic.map(_.conceptSummary).getOrElse(Nil) ++ 
-                  ctx.delta.map(_.newMotifs).getOrElse(Nil) ++ 
-                  ctx.counterfactual.map(_.missedMotifs.map(_.getClass.getSimpleName)).getOrElse(Nil)).distinct
-    val motifSignals = motifs.map(_.toLowerCase)
+    val conceptSummaryMotifs = ctx.semantic.toList.flatMap(_.conceptSummary).map(_.trim).filter(_.nonEmpty).distinct
+    val derivedContextMotifs = collectDerivedContextMotifs(ctx)
+    val conceptMotifs = (conceptSummaryMotifs ++ derivedContextMotifs).distinct
+    val deltaMotifs = ctx.delta.map(_.newMotifs).getOrElse(Nil)
+    val counterfactualMotifs = ctx.counterfactual.map(_.missedMotifs.map(_.getClass.getSimpleName)).getOrElse(Nil)
+    val motifs = (deltaMotifs ++ counterfactualMotifs ++ conceptMotifs).distinct
+    val motifSignals = motifs.map(normalizeMotifKey).filter(_.nonEmpty)
     val highTensionByMotif =
       motifSignals.exists { m =>
         List(
@@ -118,33 +155,143 @@ object NarrativeOutlineBuilder:
     val motifHash = motifSignals.foldLeft(0)((acc, m) => acc ^ Math.abs(m.hashCode))
 
     // Position statement
-    val evalOpt = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
-    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x1b873593, cp)).getOrElse("unclear")
+    val evalOpt = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp))
+    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x1b873593, cp, ply = ctx.ply)).getOrElse("unclear")
     val openingSeed = bead ^ Math.abs(phase.hashCode) ^ evalOpt.getOrElse(0) ^ motifHash ^ 0x1b873593
     val openingPart = NarrativeLexicon.getOpening(openingSeed, phase, evalText, tactical = highTension, ply = ctx.ply)
-    val motifPrefix = NarrativeLexicon.getMotifPrefix(bead, motifs)
-    
-    parts += motifPrefix.map(_ + openingPart).getOrElse(openingPart)
+    val keyFact = pickKeyFact(ctx)
+    val salientConceptMotifs =
+      conceptMotifs.filter(NarrativeLexicon.isMotifPrefixSignal)
+    val conceptLeadMotifs =
+      if salientConceptMotifs.nonEmpty then salientConceptMotifs.take(2)
+      else if ctx.ply % 3 == 0 then conceptMotifs.take(2)
+      else Nil
+    val deltaMotifSignals = deltaMotifs.map(normalizeMotifKey).filter(_.nonEmpty)
+    val counterfactualMotifSignals = counterfactualMotifs.map(normalizeMotifKey).filter(_.nonEmpty)
+    val conceptSummarySignals = conceptSummaryMotifs.map(normalizeMotifKey).filter(_.nonEmpty)
+    val derivedContextSignals = derivedContextMotifs.map(normalizeMotifKey).filter(_.nonEmpty)
+    val trustedConceptThemeSignals =
+      conceptSummaryMotifs
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filter { raw =>
+          val motif = normalizeMotifKey(raw)
+          val stableStrategicConcept =
+            List(
+              "minority_attack",
+              "bad_bishop",
+              "bishop_pair",
+              "opposite_bishops",
+              "isolated_pawn",
+              "hanging_pawns",
+              "outpost",
+              "open_file",
+              "semi_open_file",
+              "color_complex"
+            ).exists(motif.contains)
+          motif.nonEmpty &&
+          motifPhaseCompatible(motif, phase) && (
+            derivedContextSignals.exists(sig => motifSignalMatches(sig, motif)) ||
+            deltaMotifSignals.exists(sig => motifSignalMatches(sig, motif)) ||
+            counterfactualMotifSignals.exists(sig => motifSignalMatches(sig, motif)) ||
+            keyFact.exists(f => motifCorroboratedByFact(motif, f)) ||
+            motifCorroboratedByThreat(motif, ctx.threats.toUs) ||
+            motifCorroboratedByPawnPlay(motif, ctx.pawnPlay) ||
+            stableStrategicConcept
+          )
+        }
+        .distinct
+    val motifPrefixCandidates =
+      (conceptLeadMotifs ++ deltaMotifs ++ counterfactualMotifs)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filter(m => motifPhaseCompatible(m, phase))
+        .distinct
+        .filter { raw =>
+          isTrustedMotifPrefixCandidate(
+            rawMotif = raw,
+            deltaSignals = deltaMotifSignals,
+            counterfactualSignals = counterfactualMotifSignals,
+            conceptSummarySignals = conceptSummarySignals,
+            derivedSignals = derivedContextSignals,
+            keyFact = keyFact,
+            threatsToUs = ctx.threats.toUs,
+            pawnPlay = ctx.pawnPlay,
+            phase = phase
+          )
+        }
+        .take(4)
+    val motifPrefix = NarrativeLexicon.getMotifPrefix(bead ^ motifHash, motifPrefixCandidates, ply = ctx.ply)
+
+    val boardAnchor = buildBoardAnchor(ctx, keyFact, bead)
+    boardAnchor.foreach(a => parts += a.text)
+
+    val leadText = List(motifPrefix.map(_.trim).getOrElse(""), openingPart.trim).filter(_.nonEmpty).mkString(" ").trim
+    parts += leadText
+    val existingThemeText = List(boardAnchor.map(_.text).getOrElse(""), leadText).mkString(" ")
+    val themeSignalPool =
+      (derivedContextMotifs ++ deltaMotifs ++ counterfactualMotifs ++ trustedConceptThemeSignals)
+        .distinct
+    buildThemeKeywordSentence(
+      motifs = themeSignalPool,
+      existingText = existingThemeText,
+      bead = bead ^ 0x6d2b79f5,
+      ply = ctx.ply,
+      phase = phase
+    )
+      .foreach(parts += _)
 
     // Main threat if exists (adds drama)
     ctx.threats.toUs.headOption.filter(_.lossIfIgnoredCp >= 30).foreach { t =>
       rec.use("threats.toUs[0]", t.kind, "Context threat")
-      parts += NarrativeLexicon.getThreatStatement(bead, t.kind, t.lossIfIgnoredCp)
+      if !boardAnchor.exists(_.consumedThreat) then
+        parts += NarrativeLexicon.getThreatStatement(bead, t.kind, t.lossIfIgnoredCp)
       concepts += s"threat_${t.kind}"
     }
 
-    // Top plan (strategic direction)
-    ctx.plans.top5.headOption.foreach { p =>
+    // Top plan (strategic direction). Filter speculative tactical labels unless board evidence supports them.
+    ctx.plans.top5.find { p =>
+      val planKey = normalizeMotifKey(p.name)
+      val needsTacticalProof =
+        List("sacrifice", "mate", "smothered", "trap", "combination").exists(planKey.contains)
+      val sacrificeSpecific =
+        planKey.contains("sacrifice")
+      val hasSacrificeEvidence =
+        ctx.candidates.exists { c =>
+          val evidenceLow = c.tacticEvidence.mkString(" ").toLowerCase
+          val whyLow = c.whyNot.getOrElse("").toLowerCase
+          evidenceLow.contains("sacrifice") ||
+            evidenceLow.contains("exchange_sacrifice") ||
+            whyLow.contains("sacrifice")
+        } ||
+          ctx.delta.map(_.newMotifs.mkString(" ").toLowerCase.contains("sacrifice")).getOrElse(false)
+      if !needsTacticalProof then true
+      else if sacrificeSpecific then hasSacrificeEvidence
+      else
+        val hasTacticalProof =
+          ctx.candidates.exists { c =>
+            c.tags.exists(tag => tag == CandidateTag.Sharp || tag == CandidateTag.TacticalGamble) ||
+              c.facts.exists {
+                case _: Fact.Fork | _: Fact.Pin | _: Fact.Skewer | _: Fact.HangingPiece => true
+                case _                                                                   => false
+              }
+          } ||
+            ctx.threats.toUs.exists(t =>
+              t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP || t.kind.toLowerCase.contains("mate")
+            )
+        hasTacticalProof
+    }.foreach { p =>
       rec.use("plans.top5[0]", p.name, "Context plan")
       parts += NarrativeLexicon.getPlanStatement(bead ^ Math.abs(p.name.hashCode) ^ 0x2b2b2b, p.name, ply = ctx.ply)
       concepts += s"plan_${p.name}"
     }
 
     // One concrete, verified observation to avoid generic boilerplate.
-    pickKeyFact(ctx).foreach { fact =>
-      val factText = NarrativeLexicon.getFactStatement(bead ^ Math.abs(fact.hashCode), fact)
-      if factText.nonEmpty then parts += factText
-    }
+    if !boardAnchor.exists(_.consumedFact) then
+      keyFact.foreach { fact =>
+        val factText = NarrativeLexicon.getFactStatement(bead ^ Math.abs(fact.hashCode), fact)
+        if factText.nonEmpty then parts += factText
+      }
 
     // Phase 6.8: Pawn Play (Stranded Asset 1)
     ctx.pawnPlay.breakFile.foreach { br =>
@@ -223,7 +370,7 @@ object NarrativeOutlineBuilder:
 
     // Fallback: use engineEvidence variations
     ctx.engineEvidence.flatMap { ev =>
-      val variations = ev.variations.take(3)
+      val variations = sortVariationsForSideToMove(ctx.fen, ev.variations).take(3)
       if variations.size >= 2 then
         val labels = List("a)", "b)", "c)")
         val formatted = variations.zip(labels).map { case (v, label) =>
@@ -313,30 +460,57 @@ object NarrativeOutlineBuilder:
         ))
     }
 
-  private def buildMainMoveBeat(ctx: NarrativeContext, rec: TraceRecorder, isAnnotation: Boolean, bead: Int): OutlineBeat =
+  private def buildMainMoveBeat(
+    ctx: NarrativeContext,
+    rec: TraceRecorder,
+    isAnnotation: Boolean,
+    bead: Int,
+    precedentTextOpt: Option[String]
+  ): OutlineBeat =
     if isAnnotation then
       val playedSan = ctx.playedSan.getOrElse("")
-      val best = ctx.candidates.headOption
-      val bestSan = best.map(_.move).getOrElse("")
-      val playedUci = ctx.playedMove
-      val bestUci = best.flatMap(_.uci)
-      val isBest = playedUci.isDefined && playedUci == bestUci
+      val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+      val engineBest = rankedEngineVariations(ctx).headOption
+      val engineBestUci = engineBest
+        .flatMap(_.moves.headOption)
+        .map(NarrativeUtils.normalizeUciMove)
+        .filter(_.nonEmpty)
+      val engineBestSan = engineBest
+        .flatMap(_.ourMove.map(_.san))
+        .filter(_.trim.nonEmpty)
+        .orElse(engineBestUci.map(uci => NarrativeUtils.uciToSanOrFormat(ctx.fen, uci)).filter(_.trim.nonEmpty))
+      val best = engineBestUci
+        .flatMap(bestU => ctx.candidates.find(_.uci.exists(cu => NarrativeUtils.uciEquivalent(cu, bestU))))
+        .orElse(ctx.candidates.headOption)
+      val bestSan = engineBestSan.orElse(best.map(_.move).filter(_.trim.nonEmpty)).getOrElse("")
+      val bestUci = engineBestUci.orElse(best.flatMap(_.uci).map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty))
+      val playedRank = playedMoveRank(ctx, playedUci, playedSan)
+      val sameAsBestByUci =
+        playedUci.exists(pu => bestUci.exists(bu => NarrativeUtils.uciEquivalent(pu, bu)))
+      val sameAsBestBySan =
+        playedSan.nonEmpty &&
+          bestSan.nonEmpty &&
+          normalizeMoveToken(playedSan) == normalizeMoveToken(bestSan)
+      val cpLoss = resolveCpLoss(ctx, playedUci, playedSan, playedRank)
+      val hasEngineReference = playedRank.nonEmpty || bestUci.nonEmpty
+      val isBest =
+        if hasEngineReference then playedRank.contains(1) || sameAsBestByUci
+        else sameAsBestByUci || sameAsBestBySan
 
-      val playedCand = playedUci.flatMap(uci => ctx.candidates.find(_.uci.contains(uci)))
+      val playedCand = playedUci.flatMap(uci => ctx.candidates.find(_.uci.exists(cu => NarrativeUtils.uciEquivalent(cu, uci))))
       val bestCand = best
 
       val baseText =
         if isBest then NarrativeLexicon.getAnnotationPositive(bead, playedSan)
         else
-          val cpLoss = ctx.counterfactual.map(_.cpLoss).getOrElse(0)
           NarrativeLexicon.getAnnotationNegative(bead, playedSan, bestSan, cpLoss)
 
       val detailText =
         if isBest then
           playedCand.flatMap { c =>
             val b = bead ^ Math.abs(c.move.hashCode)
-            val intent = NarrativeLexicon.getIntent(b, c.planAlignment, None)
-            val isTerminal = isTerminalAnnotationMove(ctx, playedSan, best)
+            val intent = NarrativeLexicon.getIntent(b, c.planAlignment, None, ply = ctx.ply)
+            val isTerminal = isTerminalAnnotationMove(ctx, playedSan, bestCand)
             val tagHint = annotationTagHint(b, c.tags, c.practicalDifficulty, c.move, ctx.phase.current, isTerminal)
             val alert = c.tacticalAlert.map(_.trim).filter(_.nonEmpty).map(a => s"Note: $a.").getOrElse("")
             val intentSentence = if intent.nonEmpty then s"It $intent." else ""
@@ -345,7 +519,6 @@ object NarrativeOutlineBuilder:
           }
         else
           val b = bead ^ Math.abs(playedSan.hashCode)
-          val cpLoss = ctx.counterfactual.map(_.cpLoss).getOrElse(0)
           val missedMotif = ctx.counterfactual
             .flatMap(_.missedMotifs.headOption)
             .map(m => NarrativeUtils.humanize(motifName(m)))
@@ -353,12 +526,22 @@ object NarrativeOutlineBuilder:
           val alert = playedCand.flatMap(_.tacticalAlert.map(_.trim).filter(_.nonEmpty))
           val bestReply = playedCand
             .flatMap(_.probeLines.headOption.flatMap(normalizedSanHead))
-            .orElse(ctx.engineEvidence.flatMap(_.best.flatMap(_.theirReply).map(_.san)))
+            .orElse(engineBest.flatMap(_.theirReply).map(_.san))
           val bestIntent =
             bestCand.map { c =>
-              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), c.planAlignment, None)
-              if intent.nonEmpty then s"Better is **$bestSan**; it $intent." else ""
-            }.getOrElse("")
+              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), c.planAlignment, None, ply = ctx.ply + 1)
+              if intent.nonEmpty then s"Better is **$bestSan**; it $intent."
+              else s"Better is **$bestSan** to keep tighter control of the position."
+            }.getOrElse {
+              if bestSan.nonEmpty then s"Better is **$bestSan** to keep tighter control of the position."
+              else ""
+            }
+          val rankContext = NarrativeLexicon.getEngineRankContext(
+            bead = b ^ 0x27d4eb2f,
+            rank = playedRank,
+            bestSan = bestSan,
+            cpLoss = cpLoss
+          )
           val reason = buildConcreteAnnotationIssue(
             bead = b ^ 0x6d2b79f5,
             playedSan = playedSan,
@@ -366,6 +549,7 @@ object NarrativeOutlineBuilder:
             bestSan = bestSan,
             bestUci = bestUci,
             cpLoss = cpLoss,
+            playedRank = playedRank,
             missedMotif = missedMotif,
             whyNot = whyNot,
             alert = alert,
@@ -373,21 +557,27 @@ object NarrativeOutlineBuilder:
             bestReply = bestReply,
             threatsToUs = ctx.threats.toUs
           )
-          val combined = List(reason, bestIntent).filter(_.trim.nonEmpty).mkString(" ")
+          val combined = List(rankContext.getOrElse(""), reason, bestIntent).filter(_.trim.nonEmpty).mkString(" ")
           Option.when(combined.nonEmpty)(combined)
 
       val deltaText = buildDeltaAfterMoveText(ctx, bead).getOrElse("")
-      val text = List(baseText, detailText.getOrElse(""), deltaText).filter(_.trim.nonEmpty).mkString(" ")
+      val precedentText = precedentTextOpt.getOrElse("")
+      if precedentText.nonEmpty then
+        rec.use("openingData.sampleGames", "1", "Move-level precedent")
+      val rawText = List(baseText, detailText.getOrElse(""), deltaText, precedentText).filter(_.trim.nonEmpty).mkString(" ")
+      val tonedText = harmonizeAnnotationTone(rawText, cpLoss, isBest)
+      val text = enforceAnnotationPolarity(tonedText, cpLoss, isBest)
 
       OutlineBeat(kind = OutlineBeatKind.MainMove, text = text, anchors = List(playedSan, bestSan).filter(_.nonEmpty).distinct)
     else
       ctx.candidates.headOption.map { main =>
         rec.use("candidates[0]", main.move, "Main move")
-        val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None)
-        val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
-        val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x85ebca6b, evalScore)
-        val replySan = ctx.engineEvidence.flatMap(_.best.flatMap(_.theirReply)).map(_.san)
-        val sampleRest = ctx.engineEvidence.flatMap(_.best.flatMap(_.sampleLineFrom(2, 6)))
+        val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None, ply = ctx.ply)
+        val engineBest = rankedEngineVariations(ctx).headOption.orElse(ctx.engineEvidence.flatMap(_.best))
+        val evalScore = engineBest.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
+        val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x85ebca6b, evalScore, ply = ctx.ply)
+        val replySan = engineBest.flatMap(_.theirReply).map(_.san)
+        val sampleRest = engineBest.flatMap(_.sampleLineFrom(2, 6))
 
         val text = NarrativeLexicon.getMainFlow(bead, main.move, main.annotation, intent, replySan, sampleRest, evalTerm)
         
@@ -395,28 +585,394 @@ object NarrativeOutlineBuilder:
         val prophylaxisText = ctx.semantic.flatMap(_.preventedPlans.headOption).map { pp =>
           NarrativeLexicon.getPreventedPlanStatement(bead, pp.planId)
         }
+        val precedentText = precedentTextOpt
+        precedentText.foreach(_ => rec.use("openingData.sampleGames", "1", "Move-level precedent"))
+        val mergedText =
+          List(text, prophylaxisText.getOrElse(""), precedentText.getOrElse(""))
+            .filter(_.trim.nonEmpty)
+            .mkString(" ")
 
         OutlineBeat(
           kind = OutlineBeatKind.MainMove, 
-          text = prophylaxisText.map(t => s"$text $t").getOrElse(text), 
+          text = mergedText, 
           anchors = List(main.move)
         )
       }.getOrElse(OutlineBeat(OutlineBeatKind.MainMove, ""))
 
-  private def buildOpeningTheoryBeat(ctx: NarrativeContext, rec: TraceRecorder): Option[OutlineBeat] =
-    ctx.openingData.filter(_.totalGames >= 5).flatMap { ref =>
+  private def buildOpeningTheoryBeat(
+    ctx: NarrativeContext,
+    rec: TraceRecorder,
+    suppressPrecedents: Boolean
+  ): Option[OutlineBeat] =
+    val openingRef = ctx.openingData
+    val openingText = openingRef.filter(_.totalGames >= 5).flatMap { ref =>
       ref.name.map { name =>
         rec.use("openingData", name, "Opening theory")
         val bead = Math.abs(ctx.hashCode)
-        val text = NarrativeLexicon.getOpeningReference(bead, name, ref.totalGames, 0.5)
-        OutlineBeat(
-          kind = OutlineBeatKind.OpeningTheory,
-          text = text,
-          conceptIds = List("opening_theory"),
-          anchors = name.split(" ").take(2).toList
+        NarrativeLexicon.getOpeningReference(bead, name, ref.totalGames, 0.5)
+      }
+    }
+    val precedentSnippets =
+      if suppressPrecedents then Nil
+      else buildOpeningPrecedentSnippets(ctx, openingRef, Math.abs(ctx.hashCode) ^ 0x4b1d0f6a)
+    if precedentSnippets.nonEmpty then
+      rec.use("openingData.sampleGames", precedentSnippets.length.toString, "Opening precedents")
+
+    val text = List(openingText.getOrElse(""), precedentSnippets.mkString(" ")).filter(_.trim.nonEmpty).mkString(" ").trim
+    if text.isEmpty then None
+    else
+      val anchors = openingRef.flatMap(_.name).map(_.split(" ").take(2).toList).getOrElse(Nil)
+      val concepts =
+        if precedentSnippets.nonEmpty then List("opening_theory", "opening_precedent")
+        else List("opening_theory")
+      Some(OutlineBeat(
+        kind = OutlineBeatKind.OpeningTheory,
+        text = text,
+        conceptIds = concepts,
+        anchors = anchors
+      ))
+
+  private def buildOpeningPrecedentSnippets(
+    ctx: NarrativeContext,
+    openingRef: Option[OpeningReference],
+    bead: Int
+  ): List[String] =
+    if !ctx.openingEvent.exists(isCoreOpeningEvent) then Nil
+    else
+      val lines = rankedOpeningPrecedentLines(ctx, openingRef, requireFocus = false).take(MaxOpeningPrecedents)
+      if lines.isEmpty then Nil
+      else if shouldUsePrecedentComparison(ctx, lines, requireFocus = false) then
+        List(renderPrecedentComparison(lines, bead))
+      else
+        lines
+          .map(line => renderPrecedentBlock(line, bead))
+          .filter(_.trim.nonEmpty)
+
+  private def buildContextPrecedentSentence(ctx: NarrativeContext, bead: Int): Option[String] =
+    val introOnly = ctx.openingEvent.exists {
+      case OpeningEvent.Intro(_, _, _, _) => true
+      case _                              => false
+    }
+    if introOnly then None
+    else
+      val lines = rankedOpeningPrecedentLines(ctx, ctx.openingData, requireFocus = true).take(MaxOpeningPrecedents)
+      if lines.isEmpty then None
+      else if shouldUsePrecedentComparison(ctx, lines, requireFocus = true) then
+        Some(renderPrecedentComparison(lines, bead))
+      else
+        lines.headOption.map(line => renderPrecedentBlock(line, bead))
+
+  private def shouldUsePrecedentComparison(
+    ctx: NarrativeContext,
+    lines: List[OpeningPrecedentLine],
+    requireFocus: Boolean
+  ): Boolean =
+    if lines.size < 2 then false
+    else
+      val branchLikeEvent = ctx.openingEvent.exists {
+        case OpeningEvent.BranchPoint(_, _, _) => true
+        case OpeningEvent.OutOfBook(_, _, _)   => true
+        case OpeningEvent.TheoryEnds(_, _)     => true
+        case OpeningEvent.Novelty(_, _, _, _)  => true
+        case _                                 => false
+      }
+      val highConfidenceSignals =
+        lines
+          .flatMap(buildPrecedentSignal)
+          .count(_.confidence >= PrecedentConfidenceThreshold)
+      branchLikeEvent || (requireFocus && highConfidenceSignals >= 2)
+
+  private def renderPrecedentComparison(
+    lines: List[OpeningPrecedentLine],
+    bead: Int
+  ): String =
+    val ranked = lines.take(MaxOpeningPrecedents)
+    val rankedWithSignals =
+      ranked.map { line =>
+        line -> buildPrecedentSignal(line).filter(_.confidence >= PrecedentConfidenceThreshold)
+      }
+    val header = NarrativeLexicon.pick(bead ^ 0x57f1a235, List(
+      "Comparable master branches from this split:",
+      "At this branch, master games diverged in three practical directions:",
+      "Reference branches from elite games at this point:"
+    ))
+
+    val items = rankedWithSignals.zipWithIndex.map { case ((line, signal), idx) =>
+      val label = ('A' + idx).toChar
+      val route = signal.flatMap(precedentRouteSummary)
+      val mechanism = signal.map(s => precedentMechanismLabel(s.mechanism))
+      val itemSeed = bead ^ Math.abs(line.text.hashCode) ^ ((idx + 1) * 0x9e3779b9)
+      val strategicLine =
+        mechanism.map { m =>
+          NarrativeLexicon.pick(itemSeed, List(
+            s"Strategic shift: $m.",
+            s"Strategically, the game turned on $m.",
+            s"The practical turning factor was $m."
+          ))
+        }.getOrElse("")
+      val parts = List(line.text.trim, route.getOrElse(""), strategicLine).filter(_.nonEmpty)
+      s"$label) ${parts.mkString(" ")}"
+    }
+
+    val summary =
+      buildPrecedentComparisonSummary(
+        rankedWithSignals.flatMap(_._2.map(_.mechanism)),
+        bead
+      )
+
+    List(header, items.mkString(" "), summary).filter(_.nonEmpty).mkString(" ")
+
+  private def precedentRouteSummary(signal: PrecedentSignal): Option[String] =
+    val route = List(Some(signal.triggerMove), signal.replyMove, signal.pivotMove).flatten.map(_.trim).filter(_.nonEmpty)
+    route match
+      case a :: b :: c :: Nil => Some(s"Sequence focus: $a -> $b -> $c.")
+      case a :: b :: Nil      => Some(s"Sequence focus: $a -> $b.")
+      case a :: Nil           => Some(s"Sequence focus: $a.")
+      case _                  => None
+
+  private def precedentMechanismLabel(mechanism: PrecedentMechanism): String =
+    mechanism match
+      case PrecedentMechanism.TacticalPressure =>
+        "forcing tactical pressure around king safety and move order"
+      case PrecedentMechanism.ExchangeCascade =>
+        "exchange timing that simplified into a cleaner structure"
+      case PrecedentMechanism.PromotionRace =>
+        "promotion threats forcing both sides into tempo-driven play"
+      case PrecedentMechanism.StructuralTransformation =>
+        "pawn-structure transformation that redirected long-term plans"
+      case PrecedentMechanism.InitiativeSwing =>
+        "initiative swings created by faster piece activity"
+
+  private def buildPrecedentComparisonSummary(
+    mechanisms: List[PrecedentMechanism],
+    bead: Int
+  ): String =
+    if mechanisms.isEmpty then ""
+    else
+      val grouped = mechanisms.groupBy(identity).view.mapValues(_.size).toMap
+      val dominant = grouped.maxBy(_._2)._1
+      val dominantLabel = precedentMechanismLabel(dominant)
+      val diversity = grouped.size
+      if diversity >= 2 then
+        NarrativeLexicon.pick(bead ^ 0x1f3d5b79, List(
+          s"Across these branches, results changed by which side better handled $dominantLabel.",
+          s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge.",
+          s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel."
+        ))
+      else
+        NarrativeLexicon.pick(bead ^ 0x2d6e9f13, List(
+          s"All cited branches revolve around $dominantLabel.",
+          s"The recurring practical theme across these games is $dominantLabel.",
+          s"These precedent lines point to one key driver: $dominantLabel."
+        ))
+
+  private def renderPrecedentBlock(
+    line: OpeningPrecedentLine,
+    bead: Int
+  ): String =
+    val anchorMove = line.game.pgn.flatMap(raw => openingPrecedentSanMoves(raw).headOption)
+    val lead = NarrativeLexicon.getPrecedentLead(
+      bead = bead ^ Math.abs(line.text.hashCode),
+      factualLine = line.text,
+      anchorMove = anchorMove
+    )
+    val mechanismLine =
+      buildPrecedentSignal(line)
+        .filter(_.confidence >= PrecedentConfidenceThreshold)
+        .map { signal =>
+          NarrativeLexicon.getPrecedentMechanismLine(
+            bead = bead ^ Math.abs(signal.triggerMove.hashCode) ^ Math.abs(signal.mechanism.toString.hashCode),
+            triggerMove = signal.triggerMove,
+            replyMove = signal.replyMove,
+            pivotMove = signal.pivotMove,
+            mechanism = signal.mechanism.toString
+          )
+        }
+        .filter(_.trim.nonEmpty)
+    List(lead.trim, mechanismLine.getOrElse("").trim).filter(_.nonEmpty).mkString(" ")
+
+  private def rankedOpeningPrecedentLines(
+    ctx: NarrativeContext,
+    openingRef: Option[OpeningReference],
+    requireFocus: Boolean
+  ): List[OpeningPrecedentLine] =
+    val focusMoves = openingPrecedentFocusMoves(ctx)
+    openingRef.toList
+      .flatMap(_.sampleGames)
+      .flatMap { game =>
+        formatOpeningPrecedentSnippet(game).map { text =>
+          val overlap = openingPrecedentOverlap(game, focusMoves)
+          val metadataScore = openingPrecedentMetadataScore(game)
+          val score = openingPrecedentScore(overlap, metadataScore, requireFocus)
+          OpeningPrecedentLine(
+            text = text,
+            score = score,
+            year = game.year,
+            game = game,
+            overlap = overlap,
+            metadataScore = metadataScore
+          )
+        }
+      }
+      .filter(_.score > 0)
+      .sortBy(line => (-line.score, -line.year, line.text))
+
+  private def openingPrecedentFocusMoves(ctx: NarrativeContext): Set[String] =
+    val played = ctx.playedSan.toList
+    val best = rankedEngineVariations(ctx).headOption.flatMap(_.ourMove.map(_.san)).toList
+    val candidateMoves = ctx.candidates.take(3).map(_.move)
+    val openingTopMoves = ctx.openingData.toList.flatMap(_.topMoves.take(2).map(_.san))
+    (played ++ best ++ candidateMoves ++ openingTopMoves)
+      .map(normalizeMoveToken)
+      .filter(_.nonEmpty)
+      .toSet
+
+  private def openingPrecedentOverlap(game: ExplorerGame, focusMoves: Set[String]): Int =
+    if focusMoves.isEmpty then 0
+    else openingPrecedentMoveTokens(game.pgn).count(focusMoves.contains)
+
+  private def openingPrecedentMetadataScore(game: ExplorerGame): Int =
+    (if game.year > 0 then 3 else 0) +
+      (if game.winner.isDefined then 2 else 0) +
+      (if normalizeExplorerPlayer(game.white.name).isDefined then 1 else 0) +
+      (if normalizeExplorerPlayer(game.black.name).isDefined then 1 else 0) +
+      (if game.event.exists(_.trim.nonEmpty) then 2 else 0) +
+      (if game.pgn.exists(_.trim.nonEmpty) then 3 else 0)
+
+  private def openingPrecedentScore(overlap: Int, metadataScore: Int, requireFocus: Boolean): Int =
+    val overlapBonus = overlap match
+      case n if n >= 2 => 10
+      case 1           => 6
+      case _ if requireFocus => -8
+      case _           => 0
+    metadataScore + overlapBonus
+
+  private def buildPrecedentSignal(line: OpeningPrecedentLine): Option[PrecedentSignal] =
+    line.game.pgn.flatMap { raw =>
+      val sanMoves = openingPrecedentSanMoves(raw)
+      sanMoves.headOption.map { trigger =>
+        val reply = sanMoves.lift(1)
+        val pivot = sanMoves.lift(2)
+        val captures = sanMoves.count(_.contains("x"))
+        val checks = sanMoves.count(m => m.contains("+") || m.contains("#"))
+        val promotions = sanMoves.count(_.contains("="))
+        val pawnPushes = sanMoves.count(isLikelyPawnMove)
+        val pieceMoves = sanMoves.count(isPieceMove)
+        val forcingDensity =
+          if sanMoves.nonEmpty then (captures + checks + promotions).toDouble / sanMoves.size.toDouble
+          else 0.0
+        val mechanismScores = Map(
+          PrecedentMechanism.TacticalPressure ->
+            (checks * 2 + captures + Option.when(forcingDensity >= 0.45)(1).getOrElse(0)),
+          PrecedentMechanism.ExchangeCascade ->
+            (captures * 2 + Option.when(captures >= 2)(2).getOrElse(0) + Option.when(pieceMoves >= 2)(1).getOrElse(0)),
+          PrecedentMechanism.PromotionRace ->
+            (promotions * 3 + Option.when(captures >= 1)(1).getOrElse(0) + Option.when(checks >= 1)(1).getOrElse(0)),
+          PrecedentMechanism.StructuralTransformation ->
+            (pawnPushes * 2 + Option.when(captures <= 1)(1).getOrElse(0) + Option.when(pieceMoves >= 1)(1).getOrElse(0)),
+          PrecedentMechanism.InitiativeSwing ->
+            (pieceMoves + Option.when(captures == 1)(1).getOrElse(0) + Option.when(checks == 0)(1).getOrElse(0))
+        )
+        val mechanism = mechanismScores.maxBy(_._2)._1
+        val sortedScores = mechanismScores.values.toList.sorted(using Ordering[Int].reverse)
+        val dominance = sortedScores match
+          case top :: second :: _ => ((top - second).max(0).min(3)).toDouble / 3.0
+          case top :: Nil         => (top.min(3)).toDouble / 3.0
+          case _                  => 0.0
+        val overlapConfidence = line.overlap match
+          case n if n >= 3 => 1.0
+          case 2           => 0.85
+          case 1           => 0.65
+          case _           => 0.35
+        val metadataConfidence = (line.metadataScore.toDouble / 12.0).min(1.0)
+        val sequenceConfidence =
+          if sanMoves.size >= 6 then 1.0
+          else if sanMoves.size >= 4 then 0.75
+          else 0.55
+        val confidence =
+          (0.40 * overlapConfidence) +
+            (0.25 * metadataConfidence) +
+            (0.20 * sequenceConfidence) +
+            (0.15 * dominance)
+        PrecedentSignal(
+          triggerMove = trigger,
+          replyMove = reply,
+          pivotMove = pivot,
+          mechanism = mechanism,
+          confidence = confidence.max(0.0).min(1.0)
         )
       }
     }
+
+  private def openingPrecedentMoveTokens(pgn: Option[String]): Set[String] =
+    val results = Set("1-0", "0-1", "1/2-1/2", "*")
+    pgn.toList
+      .flatMap(_.split("\\s+").toList)
+      .map(normalizeMoveToken)
+      .filter(token => token.nonEmpty && !results.contains(token))
+      .toSet
+
+  private def isCoreOpeningEvent(event: OpeningEvent): Boolean = event match
+    case OpeningEvent.BranchPoint(_, _, _) => true
+    case OpeningEvent.OutOfBook(_, _, _)   => true
+    case OpeningEvent.TheoryEnds(_, _)     => true
+    case OpeningEvent.Novelty(_, _, _, _)  => true
+    case OpeningEvent.Intro(_, _, _, _)    => false
+
+  private def formatOpeningPrecedentSnippet(game: ExplorerGame): Option[String] =
+    val whiteName = normalizeExplorerPlayer(game.white.name)
+    val blackName = normalizeExplorerPlayer(game.black.name)
+    val year = Option.when(game.year > 0)(game.year)
+    val sanSnippet = game.pgn.map(_.trim).filter(_.nonEmpty).map(shortOpeningPrecedentSan)
+    val winnerInfo = game.winner.flatMap { color =>
+      val winner = if color == chess.White then whiteName else blackName
+      winner.map { winnerName =>
+        val result = if color == chess.White then "1-0" else "0-1"
+        (winnerName, result)
+      }
+    }
+
+    for
+      white <- whiteName
+      black <- blackName
+      y <- year
+      line <- sanSnippet
+      if line.nonEmpty
+      (winnerName, result) <- winnerInfo
+    yield
+      val eventSuffix = game.event.map(_.trim).filter(_.nonEmpty).map(ev => s", $ev").getOrElse("")
+      s"In $white-$black ($y$eventSuffix), after $line, $winnerName won ($result)."
+
+  private def normalizeExplorerPlayer(name: String): Option[String] =
+    Option(name)
+      .map(_.trim)
+      .filter(n => n.nonEmpty && n != "?")
+      .map { n =>
+        val parts = n.split(",").map(_.trim).filter(_.nonEmpty).toList
+        parts match
+          case last :: first :: Nil => s"$first $last"
+          case _                    => n
+      }
+
+  private def shortOpeningPrecedentSan(line: String): String =
+    val tokens = Option(line).getOrElse("").trim.split("\\s+").toList.filter(_.nonEmpty)
+    val clipped = tokens.take(8).mkString(" ")
+    if tokens.size > 8 then s"$clipped..." else clipped
+
+  private def openingPrecedentSanMoves(line: String): List[String] =
+    val resultTokens = Set("1-0", "0-1", "1/2-1/2", "*")
+    Option(line).getOrElse("").trim.split("\\s+").toList
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(_.replaceAll("""^\d+\.(?:\.\.)?""", ""))
+      .map(_.replaceAll("""^\.\.\.""", ""))
+      .filter(token => token.nonEmpty && !resultTokens.contains(token))
+
+  private def isLikelyPawnMove(move: String): Boolean =
+    Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")
+
+  private def isPieceMove(move: String): Boolean =
+    Option(move).getOrElse("").headOption.exists(ch => "KQRBN".contains(ch))
 
   private def buildAlternativesBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): OutlineBeat =
     val played = ctx.playedSan.map(_.trim.toLowerCase)
@@ -428,18 +984,37 @@ object NarrativeOutlineBuilder:
     val alts = deduped.filterNot(c => played.contains(c.move.trim.toLowerCase)).take(2)
     if alts.isEmpty then return OutlineBeat(OutlineBeatKind.Alternatives, "")
 
-    val usedFamilies = scala.collection.mutable.HashSet.empty[String]
-    val lines = alts.zipWithIndex.map { case (c, i) =>
-      rec.use(s"candidates[${c.move}]", c.move, "Alternative")
-      val (line, family) = renderAlternativeDiversified(c, i, bead, usedFamilies.toSet)
-      usedFamilies += family
-      line
+    val ranked = rankedEngineVariations(ctx)
+    val bestScore = ranked.headOption.map(_.effectiveScore)
+    val bestSan = ranked.headOption
+      .flatMap(_.ourMove.map(_.san))
+      .orElse(
+        ranked.headOption
+          .flatMap(_.moves.headOption)
+          .map(uci => NarrativeUtils.uciToSanOrFormat(ctx.fen, uci))
+          .map(_.trim)
+          .filter(_.nonEmpty)
+      )
+    val signals = alts.map(c => alternativeEngineSignal(ctx, c, ranked, bestScore, bestSan))
+    alts.foreach(c => rec.use(s"candidates[${c.move}]", c.move, "Alternative"))
+
+    val attempted = (0 until 3).toList.map { pass =>
+      val usedFamilies = scala.collection.mutable.HashSet.empty[String]
+      val passSeed = bead ^ (pass * 0x9e3779b9)
+      val lines = alts.zipWithIndex.map { case (c, i) =>
+        val localSeed = passSeed ^ ((i + 1) * 0x45d9f3b)
+        val (line, family) = renderAlternativeDiversified(c, i, localSeed, usedFamilies.toSet, signals(i))
+        usedFamilies += family
+        line
+      }
+      (lines, alternativesRepetitionPenalty(lines))
     }
+    val lines = attempted.minBy(_._2)._1
     OutlineBeat(kind = OutlineBeatKind.Alternatives, text = lines.mkString("\n"), anchors = alts.map(_.move))
 
   private def buildWrapUpBeat(ctx: NarrativeContext, bead: Int): Option[OutlineBeat] =
     val parts = scala.collection.mutable.ListBuffer[String]()
-    val cpWhite = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
+    val cpWhite = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
 
     ctx.threats.toUs.headOption.filter(_.lossIfIgnoredCp >= 50).foreach { t =>
       parts += NarrativeLexicon.getThreatWarning(bead, t.kind, t.square)
@@ -542,7 +1117,7 @@ object NarrativeOutlineBuilder:
       if tags.contains(CandidateTag.TacticalGamble) then
         Some(NarrativeLexicon.pick(bead, List(
           "It's a tactical try—be ready for a precise response.",
-          "This line is a tactical gamble; one mistake can backfire."
+          "This line is a tactical gamble; one loose move can backfire."
         )))
       else if tags.contains(CandidateTag.Sharp) then
         Some(NarrativeLexicon.pick(bead, List(
@@ -611,7 +1186,7 @@ object NarrativeOutlineBuilder:
   ): Boolean =
     playedSan.contains("#") ||
       best.exists(_.move.contains("#")) ||
-      ctx.engineEvidence.flatMap(_.best.flatMap(_.mate)).exists(m => Math.abs(m) <= 1)
+      rankedEngineVariations(ctx).headOption.flatMap(_.mate).orElse(ctx.engineEvidence.flatMap(_.best.flatMap(_.mate))).exists(m => Math.abs(m) <= 1)
 
   private def formatCp(cp: Int): String =
     val sign = if cp >= 0 then "+" else ""
@@ -625,6 +1200,7 @@ object NarrativeOutlineBuilder:
     bestSan: String,
     bestUci: Option[String],
     cpLoss: Int,
+    playedRank: Option[Int],
     missedMotif: Option[String],
     whyNot: Option[String],
     alert: Option[String],
@@ -636,14 +1212,33 @@ object NarrativeOutlineBuilder:
     val factIssue = playedCand.flatMap(c => extractFactConsequence(c.facts)).map(s => s"Issue: $s")
     val alertIssue = alert.map(a => s"Issue: ${a.stripSuffix(".")}.")
     val whyNotIssue = whyNot.flatMap(humanizeWhyNot).map(r => s"Issue: $r.")
-    val motifIssue = missedMotif.map(m => s"Issue: this misses the tactical idea of $m.")
-    val replyIssue = bestReply.map(r => s"Issue: after this, ...$r gives the opponent a forcing reply.")
+    val motifIssue =
+      Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
+        missedMotif.map(m => s"Issue: this bypasses the tactical idea of $m.")
+      }.flatten
+    val hasConcreteEvidence = List(threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue).flatten.nonEmpty
+    val replyIssue =
+      Option.when(cpLoss >= Thresholds.INACCURACY_CP && hasConcreteEvidence) {
+        bestReply.filter(isForcingReplySan).map(r => s"Issue: after this, ...$r gives the opponent a forcing reply.")
+      }.flatten
+    val rankIssue =
+      playedRank match
+        case Some(r) if r >= 3 =>
+          Some(s"Issue: this is only the ${ordinal(r)} engine option and gives the opponent easier play.")
+        case Some(2) if cpLoss >= Thresholds.INACCURACY_CP =>
+          Some("Issue: this is second-tier compared with the engine's main continuation.")
+        case None if cpLoss >= Thresholds.INACCURACY_CP =>
+          Some("Issue: this move falls outside the sampled principal lines.")
+        case _ => None
     val fallbackIssue = Option.when(cpLoss >= Thresholds.INACCURACY_CP)(s"Issue: ${defaultIssueBySeverity(bead, cpLoss)}.")
+    val cause =
+      List(threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue, replyIssue, rankIssue, fallbackIssue)
+        .flatten
+        .find(_.trim.nonEmpty)
+        .getOrElse("")
+    val consequence = buildIssueConsequence(bead, cpLoss, bestReply, threatsToUs, playedCand)
 
-    List(threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue, replyIssue, fallbackIssue)
-      .flatten
-      .find(_.trim.nonEmpty)
-      .getOrElse("")
+    List(cause, consequence.getOrElse("")).filter(_.trim.nonEmpty).mkString(" ")
 
   private def unresolvedThreatIssue(
     threatsToUs: List[ThreatRow],
@@ -681,6 +1276,475 @@ object NarrativeOutlineBuilder:
       .replaceAll("""[+#?!]+$""", "")
       .replaceAll("\\s+", "")
 
+  private def normalizeMotifKey(raw: String): String =
+    Option(raw).getOrElse("").trim
+      .replaceAll("([a-z])([A-Z])", "$1_$2")
+      .toLowerCase
+      .replaceAll("[^a-z0-9]+", "_")
+      .replaceAll("_+", "_")
+      .stripPrefix("_")
+      .stripSuffix("_")
+
+  private def buildThemeKeywordSentence(
+    motifs: List[String],
+    existingText: String,
+    bead: Int,
+    ply: Int,
+    phase: String
+  ): Option[String] =
+    val existingLow = Option(existingText).getOrElse("").toLowerCase
+    val candidates =
+      motifs
+        .map(normalizeMotifKey)
+        .filter(_.nonEmpty)
+        .filter(m => motifPhaseCompatible(m, phase))
+        .distinct
+        .flatMap(themeReinforcementSentence)
+        .sortBy { case (keyword, _) => -themeKeywordPriority(keyword) }
+    candidates
+      .flatMap { case (keyword, canonicalSentence) =>
+        val variants = themeSentenceVariants(keyword, canonicalSentence)
+        if existingLow.contains(keyword.toLowerCase) then None
+        else
+          pickThemeVariant(
+            bead = bead ^ Math.abs(keyword.hashCode),
+            ply = ply,
+            variants = variants,
+            existingLow = existingLow
+          )
+      }
+      .headOption
+
+  private def themeKeywordPriority(keyword: String): Int =
+    keyword.toLowerCase match
+      case "bad bishop"               => 100
+      case "bishop pair"              => 100
+      case "zwischenzug"              => 100
+      case "repeat"                   => 100
+      case "opposite-colored bishops" => 95
+      case "minority attack"          => 95
+      case "pawn storm"               => 95
+      case "underpromotion"           => 95
+      case "smothered mate"           => 95
+      case _                          => 70
+
+  private def themeReinforcementSentence(motif: String): Option[(String, String)] =
+    val normalized = normalizeMotifKey(motif)
+    if normalized.contains("iqp") || normalized.contains("isolated_pawn") then
+      Some("isolated" -> "The isolated queen pawn structure is a key strategic reference point.")
+    else if normalized.contains("minority_attack") then
+      Some("minority attack" -> "A minority attack is becoming a practical queenside plan.")
+    else if normalized.contains("bad_bishop") then
+      Some("bad bishop" -> "The bad bishop remains a lasting positional burden.")
+    else if normalized.contains("prophylaxis") then
+      Some("prophylactic" -> "A prophylactic idea is central to limiting counterplay.")
+    else if normalized.contains("interference") then
+      Some("interference" -> "Interference is a live tactical resource in this position.")
+    else if normalized.contains("deflection") then
+      Some("deflection" -> "Deflection is a concrete tactical theme to calculate carefully.")
+    else if normalized.contains("king_hunt") then
+      Some("king hunt" -> "A king hunt can emerge quickly if king safety loosens.")
+    else if normalized.contains("battery") then
+      Some("battery" -> "A battery setup is building pressure on key lines.")
+    else if normalized.contains("bishop_pair") then
+      Some("bishop pair" -> "The bishop pair is a meaningful long-term asset here.")
+    else if normalized.contains("opposite_bishops") || normalized.contains("opposite_color_bishops") then
+      Some("opposite-colored bishops" -> "Opposite-colored bishops increase attacking chances for both sides.")
+    else if normalized.contains("simplification") || normalized.contains("liquidate") then
+      Some("simplification" -> "Simplification is a practical route to consolidate the position.")
+    else if normalized.contains("smothered_mate") then
+      Some("smothered mate" -> "Smothered mate patterns are part of the tactical background.")
+    else if normalized.contains("novelty") then
+      Some("novelty" -> "This position carries novelty value compared with the usual mainline treatment.")
+    else if normalized.contains("rook_lift") then
+      Some("rook lift" -> "A rook lift can become a key attacking mechanism.")
+    else if normalized.contains("zwischenzug") then
+      Some("zwischenzug" -> "A zwischenzug resource may interrupt the expected sequence.")
+    else if normalized.contains("pawn_storm") then
+      Some("pawn storm" -> "A pawn storm is the direct attacking plan around the king.")
+    else if normalized.contains("trapped_piece") || normalized.contains("trapped") then
+      Some("trapped" -> "A trapped piece motif is becoming relevant.")
+    else if normalized.contains("stalemate") then
+      Some("stalemate" -> "Stalemate resources are part of the endgame calculation.")
+    else if normalized.contains("underpromotion") then
+      Some("underpromotion" -> "An underpromotion resource is a concrete tactical possibility.")
+    else if normalized.contains("repetition") || normalized.contains("repeat") then
+      Some("repeat" -> "A repeat line is a practical decision point if risk rises.")
+    else None
+
+  private def themeSentenceVariants(keyword: String, canonical: String): List[String] =
+    keyword.toLowerCase match
+      case "minority attack" =>
+        List(
+          "A minority attack is becoming a practical queenside plan.",
+          "Minority attack play on the queenside is becoming the most practical plan.",
+          "The queenside minority attack is turning into the key practical route."
+        )
+      case "bad bishop" =>
+        List(
+          "The bad bishop remains a lasting positional burden.",
+          "The bad bishop continues to limit long-term piece quality.",
+          "A bad bishop handicap is still shaping the strategic plans."
+        )
+      case "repeat" =>
+        List(
+          "A repeat line is a practical decision point if risk rises.",
+          "Repeat options are part of the practical decision tree when risk increases.",
+          "A repeat remains a practical fallback if neither side can improve safely."
+        )
+      case "zwischenzug" =>
+        List(
+          "A zwischenzug resource may interrupt the expected sequence.",
+          "A zwischenzug can reset the move order and change the tactical evaluation.",
+          "The key tactical resource is a zwischenzug that disrupts automatic recapture."
+        )
+      case "bishop pair" =>
+        List(
+          "The bishop pair is a meaningful long-term asset here.",
+          "The bishop pair provides a durable strategic edge over long diagonals.",
+          "Long-term play favors the bishop pair as an enduring strategic asset."
+        )
+      case "opposite-colored bishops" =>
+        List(
+          "Opposite-colored bishops increase attacking chances for both sides.",
+          "Opposite-colored bishops often amplify direct attacking chances.",
+          "With opposite-colored bishops, both kings can come under sharper pressure."
+        )
+      case "smothered mate" =>
+        List(
+          "Smothered mate patterns are part of the tactical background.",
+          "Smothered-mate geometry remains a live tactical motif.",
+          "Knight-and-queen coordination keeps smothered-mate motifs relevant."
+        )
+      case "underpromotion" =>
+        List(
+          "An underpromotion resource is a concrete tactical possibility.",
+          "Underpromotion remains a concrete tactical resource in this position.",
+          "A non-queen promotion idea is part of the tactical calculation tree."
+        )
+      case "pawn storm" =>
+        List(
+          "A pawn storm is the direct attacking plan around the king.",
+          "The direct attacking roadmap features a king-side pawn storm.",
+          "Flank pawn-storm timing is central to the attack plan."
+        )
+      case _ =>
+        List(canonical)
+
+  private def pickThemeVariant(
+    bead: Int,
+    ply: Int,
+    variants: List[String],
+    existingLow: String
+  ): Option[String] =
+    val clean = variants.map(_.trim).filter(_.nonEmpty).distinct
+    if clean.isEmpty then None
+    else
+      val seed = bead ^ (ply * 0x27d4eb2f)
+      val baseIdx = {
+        val mixed = scala.util.hashing.MurmurHash3.mixLast(0x3c6ef372, seed)
+        val finalized = scala.util.hashing.MurmurHash3.finalizeHash(mixed, 1)
+        Math.floorMod(finalized + ply, clean.size)
+      }
+      (0 until clean.size)
+        .map(i => clean(Math.floorMod(baseIdx + i, clean.size)))
+        .find(s => !existingLow.contains(s.toLowerCase))
+
+  private def collectDerivedContextMotifs(ctx: NarrativeContext): List[String] =
+    val semantic = ctx.semantic.toList
+    val positional = semantic.flatMap(_.positionalFeatures.flatMap(positionalTagMotifs))
+    val weaknesses = semantic.flatMap(_.structuralWeaknesses.flatMap(weakComplexMotifs))
+    val endgame = semantic.flatMap(_.endgameFeatures.toList.flatMap(endgameMotifs))
+    val evidence = ctx.candidates.flatMap(_.tacticEvidence.flatMap(tacticEvidenceMotifs))
+    (positional ++ weaknesses ++ endgame ++ evidence)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .distinct
+
+  private def endgameMotifs(info: EndgameInfo): List[String] =
+    val motifs = scala.collection.mutable.ListBuffer[String]()
+    if info.isZugzwang then motifs += "zugzwang"
+    if info.hasOpposition then motifs += "opposition"
+    motifs.toList
+
+  private def positionalTagMotifs(tag: PositionalTagInfo): List[String] =
+    val key = normalizeMotifKey(tag.tagType)
+    val detail = normalizeMotifKey(tag.detail.getOrElse(""))
+    val fileHint = tag.file.map(_.trim).filter(_.nonEmpty).getOrElse("")
+    if key.contains("minority_attack") || key.contains("minorityattack") || detail.contains("minority_attack") then
+      List("minority_attack")
+    else if key.contains("pawn_majority") || key.contains("pawnmajority") then
+      List("pawn_storm")
+    else if key.contains("hanging_pawns") || key.contains("hangingpawns") then
+      List("hanging_pawns")
+    else if key.contains("bad_bishop") || key.contains("badbishop") then
+      List("bad_bishop")
+    else if key.contains("good_bishop") || key.contains("goodbishop") then
+      List("good_bishop")
+    else if key.contains("bishop_pair") || key.contains("bishoppair") then
+      List("bishop_pair")
+    else if key.contains("opposite_color_bishops") || key.contains("oppositecolorbishops") then
+      List("opposite_bishops")
+    else if key.contains("color_complex") || key.contains("colorcomplex") then
+      List("color_complex")
+    else if key.contains("semi_open_file_control") || key.contains("semiopenfilecontrol") then
+      List(s"semi_open_file_control${if fileHint.nonEmpty then s"_$fileHint" else ""}")
+    else if key.contains("rook_on_seventh") || key.contains("rookonseventh") || key.contains("seventh_rank_invasion") then
+      List("rook_on_seventh")
+    else if key.contains("rook_behind_passed_pawn") || key.contains("rookbehindpassedpawn") then
+      List("rook_behind_passed_pawn")
+    else if key.contains("king_cut_off") || key.contains("kingcutoff") then
+      List("king_cut_off")
+    else if key.contains("doubled_rooks") || key.contains("doubledrooks") then
+      List("doubled_rooks")
+    else if key.contains("connected_rooks") || key.contains("connectedrooks") then
+      List("connected_rooks")
+    else if key.contains("open_file") || key == "openfile" then
+      List(s"open_file${if fileHint.nonEmpty then s"_$fileHint" else ""}")
+    else if key.contains("outpost") then
+      List("outpost")
+    else Nil
+
+  private def weakComplexMotifs(w: WeakComplexInfo): List[String] =
+    val cause = normalizeMotifKey(w.cause)
+    if cause.contains("hanging_pawns") then List("hanging_pawns")
+    else Nil
+
+  private def tacticEvidenceMotifs(raw: String): List[String] =
+    val normalized = normalizeMotifKey(raw)
+    val low = Option(raw).getOrElse("").toLowerCase
+    if normalized.startsWith("maneuver") then List("maneuver")
+    else if normalized.startsWith("domination") then List("domination")
+    else if normalized.startsWith("trapped_piece") || normalized.startsWith("trappedpiece") then
+      val pieceHint =
+        if low.contains("queen") then List("trapped_piece_queen")
+        else if low.contains("rook") then List("trapped_piece_rook")
+        else Nil
+      "trapped_piece" :: pieceHint
+    else if normalized.startsWith("knight_vs_bishop") || normalized.startsWith("knightvsbishop") then List("knight_vs_bishop")
+    else if normalized.startsWith("blockade") then List("blockade")
+    else if normalized.startsWith("smothered_mate") || normalized.startsWith("smotheredmate") then List("smothered_mate")
+    else if normalized.startsWith("pin") then
+      if low.contains("queen") then List("pin_queen", "pin")
+      else List("pin")
+    else if normalized.startsWith("skewer") then
+      if low.contains("queen") then List("skewer_queen", "skewer")
+      else List("skewer")
+    else if normalized.startsWith("xray") || normalized.startsWith("x_ray") then
+      if low.contains("queen") then List("xray_queen", "xray")
+      else List("xray")
+    else if normalized.startsWith("battery") then List("battery")
+    else if normalized.contains("exchange_sacrifice") || normalized.contains("exchangesacrifice") || normalized.contains("sacrifice_roi") then
+      List("exchange_sacrifice")
+    else Nil
+
+  private def isTrustedMotifPrefixCandidate(
+    rawMotif: String,
+    deltaSignals: List[String],
+    counterfactualSignals: List[String],
+    conceptSummarySignals: List[String],
+    derivedSignals: List[String],
+    keyFact: Option[Fact],
+    threatsToUs: List[ThreatRow],
+    pawnPlay: PawnPlayTable,
+    phase: String
+  ): Boolean =
+    val motif = normalizeMotifKey(rawMotif)
+    if motif.isEmpty || !NarrativeLexicon.isMotifPrefixSignal(motif) || !motifPhaseCompatible(motif, phase) then false
+    else
+      val fromDelta = deltaSignals.exists(sig => motifSignalMatches(sig, motif))
+      val fromCounterfactual = counterfactualSignals.exists(sig => motifSignalMatches(sig, motif))
+      val fromConceptSummary = conceptSummarySignals.exists(sig => motifSignalMatches(sig, motif))
+      val fromDerived = derivedSignals.exists(sig => motifSignalMatches(sig, motif))
+      val corroboratedByBoard =
+        keyFact.exists(f => motifCorroboratedByFact(motif, f)) ||
+          motifCorroboratedByThreat(motif, threatsToUs) ||
+          motifCorroboratedByPawnPlay(motif, pawnPlay)
+
+      fromDelta || fromCounterfactual || fromDerived || (fromConceptSummary && corroboratedByBoard)
+
+  private def motifPhaseCompatible(rawMotif: String, phase: String): Boolean =
+    val motif = normalizeMotifKey(rawMotif)
+    val p = Option(phase).getOrElse("").trim.toLowerCase
+    if motif.isEmpty then false
+    else if p.contains("endgame") then
+      !List(
+        "minority_attack",
+        "pawn_storm",
+        "greek_gift",
+        "smothered_mate",
+        "rook_lift",
+        "novelty"
+      ).exists(motif.contains)
+    else if p.contains("opening") then
+      !List(
+        "zugzwang",
+        "opposition",
+        "king_cut_off",
+        "rook_behind_passed_pawn"
+      ).exists(motif.contains)
+    else true
+
+  private def motifSignalMatches(rawSignal: String, rawMotif: String): Boolean =
+    val signal = normalizeMotifKey(rawSignal)
+    val motif = normalizeMotifKey(rawMotif)
+    if signal.isEmpty || motif.isEmpty then false
+    else
+      signal == motif ||
+        signal.contains(motif) ||
+        motif.contains(signal) ||
+        signal.replace("_", "").contains(motif.replace("_", "")) ||
+        motif.replace("_", "").contains(signal.replace("_", ""))
+
+  private def motifCorroboratedByFact(motif: String, fact: Fact): Boolean =
+    fact match
+      case _: Fact.Pin =>
+        motif.contains("pin") || motif.contains("xray")
+      case _: Fact.Skewer =>
+        motif.contains("skewer") || motif.contains("xray")
+      case _: Fact.Fork =>
+        motif.contains("fork") || motif.contains("deflection")
+      case _: Fact.HangingPiece =>
+        motif.contains("trapped_piece") || motif.contains("battery")
+      case _: Fact.WeakSquare =>
+        List("minority_attack", "color_complex", "bad_bishop", "good_bishop", "outpost").exists(motif.contains)
+      case _: Fact.Outpost =>
+        List("outpost", "knight_domination", "maneuver", "knight_vs_bishop").exists(motif.contains)
+      case _: Fact.Opposition =>
+        motif.contains("zugzwang") || motif.contains("king_cut_off")
+      case _: Fact.KingActivity =>
+        motif.contains("king_cut_off") || motif.contains("passed_pawn") || motif.contains("zugzwang")
+      case _ => false
+
+  private def motifCorroboratedByThreat(motif: String, threatsToUs: List[ThreatRow]): Boolean =
+    val tacticalMotif =
+      List(
+        "king_hunt",
+        "smothered",
+        "greek_gift",
+        "deflection",
+        "interference",
+        "pin",
+        "skewer",
+        "xray",
+        "battery",
+        "zwischenzug",
+        "trapped_piece",
+        "exchange_sacrifice"
+      ).exists(motif.contains)
+    val strategicMotif =
+      List(
+        "open_file",
+        "rook_on_seventh",
+        "rook_behind_passed_pawn",
+        "king_cut_off",
+        "passed_pawn",
+        "pawn_storm",
+        "minority_attack",
+        "hanging_pawns",
+        "isolated_pawn",
+        "iqp",
+        "color_complex",
+        "simplification",
+        "liquidate",
+        "blockade"
+      ).exists(motif.contains)
+
+    threatsToUs.exists { t =>
+      val kind = t.kind.toLowerCase
+      val urgent = t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP || kind.contains("mate")
+      (tacticalMotif && (kind.contains("mate") || kind.contains("material") || urgent)) ||
+      (strategicMotif && (kind.contains("positional") || urgent))
+    }
+
+  private def motifCorroboratedByPawnPlay(motif: String, pawnPlay: PawnPlayTable): Boolean =
+    val hasPawnSignal =
+      pawnPlay.breakReady ||
+        pawnPlay.breakFile.nonEmpty ||
+        pawnPlay.primaryDriver.toLowerCase.contains("break")
+    hasPawnSignal &&
+      List("pawn_break", "liquidate", "liquidation", "minority_attack", "passed_pawn", "hanging_pawns", "open_file")
+        .exists(motif.contains)
+
+  private def resolveCpLoss(
+    ctx: NarrativeContext,
+    playedUci: Option[String],
+    playedSan: String,
+    playedRank: Option[Int]
+  ): Int =
+    val fromCounterfactual = ctx.counterfactual.map(_.cpLoss).getOrElse(0)
+    val fromEngine = estimateCpLossFromEngine(ctx, playedUci, playedSan)
+    fromEngine
+      .orElse {
+        Option.when(fromCounterfactual > 0)(fromCounterfactual)
+      }
+      .orElse {
+        playedRank match
+          case Some(r) if r >= 3 => Some(30)
+          case Some(2)           => Some(20)
+          case _                 => None
+      }
+      .getOrElse(0)
+
+  private def estimateCpLossFromEngine(
+    ctx: NarrativeContext,
+    playedUci: Option[String],
+    playedSan: String
+  ): Option[Int] =
+    val ranked = rankedEngineVariations(ctx)
+    for
+      best <- ranked.headOption
+      playedScore <- {
+        val playedNormUci = playedUci.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+        val playedNormSan = normalizeMoveToken(playedSan)
+        ranked.collectFirst {
+          case v if playedNormUci.exists(u => v.moves.headOption.exists(m => NarrativeUtils.uciEquivalent(m, u))) =>
+            v.effectiveScore
+          case v if playedNormSan.nonEmpty && v.ourMove.exists(m => normalizeMoveToken(m.san) == playedNormSan) =>
+            v.effectiveScore
+        }
+      }
+    yield cpLossForSideToMove(ctx.fen, best.effectiveScore, playedScore)
+
+  private def playedMoveRank(
+    ctx: NarrativeContext,
+    playedUci: Option[String],
+    playedSan: String
+  ): Option[Int] =
+    val playedNormUci = playedUci.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val playedNormSan = normalizeMoveToken(playedSan)
+    rankedEngineVariations(ctx).zipWithIndex.collectFirst {
+      case (v, i) if playedNormUci.exists(u => v.moves.headOption.exists(m => NarrativeUtils.uciEquivalent(m, u))) =>
+        i + 1
+      case (v, i) if playedNormSan.nonEmpty && v.ourMove.exists(m => normalizeMoveToken(m.san) == playedNormSan) =>
+        i + 1
+    }
+
+  private def rankedEngineVariations(ctx: NarrativeContext) =
+    sortVariationsForSideToMove(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
+
+  private def sortVariationsForSideToMove(fen: String, vars: List[VariationLine]): List[VariationLine] =
+    if fenSideToMoveIsWhite(fen) then vars.sortBy(v => -v.effectiveScore)
+    else vars.sortBy(_.effectiveScore)
+
+  private def fenSideToMoveIsWhite(fen: String): Boolean =
+    Option(fen).getOrElse("").trim.split("\\s+").drop(1).headOption.contains("w")
+
+  private def cpLossForSideToMove(fen: String, bestScore: Int, playedScore: Int): Int =
+    if fenSideToMoveIsWhite(fen) then (bestScore - playedScore).max(0)
+    else (playedScore - bestScore).max(0)
+
+  private def ordinal(n: Int): String =
+    val suffix =
+      if n % 100 >= 11 && n % 100 <= 13 then "th"
+      else
+        n % 10 match
+          case 1 => "st"
+          case 2 => "nd"
+          case 3 => "rd"
+          case _ => "th"
+    s"$n$suffix"
+
   private def humanizeWhyNot(raw: String): Option[String] =
     val cleaned = Option(raw).getOrElse("").trim
       .replaceAll("""\(?[-+]?\d+(?:\.\d+)?\s*cp\)?""", "")
@@ -688,8 +1752,198 @@ object NarrativeOutlineBuilder:
       .replaceAll("""\s{2,}""", " ")
       .replaceAll("""\s+\.""", ".")
       .stripSuffix(".")
+      .replaceAll("(?i)\\binferior\\b", "less precise")
+      .replaceAll("(?i)\\binaccuracy\\b", "practical concession")
+      .replaceAll("(?i)\\bmistake\\b", "practical error")
       .trim
     Option.when(cleaned.nonEmpty)(cleaned)
+
+  private def buildBoardAnchor(ctx: NarrativeContext, keyFact: Option[Fact], bead: Int): Option[BoardAnchor] =
+    val urgentThreat =
+      ctx.threats.toUs
+        .sortBy(t => -t.lossIfIgnoredCp)
+        .headOption
+        .filter(t => t.kind.equalsIgnoreCase("Mate") || t.lossIfIgnoredCp >= 80)
+
+    urgentThreat.map { t =>
+      val kind = t.kind.trim.toLowerCase
+      val square = t.square.map(_.trim).filter(_.nonEmpty).map(s => s" on $s").getOrElse("")
+      val text = NarrativeLexicon.pick(bead ^ 0x4e67c6a7, List(
+        s"The immediate concrete issue is the $kind threat$square.",
+        s"On the board right now, handling the $kind threat$square is the priority.",
+        s"The position currently hinges on the $kind threat$square."
+      ))
+      BoardAnchor(text = text, consumedThreat = true)
+    }.orElse {
+      keyFact.flatMap { fact =>
+        val text = NarrativeLexicon.getFactStatement(bead ^ 0x3c79ac49, fact).trim
+        Option.when(text.nonEmpty)(BoardAnchor(text = text, consumedFact = true))
+      }
+    }.orElse {
+      ctx.pawnPlay.breakFile.map { br =>
+        val file = br.trim
+        val fileLabel = if file.toLowerCase.contains("file") then file else s"$file-file"
+        val text = NarrativeLexicon.pick(bead ^ 0x1f123bb5, List(
+          s"$fileLabel pressure is the concrete lever in the current position.",
+          s"The structure around the $fileLabel break is now the practical focal point.",
+          s"Plans on both sides revolve around the $fileLabel pawn break."
+        ))
+        BoardAnchor(text = text)
+      }
+    }
+
+  private def buildIssueConsequence(
+    bead: Int,
+    cpLoss: Int,
+    bestReply: Option[String],
+    threatsToUs: List[ThreatRow],
+    playedCand: Option[CandidateInfo]
+  ): Option[String] =
+    val threatConsequence =
+      threatsToUs.find(_.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP).map { t =>
+        val kind = t.kind.toLowerCase
+        if kind.contains("mate") then "Consequence: king safety deteriorates immediately and the attack becomes forcing."
+        else if kind.contains("material") then "Consequence: material pressure becomes harder to contain in practical play."
+        else "Consequence: the opponent dictates the play while your pieces are tied to defense."
+      }
+
+    val factConsequence =
+      playedCand.flatMap(_.facts.collectFirst {
+        case Fact.WeakSquare(square, _, _, _) =>
+          s"Consequence: ${square.key} can become a long-term target."
+        case Fact.HangingPiece(square, role, _, _, _) =>
+          s"Consequence: the ${roleLabel(role)} on ${square.key} can become a direct tactical target."
+      })
+
+    val replyConsequence =
+      Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
+        bestReply.filter(isForcingReplySan).map(r => s"Consequence: the opponent can answer with ...$r and seize the initiative.")
+      }.flatten
+
+    val severityConsequence =
+      Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
+        Thresholds.classifySeverity(cpLoss) match
+          case "blunder" =>
+            NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
+              "Consequence: tactical control flips immediately and conversion becomes straightforward.",
+              "Consequence: king safety and coordination collapse at once.",
+              "Consequence: the opponent gets a forcing route with little counterplay."
+            ))
+          case "mistake" =>
+            NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
+              "Consequence: the opponent improves with forcing moves while your position stays passive.",
+              "Consequence: structure or king safety is compromised without compensation.",
+              "Consequence: practical control shifts and defense becomes uncomfortable."
+            ))
+          case "inaccuracy" =>
+            NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
+              "Consequence: the opponent gets the easier plan and more comfortable piece play.",
+              "Consequence: piece coordination loosens and counterplay appears.",
+              "Consequence: you lose structural clarity and give up practical initiative."
+            ))
+          case _ => ""
+      }.filter(_.nonEmpty)
+
+    factConsequence
+      .orElse(threatConsequence)
+      .orElse(severityConsequence)
+      .orElse(replyConsequence)
+
+  private def isForcingReplySan(reply: String): Boolean =
+    val r = Option(reply).getOrElse("").trim
+    r.nonEmpty && (r.contains("+") || r.contains("#") || r.contains("x"))
+
+  private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean): String =
+    if text.trim.isEmpty then text
+    else if isBest || cpLoss <= 35 then softenNearBestTone(text)
+    else if cpLoss >= Thresholds.INACCURACY_CP && !containsNegativeTone(text) then
+      val severityWord = Thresholds.classifySeverity(cpLoss) match
+        case "blunder" => "blunder"
+        case "mistake" => "mistake"
+        case _         => "inaccuracy"
+      s"${text.trim} This is a $severityWord that gives the opponent easier play."
+    else text
+
+  private def softenNearBestTone(text: String): String =
+    List(
+      ("(?i)\\bblunder\\b", "detour"),
+      ("(?i)\\bmistake\\b", "detour"),
+      ("(?i)\\binaccuracy\\b", "detour"),
+      ("(?i)\\bimprecise\\b", "less direct"),
+      ("(?i)\\binferior\\b", "less direct"),
+      ("(?i)\\berror\\b", "detour"),
+      ("(?i)\\bdrops\\b", "concedes"),
+      ("(?i)\\bloses\\b", "concedes"),
+      ("(?i)\\bslip\\b", "tempo loss"),
+      ("(?i)\\bmisses\\b", "bypasses")
+    ).foldLeft(text) { case (acc, (pattern, replacement)) =>
+      acc.replaceAll(pattern, replacement)
+    }
+
+  private def containsNegativeTone(text: String): Boolean =
+    val low = text.toLowerCase
+    List("blunder", "mistake", "inaccuracy", "imprecise", "misses", "slip", "inferior", "drops", "loses", "error")
+      .exists(low.contains)
+
+  private def enforceAnnotationPolarity(
+    text: String,
+    cpLoss: Int,
+    isBest: Boolean
+  ): String =
+    if text.trim.isEmpty then text
+    else
+      val nearBest = isBest || cpLoss <= 25
+      val severeError = cpLoss >= 140
+      val containsBenchmarkStrongPositive = containsBenchmarkStrongPositiveLexicon(text)
+
+      val neutralized =
+        if nearBest then neutralizeBenchmarkNegativeLexicon(text)
+        else text
+
+      val softenedPositive =
+        if severeError && containsBenchmarkStrongPositive then
+          neutralizeBenchmarkStrongPositiveLexicon(neutralized)
+        else neutralized
+
+      if severeError && !containsBenchmarkNegativeLexicon(softenedPositive) then
+        s"${softenedPositive.trim} This is a mistake that gives the opponent easier play."
+      else softenedPositive
+
+  private def containsBenchmarkNegativeLexicon(text: String): Boolean =
+    val low = text.toLowerCase
+    List("blunder", "mistake", "inaccuracy", "misses", "slip", "inferior", "drops", "loses")
+      .exists(term => s" $low ".contains(s" $term "))
+
+  private def containsBenchmarkStrongPositiveLexicon(text: String): Boolean =
+    val low = text.toLowerCase
+    List("best move", "excellent choice", "strong move", "very accurate", "precise move", "fully sound")
+      .exists(low.contains)
+
+  private def neutralizeBenchmarkNegativeLexicon(text: String): String =
+    List(
+      ("(?i)\\bblunder\\b", "detour"),
+      ("(?i)\\bmistake\\b", "detour"),
+      ("(?i)\\binaccuracy\\b", "detour"),
+      ("(?i)\\bmisses\\b", "bypasses"),
+      ("(?i)\\bslip\\b", "tempo loss"),
+      ("(?i)\\binferior\\b", "less direct"),
+      ("(?i)\\bdrops\\b", "concedes"),
+      ("(?i)\\bloses\\b", "concedes")
+    ).foldLeft(text) { case (acc, (pattern, replacement)) =>
+      acc.replaceAll(pattern, replacement)
+    }
+
+  private def neutralizeBenchmarkStrongPositiveLexicon(text: String): String =
+    List(
+      ("(?i)\\bbest move\\b", "reference move"),
+      ("(?i)\\bexcellent choice\\b", "practical option"),
+      ("(?i)\\bstrong move\\b", "practical move"),
+      ("(?i)\\bvery accurate\\b", "playable"),
+      ("(?i)\\bprecise move\\b", "reference move"),
+      ("(?i)\\bfully sound\\b", "playable")
+    ).foldLeft(text) { case (acc, (pattern, replacement)) =>
+      acc.replaceAll(pattern, replacement)
+    }
 
   private def extractFactConsequence(facts: List[Fact]): Option[String] =
     val prioritized = facts.sortBy {
@@ -724,21 +1978,21 @@ object NarrativeOutlineBuilder:
     Thresholds.classifySeverity(cpLoss) match
       case "blunder" =>
         NarrativeLexicon.pick(bead, List(
-          "this loses material or allows a forcing attack",
-          "this fails tactically and the position starts collapsing",
-          "this gives the opponent a direct winning sequence"
+          "this allows a forcing tactical sequence against your king or material",
+          "this collapses coordination and gives the opponent a direct conversion route",
+          "this fails to meet the immediate tactical threat and the position unravels"
         ))
       case "mistake" =>
         NarrativeLexicon.pick(bead, List(
-          "this hands over the initiative and creates defensive problems",
-          "this concedes a serious positional or tactical concession",
-          "this gives the opponent an easier route to improve"
+          "this hands over the initiative and creates long-term defensive burdens",
+          "this concedes either structure or king safety without enough return",
+          "this lets the opponent improve with simple, forcing moves"
         ))
       case "inaccuracy" =>
         NarrativeLexicon.pick(bead, List(
-          "this concedes the easier game to the opponent",
-          "this gives up useful coordination without compensation",
-          "this drifts from the most reliable plan"
+          "this gives the opponent the easier plan to execute",
+          "this loosens piece coordination and invites counterplay",
+          "this drifts from the cleanest structure-preserving continuation"
         ))
       case _ => ""
 
@@ -799,19 +2053,131 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
       .map(_.replaceAll("""^[\.\u2026]+""", ""))
 
+  private def alternativeEngineSignal(
+    ctx: NarrativeContext,
+    candidate: CandidateInfo,
+    ranked: List[VariationLine],
+    bestScore: Option[Int],
+    bestSan: Option[String]
+  ): AlternativeEngineSignal =
+    val matched = ranked.zipWithIndex.collectFirst {
+      case (v, idx) if variationMatchesCandidate(candidate, v) => (idx + 1, v.effectiveScore)
+    }
+    val rank = matched.map(_._1)
+    val cpLoss = for
+      best <- bestScore
+      (_, score) <- matched
+    yield cpLossForSideToMove(ctx.fen, best, score)
+    AlternativeEngineSignal(rank = rank, cpLoss = cpLoss, bestSan = bestSan)
+
+  private def variationMatchesCandidate(candidate: CandidateInfo, variation: VariationLine): Boolean =
+    val candUci = candidate.uci.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val candSan = normalizeMoveToken(candidate.move)
+    candUci.exists(u => variation.moves.headOption.exists(m => NarrativeUtils.uciEquivalent(m, u))) ||
+      (candSan.nonEmpty && variation.ourMove.exists(m => normalizeMoveToken(m.san) == candSan))
+
+  private def formatCpGap(cpLoss: Int): String =
+    f"${cpLoss.toDouble / 100}%.1f pawns"
+
+  private def appendAlternativeEngineContrast(
+    line: String,
+    signal: AlternativeEngineSignal,
+    bead: Int
+  ): String =
+    val contrastSeed =
+      bead ^
+        (signal.rank.getOrElse(0) * 0x45d9f3b) ^
+        (signal.cpLoss.getOrElse(0) * 131) ^
+        (Math.abs(signal.bestSan.getOrElse("").hashCode) * 17)
+
+    val shouldAttachContrast =
+      signal.rank.exists {
+        case r if r >= 3 => true
+        case 2           => signal.cpLoss.exists(_ >= 25) || Math.floorMod(contrastSeed, 3) != 0
+        case _           => false
+      }
+
+    val contrast: Option[String] =
+      if !shouldAttachContrast then None
+      else signal.rank match
+        case Some(2) =>
+          val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the top engine move")
+          signal.cpLoss match
+            case Some(loss) if loss <= 20 =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x11f17f1d, List(
+                s"Engine order keeps $bestRef first, though this remains close in practical terms.",
+                s"$bestRef still tops the engine list, but the gap here is narrow.",
+                s"The engine shows a slight preference for $bestRef, while this stays near-equivalent over the board.",
+                s"$bestRef remains the clean reference continuation, with only a small edge."
+              )))
+            case Some(loss) =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x284f2d5b, List(
+                s"The engine still points to $bestRef as cleaner, by about ${formatCpGap(loss)}.",
+                s"$bestRef keeps the better engine score by roughly ${formatCpGap(loss)}.",
+                s"Relative to $bestRef, the engine score trails by roughly ${formatCpGap(loss)}.",
+                s"Engine preference remains with $bestRef; the practical cost is about ${formatCpGap(loss)}.",
+                s"Compared with $bestRef, engine evaluation drops by roughly ${formatCpGap(loss)}."
+              )))
+            case None =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x3124bcf5, List(
+                s"Engine order still favors $bestRef as the cleaner continuation.",
+                s"$bestRef remains the engine reference in this structure.",
+                s"The principal engine route still starts with $bestRef.",
+                s"In the sampled lines, $bestRef remains the benchmark move."
+              )))
+        case Some(r) if r >= 3 =>
+          val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the principal continuation")
+          signal.cpLoss match
+            case Some(loss) if loss <= 70 =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x4f31b0b1, List(
+                s"Engine ranking places this around ${ordinal(r)}, with $bestRef ahead by about ${formatCpGap(loss)}.",
+                s"This continuation stays in the ${ordinal(r)} engine group, while $bestRef keeps roughly a ${formatCpGap(loss)} edge.",
+                s"In engine order, $bestRef remains first and this ${ordinal(r)} choice trails by around ${formatCpGap(loss)}."
+              )))
+            case Some(loss) =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x602d4eb7, List(
+                s"This sits in a lower engine tier (about ${ordinal(r)}), and $bestRef leads by roughly ${formatCpGap(loss)}.",
+                s"Engine ranking is clear here: around ${ordinal(r)} for this line, while $bestRef is ahead by ${formatCpGap(loss)}.",
+                s"In engine terms this continuation drops to about ${ordinal(r)}, with $bestRef up by ${formatCpGap(loss)}.",
+                s"Around $bestRef, the principal engine route stays cleaner; this ${ordinal(r)} option is behind by about ${formatCpGap(loss)}."
+              )))
+            case None =>
+              Some(NarrativeLexicon.pick(contrastSeed ^ 0x72e91c2d, List(
+                s"This is a lower-ranked engine option (around ${ordinal(r)}), while $bestRef remains the stable benchmark.",
+                s"Engine ordering puts this below the principal choices; $bestRef is the cleaner reference line.",
+                s"The sampled engine set keeps this in a lower tier, with $bestRef as the anchor line."
+              )))
+        case _ => None
+
+    val base = line.trim
+    contrast match
+      case Some(extra) if base.nonEmpty => normalizeAlternativeTemplateLine(s"$base $extra", bead)
+      case _                            => normalizeAlternativeTemplateLine(base, bead)
+
   private def renderAlternativeDiversified(
     c: CandidateInfo,
     idx: Int,
     bead: Int,
-    usedFamilies: Set[String]
+    usedFamilies: Set[String],
+    signal: AlternativeEngineSignal
   ): (String, String) =
-    val reason = c.whyNot.map(_.trim).filter(_.nonEmpty).map(_.stripSuffix("."))
+    val rawReason = c.whyNot.flatMap(humanizeWhyNot).map(_.trim).filter(_.nonEmpty).map(_.stripSuffix("."))
     val move = c.move.trim
     val plan = c.planAlignment.trim.toLowerCase
     val diff = c.practicalDifficulty.trim.toLowerCase
+    val diffLabel = diff.replaceAll("""[_\-]+""", " ").trim
+    val informativePracticalHint =
+      diffLabel.nonEmpty &&
+      diffLabel != "unknown" &&
+      List("complex", "sharp", "precise", "narrow", "forcing", "tactical", "risky", "volatile", "critical")
+        .exists(diffLabel.contains)
+    val practicalHint =
+      if informativePracticalHint then
+        s" Practical burden: $diffLabel."
+      else ""
 
     val preferredFamilies: List[String] =
-      if reason.nonEmpty then List("tradeoff", "practical", "strategic", "generic")
+      if rawReason.nonEmpty then List("tradeoff", "practical", "strategic", "generic")
       else if c.tags.contains(CandidateTag.Sharp) || c.tags.contains(CandidateTag.TacticalGamble) || diff.contains("complex") then
         List("dynamic", "strategic", "practical", "generic")
       else if c.tags.contains(CandidateTag.Solid) || c.tags.contains(CandidateTag.Converting) || diff.contains("clean") then
@@ -821,6 +2187,7 @@ object NarrativeOutlineBuilder:
 
     val family = preferredFamilies.find(f => !usedFamilies.contains(f)).getOrElse(preferredFamilies.headOption.getOrElse("generic"))
     val localBead = bead ^ Math.abs(move.hashCode) ^ (idx + 1) * 0x9e3779b9
+    val reason = rawReason.map(r => diversifyAlternativeReason(r, localBead))
 
     val line =
       family match
@@ -828,20 +2195,27 @@ object NarrativeOutlineBuilder:
           val r = reason.getOrElse("it concedes dynamic chances")
           NarrativeLexicon.pick(localBead, List(
             s"**$move** is playable, but $r.",
-            s"**$move** can work; the tradeoff is that $r.",
-            s"Practically speaking, **$move** is viable, but $r."
+            s"**$move** can work, although $r.",
+            s"From a practical angle, **$move** is viable, yet $r.",
+            s"**$move** is a candidate move, but it comes with a concession: $r.",
+            s"**$move** stays in range, though $r.",
+            s"**$move** is serviceable over the board, but $r."
           ))
         case "dynamic" =>
           NarrativeLexicon.pick(localBead, List(
             s"**$move** keeps the game dynamic and can lead to sharper play.",
             s"**$move** invites complications and active piece play.",
-            s"With **$move**, the position stays tense and tactical."
+            s"With **$move**, the position stays tense and tactical.",
+            s"**$move** keeps tactical pressure alive and asks for concrete calculation."
           ))
         case "technical" =>
           NarrativeLexicon.pick(localBead, List(
             s"**$move** is the cleaner technical route, aiming for a stable structure.",
             s"**$move** heads for a controlled position with fewer tactical swings.",
-            s"**$move** favors structural clarity and methodical handling over complications."
+            s"**$move** favors structural clarity and methodical handling over complications.",
+            s"**$move** is a clean technical route that lightens defensive duties.",
+            s"**$move** aims for a technically manageable position with clear conversion paths.",
+            s"**$move** keeps the game in a technical channel where precise handling is rewarded."
           ))
         case "strategic" =>
           val planHint =
@@ -852,15 +2226,124 @@ object NarrativeOutlineBuilder:
           NarrativeLexicon.pick(localBead, List(
             s"**$move** is a strategic alternative$planHint.",
             s"**$move** points to a different strategic plan$planHint.",
-            s"**$move** takes the game into another strategic channel$planHint."
+            s"**$move** takes the game into another strategic channel$planHint.",
+            s"**$move** keeps a coherent strategic direction$planHint.",
+            s"Strategically, **$move** is a viable reroute$planHint."
           ))
         case "practical" =>
           NarrativeLexicon.pick(localBead, List(
             s"In practical play, **$move** is reasonable but needs accurate follow-up.",
             s"**$move** is viable over the board, though move-order precision matters.",
-            s"**$move** is playable in practice, but it asks for careful handling."
+            s"**$move** is playable in practice, but concrete calculation is required.",
+            s"Over the board, **$move** is acceptable if tactical details are controlled.",
+            s"**$move** can be handled in a game, provided the next moves are exact.",
+            s"**$move** remains practical, but one inaccurate follow-up can change the assessment.$practicalHint",
+            s"**$move** is playable in a real game, yet it demands precise sequencing.$practicalHint"
           ))
         case _ =>
-          NarrativeLexicon.getAlternative(localBead, move, c.whyNot)
+          NarrativeLexicon.getAlternative(localBead, move, c.whyNot.flatMap(humanizeWhyNot))
 
-    (line, family)
+    (appendAlternativeEngineContrast(line, signal, localBead ^ 0x63d5a6f1), family)
+
+  private def alternativesRepetitionPenalty(lines: List[String]): Int =
+    val stems = lines.map(normalizeAlternativeStem).filter(_.nonEmpty)
+    val stemPenalty =
+      stems.groupBy(identity).valuesIterator.map(c => (c.size - 1).max(0) * 15).sum
+
+    val ngramPenalty = lines.map(normalizeAlternativeTokens).map { tokens =>
+      val tri = ngramRepeatPenalty(tokens, 3, threshold = 2, weight = 6)
+      val four = ngramRepeatPenalty(tokens, 4, threshold = 2, weight = 10)
+      tri + four
+    }.sum
+
+    stemPenalty + ngramPenalty
+
+  private def normalizeAlternativeStem(line: String): String =
+    line.toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(7)
+      .mkString(" ")
+
+  private def normalizeAlternativeTokens(line: String): List[String] =
+    line.toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .toList
+      .filter(_.nonEmpty)
+
+  private def ngramRepeatPenalty(tokens: List[String], n: Int, threshold: Int, weight: Int): Int =
+    if tokens.lengthCompare(n) < 0 then 0
+    else
+      tokens
+        .sliding(n)
+        .map(_.mkString(" "))
+        .toList
+        .groupBy(identity)
+        .valuesIterator
+        .map(_.size)
+        .map(c => (c - threshold + 1).max(0) * weight)
+        .sum
+
+  private def normalizeAlternativeTemplateLine(line: String, bead: Int): String =
+    val compact = line.replaceAll("""\s+""", " ").trim
+    if compact.isEmpty then compact
+    else
+      val fixedPractical = compact
+        .replace(
+          "is a workable practical choice, but it leaves little room for imprecision.",
+          NarrativeLexicon.pick(bead ^ 0x2a2a2a2a, List(
+            "remains practical, but move-order precision is critical.",
+            "is playable, though concrete follow-up accuracy is mandatory."
+          ))
+        )
+        .replace(
+          "keeps the game on its most coherent technical track.",
+          NarrativeLexicon.pick(bead ^ 0x4b4b4b4b, List(
+            "keeps the technical roadmap compact and stable.",
+            "retains a sound technical setup for the next phase.",
+            "keeps conversion tasks straightforward in practice."
+          ))
+        )
+      fixedPractical
+
+  private def diversifyAlternativeReason(reason: String, bead: Int): String =
+    val cleaned = reason.trim.stripSuffix(".")
+    val slightConcession = """(?i)^slight practical concession after\s+(.+)$""".r
+    val decisiveLoss = """(?i)^decisive loss after\s+(.+)$""".r
+    val significantDisadvantage = """(?i)^significant disadvantage after\s+(.+)$""".r
+
+    cleaned match
+      case slightConcession(rest) =>
+        val localSeed = bead ^ 0x1a2b3c4d ^ Math.abs(rest.hashCode)
+        NarrativeLexicon.pick(localSeed, List(
+          s"it concedes a small practical edge after $rest",
+          s"the opponent finds $rest easier to handle in practice",
+          s"after $rest, practical margins become thinner"
+        ))
+      case decisiveLoss(rest) =>
+        val localSeed = bead ^ 0x2b3c4d5e ^ Math.abs(rest.hashCode)
+        NarrativeLexicon.pick(localSeed, List(
+          s"it runs into a decisive sequence after $rest",
+          s"the line becomes losing after $rest",
+          s"it allows a forcing collapse after $rest"
+        ))
+      case significantDisadvantage(rest) =>
+        val localSeed = bead ^ 0x3c4d5e6f ^ Math.abs(rest.hashCode)
+        NarrativeLexicon.pick(localSeed, List(
+          s"it yields a notable disadvantage after $rest",
+          s"the position worsens materially after $rest",
+          s"it concedes a significant practical deficit after $rest"
+        ))
+      case _ => cleaned

@@ -76,10 +76,10 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 
 # LLM Analysis
 POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
-POST  /api/llm/game-analysis           controllers.LlmController.analyzeGame
-POST  /api/llm/position-analysis       controllers.LlmController.analyzePosition
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
 POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
+GET   /api/llm/credits                  controllers.LlmController.creditStatus
+GET   /plan                            controllers.AnalystProPlan.index
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

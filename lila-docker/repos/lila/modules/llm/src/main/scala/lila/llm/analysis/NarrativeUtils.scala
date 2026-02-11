@@ -127,6 +127,36 @@ object NarrativeUtils:
       s"$dest$promotion"
 
   /**
+   * Normalize a UCI move token.
+   * Handles optional "=" in promotions and trailing punctuation.
+   *
+   * Examples:
+   * - "e2e4" -> "e2e4"
+   * - "e7e8=Q" -> "e7e8q"
+   * - "e7e8q+" -> "e7e8q"
+   */
+  def normalizeUciMove(move: String): String =
+    val cleaned = Option(move).getOrElse("").trim.toLowerCase
+      .replace("=", "")
+      .replaceAll("""[+#?!]+$""", "")
+      .replaceAll("""\s+""", "")
+    val pattern = """^([a-h][1-8])([a-h][1-8])([qrbn])?$""".r
+    cleaned match
+      case pattern(from, to, promo) => s"$from$to${Option(promo).getOrElse("")}"
+      case _                        => cleaned
+
+  /**
+   * Compare two UCI moves leniently:
+   * - exact normalized match, or
+   * - same from/to squares when one side omits promotion piece.
+   */
+  def uciEquivalent(a: String, b: String): Boolean =
+    val na = normalizeUciMove(a)
+    val nb = normalizeUciMove(b)
+    na.nonEmpty && nb.nonEmpty &&
+      (na == nb || (na.take(4) == nb.take(4) && (na.length == 4 || nb.length == 4)))
+
+  /**
    * Converts UCI → SAN when possible, otherwise falls back to a lightweight SAN-like format.
    */
   def uciToSanOrFormat(fen: String, uciMove: String): String =
@@ -272,6 +302,5 @@ object NarrativeUtils:
       val isAttackedByOpponent = board.attackers(sq, !victimColor).nonEmpty
       isOccupiedByVictim && isAttackedByOpponent
     }
-
 
 

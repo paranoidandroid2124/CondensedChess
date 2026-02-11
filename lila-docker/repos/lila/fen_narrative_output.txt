@@ -45,7 +45,7 @@ Choice: style choice
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) a3! (Positional maneuvering, clean)
+a) a3 (Positional maneuvering, clean)
 b) a4 (Positional maneuvering, clean)
 c) Na3 (Positional maneuvering, clean)
 
@@ -108,7 +108,7 @@ STRATEGIC: Target: d5 (Weak square); Target: a6 (Weak complex (Black)); Target: 
 Plans: Pawn Chain Maintenance + Exploiting Space Advantage independent
 
 === CANDIDATES ===
-a) g4! (Prophylactic defense, clean)
+a) g4 (Prophylactic defense, clean)
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_recapture_recapture_29c00ac4: Probing moves [f6g4, c8g4] at depth 20
@@ -155,7 +155,7 @@ TACTICAL: CRITICAL TARGET: c6 (Attack: Material)
 Plans: Piece Activation
 
 === CANDIDATES ===
-a) Bb5! (Prophylactic defense, clean) [Evidence: Skewer(Bishop through Knight on c6 to Pawn on d7); XRay(Bishop through to Pawn on 51)]
+a) Bb5 (Prophylactic defense, clean) [Evidence: Skewer(Bishop through Knight on c6 to Pawn on d7); XRay(Bishop through to Pawn on 51)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_reply_defense_d1220d56: Probing moves [f1b5] at depth 20
@@ -196,7 +196,7 @@ Choice: style choice
 Plans: Central Control
 
 === CANDIDATES ===
-a) Rb1! (Central control, clean)
+a) Rb1 (Central control, clean)
 b) Rc1 (Central control, clean)
 c) Rd1 (Central control, clean) [Evidence: OpenFileControl(Rook on 3-file)]
 
@@ -234,7 +234,7 @@ Choice: style choice
 Plans: King Activation
 
 === CANDIDATES ===
-a) Kd1! (Positional maneuvering, clean)
+a) Kd1 (Positional maneuvering, clean)
 b) Kd2 (Positional maneuvering, clean)
 c) Kf1 (Positional maneuvering, clean)
 
@@ -281,7 +281,7 @@ Diverge: ply 70
 Error: 포지셔널(50cp)
 
 === CANDIDATES ===
-a) Kd1 (Positional maneuvering, clean)
+a) Kd1?! (Positional maneuvering, clean) — slight inaccuracy (0.5)
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_convert_convert_5b74cea9: Probing moves [e1d1] at depth 20
@@ -328,7 +328,7 @@ STRATEGIC: Target: c4 (Weak complex (White)); Target: b2 (Weak complex (White));
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) Rb1! (Prophylactic defense, clean)
+a) Rb1 (Prophylactic defense, clean)
 b) a3 (Prophylactic defense, clean)
 c) a4 (Prophylactic defense, clean)
 
@@ -383,7 +383,7 @@ STRATEGIC: Target: c4 (Weak complex (White)); Target: d4 (Weak complex (White));
 Plans: Pawn Chain Maintenance + Exploiting Space Advantage independent
 
 === CANDIDATES ===
-a) Rb1! (Prophylactic defense, clean) [Evidence: Maneuver(rook, improving_scope)]
+a) Rb1 (Prophylactic defense, clean) [Evidence: Maneuver(rook, improving_scope)]
 b) Rc1 (Prophylactic defense, clean)
 c) a3 (Prophylactic defense, clean)
 
@@ -436,7 +436,7 @@ STRATEGIC: Target: d5 (Weak square); Target: d6 (Weak complex (Black)); Target: 
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) Rb1! (Prophylactic defense, clean)
+a) Rb1 (Prophylactic defense, clean)
 b) a3 (Prophylactic defense, clean)
 c) a4 (Prophylactic defense, clean)
 
@@ -484,7 +484,7 @@ TACTICAL: CRITICAL TARGET: a3 (Attack: Positional)
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) a3! (Prophylactic defense, clean)
+a) a3 (Prophylactic defense, clean)
 b) a4 (Prophylactic defense, clean)
 c) Na3 (Prophylactic defense, clean)
 
@@ -533,7 +533,7 @@ STRATEGIC: Target: g2 (Weak complex (White)); Target: h2 (Weak complex (White))
 Plans: Piece Activation
 
 === CANDIDATES ===
-a) Ke2! (Prophylactic defense, clean)
+a) Ke2 (Prophylactic defense, clean)
 b) Kf1 (Prophylactic defense, clean)
 
 === PROBE REQUESTS (Evidence Augmentation) ===
@@ -585,7 +585,7 @@ STRATEGIC: Target: b2 (Weak complex (White)); Target: b7 (Weak complex (Black));
 Plans: Open File Control + Pawn Chain Maintenance independent
 
 === CANDIDATES ===
-a) Rab1! (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 2-file)]
+a) Rab1 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 2-file)]
 b) Rac1 (Prophylactic defense, clean)
 c) a3 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 2-file)]
 
@@ -649,7 +649,7 @@ Plans: Minority Attack + Pawn Chain Maintenance independent
 Diverge: ply 23
 
 === CANDIDATES ===
-a) Rab8! (Positional maneuvering, clean)
+a) Rab8 (Positional maneuvering, clean)
 b) a6 (Positional maneuvering, clean)
 c) a5 (Positional maneuvering, clean)
 
@@ -707,7 +707,7 @@ STRATEGIC: Target: d5 (Weak square); Target: a5 (Weak complex (Black)); Target: 
 Plans: Pawn Chain Maintenance + Piece Activation independent
 
 === CANDIDATES ===
-a) a3! (Positional pressure, clean) [Evidence: Pin(Pawn on f7 to King on g8)]
+a) a3 (Positional pressure, clean) [Evidence: Pin(Pawn on f7 to King on g8)]
 b) a4 (Positional pressure, clean) [Evidence: Pin(Pawn on f7 to King on g8)]
 c) Na3 (Positional pressure, clean) [Evidence: Maneuver(knight, improving_scope); Pin(Pawn on f7 to King on g8)]
 
@@ -761,7 +761,7 @@ STRATEGIC: Target: d-file (Open file control)
 Plans: Open File Control + Pawn Chain Maintenance independent
 
 === CANDIDATES ===
-a) a3! (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
+a) a3 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
 b) a4 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
 c) b3 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 3-file)]
 
@@ -813,7 +813,7 @@ STRATEGIC: Target: a-file (Plan: Open File Control); Target: d-file (Open file c
 Plans: Open File Control
 
 === CANDIDATES ===
-a) Qa1+! (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+a) Qa1+ (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 b) Qa4+ (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 c) Qb1+ (Sharp attack with check, clean) [Evidence: Check(Queen on 59); OpenFileControl(Rook on 1-file); OpenFileControl(Rook on 3-file)]
 
@@ -870,7 +870,7 @@ STRATEGIC: Target: d5 (Weak square); Target: a-file (Plan: Open File Control); T
 Plans: Open File Control + Kingside Attack independent
 
 === CANDIDATES ===
-a) Ra8#! (Sharp attack with check, clean) [Evidence: Check(Rook on 62); OpenFileControl(Rook on 0-file)]
+a) Ra8# (Sharp attack with check, clean) [Evidence: Check(Rook on 62); OpenFileControl(Rook on 0-file)]
 b) Rb1 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 1-file)]
 c) Rb2 (Positional maneuvering, clean) [Evidence: OpenFileControl(Rook on 1-file)]
 
@@ -921,7 +921,7 @@ STRATEGIC: Target: e-file (Open file control)
 Plans: Open File Control
 
 === CANDIDATES ===
-a) Bf6+! (Sharp attack with check, clean) [Evidence: Check(Bishop on 60); DiscoveredAttack(Rook from e2 on King on e8); OpenFileControl(Rook on 4-file)]
+a) Bf6+ (Sharp attack with check, clean) [Evidence: Check(Bishop on 60); DiscoveredAttack(Rook from e2 on King on e8); OpenFileControl(Rook on 4-file)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_convert_convert_440769b: Probing moves [e5f6] at depth 20
@@ -980,7 +980,7 @@ STRATEGIC: Target: knight on f6 (Plan: Piece Activation); Target: knight on c3 (
 Plans: Piece Activation + Pawn Chain Maintenance independent
 
 === CANDIDATES ===
-a) Bg5! (Positional pressure, clean) [Evidence: Pin(Knight on f6 to Queen on d8); XRay(Bishop through to Queen on 59); Pin(Knight on f6 to Queen on d8); Pin(Knight on c3 to King on e1)]
+a) Bg5 (Positional pressure, clean) [Evidence: Pin(Knight on f6 to Queen on d8); XRay(Bishop through to Queen on 59); Pin(Knight on f6 to Queen on d8); Pin(Knight on c3 to King on e1)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • PieceActivation_piece_activation_94683d16: Probing moves [c1d2, c1e3, c1f4] at depth 20
@@ -1032,7 +1032,7 @@ TACTICAL: CRITICAL TARGET: d7 (Defend: Positional)
 Plans: knight Sacrifice + Central Control independent
 
 === CANDIDATES ===
-a) Nxd7! (Establishing outpost, clean) [Evidence: Outpost(Knight on 51)]
+a) Nxd7 (Establishing outpost, clean) [Evidence: Outpost(Knight on 51)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_recapture_recapture_cdf2fe54: Probing moves [f6d7, c8d7, d8d7] at depth 20
@@ -1083,7 +1083,7 @@ STRATEGIC: Target: d-file (Open file control); Target: h-file (Plan: Open File C
 Plans: Open File Control
 
 === CANDIDATES ===
-a) Rh4+! (Sharp attack with check, clean) [Evidence: Check(Rook on 59); DiscoveredAttack(Queen from d1 on King on d8); OpenFileControl(Rook on 3-file); OpenFileControl(Rook on 7-file)]
+a) Rh4+ (Sharp attack with check, clean) [Evidence: Check(Rook on 59); DiscoveredAttack(Queen from d1 on King on d8); OpenFileControl(Rook on 3-file); OpenFileControl(Rook on 7-file)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • evidence_convert_convert_d3fded44: Probing moves [d4h4] at depth 20
@@ -1120,7 +1120,7 @@ Choice: style choice
 Plans: King Activation
 
 === CANDIDATES ===
-a) Kd2! (Prophylactic defense, clean)
+a) Kd2 (Prophylactic defense, clean)
 b) Kd3 (Prophylactic defense, clean)
 c) Ke1 (Prophylactic defense, clean)
 
@@ -1171,7 +1171,7 @@ STRATEGIC: Target: c4 (Weak complex (White)); Target: b2 (Weak complex (White));
 Plans: Pawn Chain Maintenance
 
 === CANDIDATES ===
-a) Rb1! (Positional maneuvering, clean)
+a) Rb1 (Positional maneuvering, clean)
 b) a3 (Positional maneuvering, clean)
 c) a4 (Positional maneuvering, clean)
 
@@ -1237,7 +1237,7 @@ STRATEGIC: Target: d5 (Weak square); Target: c4 (Weak complex (White)); Target: 
 Plans: Open File Control + Rook Activation independent
 
 === CANDIDATES ===
-a) Re8#! (Sharp attack with check, clean) [Evidence: RookLift(Rook to rank 8); Check(Rook on 62); OpenFileControl(Rook on 4-file)]
+a) Re8# (Sharp attack with check, clean) [Evidence: RookLift(Rook to rank 8); Check(Rook on 62); OpenFileControl(Rook on 4-file)]
 
 === PROBE REQUESTS (Evidence Augmentation) ===
 • FileControl_open_file_control_e93ab534: Probing moves [e1e2, e1e3, e1e4] at depth 20
@@ -1281,7 +1281,7 @@ STRATEGIC: Target: a-file (Plan: Open File Control); Target: d-file (Open file c
 Plans: Open File Control
 
 === CANDIDATES ===
-a) Qa1+! (Sharp attack with check, clean) [Evidence: Check(Queen on 32); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+a) Qa1+ (Sharp attack with check, clean) [Evidence: Check(Queen on 32); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 b) Qa4+ (Sharp attack with check, clean) [Evidence: Check(Queen on 32); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 c) Qb1 (Positional maneuvering, clean) [Evidence: Maneuver(queen, improving_scope); OpenFileControl(Rook on 1-file); OpenFileControl(Rook on 3-file)]
 
@@ -1322,7 +1322,7 @@ Choice: style choice
 Plans: King Activation
 
 === CANDIDATES ===
-a) Kd1! (Positional maneuvering, clean)
+a) Kd1 (Positional maneuvering, clean)
 b) Kd2 (Positional maneuvering, clean)
 c) Ke2 (Positional maneuvering, clean)
 
@@ -1371,7 +1371,7 @@ STRATEGIC: Target: d5 (Weak square); Target: c4 (Weak complex (White)); Target: 
 Plans: King Activation
 
 === CANDIDATES ===
-a) Qa1! (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
+a) Qa1 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 b) Qa4 (Prophylactic defense, clean) [Evidence: OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 c) Qa7 (Prophylactic defense, clean) [Evidence: XRay(Queen through to Pawn on 54); OpenFileControl(Rook on 0-file); OpenFileControl(Rook on 3-file)]
 

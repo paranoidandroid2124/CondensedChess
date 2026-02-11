@@ -65,6 +65,19 @@ export class NarrativeCtrl {
         this.root.redraw();
     };
 
+    openAndFetch = async () => {
+        if (!this.enabled()) this.enabled(true);
+        if (this.loading()) {
+            this.root.redraw();
+            return;
+        }
+        try {
+            await this.fetchNarrative();
+        } finally {
+            this.root.redraw();
+        }
+    };
+
     fetchNarrative = async () => {
         this.loading(true);
         this.error(null);

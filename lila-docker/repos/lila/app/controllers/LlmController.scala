@@ -3,7 +3,7 @@ package controllers
 import play.api.mvc._
 import play.api.libs.json._
 import lila.app.{ *, given }
-import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest }
+import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest, CreditApi, CreditConfig }
 import lila.analyse.ui.BookmakerRenderer
 
 import lila.common.HTTPRequest
@@ -11,26 +11,21 @@ import scala.concurrent.duration.*
 
 final class LlmController(
     api: LlmApi,
+    creditApi: CreditApi,
     env: Env
 ) extends LilaController(env):
 
-  // Chesstory: Use local analysis engine (CommentaryEngine) directly
-  private val llmQuota =
+  // Rate limit for DDoS protection (separate from credit system)
+  private val rateLimiter =
     env.memo.mongoRateLimitApi[String](
       name = "llm.request.user",
-      credits = 40,
+      credits = 120,  // generous per-day rate limit (DDoS only, credits handle billing)
       duration = 1.day
     )
 
-  private def withQuota(cost: Int, msg: => String, key: String)(op: => Fu[Result]): Fu[Result] =
-    llmQuota
-      .either(key, cost = cost, msg = msg, limitedMsg = "LLM quota exceeded")(op)
-      .map:
-        case Right(res) => res
-        case Left(limited) => TooManyRequests(Json.toJson(limited)).as(JSON)
-
+  /** Full game narrative analysis (local, no Gemini). */
   def analyzeGameLocal = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 20, msg = "game-analysis-local", key = me.userId.value):
+    withCreditCheck(me.userId.value, CreditConfig.FullGameNarrative):
       ctx.body.body.validate[FullAnalysisRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
@@ -47,89 +42,53 @@ final class LlmController(
       )
   }
 
-  def analyzeGame = AuthBody(parse.json) { ctx ?=> me ?=>
-    withQuota(cost = 20, msg = "game-analysis", key = me.userId.value):
-      ctx.body.body.validate[FullAnalysisRequest].fold(
-        errors => BadRequest(JsError.toJson(errors)).toFuccess,
-        analysisReq =>
-          api
-            .analyzeFullGame(
-              pgn = analysisReq.pgn,
-              evals = analysisReq.evals,
-              style = analysisReq.options.style,
-              focusOn = analysisReq.options.focusOn
-            )
-            .map {
-              case Some(response) => Ok(Json.toJson(response))
-              case None           => ServiceUnavailable("LLM Analysis unavailable or disabled")
-            }
-      )
-  }
-
-  def analyzePosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    val rateLimitKey = ctx.me.map(_.userId.value).getOrElse(HTTPRequest.ipAddressStr(ctx.body))
-    withQuota(cost = 1, msg = "position-analysis", key = rateLimitKey):
+  /** Per-ply bookmaker commentary (rule-based + optional Gemini polish).
+    * Requires authentication for credit tracking.
+    */
+  def bookmakerPosition = AuthBody(parse.json) { ctx ?=> me ?=>
+    withCreditCheck(me.userId.value, CreditConfig.PerPlyAnalysis):
       ctx.body.body.validate[CommentRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         commentReq =>
           api
-            .commentPosition(
+            .bookmakerCommentPosition(
               fen = commentReq.fen,
               lastMove = commentReq.lastMove,
               eval = commentReq.eval,
+              variations = commentReq.variations,
+              probeResults = commentReq.probeResults,
+              afterFen = commentReq.afterFen,
+              afterEval = commentReq.afterEval,
+              afterVariations = commentReq.afterVariations,
               opening = commentReq.context.opening,
               phase = commentReq.context.phase,
               ply = commentReq.context.ply
             )
             .map {
-              case Some(response) => Ok(Json.toJson(response))
-              case None           => ServiceUnavailable("LLM Commentary unavailable")
+              case Some(response) =>
+                val html = BookmakerRenderer
+                  .render(
+                    commentary = response.commentary,
+                    variations = response.variations,
+                    fenBefore = commentReq.fen
+                  )
+                  .toString
+                Ok(
+                  Json.obj(
+                    "html" -> html,
+                    "commentary" -> response.commentary,
+                    "variations" -> response.variations,
+                    "concepts" -> response.concepts,
+                    "probeRequests" -> response.probeRequests
+                  )
+                )
+              case None => ServiceUnavailable("Lexicon Commentary unavailable")
             }
       )
+  }
 
-  def bookmakerPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    // GEMINI DISABLED FOR LEXICON AUDIT
-    ctx.body.body.validate[CommentRequest].fold(
-      errors => BadRequest(JsError.toJson(errors)).toFuccess,
-      commentReq =>
-        api
-          .bookmakerCommentPosition(
-            fen = commentReq.fen,
-            lastMove = commentReq.lastMove,
-            eval = commentReq.eval,
-            variations = commentReq.variations,
-            probeResults = commentReq.probeResults,
-            afterFen = commentReq.afterFen,
-            afterEval = commentReq.afterEval,
-            afterVariations = commentReq.afterVariations,
-            opening = commentReq.context.opening,
-            phase = commentReq.context.phase,
-            ply = commentReq.context.ply
-          )
-          .map {
-            case Some(response) =>
-              val html = BookmakerRenderer
-                .render(
-                  commentary = response.commentary,
-                  variations = response.variations,
-                  fenBefore = commentReq.fen
-                )
-                .toString
-              Ok(
-                Json.obj(
-                  "html" -> html,
-                  "commentary" -> response.commentary,
-                  "variations" -> response.variations,
-                  "concepts" -> response.concepts,
-                  "probeRequests" -> response.probeRequests
-                )
-              )
-            case None => ServiceUnavailable("Lexicon Commentary unavailable")
-          }
-    )
-
+  /** Instant briefing (free, no credits, no auth required). */
   def bookmakerBriefing = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    // Briefing is cheap (no Gemini call), so we can skip or use lighter rate limiting
     ctx.body.body.validate[CommentRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
       commentReq =>
@@ -153,3 +112,30 @@ final class LlmController(
             Ok(Json.obj("html" -> html, "concepts" -> response.concepts)).toFuccess
           case None => NotFound("Briefing unavailable").toFuccess
     )
+
+  /** Get current user's credit status. */
+  def creditStatus = Auth { _ ?=> me ?=>
+    creditApi.remaining(me.userId.value).map { status =>
+      Ok(Json.toJson(status))
+    }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+
+  /** Combined rate limit + credit check gate. */
+  private def withCreditCheck(userId: String, cost: Int)(op: => Fu[Result]): Fu[Result] =
+    rateLimiter.either(userId, cost = 1, msg = "llm-request", limitedMsg = "Too many requests")(
+      creditApi.deduct(userId, cost).flatMap {
+        case Left(err) =>
+          Forbidden(Json.obj(
+            "error" -> "insufficient_credits",
+            "remaining" -> err.remaining,
+            "required" -> err.required,
+            "resetAt" -> err.resetAt.toString
+          )).toFuccess
+        case Right(remaining) =>
+          op.map(_.withHeaders("X-Credits-Remaining" -> remaining.toString))
+      }
+    ).map:
+      case Right(res) => res
+      case Left(limited) => TooManyRequests(Json.toJson(limited)).as(JSON)

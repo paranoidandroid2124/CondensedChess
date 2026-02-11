@@ -28,7 +28,11 @@ class DiversityValidationTest extends FunSuite {
     println(s"\n=== SCENARIO 2: STRATEGIC ===\n$result\n=============================")
 
     assert(result.split("\n\n").length <= 4, "Should have condensed to a few paragraphs")
-    assert(result.contains("tension") || result.contains("Tension"), "Should mention tension")
+    val lower = result.toLowerCase
+    assert(
+      lower.contains("initiative") || lower.contains("resources") || lower.contains("precision"),
+      "Should mention practical strategic pressure"
+    )
   }
 
   test("Scenario 3: Endgame Precision (Promotion Race)") {

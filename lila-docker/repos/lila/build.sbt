@@ -187,7 +187,7 @@ lazy val study = module("study",
 // Chesstory: fishnet module removed (using client-side analysis only)
 
 lazy val llm = module("llm",
-  Seq(memo),
+  Seq(db, memo),
   playWs.bundle ++ tests.bundle
 )
 

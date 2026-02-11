@@ -6,6 +6,7 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
+import scala.util.Random
 import java.nio.charset.StandardCharsets
 import lila.llm.model._
 import lila.llm.PgnAnalysisHelper
@@ -21,7 +22,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
   private val pgnTimeout = 2000.millis
   private val cacheTtl = 10.minutes
   private val maxCacheEntries = 2000
-  private val maxPgnSnippets = 2
+  private val maxPgnSnippets = 5
   private val snippetMaxPlies = 8 // 4 moves from the matched position
 
   private val cache = TrieMap.empty[String, (Long, Option[OpeningReference])]
@@ -81,7 +82,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
       case Some(ref) if ref.sampleGames.isEmpty => Future.successful(Some(ref))
       case Some(ref) =>
         val targetFenKey = fenKey4(fen)
-        val games = ref.sampleGames.take(maxPgnSnippets)
+        val games = Random.shuffle(ref.sampleGames).take(maxPgnSnippets)
         Future
           .traverse(games) { g =>
             fetchPgnSnippet(gameId = g.id, targetFenKey = targetFenKey).map(sn => g.copy(pgn = sn))
@@ -186,7 +187,8 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
             (g \ "black" \ "rating").asOpt[Int].getOrElse(0)
           ),
           year = (g \ "year").asOpt[Int].getOrElse(0),
-          month = monthNum
+          month = monthNum,
+          event = (g \ "event").asOpt[String].map(_.trim).filter(_.nonEmpty)
         )
       }
 

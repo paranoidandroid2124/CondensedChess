@@ -4,13 +4,20 @@
 - Total plies: 586
 - Generated plies: 586
 - Coverage: 1.000
-- Average quality score: 91.85 / 100
-- Average lexical diversity: 0.745
-- Average variation-anchor coverage: 0.915
+- Average quality score: 97.56 / 100
+- Average lexical diversity: 0.697
+- Average variation-anchor coverage: 0.977
 - Played move seen in MultiPV (avg): 0.984
 - Average played-move rank (seen plies): 2.33
 - Average played-move cp loss vs best (seen plies): 45.37
-- Engine/text mismatch plies: 178
+- Engine/text mismatch plies: 0
+
+## Error Taxonomy (sampled worst plies)
+
+- Lower-rank move not contrasted clearly: 1
+  samples: ding_gukesh_wcc2024_g14 ply 24 (e8h8, score=82)
+- Template-heavy position framing: 1
+  samples: ding_gukesh_wcc2024_g14 ply 89 (f2f3, score=90)
 
 ## kasparov_topalov_1999
 
@@ -18,29 +25,29 @@
 - Players: Garry Kasparov vs Veselin Topalov
 - Date: 1999.01.20
 - Plies: 87/87
-- Avg quality: 91.93
-- Avg lexical diversity: 0.732
-- Avg anchor coverage: 0.931
+- Avg quality: 96.53
+- Avg lexical diversity: 0.690
+- Avg anchor coverage: 0.969
 - Played move seen in MultiPV: 0.977
 - Avg played-move rank (seen plies): 2.15
 - Avg played-move cp loss vs best (seen plies): 72.52
-- Engine/text mismatch plies: 25
+- Engine/text mismatch plies: 0
 - Low-quality plies (<70): 0
 - Low-quality share: 0.000
-- Duplicate adjacent lead-ins: 43
-- Duplicate adjacent lead-in share: 0.500
-- Longest repeated lead-in streak: 2
+- Duplicate adjacent lead-ins: 0
+- Duplicate adjacent lead-in share: 0.000
+- Longest repeated lead-in streak: 1
 
 ### Worst plies
 
-- ply 60 (d5c4): score=70 lexical=0.800 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=315 mismatch=false :: 30... Qc4: Middlegame complications begin to arise. Neither side has a clear advantage. A significant Material threat looms (200 cp at stake). Strategic focus: **keeping the pawn chain intact**. Keep an eye on the knight
-- ply 2 (d7d6): score=72 lexical=0.757 uniqueSent=1.000 anchor=0.333 rank=3 deltaCp=88 mismatch=false :: 1... d6: A sharp deflection to lure the pieces away. The opening is already testing tactical accuracy. Black can keep up mild pressure (≈-1.0). Strategic priority: **Piece Activation**. There's a pin: the pawn on g7 cann
-- ply 47 (d1d4): score=74 lexical=0.721 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=166 mismatch=true :: 24. Rxd4: The middlegame is underway. White is just a touch better. Move-order choices are justified by **Passed Pawn Advance**. The pawn on d5 is underdefended: 3 attackers, no defenders. The structure often turns on th
-- ply 62 (a4a3): score=76 lexical=0.745 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=215 mismatch=false :: 31... Kxa3: This is a full middlegame now. Black is completely on top (≈-8.9). The Material threat (200 cp) requires attention. Strategic priority: **keeping the pawn chain intact**. The pawn on a6 is underdefended: 1 at
-- ply 70 (d2d1): score=78 lexical=0.728 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=31 mismatch=true :: 35... Kd1: A tactical interference cutting off the defensive line! We are now in the middlegame phase. Black is completely on top. The Material threat (200 cp) requires attention. The practical roadmap centers on **postp
-- ply 79 (h8a8): score=78 lexical=0.769 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=33 mismatch=true :: 40. Qa8: A sharp deflection to lure the pieces away. Precision is required in this endgame. White has the initiative and the better game. Move-order choices are justified by **keeping the structure flexible**. The pawn o
-- ply 41 (h1e1): score=80 lexical=0.762 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=281 mismatch=false :: 21. Rhe1: A tactical interference cutting off the defensive line. The opening has turned tactical quickly. White can play for two results (≈+1.2). Current play is organized around **central control**. d5 can serve as an 
-- ply 53 (b2b4): score=80 lexical=0.699 uniqueSent=1.000 anchor=1.000 rank=3 deltaCp=312 mismatch=false :: 27. b4+: We are now in the middlegame phase. Black is clearly better. Current play is organized around **Queenside Attack**. The rook on e7 is hanging (1 attacker, no defenders). The a-pawn break is a thematic lever in t
+- ply 41 (h1e1): score=80 lexical=0.684 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=281 mismatch=false :: 21. Rhe1: Keep d5 in mind as an outpost square. Interference motifs are cutting defensive coordination. Development now intersects with concrete calculation. There is little room for slow setup moves. White is slightly a
+- ply 53 (b2b4): score=80 lexical=0.703 uniqueSent=1.000 anchor=1.000 rank=3 deltaCp=312 mismatch=false :: 27. b4+: Keep an eye on the rook on e7 — 1 attacker, no defenders. Passed pawn dynamics are starting to dominate plans. This middlegame phase rewards concrete, well-timed choices. Routine moves can quickly backfire here.
+- ply 57 (e7a7): score=80 lexical=0.683 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=1114 mismatch=false :: 29. Ra7: A fork motif is in the air: d1 can attack king on b1 and pawn on f3. A rook lift idea can accelerate the attack. Middlegame priorities now hinge on concrete calculation. Piece coordination and king safety both m
+- ply 59 (a7b7): score=80 lexical=0.703 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=1514 mismatch=false :: 30. Rxb7: The pawn on a6 is pinned (absolute) to the king on a4. Rook lift geometry is becoming available. The game has moved into a tactical-strategic mix. Small inaccuracies can hand over momentum immediately. White is
+- ply 60 (d5c4): score=80 lexical=0.686 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=315 mismatch=false :: 30... Qc4: The immediate concrete issue is the material threat on b5. Connected rooks improve coordination for both attack and defense. Middlegame priorities now hinge on concrete calculation. Both sides must balance act
+- ply 65 (c2c3): score=80 lexical=0.701 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=644 mismatch=false :: 33. c3+: The rook can swing into action via a lift. This is a concrete middlegame fight. Small structural concessions become long-term targets. White is slightly ahead in the evaluation. A rook lift can become a key atta
+- ply 2 (d7d6): score=82 lexical=0.750 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=88 mismatch=false :: 1... d6: The pin on g7 makes that pawn awkward to handle. The tactical battle revolves around a key deflection. The opening has turned tactical quickly. Both kings still need careful handling. Black can keep up mild pres
+- ply 24 (a7a6): score=82 lexical=0.647 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=131 mismatch=false :: 12... a6: On the board right now, handling the positional threat on e5 is the priority. Queenside minority attack ideas are now practical. The opening phase now demands concrete tactical precision. Both sides must calcul
 
 ## topalov_anand_wcc2010_g12
 
@@ -48,29 +55,29 @@
 - Players: Veselin Topalov vs Viswanathan Anand
 - Date: 2010.05.11
 - Plies: 112/112
-- Avg quality: 90.50
-- Avg lexical diversity: 0.744
-- Avg anchor coverage: 0.920
+- Avg quality: 96.39
+- Avg lexical diversity: 0.697
+- Avg anchor coverage: 0.973
 - Played move seen in MultiPV: 0.982
 - Avg played-move rank (seen plies): 2.13
 - Avg played-move cp loss vs best (seen plies): 49.14
-- Engine/text mismatch plies: 40
-- Low-quality plies (<70): 6
-- Low-quality share: 0.054
-- Duplicate adjacent lead-ins: 56
-- Duplicate adjacent lead-in share: 0.505
-- Longest repeated lead-in streak: 2
+- Engine/text mismatch plies: 0
+- Low-quality plies (<70): 0
+- Low-quality share: 0.000
+- Duplicate adjacent lead-ins: 0
+- Duplicate adjacent lead-in share: 0.000
+- Longest repeated lead-in streak: 1
 
 ### Worst plies
 
-- ply 72 (g7g5): score=58 lexical=0.768 uniqueSent=1.000 anchor=0.667 rank=5 deltaCp=231 mismatch=true :: 36... g5+: Middlegame complications begin to arise. White has the more pleasant position (≈+2.5). Strategic focus: **Kingside Attack**. There's a pin: the pawn on g7 cannot move without exposing the king on g8. Releasing
-- ply 76 (d4g4): score=58 lexical=0.705 uniqueSent=1.000 anchor=0.667 rank=5 deltaCp=332 mismatch=true :: 38... Rxg4+: Middlegame complications begin to arise. Black has the easier side to press with. Key theme: **Piece Activation**. The rook on f4 is pinned (absolute) to the king on g3. Clarify the pawn tension first; then 
-- ply 90 (e2g2): score=64 lexical=0.809 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=184 mismatch=true :: 45... Rg2+: Small details matter in this endgame. It's close to equal, with play for both sides. The practical roadmap centers on **Piece Activation**. The bishop on a8 is hanging (1 attacker, no defenders). 
-- ply 74 (e8g6): score=68 lexical=0.759 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=226 mismatch=true :: 37... Qxg6: The game transitions into a complex middlegame. Black has a small pull. The practical roadmap centers on **Piece Activation**. The pawn on h5 is hanging (2 attackers, no defenders). Releasing the tension can 
-- ply 75 (c1f1): score=68 lexical=0.753 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=278 mismatch=true :: 38. Qf1: The middlegame is underway. White is just a touch better (≈+0.8). Most sensible plans here converge on **Piece Activation**. The pawn on c5 is pinned to the rook on c7. 
-- ply 80 (g8g7): score=68 lexical=0.753 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=393 mismatch=true :: 40... Kg7: A tactical interference cutting off the defensive line. This is a full middlegame now. Black has a comfortable plus. Key theme: **Kingside Attack**. The bishop on a8 is underdefended: 1 attacker, no defenders.
-- ply 58 (e6e5): score=72 lexical=0.684 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=123 mismatch=false :: 29... e5: A sharp deflection to lure the pieces away. Plans and tactics start to bite. The position is about level. Strategic priority: **Piece Activation**. There's a pin: the pawn on e3 cannot move without exposing the
-- ply 49 (c2c1): score=74 lexical=0.778 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=215 mismatch=true :: 25. Qc1: Plans and tactics start to bite. White can play for two results (≈+1.2). The most reliable roadmap here is built around **preserving the central pawn structure**. 
+- ply 72 (g7g5): score=80 lexical=0.645 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=231 mismatch=false :: 36... g5+: The pawn on g7 is pinned (absolute) to the king on g8. The passed pawn is now a central practical factor. This middlegame phase rewards concrete, well-timed choices. Initiative and defensive resources are clos
+- ply 74 (e8g6): score=80 lexical=0.645 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=226 mismatch=false :: 37... Qxg6: Keep an eye on the pawn on h5 — 2 attackers, no defenders. The conversion plan revolves around restricting the enemy king. The game has moved into a tactical-strategic mix. Initiative and defensive resources 
+- ply 75 (c1f1): score=80 lexical=0.733 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=278 mismatch=false :: 38. Qf1: There's a pin: the pawn on c5 cannot move without exposing the rook on c7. Central liquidation is changing the position's character. The position now demands active middlegame decision-making. Routine moves can 
+- ply 76 (d4g4): score=80 lexical=0.684 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=332 mismatch=false :: 38... Rxg4+: There's a pin: the rook on f4 cannot move without exposing the king on g3. The queenside minority attack is becoming a concrete lever. The middlegame has fully started. Routine moves can quickly backfire her
+- ply 80 (g8g7): score=80 lexical=0.770 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=393 mismatch=false :: 40... Kg7: Keep an eye on the bishop on a8 — 1 attacker, no defenders. Interference on key lines is now the tactical backbone. The game has moved into a tactical-strategic mix. Small inaccuracies can hand over momentum i
+- ply 81 (e3f5): score=80 lexical=0.665 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=731 mismatch=false :: 41. Nf5+: The immediate concrete issue is the material threat on e3. Deflection ideas are pulling defenders off key squares. The position now demands active middlegame decision-making. Practical control can change after 
+- ply 33 (d4c5): score=86 lexical=0.721 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=198 mismatch=false :: 17. dxc5: The pin on b6 makes that pawn awkward to handle. Managing the hanging pawns will decide the middlegame plans. Plans and tactics now bite at every move. Small structural concessions become long-term targets. Nei
+- ply 49 (c2c1): score=86 lexical=0.675 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=215 mismatch=false :: 25. Qc1: A switch in piece placement can improve control. Middlegame complexity is now front and center. Routine moves can quickly backfire here. White is a bit better (≈+1.2). Current play is organized around **holding 
 
 ## carlsen_nepomniachtchi_wcc2021_g6
 
@@ -78,29 +85,29 @@
 - Players: Carlsen, Magnus vs Nepomniachtchi, Ian
 - Date: 2021.12.03
 - Plies: 271/271
-- Avg quality: 91.70
-- Avg lexical diversity: 0.754
-- Avg anchor coverage: 0.897
+- Avg quality: 97.76
+- Avg lexical diversity: 0.701
+- Avg anchor coverage: 0.979
 - Played move seen in MultiPV: 0.993
 - Avg played-move rank (seen plies): 2.51
 - Avg played-move cp loss vs best (seen plies): 37.77
-- Engine/text mismatch plies: 81
-- Low-quality plies (<70): 8
-- Low-quality share: 0.030
-- Duplicate adjacent lead-ins: 135
-- Duplicate adjacent lead-in share: 0.500
-- Longest repeated lead-in streak: 2
+- Engine/text mismatch plies: 0
+- Low-quality plies (<70): 0
+- Low-quality share: 0.000
+- Duplicate adjacent lead-ins: 5
+- Duplicate adjacent lead-in share: 0.019
+- Longest repeated lead-in streak: 3
 
 ### Worst plies
 
-- ply 138 (b3d5): score=48 lexical=0.709 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=264 mismatch=true :: 69... Qd5: A tactical interference cutting off the defensive line! Small details matter in this endgame. Black can play for two results. The practical roadmap centers on **Piece Activation**. There's a pin: the pawn on e
-- ply 164 (d3d5): score=48 lexical=0.706 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=557 mismatch=true :: 82... Qd5: A sharp deflection to lure the pieces away. Small details matter in this endgame. Black is winning (≈-5.9). Strategic focus: **queen Sacrifice**. The pawn on f4 is pinned to the rook on e5. 
-- ply 144 (b6a7): score=54 lexical=0.730 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=173 mismatch=true :: 72... Ba7: In this endgame, piece activity is paramount. Black has a slight advantage (≈-1.7). Strategic focus: **Piece Activation**. The bishop on b6 is underdefended: 1 attacker, no defenders. 
-- ply 62 (e5b2): score=58 lexical=0.731 uniqueSent=1.000 anchor=0.667 rank=5 deltaCp=362 mismatch=true :: 31... Bb2: In this endgame, piece activity is paramount. Black is clearly better (≈-3.3). The Positional threat (80 cp) requires attention. The practical roadmap centers on **Piece Activation**. The pin on b4 makes that 
-- ply 266 (h7g6): score=58 lexical=0.745 uniqueSent=1.000 anchor=0.667 rank=4 deltaCp=300 mismatch=true :: 133... Qg6: A sharp deflection to lure the pieces away! Small details matter in this endgame. Black holds a clear advantage (≈-3.6). The practical roadmap centers on **King Activation**. The king on e8 is active (mobilit
-- ply 24 (c6b4): score=64 lexical=0.740 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=149 mismatch=true :: 12... Nb4: A powerful battery on the open file exerts immense pressure! The opening is already testing tactical accuracy. Black has the easier side to press with (≈-1.0). The Positional threat (108 cp) requires attention
-- ply 72 (d7d5): score=68 lexical=0.744 uniqueSent=1.000 anchor=1.000 rank=3 deltaCp=361 mismatch=true :: 36... Qd5: In this endgame, piece activity is paramount. White has a small pull. Strategic focus: **holding the center without clarifying too early**. 
-- ply 178 (f7g7): score=68 lexical=0.745 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=24 mismatch=true :: 89... Kg7: We are firmly in endgame territory. The position is about level. The practical roadmap centers on **maintaining pawn tension**. The king on f7 is active (mobility: 8). 
+- ply 62 (e5b2): score=80 lexical=0.635 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=362 mismatch=false :: 31... Bb2: The immediate concrete issue is the positional threat on e5. Passed pawn dynamics are starting to dominate plans. Endgame details now dominate the game. Minor king-route details can decide the evaluation. Blac
+- ply 71 (c5c2): score=80 lexical=0.636 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=357 mismatch=false :: 36. Rc2: On the board right now, handling the material threat on b4 is the priority. Deflection ideas are pulling defenders off key squares. This phase is now about endgame conversion technique. Minor king-route details 
+- ply 72 (d7d5): score=80 lexical=0.680 uniqueSent=1.000 anchor=1.000 rank=3 deltaCp=361 mismatch=false :: 36... Qd5: Play revolves around the strengths and weaknesses of the isolated pawn. The game has entered a conversion-oriented endgame. One tempo can decide the technical outcome. Black is pressing with a stable edge. A b
+- ply 93 (d3d1): score=80 lexical=0.704 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=334 mismatch=false :: 47. Rd1: Keep d5 in mind as an outpost square. Color complex imbalances are guiding both plans. The struggle has shifted into technical endgame play. Precision matters more than ambition here. White has the more pleasant
+- ply 125 (a4e4): score=80 lexical=0.649 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=464 mismatch=false :: 63. Re4: On the board right now, handling the material threat on a4 is the priority. Open-file control is a central strategic objective. We are firmly in endgame territory. King activity and tempi become decisive. It's c
+- ply 138 (b3d5): score=80 lexical=0.667 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=264 mismatch=false :: 69... Qd5: The pin on e3 makes that pawn awkward to handle. A tactical interference idea is shaping move order. Endgame precision now outweighs broad strategic plans. Piece activity outweighs broad strategic plans. It's 
+- ply 139 (c1c8): score=80 lexical=0.658 uniqueSent=1.000 anchor=1.000 rank=4 deltaCp=315 mismatch=false :: 70. Rcc8: The immediate concrete issue is the positional threat on e3. King cut-off geometry is becoming the core technical idea. This phase is now about endgame conversion technique. One tempo can decide the technical o
+- ply 164 (d3d5): score=80 lexical=0.663 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=557 mismatch=false :: 82... Qd5: The pawn on f4 is pinned to the rook on e5. The tactical battle revolves around a key deflection. The struggle has shifted into technical endgame play. Pawn-structure details carry extra weight. White has the 
 
 ## ding_gukesh_wcc2024_g14
 
@@ -108,27 +115,27 @@
 - Players: Ding, Liren vs Gukesh D
 - Date: 2024.12.12
 - Plies: 116/116
-- Avg quality: 93.41
-- Avg lexical diversity: 0.750
-- Avg anchor coverage: 0.911
+- Avg quality: 98.97
+- Avg lexical diversity: 0.699
+- Avg anchor coverage: 0.986
 - Played move seen in MultiPV: 0.983
 - Avg played-move rank (seen plies): 2.52
 - Avg played-move cp loss vs best (seen plies): 22.05
-- Engine/text mismatch plies: 32
-- Low-quality plies (<70): 1
-- Low-quality share: 0.009
-- Duplicate adjacent lead-ins: 58
-- Duplicate adjacent lead-in share: 0.504
+- Engine/text mismatch plies: 0
+- Low-quality plies (<70): 0
+- Low-quality share: 0.000
+- Duplicate adjacent lead-ins: 8
+- Duplicate adjacent lead-in share: 0.070
 - Longest repeated lead-in streak: 2
 
 ### Worst plies
 
-- ply 108 (f6e5): score=64 lexical=0.727 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=147 mismatch=true :: 54... Ke5: The position simplifies into an endgame. White can play for two results. The Material threat (200 cp) requires attention. Key theme: **Piece Activation**. The pin on f5 makes that pawn awkward to handle. 
-- ply 98 (g5f6): score=72 lexical=0.787 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=86 mismatch=false :: 49... Kf6: The position simplifies into an endgame. White can keep up mild pressure. The practical roadmap centers on **Open File Control**. opposition is an important endgame detail. 
-- ply 26 (d4b6): score=78 lexical=0.765 uniqueSent=1.000 anchor=0.667 rank=1 deltaCp=0 mismatch=true :: 13... Bb6: The game transitions into a complex middlegame. Black is just a touch better (≈-0.3). The practical roadmap centers on **Piece Activation**. The pin on f2 makes that pawn awkward to handle. 
-- ply 34 (c8e6): score=78 lexical=0.738 uniqueSent=1.000 anchor=0.667 rank=2 deltaCp=4 mismatch=true :: 17... Be6: A powerful battery on the open file exerts immense pressure. The game transitions into a complex middlegame. It's close to equal, with play for both sides. A notable Positional threat looms (80 cp at stake). S
-- ply 68 (g8g7): score=78 lexical=0.736 uniqueSent=1.000 anchor=0.667 rank=1 deltaCp=0 mismatch=true :: 34... Kg7: A sharp deflection to lure the pieces away. Precision is required in this endgame. White has a modest edge (≈+0.5). A significant Material threat looms (200 cp at stake). Strategic focus: **Piece Activation**.
-- ply 71 (c7c4): score=78 lexical=0.765 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=7 mismatch=true :: 36. Rc4: The position simplifies into an endgame. Black has the easier side to press with (≈-0.7). Move-order choices are justified by **holding the center without clarifying too early**. The pawn on f7 is pinned (absolu
-- ply 88 (h6g5): score=78 lexical=0.805 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=13 mismatch=true :: 44... Kg5: Small details matter in this endgame. White has the easier side to press with (≈+0.5). Key theme: **avoiding premature pawn breaks**. The king on h6 is active (mobility: 3). 
-- ply 64 (g6g5): score=80 lexical=0.798 uniqueSent=1.000 anchor=0.333 rank=5 deltaCp=78 mismatch=false :: 32... g5: The position simplifies into an endgame. White has a small pull. Strategic focus: **keeping central levers available for later timing**. The pin on f2 makes that pawn awkward to handle. 
+- ply 24 (e8h8): score=82 lexical=0.699 uniqueSent=1.000 anchor=0.667 rank=0 deltaCp=0 mismatch=false :: 12... O-O: The pin on f7 makes that pawn awkward to handle. The IQP defines the strategic battle here. Plans and tactics now bite at every move. Practical control can change after a single move-order slip. The position i
+- ply 108 (f6e5): score=86 lexical=0.660 uniqueSent=1.000 anchor=1.000 rank=2 deltaCp=147 mismatch=false :: 54... Ke5: The position currently hinges on the material threat on f5. The passed pawn is now a central practical factor. This is a technical endgame phase. Minor king-route details can decide the evaluation. Black can p
+- ply 62 (f8a8): score=90 lexical=0.716 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=9 mismatch=false :: 31... Rxa8: The rook on f8 is pinned (absolute) to the king on g8. Open-file control is a central strategic objective. This phase is now about endgame conversion technique. Pawn-structure details carry extra weight. Blac
+- ply 71 (c7c4): score=90 lexical=0.735 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=7 mismatch=false :: 36. Rc4: The pawn on f7 is pinned (absolute) to the king on g7. A rook on the seventh rank could decide the technical battle. Endgame details now dominate the game. Pawn-structure details carry extra weight. Black has a 
+- ply 77 (b4a4): score=90 lexical=0.718 uniqueSent=1.000 anchor=0.667 rank=3 deltaCp=27 mismatch=false :: 39. Ra4: There's a pin: the pawn on g5 cannot move without exposing the bishop on g6. The IQP defines the strategic battle here. We are firmly in endgame territory. Practical endgame technique matters more than broad pla
+- ply 89 (f2f3): score=90 lexical=0.703 uniqueSent=1.000 anchor=0.667 rank=1 deltaCp=0 mismatch=false :: 45. f3: The kings are in opposition. A central liquidation sequence is redefining strategic priorities. The game has entered a conversion-oriented endgame. Minor king-route details can decide the evaluation. Black has th
+- ply 3 (g2g3): score=92 lexical=0.624 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=118 mismatch=false :: 2. g3: There's a pin: the pawn on f7 cannot move without exposing the knight on g8. The structure is about to shift through liquidation. The opening phase is still fluid. Small developmental choices can still reshape the
+- ply 7 (d2d4): score=92 lexical=0.695 uniqueSent=1.000 anchor=1.000 rank=5 deltaCp=86 mismatch=false :: 4. d4: The knight on f6 is pinned to the queen on d8. A deflection motif is dictating tactical priorities. Even development moves now carry immediate tactical weight. There is little room for slow setup moves. The evalua
 

@@ -97,11 +97,17 @@ function parseInfoLine(line) {
   };
 }
 
-function normalizeLine(parsed) {
+function whitePerspectiveSign(fen) {
+  const fields = String(fen || '').trim().split(/\s+/);
+  return fields[1] === 'b' ? -1 : 1;
+}
+
+function normalizeLine(parsed, perspectiveSign) {
+  const sign = perspectiveSign === -1 ? -1 : 1;
   return {
     moves: parsed.moves,
-    scoreCp: parsed.scoreType === 'cp' ? parsed.scoreValue : 0,
-    mate: parsed.scoreType === 'mate' ? parsed.scoreValue : null,
+    scoreCp: parsed.scoreType === 'cp' ? parsed.scoreValue * sign : 0,
+    mate: parsed.scoreType === 'mate' ? parsed.scoreValue * sign : null,
     depth: parsed.depth,
   };
 }
@@ -137,6 +143,7 @@ function waitReady(engine, timeoutMs) {
 function analyzeFen(engine, fen, depth, multiPv, searchMoves = []) {
   return new Promise((resolve, reject) => {
     const infoByPv = new Map();
+    const perspectiveSign = whitePerspectiveSign(fen);
 
     const timeout = setTimeout(() => {
       cleanup();
@@ -164,7 +171,7 @@ function analyzeFen(engine, fen, depth, multiPv, searchMoves = []) {
         const bestMove = line.split(/\s+/)[1];
         const variations = [...infoByPv.entries()]
           .sort((a, b) => a[0] - b[0])
-          .map(([, parsed]) => normalizeLine(parsed));
+          .map(([, parsed]) => normalizeLine(parsed, perspectiveSign));
 
         if (!variations.length && bestMove && bestMove !== '(none)') {
           variations.push({ moves: [bestMove], scoreCp: 0, mate: null, depth: 0 });

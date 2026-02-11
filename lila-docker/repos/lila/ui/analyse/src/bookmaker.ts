@@ -8,6 +8,8 @@ import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { treePath } from 'lib/tree';
 import * as studyApi from './studyApi';
+import { renderCreditWidget, renderInsufficientCredits } from './CreditWidget';
+import type { CreditStatus } from './CreditWidget';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -444,16 +446,33 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         return results;
     };
 
+    const handleCreditStatus = async () => {
+        try {
+            const res = await fetch('/api/llm/credits');
+            if (res.ok) {
+                const status = await res.json() as CreditStatus;
+                $('.analyse__bookmaker .llm-credit-widget-container').html(renderCreditWidget(status));
+            }
+        } catch { /* noop */ }
+    };
+
     const show = (html: string) => {
         lastShownHtml = html;
         $('.analyse__bookmaker').toggleClass('empty', !html);
         const $text = $('.analyse__bookmaker-text');
         bookmakerPreviewOrientation = ctrl?.getOrientation() ?? 'white';
+
+        // Ensure credit container exists
+        if (!$('.analyse__bookmaker .llm-credit-widget-container').length) {
+            $('.analyse__bookmaker').prepend('<div class="llm-credit-widget-container"></div>');
+        }
+
         $text.html(html);
         applyBookmakerEvalDisplay();
         if (html) {
             initMiniBoards($text[0] as HTMLElement);
             mountBookmakerPreview($text[0] as HTMLElement);
+            handleCreditStatus();
         }
     };
 
@@ -661,6 +680,15 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                             }
                         })();
                     }
+                } else if (res.status === 403) {
+                    try {
+                        const data = await res.json();
+                        blockedHtml = renderInsufficientCredits(data.resetAt);
+                    } catch {
+                        blockedHtml = renderInsufficientCredits('Unknown');
+                    }
+                    requestsBlocked = true;
+                    show(blockedHtml);
                 } else if (res.status === 401) {
                     blockedHtml =
                         `<p>Sign in to use Bookmaker.</p><p><a class="button" href="${loginHref()}">Sign in</a></p>`,

@@ -118,8 +118,8 @@ object BookStyleRenderer:
   private def generateContext(ctx: NarrativeContext, bead: Int): String =
     val phase = ctx.phase.current
     val evalOpt = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
-    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x52dce729, cp)).getOrElse("The position is unclear")
-    NarrativeLexicon.getOpening(bead, phase, evalText)
+    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x52dce729, cp, ply = ctx.ply)).getOrElse("The position is unclear")
+    NarrativeLexicon.getOpening(bead, phase, evalText, ply = ctx.ply)
 
   private def generateDecision(beat: OutlineBeat, ctx: NarrativeContext): String =
     ctx.authorQuestions
@@ -159,9 +159,9 @@ object BookStyleRenderer:
 
   private def generateMainMove(ctx: NarrativeContext, bead: Int): String =
     ctx.candidates.headOption.map { main =>
-      val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None)
+      val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None, ply = ctx.ply)
       val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
-      val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore)
+      val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore, ply = ctx.ply)
 
       NarrativeLexicon.getMainFlow(bead, main.move, main.annotation, intent, None, None, evalTerm)
     }.getOrElse("")
@@ -180,7 +180,7 @@ object BookStyleRenderer:
 
   private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
     ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
-      NarrativeLexicon.getPracticalVerdict(bead, pa.verdict)
+      NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
     }.getOrElse("")
 
   // ===========================================================================

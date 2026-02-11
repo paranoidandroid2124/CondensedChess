@@ -123,13 +123,18 @@ function renderSidebar(ctrl: AnalyseCtrl): VNode {
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
   const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
+  const narrativeEnabled = !!ctrl.narrative?.enabled();
+  const narrativeNode = ctrl.narrative ? narrativeView(ctrl.narrative) : null;
+  const activeTool = narrativeEnabled
+    ? narrativeNode || retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl)
+    : retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl) || narrativeNode;
   return hl('div.analyse__tools', [
     allowVideo && embeddedVideo,
     showCeval && cevalView.renderCeval(ctrl),
     showCeval && !ctrl.retro?.isSolving() && !ctrl.practice && cevalView.renderPvs(ctrl),
     renderMoveList(ctrl, concealOf),
     forkView(ctrl, concealOf),
-    retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl) || (ctrl.narrative && narrativeView(ctrl.narrative)),
+    activeTool,
     ctrl.actionMenu() && actionMenu(ctrl),
   ]);
 }
@@ -249,6 +254,16 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             }),
           },
           [icon(licon.PlayTriangle as any), ' Import PGN'],
+        ),
+        hl(
+          'button.button.button-thin.bottom-item.bottom-action.text',
+          {
+            hook: bind('click', () => {
+              ctrl.actionMenu(false);
+              void ctrl.narrative?.openAndFetch();
+            }),
+          },
+          [icon(licon.Book as any), ' Analyze Full Game'],
         ),
         hl(
           'div.bottom-item.bottom-error',
