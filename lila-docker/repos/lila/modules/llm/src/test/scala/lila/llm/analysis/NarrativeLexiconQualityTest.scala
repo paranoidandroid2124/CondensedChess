@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+import lila.llm.model.{ HypothesisAxis, HypothesisHorizon }
 
 class NarrativeLexiconQualityTest extends FunSuite:
 
@@ -238,6 +239,74 @@ class NarrativeLexiconQualityTest extends FunSuite:
       .toLowerCase
     assert(!text.contains("engine-wise"))
 
+  test("hypothesis templates diversify stems and avoid fixed boilerplate"):
+    val lines = (0 until 24).map { bead =>
+      NarrativeLexicon.getHypothesisClause(
+        bead = bead + 900,
+        claim = "Nf3 keeps coordination lanes connected before central clarification.",
+        confidence = 0.64,
+        horizon = HypothesisHorizon.Medium,
+        axis = HypothesisAxis.PieceCoordination
+      )
+    }
+    val stems = lines.map(firstFiveStem).toSet
+    assert(stems.size >= 4, clue(stems.mkString(" | ")))
+    assert(lines.forall(!_.toLowerCase.contains("strategic test after")))
+
+  test("hypothesis practical clause rotates short and long horizon wording"):
+    val short = NarrativeLexicon.getHypothesisPracticalClause(
+      bead = 911,
+      horizon = HypothesisHorizon.Short,
+      axis = HypothesisAxis.KingSafety,
+      move = "Nf3"
+    ).toLowerCase
+    val long = NarrativeLexicon.getHypothesisPracticalClause(
+      bead = 911,
+      horizon = HypothesisHorizon.Long,
+      axis = HypothesisAxis.EndgameTrajectory,
+      move = "Nf3"
+    ).toLowerCase
+    assertNotEquals(short, long)
+    assert(short.contains("next") || short.contains("immediate"), clue(short))
+    assert(long.contains("long") || long.contains("later") || long.contains("ending"), clue(long))
+
+  test("long-horizon bridge clause diversifies stems and keeps now-to-later structure"):
+    val lines = (0 until 28).map { bead =>
+      NarrativeLexicon.getLongHorizonBridgeClause(
+        bead = bead + 980,
+        move = "Nf3",
+        axis = HypothesisAxis.EndgameTrajectory
+      )
+    }
+    val stems = lines.map(firstFiveStem).toSet
+    assert(stems.size >= 4, clue(stems.mkString(" | ")))
+    assert(
+      lines.forall { line =>
+        val lower = line.toLowerCase
+        lower.contains("now") &&
+        (lower.contains("later") || lower.contains("late") || lower.contains("simplif") || lower.contains("endgame"))
+      },
+      clue(lines.mkString(" || "))
+    )
+    assert(lines.forall(!_.toLowerCase.contains("technical setup for the next")))
+
+  test("alternative hypothesis difference always contains comparison and strategic meaning"):
+    val line = NarrativeLexicon.getAlternativeHypothesisDifference(
+      bead = 947,
+      alternativeMove = "Ne2",
+      mainMove = "Nf3",
+      mainAxis = Some(HypothesisAxis.PieceCoordination),
+      alternativeAxis = Some(HypothesisAxis.PawnBreakTiming),
+      alternativeClaim = Some("Ne2 keeps c-pawn flexibility but delays central tension tests."),
+      confidence = 0.58,
+      horizon = HypothesisHorizon.Medium
+    ).toLowerCase
+    assert(
+      line.contains("compared with") || line.contains("relative to") || line.contains("against the main move"),
+      clue(line)
+    )
+    assert(line.contains("timing") || line.contains("coordination") || line.contains("trajectory"), clue(line))
+
   private def wordCount(text: String): Int =
     text
       .split("""\s+""")
@@ -255,4 +324,16 @@ class NarrativeLexiconQualityTest extends FunSuite:
       .split(" ")
       .filter(_.nonEmpty)
       .take(4)
+      .mkString(" ")
+
+  private def firstFiveStem(text: String): String =
+    text
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(5)
       .mkString(" ")

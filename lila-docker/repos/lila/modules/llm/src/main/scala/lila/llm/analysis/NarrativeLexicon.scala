@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import chess.{ Bishop, King, Knight, Pawn, Queen, Role, Rook }
-import lila.llm.model.Fact
+import lila.llm.model.{ Fact, HypothesisAxis, HypothesisHorizon }
 
 /**
  * Phase 11: Infinite Diversity Lexicon
@@ -838,6 +838,285 @@ object NarrativeLexicon {
     }
   }
 
+  def getHypothesisObservationClause(bead: Int, observation: String): String = {
+    val obs = observation.trim.stripSuffix(".")
+    pick(bead ^ 0x5f356495, List(
+      s"From the board, $obs.",
+      s"Initial board read: $obs.",
+      s"Observed directly: $obs.",
+      s"Concrete observation first: $obs."
+    ))
+  }
+
+  def getHypothesisClause(
+    bead: Int,
+    claim: String,
+    confidence: Double,
+    horizon: HypothesisHorizon,
+    axis: HypothesisAxis
+  ): String = {
+    val clean = claim.trim.stripSuffix(".")
+    val axisText = axisLabel(axis, bead ^ 0x13a5b7c9)
+    val leadTemplates =
+      if confidence >= 0.78 then List(
+        "The working hypothesis is that",
+        "The strongest read is that",
+        "The clearest strategic read is that"
+      )
+      else if confidence >= 0.58 then List(
+        "The working hypothesis is that",
+        "A likely explanation is that",
+        "The most plausible read is that",
+        "Current evidence suggests that"
+      )
+      else List(
+        "A cautious hypothesis is that",
+        "A provisional read is that",
+        "One possibility is that"
+      )
+    val lead = pick(bead ^ 0x24d8f59c, leadTemplates)
+    val horizonText =
+      horizon match
+        case HypothesisHorizon.Short  => "short-horizon"
+        case HypothesisHorizon.Medium => "medium-horizon"
+        case HypothesisHorizon.Long   => "long-horizon"
+    val lensSentence = pick(bead ^ 0x6d2b79f5, List(
+      s"The explanatory lens is $axisText with $horizonText consequences.",
+      s"Interpret this through $axisText, where $horizonText tradeoffs dominate.",
+      s"The underlying axis is $axisText, and the payoff window is $horizonText."
+    ))
+    s"$lead $clean $lensSentence"
+  }
+
+  def getHypothesisValidationClause(
+    bead: Int,
+    supportSignals: List[String],
+    conflictSignals: List[String],
+    confidence: Double
+  ): String = {
+    val support0 = supportSignals.map(_.trim).filter(_.nonEmpty).take(2)
+    val support =
+      if support0.size >= 2 then
+        val (engineSignals, otherSignals) = support0.partition(_.toLowerCase.contains("engine gap"))
+        if engineSignals.nonEmpty && otherSignals.nonEmpty then
+          if Math.floorMod(bead, 3) == 0 then engineSignals ++ otherSignals
+          else otherSignals ++ engineSignals
+        else if Math.floorMod(bead, 2) == 1 then support0.reverse
+        else support0
+      else support0
+    val conflict = conflictSignals.map(_.trim).filter(_.nonEmpty).take(1)
+    if support.nonEmpty && conflict.isEmpty then
+      pick(bead ^ 0x3b5296f1, List(
+        s"Validation evidence includes ${support.mkString(" and ")}.",
+        s"Validation evidence points to ${support.mkString(" and ")}.",
+        s"Validation lines up with ${support.mkString(" and ")}.",
+        s"This read is validated by ${support.mkString(" plus ")}."
+      ))
+    else if support.nonEmpty && conflict.nonEmpty then
+      pick(bead ^ 0x6d2b79f5, List(
+        s"Validation is mixed: ${support.mkString(" and ")} support the idea, but ${conflict.head} keeps caution necessary.",
+        s"Evidence supports the read via ${support.mkString(" and ")}, yet ${conflict.head} limits certainty.",
+        s"Verification remains conditional: ${support.mkString(" and ")} back the claim, while ${conflict.head} is unresolved."
+      ))
+    else if confidence < 0.55 then
+      pick(bead ^ 0x11f17f1d, List(
+        "Validation is still thin, so this stays a working possibility.",
+        "Evidence is limited, so the claim should remain provisional.",
+        "Verification remains incomplete; treat this as a candidate explanation."
+      ))
+    else
+      pick(bead ^ 0x517cc1b7, List(
+        "Validation relies on broader strategic consistency rather than a single forcing proof.",
+        "The claim is supported by positional consistency, not by one tactical sequence.",
+        "Evidence is mostly strategic, so practical confirmation still matters."
+      ))
+  }
+
+  def getSupportingHypothesisClause(
+    bead: Int,
+    claim: String,
+    confidence: Double,
+    axis: HypothesisAxis
+  ): String = {
+    val clean = claim.trim.stripSuffix(".")
+    val toneOptions =
+      if confidence >= 0.72 then "A supporting hypothesis is that"
+      else if confidence >= 0.52 then "A secondary read is that"
+      else "A weaker supporting idea is that"
+    val axisText = axisLabel(axis, bead ^ 0x27d4eb2f)
+    val tail = pick(bead ^ 0x11f17f1d, List(
+      s"This reinforces the $axisText perspective.",
+      s"It supports the $axisText reading."
+    ))
+    s"$toneOptions $clean $tail"
+  }
+
+  def getHypothesisPracticalClause(
+    bead: Int,
+    horizon: HypothesisHorizon,
+    axis: HypothesisAxis,
+    move: String
+  ): String = {
+    val axisText = axisLabel(axis, bead ^ 0x85ebca6b)
+    val templates =
+      horizon match
+        case HypothesisHorizon.Short =>
+          List(
+            s"In practical terms, the split should appear in the next few moves, especially around $axisText handling.",
+            s"Short-horizon test: the next move-order around $axisText will determine whether **$move** holds up.",
+            s"Immediate practical impact is expected: $axisText timing in the next sequence is critical.",
+            s"Short-term handling is decisive here, because $axisText errors are punished quickly."
+          )
+        case HypothesisHorizon.Medium =>
+          List(
+            s"Practically, this should influence middlegame choices where $axisText commitments are tested.",
+            s"The medium-horizon task is keeping $axisText synchronized before the position simplifies.",
+            s"After development, $axisText decisions are likely to determine whether **$move** remains robust.",
+            s"The practical burden appears in the middlegame phase, once $axisText tradeoffs become concrete."
+          )
+        case HypothesisHorizon.Long =>
+          List(
+            s"In practical terms, the divergence is long-horizon: $axisText choices now can decide the later conversion path.",
+            s"The implication is long-term; $axisText tradeoffs here are likely to resurface in the ending.",
+            s"Practically this points to a late-phase split, where $axisText decisions today shape the endgame trajectory."
+          )
+    pick(bead ^ 0x4f6cdd1d, templates)
+  }
+
+  def getLongHorizonBridgeClause(
+    bead: Int,
+    move: String,
+    axis: HypothesisAxis
+  ): String = {
+    val axisText = axisLabel(axis, bead ^ 0x2a2a2a2a)
+    val templates = List(
+      s"Because **$move** stabilizes $axisText now, the decisive split is expected when later simplification choices begin.",
+      s"The immediate gain from **$move** is cleaner $axisText coordination now, and that usually decides the game later once the position simplifies.",
+      s"By locking in $axisText with **$move** now, the practical payoff tends to appear later when the endgame plan must be converted.",
+      s"With **$move**, the short-term position stays controlled around $axisText now, but the real test arrives later in the conversion phase.",
+      s"**$move** secures today's $axisText tradeoff now, and that shifts the balance later when late-phase technique becomes the main battleground.",
+      s"After **$move** fixes the current $axisText framework now, the resulting advantage normally appears later at the next major transition."
+    )
+    pick(bead ^ 0x7f4a7c15, templates)
+  }
+
+  def getAlternativeHypothesisDifference(
+    bead: Int,
+    alternativeMove: String,
+    mainMove: String,
+    mainAxis: Option[HypothesisAxis],
+    alternativeAxis: Option[HypothesisAxis],
+    alternativeClaim: Option[String],
+    confidence: Double,
+    horizon: HypothesisHorizon
+  ): String = {
+    val altAxisText = alternativeAxis.map(axisLabel).getOrElse("plan balance")
+    val mainAxisText = mainAxis.map(axis => axisLabel(axis, bead ^ 0x4f6cdd1d)).getOrElse("the principal plan")
+    val altAxisVar = alternativeAxis.map(axis => axisLabel(axis, bead ^ 0x63d5a6f1)).getOrElse(altAxisText)
+    val axisContrast =
+      if alternativeAxis == mainAxis then
+        pick(bead ^ 0x5f356495, List(
+          s"keeps the same $altAxisVar focus, but the timing window shifts",
+          s"tracks the same $altAxisVar theme while changing move-order timing",
+          s"stays on the $altAxisVar route, yet it sequences commitments differently",
+          s"leans on the same $altAxisVar logic, with a different timing profile"
+        ))
+      else
+        pick(bead ^ 0x17d4eb2f, List(
+          s"shifts priority toward $altAxisVar rather than $mainAxisText",
+          s"rebalances the plan toward $altAxisVar instead of $mainAxisText",
+          s"puts more weight on $altAxisVar than on $mainAxisText",
+          s"tilts the practical route toward $altAxisVar over $mainAxisText",
+          s"redirects emphasis to $altAxisVar while reducing $mainAxisText priority"
+        ))
+    val confidenceLead =
+      if confidence >= 0.72 then "likely"
+      else if confidence >= 0.5 then "plausibly"
+      else "possibly"
+    val claimPart = alternativeClaim.map(_.trim.stripSuffix(".")).filter(_.nonEmpty)
+      .map(c => s"$c.")
+      .getOrElse("")
+    val horizonTail =
+      horizon match
+        case HypothesisHorizon.Short =>
+          pick(bead ^ 0x2a2a2a2a, List(
+            "The split should surface in immediate move-order fights.",
+            "This difference is expected to matter right away in concrete sequencing.",
+            s"The practical divergence should surface as **$alternativeMove** enters the next tactical phase."
+          ))
+        case HypothesisHorizon.Medium =>
+          pick(bead ^ 0x4b4b4b4b, List(
+            s"Middlegame pressure around **$alternativeMove** is where this route usually separates from the main plan.",
+            s"Once development settles, **$alternativeMove** usually reveals a different practical path in the middlegame.",
+            s"The practical split is likely during the coming middlegame maneuvering after **$alternativeMove**.",
+            s"This contrast usually appears when **$alternativeMove** reaches concrete middlegame execution.",
+            s"From a medium-horizon view, **$alternativeMove** tends to separate from the main route when plans start clashing."
+          ))
+        case HypothesisHorizon.Long =>
+          pick(bead ^ 0x6c6c6c6c, List(
+            "The divergence is expected to surface later in the endgame trajectory.",
+            "This split should reappear in long-term conversion phases.",
+            "The practical difference is likely delayed until late-phase technique."
+          ))
+    pick(bead ^ 0x2f6e2b1, List(
+      s"Compared with **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail",
+      s"Relative to **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail",
+      s"Against the main move **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail"
+    ))
+  }
+
+  def getWrapUpDecisiveDifference(
+    bead: Int,
+    mainMove: String,
+    altMove: String,
+    mainAxis: HypothesisAxis,
+    altAxis: HypothesisAxis,
+    mainHorizon: HypothesisHorizon,
+    altHorizon: HypothesisHorizon
+  ): String = {
+    val mainAxisText = axisLabel(mainAxis, bead ^ 0x11f17f1d)
+    val altAxisText = axisLabel(altAxis, bead ^ 0x3124bcf5)
+    val axisContrast =
+      if mainAxis == altAxis then s"the same $mainAxisText axis"
+      else s"$mainAxisText versus $altAxisText"
+    val horizonBlend =
+      if mainHorizon == altHorizon then s"a shared ${horizonLabel(mainHorizon)} horizon"
+      else s"${horizonLabel(mainHorizon)} vs ${horizonLabel(altHorizon)} horizon"
+    pick(bead ^ 0x19f8b4ad, List(
+      s"The decisive split is **$mainMove** versus **$altMove**: $axisContrast with $horizonBlend.",
+      s"The key difference is between **$mainMove** and **$altMove**; the contrast is $axisContrast across $horizonBlend.",
+      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, and the payoff window is $horizonBlend."
+    ))
+  }
+
+  private def axisLabel(axis: HypothesisAxis): String =
+    axisLabel(axis, axis.toString.hashCode)
+
+  private def axisLabel(axis: HypothesisAxis, seed: Int): String =
+    axis match
+      case HypothesisAxis.Plan =>
+        pick(seed, List("plan direction", "strategic route", "plan cadence", "long-plan map"))
+      case HypothesisAxis.Structure =>
+        pick(seed, List("structure management", "structural control", "pawn-structure handling", "square-complex management"))
+      case HypothesisAxis.Initiative =>
+        pick(seed, List("initiative control", "momentum balance", "initiative timing", "tempo initiative"))
+      case HypothesisAxis.Conversion =>
+        pick(seed, List("conversion timing", "conversion technique", "simplification timing", "technical conversion"))
+      case HypothesisAxis.KingSafety =>
+        pick(seed, List("king-safety timing", "king security management", "defensive king timing", "king-cover stability"))
+      case HypothesisAxis.PieceCoordination =>
+        pick(seed, List("piece coordination", "piece-route harmony", "coordination lanes", "piece synchronization"))
+      case HypothesisAxis.PawnBreakTiming =>
+        pick(seed, List("pawn-break timing", "pawn-lever timing", "central break timing", "pawn tension timing"))
+      case HypothesisAxis.EndgameTrajectory =>
+        pick(seed, List("endgame trajectory", "long-phase conversion path", "late-phase trajectory", "endgame direction"))
+
+  private def horizonLabel(horizon: HypothesisHorizon): String =
+    horizon match
+      case HypothesisHorizon.Short  => "short"
+      case HypothesisHorizon.Medium => "medium"
+      case HypothesisHorizon.Long   => "long"
+
   def getThreatWarning(bead: Int, kind: String, square: Option[String]): String = {
     val loc = square.map(s => s" on $s").getOrElse("")
     pick(bead, List(
@@ -1000,7 +1279,7 @@ object NarrativeLexicon {
         pick(bead, List(
           s"$markedMove is a clear mistake; it gives the opponent initiative, so practical defense becomes harder. Stronger is **$bestSan**.",
           s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure easier to manage.",
-          s"$markedMove is serious enough to shift practical control, and **$bestSan** was the preferable route.",
+          s"$markedMove is a serious mistake that shifts practical control, and **$bestSan** was the preferable route.",
           s"$markedMove is a mistake because it loosens tempo order; **$bestSan** keeps the position connected.",
           s"$markedMove is inaccurate in practical terms, so **$bestSan** was needed to preserve initiative."
         ))
@@ -1705,7 +1984,7 @@ object NarrativeLexicon {
           s"The ${roleLabel(pinnedRole)} on ${pinned.key} is pinned$abs to the ${roleLabel(behindRole)} on ${behind.key}.",
           s"There's a pin: the ${roleLabel(pinnedRole)} on ${pinned.key} cannot move without exposing the ${roleLabel(behindRole)} on ${behind.key}.",
           s"${pinned.key} is pinned, leaving the ${roleLabel(pinnedRole)} with limited mobility.",
-          s"Because of the pin on ${pinned.key}, coordinating that ${roleLabel(pinnedRole)} now costs tempi.",
+          s"The pin on ${pinned.key} slows coordination of that ${roleLabel(pinnedRole)}, costing valuable tempi.",
           s"The pin restrains the ${roleLabel(pinnedRole)} on ${pinned.key}, reducing practical flexibility."
         ))
 

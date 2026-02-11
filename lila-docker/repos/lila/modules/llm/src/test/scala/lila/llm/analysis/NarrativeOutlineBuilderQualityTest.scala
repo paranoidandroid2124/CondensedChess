@@ -491,8 +491,152 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(!stems.contains(mainStem), clue(s"main=$main\nalts=$alternatives"))
     assert(lines.count(_.toLowerCase.startsWith("engine")) <= 1, clue(alternatives))
     assert(!lower.contains("technical setup for the next"), clue(alternatives))
+    assert(!lower.contains("strategic test after"), clue(alternatives))
     val strategicSignals = List("coordination", "initiative", "king safety", "tempo", "conversion", "practical burden")
     assert(lines.forall(line => strategicSignals.exists(line.toLowerCase.contains)), clue(alternatives))
+
+  test("hypothesis-space contract appears in main, alternatives, and wrap-up"):
+    val mainMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = Some("keeps king safety tempo under control"),
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = List(CandidateTag.Solid),
+      tacticEvidence = List("Centralization(Knight on f3)"),
+      probeLines = List("...d5 c4"),
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.PieceCoordination,
+          claim = "Nf3 keeps coordination lanes connected before central clarification.",
+          supportSignals = List("engine rank 1", "reply multipv coverage collected"),
+          conflictSignals = Nil,
+          confidence = 0.78,
+          horizon = HypothesisHorizon.Medium
+        ),
+        HypothesisCard(
+          axis = HypothesisAxis.KingSafety,
+          claim = "Nf3 preserves kingside safety tempo while development continues.",
+          supportSignals = List("threat or tactical alert points to king safety"),
+          conflictSignals = Nil,
+          confidence = 0.69,
+          horizon = HypothesisHorizon.Short
+        )
+      )
+    )
+    val altMove = CandidateInfo(
+      move = "Ne2",
+      uci = Some("g1e2"),
+      annotation = "",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it delays pressure on central tension"),
+      tags = List(CandidateTag.Competitive),
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.PawnBreakTiming,
+          claim = "Ne2 keeps c-pawn flexibility but delays immediate central tension tests.",
+          supportSignals = List("d-file break is available"),
+          conflictSignals = List("engine gap is significant for this route"),
+          confidence = 0.56,
+          horizon = HypothesisHorizon.Medium
+        )
+      )
+    )
+    val thirdMove = CandidateInfo(
+      move = "h3",
+      uci = Some("h2h3"),
+      annotation = "",
+      planAlignment = "Quiet move",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it loosens kingside squares"),
+      tags = List(CandidateTag.TacticalGamble),
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.KingSafety,
+          claim = "h3 concedes king-safety tempo for speculative flexibility.",
+          supportSignals = List("candidate rationale already flags king safety issues"),
+          conflictSignals = List("probe shows a clear practical concession"),
+          confidence = 0.38,
+          horizon = HypothesisHorizon.Short
+        )
+      )
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      candidates = List(mainMove, altMove, thirdMove),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 16,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 35),
+            VariationLine(moves = List("g1e2", "d7d5"), scoreCp = 9),
+            VariationLine(moves = List("h2h3", "d7d5"), scoreCp = -70)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val alternatives = outline.beats.find(_.kind == OutlineBeatKind.Alternatives).map(_.text).getOrElse("")
+    val wrap = outline.beats.find(_.kind == OutlineBeatKind.WrapUp).map(_.text).getOrElse("")
+
+    val mainLower = main.toLowerCase
+    assert(
+      mainLower.contains("hypothesis") ||
+        mainLower.contains("read is that") ||
+        mainLower.contains("explanatory lens"),
+      clue(main)
+    )
+    assert(mainLower.contains("validation") || mainLower.contains("validated"), clue(main))
+    assert(mainLower.contains("practical"), clue(main))
+
+    val altLines = alternatives.split("\n").toList.map(_.trim).filter(_.nonEmpty)
+    assertEquals(altLines.size, 2, clue(alternatives))
+    assert(
+      altLines.forall { line =>
+        val lower = line.toLowerCase
+        lower.contains("compared with") || lower.contains("relative to")
+      },
+      clue(alternatives)
+    )
+
+    val strategicWords = List("initiative", "structure", "coordination", "king", "plan", "timing", "trajectory", "conversion", "practical")
+    val numericStandalone = altLines.exists { line =>
+      val lower = line.toLowerCase
+      val hasNumeric = lower.exists(_.isDigit)
+      hasNumeric && !strategicWords.exists(lower.contains)
+    }
+    assert(!numericStandalone, clue(alternatives))
+
+    val mainStem = firstFiveStem(main)
+    val altStems = altLines.map(firstFiveStem)
+    assert(!altStems.contains(mainStem), clue(s"main=$main\nalts=$alternatives"))
+    assert(altStems.distinct.size == altStems.size, clue(alternatives))
+
+    val wrapLower = wrap.toLowerCase
+    assert(
+      List("decisive split", "decisively", "key difference").exists(wrapLower.contains),
+      clue(wrap)
+    )
 
   test("opening branchpoint with valid sample game emits precedent snippet"):
     val openingRef = OpeningReference(
@@ -530,6 +674,109 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(lower.contains("after 19... na4 20. rab1 rc5 21. qe1"), clue(all))
     assert(lower.contains("won (0-1)"), clue(all))
     assert(lower.contains("turning point"), clue(all))
+
+  test("long-horizon main hypothesis adds exactly one delayed-payoff bridge sentence"):
+    val mainMove = CandidateInfo(
+      move = "Nf3",
+      uci = Some("g1f3"),
+      annotation = "!",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = Some("keeps tactical pressure contained"),
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = List(CandidateTag.Solid),
+      tacticEvidence = List("Centralization(Knight on f3)"),
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.EndgameTrajectory,
+          claim = "Nf3 keeps the endgame trajectory favorable by preserving flexible simplification options.",
+          supportSignals = List(
+            "long-horizon probe confirms delayed plan prerequisites",
+            "long-horizon probe samples conversion and trajectory branches"
+          ),
+          conflictSignals = Nil,
+          confidence = 0.81,
+          horizon = HypothesisHorizon.Long
+        ),
+        HypothesisCard(
+          axis = HypothesisAxis.PieceCoordination,
+          claim = "Nf3 keeps piece coordination lanes connected during development.",
+          supportSignals = List("reply multipv coverage collected"),
+          conflictSignals = Nil,
+          confidence = 0.62,
+          horizon = HypothesisHorizon.Medium
+        )
+      )
+    )
+    val altMove = CandidateInfo(
+      move = "Ne2",
+      uci = Some("g1e2"),
+      annotation = "",
+      planAlignment = "Development",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it delays central pressure"),
+      tags = List(CandidateTag.Competitive),
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.PawnBreakTiming,
+          claim = "Ne2 delays central tension tests and shifts timing risk.",
+          supportSignals = List("d-file break is available"),
+          conflictSignals = List("engine gap is significant for this route"),
+          confidence = 0.52,
+          horizon = HypothesisHorizon.Medium
+        )
+      )
+    )
+    val ctx = baseContext(
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3"),
+      candidates = List(mainMove, altMove),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 16,
+          variations = List(
+            VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 35),
+            VariationLine(moves = List("g1e2", "d7d5"), scoreCp = 9)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val sentences = main.split("(?<=[.!?])\\s+").toList.map(_.trim).filter(_.nonEmpty)
+    val bridgeMarkers = List(
+      "decisive split is expected",
+      "usually decides the game later",
+      "practical payoff tends to appear later",
+      "real test arrives later",
+      "shifts the balance later",
+      "advantage normally appears later"
+    )
+    val bridgeSentences = sentences.filter { s =>
+      val lower = s.toLowerCase
+      bridgeMarkers.exists(lower.contains)
+    }
+    assertEquals(bridgeSentences.size, 1, clue(main))
+
+    val hypothesisStem = sentences
+      .find { s =>
+        val lower = s.toLowerCase
+        lower.contains("hypothesis") || lower.contains("read is that")
+      }
+      .map(firstFiveStem)
+      .getOrElse("")
+    val bridgeStem = firstFiveStem(bridgeSentences.head)
+    assertNotEquals(bridgeStem, hypothesisStem)
 
   test("branchpoint with multiple sample games emits A/B/C precedent comparison"):
     val openingRef = OpeningReference(
@@ -787,6 +1034,20 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
   private def occurrences(haystack: String, needle: String): Int =
     if needle.isEmpty then 0
     else haystack.sliding(needle.length).count(_ == needle)
+
+  private def firstFiveStem(text: String): String =
+    text
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(5)
+      .mkString(" ")
 
   private def baseContext(
     playedMove: Option[String],

@@ -68,7 +68,7 @@ object NarrativeContextBuilder:
     val delta = afterDelta.orElse(prevDelta)
     
     // B7: Enriched candidates with probe results
-    val candidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
+    val enrichedCandidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
 
     val playedSan = data.prevMove.flatMap { uci =>
       NarrativeUtils
@@ -82,7 +82,7 @@ object NarrativeContextBuilder:
       AuthorQuestionGenerator.generate(
         data = data,
         ctx = ctx,
-        candidates = candidates,
+        candidates = enrichedCandidates,
         playedSan = playedSan
       )
     
@@ -104,7 +104,7 @@ object NarrativeContextBuilder:
           multiPv = multiPv,
           fen = data.fen,
           playedMove = data.prevMove,
-          candidates = candidates,
+          candidates = enrichedCandidates,
           authorQuestions = authorQuestions
         )
         .distinctBy(_.id)
@@ -138,11 +138,20 @@ object NarrativeContextBuilder:
 
     // Phase F: Decision Rationale (Synthesis)
     val decision = if (header.choiceType != "StyleChoice") {
-      Some(calculateDecisionRationale(data, ctx, candidates, semantic, targets, rootProbeResults))
+      Some(calculateDecisionRationale(data, ctx, enrichedCandidates, semantic, targets, rootProbeResults))
     } else None
 
     // Phase A9: Opening Event Detection (event-driven, not per-move)
     val openingEvent = detectOpeningEvent(data, openingRef, decision, openingBudget, prevOpeningRef)
+    val candidates =
+      attachHypothesisCards(
+        data = data,
+        ctx = ctx,
+        candidates = enrichedCandidates,
+        probeResults = rootProbeResults,
+        probeRequests = probeRequests,
+        openingEvent = openingEvent
+      )
     
     // Compute updated budget based on fired event
     val updatedBudget = openingEvent match {
@@ -993,6 +1002,588 @@ object NarrativeContextBuilder:
     }
     
     enriched ++ ghosts
+  }
+
+  private case class HypothesisDraft(
+    axis: HypothesisAxis,
+    claim: String,
+    supportSignals: List[String],
+    conflictSignals: List[String],
+    baseConfidence: Double,
+    horizon: HypothesisHorizon
+  )
+
+  private case class RankedHypothesis(
+    card: HypothesisCard,
+    score: Double,
+    family: String
+  )
+
+  private def attachHypothesisCards(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    candidates: List[CandidateInfo],
+    probeResults: List[ProbeResult],
+    probeRequests: List[ProbeRequest],
+    openingEvent: Option[OpeningEvent]
+  ): List[CandidateInfo] = {
+    if (candidates.isEmpty) return candidates
+    val top = candidates.headOption
+    candidates.zipWithIndex.map { case (cand, idx) =>
+      val (rankOpt, cpGapOpt) = candidateRankAndGap(data, cand)
+      val probeSignals =
+        ProbeDetector.hypothesisVerificationSignals(
+          candidate = cand,
+          probeResults = probeResults,
+          probeRequests = probeRequests,
+          isWhiteToMove = data.isWhiteToMove
+        )
+      val drafts =
+        buildHypothesisDrafts(
+          data = data,
+          ctx = ctx,
+          candidate = cand,
+          index = idx,
+          rank = rankOpt,
+          cpGap = cpGapOpt,
+          topCandidate = top,
+          openingEvent = openingEvent
+        )
+      val ranked = drafts
+        .flatMap(d => rankHypothesisDraft(d, cand, probeSignals, rankOpt, cpGapOpt))
+        .sortBy(r => -r.score)
+
+      val selected = ranked
+        .foldLeft((Set.empty[String], List.empty[RankedHypothesis])) { case ((seen, acc), rh) =>
+          if (seen.contains(rh.family)) (seen, acc)
+          else (seen + rh.family, acc :+ rh)
+        }
+        ._2
+      val diversified =
+        selected.headOption match
+          case Some(primary) =>
+            val promotedPrimary =
+              if primary.card.axis == HypothesisAxis.Plan then
+                selected
+                  .drop(1)
+                  .find(rh => rh.card.axis != HypothesisAxis.Plan && rh.score >= primary.score - 0.08)
+                  .getOrElse(primary)
+              else primary
+            val secondary =
+              selected
+                .filterNot(_ == promotedPrimary)
+                .find(_.card.axis != promotedPrimary.card.axis)
+                .orElse(selected.filterNot(_ == promotedPrimary).headOption)
+            applyLongHorizonProtection(
+              selected = selected,
+              diversified = (promotedPrimary :: secondary.toList).take(2),
+              probeSignals = probeSignals
+            )
+          case None => Nil
+      val cards = diversified.map(_.card)
+
+      cand.copy(hypotheses = cards)
+    }
+  }
+
+  private def candidateRankAndGap(
+    data: ExtendedAnalysisData,
+    candidate: CandidateInfo
+  ): (Option[Int], Option[Int]) = {
+    val byVariation = data.alternatives.zipWithIndex.collectFirst {
+      case (v, idx) if candidate.uci.exists(cu => v.moves.headOption.exists(vu => NarrativeUtils.uciEquivalent(cu, vu))) =>
+        (idx + 1, v.effectiveScore)
+    }
+    val byCandidate = data.candidates.zipWithIndex.collectFirst {
+      case (c, idx) if candidate.uci.exists(cu => NarrativeUtils.uciEquivalent(cu, c.move)) =>
+        (idx + 1, c.score)
+    }
+    val matched = byVariation.orElse(byCandidate)
+    val bestScore =
+      data.alternatives.headOption.map(_.effectiveScore).orElse(data.candidates.headOption.map(_.score))
+    val cpGap = for
+      best <- bestScore
+      (_, score) <- matched
+    yield cpLossForSideToMove(best, score, data.isWhiteToMove)
+    (matched.map(_._1), cpGap)
+  }
+
+  private def cpLossForSideToMove(best: Int, score: Int, isWhiteToMove: Boolean): Int =
+    if isWhiteToMove then (best - score).max(0) else (score - best).max(0)
+
+  private def buildHypothesisDrafts(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    candidate: CandidateInfo,
+    index: Int,
+    rank: Option[Int],
+    cpGap: Option[Int],
+    topCandidate: Option[CandidateInfo],
+    openingEvent: Option[OpeningEvent]
+  ): List[HypothesisDraft] = {
+    val move = candidate.move.trim
+    val alignment = candidate.planAlignment.trim
+    val alignmentLow = alignment.toLowerCase
+    val planName = data.plans.headOption.map(_.plan.name).getOrElse("current plan")
+    val practicalLow = candidate.practicalDifficulty.trim.toLowerCase
+    val whyNot = candidate.whyNot.getOrElse("").toLowerCase
+    val tacticalAlert = candidate.tacticalAlert.getOrElse("").toLowerCase
+    val isKnightRouteShift = topCandidate.exists(tc => tc != candidate && knightRouteShift(tc, candidate))
+    val breakFile = ctx.pawnAnalysis.flatMap(_.breakFile)
+    val breakReady = ctx.pawnAnalysis.exists(_.pawnBreakReady)
+    val breakImpact = ctx.pawnAnalysis.map(_.breakImpact).getOrElse(0)
+    val conversionWindow =
+      if data.isWhiteToMove then data.evalCp >= 80
+      else data.evalCp <= -80
+    val hasKingSignal =
+      tacticalAlert.contains("king") ||
+        tacticalAlert.contains("check") ||
+        tacticalAlert.contains("mate") ||
+        ctx.threatsToUs.exists(_.threats.exists(t => t.kind == ThreatKind.Mate || t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP))
+    val hasStructSignal =
+      candidate.facts.exists {
+        case _: Fact.WeakSquare | _: Fact.Outpost => true
+        case _                                     => false
+      } || whyNot.contains("structure") || whyNot.contains("square") || whyNot.contains("pawn")
+    val openingSignal = openingEvent.map {
+      case OpeningEvent.BranchPoint(_, reason, _) =>
+        s"opening branch point: ${reason.take(42)}"
+      case OpeningEvent.Novelty(_, _, evidence, _) =>
+        s"opening novelty evidence: ${evidence.take(42)}"
+      case OpeningEvent.OutOfBook(_, _, _) =>
+        "position moved out of book"
+      case OpeningEvent.TheoryEnds(_, sampleCount) =>
+        s"theory sample thinned to $sampleCount games"
+      case OpeningEvent.Intro(_, _, theme, _) =>
+        s"opening theme: ${theme.take(42)}"
+    }
+    val cpSignal = cpGap.map(g => s"engine gap ${f"${g.toDouble / 100}%.1f"} pawns")
+    val localSeed = Math.abs(candidate.move.hashCode) ^ (index * 0x9e3779b9) ^ cpGap.getOrElse(0)
+    val planScoreSignal = data.plans.headOption.map(p => variedPlanScoreSignal(p.score, localSeed ^ 0x24d8f59c))
+    val rankSignal = rank.map(r => variedEngineRankSignal(r, localSeed ^ 0x3b5296f1))
+    val motifSignal = candidate.tacticEvidence.headOption.map(_.take(56))
+    val planClaim =
+      if index == 0 then
+        NarrativeLexicon.pick(localSeed ^ 0x11f17f1d, List(
+          s"$move keeps ${humanPlan(planName)} as the central roadmap, limiting early strategic drift.",
+          s"$move anchors play around ${humanPlan(planName)}, so follow-up choices stay structurally coherent.",
+          s"$move preserves the ${humanPlan(planName)} framework and avoids premature route changes.",
+          s"$move keeps the position tied to ${humanPlan(planName)}, delaying unnecessary plan detours."
+        ))
+      else
+        NarrativeLexicon.pick(localSeed ^ 0x517cc1b7, List(
+          s"$move redirects play toward ${humanPlan(alignment)}, creating a new strategic branch from the main continuation.",
+          s"$move shifts the game into a ${humanPlan(alignment)} route, with a different plan cadence from the principal line.",
+          s"$move chooses a ${humanPlan(alignment)} channel instead of the principal structure-first continuation.",
+          s"$move reroutes priorities toward ${humanPlan(alignment)}, so the long plan map differs from the engine leader."
+        ))
+
+    val planDraft = HypothesisDraft(
+      axis = HypothesisAxis.Plan,
+      claim = planClaim,
+      supportSignals =
+        List(
+          planScoreSignal,
+          rankSignal,
+          openingSignal
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(cpGap.exists(_ >= 100))("engine gap is significant for this route"),
+          Option.when(candidate.tags.contains(CandidateTag.TacticalGamble))("line is flagged as tactical gamble")
+        ).flatten,
+      baseConfidence = if index == 0 then 0.58 else 0.48,
+      horizon = HypothesisHorizon.Medium
+    )
+
+    val structureClaim =
+      if hasStructSignal then
+        NarrativeLexicon.pick(localSeed ^ 0x5f356495, List(
+          s"$move changes the structural balance, trading immediate activity for longer-term square commitments.",
+          s"$move reshapes pawn and square commitments, accepting delayed strategic consequences for present activity.",
+          s"$move keeps structural tensions central, where current activity is exchanged for a longer-term square map.",
+          s"$move commits to a structural route first, so long-term square control outweighs short tactical comfort."
+        ))
+      else
+        NarrativeLexicon.pick(localSeed ^ 0x6c6c6c6c, List(
+          s"$move tries to preserve structure first, postponing irreversible pawn commitments.",
+          s"$move keeps the pawn skeleton flexible and delays structural decisions until better timing appears.",
+          s"$move maintains structural optionality, avoiding early pawn commitments that narrow later plans.",
+          s"$move prioritizes structural elasticity now, so irreversible pawn choices are deferred."
+        ))
+    val structureDraft = HypothesisDraft(
+      axis = HypothesisAxis.Structure,
+      claim = structureClaim,
+      supportSignals =
+        List(
+          Option.when(hasStructSignal)("fact-level structural weakness signal"),
+          Option.when(breakReady)("pawn tension context is active")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(whyNot.contains("weak"))("candidate rationale already flags a weakness"),
+          Option.when(cpGap.exists(_ >= 120))("engine penalizes resulting structure")
+        ).flatten,
+      baseConfidence = if hasStructSignal then 0.52 else 0.43,
+      horizon = HypothesisHorizon.Long
+    )
+
+    val initiativeClaim =
+      if candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || practicalLow == "complex" then
+        NarrativeLexicon.pick(localSeed ^ 0x4f6cdd1d, List(
+          s"$move pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
+          s"$move seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
+          s"$move is an initiative bid: concrete timing is required before the opponent consolidates.",
+          s"$move keeps the initiative race open, with little margin for imprecise sequencing."
+        ))
+      else
+        NarrativeLexicon.pick(localSeed ^ 0x63d5a6f1, List(
+          s"$move concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
+          s"$move trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
+          s"$move prioritizes stability over momentum, making initiative handoff the central practical risk.",
+          s"$move slows the initiative race deliberately, betting that the resulting position is easier to control."
+        ))
+
+    val initiativeDraft = HypothesisDraft(
+      axis = HypothesisAxis.Initiative,
+      claim = initiativeClaim,
+      supportSignals =
+        List(
+          motifSignal,
+          cpSignal,
+          Option.when(practicalLow == "complex")("practical complexity is high")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(cpGap.exists(_ >= 90))("initiative handoff is too costly"),
+          Option.when(candidate.whyNot.nonEmpty)("existing refutation note points to initiative drift")
+        ).flatten,
+      baseConfidence = 0.5,
+      horizon = HypothesisHorizon.Short
+    )
+
+    val conversionDraft = HypothesisDraft(
+      axis = HypothesisAxis.Conversion,
+      claim =
+        if conversionWindow then
+          s"$move frames conversion as a timing problem: simplifying too early or too late can change the practical result."
+        else
+          s"$move keeps conversion deferred, prioritizing coordination before simplification.",
+      supportSignals =
+        List(
+          Option.when(conversionWindow)("evaluation indicates a conversion window"),
+          Option.when(candidate.tags.contains(CandidateTag.Converting))("candidate tagged as converting")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(practicalLow == "complex")("line remains tactically demanding to convert"),
+          Option.when(cpGap.exists(_ >= 110))("conversion route loses too much objective value")
+        ).flatten,
+      baseConfidence = if conversionWindow then 0.53 else 0.42,
+      horizon = HypothesisHorizon.Medium
+    )
+
+    val kingSafetyDraft = HypothesisDraft(
+      axis = HypothesisAxis.KingSafety,
+      claim =
+        if hasKingSignal then
+          s"$move alters king-safety tempo, so defensive coordination must stay synchronized with the next forcing move."
+        else
+          s"$move keeps king safety mostly stable, but only if move order avoids loose tempos.",
+      supportSignals =
+        List(
+          Option.when(hasKingSignal)("threat or tactical alert points to king safety"),
+          Option.when(tacticalAlert.contains("check"))("candidate alert includes check geometry")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(whyNot.contains("king"))("candidate rationale already flags king safety issues"),
+          Option.when(cpGap.exists(_ >= 140))("engine punishes resulting king exposure")
+        ).flatten,
+      baseConfidence = if hasKingSignal then 0.55 else 0.4,
+      horizon = HypothesisHorizon.Short
+    )
+
+    val pieceCoordDraft = HypothesisDraft(
+      axis = HypothesisAxis.PieceCoordination,
+      claim =
+        knightRouteShiftClaim(topCandidate, candidate).getOrElse(
+          s"$move changes piece coordination lanes, with activity gains balanced against route efficiency."
+        ),
+      supportSignals =
+        List(
+          Option.when(isKnightRouteShift)("knight development route diverges from main line"),
+          Option.when(isPieceMove(candidate.move))("piece move directly changes coordination map"),
+          Option.when(alignmentLow.contains("development") || alignmentLow.contains("activation"))("intent is coordination-led")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(cpGap.exists(_ >= 100))("coordination route is slower than principal line")
+        ).flatten,
+      baseConfidence = if isKnightRouteShift then 0.6 else 0.47,
+      horizon = HypothesisHorizon.Medium
+    )
+
+    val pawnBreakDraft = HypothesisDraft(
+      axis = HypothesisAxis.PawnBreakTiming,
+      claim =
+        if breakReady && isLikelyPawnMove(move) then
+          s"$move chooses immediate pawn-break clarification rather than additional preparation."
+        else if breakReady then
+          s"$move delays the pawn break to improve support, betting on better timing in the next phase."
+        else
+          s"$move keeps pawn-break timing flexible, so central tension can be resolved later under better conditions.",
+      supportSignals =
+        List(
+          breakFile.map(f => s"$f-file break is available"),
+          Option.when(breakImpact >= 150)("break impact is materially relevant"),
+          Option.when(ctx.pawnAnalysis.exists(_.tensionPolicy == TensionPolicy.Maintain))("current policy prefers tension maintenance")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(cpGap.exists(_ >= 90) && breakReady)("timing choice concedes evaluation too early"),
+          Option.when(candidate.whyNot.exists(_.toLowerCase.contains("tempo")))("candidate rationale flags timing cost")
+        ).flatten,
+      baseConfidence = if breakReady then 0.56 else 0.41,
+      horizon = if breakReady then HypothesisHorizon.Short else HypothesisHorizon.Medium
+    )
+
+    val endgameClaim =
+      if data.phase == "endgame" || candidate.tags.contains(CandidateTag.Converting) then
+        NarrativeLexicon.pick(localSeed ^ 0x2f6e2b1, List(
+          s"$move influences the endgame trajectory by prioritizing activity over static structure.",
+          s"$move points the game toward a technical ending where active piece routes matter more than static shape.",
+          s"$move tilts the future ending toward dynamic conversion, with activity carrying more weight than fixed structure.",
+          s"$move frames the late phase as a technique problem, emphasizing active coordination over static anchors."
+        ))
+      else
+        NarrativeLexicon.pick(localSeed ^ 0x19f8b4ad, List(
+          s"$move keeps the endgame trajectory open, with the long-term outcome hinging on later simplification choices.",
+          s"$move defers the final trajectory choice, so the endgame direction depends on which simplification arrives first.",
+          s"$move preserves multiple late-game paths, and the practical result depends on future simplification timing.",
+          s"$move leaves the ending map unresolved for now, with long-term value decided by subsequent exchanges."
+        ))
+    val endgameDraft = HypothesisDraft(
+      axis = HypothesisAxis.EndgameTrajectory,
+      claim = endgameClaim,
+      supportSignals =
+        List(
+          Option.when(data.phase == "endgame")("position is already in endgame phase"),
+          Option.when(data.endgameFeatures.isDefined)("endgame feature signal is available"),
+          Option.when(candidate.tags.contains(CandidateTag.Converting))("candidate carries conversion tag")
+        ).flatten,
+      conflictSignals =
+        List(
+          Option.when(cpGap.exists(_ >= 120))("long-term trajectory is objectively inferior"),
+          Option.when(practicalLow == "complex" && data.phase == "endgame")("technical conversion remains unstable")
+        ).flatten,
+      baseConfidence = if data.endgameFeatures.isDefined then 0.52 else 0.4,
+      horizon = HypothesisHorizon.Long
+    )
+
+    List(
+      planDraft,
+      structureDraft,
+      initiativeDraft,
+      conversionDraft,
+      kingSafetyDraft,
+      pieceCoordDraft,
+      pawnBreakDraft,
+      endgameDraft
+    ).filter(d => d.claim.trim.nonEmpty)
+  }
+
+  private def rankHypothesisDraft(
+    draft: HypothesisDraft,
+    candidate: CandidateInfo,
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    rank: Option[Int],
+    cpGap: Option[Int]
+  ): Option[RankedHypothesis] = {
+    val isLong = draft.horizon == HypothesisHorizon.Long
+    val supportLimit = if isLong then 4 else 3
+    val conflictLimit = if isLong then 3 else 2
+    val support =
+      if isLong then
+        mergeSignalsPreferred(
+          preferred = probeSignals.longSupportSignals,
+          fallback = draft.supportSignals ++ probeSignals.supportSignals,
+          maxCount = supportLimit
+        )
+      else
+        normalizeSignals(draft.supportSignals ++ probeSignals.supportSignals, supportLimit)
+    val conflict =
+      if isLong then
+        mergeSignalsPreferred(
+          preferred = probeSignals.longConflictSignals,
+          fallback = draft.conflictSignals ++ probeSignals.conflictSignals,
+          maxCount = conflictLimit
+        )
+      else
+        normalizeSignals(draft.conflictSignals ++ probeSignals.conflictSignals, conflictLimit)
+    val supportWeight = support.size * 0.17
+    val conflictWeight = conflict.size * 0.16
+    val consistencyBonus =
+      probeSignals.consistencyBonus +
+        (if rank.contains(1) then 0.08 else if cpGap.exists(_ <= 35) then 0.04 else 0.0) +
+        (if candidate.whyNot.isEmpty then 0.03 else 0.0)
+    val contradictionPenalty =
+      probeSignals.contradictionPenalty +
+        (if cpGap.exists(_ >= 140) then 0.1 else 0.0) +
+        (if candidate.tags.contains(CandidateTag.TacticalGamble) then 0.05 else 0.0)
+    val axisBias =
+      draft.axis match
+        case HypothesisAxis.Plan             => -0.06
+        case HypothesisAxis.PieceCoordination => 0.06
+        case HypothesisAxis.PawnBreakTiming  => 0.06
+        case HypothesisAxis.KingSafety       => 0.05
+        case HypothesisAxis.Initiative       => 0.04
+        case HypothesisAxis.Structure        => 0.04
+        case HypothesisAxis.Conversion       => 0.03
+        case HypothesisAxis.EndgameTrajectory => 0.05
+    val longConfidenceAdjustment = if isLong then probeSignals.longConfidenceDelta else 0.0
+    val longGapAdjustment =
+      if isLong then
+        if cpGap.exists(_ >= 120) then -0.04
+        else if cpGap.exists(_ <= 40) then 0.02
+        else 0.0
+      else 0.0
+    val score =
+      supportWeight - conflictWeight + consistencyBonus - contradictionPenalty + axisBias +
+        longConfidenceAdjustment + longGapAdjustment
+    val confidence = clampConfidence(draft.baseConfidence + score)
+    val card =
+      HypothesisCard(
+        axis = draft.axis,
+        claim = draft.claim.trim,
+        supportSignals = support.take(supportLimit),
+        conflictSignals = conflict.take(conflictLimit),
+        confidence = confidence,
+        horizon = draft.horizon
+      )
+    Option.when(card.claim.nonEmpty) {
+      RankedHypothesis(card = card, score = score, family = hypothesisFamily(card))
+    }
+  }
+
+  private def clampConfidence(v: Double): Double =
+    Math.max(0.18, Math.min(0.93, v))
+
+  private def normalizeSignals(signals: List[String], maxCount: Int): List[String] =
+    signals.map(_.trim).filter(_.nonEmpty).distinct.take(maxCount)
+
+  private def mergeSignalsPreferred(
+    preferred: List[String],
+    fallback: List[String],
+    maxCount: Int
+  ): List[String] =
+    normalizeSignals(preferred ++ fallback, maxCount)
+
+  private def applyLongHorizonProtection(
+    selected: List[RankedHypothesis],
+    diversified: List[RankedHypothesis],
+    probeSignals: ProbeDetector.HypothesisVerificationSignals
+  ): List[RankedHypothesis] =
+    if probeSignals.longConfidenceDelta <= 0.0 then diversified
+    else if diversified.isEmpty || diversified.exists(_.card.horizon == HypothesisHorizon.Long) then diversified
+    else
+      val primary = diversified.head
+      val secondaryScore = diversified.drop(1).headOption.map(_.score).getOrElse(primary.score)
+      val threshold = secondaryScore - 0.05
+      val longPool =
+        selected.filter { rh =>
+          rh.card.horizon == HypothesisHorizon.Long &&
+          !diversified.contains(rh) &&
+          rh.score >= threshold
+        }
+      val promoted =
+        longPool.find(_.card.axis != primary.card.axis).orElse(longPool.headOption)
+      promoted match
+        case Some(longCandidate) => List(primary, longCandidate).take(2)
+        case None                => diversified
+
+  private def hypothesisFamily(card: HypothesisCard): String =
+    val stem = normalizeHypothesisStem(card.claim)
+    s"${card.axis.toString.toLowerCase}:$stem"
+
+  private def normalizeHypothesisStem(text: String): String =
+    Option(text).getOrElse("")
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(5)
+      .mkString(" ")
+
+  private def humanPlan(raw: String): String =
+    Option(raw).getOrElse("")
+      .replaceAll("""[_\-]+""", " ")
+      .trim
+      .toLowerCase match
+      case "" => "the current setup"
+      case x  => x
+
+  private def variedPlanScoreSignal(score: Double, seed: Int): String =
+    val s = f"$score%.2f"
+    NarrativeLexicon.pick(seed, List(
+      s"plan table confidence $s",
+      s"primary plan score sits at $s",
+      s"plan match score registers $s",
+      s"plan-priority signal is $s"
+    ))
+
+  private def variedEngineRankSignal(rank: Int, seed: Int): String =
+    NarrativeLexicon.pick(seed, List(
+      s"engine ordering keeps this at rank $rank",
+      s"sampled line rank is $rank",
+      s"engine list position is $rank",
+      s"principal-variation rank reads $rank"
+    ))
+
+  private def isLikelyPawnMove(move: String): Boolean =
+    Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")
+
+  private def isPieceMove(move: String): Boolean =
+    Option(move).getOrElse("").trim.headOption.exists(ch => "KQRBN".contains(ch))
+
+  private def knightRouteShift(main: CandidateInfo, alt: CandidateInfo): Boolean =
+    isKnightMove(main.move) &&
+      isKnightMove(alt.move) &&
+      main.uci.exists(mu => alt.uci.exists(au => !NarrativeUtils.uciEquivalent(mu, au)))
+
+  private def isKnightMove(move: String): Boolean =
+    Option(move).getOrElse("").trim.startsWith("N")
+
+  private def knightRouteShiftClaim(
+    main: Option[CandidateInfo],
+    candidate: CandidateInfo
+  ): Option[String] = {
+    val candUci = candidate.uci.getOrElse("")
+    main.flatMap(_.uci).flatMap { mainUci =>
+      Option.when(
+        isKnightMove(candidate.move) &&
+          main.exists(m => isKnightMove(m.move)) &&
+          !NarrativeUtils.uciEquivalent(mainUci, candUci)
+      ) {
+        val candDestFile = Option.when(candUci.length >= 4)(candUci.charAt(2))
+        val mainDestFile = Option.when(mainUci.length >= 4)(mainUci.charAt(2))
+        val effects = scala.collection.mutable.ListBuffer[String]()
+        if candDestFile.contains('e') || mainDestFile.contains('e') then effects += "c-pawn flexibility"
+        if List(candDestFile, mainDestFile).flatten.exists(f => f == 'c' || f == 'd' || f == 'e' || f == 'f') then
+          effects += "central tension timing"
+        if List(candDestFile, mainDestFile).flatten.exists(f => f == 'f' || f == 'g' || f == 'h') then
+          effects += "kingside safety tempo"
+        val effectText =
+          if effects.nonEmpty then effects.distinct.mkString(", ")
+          else "piece-coordination timing"
+        s"${candidate.move} selects a different knight route, shifting $effectText."
+      }
+    }
   }
 
   /**

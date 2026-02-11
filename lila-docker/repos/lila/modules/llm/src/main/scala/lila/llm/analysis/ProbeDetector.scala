@@ -17,6 +17,16 @@ object ProbeDetector:
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
 
+  case class HypothesisVerificationSignals(
+    supportSignals: List[String],
+    conflictSignals: List[String],
+    consistencyBonus: Double,
+    contradictionPenalty: Double,
+    longSupportSignals: List[String],
+    longConflictSignals: List[String],
+    longConfidenceDelta: Double
+  )
+
   private def planEvidenceProbes(
     fen: String,
     playedMove: Option[String],
@@ -484,6 +494,127 @@ object ProbeDetector:
           .take(MaxProbeRequests)
     }.getOrElse(Nil)
   }
+
+  /**
+   * Structured probe-derived signals for hypothesis validation/ranking.
+   * Reuses existing probe metadata without introducing opening-specific rules.
+   */
+  def hypothesisVerificationSignals(
+    candidate: CandidateInfo,
+    probeResults: List[ProbeResult],
+    probeRequests: List[ProbeRequest],
+    isWhiteToMove: Boolean
+  ): HypothesisVerificationSignals =
+    val candUciNorm = candidate.uci.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+
+    def moveMatches(raw: String): Boolean =
+      candUciNorm.exists(u => NarrativeUtils.uciEquivalent(u, raw))
+
+    val matchingRequests =
+      candUciNorm.toList.flatMap { _ =>
+        probeRequests.filter(req => req.moves.exists(moveMatches))
+      }
+
+    val matchingResults =
+      probeResults.filter(pr => pr.probedMove.exists(moveMatches))
+
+    val supportSignals = scala.collection.mutable.ListBuffer.empty[String]
+    val conflictSignals = scala.collection.mutable.ListBuffer.empty[String]
+    val longSupportSignals = scala.collection.mutable.ListBuffer.empty[String]
+    val longConflictSignals = scala.collection.mutable.ListBuffer.empty[String]
+
+    if matchingRequests.exists(_.purpose.contains("reply_multipv")) then
+      supportSignals += "reply multipv coverage collected"
+    if matchingRequests.exists(_.purpose.exists(_.contains("convert"))) then
+      supportSignals += "conversion branch checked by probe"
+    if matchingRequests.exists(_.purpose.exists(_.contains("tension"))) then
+      supportSignals += "tension-release branch was explicitly tested"
+
+    matchingResults.foreach { pr =>
+      val moverLoss = if isWhiteToMove then -pr.deltaVsBaseline else pr.deltaVsBaseline
+      val collapse = pr.l1Delta.flatMap(_.collapseReason).map(_.trim).filter(_.nonEmpty)
+      val collapseLower = collapse.map(_.toLowerCase)
+      val future = pr.futureSnapshot
+      val hasDelayedProgress =
+        future.exists(fs => fs.planPrereqsMet.nonEmpty || fs.resolvedThreatKinds.nonEmpty)
+      val hasTrajectoryIntent =
+        containsLongSignalKeyword(pr.purpose.getOrElse("")) ||
+          pr.keyMotifs.exists(containsLongSignalKeyword)
+      val onlyThreatGrowthWithoutProgress =
+        future.exists(fs =>
+          fs.newThreatKinds.nonEmpty &&
+            fs.planPrereqsMet.isEmpty &&
+            fs.resolvedThreatKinds.isEmpty
+        )
+      val collapseHasLongFailure =
+        collapseLower.exists { txt =>
+          txt.contains("structure") ||
+            txt.contains("king safety") ||
+            txt.contains("king") ||
+            txt.contains("exposed") ||
+            txt.contains("pawn")
+        }
+      if moverLoss <= 25 then
+        supportSignals += "probe keeps score near baseline"
+      else if moverLoss <= 80 then
+        supportSignals += "probe indicates a manageable practical concession"
+      else if moverLoss >= 200 then
+        val tail = collapse.map(r => s" ($r)").getOrElse("")
+        conflictSignals += s"probe refutes the move with a forcing swing$tail"
+      else if moverLoss >= 90 then
+        val tail = collapse.map(r => s" ($r)").getOrElse("")
+        conflictSignals += s"probe shows a clear practical concession$tail"
+
+      if pr.mate.exists(_ < 0) then
+        conflictSignals += "probe line allows a mate threat against the mover"
+      if pr.mate.exists(_ > 0) then
+        supportSignals += "probe line preserves mating pressure"
+
+      if (moverLoss <= 60 && hasDelayedProgress) || hasTrajectoryIntent then
+        if hasDelayedProgress then
+          longSupportSignals += "long-horizon probe confirms delayed plan prerequisites"
+        if hasTrajectoryIntent then
+          longSupportSignals += "long-horizon probe samples conversion and trajectory branches"
+
+      if moverLoss >= 90 then
+        longConflictSignals += "long-horizon probe shows the delayed plan is too costly"
+      if onlyThreatGrowthWithoutProgress then
+        longConflictSignals += "long-horizon probe adds threats without meeting plan prerequisites"
+      if collapseHasLongFailure then
+        val tail = collapse.map(r => s" ($r)").getOrElse("")
+        longConflictSignals += s"long-horizon probe indicates structural or king-safety collapse$tail"
+    }
+
+    val hasStrongConflict = conflictSignals.exists { s =>
+      s.contains("forcing swing") || s.contains("mate threat")
+    }
+    val longSupport = longSupportSignals.toList.distinct
+    val longConflict = longConflictSignals.toList.distinct
+    val longConfidenceDelta =
+      clampLongConfidenceDelta((longSupport.size * 0.07) - (longConflict.size * 0.09))
+    val consistencyBonus =
+      (if supportSignals.nonEmpty then 0.12 else 0.0) +
+        (if matchingRequests.nonEmpty && matchingResults.nonEmpty then 0.06 else 0.0)
+    val contradictionPenalty =
+      (if conflictSignals.nonEmpty then 0.10 else 0.0) +
+        (if hasStrongConflict then 0.12 else 0.0)
+
+    HypothesisVerificationSignals(
+      supportSignals = supportSignals.toList.distinct,
+      conflictSignals = conflictSignals.toList.distinct,
+      consistencyBonus = consistencyBonus,
+      contradictionPenalty = contradictionPenalty,
+      longSupportSignals = longSupport,
+      longConflictSignals = longConflict,
+      longConfidenceDelta = longConfidenceDelta
+    )
+
+  private def containsLongSignalKeyword(text: String): Boolean =
+    val lower = Option(text).getOrElse("").toLowerCase
+    List("convert", "endgame", "trajectory", "coordination").exists(lower.contains)
+
+  private def clampLongConfidenceDelta(v: Double): Double =
+    Math.max(-0.27, Math.min(0.21, v))
 
   private def stableRequestId(plan: Plan, fen: String): String =
     val slug = plan.name
