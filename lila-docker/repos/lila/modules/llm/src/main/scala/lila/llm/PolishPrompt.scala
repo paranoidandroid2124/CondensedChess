@@ -55,13 +55,17 @@ object PolishPrompt:
       |    - Endgame technique: be precise about winning/drawing techniques
       |    - Tactical sequences: walk through the forcing line step by step
        |11. AVOID template cadence:
-       |    - Do not reuse the same sentence stem repeatedly in one response
-       |      (e.g., "X is playable..., but ...", "Engine-wise..., ...")
-       |    - Rotate clause order and transition style while preserving all facts
-       |    - If two adjacent points share meaning, merge them instead of restating
+        |    - Do not reuse the same sentence stem repeatedly in one response
+        |      (e.g., "X is playable..., but ...", "Engine-wise..., ...")
+        |    - Rotate clause order and transition style while preserving all facts
+        |    - If two adjacent points share meaning, merge them instead of restating
+        |    - In A/B/C precedent comparisons, separate sentence roles:
+        |      A = move sequence/route, B = strategic transition, C = practical decision driver
+        |    - Limit repeated fixed prefixes ("Sequence focus", "Strategic shift", "Engine ...")
+        |      to at most once each within one response
        |12. PRECEDENT integrity:
-       |    - If the draft includes precedent references (players/year/event/line/result),
-       |      keep those facts exactly unchanged.
+        |    - If the draft includes precedent references (players/year/event/line/result),
+        |      keep those facts exactly unchanged.
        |13. NO fabricated historical references:
        |    - If no precedent reference exists in the draft, do not add one.
        |14. NO speculative precedent claims:

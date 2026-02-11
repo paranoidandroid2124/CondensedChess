@@ -77,6 +77,53 @@ class NarrativeLexiconQualityTest extends FunSuite:
     val text = NarrativeLexicon.getAnnotationPositive(bead = 5, playedSan = "Nf3").toLowerCase
     assert(!text.contains("excellent choice"))
 
+  test("annotation positive avoids legacy technical setup stem and rotates first words"):
+    val lines = (0 until 48).map { bead =>
+      NarrativeLexicon.getAnnotationPositive(bead = bead + 300, playedSan = "Nf3").toLowerCase
+    }
+    assert(lines.forall(!_.contains("retains a sound technical setup for the next phase")))
+    assert(lines.forall(!_.contains("technical setup for the next")))
+    val stems =
+      lines.map { line =>
+        line
+          .replaceAll("""\*\*[^*]+\*\*""", " ")
+          .replaceAll("""[^a-z\s]""", " ")
+          .replaceAll("""\s+""", " ")
+          .trim
+          .split(" ")
+          .filter(_.nonEmpty)
+          .take(4)
+          .mkString(" ")
+      }.toSet
+    assert(stems.size >= 4)
+
+  test("annotation/engine/alternative templates keep medium sentence rhythm"):
+    val positive = (0 until 32).map { bead =>
+      NarrativeLexicon.getAnnotationPositive(bead = bead + 500, playedSan = "Nf3")
+    }
+    val negative = (0 until 32).map { bead =>
+      NarrativeLexicon.getAnnotationNegative(bead = bead + 540, playedSan = "Qh5", bestSan = "Nf3", cpLoss = 160)
+    }
+    val engine = (0 until 32).flatMap { bead =>
+      NarrativeLexicon.getEngineRankContext(bead = bead + 580, rank = Some(2), bestSan = "Nf3", cpLoss = 45)
+    }
+    val alternatives = (0 until 32).map { bead =>
+      NarrativeLexicon.getAlternative(bead = bead + 620, move = "Nc3", whyNot = Some("it loosens central control"))
+    }
+    val sampled = positive ++ negative ++ engine ++ alternatives
+    val avgWords = sampled.map(wordCount).sum.toDouble / sampled.size
+    assert(avgWords >= 9.0, clue(f"avgWords=$avgWords%.2f"))
+
+  test("engine and alternative templates diversify first stems"):
+    val engineStems = (0 until 24).flatMap { bead =>
+      NarrativeLexicon.getEngineRankContext(bead = bead + 700, rank = Some(3), bestSan = "Nf3", cpLoss = 55)
+    }.map(firstStem).toSet
+    val altStems = (0 until 24).map { bead =>
+      NarrativeLexicon.getAlternative(bead = bead + 760, move = "Nc3", whyNot = Some("it loosens central control"))
+    }.map(firstStem).toSet
+    assert(engineStems.size >= 3, clue(engineStems.mkString(" | ")))
+    assert(altStems.size >= 4, clue(altStems.mkString(" | ")))
+
   test("opening lead rotates across adjacent plies with same seed"):
     val p20 = NarrativeLexicon.getOpening(
       bead = 77,
@@ -137,3 +184,75 @@ class NarrativeLexiconQualityTest extends FunSuite:
         .map(_.split(" ").take(6).mkString(" "))
         .toSet
     assert(normalized.size >= 4)
+
+  test("precedent comparison role lines avoid fixed legacy prefixes"):
+    val routeLines = (0 until 16).map { bead =>
+      NarrativeLexicon.getPrecedentRouteLine(
+        bead = bead + 41,
+        triggerMove = "Na4",
+        replyMove = Some("Rab1"),
+        pivotMove = Some("Rc5")
+      ).toLowerCase
+    }
+    val transitionLines = (0 until 16).map { bead =>
+      NarrativeLexicon.getPrecedentStrategicTransitionLine(
+        bead = bead + 59,
+        mechanism = "exchange timing that simplified into a cleaner structure"
+      ).toLowerCase
+    }
+    val driverLines = (0 until 16).map { bead =>
+      NarrativeLexicon.getPrecedentDecisionDriverLine(
+        bead = bead + 73,
+        mechanism = "initiative swings created by faster piece activity"
+      ).toLowerCase
+    }
+
+    assert(routeLines.forall(!_.contains("sequence focus")))
+    assert(transitionLines.forall(!_.contains("strategic shift:")))
+    assert(routeLines.exists(_.contains("route")))
+    assert(transitionLines.exists(_.contains("strateg")))
+    assert(driverLines.exists(l => l.contains("driver") || l.contains("hinged")))
+
+  test("precedent route role rotates wording"):
+    val stems = (0 until 20).map { bead =>
+      NarrativeLexicon.getPrecedentRouteLine(
+        bead = bead + 11,
+        triggerMove = "Na4",
+        replyMove = Some("Rab1"),
+        pivotMove = Some("Rc5")
+      )
+        .toLowerCase
+        .replaceAll("""[^a-z\s]""", " ")
+        .replaceAll("""\s+""", " ")
+        .trim
+        .split(" ")
+        .take(4)
+        .mkString(" ")
+    }.toSet
+    assert(stems.size >= 3)
+
+  test("engine rank context avoids legacy engine-wise phrasing"):
+    val text = NarrativeLexicon
+      .getEngineRankContext(bead = 29, rank = Some(2), bestSan = "Nf3", cpLoss = 45)
+      .getOrElse("")
+      .toLowerCase
+    assert(!text.contains("engine-wise"))
+
+  private def wordCount(text: String): Int =
+    text
+      .split("""\s+""")
+      .toList
+      .map(_.replaceAll("""[^A-Za-z0-9']""", ""))
+      .count(_.nonEmpty)
+
+  private def firstStem(text: String): String =
+    text
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(4)
+      .mkString(" ")

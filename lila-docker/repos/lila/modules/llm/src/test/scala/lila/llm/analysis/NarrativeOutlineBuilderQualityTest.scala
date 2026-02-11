@@ -109,6 +109,8 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
 
     assert(lower.contains("issue:"), clue(main))
     assert(lower.contains("consequence:"), clue(main))
+    val hasCausalBridge = List("therefore", "as a result", "for that reason", "so ").exists(lower.contains)
+    assert(hasCausalBridge, clue(main))
     assert(
       main.contains("Better is **Nf3**") || main.contains("Better is **f3**"),
       clue(main)
@@ -242,6 +244,7 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
 
     val hasNegativePolarity = List("blunder", "mistake", "inaccuracy").exists(lower.contains)
     assert(hasNegativePolarity, clue(main))
+    assert(!lower.contains("this is a mistake that gives the opponent easier play"), clue(main))
 
   test("concept-only motif does not force a prefix without corroboration"):
     val seed = baseContext(
@@ -454,12 +457,42 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     )
 
     val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
     val alternatives = outline.beats.find(_.kind == OutlineBeatKind.Alternatives).map(_.text).getOrElse("")
     val lower = alternatives.toLowerCase
+    val lines = alternatives.split("\n").toList.map(_.trim).filter(_.nonEmpty)
+    val mainStem =
+      main.toLowerCase
+        .replaceAll("""\*\*[^*]+\*\*""", " ")
+        .replaceAll("""\([^)]*\)""", " ")
+        .replaceAll("""[^a-z\s]""", " ")
+        .replaceAll("""\s+""", " ")
+        .trim
+        .split(" ")
+        .filter(_.nonEmpty)
+        .take(5)
+        .mkString(" ")
+    val stems = lines.map { line =>
+      line.toLowerCase
+        .replaceAll("""\*\*[^*]+\*\*""", " ")
+        .replaceAll("""\([^)]*\)""", " ")
+        .replaceAll("""[^a-z\s]""", " ")
+        .replaceAll("""\s+""", " ")
+        .trim
+        .split(" ")
+        .filter(_.nonEmpty)
+        .take(5)
+        .mkString(" ")
+    }
 
-    assert(lower.contains("engine"), clue(alternatives))
-    assert(lower.contains("3rd"), clue(alternatives))
     assert(alternatives.contains("**Nf3**"), clue(alternatives))
+    assertEquals(lines.size, 2, clue(alternatives))
+    assert(stems.distinct.size == stems.size, clue(alternatives))
+    assert(!stems.contains(mainStem), clue(s"main=$main\nalts=$alternatives"))
+    assert(lines.count(_.toLowerCase.startsWith("engine")) <= 1, clue(alternatives))
+    assert(!lower.contains("technical setup for the next"), clue(alternatives))
+    val strategicSignals = List("coordination", "initiative", "king safety", "tempo", "conversion", "practical burden")
+    assert(lines.forall(line => strategicSignals.exists(line.toLowerCase.contains)), clue(alternatives))
 
   test("opening branchpoint with valid sample game emits precedent snippet"):
     val openingRef = OpeningReference(
@@ -558,8 +591,49 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(lower.contains("a)"), clue(all))
     assert(lower.contains("b)"), clue(all))
     assert(lower.contains("c)"), clue(all))
-    assert(lower.contains("sequence focus"), clue(all))
-    assert(lower.contains("strategic shift"), clue(all))
+    val hasRouteRole =
+      List("line route:", "the branch follows", "the move path here is", "the practical route is")
+        .exists(lower.contains)
+    val hasTransitionRole =
+      List("strategically, the game turned", "strategic transition", "practical turning factor")
+        .exists(lower.contains)
+    val hasDriverRole =
+      List("decisive practical driver", "results hinged on", "key match result factor", "conversion quality")
+        .exists(lower.contains)
+    assert(hasRouteRole, clue(all))
+    assert(hasTransitionRole, clue(all))
+    assert(hasDriverRole, clue(all))
+    assert(occurrences(lower, "sequence focus") <= 1, clue(all))
+    assert(occurrences(lower, "strategic shift") <= 1, clue(all))
+
+  test("main move keeps fallback rhythm when no precedent game is available"):
+    val openingRef = OpeningReference(
+      eco = Some("D85"),
+      name = Some("Gruenfeld Defense"),
+      totalGames = 2500,
+      topMoves = List(ExplorerMove("b6a4", "Na4", 620, 260, 170, 190, 2740)),
+      sampleGames = Nil
+    )
+    val ctx = baseContext(
+      playedMove = Some("b6a4"),
+      playedSan = Some("Na4"),
+      threats = ThreatTable(Nil, Nil)
+    ).copy(
+      openingData = Some(openingRef),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Na4"), "Main line shifts", None))
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val main = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).getOrElse("")
+    val lower = main.toLowerCase
+    val hasFallbackRhythm = List(
+      "practical terms, the key is to keep plans coherent",
+      "position is decided more by accurate follow-up",
+      "practical move-order discipline is the main guide"
+    ).exists(lower.contains)
+    assert(hasFallbackRhythm, clue(main))
+    assert(!lower.contains("no data"), clue(main))
+    assert(!lower.contains("unavailable"), clue(main))
 
   test("precedent snippet is omitted when sample game lacks verification fields"):
     val openingRef = OpeningReference(
@@ -704,6 +778,10 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(lower.contains("magnus carlsen-alexander grischuk"), clue(main))
     assert(lower.contains("after 19... bxd4 20. nxd4 rc5 21. qe1"), clue(main))
     assert(lower.contains("turning point"), clue(main))
+
+  private def occurrences(haystack: String, needle: String): Int =
+    if needle.isEmpty then 0
+    else haystack.sliding(needle.length).count(_ == needle)
 
   private def baseContext(
     playedMove: Option[String],
