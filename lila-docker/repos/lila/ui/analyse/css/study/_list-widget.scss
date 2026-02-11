@@ -1,96 +1,122 @@
 .studies {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax($viewport-min-width, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem 0;
 
   @media (min-width: at-least($medium)) {
-    grid-template-columns: repeat(auto-fill, minmax(45ch, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   }
 
   .study {
     position: relative;
-    border: $border;
-    border-width: 0 1px 1px 0;
-    padding: 1em 0.6em 1em 1.3em;
+    background: rgba(22, 26, 37, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
     overflow: hidden;
-
-    @include transition;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 
     .overlay {
       @extend %link-overlay;
+      z-index: 2;
     }
 
     .body {
       display: flex;
-      font-size: 0.9em;
+      margin-top: 1.2rem;
+      gap: 1.5rem;
     }
 
-    .chapters {
-      flex: 0 0 58%;
-      max-width: 58%;
-    }
-
+    .chapters,
     .members {
-      flex: 0 0 40%;
-      max-width: 40%;
-      margin-inline-start: 2%;
+      flex: 1;
+      min-width: 0;
+
+      h3 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: 0.6rem;
+      }
     }
 
     li {
       @extend %nowrap-ellipsis;
-
-      color: $c-font-dim;
-      unicode-bidi: plaintext;
+      font-size: 0.85rem;
+      color: #94a3b8;
       display: flex;
+      align-items: center;
+      margin-bottom: 0.4rem;
 
       &::before {
-        color: $c-font-dimmer;
+        font-size: 0.9em;
+        margin-inline-end: 0.5rem;
+        opacity: 0.5;
       }
     }
 
     .top {
-      @extend %flex-center-nowrap, %break-word, %roboto;
+      display: flex;
+      align-items: flex-start;
       gap: 1rem;
 
       .study-name {
         @extend %nowrap-ellipsis;
-
-        font-size: 1.5em;
-        font-weight: normal;
-        color: $c-primary;
-        display: block;
-        margin: 0;
-        unicode-bidi: plaintext;
-      }
-
-      div {
-        overflow: hidden;
+        font-family: 'Inter', sans-serif;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #f1f5f9;
+        margin: 0 0 0.2rem 0;
+        transition: color 0.2s ease;
       }
 
       span {
-        font-size: 0.9rem;
-        display: block;
-        color: $c-font-dim;
+        font-size: 0.8rem;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
       }
 
       .study__icon {
         flex: 0 0 auto;
-        color: $m-primary_bg--mix-80;
-        font-size: 3em;
-        img {
-          margin: 0;
-        }
+        width: 48px;
+        height: 48px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: #6366f1;
+        border: 1px solid rgba(99, 102, 241, 0.2);
       }
 
       .private {
-        color: $c-brag;
+        color: #f59e0b;
       }
     }
 
     &:hover {
-      background: $m-primary_bg--mix-10;
+      transform: translateY(-4px);
+      background: rgba(22, 26, 37, 0.6);
+      border-color: rgba(99, 102, 241, 0.3);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(99, 102, 241, 0.1);
 
-      .top::before {
-        color: $c-link;
+      .study-name {
+        color: #818cf8;
+      }
+
+      .study__icon {
+        background: rgba(99, 102, 241, 0.2);
+        color: #fff;
+        box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
       }
     }
   }

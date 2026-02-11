@@ -63,13 +63,19 @@ export default function (pgn: string): Partial<AnalyseData> {
   const rules: Rules = parseVariant(headers.get('variant')) || 'chess';
   const variantKey: VariantKey = rulesToVariantKey[rules] || rules;
   const variantName = makeVariant(rules) || variantKey;
+  const openingName = headers.get('opening');
+  const eco = headers.get('eco');
   // TODO Improve types so that analysis data != game data
   return {
     game: {
       fen,
       initialFen: fen,
       id: 'synthetic',
-      opening: undefined, // TODO
+      opening: openingName ? {
+        name: openingName,
+        eco: eco || '?',
+        ply: 0,
+      } : undefined,
       player: start.turn,
       status: { id: 20, name: 'started' },
       turns: treeParts.length,
@@ -95,12 +101,11 @@ const rulesToVariantKey: { [key: string]: VariantKey } = {
 };
 
 export const renderPgnError = (error: string = '') =>
-  `PGN error: ${
-    {
-      [IllegalSetup.Empty]: 'empty board',
-      [IllegalSetup.OppositeCheck]: 'king in check',
-      [IllegalSetup.PawnsOnBackrank]: 'pawns on back rank',
-      [IllegalSetup.Kings]: 'king(s) missing',
-      [IllegalSetup.Variant]: 'invalid Variant header',
-    }[error] ?? error
+  `PGN error: ${{
+    [IllegalSetup.Empty]: 'empty board',
+    [IllegalSetup.OppositeCheck]: 'king in check',
+    [IllegalSetup.PawnsOnBackrank]: 'pawns on back rank',
+    [IllegalSetup.Kings]: 'king(s) missing',
+    [IllegalSetup.Variant]: 'invalid Variant header',
+  }[error] ?? error
   }`;

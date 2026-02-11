@@ -51,7 +51,7 @@ export interface ViewContext {
 
 export function viewContext(ctrl: AnalyseCtrl): ViewContext {
   const playerBars = undefined;
-  const gaugeOn = false;
+  const gaugeOn = ctrl.showGauge() && ctrl.isCevalAllowed();
   return {
     ctrl,
     concealOf: makeConcealOf(ctrl),
@@ -139,38 +139,44 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
   ]);
 }
 
-export function renderBoard({ ctrl, playerBars, playerStrips }: ViewContext, skipInfo = false) {
+export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewContext, skipInfo = false) {
   return hl(
-    'div.analyse__board.main-board',
-    {
-      hook:
-        'ontouchstart' in window || !storage.boolean('scrollMoves').getOrDefault(true)
-          ? undefined
-          : bindNonPassive(
-            'wheel',
-            stepwiseScroll((e: WheelEvent, scroll: boolean) => {
-              const target = e.target as HTMLElement;
-              if (
-                target.tagName !== 'PIECE' &&
-                target.tagName !== 'SQUARE' &&
-                target.tagName !== 'CG-BOARD'
-              )
-                return;
-              if (scroll) {
-                e.preventDefault();
-                if (e.deltaY > 0) control.next(ctrl);
-                else if (e.deltaY < 0) control.prev(ctrl);
-                ctrl.redraw();
-              }
-            }),
-          ),
-    },
+    'div.analyse__board-wrap',
     [
-      !skipInfo && playerStrips,
-      !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
-      chessground.render(ctrl),
-      !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
-      ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
+      gaugeOn && cevalView.renderHorizontalGauge(ctrl),
+      hl(
+        'div.analyse__board.main-board',
+        {
+          hook:
+            'ontouchstart' in window || !storage.boolean('scrollMoves').getOrDefault(true)
+              ? undefined
+              : bindNonPassive(
+                'wheel',
+                stepwiseScroll((e: WheelEvent, scroll: boolean) => {
+                  const target = e.target as HTMLElement;
+                  if (
+                    target.tagName !== 'PIECE' &&
+                    target.tagName !== 'SQUARE' &&
+                    target.tagName !== 'CG-BOARD'
+                  )
+                    return;
+                  if (scroll) {
+                    e.preventDefault();
+                    if (e.deltaY > 0) control.next(ctrl);
+                    else if (e.deltaY < 0) control.prev(ctrl);
+                    ctrl.redraw();
+                  }
+                }),
+              ),
+        },
+        [
+          !skipInfo && playerStrips,
+          !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
+          chessground.render(ctrl),
+          !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
+          ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
+        ],
+      ),
     ],
   );
 }

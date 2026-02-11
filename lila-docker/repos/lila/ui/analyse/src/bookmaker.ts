@@ -513,7 +513,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             try {
                 // Stage 1 (briefing) intentionally disabled: it was low-signal and caused flicker.
                 // Keep the panel responsive with a simple placeholder until the full commentary is ready.
-                show('<div class="bookmaker-thinking">Analyzing position…</div>');
+                show('<div class="bookmaker-thinking-hud glass"><div class="hud-aura"></div><div class="hud-content"><i data-icon="L" class="hud-icon pulse"></i><span class="hud-text">Analyzing strategic depth…</span></div><div class="hud-shimmer"></div></div>');
 
                 // Build analysis evidence for the move (or current position if no played move).
                 // Prefer existing ceval if it already has enough MultiPV; otherwise run a dedicated search.

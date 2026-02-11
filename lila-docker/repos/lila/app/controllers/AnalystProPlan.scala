@@ -8,8 +8,18 @@ final class AnalystProPlan(
     env: Env
 ) extends LilaController(env):
 
-  def index = Auth { ctx ?=> me ?=>
-    creditApi.remaining(me.userId.value).flatMap { status =>
-      Ok.page(views.llm.plan(me, status)(using ctx))
-    }
-  }
+  def index = Open: ctx ?=>
+    ctx.me match
+      case Some(me) =>
+        creditApi.remaining(me.userId.value).flatMap { status =>
+          Ok.page(views.llm.plan(Some(me), status)(using ctx))
+        }
+      case None =>
+        // Guest preview
+        val dummyStatus = lila.llm.CreditApi.CreditStatus(
+          remaining = 150,
+          maxCredits = 150,
+          tier = "free",
+          resetAt = java.time.Instant.now.plus(java.time.Duration.ofDays(30))
+        )
+        Ok.page(views.llm.plan(None, dummyStatus)(using ctx))

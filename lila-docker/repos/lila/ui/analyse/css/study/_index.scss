@@ -5,74 +5,86 @@ $top-height: 3.2rem;
 
 .study-index {
   .box__top {
-    @extend %flex-wrap;
-
-    align-items: start;
-
-    /* flex gutters, waiting for row-gap to be implemented for flexbox.  https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Mastering_Wrapping_of_Flex_Items#Creating_gutters_between_items */
-    margin: 0 0 -1em -1em;
-
-    > * {
-      margin: 0 0 1em 1em;
-    }
-
-    /* end of flex gutter hack */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
 
     h1 {
-      flex: 3 1 auto;
-      margin: 0 0 1rem 0;
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      flex: 1 1 auto;
     }
 
     .search {
-      flex: 3 1 auto;
+      flex: 1 1 300px;
       display: flex;
+      position: relative;
 
       input {
-        @extend %box-radius-inline-start;
+        background: rgba(15, 17, 23, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px 0 0 12px !important;
+        height: 3.5rem;
+        padding: 0 1.2rem;
+        color: #f1f5f9;
+        font-size: 1rem;
+        transition: all 0.2s ease;
 
-        flex: 1 1 100%;
-        height: $top-height;
-        font-size: 1.1em;
-
-        @media (min-width: at-least($xx-small)) {
-          font-size: 1.2em;
+        &:focus {
+          border-color: #6366f1 !important;
+          background: rgba(15, 17, 23, 0.8) !important;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
       }
 
       .button {
-        @extend %box-radius-inline-end;
+        border-radius: 0 12px 12px 0 !important;
+        height: 3.5rem;
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-inline-start: none;
+        padding: 0 1.5rem;
+        color: #94a3b8;
+        transition: all 0.2s ease;
 
-        padding: 0 1.5em;
-        border-inline-start: 0;
+        &:hover {
+          background: #334155;
+          color: #fff;
+        }
       }
     }
 
-    .mselect {
-      flex: 1 1 auto;
-      font-size: 1.2em;
+    .new-study {
+      .button {
+        height: 3.5rem;
+        padding: 0 1.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        font-weight: 600;
+        border: none;
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        transition: all 0.2s ease;
 
-      &__label::after {
-        margin-inline-start: 0.6em;
-      }
-    }
+        &::before {
+          font-size: 1.4rem;
+        }
 
-    .new-study,
-    .mselect {
-      height: $top-height;
-      margin-inline-start: 1rem;
-      white-space: nowrap;
-    }
-
-    .mselect__label {
-      height: 100%;
-    }
-
-    .new-study .button {
-      height: $top-height;
-      padding: 0 1em;
-
-      &::before {
-        font-size: 2em;
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+        }
       }
     }
   }

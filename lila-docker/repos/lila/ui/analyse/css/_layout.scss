@@ -30,6 +30,22 @@ body {
     }
   }
 
+  // Wrapper: horizontal eval gauge + board stacked vertically
+  &__board-wrap {
+    grid-area: board;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .eval-gauge--horizontal {
+      flex-shrink: 0;
+    }
+
+    .analyse__board {
+      flex: 1;
+    }
+  }
+
   &__tools {
     grid-area: tools;
   }

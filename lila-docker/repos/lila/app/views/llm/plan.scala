@@ -5,7 +5,7 @@ import lila.ui.Page
 
 object plan:
 
-  def apply(me: Me, status: lila.llm.CreditApi.CreditStatus)(using ctx: Context): Page =
+  def apply(me: Option[Me], status: lila.llm.CreditApi.CreditStatus)(using ctx: Context): Page =
     Page("Analyst Pro — Plans & Credits")
       .css("llm.plan")
       .wrap: _ =>
@@ -31,14 +31,18 @@ object plan:
                 )
               ),
               div(cls := "usage-details")(
-                h2("Your Credits"),
-                p(cls := "status")(s"${status.remaining} / ${status.maxCredits} remaining"),
+                h2(if me.isDefined then "Your Credits" else "Guest Preview"),
                 p(cls := "reset")(
-                  "Auto-reset on ",
-                  strong(status.resetAt.toString.take(10))
+                  "Next credit reset: ",
+                  strong(java.time.format.DateTimeFormatter.ofPattern("MMM d").withZone(java.time.ZoneOffset.UTC).format(status.resetAt))
                 ),
                 p(cls := "tier-tag " + status.tier.toLowerCase)(status.tier.toUpperCase + " TIER")
-              )
+              ),
+              Option.unless(me.isDefined):
+                div(cls := "guest-cta")(
+                  p("Sign up to start your journey."),
+                  a(href := routes.Auth.login.url, cls := "btn secondary")("Join Chesstory")
+                )
             )
           ),
           div(cls := "tiers-grid")(
@@ -57,7 +61,8 @@ object plan:
                 li(i(dataIcon := "L"), " Masters Database integration"),
                 li(cls := "disabled")(i(dataIcon := "L"), " Gemini AI Polish")
               ),
-              if status.tier == "free" then button(cls := "btn disabled")("Current Plan")
+              if me.isEmpty then a(href := routes.Auth.login.url, cls := "btn secondary")("Register Now")
+              else if status.tier == "free" then button(cls := "btn disabled")("Current Plan")
               else button(cls := "btn secondary")("Downgrade")
             ),
             // Pro Tier
@@ -77,7 +82,8 @@ object plan:
                 li(i(dataIcon := "L"), " Priority Analysis Pipeline")
               ),
               if status.tier == "pro" then button(cls := "btn disabled")("Current Plan")
-              else button(cls := "btn primary")("Upgrade to Pro")
+              else if me.isEmpty then a(href := routes.Auth.login.url, cls := "btn primary")("Get Pro Today")
+              else a(href := "/plan/checkout", cls := "btn primary")("Upgrade to Pro")
             )
           )
         )

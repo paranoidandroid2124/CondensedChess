@@ -15,7 +15,7 @@ $col2-panel-height: 240px;
     justify-content: center;
     align-items: flex-start;
 
-    > span {
+    >span {
       @extend %roboto, %box-radius-top, %page-text, %ellipsis;
 
       flex: 1 1 0;
@@ -31,6 +31,7 @@ $col2-panel-height: 240px;
       }
 
       border-bottom: 1px solid $c-border;
+
       &.active {
         border-color: $c-accent;
       }
@@ -48,7 +49,7 @@ $col2-panel-height: 240px;
       ---panel-height: #{$col2-panel-height};
     }
 
-    > div {
+    >div {
       height: var(---panel-height);
       display: none;
       text-align: left;
@@ -62,7 +63,7 @@ $col2-panel-height: 240px;
       margin-top: 60px;
     }
 
-    .analyse-hunter & > div {
+    .analyse-hunter &>div {
       display: block;
     }
   }
@@ -79,6 +80,7 @@ $col2-panel-height: 240px;
   .computer-analysis {
     position: relative;
   }
+
   .future-game-analysis {
     text-align: center;
     margin-top: 2em;
@@ -90,7 +92,7 @@ $col2-panel-height: 240px;
     font-size: 0.9em;
     padding: 0.5em 0.7em 0 0;
 
-    > div {
+    >div {
       @extend %flex-center-nowrap;
       gap: 1em;
 
@@ -117,17 +119,37 @@ $col2-panel-height: 240px;
 #movetimes-chart-container {
   width: 100%;
   height: var(---panel-height);
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0) 20%,
-    rgba(128, 128, 128, 0.2) 50%,
-    rgba(255, 255, 255, 0) 80%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(to bottom,
+      rgba(15, 17, 23, 0.6) 0%,
+      rgba(99, 102, 241, 0.05) 50%,
+      rgba(15, 17, 23, 0.6) 100%);
   overflow: hidden;
   position: relative;
   cursor: pointer;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+
+  /* Highcharts SVG Overrides */
+  .highcharts-background {
+    fill: transparent !important;
+  }
+
+  .highcharts-graph {
+    stroke: #6366f1 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.4));
+  }
+
+  .highcharts-area {
+    fill: rgba(99, 102, 241, 0.1) !important;
+  }
+
+  .highcharts-grid-line {
+    stroke: rgba(255, 255, 255, 0.03) !important;
+  }
+
+  .highcharts-tick {
+    stroke: rgba(255, 255, 255, 0.1) !important;
+  }
 }
 
 .game-duration {

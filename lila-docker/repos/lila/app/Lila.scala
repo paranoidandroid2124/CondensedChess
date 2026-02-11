@@ -146,6 +146,7 @@ final class LilaComponents(
   lazy val api = env.apiC
   lazy val llm: LlmController = wire[LlmController]
   lazy val plan: AnalystProPlan = wire[AnalystProPlan]
+  lazy val checkout: Checkout = wire[Checkout]
   // lazy val opening: Opening = wire[Opening]  // Deleted
 
   val router: Router = wire[_root_.router.router.Routes]
