@@ -1046,11 +1046,13 @@ object NarrativeLexicon {
           ))
         case HypothesisHorizon.Medium =>
           pick(bead ^ 0x4b4b4b4b, List(
-            s"Middlegame pressure around **$alternativeMove** is where this route usually separates from the main plan.",
-            s"Once development settles, **$alternativeMove** usually reveals a different practical path in the middlegame.",
-            s"The practical split is likely during the coming middlegame maneuvering after **$alternativeMove**.",
-            s"This contrast usually appears when **$alternativeMove** reaches concrete middlegame execution.",
-            s"From a medium-horizon view, **$alternativeMove** tends to separate from the main route when plans start clashing."
+            s"Middlegame pressure around **$alternativeMove** is where this route typically starts to separate from the main plan.",
+            s"As plans crystallize after **$alternativeMove**, the branch often requires a different coordination map.",
+            s"The key practical fork is likely during the first serious middlegame regrouping after **$alternativeMove**.",
+            s"This contrast tends to become visible when **$alternativeMove** reaches concrete middlegame commitments.",
+            s"From a medium-horizon view, **$alternativeMove** often diverges once plan commitments become irreversible.",
+            s"A few moves later, **$alternativeMove** often shifts which side controls the strategic transition.",
+            s"The real test for **$alternativeMove** appears when middlegame plans must be fixed to one structure."
           ))
         case HypothesisHorizon.Long =>
           pick(bead ^ 0x6c6c6c6c, List(
@@ -1085,7 +1087,9 @@ object NarrativeLexicon {
     pick(bead ^ 0x19f8b4ad, List(
       s"The decisive split is **$mainMove** versus **$altMove**: $axisContrast with $horizonBlend.",
       s"The key difference is between **$mainMove** and **$altMove**; the contrast is $axisContrast across $horizonBlend.",
-      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, with practical timing shaped by $horizonBlend."
+      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, and the timeline contrast is $horizonBlend.",
+      s"Practically, **$mainMove** versus **$altMove** comes down to $axisContrast, with a $horizonBlend split.",
+      s"At the critical decision point, **$mainMove** and **$altMove** separate along $axisContrast under $horizonBlend."
     ))
   }
 
