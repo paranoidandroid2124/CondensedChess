@@ -107,12 +107,3 @@ case class TargetsDelta(
 object TargetsDelta:
   given Reads[TargetsDelta] = Json.reads[TargetsDelta]
   given Writes[TargetsDelta] = Json.writes[TargetsDelta]
-
-/**
- * A container for a plan and its representative UCI moves.
- * Used by the ProbeDetector to identify which moves to probe for a specific plan.
- */
-case class PlanMoveMapping(
-  planId: String,
-  suggestedMoves: List[String] // List of UCI moves that characterize this plan
-)

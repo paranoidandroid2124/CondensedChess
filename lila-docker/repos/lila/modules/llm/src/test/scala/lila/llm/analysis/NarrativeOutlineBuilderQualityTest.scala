@@ -614,7 +614,15 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(
       altLines.forall { line =>
         val lower = line.toLowerCase
-        lower.contains("compared with") || lower.contains("relative to")
+        List(
+          "compared with",
+          "relative to",
+          "against the main move",
+          "versus the principal choice",
+          "in contrast to",
+          "set against",
+          "measured against"
+        ).exists(lower.contains)
       },
       clue(alternatives)
     )
@@ -737,6 +745,9 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assertEquals(lines.size, 2, clue(alternatives))
     assert(occurrences(lower, "delays the pawn break to improve support") <= 1, clue(alternatives))
     assert(lines.forall(_.contains("**")), clue(alternatives))
+    val comparisonPrefixes = lines.flatMap(extractComparisonPrefix)
+    assert(comparisonPrefixes.size >= 2, clue(alternatives))
+    assertEquals(comparisonPrefixes.distinct.size, comparisonPrefixes.size, clue(alternatives))
 
   test("opening branchpoint with valid sample game emits precedent snippet"):
     val openingRef = OpeningReference(
@@ -1148,6 +1159,37 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
       .filter(_.nonEmpty)
       .take(5)
       .mkString(" ")
+
+  private def firstFourStem(text: String): String =
+    text
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(4)
+      .mkString(" ")
+
+  private def extractComparisonPrefix(line: String): Option[String] =
+    val lower = line.toLowerCase
+    val markers = List(
+      "compared with",
+      "relative to",
+      "against the main move",
+      "versus the principal choice",
+      "in contrast to",
+      "set against",
+      "measured against"
+    )
+    markers.collectFirst {
+      case marker if lower.contains(marker) =>
+        val start = lower.indexOf(marker)
+        firstFourStem(lower.drop(start))
+    }.filter(_.nonEmpty)
 
   private def baseContext(
     playedMove: Option[String],

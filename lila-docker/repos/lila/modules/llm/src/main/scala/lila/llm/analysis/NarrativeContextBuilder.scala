@@ -1046,6 +1046,7 @@ object NarrativeContextBuilder:
           index = idx,
           rank = rankOpt,
           cpGap = cpGapOpt,
+          probeSignals = probeSignals,
           topCandidate = top,
           openingEvent = openingEvent
         )
@@ -1118,6 +1119,7 @@ object NarrativeContextBuilder:
     index: Int,
     rank: Option[Int],
     cpGap: Option[Int],
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
     topCandidate: Option[CandidateInfo],
     openingEvent: Option[OpeningEvent]
   ): List[HypothesisDraft] = {
@@ -1159,24 +1161,29 @@ object NarrativeContextBuilder:
     }
     val cpSignal = cpGap.map(g => s"engine gap ${f"${g.toDouble / 100}%.1f"} pawns")
     val localSeed = Math.abs(candidate.move.hashCode) ^ (index * 0x9e3779b9) ^ cpGap.getOrElse(0)
+    val strategicFrame = Option.when(data.phase.equalsIgnoreCase("middlegame"))(probeSignals.strategicFrame).flatten
     val planScoreSignal = data.plans.headOption.map(p => variedPlanScoreSignal(p.score, localSeed ^ 0x24d8f59c))
     val rankSignal = rank.map(r => variedEngineRankSignal(r, localSeed ^ 0x3b5296f1))
     val motifSignal = candidate.tacticEvidence.headOption.map(_.take(56))
     val planClaim =
-      if index == 0 then
-        NarrativeLexicon.pick(localSeed ^ 0x11f17f1d, List(
-          s"$move keeps ${humanPlan(planName)} as the central roadmap, limiting early strategic drift.",
-          s"$move anchors play around ${humanPlan(planName)}, so follow-up choices stay structurally coherent.",
-          s"$move preserves the ${humanPlan(planName)} framework and avoids premature route changes.",
-          s"$move keeps the position tied to ${humanPlan(planName)}, delaying unnecessary plan detours."
-        ))
-      else
-        NarrativeLexicon.pick(localSeed ^ 0x517cc1b7, List(
-          s"$move redirects play toward ${humanPlan(alignment)}, creating a new strategic branch from the main continuation.",
-          s"$move shifts the game into a ${humanPlan(alignment)} route, with a different plan cadence from the principal line.",
-          s"$move chooses a ${humanPlan(alignment)} channel instead of the principal structure-first continuation.",
-          s"$move reroutes priorities toward ${humanPlan(alignment)}, so the long plan map differs from the engine leader."
-        ))
+      strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Plan, move, frame, localSeed ^ 0x11f17f1d))
+        .getOrElse {
+          if index == 0 then
+            NarrativeLexicon.pick(localSeed ^ 0x11f17f1d, List(
+              s"$move keeps ${humanPlan(planName)} as the central roadmap, limiting early strategic drift.",
+              s"$move anchors play around ${humanPlan(planName)}, so follow-up choices stay structurally coherent.",
+              s"$move preserves the ${humanPlan(planName)} framework and avoids premature route changes.",
+              s"$move keeps the position tied to ${humanPlan(planName)}, delaying unnecessary plan detours."
+            ))
+          else
+            NarrativeLexicon.pick(localSeed ^ 0x517cc1b7, List(
+              s"$move redirects play toward ${humanPlan(alignment)}, creating a new strategic branch from the main continuation.",
+              s"$move shifts the game into a ${humanPlan(alignment)} route, with a different plan cadence from the principal line.",
+              s"$move chooses a ${humanPlan(alignment)} channel instead of the principal structure-first continuation.",
+              s"$move reroutes priorities toward ${humanPlan(alignment)}, so the long plan map differs from the engine leader."
+            ))
+        }
 
     val planDraft = HypothesisDraft(
       axis = HypothesisAxis.Plan,
@@ -1229,20 +1236,24 @@ object NarrativeContextBuilder:
     )
 
     val initiativeClaim =
-      if candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || practicalLow == "complex" then
-        NarrativeLexicon.pick(localSeed ^ 0x4f6cdd1d, List(
-          s"$move pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
-          s"$move seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
-          s"$move is an initiative bid: concrete timing is required before the opponent consolidates.",
-          s"$move keeps the initiative race open, with little margin for imprecise sequencing."
-        ))
-      else
-        NarrativeLexicon.pick(localSeed ^ 0x63d5a6f1, List(
-          s"$move concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
-          s"$move trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
-          s"$move prioritizes stability over momentum, making initiative handoff the central practical risk.",
-          s"$move slows the initiative race deliberately, betting that the resulting position is easier to control."
-        ))
+      strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Initiative, move, frame, localSeed ^ 0x4f6cdd1d))
+        .getOrElse {
+          if candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || practicalLow == "complex" then
+            NarrativeLexicon.pick(localSeed ^ 0x4f6cdd1d, List(
+              s"$move pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
+              s"$move seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
+              s"$move is an initiative bid: concrete timing is required before the opponent consolidates.",
+              s"$move keeps the initiative race open, with little margin for imprecise sequencing."
+            ))
+          else
+            NarrativeLexicon.pick(localSeed ^ 0x63d5a6f1, List(
+              s"$move concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
+              s"$move trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
+              s"$move prioritizes stability over momentum, making initiative handoff the central practical risk.",
+              s"$move slows the initiative race deliberately, betting that the resulting position is easier to control."
+            ))
+        }
 
     val initiativeDraft = HypothesisDraft(
       axis = HypothesisAxis.Initiative,
@@ -1324,33 +1335,39 @@ object NarrativeContextBuilder:
       horizon = HypothesisHorizon.Medium
     )
 
+    val pawnBreakClaim =
+      strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.PawnBreakTiming, move, frame, localSeed ^ 0x1f123bb5))
+        .getOrElse {
+          if breakReady && isLikelyPawnMove(move) then
+            NarrativeLexicon.pick(localSeed ^ 0x1f123bb5, List(
+              s"$move clarifies pawn tension immediately, preferring direct break resolution over extra preparation.",
+              s"$move commits to immediate break clarification, accepting concrete consequences now instead of waiting.",
+              s"$move resolves the pawn-break question at once, choosing concrete timing over additional setup.",
+              s"$move forces the break decision now, so follow-up accuracy matters more than setup completeness.",
+              s"$move brings pawn tension to a concrete verdict immediately rather than extending preparation."
+            ))
+          else if breakReady then
+            NarrativeLexicon.pick(localSeed ^ 0x4e67c6a7, List(
+              s"$move keeps the break in reserve and improves support before committing.",
+              s"$move postpones the break by one phase, aiming for stronger piece support first.",
+              s"$move holds pawn tension for now, preparing better support before release.",
+              s"$move delays direct break action so supporting pieces can coordinate first.",
+              s"$move keeps break timing deferred, prioritizing support links before commitment."
+            ))
+          else
+            NarrativeLexicon.pick(localSeed ^ 0x3c79ac49, List(
+              s"$move keeps break timing flexible, so central tension can be revisited under better conditions.",
+              s"$move preserves pawn-break optionality, leaving central tension unresolved for a later moment.",
+              s"$move avoids forcing a break now, keeping the central lever available for a better window.",
+              s"$move keeps the break decision open, waiting for clearer support and fewer tactical liabilities.",
+              s"$move maintains tension without immediate release, aiming to choose the break after more development."
+            ))
+        }
+
     val pawnBreakDraft = HypothesisDraft(
       axis = HypothesisAxis.PawnBreakTiming,
-      claim =
-        if breakReady && isLikelyPawnMove(move) then
-          NarrativeLexicon.pick(localSeed ^ 0x1f123bb5, List(
-            s"$move clarifies pawn tension immediately, preferring direct break resolution over extra preparation.",
-            s"$move commits to immediate break clarification, accepting concrete consequences now instead of waiting.",
-            s"$move resolves the pawn-break question at once, choosing concrete timing over additional setup.",
-            s"$move forces the break decision now, so follow-up accuracy matters more than setup completeness.",
-            s"$move brings pawn tension to a concrete verdict immediately rather than extending preparation."
-          ))
-        else if breakReady then
-          NarrativeLexicon.pick(localSeed ^ 0x4e67c6a7, List(
-            s"$move keeps the break in reserve and improves support before committing.",
-            s"$move postpones the break by one phase, aiming for stronger piece support first.",
-            s"$move holds pawn tension for now, preparing better support before release.",
-            s"$move delays direct break action so supporting pieces can coordinate first.",
-            s"$move keeps break timing deferred, prioritizing support links before commitment."
-          ))
-        else
-          NarrativeLexicon.pick(localSeed ^ 0x3c79ac49, List(
-            s"$move keeps break timing flexible, so central tension can be revisited under better conditions.",
-            s"$move preserves pawn-break optionality, leaving central tension unresolved for a later moment.",
-            s"$move avoids forcing a break now, keeping the central lever available for a better window.",
-            s"$move keeps the break decision open, waiting for clearer support and fewer tactical liabilities.",
-            s"$move maintains tension without immediate release, aiming to choose the break after more development."
-          )),
+      claim = pawnBreakClaim,
       supportSignals =
         List(
           breakFile.map(f => s"$f-file break is available"),
@@ -1410,6 +1427,92 @@ object NarrativeContextBuilder:
       endgameDraft
     ).filter(d => d.claim.trim.nonEmpty)
   }
+
+  private def strategicMiddlegameClaim(
+    axis: HypothesisAxis,
+    move: String,
+    frame: ProbeDetector.StrategicFrame,
+    seed: Int
+  ): String = {
+    val focus = strategicAxisFocus(axis)
+    val causeSentence =
+      frame.cause match
+        case "near-baseline" =>
+          NarrativeLexicon.pick(seed ^ 0x11f17f1d, List(
+            s"Probe evidence keeps **$move** near baseline, so $focus remains a viable route.",
+            s"With **$move**, probe feedback stays close to baseline and keeps $focus practical.",
+            s"Baseline proximity in probe lines suggests **$move** can sustain $focus."
+          ))
+        case "manageable-concession" =>
+          NarrativeLexicon.pick(seed ^ 0x517cc1b7, List(
+            s"Probe data shows **$move** as a manageable concession, so $focus timing must stay accurate.",
+            s"A manageable probe concession appears after **$move**, which makes $focus sequencing critical.",
+            s"Probe checks rate **$move** as manageable, but $focus cannot afford drift."
+          ))
+        case _ =>
+          NarrativeLexicon.pick(seed ^ 0x4f6cdd1d, List(
+            s"Probe data marks **$move** as a forcing swing, so $focus errors are punished immediately.",
+            s"A forcing swing appears after **$move** in probe lines, narrowing the $focus margin for error.",
+            s"Probe checks flag **$move** as a forcing swing, so $focus precision is mandatory."
+          ))
+
+    val consequenceSentence =
+      frame.consequence match
+        case "structural-collapse" =>
+          NarrativeLexicon.pick(seed ^ 0x63d5a6f1, List(
+            s"The consequence is rapid structural concession, and $focus options become harder to recover.",
+            s"Under pressure, structure can collapse and $focus plans lose flexibility.",
+            s"Once structure loosens, $focus choices become reactive rather than planned."
+          ))
+        case "king-safety-exposure" =>
+          NarrativeLexicon.pick(seed ^ 0x5f356495, List(
+            s"The consequence is king-safety fragility, and $focus decisions must prioritize defensive coordination.",
+            s"King exposure increases practical risk and forces $focus choices into defensive mode.",
+            s"With king safety exposed, $focus plans are constrained by immediate defensive duties."
+          ))
+        case "conversion-cost" =>
+          NarrativeLexicon.pick(seed ^ 0x6c6c6c6c, List(
+            s"The consequence is higher conversion cost, so $focus gains are harder to convert cleanly.",
+            s"This route raises conversion cost, and $focus edges are difficult to cash in.",
+            s"Technical conversion gets heavier, making $focus execution less efficient."
+          ))
+        case _ =>
+          NarrativeLexicon.pick(seed ^ 0x2f6e2b1, List(
+            s"The consequence is a quick initiative flip, so $focus handling becomes reactive.",
+            s"Initiative handoff risk rises, and $focus planning must absorb counterplay.",
+            s"Momentum can transfer in one sequence, forcing $focus into damage control."
+          ))
+
+    val turningPointSentence =
+      frame.turningPoint match
+        case "immediate-sequence" =>
+          NarrativeLexicon.pick(seed ^ 0x19f8b4ad, List(
+            "The critical test comes in the next forcing sequence.",
+            "Immediate tactical sequencing will decide whether the plan survives.",
+            "The route is judged in the very next concrete sequence."
+          ))
+        case "simplification-transition" =>
+          NarrativeLexicon.pick(seed ^ 0x7f4a7c15, List(
+            "The turning point arrives at the next simplification transition.",
+            "Once exchanges begin, conversion timing determines whether the plan remains sound.",
+            "Simplification choices are the key checkpoint for this route."
+          ))
+        case _ =>
+          NarrativeLexicon.pick(seed ^ 0x2a2a2a2a, List(
+            "The first serious middlegame regrouping decides the practical direction.",
+            "This plan is tested at the next middlegame reorganization.",
+            "The route is decided when middlegame regrouping commits both sides."
+          ))
+
+    s"$causeSentence $consequenceSentence $turningPointSentence"
+  }
+
+  private def strategicAxisFocus(axis: HypothesisAxis): String =
+    axis match
+      case HypothesisAxis.Plan            => "plan direction"
+      case HypothesisAxis.Initiative      => "initiative control"
+      case HypothesisAxis.PawnBreakTiming => "pawn-break timing"
+      case _                              => "strategic coordination"
 
   private def rankHypothesisDraft(
     draft: HypothesisDraft,

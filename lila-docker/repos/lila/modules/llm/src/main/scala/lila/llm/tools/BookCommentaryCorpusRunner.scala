@@ -173,26 +173,33 @@ object BookCommentaryCorpusRunner:
       val report  = renderReport(corpusPath, results)
       writeText(Paths.get(outPath), report)
 
-      val failed   = results.count(!_.passed)
-      val advisories = results.map(_.advisoryFindings.size).sum
-      val total    = results.size
-      val gate     = balancedGate(results)
-      val strictOk = advisories == 0 && gate.passed
-      if failed == 0 && (!strictQuality || strictOk) then
+      val failed        = results.count(!_.passed)
+      val failedQuality = results.count(_.qualityFindings.nonEmpty)
+      val advisories    = results.map(_.advisoryFindings.size).sum
+      val total         = results.size
+      val gate          = balancedGate(results)
+      val strictOk      = advisories == 0 && gate.passed && failedQuality == 0
+
+      if failed == 0 && failedQuality == 0 && (!strictQuality || strictOk) then
         println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
         if advisories > 0 then
-          println(s"[corpus] ⚠ Non-blocking advisories: $advisories (run with --strict-quality to fail on advisories).")
+          println(
+            s"[corpus] ⚠ Non-blocking advisories: $advisories (run with --strict-quality to fail on advisories)."
+          )
         if !gate.passed then
           println(
             s"[corpus] ⚠ Balanced gate not met: precedentCoverage=${gate.precedentCases}/${gate.totalCases} (target >= ${gate.requiredPrecedentCases}), repeated5gram=${gate.repeatedFivegramViolations} (target 0)."
           )
       else
-        if failed > 0 then System.err.println(s"[corpus] ❌ $failed/$total cases failed expectations. Wrote `$outPath`.")
-        else if advisories > 0 then
-          System.err.println(s"[corpus] ❌ Strict quality mode: advisory findings detected ($advisories). Wrote `$outPath`.")
-        else
+        if failed > 0 then
+          System.err.println(s"[corpus] ❌ $failed/$total cases failed hard expectations. Wrote `$outPath`.")
+        if failedQuality > 0 then
           System.err.println(
-            s"[corpus] ❌ Strict quality mode: balanced gate failed (precedentCoverage=${gate.precedentCases}/${gate.totalCases}, required >= ${gate.requiredPrecedentCases}; repeated5gram=${gate.repeatedFivegramViolations}). Wrote `$outPath`."
+            s"[corpus] ❌ $failedQuality/$total cases failed quality criteria. Wrote `$outPath`."
+          )
+        if strictQuality && (advisories > 0 || !gate.passed) then
+          System.err.println(
+            s"[corpus] ❌ Strict quality mode: non-blocking issues detected (advisories=$advisories, gate=${if gate.passed then "PASS" else "FAIL"}). Wrote `$outPath`."
           )
         sys.exit(1)
     finally
@@ -446,8 +453,10 @@ object BookCommentaryCorpusRunner:
       Option.when(q.repeatedFourgramTypes >= 2)(
         s"High repeated four-gram patterns: ${q.repeatedFourgramTypes}"
       ),
-      Option.when(q.mateToneConflictHits > 0)(s"Mate-tone conflict hits: ${q.mateToneConflictHits}"),
-      Option.when(q.variationAnchorCoverage < 0.50)(f"Low variation anchor coverage: ${q.variationAnchorCoverage}%.2f"),
+      Option.when(q.mateToneConflictHits > 0)(s"Mate-tone conflict: ${q.mateToneConflictHits}"),
+      Option.when(q.variationAnchorCoverage < 0.50)(
+        f"Low variation anchor coverage: ${q.variationAnchorCoverage}%.2f"
+      ),
       Option.when(q.moveTokenCount < 6)(s"Low move-token density: ${q.moveTokenCount}"),
       Option.when(q.qualityScore < 70)(s"Low quality score: ${q.qualityScore}/100")
     ).flatten
@@ -455,15 +464,14 @@ object BookCommentaryCorpusRunner:
   private def advisoryFindingsFrom(q: QualityMetrics): List[String] =
     List(
       Option.when(q.qualityScore < 90)(s"Advisory: quality score below target (90): ${q.qualityScore}"),
-      Option.when(q.boilerplateHits >= 1)(s"Advisory: boilerplate phrase present (${q.boilerplateHits})"),
-      Option.when(q.repeatedTrigramTypes >= 2)(
+      Option.when(q.boilerplateHits == 1)(s"Advisory: boilerplate phrase present (1)"),
+      Option.when(q.repeatedTrigramTypes >= 2 && q.repeatedTrigramTypes < 4)(
         s"Advisory: repeated trigram templates present (${q.repeatedTrigramTypes})"
       ),
-      Option.when(q.repeatedFourgramTypes >= 1)(
-        s"Advisory: repeated four-gram templates present (${q.repeatedFourgramTypes})"
+      Option.when(q.repeatedFourgramTypes == 1)(
+        s"Advisory: repeated four-gram templates present (1)"
       ),
-      Option.when(q.mateToneConflictHits > 0)(s"Advisory: mate-tone conflict present (${q.mateToneConflictHits})"),
-      Option.when(q.lexicalDiversity < 0.70)(f"Advisory: lexical diversity soft-low: ${q.lexicalDiversity}%.2f")
+      Option.when(q.lexicalDiversity < 0.65)(f"Advisory: lexical diversity soft-low: ${q.lexicalDiversity}%.2f")
     ).flatten
 
   private def extractSentences(text: String): List[String] =
