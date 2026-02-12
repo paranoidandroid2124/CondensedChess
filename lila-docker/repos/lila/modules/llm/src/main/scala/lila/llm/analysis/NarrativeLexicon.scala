@@ -883,7 +883,10 @@ object NarrativeLexicon {
     val lensSentence = pick(bead ^ 0x6d2b79f5, List(
       s"The explanatory lens is $axisText with $horizonText consequences.",
       s"Interpret this through $axisText, where $horizonText tradeoffs dominate.",
-      s"The underlying axis is $axisText, and the payoff window is $horizonText."
+      s"The underlying axis is $axisText, and the payoff window is $horizonText.",
+      s"Strategic weight shifts toward $axisText on a $horizonText timeframe.",
+      s"Analysis focuses on $axisText within a $horizonText perspective.",
+      s"The framing centers on $axisText, governed by $horizonText dynamics."
     ))
     s"$lead $clean $lensSentence"
   }
@@ -910,13 +913,17 @@ object NarrativeLexicon {
         s"Validation evidence includes ${support.mkString(" and ")}.",
         s"Validation evidence points to ${support.mkString(" and ")}.",
         s"Validation lines up with ${support.mkString(" and ")}.",
-        s"This read is validated by ${support.mkString(" plus ")}."
+        s"This read is validated by ${support.mkString(" plus ")}.",
+        s"The evidence, specifically ${support.mkString(" and ")}, backs the claim.",
+        s"Confirmation comes from ${support.mkString(" and ")}."
       ))
     else if support.nonEmpty && conflict.nonEmpty then
       pick(bead ^ 0x6d2b79f5, List(
         s"Validation is mixed: ${support.mkString(" and ")} support the idea, but ${conflict.head} keeps caution necessary.",
         s"Evidence supports the read via ${support.mkString(" and ")}, yet ${conflict.head} limits certainty.",
-        s"Verification remains conditional: ${support.mkString(" and ")} back the claim, while ${conflict.head} is unresolved."
+        s"Verification remains conditional: ${support.mkString(" and ")} back the claim, while ${conflict.head} is unresolved.",
+        s"The support from ${support.mkString(" and ")} is tempered by ${conflict.head}.",
+        s"While ${support.mkString(" and ")} align with the read, ${conflict.head} suggests a more cautious view."
       ))
     else if confidence < 0.55 then
       pick(bead ^ 0x11f17f1d, List(
@@ -940,13 +947,30 @@ object NarrativeLexicon {
   ): String = {
     val clean = claim.trim.stripSuffix(".")
     val toneOptions =
-      if confidence >= 0.72 then "A supporting hypothesis is that"
-      else if confidence >= 0.52 then "A secondary read is that"
-      else "A weaker supporting idea is that"
+      if confidence >= 0.72 then pick(bead ^ 0x12345678, List(
+        "A supporting hypothesis is that",
+        "A corroborating idea is that",
+        "Supporting that, we see that",
+        "Another key pillar is that"
+      ))
+      else if confidence >= 0.52 then pick(bead ^ 0x23456789, List(
+        "A secondary read is that",
+        "Collateral evidence suggests that",
+        "A contributing factor is that",
+        "A parallel hypothesis is that"
+      ))
+      else pick(bead ^ 0x34567890, List(
+        "A weaker supporting idea is that",
+        "A peripheral consideration is that",
+        "A minor supporting thread is that"
+      ))
     val axisText = axisLabel(axis, bead ^ 0x27d4eb2f)
     val tail = pick(bead ^ 0x11f17f1d, List(
       s"This reinforces the $axisText perspective.",
-      s"It supports the $axisText reading."
+      s"It supports the $axisText reading.",
+      s"This adds weight to the $axisText interpretation.",
+      s"The $axisText angle is bolstered by this idea.",
+      s"It further cements the $axisText focus."
     ))
     s"$toneOptions $clean $tail"
   }
@@ -964,15 +988,19 @@ object NarrativeLexicon {
           List(
             s"In practical terms, the split should appear in the next few moves, especially around $axisText handling.",
             s"Short-horizon test: the next move-order around $axisText will determine whether **$move** holds up.",
-            s"Immediate practical impact is expected: $axisText timing in the next sequence is critical.",
-            s"Short-term handling is decisive here, because $axisText errors are punished quickly."
+            s"Immediate practical impact is expected: $axisText in the next sequence is critical.",
+            s"Short-term handling is decisive here, because $axisText errors are punished quickly.",
+            s"The tactical immediate future revolves around $axisText accuracy.",
+            s"Within a few moves, $axisText choices will separate the outcomes."
           )
         case HypothesisHorizon.Medium =>
           List(
             s"Practically, this should influence middlegame choices where $axisText commitments are tested.",
             s"The medium-horizon task is keeping $axisText synchronized before the position simplifies.",
             s"After development, $axisText decisions are likely to determine whether **$move** remains robust.",
-            s"The practical burden appears in the middlegame phase, once $axisText tradeoffs become concrete."
+            s"The practical burden appears in the middlegame phase, once $axisText tradeoffs become concrete.",
+            s"Middlegame stability is tied to how $axisText is handled in the next regrouping.",
+            s"Strategic balance depends on $axisText management as the game transitions."
           )
         case HypothesisHorizon.Long =>
           List(
@@ -1052,13 +1080,17 @@ object NarrativeLexicon {
             s"This contrast tends to become visible when **$alternativeMove** reaches concrete middlegame commitments.",
             s"From a medium-horizon view, **$alternativeMove** often diverges once plan commitments become irreversible.",
             s"A few moves later, **$alternativeMove** often shifts which side controls the strategic transition.",
-            s"The real test for **$alternativeMove** appears when middlegame plans must be fixed to one structure."
+            s"The real test for **$alternativeMove** appears when middlegame plans have to be fixed to one structure.",
+            s"Middlegame stability around **$alternativeMove** is tested as the structural tension resolves.",
+            s"The practical split at **$alternativeMove** tends to widen once transition plans become concrete."
           )
         case HypothesisHorizon.Long =>
           List(
             s"The divergence after **$alternativeMove** is expected to surface later in the endgame trajectory.",
             s"With **$alternativeMove**, this split should reappear in long-term conversion phases.",
-            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique."
+            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique.",
+            s"Long-range consequences of **$alternativeMove** often surface only after structural simplification.",
+            s"The full strategic weight of **$alternativeMove** is felt during the final technical phase."
           )
     val wrappers = List(
       "Compared with",
