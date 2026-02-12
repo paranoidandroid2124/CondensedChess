@@ -46,7 +46,8 @@ object NarrativeOutlineBuilder:
     year: Int,
     game: ExplorerGame,
     overlap: Int,
-    metadataScore: Int
+    metadataScore: Int,
+    sequenceKey: String
   )
   private case class CrossBeatRepetitionState(
     usedStems: scala.collection.mutable.Set[String],
@@ -806,10 +807,18 @@ object NarrativeOutlineBuilder:
     ))
     val usedStems = scala.collection.mutable.HashSet.empty[String]
     val prefixCounts = scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
+    val seenSequenceKeys = scala.collection.mutable.HashSet.empty[String]
+    val mechanismUseCounts = scala.collection.mutable.HashMap.empty[PrecedentMechanism, Int].withDefaultValue(0)
 
     val items = rankedWithSignals.zipWithIndex.map { case ((line, signal), idx) =>
       val label = ('A' + idx).toChar
       val itemSeed = bead ^ Math.abs(line.text.hashCode) ^ ((idx + 1) * 0x9e3779b9)
+      val hasRepeatedSequence = line.sequenceKey.nonEmpty && seenSequenceKeys.contains(line.sequenceKey)
+      if line.sequenceKey.nonEmpty then seenSequenceKeys += line.sequenceKey
+      val baseLineText =
+        if hasRepeatedSequence then
+          formatOpeningPrecedentRepeatedSnippet(line.game, itemSeed).getOrElse(line.text).trim
+        else line.text.trim
       val role =
         idx match
           case 0 => PrecedentRole.Sequence
@@ -827,19 +836,25 @@ object NarrativeOutlineBuilder:
               )
             }
           case PrecedentRole.StrategicTransition =>
-            val mechanism = precedentMechanismLabel(s.mechanism)
+            val mechanismOccurrence = mechanismUseCounts(s.mechanism)
+            mechanismUseCounts.update(s.mechanism, mechanismOccurrence + 1)
+            val mechanismLabel =
+              precedentMechanismLabel(s.mechanism, itemSeed ^ 0x7f4a7c15, mechanismOccurrence)
             (0 until 4).toList.map { step =>
               NarrativeLexicon.getPrecedentStrategicTransitionLine(
                 bead = itemSeed ^ (step * 0x7f4a7c15),
-                mechanism = mechanism
+                mechanism = mechanismLabel
               )
             }
           case PrecedentRole.DecisionDriver =>
-            val mechanism = precedentMechanismLabel(s.mechanism)
+            val mechanismOccurrence = mechanismUseCounts(s.mechanism)
+            mechanismUseCounts.update(s.mechanism, mechanismOccurrence + 1)
+            val mechanismLabel =
+              precedentMechanismLabel(s.mechanism, itemSeed ^ 0x6d2b79f5, mechanismOccurrence)
             (0 until 4).toList.map { step =>
               NarrativeLexicon.getPrecedentDecisionDriverLine(
                 bead = itemSeed ^ (step * 0x6d2b79f5),
-                mechanism = mechanism
+                mechanism = mechanismLabel
               )
             }
       }.map(_.trim).filter(_.nonEmpty).distinct
@@ -856,7 +871,7 @@ object NarrativeOutlineBuilder:
           trackTemplateUsage(selected, usedStems, prefixCounts)
           selected
 
-      val parts = List(line.text.trim, roleLine).filter(_.nonEmpty)
+      val parts = List(baseLineText, roleLine).filter(_.nonEmpty)
       s"$label) ${parts.mkString(" ")}"
     }
 
@@ -879,18 +894,57 @@ object NarrativeOutlineBuilder:
 
     List(header, items.mkString(" "), summary).filter(_.nonEmpty).mkString(" ")
 
-  private def precedentMechanismLabel(mechanism: PrecedentMechanism): String =
+  private def precedentMechanismLabel(mechanism: PrecedentMechanism, seed: Int, occurrence: Int): String =
+    val variants =
+      mechanism match
+        case PrecedentMechanism.TacticalPressure =>
+          List(
+            "forcing tactical pressure around king safety and move order",
+            "forcing tactical pressure tied to king safety and tempo",
+            "tactical pressure built on forcing move-order threats"
+          )
+        case PrecedentMechanism.ExchangeCascade =>
+          List(
+            "exchange timing that simplified into a cleaner structure",
+            "a cascade of exchanges that clarified the structure",
+            "exchange sequencing that reduced the position to a cleaner frame"
+          )
+        case PrecedentMechanism.PromotionRace =>
+          List(
+            "promotion threats forcing both sides into tempo-driven play",
+            "promotion pressure that turned play into a tempo race",
+            "promotion motifs that forced tempo-accurate decisions"
+          )
+        case PrecedentMechanism.StructuralTransformation =>
+          List(
+            "pawn-structure transformation that redirected long-term plans",
+            "structural pawn shifts that changed long-plan priorities",
+            "pawn-skeleton changes that rerouted strategic plans"
+          )
+        case PrecedentMechanism.InitiativeSwing =>
+          List(
+            "initiative swings created by faster piece activity",
+            "initiative shifts driven by quicker piece deployment",
+            "tempo swings created by faster piece coordination"
+          )
+    if variants.isEmpty then ""
+    else
+      val base = Math.floorMod(seed, variants.size)
+      val idx = Math.floorMod(base + occurrence, variants.size)
+      variants(idx)
+
+  private def precedentMechanismSummaryLabel(mechanism: PrecedentMechanism): String =
     mechanism match
       case PrecedentMechanism.TacticalPressure =>
-        "forcing tactical pressure around king safety and move order"
+        "forcing tactical pressure around king safety"
       case PrecedentMechanism.ExchangeCascade =>
-        "exchange timing that simplified into a cleaner structure"
+        "exchange timing and simplification control"
       case PrecedentMechanism.PromotionRace =>
-        "promotion threats forcing both sides into tempo-driven play"
+        "promotion threats and tempo races"
       case PrecedentMechanism.StructuralTransformation =>
-        "pawn-structure transformation that redirected long-term plans"
+        "pawn-structure transformation and plan rerouting"
       case PrecedentMechanism.InitiativeSwing =>
-        "initiative swings created by faster piece activity"
+        "initiative swings from piece activity"
 
   private def buildPrecedentComparisonSummaryTemplates(
     mechanisms: List[PrecedentMechanism]
@@ -899,7 +953,7 @@ object NarrativeOutlineBuilder:
     else
       val grouped = mechanisms.groupBy(identity).view.mapValues(_.size).toMap
       val dominant = grouped.maxBy(_._2)._1
-      val dominantLabel = precedentMechanismLabel(dominant)
+      val dominantLabel = precedentMechanismSummaryLabel(dominant)
       val diversity = grouped.size
       if diversity >= 2 then
         List(
@@ -958,7 +1012,8 @@ object NarrativeOutlineBuilder:
             year = game.year,
             game = game,
             overlap = overlap,
-            metadataScore = metadataScore
+            metadataScore = metadataScore,
+            sequenceKey = openingPrecedentSequenceKey(game)
           )
         }
       }
@@ -1091,6 +1146,30 @@ object NarrativeOutlineBuilder:
       val eventSuffix = game.event.map(_.trim).filter(_.nonEmpty).map(ev => s", $ev").getOrElse("")
       s"In $white-$black ($y$eventSuffix), after $line, $winnerName won ($result)."
 
+  private def formatOpeningPrecedentRepeatedSnippet(game: ExplorerGame, bead: Int): Option[String] =
+    val whiteName = normalizeExplorerPlayer(game.white.name)
+    val blackName = normalizeExplorerPlayer(game.black.name)
+    val year = Option.when(game.year > 0)(game.year)
+    val winnerInfo = game.winner.flatMap { color =>
+      val winner = if color == chess.White then whiteName else blackName
+      winner.map { winnerName =>
+        val result = if color == chess.White then "1-0" else "0-1"
+        (winnerName, result)
+      }
+    }
+    for
+      white <- whiteName
+      black <- blackName
+      y <- year
+      (winnerName, result) <- winnerInfo
+    yield
+      val eventSuffix = game.event.map(_.trim).filter(_.nonEmpty).map(ev => s", $ev").getOrElse("")
+      NarrativeLexicon.pick(bead ^ 0x5f356495, List(
+        s"In $white-$black ($y$eventSuffix), a near-identical move-order still led to $winnerName winning ($result).",
+        s"In $white-$black ($y$eventSuffix), a similar branch ended with $winnerName winning ($result).",
+        s"In $white-$black ($y$eventSuffix), the same structural branch again produced $winnerName winning ($result)."
+      ))
+
   private def normalizeExplorerPlayer(name: String): Option[String] =
     Option(name)
       .map(_.trim)
@@ -1115,6 +1194,15 @@ object NarrativeOutlineBuilder:
       .map(_.replaceAll("""^\d+\.(?:\.\.)?""", ""))
       .map(_.replaceAll("""^\.\.\.""", ""))
       .filter(token => token.nonEmpty && !resultTokens.contains(token))
+
+  private def openingPrecedentSequenceKey(game: ExplorerGame): String =
+    game.pgn
+      .map(openingPrecedentSanMoves)
+      .getOrElse(Nil)
+      .take(3)
+      .map(normalizeMoveToken)
+      .filter(_.nonEmpty)
+      .mkString("|")
 
   private def isLikelyPawnMove(move: String): Boolean =
     Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")
@@ -3090,7 +3178,14 @@ object NarrativeOutlineBuilder:
             "maintains practical control without forcing complications."
           ))
         )
-      fixedPractical
+      val fixedLead =
+        if fixedPractical.contains("Against the main move") then
+          fixedPractical.replaceFirst(
+            "Against the main move",
+            NarrativeLexicon.pick(bead ^ 0x2f6e2b1, List("Compared with", "Relative to", "Versus"))
+          )
+        else fixedPractical
+      fixedLead
 
   private def diversifyAlternativeReason(reason: String, bead: Int): String =
     val cleaned = reason.trim.stripSuffix(".")

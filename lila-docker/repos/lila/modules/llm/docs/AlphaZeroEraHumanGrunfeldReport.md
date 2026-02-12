@@ -5,13 +5,13 @@
 
 ## Quality Summary
 
-- Avg quality score: 89.5 / 100
-- Avg lexical diversity: 0.591
+- Avg quality score: 90.5 / 100
+- Avg lexical diversity: 0.588
 - Avg variation-anchor coverage: 0.800
-- Opening precedent mentions: 12 across 9/10 cases
-- Balanced gate: PASS (repeated 5-gram [4+ cases]=0, target=0; precedent coverage=9/10, target>=8)
+- Opening precedent mentions: 13 across 10/10 cases
+- Balanced gate: PASS (repeated 5-gram [4+ cases]=0, target=0; precedent coverage=10/10, target>=8)
 - Low-quality cases (<70): 0
-- Advisory findings (non-blocking): 18 across 10 cases
+- Advisory findings (non-blocking): 17 across 10 cases
 
 ## Cross-Case Repetition
 
@@ -24,12 +24,16 @@
 - `ply`: 26
 - `playedMove`: `g7d4`
 - `analysisFen`: `r1bq1rk1/pp2ppbp/6p1/8/3Bn3/5NP1/PP2PPBP/R2Q1RK1 b - - 1 1`
-- Metrics: 2472 chars, 6 paragraphs
-- Precedent mentions: 0
-- Quality: score=90/100, lexical=0.602, uniqueSent=1.000, anchorCoverage=0.667
-- Quality details: sentences=32, dup=0, triRepeat=0, fourRepeat=0, maxNgramRepeat=1, boilerplate=0, mateToneConflict=0, moveTokens=38, scoreTokens=3
+- Metrics: 2679 chars, 6 paragraphs
+- Precedent mentions: 1
+- Quality: score=80/100, lexical=0.580, uniqueSent=1.000, anchorCoverage=0.667
+- Quality details: sentences=38, dup=0, triRepeat=0, fourRepeat=2, maxNgramRepeat=2, boilerplate=0, mateToneConflict=0, moveTokens=45, scoreTokens=3
+- Quality findings:
+  - High repeated four-gram patterns: 2
 - Advisory findings:
-  - Advisory: lexical diversity soft-low: 0.60
+  - Advisory: quality score below target (90): 80
+  - Advisory: repeated four-gram templates present (2)
+  - Advisory: lexical diversity soft-low: 0.58
 - Outline: 7 beats (MoveHeader, Context, DecisionPoint, Evidence, MainMove, Alternatives, WrapUp)
 - Evidence: purpose=engine_alternatives, branches=3
 
@@ -42,7 +46,7 @@
 **Generated commentary**
 
 ```text
-13... Bxd4: The immediate concrete issue is the positional threat on g7. Color complex control is the key strategic battleground. This middlegame phase rewards concrete, well-timed choices. Both sides must balance activity with king safety at each step. Black has the easier side to press with. The practical roadmap centers on **Piece Activation**. There's a pin: the pawn on e2 cannot move without exposing the knight on f3.
+13... Bxd4: The position currently hinges on the positional threat on g7. Color complex control is the key strategic battleground. This is a concrete middlegame fight. Both sides must balance activity with king safety at each step. Black has a small pull. Strategic priority: **Piece Activation**. e2 is pinned, leaving the pawn with limited mobility.
 
 One practical question: After Bxd4, how should White recapture — Nxd4 or Qxd4?
 
@@ -50,12 +54,12 @@ a) Bxd4 (-0.6)
 b) Be6 Bxg7 Qxd1 Rfxd1 (-0.1)
 c) Nd6 e3 Re8 Bxg7 (+0.1)
 
-**Bxd4** fits the position's strategic demands, and it limits tactical drift. It applies positional pressure. The line after **Bxd4** is relatively clean and technical, with less tactical turbulence. From the board, positional pressure on g7 remains unresolved. Clearest read: Bxd4 slows the initiative race deliberately, betting that the resulting position is easier to control The explanatory lens is tempo initiative with short-horizon consequences. Validation lines up with Centralization(Bishop on 27) and engine gap 0.0 pawns. A supporting hypothesis is that Bxd4 keeps the position tied to piece activation, delaying unnecessary plan detours It supports the long-plan map reading. Short-term handling is decisive here, because initiative control errors are punished quickly.
+**Bxd4** supports a controlled continuation with minimal structural risk, so practical choices remain clear. It forces uncomfortable defensive choices. With **Bxd4**, planning depth tends to matter more than short tactics. Initial board read: positional pressure on g7 remains unresolved. Clearest read: Bxd4 slows the initiative race deliberately, betting that the resulting position is easier to control Interpret this through initiative control, where short-horizon tradeoffs dominate. Validation evidence points to Centralization(Bishop on 27) and engine gap 0.0 pawns. A supporting hypothesis is that Bxd4 keeps the position tied to piece activation, delaying unnecessary plan detours This reinforces the plan direction perspective. Immediate practical impact is expected: initiative timing timing in the next sequence is critical. A model game in the Bxd4 line runs: In V. Kramnik-Wei Yi (2018), after 13... Bxd4 14. Qxd4 Qxd4 15. Nxd4 Nd6..., V. Kramnik won (1-0). Bxd4, Qxd4, then Qxd4 became the turning point once exchanges reshaped piece activity and defensive resources.
 
-From a practical angle, **Be6** is viable, yet after Bxg7, execution around Bxg7 eases the defensive task. The practical gap to **Bxd4** is around 0.5 pawns. **Be6** keeps practical burden manageable by preserving coordination before exchanges. Against the main move **Bxd4**, **Be6** likely puts more weight on long-plan map than on tempo initiative. As plans crystallize after **Be6**, coordination must reset.
-**Nd6** is playable in a real game, yet it demands precise sequencing. As a 3rd practical-tier choice, this trails **Bxd4** by about 0.6 pawns. Strategically, **Nd6** needs connected follow-up through the next phase, or initiative control leaks away. Relative to **Bxd4**, **Nd6** plausibly shifts priority toward coordination lanes rather than tempo initiative. The key practical fork is likely during the first serious middlegame regrouping after **Nd6**.
+**Be6** is playable, but it yields a modest practical concession once Bxg7 appears. The practical gap to **Bxd4** is around 0.5 pawns. Handled precisely, **Be6** keeps coordination and king safety linked through the next phase. Relative to **Bxd4**, **Be6** likely puts plan direction first, not momentum balance. A few moves later, **Be6** often shifts which side controls the strategic transition.
+Over the board, **Nd6** is acceptable if tactical details are controlled. As a 3rd option, this line trails **Bxd4** by around 0.6 pawns. After **Nd6**, king safety and tempo stay linked, so one inaccurate sequence can hand over initiative. Versus **Bxd4**, **Nd6** plausibly shifts priority toward piece-route harmony rather than initiative timing. The real test for **Nd6** appears when middlegame plans must be fixed to one structure.
 
-Watch out for the positional on g7. The game remains balanced, and precision will decide the result. At the critical decision point, **Bxd4** and **Be6** separate along initiative timing versus plan cadence under short vs medium horizon.
+Be alert to the positional threat on g7. The margin is narrow enough that practical accuracy remains decisive. The key difference is between **Bxd4** and **Be6**; the contrast is initiative control versus plan direction across short vs medium horizon.
 ```
 
 ## azg_2018_01_16_kramnik_svidler: Kramnik, Vladimir vs Svidler, Peter (80th Tata Steel GpA)
@@ -143,18 +147,12 @@ Black is under practical pressure and must be precise. At the critical decision 
 - `ply`: 24
 - `playedMove`: `e7e5`
 - `analysisFen`: `r1bq1rk1/p3ppbp/1p4p1/n1p5/3PP3/2PBB3/P3NPPP/2RQ1RK1 b - - 1 1`
-- Metrics: 3056 chars, 5 paragraphs
+- Metrics: 3072 chars, 5 paragraphs
 - Precedent mentions: 3
-- Quality: score=80/100, lexical=0.572, uniqueSent=0.977, anchorCoverage=1.000
-- Quality details: sentences=43, dup=1, triRepeat=4, fourRepeat=7, maxNgramRepeat=3, boilerplate=0, mateToneConflict=0, moveTokens=51, scoreTokens=3
-- Quality findings:
-  - High repeated trigram patterns: 4
-  - High repeated four-gram patterns: 7
+- Quality: score=100/100, lexical=0.600, uniqueSent=1.000, anchorCoverage=1.000
+- Quality details: sentences=43, dup=0, triRepeat=0, fourRepeat=0, maxNgramRepeat=2, boilerplate=0, mateToneConflict=0, moveTokens=43, scoreTokens=3
 - Advisory findings:
-  - Advisory: quality score below target (90): 80
-  - Advisory: repeated trigram templates present (4)
-  - Advisory: repeated four-gram templates present (7)
-  - Advisory: lexical diversity soft-low: 0.57
+  - Advisory: lexical diversity soft-low: 0.60
 - Outline: 6 beats (MoveHeader, Context, Evidence, MainMove, Alternatives, WrapUp)
 - Evidence: purpose=engine_alternatives, branches=3
 
@@ -167,18 +165,18 @@ Black is under practical pressure and must be precise. At the critical decision 
 **Generated commentary**
 
 ```text
-12... e5: The pin restrains the pawn on d4, reducing practical flexibility. The bad bishop's scope is a strategic weakness here. The opening phase is still fluid. Neither side wants to clarify the center too early. Black has the easier side to press with. Strategic focus: **Piece Activation**. Once the structure is clarified, the e-pawn break tends to carry more weight.
+12... e5: The pin on d4 slows coordination of that pawn, costing valuable tempi. The bad bishop's scope is a strategic weakness here. This is still an opening structure. Central commitments are still being timed with care. Black has a small pull (≈-0.4). Strategic focus: **Piece Activation**. Clarify the pawn tension first; then the e-pawn break can be played with more effect.
 
 a) e5 (-0.4)
 b) Qd7 f3 Rd8 Qe1 (+0.1)
 c) e6 dxc5 Bb7 f4 (+0.3)
 
-**e5** steers the position into a stable plan with clear follow-up, and defensive duties remain light. It improves the piece's scope. With **e5**, planning depth tends to matter more than short tactics. From the board, e5 changes which plan family is easier to execute. Working hypothesis: e5 anchors play around piece activation, so follow-up choices stay structurally coherent The explanatory lens is plan cadence with medium-horizon consequences. Validation evidence includes plan table confidence 1.75 and sampled line rank is 1. A supporting hypothesis is that e5 tries to preserve structure first, postponing irreversible pawn commitments This reinforces the pawn-structure handling perspective. The practical burden appears in the middlegame phase, once strategic route tradeoffs become concrete. Reference branches from elite games at this point: A) In Yuri Vovk-Andrei Volokitin (2012), after 12... e6 13. Qd2 Bb7 14. Bg5 Qd6..., Andrei Volokitin won (0-1). The branch follows e6 -> Qd2 -> Bb7. B) In Ruslan Ponomariov-Alexander Kovchan (2011), after 12... e5 13. dxc5 Be6 14. c4 bxc5..., Ruslan Ponomariov won (1-0). That branch shifts plans through pawn-structure transformation that redirected long-term plans. C) In Alexey Korotylev-Artyom Timofeev (2009), after 12... e5 13. dxc5 Be6 14. c4 bxc5..., Alexey Korotylev won (1-0). Conversion quality around pawn-structure transformation that redirected long-term plans separated the outcomes. Across these branches, results changed by which side better handled pawn-structure transformation that redirected long-term plans.
+**e5** supports a controlled continuation with minimal structural risk, so practical choices remain clear. It prepares for the next phase. With **e5**, planning depth tends to matter more than short tactics. Concrete observation first: e5 changes which plan family is easier to execute. Working hypothesis: e5 anchors play around piece activation, so follow-up choices stay structurally coherent The underlying axis is plan direction, and the payoff window is medium-horizon. Validation lines up with plan table confidence 1.75 and sampled line rank is 1. A supporting hypothesis is that e5 tries to preserve structure first, postponing irreversible pawn commitments It supports the structural control reading. Practically, this should influence middlegame choices where plan direction commitments are tested. Comparable master branches from this split: A) In Yuri Vovk-Andrei Volokitin (2012), after 12... e6 13. Qd2 Bb7 14. Bg5 Qd6..., Andrei Volokitin won (0-1). The practical route is e6 -> Qd2 -> Bb7. B) In L. Aronian-S. Mamedyarov (2018), after 12... e5 13. dxc5 Be6 14. c4 bxc5..., L. Aronian won (1-0). That branch shifts plans through pawn-structure transformation that redirected long-term plans. C) In Loek Van Wely-Alexei Shirov (2008), a near-identical move-order still led to Alexei Shirov winning (0-1). The decisive practical driver was control of pawn-skeleton changes that rerouted strategic plans. Across these branches, results changed by which side better handled pawn-structure transformation and plan rerouting.
 
-**Qd7** is serviceable over the board, but after f3, execution around f3 eases the defensive task. The engine still points to **e5** as cleaner, by about 0.5 pawns. **Qd7** keeps practical burden manageable around positional pressure by preserving coordination before exchanges. Compared with **e5**, **Qd7** likely tracks the same strategic route theme while changing move-order timing. This contrast tends to become visible when **Qd7** reaches concrete middlegame commitments.
-**e6** is playable in practice, but concrete calculation is required. As a 3rd practical-tier choice, this trails **e5** by about 0.7 pawns. In practical terms, **e6** is judged by conversion ease, because defensive coordination can diverge quickly. Relative to **e5**, **e6** likely puts central break timing first, not plan direction. As **e6** enters concrete tactical play, **e6** usually exposes the split.
+With **Qd7**, the tradeoff is concrete: it grants a cleaner practical route to the opponent after f3. Engine preference remains with **e5**, with roughly a 0.5 pawns edge in practical terms. **Qd7** keeps practical burden manageable around positional pressure by preserving coordination before exchanges. Versus **e5**, **Qd7** likely leans on the same plan cadence logic, with a different timing profile. The key practical fork is likely during the first serious middlegame regrouping after **Qd7**.
+**e6** remains practical, but one inaccurate follow-up can change the assessment. As a 3rd practical-tier choice, this trails **e5** by about 0.7 pawns. With **e6**, a move-order slip can expose coordination gaps, and recovery windows are short. Compared with **e5**, **e6** likely puts pawn-break timing first, not plan cadence. This difference is expected to matter right away in concrete sequencing.
 
-Counterplay exists for both sides. The decisive split is **e5** versus **Qd7**: the same strategic route axis with a shared medium horizon.
+The practical chances are still shared between both players. At the critical decision point, **e5** and **Qd7** separate along the same long-plan map axis under a shared medium horizon.
 ```
 
 ## azg_2018_06_01_karjakin_vachier_lagrave: Karjakin, Sergey vs Vachier-Lagrave, Maxime (6th Norway Chess 2018)
@@ -186,9 +184,9 @@ Counterplay exists for both sides. The decisive split is **e5** versus **Qd7**: 
 - `ply`: 72
 - `playedMove`: `a2c4`
 - `analysisFen`: `5rk1/6bp/p4p2/2p5/2Pq1N1Q/6RP/b5pK/4R3 b - - 4 1`
-- Metrics: 2736 chars, 5 paragraphs
+- Metrics: 2721 chars, 5 paragraphs
 - Precedent mentions: 1
-- Quality: score=85/100, lexical=0.572, uniqueSent=1.000, anchorCoverage=0.667
+- Quality: score=85/100, lexical=0.568, uniqueSent=1.000, anchorCoverage=0.667
 - Quality details: sentences=38, dup=0, triRepeat=0, fourRepeat=1, maxNgramRepeat=2, boilerplate=0, mateToneConflict=0, moveTokens=45, scoreTokens=3
 - Advisory findings:
   - Advisory: quality score below target (90): 85
@@ -214,7 +212,7 @@ c) g1=B+ Rexg1 Rf7 Qh6 (+5.7)
 
 **Bxc4** steers the position into a stable plan with clear follow-up, and defensive duties remain light. It maintains the tension. After **Bxc4**, strategy tightens; tactics recede. Initial board read: material pressure on g7 remains unresolved. Working hypothesis: Bxc4 prioritizes stability over momentum, making initiative handoff the central practical risk Interpret this through initiative timing, where short-horizon tradeoffs dominate. Validation evidence points to engine gap 0.0 pawns and Pin(Bishop on g7 to King on g8). A supporting hypothesis is that Bxc4 preserves the exploiting space advantage framework and avoids premature route changes It supports the plan direction reading. In practical terms, the split should appear in the next few moves, especially around initiative control handling. In Sergey Karjakin-M. Vachier Lagrave (2018), after 36... Bxc4 37. Qh6 f5 38. Nh5, Sergey Karjakin won (1-0). This line is anchored by Bxc4. Bxc4, Qh6, then f5 marked the initiative turning point, as initiative control shifted to one side.
 
-From a practical angle, **f5** is viable, yet after Re7, execution around Re7 eases the defensive task. The practical gap to **Bxc4** is around 0.5 pawns. **f5** keeps practical burden manageable around passed pawn advance by preserving coordination before exchanges. Against the main move **Bxc4**, **f5** likely redirects emphasis to defensive king timing while reducing initiative timing priority. As **f5** enters concrete tactical play, **f5** usually exposes the split.
+From a practical angle, **f5** is viable, yet after Re7, execution around Re7 eases the defensive task. The practical gap to **Bxc4** is around 0.5 pawns. **f5** keeps practical burden manageable around passed pawn advance by preserving coordination before exchanges. Versus **Bxc4**, **f5** likely redirects emphasis to defensive king timing while reducing initiative timing priority. As **f5** enters concrete tactical play, **f5** usually exposes the split.
 **g1=B+** is viable over the board, though move-order precision matters. The score gap to **Bxc4** is substantial here (about 2.4 pawns). In practical terms, **g1=B+** is judged by conversion ease around sharp attack with check, because defensive coordination can diverge quickly. Compared with **Bxc4**, **g1=B+** plausibly redirects emphasis to strategic route while reducing tempo initiative priority. As plans crystallize after **g1=B+**, coordination must reset.
 
 The opponent may threaten material on g7. Black has to defend accurately to stay afloat. At the critical decision point, **Bxc4** and **f5** separate along initiative timing versus defensive king timing under a shared short horizon.
@@ -300,12 +298,12 @@ Defensive accuracy is the main practical requirement in this phase. At the criti
 - `ply`: 40
 - `playedMove`: `c8c5`
 - `analysisFen`: `2r1q1k1/pp1b1rbp/1n1P2p1/6B1/4P1n1/2N2N2/PP4P1/1K1RQB1R b - - 6 1`
-- Metrics: 2856 chars, 5 paragraphs
+- Metrics: 2966 chars, 5 paragraphs
 - Precedent mentions: 2
-- Quality: score=90/100, lexical=0.623, uniqueSent=1.000, anchorCoverage=0.667
-- Quality details: sentences=41, dup=0, triRepeat=0, fourRepeat=0, maxNgramRepeat=2, boilerplate=0, mateToneConflict=0, moveTokens=45, scoreTokens=3
+- Quality: score=90/100, lexical=0.588, uniqueSent=1.000, anchorCoverage=0.667
+- Quality details: sentences=44, dup=0, triRepeat=0, fourRepeat=0, maxNgramRepeat=2, boilerplate=0, mateToneConflict=0, moveTokens=46, scoreTokens=3
 - Advisory findings:
-  - Advisory: lexical diversity soft-low: 0.62
+  - Advisory: lexical diversity soft-low: 0.59
 - Outline: 6 beats (MoveHeader, Context, Evidence, MainMove, Alternatives, WrapUp)
 - Evidence: purpose=engine_alternatives, branches=3
 
@@ -318,18 +316,18 @@ Defensive accuracy is the main practical requirement in this phase. At the criti
 **Generated commentary**
 
 ```text
-20... Rc5: An outpost on g5 could be valuable for a knight. Open-file control is a central strategic objective. The opening is already testing tactical accuracy. Every developing move now has tactical consequences. Black has a slight advantage. Minority attack play on the queenside is becoming the most practical plan. Strategic focus: **Blockade on d7**. The structure often turns on the h-pawn break, a lever to keep in mind.
+20... Rc5: g5 can serve as an outpost for a knight. The open file is the key channel for major-piece activity. The opening has become a calculation-heavy phase. Both sides must calculate before committing to development. Black is a bit better. The queenside minority attack is turning into the key practical route. Strategic focus: **Blockade on d7**. The structure often turns on the h-pawn break, a lever to keep in mind.
 
 a) Rc5 (-2.8)
 b) h6 Rc1 hxg5 Nxg5 (-2.3)
 c) Nc4 Bxc4 Rxc4 Bd2 (-0.7)
 
-**Rc5** follows the principal engine roadmap, while preserving structural clarity. It repositions the piece. With **Rc5**, the structure stays stable and plan choices become clearer. Observed directly: Rc5 alters the strategic map for both sides. Clearest read: Rc5 trades immediate initiative for structure, and the key question is if counterplay arrives in time The explanatory lens is momentum balance with short-horizon consequences. Validation evidence points to RookLift(Rook to rank 5) and engine gap 0.0 pawns. A supporting hypothesis is that Rc5 anchors play around knight sacrifice, so follow-up choices stay structurally coherent It supports the plan direction reading. Short-horizon test: the next move-order around momentum balance will determine whether **Rc5** holds up. Reference branches from elite games at this point: A) In Ta Baron-Or Globus (2018), after 20... Rc5 21. Be7 Rxc3 22. bxc3 Qc8..., Ta Baron won (1-0). The practical route is Rc5 -> Be7 -> Rxc3. B) In D. Vocaturo-De Wagner (2016), after 20... Rc5 21. Be7 Rxe7 22. dxe7 Qxe7..., D. Vocaturo won (1-0). The practical turning factor was exchange timing that simplified into a cleaner structure. Across these branches, results changed by which side better handled initiative swings created by faster piece activity.
+With **Rc5**, the position stays aligned with the main plan, so tempo handling stays simple. It improves the piece's scope. With **Rc5**, the structure stays stable and plan choices become clearer. Observed directly: Rc5 alters the strategic map for both sides. Strongest read: Rc5 trades immediate initiative for structure, and the key question is if counterplay arrives in time Interpret this through tempo initiative, where short-horizon tradeoffs dominate. Validation evidence points to RookLift(Rook to rank 5) and engine gap 0.0 pawns. A supporting hypothesis is that Rc5 anchors play around knight sacrifice, so follow-up choices stay structurally coherent This reinforces the strategic route perspective. In practical terms, the split should appear in the next few moves, especially around momentum balance handling. At this branch, master games diverged in three practical directions: A) In S. Geirnaert-F. Handke (2023), after 20... Rxc3 21. bxc3 Qc8 22. e5 Na4..., S. Geirnaert won (1-0). The branch follows Rxc3 -> bxc3 -> Qc8. B) In Ding Liren-S. Mamedyarov (2019), after 20... Rc5 21. Bd2 Be6 22. e5 Bxe5..., Ding Liren won (1-0). Strategically, the game turned on tempo swings created by faster piece coordination. Common pattern: the side that managed initiative swings from piece activity more accurately got the practical edge.
 
-**h6** can work, although after Rc1, execution around Rc1 eases the defensive task. Compared with **Rc5**, engine evaluation drops by roughly 0.5 pawns. **h6** keeps practical burden manageable by preserving coordination before exchanges. Relative to **Rc5**, **h6** likely puts more weight on pawn-structure handling than on momentum balance. The divergence is expected to surface later in the endgame trajectory.
-In practical play, **Nc4** is viable, and the next two moves must stay accurate. The score gap to **Rc5** is substantial here (about 2.2 pawns). After **Nc4**, king safety and tempo stay linked, so one inaccurate sequence can hand over initiative around establishing outpost. Compared with **Rc5**, **Nc4** plausibly rebalances the plan toward square-complex management instead of initiative timing. This split should reappear in long-term conversion phases.
+**h6** stays in range, though after Rc1, execution around Rc1 eases the defensive task. The practical gap to **Rc5** is around 0.5 pawns. From a practical-conversion view, **h6** stays reliable when defensive coverage remains synchronized. Compared with **Rc5**, **h6** likely shifts priority toward square-complex management rather than momentum balance. The divergence after **h6** is expected to surface later in the endgame trajectory.
+Over the board, **Nc4** is acceptable if tactical details are controlled. This 3rd line leaves a large practical deficit versus **Rc5** (about 2.2 pawns). After **Nc4**, sequence accuracy matters because coordination and activity can separate quickly around establishing outpost. Compared with **Rc5**, **Nc4** plausibly shifts priority toward structural control rather than tempo initiative. With **Nc4**, this split should reappear in long-term conversion phases.
 
-Black can keep improving without forcing tactical concessions. The decisive split is **Rc5** versus **h6**: initiative timing versus pawn-structure handling with short vs long horizon.
+Black can press with a comparatively straightforward conversion scheme. The key difference is between **Rc5** and **h6**; the contrast is tempo initiative versus square-complex management across short vs long horizon.
 ```
 
 ## azg_2019_08_25_karjakin_vachier_lagrave: Karjakin, Sergey vs Vachier-Lagrave, Maxime (7th Sinquefield Cup 2019)
