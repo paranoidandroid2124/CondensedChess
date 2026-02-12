@@ -638,6 +638,106 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
       clue(wrap)
     )
 
+  test("alternatives suppress move-only variants of the same hypothesis claim"):
+    val mainMove = CandidateInfo(
+      move = "Na4",
+      uci = Some("b6a4"),
+      annotation = "!",
+      planAlignment = "Positional maneuvering",
+      downstreamTactic = None,
+      tacticalAlert = Some("maintains structural pressure on c3"),
+      practicalDifficulty = "clean",
+      whyNot = None,
+      tags = List(CandidateTag.Solid),
+      tacticEvidence = List("Outpost(Knight on a4)"),
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.Structure,
+          claim = "Na4 changes the structural balance, trading immediate activity for long-term square control.",
+          supportSignals = List("fact-level structural weakness signal"),
+          conflictSignals = Nil,
+          confidence = 0.74,
+          horizon = HypothesisHorizon.Long
+        )
+      )
+    )
+    val altMove1 = CandidateInfo(
+      move = "Rd7",
+      uci = Some("f7d7"),
+      annotation = "",
+      planAlignment = "Positional pressure",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it slows practical counterplay"),
+      tags = List(CandidateTag.Competitive),
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.PawnBreakTiming,
+          claim = "Rd7 delays the pawn break to improve support, betting on better timing in the next phase.",
+          supportSignals = List("d-file break is available"),
+          conflictSignals = List("engine gap is significant for this route"),
+          confidence = 0.57,
+          horizon = HypothesisHorizon.Medium
+        )
+      )
+    )
+    val altMove2 = CandidateInfo(
+      move = "Rac8",
+      uci = Some("a8c8"),
+      annotation = "",
+      planAlignment = "Positional pressure",
+      downstreamTactic = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot = Some("it loosens central timing"),
+      tags = List(CandidateTag.Competitive),
+      tacticEvidence = Nil,
+      probeLines = Nil,
+      facts = Nil,
+      hypotheses = List(
+        HypothesisCard(
+          axis = HypothesisAxis.PawnBreakTiming,
+          claim = "Rac8 delays the pawn break to improve support, betting on better timing in the next phase.",
+          supportSignals = List("d-file break is available"),
+          conflictSignals = List("engine gap is significant for this route"),
+          confidence = 0.54,
+          horizon = HypothesisHorizon.Medium
+        )
+      )
+    )
+
+    val ctx = baseContext(
+      playedMove = Some("b6a4"),
+      playedSan = Some("Na4"),
+      candidates = List(mainMove, altMove1, altMove2),
+      threats = ThreatTable(Nil, Nil),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 16,
+          variations = List(
+            VariationLine(moves = List("b6a4", "h2g3"), scoreCp = 30),
+            VariationLine(moves = List("f7d7", "h2g3"), scoreCp = 5),
+            VariationLine(moves = List("a8c8", "h2g3"), scoreCp = 2)
+          )
+        )
+      )
+    )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val alternatives = outline.beats.find(_.kind == OutlineBeatKind.Alternatives).map(_.text).getOrElse("")
+    val lines = alternatives.split("\n").toList.map(_.trim).filter(_.nonEmpty)
+    val lower = alternatives.toLowerCase
+
+    assertEquals(lines.size, 2, clue(alternatives))
+    assert(occurrences(lower, "delays the pawn break to improve support") <= 1, clue(alternatives))
+    assert(lines.forall(_.contains("**")), clue(alternatives))
+
   test("opening branchpoint with valid sample game emits precedent snippet"):
     val openingRef = OpeningReference(
       eco = Some("D85"),

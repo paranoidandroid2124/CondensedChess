@@ -1315,15 +1315,17 @@ object NarrativeOutlineBuilder:
     usedHypothesisFamilies: scala.collection.mutable.Set[String],
     usedHypothesisStems: scala.collection.mutable.Set[String]
   ): String =
-    val mainHyp = pickHypothesisForDifference(mainCandidate, usedHypothesisFamilies, bead ^ 0x7f4a7c15)
-    val altHyp = pickHypothesisForDifference(Some(alternative), usedHypothesisFamilies, bead ^ 0x2a2a2a2a)
+    val mainHyp =
+      pickHypothesisForDifference(mainCandidate, usedHypothesisFamilies, usedHypothesisStems, bead ^ 0x7f4a7c15)
+    val altHyp =
+      pickHypothesisForDifference(Some(alternative), usedHypothesisFamilies, usedHypothesisStems, bead ^ 0x2a2a2a2a)
     val altClaim =
       altHyp
         .map(_.claim)
         .map(_.trim)
         .filter(_.nonEmpty)
         .filterNot { claim =>
-          val stem = normalizeHypothesisStem(claim)
+          val stem = normalizeMoveNeutralClaimStem(claim)
           stem.nonEmpty && usedHypothesisStems.contains(stem)
         }
     val difference = NarrativeLexicon.getAlternativeHypothesisDifference(
@@ -1338,9 +1340,11 @@ object NarrativeOutlineBuilder:
     )
     val rendered = List(baseLine.trim, difference.trim).filter(_.nonEmpty).mkString(" ").trim
     val normalized = normalizeAlternativeTemplateLine(rendered, bead ^ 0x63d5a6f1)
-    val stem5 = normalizeHypothesisStem(normalized)
-    if stem5.nonEmpty then usedHypothesisStems += stem5
-    (mainHyp.toList ++ altHyp.toList).foreach { h => usedHypothesisFamilies += hypothesisFamily(h) }
+    (mainHyp.toList ++ altHyp.toList).foreach { h =>
+      usedHypothesisFamilies += hypothesisFamily(h)
+      val stem = normalizeMoveNeutralClaimStem(h.claim)
+      if stem.nonEmpty then usedHypothesisStems += stem
+    }
     selectNonRepeatingTemplate(
       templates = List(normalized),
       seed = bead ^ 0x19f8b4ad,
@@ -1379,11 +1383,13 @@ object NarrativeOutlineBuilder:
       val sorted = c.hypotheses.sortBy(h => -h.confidence)
       val picked = sorted.find { h =>
         val family = hypothesisFamily(h)
-        !state.usedHypothesisFamilies.contains(family) && !state.usedHypothesisStems.contains(normalizeHypothesisStem(h.claim))
+        val stem = normalizeMoveNeutralClaimStem(h.claim)
+        !state.usedHypothesisFamilies.contains(family) &&
+        (stem.isEmpty || !state.usedHypothesisStems.contains(stem))
       }.orElse(sorted.headOption)
       picked.map { h =>
         state.usedHypothesisFamilies += hypothesisFamily(h)
-        val stem = normalizeHypothesisStem(h.claim)
+        val stem = normalizeMoveNeutralClaimStem(h.claim)
         if stem.nonEmpty then state.usedHypothesisStems += stem
         SelectedHypothesis(card = h, sourceMove = c.move)
       }
@@ -1404,13 +1410,13 @@ object NarrativeOutlineBuilder:
         sh.card.axis != primary.axis &&
         sh.card.claim != primary.claim &&
         !state.usedHypothesisFamilies.contains(hypothesisFamily(sh.card)) &&
-        !state.usedHypothesisStems.contains(normalizeHypothesisStem(sh.card.claim))
+        !state.usedHypothesisStems.contains(normalizeMoveNeutralClaimStem(sh.card.claim))
       }
     val picked = filtered.sortBy(sh => -sh.card.confidence).headOption
       .orElse(pool.find(sh => sh.card.axis != primary.axis && sh.card.claim != primary.claim))
     picked.foreach { sh =>
       state.usedHypothesisFamilies += hypothesisFamily(sh.card)
-      val stem = normalizeHypothesisStem(sh.card.claim)
+      val stem = normalizeMoveNeutralClaimStem(sh.card.claim)
       if stem.nonEmpty then state.usedHypothesisStems += stem
     }
     picked
@@ -1418,12 +1424,21 @@ object NarrativeOutlineBuilder:
   private def pickHypothesisForDifference(
     candidate: Option[CandidateInfo],
     usedFamilies: scala.collection.mutable.Set[String],
+    usedStems: scala.collection.mutable.Set[String],
     bead: Int
   ): Option[HypothesisCard] =
     candidate.flatMap { c =>
       val sorted = c.hypotheses.sortBy(h => -h.confidence)
-      val picked = sorted.find(h => !usedFamilies.contains(hypothesisFamily(h))).orElse(sorted.headOption)
-      picked.foreach(h => usedFamilies += hypothesisFamily(h))
+      val picked = sorted.find { h =>
+        val stem = normalizeMoveNeutralClaimStem(h.claim)
+        !usedFamilies.contains(hypothesisFamily(h)) &&
+        (stem.isEmpty || !usedStems.contains(stem))
+      }.orElse(sorted.headOption)
+      picked.foreach { h =>
+        usedFamilies += hypothesisFamily(h)
+        val stem = normalizeMoveNeutralClaimStem(h.claim)
+        if stem.nonEmpty then usedStems += stem
+      }
       picked
     }
 
@@ -1475,6 +1490,13 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
       .take(5)
       .mkString(" ")
+
+  private val leadingMoveTokenRegex =
+    """(?i)^(?:\*\*)?(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8](?:=[QRBN])?[+#]?)(?:\*\*)?[,:]?\s+""".r
+
+  private def normalizeMoveNeutralClaimStem(text: String): String =
+    val stripped = leadingMoveTokenRegex.replaceFirstIn(Option(text).getOrElse("").trim, "")
+    normalizeHypothesisStem(stripped)
 
   private def hypothesisFamily(card: HypothesisCard): String =
     s"${card.axis.toString.toLowerCase}:${normalizeHypothesisStem(card.claim)}"
@@ -1614,7 +1636,7 @@ object NarrativeOutlineBuilder:
           else
             List(
               s"The line after **$moveHint** is relatively clean and technical, with less tactical turbulence.",
-              s"After **$moveHint**, the game trends toward a controlled strategic struggle.",
+              s"After **$moveHint**, strategy tightens; tactics recede.",
               s"With **$moveHint**, planning depth tends to matter more than short tactics.",
               s"With **$moveHint**, the structure stays stable and plan choices become clearer."
             )

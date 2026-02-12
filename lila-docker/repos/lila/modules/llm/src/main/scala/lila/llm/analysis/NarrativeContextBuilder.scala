@@ -1328,11 +1328,29 @@ object NarrativeContextBuilder:
       axis = HypothesisAxis.PawnBreakTiming,
       claim =
         if breakReady && isLikelyPawnMove(move) then
-          s"$move chooses immediate pawn-break clarification rather than additional preparation."
+          NarrativeLexicon.pick(localSeed ^ 0x1f123bb5, List(
+            s"$move clarifies pawn tension immediately, preferring direct break resolution over extra preparation.",
+            s"$move commits to immediate break clarification, accepting concrete consequences now instead of waiting.",
+            s"$move resolves the pawn-break question at once, choosing concrete timing over additional setup.",
+            s"$move forces the break decision now, so follow-up accuracy matters more than setup completeness.",
+            s"$move brings pawn tension to a concrete verdict immediately rather than extending preparation."
+          ))
         else if breakReady then
-          s"$move delays the pawn break to improve support, betting on better timing in the next phase."
+          NarrativeLexicon.pick(localSeed ^ 0x4e67c6a7, List(
+            s"$move keeps the break in reserve and improves support before committing.",
+            s"$move postpones the break by one phase, aiming for stronger piece support first.",
+            s"$move holds pawn tension for now, preparing better support before release.",
+            s"$move delays direct break action so supporting pieces can coordinate first.",
+            s"$move keeps break timing deferred, prioritizing support links before commitment."
+          ))
         else
-          s"$move keeps pawn-break timing flexible, so central tension can be resolved later under better conditions.",
+          NarrativeLexicon.pick(localSeed ^ 0x3c79ac49, List(
+            s"$move keeps break timing flexible, so central tension can be revisited under better conditions.",
+            s"$move preserves pawn-break optionality, leaving central tension unresolved for a later moment.",
+            s"$move avoids forcing a break now, keeping the central lever available for a better window.",
+            s"$move keeps the break decision open, waiting for clearer support and fewer tactical liabilities.",
+            s"$move maintains tension without immediate release, aiming to choose the break after more development."
+          )),
       supportSignals =
         List(
           breakFile.map(f => s"$f-file break is available"),

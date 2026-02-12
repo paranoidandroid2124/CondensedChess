@@ -1026,7 +1026,7 @@ object NarrativeLexicon {
           s"shifts priority toward $altAxisVar rather than $mainAxisText",
           s"rebalances the plan toward $altAxisVar instead of $mainAxisText",
           s"puts more weight on $altAxisVar than on $mainAxisText",
-          s"tilts the practical route toward $altAxisVar over $mainAxisText",
+          s"puts $altAxisVar first, not $mainAxisText",
           s"redirects emphasis to $altAxisVar while reducing $mainAxisText priority"
         ))
     val confidenceLead =
@@ -1047,7 +1047,7 @@ object NarrativeLexicon {
         case HypothesisHorizon.Medium =>
           pick(bead ^ 0x4b4b4b4b, List(
             s"Middlegame pressure around **$alternativeMove** is where this route typically starts to separate from the main plan.",
-            s"As plans crystallize after **$alternativeMove**, the branch often requires a different coordination map.",
+            s"As plans crystallize after **$alternativeMove**, coordination must reset.",
             s"The key practical fork is likely during the first serious middlegame regrouping after **$alternativeMove**.",
             s"This contrast tends to become visible when **$alternativeMove** reaches concrete middlegame commitments.",
             s"From a medium-horizon view, **$alternativeMove** often diverges once plan commitments become irreversible.",
