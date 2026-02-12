@@ -1056,9 +1056,9 @@ object NarrativeLexicon {
           ))
         case HypothesisHorizon.Long =>
           pick(bead ^ 0x6c6c6c6c, List(
-            "The divergence is expected to surface later in the endgame trajectory.",
-            "This split should reappear in long-term conversion phases.",
-            "The practical difference is likely delayed until late-phase technique."
+            s"The divergence after **$alternativeMove** is expected to surface later in the endgame trajectory.",
+            s"With **$alternativeMove**, this split should reappear in long-term conversion phases.",
+            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique."
           ))
     pick(bead ^ 0x2f6e2b1, List(
       s"Compared with **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail",
