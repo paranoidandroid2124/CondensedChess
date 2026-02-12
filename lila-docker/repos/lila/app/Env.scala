@@ -39,7 +39,6 @@ final class Env(
     db = mongo.mainDb,
     cacheApi = memo.cacheApi
   )
-  val mailer: lila.mailer.Env = wire[lila.mailer.Env]
   val oAuth: lila.oauth.Env = wire[lila.oauth.Env]
   val security: lila.security.Env = wire[lila.security.Env]
   val pref: lila.pref.Env = wire[lila.pref.Env]

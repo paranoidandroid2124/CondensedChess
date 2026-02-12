@@ -10,7 +10,6 @@ import scala.annotation.unused
 final class Env(
     net: lila.core.config.NetConfig,
     securityStore: lila.security.SessionStore,
-    @unused mailerEnv: lila.mailer.Env,
     gameEnv: lila.game.Env,
     @unused prefApi: lila.pref.PrefApi,
     userEnv: lila.user.Env,

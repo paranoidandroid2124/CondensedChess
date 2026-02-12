@@ -92,7 +92,8 @@ final class Auth(env: Env) extends LilaController(env):
         limit.magicLink(EmailAddress(email.normalize.value).value, Ok.page(views.auth.magicLink(Some("Too many login emails, try again later")))):
           val token = env.security.loginToken.generate(email, 15.minutes)
           val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
-          env.mailer.automaticEmail.magicLinkLogin(email, url)
+          // env.mailer.automaticEmail.magicLinkLogin(email, url)
+          funit
 
           val mockEmail = env.config.getOptional[Boolean]("mailer.primary.mock").getOrElse(false)
           val exposeMockLink = mockEmail && env.mode != Mode.Prod

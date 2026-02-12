@@ -709,7 +709,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     val err = narrativeCtx.meta.get.errorClass
     assert(err.isDefined, "ErrorClass should be populated when counterfactual exists")
     assert(err.get.isTactical, "Should be tactical for blunder with cpLoss >= 200")
-    assert(err.get.errorSummary.contains("전술"))
+    assert(err.get.errorSummary.contains("Tactics"))
     assert(err.get.missedMotifs.nonEmpty)
   }
 
@@ -739,7 +739,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     val err = narrativeCtx.meta.get.errorClass
     assert(err.isDefined)
     assert(!err.get.isTactical, "Should be positional for cpLoss < 200")
-    assert(err.get.errorSummary.contains("포지셔널"))
+    assert(err.get.errorSummary.contains("Positional"))
   }
 
   test("B2/B6: ErrorClassification is None when no counterfactual") {
@@ -811,7 +811,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     val err = narrativeCtx.meta.get.errorClass
     assert(err.isDefined)
     assert(err.get.isTactical, "Should be tactical for cpLoss >= 200 with Fork motif")
-    assert(err.get.errorSummary.contains("전술"))
+    assert(err.get.errorSummary.contains("Tactics"))
     assert(err.get.missedMotifs.exists(_.contains("Fork")))
   }
 

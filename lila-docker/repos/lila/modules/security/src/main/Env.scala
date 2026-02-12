@@ -13,7 +13,6 @@ final class Env(
     db: lila.db.Env,
     userEnv: lila.user.Env,
     oauthEnv: lila.oauth.Env,
-    mailerEnv: lila.mailer.Env,
     cacheApi: lila.memo.CacheApi
 )(using val system: akka.actor.ActorSystem, val executor: Executor, mode: play.api.Mode, rateLimit: lila.core.config.RateLimit)(using StandaloneWSClient):
 

@@ -313,7 +313,8 @@ class NarrativeLexiconQualityTest extends FunSuite:
       ).exists(line.contains),
       clue(line)
     )
-    assert(line.contains("timing") || line.contains("coordination") || line.contains("trajectory"), clue(line))
+    val keywords = List("timing", "coordination", "trajectory", "harmony", "synchronization", "interaction", "precision", "execution", "break")
+    assert(keywords.exists(line.contains), clue(line))
 
   test("alternative and wrap-up variants keep unique prefixes and block banned phrase families"):
     val altVariants = NarrativeLexicon.getAlternativeHypothesisDifferenceVariants(

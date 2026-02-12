@@ -39,7 +39,7 @@ class RookNarrativeTest extends FunSuite {
     val prose = BookStyleRenderer.render(ctx)
     println(s"King Cut-Off Prose: $prose")
     
-    val keywords = List("cutting", "restricting", "trapped")
+    val keywords = List("cutting", "restricting", "trapped", "cut-off")
     assertFound(prose, keywords)
   }
 

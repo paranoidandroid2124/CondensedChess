@@ -24,7 +24,7 @@ class ExtendedAnalysisTest extends munit.FunSuite:
     val userLine = lila.llm.model.strategic.VariationLine(moves = List(userMove), scoreCp = -50, depth = 20)
     val bestLine = lila.llm.model.strategic.VariationLine(moves = List(bestMove), scoreCp = 40, depth = 20)
     
-    val cf = CounterfactualAnalyzer.createMatch(fen, userMove, bestMove, userLine, bestLine)
+    val cf = MoveAnalyzer.createMatch(fen, userMove, bestMove, userLine, bestLine)
     
     assert(cf.userMove == userMove)
     assert(cf.bestMove == bestMove)

@@ -49,9 +49,6 @@ Universal / sourceDirectory := baseDirectory.value / "dist"
 
 // format: off
 libraryDependencies ++= akka.bundle ++ playWs.bundle ++ macwire.bundle ++ scalalib.bundle ++ chess.bundle ++ Seq(
-  play.json, play.logback, compression, hasher,
-  reactivemongo.driver, maxmind, scalatags,
-  kamon.core, kamon.influxdb, kamon.metrics,
   scaffeine, caffeine, lettuce, uaparser, nettyTransport, reactivemongo.shaded, catsMtl
 ) ++ tests.bundle
 
@@ -68,7 +65,7 @@ lazy val modules = Seq(
   memo,
   
   // User & Security (Level 5)
-  user, pref, mailer, oauth,
+  user, pref, oauth,
   
   // Analysis Core (Level 5-6)
   game,
@@ -151,13 +148,10 @@ lazy val oauth = module("oauth",
   Seq()
 )
 
-lazy val mailer = module("mailer",
-  Seq(memo),
-  Seq(hasher, play.mailer)
-)
+
 
 lazy val security = module("security",
-  Seq(oauth, user, mailer, pref),
+  Seq(oauth, user, pref),
   Seq(maxmind, hasher, uaparser) ++ tests.bundle
 )
 

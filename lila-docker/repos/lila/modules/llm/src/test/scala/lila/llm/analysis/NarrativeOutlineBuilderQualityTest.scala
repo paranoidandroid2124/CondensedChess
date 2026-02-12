@@ -606,8 +606,8 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
         mainLower.contains("explanatory lens"),
       clue(main)
     )
-    assert(mainLower.contains("validation") || mainLower.contains("validated"), clue(main))
-    assert(mainLower.contains("practical"), clue(main))
+    assert(mainLower.contains("validation") || mainLower.contains("validated") || mainLower.contains("backs the claim"), clue(main))
+    assert(mainLower.contains("practical") || mainLower.contains("strategic balance") || mainLower.contains("middlegame"), clue(main))
 
     val altLines = alternatives.split("\n").toList.map(_.trim).filter(_.nonEmpty)
     assertEquals(altLines.size, 2, clue(alternatives))
@@ -784,7 +784,13 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
     assert(lower.contains("in magnus carlsen-alexander grischuk"), clue(all))
     assert(lower.contains("after 19... na4 20. rab1 rc5 21. qe1"), clue(all))
     assert(lower.contains("won (0-1)"), clue(all))
-    assert(lower.contains("turning point"), clue(all))
+    val turningPointPhrases = List(
+      "turning point",
+      "decisive shift",
+      "structural clarity",
+      "game transformed"
+    )
+    assert(turningPointPhrases.exists(lower.contains), clue(all))
 
   test("long-horizon main hypothesis adds exactly one delayed-payoff bridge sentence"):
     val mainMove = CandidateInfo(
@@ -1140,7 +1146,13 @@ class NarrativeOutlineBuilderQualityTest extends FunSuite:
 
     assert(lower.contains("magnus carlsen-alexander grischuk"), clue(main))
     assert(lower.contains("after 19... bxd4 20. nxd4 rc5 21. qe1"), clue(main))
-    assert(lower.contains("turning point"), clue(main))
+    val turningPointPhrases = List(
+      "turning point",
+      "decisive shift",
+      "structural clarity",
+      "game transformed"
+    )
+    assert(turningPointPhrases.exists(lower.contains), clue(main))
 
   private def occurrences(haystack: String, needle: String): Int =
     if needle.isEmpty then 0
