@@ -302,10 +302,48 @@ class NarrativeLexiconQualityTest extends FunSuite:
       horizon = HypothesisHorizon.Medium
     ).toLowerCase
     assert(
-      line.contains("compared with") || line.contains("relative to") || line.contains("against the main move"),
+      List(
+        "compared with",
+        "relative to",
+        "against the main move",
+        "versus the principal choice",
+        "in contrast to",
+        "set against",
+        "measured against"
+      ).exists(line.contains),
       clue(line)
     )
     assert(line.contains("timing") || line.contains("coordination") || line.contains("trajectory"), clue(line))
+
+  test("alternative and wrap-up variants keep unique prefixes and block banned phrase families"):
+    val altVariants = NarrativeLexicon.getAlternativeHypothesisDifferenceVariants(
+      bead = 1311,
+      alternativeMove = "Ne2",
+      mainMove = "Nf3",
+      mainAxis = Some(HypothesisAxis.PieceCoordination),
+      alternativeAxis = Some(HypothesisAxis.PawnBreakTiming),
+      alternativeClaim = Some("Ne2 keeps c-pawn flexibility but delays central tension tests."),
+      confidence = 0.58,
+      horizon = HypothesisHorizon.Medium
+    )
+    val altPrefixes = altVariants.map(firstFourStem).filter(_.nonEmpty)
+    assertEquals(altPrefixes.distinct.size, altPrefixes.size, clue(altVariants.mkString(" || ")))
+    val altLower = altVariants.mkString(" ").toLowerCase
+    assert(!altLower.contains("puts more weight on"), clue(altLower))
+    assert(!altLower.contains("as plans crystallize after"), clue(altLower))
+    assert(!altLower.contains("as **ne2** enters concrete tactical play, **ne2**"), clue(altLower))
+
+    val wrapVariants = NarrativeLexicon.getWrapUpDecisiveDifferenceVariants(
+      bead = 1777,
+      mainMove = "Nf3",
+      altMove = "Ne2",
+      mainAxis = HypothesisAxis.PieceCoordination,
+      altAxis = HypothesisAxis.PawnBreakTiming,
+      mainHorizon = HypothesisHorizon.Short,
+      altHorizon = HypothesisHorizon.Medium
+    )
+    val wrapPrefixes = wrapVariants.map(firstFourStem).filter(_.nonEmpty)
+    assertEquals(wrapPrefixes.distinct.size, wrapPrefixes.size, clue(wrapVariants.mkString(" || ")))
 
   private def wordCount(text: String): Int =
     text
@@ -336,4 +374,16 @@ class NarrativeLexiconQualityTest extends FunSuite:
       .split(" ")
       .filter(_.nonEmpty)
       .take(5)
+      .mkString(" ")
+
+  private def firstFourStem(text: String): String =
+    text
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(4)
       .mkString(" ")

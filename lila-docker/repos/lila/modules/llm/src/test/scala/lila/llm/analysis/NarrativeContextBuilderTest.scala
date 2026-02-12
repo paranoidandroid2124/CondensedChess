@@ -1620,6 +1620,92 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(!riskyCandidate.hypotheses.take(2).exists(_.horizon == HypothesisHorizon.Long), clue(riskyCandidate.hypotheses))
   }
 
+  test("F11: forcing-swing probe in middlegame injects cause-consequence-turning-point framing") {
+    val pawnAnalysis = PawnPlayAnalysis(
+      pawnBreakReady = true,
+      breakFile = Some("d"),
+      breakImpact = 220,
+      advanceOrCapture = true,
+      passedPawnUrgency = PassedPawnUrgency.Background,
+      passerBlockade = false,
+      blockadeSquare = None,
+      blockadeRole = None,
+      pusherSupport = true,
+      minorityAttack = false,
+      counterBreak = false,
+      tensionPolicy = TensionPolicy.Maintain,
+      tensionSquares = Nil,
+      primaryDriver = "break_ready",
+      notes = "test"
+    )
+    val ctx = IntegratedContext(evalCp = 35, isWhiteToMove = true, pawnAnalysis = Some(pawnAnalysis))
+    val candidate = AnalyzedCandidate(
+      move = "d4d5",
+      score = 35,
+      motifs = Nil,
+      prophylaxisResults = Nil,
+      futureContext = "central break",
+      line = VariationLine(List("d4d5"), 35, depth = 20)
+    )
+    val probe = ProbeResult(
+      id = "forcing_frame",
+      evalCp = -180,
+      bestReplyPv = List("c6d5"),
+      deltaVsBaseline = -215,
+      keyMotifs = List("initiative swing"),
+      purpose = Some("reply_multipv"),
+      probedMove = Some("d4d5"),
+      l1Delta = Some(
+        L1DeltaSnapshot(
+          materialDelta = 0,
+          kingSafetyDelta = -2,
+          centerControlDelta = -1,
+          openFilesDelta = 0,
+          mobilityDelta = -1,
+          collapseReason = Some("King exposed and structure collapsed")
+        )
+      )
+    )
+    val data = minimalData(Some(ctx)).copy(
+      phase = "middlegame",
+      evalCp = 35,
+      candidates = List(candidate),
+      alternatives = List(VariationLine(List("d4d5", "c6d5"), 35, depth = 20))
+    )
+
+    val result = NarrativeContextBuilder.build(data, ctx, None, List(probe))
+    val enriched = result.candidates.find(_.uci.contains("d4d5")).getOrElse(fail("candidate not found"))
+    val framed = enriched.hypotheses.find { h =>
+      val lower = h.claim.toLowerCase
+      lower.contains("forcing swing") &&
+      List("consequence", "initiative", "structure", "king safety", "king exposure", "conversion").exists(lower.contains) &&
+      List(
+        "next forcing sequence",
+        "very next concrete sequence",
+        "critical test comes",
+        "middlegame regrouping",
+        "simplification transition"
+      ).exists(lower.contains)
+    }.getOrElse(fail(s"Expected framed hypothesis, got: ${enriched.hypotheses.mkString(" | ")}"))
+
+    val lower = framed.claim.toLowerCase
+    assert(lower.contains("forcing swing"), clue(framed.claim))
+    assert(
+      List("initiative", "structure", "king safety", "king exposure", "conversion").exists(lower.contains),
+      clue(framed.claim)
+    )
+    assert(
+      List(
+        "next forcing sequence",
+        "very next concrete sequence",
+        "critical test comes",
+        "middlegame regrouping",
+        "simplification transition"
+      ).exists(lower.contains),
+      clue(framed.claim)
+    )
+  }
+
   // ============================================================
   // PHASE G (A9): OPENING EVENT LAYER TESTS
   // ============================================================

@@ -73,10 +73,6 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
   }
 }
 
-trait StrategicAnalyzer
-
-class StrategicAnalyzers
-
 class ActivityAnalyzerImpl extends ActivityAnalyzer {
   
   def analyze(board: Board, color: Color): List[PieceActivity] = {

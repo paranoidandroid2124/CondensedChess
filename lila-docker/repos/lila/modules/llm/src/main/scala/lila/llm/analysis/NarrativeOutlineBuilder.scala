@@ -53,7 +53,9 @@ object NarrativeOutlineBuilder:
     usedStems: scala.collection.mutable.Set[String],
     prefixCounts: scala.collection.mutable.Map[String, Int],
     usedHypothesisFamilies: scala.collection.mutable.Set[String],
-    usedHypothesisStems: scala.collection.mutable.Set[String]
+    usedHypothesisStems: scala.collection.mutable.Set[String],
+    usedDifferencePrefixes: scala.collection.mutable.Set[String],
+    usedDifferenceTails: scala.collection.mutable.Set[String]
   )
   private case class SelectedHypothesis(
     card: HypothesisCard,
@@ -70,6 +72,8 @@ object NarrativeOutlineBuilder:
     val crossBeatState = CrossBeatRepetitionState(
       scala.collection.mutable.HashSet.empty[String],
       scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0),
+      scala.collection.mutable.HashSet.empty[String],
+      scala.collection.mutable.HashSet.empty[String],
       scala.collection.mutable.HashSet.empty[String],
       scala.collection.mutable.HashSet.empty[String]
     )
@@ -127,7 +131,7 @@ object NarrativeOutlineBuilder:
     if altBeat.text.nonEmpty then beats += altBeat
 
     // 10. WRAP-UP
-    buildWrapUpBeat(ctx, bead).foreach(beats += _)
+    buildWrapUpBeat(ctx, bead, crossBeatState).foreach(beats += _)
 
     (NarrativeOutline(beats.toList, Some(diag)), diag)
 
@@ -1247,6 +1251,8 @@ object NarrativeOutlineBuilder:
       prefixCounts ++= crossBeatState.prefixCounts
       val usedHypothesisFamilies = scala.collection.mutable.HashSet.empty[String] ++ crossBeatState.usedHypothesisFamilies
       val usedHypothesisStems = scala.collection.mutable.HashSet.empty[String] ++ crossBeatState.usedHypothesisStems
+      val usedDifferencePrefixes = scala.collection.mutable.HashSet.empty[String] ++ crossBeatState.usedDifferencePrefixes
+      val usedDifferenceTails = scala.collection.mutable.HashSet.empty[String] ++ crossBeatState.usedDifferenceTails
       val passSeed = bead ^ (pass * 0x9e3779b9)
       val lines = alts.zipWithIndex.map { case (c, i) =>
         val localSeed = passSeed ^ ((i + 1) * 0x45d9f3b)
@@ -1272,7 +1278,9 @@ object NarrativeOutlineBuilder:
             usedStems = usedStems.toSet,
             prefixCounts = prefixCounts.toMap,
             usedHypothesisFamilies = usedHypothesisFamilies,
-            usedHypothesisStems = usedHypothesisStems
+            usedHypothesisStems = usedHypothesisStems,
+            usedDifferencePrefixes = usedDifferencePrefixes,
+            usedDifferenceTails = usedDifferenceTails
           )
         trackTemplateUsage(withDifference, usedStems, prefixCounts)
         withDifference
@@ -1281,17 +1289,25 @@ object NarrativeOutlineBuilder:
         lines,
         alternativesRepetitionPenalty(lines),
         usedHypothesisFamilies.toSet,
-        usedHypothesisStems.toSet
+        usedHypothesisStems.toSet,
+        usedDifferencePrefixes.toSet,
+        usedDifferenceTails.toSet
       )
     }
     val bestAttempt = attempted.minBy(_._2)
     val lines = bestAttempt._1
     crossBeatState.usedHypothesisFamilies ++= bestAttempt._3
     crossBeatState.usedHypothesisStems ++= bestAttempt._4
+    crossBeatState.usedDifferencePrefixes ++= bestAttempt._5
+    crossBeatState.usedDifferenceTails ++= bestAttempt._6
     lines.foreach(line => trackTemplateUsage(line, crossBeatState.usedStems, crossBeatState.prefixCounts))
     OutlineBeat(kind = OutlineBeatKind.Alternatives, text = lines.mkString("\n"), anchors = alts.map(_.move))
 
-  private def buildWrapUpBeat(ctx: NarrativeContext, bead: Int): Option[OutlineBeat] =
+  private def buildWrapUpBeat(
+    ctx: NarrativeContext,
+    bead: Int,
+    crossBeatState: CrossBeatRepetitionState
+  ): Option[OutlineBeat] =
     val parts = scala.collection.mutable.ListBuffer[String]()
     val cpWhite = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
 
@@ -1309,7 +1325,7 @@ object NarrativeOutlineBuilder:
       parts += NarrativeLexicon.getCompensationStatement(bead, comp.conversionPlan, "Sufficient")
     }
 
-    buildWrapUpHypothesisDifference(ctx, bead ^ 0x5f356495).foreach(parts += _)
+    buildWrapUpHypothesisDifference(ctx, bead ^ 0x5f356495, crossBeatState).foreach(parts += _)
 
     if parts.isEmpty then None
     else Some(OutlineBeat(kind = OutlineBeatKind.WrapUp, text = parts.mkString(" "), conceptIds = List("practical_assessment")))
@@ -1401,7 +1417,9 @@ object NarrativeOutlineBuilder:
     usedStems: Set[String],
     prefixCounts: Map[String, Int],
     usedHypothesisFamilies: scala.collection.mutable.Set[String],
-    usedHypothesisStems: scala.collection.mutable.Set[String]
+    usedHypothesisStems: scala.collection.mutable.Set[String],
+    usedDifferencePrefixes: scala.collection.mutable.Set[String],
+    usedDifferenceTails: scala.collection.mutable.Set[String]
   ): String =
     val mainHyp =
       pickHypothesisForDifference(mainCandidate, usedHypothesisFamilies, usedHypothesisStems, bead ^ 0x7f4a7c15)
@@ -1416,7 +1434,7 @@ object NarrativeOutlineBuilder:
           val stem = normalizeMoveNeutralClaimStem(claim)
           stem.nonEmpty && usedHypothesisStems.contains(stem)
         }
-    val difference = NarrativeLexicon.getAlternativeHypothesisDifference(
+    val differenceVariants = NarrativeLexicon.getAlternativeHypothesisDifferenceVariants(
       bead = bead,
       alternativeMove = alternative.move,
       mainMove = mainCandidate.map(_.move).getOrElse(signal.bestSan.getOrElse("the principal move")),
@@ -1425,6 +1443,14 @@ object NarrativeOutlineBuilder:
       alternativeClaim = altClaim,
       confidence = altHyp.map(_.confidence).getOrElse(0.42),
       horizon = altHyp.map(_.horizon).orElse(mainHyp.map(_.horizon)).getOrElse(HypothesisHorizon.Medium)
+    )
+    val difference = selectDifferenceVariant(
+      variants = differenceVariants,
+      seed = bead ^ 0x2f6e2b1,
+      usedStems = usedStems ++ usedHypothesisStems.toSet,
+      prefixCounts = prefixCounts,
+      usedDifferencePrefixes = usedDifferencePrefixes,
+      usedDifferenceTails = usedDifferenceTails
     )
     val rendered = List(baseLine.trim, difference.trim).filter(_.nonEmpty).mkString(" ").trim
     val normalized = normalizeAlternativeTemplateLine(rendered, bead ^ 0x63d5a6f1)
@@ -1441,7 +1467,11 @@ object NarrativeOutlineBuilder:
       prefixLimits = PrefixFamilyLimits
     )
 
-  private def buildWrapUpHypothesisDifference(ctx: NarrativeContext, bead: Int): Option[String] =
+  private def buildWrapUpHypothesisDifference(
+    ctx: NarrativeContext,
+    bead: Int,
+    crossBeatState: CrossBeatRepetitionState
+  ): Option[String] =
     val main = ctx.candidates.headOption
     val alt = ctx.candidates.drop(1).headOption
     val mainHyp = main.flatMap(_.hypotheses.sortBy(h => -h.confidence).headOption)
@@ -1452,14 +1482,21 @@ object NarrativeOutlineBuilder:
       mh <- mainHyp
       ah <- altHyp
     yield
-      NarrativeLexicon.getWrapUpDecisiveDifference(
-        bead = bead,
-        mainMove = m.move,
-        altMove = a.move,
-        mainAxis = mh.axis,
-        altAxis = ah.axis,
-        mainHorizon = mh.horizon,
-        altHorizon = ah.horizon
+      selectDifferenceVariant(
+        variants = NarrativeLexicon.getWrapUpDecisiveDifferenceVariants(
+          bead = bead,
+          mainMove = m.move,
+          altMove = a.move,
+          mainAxis = mh.axis,
+          altAxis = ah.axis,
+          mainHorizon = mh.horizon,
+          altHorizon = ah.horizon
+        ),
+        seed = bead ^ 0x19f8b4ad,
+        usedStems = crossBeatState.usedStems.toSet ++ crossBeatState.usedHypothesisStems.toSet,
+        prefixCounts = crossBeatState.prefixCounts.toMap,
+        usedDifferencePrefixes = crossBeatState.usedDifferencePrefixes,
+        usedDifferenceTails = crossBeatState.usedDifferenceTails
       )
 
   private def selectHypothesis(
@@ -1588,6 +1625,91 @@ object NarrativeOutlineBuilder:
 
   private def hypothesisFamily(card: HypothesisCard): String =
     s"${card.axis.toString.toLowerCase}:${normalizeHypothesisStem(card.claim)}"
+
+  private def selectDifferenceVariant(
+    variants: List[String],
+    seed: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    usedDifferencePrefixes: scala.collection.mutable.Set[String],
+    usedDifferenceTails: scala.collection.mutable.Set[String]
+  ): String =
+    val clean = variants.map(_.trim).filter(_.nonEmpty).distinct
+    if clean.isEmpty then ""
+    else
+      val start = Math.floorMod(seed, clean.size)
+      val rotated = (0 until clean.size).toList.map(i => clean(Math.floorMod(start + i, clean.size)))
+      val unseenPrefixPool =
+        rotated.filter { v =>
+          val prefix = normalizeDifferencePrefix(v)
+          prefix.nonEmpty && !usedDifferencePrefixes.contains(prefix)
+        }
+      val unseenTailPool =
+        rotated.filter { v =>
+          val tail = normalizeDifferenceTail(v)
+          tail.nonEmpty && !usedDifferenceTails.contains(tail)
+        }
+      val unseenBothPool =
+        rotated.filter { v =>
+          val prefix = normalizeDifferencePrefix(v)
+          val tail = normalizeDifferenceTail(v)
+          prefix.nonEmpty && tail.nonEmpty &&
+            !usedDifferencePrefixes.contains(prefix) &&
+            !usedDifferenceTails.contains(tail)
+        }
+      val pool =
+        if unseenBothPool.nonEmpty then unseenBothPool
+        else if unseenPrefixPool.nonEmpty then unseenPrefixPool
+        else if unseenTailPool.nonEmpty then unseenTailPool
+        else rotated
+      val selected =
+        selectNonRepeatingTemplate(
+          templates = pool,
+          seed = seed ^ 0x63d5a6f1,
+          usedStems = usedStems,
+          prefixCounts = prefixCounts,
+          prefixLimits = PrefixFamilyLimits
+        )
+      val prefix = normalizeDifferencePrefix(selected)
+      if prefix.nonEmpty then usedDifferencePrefixes += prefix
+      val tail = normalizeDifferenceTail(selected)
+      if tail.nonEmpty then usedDifferenceTails += tail
+      selected
+
+  private def normalizeDifferencePrefix(text: String): String =
+    Option(text).getOrElse("")
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(4)
+      .mkString(" ")
+
+  private def normalizeDifferenceTail(text: String): String =
+    val clauses =
+      Option(text).getOrElse("")
+        .split("""[.!?]""")
+        .toList
+        .map(_.trim)
+        .filter(_.nonEmpty)
+    val tailRaw = clauses.lastOption.getOrElse(Option(text).getOrElse(""))
+    tailRaw
+      .toLowerCase
+      .replaceAll("""\*\*[^*]+\*\*""", " ")
+      .replaceAll("""\([^)]*\)""", " ")
+      .replaceAll("""\b\d+(?:\.\d+)?\b""", " ")
+      .replaceAll("""[^a-z\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .split(" ")
+      .filter(_.nonEmpty)
+      .take(6)
+      .mkString(" ")
 
   // ===========================================================================
   // Helpers
@@ -3078,7 +3200,8 @@ object NarrativeOutlineBuilder:
             s"**$move** is playable in practice, but concrete calculation is required.",
             s"Over the board, **$move** is acceptable if tactical details are controlled.",
             s"**$move** remains practical, but one inaccurate follow-up can change the assessment.$practicalHint",
-            s"**$move** is playable in a real game, yet it demands precise sequencing.$practicalHint"
+            s"**$move** can be handled in practical play, but sequencing accuracy is non-negotiable.$practicalHint",
+            s"Real-game handling of **$move** is possible, though the follow-up order must stay exact.$practicalHint"
           )
         case _ =>
           List(NarrativeLexicon.getAlternative(localBead, move, c.whyNot.flatMap(humanizeWhyNot)))

@@ -7,15 +7,6 @@ import lila.llm.model.Motif.*
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }
 
-/** Engine evaluation data (from frontend Stockfish WASM) */
-case class EngineEval(
-    cp: Option[Int],
-    mate: Option[Int],
-    pv: List[String] = Nil
-):
-  def score: Int = 
-    cp.getOrElse(mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(0))
-
 /**
  * Unified Move Analyzer
  * 

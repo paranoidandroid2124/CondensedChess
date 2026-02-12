@@ -17,6 +17,13 @@ object ProbeDetector:
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
 
+  case class StrategicFrame(
+    cause: String,
+    consequence: String,
+    turningPoint: String,
+    severity: String
+  )
+
   case class HypothesisVerificationSignals(
     supportSignals: List[String],
     conflictSignals: List[String],
@@ -24,7 +31,8 @@ object ProbeDetector:
     contradictionPenalty: Double,
     longSupportSignals: List[String],
     longConflictSignals: List[String],
-    longConfidenceDelta: Double
+    longConfidenceDelta: Double,
+    strategicFrame: Option[StrategicFrame]
   )
 
   private def planEvidenceProbes(
@@ -606,7 +614,8 @@ object ProbeDetector:
       contradictionPenalty = contradictionPenalty,
       longSupportSignals = longSupport,
       longConflictSignals = longConflict,
-      longConfidenceDelta = longConfidenceDelta
+      longConfidenceDelta = longConfidenceDelta,
+      strategicFrame = deriveStrategicFrame(matchingResults, isWhiteToMove)
     )
 
   private def containsLongSignalKeyword(text: String): Boolean =
@@ -615,6 +624,56 @@ object ProbeDetector:
 
   private def clampLongConfidenceDelta(v: Double): Double =
     Math.max(-0.27, Math.min(0.21, v))
+
+  private def deriveStrategicFrame(
+    matchingResults: List[ProbeResult],
+    isWhiteToMove: Boolean
+  ): Option[StrategicFrame] =
+    if matchingResults.isEmpty then None
+    else
+      val seeded =
+        matchingResults.map { pr =>
+          val moverLoss = if isWhiteToMove then -pr.deltaVsBaseline else pr.deltaVsBaseline
+          val collapse = pr.l1Delta.flatMap(_.collapseReason).map(_.toLowerCase).getOrElse("")
+          val cause =
+            if moverLoss <= 25 then "near-baseline"
+            else if moverLoss <= 80 then "manageable-concession"
+            else "forcing-swing"
+          val consequence =
+            if pr.mate.exists(_ < 0) || collapse.contains("king") || collapse.contains("exposed") then
+              "king-safety-exposure"
+            else if collapse.contains("structure") || collapse.contains("pawn") then
+              "structural-collapse"
+            else if pr.purpose.exists(_.contains("convert")) || pr.keyMotifs.exists(containsLongSignalKeyword) then
+              "conversion-cost"
+            else "initiative-handoff"
+          val turningPoint =
+            if moverLoss >= 90 || pr.mate.nonEmpty then "immediate-sequence"
+            else if
+              pr.purpose.exists(_.contains("convert")) ||
+                pr.futureSnapshot.exists(fs => fs.planPrereqsMet.nonEmpty || fs.planBlockersRemoved.nonEmpty)
+            then "simplification-transition"
+            else "middlegame-regrouping"
+          val severity =
+            cause match
+              case "forcing-swing"         => 3
+              case "manageable-concession" => 2
+              case _                       => 1
+          (cause, consequence, turningPoint, severity)
+        }
+      seeded.sortBy(t => -t._4).headOption.map { top =>
+        val severityLabel =
+          top._4 match
+            case 3 => "high"
+            case 2 => "medium"
+            case _ => "low"
+        StrategicFrame(
+          cause = top._1,
+          consequence = top._2,
+          turningPoint = top._3,
+          severity = severityLabel
+        )
+      }
 
   private def stableRequestId(plan: Plan, fen: String): String =
     val slug = plan.name

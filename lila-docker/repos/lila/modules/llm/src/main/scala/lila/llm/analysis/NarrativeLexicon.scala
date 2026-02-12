@@ -1000,6 +1000,86 @@ object NarrativeLexicon {
     pick(bead ^ 0x7f4a7c15, templates)
   }
 
+  def getAlternativeHypothesisDifferenceVariants(
+    bead: Int,
+    alternativeMove: String,
+    mainMove: String,
+    mainAxis: Option[HypothesisAxis],
+    alternativeAxis: Option[HypothesisAxis],
+    alternativeClaim: Option[String],
+    confidence: Double,
+    horizon: HypothesisHorizon
+  ): List[String] = {
+    val altAxisText = alternativeAxis.map(axisLabel).getOrElse("plan balance")
+    val mainAxisText = mainAxis.map(axis => axisLabel(axis, bead ^ 0x4f6cdd1d)).getOrElse("the principal plan")
+    val altAxisVar = alternativeAxis.map(axis => axisLabel(axis, bead ^ 0x63d5a6f1)).getOrElse(altAxisText)
+    val axisContrastOptions =
+      if alternativeAxis == mainAxis then
+        List(
+          s"keeps the same $altAxisVar focus, but the timing window shifts",
+          s"tracks the same $altAxisVar theme while changing move-order timing",
+          s"stays on the $altAxisVar route, yet it sequences commitments differently",
+          s"leans on the same $altAxisVar logic, with a different timing profile"
+        )
+      else
+        List(
+          s"shifts priority toward $altAxisVar rather than $mainAxisText",
+          s"rebalances the plan toward $altAxisVar instead of $mainAxisText",
+          s"places $altAxisVar ahead of $mainAxisText in the practical order",
+          s"redirects emphasis to $altAxisVar while reducing $mainAxisText priority",
+          s"changes the center of gravity from $mainAxisText to $altAxisVar"
+        )
+    val confidenceLead =
+      if confidence >= 0.72 then "likely"
+      else if confidence >= 0.5 then "plausibly"
+      else "possibly"
+    val claimPart = alternativeClaim.map(_.trim.stripSuffix(".")).filter(_.nonEmpty)
+      .map(c => s"$c.")
+      .getOrElse("")
+    val horizonTailOptions =
+      horizon match
+        case HypothesisHorizon.Short =>
+          List(
+            "The split should surface in immediate move-order fights.",
+            "This difference is expected to matter right away in concrete sequencing.",
+            s"Concrete tactical play after **$alternativeMove** should expose the split quickly."
+          )
+        case HypothesisHorizon.Medium =>
+          List(
+            s"Middlegame pressure around **$alternativeMove** is where this route starts to separate from the main plan.",
+            s"After **$alternativeMove**, concrete commitments harden and coordination plans must be rebuilt.",
+            s"The key practical fork is likely during the first serious middlegame regrouping after **$alternativeMove**.",
+            s"This contrast tends to become visible when **$alternativeMove** reaches concrete middlegame commitments.",
+            s"From a medium-horizon view, **$alternativeMove** often diverges once plan commitments become irreversible.",
+            s"A few moves later, **$alternativeMove** often shifts which side controls the strategic transition.",
+            s"The real test for **$alternativeMove** appears when middlegame plans must be fixed to one structure."
+          )
+        case HypothesisHorizon.Long =>
+          List(
+            s"The divergence after **$alternativeMove** is expected to surface later in the endgame trajectory.",
+            s"With **$alternativeMove**, this split should reappear in long-term conversion phases.",
+            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique."
+          )
+    val wrappers = List(
+      "Compared with",
+      "Relative to",
+      "Against the main move",
+      "Versus the principal choice",
+      "In contrast to",
+      "Set against",
+      "Measured against"
+    )
+    val axisStart = Math.floorMod(bead ^ 0x5f356495, axisContrastOptions.size)
+    val horizonStart = Math.floorMod(bead ^ 0x4b4b4b4b, horizonTailOptions.size)
+    wrappers.zipWithIndex.map { case (prefix, idx) =>
+      val axisContrast = axisContrastOptions(Math.floorMod(axisStart + idx, axisContrastOptions.size))
+      val horizonTail = horizonTailOptions(Math.floorMod(horizonStart + idx, horizonTailOptions.size))
+      s"$prefix **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail"
+    }
+      .map(_.replaceAll("""\s+""", " ").trim)
+      .distinct
+  }
+
   def getAlternativeHypothesisDifference(
     bead: Int,
     alternativeMove: String,
@@ -1010,61 +1090,49 @@ object NarrativeLexicon {
     confidence: Double,
     horizon: HypothesisHorizon
   ): String = {
-    val altAxisText = alternativeAxis.map(axisLabel).getOrElse("plan balance")
-    val mainAxisText = mainAxis.map(axis => axisLabel(axis, bead ^ 0x4f6cdd1d)).getOrElse("the principal plan")
-    val altAxisVar = alternativeAxis.map(axis => axisLabel(axis, bead ^ 0x63d5a6f1)).getOrElse(altAxisText)
+    pick(
+      bead ^ 0x2f6e2b1,
+      getAlternativeHypothesisDifferenceVariants(
+        bead = bead,
+        alternativeMove = alternativeMove,
+        mainMove = mainMove,
+        mainAxis = mainAxis,
+        alternativeAxis = alternativeAxis,
+        alternativeClaim = alternativeClaim,
+        confidence = confidence,
+        horizon = horizon
+      )
+    )
+  }
+
+  def getWrapUpDecisiveDifferenceVariants(
+    bead: Int,
+    mainMove: String,
+    altMove: String,
+    mainAxis: HypothesisAxis,
+    altAxis: HypothesisAxis,
+    mainHorizon: HypothesisHorizon,
+    altHorizon: HypothesisHorizon
+  ): List[String] = {
+    val mainAxisText = axisLabel(mainAxis, bead ^ 0x11f17f1d)
+    val altAxisText = axisLabel(altAxis, bead ^ 0x3124bcf5)
     val axisContrast =
-      if alternativeAxis == mainAxis then
-        pick(bead ^ 0x5f356495, List(
-          s"keeps the same $altAxisVar focus, but the timing window shifts",
-          s"tracks the same $altAxisVar theme while changing move-order timing",
-          s"stays on the $altAxisVar route, yet it sequences commitments differently",
-          s"leans on the same $altAxisVar logic, with a different timing profile"
-        ))
-      else
-        pick(bead ^ 0x17d4eb2f, List(
-          s"shifts priority toward $altAxisVar rather than $mainAxisText",
-          s"rebalances the plan toward $altAxisVar instead of $mainAxisText",
-          s"puts more weight on $altAxisVar than on $mainAxisText",
-          s"puts $altAxisVar first, not $mainAxisText",
-          s"redirects emphasis to $altAxisVar while reducing $mainAxisText priority"
-        ))
-    val confidenceLead =
-      if confidence >= 0.72 then "likely"
-      else if confidence >= 0.5 then "plausibly"
-      else "possibly"
-    val claimPart = alternativeClaim.map(_.trim.stripSuffix(".")).filter(_.nonEmpty)
-      .map(c => s"$c.")
-      .getOrElse("")
-    val horizonTail =
-      horizon match
-        case HypothesisHorizon.Short =>
-          pick(bead ^ 0x2a2a2a2a, List(
-            "The split should surface in immediate move-order fights.",
-            "This difference is expected to matter right away in concrete sequencing.",
-            s"As **$alternativeMove** enters concrete tactical play, **$alternativeMove** usually exposes the split."
-          ))
-        case HypothesisHorizon.Medium =>
-          pick(bead ^ 0x4b4b4b4b, List(
-            s"Middlegame pressure around **$alternativeMove** is where this route typically starts to separate from the main plan.",
-            s"As plans crystallize after **$alternativeMove**, coordination must reset.",
-            s"The key practical fork is likely during the first serious middlegame regrouping after **$alternativeMove**.",
-            s"This contrast tends to become visible when **$alternativeMove** reaches concrete middlegame commitments.",
-            s"From a medium-horizon view, **$alternativeMove** often diverges once plan commitments become irreversible.",
-            s"A few moves later, **$alternativeMove** often shifts which side controls the strategic transition.",
-            s"The real test for **$alternativeMove** appears when middlegame plans must be fixed to one structure."
-          ))
-        case HypothesisHorizon.Long =>
-          pick(bead ^ 0x6c6c6c6c, List(
-            s"The divergence after **$alternativeMove** is expected to surface later in the endgame trajectory.",
-            s"With **$alternativeMove**, this split should reappear in long-term conversion phases.",
-            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique."
-          ))
-    pick(bead ^ 0x2f6e2b1, List(
-      s"Compared with **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail",
-      s"Relative to **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail",
-      s"Against the main move **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail"
-    ))
+      if mainAxis == altAxis then s"the same $mainAxisText axis"
+      else s"$mainAxisText versus $altAxisText"
+    val horizonBlend =
+      if mainHorizon == altHorizon then s"a shared ${horizonLabel(mainHorizon)} horizon"
+      else s"${horizonLabel(mainHorizon)} vs ${horizonLabel(altHorizon)} horizon"
+    List(
+      s"Decisive split: **$mainMove** versus **$altMove** on $axisContrast with $horizonBlend.",
+      s"Key difference: **$mainMove** and **$altMove** separate by $axisContrast across $horizonBlend.",
+      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, with $horizonBlend.",
+      s"Practical key difference: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
+      s"At the decisive split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
+      s"Final decisive split: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
+      s"From a key-difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend."
+    )
+      .map(_.replaceAll("""\s+""", " ").trim)
+      .distinct
   }
 
   def getWrapUpDecisiveDifference(
@@ -1076,21 +1144,18 @@ object NarrativeLexicon {
     mainHorizon: HypothesisHorizon,
     altHorizon: HypothesisHorizon
   ): String = {
-    val mainAxisText = axisLabel(mainAxis, bead ^ 0x11f17f1d)
-    val altAxisText = axisLabel(altAxis, bead ^ 0x3124bcf5)
-    val axisContrast =
-      if mainAxis == altAxis then s"the same $mainAxisText axis"
-      else s"$mainAxisText versus $altAxisText"
-    val horizonBlend =
-      if mainHorizon == altHorizon then s"a shared ${horizonLabel(mainHorizon)} horizon"
-      else s"${horizonLabel(mainHorizon)} vs ${horizonLabel(altHorizon)} horizon"
-    pick(bead ^ 0x19f8b4ad, List(
-      s"The decisive split is **$mainMove** versus **$altMove**: $axisContrast with $horizonBlend.",
-      s"The key difference is between **$mainMove** and **$altMove**; the contrast is $axisContrast across $horizonBlend.",
-      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, and the timeline contrast is $horizonBlend.",
-      s"Practically, **$mainMove** versus **$altMove** comes down to $axisContrast, with a $horizonBlend split.",
-      s"At the critical decision point, **$mainMove** and **$altMove** separate along $axisContrast under $horizonBlend."
-    ))
+    pick(
+      bead ^ 0x19f8b4ad,
+      getWrapUpDecisiveDifferenceVariants(
+        bead = bead,
+        mainMove = mainMove,
+        altMove = altMove,
+        mainAxis = mainAxis,
+        altAxis = altAxis,
+        mainHorizon = mainHorizon,
+        altHorizon = altHorizon
+      )
+    )
   }
 
   private def axisLabel(axis: HypothesisAxis): String =
