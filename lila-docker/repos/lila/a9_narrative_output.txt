@@ -7,23 +7,23 @@ In this encounter between **Unknown** and **Unknown** (Unknown, Unknown), the ga
 
 [Ply 1] (OpeningIntro)
 --------------------
-In the opening block around ply 1, opening choices start to define the long-term plans. The strategic task is to coordinate pieces and structure so that Piece Activation can be executed. Black is just a touch better (≈-0.5).
+In the opening block around ply 1, opening choices start to define the long-term plans. The strategic task is to coordinate pieces and structure so that Piece Activation can be executed. Black maintains a slight structural pull.
 
-1. e4: The game remains in opening channels. The middlegame plans are only now taking shape. Black can keep up mild pressure. Current play is organized around **Piece Activation**.
+1. e4: The game remains in opening channels. Move-order precision matters more than forcing lines. Black holds a practical initiative. The most reliable roadmap here is built around **Piece Activation**.
 
-**e4** is accurate and consistent with the main plan. It prepares for the next phase. **e4** aims for a tidy continuation with fewer forcing turns.
+**e4** keeps the practical roadmap readable without forcing complications, while initiative remains balanced. It improves piece routes for later plans. Sequencing after **e4** shifts the priority toward structural technique. Concrete observation first: e4 redirects the strategic route. Strongest read: e4 preserves the piece activation framework and avoids premature route changes The underlying axis is plan direction, and the payoff window is medium-horizon. Confirmation comes from plan-priority signal is 0.25 and engine list position is 1. A supporting hypothesis is that e4 prioritizes stability over momentum, making initiative handoff the central practical risk It supports the initiative control reading. Practically, this should influence middlegame choices where strategic pathing commitments are tested.
 
-The opening has transposed into the Sicilian Najdorf (10000 games, White scores 50%).
+The opening has transposed into the Sicilian Najdorf (10000 games, White scores 50%). This node is best treated as a live practical decision rather than a model-game recall test. Black maintains a slight structural pull.
 
 [Ply 11] (Blunder)
 --------------------
-Around ply 11, this opening block creates a decisive shift in practical control. Strategically, this phase rewards a coherent plan around Pawn Chain Maintenance. Black has the initiative and the better game.
+The opening block around ply 11 is a genuine turning point in the game. The strategic task is to coordinate pieces and structure so that Pawn Chain Maintenance can be executed. Black has the initiative and the better game (≈-3.0).
 
-6. g4: The hanging pawns in the center are a major strategic factor. The position remains in a developmental opening stage. Small developmental choices can still reshape the structure. Black is clearly better (≈-3.0). Most sensible plans here converge on **preserving the central pawn structure**.
+6. g4: Managing the hanging pawns will decide the middlegame plans. Opening development is still in progress. Central tension is still unresolved. Black is clearly better. Move-order choices are justified by **coordinating piece play before structural commitments**.
 
-A key question: After g4, how should Black recapture —...Nxg4 or...Bxg4?
+Worth asking: After g4, how should Black recapture —...Nxg4 or...Bxg4?
 
-**g4** is fully sound and matches the position's demands. It provides necessary defense. **g4** lowers immediate tactical volatility and rewards precise coordination.
+**g4** steers the position into a stable plan with clear follow-up, and defensive duties remain light. It prevents counterplay. Technical considerations come to the fore after **g4**, as tactical smog clears. From the board, g4 changes which plan family is easier to execute. Working hypothesis: g4 keeps pawn chain maintenance as the central roadmap, limiting early strategic drift Strategic weight shifts toward plan orientation on a medium-horizon timeframe. Validation evidence includes engine ordering keeps this at rank 1 and primary plan score sits at 0.70. Another key pillar is that g4 concedes some initiative for stability, so the practical test is whether counterplay can be contained This adds weight to the momentum control interpretation. The practical burden appears in the middlegame phase, once long-term roadmap tradeoffs become concrete.
 
 White must find precise moves to prevent a structural collapse.
 

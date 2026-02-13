@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import chess.{ Bishop, King, Knight, Pawn, Queen, Role, Rook }
-import lila.llm.model.{ Fact, HypothesisAxis, HypothesisHorizon }
+import lila.llm.model.{ CandidateTag, Fact, HypothesisAxis, HypothesisHorizon }
 
 /**
  * Phase 11: Infinite Diversity Lexicon
@@ -290,7 +290,10 @@ object NarrativeLexicon {
             "The game has moved into a tactical-strategic mix",
             "Middlegame priorities now hinge on concrete calculation",
             "The position now demands active middlegame decision-making",
-            "This middlegame phase rewards concrete, well-timed choices"
+            "This middlegame phase rewards concrete, well-timed choices",
+            "The contest has reached a mature middlegame stage",
+            "Functional middlegame coordination is the immediate challenge",
+            "Strategic depth increases as the middlegame takes hold"
           ),
           List(
             "piece coordination and king safety both matter",
@@ -301,7 +304,10 @@ object NarrativeLexicon {
             "routine moves can quickly backfire here",
             "small inaccuracies can hand over momentum immediately",
             "both sides must balance activity with king safety at each step",
-            "practical control can change after a single move-order slip"
+            "practical control can change after a single move-order slip",
+            "slight positional shifts can tip the overall balance",
+            "precision in the center governs the upcoming phase",
+            "maintaining tension requires high tactical vigilance"
           )
         )
       case "endgame" =>
@@ -347,6 +353,51 @@ object NarrativeLexicon {
     val lead = sentenceCase(pickWithPlyRotation(localSeed ^ 0x517cc1b7, ply, leadPool))
     val angle = sentenceCase(pickWithPlyRotation(localSeed ^ 0x6d2b79f5, ply + 1, anglePool))
     s"${punctuate(lead)} ${punctuate(angle)} $evalText."
+  }
+
+  def getGoalStatusDescription(bead: Int, evaluation: OpeningGoals.Evaluation): String = {
+    val name = evaluation.goalName
+    val supported = evaluation.supportedEvidence
+    val missing = evaluation.missingEvidence
+    
+    evaluation.status match {
+      case OpeningGoals.Status.Achieved =>
+        val evidenceText = if (supported.nonEmpty) s" as ${supported.mkString(" and ")} is evident" else ""
+        pick(bead, List(
+          s"The $name goal is achieved$evidenceText.",
+          s"Strategic objective $name is reached$evidenceText.",
+          s"Position successfully transitions into the $name setup$evidenceText."
+        ))
+      
+      case OpeningGoals.Status.Partial =>
+        val missingText = if (missing.nonEmpty) s", though ${missing.mkString(", ")} remains to be addressed" else ""
+        pick(bead, List(
+          s"The $name is partially established$missingText.",
+          s"$name is taking shape$missingText."
+        ))
+
+      case OpeningGoals.Status.Premature =>
+        val missingText = if (missing.nonEmpty) s", mostly due to lack of ${missing.mkString(" and ")}" else ""
+        pick(bead, List(
+          s"Attempting $name here feels premature$missingText.",
+          s"$name is a thematic idea, but it's currently undermined by ${missing.mkString(", ")}."
+        ))
+
+      case OpeningGoals.Status.Failed =>
+        val missingText = if (missing.nonEmpty) s". The position lacks ${missing.mkString(" and ")}" else ""
+        pick(bead, List(
+          s"The $name attempt failed here$missingText.",
+          s"$name was tactically or structurally unsound in this instance: ${missing.mkString(", ")}."
+        ))
+        
+      case OpeningGoals.Status.Mismatch => 
+        evaluation.mismatchReason.map(reason => 
+          pick(bead, List(
+            s"While $name is a common theme, $reason here.",
+            s"This looks like an attempt at $name, but $reason at this moment."
+          ))
+        ).getOrElse("")
+    }
   }
 
   def getIntent(bead: Int, alignment: String, evidence: Option[String], ply: Int = 0): String = {
@@ -739,25 +790,33 @@ object NarrativeLexicon {
         s"$route$pivot marked the promotion turning point, as promotion motifs began to drive every continuation.",
         s"From $route$pivot, the turning point was the promotion race and its forcing tempo count.",
         s"$route$pivot created the key turning point, after which promotion threats dictated priorities.",
-        s"$route$pivot marked the turning point because promotion timing outweighed slower strategic plans."
+        s"$route$pivot marked the turning point because promotion timing outweighed slower strategic plans.",
+        s"With $route$pivot, the transformation toward a promotion-based engine began.",
+        s"The tactical fork at $route$pivot was the decisive shift toward promotion themes."
       )
       else if key.contains("exchange") then List(
         s"$route$pivot marked the exchange turning point, with exchange timing starting to define the evaluation.",
         s"From $route$pivot, the decisive shift was the exchange sequence and resulting simplification.",
         s"$route$pivot became the turning point once exchanges reshaped piece activity and defensive resources.",
-        s"The critical turning point was $route$pivot, where exchange decisions fixed the practical balance."
+        s"The critical turning point was $route$pivot, where exchange decisions fixed the practical balance.",
+        s"Structural clarity was reached at $route$pivot through a series of forcing exchanges.",
+        s"The game transformed at $route$pivot as the exchange sequence reduced the tactical Fog of War."
       )
       else if key.contains("tactical") then List(
         s"$route$pivot marked the tactical turning point, once forcing tactical pressure became hard to defuse.",
         s"From $route$pivot, the decisive shift was king safety and concrete tactical accuracy.",
         s"$route$pivot marked the turning point because tactical threats began to override long-term plans.",
-        s"The critical turning point was $route$pivot, where tactical forcing lines dictated move order."
+        s"The critical turning point was $route$pivot, where tactical forcing lines dictated move order.",
+        s"Calculation intensity at $route$pivot defined the turning point of the struggle.",
+        s"The tactical landscape shifted irreversibly at $route$pivot through a forcing sequence."
       )
       else if key.contains("structural") then List(
         s"$route$pivot marked the structural turning point, when structural features began to dominate planning.",
         s"From $route$pivot, the decisive shift was structural transformation and piece rerouting.",
         s"$route$pivot became the turning point once structure and square control outweighed short tactics.",
-        s"The key turning point was $route$pivot, where structural shifts fixed the strategic roadmap."
+        s"The key turning point was $route$pivot, where structural shifts fixed the strategic roadmap.",
+        s"Strategic weight settled on $route$pivot as the structural imbalances hardened.",
+        s"Plan choice was fixed at $route$pivot through a defining structural transformation."
       )
       else List(
         s"$route$pivot marked the initiative turning point, as initiative control shifted to one side.",
@@ -1055,7 +1114,12 @@ object NarrativeLexicon {
           s"rebalances the plan toward $altAxisVar instead of $mainAxisText",
           s"places $altAxisVar ahead of $mainAxisText in the practical order",
           s"redirects emphasis to $altAxisVar while reducing $mainAxisText priority",
-          s"changes the center of gravity from $mainAxisText to $altAxisVar"
+          s"changes the center of gravity from $mainAxisText to $altAxisVar",
+          s"tilts the strategic balance toward $altAxisVar relative to $mainAxisText",
+          s"prioritizes $altAxisVar over the standard $mainAxisText reading",
+          s"reorients the game around $altAxisVar instead of $mainAxisText",
+          s"elevates the importance of $altAxisVar over $mainAxisText",
+          s"emphasizes $altAxisVar at the expense of $mainAxisText"
         )
     val confidenceLead =
       if confidence >= 0.72 then "likely"
@@ -1161,7 +1225,10 @@ object NarrativeLexicon {
       s"Practical key difference: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
       s"At the decisive split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
       s"Final decisive split: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
-      s"From a key-difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend."
+      s"From a key-difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend.",
+      s"The main fork: **$mainMove** vs **$altMove** hinges on $axisContrast within $horizonBlend.",
+      s"Ultimately, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
+      s"Strategic separation: **$mainMove** and **$altMove** divide on $axisContrast and $horizonBlend."
     )
       .map(_.replaceAll("""\s+""", " ").trim)
       .distinct
@@ -1196,21 +1263,21 @@ object NarrativeLexicon {
   private def axisLabel(axis: HypothesisAxis, seed: Int): String =
     axis match
       case HypothesisAxis.Plan =>
-        pick(seed, List("plan direction", "strategic route", "plan cadence", "long-plan map"))
+        pick(seed, List("plan direction", "strategic route", "plan cadence", "long-plan map", "strategic trajectory", "plan orientation", "long-term roadmap", "strategic pathing"))
       case HypothesisAxis.Structure =>
-        pick(seed, List("structure management", "structural control", "pawn-structure handling", "square-complex management"))
+        pick(seed, List("structure management", "structural control", "pawn-structure handling", "square-complex management", "positional integrity", "structural stability", "pawn-center management", "structural coordination"))
       case HypothesisAxis.Initiative =>
-        pick(seed, List("initiative control", "momentum balance", "initiative timing", "tempo initiative"))
+        pick(seed, List("initiative control", "momentum balance", "initiative timing", "tempo initiative", "initiative management", "momentum control", "dynamic balance", "initiative pulse"))
       case HypothesisAxis.Conversion =>
-        pick(seed, List("conversion timing", "conversion technique", "simplification timing", "technical conversion"))
+        pick(seed, List("conversion timing", "conversion technique", "simplification timing", "technical conversion", "conversion roadmap", "technique precision", "simplification logic", "conversion pathing"))
       case HypothesisAxis.KingSafety =>
-        pick(seed, List("king-safety timing", "king security management", "defensive king timing", "king-cover stability"))
+        pick(seed, List("king-safety timing", "king security management", "defensive king timing", "king-cover stability", "king-safety assessment", "defensive synchronization", "protective coordination", "king-security profile"))
       case HypothesisAxis.PieceCoordination =>
-        pick(seed, List("piece coordination", "piece-route harmony", "coordination lanes", "piece synchronization"))
+        pick(seed, List("piece coordination", "piece-route harmony", "coordination lanes", "piece synchronization", "piece interaction", "coordination efficiency", "piece harmony", "coordination stability"))
       case HypothesisAxis.PawnBreakTiming =>
-        pick(seed, List("pawn-break timing", "pawn-lever timing", "central break timing", "pawn tension timing"))
+        pick(seed, List("pawn-break timing", "pawn-lever timing", "central break timing", "pawn tension timing", "break-order precision", "pawn-break execution", "tension resolution timing", "lever-activation timing"))
       case HypothesisAxis.EndgameTrajectory =>
-        pick(seed, List("endgame trajectory", "long-phase conversion path", "late-phase trajectory", "endgame direction"))
+        pick(seed, List("endgame trajectory", "long-phase conversion path", "late-phase trajectory", "endgame direction", "technical trajectory", "endgame roadmap", "late-game trajectory", "technical-phase direction"))
 
   private def horizonLabel(horizon: HypothesisHorizon): String =
     horizon match
@@ -1321,25 +1388,20 @@ object NarrativeLexicon {
               )
             pick(localSeed, families)
       case _ =>
-        val families = cycle match
-          case 0 => List(
-            "The position remains dynamically balanced.",
-            "Counterplay exists for both sides.",
-            "The practical chances are still shared between both players.",
-            "Neither side has converted small edges into a stable advantage."
-          )
-          case 1 => List(
-            "Both sides retain tactical resources, so concrete move-order precision matters.",
-            "The position stays tense, and one careless tempo can swing the initiative.",
-            "Both players still need concrete accuracy before committing.",
-            "Each side still has tactical resources that punish inaccurate move order."
-          )
-          case _ => List(
-            "Neither side has stabilized a lasting edge.",
-            "The margin is narrow enough that practical accuracy remains decisive.",
-            "The game remains balanced, and precision will decide the result.",
-            "Fine margins mean technical accuracy still determines practical outcomes."
-          )
+        val families = List(
+          "The position remains dynamically balanced.",
+          "Counterplay exists for both sides.",
+          "The practical chances are still shared between both players.",
+          "Neither side has converted small edges into a stable advantage.",
+          "The game remains close, with chances only separating on move-order precision.",
+          "Strategic tension persists, and both sides have viable practical tasks.",
+          "The balance is delicate and requires constant tactical vigilance.",
+          "Fine margins mean technical accuracy still determines practical outcomes.",
+          "The game remains balanced, and precision will decide the result.",
+          "A single inaccurate sequence could tip this balanced position.",
+          "Practical handling remains the key test in this level game.",
+          "The margin is narrow enough that practical accuracy remains decisive."
+        )
         pick(localSeed, families)
     }
   }
@@ -1873,6 +1935,113 @@ object NarrativeLexicon {
     ))
   }
 
+  def getAnnotationTagOnlyHint(bead: Int, tag: CandidateTag, moveHint: String): Option[String] =
+    tag match
+      case CandidateTag.TacticalGamble =>
+        Some(pick(bead ^ 0x1f1f1f, List(
+          "It's a tactical try—be ready for a precise response.",
+          "This line is a tactical gamble; one loose move can backfire.",
+          s"**$moveHint** is a provocation that requires tight tactical tracking.",
+          "This branch is a sharp tactical gamble with high variance."
+        )))
+      case CandidateTag.Sharp =>
+        Some(pick(bead ^ 0x2f2f2f, List(
+          "The position stays sharp; calculation matters.",
+          "Expect complications—accuracy matters here.",
+          "The geometry remains sharp, so move-order slips are punished.",
+          "Calculation intensity rises as the position remains tactically sharp."
+        )))
+      case CandidateTag.Prophylactic =>
+        Some(pick(bead ^ 0x3f3f3f, List(
+          "It also limits counterplay.",
+          "A useful prophylactic touch, restricting the opponent's options.",
+          "This has a prophylactic flavor, managing risk before it escalates.",
+          "The purpose is preventive, shutting down active counterplay early."
+        )))
+      case CandidateTag.Converting =>
+        Some(pick(bead ^ 0x4f4f4f, List(
+          "It nudges the game toward a cleaner conversion.",
+          "A practical converting approach, aiming for a simpler win.",
+          "This is a technical converting choice to stabilize the advantage.",
+          "Focus shifts to systematic conversion using technical means."
+        )))
+      case CandidateTag.Solid =>
+        Some(pick(bead ^ 0x5f5f5f, List(
+          "A solid, low-risk choice.",
+          "A steady improving move with few drawbacks.",
+          "This is a structurally robust choice with manageable risks.",
+          "The hallmark of this line is strategic solidness and stability."
+        )))
+      case CandidateTag.Competitive =>
+        Some(pick(bead ^ 0x6f6f6f, List(
+          "Several moves are close in strength.",
+          "This is a competitive option among several near-equals.",
+          "In a congested engine ranking, this remains a top competitive choice.",
+          "The evaluation is narrow, leaving this as a highly competitive route."
+        )))
+      case _ => None
+
+  def getAnnotationDifficultyHint(bead: Int, diff: String, moveHint: String, phase: String): Option[String] =
+    val p = phase.trim.toLowerCase
+    if diff.contains("complex") then
+      Some(pick(bead ^ 0x7f7f7f, List(
+        s"After **$moveHint**, the line is complex; keep calculating.",
+        s"**$moveHint** leads to complex play where precision is rewarded.",
+        s"There are tactical resources after **$moveHint**; stay alert.",
+        s"**$moveHint** can produce a messy middlegame; calculation matters.",
+        s"This is not a line to play on autopilot after **$moveHint**.",
+        s"The ensuing complexity after **$moveHint** demands deep concrete verification."
+      )))
+    else if diff.contains("clean") then
+      if p == "endgame" then
+        Some(pick(bead ^ 0x8f8f8f, List(
+          s"The line after **$moveHint** is clean and technical, where subtle king routes and tempi matter.",
+          s"**$moveHint** guides play into a precise conversion phase.",
+          s"After **$moveHint**, technical details matter more than tactical tricks.",
+          s"**$moveHint** keeps the structure stable and highlights endgame technique.",
+          s"With **$moveHint**, progress is mostly about methodical coordination.",
+          s"Endgame technique after **$moveHint** centers on systematic structure exploitation."
+        )))
+      else
+        Some(pick(bead ^ 0x9f9f9f, List(
+          s"The line after **$moveHint** is relatively clean and technical, with less tactical turbulence.",
+          s"After **$moveHint**, strategy tightens; tactics recede.",
+          s"With **$moveHint**, planning depth tends to matter more than short tactics.",
+          s"With **$moveHint**, the structure stays stable and plan choices become clearer.",
+          s"Technical considerations come to the fore after **$moveHint**, as tactical smog clears.",
+          s"The technical route after **$moveHint** remains strategically transparent and manageable.",
+          s"With **$moveHint**, tactical complications settle into a clear strategic direction.",
+          s"The practical burden after **$moveHint** is technical rather than tactical.",
+          s"Follow-up after **$moveHint** guides the game into a technically stable phase.",
+          s"Sequencing after **$moveHint** shifts the priority toward structural technique.",
+          s"Strategic clarity increases after **$moveHint** as forcing lines resolve.",
+          s"The game enters a phase of technical consolidation after **$moveHint**.",
+          s"**$moveHint** leads to a structure that rewards accurate technical conversion.",
+          s"Tactical dust settles after **$moveHint**, leaving a technical endgame-like fight."
+        )))
+    else None
+
+  def getAnnotationTerminalMoveHint(bead: Int, moveHint: String): String =
+    pick(bead ^ 0xafafaf, List(
+      s"**$moveHint** forces an immediate tactical resolution.",
+      s"**$moveHint** ends the game sequence on the spot.",
+      s"After **$moveHint**, there is no long maneuvering phase left.",
+      s"Tactical finality is reached immediately with **$moveHint**."
+    ))
+
+  def getAnnotationTagHint(
+    bead: Int,
+    tags: List[CandidateTag],
+    practicalDifficulty: String,
+    moveHint: String,
+    phase: String,
+    isTerminalMove: Boolean
+  ): Option[String] =
+    if isTerminalMove then Some(getAnnotationTerminalMoveHint(bead, moveHint))
+    else
+      tags.flatMap(t => getAnnotationTagOnlyHint(bead, t, moveHint)).headOption
+        .orElse(getAnnotationDifficultyHint(bead, practicalDifficulty, moveHint, phase))
+
   def getPlanStatement(bead: Int, planName: String, ply: Int = 0): String = {
     val localSeed = bead ^ (ply * 0x9e3779b9)
     val p = planDisplay(localSeed, planName.trim, ply)
@@ -1974,7 +2143,9 @@ object NarrativeLexicon {
       withApprox("White is just a touch better"),
       withApprox("White has a modest edge"),
       withApprox("White can keep up mild pressure"),
-      withApprox("White has the easier side to press with")
+      withApprox("White has the easier side to press with"),
+      withApprox("White holds a practical initiative"),
+      withApprox("White maintains a slight structural pull")
     ))
     else if (cp <= -500) choose(List(
       withApprox("Black is winning"),
@@ -2002,7 +2173,9 @@ object NarrativeLexicon {
       withApprox("Black is just a touch better"),
       withApprox("Black has a modest edge"),
       withApprox("Black can keep up mild pressure"),
-      withApprox("Black has the easier side to press with")
+      withApprox("Black has the easier side to press with"),
+      withApprox("Black holds a practical initiative"),
+      withApprox("Black maintains a slight structural pull")
     ))
     else choose(List(
       "The position is finely balanced",
@@ -2171,5 +2344,6 @@ object NarrativeLexicon {
       s"The sacrificed material is balanced by $article $neutralDescriptor practical return."
     ))
   }
+
 
 }

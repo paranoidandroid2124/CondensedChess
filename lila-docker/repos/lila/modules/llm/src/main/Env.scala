@@ -22,5 +22,10 @@ final class Env(
   lazy val creditApi           = CreditApi(creditColl)
 
   // ── API ────────────────────────────────────────────────────────────────
+  private val analysisThreadCount = Math.max(1, Runtime.getRuntime.availableProcessors() - 1)
+  private val analysisService     = java.util.concurrent.Executors.newFixedThreadPool(analysisThreadCount)
+  lazy val analysisExecutor: scala.concurrent.ExecutionContext =
+    scala.concurrent.ExecutionContext.fromExecutor(analysisService)
+
   private lazy val openingExplorer = OpeningExplorerClient(ws)
-  lazy val api: LlmApi = LlmApi(openingExplorer, geminiClient, commentaryCache)
+  lazy val api: LlmApi = LlmApi(openingExplorer, geminiClient, commentaryCache)(using analysisExecutor)

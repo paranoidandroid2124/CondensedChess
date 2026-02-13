@@ -143,13 +143,23 @@ object NarrativeOutlineBuilder:
   // ===========================================================================
 
   private def buildMoveHeader(ctx: NarrativeContext, rec: TraceRecorder): Option[OutlineBeat] =
-    for
-      san <- ctx.playedSan
-      moveNum = (ctx.ply + 1) / 2
-      prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
-    yield
+    ctx.playedSan.map { san =>
+      val moveNum = (ctx.ply + 1) / 2
+      val prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
+      val bead = Math.abs(ctx.hashCode)
+      
+      val evaluation = OpeningGoals.analyze(ctx)
+
+      val text = evaluation match
+        case Some(eval) =>
+          val desc = NarrativeLexicon.getGoalStatusDescription(bead, eval)
+          if desc.nonEmpty then s"$prefix $san: $desc"
+          else s"$prefix $san"
+        case None => s"$prefix $san"
+
       rec.use("playedSan", san, "Move header")
-      OutlineBeat(kind = OutlineBeatKind.MoveHeader, text = s"$prefix $san", anchors = List(san))
+      OutlineBeat(kind = OutlineBeatKind.MoveHeader, text = text, anchors = List(san))
+    }
 
   private def buildContextBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): OutlineBeat =
     val parts = scala.collection.mutable.ListBuffer[String]()
@@ -1588,7 +1598,9 @@ object NarrativeOutlineBuilder:
               s"$move reshapes the practical balance",
               s"$move redirects the strategic route",
               s"$move changes which plan family is easier to execute",
-              s"$move alters the strategic map for both sides"
+              s"$move alters the strategic map for both sides",
+              s"$move shifts the practical focus of the position",
+              s"The move $move introduces a new strategic branch"
             ))
           }
         )
@@ -1781,79 +1793,7 @@ object NarrativeOutlineBuilder:
     phase: String,
     isTerminalMove: Boolean
   ): Option[String] =
-    val diff = practicalDifficulty.trim.toLowerCase
-    val phaseLower = phase.trim.toLowerCase
-
-    if isTerminalMove then
-      return Some(NarrativeLexicon.pick(bead, List(
-        s"**$moveHint** forces an immediate tactical resolution.",
-        s"**$moveHint** ends the game sequence on the spot.",
-        s"After **$moveHint**, there is no long maneuvering phase left."
-      )))
-
-    val tagHint =
-      if tags.contains(CandidateTag.TacticalGamble) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "It's a tactical try—be ready for a precise response.",
-          "This line is a tactical gamble; one loose move can backfire."
-        )))
-      else if tags.contains(CandidateTag.Sharp) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "The position stays sharp; calculation matters.",
-          "Expect complications—accuracy matters here."
-        )))
-      else if tags.contains(CandidateTag.Prophylactic) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "It also limits counterplay.",
-          "A useful prophylactic touch, restricting the opponent's options."
-        )))
-      else if tags.contains(CandidateTag.Converting) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "It nudges the game toward a cleaner conversion.",
-          "A practical converting approach, aiming for a simpler win."
-        )))
-      else if tags.contains(CandidateTag.Solid) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "A solid, low-risk choice.",
-          "A steady improving move with few drawbacks."
-        )))
-      else if tags.contains(CandidateTag.Competitive) then
-        Some(NarrativeLexicon.pick(bead, List(
-          "Several moves are close in strength.",
-          "This is a competitive option among several near-equals."
-        )))
-      else None
-
-    val diffHint =
-      if diff.contains("complex") then
-        Some(NarrativeLexicon.pick(bead, List(
-          s"After **$moveHint**, the line is complex; keep calculating.",
-          s"**$moveHint** leads to complex play where precision is rewarded.",
-          s"There are tactical resources after **$moveHint**; stay alert.",
-          s"**$moveHint** can produce a messy middlegame; calculation matters.",
-          s"This is not a line to play on autopilot after **$moveHint**."
-        )))
-      else if diff.contains("clean") then
-        val cleanTemplates =
-          if phaseLower == "endgame" then
-            List(
-              s"The line after **$moveHint** is clean and technical, where subtle king routes and tempi matter.",
-              s"**$moveHint** guides play into a precise conversion phase.",
-              s"After **$moveHint**, technical details matter more than tactical tricks.",
-              s"**$moveHint** keeps the structure stable and highlights endgame technique.",
-              s"With **$moveHint**, progress is mostly about methodical coordination."
-            )
-          else
-            List(
-              s"The line after **$moveHint** is relatively clean and technical, with less tactical turbulence.",
-              s"After **$moveHint**, strategy tightens; tactics recede.",
-              s"With **$moveHint**, planning depth tends to matter more than short tactics.",
-              s"With **$moveHint**, the structure stays stable and plan choices become clearer."
-            )
-        Some(NarrativeLexicon.pick(bead, cleanTemplates))
-      else None
-
-    tagHint.orElse(diffHint)
+    NarrativeLexicon.getAnnotationTagHint(bead, tags, practicalDifficulty, moveHint, phase, isTerminalMove)
 
   private def isTerminalAnnotationMove(
     ctx: NarrativeContext,
@@ -1888,7 +1828,9 @@ object NarrativeOutlineBuilder:
             "From a practical perspective,",
             "In strategic terms,",
             "That makes the practical picture clear:",
-            "So the practical verdict is straightforward:"
+            "So the practical verdict is straightforward:",
+            "Viewed through a practical lens,",
+            "The practical takeaway is immediate:"
           ),
           seed = bead ^ 0x24d8f59c,
           usedStems = usedStems ++ rank.toSet.map(normalizeStem),
@@ -1903,8 +1845,10 @@ object NarrativeOutlineBuilder:
           templates = List(
             "Therefore,",
             "As a result,",
-            "So",
-            "For that reason,"
+            "So,",
+            "For that reason,",
+            "Consequently,",
+            "Accordingly,"
           ),
           seed = bead ^ 0x3b5296f1,
           usedStems = usedStems ++ issue.toSet.map(normalizeStem),
@@ -1977,8 +1921,10 @@ object NarrativeOutlineBuilder:
           templates = List(
             "Therefore,",
             "As a result,",
-            "So",
-            "For that reason,"
+            "So,",
+            "For that reason,",
+            "Consequently,",
+            "Accordingly,"
           ),
           seed = bead ^ contextHint ^ 0x5f356495,
           usedStems = Set(normalizeStem(cause)),
@@ -2007,7 +1953,13 @@ object NarrativeOutlineBuilder:
       .map { t =>
         val kind = t.kind.toLowerCase
         val square = t.square.map(s => s" on $s").getOrElse("")
-        s"Issue: this does not neutralize the $kind threat$square."
+        val seed = t.hashCode ^ playedSan.hashCode
+        NarrativeLexicon.pick(seed, List(
+          s"Issue: this does not neutralize the $kind threat$square.",
+          s"Issue: the $kind threat$square remains a concern after this move.",
+          s"Issue: it leaves the $kind threat$square unresolved.",
+          s"Issue: $kind pressure$square is not addressed by this continuation."
+        ))
       }
 
   private def defenseMatches(bestDefense: Option[String], san: String, uci: Option[String]): Boolean =
@@ -2120,6 +2072,12 @@ object NarrativeOutlineBuilder:
       Some("underpromotion" -> "An underpromotion resource is a concrete tactical possibility.")
     else if normalized.contains("repetition") || normalized.contains("repeat") then
       Some("repeat" -> "A repeat line is a practical decision point if risk rises.")
+    else if normalized.contains("kingside_attack") then
+      Some("kingside attack" -> "A kingside attack is the direct plan for both sides.")
+    else if normalized.contains("queenside_attack") then
+      Some("queenside attack" -> "Strategic focus shifts to a queenside attack plan.")
+    else if normalized.contains("centralization") then
+      Some("centralization" -> "Centralization of key pieces is the main priority.")
     else None
 
   private def themeSentenceVariants(keyword: String, canonical: String): List[String] =
@@ -2128,7 +2086,9 @@ object NarrativeOutlineBuilder:
         List(
           "A minority attack is becoming a practical queenside plan.",
           "Minority attack play on the queenside is becoming the most practical plan.",
-          "The queenside minority attack is turning into the key practical route."
+          "The queenside minority attack is turning into the key practical route.",
+          "Strategic weight shifts toward a queenside minority attack.",
+          "The most promising plan involves a minority attack on the queenside."
         )
       case "bad bishop" =>
         List(
@@ -2152,7 +2112,9 @@ object NarrativeOutlineBuilder:
         List(
           "The bishop pair is a meaningful long-term asset here.",
           "The bishop pair provides a durable strategic edge over long diagonals.",
-          "Long-term play favors the bishop pair as an enduring strategic asset."
+          "Long-term play favors the bishop pair as an enduring strategic asset.",
+          "Managing the bishop pair will be a central theme in the ending.",
+          "The long-term value of the bishop pair begins to define the plans."
         )
       case "opposite-colored bishops" =>
         List(
@@ -2177,6 +2139,27 @@ object NarrativeOutlineBuilder:
           "A pawn storm is the direct attacking plan around the king.",
           "The direct attacking roadmap features a king-side pawn storm.",
           "Flank pawn-storm timing is central to the attack plan."
+        )
+      case "kingside attack" =>
+        List(
+          "A kingside attack is the direct plan for both sides.",
+          "Strategic focus shifts toward coordination for a kingside attack.",
+          "The immediate goal is building an attack on the kingside.",
+          "The roadmap involves direct pressure against the king's position."
+        )
+      case "queenside attack" =>
+        List(
+          "Strategic focus shifts to a queenside attack plan.",
+          "The queenside attack is becoming the most practical way forward.",
+          "Building pressure on the queenside is the primary strategic task.",
+          "A queenside attack plan defines the technical roadmap here."
+        )
+      case "centralization" =>
+        List(
+          "Centralization of key pieces is the main priority.",
+          "Piece centralization is required to keep the structure stable.",
+          "Technical progress depends on successful centralization of the pieces.",
+          "Consolidating control through centralization is the immediate task."
         )
       case _ =>
         List(canonical)
@@ -2521,7 +2504,10 @@ object NarrativeOutlineBuilder:
       val text = NarrativeLexicon.pick(bead ^ 0x4e67c6a7, List(
         s"The immediate concrete issue is the $kind threat$square.",
         s"On the board right now, handling the $kind threat$square is the priority.",
-        s"The position currently hinges on the $kind threat$square."
+        s"The position currently hinges on the $kind threat$square.",
+        s"Immediate focus centers on the $kind threat$square.",
+        s"The tactical priority is clearly the $kind threat$square.",
+        s"Checking the stability of the $kind situation$square is paramount."
       ))
       BoardAnchor(text = text, consumedThreat = true)
     }.orElse {
@@ -2535,8 +2521,11 @@ object NarrativeOutlineBuilder:
         val fileLabel = if file.toLowerCase.contains("file") then file else s"$file-file"
         val text = NarrativeLexicon.pick(bead ^ 0x1f123bb5, List(
           s"$fileLabel pressure is the concrete lever in the current position.",
-          s"The structure around the $fileLabel break is now the practical focal point.",
-          s"Plans on both sides revolve around the $fileLabel pawn break."
+          s"The $fileLabel dynamic is a major factor in the struggle.",
+          s"Both sides are currently focused on the $fileLabel channel.",
+          s"Control of the $fileLabel is the main positional prize.",
+          s"The structural fight revolves around $fileLabel possibilities.",
+          s"Strategic focus is sharpening along the $fileLabel."
         ))
         BoardAnchor(text = text)
       }
@@ -2666,7 +2655,10 @@ object NarrativeOutlineBuilder:
             "Because this blunder loosens coordination, the opponent gets a direct conversion route.",
             "This loses tactical control; as a result, recovery becomes difficult.",
             "This blunder concedes initiative, therefore the defensive workload spikes immediately.",
-            "This gives the opponent a forcing path, while your counterplay resources shrink."
+            "This gives the opponent a forcing path, while your counterplay resources shrink.",
+            "A decisive error that collapses defensive stability and permits forcing progress.",
+            "This severe misstep hands over practical control in a single sequence.",
+            "Tactical stability is lost here, making the subsequent task significantly harder."
           )
         case "mistake" =>
           List(
@@ -2674,7 +2666,10 @@ object NarrativeOutlineBuilder:
             "This mistake yields an easier conversion plan, because your coordination is slower.",
             "This concedes initiative, and as a result your defensive options narrow.",
             "This gives the opponent the cleaner continuation, while your plan becomes reactive.",
-            "This mistake leaves you defending without counterplay, therefore every tempo matters."
+            "This mistake leaves you defending without counterplay, therefore every tempo matters.",
+            "A noticeable error that complicates the defensive task unnecessarily.",
+            "This mistake allows the opponent to stabilize an advantage with less effort.",
+            "Coordination is disrupted by this choice, leading to a harder practical fight."
           )
         case _ =>
           List(
@@ -2682,7 +2677,10 @@ object NarrativeOutlineBuilder:
             "This gives up practical initiative, because the move-order becomes less precise.",
             "This drifts from the best plan; as a result, defensive workload increases.",
             "This leaves the opponent with a smoother sequence, while your structure is harder to coordinate.",
-            "This practical detour hands over simpler choices, therefore practical pressure rises."
+            "This practical detour hands over simpler choices, therefore practical pressure rises.",
+            "A slight deviation from the best route that eases the opponent's defensive duties.",
+            "This inaccuracy mildly softens the pressure compared to the strongest line.",
+            "The resulting position is slightly less challenging to handle for the opponent."
           )
     selectNonRepeatingTemplate(
       templates = templates,
