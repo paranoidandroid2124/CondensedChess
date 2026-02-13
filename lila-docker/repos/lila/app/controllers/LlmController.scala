@@ -57,6 +57,7 @@ final class LlmController(
               eval = commentReq.eval,
               variations = commentReq.variations,
               probeResults = commentReq.probeResults,
+              openingData = commentReq.openingData,
               afterFen = commentReq.afterFen,
               afterEval = commentReq.afterEval,
               afterVariations = commentReq.afterVariations,
@@ -98,6 +99,7 @@ final class LlmController(
             lastMove = commentReq.lastMove,
             eval = commentReq.eval,
             opening = commentReq.context.opening,
+            openingData = commentReq.openingData,
             phase = commentReq.context.phase,
             ply = commentReq.context.ply
           )

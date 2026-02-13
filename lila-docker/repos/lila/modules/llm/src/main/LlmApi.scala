@@ -70,6 +70,7 @@ final class LlmApi(
       eval: Option[EvalData],
       variations: Option[List[VariationLine]],
       probeResults: Option[List[lila.llm.model.ProbeResult]] = None,
+      openingData: Option[OpeningReference] = None,
       afterFen: Option[String] = None,
       afterEval: Option[EvalData] = None,
       afterVariations: Option[List[VariationLine]] = None,
@@ -84,7 +85,7 @@ final class LlmApi(
         Future.successful(Some(cached))
       case None =>
         computeBookmakerResponse(
-          fen, lastMove, eval, variations, probeResults,
+          fen, lastMove, eval, variations, probeResults, openingData,
           afterFen, afterEval, afterVariations, opening, phase, ply
         )
 
@@ -95,6 +96,7 @@ final class LlmApi(
       eval: Option[EvalData],
       variations: Option[List[VariationLine]],
       probeResults: Option[List[lila.llm.model.ProbeResult]],
+      openingData: Option[OpeningReference],
       afterFen: Option[String],
       afterEval: Option[EvalData],
       afterVariations: Option[List[VariationLine]],
@@ -139,7 +141,8 @@ final class LlmApi(
           effectivePly <= OpeningRefMaxPly
 
       val mastersFut =
-        if shouldFetchMasters then openingExplorer.fetchMasters(fen)
+        if openingData.isDefined then Future.successful(openingData)
+        else if shouldFetchMasters then openingExplorer.fetchMasters(fen)
         else Future.successful(None)
 
       mastersFut.flatMap { openingRef =>

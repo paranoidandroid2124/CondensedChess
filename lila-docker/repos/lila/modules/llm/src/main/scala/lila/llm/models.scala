@@ -23,6 +23,8 @@ case class CommentRequest(
     variations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
     // Bookmaker Stage 2 (optional): probe evidence from client to enable a1/a2 sub-branches
     probeResults: Option[List[lila.llm.model.ProbeResult]] = None,
+    // Bookmaker Stage 2 (optional): explorer data from client to bypass server-side I/O
+    openingData: Option[lila.llm.model.OpeningReference] = None,
     // Bookmaker delta: optional post-move position to compute before/after differences.
     afterFen: Option[String] = None,
     afterEval: Option[EvalData] = None,
