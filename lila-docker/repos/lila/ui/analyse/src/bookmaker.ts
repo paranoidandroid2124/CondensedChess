@@ -583,6 +583,42 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         }
                         : null;
 
+                // Stage 2: Client-side Opening Explorer fetch (from user IP)
+                let openingData = null;
+                if (node.ply >= 1 && node.ply <= 30 && phaseOf(node.ply) === 'opening') {
+                    try {
+                        const explorerRes = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(analysisFen)}`);
+                        if (explorerRes.ok) {
+                            const raw = await explorerRes.json();
+                            openingData = {
+                                eco: raw.opening?.eco,
+                                name: raw.opening?.name,
+                                totalGames: (raw.white || 0) + (raw.draws || 0) + (raw.black || 0),
+                                topMoves: (raw.moves || []).map((m: any) => ({
+                                    uci: m.uci,
+                                    san: m.san,
+                                    total: (m.white || 0) + (m.draws || 0) + (m.black || 0),
+                                    white: m.white || 0,
+                                    draws: m.draws || 0,
+                                    black: m.black || 0,
+                                    performance: m.averageRating || 0
+                                })),
+                                sampleGames: (raw.topGames || []).map((g: any) => ({
+                                    id: g.id,
+                                    winner: g.winner,
+                                    white: { name: g.white?.name || '?', rating: g.white?.rating || 0 },
+                                    black: { name: g.black?.name || '?', rating: g.black?.rating || 0 },
+                                    year: g.year || 0,
+                                    month: g.month || 1,
+                                    event: g.event
+                                }))
+                            };
+                        }
+                    } catch (e) {
+                        console.warn('Bookmaker: failed to fetch client-side opening data', e);
+                    }
+                }
+
                 // Stage 2: Full Deep Analysis
                 const res = await fetch('/api/llm/bookmaker-position', {
                     method: 'POST',
@@ -592,6 +628,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         lastMove: playedMove || null,
                         eval: evalData,
                         variations,
+                        probeResults: null,
+                        openingData,
                         afterFen,
                         afterEval: afterEvalData,
                         afterVariations,
@@ -641,6 +679,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                         eval: evalData,
                                         variations,
                                         probeResults,
+                                        openingData,
                                         afterFen,
                                         afterEval: afterEvalData,
                                         afterVariations,
