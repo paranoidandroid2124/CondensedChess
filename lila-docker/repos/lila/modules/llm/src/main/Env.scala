@@ -24,7 +24,7 @@ final class Env(
   // ── API ────────────────────────────────────────────────────────────────
   private val analysisThreadCount = Math.max(1, Runtime.getRuntime.availableProcessors() - 1)
   private val analysisService     = java.util.concurrent.Executors.newFixedThreadPool(analysisThreadCount)
-  lazy val analysisExecutor: scala.concurrent.ExecutionContext =
+  lazy val analysisExecutor: Executor =
     scala.concurrent.ExecutionContext.fromExecutor(analysisService)
 
   private lazy val openingExplorer = OpeningExplorerClient(ws)
