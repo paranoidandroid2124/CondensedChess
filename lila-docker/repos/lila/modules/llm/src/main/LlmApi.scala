@@ -36,7 +36,7 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int
-  ): Option[CommentResponse] =
+  ): Future[Option[CommentResponse]] = Future {
     val _ = ply
     val pv = eval.flatMap(_.pv).getOrElse(Nil)
     CommentaryEngine.assess(fen, pv, opening, Some(phase)).map { assessment =>
@@ -54,6 +54,7 @@ final class LlmApi(
         variations = Nil
       )
     }
+  }
 
   /** Generate deep bookmaker commentary with optional Gemini polish.
     *

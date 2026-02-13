@@ -100,17 +100,19 @@ final class LlmController(
             opening = commentReq.context.opening,
             phase = commentReq.context.phase,
             ply = commentReq.context.ply
-          ) match
-          case Some(response) =>
-            val html = BookmakerRenderer
-              .render(
-                commentary = response.commentary,
-                variations = response.variations,
-                fenBefore = commentReq.fen
-              )
-              .toString
-            Ok(Json.obj("html" -> html, "concepts" -> response.concepts)).toFuccess
-          case None => NotFound("Briefing unavailable").toFuccess
+          )
+          .map {
+            case Some(response) =>
+              val html = BookmakerRenderer
+                .render(
+                  commentary = response.commentary,
+                  variations = response.variations,
+                  fenBefore = commentReq.fen
+                )
+                .toString
+              Ok(Json.obj("html" -> html, "concepts" -> response.concepts))
+            case None => NotFound("Briefing unavailable")
+          }
     )
 
   /** Get current user's credit status. */
