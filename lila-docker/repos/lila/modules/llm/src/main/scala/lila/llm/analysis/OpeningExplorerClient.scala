@@ -94,6 +94,33 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
             Some(ref.copy(sampleGames = updated))
           }
 
+  /**
+   * Enriches an existing OpeningReference with snippets extracted from raw PGNs
+   * already present in the sampleGames. (Used for client-side injection).
+   */
+  def enrichWithLocalPgn(fen: String, ref: OpeningReference): OpeningReference =
+    val targetKey = fenKey4(fen)
+    val enriched = ref.sampleGames.map { g =>
+      g.pgn match
+        case Some(raw) if raw.contains("[Event") || raw.contains("1.") => // Looks like raw PGN
+          truncateRawPgn(raw, targetKey) match
+            case Some(snippet) => g.copy(pgn = Some(snippet))
+            case None          => g
+        case _ => g
+    }
+    ref.copy(sampleGames = enriched)
+
+  private def truncateRawPgn(pgn: String, targetKey: String): Option[String] =
+    PgnAnalysisHelper.extractPlyData(pgn).toOption.flatMap { plyData =>
+      val idxOpt = plyData.indexWhere(p => fenKey4(p.fen) == targetKey) match
+        case -1 => None
+        case i  => Some(i)
+      idxOpt.flatMap { idx =>
+        val slice = plyData.drop(idx).take(snippetMaxPlies)
+        Option.when(slice.nonEmpty)(formatPlySnippet(slice))
+      }
+    }
+
   private def fetchPgnSnippet(gameId: String, targetFenKey: String): Future[Option[String]] =
     ws.url(s"$mastersPgnUrl/$gameId")
       .withRequestTimeout(pgnTimeout)

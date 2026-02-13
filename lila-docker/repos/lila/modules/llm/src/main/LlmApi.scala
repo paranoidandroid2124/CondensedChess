@@ -141,7 +141,7 @@ final class LlmApi(
           effectivePly <= OpeningRefMaxPly
 
       val mastersFut =
-        if openingData.isDefined then Future.successful(openingData)
+        if openingData.isDefined then Future.successful(Some(openingExplorer.enrichWithLocalPgn(fen, openingData.get)))
         else if shouldFetchMasters then openingExplorer.fetchMasters(fen)
         else Future.successful(None)
 

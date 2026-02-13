@@ -590,28 +590,43 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         const explorerRes = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(analysisFen)}`);
                         if (explorerRes.ok) {
                             const raw = await explorerRes.json();
-                            openingData = {
-                                eco: raw.opening?.eco,
-                                name: raw.opening?.name,
-                                totalGames: (raw.white || 0) + (raw.draws || 0) + (raw.black || 0),
-                                topMoves: (raw.moves || []).map((m: any) => ({
-                                    uci: m.uci,
-                                    san: m.san,
-                                    total: (m.white || 0) + (m.draws || 0) + (m.black || 0),
-                                    white: m.white || 0,
-                                    draws: m.draws || 0,
-                                    black: m.black || 0,
-                                    performance: m.averageRating || 0
-                                })),
-                                sampleGames: (raw.topGames || []).map((g: any) => ({
+                            const topMoves = (raw.moves || []).map((m: any) => ({
+                                uci: m.uci,
+                                san: m.san,
+                                total: (m.white || 0) + (m.draws || 0) + (m.black || 0),
+                                white: m.white || 0,
+                                draws: m.draws || 0,
+                                black: m.black || 0,
+                                performance: m.averageRating || 0
+                            }));
+
+                            // Fetch PGN snippets for the top 3 games to enable precedent commentary
+                            const sampleGames = await Promise.all((raw.topGames || []).slice(0, 3).map(async (g: any) => {
+                                let pgn = null;
+                                try {
+                                    const pgnRes = await fetch(`https://explorer.lichess.ovh/master/pgn/${g.id}`);
+                                    if (pgnRes.ok) pgn = await pgnRes.text();
+                                } catch (e) {
+                                    // non-critical, some games might not have PGN
+                                }
+                                return {
                                     id: g.id,
                                     winner: g.winner,
                                     white: { name: g.white?.name || '?', rating: g.white?.rating || 0 },
                                     black: { name: g.black?.name || '?', rating: g.black?.rating || 0 },
                                     year: g.year || 0,
                                     month: g.month || 1,
-                                    event: g.event
-                                }))
+                                    event: g.event,
+                                    pgn: pgn
+                                };
+                            }));
+
+                            openingData = {
+                                eco: raw.opening?.eco,
+                                name: raw.opening?.name,
+                                totalGames: (raw.white || 0) + (raw.draws || 0) + (raw.black || 0),
+                                topMoves,
+                                sampleGames
                             };
                         }
                     } catch (e) {
