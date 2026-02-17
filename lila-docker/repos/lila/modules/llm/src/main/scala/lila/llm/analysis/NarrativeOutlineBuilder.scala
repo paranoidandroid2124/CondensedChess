@@ -2653,34 +2653,34 @@ object NarrativeOutlineBuilder:
           List(
             "This is a blunder, so forcing control shifts to the opponent.",
             "Because this blunder loosens coordination, the opponent gets a direct conversion route.",
-            "This loses tactical control; as a result, recovery becomes difficult.",
+            "This blunder loses tactical control; as a result, recovery becomes difficult.",
             "This blunder concedes initiative, therefore the defensive workload spikes immediately.",
-            "This gives the opponent a forcing path, while your counterplay resources shrink.",
-            "A decisive error that collapses defensive stability and permits forcing progress.",
-            "This severe misstep hands over practical control in a single sequence.",
-            "Tactical stability is lost here, making the subsequent task significantly harder."
+            "This blunder gives the opponent a forcing path, while your counterplay resources shrink.",
+            "A decisive blunder that collapses defensive stability and permits forcing progress.",
+            "This severe blunder hands over practical control in a single sequence.",
+            "Tactical stability is lost after this blunder, making the subsequent task significantly harder."
           )
         case "mistake" =>
           List(
             "This is a clear mistake, so practical control swings away quickly.",
             "This mistake yields an easier conversion plan, because your coordination is slower.",
-            "This concedes initiative, and as a result your defensive options narrow.",
-            "This gives the opponent the cleaner continuation, while your plan becomes reactive.",
+            "This mistake concedes initiative, and as a result your defensive options narrow.",
+            "This mistake gives the opponent the cleaner continuation, while your plan becomes reactive.",
             "This mistake leaves you defending without counterplay, therefore every tempo matters.",
-            "A noticeable error that complicates the defensive task unnecessarily.",
+            "A noticeable mistake that complicates the defensive task unnecessarily.",
             "This mistake allows the opponent to stabilize an advantage with less effort.",
-            "Coordination is disrupted by this choice, leading to a harder practical fight."
+            "Coordination is disrupted by this mistake, leading to a harder practical fight."
           )
         case _ =>
           List(
             "This is an inaccuracy, so the opponent's play becomes easier to handle.",
-            "This gives up practical initiative, because the move-order becomes less precise.",
-            "This drifts from the best plan; as a result, defensive workload increases.",
-            "This leaves the opponent with a smoother sequence, while your structure is harder to coordinate.",
-            "This practical detour hands over simpler choices, therefore practical pressure rises.",
-            "A slight deviation from the best route that eases the opponent's defensive duties.",
+            "This inaccuracy gives up practical initiative, because the move-order becomes less precise.",
+            "This inaccuracy drifts from the best plan; as a result, defensive workload increases.",
+            "This inaccuracy leaves the opponent with a smoother sequence, while your structure is harder to coordinate.",
+            "This inaccuracy hands over simpler choices, therefore practical pressure rises.",
+            "A slight inaccuracy from the best route eases the opponent's defensive duties.",
             "This inaccuracy mildly softens the pressure compared to the strongest line.",
-            "The resulting position is slightly less challenging to handle for the opponent."
+            "The resulting position from this inaccuracy is slightly less challenging to handle for the opponent."
           )
     selectNonRepeatingTemplate(
       templates = templates,
@@ -2691,9 +2691,9 @@ object NarrativeOutlineBuilder:
     )
 
   private def containsBenchmarkNegativeLexicon(text: String): Boolean =
-    val low = text.toLowerCase
+    val low = Option(text).getOrElse("").toLowerCase
     List("blunder", "mistake", "inaccuracy", "misses", "slip", "inferior", "drops", "loses")
-      .exists(term => s" $low ".contains(s" $term "))
+      .exists(term => low.matches(s""".*\\b$term\\b.*"""))
 
   private def containsBenchmarkStrongPositiveLexicon(text: String): Boolean =
     val low = text.toLowerCase
