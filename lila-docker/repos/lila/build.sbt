@@ -52,7 +52,7 @@ libraryDependencies ++= akka.bundle ++ playWs.bundle ++ macwire.bundle ++ scalal
   play.json, play.logback, compression, hasher,
   reactivemongo.driver, maxmind, scalatags,
   kamon.core, kamon.influxdb, kamon.metrics,
-  scaffeine, caffeine, lettuce, uaparser, nettyTransport, reactivemongo.shaded, catsMtl
+  scaffeine, caffeine, uaparser, nettyTransport, reactivemongo.shaded, catsMtl
 ) ++ tests.bundle
 
 // ============================================================
@@ -177,7 +177,7 @@ lazy val analyse = module("analyse",
 
 lazy val study = module("study",
   Seq(tree, memo, ui),
-  Seq(lettuce) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
+  tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 ).dependsOn(common % "test->test")
 
 // ============================================================
@@ -214,7 +214,7 @@ lazy val web = module("web",
 
 lazy val api = module("api",
   moduleCPDeps,
-  Seq(play.api, play.json, hasher, kamon.core, kamon.influxdb, lettuce) ++ tests.bundle ++ flexmark.bundle
+  Seq(play.api, play.json, hasher, kamon.core, kamon.influxdb) ++ tests.bundle ++ flexmark.bundle
 ).settings(
   Runtime / aggregate := false,
   Test / aggregate := true
