@@ -1,8 +1,0 @@
-# Narrative Appendix (Lossless)
-> Units: 100cp = 1.0 pawn. Scores are from White's perspective.
-
-## KEY FACTS
-- Top Plan: Pawn Chain Maintenance
-- Recommended: b3
-- Engine Score (White POV): 20
-

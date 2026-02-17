@@ -69,3 +69,11 @@ instance.lock
 *.log
 compile_errors*.txt
 .tmp_sf_in.txt
+
+# Local analysis/test artifacts
+a9_*.txt
+a10_*.txt
+a11_*.txt
+a12_*.txt
+compile*.txt
+fen_*.txt
