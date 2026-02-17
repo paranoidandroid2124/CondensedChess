@@ -79,6 +79,8 @@ POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLoca
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
 POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
 GET   /api/llm/credits                  controllers.LlmController.creditStatus
+GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)
+GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
 GET   /plan                            controllers.AnalystProPlan.index
 GET   /plan/checkout                   controllers.Checkout.show
 POST  /plan/checkout/process            controllers.Checkout.process
@@ -140,6 +142,8 @@ GET   /robots.txt                      controllers.Main.robots
 GET   /contact                         controllers.Main.contact
 GET   /privacy                         controllers.Main.privacy
 GET   /terms                           controllers.Main.terms
+GET   /source                          controllers.Main.source
+GET   /legal/open-source               controllers.Main.source
 
 # Catch-all
 GET   /*path                           controllers.User.redirect(path)

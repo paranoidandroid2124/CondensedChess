@@ -34,17 +34,17 @@ html.pro {
     border-bottom: 1px solid $c-border;
     background: $c-bg;
 
-    .site-title {
+    .cs-brand {
       gap: 0.75rem;
       text-decoration: none;
     }
 
-    .site-icon {
+    .cs-mark {
       font-size: 1.4rem;
       opacity: 0.9;
     }
 
-    .site-name {
+    .cs-wordmark {
       font-family: 'Georgia', serif;
       font-weight: 900;
       letter-spacing: -0.03em;

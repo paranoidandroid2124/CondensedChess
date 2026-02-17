@@ -26,6 +26,14 @@ final class LlmApi(
   /** Whether Gemini polish is currently active. */
   def isGeminiEnabled: Boolean = geminiClient.isEnabled
 
+  /** Internal proxy access for masters explorer data. */
+  def fetchOpeningMasters(fen: String): Future[Option[OpeningReference]] =
+    openingExplorer.fetchMasters(fen)
+
+  /** Internal proxy access for a masters game PGN. */
+  def fetchOpeningMasterPgn(gameId: String): Future[Option[String]] =
+    openingExplorer.fetchMasterPgn(gameId)
+
   /** Generate an instant rule-based briefing for a position.
     * Always local, never Gemini-polished (designed for speed).
     */

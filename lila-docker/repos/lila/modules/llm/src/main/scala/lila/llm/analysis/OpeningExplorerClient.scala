@@ -67,6 +67,21 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
             }
         )
 
+  /** Fetches the raw PGN for a master game id. */
+  def fetchMasterPgn(gameId: String): Future[Option[String]] =
+    ws.url(s"$mastersPgnUrl/$gameId")
+      .withRequestTimeout(pgnTimeout)
+      .get()
+      .map: response =>
+        if response.status == 200 then
+          val bytes = response.body[Array[Byte]]
+          Some(String(bytes, StandardCharsets.UTF_8))
+        else None
+      .recover { case e: Throwable =>
+        lila.log("llm").debug(s"Explorer raw PGN fetch failed for $gameId: ${e.getMessage}")
+        None
+      }
+
   private def normalizeFen(fen: String): String =
     val parts = fen.trim.split("\\s+").toList
     parts match

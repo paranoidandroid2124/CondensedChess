@@ -1,28 +1,28 @@
 @import 'theme.default';
 
 // Color Palette: "Insight Hub" (Soft Dark)
-$c-bg: #161A25; // Calm Dark Navy
-$c-bg-page: #0d1016;
-$c-bg-low: #1c212e;
-$c-bg-zebra: #191e2b;
-$c-bg-zebra2: #202635;
-$c-bg-popup: #1c212e;
-$c-bg-opaque: #161A25;
-$c-body-gradient: #161A25;
-$c-border: #2a3449;
+$c-bg: #141a20; // Charcoal blue
+$c-bg-page: #0d1218;
+$c-bg-low: #1b232c;
+$c-bg-zebra: #18212a;
+$c-bg-zebra2: #1f2a35;
+$c-bg-popup: #1b232c;
+$c-bg-opaque: #141a20;
+$c-body-gradient: #111821;
+$c-border: #2d3a48;
 
 // Typography & Text
-$c-font: #E2E8F0; // Soft White
-$c-shade: #94A3B8; // Muted Blue-Grey
+$c-font: #e6edf3; // Soft White
+$c-shade: #93a5b5; // Muted Slate
 $c-paper: #F1F5F9;
 
-// Accents (Data Visualization Colors)
-$c-primary: #3B82F6; // Trustworthy Blue
-$c-secondary: #06B6D4; // Chesstory Cyan
-$c-good: #06B6D4;
+// Accents
+$c-primary: #c96b3a; // Copper
+$c-secondary: #2aa6a5; // Teal
+$c-good: #2aa6a5;
 $c-bad: #EF4444; // Error/Blunder Red
-$c-accent: #F59E0B; // Warning/Best Move Amber
-$c-brag: #8B5CF6; // Violet
+$c-accent: #e2b048; // Amber
+$c-brag: #a06a42;
 
 // Glass/Surface overrides (Subtle)
 $glass-surface: rgba(28, 33, 46, 0.95); // High opacity for readability
@@ -31,8 +31,8 @@ $glass-border: rgba(255, 255, 255, 0.05);
 html.pro {
     @include shared-color-defs;
 
-    --c-primary-dim: #{rgba(#3B82F6, 0.2)};
-    --c-link-hover: #60A5FA;
+    --c-primary-dim: #{rgba(#c96b3a, 0.22)};
+    --c-link-hover: #e39f74;
     --c-border-page: #{$c-border};
 
     // Chesstory: keep core layout logic in `ui/analyse/css/_layout.scss`,

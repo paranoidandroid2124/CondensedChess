@@ -583,48 +583,53 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         }
                         : null;
 
-                // Stage 2: Client-side Opening Explorer fetch (from user IP)
+                // Stage 2: Opening reference fetch via backend proxy.
                 let openingData = null;
-                if (node.ply >= 1 && node.ply <= 30 && phaseOf(node.ply) === 'opening') {
+                const useExplorerProxy = document.body.dataset.brandExplorerProxy !== '0';
+                if (useExplorerProxy && node.ply >= 1 && node.ply <= 30 && phaseOf(node.ply) === 'opening') {
                     try {
-                        const explorerRes = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(analysisFen)}`);
+                        const explorerRes = await fetch(`/api/llm/opening/masters?fen=${encodeURIComponent(analysisFen)}`);
                         if (explorerRes.ok) {
                             const raw = await explorerRes.json();
-                            const topMoves = (raw.moves || []).map((m: any) => ({
+                            const topMoves = (raw.topMoves || []).map((m: any) => ({
                                 uci: m.uci,
                                 san: m.san,
-                                total: (m.white || 0) + (m.draws || 0) + (m.black || 0),
+                                total: m.total || 0,
                                 white: m.white || 0,
                                 draws: m.draws || 0,
                                 black: m.black || 0,
-                                performance: m.averageRating || 0
+                                performance: m.performance || 0
                             }));
 
                             // Fetch PGN snippets for the top 3 games to enable precedent commentary
-                            const sampleGames = await Promise.all((raw.topGames || []).slice(0, 3).map(async (g: any) => {
-                                let pgn = null;
-                                try {
-                                    const pgnRes = await fetch(`https://explorer.lichess.ovh/master/pgn/${g.id}`);
-                                    if (pgnRes.ok) pgn = await pgnRes.text();
-                                } catch (e) {
-                                    // non-critical, some games might not have PGN
-                                }
-                                return {
-                                    id: g.id,
-                                    winner: g.winner,
-                                    white: { name: g.white?.name || '?', rating: g.white?.rating || 0 },
-                                    black: { name: g.black?.name || '?', rating: g.black?.rating || 0 },
-                                    year: g.year || 0,
-                                    month: g.month || 1,
-                                    event: g.event,
-                                    pgn: pgn
-                                };
-                            }));
+                            const sampleGames = await Promise.all(
+                                (raw.sampleGames || []).slice(0, 3).map(async (g: any) => {
+                                    let pgn = g.pgn || null;
+                                    if (!pgn && g.id) {
+                                        try {
+                                            const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`);
+                                            if (pgnRes.ok) pgn = await pgnRes.text();
+                                        } catch (e) {
+                                            // non-critical, some games might not have PGN
+                                        }
+                                    }
+                                    return {
+                                        id: g.id,
+                                        winner: g.winner,
+                                        white: { name: g.white?.name || '?', rating: g.white?.rating || 0 },
+                                        black: { name: g.black?.name || '?', rating: g.black?.rating || 0 },
+                                        year: g.year || 0,
+                                        month: g.month || 1,
+                                        event: g.event,
+                                        pgn: pgn
+                                    };
+                                }),
+                            );
 
                             openingData = {
-                                eco: raw.opening?.eco,
-                                name: raw.opening?.name,
-                                totalGames: (raw.white || 0) + (raw.draws || 0) + (raw.black || 0),
+                                eco: raw.eco,
+                                name: raw.name,
+                                totalGames: raw.totalGames || 0,
                                 topMoves,
                                 sampleGames
                             };

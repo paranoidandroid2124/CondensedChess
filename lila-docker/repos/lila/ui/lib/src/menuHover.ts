@@ -38,7 +38,7 @@ export default function (): void {
   // event = string representing the namespaced event used for mouse tracking
   let state: State = {};
 
-  $('#topnav.hover').each(function (this: HTMLElement) {
+  $('#cs-nav.hover').each(function (this: HTMLElement) {
     const $el = $(this).removeClass('hover'),
       handler = () => $el.toggleClass('hover');
 

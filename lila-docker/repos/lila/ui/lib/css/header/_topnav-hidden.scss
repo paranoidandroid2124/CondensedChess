@@ -1,12 +1,12 @@
 @include mq-topnav-hidden {
-  .topnav-toggle {
+  .cs-nav-toggle {
     display: block;
     position: absolute;
     top: -9999px;
     left: -9999px;
   }
 
-  .hbg {
+  .cs-burger {
     position: absolute;
     top: 0;
     @include inline-start(0);
@@ -72,11 +72,11 @@
       }
     }
 
-    .topnav-toggle:checked ~ & {
+    .cs-nav-toggle:checked ~ & {
       position: fixed;
       background: $c-bg-high;
 
-      .hbg__in {
+      .cs-burger__in {
         transform: rotate(225deg);
         transition-delay: 0.12s;
         transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
@@ -100,7 +100,7 @@
     }
   }
 
-  #topnav {
+  #cs-nav {
     @include if-transp {
       @include back-blur();
     }
@@ -142,7 +142,7 @@
     }
 
     // Chesstory: simplified topnav (single list)
-    .topnav__main {
+    .cs-nav__main {
       flex: 1 0 100%;
       list-style: none;
       margin: 0;
@@ -152,7 +152,7 @@
       gap: 0.35rem;
     }
 
-    .topnav__link {
+    .cs-nav__link {
       display: flex;
       align-items: center;
       width: 100%;
@@ -210,7 +210,7 @@
       }
     }
 
-    .topnav-toggle:checked ~ & {
+    .cs-nav-toggle:checked ~ & {
       z-index: $z-topnav-111;
       transform: translateX(0);
       a {

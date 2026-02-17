@@ -9,37 +9,37 @@
   @return mix(#000, $color, $weight);
 }
 
-$site-hue: 220;
+$site-hue: 204;
 
 // top level $c-variables must be valid css format (rgba, hsla, hex) to be mixable by ui/build
 
-$c-bg: hsl(220, 15%, 10%); // Deep Navy Main
-$c-bg-page: hsl(220, 15%, 8%); // Darker Navy Page
-$c-bg-low: hsl(220, 15%, 13%); // Surface
-$c-bg-zebra: hsl(220, 12%, 11%);
-$c-bg-zebra2: hsl(220, 12%, 14%);
-$c-bg-popup: hsl(220, 15%, 14%);
-$c-bg-opaque: hsla(220, 15%, 10%);
-$c-body-gradient: hsl(220, 20%, 12%);
-$c-border: hsl(220, 10%, 20%);
-$c-font: hsl(220, 10%, 85%); // Off-white text
+$c-bg: hsl(206, 22%, 10%); // Ink Blue Main
+$c-bg-page: hsl(208, 24%, 8%); // Darker page well
+$c-bg-low: hsl(205, 20%, 14%); // Surface
+$c-bg-zebra: hsl(206, 18%, 12%);
+$c-bg-zebra2: hsl(205, 18%, 15%);
+$c-bg-popup: hsl(205, 20%, 15%);
+$c-bg-opaque: hsla(206, 22%, 10%);
+$c-body-gradient: hsl(204, 24%, 13%);
+$c-border: hsl(204, 14%, 22%);
+$c-font: hsl(206, 18%, 86%); // Soft white text
 
-// Premium Accents
-$c-primary: hsl(265, 90%, 75%); // Vibrant Violet
-$c-secondary: hsl(40, 95%, 55%); // Gold/Amber
+// Editorial premium accents
+$c-primary: hsl(22, 72%, 58%); // Copper
+$c-secondary: hsl(186, 62%, 44%); // Teal
 $c-good: hsl(150, 60%, 45%);
-$c-accent: hsl(40, 95%, 55%); // Gold as accent
+$c-accent: hsl(42, 80%, 56%); // Amber
 $c-bad: hsl(350, 70%, 60%);
-$c-brag: hsl(40, 95%, 45%);
+$c-brag: hsl(34, 68%, 46%);
 
-$c-clas: rgb(140, 100, 255);
+$c-clas: hsl(204, 72%, 62%);
 $c-shade: hsl(220, 10%, 25%);
 
 $c-inaccuracy: hsl(200, 70%, 60%);
 $c-mistake: hsl(40, 90%, 50%);
 $c-blunder: hsl(350, 70%, 60%);
 $c-brilliant: hsl(160, 80%, 50%);
-$c-interesting: hsl(280, 70%, 70%);
+$c-interesting: hsl(28, 70%, 63%);
 
 $c-paper: hsl(220, 10%, 90%);
 $c-dark: #1a1c22;
@@ -91,7 +91,7 @@ $patron-colors: $patron-colors-dark;
   --c-link-hover: #{_clear(saturate($c-primary, 100%), 25%)};
   --c-chat-host-bg: rgba(78, 122, 29, 0.4);
   --c-chat-mention-bg: rgba(59, 92, 22, 0.4);
-  --c-fancy: hsl(294, 62%, 48%);
+  --c-fancy: hsl(186, 58%, 46%);
 
   --c-border: #{$c-border};
   --c-border-page: hsl(0, 0%, 22%);

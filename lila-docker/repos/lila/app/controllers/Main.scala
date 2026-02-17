@@ -23,6 +23,9 @@ final class Main(
   def terms = Open:
     Ok.page(views.pages.terms())
 
+  def source = Open:
+    Ok.page(views.pages.openSource())
+
   def toggleBlindMode = OpenBody:
     bindForm(WebForms.blind)(
       _ => BadRequest,

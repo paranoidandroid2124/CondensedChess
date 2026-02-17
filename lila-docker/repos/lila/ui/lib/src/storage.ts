@@ -2,8 +2,8 @@
 
 import { defined, notNull, type Prop, withEffect } from './common';
 
-export const storage: LichessStorageHelper = builder(window.localStorage);
-export const tempStorage: LichessStorageHelper = builder(window.sessionStorage);
+export const storage: ChesstoryStorageHelper = builder(window.localStorage);
+export const tempStorage: ChesstoryStorageHelper = builder(window.sessionStorage);
 
 export interface StoredProp<V> extends Prop<V> {
   (replacement?: V): V;
@@ -151,37 +151,37 @@ export function once(key: string, every?: { seconds?: number; hours?: number; da
   return true;
 }
 
-export interface LichessStorage {
+export interface ChesstoryStorage {
   get(): string | null;
   set(v: any): void;
   remove(): void;
-  listen(f: (e: LichessStorageEvent) => void): void;
+  listen(f: (e: ChesstoryStorageEvent) => void): void;
   fire(v?: string): void;
 }
 
-export interface LichessBooleanStorage {
+export interface ChesstoryBooleanStorage {
   get(): boolean;
   getOrDefault(defaultValue: boolean): boolean;
   set(v: boolean): void;
   toggle(): void;
 }
 
-export interface LichessStorageHelper {
-  make(k: string, ttl?: number): LichessStorage;
-  boolean(k: string): LichessBooleanStorage;
+export interface ChesstoryStorageHelper {
+  make(k: string, ttl?: number): ChesstoryStorage;
+  boolean(k: string): ChesstoryBooleanStorage;
   get(k: string): string | null;
   set(k: string, v: string): void;
   fire(k: string, v?: string): void;
   remove(k: string): void;
 }
 
-interface LichessStorageEvent {
+interface ChesstoryStorageEvent {
   sri: string;
   nonce: number;
   value?: string;
 }
 
-function builder(storage: Storage): LichessStorageHelper {
+function builder(storage: Storage): ChesstoryStorageHelper {
   const api = {
     get: (k: string): string | null => storage.getItem(k),
     set: (k: string, v: string): void => storage.setItem(k, v),
@@ -215,10 +215,10 @@ function builder(storage: Storage): LichessStorageHelper {
         },
         fire: (v?: string) => api.fire(k, v),
         remove,
-        listen: (f: (e: LichessStorageEvent) => void) =>
+        listen: (f: (e: ChesstoryStorageEvent) => void) =>
           window.addEventListener('storage', e => {
             if (e.key !== k || e.storageArea !== storage || e.newValue === null) return;
-            let parsed: LichessStorageEvent | null;
+            let parsed: ChesstoryStorageEvent | null;
             try {
               parsed = JSON.parse(e.newValue);
             } catch (_) {

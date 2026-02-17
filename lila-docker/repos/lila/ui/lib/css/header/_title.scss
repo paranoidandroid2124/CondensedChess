@@ -1,4 +1,4 @@
-.site-title {
+.cs-brand {
   @extend %base-font, %page-text-shadow, %flex-center-nowrap;
   padding: 0 1rem;
   margin-inline-start: 0.5rem;
@@ -23,11 +23,11 @@
     }
   }
 
-  .site-name {
+  .cs-wordmark {
     display: none;
   }
 
-  .site-icon {
+  .cs-mark {
     font-size: 24px;
     @media (min-height: at-least($tall)) {
       font-size: 36px;
@@ -40,22 +40,22 @@
   }
 
   @media (min-width: at-least($xx-small)) {
-    .site-icon {
+    .cs-mark {
       display: block;
     }
   }
 
   @media (min-width: at-least(1180px)) {
-    .site-name {
+    .cs-wordmark {
       display: block;
     }
-    .site-icon {
+    .cs-mark {
       display: none;
     }
   }
 
   @media (min-width: at-least($xx-large)) {
-    .site-icon {
+    .cs-mark {
       display: block;
     }
   }
