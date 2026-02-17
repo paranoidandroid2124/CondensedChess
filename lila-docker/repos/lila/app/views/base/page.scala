@@ -118,6 +118,9 @@ object page:
           dataBoard3d := pref.currentTheme3d.name,
           dataPieceSet3d := pref.currentPieceSet3d.name,
           dataAnnounce := env.announceApi.current.map(a => safeJsonValue(a.json).value),
+          attr("data-brand-v2-header") := "1",
+          attr("data-brand-explorer-proxy") := "1",
+          attr("data-brand-legacy-lichess-alias") := "1",
           style := boardStyle(p.flags(PageFlags.zoom))
         )(
           zenable.option(div()),

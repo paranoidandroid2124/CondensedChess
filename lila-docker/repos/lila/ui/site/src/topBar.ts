@@ -6,21 +6,21 @@ import { clamp } from 'lib/algo';
 import { isTouchDevice } from 'lib/device';
 
 export default function () {
-  const top = document.getElementById('top')!;
+  const top = document.getElementById('cs-top')!;
 
 
 
   // On touchscreens, clicking the top menu element expands it. There's no top link.
   // Only for mq-topnav-visible in ui/lib/css/abstract/_media-queries.scss
   if ('ontouchstart' in window && window.matchMedia('(min-width: 1020px)').matches)
-    $('#topnav section > a').removeAttr('href');
+    $('#cs-nav section > a').removeAttr('href');
 
   const blockBodyScroll = (e: Event) => {
     // on iOS, overflow: hidden isn't sufficient
-    if (!document.getElementById('topnav')!.contains(e.target as HTMLElement)) e.preventDefault();
+    if (!document.getElementById('cs-nav')!.contains(e.target as HTMLElement)) e.preventDefault();
   };
 
-  $('#tn-tg').on('change', e => {
+  $('#cs-nav-toggle').on('change', e => {
     const menuOpen = (e.target as HTMLInputElement).checked;
     if (menuOpen) {
       document.body.addEventListener('touchmove', blockBodyScroll, { passive: false });

@@ -16,7 +16,7 @@ const site = window.site;
 // site.manifest is fetched
 // site.info, site.debug are populated by ui/build
 // site.quietMode is set elsewhere
-// The public API is exposed on window.chesstory (legacy alias: window.lichess)
+// The public API is exposed on window.chesstory.
 site.sri = randomToken();
 site.displayLocale = displayLocale;
 site.blindMode = document.body.classList.contains('blind-mode');
@@ -30,7 +30,8 @@ site.announce = announceDisplay;
 site.sound = sound;
 const globals = window as any;
 globals.chesstory = api;
-if (!globals.lichess) globals.lichess = api;
+const legacyAliasEnabled = document.body.dataset.brandLegacyLichessAlias !== '0';
+if (legacyAliasEnabled && !globals.lichess) globals.lichess = api;
 loadPolyfills();
 addWindowHandlers();
 if (site.load) site.load.then(boot);

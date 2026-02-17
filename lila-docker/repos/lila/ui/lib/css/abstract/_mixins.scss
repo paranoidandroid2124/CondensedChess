@@ -99,7 +99,7 @@
 }
 
 @mixin topnav-unsticky {
-  #top {
+  #cs-top {
     position: relative;
     max-width: 1800px;
     top: unset;
@@ -110,7 +110,7 @@
     transform: unset;
     ---site-header-sticky-padding: 0px;
 
-    #topnav,
+    #cs-nav,
     .dropdown {
       opacity: unset;
       visibility: unset;

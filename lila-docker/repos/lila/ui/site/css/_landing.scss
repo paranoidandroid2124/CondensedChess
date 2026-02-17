@@ -4,27 +4,33 @@
 // Override html and body background for landing page (uses :has() for auto-detection)
 html:has(.landing-pro),
 body:has(.landing-pro) {
-    background-color: #F8F9FA !important;
+    background-color: #f2ede6 !important;
     margin: 0;
     padding: 0;
 }
 
 html.dark:has(.landing-pro),
 body.dark:has(.landing-pro) {
-    background-color: $c-bg !important;
+    background-color: $c-bg-page !important;
 }
 
 .landing-pro {
-    background-color: #F8F9FA; // Soft White (Landing unique light bg)
-    color: $c-bg; // Dark Navy text
-    font-family: 'Roboto', 'Noto Sans', 'Segoe UI', sans-serif;
+    background:
+        radial-gradient(circle at 12% 18%, rgba($c-primary, 0.18), transparent 38%),
+        radial-gradient(circle at 84% 6%, rgba($c-secondary, 0.14), transparent 30%),
+        #f2ede6;
+    color: #1e232a;
+    font-family: 'Source Sans 3', 'Noto Sans', 'Segoe UI', sans-serif;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
 }
 
 body.dark .landing-pro {
-    background-color: $c-bg;
+    background:
+        radial-gradient(circle at 14% 16%, rgba($c-primary, 0.2), transparent 34%),
+        radial-gradient(circle at 82% 8%, rgba($c-secondary, 0.16), transparent 28%),
+        $c-bg-page;
     color: $c-font;
 }
 
@@ -37,7 +43,8 @@ body.dark .landing-pro {
     .logo {
         font-weight: 900;
         font-size: 1.5rem;
-        letter-spacing: -0.5px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
     }
 }
 
@@ -54,10 +61,10 @@ body.dark .landing-pro {
             line-height: 1.1;
             margin-bottom: 2rem;
             font-weight: 700;
-            font-family: 'Georgia', serif;
+            font-family: 'Merriweather', 'Georgia', serif;
 
             .highlight {
-                color: $c-primary; // Trustworthy Blue
+                color: $c-primary;
             }
         }
 
@@ -80,11 +87,12 @@ body.dark .landing-pro .hero-section .content p {
     align-items: center;
     gap: 10px;
     padding: 16px 32px;
-    background-color: $c-bg;
+    background: linear-gradient(135deg, $c-primary, darken($c-primary, 9%));
     color: #fff;
     text-decoration: none;
     font-weight: 600;
-    border-radius: 4px;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
     transition: all 0.2s ease;
 
     .arrow {
@@ -92,7 +100,7 @@ body.dark .landing-pro .hero-section .content p {
     }
 
     &:hover {
-        background-color: $c-primary;
+        background: linear-gradient(135deg, lighten($c-primary, 4%), $c-primary);
         transform: translateY(-2px);
 
         .arrow {
@@ -102,12 +110,11 @@ body.dark .landing-pro .hero-section .content p {
 }
 
 body.dark .btn-pro-primary {
-    background-color: $c-font;
-    color: $c-bg;
+    background: linear-gradient(135deg, $c-secondary, darken($c-secondary, 10%));
+    color: #fff;
 
     &:hover {
-        background-color: $c-primary;
-        color: #fff;
+        background: linear-gradient(135deg, lighten($c-secondary, 6%), $c-secondary);
     }
 }
 
@@ -123,7 +130,7 @@ body.dark .btn-pro-primary {
         transform: translate(-50%, -50%) rotate(-15deg);
         width: 400px;
         height: 400px;
-        background-color: #fff;
+        background-color: #f8f3eb;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
         border-radius: 4px;
         opacity: 0.8;
@@ -144,7 +151,7 @@ body.dark .visual-abstract .board-abstract {
     padding: 2rem;
     font-size: 0.875rem;
     color: $c-shade;
-    border-top: 1px solid #E2E8F0;
+    border-top: 1px solid #d7ccbe;
 }
 
 body.dark .landing-footer {

@@ -1,6 +1,6 @@
 import * as xhr from './xhr';
 import { idleTimer, browserTaskQueueMonitor } from './event';
-import { storage, once, type LichessStorage } from './storage';
+import { storage, once, type ChesstoryStorage } from './storage';
 import { pubsub, type PubsubEventKey } from './pubsub';
 import { defined, myUserId } from './index';
 import { log } from './permalog';
@@ -104,7 +104,7 @@ class WsSocket {
   private lastPingTime: number = performance.now();
   private pongCount = 0;
   private tryOtherUrl = false;
-  private storage: LichessStorage = storage.make('surl18', 30 * 60 * 1000);
+  private storage: ChesstoryStorage = storage.make('surl18', 30 * 60 * 1000);
   private _sign?: string;
   private resendWhenOpen: [string, Payload, Partial<SocketSendOpts>][] = [];
   private baseUrls = document.body.dataset.socketDomains!.split(',');

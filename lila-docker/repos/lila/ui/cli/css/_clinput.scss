@@ -25,16 +25,16 @@
   }
 }
 
-body.clinput #top {
+body.clinput #cs-top {
   @media (max-width: at-most($x-large)) {
-    #topnav {
+    #cs-nav {
       display: none;
     }
   }
 
   @media (max-width: at-most($x-small)) {
-    .site-title,
-    .site-title-nav__donate {
+    .cs-brand,
+    .cs-brandbar__donate {
       display: none;
     }
   }

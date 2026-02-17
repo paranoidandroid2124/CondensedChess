@@ -6,14 +6,11 @@ import lila.common.*
 import lila.common.config.GetRelativeFile
 import lila.core.config.*
 import lila.ui.Helpers
-import play.api.i18n.Lang
 import play.api.mvc.*
 import play.api.mvc.request.*
 import play.api.libs.typedmap.TypedMap
-import java.nio.file.{Files, Paths}
+import java.nio.file.Files
 import java.nio.charset.StandardCharsets
-import java.io.File
-import lila.core.config.NetConfig.* 
 import lila.ui.{ Context, PageContext, AssetHelper }
 import lila.core.net.IpAddress
 import java.net.URI
@@ -35,7 +32,7 @@ class BrandingRenderTest extends FunSuite {
     Files.write(manifestFile.toPath, manifestJson.getBytes(StandardCharsets.UTF_8))
     
     // Mock GetRelativeFile (opaque type)
-    val mockGetFile = GetRelativeFile { path => manifestFile }
+    val mockGetFile = GetRelativeFile { _ => manifestFile }
 
     val mockNetConfig = NetConfig(
           domain = NetDomain("chesstory.com"),
@@ -129,7 +126,6 @@ class BrandingRenderTest extends FunSuite {
     
     val mockCtx = new Context {
        val req: RequestHeader = mockReq
-       val lang: Lang = Lang("en")
        def isAuth = false
        def isOAuth = false
        def me = None
@@ -152,7 +148,6 @@ class BrandingRenderTest extends FunSuite {
        def error = false
        
        val req = mockCtx.req
-       val lang = mockCtx.lang
        def isAuth = mockCtx.isAuth
        def isOAuth = mockCtx.isOAuth
        def user = mockCtx.user
@@ -165,7 +160,7 @@ class BrandingRenderTest extends FunSuite {
     }
 
     // 3. Instantiate Layout
-    val layout = new lila.web.ui.layout(Helpers, mockAssetHelper)(Nil)
+    val layout = new lila.web.ui.layout(Helpers, mockAssetHelper)
 
     // 4. Render
     val headerHtml = layout.siteHeader(
@@ -202,16 +197,21 @@ class BrandingRenderTest extends FunSuite {
     </html>
     """
     
-    val outputPath = "public/test_brand.html"
-    Files.write(Paths.get(outputPath), fullHtml.getBytes(StandardCharsets.UTF_8))
-    println(s"Rendered header to $outputPath")
+    val outputPath = Files.createTempFile("chesstory-branding-render", ".html")
+    Files.write(outputPath, fullHtml.getBytes(StandardCharsets.UTF_8))
+    println(s"Rendered header to ${outputPath.toString}")
     println(s"Header content: $headerHtml")
 
     // 6. Verify Header
     // Relaxed check
     assert(headerHtml.toLowerCase.contains("chesstory"), "Header should contain 'chesstory' (case-insensitive)")
-    assert(headerHtml.contains("chesstory.com"), "Header should contain 'chesstory.com'")
+    assert(headerHtml.contains("""class="cs-wordmark""""))
     assert(!headerHtml.contains("lichess.org"), "Header should NOT contain 'lichess.org'")
+    assert(headerHtml.contains("""id="cs-top""""), "Header should use cs-top id")
+    assert(headerHtml.contains("""id="cs-nav-toggle""""), "Header should use cs-nav-toggle id")
+    assert(!headerHtml.contains("""id="top""""), "Legacy top id should be removed")
+    assert(!headerHtml.contains("site-title-nav"), "Legacy site-title-nav class should be removed")
+    assert(!headerHtml.contains("topnav-toggle"), "Legacy topnav-toggle class should be removed")
 
     // 7. Verify Fonts
     assert(fontCss.contains("chesstory.woff2"), "CSS should contain chesstory.woff2")

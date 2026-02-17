@@ -1,11 +1,11 @@
 @include mq-topnav-visible {
-  .hbg,
-  .site-title-nav .fullscreen-mask,
-  .topnav-toggle {
+  .cs-burger,
+  .cs-brandbar .fullscreen-mask,
+  .cs-nav-toggle {
     display: none !important;
   }
 
-  #topnav {
+  #cs-nav {
     ---nav-section: 26px;
     ---nav-section-hover: 35px;
 
@@ -18,7 +18,7 @@
     align-items: center;
 
     // Chesstory: simplified topnav (no section dropdowns)
-    .topnav__main {
+    .cs-nav__main {
       display: flex;
       align-items: center;
       gap: 0.25rem;
@@ -28,7 +28,7 @@
       @include margin-direction(0, 0.6rem, 0, 0.6rem);
     }
 
-    .topnav__link {
+    .cs-nav__link {
       @include if-light {
         text-shadow: 0 1px 0 $c-font-shadow;
       }

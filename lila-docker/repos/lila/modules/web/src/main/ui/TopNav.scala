@@ -13,15 +13,15 @@ case class TopNav(helpers: Helpers):
         a(
           href := hrefUrl,
           cls := List(
-            "topnav__link" -> true,
+            "cs-nav__link" -> true,
             "is-active" -> active
           ),
           aria("current") := Option.when(active)("page")
         )(label)
       )
 
-    st.nav(id := "topnav")(
-      ul(cls := "topnav__main")(
+    st.nav(id := "cs-nav")(
+      ul(cls := "cs-nav__main")(
         item("/", "Home", ctx.req.path == "/"),
         item("/plan", "Analyst Pro", isOn("/plan")),
         item("/study", "Study", isOn("/study")),

@@ -1,7 +1,7 @@
 /* Ported to typescript from https://github.com/marmelab/highlight-search-term/blob/main/src/index.js */
 
 export const highlightSearchTerm = (search: string, selector: string): void => {
-  const highlightName = 'lichess-highlight';
+  const highlightName = 'chesstory-highlight';
 
   if (!CSS.highlights) return; // disable feature on Firefox as it does not support CSS Custom Highlight API
 

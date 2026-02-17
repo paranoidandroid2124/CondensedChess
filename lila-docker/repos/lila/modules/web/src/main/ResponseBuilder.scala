@@ -59,7 +59,7 @@ trait ResponseBuilder(using Executor)
       else path
 
   private val movedMap: Map[String, String] = Map(
-    "yt" -> "https://youtube.com/@LichessDotOrg",
+    "yt" -> "https://youtube.com/@chesstory",
     "dmca" -> "https://docs.google.com/forms/d/e/1FAIpQLSdRVaJ6Wk2KHcrLcY0BxM7lTwYSQHDsY2DsGwbYoLUBo3ngfQ/viewform",
     "fishnet" -> "https://github.com/lichess-org/fishnet",
     "qa" -> "/faq",

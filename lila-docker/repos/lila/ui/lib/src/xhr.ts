@@ -1,7 +1,7 @@
 import { defined } from './index';
 
 export const jsonHeader = {
-  Accept: 'application/web.lichess+json',
+  Accept: 'application/web.chesstory+json',
 };
 
 export const defaultInit: RequestInit = {

@@ -194,9 +194,9 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
 
     private val topnavToggle = spaceless:
       """
-<input type="checkbox" id="tn-tg" class="topnav-toggle fullscreen-toggle" autocomplete="off" aria-label="Navigation">
-<label for="tn-tg" class="fullscreen-mask"></label>
-<label for="tn-tg" class="hbg"><span class="hbg__in"></span></label>"""
+<input type="checkbox" id="cs-nav-toggle" class="cs-nav-toggle fullscreen-toggle" autocomplete="off" aria-label="Navigation">
+<label for="cs-nav-toggle" class="fullscreen-mask"></label>
+<label for="cs-nav-toggle" class="cs-burger"><span class="cs-burger__in"></span></label>"""
 
     private val siteNameFrag: Frag = frag(siteName)
 
@@ -208,13 +208,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         error: Boolean,
         topnav: Frag
     )(using ctx: PageContext) =
-      header(id := "top")(
-        div(cls := "site-title-nav")(
+      header(id := "cs-top")(
+        div(cls := "cs-brandbar")(
           (!isAppealUser).option(topnavToggle),
-          a(cls := "site-title", href := "/")(
+          a(cls := "cs-brand", href := "/")(
             ctx.isBot.option(botImage),
-            div(cls := "site-icon", dataIcon := Icon.Logo),
-            div(cls := "site-name")(siteNameFrag)
+            div(cls := "cs-mark", dataIcon := Icon.Logo),
+            div(cls := "cs-wordmark")(siteNameFrag)
           ),
           (!isAppealUser).option(topnav),
           ctx.blind.option(h2("Navigation"))

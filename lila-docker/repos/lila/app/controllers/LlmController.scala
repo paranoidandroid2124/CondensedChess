@@ -5,6 +5,7 @@ import play.api.libs.json._
 import lila.app.{ *, given }
 import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest, CreditApi, CreditConfig }
 import lila.analyse.ui.BookmakerRenderer
+import lila.llm.model.OpeningReference.given
 
 import lila.common.HTTPRequest
 import scala.concurrent.duration.*
@@ -123,6 +124,24 @@ final class LlmController(
       Ok(Json.toJson(status))
     }
   }
+
+  /** Proxy endpoint for opening explorer masters data. */
+  def openingMasters(fen: String) = Open:
+    val normalizedFen = fen.trim
+    if normalizedFen.isEmpty then BadRequest(Json.obj("error" -> "missing_fen")).toFuccess
+    else
+      api.fetchOpeningMasters(normalizedFen).map:
+        case Some(ref) => Ok(Json.toJson(ref))
+        case None      => NotFound(Json.obj("error" -> "not_found"))
+
+  /** Proxy endpoint for opening explorer master PGN. */
+  def openingMasterPgn(id: String) = Open:
+    val gameId = id.trim
+    if gameId.isEmpty then BadRequest(Json.obj("error" -> "missing_id")).toFuccess
+    else
+      api.fetchOpeningMasterPgn(gameId).map:
+        case Some(pgn) => Ok(pgn).as("text/plain; charset=utf-8")
+        case None      => NotFound(Json.obj("error" -> "not_found"))
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
