@@ -28,7 +28,7 @@ $forbidden = @(
   @{ label = ".site-title-nav"; regex = 'site-title-nav' },
   @{ label = ".topnav-toggle"; regex = 'topnav-toggle' },
   @{ label = ".hbg"; regex = '(^|[^a-zA-Z0-9_-])hbg([^a-zA-Z0-9_-]|$)' },
-  @{ label = "window.lichess"; regex = 'window\.lichess' },
+  @{ label = "window.lichess"; regex = 'window\.lichess|globals\.lichess' },
   @{ label = "application/web.lichess+json"; regex = 'application/web\.lichess\+json' },
   @{ label = "explorer.lichess.ovh"; regex = 'explorer\.lichess\.ovh' },
   @{ label = "LichessDotOrg"; regex = 'LichessDotOrg' }

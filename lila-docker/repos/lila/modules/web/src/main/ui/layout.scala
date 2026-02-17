@@ -3,6 +3,7 @@ package ui
 
 
 import lila.ui.*
+import ShellPrimitives.*
 
 import ScalatagsTemplate.{ *, given }
 
@@ -193,10 +194,10 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
   object siteHeader:
 
     private val topnavToggle = spaceless:
-      """
-<input type="checkbox" id="cs-nav-toggle" class="cs-nav-toggle fullscreen-toggle" autocomplete="off" aria-label="Navigation">
-<label for="cs-nav-toggle" class="fullscreen-mask"></label>
-<label for="cs-nav-toggle" class="cs-burger"><span class="cs-burger__in"></span></label>"""
+      s"""
+<input type="checkbox" id="$navToggleId" class="$navToggleClass fullscreen-toggle" autocomplete="off" aria-label="Navigation">
+<label for="$navToggleId" class="fullscreen-mask"></label>
+<label for="$navToggleId" class="$burgerClass"><span class="$burgerInnerClass"></span></label>"""
 
     private val siteNameFrag: Frag = frag(siteName)
 
@@ -208,13 +209,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         error: Boolean,
         topnav: Frag
     )(using ctx: PageContext) =
-      header(id := "cs-top")(
-        div(cls := "cs-brandbar")(
+      header(id := headerId)(
+        div(cls := brandBarClass)(
           (!isAppealUser).option(topnavToggle),
-          a(cls := "cs-brand", href := "/")(
+          a(cls := brandClass, href := "/")(
             ctx.isBot.option(botImage),
-            div(cls := "cs-mark", dataIcon := Icon.Logo),
-            div(cls := "cs-wordmark")(siteNameFrag)
+            div(cls := markClass, dataIcon := Icon.Logo),
+            div(cls := wordmarkClass)(siteNameFrag)
           ),
           (!isAppealUser).option(topnav),
           ctx.blind.option(h2("Navigation"))
