@@ -69,7 +69,7 @@
 }
 
 %metal-hover {
-  background: mix($c-bg-low, $c-primary, 95%);
+  background: $c-bg-low;
   border-color: $c-primary;
   text-shadow: none;
 }

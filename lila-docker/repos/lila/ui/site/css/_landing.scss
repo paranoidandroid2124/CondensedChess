@@ -1,6 +1,13 @@
 // Chesstory Landing Page (Analyst Pro)
 // Built as its own bundle: ui/site/css/build/landing.scss -> public/css/landing.*.css
 
+$landing-bg-dark: #141a20;
+$landing-font-dark: #e6edf3;
+$landing-shade: #93a5b5;
+$landing-primary: #c96b3a;
+$landing-secondary: #2aa6a5;
+$landing-border: #2d3a48;
+
 // Override html and body background for landing page (uses :has() for auto-detection)
 html:has(.landing-pro),
 body:has(.landing-pro) {
@@ -11,13 +18,13 @@ body:has(.landing-pro) {
 
 html.dark:has(.landing-pro),
 body.dark:has(.landing-pro) {
-    background-color: $c-bg-page !important;
+    background-color: $landing-bg-dark !important;
 }
 
 .landing-pro {
     background:
-        radial-gradient(circle at 12% 18%, rgba($c-primary, 0.18), transparent 38%),
-        radial-gradient(circle at 84% 6%, rgba($c-secondary, 0.14), transparent 30%),
+        radial-gradient(circle at 12% 18%, rgba($landing-primary, 0.18), transparent 38%),
+        radial-gradient(circle at 84% 6%, rgba($landing-secondary, 0.14), transparent 30%),
         #f2ede6;
     color: #1e232a;
     font-family: 'Source Sans 3', 'Noto Sans', 'Segoe UI', sans-serif;
@@ -28,10 +35,10 @@ body.dark:has(.landing-pro) {
 
 body.dark .landing-pro {
     background:
-        radial-gradient(circle at 14% 16%, rgba($c-primary, 0.2), transparent 34%),
-        radial-gradient(circle at 82% 8%, rgba($c-secondary, 0.16), transparent 28%),
-        $c-bg-page;
-    color: $c-font;
+        radial-gradient(circle at 14% 16%, rgba($landing-primary, 0.2), transparent 34%),
+        radial-gradient(circle at 82% 8%, rgba($landing-secondary, 0.16), transparent 28%),
+        $landing-bg-dark;
+    color: $landing-font-dark;
 }
 
 .landing-header {
@@ -64,14 +71,14 @@ body.dark .landing-pro {
             font-family: 'Merriweather', 'Georgia', serif;
 
             .highlight {
-                color: $c-primary;
+                color: $landing-primary;
             }
         }
 
         p {
             font-size: 1.25rem;
             line-height: 1.6;
-            color: $c-shade;
+            color: $landing-shade;
             margin-bottom: 3rem;
             max-width: 500px;
         }
@@ -79,7 +86,7 @@ body.dark .landing-pro {
 }
 
 body.dark .landing-pro .hero-section .content p {
-    color: $c-shade;
+    color: $landing-shade;
 }
 
 .btn-pro-primary {
@@ -87,7 +94,7 @@ body.dark .landing-pro .hero-section .content p {
     align-items: center;
     gap: 10px;
     padding: 16px 32px;
-    background: linear-gradient(135deg, $c-primary, darken($c-primary, 9%));
+    background: linear-gradient(135deg, $landing-primary, darken($landing-primary, 9%));
     color: #fff;
     text-decoration: none;
     font-weight: 600;
@@ -100,7 +107,7 @@ body.dark .landing-pro .hero-section .content p {
     }
 
     &:hover {
-        background: linear-gradient(135deg, lighten($c-primary, 4%), $c-primary);
+        background: linear-gradient(135deg, lighten($landing-primary, 4%), $landing-primary);
         transform: translateY(-2px);
 
         .arrow {
@@ -110,11 +117,11 @@ body.dark .landing-pro .hero-section .content p {
 }
 
 body.dark .btn-pro-primary {
-    background: linear-gradient(135deg, $c-secondary, darken($c-secondary, 10%));
+    background: linear-gradient(135deg, $landing-secondary, darken($landing-secondary, 10%));
     color: #fff;
 
     &:hover {
-        background: linear-gradient(135deg, lighten($c-secondary, 6%), $c-secondary);
+        background: linear-gradient(135deg, lighten($landing-secondary, 6%), $landing-secondary);
     }
 }
 
@@ -138,11 +145,11 @@ body.dark .btn-pro-primary {
 }
 
 body.dark .visual-abstract .board-abstract {
-    background-color: $c-bg-low;
-    background-image: linear-gradient(45deg, $c-border 25%, transparent 25%),
-        linear-gradient(-45deg, $c-border 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, $c-border 75%),
-        linear-gradient(-45deg, transparent 75%, $c-border 75%);
+    background-color: #1b232c;
+    background-image: linear-gradient(45deg, $landing-border 25%, transparent 25%),
+        linear-gradient(-45deg, $landing-border 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, $landing-border 75%),
+        linear-gradient(-45deg, transparent 75%, $landing-border 75%);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
 }
 
@@ -150,12 +157,12 @@ body.dark .visual-abstract .board-abstract {
     text-align: center;
     padding: 2rem;
     font-size: 0.875rem;
-    color: $c-shade;
+    color: $landing-shade;
     border-top: 1px solid #d7ccbe;
 }
 
 body.dark .landing-footer {
-    border-color: $c-border;
+    border-color: $landing-border;
 }
 
 .btn-text {
@@ -170,7 +177,7 @@ body.dark .landing-footer {
     font-size: 1rem;
 
     &:hover {
-        color: $c-primary;
+        color: $landing-primary;
     }
 }
 

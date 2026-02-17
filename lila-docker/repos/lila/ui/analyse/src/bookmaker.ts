@@ -1,15 +1,15 @@
 import { debounce } from 'lib/async';
 import { storedBooleanPropWithEffect } from 'lib/storage';
-import { pubsub } from 'lib/pubsub';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type AnalyseCtrl from './ctrl';
 import { initMiniBoards } from 'lib/view/miniBoard';
-import { Chessground as makeChessground } from '@lichess-org/chessground';
-import { uciToMove } from '@lichess-org/chessground/util';
 import { treePath } from 'lib/tree';
 import * as studyApi from './studyApi';
 import { renderCreditWidget, renderInsufficientCredits } from './CreditWidget';
 import type { CreditStatus } from './CreditWidget';
+import { fetchOpeningReferenceViaProxy } from './bookmaker/openingProxy';
+import { initBookmakerHandlers, mountBookmakerPreview, setBookmakerPreviewOrientation } from './bookmaker/interactionHandlers';
+import type { ProbeRequest, ProbeResult } from './bookmaker/types';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -17,7 +17,6 @@ let requestsBlocked = false;
 let blockedHtml: string | null = null;
 let lastRequestedFen: string | null = null;
 let lastShownHtml = '';
-let handlersBound = false;
 let activeProbeSession = 0;
 
 type PendingBookmakerStudySync = {
@@ -49,14 +48,6 @@ export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
     pendingBookmakerStudySync.clear();
 }
 
-type BookmakerPreviewState = {
-    cg?: CgApi;
-    container?: HTMLElement;
-};
-
-let bookmakerPreview: BookmakerPreviewState = {};
-let bookmakerPreviewOrientation: Color = 'white';
-
 const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.showEval', true, value => {
     const $scope = $('.analyse__bookmaker-text');
     $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !value);
@@ -76,127 +67,8 @@ function applyBookmakerEvalDisplay(): void {
         .text(value ? 'Eval: On' : 'Eval: Off');
 }
 
-type ProbeRequest = {
-    id: string;
-    fen: string;
-    moves: string[];
-    depth: number;
-    purpose?: string;
-    questionId?: string;
-    questionKind?: string;
-    multiPv?: number;
-    baselineEvalCp?: number;
-    baselineMove?: string;
-    baselineMate?: number | null;
-    baselineDepth?: number;
-};
-
-type ProbeResult = {
-    id: string;
-    fen?: string;
-    evalCp: number;
-    bestReplyPv: string[];
-    replyPvs?: string[][];
-    deltaVsBaseline: number;
-    keyMotifs: string[];
-    purpose?: string;
-    questionId?: string;
-    questionKind?: string;
-    probedMove?: string;
-    mate?: number | null;
-    depth?: number;
-};
-
-function initBookmakerHandlers(): void {
-    if (handlersBound) return;
-    handlersBound = true;
-
-    // Use delegated handlers so Bookmaker remains functional across Snabbdom redraws.
-    $(document)
-        .on('mouseover.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
-            const board = this.dataset.board;
-            if (board) updateBookmakerPreview(board);
-        })
-        .on('mouseleave.bookmaker', '.analyse__bookmaker-text', () => {
-            hideBookmakerPreview();
-        })
-        .on('mouseenter.bookmaker', '.analyse__bookmaker-text .pv-line', function (this: HTMLElement) {
-            const fen = $(this).data('fen');
-            const color = $(this).data('color') || 'white';
-            const lastmove = $(this).data('lastmove');
-            if (fen) pubsub.emit('analysis.bookmaker.hover', { fen, color, lastmove });
-        })
-        .on('mouseleave.bookmaker', '.analyse__bookmaker-text .pv-line', () => {
-            pubsub.emit('analysis.bookmaker.hover', null);
-        })
-        .on('click.bookmaker', '.analyse__bookmaker-text .move-chip', function (this: HTMLElement) {
-            const uci = $(this).data('uci');
-            const san = $(this).data('san');
-            if (uci) pubsub.emit('analysis.bookmaker.move', { uci, san });
-        })
-        .on('click.bookmaker', '.analyse__bookmaker-text .bookmaker-score-toggle', e => {
-            e.preventDefault();
-            bookmakerEvalDisplay(!bookmakerEvalDisplay());
-        });
-}
-
-function mountBookmakerPreview(root: HTMLElement): void {
-    // Destroy previous chessground if the markup was replaced.
-    try {
-        bookmakerPreview.cg?.destroy?.();
-    } catch {
-        /* noop */
-    }
-    bookmakerPreview = {};
-
-    const container = root.querySelector('.bookmaker-pv-preview') as HTMLElement | null;
-    if (!container) return;
-
-    container.classList.remove('is-active');
-    container.innerHTML =
-        '<div class="pv-board"><div class="pv-board-square"><div class="cg-wrap is2d"></div></div></div>';
-
-    const wrap = container.querySelector('.cg-wrap') as HTMLElement | null;
-    if (!wrap) return;
-
-    bookmakerPreview.container = container;
-    bookmakerPreview.cg = makeChessground(wrap, {
-        fen: 'start',
-        orientation: bookmakerPreviewOrientation,
-        coordinates: false,
-        viewOnly: true,
-        drawable: { enabled: false, visible: false },
-    });
-}
-
-function updateBookmakerPreview(board: string): void {
-    const container = bookmakerPreview.container;
-    const cg = bookmakerPreview.cg;
-    if (!container || !cg) return;
-
-    const parts = board.split('|');
-    if (parts.length < 2) return;
-    const fen = parts[0];
-    const uci = parts[1] as Uci;
-    if (!fen || !uci) return;
-
-    container.classList.add('is-active');
-    cg.set({
-        fen,
-        lastMove: uciToMove(uci),
-        orientation: bookmakerPreviewOrientation,
-        coordinates: false,
-        viewOnly: true,
-        drawable: { enabled: false, visible: false },
-    });
-}
-
-function hideBookmakerPreview(): void {
-    bookmakerPreview.container?.classList.remove('is-active');
-}
-
 export function bookmakerToggleBox() {
-    initBookmakerHandlers();
+    initBookmakerHandlers(() => bookmakerEvalDisplay(!bookmakerEvalDisplay()));
 
     $('#bookmaker-field').each(function (this: HTMLElement) {
         const box = this;
@@ -460,7 +332,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         lastShownHtml = html;
         $('.analyse__bookmaker').toggleClass('empty', !html);
         const $text = $('.analyse__bookmaker-text');
-        bookmakerPreviewOrientation = ctrl?.getOrientation() ?? 'white';
+        setBookmakerPreviewOrientation(ctrl?.getOrientation() ?? 'white');
 
         // Ensure credit container exists
         if (!$('.analyse__bookmaker .llm-credit-widget-container').length) {
@@ -584,60 +456,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         : null;
 
                 // Stage 2: Opening reference fetch via backend proxy.
-                let openingData = null;
-                const useExplorerProxy = document.body.dataset.brandExplorerProxy !== '0';
-                if (useExplorerProxy && node.ply >= 1 && node.ply <= 30 && phaseOf(node.ply) === 'opening') {
-                    try {
-                        const explorerRes = await fetch(`/api/llm/opening/masters?fen=${encodeURIComponent(analysisFen)}`);
-                        if (explorerRes.ok) {
-                            const raw = await explorerRes.json();
-                            const topMoves = (raw.topMoves || []).map((m: any) => ({
-                                uci: m.uci,
-                                san: m.san,
-                                total: m.total || 0,
-                                white: m.white || 0,
-                                draws: m.draws || 0,
-                                black: m.black || 0,
-                                performance: m.performance || 0
-                            }));
-
-                            // Fetch PGN snippets for the top 3 games to enable precedent commentary
-                            const sampleGames = await Promise.all(
-                                (raw.sampleGames || []).slice(0, 3).map(async (g: any) => {
-                                    let pgn = g.pgn || null;
-                                    if (!pgn && g.id) {
-                                        try {
-                                            const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`);
-                                            if (pgnRes.ok) pgn = await pgnRes.text();
-                                        } catch (e) {
-                                            // non-critical, some games might not have PGN
-                                        }
-                                    }
-                                    return {
-                                        id: g.id,
-                                        winner: g.winner,
-                                        white: { name: g.white?.name || '?', rating: g.white?.rating || 0 },
-                                        black: { name: g.black?.name || '?', rating: g.black?.rating || 0 },
-                                        year: g.year || 0,
-                                        month: g.month || 1,
-                                        event: g.event,
-                                        pgn: pgn
-                                    };
-                                }),
-                            );
-
-                            openingData = {
-                                eco: raw.eco,
-                                name: raw.name,
-                                totalGames: raw.totalGames || 0,
-                                topMoves,
-                                sampleGames
-                            };
-                        }
-                    } catch (e) {
-                        console.warn('Bookmaker: failed to fetch client-side opening data', e);
-                    }
-                }
+                const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
+                const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
+                const openingData = await fetchOpeningReferenceViaProxy(analysisFen, node.ply, useExplorerProxy);
 
                 // Stage 2: Full Deep Analysis
                 const res = await fetch('/api/llm/bookmaker-position', {

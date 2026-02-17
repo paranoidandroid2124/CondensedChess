@@ -18,6 +18,8 @@ type State = {
 
 export default function (): void {
   if ('ontouchstart' in window) return;
+  if (document.body.dataset.brandV3Shell === '0') return;
+  const shellNavId = document.body.dataset.shellNavId || 'cs-nav';
 
   const interval = 200,
     sensitivity = 8;
@@ -38,7 +40,7 @@ export default function (): void {
   // event = string representing the namespaced event used for mouse tracking
   let state: State = {};
 
-  $('#cs-nav.hover').each(function (this: HTMLElement) {
+  $(`#${shellNavId}.hover`).each(function (this: HTMLElement) {
     const $el = $(this).removeClass('hover'),
       handler = () => $el.toggleClass('hover');
 

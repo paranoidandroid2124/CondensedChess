@@ -6,21 +6,28 @@ import { clamp } from 'lib/algo';
 import { isTouchDevice } from 'lib/device';
 
 export default function () {
-  const top = document.getElementById('cs-top')!;
+  const shellV3Enabled = document.body.dataset.brandV3Shell !== '0';
+  if (!shellV3Enabled) return;
+
+  const shellHeaderId = document.body.dataset.shellHeaderId || 'cs-top';
+  const shellNavId = document.body.dataset.shellNavId || 'cs-nav';
+  const shellNavToggleId = document.body.dataset.shellNavToggleId || 'cs-nav-toggle';
+  const top = document.getElementById(shellHeaderId);
+  if (!top) return;
 
 
 
   // On touchscreens, clicking the top menu element expands it. There's no top link.
   // Only for mq-topnav-visible in ui/lib/css/abstract/_media-queries.scss
   if ('ontouchstart' in window && window.matchMedia('(min-width: 1020px)').matches)
-    $('#cs-nav section > a').removeAttr('href');
+    $(`#${shellNavId} section > a`).removeAttr('href');
 
   const blockBodyScroll = (e: Event) => {
     // on iOS, overflow: hidden isn't sufficient
-    if (!document.getElementById('cs-nav')!.contains(e.target as HTMLElement)) e.preventDefault();
+    if (!document.getElementById(shellNavId)?.contains(e.target as HTMLElement)) e.preventDefault();
   };
 
-  $('#cs-nav-toggle').on('change', e => {
+  $(`#${shellNavToggleId}`).on('change', e => {
     const menuOpen = (e.target as HTMLInputElement).checked;
     if (menuOpen) {
       document.body.addEventListener('touchmove', blockBodyScroll, { passive: false });

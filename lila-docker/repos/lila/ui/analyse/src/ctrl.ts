@@ -213,7 +213,6 @@ export default class AnalyseCtrl implements CevalHandler {
     const analysisApi = api(this);
     const globals = window as any;
     if (globals.chesstory) globals.chesstory.analysis = analysisApi;
-    if (globals.lichess) globals.lichess.analysis = analysisApi;
   }
 
   private studyRef(): studyApi.StudyRef | null {

@@ -3,6 +3,7 @@ package ui
 
 import lila.ui.Helpers
 import lila.ui.ScalatagsTemplate.{ *, given }
+import ShellPrimitives.*
 
 case class TopNav(helpers: Helpers):
   def apply(using ctx: lila.ui.PageContext): Frag =
@@ -13,15 +14,15 @@ case class TopNav(helpers: Helpers):
         a(
           href := hrefUrl,
           cls := List(
-            "cs-nav__link" -> true,
+            navLinkClass -> true,
             "is-active" -> active
           ),
           aria("current") := Option.when(active)("page")
         )(label)
       )
 
-    st.nav(id := "cs-nav")(
-      ul(cls := "cs-nav__main")(
+    st.nav(id := navId)(
+      ul(cls := navMainClass)(
         item("/", "Home", ctx.req.path == "/"),
         item("/plan", "Analyst Pro", isOn("/plan")),
         item("/study", "Study", isOn("/study")),

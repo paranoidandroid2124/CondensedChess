@@ -6,6 +6,7 @@ import lila.app.UiEnv.{ *, given }
 import scalalib.model.Language
 import lila.common.String.html.safeJsonValue
 import lila.ui.{ RenderedPage, PageFlags }
+import lila.web.ui.ShellPrimitives
 
 object page:
 
@@ -117,10 +118,14 @@ object page:
           dataPieceSet := pref.currentPieceSet.name,
           dataBoard3d := pref.currentTheme3d.name,
           dataPieceSet3d := pref.currentPieceSet3d.name,
+          attr("data-shell-header-id") := ShellPrimitives.headerId,
+          attr("data-shell-nav-id") := ShellPrimitives.navId,
+          attr("data-shell-nav-toggle-id") := ShellPrimitives.navToggleId,
           dataAnnounce := env.announceApi.current.map(a => safeJsonValue(a.json).value),
-          attr("data-brand-v2-header") := "1",
+          attr("data-brand-v3-shell") := "1",
+          attr("data-brand-v3-analysis-surface") := "1",
           attr("data-brand-explorer-proxy") := "1",
-          attr("data-brand-legacy-lichess-alias") := "1",
+          attr("data-brand-legacy-alias") := "0",
           style := boardStyle(p.flags(PageFlags.zoom))
         )(
           zenable.option(div()),
