@@ -919,8 +919,8 @@ object NarrativeLexicon {
     val leadTemplates =
       if confidence >= 0.78 then List(
         "Working hypothesis:",
-        "Strongest read:",
-        "Clearest read:"
+        "Strongest read is that",
+        "Clearest read is that"
       )
       else if confidence >= 0.58 then List(
         "The working hypothesis is that",
@@ -973,28 +973,28 @@ object NarrativeLexicon {
         s"Validation evidence points to ${support.mkString(" and ")}.",
         s"Validation lines up with ${support.mkString(" and ")}.",
         s"This read is validated by ${support.mkString(" plus ")}.",
-        s"The evidence, specifically ${support.mkString(" and ")}, backs the claim.",
-        s"Confirmation comes from ${support.mkString(" and ")}."
+        s"Validation evidence, specifically ${support.mkString(" and ")}, backs the claim.",
+        s"Validation confirmation comes from ${support.mkString(" and ")}."
       ))
     else if support.nonEmpty && conflict.nonEmpty then
       pick(bead ^ 0x6d2b79f5, List(
         s"Validation is mixed: ${support.mkString(" and ")} support the idea, but ${conflict.head} keeps caution necessary.",
-        s"Evidence supports the read via ${support.mkString(" and ")}, yet ${conflict.head} limits certainty.",
-        s"Verification remains conditional: ${support.mkString(" and ")} back the claim, while ${conflict.head} is unresolved.",
-        s"The support from ${support.mkString(" and ")} is tempered by ${conflict.head}.",
-        s"While ${support.mkString(" and ")} align with the read, ${conflict.head} suggests a more cautious view."
+        s"Validation evidence supports the read via ${support.mkString(" and ")}, yet ${conflict.head} limits certainty.",
+        s"Validation remains conditional: ${support.mkString(" and ")} back the claim, while ${conflict.head} is unresolved.",
+        s"Validation support from ${support.mkString(" and ")} is tempered by ${conflict.head}.",
+        s"Validation context: while ${support.mkString(" and ")} align with the read, ${conflict.head} suggests a more cautious view."
       ))
     else if confidence < 0.55 then
       pick(bead ^ 0x11f17f1d, List(
         "Validation is still thin, so this stays a working possibility.",
-        "Evidence is limited, so the claim should remain provisional.",
-        "Verification remains incomplete; treat this as a candidate explanation."
+        "Validation evidence is limited, so the claim should remain provisional.",
+        "Validation remains incomplete; treat this as a candidate explanation."
       ))
     else
       pick(bead ^ 0x517cc1b7, List(
         "Validation relies on broader strategic consistency rather than a single forcing proof.",
-        "The claim is supported by positional consistency, not by one tactical sequence.",
-        "Evidence is mostly strategic, so practical confirmation still matters."
+        "Validation for the claim is supported by positional consistency, not by one tactical sequence.",
+        "Validation evidence is mostly strategic, so practical confirmation still matters."
       ))
   }
 
@@ -1046,25 +1046,25 @@ object NarrativeLexicon {
         case HypothesisHorizon.Short =>
           List(
             s"In practical terms, the split should appear in the next few moves, especially around $axisText handling.",
-            s"Short-horizon test: the next move-order around $axisText will determine whether **$move** holds up.",
+            s"Practical short-horizon test: the next move-order around $axisText will determine whether **$move** holds up.",
             s"Immediate practical impact is expected: $axisText in the next sequence is critical.",
-            s"Short-term handling is decisive here, because $axisText errors are punished quickly.",
-            s"The tactical immediate future revolves around $axisText accuracy.",
-            s"Within a few moves, $axisText choices will separate the outcomes."
+            s"Practical short-term handling is decisive here, because $axisText errors are punished quickly.",
+            s"The practical immediate future revolves around $axisText accuracy.",
+            s"Within a few moves, practical $axisText choices will separate the outcomes."
           )
         case HypothesisHorizon.Medium =>
           List(
             s"Practically, this should influence middlegame choices where $axisText commitments are tested.",
-            s"The medium-horizon task is keeping $axisText synchronized before the position simplifies.",
-            s"After development, $axisText decisions are likely to determine whether **$move** remains robust.",
+            s"The practical medium-horizon task is keeping $axisText synchronized before the position simplifies.",
+            s"After development, practical $axisText decisions are likely to determine whether **$move** remains robust.",
             s"The practical burden appears in the middlegame phase, once $axisText tradeoffs become concrete.",
-            s"Middlegame stability is tied to how $axisText is handled in the next regrouping.",
-            s"Strategic balance depends on $axisText management as the game transitions."
+            s"Practical middlegame stability is tied to how $axisText is handled in the next regrouping.",
+            s"Practical strategic balance depends on $axisText management as the game transitions."
           )
         case HypothesisHorizon.Long =>
           List(
             s"In practical terms, the divergence is long-horizon: $axisText choices now can decide the later conversion path.",
-            s"The implication is long-term; $axisText tradeoffs here are likely to resurface in the ending.",
+            s"The practical implication is long-term; $axisText tradeoffs here are likely to resurface in the ending.",
             s"Practically this points to a late-phase split, where $axisText decisions today shape the endgame trajectory."
           )
     pick(bead ^ 0x4f6cdd1d, templates)
@@ -1125,6 +1125,19 @@ object NarrativeLexicon {
       if confidence >= 0.72 then "likely"
       else if confidence >= 0.5 then "plausibly"
       else "possibly"
+    val strategicAnchor =
+      alternativeAxis.orElse(mainAxis) match
+        case Some(HypothesisAxis.PawnBreakTiming) => "timing"
+        case Some(HypothesisAxis.PieceCoordination) => "coordination"
+        case Some(HypothesisAxis.Initiative) => "timing"
+        case Some(HypothesisAxis.KingSafety) => "timing"
+        case Some(HypothesisAxis.Conversion) => "timing"
+        case _ => "trajectory"
+    val strategicSentence =
+      strategicAnchor match
+        case "timing" => "Strategic focus remains on timing precision."
+        case "coordination" => "Strategic focus remains on coordination quality."
+        case _ => "Strategic focus remains on long-term trajectory."
     val claimPart = alternativeClaim.map(_.trim.stripSuffix(".")).filter(_.nonEmpty)
       .map(c => s"$c.")
       .getOrElse("")
@@ -1170,7 +1183,7 @@ object NarrativeLexicon {
     wrappers.zipWithIndex.map { case (prefix, idx) =>
       val axisContrast = axisContrastOptions(Math.floorMod(axisStart + idx, axisContrastOptions.size))
       val horizonTail = horizonTailOptions(Math.floorMod(horizonStart + idx, horizonTailOptions.size))
-      s"$prefix **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail"
+      s"$prefix **$mainMove**, **$alternativeMove** $confidenceLead $axisContrast. $claimPart $horizonTail $strategicSentence"
     }
       .map(_.replaceAll("""\s+""", " ").trim)
       .distinct
@@ -1225,10 +1238,10 @@ object NarrativeLexicon {
       s"Practical key difference: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
       s"At the decisive split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
       s"Final decisive split: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
-      s"From a key-difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend.",
-      s"The main fork: **$mainMove** vs **$altMove** hinges on $axisContrast within $horizonBlend.",
-      s"Ultimately, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
-      s"Strategic separation: **$mainMove** and **$altMove** divide on $axisContrast and $horizonBlend."
+      s"From a key difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend.",
+      s"Key difference at the main fork: **$mainMove** vs **$altMove** hinges on $axisContrast within $horizonBlend.",
+      s"Decisively, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
+      s"Key difference: strategic separation between **$mainMove** and **$altMove** is $axisContrast with $horizonBlend."
     )
       .map(_.replaceAll("""\s+""", " ").trim)
       .distinct
