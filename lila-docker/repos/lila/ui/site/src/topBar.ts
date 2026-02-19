@@ -1,17 +1,14 @@
 import { loadEsm } from './asset';
 
 import { clamp } from 'lib/algo';
-
+import { isBrandV3ShellEnabled, readShellSelectors } from 'lib/shell';
 
 import { isTouchDevice } from 'lib/device';
 
 export default function () {
-  const shellV3Enabled = document.body.dataset.brandV3Shell !== '0';
-  if (!shellV3Enabled) return;
-
-  const shellHeaderId = document.body.dataset.shellHeaderId || 'cs-top';
-  const shellNavId = document.body.dataset.shellNavId || 'cs-nav';
-  const shellNavToggleId = document.body.dataset.shellNavToggleId || 'cs-nav-toggle';
+  if (!isBrandV3ShellEnabled()) return;
+  const { headerId: shellHeaderId, navId: shellNavId, navToggleId: shellNavToggleId } =
+    readShellSelectors();
   const top = document.getElementById(shellHeaderId);
   if (!top) return;
 

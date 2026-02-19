@@ -161,6 +161,7 @@ class BrandingRenderTest extends FunSuite {
 
     // 3. Instantiate Layout
     val layout = new lila.web.ui.layout(Helpers, mockAssetHelper)
+    val renderedTopNav = lila.web.ui.TopNav(Helpers).apply(using pageCtx)
 
     // 4. Render
     val headerHtml = layout.siteHeader(
@@ -169,7 +170,7 @@ class BrandingRenderTest extends FunSuite {
       challenges = 0,
       notifications = 0,
       error = false,
-      topnav = div("topnav")
+      topnav = renderedTopNav
     ).toString
 
     val fontCss = layout.chesstoryFontFaceCss.toString
@@ -206,12 +207,23 @@ class BrandingRenderTest extends FunSuite {
     // Relaxed check
     assert(headerHtml.toLowerCase.contains("chesstory"), "Header should contain 'chesstory' (case-insensitive)")
     assert(headerHtml.contains("""class="cs-wordmark""""))
+    assert(headerHtml.contains("""class="cs-brandbar""""))
+    assert(headerHtml.contains("""class="cs-brand""""))
+    assert(headerHtml.contains("""class="cs-mark""""))
+    assert(headerHtml.contains("""class="cs-nav-toggle fullscreen-toggle""""))
+    assert(headerHtml.contains("""class="cs-burger""""))
+    assert(headerHtml.contains("""class="cs-burger__in""""))
+    assert(headerHtml.contains("""id="cs-nav""""), "Top nav should use cs-nav id")
+    assert(headerHtml.contains("""class="cs-nav__main""""), "Top nav should use cs-nav__main class")
+    assert(headerHtml.contains("""class="cs-nav__link""""), "Top nav links should use cs-nav__link class")
     assert(!headerHtml.contains("lichess.org"), "Header should NOT contain 'lichess.org'")
     assert(headerHtml.contains("""id="cs-top""""), "Header should use cs-top id")
     assert(headerHtml.contains("""id="cs-nav-toggle""""), "Header should use cs-nav-toggle id")
     assert(!headerHtml.contains("""id="top""""), "Legacy top id should be removed")
+    assert(!headerHtml.contains("""id="topnav""""), "Legacy topnav id should be removed")
     assert(!headerHtml.contains("site-title-nav"), "Legacy site-title-nav class should be removed")
     assert(!headerHtml.contains("topnav-toggle"), "Legacy topnav-toggle class should be removed")
+    assert(!headerHtml.contains("""class="hbg""""), "Legacy burger class should be removed")
 
     // 7. Verify Fonts
     assert(fontCss.contains("chesstory.woff2"), "CSS should contain chesstory.woff2")
