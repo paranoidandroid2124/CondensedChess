@@ -6,9 +6,17 @@ import * as studyApi from './studyApi';
 import { renderInsufficientCredits } from './CreditWidget';
 import { fetchOpeningReferenceViaProxy } from './bookmaker/openingProxy';
 import { initBookmakerHandlers } from './bookmaker/interactionHandlers';
-import type { ProbeRequest } from './bookmaker/types';
 import { createProbeOrchestrator } from './bookmaker/probeOrchestrator';
 import { clearBookmakerPanel, renderBookmakerPanel, restoreBookmakerPanel, syncBookmakerEvalDisplay } from './bookmaker/rendering';
+import { buildBookmakerRequest, deriveAfterVariations, toBaselineCp, toEvalData } from './bookmaker/requestPayload';
+import {
+    commentaryFromResponse,
+    htmlFromResponse,
+    probeRequestsFromResponse,
+    ratelimitSecondsFromResponse,
+    resetAtFromResponse,
+    variationLinesFromResponse,
+} from './bookmaker/responsePayload';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -80,6 +88,7 @@ export function bookmakerToggleBox() {
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
     const cache = new Map<string, string>();
     const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
+    const bookmakerEndpoint = '/api/llm/bookmaker-position';
 
     const show = (html: string) => {
         lastShownHtml = html;
@@ -150,87 +159,48 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     }
                 }
 
-                const evalData =
-                    variations && variations.length
-                        ? {
-                            cp: typeof variations[0].scoreCp === 'number' ? variations[0].scoreCp : 0,
-                            mate: variations[0].mate ?? null,
-                            pv: Array.isArray(variations[0].moves) ? variations[0].moves : null,
-                        }
-                        : null;
-
                 const afterFen = playedMove ? fen : null;
-                let afterEval: any = playedMove ? node.ceval : null;
-                let afterVariations = afterFen ? probes.evalToVariations(afterEval, 1) : null;
-                if (afterFen && (!afterVariations || !afterVariations.length) && playedMove && Array.isArray(variations)) {
-                    const playedLine = variations.find(v => Array.isArray(v?.moves) && v.moves[0] === playedMove);
-                    if (playedLine) {
-                        const tail = Array.isArray(playedLine.moves) ? playedLine.moves.slice(1) : [];
-                        afterVariations = [
-                            {
-                                moves: tail.slice(0, 40),
-                                scoreCp: typeof playedLine.scoreCp === 'number' ? playedLine.scoreCp : 0,
-                                mate: typeof playedLine.mate === 'number' ? playedLine.mate : null,
-                                depth: typeof playedLine.depth === 'number' ? playedLine.depth : 0,
-                            },
-                        ];
-                    }
-                }
-                const afterEvalData =
-                    afterVariations && afterVariations.length
-                        ? {
-                            cp: typeof afterVariations[0].scoreCp === 'number' ? afterVariations[0].scoreCp : 0,
-                            mate: afterVariations[0].mate ?? null,
-                            pv: Array.isArray(afterVariations[0].moves) ? afterVariations[0].moves : null,
-                        }
-                        : null;
+                let afterVariations = afterFen ? probes.evalToVariations(playedMove ? node.ceval : null, 1) : null;
+                afterVariations = deriveAfterVariations(afterFen, afterVariations, playedMove, variations);
+                const evalData = toEvalData(variations);
 
                 const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
                 const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
                 const openingData = await fetchOpeningReferenceViaProxy(analysisFen, node.ply, useExplorerProxy);
+                const initialPayload = buildBookmakerRequest({
+                    fen: analysisFen,
+                    lastMove: playedMove || null,
+                    variations,
+                    probeResults: null,
+                    openingData,
+                    afterFen,
+                    afterVariations,
+                    phase: phaseOf(node.ply),
+                    ply: node.ply,
+                });
 
-                const res = await fetch('/api/llm/bookmaker-position', {
+                const res = await fetch(bookmakerEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fen: analysisFen,
-                        lastMove: playedMove || null,
-                        eval: evalData,
-                        variations,
-                        probeResults: null,
-                        openingData,
-                        afterFen,
-                        afterEval: afterEvalData,
-                        afterVariations,
-                        context: {
-                            opening: null,
-                            phase: phaseOf(node.ply),
-                            ply: node.ply,
-                        },
-                    }),
+                    body: JSON.stringify(initialPayload),
                 });
 
                 if (!isCurrentSession()) return;
 
                 if (res.ok) {
                     const data = await res.json();
-                    const html = typeof data?.html === 'string' ? data.html : '';
+                    const html = htmlFromResponse(data);
                     cache.set(fen, html);
                     show(html);
 
-                    const commentary = typeof data?.commentary === 'string' ? (data.commentary as string) : '';
-                    const vLines = Array.isArray(data?.variations) ? (data.variations as any[]) : variations || [];
+                    const commentary = commentaryFromResponse(data);
+                    const vLines = variationLinesFromResponse(data, variations);
                     const payload = { commentPath, originPath, commentary, variations: vLines };
                     if (commentary) rememberBookmakerStudySync(payload);
                     if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
 
-                    const probeRequests = Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
-                    const baselineCp =
-                        typeof variations?.[0]?.scoreCp === 'number'
-                            ? variations[0].scoreCp
-                            : typeof evalData?.cp === 'number'
-                                ? evalData.cp
-                                : 0;
+                    const probeRequests = probeRequestsFromResponse(data);
+                    const baselineCp = toBaselineCp(variations, evalData);
 
                     if (probeRequests.length && ctrl) {
                         void (async () => {
@@ -239,46 +209,33 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                             if (!probeResults.length) return;
 
                             try {
-                                const refinedRes = await fetch('/api/llm/bookmaker-position', {
+                                const refinedPayload = buildBookmakerRequest({
+                                    fen: analysisFen,
+                                    lastMove: playedMove || null,
+                                    variations,
+                                    probeResults,
+                                    openingData,
+                                    afterFen,
+                                    afterVariations,
+                                    phase: phaseOf(node.ply),
+                                    ply: node.ply,
+                                });
+                                const refinedRes = await fetch(bookmakerEndpoint, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        fen: analysisFen,
-                                        lastMove: playedMove || null,
-                                        eval: evalData,
-                                        variations,
-                                        probeResults,
-                                        openingData,
-                                        afterFen,
-                                        afterEval: afterEvalData,
-                                        afterVariations,
-                                        context: {
-                                            opening: null,
-                                            phase: phaseOf(node.ply),
-                                            ply: node.ply,
-                                        },
-                                    }),
+                                    body: JSON.stringify(refinedPayload),
                                 });
 
                                 if (!isCurrentSession()) return;
 
                                 if (refinedRes.ok) {
                                     const refined = await refinedRes.json();
-                                    const refinedHtml = typeof refined?.html === 'string' ? refined.html : html;
+                                    const refinedHtml = htmlFromResponse(refined, html);
                                     cache.set(fen, refinedHtml);
                                     show(refinedHtml);
 
-                                    const commentary =
-                                        typeof refined?.commentary === 'string'
-                                            ? (refined.commentary as string)
-                                            : typeof data?.commentary === 'string'
-                                                ? (data.commentary as string)
-                                                : '';
-                                    const vLines = Array.isArray(refined?.variations)
-                                        ? (refined.variations as any[])
-                                        : Array.isArray(data?.variations)
-                                            ? (data.variations as any[])
-                                            : variations || [];
+                                    const commentary = commentaryFromResponse(refined, commentaryFromResponse(data));
+                                    const vLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));
                                     const payload = { commentPath, originPath, commentary, variations: vLines };
                                     if (commentary) rememberBookmakerStudySync(payload);
                                     if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
@@ -289,7 +246,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 } else if (res.status === 403) {
                     try {
                         const data = await res.json();
-                        blockedHtml = renderInsufficientCredits(data.resetAt);
+                        blockedHtml = renderInsufficientCredits(resetAtFromResponse(data));
                     } catch {
                         blockedHtml = renderInsufficientCredits('Unknown');
                     }
@@ -302,7 +259,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 } else if (res.status === 429) {
                     try {
                         const data = await res.json();
-                        const seconds = data?.ratelimit?.seconds;
+                        const seconds = ratelimitSecondsFromResponse(data);
                         if (typeof seconds === 'number') blockedHtml = `<p>LLM quota exceeded. Try again in ${seconds}s.</p>`;
                         else blockedHtml = '<p>LLM quota exceeded.</p>';
                     } catch {
