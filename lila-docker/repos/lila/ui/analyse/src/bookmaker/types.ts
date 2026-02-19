@@ -29,6 +29,13 @@ export type ProbeResult = {
   depth?: number;
 };
 
+export type EvalVariation = {
+  moves: string[];
+  scoreCp: number;
+  mate: number | null;
+  depth: number;
+};
+
 type OpeningMove = {
   uci: string;
   san: string;
