@@ -43,10 +43,7 @@ object MotifTokenizer:
           case _ => (p, acc)
     }
     motifs
-
-  // ============================================================
   // MOVE-BASED MOTIF DETECTION
-  // ============================================================
 
   private def detectMoveMotifs(mv: Move, pos: Position, plyIndex: Int): List[Motif] =
     val color = pos.color
@@ -59,10 +56,6 @@ object MotifTokenizer:
       detectKingMotifs(mv, pos, color, san, plyIndex),
       detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex)
     )
-
-  // ============================================================
-  // PAWN MOTIFS
-  // ============================================================
 
   private def detectPawnMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != Pawn then Nil
@@ -104,10 +97,6 @@ object MotifTokenizer:
       }
 
       motifs
-
-  // ============================================================
-  // PIECE MOTIFS
-  // ============================================================
 
   private def detectPieceMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
@@ -162,10 +151,6 @@ object MotifTokenizer:
 
     motifs
 
-  // ============================================================
-  // KING MOTIFS
-  // ============================================================
-
   private def detectKingMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != King then Nil
     else
@@ -186,10 +171,6 @@ object MotifTokenizer:
     else if (relTo >= 4) KingStepType.Activation
     else if (mv.dest.file == _root_.chess.File.A || mv.dest.file == _root_.chess.File.H) KingStepType.ToCorner
     else KingStepType.Other
-
-  // ============================================================
-  // TACTICAL MOTIFS
-  // ============================================================
 
   private def detectTacticalMotifs(
       mv: Move, 
@@ -326,12 +307,7 @@ object MotifTokenizer:
       case Queen  => sq.queenAttacks(nextPos.board.occupied)
       case King   => sq.kingAttacks
     (targets & nextPos.board.byColor(!color)).squares.flatMap(nextPos.board.roleAt)
-
-
-
-  // ============================================================
   // STATE-BASED MOTIF DETECTION
-  // ============================================================
 
   private def detectStateMotifs(pos: Position, plyIndex: Int): List[Motif] =
     val board = pos.board
@@ -405,7 +381,6 @@ object MotifTokenizer:
   private def detectBattery(board: Board, plyIndex: Int): List[Motif] = Nil
 
 
-
   private def detectOpposition(board: Board, plyIndex: Int): List[Motif] =
     (board.kingPosOf(White), board.kingPosOf(Black)) match
       case (Some(wk), Some(bk)) =>
@@ -418,10 +393,6 @@ object MotifTokenizer:
 
   private def detectStalemateThreat(pos: Position, plyIndex: Int): List[Motif] =
     if (pos.legalMoves.size <= 2 && !pos.check.yes) List(StalemateThreat(pos.color, plyIndex)) else Nil
-
-  // ============================================================
-  // HELPERS
-  // ============================================================
 
   private def offsetSquare(sq: Square, df: Int, dr: Int): Option[Square] =
     Square.at(sq.file.value + df, sq.rank.value + dr)

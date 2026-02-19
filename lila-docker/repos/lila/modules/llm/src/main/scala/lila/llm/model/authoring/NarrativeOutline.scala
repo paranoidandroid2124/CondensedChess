@@ -7,8 +7,7 @@ package lila.llm.model.authoring
  * The intent is to make "what we decided to say" inspectable and testable,
  * while leaving "how we phrase it" to the renderer/lexicon.
  *
- * Phase 5: SSOT Architecture
- * - Builder creates beats with semantic metadata (conceptIds, anchors)
+ * * - Builder creates beats with semantic metadata (conceptIds, anchors)
  * - Validator enforces hard gates (evidence requirements, must-mention)
  * - Renderer only assembles prose from validated beats
  */

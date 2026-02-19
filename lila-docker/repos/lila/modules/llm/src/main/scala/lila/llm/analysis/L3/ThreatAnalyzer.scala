@@ -4,7 +4,7 @@ import chess.Color
 import lila.llm.model.Motif
 
 /**
- * Phase 2: Threat Analyzer
+ * Threat Analyzer
  * 
  * Analyzes threats from the opponent's perspective and assesses
  * defensive requirements for the side to move.
@@ -21,20 +21,12 @@ import lila.llm.model.Motif
  * for Black before passing to this analyzer.
  */
 object ThreatAnalyzer:
-
-  // ============================================================
-  // CONFIGURATION
-  // ============================================================
   
   private val MATERIAL_THREAT_THRESHOLD = 200     // cp
   private val URGENT_THREAT_THRESHOLD = 800      // cp
   private val IGNORABLE_THREAT_THRESHOLD = 120   // cp
   private val ONLY_DEFENSE_TOLERANCE = 50        // cp difference for "adequate" defense
   private val MIN_DEPTH_FOR_RELIABILITY = 16
-
-  // ============================================================
-  // MAIN ENTRY POINT
-  // ============================================================
 
   /**
    * Analyze threats in the position from the opponent's perspective.
@@ -55,22 +47,10 @@ object ThreatAnalyzer:
     val isWhiteToMove = sideToMove.equalsIgnoreCase("white")
     
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
-
-    // Step 2: Correct with MultiPV data (side-aware)
     val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, isWhiteToMove, fen)
-    
-    // Step 3: Adjust thresholds based on Phase 1 and depth
     val thresholds = adjustThresholds(phase1, multiPv)
-    
-    // Step 4: Populate defense evidence from MultiPV
     val threatsWithDefense = populateDefenseEvidence(correctedThreats, multiPv, thresholds)
-    
-    // Step 5: Compute aggregates
     computeAggregates(threatsWithDefense, multiPv, thresholds, phase1)
-
-  // ============================================================
-  // STEP 1: L2 MOTIF -> THREAT EXTRACTION (SIDE-AWARE)
-  // ============================================================
 
   /**
    * FIX #2: Only extract threats made BY the opponent, not our own tactics
@@ -181,10 +161,6 @@ object ThreatAnalyzer:
       case m: Motif.Capture => List(m.captured.name)
       case _ => Nil
 
-  // ============================================================
-  // STEP 2: MULTIPV DELTA CORRECTION (SIDE-AWARE)
-  // ============================================================
-
   /**
    * FIX #1 & #5: Correct MultiPV detection
    * - Use UCI pattern matching (not SAN)
@@ -203,15 +179,11 @@ object ThreatAnalyzer:
     else
       val pv1 = multiPv.head
       val pv2 = multiPv(1)
-      
-      // FIX #5: Use SIGNED delta from side-to-move perspective
       // Positive delta = PV1 is better than PV2 (loss if we don't play PV1)
       val signedDelta = if isWhiteToMove then pv1.score - pv2.score else pv2.score - pv1.score
       
       // If PV2 is significantly worse, opponent has a threat
       val evalLoss = signedDelta.max(0)
-      
-      // FIX v4 #2: Only detect PAWN diagonal captures from UCI
       // For other captures, rely on evalLoss threshold instead
       val pv2FirstMove = pv2.moves.headOption
       val pv2IsPawnCapture = pv2FirstMove.exists(isPawnDiagonalCapture)
@@ -225,7 +197,6 @@ object ThreatAnalyzer:
       val isSuppressedOpening = totalPieces >= 31 // Start position has 32 pieces
       
       if hasSignificantThreat && evalLoss >= 150 && !isSuppressedOpening then
-        // FIX #5: Classify correctly based on mate signal
         val kind = if pv2IsMate then ThreatKind.Mate
                    else if evalLoss >= MATERIAL_THREAT_THRESHOLD then ThreatKind.Material
                    else ThreatKind.Positional
@@ -282,10 +253,6 @@ object ThreatAnalyzer:
       
       isPawnMove && fileChange
 
-  // ============================================================
-  // STEP 3: THRESHOLD ADJUSTMENT
-  // ============================================================
-
   case class ThresholdConfig(
     ignorableThreshold: Int,
     immediateThreshold: Int,
@@ -309,14 +276,8 @@ object ThreatAnalyzer:
         else IGNORABLE_THREAT_THRESHOLD,
       
       overrideDefenseRequired = phase1.criticality.isForced,
-      
-      // FIX v3 #4: Set based on actual depth
       depthReliable = avgDepth >= MIN_DEPTH_FOR_RELIABILITY
     )
-
-  // ============================================================
-  // STEP 4: POPULATE DEFENSE EVIDENCE
-  // ============================================================
 
   /**
    * FIX #3: Actually populate defense evidence from MultiPV
@@ -343,14 +304,9 @@ object ThreatAnalyzer:
         t.copy(
           defenseCount = defenseCount,
           bestDefense = multiPv.headOption.flatMap(_.moves.headOption),
-          // FIX #4: Apply depth penalty to lossIfIgnoredCp
           lossIfIgnoredCp = (t.lossIfIgnoredCp * reliabilityFactor).toInt
         )
       }
-
-  // ============================================================
-  // STEP 5: AGGREGATE COMPUTATION
-  // ============================================================
 
   private def computeAggregates(
     threats: List[Threat],
@@ -362,8 +318,6 @@ object ThreatAnalyzer:
     val hasMate = threats.exists(_.kind == ThreatKind.Mate)
     val hasImmediate = threats.exists(_.isImmediate)
     val hasStrategic = threats.exists(_.isStrategic)
-    
-    // FIX #4: Use immediateThreshold for immediate threat detection
     val hasUrgentImmediate = threats.exists { t =>
       t.isImmediate && t.lossIfIgnoredCp >= thresholds.immediateThreshold
     }
@@ -384,8 +338,6 @@ object ThreatAnalyzer:
     val counterThreatBetter = false  // TODO: Requires analyzing our threats
     
     val prophylaxisNeeded = !hasImmediate && hasStrategic && maxLoss >= 100
-    
-    // FIX #3: resourceAvailable based on actual defense count
     val totalDefenses = threats.map(_.defenseCount).sum
     val resourceAvailable = threats.isEmpty || totalDefenses > 0
     
@@ -394,8 +346,6 @@ object ThreatAnalyzer:
       else if maxLoss >= MATERIAL_THREAT_THRESHOLD then "material_threat"
       else if threats.nonEmpty then "positional_threat"
       else "no_threat"
-    
-    // FIX #3: Extract alternatives from MultiPV
     val alternatives = multiPv.take(3).flatMap(_.moves.headOption).distinct
     
     val defense = DefenseAssessment(
@@ -423,10 +373,7 @@ object ThreatAnalyzer:
       primaryDriver = primaryDriver,
       insufficientData = multiPv.size < 2
     )
-
-  // ============================================================
   // HELPER: Empty analysis for no-threat positions
-  // ============================================================
 
   def noThreat: ThreatAnalysis = ThreatAnalysis(
     threats = Nil,

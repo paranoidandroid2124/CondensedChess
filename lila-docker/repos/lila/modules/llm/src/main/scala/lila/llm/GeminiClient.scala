@@ -8,31 +8,24 @@ import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 
-/** Gemini API client with context caching and graceful fallback.
-  *
-  * When `config.enabled = false`, all public methods return `None` immediately.
-  * When enabled, the system prompt is cached via Gemini's Context Caching API
-  * to reduce per-request input costs by ~90%.
-  *
-  * All errors are caught and logged — Gemini failure never breaks the pipeline.
-  * The caller always receives either polished text or None (→ falls back to rule-based).
+/** Gemini API client with context caching.
+  * Falls back to `None` when disabled or on error.
   */
 final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Executor):
 
   private val logger = lila.log("gemini")
 
-  // ── Endpoints ──────────────────────────────────────────────────────────
+
   private val generateEndpoint =
     s"https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent"
   private val cacheCreateEndpoint =
     "https://generativelanguage.googleapis.com/v1beta/cachedContents"
 
-  // ── Context Cache State ────────────────────────────────────────────────
-  // Cached content name (e.g., "cachedContents/abc123") — thread-safe
+
   private val cachedContentName = new AtomicReference[String](null)
   private val cacheExpiresAt = new AtomicLong(0L)
 
-  // Flag to prevent concurrent cache creation
+
   @volatile private var cacheCreating = false
 
   if config.enabled then
@@ -40,12 +33,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
   else
     logger.info("Gemini polish disabled (no API key)")
 
-  // ── Public API ─────────────────────────────────────────────────────────
 
-  /** Polish rule-based commentary using Gemini.
-    *
-    * @return Some(polished) if Gemini succeeds, None if disabled or on error
-    */
+  /** Polish rule-based commentary using Gemini. */
   def polish(
       prose: String,
       phase: String,
@@ -73,10 +62,10 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
           None
         }
 
-  /** Check if Gemini is enabled. */
+
   def isEnabled: Boolean = config.enabled
 
-  /** Get estimated token count for cost monitoring. */
+
   def estimateTokens(prose: String): GeminiTokenEstimate =
     GeminiTokenEstimate(
       systemTokens = PolishPrompt.estimatedSystemTokens,
@@ -85,20 +74,15 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       outputTokens = 100 // typical polish output
     )
 
-  // ── Context Cache Management ───────────────────────────────────────────
 
-  /** Ensure the system prompt is cached on Gemini's side.
-    * Creates or refreshes the cache as needed.
-    */
   private def ensureCachedContent(): Future[Option[String]] =
     val now = System.currentTimeMillis()
     val existing = cachedContentName.get()
     val expiresAt = cacheExpiresAt.get()
 
-    // Cache is valid — reuse it
-    if existing != null && now < expiresAt - 120_000 then // 2-min safety margin
+    if existing != null && now < expiresAt - 120_000 then
       Future.successful(Some(existing))
-    // Cache expired or doesn't exist — create new one
+
     else if !cacheCreating then
       cacheCreating = true
       createCachedContent()
@@ -116,11 +100,9 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
           logger.warn(s"Failed to create context cache: ${e.getMessage}")
           None
         }
-    else
-      // Another thread is creating the cache — skip caching for this request
-      Future.successful(None)
+    else Future.successful(None)
 
-  /** POST to cachedContents endpoint to create a new cache. */
+
   private def createCachedContent(): Future[Option[String]] =
     val body = Json.obj(
       "model" -> s"models/${config.model}",
@@ -147,13 +129,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
           None
       }
 
-  // ── Core API Call ──────────────────────────────────────────────────────
 
-  /** Call Gemini with the cached system prompt + per-request user prompt.
-    *
-    * If context cache is available, references it via `cachedContent`.
-    * If not, falls back to inline system instruction (higher cost).
-    */
   private def callWithSystemPrompt(userPrompt: String): Future[Option[String]] =
     ensureCachedContent().flatMap { cachedNameOpt =>
       val contents = Json.arr(
@@ -170,14 +146,12 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
 
       val body = cachedNameOpt match
         case Some(cacheName) =>
-          // Use cached context — saves ~90% on system prompt tokens
           Json.obj(
             "cachedContent" -> cacheName,
             "contents" -> contents,
             "generationConfig" -> generationConfig
           )
         case None =>
-          // Fallback: inline system instruction (full cost)
           Json.obj(
             "systemInstruction" -> Json.obj(
               "parts" -> Json.arr(Json.obj("text" -> PolishPrompt.systemPrompt))
@@ -202,7 +176,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         }
     }
 
-  /** Extract text from Gemini generateContent response. */
+
   private def extractText(body: String): Option[String] =
     try
       val json = Json.parse(body)
@@ -213,18 +187,18 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         logger.warn(s"Failed to parse Gemini response: ${e.getMessage}")
         None
 
-/** Token estimate for cost monitoring. */
+
 case class GeminiTokenEstimate(
     systemTokens: Int,
     inputTokens: Int,
     cachedDiscount: Double,
     outputTokens: Int
 ):
-  /** Effective input tokens after context caching discount. */
+
   def effectiveInputTokens: Int =
     (systemTokens * (1.0 - cachedDiscount)).toInt + inputTokens
 
-  /** Estimated cost in USD per request (Gemini 2.0 Flash pricing). */
+
   def estimatedCostUsd: Double =
     val inputCost = effectiveInputTokens * 0.10 / 1_000_000  // $0.10 per 1M tokens
     val outputCost = outputTokens * 0.40 / 1_000_000         // $0.40 per 1M tokens

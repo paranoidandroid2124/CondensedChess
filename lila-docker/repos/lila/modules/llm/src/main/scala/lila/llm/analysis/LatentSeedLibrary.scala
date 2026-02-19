@@ -19,9 +19,7 @@ object LatentSeedLibrary:
 
   val all: List[LatentSeed] =
     List(
-      // ==========================================================
       // 1) Pawn Levers & Storms
-      // ==========================================================
       LatentSeed(
         id = "PawnStorm_Kingside",
         family = SeedFamily.Pawn,
@@ -132,10 +130,7 @@ object LatentSeedLibrary:
             "A central break with {seed} is often the most direct way to change the character of the position and activate the pieces."
         )
       ),
-
-      // ==========================================================
       // 2) Piece Maneuvers & Optimization
-      // ==========================================================
       LatentSeed(
         id = "KnightOutpost_Route",
         family = SeedFamily.Piece,
@@ -183,10 +178,7 @@ object LatentSeedLibrary:
             "{us} can consider forming a battery ({seed}) to concentrate force on a critical file or diagonal before breaking through."
         )
       ),
-
-      // ==========================================================
       // 3) Structural Transformation
-      // ==========================================================
       LatentSeed(
         id = "CreatePassedPawn",
         family = SeedFamily.Structure,
@@ -217,10 +209,7 @@ object LatentSeedLibrary:
             "A common technical plan is to fix a backward pawn ({seed}) so it cannot advance, turning it into a stable target."
         )
       ),
-
-      // ==========================================================
       // 4) Prophylaxis & Safety
-      // ==========================================================
       LatentSeed(
         id = "Prophylaxis_Luft",
         family = SeedFamily.Prophylaxis,
@@ -254,10 +243,7 @@ object LatentSeedLibrary:
             "If the center is about to open, {us} may need a king evacuation ({seed}) to avoid being caught in the crossfire."
         )
       ),
-
-      // ==========================================================
       // 5) Exchange Decisions
-      // ==========================================================
       LatentSeed(
         id = "Trade_BadBishop",
         family = SeedFamily.Exchange,
@@ -297,10 +283,7 @@ object LatentSeedLibrary:
             "With a stable advantage, {us} can simplify ({seed}) to reduce counterplay and reach a technically winning endgame."
         )
       ),
-
-      // ==========================================================
       // 6) Dynamic & Tactical Preparation
-      // ==========================================================
       LatentSeed(
         id = "Prepare_Overload",
         family = SeedFamily.TacticalPrep,

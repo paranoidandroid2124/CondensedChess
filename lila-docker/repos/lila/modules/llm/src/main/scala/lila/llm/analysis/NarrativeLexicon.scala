@@ -4,7 +4,7 @@ import chess.{ Bishop, King, Knight, Pawn, Queen, Role, Rook }
 import lila.llm.model.{ CandidateTag, Fact, HypothesisAxis, HypothesisHorizon }
 
 /**
- * Phase 11: Infinite Diversity Lexicon
+ * Infinite Diversity Lexicon
  * 
  * Central repository for narrative templates.
  * Uses deterministic hashing (bead) to ensure consistent output for the same position,
@@ -14,10 +14,7 @@ object NarrativeLexicon {
 
   enum Style:
     case Book, Coach, Dramatic
-
-  // ===========================================================================
   // 1. OPENING / CONTEXT SETTERS
-  // ===========================================================================
 
   // Deterministic random selection based on mixed seed
   def pick(bead: Int, options: Seq[String]): String = {
@@ -223,10 +220,7 @@ object NarrativeLexicon {
     }
     pick(bead, templates)
   }
-
-  // ===========================================================================
   // 1.5. HUMAN TOUCH: PSYCHOLOGY & CONCESSION (New Phase 6.5)
-  // ===========================================================================
 
   def getOpening(bead: Int, phase: String, evalText: String, tactical: Boolean = false, ply: Int = 0): String = {
     val p = phase.toLowerCase
@@ -401,7 +395,6 @@ object NarrativeLexicon {
   }
 
   def getIntent(bead: Int, alignment: String, evidence: Option[String], ply: Int = 0): String = {
-    // Phase 21.1: If evidence already contains 'by' or is a gerund, we adjust intro
     val ev = evidence.getOrElse("")
     val hasEv = ev.nonEmpty
     val localSeed = bead ^ (ply * 0x4eb2d)
@@ -444,8 +437,6 @@ object NarrativeLexicon {
           "keeps the opponent under pressure",
           "forces uncomfortable defensive choices"
         ))
-      
-      // Phase 22: New intent categories
       case s if s.contains("pawn break") =>
         if (hasEv) s"opens the position by $ev"
         else choose(List(
@@ -609,7 +600,7 @@ object NarrativeLexicon {
     replySan: Option[String],
     sampleRest: Option[String],
     evalTerm: String,
-    consequence: String = "" // Phase 21.3: Narrative closer
+    consequence: String = "" // Narrative closer
   ): String = {
     val fullMove = s"**$move**$annotation"
     val rep = replySan.map(s => s"...$s").getOrElse("")
@@ -639,7 +630,7 @@ object NarrativeLexicon {
   }
 
   /**
-   * Phase 18: Expert-level analytical flavour for practical aspects.
+   * Expert-level analytical flavour for practical aspects.
    */
   def getAnalyticalFlavour(bead: Int, verdict: String): String = {
     val options = verdict match {
@@ -665,10 +656,7 @@ object NarrativeLexicon {
     }
     if (options.isEmpty) "" else pick(bead, options)
   }
-
-  // ===========================================================================
   // 6. ALTERNATIVES & CRITIQUE
-  // ===========================================================================
 
   private def pick(seed: Int, options: List[String]): String = {
     if (options.isEmpty) ""
@@ -719,10 +707,6 @@ object NarrativeLexicon {
     val needle = normalizeMotifTag(rawNeedle)
     motif.nonEmpty && needle.nonEmpty &&
       (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
-
-  // ===========================================================================
-  // PHASE 5: NEW SSOT SUPPORT FUNCTIONS
-  // ===========================================================================
 
   def getTeachingPoint(bead: Int, theme: String, cpLoss: Int): String = {
     val severity = if (cpLoss >= 200) "significant" else if (cpLoss >= 100) "noticeable" else "slight"
@@ -2199,10 +2183,6 @@ object NarrativeLexicon {
       "The position is practically balanced with chances for both sides"
     ))
   }
-
-  // ===========================================================================
-  // PHASE 6.8: DENSITY INJECTION SUPPORT
-  // ===========================================================================
 
   def getPawnPlayStatement(bead: Int, breakFile: String, breakImpact: String, tensionPolicy: String): String = {
     val file = breakFile.trim.toLowerCase

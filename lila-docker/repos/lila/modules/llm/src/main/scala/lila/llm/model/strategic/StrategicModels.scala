@@ -81,11 +81,9 @@ enum PositionalTag:
   case KingStuckCenter(color: Color)
   case ConnectedRooks(color: Color)
   case DoubledRooks(file: chess.File, color: Color)
-  // Phase 11: New positional tags
   case ColorComplexWeakness(color: Color, squareColor: String, squares: List[Square])  // "light" or "dark"
   case PawnMajority(color: Color, flank: String, count: Int)  // "queenside" or "kingside"
   case MinorityAttack(color: Color, flank: String)
-  // Phase 29: Queen and Tactical motifs
   // case QueenActivity(color: Color)
   // case QueenManeuver(color: Color)
   case MateNet(color: Color)
@@ -108,8 +106,6 @@ case class CounterfactualMatch(
     severity: String,
     userLine: lila.llm.model.strategic.VariationLine 
 )
-
-// Phase 22.5: Dual intent - separates immediate move purpose from downstream consequences
 case class MoveIntent(
     immediate: String,           // What the move itself does (e.g., "Development")
     downstream: Option[String]   // Tactics that emerge later in PV (e.g., "Tactical shot (fork)")
@@ -122,6 +118,6 @@ case class AnalyzedCandidate(
     prophylaxisResults: List[PreventedPlan],
     futureContext: String, // Kept for backward compatibility
     moveIntent: MoveIntent = MoveIntent("Positional maneuvering", None), // Default for backward compat
-    facts: List[lila.llm.model.Fact] = Nil, // Phase 23: Verified Facts
+    facts: List[lila.llm.model.Fact] = Nil, // Verified Facts
     line: VariationLine
 )

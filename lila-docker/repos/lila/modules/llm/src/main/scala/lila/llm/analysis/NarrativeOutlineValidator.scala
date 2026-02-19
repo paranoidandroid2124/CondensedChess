@@ -8,7 +8,7 @@ import scala.util.matching.Regex
 /**
  * NarrativeOutlineValidator: SSOT for hard gate enforcement.
  *
- * Phase 5: Enforces quality constraints on NarrativeOutline before rendering.
+ * Enforces quality constraints on NarrativeOutline before rendering.
  * Rules from HighEffortBookCommentary.md Section 5.2.
  */
 object NarrativeOutlineValidator:
@@ -65,10 +65,6 @@ object NarrativeOutlineValidator:
     beats = reconcileEvidenceMetadata(beats)
 
     NarrativeOutline(beats, Some(currentDiag))
-
-  // ===========================================================================
-  // Rule Implementations
-  // ===========================================================================
 
   private def dropDuplicateBeats(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
     val seen = scala.collection.mutable.Set.empty[(OutlineBeatKind, List[String])]
@@ -199,10 +195,6 @@ object NarrativeOutlineValidator:
           b.copy(evidencePurposes = Nil, evidenceSourceIds = Nil)
         else b
       }
-
-  // ===========================================================================
-  // Convenience Method for Simple Validation
-  // ===========================================================================
 
   def validate(outline: NarrativeOutline, rec: TraceRecorder): NarrativeOutline =
     validate(outline, outline.diagnostics.getOrElse(OutlineDiagnostics()), rec, None)

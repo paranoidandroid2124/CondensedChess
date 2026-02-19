@@ -1,10 +1,5 @@
 package lila.llm
 
-/** Configuration for Gemini API integration.
-  *
-  * Feature flag: `enabled` is true only when a valid API key is provided.
-  * Without GEMINI_API_KEY, the entire Gemini pipeline is a no-op.
-  */
 case class GeminiConfig(
     apiKey: String,
     model: String,

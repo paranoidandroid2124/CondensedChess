@@ -343,7 +343,6 @@ object ProbeDetector:
           )
 
 
-
         def isEdgePawnInOpening(uci: String): Boolean =
           if (!legalUci.contains(uci)) false
           else

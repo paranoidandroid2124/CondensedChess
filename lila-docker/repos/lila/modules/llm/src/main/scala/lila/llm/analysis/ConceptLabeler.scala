@@ -13,7 +13,6 @@ import _root_.chess.*
  * - ConceptLabeler: Strategic/structural/tactical tagging
  * - PlanMatcher: High-level plan identification (absorbed as PlanTag enum)
  * 
- * This is the single source of truth for semantic position labeling.
  */
 enum StructureTag:
   case IqpWhite, IqpBlack
@@ -195,22 +194,13 @@ case class ConceptLabels(
  * - ConceptLabeler: Strategic/structural/tactical tagging
  * - PlanMatcher: High-level plan identification (absorbed as PlanTag enum)
  * 
- * This is the single source of truth for semantic position labeling.
  */
 object ConceptLabeler:
-
-  // ============================================================
-  // CONSTANTS
-  // ============================================================
 
   val SUCCESS_THRESHOLD_CP = 60
   val FAILURE_THRESHOLD_CP = -60
   val TACTIC_WIN_THRESHOLD_CP = 150
   val BLUNDER_THRESHOLD_CP = 150
-
-  // ============================================================
-  // MAIN LABELING ENTRY POINT
-  // ============================================================
 
   def labelPosition(
       features: PositionFeatures,
@@ -236,10 +226,7 @@ object ConceptLabeler:
       endgameTags = endgame,
       positionalTags = positional
     )
-
-  // ============================================================
   // SUB-LABELERS
-  // ============================================================
 
   private def labelStructure(features: PositionFeatures): List[StructureTag] =
     val tags = List.newBuilder[StructureTag]
@@ -271,8 +258,6 @@ object ConceptLabeler:
 
     if phase == "endgame" then
       tags += PlanTag.KingActivationGood
-
-    // FIX: PromotionThreat must be color-aware with STRICT rank conditions
     // L1 normalizes passedPawnRank: higher value = closer to promotion for BOTH colors
     // We want pawns that are very close to promotion (White rank >= 6, Black rank <= 3, normalized >= 5)
     if phase == "endgame" then
@@ -386,10 +371,7 @@ object ConceptLabeler:
        // Winner logic would be complex without search.
        Some(None) // Race exists, winner unclear without deep search
     else None
-
-  // ============================================================
   // POSITIONAL LABELING (Board-based)
-  // ============================================================
 
   def labelPositional(
       board: chess.Board,
@@ -451,10 +433,6 @@ object ConceptLabeler:
 
     tags.result().distinct
 
-  // ============================================================
-  // GEOMETRIC HELPERS
-  // ============================================================
-
   private def detectOutposts(board: Board, color: Color): List[Square] =
     val knights = board.knights & board.byColor(color)
     val pawns = board.pawns & board.byColor(color)
@@ -473,7 +451,6 @@ object ConceptLabeler:
 
   private def detectWeakSquares(board: Board, color: Color): List[Square] =
     val pawns = board.pawns & board.byColor(color)
-    // FIX: If no pawns for this color, no weak squares can be defined
     if (pawns.isEmpty) return Nil
     
     // Check relevant ranks (5th/6th for Black's weak squares from White's perspective)

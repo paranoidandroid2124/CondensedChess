@@ -3,7 +3,7 @@ package lila.llm.analysis.L3
 import lila.llm.analysis.PositionFeatures
 
 /**
- * Phase 1: Position Classifier
+ * Position Classifier
  * 
  * Classifies a position into 8 fundamental categories using only:
  * - L1 Features (PositionFeatures)
@@ -13,10 +13,6 @@ import lila.llm.analysis.PositionFeatures
  * No dependency on L2 motifs or higher-layer analysis.
  */
 object PositionClassifier:
-
-  // ============================================================
-  // MAIN ENTRY POINT
-  // ============================================================
 
   def classify(
     features: PositionFeatures,
@@ -43,10 +39,7 @@ object PositionClassifier:
       riskProfile = riskProfile,
       taskMode = taskMode
     )
-
-  // ============================================================
   // 1. NATURE CLASSIFICATION
-  // ============================================================
 
   private def classifyNature(features: PositionFeatures): NatureResult =
     val central = features.centralSpace
@@ -77,10 +70,7 @@ object PositionClassifier:
       mobilityDiff = mobilityDiff,
       lockedCenter = lockedCenter
     )
-
-  // ============================================================
   // 2. CRITICALITY CLASSIFICATION
-  // ============================================================
 
   private def classifyCriticality(multiPv: List[PvLine], currentEval: Int): CriticalityResult =
     val pv1 = multiPv.headOption
@@ -88,8 +78,6 @@ object PositionClassifier:
 
     val mateDistance = pv1.flatMap(_.mate)
     val evalDelta = pv2.map(pv2Line => pv1.map(_.score).getOrElse(0) - pv2Line.score).getOrElse(0)
-    
-    // FIX: Forcing moves detection based on mate presence and eval jumps
     // PV length alone is not a valid proxy for forcing sequences
     val hasMateInLine = mateDistance.isDefined
     val hasLargeEvalJump = evalDelta.abs >= 200
@@ -110,13 +98,9 @@ object PositionClassifier:
       mateDistance = mateDistance,
       forcingMovesInPv = forcingMovesInPv
     )
-
-  // ============================================================
   // 3. CHOICE TOPOLOGY CLASSIFICATION
-  // ============================================================
 
   private def classifyChoiceTopology(multiPv: List[PvLine]): ChoiceTopologyResult =
-    // FIX: Handle insufficient data case
     if multiPv.size < 2 then
       return ChoiceTopologyResult(
         topologyType = ChoiceTopologyType.NarrowChoice, // Unknown, not OnlyMove
@@ -134,8 +118,6 @@ object PositionClassifier:
 
     val gapPv1ToPv2 = (pv1Eval - pv2Eval).abs
     val spreadTop3 = pv3Eval.map(pv3 => (pv1Eval - pv3).abs).getOrElse(gapPv1ToPv2)
-
-    // FIX: Scale threshold relative to eval magnitude
     // At extreme evals (|eval| > 500), 100cp gap is less significant
     val evalMagnitude = pv1Eval.abs
     val onlyMoveThreshold = if evalMagnitude > 500 then 150 else 100
@@ -170,10 +152,7 @@ object PositionClassifier:
     else if gap > 300 then "loses_material"
     else if pv2Eval < -200 then "position_collapses"
     else "significant_disadvantage"
-
-  // ============================================================
   // 4. GAME PHASE CLASSIFICATION
-  // ============================================================
 
   private def classifyGamePhase(features: PositionFeatures): GamePhaseResult =
     val mat = features.materialPhase
@@ -195,16 +174,11 @@ object PositionClassifier:
       queensOnBoard = queensOnBoard,
       minorPiecesCount = minorPiecesCount
     )
-
-  // ============================================================
   // 5. SIMPLIFY BIAS CLASSIFICATION
-  // ============================================================
 
   private def classifySimplifyBias(features: PositionFeatures, currentEval: Int): SimplifyBiasResult =
     val isEndgameNear = features.materialPhase.phase == "endgame" ||
                         features.materialPhase.whiteMaterial + features.materialPhase.blackMaterial <= 50
-    
-    // FIX: Use signed eval to determine if side-to-move is winning
     // Positive eval = White advantage, sideToMove determines who benefits
     // For simplification window, the WINNING side should want to simplify
     val sideToMove = features.sideToMove // "white" or "black" (lowercase from Color.name)
@@ -225,18 +199,13 @@ object PositionClassifier:
       isEndgameNear = isEndgameNear,
       exchangeAvailable = exchangeAvailable
     )
-
-  // ============================================================
   // 6. DRAW BIAS CLASSIFICATION
-  // ============================================================
 
   private def classifyDrawBias(features: PositionFeatures): DrawBiasResult =
     val mat = features.materialPhase
     val imb = features.imbalance
 
     val materialSymmetry = mat.materialDiff.abs <= 1
-    
-    // FIX: Insufficient material check - immediate draw regardless of symmetry
     // K+N vs K, K+B vs K, K vs K are all theoretical draws
     val totalPawns = features.pawns.whitePawnCount + features.pawns.blackPawnCount
     val whiteMinors = imb.whiteKnights + imb.whiteBishops
@@ -245,17 +214,12 @@ object PositionClassifier:
     
     // Insufficient material: no pawns, no major pieces, and at most 1 minor piece total
     val insufficientMaterial = totalPawns == 0 && !hasMajorPieces && (whiteMinors + blackMinors) <= 1
-    
-    // FIX: OCB detection - relaxed rook condition, still approximate on color
     // OCB endgames are drawish even WITH rooks (R+B vs R+B OCB is very drawish)
     val oppositeColorBishops = imb.whiteBishops == 1 && imb.blackBishops == 1 &&
                                imb.whiteQueens == 0 && imb.blackQueens == 0
-    // Note: True color detection would require board access, this is still approximate
 
     // Fortress: blocked center with symmetric pawns
     val fortressLikely = features.centralSpace.lockedCenter && materialSymmetry
-
-    // FIX: insufficientMaterial triggers draw immediately, not requiring symmetry
     val isDrawish = insufficientMaterial || 
                     (materialSymmetry && (oppositeColorBishops || fortressLikely))
 
@@ -266,10 +230,7 @@ object PositionClassifier:
       fortressLikely = fortressLikely,
       insufficientMaterial = insufficientMaterial
     )
-
-  // ============================================================
   // 7. RISK PROFILE CLASSIFICATION
-  // ============================================================
 
   private def classifyRiskProfile(features: PositionFeatures, tacticalMotifsCount: Int): RiskProfileResult =
     val ks = features.kingSafety
@@ -294,10 +255,7 @@ object PositionClassifier:
       tacticalMotifsCount = tacticalMotifsCount,
       kingExposureSum = kingExposureSum
     )
-
-  // ============================================================
   // 8. TASK MODE DERIVATION
-  // ============================================================
 
   private def deriveTaskMode(
     nature: NatureResult,
@@ -323,9 +281,6 @@ object PositionClassifier:
       taskMode = taskMode,
       primaryDriver = driver
     )
-
-  // ============================================================
   // EXTENSION: Int to Boolean conversion
-  // ============================================================
   extension (i: Int)
     def toBoolean: Boolean = i > 0

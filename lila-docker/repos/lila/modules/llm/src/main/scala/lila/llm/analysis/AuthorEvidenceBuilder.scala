@@ -4,7 +4,7 @@ import lila.llm.model.*
 import lila.llm.model.authoring.*
 
 /**
- * Phase 2: Convert ProbeResults into renderable, validated evidence for AuthorQuestions.
+ * Convert ProbeResults into renderable, validated evidence for AuthorQuestions.
  *
  * Important: Evidence lines are validated (UCI→SAN length match) to avoid illegal/partial citations.
  */

@@ -14,13 +14,8 @@ import _root_.chess.format.{ Fen, Uci }
  * - MotifTokenizer: Detects tactical/structural motifs from PV lines
  * - ExperimentExecutor: Runs counterfactual experiments comparing moves
  * 
- * This is the single source of truth for move sequence analysis.
  */
 object MoveAnalyzer:
-
-  // ============================================================
-  // MOTIF TOKENIZATION (from MotifTokenizer)
-  // ============================================================
 
   /**
    * Translates a PV (list of UCI moves) into a list of Motifs.
@@ -42,7 +37,7 @@ object MoveAnalyzer:
     }.getOrElse(Nil)
 
   /**
-   * Phase 14: Parse UCI moves into PvMove with SAN, piece, capture, check metadata.
+   * Parse UCI moves into PvMove with SAN, piece, capture, check metadata.
    * This preserves coordinate-level information for book-style rendering.
    */
   def parsePv(initialFen: String, pv: List[String]): List[lila.llm.model.strategic.PvMove] =
@@ -73,10 +68,6 @@ object MoveAnalyzer:
       pvMoves
     }.getOrElse(Nil)
 
-  // ============================================================
-  // MOVE MOTIF DETECTION (from MotifTokenizer)
-  // ============================================================
-
   def detectMoveMotifs(mv: Move, pos: Position, plyIndex: Int, prevMove: Option[Move] = None): List[Motif] =
     val color = pos.color
     val san = mv.toSanStr.toString
@@ -89,10 +80,7 @@ object MoveAnalyzer:
       detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex, prevMove),
       detectPositionalMotifs(mv, pos, nextPos, color, san, plyIndex) 
     )
-
-  // ============================================================
   // MULTI-PV VARIATION ANALYSIS
-  // ============================================================
 
   /**
    * Analyze a list of variation lines, adding motifs and tags.
@@ -284,8 +272,6 @@ object MoveAnalyzer:
     // Capture (enhanced with Exchange Sacrifice detection and Recapture logic)
     if mv.captures then
       val capturedRole = mv.capture.flatMap(pos.board.roleAt).getOrElse(pos.board.roleAt(mv.dest).getOrElse(Pawn))
-      
-      // Phase 22.5: Recapture detection
       val isRecapture = prevMove.exists(pm => pm.captures && pm.dest == mv.dest)
       val captureType = if (isRecapture) CaptureType.Recapture else determineCaptureType(mv.piece.role, capturedRole)
       
@@ -309,7 +295,6 @@ object MoveAnalyzer:
     
     // Fork detection
     val forkTargets = detectForkTargets(mv, nextPos, color)
-    // Phase 22.5: Harden fork detection to avoid false positives on Pawn + 1 Piece or simple exchanges.
     // A real fork should target at least two high-value pieces (non-pawn) or involve the King.
     // Also, if the attacker is immediately recaptured by an equal or lesser piece, it's just an exchange.
     val forkRoles = forkTargets.map(_._2)
@@ -322,13 +307,9 @@ object MoveAnalyzer:
     
     if isRealFork then
       motifs = motifs :+ Motif.Fork(mv.piece.role, forkRoles, mv.dest, forkTargets.map(_._1), color, plyIndex, Some(san))
-
-    // Phase 29: Removing the Defender
     detectRemovingTheDefender(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m =>
       motifs = motifs :+ m
     }
-
-    // Phase 29: Mate Net
     detectMateNet(nextPos, color, plyIndex, Some(san)).foreach { m =>
       motifs = motifs :+ m
     }
@@ -381,10 +362,6 @@ object MoveAnalyzer:
 
     motifs
   }
-
-  // ============================================================
-  // POSITIONAL MOTIF DETECTION
-  // ============================================================
 
   private def detectPositionalMotifs(
       mv: Move,
@@ -488,8 +465,6 @@ object MoveAnalyzer:
         motifs = motifs :+ SemiOpenFileControl(file, color, plyIndex, Some(san))
       }
     }
-
-    // Phase 29: Initiative (Heuristic evalLoss = 0 as we don't have engine context here)
     detectInitiative(mv, pos, nextPos, color, 0, plyIndex, Some(san)).foreach { m =>
       motifs = motifs :+ m
     }
@@ -533,8 +508,6 @@ object MoveAnalyzer:
     
     val enemyPieces = board.byColor(!color)
     val targets = attacks & enemyPieces
-    
-    // Phase 22.5: Filter targets to only those that are meaningful tactical threats.
     // A target is meaningful if it is the King, higher value than attacker, or undefended.
     targets.squares.flatMap { targetSq =>
       val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
@@ -578,8 +551,6 @@ object MoveAnalyzer:
       
       def chebyshevDist(a: Square, b: Square): Int =
         Math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
-      
-      // Phase 22.5: Only flag effective pins/skewers where attacker is safe
       val attackerIsSafe = nextPos.board.attackers(sq, !color).isEmpty
       
       if (attackerIsSafe) {
@@ -588,7 +559,6 @@ object MoveAnalyzer:
           .flatMap { behindSq =>
             board.roleAt(behindSq).flatMap { behindRole =>
               if (board.colorAt(behindSq).contains(!color)) {
-                // Phase 22.5: Harden Pin/Skewer thresholds
                 // Trivial pins (pawn to knight etc) shouldn't be reported as tactical 'shots'
                 val isSignificantPin = (pieceValue(targetRole) < pieceValue(behindRole)) && {
                   if (targetRole == Pawn) List(Rook, Queen, King).contains(behindRole)
@@ -639,7 +609,6 @@ object MoveAnalyzer:
       
       newTargets.squares.flatMap { targetSq =>
         nextPos.board.roleAt(targetSq).flatMap { targetRole =>
-          // Phase 22.5: Filter discovered targets to meaningful ones
           val isKing = targetRole == King
           val attackerVal = pieceValue(role)
           val targetVal = pieceValue(targetRole)
@@ -660,7 +629,6 @@ object MoveAnalyzer:
       plyIndex: Int, 
       san: Option[String]
   ): List[Motif] =
-    // Phase 22.5: Only consider squares to be 'critically attacked' if the attacker is safe and target is higher value or undefended
     val criticalSquares = (board.byColor(color) & ~board.kings).squares.filter { sq =>
       val targetRole = board.roleAt(sq).getOrElse(Pawn)
       board.attackers(sq, !color).squares.exists { attackerSq =>
@@ -706,8 +674,6 @@ object MoveAnalyzer:
     oppDefenders.squares.foreach { defenderSq =>
       val role = board.roleAt(defenderSq).getOrElse(Queen)
       val opponentPieces = board.byColor(oppColor) & ~Bitboard(defenderSq)
-      
-      // Phase 22.5: Only effective interference where attacker is safe
       val attackerIsSafe = nextPos.board.attackers(blockerSq, !color).isEmpty
       
       if (attackerIsSafe) {
@@ -821,7 +787,7 @@ object MoveAnalyzer:
       detectWeakBackRank(pos, plyIndex),
       detectSpaceAdvantage(board, plyIndex),
       detectBattery(board, plyIndex),  // L2 Completion
-      detectImbalance(board, plyIndex) // Phase 25: Knight vs Bishop
+      detectImbalance(board, plyIndex) // Knight vs Bishop
     )
 
   private def detectPins(board: Board, plyIndex: Int): List[Motif] =
@@ -882,8 +848,6 @@ object MoveAnalyzer:
       }
 
     motifs.result().distinct
-
-  // ===== FIX 6: New Motif Detectors =====
   private def detectOpenFiles(board: Board, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
     for file <- File.all do
@@ -923,7 +887,6 @@ object MoveAnalyzer:
        // Determine openness
        val pawnCount = board.pawns.count
        val isClosed = pawnCount >= 10 // Heuristic
-       // Knights prefer closed, Bishops prefer open
        
        if (whiteHasKnightOnly) {
          val isKnightBetter = isClosed
@@ -1145,10 +1108,6 @@ object MoveAnalyzer:
     case Queen  => 9
     case King   => 100
 
-  // ============================================================
-  // PHASE 11: EXCHANGE SACRIFICE DETECTION
-  // ============================================================
-
   /**
    * Detect compensation for Exchange Sacrifice (Rook for minor piece).
    * Returns SacrificeROI if positional compensation exists.
@@ -1217,10 +1176,6 @@ object MoveAnalyzer:
     else None
   }
 
-  // ============================================================
-  // PHASE 11: ZWISCHENZUG DETECTION
-  // ============================================================
-
   /**
    * Detect Zwischenzug (intermediate move) in a PV line.
    * Called when analyzing consecutive moves where:
@@ -1286,10 +1241,6 @@ object MoveAnalyzer:
     }
   }
 
-  // ============================================================
-  // PHASE 11: DEFLECTION DETECTION
-  // ============================================================
-
   /**
    * Detect Deflection - forcing a defending piece away from its duties.
    * Example: Attacking a piece that defends the king or a valuable target.
@@ -1340,7 +1291,6 @@ object MoveAnalyzer:
         }
         
         if (protectsValuable) {
-          // Phase 22.5: Only flag deflection if we safely attack the defender
           val attackerIsSafe = nextPos.board.attackers(mv.dest, color).nonEmpty || board.attackers(defenderSq, !color).isEmpty
           // Wait, the deflection attack comes from mv.dest. We want to know if the piece at mv.dest is safe.
           val destIsSafe = nextPos.board.attackers(mv.dest, !color).isEmpty
@@ -1352,10 +1302,6 @@ object MoveAnalyzer:
       }
     }.headOption
   }
-
-  // ============================================================
-  // PHASE 11: DECOY DETECTION  
-  // ============================================================
 
   /**
    * Detect Decoy - luring a piece to a vulnerable square.
@@ -1385,8 +1331,6 @@ object MoveAnalyzer:
       
       afterCaptureOpt.flatMap { afterCapture =>
         val afterPos = afterCapture.after
-        
-        // Phase 22.5: Check if we now have a REALLY winning move (mate, winning capture, or fork)
         val hasExecution = afterPos.legalMoves.exists { ourResponse =>
           val givesMate = ourResponse.after.checkMate
           val isWinningCapture = ourResponse.captures && {
@@ -1406,10 +1350,6 @@ object MoveAnalyzer:
       }
     }.headOption
   }
-
-  // ============================================================
-  // PHASE 27: BISHOP TACTICS (PIN, SKEWER, X-RAY)
-  // ============================================================
 
   private type Dir = Square => Option[Square]
   private def getSquare(f: Int, r: Int): Option[Square] = 
@@ -1559,7 +1499,6 @@ object MoveAnalyzer:
     
     // We'll focus on X-Ray ATTACK: Aiming at a piece behind a blocker on the same line.
     // This is similar to Pin/Skewer but implies the "presence" of the attack on the rear piece.
-    // Usually distinguished when the blockage is not absolute or is about to be cleared.
     
     // Implementation: Same ray cast. If aligned, it's an X-Ray.
     // Difference from Pin: Pin focuses on the immobility of the middle piece.
@@ -1623,10 +1562,6 @@ object MoveAnalyzer:
     }
   }
 
-  // ============================================================
-  // L2 COMPLETION: CLEARANCE DETECTION
-  // ============================================================
-
   /**
    * Detect Clearance - moving a piece to clear a line/square for another piece.
    * Example: Moving a rook so that the queen can use the file.
@@ -1673,8 +1608,6 @@ object MoveAnalyzer:
       
       // New attack squares = squares accessible after but not before
       val newAttacks = attacksAfter & ~attacksBefore
-      
-      // Phase 22.5: Was the original square of the moved piece on the ray, AND is the new attack meaningful?
       val ray = Bitboard.ray(friendlySq, origSq)
       val targets = newAttacks & nextBoard.byColor(!color)
       val meaningfulTarget = targets.squares.exists { sq =>
@@ -1702,10 +1635,6 @@ object MoveAnalyzer:
       } else None
     }.headOption
   }
-
-  // ============================================================
-  // L2 COMPLETION: BATTERY DETECTION
-  // ============================================================
 
   /**
    * Detect Battery - two pieces aligned on the same line (Q+B on diagonal, R+R on file).
@@ -1780,10 +1709,6 @@ object MoveAnalyzer:
     
     batteries.result()
   }
-
-  // ============================================================
-  // PHASE 29: QUEEN MOTIFS & TACTICAL HARDENING
-  // ============================================================
 
   /**
    * Detect Removing the Defender - capturing a piece that protected another.

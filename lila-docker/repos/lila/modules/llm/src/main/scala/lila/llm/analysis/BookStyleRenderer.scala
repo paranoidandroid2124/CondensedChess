@@ -61,10 +61,6 @@ object BookStyleRenderer:
   def renderFull(ctx: NarrativeContext): String =
     AppendixRenderer.render(ctx)
 
-  // ===========================================================================
-  // Outline Rendering
-  // ===========================================================================
-
   private def renderOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
     val sb = new StringBuilder()
@@ -110,10 +106,6 @@ object BookStyleRenderer:
         case OutlineBeatKind.Alternatives => generateAlternatives(ctx, bead)
         case OutlineBeatKind.WrapUp => generateWrapUp(ctx, bead)
         case OutlineBeatKind.PsychologicalVerdict => ""
-
-  // ===========================================================================
-  // Beat Text Generators
-  // ===========================================================================
 
   private def generateContext(ctx: NarrativeContext, bead: Int): String =
     val phase = ctx.phase.current
@@ -182,10 +174,6 @@ object BookStyleRenderer:
     ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
       NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
     }.getOrElse("")
-
-  // ===========================================================================
-  // Helpers
-  // ===========================================================================
 
   private def softenText(text: String, bead: Int): String =
     val trimmed = text.trim

@@ -103,9 +103,6 @@ final class CreditApi(coll: Coll)(using Executor):
       )
       coll.update.one($id(userId), entryBson(updated), upsert = true).void
     }
-
-  // ── Helpers ────────────────────────────────────────────────────────────
-
   private def nextResetAt: Instant =
     nowInstant.plus(Duration.ofDays(CreditConfig.ResetIntervalDays.toLong))
 

@@ -57,10 +57,6 @@ enum PlanCategory:
 
 object Plan:
 
-  // ============================================================
-  // ATTACK PLANS
-  // ============================================================
-
   case class KingsideAttack(color: Color) extends Plan:
     val id = PlanId.KingsideAttack
     val name = "Kingside Attack"
@@ -91,10 +87,6 @@ object Plan:
     val name = "Mating Attack"
     val category = PlanCategory.Attack
 
-  // ============================================================
-  // POSITIONAL PLANS
-  // ============================================================
-
   case class CentralControl(color: Color) extends Plan:
     val id = PlanId.CentralControl
     val name = "Central Control"
@@ -120,10 +112,6 @@ object Plan:
     val name = s"$fileType File Control"
     val category = PlanCategory.Positional
 
-  // ============================================================
-  // STRUCTURAL PLANS
-  // ============================================================
-
   case class PassedPawnCreation(color: Color) extends Plan:
     val id = PlanId.PassedPawnCreation
     val name = "Creating a Passed Pawn"
@@ -143,10 +131,6 @@ object Plan:
     val id = PlanId.PawnBreakPreparation
     val name = s"Preparing $breakMove Break"
     val category = PlanCategory.Structural
-
-  // ============================================================
-  // ENDGAME PLANS
-  // ============================================================
 
   case class KingActivation(color: Color) extends Plan:
     val id = PlanId.KingActivation
@@ -173,10 +157,6 @@ object Plan:
     val name = "Building a Fortress"
     val category = PlanCategory.Endgame
 
-  // ============================================================
-  // DEFENSIVE PLANS
-  // ============================================================
-
   case class DefensiveConsolidation(color: Color) extends Plan:
     val id = PlanId.DefensiveConsolidation
     val name = "Defensive Consolidation"
@@ -197,10 +177,6 @@ object Plan:
     val name = s"$where Counterplay"
     val category = PlanCategory.Defensive
 
-  // ============================================================
-  // TRANSITION PLANS
-  // ============================================================
-
   case class Simplification(color: Color) extends Plan:
     val id = PlanId.Simplification
     val name = "Simplification into Endgame"
@@ -210,10 +186,6 @@ object Plan:
     val id = PlanId.QueenTrade
     val name = "Trading Queens"
     val category = PlanCategory.Transition
-
-  // ============================================================
-  // ADDITIONAL PLANS (PHASE 4 EXPANSION)
-  // ============================================================
 
   case class Blockade(color: Color, square: String) extends Plan:
     val id = PlanId.Blockade

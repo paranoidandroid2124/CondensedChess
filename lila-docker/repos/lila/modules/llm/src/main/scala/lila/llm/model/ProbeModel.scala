@@ -60,7 +60,7 @@ object ProbeResult:
   given Writes[ProbeResult] = Json.writes[ProbeResult]
 
 /**
- * Phase C: L1 positional delta after applying a candidate move.
+ * L1 positional delta after applying a candidate move.
  * "What changed structurally?" - for explaining why a move is bad/good
  * beyond just the eval delta.
  */

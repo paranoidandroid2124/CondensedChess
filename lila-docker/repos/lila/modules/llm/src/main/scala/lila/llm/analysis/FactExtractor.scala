@@ -65,7 +65,6 @@ object FactExtractor {
    * Endgame specialized fact extraction.
    */
   def extractEndgameFacts(board: Board, color: Color): List[Fact] = {
-    // Phase 23: Only extract endgame-specific facts if we are actually in the endgame
     // (Approximated here by low total material or absence of major pieces)
     val majorPieces = (board.queens | board.rooks)
     val totalMaterial = board.occupied.count
