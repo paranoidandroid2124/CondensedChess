@@ -2,19 +2,17 @@ import { debounce } from 'lib/async';
 import { storedBooleanPropWithEffect } from 'lib/storage';
 import type AnalyseCtrl from './ctrl';
 import { treePath } from 'lib/tree';
-import * as studyApi from './studyApi';
-import { renderInsufficientCredits } from './CreditWidget';
 import { fetchOpeningReferenceViaProxy } from './bookmaker/openingProxy';
 import { initBookmakerHandlers } from './bookmaker/interactionHandlers';
 import { createProbeOrchestrator } from './bookmaker/probeOrchestrator';
 import { clearBookmakerPanel, renderBookmakerPanel, restoreBookmakerPanel, syncBookmakerEvalDisplay } from './bookmaker/rendering';
 import { buildBookmakerRequest, deriveAfterVariations, toBaselineCp, toEvalData } from './bookmaker/requestPayload';
+import { blockedHtmlFromErrorResponse } from './bookmaker/blockingState';
+import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
 import {
     commentaryFromResponse,
     htmlFromResponse,
     probeRequestsFromResponse,
-    ratelimitSecondsFromResponse,
-    resetAtFromResponse,
     variationLinesFromResponse,
 } from './bookmaker/responsePayload';
 
@@ -26,33 +24,8 @@ let lastRequestedFen: string | null = null;
 let lastShownHtml = '';
 let activeProbeSession = 0;
 
-type PendingBookmakerStudySync = {
-    payload: studyApi.BookmakerSyncPayload;
-    savedAt: number;
-};
-
-const pendingBookmakerStudySync = new Map<string, PendingBookmakerStudySync>();
-const maxPendingBookmakerSync = 200;
-
-function rememberBookmakerStudySync(payload: studyApi.BookmakerSyncPayload): void {
-    const key = payload.commentPath;
-    pendingBookmakerStudySync.set(key, { payload, savedAt: Date.now() });
-
-    if (pendingBookmakerStudySync.size <= maxPendingBookmakerSync) return;
-
-    const oldest = [...pendingBookmakerStudySync.entries()].sort((a, b) => a[1].savedAt - b[1].savedAt);
-    for (const [k] of oldest.slice(0, pendingBookmakerStudySync.size - maxPendingBookmakerSync)) pendingBookmakerStudySync.delete(k);
-}
-
 export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
-    if (!ctrl?.canWriteStudy()) return;
-
-    const entries = [...pendingBookmakerStudySync.values()].sort((a, b) => a.savedAt - b.savedAt);
-    if (!entries.length) return;
-
-    for (const entry of entries) ctrl.syncBookmaker(entry.payload);
-
-    pendingBookmakerStudySync.clear();
+    flushBookmakerStudySyncQueue(ctrl);
 }
 
 const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.showEval', true, value => {
@@ -116,6 +89,12 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             const analysisCeval = playedMove ? prevNode?.ceval : node.ceval;
             const commentPath = ctrl?.path ?? '';
             const originPath = playedMove ? treePath.init(commentPath) : commentPath;
+            const syncStudy = (commentary: string, lines: any[]) => {
+                if (!commentary) return;
+                const payload = { commentPath, originPath, commentary, variations: lines };
+                rememberBookmakerStudySync(payload);
+                if (ctrl?.canWriteStudy()) ctrl.syncBookmaker(payload);
+            };
 
             if (requestsBlocked) {
                 if (blockedHtml) show(blockedHtml);
@@ -195,9 +174,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                     const commentary = commentaryFromResponse(data);
                     const vLines = variationLinesFromResponse(data, variations);
-                    const payload = { commentPath, originPath, commentary, variations: vLines };
-                    if (commentary) rememberBookmakerStudySync(payload);
-                    if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
+                    syncStudy(commentary, vLines);
 
                     const probeRequests = probeRequestsFromResponse(data);
                     const baselineCp = toBaselineCp(variations, evalData);
@@ -236,39 +213,17 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                                     const commentary = commentaryFromResponse(refined, commentaryFromResponse(data));
                                     const vLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));
-                                    const payload = { commentPath, originPath, commentary, variations: vLines };
-                                    if (commentary) rememberBookmakerStudySync(payload);
-                                    if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
+                                    syncStudy(commentary, vLines);
                                 }
                             } catch {}
                         })();
                     }
-                } else if (res.status === 403) {
-                    try {
-                        const data = await res.json();
-                        blockedHtml = renderInsufficientCredits(resetAtFromResponse(data));
-                    } catch {
-                        blockedHtml = renderInsufficientCredits('Unknown');
-                    }
-                    requestsBlocked = true;
-                    show(blockedHtml);
-                } else if (res.status === 401) {
-                    blockedHtml = `<p>Sign in to use Bookmaker.</p><p><a class="button" href="${loginHref()}">Sign in</a></p>`;
-                    requestsBlocked = true;
-                    show(blockedHtml);
-                } else if (res.status === 429) {
-                    try {
-                        const data = await res.json();
-                        const seconds = ratelimitSecondsFromResponse(data);
-                        if (typeof seconds === 'number') blockedHtml = `<p>LLM quota exceeded. Try again in ${seconds}s.</p>`;
-                        else blockedHtml = '<p>LLM quota exceeded.</p>';
-                    } catch {
-                        blockedHtml = '<p>LLM quota exceeded.</p>';
-                    }
-                    requestsBlocked = true;
-                    show(blockedHtml);
                 } else {
-                    show('');
+                    const blocked = await blockedHtmlFromErrorResponse(res, loginHref());
+                    if (!blocked) return show('');
+                    blockedHtml = blocked;
+                    requestsBlocked = true;
+                    show(blockedHtml);
                 }
             } catch {
                 show('');
