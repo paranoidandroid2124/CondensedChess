@@ -1,0 +1,54 @@
+name: Branding Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: branding-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branding-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Brand fingerprint check
+        shell: pwsh
+        run: ./scripts/brand_fingerprint_check.ps1
+
+      - name: UI build gate
+        shell: pwsh
+        run: ./ui/build.ps1 --tsc --sass --esbuild
+
+      - name: Web compile gate
+        run: sbt "web/compile"
+
+      - name: Branding render gate
+        run: sbt "web/testOnly lila.web.BrandingRenderTest"
