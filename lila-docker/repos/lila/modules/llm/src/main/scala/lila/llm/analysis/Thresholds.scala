@@ -9,10 +9,6 @@ package lila.llm.analysis
  * - Move annotation (NAG symbols)
  */
 object Thresholds:
-
-  // ============================================================
-  // SEVERITY CLASSIFICATION (cpLoss thresholds)
-  // ============================================================
   
   /** cpLoss >= BLUNDER → "blunder" severity */
   val BLUNDER_CP = 300
@@ -23,10 +19,6 @@ object Thresholds:
   /** cpLoss >= INACCURACY → "inaccuracy" severity */
   val INACCURACY_CP = 50
   
-  // ============================================================
-  // NAG ANNOTATION (BookStyleRenderer move marks)
-  // ============================================================
-  
   /** cpLoss >= DOUBLE_QUESTION → "??" (blunder mark) */
   val DOUBLE_QUESTION_CP = 200
   
@@ -35,10 +27,6 @@ object Thresholds:
   
   /** cpLoss >= DUBIOUS → "?!" (dubious mark) */
   val DUBIOUS_CP = 50
-
-  // ============================================================
-  // THREAT SIGNIFICANCE
-  // ============================================================
   
   /** lossIfIgnoredCp >= SIGNIFICANT_THREAT → threat is narratively significant */
   val SIGNIFICANT_THREAT_CP = 100
@@ -48,10 +36,6 @@ object Thresholds:
   
   /** lossIfIgnoredCp >= MINOR_THREAT → threshold for opponent opportunities */
   val MINOR_THREAT_CP = 50
-
-  // ============================================================
-  // HELPER METHODS
-  // ============================================================
   
   /** Classify severity from cpLoss */
   def classifySeverity(cpLoss: Int): String =

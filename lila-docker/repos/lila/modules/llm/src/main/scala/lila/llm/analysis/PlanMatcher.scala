@@ -16,7 +16,6 @@ case class IntegratedContext(
     threatsToThem: Option[ThreatAnalysis] = None, // Threats WE make TO THEM (attacking opportunity)
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
-    // A5: L1 features for narrative layer
     features: Option[PositionFeatures] = None,
     initialPos: Option[Position] = None
 ) {
@@ -32,10 +31,7 @@ case class IntegratedContext(
   def phaseEnum: lila.llm.analysis.L3.GamePhaseType = classification
     .map(_.gamePhase.phaseType)
     .getOrElse(lila.llm.analysis.L3.GamePhaseType.Middlegame)
-
-  // ============================================================
   // NUMERIC-BASED THREAT ASSESSMENT (replaces label-based)
-  // ============================================================
   
   /** Tactical threat TO US: 1-2 moves, >= 200cp loss (mate, forced tactic) */
   def tacticalThreatToUs: Boolean = threatsToUs.exists(_.threats.exists(t => 
@@ -83,7 +79,7 @@ object PlanMatcher:
     secondary: Option[PlanMatch],
     suppressed: List[PlanMatch],
     allPlans: List[PlanMatch],            // Pre-compatibility list for debugging
-    compatibilityEvents: List[CompatibilityEvent] = Nil  // A4: Compatibility trace
+    compatibilityEvents: List[CompatibilityEvent] = Nil // Compatibility trace
   )
 
   def matchPlans(
@@ -169,10 +165,6 @@ object PlanMatcher:
       compatibilityEvents = events
     )
   }
-
-  // ============================================================
-  // PLAN COMPATIBILITY MATRIX
-  // ============================================================
   
   /**
    * A4: Apply compatibility with event tracking.
@@ -299,10 +291,6 @@ object PlanMatcher:
   private def applyCompatibility(plans: List[PlanMatch], ctx: IntegratedContext, side: Color): List[PlanMatch] = {
     applyCompatWithEvents(plans, ctx, side)._1
   }
-
-  // ============================================================
-  // ATTACK PLAN SCORING
-  // ============================================================
 
   private def scoreKingsideAttack(
       motifs: List[Motif],
@@ -504,10 +492,6 @@ object PlanMatcher:
       Some(PlanMatch(Plan.DirectMate(side), finalScore, evidence, supports.toList, blockers.toList, missing.toList))
     else None
 
-  // ============================================================
-  // POSITIONAL PLAN SCORING
-  // ============================================================
-
   private def scoreCentralControl(
       motifs: List[Motif],
       ctx: IntegratedContext,
@@ -630,10 +614,6 @@ object PlanMatcher:
 
       Some(PlanMatch(Plan.RookActivation(side), rookMotifs.size * 0.4, evidence, supports.toList, blockers.toList, missing.toList))
 
-  // ============================================================
-  // STRUCTURAL PLAN SCORING
-  // ============================================================
-
   private def scorePassedPawnPush(
       motifs: List[Motif],
       ctx: IntegratedContext,
@@ -691,10 +671,6 @@ object PlanMatcher:
         missing.toList
       ))
 
-  // ============================================================
-  // ENDGAME PLAN SCORING
-  // ============================================================
-
   private def scoreKingActivation(
       motifs: List[Motif],
       ctx: IntegratedContext,
@@ -730,10 +706,6 @@ object PlanMatcher:
       
       Some(PlanMatch(Plan.Promotion(side), 1.2, evidence, supports, blockers, missing))
     else None
-
-  // ============================================================
-  // DEFENSIVE PLAN SCORING
-  // ============================================================
 
   private def scoreDefensiveConsolidation(
       motifs: List[Motif],
@@ -808,10 +780,6 @@ object PlanMatcher:
        Some(PlanMatch(Plan.Prophylaxis(side, "Attack"), 0.5, evidence, List("General defensive posture"), Nil, Nil))
      else None
 
-  // ============================================================
-  // TRANSITION PLAN SCORING
-  // ============================================================
-
   private def scoreSimplification(
       motifs: List[Motif],
       ctx: IntegratedContext,
@@ -858,10 +826,6 @@ object PlanMatcher:
       Some(PlanMatch(Plan.QueenTrade(side), 1.2, evidence, supports, blockers, Nil))
     else None
 
-  // ============================================================
-  // ADDITIONAL SCORERS (Blockade, Minority, Space, Zugzwang, Sacrifice)
-  // ============================================================
-
   private def scoreBlockade(
       motifs: List[Motif],
       ctx: IntegratedContext,
@@ -888,8 +852,6 @@ object PlanMatcher:
           case m: Outpost => m.square.key
         }.getOrElse("passer")
       }
-      
-      // Phase 3 data-based evidence (specific)
       val phase3Evidence = if (pAnalysis.exists(a => a.blockadeSquare.isDefined && a.blockadeRole.isDefined)) {
         List(EvidenceAtom(Zugzwang(side, 0, None), 0.5, s"Passed pawn successfully blockaded by $blockadePiece on $blockadeSq"))
       } else {
@@ -1027,10 +989,6 @@ object PlanMatcher:
       val missing = Nil // Missing field handled by hasRooks check now
       Some(PlanMatch(Plan.FileControl(side, "Open"), 0.8, evidence, supports, blockers, missing))
     else None
-
-  // ============================================================
-  // FILE CLASSIFICATION HELPERS
-  // ============================================================
 
   extension (f: File)
     def isKingside: Boolean = f == File.F || f == File.G || f == File.H

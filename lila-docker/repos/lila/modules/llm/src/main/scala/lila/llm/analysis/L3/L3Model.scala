@@ -2,10 +2,6 @@ package lila.llm.analysis.L3
 
 import chess.{Square, Role}
 
-// ============================================================
-// Phase 1: Position Classification - Data Structures
-// ============================================================
-
 /**
  * Main container for all Phase 1 classification results.
  * Each field contains both the classification AND its evidence.
@@ -20,10 +16,7 @@ case class PositionClassification(
   riskProfile: RiskProfileResult,
   taskMode: TaskModeResult
 )
-
-// ============================================================
 // 1. Nature (Static/Dynamic/Chaos)
-// ============================================================
 
 enum NatureType:
   case Static, Dynamic, Chaos
@@ -39,10 +32,7 @@ case class NatureResult(
   def isStatic: Boolean = natureType == NatureType.Static
   def isDynamic: Boolean = natureType == NatureType.Dynamic
   def isChaos: Boolean = natureType == NatureType.Chaos
-
-// ============================================================
 // 2. Criticality (Normal/Critical/Forced)
-// ============================================================
 
 enum CriticalityType:
   case Normal, CriticalMoment, ForcedSequence
@@ -57,10 +47,7 @@ case class CriticalityResult(
   def isNormal: Boolean = criticalityType == CriticalityType.Normal
   def isCritical: Boolean = criticalityType == CriticalityType.CriticalMoment
   def isForced: Boolean = criticalityType == CriticalityType.ForcedSequence
-
-// ============================================================
 // 3. Choice Topology (OnlyMove/NarrowChoice/StyleChoice)
-// ============================================================
 
 enum ChoiceTopologyType:
   case OnlyMove, NarrowChoice, StyleChoice
@@ -78,10 +65,7 @@ case class ChoiceTopologyResult(
   def isOnlyMove: Boolean = topologyType == ChoiceTopologyType.OnlyMove
   def isNarrowChoice: Boolean = topologyType == ChoiceTopologyType.NarrowChoice
   def isStyleChoice: Boolean = topologyType == ChoiceTopologyType.StyleChoice
-
-// ============================================================
 // 4. Game Phase (Opening/Middlegame/Endgame)
-// ============================================================
 
 enum GamePhaseType:
   case Opening, Middlegame, Endgame
@@ -96,10 +80,7 @@ case class GamePhaseResult(
   def isOpening: Boolean = phaseType == GamePhaseType.Opening
   def isMiddlegame: Boolean = phaseType == GamePhaseType.Middlegame
   def isEndgame: Boolean = phaseType == GamePhaseType.Endgame
-
-// ============================================================
 // 5. Simplify Bias (Window for simplification)
-// ============================================================
 
 case class SimplifyBiasResult(
   isSimplificationWindow: Boolean,
@@ -109,10 +90,7 @@ case class SimplifyBiasResult(
   exchangeAvailable: Boolean    // Queen/Rook exchange possible
 ):
   def shouldSimplify: Boolean = isSimplificationWindow
-
-// ============================================================
 // 6. Draw Bias (Drawish tendency)
-// ============================================================
 
 case class DrawBiasResult(
   isDrawish: Boolean,
@@ -123,10 +101,7 @@ case class DrawBiasResult(
   insufficientMaterial: Boolean // Insufficient mating material
 ):
   def tendsToDraw: Boolean = isDrawish
-
-// ============================================================
 // 7. Risk Profile (Volatility proxy)
-// ============================================================
 
 enum RiskLevel:
   case Low, Medium, High
@@ -141,10 +116,7 @@ case class RiskProfileResult(
   def isLowRisk: Boolean = riskLevel == RiskLevel.Low
   def isMediumRisk: Boolean = riskLevel == RiskLevel.Medium
   def isHighRisk: Boolean = riskLevel == RiskLevel.High
-
-// ============================================================
 // 8. Task Mode (Narrative routing)
-// ============================================================
 
 enum TaskModeType:
   case ExplainPlan      // Long-term strategic explanation
@@ -162,10 +134,6 @@ case class TaskModeResult(
   def isDefenseMode: Boolean = taskMode == TaskModeType.ExplainDefense
   def isConvertMode: Boolean = taskMode == TaskModeType.ExplainConvert
 
-// ============================================================
-// MultiPV Input Structure (from Frontend)
-// ============================================================
-
 /**
  * Represents a single PV line from engine analysis.
  * Used as input to PositionClassifier.
@@ -180,10 +148,6 @@ case class PvLine(
     case Some(m) if m > 0 => 10000 - m
     case Some(m) if m < 0 => -10000 - m
     case _ => evalCp
-
-// ============================================================
-// Phase 2: Threat & Defense - Data Structures
-// ============================================================
 
 /**
  * Type of threat detected.
@@ -262,10 +226,6 @@ case class ThreatAnalysis(
 ):
   def hasThreat: Boolean = threats.nonEmpty
   def threatCount: Int = threats.size
-
-// ============================================================
-// Phase 3: Break & Pawn Play - Data Structures (10 Concepts)
-// ============================================================
 
 /**
  * Tension resolution policy recommendation.

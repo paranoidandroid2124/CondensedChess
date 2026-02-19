@@ -7,7 +7,7 @@ import lila.llm.model.strategic.VariationLine
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
  *
- * Phase 5: Decision engine for narrative structure.
+ * Decision engine for narrative structure.
  * All "what to say" decisions happen here; Renderer only handles phrasing.
  */
 object NarrativeOutlineBuilder:
@@ -113,8 +113,6 @@ object NarrativeOutlineBuilder:
     val moveLevelPrecedent = buildContextPrecedentSentence(ctx, bead)
     val mainMoveBeat = buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, crossBeatState)
     if mainMoveBeat.text.nonEmpty then beats += mainMoveBeat
-
-    // Phase 6.8: Psychological Reconstruction
     LogicReconstructor.analyze(ctx).foreach { recon =>
       beats += OutlineBeat(
         kind = OutlineBeatKind.PsychologicalVerdict,
@@ -138,10 +136,6 @@ object NarrativeOutlineBuilder:
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
 
-  // ===========================================================================
-  // Beat Builders
-  // ===========================================================================
-
   private def buildMoveHeader(ctx: NarrativeContext, rec: TraceRecorder): Option[OutlineBeat] =
     ctx.playedSan.map { san =>
       val moveNum = (ctx.ply + 1) / 2
@@ -164,8 +158,6 @@ object NarrativeOutlineBuilder:
   private def buildContextBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): OutlineBeat =
     val parts = scala.collection.mutable.ListBuffer[String]()
     val concepts = scala.collection.mutable.ListBuffer[String]()
-
-    // Phase 6 Expansion: two-stage lead construction (motif + phase lead) with repeat suppression.
     val phase = ctx.phase.current
     val conceptSummaryMotifs = ctx.semantic.toList.flatMap(_.conceptSummary).map(_.trim).filter(_.nonEmpty).distinct
     val derivedContextMotifs = collectDerivedContextMotifs(ctx)
@@ -332,8 +324,6 @@ object NarrativeOutlineBuilder:
         val factText = NarrativeLexicon.getFactStatement(bead ^ Math.abs(fact.hashCode), fact)
         if factText.nonEmpty then parts += factText
       }
-
-    // Phase 6.8: Pawn Play (Stranded Asset 1)
     ctx.pawnPlay.breakFile.foreach { br =>
       rec.use("pawnPlay.breakFile", br, "Context break")
       parts += NarrativeLexicon.getPawnPlayStatement(bead, br, ctx.pawnPlay.breakImpact, ctx.pawnPlay.tensionPolicy)
@@ -656,8 +646,6 @@ object NarrativeOutlineBuilder:
             bead = bead ^ Math.abs(main.move.hashCode) ^ 0x4f6cdd1d,
             crossBeatState = crossBeatState
           ).getOrElse("")
-        
-        // Phase 6.8: Prophylaxis (Stranded Asset 2)
         val prophylaxisText = ctx.semantic.flatMap(_.preventedPlans.headOption).map { pp =>
           NarrativeLexicon.getPreventedPlanStatement(bead, pp.planId)
         }
@@ -1329,8 +1317,6 @@ object NarrativeOutlineBuilder:
       val seed = bead ^ Math.abs(pa.verdict.hashCode) ^ (cpWhite << 1)
       parts += NarrativeLexicon.getPracticalVerdict(seed, pa.verdict, cpWhite, ply = ctx.ply)
     }
-
-    // Phase 6.8: Compensation (Stranded Asset 3)
     ctx.semantic.flatMap(_.compensation).foreach { comp =>
       parts += NarrativeLexicon.getCompensationStatement(bead, comp.conversionPlan, "Sufficient")
     }
@@ -1722,10 +1708,6 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
       .take(6)
       .mkString(" ")
-
-  // ===========================================================================
-  // Helpers
-  // ===========================================================================
 
   private def pickKeyFact(ctx: NarrativeContext): Option[Fact] =
     ctx.facts

@@ -4,62 +4,54 @@ import chess.Color
 import lila.llm.model.authoring.{ AuthorQuestion, QuestionEvidence }
 import play.api.libs.json.*
 
-/**
- * Phase 6: Narrative Context
- * 
- * Aggregates all analysis layers into a hierarchical structure for LLM prompts.
- * Format: Header → Summary → Evidence Tables → Delta
- */
+/** Aggregates all analysis layers into a hierarchical structure for LLM prompts. */
 case class NarrativeContext(
-  // === POSITION CONTEXT ===
-  // FEN used for analysis (position before `playedMove` in move-annotation mode).
+
+
   fen: String,
 
-  // === HEADER (Context) ===
+
   header: ContextHeader,
 
-  // === MOVE ANNOTATION CONTEXT ===
-  // When present, BookStyleRenderer should frame the prose as an annotation of `playedMove`.
+
   ply: Int,
   playedMove: Option[String] = None, // UCI
   playedSan: Option[String] = None,  // SAN (derived from `fen` used for analysis)
   counterfactual: Option[lila.llm.model.strategic.CounterfactualMatch] = None,
   
-  // === SUMMARY (5 lines) ===
+
   summary: NarrativeSummary,
   
-  // === EVIDENCE TABLES ===
+
   threats: ThreatTable,
   pawnPlay: PawnPlayTable,
   plans: PlanTable,
   snapshots: List[L1Snapshot] = Nil,
   
-  // === DELTA (changes from prev move) ===
+
   delta: Option[MoveDelta],
-  
-  // === PHASE CONTEXT (A8) ===
   phase: PhaseContext,
   
-  // === CANDIDATES (enhanced) ===
+  // === CANDIDATES ===
   candidates: List[CandidateInfo],
 
-  // === EVIDENCE AUGMENTATION (Phase 6.5) ===
+  // === EVIDENCE AUGMENTATION ===
   probeRequests: List[ProbeRequest] = Nil,
 
-  // === META SIGNALS (B-axis) ===
+
   meta: Option[MetaSignals] = None,
   strategicFlow: Option[String] = None, // Transition justification
   
-  // === SEMANTIC SECTION (Phase A) ===
+  // === SEMANTIC SECTION ===
   semantic: Option[SemanticSection] = None, // ExtendedAnalysisData semantic fields
   
-  // === OPPONENT PLAN (Phase B) ===
+  // === OPPONENT PLAN ===
   opponentPlan: Option[PlanRow] = None, // Top plan for opponent (side=!toMove)
 
-  // === DECISION RATIONALE (Phase F) ===
+  // === DECISION RATIONALE ===
   decision: Option[DecisionRationale] = None,
 
-  // === OPENING EVENT (Phase A9) ===
+  // === OPENING EVENT ===
   openingEvent: Option[OpeningEvent] = None,
   
   // === OPENING DATA (for internal use, not rendered directly) ===
@@ -68,35 +60,28 @@ case class NarrativeContext(
   // === UPDATED BUDGET (for game-level accumulation) ===
   updatedBudget: OpeningEventBudget = OpeningEventBudget(),
 
-  // === PHASE 14: ENGINE EVIDENCE (raw PV for book-style rendering) ===
+  // === ENGINE EVIDENCE ===
   engineEvidence: Option[lila.llm.model.strategic.EngineEvidence] = None,
 
-  // === PHASE 1: AUTHOR QUESTIONS (book-style "decision points") ===
+  // === AUTHOR QUESTIONS ===
   authorQuestions: List[AuthorQuestion] = Nil,
   authorEvidence: List[QuestionEvidence] = Nil,
 
-  // === PHASE 23: VERIFIED FACTS (Truth Maintenance) ===
+  // === VERIFIED FACTS ===
   facts: List[Fact] = Nil,
 
-  // === DELTA MODE ===
-  // True when `delta` represents the immediate before/after of a played move.
-  // (As opposed to a cross-moment delta when narrating key moments of a game.)
+
   deltaAfterMove: Boolean = false
 )
 
 
-/**
- * A8: Phase context with evidence and transition triggers.
- */
 case class PhaseContext(
   current: String,            // "Opening", "Middlegame", "Endgame"
   reason: String,             // "Material: 45, Queens present"
   transitionTrigger: Option[String] = None // "Minor piece trade triggered Endgame"
 )
 
-/**
- * Context header for narrative routing.
- */
+
 case class ContextHeader(
   phase: String,           // "Opening" | "Middlegame" | "Endgame"
   criticality: String,     // "Normal" | "Critical" | "Forced"
@@ -105,9 +90,7 @@ case class ContextHeader(
   taskMode: String         // "ExplainPlan" | "ExplainTactics" | "ExplainDefense" | "ExplainConvert"
 )
 
-/**
- * 5-line narrative summary.
- */
+
 case class NarrativeSummary(
   primaryPlan: String,        // "Kingside Attack (0.85)"
   keyThreat: Option[String],  // "Fork on e5 (must defend)"
@@ -116,13 +99,7 @@ case class NarrativeSummary(
   evalDelta: String           // "+0.5 eval, RookLift appeared"
 )
 
-// ============================================================
-// EVIDENCE TABLES
-// ============================================================
 
-/**
- * Threats table (bidirectional).
- */
 case class ThreatTable(
   toUs: List[ThreatRow],
   toThem: List[ThreatRow]
@@ -137,8 +114,8 @@ case class ThreatRow(
   bestDefense: Option[String],
   defenseCount: Int,
   insufficientData: Boolean,
-  confidence: ConfidenceLevel = ConfidenceLevel.Engine, // Default for threats from engine
-  isTopCandidateDefense: Boolean = false // Item 3: true if bestDefense matches top candidate
+  confidence: ConfidenceLevel = ConfidenceLevel.Engine,
+  isTopCandidateDefense: Boolean = false
 ) {
   def urgencyLabel: String = 
     if (lossIfIgnoredCp >= 800 || kind == "Mate") "URGENT"
@@ -151,9 +128,7 @@ case class ThreatRow(
   }
 }
 
-/**
- * Pawn play table.
- */
+
 case class PawnPlayTable(
   breakReady: Boolean,
   breakFile: Option[String],
@@ -166,9 +141,7 @@ case class PawnPlayTable(
   primaryDriver: String       // "break_ready" | "passed_pawn" | "defensive" | "quiet" | "tension_critical"
 )
 
-/**
- * Plans table (Top 5 + suppressed).
- */
+
 case class PlanTable(
   top5: List[PlanRow],
   suppressed: List[SuppressedPlan]
@@ -182,8 +155,8 @@ case class PlanRow(
   supports: List[String] = Nil,
   blockers: List[String] = Nil,
   missingPrereqs: List[String] = Nil,
-  confidence: ConfidenceLevel = ConfidenceLevel.Heuristic, // Default for plans from matcher
-  isEstablished: Boolean = false // P10 Issue 2: true if this is a current fact, not anticipated
+  confidence: ConfidenceLevel = ConfidenceLevel.Heuristic,
+  isEstablished: Boolean = false
 )
 
 case class SuppressedPlan(
@@ -193,9 +166,7 @@ case class SuppressedPlan(
   isRemoved: Boolean
 )
 
-/**
- * L1 snapshot (key numbers only).
- */
+
 case class L1Snapshot(
   material: String,            // "+2" | "=" | "-1"
   imbalance: Option[String],   // "Bishop pair" | "Exchange down"
@@ -206,9 +177,7 @@ case class L1Snapshot(
   openFiles: List[String]      // ["d", "e"]
 )
 
-/**
- * Delta (changes from previous move).
- */
+
 case class MoveDelta(
   evalChange: Int,             // CP change (signed)
   newMotifs: List[String],     // Appeared motifs
@@ -218,32 +187,24 @@ case class MoveDelta(
   phaseChange: Option[String]        // "middlegame → endgame"
 )
 
-// ============================================================
-// CANDIDATES
-// ============================================================
 
-/**
- * Enhanced candidate move info.
- */
 case class CandidateInfo(
   move: String,                // SAN
   uci: Option[String] = None,  // NEW: UCI format for probe result matching
   annotation: String,          // "!" | "?" | ""
   planAlignment: String,       // Immediate intent (e.g., "Development")
-  downstreamTactic: Option[String] = None, // Phase 22.5: Downstream consequence (e.g., "fork threat")
+  downstreamTactic: Option[String] = None,
   tacticalAlert: Option[String], // "allows Qb6 response"
   practicalDifficulty: String, // "clean" | "complex"
   whyNot: Option[String],       // Refutation reason if inferior
   tags: List[CandidateTag] = Nil, // Sharp, Solid, etc.
-  tacticEvidence: List[String] = Nil, // P12: Evidence for tactical labels (motifs, victims)
-  probeLines: List[String] = Nil, // Bookmaker: optional a1/a2 reply samples from probes (SAN)
-  facts: List[Fact] = Nil, // Phase 23: Verified facts for this move
-  hypotheses: List[HypothesisCard] = Nil // Hypothesis-space cards (ranked top-2 per candidate)
+  tacticEvidence: List[String] = Nil,
+  probeLines: List[String] = Nil,
+  facts: List[Fact] = Nil,
+  hypotheses: List[HypothesisCard] = Nil
 )
 
-/**
- * Structured hypothesis-space axes for strategic tradeoff narration.
- */
+
 enum HypothesisAxis:
   case Plan
   case Structure
@@ -254,17 +215,13 @@ enum HypothesisAxis:
   case PawnBreakTiming
   case EndgameTrajectory
 
-/**
- * Time horizon of a hypothesis claim.
- */
+
 enum HypothesisHorizon:
   case Short
   case Medium
   case Long
 
-/**
- * Hypothesis card attached to each candidate.
- */
+
 case class HypothesisCard(
   axis: HypothesisAxis,
   claim: String,
@@ -274,55 +231,34 @@ case class HypothesisCard(
   horizon: HypothesisHorizon
 )
 
-// ============================================================
-// META SIGNALS (B-axis)
-// ============================================================
 
-/**
- * Choice type classification.
- */
 enum ChoiceType:
   case OnlyMove      // PV1-PV2 > 200cp
   case StyleChoice   // PV1-PV2 < 50cp
   case NarrowChoice  // 50-200cp
   case Complex       // Many sharp lines
 
-// ============================================================
-// CONFIDENCE LEVELS (Phase B)
-// ============================================================
 
-/**
- * Confidence level for signals - helps LLM adjust tone.
- * Engine: Definitive (from engine eval)
- * Probe: Verified (from WASM probe)
- * Heuristic: Suggestive (from board heuristics)
- */
 enum ConfidenceLevel:
-  case Engine     // Definitive - "확실히", backed by engine
-  case Probe      // Verified - "검증됨", backed by probe result
-  case Heuristic  // Suggestive - "그림상", board pattern heuristic
+  case Engine
+  case Probe
+  case Heuristic
 
-/**
- * Error classification for counterfactuals.
- */
+
 case class ErrorClassification(
   isTactical: Boolean,         // turnsToImpact <= 2 && loss >= 200
   missedMotifs: List[String],
   errorSummary: String         // "전술(2수 내 300cp)" or "포지셔널"
 )
 
-/**
- * Divergence info for user vs best line.
- */
+
 case class DivergenceInfo(
   divergePly: Int,             // Actual ply where lines diverge
   punisherMove: Option[String], // Move that punishes user's choice
   branchPointFen: Option[String]
 )
 
-/**
- * Targeting reference - Square, File, or Piece.
- */
+
 sealed trait TargetRef:
   def label: String
 
@@ -342,43 +278,30 @@ case class TargetEntry(
   priority: Int // 1: Urgent (Threat), 2: High (Probe), 3: Normal (Heuristic)
 )
 
-/**
- * Tactical vs Strategic targets.
- */
+
 case class Targets(
   tactical: List[TargetEntry],  // Immediate attack/defend
   strategic: List[TargetEntry]  // Outposts, open files, blockades, weaknesses
 )
 
-/**
- * Plan concurrency hint.
- */
+
 case class PlanConcurrency(
   primary: String,
   secondary: Option[String],
   relationship: String         // "↔ synergy" | "⟂ conflict" | "independent"
 )
 
-/**
- * B-axis: Unified meta-signals container.
- * Populated by NarrativeContextBuilder from L3/L4 analysis.
- */
+/** Unified meta-signals container. */
 case class MetaSignals(
-  choiceType: ChoiceType,                     // B1: from classification.choiceTopology
-  targets: Targets,                           // B5: from threatsToUs/Them
-  planConcurrency: PlanConcurrency,           // B8: from compatibilityEvents
-  divergence: Option[DivergenceInfo] = None,  // B3: counterfactual comparison
+  choiceType: ChoiceType, // from classification.choiceTopology
+  targets: Targets, // from threatsToUs/Them
+  planConcurrency: PlanConcurrency, // from compatibilityEvents
+  divergence: Option[DivergenceInfo] = None, // counterfactual comparison
   errorClass: Option[ErrorClassification] = None, // B2/B6: tactical vs positional
-  whyNot: Option[String] = None               // B7: ProbeResult-based refutation
+  whyNot: Option[String] = None // ProbeResult-based refutation
 )
 
-// ============================================================
-// SEMANTIC SECTION (Phase A Enhancement)
-// ============================================================
 
-/**
- * Wrapper for structural weakness with narrative-friendly format.
- */
 case class WeakComplexInfo(
   owner: String,                // "White" | "Black" (side that owns the weakness)
   squareColor: String,          // "light" | "dark"
@@ -387,9 +310,7 @@ case class WeakComplexInfo(
   cause: String                 // "Missing fianchetto bishop"
 )
 
-/**
- * Wrapper for piece activity with narrative-friendly format.
- */
+
 case class PieceActivityInfo(
   piece: String,                // "Knight"
   square: String,               // "c3"
@@ -400,9 +321,7 @@ case class PieceActivityInfo(
   coordinationLinks: List[String]
 )
 
-/**
- * Wrapper for positional tag with flattened structure.
- */
+
 case class PositionalTagInfo(
   tagType: String,              // "Outpost", "OpenFile", "WeakSquare", etc.
   square: Option[String],       // For square-based tags
@@ -411,9 +330,7 @@ case class PositionalTagInfo(
   detail: Option[String] = None // Additional context
 )
 
-/**
- * Wrapper for compensation assessment.
- */
+
 case class CompensationInfo(
   investedMaterial: Int,        // CP sacrificed
   returnVector: Map[String, Double], // "Time" -> 0.8, "Attack" -> 0.9
@@ -421,27 +338,21 @@ case class CompensationInfo(
   conversionPlan: String        // "Mating attack"
 )
 
-/**
- * Wrapper for endgame features.
- */
+
 case class EndgameInfo(
   hasOpposition: Boolean,
   isZugzwang: Boolean,
   keySquaresControlled: List[String]
 )
 
-/**
- * Wrapper for practical assessment.
- */
+
 case class PracticalInfo(
   engineScore: Int,
   practicalScore: Double,
   verdict: String               // "Unpleasant Draw", "White is Fighting"
 )
 
-/**
- * Wrapper for prevented plan.
- */
+
 case class PreventedPlanInfo(
   planId: String,               // "StopCheck", "PreventFork"
   deniedSquares: List[String],
@@ -450,10 +361,7 @@ case class PreventedPlanInfo(
   preventedThreatType: Option[String]
 )
 
-/**
- * Semantic section: Exposes ExtendedAnalysisData semantic fields to LLM.
- * Provides 2-3x information increase without new analyzers.
- */
+/** Exposes ExtendedAnalysisData semantic fields to LLM. */
 case class SemanticSection(
   structuralWeaknesses: List[WeakComplexInfo],
   pieceActivity: List[PieceActivityInfo],
@@ -465,13 +373,7 @@ case class SemanticSection(
   conceptSummary: List[String]  // High-level concepts from ConceptLabeler
 )
 
-// ============================================================
-// PHASE F: DECISION RATIONALE MODELS
-// ============================================================
 
-/**
- * High-level category for candidate moves.
- */
 enum CandidateTag:
   case Sharp        // High risk, high reward (RiskLevel.High)
   case Solid        // Positional, structural improvement
@@ -480,10 +382,7 @@ enum CandidateTag:
   case Competitive  // PV1 vs PV2 score diff < 30cp
   case TacticalGamble // Refuted by a specific tactical probe
 
-/**
- * Delta analysis for a specific PV (usually PV1).
- * Shows what's solved vs what's created.
- */
+
 case class PVDelta(
   resolvedThreats: List[String],    // Threats present in current but gone in future
   newOpportunities: List[String],   // New tactical/strategic targets appeared
@@ -491,9 +390,7 @@ case class PVDelta(
   concessions: List[String]         // New threats or lost advantages
 )
 
-/**
- * Synthesis of the entire position's logic.
- */
+
 case class DecisionRationale(
   focalPoint: Option[TargetRef],    // The "star" of the narrative (e.g. "Knight on d5")
   logicSummary: String,             // "Solve X -> Gain Y -> Watch out for Z"
@@ -501,14 +398,7 @@ case class DecisionRationale(
   confidence: ConfidenceLevel
 )
 
-// ============================================================
-// PHASE A9: OPENING EVENT LAYER
-// ============================================================
 
-/**
- * A9 Event: Triggered opening-related events (not per-move references).
- * Budget: Max 2-3 per game (Intro + 1-2 events)
- */
 enum OpeningEvent:
   /** First 1-3 ply: ECO/name confirmed with theme and top moves */
   case Intro(eco: String, name: String, theme: String, topMoves: List[String])
@@ -521,9 +411,7 @@ enum OpeningEvent:
   /** OutOfBook + low cpLoss + constructive evidence */
   case Novelty(playedMove: String, cpLoss: Int, evidence: String, ply: Int)
 
-/**
- * Budget tracker to limit A9 mentions per game.
- */
+
 case class OpeningEventBudget(
   introUsed: Boolean = false,
   eventsUsed: Int = 0,
@@ -539,10 +427,7 @@ case class OpeningEventBudget(
   def updatePly(ply: Int): OpeningEventBudget = copy(lastPlyWithData = ply)
 }
 
-/**
- * Explorer-driven reference data (for event detection).
- * Kept for data fetching, but events are derived from this.
- */
+
 case class OpeningReference(
   eco: Option[String],
   name: Option[String],

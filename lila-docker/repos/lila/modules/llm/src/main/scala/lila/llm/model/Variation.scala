@@ -3,7 +3,7 @@ package lila.llm.model.strategic
 import play.api.libs.json.*
 
 /**
- * Phase 14: Parsed PV Move with coordinate-level information.
+ * Parsed PV Move with coordinate-level information.
  * This is the "first-class" representation of a move in the PV.
  */
 case class PvMove(
@@ -31,23 +31,23 @@ case class VariationLine(
     depth: Int = 0,
     resultingFen: Option[String] = None,
     tags: List[VariationTag] = Nil,
-    parsedMoves: List[PvMove] = Nil // Phase 14: Parsed moves with metadata
+    parsedMoves: List[PvMove] = Nil // Parsed moves with metadata
 ):
   /** Material + Positional evaluation unified into CP */
   def effectiveScore: Int = 
     mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(scoreCp)
   
-  /** Phase 14: Get our move (index 0) */
+  /** Get our move (index 0) */
   def ourMove: Option[PvMove] = parsedMoves.headOption
   
-  /** Phase 14: Get opponent's reply (index 1) */
+  /** Get opponent's reply (index 1) */
   def theirReply: Option[PvMove] = parsedMoves.lift(1)
   
-  /** Phase 14: Get sample line as SAN string (e.g., "Qb3 Qb6 Bd3") */
+  /** Get sample line as SAN string (e.g., "Qb3 Qb6 Bd3") */
   def sampleLine(n: Int = 6): String = 
     parsedMoves.take(n).map(_.san).mkString(" ")
 
-  /** Phase 15: Get sample line from a specific index (e.g., skip first 2 moves) */
+  /** Get sample line from a specific index (e.g., skip first 2 moves) */
   def sampleLineFrom(startIdx: Int, maxPly: Int): Option[String] = {
     if (parsedMoves.isEmpty) return None
 
@@ -73,7 +73,7 @@ object VariationLine:
   given Writes[VariationLine] = Json.writes[VariationLine]
 
 /**
- * Phase 14: Container for engine analysis evidence.
+ * Container for engine analysis evidence.
  * Preserves raw PV data all the way to the renderer.
  */
 case class EngineEvidence(

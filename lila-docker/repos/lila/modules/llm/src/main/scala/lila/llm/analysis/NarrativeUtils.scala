@@ -104,7 +104,6 @@ object NarrativeUtils:
    * Converts a UCI string to SAN string based on the given FEN.
    * Returns None if the move is illegal or cannot be parsed.
    * 
-   * This is the single source of truth for UCI→SAN conversion.
    */
   def uciToSan(fen: String, uciMove: String): Option[String] =
     for

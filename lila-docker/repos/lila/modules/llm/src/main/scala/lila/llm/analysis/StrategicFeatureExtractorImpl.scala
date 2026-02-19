@@ -24,15 +24,11 @@ class StrategicFeatureExtractorImpl(
 
     val board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
     val color = metadata.color
-    
-    // ===== DEBT 1: CP Contract Validation (see docs/CpContract.md) =====
     // All CP must be White absolute perspective. Mate scores map to high values.
     assert(
       vars.forall(v => v.scoreCp.abs < 10000 || v.mate.isDefined), 
       s"CP score out of expected range - verify White perspective contract. Got: ${vars.map(_.scoreCp)}"
     )
-
-    // ===== FIX 1: Inject played line into vars if missing =====
     val varsWithPlayed = playedMove match {
       case Some(move) if !vars.exists(_.moves.headOption.contains(move)) =>
         // Create synthetic line for the played move (estimate score as worst of existing or -100)
@@ -46,13 +42,9 @@ class StrategicFeatureExtractorImpl(
         vars :+ playedLine
       case _ => vars
     }
-
-    // ===== FIX 4: Sort vars by effectiveScore with COLOR NORMALIZATION =====
     // For White: higher score is better, sort descending (-score)
     // For Black: lower score is better (more negative), sort ascending (score)
     val sortedVars = varsWithPlayed.sortBy(v => if (color.white) -v.effectiveScore else v.effectiveScore)
-
-    // ===== Phase 14: Attach SAN-aware PV parsing for book-style rendering =====
     // We preserve both resultingFen and parsedMoves so renderers can cite short sample lines.
     val sortedVarsParsed = sortedVars.map { v =>
       val parsedMoves = if (v.moves.nonEmpty) lila.llm.analysis.MoveAnalyzer.parsePv(fen, v.moves) else Nil
@@ -64,8 +56,6 @@ class StrategicFeatureExtractorImpl(
 
     val defaultVar = VariationLine(moves = Nil, scoreCp = 0, mate = None, tags = Nil)
     val bestVar = sortedVarsParsed.headOption.getOrElse(defaultVar)
-    
-    // ===== FIX 8: Perspective Correction & Score Unification =====
     // Use normalized score logic for consistent scaling
     def normalizeScore(v: VariationLine): Int = v.mate match {
       case Some(m) if m > 0 => 2000 + (20 - m.min(20)) * 100  // Positive mate: 2000-4000
@@ -77,8 +67,6 @@ class StrategicFeatureExtractorImpl(
     val normalizedBestScore = normalizeScore(bestVar)
     val normalizedBestVar = bestVar.copy(scoreCp = normalizedBestScore, mate = None)
     val relativeScore = if (color.white) normalizedBestScore else -normalizedBestScore
-
-    // ===== FIX 3: Real Threat Detection with Motif-based planId =====
     val detectedThreats = lila.llm.analysis.MoveAnalyzer.detectThreats(fen, color)
     val (threatLineRaw, threatPlanId) = if (detectedThreats.nonEmpty) {
       // Derive planId from actual motifs
@@ -119,7 +107,7 @@ class StrategicFeatureExtractorImpl(
     val structuralWeaknesses = structureAnalyzer.analyze(board)
     val positionalFeatures = structureAnalyzer.detectPositionalFeatures(board, color)
     
-    // Bridge Phase 29: Tactical Motifs -> PositionalTags for Narrative Linking
+    // Tactical Motifs -> PositionalTags for Narrative Linking
     val tacticalTags = baseData.motifs.flatMap {
       case m: Motif.MateNet => Some(PositionalTag.MateNet(m.color))
       // case m: Motif.PerpetualCheck => Some(PositionalTag.PerpetualCheck(m.color))
@@ -143,14 +131,11 @@ class StrategicFeatureExtractorImpl(
       structuralWeaknesses, 
       endgameFeatures
     )
-
-    // ===== FIX 1 continued: Counterfactual with injected played line =====
     val counterfactual = playedMove.flatMap { move =>
       val userLine = sortedVarsParsed.find(_.moves.headOption.contains(move))
       
       userLine.flatMap { ul =>
         if (bestVar.moves.headOption != Some(move)) {
-          // FIX 2: Use normalized cpLoss (normalization logic reused)
           val normalizedUserScore = normalizeScore(ul)
           val cpLoss = (if (color.white) normalizedBestScore - normalizedUserScore 
                         else normalizedUserScore - normalizedBestScore).abs
@@ -166,8 +151,6 @@ class StrategicFeatureExtractorImpl(
         } else None
       }
     }
-
-    // ===== FIX 4 continued: Tag AFTER sorting =====
     // Generate Extended Analysis Data
     val analyzedVars = lila.llm.analysis.MoveAnalyzer.analyzeVariations(fen, sortedVarsParsed, threatLineRaw)
     val bestScoreNorm = analyzedVars.headOption.map(v => normalizeScore(v)).getOrElse(0)
@@ -181,22 +164,14 @@ class StrategicFeatureExtractorImpl(
                       else Nil
       v.copy(tags = (v.tags ++ extraTags).distinct)
     }.take(3)
-
-    // ===== NEW: Deep Analysis of Top Candidates (Multi-PV) =====
     val candidates = sortedVarsParsed.take(3).map { candidateVar =>
       val candScore = normalizeScore(candidateVar)
       val candMotifs = lila.llm.analysis.MoveAnalyzer.tokenizePv(fen, candidateVar.moves)
-      
-      // FIX: Normalize candidate before passing to prophylaxis to match threatLineRaw scale
       val normalizedCandidateVar = candidateVar.copy(scoreCp = candScore, mate = None)
       
       // Does this candidate prevent the threat?
       val candPrevented = prophylaxisAnalyzer.analyze(board, color, normalizedCandidateVar, threatLineRaw, threatPlanId)
-      
-      // Phase 22.5: Use dual intent (immediate + downstream)
       val moveStr = candidateVar.moves.headOption.getOrElse("")
-      
-      // Phase 23: Extract verified facts for this candidate
       val candidateFacts = FactExtractor.fromMotifs(board, candMotifs, FactScope.Now)
       
       val moveIntent = deriveDualIntent(
@@ -301,8 +276,6 @@ class StrategicFeatureExtractorImpl(
     
     concepts.distinct.toList.take(5)
   }
-
-  // ===== Phase 22.5: Derive dual intent (immediate + downstream) =====
   private def deriveDualIntent(
     move: String,
     candMotifs: List[Motif],

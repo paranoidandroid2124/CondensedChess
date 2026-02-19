@@ -10,18 +10,14 @@ final class Env(
     db: lila.db.Db
 )(using Executor):
 
-  // ── Gemini ─────────────────────────────────────────────────────────────
   private val geminiConfig = GeminiConfig.fromEnv
   lazy val geminiClient    = GeminiClient(ws, geminiConfig)
 
-  // ── Caching ────────────────────────────────────────────────────────────
   lazy val commentaryCache = CommentaryCache()
 
-  // ── Credits (MongoDB) ──────────────────────────────────────────────────
   private lazy val creditColl = db(lila.core.config.CollName("llm_credits"))
   lazy val creditApi           = CreditApi(creditColl)
 
-  // ── API ────────────────────────────────────────────────────────────────
   private val analysisThreadCount = Math.max(1, Runtime.getRuntime.availableProcessors() - 1)
   private val analysisService     = java.util.concurrent.Executors.newFixedThreadPool(analysisThreadCount)
   lazy val analysisExecutor: Executor =

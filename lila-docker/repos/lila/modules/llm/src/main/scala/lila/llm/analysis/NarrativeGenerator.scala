@@ -10,12 +10,8 @@ import lila.llm.model.strategic.*
  * Focuses on "what to say" so the LLM can focus on "how to say it".
  */
 object NarrativeGenerator:
-
-  // ============================================================
   // 1. POSITION STRUCTURE NARRATIVE
-  // ============================================================
   // 2. VARIATION NARRATIVE (Multi-PV)
-  // ============================================================
 
   // Helper to normalize score for display (caps mate values)
   private def normalizedScoreDisplay(line: lila.llm.model.strategic.VariationLine): String = line.mate match
@@ -60,18 +56,9 @@ object NarrativeGenerator:
       }
 
     parts.result().mkString("\n")
-
-  // ============================================================
   // 5. MOVE ORDER NARRATIVE
-  // ============================================================
-
-  // ============================================================
   // 6. LEGACY SEMANTIC RENDERER (REMOVED)
-  // ============================================================
-
-  // ============================================================
   // 7. PHASE 6: HIERARCHICAL NARRATIVE OUTPUT
-  // ============================================================
   
   /**
    * Tone scaling prefixes based on ConfidenceLevel.
@@ -266,7 +253,6 @@ object NarrativeGenerator:
 
     // === OPPONENT INTENT (Phase B) ===
     ctx.opponentPlan.foreach { p =>
-      // P10 Issue 2: Use "Current" for established facts, "Anticipated" for future intent
       val label = if (p.isEstablished) "Current" else "Anticipated"
       parts += s"=== OPPONENT $label ==="
       val evidenceStr = if (p.evidence.nonEmpty) s" (${p.evidence.mkString(", ")})" else ""
@@ -287,8 +273,6 @@ object NarrativeGenerator:
       d.structureChange.foreach(s => parts += s"Structure: $s")
       parts += ""
     }
-    
-    // === PHASE CONTEXT (A8) ===
     parts += "=== PHASE ==="
     parts += s"Current: ${ctx.phase.current} (${ctx.phase.reason})"
     ctx.phase.transitionTrigger.foreach(t => parts += s"Trigger: $t")

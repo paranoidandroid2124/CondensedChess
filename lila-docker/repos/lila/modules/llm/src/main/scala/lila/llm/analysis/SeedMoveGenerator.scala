@@ -19,10 +19,7 @@ object SeedMoveGenerator:
       case SeedFamily.Exchange     => genExchanges(seed, pos, us)
       case SeedFamily.Prophylaxis  => genProphylaxis(seed, pos, us)
       case SeedFamily.TacticalPrep => genTacticalPrep(seed, pos, us)
-
-  // ===========================================================================
   // 1. Pawn Logic (Levers, Storms, Hook Attacks)
-  // ===========================================================================
   private def genPawnMoves(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match
       case "Attack_The_Hook" =>
@@ -51,10 +48,7 @@ object SeedMoveGenerator:
 
   private def hasPawnOnFile(pos: Position, color: Color, file: File): Boolean =
     ((pos.board.pawns & pos.board.byColor(color)) & Bitboard.file(file)).nonEmpty
-
-  // ===========================================================================
   // 2. Piece Logic (Maneuvers, Outposts, Batteries)
-  // ===========================================================================
   private def genPieceManeuvers(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match
       case "KnightOutpost_Route" =>
@@ -110,10 +104,7 @@ object SeedMoveGenerator:
         }.take(1)
 
       case _ => Nil
-
-  // ===========================================================================
   // 3. Exchange Logic
-  // ===========================================================================
   private def genExchanges(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match
       case "Trade_BadBishop" =>
@@ -141,10 +132,7 @@ object SeedMoveGenerator:
           case _ => Nil
 
       case _ => Nil
-
-  // ===========================================================================
   // 4. Tactical Preparation
-  // ===========================================================================
   private def genTacticalPrep(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match
       case "Prepare_Overload" =>
@@ -182,10 +170,7 @@ object SeedMoveGenerator:
          results.take(1)
 
       case _ => Nil
-
-  // ===========================================================================
   // 5. Structure & Prophylaxis
-  // ===========================================================================
   private def genStructureMoves(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] = 
     seed.id match
       case "CreatePassedPawn" =>

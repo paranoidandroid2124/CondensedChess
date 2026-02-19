@@ -3,7 +3,7 @@ package lila.llm.analysis
 import lila.llm.model._
 
 /**
- * Phase 6.8: LogicReconstructor
+ * LogicReconstructor
  * Detects moves that exhibit Greedy, Lazy, or Phantom behaviors.
  */
 object LogicReconstructor:

@@ -33,10 +33,6 @@ object Motif:
   def relativeRank(rank: Int, color: Color): Int =
     if (color.white) rank else 9 - rank
 
-  // ============================================================
-  // PAWN MOTIFS
-  // ============================================================
-
   /** Simple pawn advance (non-capture) */
   case class PawnAdvance(
       file: File,
@@ -82,10 +78,6 @@ object Motif:
   ) extends Motif:
     val category = MotifCategory.Pawn
     def relativeTo: Int = relativeRank(toRank, color)
-
-  // ============================================================
-  // PIECE MOTIFS
-  // ============================================================
 
   /** Rook lift from back rank to 3rd/4th rank for attack */
   case class RookLift(
@@ -143,10 +135,6 @@ object Motif:
   ) extends Motif:
     val category = MotifCategory.Piece
 
-  // ============================================================
-  // KING MOTIFS
-  // ============================================================
-
   /** King movement with strategic purpose */
   case class KingStep(
       stepType: KingStepType,
@@ -174,10 +162,6 @@ object Motif:
 
   enum CastlingSide:
     case Kingside, Queenside
-
-  // ============================================================
-  // TACTICAL MOTIFS
-  // ============================================================
 
   /** Check */
   case class Check(
@@ -452,10 +436,6 @@ object Motif:
   enum ClearanceType:
     case File, Rank, Diagonal, Square
 
-  // ============================================================
-  // STRUCTURAL MOTIFS (Position State)
-  // ============================================================
-
   /** Doubled pieces on a file or rank */
   case class DoubledPieces(
       role: Role,
@@ -532,10 +512,6 @@ object Motif:
   ) extends Motif:
     val category = MotifCategory.Structural
 
-  // ============================================================
-  // ENDGAME MOTIFS
-  // ============================================================
-
   /** Opposition - kings face each other with odd number of squares between */
   case class Opposition(
       opponentKingSquare: Square,
@@ -572,10 +548,6 @@ object Motif:
       move: Option[String] = None
   ) extends Motif:
     val category = MotifCategory.Endgame
-
-  // ============================================================
-  // FIX 6: NEW POSITIONAL MOTIFS
-  // ============================================================
 
   /** Open file control - rook/queen on an open file */
   case class OpenFileControl(

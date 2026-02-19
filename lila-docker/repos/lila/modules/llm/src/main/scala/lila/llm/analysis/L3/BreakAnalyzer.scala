@@ -9,7 +9,7 @@ import lila.llm.analysis.PositionAnalyzer
 import lila.llm.model.Motif
 
 /**
- * Phase 3: Break & Pawn Play Analyzer
+ * Break & Pawn Play Analyzer
  * 
  * Analyzes pawn structure to extract 10 strategic concepts:
  * 1. pawnBreakReady - Is a break immediately available?
@@ -24,16 +24,8 @@ import lila.llm.model.Motif
  * 10. tensionPolicy - Maintain/Release/Ignore?
  */
 object BreakAnalyzer:
-
-  // ============================================================
-  // CONFIGURATION
-  // ============================================================
   
   private val HIGH_TENSION_THRESHOLD = 2      // Tension squares to force resolution
-  
-  // ============================================================
-  // MAIN ENTRY POINT
-  // ============================================================
 
   /**
    * Analyze pawn play concepts from position features.
@@ -54,24 +46,12 @@ object BreakAnalyzer:
     
     // Parse board from FEN to get access to raw bitboards/piece locations
     val board = Fen.read(Standard, Fen.Full(features.fen)).map(_.board).getOrElse(Board.empty)
-    
-    // Step 1: Analyze break opportunities (Concepts 1-3)
     val (breakReady, breakFile, breakImpact) = analyzeBreaks(features, motifs, isWhite)
-    
-    // Step 2: Check tension resolution (Concept 4)
     val advanceOrCapture = checkTensionResolution(features, phase1)
-    
-    // Step 3: Analyze passed pawns (Concepts 5-7)
     val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
-    
-    // Step 4: Strategic posture (Concepts 8-9)
     val minorityAttack = checkMinorityAttack(board, isWhite)
     val counterBreak = checkCounterBreak(features, motifs, isWhite)
-    
-    // Step 5: Tension policy (Concept 10)
     val tensionPolicy = computeTensionPolicy(features, phase1, breakReady, advanceOrCapture)
-    
-    // Step 6: Compute evidence and driver
     val tensionSquares = extractTensionSquares(board)
     val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
     
@@ -94,10 +74,7 @@ object BreakAnalyzer:
       primaryDriver = driver,
       notes = s"$tensionNote; Break: $breakReady, Passer: $urgency"
     )
-
-  // ============================================================
   // CONCEPT 1-3: BREAK ANALYSIS
-  // ============================================================
 
   private def analyzeBreaks(
     features: PositionFeatures,
@@ -171,10 +148,6 @@ object BreakAnalyzer:
     
     baseImpact + rookBonus + kingAttackBonus
 
-  // ============================================================
-  // CONCEPT 4: TENSION RESOLUTION
-  // ============================================================
-
   private def checkTensionResolution(
     features: PositionFeatures,
     phase1: PositionClassification
@@ -188,10 +161,7 @@ object BreakAnalyzer:
     val highTension = tension >= HIGH_TENSION_THRESHOLD
     
     highTension && isCritical
-
-  // ============================================================
   // CONCEPT 5-7: PASSED PAWN ANALYSIS
-  // ============================================================
 
   private def analyzePassedPawns(
     features: PositionFeatures,
@@ -273,17 +243,13 @@ object BreakAnalyzer:
     //   White: rank.value.max (Index 1 to 7)
     //   Black: 7 - rank.value.min (Index 6->1 becomes 1; Index 1->6 becomes 6)
     // Thus, 'rank' is always 1 (start) to 7 (promotion).
-    // DO NOT CHANGE L1 LOGIC WITHOUT UPDATING THIS.
     
     rank match
       case r if r >= 6 => PassedPawnUrgency.Critical   // Rank 7 or 8 (Index 6/7)
       case r if r >= 4 => PassedPawnUrgency.Important  // Rank 5 or 6 (Index 4/5)
       case r if r >= 2 => PassedPawnUrgency.Background // Rank 3 or 4 (Index 2/3)
       case _ => PassedPawnUrgency.Blocked              // Rank 2 (Index 1)
-
-  // ============================================================
   // CONCEPT 8-9: STRATEGIC POSTURE
-  // ============================================================
 
   private def checkMinorityAttack(board: Board, isWhite: Boolean): Boolean =
     val whitePawns = board.byPiece(Color.White, Pawn)
@@ -314,10 +280,6 @@ object BreakAnalyzer:
     
     opponentBreaks.nonEmpty
 
-  // ============================================================
-  // CONCEPT 10: TENSION POLICY
-  // ============================================================
-
   private def computeTensionPolicy(
     features: PositionFeatures,
     phase1: PositionClassification,
@@ -325,8 +287,6 @@ object BreakAnalyzer:
     advanceOrCapture: Boolean
   ): TensionPolicy =
     val tension = features.centralSpace.pawnTensionCount
-    
-    // Item 1 fix: Don't ignore tension if tension > 0, even if center is "locked"
     if tension == 0 then
       TensionPolicy.Ignore
     else if advanceOrCapture || (breakReady && phase1.nature.isDynamic) then
@@ -335,10 +295,6 @@ object BreakAnalyzer:
       TensionPolicy.Maintain
     else
       TensionPolicy.Maintain  // Default: keep tension
-
-  // ============================================================
-  // EVIDENCE EXTRACTION
-  // ============================================================
 
   private def extractTensionSquares(board: Board): List[String] =
     val whitePawns = board.byPiece(Color.White, Pawn)
@@ -370,16 +326,8 @@ object BreakAnalyzer:
     else if tensionCount > 0 then "tension_active"
     else "quiet"
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-
   private def colorMatches(motifColor: Color, isWhite: Boolean): Boolean =
     (isWhite && motifColor == Color.White) || (!isWhite && motifColor == Color.Black)
-
-  // ============================================================
-  // DEFAULT: No pawn play concerns
-  // ============================================================
 
   def noPawnPlay: PawnPlayAnalysis = PawnPlayAnalysis(
     pawnBreakReady = false,

@@ -43,7 +43,6 @@ trait PracticalityScorer {
 }
 
 // Implementation
-// Implementation
 
 // Implementation
 class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
@@ -298,7 +297,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
        // This is complex. We'll simplify: Hanging = Semi-Open adjacent files + No Support.
        // Actually simpler: "Hanging Pawns" usually refers to c+d pawns typically isolated from b and e.
        // Implementation: Pawn has neighbor on ONE side, but NO neighbor on the OTHER side.
-       // And the neighbor also shares this property.
        
        val left = File.all.lift(f - 1)
        val right = File.all.lift(f + 1)
@@ -446,8 +444,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     board.byPiece(color, Knight).squares.foreach { sq =>
       val isOnHole = knightHoles.contains(sq)
       val pawnSupport = (sq.pawnAttacks(!color) & board.byPiece(color, Pawn)).nonEmpty
-      
-      // Phase 12: "Octopus Knight" - deep in enemy territory (rank 5+ for White, rank 4- for Black)
       val isDeepInEnemyTerritory = if (color.white) sq.rank.value >= 5 else sq.rank.value <= 2
       val isAdvancedAssault = if (color.white) sq.rank.value >= 4 else sq.rank.value <= 3
       
@@ -489,7 +485,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
       board.kingPosOf(color).foreach { kSq =>
         val centerFiles = Set(3, 4) // D and E files
         if (centerFiles.contains(kSq.file.value)) {
-          // Phase 15: Deep Logic Correction
           // 2. Must be EXPOSED (no pawn shield on the file)
           // If there is a friendly pawn on the file, it's not "stuck/exposed" in a dangerous way.
           val filePawns = (board.pawns & board.byColor(color)).squares.exists(_.file == kSq.file)
@@ -528,8 +523,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
         features += PositionalTag.DoubledRooks(r1.file, color)
       }
     }
-    
-    // Phase 11: 14. Color Complex Weakness (cluster of weak squares on same color)
     val colorHoles = detectHoles(board, color)
     val lightHoles = colorHoles.filter(_.isLight)
     val darkHoles = colorHoles.filterNot(_.isLight)
@@ -539,8 +532,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     if (darkHoles.size >= 3) {
       features += PositionalTag.ColorComplexWeakness(color, "dark", darkHoles.take(4))
     }
-    
-    // Phase 11: 15. Pawn Majority (queenside files a-d vs kingside files e-h)
     val ourPawnsList = (board.pawns & board.byColor(color)).squares
     val theirPawnsList = (board.pawns & board.byColor(!color)).squares
     val ourQueenside = ourPawnsList.count(_.file.value <= 3)  // a-d
@@ -554,8 +545,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     if (ourKingside > theirKingside + 1) {
       features += PositionalTag.PawnMajority(color, "kingside", ourKingside - theirKingside)
     }
-
-    // Phase 24: Minority Attack (The inverse of majority - fewer pawns attacking a chain)
     // Heuristic: We have fewer pawns (but > 0), they have majority, and we have open lines.
     // Carlson Structure / Carlsbad often has White minority attack on Q-side (2 vs 3).
     if (ourQueenside > 0 && ourQueenside < theirQueenside && theirQueenside >= 2) {

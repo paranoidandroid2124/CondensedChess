@@ -4,7 +4,7 @@ import chess.*
 import chess.format.{ Fen, Uci }
 
 /**
- * Phase 3: Truth Gate (High-Precision Validation Layer)
+ * Truth Gate (High-Precision Validation Layer)
  *
  * Deterministic detection of:
  * 1. Opening Traps (Specific Move Sequences)
@@ -32,10 +32,7 @@ object TruthGate:
     result: ExpectedResult,
     description: String = ""
   )
-
-  // ====================================================================================
   // 1. TRAP LIBRARY (Opening Sequences)
-  // ====================================================================================
   
   val Traps = List(
     // --- King's Pawn ---
@@ -57,10 +54,7 @@ object TruthGate:
     TrapDef("noahs_ark", "Noah’s Ark Trap", List("f8b4", "c1d2", "b4d2", "d1d2", "d7d5", "e4d5", "c6d5", "c4b3", "c5c4"), ExpectedResult.WinMaterial), // White Bishop trapped on b3
     TrapDef("cambridge_springs", "Cambridge Springs Trap", List("d4d5", "c4c5", "f3d2", "d8a5", "g5f6", "d7f6", "c3d5", "f6d5"), ExpectedResult.WinMaterial) // Winning piece after mistakes
   )
-
-  // ====================================================================================
   // 2. ENTRY POINT
-  // ====================================================================================
 
   def detect(fen: String, playedUci: String, ply: Int): Option[VerifiedTheme] =
     val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
@@ -82,10 +76,7 @@ object TruthGate:
         detectPatterns(pos, ply, playedUci)
       }
     }
-
-  // ====================================================================================
   // 3. PATTERN DETECTORS (Geometric Matches)
-  // ====================================================================================
 
   private def detectPatterns(pos: Position, ply: Int, playedUci: String): Option[VerifiedTheme] =
     if (pos.checkMate)

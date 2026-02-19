@@ -6,7 +6,7 @@ import lila.llm.model.strategic._
 import lila.llm.analysis.L3._
 
 /**
- * Phase 6: NarrativeContext Builder
+ * NarrativeContext Builder
  * 
  * Converts existing analysis results into hierarchical NarrativeContext.
  */
@@ -25,7 +25,6 @@ object NarrativeContextBuilder:
     openingBudget: OpeningEventBudget = OpeningEventBudget(),  // Passed from game-level tracker
     afterAnalysis: Option[ExtendedAnalysisData] = None
   ): NarrativeContext = {
-    // Phase 2: We can now probe from non-root FENs (e.g., after playedMove for recapture branching).
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
     val rootProbeResults = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
@@ -66,8 +65,6 @@ object NarrativeContextBuilder:
 
     val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data, phase.transitionTrigger))
     val delta = afterDelta.orElse(prevDelta)
-    
-    // B7: Enriched candidates with probe results
     val enrichedCandidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
 
     val playedSan = data.prevMove.flatMap { uci =>
@@ -76,8 +73,6 @@ object NarrativeContextBuilder:
         .headOption
         .orElse(Some(NarrativeUtils.formatUciAsSan(uci)))
     }
-
-    // Phase 1: AuthorQuestions (used for Phase 2 evidence planning as well)
     val authorQuestions =
       AuthorQuestionGenerator.generate(
         data = data,
@@ -85,11 +80,7 @@ object NarrativeContextBuilder:
         candidates = enrichedCandidates,
         playedSan = playedSan
       )
-    
-    // B5: Build targets early for use in meta and decision
     val targets = buildTargets(data, ctx, rootProbeResults)
-    
-    // Phase 6.5: Evidence Augmentation (Probe Loop)
     val planScoring = PlanScoringResult(
       topPlans = data.plans,
       confidence = 0.0, // fallback
@@ -251,10 +242,6 @@ object NarrativeContextBuilder:
       prevRef = prevRef
     )
   }
-
-  // ============================================================
-  // HEADER
-  // ============================================================
   
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)
@@ -271,10 +258,6 @@ object NarrativeContextBuilder:
       taskMode = classification.taskMode.taskMode.toString
     )
   }
-
-  // ============================================================
-  // SUMMARY (5 lines)
-  // ============================================================
   
   private def buildSummary(
     data: ExtendedAnalysisData,
@@ -283,8 +266,6 @@ object NarrativeContextBuilder:
     val primaryPlan = data.plans.headOption
       .map(p => s"${p.plan.name} (${f"${p.score}%.2f"})")
       .getOrElse("No clear plan")
-    
-    // Phase 23: Strict Fact-Gating for Threats
     val keyThreat = ctx.threatsToUs.flatMap { ta =>
       ta.threats
         .find(t => t.attackSquares.headOption.flatMap(str => chess.Square.fromKey(str)).exists(sq => NarrativeUtils.isVerifiedThreat(data.fen, sq, if (!data.isWhiteToMove) chess.Color.White else chess.Color.Black)))
@@ -307,7 +288,6 @@ object NarrativeContextBuilder:
     val hasMateCandidate = data.candidates.exists { cand =>
       cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
     }
-    // P10 Issue 1: Also check alternatives for positive mate (mate FOR us)
     val hasForcedMateForUs = data.alternatives.exists(_.mate.exists(_ > 0)) || hasMateCandidate
     val isMate = data.alternatives.exists(_.mate.isDefined) || hasMateThreatToUs || hasMateThreatToThem || hasMateCandidate
     
@@ -322,8 +302,6 @@ object NarrativeContextBuilder:
         f"Eval: $sign$score%.1f"
       }
       .getOrElse("No eval")
-    
-    // P10 Issue 1: Mate Override - forced mate takes precedence over heuristic plans
     val (finalPrimaryPlan, finalKeyThreat) = 
       if (hasForcedMateForUs) {
         // We have a forced mate - override everything
@@ -346,10 +324,6 @@ object NarrativeContextBuilder:
       evalDelta = evalDelta
     )
   }
-
-  // ============================================================
-  // THREAT TABLE
-  // ============================================================
   
   private def buildThreatTable(ctx: IntegratedContext, topSan: Option[String], topUci: Option[String], fen: String): ThreatTable = {
     // TO US threats: bestDefense is valid (how we can defend against opponent's threat)
@@ -372,7 +346,6 @@ object NarrativeContextBuilder:
       .take(3)
     
     uniqueThreats.map { t =>
-      // Item 3 Fix: Check against both SAN and UCI for robust linking
       val isTopDefense = (topUci.isDefined && t.bestDefense == topUci) || 
                          (topSan.exists(s => t.bestDefense.exists(_.startsWith(s))))
 
@@ -410,10 +383,6 @@ object NarrativeContextBuilder:
       )
     }
   }
-
-  // ============================================================
-  // PAWN PLAY TABLE
-  // ============================================================
   
   private def buildPawnPlayTable(ctx: IntegratedContext): PawnPlayTable = {
     ctx.pawnAnalysis match {
@@ -460,16 +429,11 @@ object NarrativeContextBuilder:
         "no significant tension"
     }
   }
-
-  // ============================================================
-  // PLAN TABLE
-  // ============================================================
   
   private def buildPlanTable(
     data: ExtendedAnalysisData,
     ctx: IntegratedContext
   ): PlanTable = {
-    // P10 Issue 1: Check for forced mate
     val hasMateCandidate = data.candidates.exists { cand =>
       cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
     }
@@ -486,8 +450,6 @@ object NarrativeContextBuilder:
         missingPrereqs = pm.missingPrereqs
       )
     }
-    
-    // P10 Issue 1: Inject Forced Mate plan at rank 1 when applicable
     val top5 = if (hasForcedMateForUs) {
       val mateDepth = data.alternatives.flatMap(_.mate).filter(_ > 0).headOption
         .orElse(data.candidates.flatMap(_.line.mate).filter(_ > 0).headOption)
@@ -504,8 +466,6 @@ object NarrativeContextBuilder:
     } else {
       basePlans
     }
-    
-    // A4: Track suppressed/removed plans from PlanMatcher trace
     val suppressed = data.planSequence.map(_.currentPlans.compatibilityEvents).getOrElse(Nil)
       .collect {
         case e if e.eventType == "removed" || e.eventType == "downweight" =>
@@ -519,10 +479,6 @@ object NarrativeContextBuilder:
     
     PlanTable(top5 = top5, suppressed = suppressed)
   }
-
-  // ============================================================
-  // L1 SNAPSHOT
-  // ============================================================
   
   private def buildL1Snapshot(ctx: IntegratedContext): L1Snapshot = {
     ctx.features match {
@@ -582,8 +538,6 @@ object NarrativeContextBuilder:
         
         // Open files - compute actual file letters from FEN
         val openFilesList = computeOpenFiles(f.fen)
-        
-        // P10 Issue 3: Phase-aware filtering for L1 Snapshot
         val isEndgame = ctx.classification.exists(_.gamePhase.isEndgame)
         val isPawnEndgame = (mp.whiteMaterial + mp.blackMaterial) <= 6 && isEndgame
         
@@ -613,11 +567,6 @@ object NarrativeContextBuilder:
         )
     }
   }
-
-
-  // ============================================================
-  // CANDIDATES
-  // ============================================================
   
   private def buildCandidates(data: ExtendedAnalysisData): List[CandidateInfo] = {
     data.candidates.zipWithIndex.map { case (cand, idx) =>
@@ -637,12 +586,8 @@ object NarrativeContextBuilder:
         else if cpDiff >= Thresholds.SINGLE_QUESTION_CP then "?"
         else if cpDiff >= Thresholds.DUBIOUS_CP then "?!"
         else ""
-      
-      // A7: SAN conversion
       val sanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(2))
       val moveSan = sanMoves.headOption.getOrElse(cand.move)
-      
-      // A7: Tactical alerts (2rd move in line = opponent response)
       val responseMotifs = cand.motifs.filter(_.plyIndex == 1)
       val alert = responseMotifs.collectFirst {
         case m: Motif.Check => s"allows ${sanMoves.lift(1).getOrElse("")} check"
@@ -651,8 +596,6 @@ object NarrativeContextBuilder:
           s"allows ${sanMoves.lift(1).getOrElse("")} winning capture"
         case _: Motif.DiscoveredAttack => "reveals discovered attack"
       }
-
-      // Item 2: Self-evidence for tactical claims (plyIndex == 0)
       val selfMotifs = cand.motifs.filter(_.plyIndex == 0)
       val tacticEvidence = selfMotifs.flatMap { m =>
         m match {
@@ -674,7 +617,6 @@ object NarrativeContextBuilder:
             val fSq = sk.frontSq.map(_.key).getOrElse("?")
             val bSq = sk.backSq.map(_.key).getOrElse("?")
             Some(s"Skewer(${sk.attackingPiece} through ${sk.frontPiece} on $fSq to ${sk.backPiece} on $bSq)")
-          // Phase 21.1: Positional Reasoning
           case o: Motif.Outpost =>
             Some(s"Outpost(${o.piece} on ${o.square})")
           case of: Motif.OpenFileControl =>
@@ -700,12 +642,8 @@ object NarrativeContextBuilder:
           case _ => None
         }
       }
-
-      // Phase 22.5: Use dual intent (immediate + downstream)
       val alignment = cand.moveIntent.immediate
       val downstream = cand.moveIntent.downstream
-      
-      // A7: Enriched whyNot
       val whyNot = if (idx > 0 && cpDiff >= 50) {
         val diff = cpDiff / 100.0
         val refutation = sanMoves.lift(1).map(m => s" after $m").getOrElse("")
@@ -733,7 +671,7 @@ object NarrativeContextBuilder:
   }
   
   /**
-   * Phase F: Maps VariationTag enum to CandidateTag.
+   * Maps VariationTag enum to CandidateTag.
    */
   private def mapVariationTags(varTags: List[lila.llm.model.strategic.VariationTag]): List[CandidateTag] = {
     import lila.llm.model.strategic.VariationTag
@@ -745,10 +683,6 @@ object NarrativeContextBuilder:
       case _ => None // Mistake, Good, Excellent, Inaccuracy, Blunder, Forced are not strategic tags
     }
   }
-
-  // ============================================================
-  // DEFAULTS
-  // ============================================================
   
   private val defaultClassification = PositionClassification(
     nature = NatureResult(lila.llm.analysis.L3.NatureType.Static, 0, 0, 0, false),
@@ -760,10 +694,6 @@ object NarrativeContextBuilder:
     riskProfile = RiskProfileResult(RiskLevel.Medium, 0, 0, 0),
     taskMode = TaskModeResult(TaskModeType.ExplainPlan, "default")
   )
-
-  // ============================================================
-  // A5: OPEN FILES COMPUTATION
-  // ============================================================
   
   /**
    * Compute actual open file letters from FEN.
@@ -791,10 +721,6 @@ object NarrativeContextBuilder:
       } => fileChar.toString
     }.toList
   }
-
-  // ============================================================
-  // PHASE CONTEXT (A8)
-  // ============================================================
   
   private def buildPhaseContext(
     ctx: IntegratedContext,
@@ -822,10 +748,6 @@ object NarrativeContextBuilder:
       transitionTrigger = transitionTrigger
     )
   }
-
-  // ============================================================
-  // DELTA (A6)
-  // ============================================================
 
   private def buildDelta(
     prev: ExtendedAnalysisData,
@@ -862,10 +784,7 @@ object NarrativeContextBuilder:
       phaseChange = phaseTrigger
     )
   }
-
-  // ============================================================
   // META SIGNALS (B-axis)
-  // ============================================================
 
   /**
    * Builds MetaSignals only if meaningful source data exists.
@@ -899,7 +818,7 @@ object NarrativeContextBuilder:
 
   /**
    * B7: WhyNot summary for the Meta section.
-   * Phase C: Enhanced with L1 delta collapse reasons.
+   * Enhanced with L1 delta collapse reasons.
    */
   private def buildWhyNotSummary(probeResults: List[ProbeResult], isWhiteToMove: Boolean): Option[String] = {
     if (probeResults.isEmpty) None
@@ -1881,7 +1800,7 @@ object NarrativeContextBuilder:
     case m: Motif.DiscoveredAttack => m.targetSq.map(sq => TargetSquare(sq.key))
     case m: Motif.Battery => m.frontSq.map(sq => TargetSquare(sq.key))
     case m: Motif.Fork => Some(TargetSquare(m.square.key))
-    case m: Motif.IsolatedPawn => Some(TargetFile(m.file.char.toString))  // FIX: Use .char for letter
+    case m: Motif.IsolatedPawn => Some(TargetFile(m.file.char.toString))
     case m: Motif.DoubledPieces => Some(TargetFile(m.file.char.toString))
     case m: Motif.OpenFileControl => Some(TargetFile(m.file.char.toString))
     case _ => None
@@ -1909,16 +1828,11 @@ object NarrativeContextBuilder:
     PlanConcurrency(primary, secondary, relationship)
   }
 
-  // ============================================================
-  // SEMANTIC SECTION (Phase A)
-  // ============================================================
-
   /**
    * Builds SemanticSection from ExtendedAnalysisData semantic fields.
    * Returns None if no meaningful semantic data exists.
    */
   private def buildSemanticSection(data: ExtendedAnalysisData): Option[SemanticSection] = {
-    // P10 Issue 3: Suspend irrelevant features in pawn endgames
     val isPawnEndgame = data.phase == "endgame" && 
       data.toContext.features.exists(f => (f.materialPhase.whiteMaterial + f.materialPhase.blackMaterial) <= 6)
     
@@ -1981,10 +1895,6 @@ object NarrativeContextBuilder:
       coordinationLinks = pa.coordinationLinks.map(_.key)
     )
   }
-
-  // ============================================================
-  // PHASE F: DECISION RATIONALE LOGIC
-  // ============================================================
 
   private def calculateDecisionRationale(
       data: ExtendedAnalysisData,
@@ -2141,7 +2051,6 @@ object NarrativeContextBuilder:
         PositionalTagInfo("PawnMajority", None, None, c.name, Some(s"$flank $count pawns"))
       case PositionalTag.MinorityAttack(c, flank) =>
         PositionalTagInfo("MinorityAttack", None, None, c.name, Some(s"$flank attack"))
-      // Phase 29: Queen and Tactical motifs
       // case PositionalTag.QueenActivity(c) =>
       //   PositionalTagInfo("QueenActivity", None, None, c.name)
       // case PositionalTag.QueenManeuver(c) =>
@@ -2192,10 +2101,6 @@ object NarrativeContextBuilder:
     )
   }
 
-  // ============================================================
-  // OPPONENT PLAN (Phase B)
-  // ============================================================
-
   /**
    * Builds opponent's top plan by calling PlanMatcher for the opposite side.
    * Shows "what the opponent wants to do" for organic narrative flow.
@@ -2206,7 +2111,6 @@ object NarrativeContextBuilder:
 
     val planScoring = PlanMatcher.matchPlans(data.motifs, ctxOpp, opponentColor)
     planScoring.topPlans.headOption.map { p =>
-      // P10 Issue 2: Check if this plan represents an already-established fact
       val isBlockadeEstablished = p.plan match {
         case _: lila.llm.model.Plan.Blockade =>
           // Blockade is "established" if passerBlockade is true for our side (opponent's passer is blocked)

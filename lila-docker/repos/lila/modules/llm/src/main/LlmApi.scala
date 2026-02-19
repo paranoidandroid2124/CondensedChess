@@ -7,12 +7,7 @@ import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.OpeningReference
 import lila.llm.model.strategic.VariationLine
 
-/** High-level API for LLM commentary features.
-  *
-  * Pipeline: CommentaryEngine → BookStyleRenderer → (optional) GeminiClient.polish
-  * The Gemini polish step is feature-flagged: when GeminiConfig.enabled=false,
-  * the rule-based prose is returned directly.
-  */
+/** Pipeline: CommentaryEngine → BookStyleRenderer → (optional) GeminiClient.polish */
 final class LlmApi(
     openingExplorer: OpeningExplorerClient,
     geminiClient: GeminiClient,
@@ -23,20 +18,18 @@ final class LlmApi(
   private val OpeningRefMinPly = 3
   private val OpeningRefMaxPly = 24
 
-  /** Whether Gemini polish is currently active. */
+
   def isGeminiEnabled: Boolean = geminiClient.isEnabled
 
-  /** Internal proxy access for masters explorer data. */
+
   def fetchOpeningMasters(fen: String): Future[Option[OpeningReference]] =
     openingExplorer.fetchMasters(fen)
 
-  /** Internal proxy access for a masters game PGN. */
+
   def fetchOpeningMasterPgn(gameId: String): Future[Option[String]] =
     openingExplorer.fetchMasterPgn(gameId)
 
-  /** Generate an instant rule-based briefing for a position.
-    * Always local, never Gemini-polished (designed for speed).
-    */
+  /** Generate an instant rule-based briefing for a position. */
   def briefCommentPosition(
       fen: String,
       lastMove: Option[String],
@@ -64,14 +57,7 @@ final class LlmApi(
     }
   }
 
-  /** Generate deep bookmaker commentary with optional Gemini polish.
-    *
-    * Flow:
-    * 1. Check server cache → if hit, return immediately
-    * 2. Run CommentaryEngine.assessExtended → BookStyleRenderer.render
-    * 3. If Gemini enabled: polish(prose) → use polished or fallback to rule-based
-    * 4. Store result in server cache
-    */
+  /** Generate deep bookmaker commentary with optional Gemini polish. */
   def bookmakerCommentPosition(
       fen: String,
       lastMove: Option[String],
@@ -86,7 +72,6 @@ final class LlmApi(
       phase: String,
       ply: Int
   ): Future[Option[CommentResponse]] =
-    // ── Server cache check ───────────────────────────────────────────────
     commentaryCache.get(fen, lastMove) match
       case Some(cached) =>
         logger.debug(s"Cache hit: ${fen.take(20)}...")
@@ -97,7 +82,7 @@ final class LlmApi(
           afterFen, afterEval, afterVariations, opening, phase, ply
         )
 
-  /** Internal: compute commentary (rule-based + optional Gemini polish). */
+
   private def computeBookmakerResponse(
       fen: String,
       lastMove: Option[String],
@@ -192,8 +177,7 @@ final class LlmApi(
             )
             val prose = BookStyleRenderer.render(ctx)
 
-            // ── Optional Gemini polish ─────────────────────────────────
-            val evalDelta = eval.map(_.cp) // approximate delta
+            val evalDelta = eval.map(_.cp)
             val nature = Some(data.nature.description)
             val tension = Some(data.nature.tension)
 
@@ -215,13 +199,12 @@ final class LlmApi(
                   variations = data.alternatives,
                   probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests
                 )
-                // Store in server cache
                 commentaryCache.put(fen, lastMove, response)
                 Some(response)
               }
       }
 
-  /** Generate full game narrative locally (no external LLM). */
+
   def analyzeFullGameLocal(
       pgn: String,
       evals: List[MoveEval],

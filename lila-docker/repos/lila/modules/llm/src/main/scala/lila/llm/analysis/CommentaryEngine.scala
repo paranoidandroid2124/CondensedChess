@@ -63,8 +63,6 @@ object CommentaryEngine:
             material = lastFen.takeWhile(_ != ' ')
           )
         val currentPhase = determinePhase(lastPos)
-        
-        // L3 Phase 1: Classification
         val dummyPv = List(PvLine(pv, 0, None, 0))
         val classification = PositionClassifier.classify(
           features = features,
@@ -72,8 +70,6 @@ object CommentaryEngine:
           currentEval = 0,
           tacticalMotifsCount = motifs.size
         )
-
-        // L3 Phase 2: Threat Analysis (Dual Perspective)
         val ownThreats = ThreatAnalyzer.analyze(
            fen = fen,
            motifs = motifs,
@@ -88,8 +84,6 @@ object CommentaryEngine:
            phase1 = classification,
            sideToMove = (!lastPos.color).name
         )
-        
-        // L3 Phase 3: Break & Pawn Play (Dual Perspective)
         val pawnAnalysis = BreakAnalyzer.analyze(
           features = features,
           motifs = motifs,
@@ -213,8 +207,6 @@ object CommentaryEngine:
             material = lastFen.takeWhile(_ != ' ')
           )
         val currentPhase = determinePhase(lastPos)
-        
-        // L3 Phase 1: Classification
         // Convert VariationLine to PvLine
         val multiPv = variations.map { v =>
           PvLine(v.moves, v.scoreCp, v.mate, v.depth)
@@ -225,8 +217,6 @@ object CommentaryEngine:
           currentEval = variations.headOption.map(_.scoreCp).getOrElse(0),
           tacticalMotifsCount = motifs.size
         )
-
-        // L3 Phase 2: Threat Analysis (Dual Perspective)
         val ownThreats = ThreatAnalyzer.analyze(
            fen = fen,
            motifs = motifs,
@@ -241,8 +231,6 @@ object CommentaryEngine:
            phase1 = classification,
            sideToMove = (!initialPos.color).name
         )
-
-        // L3 Phase 3: Break & Pawn Play & Threat Integration for PlanMatcher
         val pawnAnalysis = BreakAnalyzer.analyze(
           features = features,
           motifs = motifs,
@@ -256,8 +244,6 @@ object CommentaryEngine:
           phase1 = classification,
           sideToMove = (!initialPos.color).name
         )
-
-        // FIX: Extract evalCp properly from variations head
         val evalCp = variations.headOption.map(_.scoreCp).getOrElse(0)
 
         // Update counterThreatBetter assessments
@@ -279,14 +265,12 @@ object CommentaryEngine:
           threatsToThem = Some(finalUs),
           openingName = opening,
           isWhiteToMove = initialPos.color == White, // Corrected: use FEN side-to-move for probes
-          features = Some(features),  // A5: L1 Snapshot injection
+          features = Some(features), // L1 Snapshot injection
           initialPos = Some(initialPos)
         )
         
         val planScoring = PlanMatcher.matchPlans(motifs, ctx, initialPos.color)
         val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
-
-        // PHASE 5: Transition Logic
         val currentSequence = TransitionAnalyzer.analyze(
           currentPlans = activePlans,
           previousPlan = prevPlanSequence.map(_.currentPlans.primary.plan),
@@ -321,7 +305,7 @@ object CommentaryEngine:
           evalCp = evalCp,
           isWhiteToMove = initialPos.color == White,
           phase = ctx.phase,
-          integratedContext = Some(ctx)  // Fix 1: Preserve full IntegratedContext
+          integratedContext = Some(ctx)
         )
       }
     }
@@ -393,7 +377,6 @@ object CommentaryEngine:
      
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
        case scala.util.Right(plyDataList) =>
-          // FIX 2: Single moveEvals construction (used for key moments AND analysis)
           val moveEvals = plyDataList.map { p =>
              val vars = evals.getOrElse(p.ply, Nil)
              val bestV = vars.headOption
@@ -404,12 +387,8 @@ object CommentaryEngine:
                variations = vars
              )
            }
-           
-          // FIX 2: Single call to selectKeyMoments
           val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
           val keyMomentPlies = keyMoments.map(_.ply).toSet
-
-          // A9: Opening events should be discoverable even if opening plies are not "key moments".
           val openingMoments = detectOpeningEventMoments(plyDataList, openingRefsByFen)
           val extraOpeningMoments = openingMoments.filterNot(m => keyMomentPlies.contains(m.ply))
           val extraOpeningPlies = extraOpeningMoments.map(_.ply).toSet
@@ -420,11 +399,7 @@ object CommentaryEngine:
           
           // Analyze only key moment plies
           val keyMomentsWithData = analyzeGame(pgn, evals, extraPlies = extraOpeningPlies)
-          
-          // FIX 3: Defensive ply-based pairing instead of zip
           val dataByPly = keyMomentsWithData.map(d => d.ply -> d).toMap
-          
-          // A9: Accumulate opening budget and prevRef across game
           val (momentNarratives, _, _, _) = allMoments.foldLeft(
             (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference])
           ) {
@@ -461,8 +436,6 @@ object CommentaryEngine:
           val gameIntro = lila.llm.analysis.NarrativeLexicon.gameIntro(
             metadata.white, metadata.black, metadata.event, metadata.date, metadata.result
           )
-          
-          // FIX 4: Themes fallback to conceptSummary if plans are empty
           val planThemes = keyMomentsWithData.flatMap(_.plans.map(_.plan.name)).distinct
           val allThemes = if (planThemes.nonEmpty) planThemes.take(3) 
                           else keyMomentsWithData.flatMap(_.conceptSummary).distinct.take(3)

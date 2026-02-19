@@ -5,7 +5,7 @@ import lila.llm.model.NarrativeContext
 import scala.util.matching.Regex
 
 /**
- * Phase 4: Post‑Critic
+ * Post‑Critic
  *
  * A lightweight, deterministic editor that removes clichés, repetition, and
  * overconfident filler after the prose has been rendered.

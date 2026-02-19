@@ -6,7 +6,7 @@ import lila.llm.model.ProbeResult
 /**
  * EvidencePlanner: SSOT for question-kind → evidence requirements mapping.
  *
- * Phase 5: This module centralizes the logic that determines what evidence
+ * This module centralizes the logic that determines what evidence
  * is required for each type of AuthorQuestion. The Validator uses this
  * to enforce hard gates.
  *
@@ -44,14 +44,10 @@ object EvidencePlanner:
   ):
     def allSatisfied: Boolean = missing.isEmpty && partiallyMet.isEmpty
     def hasCriticalGaps: Boolean = missing.exists(_.priority >= 2)
-
-  // ===========================================================================
   // Question Kind → Evidence Mapping (SSOT)
-  // ===========================================================================
 
   /**
    * Get required evidence purposes for a question kind.
-   * This is the SSOT for the mapping defined in HighEffortBookCommentary.md Section 5.3.
    */
   def requiredPurposes(kind: AuthorQuestionKind): Set[String] =
     kind match
@@ -119,10 +115,7 @@ object EvidencePlanner:
       case AuthorQuestionKind.StructuralCommitment => 2
       case AuthorQuestionKind.LatentPlan => 2
       case _ => 1
-
-  // ===========================================================================
   // Planning & Checking
-  // ===========================================================================
 
   /**
    * Plan evidence requirements for a list of questions.

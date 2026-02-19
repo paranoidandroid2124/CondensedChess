@@ -2,8 +2,6 @@ package lila.llm
 
 import play.api.libs.json.*
 
-// Request/Response models shared across the LLM analysis pipelines.
-
 case class EvalData(cp: Int, mate: Option[Int], pv: Option[List[String]])
 object EvalData:
   given Reads[EvalData] = Json.reads[EvalData]
