@@ -1,3 +1,5 @@
+import { isBrandV3ShellEnabled, readShellSelectors } from './shell';
+
 /* Based on: */
 /*!
  * hoverIntent v1.10.0 // 2019.02.25 // jQuery v1.7.0+
@@ -18,8 +20,8 @@ type State = {
 
 export default function (): void {
   if ('ontouchstart' in window) return;
-  if (document.body.dataset.brandV3Shell === '0') return;
-  const shellNavId = document.body.dataset.shellNavId || 'cs-nav';
+  if (!isBrandV3ShellEnabled()) return;
+  const { navId: shellNavId } = readShellSelectors();
 
   const interval = 200,
     sensitivity = 8;
