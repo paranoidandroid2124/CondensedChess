@@ -37,9 +37,7 @@ export async function fetchOpeningReferenceViaProxy(
           try {
             const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`);
             if (pgnRes.ok) pgn = await pgnRes.text();
-          } catch {
-            // Non-critical: some games might not have a retrievable PGN.
-          }
+          } catch {}
         }
         return {
           id: g.id,

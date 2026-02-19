@@ -1,15 +1,14 @@
 import { debounce } from 'lib/async';
 import { storedBooleanPropWithEffect } from 'lib/storage';
-import type { CevalEngine, Work } from 'lib/ceval';
 import type AnalyseCtrl from './ctrl';
-import { initMiniBoards } from 'lib/view/miniBoard';
 import { treePath } from 'lib/tree';
 import * as studyApi from './studyApi';
-import { renderCreditWidget, renderInsufficientCredits } from './CreditWidget';
-import type { CreditStatus } from './CreditWidget';
+import { renderInsufficientCredits } from './CreditWidget';
 import { fetchOpeningReferenceViaProxy } from './bookmaker/openingProxy';
-import { initBookmakerHandlers, mountBookmakerPreview, setBookmakerPreviewOrientation } from './bookmaker/interactionHandlers';
-import type { ProbeRequest, ProbeResult } from './bookmaker/types';
+import { initBookmakerHandlers } from './bookmaker/interactionHandlers';
+import type { ProbeRequest } from './bookmaker/types';
+import { createProbeOrchestrator } from './bookmaker/probeOrchestrator';
+import { clearBookmakerPanel, renderBookmakerPanel, restoreBookmakerPanel, syncBookmakerEvalDisplay } from './bookmaker/rendering';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -49,23 +48,8 @@ export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
 }
 
 const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.showEval', true, value => {
-    const $scope = $('.analyse__bookmaker-text');
-    $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !value);
-    $scope
-        .find('.bookmaker-score-toggle')
-        .attr('aria-pressed', value ? 'true' : 'false')
-        .text(value ? 'Eval: On' : 'Eval: Off');
+    syncBookmakerEvalDisplay(value);
 });
-
-function applyBookmakerEvalDisplay(): void {
-    const value = bookmakerEvalDisplay();
-    const $scope = $('.analyse__bookmaker-text');
-    $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !value);
-    $scope
-        .find('.bookmaker-score-toggle')
-        .attr('aria-pressed', value ? 'true' : 'false')
-        .text(value ? 'Eval: On' : 'Eval: Off');
-}
 
 export function bookmakerToggleBox() {
     initBookmakerHandlers(() => bookmakerEvalDisplay(!bookmakerEvalDisplay()));
@@ -89,263 +73,17 @@ export function bookmakerToggleBox() {
             .on('keypress', e => e.key === 'Enter' && toggle());
     });
 
-    applyBookmakerEvalDisplay();
+    syncBookmakerEvalDisplay(bookmakerEvalDisplay());
     bookmakerRestore();
 }
 
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
     const cache = new Map<string, string>();
-    let probeEngine: CevalEngine | undefined;
-
-    const ensureProbeEngine = (): CevalEngine | undefined => {
-        if (!ctrl) return;
-        try {
-            probeEngine ??= ctrl.ceval.engines.make({ variant: ctrl.data.game.variant.key });
-            return probeEngine;
-        } catch {
-            return;
-        }
-    };
-
-    const stopProbeEngine = () => {
-        try {
-            probeEngine?.stop();
-        } catch {
-            /* noop */
-        }
-    };
-
-    const probeWorkPlyAfterMove = (fen: string): number => (fen.includes(' w ') ? 1 : 0);
-    const probeWorkPlyAtFen = (fen: string): number => (fen.includes(' w ') ? 0 : 1);
-
-    const runPositionEval = async (
-        fen: string,
-        depth: number,
-        timeoutMs: number,
-        multiPv: number,
-        session: number,
-    ): Promise<Tree.LocalEval | null> => {
-        const engine = ensureProbeEngine();
-        if (!engine) return null;
-
-        engine.stop();
-
-        return await new Promise<Tree.LocalEval | null>(resolve => {
-            let best: Tree.LocalEval | null = null;
-            let done = false;
-
-            const finish = () => {
-                if (done) return;
-                done = true;
-                clearTimeout(timer);
-                try {
-                    engine.stop();
-                } catch {
-                    /* noop */
-                }
-                resolve(best);
-            };
-
-            const timer = setTimeout(finish, timeoutMs);
-
-            const work: Work = {
-                variant: ctrl?.data.game.variant.key ?? 'standard',
-                threads: 1,
-                hashSize: 16,
-                gameId: undefined,
-                stopRequested: false,
-                path: `bookmaker-eval:${session}`,
-                search: { depth },
-                multiPv,
-                ply: probeWorkPlyAtFen(fen),
-                threatMode: false,
-                initialFen: fen,
-                currentFen: fen,
-                moves: [],
-                emit: (ev: Tree.LocalEval) => {
-                    if (session !== activeProbeSession) return finish();
-                    best = ev;
-                    const pvCount = Array.isArray(ev.pvs) ? ev.pvs.filter(pv => Array.isArray(pv?.moves) && pv.moves.length).length : 0;
-                    if (ev.depth >= depth && pvCount >= multiPv) finish();
-                },
-            };
-
-            engine.start(work);
-        });
-    };
-
-    const evalToVariations = (ceval: any, maxPvs: number): any[] | null => {
-        if (!ceval || !Array.isArray(ceval.pvs)) return null;
-        return ceval.pvs
-            .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
-            .slice(0, maxPvs)
-            .map((pv: any) => ({
-                moves: pv.moves.slice(0, 40),
-                scoreCp: typeof pv.cp === 'number' ? pv.cp : 0,
-                mate: typeof pv.mate === 'number' ? pv.mate : null,
-                depth: typeof pv.depth === 'number' ? pv.depth : typeof ceval.depth === 'number' ? ceval.depth : 0,
-            }));
-    };
-
-    const runProbeEval = async (
-        fen: string,
-        move: string,
-        depth: number,
-        timeoutMs: number,
-        multiPv: number,
-        session: number,
-    ): Promise<Tree.LocalEval | null> => {
-        const engine = ensureProbeEngine();
-        if (!engine) return null;
-
-        engine.stop();
-
-        return await new Promise<Tree.LocalEval | null>(resolve => {
-            let best: Tree.LocalEval | null = null;
-            let done = false;
-
-            const finish = () => {
-                if (done) return;
-                done = true;
-                clearTimeout(timer);
-                try {
-                    engine.stop();
-                } catch {
-                    /* noop */
-                }
-                resolve(best);
-            };
-
-            const timer = setTimeout(finish, timeoutMs);
-
-            const work: Work = {
-                variant: ctrl?.data.game.variant.key ?? 'standard',
-                threads: 1,
-                hashSize: 16,
-                gameId: undefined,
-                stopRequested: false,
-                path: `bookmaker-probe:${session}:${move}`,
-                search: { depth },
-                multiPv,
-                ply: probeWorkPlyAfterMove(fen),
-                threatMode: false,
-                initialFen: fen,
-                currentFen: fen,
-                moves: [move],
-                emit: (ev: Tree.LocalEval) => {
-                    if (session !== activeProbeSession) return finish();
-                    best = ev;
-                    if (ev.depth >= depth && Array.isArray(ev.pvs) && ev.pvs[0]?.moves?.length) finish();
-                },
-            };
-
-            engine.start(work);
-        });
-    };
-
-    const runProbes = async (
-        probeRequests: ProbeRequest[],
-        baselineEvalCp: number,
-        session: number,
-    ): Promise<ProbeResult[]> => {
-        const highEffort =
-            probeRequests.some(pr => typeof pr.purpose === 'string' && pr.purpose.length) ||
-            probeRequests.some(pr => typeof pr.multiPv === 'number' && pr.multiPv >= 3) ||
-            probeRequests.some(pr => typeof pr.depth === 'number' && pr.depth >= 20);
-
-        const maxEffort =
-            probeRequests.some(pr => pr.purpose === 'free_tempo_branches') ||
-            probeRequests.some(pr => pr.purpose === 'latent_plan_refutation') ||
-            probeRequests.some(pr => pr.purpose === 'recapture_branches') ||
-            probeRequests.some(pr => pr.purpose === 'keep_tension_branches') ||
-            probeRequests.some(pr => pr.purpose === 'convert_reply_multipv') ||
-            probeRequests.some(pr => pr.purpose === 'defense_reply_multipv');
-
-        const maxProbeMoves = maxEffort ? 16 : highEffort ? 10 : 6;
-        const totalBudgetMs = maxEffort ? 35000 : highEffort ? 20000 : 8000;
-
-        const flattened = probeRequests
-            .flatMap(pr => (Array.isArray(pr.moves) ? pr.moves.map(m => ({ pr, move: m })) : []))
-            .slice(0, maxProbeMoves); // Hard cap: keep probes bounded
-
-        if (!flattened.length) return [];
-
-        const perMoveBudget = Math.max(
-            highEffort ? 1000 : 700,
-            Math.min(highEffort ? 5000 : 2000, Math.floor(totalBudgetMs / flattened.length)),
-        );
-
-        const results: ProbeResult[] = [];
-
-        for (const { pr, move } of flattened) {
-            if (session !== activeProbeSession) break;
-            if (!move) continue;
-
-            const baseCp = typeof pr.baselineEvalCp === 'number' ? pr.baselineEvalCp : baselineEvalCp;
-            const depth = typeof pr.depth === 'number' && pr.depth > 0 ? pr.depth : 20;
-            const multiPv = typeof pr.multiPv === 'number' && pr.multiPv > 0 ? pr.multiPv : 2;
-
-            const ev = await runProbeEval(pr.fen, move, depth, perMoveBudget, multiPv, session);
-            if (!ev || session !== activeProbeSession) continue;
-
-            const replyPvs = Array.isArray(ev.pvs)
-                ? ev.pvs
-                    .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
-                    .slice(0, Math.max(1, Math.min(4, multiPv)))
-                    .map((pv: any) => pv.moves.slice(0, 12))
-                : [];
-
-            const bestReplyPv = replyPvs[0] ?? [];
-            const evalCp = typeof ev.cp === 'number' ? ev.cp : 0;
-
-            results.push({
-                id: pr.id,
-                fen: pr.fen,
-                evalCp,
-                bestReplyPv,
-                replyPvs: replyPvs.length ? replyPvs : undefined,
-                deltaVsBaseline: evalCp - (typeof baseCp === 'number' ? baseCp : 0),
-                keyMotifs: [],
-                purpose: typeof pr.purpose === 'string' ? pr.purpose : undefined,
-                questionId: typeof pr.questionId === 'string' ? pr.questionId : undefined,
-                questionKind: typeof pr.questionKind === 'string' ? pr.questionKind : undefined,
-                probedMove: move,
-                mate: typeof ev.mate === 'number' ? ev.mate : undefined,
-                depth: typeof ev.depth === 'number' ? ev.depth : undefined,
-            });
-        }
-
-        return results;
-    };
-
-    const handleCreditStatus = async () => {
-        try {
-            const res = await fetch('/api/llm/credits');
-            if (res.ok) {
-                const status = await res.json() as CreditStatus;
-                $('.analyse__bookmaker .llm-credit-widget-container').html(renderCreditWidget(status));
-            }
-        } catch { /* noop */ }
-    };
+    const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
 
     const show = (html: string) => {
         lastShownHtml = html;
-        $('.analyse__bookmaker').toggleClass('empty', !html);
-        const $text = $('.analyse__bookmaker-text');
-        setBookmakerPreviewOrientation(ctrl?.getOrientation() ?? 'white');
-
-        // Ensure credit container exists
-        if (!$('.analyse__bookmaker .llm-credit-widget-container').length) {
-            $('.analyse__bookmaker').prepend('<div class="llm-credit-widget-container"></div>');
-        }
-
-        $text.html(html);
-        applyBookmakerEvalDisplay();
-        if (html) {
-            initMiniBoards($text[0] as HTMLElement);
-            mountBookmakerPreview($text[0] as HTMLElement);
-            handleCreditStatus();
-        }
+        renderBookmakerPanel(html, ctrl?.getOrientation() ?? 'white', bookmakerEvalDisplay());
     };
 
     const phaseOf = (ply: number): string => {
@@ -376,35 +114,30 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             }
             if (cache.has(fen)) return show(cache.get(fen)!);
 
-            // Any new request cancels in-flight probe batches.
             activeProbeSession++;
-            stopProbeEngine();
+            probes.stop();
             const probeSession = activeProbeSession;
+            const isCurrentSession = () => probeSession === activeProbeSession && lastRequestedFen === fen;
 
             lastRequestedFen = fen;
             try {
-                // Stage 1 (briefing) intentionally disabled: it was low-signal and caused flicker.
-                // Keep the panel responsive with a simple placeholder until the full commentary is ready.
                 show('<div class="bookmaker-thinking-hud glass"><div class="hud-aura"></div><div class="hud-content"><i data-icon="L" class="hud-icon pulse"></i><span class="hud-text">Analyzing strategic depth…</span></div><div class="hud-shimmer"></div></div>');
 
-                // Build analysis evidence for the move (or current position if no played move).
-                // Prefer existing ceval if it already has enough MultiPV; otherwise run a dedicated search.
                 const targetDepth = 20;
                 const targetMultiPv = 5;
                 const analysisTimeoutMs = 15000;
 
                 let analysisEval: any = analysisCeval;
-                let variations = evalToVariations(analysisEval, targetMultiPv);
+                let variations = probes.evalToVariations(analysisEval, targetMultiPv);
                 if ((!variations || variations.length < targetMultiPv) && ctrl) {
-                    analysisEval = await runPositionEval(analysisFen, targetDepth, analysisTimeoutMs, targetMultiPv, probeSession);
-                    if (probeSession !== activeProbeSession || lastRequestedFen !== fen) return;
-                    variations = evalToVariations(analysisEval, targetMultiPv);
+                    analysisEval = await probes.runPositionEval(analysisFen, targetDepth, analysisTimeoutMs, targetMultiPv, probeSession);
+                    if (!isCurrentSession()) return;
+                    variations = probes.evalToVariations(analysisEval, targetMultiPv);
                 }
 
-                // Ensure the played move is analyzable even if it isn't in top MultiPV (book-style annotation).
                 if (playedMove && variations && !variations.some(v => Array.isArray(v.moves) && v.moves[0] === playedMove) && ctrl) {
-                    const playedEv = await runProbeEval(analysisFen, playedMove, targetDepth, 5000, 1, probeSession);
-                    if (probeSession !== activeProbeSession || lastRequestedFen !== fen) return;
+                    const playedEv = await probes.runProbeEval(analysisFen, playedMove, targetDepth, 5000, 1, probeSession);
+                    if (!isCurrentSession()) return;
                     if (playedEv) {
                         const replyPv = Array.isArray(playedEv.pvs) ? playedEv.pvs[0]?.moves : null;
                         const playedVar = {
@@ -426,12 +159,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         }
                         : null;
 
-                // Delta support: also provide the post-move position so the server can compute before/after changes.
                 const afterFen = playedMove ? fen : null;
                 let afterEval: any = playedMove ? node.ceval : null;
-                let afterVariations = afterFen ? evalToVariations(afterEval, 1) : null;
-                // If the post-move ceval isn't ready yet, derive a PV from the analysed played-move line.
-                // This avoids triggering an extra engine search just to compute a before/after delta.
+                let afterVariations = afterFen ? probes.evalToVariations(afterEval, 1) : null;
                 if (afterFen && (!afterVariations || !afterVariations.length) && playedMove && Array.isArray(variations)) {
                     const playedLine = variations.find(v => Array.isArray(v?.moves) && v.moves[0] === playedMove);
                     if (playedLine) {
@@ -455,12 +185,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         }
                         : null;
 
-                // Stage 2: Opening reference fetch via backend proxy.
                 const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
                 const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
                 const openingData = await fetchOpeningReferenceViaProxy(analysisFen, node.ply, useExplorerProxy);
 
-                // Stage 2: Full Deep Analysis
                 const res = await fetch('/api/llm/bookmaker-position', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -482,7 +210,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     }),
                 });
 
-                if (lastRequestedFen !== fen) return;
+                if (!isCurrentSession()) return;
 
                 if (res.ok) {
                     const data = await res.json();
@@ -506,8 +234,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                     if (probeRequests.length && ctrl) {
                         void (async () => {
-                            const probeResults = await runProbes(probeRequests, baselineCp, probeSession);
-                            if (probeSession !== activeProbeSession || lastRequestedFen !== fen) return;
+                            const probeResults = await probes.runProbes(probeRequests, baselineCp, probeSession);
+                            if (!isCurrentSession()) return;
                             if (!probeResults.length) return;
 
                             try {
@@ -532,7 +260,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     }),
                                 });
 
-                                if (probeSession !== activeProbeSession || lastRequestedFen !== fen) return;
+                                if (!isCurrentSession()) return;
 
                                 if (refinedRes.ok) {
                                     const refined = await refinedRes.json();
@@ -555,9 +283,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     if (commentary) rememberBookmakerStudySync(payload);
                                     if (ctrl?.canWriteStudy() && commentary) ctrl.syncBookmaker(payload);
                                 }
-                            } catch {
-                                /* noop */
-                            }
+                            } catch {}
                         })();
                     }
                 } else if (res.status === 403) {
@@ -570,9 +296,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     requestsBlocked = true;
                     show(blockedHtml);
                 } else if (res.status === 401) {
-                    blockedHtml =
-                        `<p>Sign in to use Bookmaker.</p><p><a class="button" href="${loginHref()}">Sign in</a></p>`,
-                        requestsBlocked = true;
+                    blockedHtml = `<p>Sign in to use Bookmaker.</p><p><a class="button" href="${loginHref()}">Sign in</a></p>`;
+                    requestsBlocked = true;
                     show(blockedHtml);
                 } else if (res.status === 429) {
                     try {
@@ -586,8 +311,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     requestsBlocked = true;
                     show(blockedHtml);
                 } else {
-                    // Full analysis failed; remove the placeholder if still present.
-                    $('.bookmaker-thinking').remove();
+                    show('');
                 }
             } catch {
                 show('');
@@ -600,15 +324,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
 export function bookmakerClear() {
     lastShownHtml = '';
-    $('.analyse__bookmaker').toggleClass('empty', true);
+    clearBookmakerPanel();
 }
 
 export function bookmakerRestore(): void {
-    const $text = $('.analyse__bookmaker-text');
-    if (!$text.length) return;
-    if (!$text.html() && lastShownHtml) {
-        $('.analyse__bookmaker').toggleClass('empty', !lastShownHtml);
-        $text.html(lastShownHtml);
-        applyBookmakerEvalDisplay();
-    }
+    restoreBookmakerPanel(lastShownHtml, bookmakerEvalDisplay());
 }

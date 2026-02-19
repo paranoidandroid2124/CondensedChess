@@ -19,7 +19,6 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
   if (handlersBound) return;
   handlersBound = true;
 
-  // Use delegated handlers so Bookmaker remains functional across Snabbdom redraws.
   $(document)
     .on('mouseover.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
       const board = this.dataset.board;
@@ -49,12 +48,9 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
 }
 
 export function mountBookmakerPreview(root: HTMLElement): void {
-  // Destroy previous chessground if the markup was replaced.
   try {
     bookmakerPreview.cg?.destroy?.();
-  } catch {
-    /* noop */
-  }
+  } catch {}
   bookmakerPreview = {};
 
   const container = root.querySelector('.bookmaker-pv-preview') as HTMLElement | null;
