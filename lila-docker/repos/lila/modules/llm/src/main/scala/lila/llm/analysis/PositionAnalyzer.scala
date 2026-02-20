@@ -264,6 +264,9 @@ object PositionAnalyzer:
     def pieceMobility(color: Color): (Int, Int) = {
       val pieces = (board.knights | board.bishops | board.rooks | board.queens) & board.byColor(color)
       val occupied = board.occupied
+      val enemyPawns = board.pawns & board.byColor(!color)
+      val enemyPawnAttacks = enemyPawns.squares.foldLeft(Bitboard.empty)((bb, pSq) => bb | pSq.pawnAttacks(!color))
+      
       var totalMobility = 0
       var lowMobilityCount = 0
       
@@ -277,7 +280,8 @@ object PositionAnalyzer:
             case King => sq.kingAttacks
             case Pawn => Bitboard.empty
           }
-          val moves = (attacks & ~board.byColor(color)).count
+          val safeMoves = attacks & ~board.byColor(color) & ~enemyPawnAttacks
+          val moves = safeMoves.count
           totalMobility += moves
           if (moves <= 2) lowMobilityCount += 1
         }
@@ -402,9 +406,19 @@ object PositionAnalyzer:
         val kingZone = kSq.kingAttacks
         val enemyColor = !color
         // Pieces of enemyColor attacking any square in kingZone
-        kingZone.squares.flatMap { sq =>
+        val attackingPieces = kingZone.squares.flatMap { sq =>
           board.attackers(sq, enemyColor).squares
-        }.toSet.size
+        }.toSet
+        
+        attackingPieces.toList.map { attackerSq =>
+          board.roleAt(attackerSq) match {
+            case Some(Queen) => 4
+            case Some(Rook) => 2
+            case Some(Bishop) | Some(Knight) => 2
+            case Some(Pawn) => 1
+            case _ => 1
+          }
+        }.sum
       }.getOrElse(0)
 
     // P2: Escape squares - safe squares for king to flee

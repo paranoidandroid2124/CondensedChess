@@ -3,7 +3,7 @@ package lila.llm.analysis
 import _root_.chess.*
 import _root_.chess.format.Uci
 import lila.llm.model.*
-import lila.llm.model.strategic.VariationLine
+import lila.llm.model.strategic.{ VariationLine, PlanContinuity }
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PositionAnalyzer
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
@@ -183,9 +183,9 @@ object CommentaryEngine:
       playedMove: Option[String] = None,
       opening: Option[String] = None,
       phase: Option[String] = None,
-      ply: Int = 0,
+      ply: Int = 1,
       prevMove: Option[String] = None,
-      prevPlanSequence: Option[PlanSequence] = None,
+      prevPlanContinuity: Option[PlanContinuity] = None,
       prevAnalysis: Option[ExtendedAnalysisData] = None
   ): Option[ExtendedAnalysisData] =
     _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
@@ -273,9 +273,7 @@ object CommentaryEngine:
         val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
         val currentSequence = TransitionAnalyzer.analyze(
           currentPlans = activePlans,
-          previousPlan = prevPlanSequence.map(_.currentPlans.primary.plan),
-          previousMomentum = prevPlanSequence.map(_.momentum).getOrElse(0.0),
-          planHistory = prevPlanSequence.map(_.planHistory).getOrElse(Nil),
+          continuityOpt = prevPlanContinuity,
           ctx = ctx
         )
 
@@ -283,7 +281,7 @@ object CommentaryEngine:
           nature = nature,
           motifs = motifs,
           plans = planScoring.topPlans,
-          planSequence = Some(currentSequence)
+          planSequence = Some(currentSequence) // (TransitionType, Double) tuple
         )
         
         val meta = AnalysisMetadata(
@@ -299,7 +297,6 @@ object CommentaryEngine:
           vars = variations,
           playedMove = playedMove
         ).copy(
-          planSequence = Some(currentSequence),
           tacticalThreatToUs = ctx.tacticalThreatToUs,
           tacticalThreatToThem = ctx.tacticalThreatToThem,
           evalCp = evalCp,
@@ -334,33 +331,46 @@ object CommentaryEngine:
            val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
            val keyPlies = keyMoments.map(_.ply).toSet ++ extraPlies
 
-            val (results, _, _) = plyDataList.foldLeft((List.empty[ExtendedAnalysisData], Option.empty[PlanSequence], Option.empty[ExtendedAnalysisData])) {
-              case ((acc, prevSeq, prevAnalysis), plyData) =>
-                val ply = plyData.ply
-                if (keyPlies.contains(ply)) {
-                  val variations = evals.getOrElse(ply, Nil)
-                  // Analyze the move at `ply` from the position BEFORE it is played.
-                  // `PlyData.fen` is already the FEN before `playedUci`.
-                  val fenBeforeMove = if (ply == 1) startFen else plyData.fen
-                  val playedUci = plyData.playedUci
+          // Track both Full Data, Plan Sequence Tracker, and previous Analysis Data
+          val (results, _, _) =
+            plyDataList
+              .filter(p => keyPlies.contains(p.ply)) // Only analyze key plies
+              .sortBy(_.ply)
+              .foldLeft(
+                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty, Option.empty[ExtendedAnalysisData])
+              ) { case ((acc, planTracker, prevAnalysis), p) =>
+                  val playedUci = p.playedUci
+                  val vars = evals.getOrElse(p.ply, Nil)
+                  val ply = p.ply
 
-                  val analysis = assessExtended(
-                    fen = fenBeforeMove,
-                    variations = variations,
-                    playedMove = Some(playedUci),
-                    ply = ply,
-                    prevMove = Some(playedUci),
-                    prevPlanSequence = prevSeq,
-                    prevAnalysis = prevAnalysis
-                  )
-                  
-                  analysis match {
-                    case Some(data) => (acc :+ data, data.planSequence, Some(data))
-                    case None => (acc, prevSeq, prevAnalysis)
+                  if (vars.nonEmpty) {
+                    // Determine the side to move for this ply (FEN has the currently moving side)
+                    val isWhiteTurn = p.fen.contains(" w ")
+                    val movingColor = if (isWhiteTurn) _root_.chess.Color.White else _root_.chess.Color.Black
+
+                    val analysis = assessExtended(
+                      fen = p.fen,
+                      variations = vars,
+                      playedMove = Some(playedUci),
+                      ply = ply,
+                      prevMove = Some(playedUci),
+                      prevPlanContinuity = planTracker.getContinuity(movingColor),
+                      prevAnalysis = prevAnalysis
+                    )
+
+                    analysis match {
+                      case Some(data) => 
+                        // Update Tracker with the plans found in this ply
+                        val nextTracker = planTracker.update(ply, data.plans.take(1), data.plans.take(1)) // Using same for now
+                        (acc :+ data.copy(planContinuity = planTracker.getContinuity(movingColor)), nextTracker, Some(data))
+                      case None => 
+                        (acc, planTracker, prevAnalysis)
+                    }
+                  } else {
+                    (acc, planTracker, prevAnalysis)
                   }
-                } else (acc, prevSeq, prevAnalysis)
-            }
-            results
+              }
+          results
        case scala.util.Left(_) => 
          Nil
      }
@@ -566,8 +576,8 @@ object CommentaryEngine:
         val contrast =
           if cpLoss <= 20 then
             NarrativeLexicon.pick(bead ^ 0x2c1b3c6d, List(
-              s"Both branches are close, but **$bestMove** keeps the cleaner move-order.",
-              s"The practical gap is small, yet **$bestMove** remains the tidier route."
+              s"Both moves are of comparable strength, with **$bestMove** being the engine's slight preference.",
+              s"The evaluation difference is minimal here; both **$bestMove** and **$altMove** are practically sound options."
             ))
           else if altIsPlayed && cpLoss >= 120 then
             NarrativeLexicon.pick(bead ^ 0x2c1b3c6d, List(

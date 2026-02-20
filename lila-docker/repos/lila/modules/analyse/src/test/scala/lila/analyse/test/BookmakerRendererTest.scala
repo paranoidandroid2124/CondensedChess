@@ -22,7 +22,9 @@ class BookmakerRendererTest extends munit.FunSuite:
     assert(html.contains("pv-line"))
     assert(html.contains("bookmaker-pv-preview"))
     assert(html.contains("""data-board="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1|e2e4""""))
-    assert(html.contains("""<span class="move-chip" data-san="e4" data-uci="e2e4""""))
+    assert(
+      """<span class="move-chip[^"]*" data-san="e4" data-uci="e2e4"""".r.findFirstIn(html).nonEmpty
+    )
     assert(html.contains("e4"))
     assert(html.contains("+0.5"))
   }
@@ -37,14 +39,14 @@ class BookmakerRendererTest extends munit.FunSuite:
     val html = BookmakerRenderer.render(commentary, vars, fen).toString
 
     assert(
-      html.contains(
-        """<span class="move-chip" data-san="e4" data-uci="e2e4" data-board="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1|e2e4">e4</span>"""
-      )
+      """<span class="move-chip[^"]*" data-san="e4" data-uci="e2e4" data-board="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1\|e2e4"[^>]*>e4</span>""".r
+        .findFirstIn(html)
+        .nonEmpty
     )
     assert(
-      html.contains(
-        """<span class="move-chip" data-san="d4" data-uci="d2d4" data-board="rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1|d2d4">d4</span>"""
-      )
+      """<span class="move-chip[^"]*" data-san="d4" data-uci="d2d4" data-board="rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1\|d2d4"[^>]*>d4</span>""".r
+        .findFirstIn(html)
+        .nonEmpty
     )
   }
 
@@ -63,7 +65,7 @@ class BookmakerRendererTest extends munit.FunSuite:
     )
     val html = BookmakerRenderer.render(commentary, vars, fen).toString
     val pattern =
-      """<span class="move-chip" data-san="Nf3" data-uci="g1f3" data-board="([^"]+)">Nf3</span>""".r
+      """<span class="move-chip[^"]*" data-san="Nf3" data-uci="g1f3" data-board="([^"]+)"[^>]*>Nf3</span>""".r
     val boards = pattern.findAllMatchIn(html).map(_.group(1)).toList
 
     val firstFen = NarrativeUtils.uciListToFen(fen, List("g1f3"))

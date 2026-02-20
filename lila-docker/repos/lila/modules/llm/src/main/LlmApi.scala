@@ -4,7 +4,7 @@ import scala.concurrent.Future
 import scala.util.control.NonFatal
 import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
-import lila.llm.model.OpeningReference
+import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.strategic.VariationLine
 
 /** Pipeline: CommentaryEngine → BookStyleRenderer → (optional) GeminiClient.polish */
@@ -219,14 +219,24 @@ final class LlmApi(
         evals = evalMap,
         openingRefsByFen = openingRefsByFen
       )
-      Some(GameNarrativeResponse.fromNarrative(narrative))
+      Some(
+        GameNarrativeResponse.fromNarrative(
+          narrative = narrative,
+          review = Some(buildGameReview(narrative, pgn, evals))
+        )
+      )
     }.recover { case NonFatal(e) =>
       logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
       val narrative = CommentaryEngine.generateFullGameNarrative(
         pgn = pgn,
         evals = evalMap
       )
-      Some(GameNarrativeResponse.fromNarrative(narrative))
+      Some(
+        GameNarrativeResponse.fromNarrative(
+          narrative = narrative,
+          review = Some(buildGameReview(narrative, pgn, evals))
+        )
+      )
     }
 
   private def fetchOpeningRefsForPgn(pgn: String): Future[Map[String, OpeningReference]] =
@@ -254,3 +264,29 @@ final class LlmApi(
             }
         }
         .map(_.collect { case (fen, Some(ref)) => fen -> ref }.toMap)
+
+  private def buildGameReview(
+      narrative: FullGameNarrative,
+      pgn: String,
+      evals: List[MoveEval]
+  ): GameNarrativeReview =
+    val totalPliesFromPgn = PgnAnalysisHelper.extractPlyData(pgn).toOption.map(_.size).getOrElse(0)
+    val evalPlies = evals.map(_.ply).filter(_ > 0).distinct
+    val inferredTotalPlies =
+      if totalPliesFromPgn > 0 then totalPliesFromPgn
+      else evalPlies.maxOption.getOrElse(0)
+    val evalCoveredPlies =
+      if inferredTotalPlies > 0 then evalPlies.count(_ <= inferredTotalPlies)
+      else evalPlies.size
+    val evalCoveragePct =
+      if inferredTotalPlies <= 0 then 0
+      else Math.round((evalCoveredPlies.toDouble * 100.0) / inferredTotalPlies.toDouble).toInt
+    val selectedMomentPlies = narrative.keyMomentNarratives.map(_.ply).filter(_ > 0).distinct.sorted
+
+    GameNarrativeReview(
+      totalPlies = inferredTotalPlies,
+      evalCoveredPlies = evalCoveredPlies,
+      evalCoveragePct = evalCoveragePct.max(0).min(100),
+      selectedMoments = selectedMomentPlies.size,
+      selectedMomentPlies = selectedMomentPlies
+    )

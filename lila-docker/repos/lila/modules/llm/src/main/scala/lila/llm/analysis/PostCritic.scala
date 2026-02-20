@@ -75,22 +75,7 @@ object PostCritic:
       .replace("The main task is to focus on development of the pieces.", "")
       .replace("The balance depends on precise calculation.", "")
 
-  private def toneDownOverconfidence(text: String, isClose: Boolean): String =
-    val alwaysRemove = List(
-      "White maintains full control of the proceedings.",
-      "Black maintains full control of the proceedings.",
-      "White is tightening the screw slowly.",
-      "Black is tightening the screw slowly."
-    )
-
-    val reduced =
-      alwaysRemove.foldLeft(text) { (t, s) => t.replace(s, "") }
-
-    if (!isClose) reduced
-    else
-      reduced
-        .replace("has fewer forgiving choices.", "has to be accurate.")
-        .replace("maintains full control of the proceedings.", "")
+  private def toneDownOverconfidence(text: String, isClose: Boolean): String = text
 
   private def limitSentence(text: String, sentence: String, max: Int): String =
     if (max < 0) return text
@@ -122,28 +107,9 @@ object PostCritic:
       .replaceAll("\\n{3,}", "\n\n")           // collapse extra blank lines
       .trim
 
-  private def rewriteBoilerplate(text: String): String =
-    text
-      .replace("The game remains tense and double-edged.", "The struggle stays sharp, with chances for both players.")
-      .replace("The position is roughly equal.", "The evaluation is near level.")
-      .replace("Accuracy is required to hold the balance.", "Precise moves are needed to preserve equality.")
-      .replace("In practical terms, this is comfortable to play.", "From a practical standpoint, this structure is straightforward to handle.")
-      .replace("Both sides are still coordinating pieces.", "Piece coordination is still a key theme.")
-      .replace("The plan is clear:", "Strategic focus:")
-      .replace("usually reduces tactical noise and favors precise maneuvering.", "typically lowers tactical volatility and rewards precise coordination.")
-      .replace("often steers the position toward a structured endgame battle.", "often redirects play into a structured technical struggle.")
-      .replace(
-        "Sufficient Positional Compensation provides sufficient compensation for the material.",
-        "White has positional compensation for the material investment."
-      )
+  private def rewriteBoilerplate(text: String): String = text
 
-  private def sanitizeTerminalTone(text: String): String =
-    val hasMateMove = """\*\*[^*\n]*#\*\*""".r.findFirstIn(text).isDefined
-    if !hasMateMove then text
-    else
-      text
-        .replace("often redirects play into a structured technical struggle.", "it becomes a forcing sequence with little room for maneuver.")
-        .replace("the game often shifts into a calmer technical phase.", "the line stays forcing until resolution.")
+  private def sanitizeTerminalTone(text: String): String = text
 
   private def collapseFamilyDuplicates(text: String): String =
     val families = List(

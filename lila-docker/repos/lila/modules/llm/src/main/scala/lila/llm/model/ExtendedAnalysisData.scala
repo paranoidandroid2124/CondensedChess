@@ -35,7 +35,7 @@ case class ExtendedAnalysisData(
     evalCp: Int,             // White POV centipawns
     isWhiteToMove: Boolean,
     phase: String = "middlegame",
-    planSequence: Option[PlanSequence] = None,
+    planContinuity: Option[PlanContinuity] = None,
     tacticalThreatToUs: Boolean = false,
     tacticalThreatToThem: Boolean = false,
     

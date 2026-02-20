@@ -13,7 +13,7 @@ object terms:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Terms of Service"),
-                p(cls := "legal-meta")("Effective Date: February 1, 2026 • Last Updated: February 5, 2026")
+                p(cls := "legal-meta")("Effective Date: February 1, 2026 • Last Updated: February 19, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -61,8 +61,7 @@ object terms:
                   li("Use the Service for any unlawful purpose"),
                   li("Attempt to overload, disrupt, or damage our servers or infrastructure"),
                   li("Scrape, crawl, or use automated tools to access the Service without permission"),
-                  li("Reverse engineer or attempt to extract source code from the Service"),
-                  li("Use the Service to develop competing products"),
+                  li("Attempt to access non-public systems, data, or admin surfaces without authorization"),
                   li("Impersonate others or provide false information"),
                   li("Share your account credentials with others")
                 )
@@ -70,15 +69,22 @@ object terms:
 
               st.section(cls := "legal-section")(
                 h2("5. Intellectual Property"),
-                h3("5.1 Our Content"),
+                h3("5.1 Open Source Components"),
                 p(
-                  "The Service, including its design, code, and AI models, is owned by Chesstory and protected by ",
-                  "intellectual property laws. You may not copy, modify, or distribute our content without permission."
+                  "Chesstory includes open-source software licensed under GNU AGPL v3 and other licenses listed in our ",
+                  a(href := routes.Main.source.url)("Open Source Notice"),
+                  " and COPYING file. Your rights to use, copy, modify, and redistribute those components are governed by their respective licenses."
                 ),
-                h3("5.2 Your Content"),
                 p(
-                  "You retain ownership of the chess games and analysis you create. By using the Service, you grant us ",
-                  "a license to store, process, and display your content to provide the Service."
+                  "Nothing in these Terms limits rights granted by applicable open-source licenses."
+                ),
+                h3("5.2 Chesstory-Specific Content"),
+                p(
+                  "Chesstory trademarks, brand assets, and third-party materials with separate license restrictions remain subject to those terms."
+                ),
+                h3("5.3 Your Content"),
+                p(
+                  "You retain ownership of the chess games and analysis you create. By using the Service, you grant us a license to store, process, and display your content to provide the Service."
                 )
               ),
 

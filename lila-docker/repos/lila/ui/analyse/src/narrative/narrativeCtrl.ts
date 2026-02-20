@@ -2,6 +2,7 @@ import { prop, type Prop } from 'lib';
 import type AnalyseCtrl from '../ctrl';
 import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
+import type { CevalEngine, Work } from 'lib/ceval';
 
 interface VariationLine {
     moves: string[];
@@ -20,13 +21,28 @@ interface GameNarrativeMoment {
     variations: VariationLine[];
 }
 
+interface GameNarrativeReview {
+    totalPlies: number;
+    evalCoveredPlies: number;
+    evalCoveragePct: number;
+    selectedMoments: number;
+    selectedMomentPlies: number[];
+}
+
 export interface GameNarrativeResponse {
     schema: string;
     intro: string;
     moments: GameNarrativeMoment[];
     conclusion: string;
     themes: string[];
+    review?: GameNarrativeReview;
 }
+
+const AUTO_EVAL_DEPTH = 12;
+const AUTO_EVAL_MULTI_PV = 2;
+const AUTO_EVAL_PER_PLY_TIMEOUT_MS = 450;
+const AUTO_EVAL_MAX_BUDGET_MS = 25000;
+const AUTO_EVAL_MAX_PLY_SCAN = 120;
 
 function magicLinkHref(): string {
     return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -87,7 +103,7 @@ export class NarrativeCtrl {
         try {
             const pgn = pgnExport.renderFullTxt(this.root);
 
-            const evals = extractMoveEvals(this.root);
+            const evals = await extractMoveEvals(this.root);
 
             const res = await fetch('/api/llm/game-analysis-local', {
                 method: 'POST',
@@ -132,45 +148,155 @@ export function make(root: AnalyseCtrl): NarrativeCtrl {
     return new NarrativeCtrl(root);
 }
 
-function extractMoveEvals(ctrl: AnalyseCtrl): any[] {
+async function extractMoveEvals(ctrl: AnalyseCtrl): Promise<any[]> {
     const evals: any[] = [];
+    const byPly = new Map<number, any>();
+    const nodes = ctrl.mainline.filter(node => node.ply >= 1);
 
-    for (const node of ctrl.mainline) {
-        // Skip the initial position (ply 0) to match PGN ply numbering
-        if (node.ply < 1) continue;
-        const ev: any = node.ceval || node.eval;
-        if (!ev) continue;
+    for (const node of nodes) {
+        const raw = node.ceval || node.eval;
+        if (!raw) continue;
+        const normalized = normalizeEval(node.ply, raw);
+        byPly.set(node.ply, normalized);
+    }
 
-        const cp = typeof ev.cp === 'number' ? ev.cp : 0;
-        const mate = typeof ev.mate === 'number' ? ev.mate : null;
-        const depth = typeof ev.depth === 'number' ? ev.depth : 0;
+    const missing = nodes.filter(node => !byPly.has(node.ply));
+    if (missing.length) {
+        const budgetMs = Math.min(AUTO_EVAL_MAX_BUDGET_MS, Math.max(7000, missing.length * 260));
+        const missingSlice = missing.slice(0, AUTO_EVAL_MAX_PLY_SCAN);
+        const enriched = await enrichMissingEvalsWithWasm(ctrl, missingSlice, budgetMs);
+        for (const item of enriched) byPly.set(item.ply, item.eval);
+    }
 
-        const pvs: any[] = Array.isArray(ev.pvs) ? ev.pvs : [];
-        const variations = pvs
-            .map(pv => {
-                const moves = Array.isArray(pv?.moves)
-                    ? pv.moves
-                    : typeof pv?.moves === 'string'
-                        ? pv.moves.trim().split(/\s+/).filter(Boolean)
-                        : [];
-                if (!moves.length) return null;
-                return {
-                    moves,
-                    scoreCp: typeof pv?.cp === 'number' ? pv.cp : cp,
-                    mate: typeof pv?.mate === 'number' ? pv.mate : mate,
-                    depth,
-                };
-            })
-            .filter(Boolean);
-
-        evals.push({
-            ply: node.ply,
-            cp,
-            mate,
-            pv: variations?.[0]?.moves ?? [],
-            variations,
-        });
+    for (const node of nodes) {
+        const ev = byPly.get(node.ply);
+        if (ev) evals.push(ev);
     }
 
     return evals;
+}
+
+function normalizeEval(ply: number, raw: any): any {
+    const cp = typeof raw?.cp === 'number' ? raw.cp : 0;
+    const mate = typeof raw?.mate === 'number' ? raw.mate : null;
+    const depth = typeof raw?.depth === 'number' ? raw.depth : 0;
+
+    const pvs: any[] = Array.isArray(raw?.pvs) ? raw.pvs : [];
+    const variations = pvs
+        .map(pv => {
+            const moves = Array.isArray(pv?.moves)
+                ? pv.moves
+                : typeof pv?.moves === 'string'
+                    ? pv.moves.trim().split(/\s+/).filter(Boolean)
+                    : [];
+            if (!moves.length) return null;
+            return {
+                moves,
+                scoreCp: typeof pv?.cp === 'number' ? pv.cp : cp,
+                mate: typeof pv?.mate === 'number' ? pv.mate : mate,
+                depth: typeof pv?.depth === 'number' ? pv.depth : depth,
+            };
+        })
+        .filter(Boolean);
+
+    return {
+        ply,
+        cp,
+        mate,
+        pv: variations?.[0]?.moves ?? [],
+        variations,
+    };
+}
+
+async function enrichMissingEvalsWithWasm(
+    ctrl: AnalyseCtrl,
+    missingNodes: Tree.Node[],
+    totalBudgetMs: number,
+): Promise<Array<{ ply: number; eval: any }>> {
+    const enriched: Array<{ ply: number; eval: any }> = [];
+    if (!missingNodes.length) return enriched;
+
+    let engine: CevalEngine | undefined;
+    try {
+        engine = ctrl.ceval.engines.make({ variant: ctrl.data.game.variant.key });
+    } catch {
+        return enriched;
+    }
+    if (!engine) return enriched;
+
+    const startedAt = Date.now();
+    try {
+        for (const node of missingNodes) {
+            if (Date.now() - startedAt >= totalBudgetMs) break;
+            if (!node?.fen || typeof node.fen !== 'string') continue;
+            const ev = await runNodeEval(engine, ctrl, node, AUTO_EVAL_DEPTH, AUTO_EVAL_MULTI_PV);
+            if (!ev) continue;
+            enriched.push({ ply: node.ply, eval: normalizeEval(node.ply, ev) });
+        }
+    } finally {
+        try {
+            engine.stop();
+        } catch {}
+        try {
+            engine.destroy();
+        } catch {}
+    }
+
+    return enriched;
+}
+
+async function runNodeEval(
+    engine: CevalEngine,
+    ctrl: AnalyseCtrl,
+    node: Tree.Node,
+    depth: number,
+    multiPv: number,
+): Promise<Tree.LocalEval | null> {
+    try {
+        engine.stop();
+    } catch {}
+
+    return await new Promise<Tree.LocalEval | null>(resolve => {
+        let best: Tree.LocalEval | null = null;
+        let done = false;
+        const finish = () => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            try {
+                engine.stop();
+            } catch {}
+            resolve(best);
+        };
+        const timer = setTimeout(finish, AUTO_EVAL_PER_PLY_TIMEOUT_MS);
+
+        const work: Work = {
+            variant: ctrl.data.game.variant.key,
+            threads: 1,
+            hashSize: 16,
+            gameId: undefined,
+            stopRequested: false,
+            path: `narrative-auto:${node.ply}`,
+            search: { depth },
+            multiPv,
+            ply: node.ply,
+            threatMode: false,
+            initialFen: node.fen,
+            currentFen: node.fen,
+            moves: [],
+            emit: (ev: Tree.LocalEval) => {
+                best = ev;
+                const pvCount = Array.isArray(ev.pvs)
+                    ? ev.pvs.filter(pv => Array.isArray(pv?.moves) && pv.moves.length).length
+                    : 0;
+                if (ev.depth >= depth && pvCount >= 1) finish();
+            },
+        };
+
+        try {
+            engine.start(work);
+        } catch {
+            finish();
+        }
+    });
 }

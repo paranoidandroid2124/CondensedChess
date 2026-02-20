@@ -104,20 +104,14 @@ object NarrativeContextBuilder:
     // Only populate meta if we have meaningful source data
     val meta = buildMetaSignals(data, ctx, targets, rootProbeResults)
 
-    val strategicFlow = data.planSequence.flatMap { seq =>
-      seq.previousPlan.flatMap { prev =>
-        val curr = seq.currentPlans.primary.plan
-        if (prev.id != curr.id) {
-           Some(TransitionAnalyzer.explainTransition(
-             prev, 
-             curr, 
-             data.toContext,
-             isTacticalThreatToUs = Some(data.tacticalThreatToUs),
-             isTacticalThreatToThem = Some(data.tacticalThreatToThem),
-             phase = Some(data.phase)
-           ))
-        } else None
-      }
+    // Longitudinal context from PlanContinuity tracker
+    val strategicFlow = data.planContinuity.flatMap { continuity =>
+      val side = if (data.isWhiteToMove) "White" else "Black"
+      if (continuity.consecutivePlies >= 3) {
+        Some(s"$side has been executing ${continuity.planName} for ${continuity.consecutivePlies} consecutive moves.")
+      } else if (continuity.consecutivePlies >= 2) {
+        Some(s"$side continues their ${continuity.planName} strategy.")
+      } else None
     }
 
     // Phase A: Semantic section from ExtendedAnalysisData
@@ -466,16 +460,7 @@ object NarrativeContextBuilder:
     } else {
       basePlans
     }
-    val suppressed = data.planSequence.map(_.currentPlans.compatibilityEvents).getOrElse(Nil)
-      .collect {
-        case e if e.eventType == "removed" || e.eventType == "downweight" =>
-          SuppressedPlan(
-            name = e.planName,
-            originalScore = e.originalScore,
-            reason = e.reason,
-            isRemoved = e.eventType == "removed"
-          )
-      }.distinctBy(_.name)
+    val suppressed = List.empty[SuppressedPlan] // Compatibility events removed with PlanSequence migration
     
     PlanTable(top5 = top5, suppressed = suppressed)
   }
@@ -1814,16 +1799,12 @@ object NarrativeContextBuilder:
     val primary = data.plans.headOption.map(_.plan.name).getOrElse("None")
     val secondary = data.plans.lift(1).map(_.plan.name)
     
-    val events = data.planSequence.map(_.currentPlans.compatibilityEvents).getOrElse(Nil)
-    
-    // Check if secondary plan was affected by compatibility
-    val relationship = secondary.flatMap { secName =>
-      events.find(_.planName == secName).map { e =>
-        if e.eventType == "boosted" then "↔ synergy"
-        else if e.eventType == "downweight" || e.eventType == "removed" then "⟂ conflict"
-        else "independent"
-      }
-    }.getOrElse("independent")
+    // Simple heuristic: if both plans share the same category, they synergize
+    val relationship = (data.plans.headOption, data.plans.lift(1)) match {
+      case (Some(p1), Some(p2)) if p1.plan.category == p2.plan.category => "↔ synergy"
+      case (Some(_), Some(_)) => "independent"
+      case _ => "independent"
+    }
 
     PlanConcurrency(primary, secondary, relationship)
   }

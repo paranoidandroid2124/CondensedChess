@@ -87,6 +87,61 @@
   opacity: 0.7;
 }
 
+.narrative-review {
+  padding: 0.55rem 0.65rem;
+  border: $border;
+  border-radius: $box-radius-size;
+  background: $m-primary_bg--mix-20;
+}
+
+.narrative-review-summary {
+  font-size: 0.86em;
+  line-height: 1.35;
+}
+
+.narrative-review-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.narrative-review-metric {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: $border;
+  background: $c-bg-zebra;
+  font-size: 0.78em;
+  opacity: 0.95;
+}
+
+.narrative-review-timeline {
+  position: relative;
+  height: 18px;
+  margin-top: 0.5rem;
+}
+
+.narrative-review-track {
+  position: absolute;
+  inset: 8px 0 0 0;
+  height: 2px;
+  border-radius: 999px;
+  background: $c-border;
+}
+
+.narrative-review-marker {
+  position: absolute;
+  top: 3px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 999px;
+  border: 1px solid $c-primary;
+  background: $m-secondary_bg--mix-40;
+}
+
 .narrative-themes,
 .narrative-concepts {
   display: flex;

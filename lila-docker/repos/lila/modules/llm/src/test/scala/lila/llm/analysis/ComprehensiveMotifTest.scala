@@ -209,7 +209,7 @@ class ComprehensiveMotifTest extends FunSuite {
   // PIECE MOTIFS (Knight/Bishop/Rook/Queen)
   // =========================================================================================
 
-  test("Knight: Outpost") {
+  test("Knight: Outpost (PositionalTag)") {
     // Knight on e5 supported by d4 pawn; black has pawns but does not control e5 with pawns, so it's a hole/outpost.
     assertPositionalTag(
       "6k1/8/pp5p/4N3/3P4/8/8/6K1 w - - 0 1",
@@ -217,6 +217,26 @@ class ComprehensiveMotifTest extends FunSuite {
       { case PositionalTag.Outpost(sq, _) => sq.key == "e5"; case _ => false },
       "Knight Outpost on e5"
     )
+  }
+
+  test("Knight: Outpost (Motif MoveAnalyzer)") {
+    // White Knight moves from f3 to e5.
+    // Must be supported by a pawn and NOT attacked by an enemy pawn.
+    val fen = "r1bqk2r/ppp2ppp/2n1pn2/8/3P4/5N2/PPP2PPP/RNBQKB1R w KQkq - 0 1" 
+    assertMoveMotif(
+      fen, "f3e5",
+      { case m: Motif.Outpost => m.square.key == "e5"; case _ => false },
+      "Valid Knight Outpost Move"
+    )
+
+    // False Outpost: White Knight to e5 without pawn support
+    val fenNoSupport = "r1bqk2r/ppp2ppp/2n1pn2/8/8/5N2/PPP2PPP/RNBQKB1R w KQkq - 0 1"
+    val motifsNoSupport = getMoveMotifs(fenNoSupport, "f3e5")
+    assert(!motifsNoSupport.exists(_.isInstanceOf[Motif.Outpost]), "Should not be an Outpost without pawn support")
+
+    // False Outpost: White Knight to e5, but attacked by enemy pawn
+    val motifsAttacked = getMoveMotifs("4k3/8/3p4/8/3P4/5N2/8/4K3 w - - 0 1", "f3e5")
+    assert(!motifsAttacked.exists(_.isInstanceOf[Motif.Outpost]), "Should not be an Outpost if attacked by enemy pawn")
   }
   
   test("Knight: Strong Knight (Octopus)") {

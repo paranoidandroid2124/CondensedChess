@@ -12,8 +12,8 @@ import java.util.regex.Pattern
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 import lila.llm.PgnAnalysisHelper
-import lila.llm.model.{ ExtendedAnalysisData, PlanSequence }
-import lila.llm.model.strategic.VariationLine
+import lila.llm.model.{ ExtendedAnalysisData }
+import lila.llm.model.strategic.{ VariationLine, PlanContinuity }
 import munit.FunSuite
 import play.api.libs.json.*
 
@@ -186,7 +186,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
       s"[${game.id}] Missing engine PV for $missingEngineFens/${distinctFens.size} FENs"
     )
 
-    var prevPlanSequence: Option[PlanSequence] = None
+    var prevPlanContinuity: Option[PlanContinuity] = None
     var prevAnalysis: Option[ExtendedAnalysisData] = None
 
     val results = ListBuffer.empty[PlyResult]
@@ -208,7 +208,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
           phase = Some(phase),
           ply = pd.ply,
           prevMove = Some(pd.playedUci),
-          prevPlanSequence = prevPlanSequence,
+          prevPlanContinuity = prevPlanContinuity,
           prevAnalysis = prevAnalysis
         ) match {
           case None =>
@@ -232,7 +232,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
               prose = prose
             )
 
-            prevPlanSequence = data.planSequence
+            prevPlanContinuity = data.planContinuity
             prevAnalysis = Some(data)
         }
       } catch {

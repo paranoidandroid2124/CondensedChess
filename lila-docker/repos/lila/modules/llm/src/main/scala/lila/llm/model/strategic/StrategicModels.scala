@@ -61,8 +61,7 @@ enum GamePhase:
 
 // (VariationLine and VariationTag moved to Variation.scala)
 
-enum StructureTag:
-  case IqpWhite, IqpBlack, HangingPawnsWhite, SpaceAdvantageWhite, KingExposedBlack, MinorityAttackCandidate, DoubledPawns
+// StructureTag and PlanTag have been removed as they were obsolete dead code.
 
 enum PositionalTag:
   case Outpost(square: Square, color: Color)
@@ -91,11 +90,13 @@ enum PositionalTag:
   case RemovingTheDefender(target: Role, color: Color)
   case Initiative(color: Color)
 
-enum PlanTag:
-  case KingsideAttackGood, CentralControlGood, PromotionThreat
-  case PawnBreak(square: Square)
-
 case class Hypothesis(move: String, candidateType: String, rationale: String)
+
+case class PlanContinuity(
+  planName: String,
+  consecutivePlies: Int,
+  startingPly: Int
+)
 
 case class CounterfactualMatch(
     userMove: String,

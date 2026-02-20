@@ -671,7 +671,7 @@ object NarrativeLexicon {
    * Adjacent-ply repetition suppression:
    * rotate deterministic choices by ply while keeping seed stability.
    */
-  private def pickWithPlyRotation(seed: Int, ply: Int, options: List[String]): String = {
+  def pickWithPlyRotation(seed: Int, ply: Int, options: List[String]): String = {
     if (options.isEmpty) ""
     else {
       val base = {
@@ -2182,6 +2182,60 @@ object NarrativeLexicon {
       "It's close to equal, with play for both sides",
       "The position is practically balanced with chances for both sides"
     ))
+  }
+
+  def getEvaluativePlanStatement(bead: Int, cp: Int, wPlan: Option[String], bPlan: Option[String], ply: Int = 0): String = {
+    val baseEval = evalOutcomeClauseFromCp(bead, cp, ply)
+    if (Math.abs(cp) > 40 || (wPlan.isEmpty && bPlan.isEmpty)) baseEval
+    else {
+      val w = wPlan.map(p => planDisplay(bead ^ 0x111, p, ply)).getOrElse("maintaining the structure")
+      val b = bPlan.map(p => planDisplay(bead ^ 0x222, p, ply)).getOrElse("solidifying their position")
+      
+      pickWithPlyRotation(bead ^ 0x333, ply, List(
+        s"With a level evaluation, White looks to play around **$w**, while Black focuses on **$b**.",
+        s"The position is finely balanced; White's strategy centers on **$w**, whereas Black aims for **$b**.",
+        s"In this dynamically equal position, White's priority is **$w**, and Black will counter with **$b**.",
+        s"The evaluation is near level. White's practical roadmap involves **$w**, against Black's plan of **$b**."
+      ))
+    }
+  }
+
+  def getEvaluativeImbalanceStatement(
+    bead: Int,
+    cp: Int,
+    whiteAdvantage: String,
+    blackAdvantage: String,
+    ply: Int = 0
+  ): String = {
+    val localSeed = bead ^ (ply * 0x3f1ab)
+    
+    val baseEval = 
+      if (cp > 30) pickWithPlyRotation(localSeed, ply, List(
+        "White has a slight pull",
+        "White is slightly better",
+        "The position slightly favors White"
+      ))
+      else if (cp < -30) pickWithPlyRotation(localSeed, ply, List(
+        "Black has a slight pull",
+        "Black is slightly better",
+        "The position slightly favors Black"
+      ))
+      else pickWithPlyRotation(localSeed, ply, List(
+        "The material is balanced",
+        "The position is dynamically equal",
+        "The evaluation is level",
+        "The game is in dynamic balance"
+      ))
+
+    pickWithPlyRotation(
+      localSeed ^ 0x6d2b79f5,
+      ply,
+      List(
+        s"$baseEval, but the tension lies in the imbalances: White has $whiteAdvantage against Black's $blackAdvantage.",
+        s"$baseEval; the key lies in White's $whiteAdvantage versus Black's $blackAdvantage.",
+        s"$baseEval. The strategic battle pits White's $whiteAdvantage against Black's $blackAdvantage."
+      )
+    )
   }
 
   def getPawnPlayStatement(bead: Int, breakFile: String, breakImpact: String, tensionPolicy: String): String = {

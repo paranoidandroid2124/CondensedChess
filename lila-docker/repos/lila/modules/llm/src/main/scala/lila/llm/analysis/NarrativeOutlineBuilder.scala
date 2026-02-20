@@ -186,9 +186,22 @@ object NarrativeOutlineBuilder:
     val highTension = highTensionByMotif || highTensionByThreat
     val motifHash = motifSignals.foldLeft(0)((acc, m) => acc ^ Math.abs(m.hashCode))
 
-    // Position statement
+    // Position statement and Asymmetric Imbalance
     val evalOpt = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp))
-    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x1b873593, cp, ply = ctx.ply)).getOrElse("unclear")
+    val wPlan = ctx.plans.top5.headOption.map(_.name)
+    val bPlan = ctx.plans.top5.lift(1).map(_.name)
+    
+    // Extract Imbalance if evaluation is balanced (-80 to +80)
+    val isBalanced = evalOpt.exists(cp => cp >= -80 && cp <= 80)
+    val imbalanceOpt = if (isBalanced) buildImbalanceContrast(ctx) else None
+
+    val evalText = imbalanceOpt match {
+      case Some((whiteAdv, blackAdv)) =>
+        NarrativeLexicon.getEvaluativeImbalanceStatement(bead ^ 0x1b873593, evalOpt.getOrElse(0), whiteAdv, blackAdv, ply = ctx.ply)
+      case None =>
+        evalOpt.map(cp => NarrativeLexicon.getEvaluativePlanStatement(bead ^ 0x1b873593, cp, wPlan, bPlan, ply = ctx.ply)).getOrElse("unclear")
+    }
+
     val openingSeed = bead ^ Math.abs(phase.hashCode) ^ evalOpt.getOrElse(0) ^ motifHash ^ 0x1b873593
     val openingPart = NarrativeLexicon.getOpening(openingSeed, phase, evalText, tactical = highTension, ply = ctx.ply)
     val keyFact = pickKeyFact(ctx)
@@ -478,9 +491,20 @@ object NarrativeOutlineBuilder:
       else
         rec.use("counterfactual", cf.userMove, "Teaching point")
         val theme =
-          motifOpt
-            .map(m => NarrativeUtils.humanize(motifName(m)))
-            .getOrElse(cf.severity.toLowerCase)
+          motifOpt match {
+            case Some(Motif.Fork(_, targets, _, _, _, _, _)) if targets.size >= 2 =>
+              s"a fork against the ${targets(0).toString.toLowerCase} and ${targets(1).toString.toLowerCase}"
+            case Some(Motif.Pin(_, pinned, target, _, _, _, _, _, _)) =>
+              s"a pin against the ${pinned.toString.toLowerCase}"
+            case Some(Motif.Skewer(_, front, back, _, _, _, _, _, _)) =>
+              s"a skewer against the ${front.toString.toLowerCase} and ${back.toString.toLowerCase}"
+            case Some(Motif.Capture(_, captured, _, lila.llm.model.Motif.CaptureType.Winning, _, _, _, _)) =>
+              s"winning the ${captured.toString.toLowerCase}"
+            case Some(Motif.DiscoveredAttack(_, _, target, _, _, _, _, _, _)) =>
+              s"a discovered attack on the ${target.toString.toLowerCase}"
+            case Some(m) => NarrativeUtils.humanize(motifName(m))
+            case None => cf.severity.toLowerCase
+          }
         val text = NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
         Some(OutlineBeat(
           kind = OutlineBeatKind.TeachingPoint,
@@ -540,7 +564,8 @@ object NarrativeOutlineBuilder:
         if isBest then
           playedCand.flatMap { c =>
             val b = bead ^ Math.abs(c.move.hashCode)
-            val intent = NarrativeLexicon.getIntent(b, c.planAlignment, None, ply = ctx.ply)
+            val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
+            val intent = NarrativeLexicon.getIntent(b, c.planAlignment, evidenceOpt, ply = ctx.ply)
             val isTerminal = isTerminalAnnotationMove(ctx, playedSan, bestCand)
             val tagHint = annotationTagHint(b, c.tags, c.practicalDifficulty, c.move, ctx.phase.current, isTerminal)
             val alert = c.tacticalAlert.map(_.trim).filter(_.nonEmpty).map(a => s"Note: $a.").getOrElse("")
@@ -560,7 +585,8 @@ object NarrativeOutlineBuilder:
             .orElse(engineBest.flatMap(_.theirReply).map(_.san))
           val bestIntent =
             bestCand.map { c =>
-              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), c.planAlignment, None, ply = ctx.ply + 1)
+              val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
+              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), c.planAlignment, evidenceOpt, ply = ctx.ply + 1)
               if intent.nonEmpty then s"Better is **$bestSan**; it $intent."
               else s"Better is **$bestSan** to keep tighter control of the position."
             }.getOrElse {
@@ -630,7 +656,8 @@ object NarrativeOutlineBuilder:
     else
       ctx.candidates.headOption.map { main =>
         rec.use("candidates[0]", main.move, "Main move")
-        val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None, ply = ctx.ply)
+        val evidenceOpt = main.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
+        val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, evidenceOpt, ply = ctx.ply)
         val engineBest = rankedEngineVariations(ctx).headOption.orElse(ctx.engineEvidence.flatMap(_.best))
         val evalScore = engineBest.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
         val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x85ebca6b, evalScore, ply = ctx.ply)
@@ -1975,29 +2002,69 @@ object NarrativeOutlineBuilder:
     bead: Int,
     ply: Int,
     phase: String
-  ): Option[String] =
-    val existingLow = Option(existingText).getOrElse("").toLowerCase
-    val candidates =
-      motifs
-        .map(normalizeMotifKey)
-        .filter(_.nonEmpty)
-        .filter(m => motifPhaseCompatible(m, phase))
-        .distinct
-        .flatMap(themeReinforcementSentence)
-        .sortBy { case (keyword, _) => -themeKeywordPriority(keyword) }
-    candidates
-      .flatMap { case (keyword, canonicalSentence) =>
-        val variants = themeSentenceVariants(keyword, canonicalSentence)
-        if existingLow.contains(keyword.toLowerCase) then None
-        else
-          pickThemeVariant(
-            bead = bead ^ Math.abs(keyword.hashCode),
-            ply = ply,
-            variants = variants,
-            existingLow = existingLow
-          )
-      }
-      .headOption
+  ): Option[String] = {
+    val existingLower = existingText.toLowerCase
+    val salient = motifs
+      .map(normalizeMotifKey)
+      .filter(_.nonEmpty)
+      .filter(m => motifPhaseCompatible(m, phase))
+      .filterNot(m => existingLower.contains(m.replace("_", " ")))
+      .take(2)
+    if salient.isEmpty then None
+    else
+      val terms = salient.take(2).map(m => s"**${m.replace("_", " ")}**")
+      val text = terms match
+        case List(t1, t2) => s"Themes include $t1 and $t2."
+        case List(t1)     => s"Key theme: $t1."
+        case _            => ""
+
+      val localSeed = bead ^ (ply * 0x3f1ab)
+      val polished = NarrativeLexicon.pickWithPlyRotation(
+        localSeed,
+        ply,
+        List(
+          text,
+          s"Strategic focus centers on ${terms.mkString(" and ")}.",
+          s"The position revolves around ${terms.mkString(" and ")}."
+        )
+      )
+      Some(polished)
+  }
+
+  private def buildImbalanceContrast(ctx: NarrativeContext): Option[(String, String)] = {
+    val semantic = ctx.semantic.getOrElse(return None)
+
+    def formatTag(tag: PositionalTagInfo): Option[String] = tag.tagType match {
+      case "BishopPairAdvantage" => Some("the Bishop pair") // Was 'BishopPair' - brittle string
+      case "OpenFile" => tag.file.map(f => s"control of the $f-file")
+      case "Outpost" => tag.square.map(s => s"a strong outpost on $s")
+      case "PassedPawn" => tag.square.map(s => s"a passed pawn on $s")
+      case "SpaceAdvantage" => Some("a space advantage")
+      // Other tags that are valid positional advantages
+      case "ConnectedRooks" => Some("connected rooks")
+      case _ => None
+    }
+
+    def formatWeakness(weak: WeakComplexInfo): Option[String] = {
+      val squaresText = if (weak.squares.size <= 2) weak.squares.mkString(" and ") else s"${weak.squares.size} weak squares"
+      val colorDesc = if (weak.squareColor.nonEmpty) s"${weak.squareColor}-square " else ""
+      Some(s"exploiting Black's $colorDesc weaknesses on $squaresText") // simplistic, we pass the "owner" context in the caller
+    }
+
+    val whiteTags = semantic.positionalFeatures.filter(_.color == "White")
+    val blackTags = semantic.positionalFeatures.filter(_.color == "Black")
+
+    val whiteAdv = whiteTags.flatMap(formatTag).headOption
+      .orElse(semantic.structuralWeaknesses.filter(_.owner == "Black").headOption.map(w => s"pressure on Black's ${w.squareColor} squares"))
+
+    val blackAdv = blackTags.flatMap(formatTag).headOption
+      .orElse(semantic.structuralWeaknesses.filter(_.owner == "White").headOption.map(w => s"pressure on White's ${w.squareColor} squares"))
+
+    (whiteAdv, blackAdv) match {
+      case (Some(w), Some(b)) if w != b => Some((w, b)) // Only return if both exist and are distinct
+      case _ => None
+    }
+  }
 
   private def themeKeywordPriority(keyword: String): Int =
     keyword.toLowerCase match

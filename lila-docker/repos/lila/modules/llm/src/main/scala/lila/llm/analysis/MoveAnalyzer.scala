@@ -75,7 +75,7 @@ object MoveAnalyzer:
 
     List.concat(
       detectPawnMotifs(mv, pos, color, san, plyIndex),
-      detectPieceMotifs(mv, color, san, plyIndex),
+      detectPieceMotifs(mv, nextPos, color, san, plyIndex),
       detectKingMotifs(mv, color, san, plyIndex),
       detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex, prevMove),
       detectPositionalMotifs(mv, pos, nextPos, color, san, plyIndex) 
@@ -184,7 +184,7 @@ object MoveAnalyzer:
 
     motifs
 
-  private def detectPieceMotifs(mv: Move, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectPieceMotifs(mv: Move, nextPos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
     val role = mv.piece.role
 
@@ -217,7 +217,12 @@ object MoveAnalyzer:
     if role == Knight then
       val isInEnemyTerritory = if color.white then mv.dest.rank.value >= 4 else mv.dest.rank.value <= 3
       if isInEnemyTerritory then
-        motifs = motifs :+ Outpost(role, mv.dest, color, plyIndex, Some(san))
+        val board = nextPos.board
+        val attackedByEnemyPawn = board.attackers(mv.dest, !color).exists(sq => board.roleAt(sq).contains(Pawn))
+        val supportedByFriendlyPawn = board.attackers(mv.dest, color).exists(sq => board.roleAt(sq).contains(Pawn))
+        if (!attackedByEnemyPawn && supportedByFriendlyPawn) {
+          motifs = motifs :+ Outpost(role, mv.dest, color, plyIndex, Some(san))
+        }
 
     motifs
 
@@ -295,15 +300,28 @@ object MoveAnalyzer:
     
     // Fork detection
     val forkTargets = detectForkTargets(mv, nextPos, color)
-    // A real fork should target at least two high-value pieces (non-pawn) or involve the King.
-    // Also, if the attacker is immediately recaptured by an equal or lesser piece, it's just an exchange.
     val forkRoles = forkTargets.map(_._2)
-    val highValueTargets = forkRoles.filter(_ != Pawn)
-    val attackerIsSafe = nextPos.board.attackers(mv.dest, !color).isEmpty
     
-    // If we target the king, it's always interesting (check + threat)
-    val involvesKing = forkRoles.contains(King)
-    val isRealFork = (involvesKing && forkRoles.size >= 2) || (highValueTargets.size >= 2 && attackerIsSafe)
+    def valueOf(r: Role) = r match {
+      case Queen => 9
+      case Rook => 5
+      case Bishop | Knight => 3
+      case Pawn => 1
+      case King => 100
+    }
+    
+    val attackerVal = valueOf(mv.piece.role)
+    val enemyAttackers = nextPos.board.attackers(mv.dest, !color)
+    val minEnemyAttackerVal = enemyAttackers.squares.flatMap(sq => nextPos.board.roleAt(sq)).map(valueOf).minOption.getOrElse(100)
+    val isSupported = nextPos.board.attackers(mv.dest, color).nonEmpty
+    
+    val isRealFork = if (enemyAttackers.isEmpty) {
+      forkRoles.size >= 2 && forkRoles.exists(_ != Pawn)
+    } else if (isSupported) {
+      forkRoles.size >= 2 && minEnemyAttackerVal >= attackerVal && forkRoles.exists(r => valueOf(r) > attackerVal)
+    } else {
+      false
+    }
     
     if isRealFork then
       motifs = motifs :+ Motif.Fork(mv.piece.role, forkRoles, mv.dest, forkTargets.map(_._1), color, plyIndex, Some(san))

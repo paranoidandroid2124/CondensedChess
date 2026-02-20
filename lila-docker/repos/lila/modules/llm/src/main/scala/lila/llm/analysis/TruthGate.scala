@@ -100,89 +100,91 @@ object TruthGate:
   // --- MATE PATTERNS ---
 
   private def isSmotheredMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    // Knight check ONLY
-    if (!pos.board.attackers(king, !pos.color).forall(sq => pos.board.roleAt(sq).contains(Knight))) return false
-    // All flight squares blocked by OWN pieces
-    king.kingAttacks.forall(sq => pos.board.pieceAt(sq).exists(_.color == pos.color))
+    pos.board.kingPosOf(pos.color).exists { king =>
+      // Knight check ONLY
+      pos.board.attackers(king, !pos.color).forall(sq => pos.board.roleAt(sq).contains(Knight)) &&
+      // All flight squares blocked by OWN pieces
+      king.kingAttacks.forall(sq => pos.board.pieceAt(sq).exists(_.color == pos.color))
+    }
 
   private def isBackRankMate(pos: Position): Boolean =
     val loser = pos.color
-    val king = pos.board.kingPosOf(loser).getOrElse(return false)
-    val backRank = if (loser.white) Rank.First else Rank.Eighth
-    if (king.rank != backRank) return false
-    // Checked by R/Q
-    if (!pos.board.attackers(king, !loser).exists(sq => pos.board.roleAt(sq).exists(r => r == Rook || r == Queen))) return false
-    // Flights forward blocked by OWN pieces
-    val forward = if (loser.white) Rank.Second else Rank.Seventh
-    king.kingAttacks.filter(_.rank == forward).forall(sq => pos.board.pieceAt(sq).exists(_.color == loser))
+    pos.board.kingPosOf(loser).exists { king =>
+      val backRank = if (loser.white) Rank.First else Rank.Eighth
+      if (king.rank != backRank) false
+      else {
+        // Checked by R/Q
+        val checkedByMajor = pos.board.attackers(king, !loser).exists(sq => pos.board.roleAt(sq).exists(r => r == Rook || r == Queen))
+        if (!checkedByMajor) false
+        else {
+          // Flights forward blocked by own pieces OR controlled by enemy
+          val forward = if (loser.white) Rank.Second else Rank.Seventh
+          king.kingAttacks.filter(_.rank == forward).forall { sq =>
+            pos.board.pieceAt(sq).exists(_.color == loser) || pos.board.attackers(sq, !loser).nonEmpty
+          }
+        }
+      }
+    }
 
   private def isArabianMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    val winner = !pos.color
-    // R+N mate in corner. R adjacent to K, N defends R.
-    if (!isCornerRegion(king)) return false
-    val checkers = pos.board.attackers(king, winner)
-    checkers.exists(sq => pos.board.roleAt(sq).contains(Rook) && pos.board.attackers(sq, winner).exists(k => pos.board.roleAt(k).contains(Knight)))
+    pos.board.kingPosOf(pos.color).exists { king =>
+      val winner = !pos.color
+      // R+N mate in corner. R adjacent to K, N defends R.
+      isCornerRegion(king) && {
+        val checkers = pos.board.attackers(king, winner)
+        checkers.exists(sq => pos.board.roleAt(sq).contains(Rook) && pos.board.attackers(sq, winner).exists(k => pos.board.roleAt(k).contains(Knight)))
+      }
+    }
 
   private def isBodensMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    // Criss-cross Bishops: One checks, other covers escapes. Flights blocked by own pieces.
-    val winner = !pos.color
-    val checkers = pos.board.attackers(king, winner)
-    // Must be Bishop check
-    if (!checkers.exists(sq => pos.board.roleAt(sq).contains(Bishop))) return false
-    // At least 2 bishops for winner? (Or B+Q)
-    (pos.board.bishops & pos.board.byColor(winner)).count >= 2
+    pos.board.kingPosOf(pos.color).exists { king =>
+      val winner = !pos.color
+      val checkers = pos.board.attackers(king, winner)
+      // Must be Bishop check and at least 2 bishops for winner
+      checkers.exists(sq => pos.board.roleAt(sq).contains(Bishop)) &&
+      (pos.board.bishops & pos.board.byColor(winner)).count >= 2
+    }
 
   private def isAnastasiaMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    // R+N on file. Helper N controls 2 squares, R checks on file.
-    // Usually K on edge file (h or a).
-    if (king.file != File.H && king.file != File.A) return false
-    val winner = !pos.color
-    val checkers = pos.board.attackers(king, winner)
-    // Check by Rook/Queen on file
-    val fileCheck = checkers.exists(sq => (pos.board.roleAt(sq).contains(Rook) || pos.board.roleAt(sq).contains(Queen)) && sq.file == king.file)
-    if (!fileCheck) return false
-    // Knight coverage (g1/g5 or similar)
-    val knight = (pos.board.knights & pos.board.byColor(winner)).exists { sq =>
-      sq.file != king.file && (sq.rank.value - king.rank.value).abs <= 2
+    pos.board.kingPosOf(pos.color).exists { king =>
+      if (king.file != File.H && king.file != File.A) false
+      else {
+        val winner = !pos.color
+        val checkers = pos.board.attackers(king, winner)
+        val fileCheck = checkers.exists(sq => (pos.board.roleAt(sq).contains(Rook) || pos.board.roleAt(sq).contains(Queen)) && sq.file == king.file)
+        if (!fileCheck) false
+        else {
+          (pos.board.knights & pos.board.byColor(winner)).exists { sq =>
+            sq.file != king.file && (sq.rank.value - king.rank.value).abs <= 2
+          }
+        }
+      }
     }
-    knight
 
   private def isHookMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    val winner = !pos.color
-    // Rook checks, Knight protects Rook, Pawn protects Knight?
-    // Simplified: R checks K, N protects R, K cannot take R.
-    val checkers = pos.board.attackers(king, winner)
-    val rookCheck = checkers.find(sq => pos.board.roleAt(sq).contains(Rook))
-    rookCheck.exists { rSq =>
-      // Rook protected by Knight
-      val nDef = pos.board.attackers(rSq, winner).exists(sq => pos.board.roleAt(sq).contains(Knight))
-      // If the rook is defended by a knight, the king cannot capture it without moving into check.
-      nDef
+    pos.board.kingPosOf(pos.color).exists { king =>
+      val winner = !pos.color
+      val checkers = pos.board.attackers(king, winner)
+      val rookCheck = checkers.find(sq => pos.board.roleAt(sq).contains(Rook))
+      rookCheck.exists { rSq =>
+        // Rook protected by Knight
+        pos.board.attackers(rSq, winner).exists(sq => pos.board.roleAt(sq).contains(Knight))
+      }
     }
 
   private def isCornerMate(pos: Position): Boolean =
-    val king = pos.board.kingPosOf(pos.color).getOrElse(return false)
-    isCornerRegion(king) && (pos.board.attackers(king, !pos.color).count >= 1) && king.kingAttacks.forall(sq => pos.board.pieceAt(sq).isDefined)
+    pos.board.kingPosOf(pos.color).exists { king =>
+      isCornerRegion(king) && (pos.board.attackers(king, !pos.color).count >= 1) && king.kingAttacks.forall(sq => pos.board.pieceAt(sq).isDefined)
+    }
 
   // --- TACTICAL THEMES (Non-Mate) ---
 
   private def isGreekGift(pos: Position, lastUci: String): Boolean =
-    // Classic: Bxh7+ (or ...Bxh2+) followed by Ng5+/Ng4+ and Qh5/Qh4
-    // Detection: Just played move was "Bxh7" or "Bxh2" capture?
-    val move = Uci(lastUci).collect{ case m: Uci.Move => m }.getOrElse(return false)
-    val isBishopSac = pos.board.roleAt(move.dest).isEmpty && // Piece gone (captured?) No, pos is AFTER move.
-                      // Check move itself: Bishop capture on h7/h2
-                      (move.dest == Square.H7 || move.dest == Square.H2)
-    // Use `history`? Hard without context.
-    // Heuristic: If last move was BxH7+, and now King on H7 exposed.
-    // Easier: Check UCI string + Board state.
-    // If move was BxH7, and it was a check.
-    (lastUci.contains("h7") || lastUci.contains("h2")) && pos.check.yes
+    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { move =>
+      val isBishopSac = pos.board.roleAt(move.dest).isEmpty && 
+                        (move.dest == Square.H7 || move.dest == Square.H2)
+      (lastUci.contains("h7") || lastUci.contains("h2")) && pos.check.yes
+    }
 
   private def isWindmillCandidate(pos: Position): Boolean =
     // Discovered check mechanism available?

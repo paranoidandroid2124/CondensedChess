@@ -18,11 +18,17 @@ object openSource:
               st.section(cls := "legal-section")(
                 h2("Source Code Availability"),
                 p(
-                  "This service is based on AGPL-licensed components. ",
-                  "The corresponding source code and license details are available at:"
+                  "This service includes software licensed under GNU AGPL v3. ",
+                  "If you interact with this network service, you can access the corresponding source code and license details at:"
                 ),
                 ul(
-                  li(a(href := "https://lichess.org/source", target := "_blank", rel := "noopener")("Lichess Source & Licensing")),
+                  li(
+                    a(
+                      href := "https://github.com/paranoidandroid2124/CondensedChess",
+                      target := "_blank",
+                      rel := "noopener"
+                    )("Chesstory Corresponding Source Code")
+                  ),
                   li(
                     a(
                       href := "https://www.gnu.org/licenses/agpl-3.0.html#section13",
@@ -30,12 +36,13 @@ object openSource:
                       rel := "noopener"
                     )("GNU AGPL v3 Section 13")
                   ),
+                  li(a(href := "https://lichess.org/source", target := "_blank", rel := "noopener")("Upstream Lichess Source & Licensing")),
                   li(
                     a(
-                      href := "https://raw.githubusercontent.com/lichess-org/lila/master/COPYING.md",
+                      href := "https://raw.githubusercontent.com/paranoidandroid2124/CondensedChess/master/lila-docker/repos/lila/COPYING.md",
                       target := "_blank",
                       rel := "noopener"
-                    )("Lila COPYING (including non-free exceptions)")
+                    )("Chesstory COPYING (asset licenses and attributions)")
                   )
                 )
               ),
