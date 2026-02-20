@@ -5,6 +5,7 @@ import lila.llm.model.strategic.VariationLine
 import lila.ui.ScalatagsTemplate.*
 import lila.llm.analysis.NarrativeUtils
 import scalalib.StringUtils.escapeHtmlRaw
+import scala.collection.mutable
 
 /**
  * Bookmaker Renderer
@@ -13,6 +14,8 @@ import scalalib.StringUtils.escapeHtmlRaw
  * interactive HTML fragments for the Chesstory AI commentary UI.
  */
 object BookmakerRenderer:
+
+  private case class MoveBoardRef(uci: String, fenAfter: String)
 
   /** Use scalalib's escapeHtmlRaw for consistency */
   private def escapeHtml(text: String): String = escapeHtmlRaw(text)
@@ -23,11 +26,14 @@ object BookmakerRenderer:
    * @param variations Structured Multi-PV data.
    */
   def render(commentary: String, variations: List[VariationLine], fenBefore: String): Frag =
-    // Pre-build SAN→UCI mapping from engine-generated variations
-    val sanToUciMap: Map[String, String] = variations.flatMap { v =>
+    // Preserve SAN occurrence order across variations to keep move-chip mapping stable.
+    val sanRefs: List[(String, MoveBoardRef)] = variations.flatMap { v =>
       val sanList = NarrativeUtils.uciListToSan(fenBefore, v.moves)
-      sanList.zip(v.moves)
-    }.toMap
+      val fensAfter = fenAfterEachMove(fenBefore, v.moves)
+      sanList.zip(v.moves).zip(fensAfter).map { case ((san, uci), fenAfter) =>
+        san -> MoveBoardRef(uci = uci, fenAfter = fenAfter)
+      }
+    }
     
     div(cls := "bookmaker-content")(
       div(cls := "bookmaker-toolbar")(
@@ -40,7 +46,7 @@ object BookmakerRenderer:
       // Hover preview board (mounted by client; stays hidden until hover).
       div(cls := "bookmaker-pv-preview"),
       div(cls := "commentary")(
-        renderTextWithMoves(commentary, sanToUciMap, variations, fenBefore)
+        renderTextWithMoves(commentary, sanRefs, variations, fenBefore)
       ),
       variations.nonEmpty.option:
         div(cls := "alternatives")(
@@ -55,7 +61,7 @@ object BookmakerRenderer:
    */
   private def renderTextWithMoves(
       text: String,
-      sanToUciMap: Map[String, String],
+      sanRefs: List[(String, MoveBoardRef)],
       variations: List[VariationLine],
       fenBefore: String
   ): Frag =
@@ -68,6 +74,17 @@ object BookmakerRenderer:
     // Detect LLM "alternative" lines like: a) Bb5 ...  b) Bc4 ...  c) d4 ...
     // When possible, replace them with the structured engine variations so each move can drive a mini-board hover preview.
     val pvLineRegex = """^\s*([a-z])\)\s+.*$""".r
+
+    val sanQueues: mutable.Map[String, mutable.Queue[MoveBoardRef]] =
+      mutable.Map.from:
+        sanRefs
+          .groupBy(_._1)
+          .view
+          .mapValues(entries => mutable.Queue.from(entries.map(_._2)))
+          .toMap
+
+    val sanFallback: Map[String, MoveBoardRef] =
+      sanRefs.groupBy(_._1).view.mapValues(_.head._2).toMap
 
     val inlineVariationHtml: Map[Char, String] =
       variations.zipWithIndex.map { (v, idx) =>
@@ -93,8 +110,13 @@ object BookmakerRenderer:
       val safeLine = escapeHtml(line)
       val withMoveChips = moveRegex.replaceAllIn(safeLine, m =>
         val san = m.group(1)
-        val uciAttr = sanToUciMap.get(san).map(u => s""" data-uci="$u"""").getOrElse("")
-        s"""<span class="move-chip" data-san="$san"$uciAttr>$san</span>"""
+        val ref =
+          sanQueues.get(san).flatMap(q => Option.when(q.nonEmpty)(q.dequeue())).orElse(sanFallback.get(san))
+        val attrs = ref.map { r =>
+          val board = s"${r.fenAfter}|${r.uci}"
+          s""" data-uci="${escapeHtml(r.uci)}" data-board="${escapeHtml(board)}""""
+        }.getOrElse("")
+        s"""<span class="move-chip" data-san="$san"$attrs>$san</span>"""
       )
       boldRegex.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
 
