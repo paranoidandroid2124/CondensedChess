@@ -5,7 +5,11 @@ import lila.ui.Page
 
 object plan:
 
-  def apply(me: Option[Me], status: lila.llm.CreditApi.CreditStatus)(using ctx: Context): Page =
+  def apply(
+      me: Option[Me],
+      status: lila.llm.CreditApi.CreditStatus,
+      checkoutEnabled: Boolean
+  )(using ctx: Context): Page =
     Page("Analyst Pro — Plans & Credits")
       .css("llm.plan")
       .wrap: _ =>
@@ -14,6 +18,10 @@ object plan:
             h1("Analyst ", span(cls := "pro")("Pro")),
             p(cls := "subtitle")("Powering your chess analysis with deep strategic insights.")
           ),
+          Option.unless(checkoutEnabled):
+            div(cls := "checkout-notice")(
+              p("Online checkout is not enabled in this deployment yet. Pro upgrades are temporarily unavailable.")
+            ),
           div(cls := "credit-usage fade-in")(
             div(cls := "usage-card glass")(
               div(cls := "usage-chart")(
@@ -83,7 +91,8 @@ object plan:
               ),
               if status.tier == "pro" then button(cls := "btn disabled")("Current Plan")
               else if me.isEmpty then a(href := routes.Auth.login.url, cls := "btn primary")("Get Pro Today")
-              else a(href := "/plan/checkout", cls := "btn primary")("Upgrade to Pro")
+              else if checkoutEnabled then a(href := "/plan/checkout", cls := "btn primary")("Upgrade to Pro")
+              else button(cls := "btn disabled", title := "Checkout coming soon")("Checkout Coming Soon")
             )
           )
         )

@@ -1,13 +1,17 @@
-# Lichess Fast Action Trainer
+# LIFAT Asset Bundle
 
-This repo contains detailed information about Lichess full line of weight loss products and training supplements
+This directory contains large static assets used by local analysis features,
+including NNUE weights and optional background media.
 
+## License Notes
 
-## Licencing
+- `vosk/` models are Apache 2.0 licensed re-archives from <https://alphacephei.com/vosk/models>.
+- `nnue/` models are GPLv3-compatible under the Stockfish license:
+  <https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt>.
+- `background/` images are distributed under the Unsplash license:
+  <https://unsplash.com/license>.
 
-- vosk models are Apache 2.0 licensed and are rearchived versions of https://alphacephei.com/vosk/models
+## Distribution Guidance
 
-- NNUE models are GPLv3, as per the [stockfish licence](https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt).
-
-- background images are under the custom [unsplash licence](https://unsplash.com/license).
-  > Unsplash grants you an irrevocable, nonexclusive, worldwide copyright license to download, copy, modify, distribute, perform, and use images from Unsplash for free, including for commercial purposes, without permission from or attributing the photographer or Unsplash. **This license does not include the right to compile images from Unsplash to replicate a similar or competing service.**
+- Keep this directory as static data only. It is not a standalone product.
+- Verify third-party attribution and redistribution constraints before commercial packaging.

@@ -220,8 +220,7 @@ class StrategicFeatureExtractorImpl(
       ply = metadata.ply,
       evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
       isWhiteToMove = color.white,
-      phase = baseData.nature.natureType.toString.toLowerCase,
-      planSequence = baseData.planSequence
+      phase = baseData.nature.natureType.toString.toLowerCase
     )
   }
   

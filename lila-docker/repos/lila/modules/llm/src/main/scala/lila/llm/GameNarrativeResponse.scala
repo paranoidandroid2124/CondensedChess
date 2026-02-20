@@ -9,20 +9,25 @@ case class GameNarrativeResponse(
     intro: String,
     moments: List[GameNarrativeMoment],
     conclusion: String,
-    themes: List[String]
+    themes: List[String],
+    review: Option[GameNarrativeReview] = None
 )
 
 object GameNarrativeResponse:
 
   val schemaV1 = "chesstory.gameNarrative.v1"
 
-  def fromNarrative(narrative: FullGameNarrative): GameNarrativeResponse =
+  def fromNarrative(
+      narrative: FullGameNarrative,
+      review: Option[GameNarrativeReview] = None
+  ): GameNarrativeResponse =
     GameNarrativeResponse(
       schema = schemaV1,
       intro = narrative.gameIntro,
       moments = narrative.keyMomentNarratives.map(GameNarrativeMoment.fromMoment),
       conclusion = narrative.conclusion,
-      themes = narrative.overallThemes
+      themes = narrative.overallThemes,
+      review = review
     )
 
   given Writes[GameNarrativeResponse] = Json.writes[GameNarrativeResponse]
@@ -50,3 +55,13 @@ object GameNarrativeMoment:
 
   given Writes[GameNarrativeMoment] = Json.writes[GameNarrativeMoment]
 
+case class GameNarrativeReview(
+    totalPlies: Int,
+    evalCoveredPlies: Int,
+    evalCoveragePct: Int,
+    selectedMoments: Int,
+    selectedMomentPlies: List[Int]
+)
+
+object GameNarrativeReview:
+  given Writes[GameNarrativeReview] = Json.writes[GameNarrativeReview]

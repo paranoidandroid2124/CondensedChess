@@ -2,6 +2,7 @@ package lila.llm.analysis
 
 import chess.Color
 import lila.llm.model.*
+import lila.llm.model.strategic.PlanContinuity
 import lila.llm.analysis.PlanMatcher.ActivePlans
 
 /**
@@ -21,27 +22,32 @@ object TransitionAnalyzer:
   private val MOMENTUM_MIN = 0.0
 
   /**
-   * Main entry: analyze transition from previous to current plan.
+   * Main entry: analyze transition from previous continuity to the current plan.
+   * Returns a transition classification and momentum score.
    */
   def analyze(
     currentPlans: ActivePlans,
-    previousPlan: Option[Plan],
-    previousMomentum: Double,
-    planHistory: List[PlanId],
+    continuityOpt: Option[PlanContinuity],
     ctx: IntegratedContext
-  ): PlanSequence = {
+  ): (TransitionType, Double) = {
     val currPlan = currentPlans.primary.plan
-    val transType = classifyTransition(previousPlan, currPlan, ctx)
-    val momentum = calcMomentum(currPlan, previousPlan, previousMomentum, transType)
-    val newHistory = updateHistory(currPlan.id, planHistory)
+    val prevPlanName = continuityOpt.map(_.planName)
+    val prevMomentum = continuityOpt.map(c => 0.5 + (c.consecutivePlies * MOMENTUM_BOOST)).getOrElse(0.5)
+
+    // We don't have the full previous Plan object anymore, just the name, 
+    // but we can infer the transition type simply by comparing the names.
+    val transType = (prevPlanName, currPlan.name) match {
+      case (None, _) => TransitionType.Opening
+      case (Some(prev), curr) if prev == curr => TransitionType.Continuation
+      case (Some(_), _) =>
+        if (ctx.tacticalThreatToUs) TransitionType.ForcedPivot
+        else if (ctx.tacticalThreatToThem) TransitionType.Opportunistic
+        else TransitionType.NaturalShift
+    }
     
-    PlanSequence(
-      currentPlans = currentPlans,
-      previousPlan = previousPlan,
-      transitionType = transType,
-      momentum = momentum,
-      planHistory = newHistory
-    )
+    val momentum = calcMomentum(currPlan, None, prevMomentum, transType) // Dummy None object for prevPlan
+    
+    (transType, momentum)
   }
 
   /**

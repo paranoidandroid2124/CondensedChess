@@ -490,35 +490,11 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(strategic.find(_.ref.label == "d5").get.priority, 3)
   }
 
-  test("B8: PlanConcurrency shows conflict when secondary was downweighted") {
+  test("B8: PlanConcurrency shows independent when plans have different categories") {
     val plan1 = PlanMatch(plan = Plan.KingsideAttack(Color.White), score = 0.90, evidence = Nil)
     val plan2 = PlanMatch(plan = Plan.Simplification(Color.White), score = 0.60, evidence = Nil)
     
-    val compatEvent = CompatibilityEvent(
-      planName = "Simplification into Endgame", // Must match Plan.Simplification.name
-      originalScore = 0.75,
-      finalScore = 0.60,
-      delta = -0.15,
-      reason = "conflict: attack ⟂ simplification",
-      eventType = "downweight"
-    )
-    
-    val activePlans = PlanMatcher.ActivePlans(
-      primary = plan1,
-      secondary = Some(plan2),
-      suppressed = Nil,
-      allPlans = List(plan1, plan2),
-      compatibilityEvents = List(compatEvent)
-    )
-    
-    val planSeq = PlanSequence(
-      currentPlans = activePlans,
-      previousPlan = None,
-      transitionType = TransitionType.Continuation,
-      momentum = 0.8,
-      planHistory = Nil
-    )
-    val data = minimalData().copy(plans = List(plan1, plan2), planSequence = Some(planSeq))
+    val data = minimalData().copy(plans = List(plan1, plan2))
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
     
@@ -527,29 +503,14 @@ class NarrativeContextBuilderTest extends FunSuite {
     
     assertEquals(concurrency.primary, "Kingside Attack")
     assertEquals(concurrency.secondary, Some("Simplification into Endgame"))
-    assertEquals(concurrency.relationship, "⟂ conflict")
+    // Attack vs Transition => independent
+    assertEquals(concurrency.relationship, "independent")
   }
 
-  test("B8: PlanConcurrency shows independent when no compatibility events") {
+  test("B8: PlanConcurrency shows independent when no secondary plan") {
     val plan1 = PlanMatch(plan = Plan.CentralControl(Color.White), score = 0.80, evidence = Nil)
-    val plan2 = PlanMatch(plan = Plan.PieceActivation(Color.White), score = 0.70, evidence = Nil)
     
-    val activePlans = PlanMatcher.ActivePlans(
-      primary = plan1,
-      secondary = Some(plan2),
-      suppressed = Nil,
-      allPlans = List(plan1, plan2),
-      compatibilityEvents = Nil // No events
-    )
-    
-    val planSeq = PlanSequence(
-      currentPlans = activePlans,
-      previousPlan = None,
-      transitionType = TransitionType.Continuation,
-      momentum = 0.7,
-      planHistory = Nil
-    )
-    val data = minimalData().copy(plans = List(plan1, plan2), planSequence = Some(planSeq))
+    val data = minimalData().copy(plans = List(plan1))
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
     
@@ -557,35 +518,12 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(narrativeCtx.meta.get.planConcurrency.relationship, "independent")
   }
 
-  test("B8: PlanConcurrency shows synergy when secondary was boosted") {
+  test("B8: PlanConcurrency shows synergy when both plans share same category") {
+    // Both are Attack category
     val plan1 = PlanMatch(plan = Plan.KingsideAttack(Color.White), score = 0.85, evidence = Nil)
-    val plan2 = PlanMatch(plan = Plan.RookActivation(Color.White), score = 0.75, evidence = Nil)
+    val plan2 = PlanMatch(plan = Plan.QueensideAttack(Color.White), score = 0.75, evidence = Nil)
     
-    val compatEvent = CompatibilityEvent(
-      planName = "Rook Activation",  // Must match Plan.RookActivation.name
-      originalScore = 0.60,
-      finalScore = 0.75,
-      delta = 0.15,
-      reason = "synergy: attack + rook activation",
-      eventType = "boosted"
-    )
-    
-    val activePlans = PlanMatcher.ActivePlans(
-      primary = plan1,
-      secondary = Some(plan2),
-      suppressed = Nil,
-      allPlans = List(plan1, plan2),
-      compatibilityEvents = List(compatEvent)
-    )
-    
-    val planSeq = PlanSequence(
-      currentPlans = activePlans,
-      previousPlan = None,
-      transitionType = TransitionType.Continuation,
-      momentum = 0.9,
-      planHistory = Nil
-    )
-    val data = minimalData().copy(plans = List(plan1, plan2), planSequence = Some(planSeq))
+    val data = minimalData().copy(plans = List(plan1, plan2))
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
     

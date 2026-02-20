@@ -480,6 +480,14 @@ class A9NarrativeOutputTest extends munit.FunSuite {
         expectedPhase = Some("Endgame"),
         fen = "6k1/5ppp/8/3q4/3Q4/8/5P1P/6K1 w - - 0 1",
         ply = 90
+      ),
+      Scenario(
+        name = "NEW: Asymmetric Imbalance (Dynamic Equality)",
+        expectedPhase = Some("Middlegame"),
+        // A dynamically equal position: White has the Bishop Pair, Black has a strong Nd4 outpost.
+        fen = "r2q1rk1/pp2bppp/2p5/3p4/3n4/1BP2Q1P/P1P2PP1/R1B2RK1 w - - 0 14",
+        ply = 27,
+        variations = List(VariationLine(moves = List("c3d4"), scoreCp = 10, mate = None, depth = 20))
       )
     )
 

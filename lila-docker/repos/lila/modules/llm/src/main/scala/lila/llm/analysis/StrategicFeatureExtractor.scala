@@ -17,7 +17,7 @@ case class BaseAnalysisData(
     nature: PositionNature,
     motifs: List[Motif],
     plans: List[PlanMatch],
-    planSequence: Option[lila.llm.model.PlanSequence] = None
+    planSequence: Option[(lila.llm.model.TransitionType, Double)] = None
 )
 
 case class AnalysisMetadata(

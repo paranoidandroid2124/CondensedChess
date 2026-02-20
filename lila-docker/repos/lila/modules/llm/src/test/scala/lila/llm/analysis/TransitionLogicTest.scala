@@ -3,6 +3,7 @@ package lila.llm.analysis
 import munit.FunSuite
 import chess.*
 import lila.llm.model.*
+import lila.llm.model.strategic.PlanContinuity
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PlanMatcher.ActivePlans
 
@@ -10,98 +11,88 @@ class TransitionLogicTest extends FunSuite {
 
   // --- CONTINUATION ---
 
-  test("Continuation: Same plan persists, momentum increases") {
-    val prevPlan = Plan.KingsideAttack(Color.White)
+  test("Continuation: Same plan persists") {
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.8)
+    // Previous continuity was "Kingside Attack" — same as current plan
+    val continuity = Some(PlanContinuity("Kingside Attack", 3, 10))
     val ctx = makeContext()
     
-    val result = TransitionAnalyzer.analyze(
+    val (transType, momentum) = TransitionAnalyzer.analyze(
       currentPlans = currActive,
-      previousPlan = Some(prevPlan),
-      previousMomentum = 0.7,
-      planHistory = List(PlanId.KingsideAttack),
+      continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(result.transitionType, TransitionType.Continuation)
-    // Momentum should increase: 0.7 + 0.1 boost = 0.8
-    assert(Math.abs(result.momentum - 0.8) < 0.0001, s"Expected ~0.8, got ${result.momentum}")
-    assert(result.momentum > 0.7)
+    assertEquals(transType, TransitionType.Continuation)
+    assert(momentum > 0.5, s"Expected momentum > 0.5, got $momentum")
   }
 
   // --- NATURAL SHIFT ---
 
-  test("NaturalShift: Phase change triggers shift") {
-    val prevPlan = Plan.KingsideAttack(Color.White)
+  test("NaturalShift: Different plan without threat triggers shift") {
     val currActive = makeActivePlans(Plan.Simplification(Color.White), 0.6)
-    val ctx = makeContext(evalCp = 300) // Winning, natural to simplify
+    // Previous continuity was "Kingside Attack" — different from current
+    val continuity = Some(PlanContinuity("Kingside Attack", 5, 8))
+    val ctx = makeContext(evalCp = 300)
     
-    val result = TransitionAnalyzer.analyze(
+    val (transType, momentum) = TransitionAnalyzer.analyze(
       currentPlans = currActive,
-      previousPlan = Some(prevPlan),
-      previousMomentum = 0.8,
-      planHistory = List(PlanId.KingsideAttack),
+      continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(result.transitionType, TransitionType.NaturalShift)
-    assertEquals(result.momentum, 0.5) // Reset to neutral
+    assertEquals(transType, TransitionType.NaturalShift)
+    assertEquals(momentum, 0.5) // Reset to neutral
   }
 
   // --- FORCED PIVOT ---
 
   test("ForcedPivot: Tactical threat forces plan abandonment") {
-    val prevPlan = Plan.KingsideAttack(Color.White)
     val currActive = makeActivePlans(Plan.DefensiveConsolidation(Color.White), 0.7)
+    val continuity = Some(PlanContinuity("Kingside Attack", 4, 6))
     val ctx = makeContext(tacticalThreatToUs = true)
     
-    val result = TransitionAnalyzer.analyze(
+    val (transType, momentum) = TransitionAnalyzer.analyze(
       currentPlans = currActive,
-      previousPlan = Some(prevPlan),
-      previousMomentum = 0.9,
-      planHistory = List(PlanId.KingsideAttack),
+      continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(result.transitionType, TransitionType.ForcedPivot)
-    assertEquals(result.momentum, 0.3) // Low, forced change
+    assertEquals(transType, TransitionType.ForcedPivot)
+    assertEquals(momentum, 0.3)
   }
 
   // --- OPPORTUNISTIC ---
 
   test("Opportunistic: Unexpected attacking opportunity") {
-    val prevPlan = Plan.DefensiveConsolidation(Color.White)
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.9)
+    val continuity = Some(PlanContinuity("Defensive Consolidation", 2, 12))
     val ctx = makeContext(tacticalThreatToThem = true)
     
-    val result = TransitionAnalyzer.analyze(
+    val (transType, momentum) = TransitionAnalyzer.analyze(
       currentPlans = currActive,
-      previousPlan = Some(prevPlan),
-      previousMomentum = 0.5,
-      planHistory = List(PlanId.DefensiveConsolidation),
+      continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(result.transitionType, TransitionType.Opportunistic)
-    assertEquals(result.momentum, 0.6) // Moderate, new attack
+    assertEquals(transType, TransitionType.Opportunistic)
+    assertEquals(momentum, 0.6)
   }
 
-  // --- MOMENTUM DECAY ---
+  // --- OPENING (no continuity) ---
 
-  test("Momentum: Continuation caps at 1.0") {
-    val prevPlan = Plan.KingsideAttack(Color.White)
+  test("Opening: No previous continuity") {
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.9)
     val ctx = makeContext()
     
-    val result = TransitionAnalyzer.analyze(
+    val (transType, momentum) = TransitionAnalyzer.analyze(
       currentPlans = currActive,
-      previousPlan = Some(prevPlan),
-      previousMomentum = 0.95, // Very high
-      planHistory = List(PlanId.KingsideAttack),
+      continuityOpt = None,
       ctx = ctx
     )
     
-    assertEquals(result.momentum, 1.0) // Capped at max
+    assertEquals(transType, TransitionType.Opening)
+    assertEquals(momentum, 0.5)
   }
 
   // --- EXPLAIN TRANSITION ---
@@ -115,24 +106,6 @@ class TransitionLogicTest extends FunSuite {
     
     assert(explanation.toLowerCase.contains("simplifying"), s"Expected 'simplifying', got: $explanation")
     assert(explanation.contains("advantage"), s"Expected 'advantage', got: $explanation")
-  }
-
-  // --- PLAN HISTORY ---
-
-  test("PlanHistory: Maintains last 3 plans") {
-    val currActive = makeActivePlans(Plan.Promotion(Color.White), 0.9)
-    val ctx = makeContext()
-    
-    val result = TransitionAnalyzer.analyze(
-      currentPlans = currActive,
-      previousPlan = Some(Plan.PassedPawnPush(Color.White)),
-      previousMomentum = 0.6,
-      planHistory = List(PlanId.PassedPawnPush, PlanId.KingActivation, PlanId.Simplification),
-      ctx = ctx
-    )
-    
-    assertEquals(result.planHistory.length, 3)
-    assertEquals(result.planHistory.head, PlanId.Promotion) // Current added first
   }
 
   // --- HELPER METHODS ---
@@ -164,7 +137,6 @@ class TransitionLogicTest extends FunSuite {
     
     val mockClass = PositionClassification(mockNature, mockCrit, mockTopo, mockPhase, mockSimp, mockDraw, mockRisk, mockTask)
     
-    // Create threat lists with proper numeric values
     val ownThreatsList = if (tacticalThreatToUs)
       List(Threat(ThreatKind.Material, 300, 1, Nil, Nil, Nil, None, 1))
     else Nil

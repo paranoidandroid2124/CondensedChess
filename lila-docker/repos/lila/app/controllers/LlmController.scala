@@ -100,7 +100,6 @@ final class LlmController(
             lastMove = commentReq.lastMove,
             eval = commentReq.eval,
             opening = commentReq.context.opening,
-            openingData = commentReq.openingData,
             phase = commentReq.context.phase,
             ply = commentReq.context.ply
           )

@@ -97,7 +97,13 @@ object BookmakerRenderer:
           strong(label),
           " ",
           renderedSans.zip(v.moves).zip(fensAfterEach).map { case ((san, uci), fenAfter) =>
-            span(cls := "pv-san", attr("data-board") := s"$fenAfter|$uci")(san)
+            span(
+              cls := "pv-san move-chip--interactive",
+              attr("data-board") := s"$fenAfter|$uci",
+              attr("tabindex") := "0",
+              attr("role") := "button",
+              attr("aria-label") := s"Preview move $san"
+            )(san)
           },
           span(cls := "eval-badge eval-badge--inline")(
             s" (${normalizedScore(v.scoreCp)})"
@@ -114,9 +120,10 @@ object BookmakerRenderer:
           sanQueues.get(san).flatMap(q => Option.when(q.nonEmpty)(q.dequeue())).orElse(sanFallback.get(san))
         val attrs = ref.map { r =>
           val board = s"${r.fenAfter}|${r.uci}"
-          s""" data-uci="${escapeHtml(r.uci)}" data-board="${escapeHtml(board)}""""
+          s" data-uci=\"${escapeHtml(r.uci)}\" data-board=\"${escapeHtml(board)}\" tabindex=\"0\" role=\"button\" aria-label=\"Play move ${escapeHtml(san)}\""
         }.getOrElse("")
-        s"""<span class="move-chip" data-san="$san"$attrs>$san</span>"""
+        val klass = if (ref.isDefined) "move-chip move-chip--interactive" else "move-chip"
+        s"""<span class="$klass" data-san="$san"$attrs>$san</span>"""
       )
       boldRegex.replaceAllIn(withMoveChips, m => s"<strong>${m.group(1)}</strong>")
 
@@ -145,19 +152,25 @@ object BookmakerRenderer:
    * Renders a list of interactive variation lines with mini-board hover support.
    */
   private def renderVariations(vars: List[VariationLine], fen: String): Frag =
-    div(cls := "variation-list")(
+    div(cls := "variation-list", attr("data-variation-swipe") := "true")(
       vars.zipWithIndex.map { (v, idx) =>
         val label = (idx + 97).toChar.toString + ")"
         val sanList = NarrativeUtils.uciListToSan(fen, v.moves)
         val renderedSans = sanList.take(8)
         val fensAfterEach = fenAfterEachMove(fen, v.moves).take(renderedSans.size)
         
-        div(cls := "variation-item")(
+        div(cls := "variation-item", attr("data-variation-index") := idx.toString)(
           span(cls := "pv-line")(
             strong(label),
             " ",
             renderedSans.zip(v.moves).zip(fensAfterEach).map { case ((san, uci), fenAfter) =>
-              span(cls := "pv-san", attr("data-board") := s"$fenAfter|$uci")(san)
+              span(
+                cls := "pv-san move-chip--interactive",
+                attr("data-board") := s"$fenAfter|$uci",
+                attr("tabindex") := "0",
+                attr("role") := "button",
+                attr("aria-label") := s"Preview move $san"
+              )(san)
             }
           ),
           span(cls := "eval-badge")(

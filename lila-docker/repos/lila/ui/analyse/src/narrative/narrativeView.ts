@@ -19,12 +19,20 @@ type GameNarrativeMoment = {
     concepts: string[];
     variations: VariationLine[];
 };
+type GameNarrativeReview = {
+    totalPlies: number;
+    evalCoveredPlies: number;
+    evalCoveragePct: number;
+    selectedMoments: number;
+    selectedMomentPlies: number[];
+};
 type GameNarrativeResponse = {
     schema: string;
     intro: string;
     moments: GameNarrativeMoment[];
     conclusion: string;
     themes: string[];
+    review?: GameNarrativeReview;
 };
 
 export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
@@ -69,12 +77,52 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
                 ? renderBoardPreview(ctrl.pvBoard() as BoardPreview, ctrl.root.getOrientation())
                 : hl('div.narrative-preview-empty', 'Hover a move to preview'),
         ]),
+        narrativeReviewView(doc),
         hl('div.narrative-intro', [
             hl('div.narrative-themes', doc.themes?.length ? doc.themes.map(t => hl('span.narrative-theme', t)) : null),
             hl('pre.narrative-prose', doc.intro),
         ]),
         ...(doc.moments || []).map(m => narrativeMomentView(ctrl, m)),
         hl('div.narrative-conclusion', [hl('pre.narrative-prose', doc.conclusion)]),
+    ]);
+}
+
+function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
+    const review = doc.review;
+    if (!review) return null;
+
+    const totalPlies = Math.max(0, review.totalPlies || 0);
+    const evalCoveredPlies = Math.max(0, review.evalCoveredPlies || 0);
+    const evalCoveragePct = Math.max(0, Math.min(100, review.evalCoveragePct || 0));
+    const selectedMoments = Math.max(0, review.selectedMoments || 0);
+    const selectedMomentPlies = (review.selectedMomentPlies || [])
+        .map(p => Math.trunc(p))
+        .filter(p => p > 0 && (totalPlies <= 0 || p <= totalPlies));
+
+    const summary =
+        totalPlies > 0
+            ? `PGN span ${totalPlies} plies. Engine eval coverage ${evalCoveredPlies}/${totalPlies} (${evalCoveragePct}%).`
+            : `Engine eval coverage ${evalCoveredPlies} plies.`;
+
+    return hl('section.narrative-review', [
+        hl('div.narrative-review-summary', summary),
+        hl('div.narrative-review-metrics', [
+            hl('span.narrative-review-metric', `Selected moments: ${selectedMoments}`),
+            hl('span.narrative-review-metric', `Moment plies: ${selectedMomentPlies.join(', ') || 'none'}`),
+        ]),
+        totalPlies > 0
+            ? hl('div.narrative-review-timeline', [
+                hl('div.narrative-review-track'),
+                ...selectedMomentPlies.map((ply, idx) => {
+                    const ratio = totalPlies <= 1 ? 0 : (ply - 1) / (totalPlies - 1);
+                    const left = Math.max(0, Math.min(100, Math.round(ratio * 1000) / 10));
+                    return hl('span.narrative-review-marker', {
+                        key: `moment-${ply}-${idx}`,
+                        attrs: { style: `left:${left}%;`, title: `Ply ${ply}` },
+                    });
+                }),
+            ])
+            : null,
     ]);
 }
 
