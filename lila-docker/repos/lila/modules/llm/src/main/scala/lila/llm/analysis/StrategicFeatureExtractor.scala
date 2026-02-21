@@ -9,7 +9,8 @@ trait StrategicFeatureExtractor {
       metadata: AnalysisMetadata,
       baseData: BaseAnalysisData,
       vars: List[lila.llm.model.strategic.VariationLine],
-      playedMove: Option[String]
+      playedMove: Option[String],
+      probeResults: List[lila.llm.model.ProbeResult] = Nil
   ): ExtendedAnalysisData
 }
 

@@ -238,7 +238,8 @@ object BookCommentaryCorpusRunner:
           opening = c.opening,
           phase = Some(c.phase),
           ply = c.ply,
-          prevMove = Some(c.playedMove)
+          prevMove = Some(c.playedMove),
+          probeResults = c.probeResults.getOrElse(Nil)
         )
       catch
         case NonFatal(e) =>

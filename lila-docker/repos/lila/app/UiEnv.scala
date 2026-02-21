@@ -55,5 +55,3 @@ object UiEnv
 
   def helpers: Helpers = this
   def assetHelper: AssetFullHelper = this
-
-  lazy val ui = lila.game.ui.GameUi(this)

@@ -1,10 +1,11 @@
 package views.pages
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object openSource:
-  def apply()(using ctx: Context): Page =
+  def apply()(using @unused ctx: Context): Page =
     Page("Open Source - Chesstory")
       .css("legal")
       .wrap: _ =>

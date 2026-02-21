@@ -29,11 +29,5 @@ package mailer:
   )
   case class CorrespondenceOpponents(userId: UserId, opponents: List[CorrespondenceOpponent])
 
-package oauth:
-  opaque type AccessTokenId = String
-  object AccessTokenId extends OpaqueString[AccessTokenId]
-
-  case class TokenRevoke(id: AccessTokenId)
-
 package analysis:
   final class MyEnginesAsJson(val get: Option[Me] => Fu[play.api.libs.json.JsObject])

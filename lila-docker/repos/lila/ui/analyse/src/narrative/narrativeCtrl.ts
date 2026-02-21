@@ -64,6 +64,7 @@ export class NarrativeCtrl {
     data: Prop<GameNarrativeResponse | null> = prop(null);
     error: Prop<string | null> = prop(null);
     needsLogin: Prop<boolean> = prop(false);
+    loadingDetail: Prop<string | null> = prop(null);
 
     pvBoard: Prop<{ fen: string; uci: string } | null> = prop(null);
 
@@ -99,11 +100,15 @@ export class NarrativeCtrl {
         this.error(null);
         this.needsLogin(false);
         this.pvBoard(null);
+        this.loadingDetail('Deep analysis prep: collecting PGN and existing eval...');
         this.root.redraw();
         try {
             const pgn = pgnExport.renderFullTxt(this.root);
 
-            const evals = await extractMoveEvals(this.root);
+            const evals = await extractMoveEvals(this.root, detail => {
+                this.loadingDetail(detail);
+                this.root.redraw();
+            });
 
             const res = await fetch('/api/llm/game-analysis-local', {
                 method: 'POST',
@@ -139,6 +144,7 @@ export class NarrativeCtrl {
             this.error("Error: " + e);
         } finally {
             this.loading(false);
+            this.loadingDetail(null);
             this.root.redraw();
         }
     }
@@ -148,7 +154,10 @@ export function make(root: AnalyseCtrl): NarrativeCtrl {
     return new NarrativeCtrl(root);
 }
 
-async function extractMoveEvals(ctrl: AnalyseCtrl): Promise<any[]> {
+async function extractMoveEvals(
+    ctrl: AnalyseCtrl,
+    onProgress?: (detail: string) => void,
+): Promise<any[]> {
     const evals: any[] = [];
     const byPly = new Map<number, any>();
     const nodes = ctrl.mainline.filter(node => node.ply >= 1);
@@ -164,7 +173,8 @@ async function extractMoveEvals(ctrl: AnalyseCtrl): Promise<any[]> {
     if (missing.length) {
         const budgetMs = Math.min(AUTO_EVAL_MAX_BUDGET_MS, Math.max(7000, missing.length * 260));
         const missingSlice = missing.slice(0, AUTO_EVAL_MAX_PLY_SCAN);
-        const enriched = await enrichMissingEvalsWithWasm(ctrl, missingSlice, budgetMs);
+        onProgress?.(`Deep scan: evaluating ${missingSlice.length} missing plies (may take up to ${(budgetMs / 1000).toFixed(0)}s)...`);
+        const enriched = await enrichMissingEvalsWithWasm(ctrl, missingSlice, budgetMs, onProgress);
         for (const item of enriched) byPly.set(item.ply, item.eval);
     }
 
@@ -173,6 +183,7 @@ async function extractMoveEvals(ctrl: AnalyseCtrl): Promise<any[]> {
         if (ev) evals.push(ev);
     }
 
+    onProgress?.(`Deep scan complete: eval coverage ${byPly.size}/${nodes.length} plies.`);
     return evals;
 }
 
@@ -212,6 +223,7 @@ async function enrichMissingEvalsWithWasm(
     ctrl: AnalyseCtrl,
     missingNodes: Tree.Node[],
     totalBudgetMs: number,
+    onProgress?: (detail: string) => void,
 ): Promise<Array<{ ply: number; eval: any }>> {
     const enriched: Array<{ ply: number; eval: any }> = [];
     if (!missingNodes.length) return enriched;
@@ -226,12 +238,15 @@ async function enrichMissingEvalsWithWasm(
 
     const startedAt = Date.now();
     try {
-        for (const node of missingNodes) {
+        for (const [idx, node] of missingNodes.entries()) {
             if (Date.now() - startedAt >= totalBudgetMs) break;
             if (!node?.fen || typeof node.fen !== 'string') continue;
             const ev = await runNodeEval(engine, ctrl, node, AUTO_EVAL_DEPTH, AUTO_EVAL_MULTI_PV);
             if (!ev) continue;
             enriched.push({ ply: node.ply, eval: normalizeEval(node.ply, ev) });
+            if ((idx + 1) % 6 === 0 || idx + 1 === missingNodes.length) {
+                onProgress?.(`Deep scan progress: ${idx + 1}/${missingNodes.length} plies checked.`);
+            }
         }
     } finally {
         try {

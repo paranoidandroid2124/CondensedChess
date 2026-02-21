@@ -3,12 +3,15 @@ package lila.security
 import lila.common.*
 import lila.core.lilaism.Core.*
 import lila.core.id.SessionId
-import lila.oauth.EndpointScopes
-import lila.oauth.OAuthServer.*
+import lila.core.email.EmailAddress
+import lila.core.userId.UserStr
+import lila.core.security.ClearPassword
 
 final class SecurityApi(
     userRepo: lila.user.UserRepo,
-    sessionStore: SessionStore
+    sessionStore: SessionStore,
+    authenticator: Authenticator,
+    pwnedApi: PwnedApi
 )(using Executor):
 
   val sessionIdKey = "sid"
@@ -63,11 +66,37 @@ final class SecurityApi(
   )
 
   def loginFormFilled(u: lila.core.email.UserStrOrEmail) = loginForm.fill(u.value -> "")
-  def loadLoginForm(u: lila.core.email.UserStrOrEmail, pwned: IsPwned) = Future.successful(loginFormFilled(u))
+  def loadLoginForm(u: lila.core.email.UserStrOrEmail, pwned: IsPwned) =
+    Future.successful:
+      val form = loginFormFilled(u)
+      if pwned.yes then form.withGlobalError("This password appears in known breaches. Change it after login.")
+      else form
   def rememberForm = Form(single("remember" -> boolean))
 
-  def authenticate(login: String, pass: String): Fu[Option[lila.core.user.User]] =
-    fuccess(None)
+  case class AuthSuccess(user: lila.core.user.User, pwned: IsPwned)
+
+  def authenticate(
+      login: String,
+      pass: String
+  ): Fu[Option[AuthSuccess]] =
+    val trimmed = login.trim
+    val password = ClearPassword(pass)
+    val withPassword = PasswordAndToken(password, None)
+
+    val authUser: Fu[Option[lila.core.user.User]] =
+      EmailAddress.from(trimmed) match
+        case Some(address) =>
+          authenticator.authenticateByEmail(address.normalize, withPassword)
+        case None =>
+          UserStr
+            .read(trimmed)
+            .fold[Fu[Option[lila.core.user.User]]](fuccess(None))(u => authenticator.authenticateById(u.id, withPassword))
+
+    authUser.flatMap:
+      case Some(user) if user.enabled.yes =>
+        pwnedApi.isPwned(password).map(pwned => AuthSuccess(user, pwned).some)
+      case _ =>
+        fuccess(None)
 
   def logout(sid: SessionId): Funit =
     sessionStore.delete(sid)
@@ -79,6 +108,3 @@ final class SecurityApi(
         .flatMap:
           case Some(info) => userRepo.byId(info.userId)
           case None       => fuccess(None)
-    
-  def oauthScoped(req: play.api.mvc.RequestHeader, accepted: EndpointScopes): lila.oauth.OAuthServer.AuthFu =
-    lila.oauth.OAuthServer.NoSuchToken.raise

@@ -114,31 +114,15 @@ final class LilaComponents(
     given FileMimeTypes = fileMimeTypes
     wire[ExternalAssets]
   
-  // Core controllers only (Chesstory: removed deleted module controllers)
+  // Core controllers only
   lazy val account: Account = wire[Account]
   lazy val analyse: Analyse = wire[Analyse]
-  // lazy val api: Api = wire[Api]  // Deleted
   lazy val auth: Auth = wire[Auth]
-  // lazy val dasher: Dasher = wire[Dasher]  // Deleted
-  // lazy val dev: Dev = wire[Dev]  // Deleted
   lazy val editor: Editor = wire[Editor]
-  // lazy val fishnet: Fishnet = wire[Fishnet]  // Deleted
-  // lazy val game: Game = wire[Game]  // Deleted
-  // lazy val github: Github = wire[Github]  // Deleted
-  // lazy val i18n: I18n = wire[I18n]  // Deleted
   lazy val importer: Importer = wire[Importer]
   lazy val main: Main = wire[Main]
-  lazy val oAuth: OAuth = wire[OAuth]
-  lazy val oAuthToken: OAuthToken = wire[OAuthToken]
-  // lazy val plan: Plan = wire[Plan]  // Deleted
   lazy val pref: Pref = wire[Pref]
-  // lazy val push: Push = wire[Push]  // Deleted
-  // lazy val round: Round = wire[Round]  // Deleted
-  // lazy val search: Search = wire[Search]  // Deleted
-  // lazy val setup: Setup = wire[Setup]  // Deleted
   lazy val study: Study = wire[Study]
-  // lazy val timeline: Timeline = wire[Timeline]  // Deleted
-  // lazy val tv: Tv = wire[Tv]  // Deleted
   lazy val user: User = wire[User]
   lazy val userAnalysis: UserAnalysis = wire[UserAnalysis]
   lazy val llmApi = env.llm.api
@@ -147,7 +131,6 @@ final class LilaComponents(
   lazy val llm: LlmController = wire[LlmController]
   lazy val plan: AnalystProPlan = wire[AnalystProPlan]
   lazy val checkout: Checkout = wire[Checkout]
-  // lazy val opening: Opening = wire[Opening]  // Deleted
 
   val router: Router = wire[_root_.router.router.Routes]
 

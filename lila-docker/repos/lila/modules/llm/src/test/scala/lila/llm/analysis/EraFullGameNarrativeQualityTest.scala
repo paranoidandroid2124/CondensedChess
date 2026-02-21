@@ -208,8 +208,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
           phase = Some(phase),
           ply = pd.ply,
           prevMove = Some(pd.playedUci),
-          prevPlanContinuity = prevPlanContinuity,
-          prevAnalysis = prevAnalysis
+          prevPlanContinuity = prevPlanContinuity
         ) match {
           case None =>
             failures += ((pd.ply, "assessExtended returned None"))
@@ -217,8 +216,7 @@ class EraFullGameNarrativeQualityTest extends FunSuite {
           case Some(data) =>
             val ctx = NarrativeContextBuilder.build(
               data = data,
-              ctx = data.toContext,
-              prevAnalysis = prevAnalysis
+              ctx = data.toContext
             )
             val prose = BookStyleRenderer.render(ctx).trim
             val quality = computeQualityMetrics(prose, pd.fen, pd.playedUci, variations)

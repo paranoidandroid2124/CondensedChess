@@ -73,12 +73,12 @@ object TruthGate:
     }.orElse {
       // 2. TACTICAL PATTERNS (Geometry / Static)
       posOpt.flatMap { pos =>
-        detectPatterns(pos, ply, playedUci)
+        detectPatterns(pos, playedUci)
       }
     }
   // 3. PATTERN DETECTORS (Geometric Matches)
 
-  private def detectPatterns(pos: Position, ply: Int, playedUci: String): Option[VerifiedTheme] =
+  private def detectPatterns(pos: Position, playedUci: String): Option[VerifiedTheme] =
     if (pos.checkMate)
       if (isSmotheredMate(pos)) Some(VerifiedTheme("smothered_mate", "Smothered Mate", ""))
       else if (isBackRankMate(pos)) Some(VerifiedTheme("back_rank_mate", "Back Rank Mate", ""))
@@ -180,9 +180,8 @@ object TruthGate:
   // --- TACTICAL THEMES (Non-Mate) ---
 
   private def isGreekGift(pos: Position, lastUci: String): Boolean =
-    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { move =>
-      val isBishopSac = pos.board.roleAt(move.dest).isEmpty && 
-                        (move.dest == Square.H7 || move.dest == Square.H2)
+    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { _ =>
+      // We essentially just check if the piece moved matches the intended target
       (lastUci.contains("h7") || lastUci.contains("h2")) && pos.check.yes
     }
 

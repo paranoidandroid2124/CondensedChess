@@ -104,11 +104,11 @@ object PlanMatcher:
       // Structural plans
       scorePassedPawnPush(motifs, ctx, side),
       scoreBlockade(motifs, ctx, side),
-      scorePawnChain(motifs, ctx, side),
+      scorePawnChain(motifs, side),
       scoreMinorityAttack(motifs, ctx, side),
       // Endgame plans
       scoreKingActivation(motifs, ctx, side),
-      scorePromotion(motifs, ctx, side),
+      scorePromotion(motifs, side),
       scoreZugzwang(motifs, ctx, side),
       // Defensive plans
       scoreDefensiveConsolidation(motifs, ctx, side),
@@ -116,7 +116,7 @@ object PlanMatcher:
       // Misc
       scoreSpaceAdvantage(motifs, ctx, side),
       scoreSacrifice(motifs, ctx, side),
-      scoreMinorPieceManeuver(motifs, ctx, side),
+      scoreMinorPieceManeuver(motifs, side),
       scoreFileControl(motifs, ctx, side)
     )
 
@@ -280,16 +280,11 @@ object PlanMatcher:
     
     // Filter and log removed plans
     val (kept, removed) = result.partition(_.score > 0)
-    removed.foreach { p =>
+    removed.foreach { _ =>
       // Already logged as "removed" when score went <= 0
     }
     
     (kept, events.toList)
-  }
-
-  // Legacy wrapper for backwards compatibility
-  private def applyCompatibility(plans: List[PlanMatch], ctx: IntegratedContext, side: Color): List[PlanMatch] = {
-    applyCompatWithEvents(plans, ctx, side)._1
   }
 
   private def scoreKingsideAttack(
@@ -373,7 +368,6 @@ object PlanMatcher:
       val missing = scala.collection.mutable.ListBuffer[String]()
 
       ctx.features.foreach { f =>
-        val ourPawns = if (side == White) f.pawns.whitePawnCount else f.pawns.blackPawnCount
         val mobility = if (side == White) f.activity.whitePseudoMobility else f.activity.blackPseudoMobility
 
         if (mobility > 30) supports += "High overall piece mobility"
@@ -629,7 +623,7 @@ object PlanMatcher:
     val isAdvanced = pawnMotifs.exists {
       case m: PassedPawnPush => Motif.relativeRank(m.toRank, side) >= 6
       case m: PawnAdvance => m.relativeTo >= 6
-      case m: PawnPromotion => true
+      case _: PawnPromotion => true
       case _ => false
     }
 
@@ -691,7 +685,6 @@ object PlanMatcher:
 
   private def scorePromotion(
       motifs: List[Motif],
-      ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val promoMotifs = motifs.collect { case m: PawnPromotion => m }
@@ -887,7 +880,7 @@ object PlanMatcher:
        Some(PlanMatch(Plan.MinorityAttack(side), 0.85, evidence, supports, blockers, missing))
     else None
 
-  private def scorePawnChain(motifs: List[Motif], ctx: IntegratedContext, side: Color): Option[PlanMatch] =
+  private def scorePawnChain(motifs: List[Motif], side: Color): Option[PlanMatch] =
     val chainMotifs = motifs.collect { case m: PawnChain => m }
     if (chainMotifs.nonEmpty)
       val evidence = chainMotifs.map(m => EvidenceAtom(m, 0.4, "Pawn chain structure"))
@@ -958,7 +951,6 @@ object PlanMatcher:
 
   private def scoreMinorPieceManeuver(
       motifs: List[Motif],
-      ctx: IntegratedContext,
       side: Color
   ): Option[PlanMatch] =
     val maneuverMotifs = motifs.collect { case m: Centralization => m }

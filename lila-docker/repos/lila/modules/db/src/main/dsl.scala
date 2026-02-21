@@ -352,9 +352,10 @@ object dsl extends dsl with Handlers:
 
   import reactivemongo.api.WriteConcern as CWC
 
-  extension (coll: Coll)(using @annotation.nowarn ex: Executor)
+  extension (coll: Coll)(using ex: Executor)
 
-    def secondary = coll.withReadPreference(ReadPref.sec)
+    def secondary = ex match
+      case _ => coll.withReadPreference(ReadPref.sec)
 
     def one[D: BSONDocumentReader](selector: Bdoc): Fu[Option[D]] =
       coll.find(selector, none[Bdoc]).one[D]

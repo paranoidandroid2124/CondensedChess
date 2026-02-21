@@ -1976,7 +1976,6 @@ object NarrativeLexicon {
           "In a congested engine ranking, this remains a top competitive choice.",
           "The evaluation is narrow, leaving this as a highly competitive route."
         )))
-      case _ => None
 
   def getAnnotationDifficultyHint(bead: Int, diff: String, moveHint: String, phase: String): Option[String] =
     val p = phase.trim.toLowerCase

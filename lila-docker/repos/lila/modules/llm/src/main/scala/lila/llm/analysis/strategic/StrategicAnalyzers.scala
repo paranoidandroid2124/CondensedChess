@@ -292,7 +292,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
      // Logic: Find couples implies looking for (File, File+1).
      val couples = pawns.filter { p =>
        val f = p.file.value
-       val neighbors = List(f-1, f+1)
+       
        // Has NO support from file-2 or file+2 (Concept of "Hanging Couple" implies isolation)
        // This is complex. We'll simplify: Hanging = Semi-Open adjacent files + No Support.
        // Actually simpler: "Hanging Pawns" usually refers to c+d pawns typically isolated from b and e.
@@ -306,7 +306,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
        // Hanging couple member: Has exactly one neighbor pawn (left or right), and THAT neighbor has no other neighbor.
        // e.g. p at D. Neighbor at C. D has no E. C has no B. -> C+D hanging.
        
-       val _isolatedFromSide = if (hasLeft) !right.exists(pawnsByFile.contains) else !left.exists(pawnsByFile.contains)
        val isCouple = hasLeft ^ hasRight // XOR: Only one neighbor.
        
        if (isCouple) {
@@ -548,8 +547,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     // Heuristic: We have fewer pawns (but > 0), they have majority, and we have open lines.
     // Carlson Structure / Carlsbad often has White minority attack on Q-side (2 vs 3).
     if (ourQueenside > 0 && ourQueenside < theirQueenside && theirQueenside >= 2) {
-      // Check if we are advancing or have semi-open files
-      val semiOpen = ourQueenside < 4 // implied by having fewer pawns than files?
+
       // Simple heuristic: 2 vs 3 or 1 vs 2 on queenside is a classic minority attack setup
       features += PositionalTag.MinorityAttack(color, "queenside")
     }
@@ -678,9 +676,6 @@ class PracticalityScorerImpl extends PracticalityScorer {
 
     var practicalScoreTerm = engineScore.toDouble + mobilityScore + forgivenessPenalty + badBishopPenalty + myWeaknessPenalty
 
-    // P1 FIX: Higher noise floor for "Under Pressure" in early opening
-    val pressureThreshold = if (isOpening) -150.0 else -50.0
-    val advantageThreshold = if (isOpening) 150.0 else 50.0
 
     endgame.foreach { eg =>
       if (eg.hasOpposition && engineScore.abs < 50) {

@@ -264,12 +264,15 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
         hl(
           'button.button.button-thin.bottom-item.bottom-action.text',
           {
+            attrs: {
+              title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
+            },
             hook: bind('click', () => {
               ctrl.actionMenu(false);
               void ctrl.narrative?.openAndFetch();
             }),
           },
-          [icon(licon.Book as any), ' Analyze Full Game'],
+          [icon(licon.Book as any), ' Deep Analyze Full Game'],
         ),
         hl(
           'div.bottom-item.bottom-error',

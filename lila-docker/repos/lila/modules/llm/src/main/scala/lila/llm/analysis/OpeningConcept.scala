@@ -35,7 +35,7 @@ object OpeningGoals:
       case Some(s) => !s.toLowerCase.contains("exposed")
       case None => true
 
-  private def checkCp(ctx: NarrativeContext, color: Color, threshold: Int = -60): Boolean =
+  private def checkCp(ctx: NarrativeContext, color: Color, threshold: Int): Boolean =
     val whiteScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
     val sideScore = if (color == Color.White) whiteScore else -whiteScore
     sideScore >= threshold

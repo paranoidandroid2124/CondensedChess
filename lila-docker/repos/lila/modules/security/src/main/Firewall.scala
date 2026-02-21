@@ -3,15 +3,14 @@ package lila.security
 import play.api.mvc.RequestHeader
 import lila.core.net.IpAddress
 import lila.db.dsl.{ *, given }
-import lila.core.lilaism.Core.{ *, given }
-import scalalib.future.extensions.*
+import lila.core.lilaism.Core.*
 import lila.common.{ so => _, nowInstant => _, * }
-import java.time.Instant
 import scala.concurrent.duration.*
+import scala.annotation.unused
 
 final class Firewall(
     coll: Coll,
-    config: SecurityConfig,
+    @unused config: SecurityConfig,
     scheduler: Scheduler
 )(using Executor):
 

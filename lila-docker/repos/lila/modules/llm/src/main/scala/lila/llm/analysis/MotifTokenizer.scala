@@ -51,13 +51,13 @@ object MotifTokenizer:
     val nextPos = mv.after
 
     List.concat(
-      detectPawnMotifs(mv, pos, color, san, plyIndex),
-      detectPieceMotifs(mv, pos, color, san, plyIndex),
-      detectKingMotifs(mv, pos, color, san, plyIndex),
+      detectPawnMotifs(mv, color, san, plyIndex),
+      detectPieceMotifs(mv, color, san, plyIndex),
+      detectKingMotifs(mv, color, san, plyIndex),
       detectTacticalMotifs(mv, pos, nextPos, color, san, plyIndex)
     )
 
-  private def detectPawnMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectPawnMotifs(mv: Move, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != Pawn then Nil
     else
       var motifs = List.empty[Motif]
@@ -98,7 +98,7 @@ object MotifTokenizer:
 
       motifs
 
-  private def detectPieceMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectPieceMotifs(mv: Move, color: Color, san: String, plyIndex: Int): List[Motif] =
     var motifs = List.empty[Motif]
     val role = mv.piece.role
 
@@ -151,7 +151,7 @@ object MotifTokenizer:
 
     motifs
 
-  private def detectKingMotifs(mv: Move, pos: Position, color: Color, san: String, plyIndex: Int): List[Motif] =
+  private def detectKingMotifs(mv: Move, color: Color, san: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != King then Nil
     else
       var motifs = List.empty[Motif]
@@ -198,26 +198,25 @@ object MotifTokenizer:
       motifs = motifs :+ Fork(mv.piece.role, forkTargetsList, mv.dest, Nil, color, plyIndex, Some(san))
     }
     if (nextPos.check.yes) {
-      detectDoubleCheck(mv, pos, nextPos, color, san, plyIndex).foreach { dc =>
+      detectDoubleCheck(mv, nextPos, color, san, plyIndex).foreach { dc =>
         motifs = motifs :+ dc
       }
     }
-    detectBackRankMate(mv, pos, nextPos, color, san, plyIndex).foreach { brm =>
+    detectBackRankMate(mv, nextPos, color, san, plyIndex).foreach { brm =>
       motifs = motifs :+ brm
     }
-    detectTrappedPiece(mv, nextPos, color, san, plyIndex).foreach { tp =>
+    detectTrappedPiece(nextPos, color, san, plyIndex).foreach { tp =>
       motifs = motifs :+ tp
     }
     motifs
 
   private def determineCheckType(mv: Move, pos: Position, nextPos: Position): CheckType =
-    val isDouble = detectDoubleCheck(mv, pos, nextPos, pos.color, "", 0).isDefined
+    val isDouble = detectDoubleCheck(mv, nextPos, pos.color, "", 0).isDefined
     if (isDouble) CheckType.Double
     else CheckType.Normal
 
   private def detectDoubleCheck(
       mv: Move, 
-      pos: Position, 
       nextPos: Position,
       color: Color,
       san: String,
@@ -237,7 +236,6 @@ object MotifTokenizer:
 
   private def detectBackRankMate(
       mv: Move, 
-      pos: Position, 
       nextPos: Position, 
       color: Color, 
       san: String, 
@@ -260,7 +258,7 @@ object MotifTokenizer:
     else if (val2 == val1) CaptureType.Exchange
     else CaptureType.Normal
 
-  private def detectTrappedPiece(mv: Move, nextPos: Position, color: Color, san: String, plyIndex: Int): Option[Motif] =
+  private def detectTrappedPiece(nextPos: Position, color: Color, san: String, plyIndex: Int): Option[Motif] =
     val oppColor = !color
     nextPos.board.pieceMap.find { case (sq, piece) =>
       piece.color == oppColor && piece.role != King && piece.role != Pawn && isTrapped(sq, piece.role, oppColor, nextPos)
@@ -329,7 +327,7 @@ object MotifTokenizer:
       pawns.foreach { pawnSq =>
         if (isIsolated(pawnSq, pawnsByFile)) motifs = motifs :+ IsolatedPawn(pawnSq.file, pawnSq.rank.value + 1, color, plyIndex)
         if (isPassed(pawnSq, color, oppPawnsByFile)) motifs = motifs :+ PassedPawn(pawnSq.file, pawnSq.rank.value + 1, color, isProtectedPawn(pawnSq, color, board), plyIndex)
-        if (isBackward(pawnSq, color, pawnsByFile, oppPawnsByFile)) motifs = motifs :+ BackwardPawn(pawnSq.file, pawnSq.rank.value + 1, color, plyIndex)
+        if (isBackward(pawnSq, color, pawnsByFile)) motifs = motifs :+ BackwardPawn(pawnSq.file, pawnSq.rank.value + 1, color, plyIndex)
       }
     }
     motifs
@@ -361,8 +359,7 @@ object MotifTokenizer:
   private def isBackward(
       pawnSq: Square, 
       color: Color, 
-      pawnsByFile: Map[_root_.chess.File, List[Square]], 
-      oppPawnsByFile: Map[_root_.chess.File, List[Square]]
+      pawnsByFile: Map[_root_.chess.File, List[Square]]
   ): Boolean =
     val rank = pawnSq.rank.value
     val fileValue = pawnSq.file.value

@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.strategic.*
+import chess.Color
 
 /**
  * Counterfactual Analyzer
@@ -18,7 +19,8 @@ object CounterfactualAnalyzer:
       userMove: String,
       bestMove: String,
       userLine: lila.llm.model.strategic.VariationLine,
-      bestLine: lila.llm.model.strategic.VariationLine
+      bestLine: lila.llm.model.strategic.VariationLine,
+      playerColor: Color
   ): CounterfactualMatch =
     val cpLoss = bestLine.effectiveScore - userLine.effectiveScore
     val userMotifs = MoveAnalyzer.tokenizePv(fen, userLine.moves)
@@ -28,6 +30,10 @@ object CounterfactualAnalyzer:
       userMotifs.exists(um => um.getClass == bm.getClass)
     )
 
+    val causality = ThreatExtractor.extractCounterfactualCausality(
+      fen, playerColor, userLine, bestLine
+    )
+
     CounterfactualMatch(
       userMove = userMove,
       bestMove = bestMove,
@@ -35,11 +41,12 @@ object CounterfactualAnalyzer:
       missedMotifs = missedMotifs,
       userMoveMotifs = userMotifs,
       severity = Thresholds.classifySeverity(cpLoss),
-      userLine = userLine
+      userLine = userLine,
+      causalThreat = causality
     )
 
   /**
-   * FIX 2: Counterfactual with pre-normalized cpLoss (handles mate scores properly)
+   * Counterfactual with pre-normalized cpLoss (handles mate scores properly)
    */
   def createMatchNormalized(
       fen: String,
@@ -47,7 +54,8 @@ object CounterfactualAnalyzer:
       bestMove: String,
       userLine: lila.llm.model.strategic.VariationLine,
       bestLine: lila.llm.model.strategic.VariationLine,
-      cpLoss: Int
+      cpLoss: Int,
+      playerColor: Color
   ): CounterfactualMatch =
     val userMotifs = MoveAnalyzer.tokenizePv(fen, userLine.moves)
     val bestMotifs = MoveAnalyzer.tokenizePv(fen, bestLine.moves)
@@ -56,6 +64,10 @@ object CounterfactualAnalyzer:
       userMotifs.exists(um => um.getClass == bm.getClass)
     )
 
+    val causality = ThreatExtractor.extractCounterfactualCausality(
+      fen, playerColor, userLine, bestLine
+    )
+
     CounterfactualMatch(
       userMove = userMove,
       bestMove = bestMove,
@@ -63,5 +75,6 @@ object CounterfactualAnalyzer:
       missedMotifs = missedMotifs,
       userMoveMotifs = userMotifs,
       severity = Thresholds.classifySeverity(cpLoss),
-      userLine = userLine
+      userLine = userLine,
+      causalThreat = causality
     )

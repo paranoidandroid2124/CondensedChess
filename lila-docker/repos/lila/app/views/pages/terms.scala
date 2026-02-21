@@ -1,10 +1,11 @@
 package views.pages
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object terms:
-  def apply()(using ctx: Context): Page =
+  def apply()(using @unused ctx: Context): Page =
     Page("Terms of Service - Chesstory")
       .css("legal")
       .wrap: _ =>

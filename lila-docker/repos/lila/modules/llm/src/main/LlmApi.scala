@@ -34,13 +34,11 @@ final class LlmApi(
       fen: String,
       lastMove: Option[String],
       eval: Option[EvalData],
-      opening: Option[String],
-      phase: String,
       ply: Int
   ): Future[Option[CommentResponse]] = Future {
     val _ = ply
     val pv = eval.flatMap(_.pv).getOrElse(Nil)
-    CommentaryEngine.assess(fen, pv, opening, Some(phase)).map { assessment =>
+    CommentaryEngine.assess(fen, pv).map { assessment =>
       val bead = Math.abs(fen.hashCode)
       val intro = NarrativeLexicon.intro(bead, assessment.nature.natureType.toString, assessment.nature.tension, Style.Book)
 
@@ -146,7 +144,8 @@ final class LlmApi(
           opening = opening,
           phase = Some(phase),
           ply = effectivePly,
-          prevMove = lastMove
+          prevMove = lastMove,
+          probeResults = probeResults.getOrElse(Nil)
         )
 
         dataOpt match

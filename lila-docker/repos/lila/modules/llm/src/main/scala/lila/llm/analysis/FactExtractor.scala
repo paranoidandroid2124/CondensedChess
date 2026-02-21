@@ -28,11 +28,10 @@ object FactExtractor {
    * Extracts static positional facts (Hanging pieces, Weak squares) from a board state.
    */
   def extractStaticFacts(board: Board, color: Color): List[Fact] = {
-    val myPieces = board.byColor(color)
-    val oppPieces = board.byColor(!color)
+    val ourPieces = board.byColor(color)
     val scope = FactScope.Now
 
-    val hanging = myPieces.squares.flatMap { sq =>
+    val hanging = ourPieces.squares.flatMap { sq =>
       val role = board.roleAt(sq).getOrElse(chess.Pawn)
       if (role == chess.King) None // King is never "hanging", it's in check or mate
       else {
@@ -48,7 +47,7 @@ object FactExtractor {
       }
     }
 
-    val loose = myPieces.squares.flatMap { sq =>
+    val loose = ourPieces.squares.flatMap { sq =>
       val role = board.roleAt(sq).getOrElse(chess.Pawn)
       val attackers = board.attackers(sq, !color).squares
       val defenders = board.attackers(sq, color).squares
@@ -175,7 +174,7 @@ object FactExtractor {
         board.kingPosOf(m.color).map(k => Fact.StalemateThreat(k, scope))
       */
 
-      case m: Motif.DoubleCheck =>
+      case _: Motif.DoubleCheck =>
         // Need to find the checking squares - in Motif it's just a category
         // But we can approximate or leave as TargetPiece for now if data is missing
         Some(Fact.DoubleCheck(Nil, scope))

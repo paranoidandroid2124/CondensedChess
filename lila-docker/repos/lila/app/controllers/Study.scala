@@ -360,33 +360,40 @@ final class Study(
           badJsonFormError(err)
         ),
       data =>
-        env.study.api.importGame(lila.study.StudyMaker.ImportGame(data), me, true).flatMap { 
-          case Some(sc) =>
+        data.gameId match
+          case Some(_) =>
             negotiate(
-              Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)),
-              JsonOk(
-                Json.obj(
-                  "id" -> sc.study.id.value,
-                  "chapterId" -> sc.chapter.id.value,
-                  "name" -> sc.study.name.value,
-                  "chapterName" -> sc.chapter.name.value,
-                  "canWrite" -> true,
-                  "chapters" -> Json.arr(
+              Redirect(routes.User.show(me.username)).flashing("error" -> "Game import is disabled in this deployment."),
+              BadRequest(jsonError("game import disabled"))
+            )
+          case None =>
+            env.study.api.importGame(lila.study.StudyMaker.ImportGame(data), me, true).flatMap {
+              case Some(sc) =>
+                negotiate(
+                  Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)),
+                  JsonOk(
                     Json.obj(
-                      "id" -> sc.chapter.id.value,
-                      "name" -> sc.chapter.name.value
+                      "id" -> sc.study.id.value,
+                      "chapterId" -> sc.chapter.id.value,
+                      "name" -> sc.study.name.value,
+                      "chapterName" -> sc.chapter.name.value,
+                      "canWrite" -> true,
+                      "chapters" -> Json.arr(
+                        Json.obj(
+                          "id" -> sc.chapter.id.value,
+                          "name" -> sc.chapter.name.value
+                        )
+                      ),
+                      "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url
                     )
-                  ),
-                  "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url
+                  )
                 )
-              )
-            )
-          case _ =>
-            negotiate(
-              Redirect(routes.User.show(me.username)),
-              BadRequest(jsonError("Study creation failed"))
-            )
-        }
+              case _ =>
+                negotiate(
+                  Redirect(routes.User.show(me.username)),
+                  BadRequest(jsonError("Study creation failed"))
+                )
+            }
     )
   }
 

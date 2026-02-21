@@ -1,7 +1,8 @@
 package views.llm
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object plan:
 
@@ -9,7 +10,7 @@ object plan:
       me: Option[Me],
       status: lila.llm.CreditApi.CreditStatus,
       checkoutEnabled: Boolean
-  )(using ctx: Context): Page =
+  )(using @unused ctx: Context): Page =
     Page("Analyst Pro — Plans & Credits")
       .css("llm.plan")
       .wrap: _ =>

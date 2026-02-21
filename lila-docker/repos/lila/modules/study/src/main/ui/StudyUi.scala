@@ -25,7 +25,6 @@ final class StudyUi(helpers: Helpers):
   )(using Context) =
     div(cls := "study-create")(
       postForm(action := routes.Study.create)(
-        input(tpe := "hidden", name := "gameId", value := data.gameId),
         input(tpe := "hidden", name := "orientation", value := data.orientation.map(_.key)),
         input(tpe := "hidden", name := "fen", value := data.fen.map(_.value)),
         input(tpe := "hidden", name := "pgn", value := data.pgnStr),
@@ -51,4 +50,3 @@ final class StudyUi(helpers: Helpers):
         )
       )
     )
-

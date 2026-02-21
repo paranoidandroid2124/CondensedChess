@@ -2,26 +2,22 @@ package lila.security
 
 import play.api.data.*
 import play.api.data.Forms.*
-import scala.concurrent.duration.*
-import play.api.data.validation.Constraints
 import play.api.mvc.RequestHeader
+import scala.annotation.unused
 
-import lila.common.Form.*
 import lila.common.LameName
+import lila.common.Form.into
 import lila.core.security.ClearPassword
-import lila.core.user.{ TotpSecret, TotpToken }
 import lila.core.email.EmailAddress
 import lila.core.userId.UserName
-import lila.core.lilaism.Core.{ *, given }
-import scalalib.future.extensions.*
 import lila.common.{ so => _, Form => _, * }
 import lila.pref.Pref
 
 final class SecurityForm(
     userRepo: lila.user.UserRepo,
-    authenticator: Authenticator,
+    @unused authenticator: Authenticator,
     lameNameCheck: LameNameCheck
-)(using ec: Executor, mode: play.api.Mode):
+)(using @unused ec: Executor, @unused mode: play.api.Mode):
   
   def prefOf(pref: Pref) = Form:
     mapping(
@@ -60,7 +56,11 @@ final class SecurityForm(
 
   object signup extends lila.core.security.SignupForm:
     
-    val emailField: Mapping[EmailAddress] = ignored(EmailAddress("ignored@example.com"))
+    val emailField: Mapping[EmailAddress] =
+      nonEmptyText(maxLength = EmailAddress.maxLength)
+        .transform(_.trim, identity)
+        .verifying("invalidEmail", EmailAddress.isValid)
+        .transform[EmailAddress](EmailAddress.apply, _.value)
 
     val username: Mapping[UserName] = lila.common.Form
       .cleanNonEmptyText(minLength = 2, maxLength = 20)
@@ -71,15 +71,18 @@ final class SecurityForm(
         u => u.id.noGhost && !userRepo.exists(u.id).await(3.seconds, "signupUsername")
       )
 
-    def website(using RequestHeader) = Form:
+    def website(using @unused req: RequestHeader) = Form:
       mapping(
+        "email" -> emailField,
         "username" -> username,
         "password" -> newPasswordField,
+        "h-captcha-response" -> optional(nonEmptyText),
         "fp" -> optional(nonEmptyText)
       )(SignupData.apply)(_ => None)
 
     val mobile = Form:
       mapping(
+        "email" -> emailField,
         "username" -> username,
         "password" -> newPasswordField
       )(MobileSignupData.apply)(_ => None)
@@ -87,19 +90,27 @@ final class SecurityForm(
 object SecurityForm:
 
   trait AnySignupData:
+    def email: EmailAddress
     def username: UserName
     def fp: Option[String]
 
   case class SignupData(
+      email: EmailAddress,
       username: UserName,
       password: String,
+      hCaptchaResponse: Option[String],
       fp: Option[String]
   ) extends AnySignupData:
+    def normalizedEmail = EmailAddress(email.normalize.value)
+    def captchaResponse = hCaptchaResponse.map(_.trim).filter(_.nonEmpty)
     def fingerPrint = FingerPrint.from(fp.filter(_.nonEmpty))
     def clearPassword = ClearPassword(password)
 
   case class MobileSignupData(
+      email: EmailAddress,
       username: UserName,
       password: String
   ) extends AnySignupData:
+    def normalizedEmail = EmailAddress(email.normalize.value)
     def fp = Option.empty
+    def clearPassword = ClearPassword(password)

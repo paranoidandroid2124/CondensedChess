@@ -54,16 +54,17 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
             }, hl('span', { attrs: { ...dataIcon(licon.X) } }))
         ]),
         hl('div.narrative-content', [
-            ctrl.loading() ? hl('div.loader', 'Consulting the Oracle...') :
+            ctrl.loading() ? hl('div.loader', ctrl.loadingDetail() || 'Deep full analysis in progress...') :
                 ctrl.error() ? hl('div.error', [
                     hl('div', ctrl.error()),
                     ctrl.needsLogin() ? hl('a.button', { attrs: { href: ctrl.loginHref() } }, 'Sign in') : null
                 ]) : ctrl.data() ? narrativeDocView(ctrl, ctrl.data()!) : hl('div.narrative-empty', 'No narrative generated yet.'),
         ]),
         !ctrl.loading() && !ctrl.data() && hl('div.actions', [
+            hl('div.narrative-disclosure', 'Full Analysis runs a deeper on-device WASM scan and may take longer on large PGNs.'),
             hl('button.button.action', {
                 hook: bind('click', ctrl.fetchNarrative, ctrl.root.redraw)
-            }, 'Generate Commentary')
+            }, 'Run Deep Full Analysis')
         ])
     ]);
 }

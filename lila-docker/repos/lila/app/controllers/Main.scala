@@ -1,7 +1,7 @@
 package controllers
 import play.api.mvc.*
 
-import lila.app.{ *, given }
+import lila.app.*
 import lila.web.{ StaticContent, WebForms }
 
 /* Chesstory: Analysis-only main controller
@@ -38,7 +38,7 @@ final class Main(
     fuccess(NotFound(msg.getOrElse("Not Found")))
 
   // Captcha removed - not used in Chesstory
-  def captchaCheck(id: GameId) = Anon:
+  def captchaCheck(@scala.annotation.unused id: GameId) = Anon:
     Ok(1) // Always valid (captcha disabled)
 
   def webmasters = Open:
@@ -73,4 +73,4 @@ final class Main(
     else NotFound("Invalid prometheus key")
 
 
-  def devAsset(@annotation.nowarn v: String, path: String, file: String) = assetsC.at(path, file)
+  def devAsset(@scala.annotation.unused v: String, path: String, file: String) = assetsC.at(path, file)

@@ -1,14 +1,12 @@
 package lila.security
 
-import com.roundeights.hasher.Implicits.*
-
 import lila.core.email.NormalizedEmailAddress
 import lila.core.security.{ ClearPassword, HashedPassword }
 import lila.db.dsl.{ *, given }
-import lila.core.lilaism.Core.{ *, given }
+import lila.core.lilaism.Core.*
 import lila.user.{ AuthData, BSONFields as F, UserRepo }
 import lila.user.AuthData.given
-import lila.user.BSONHandlers.{ *, given }
+import lila.user.BSONHandlers.given
 import lila.core.user.*
 import lila.core.userId.UserId
 

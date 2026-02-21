@@ -3,13 +3,14 @@ package lila.security
 
 import lila.core.userId.UserId
 import lila.core.security.ClearPassword
-import lila.core.lilaism.Core.{ *, given }
+import lila.core.lilaism.Core.*
 import scalalib.future.extensions.*
+import scala.annotation.unused
 
 final class Cli(
     authenticator: Authenticator,
     firewall: Firewall
-)(using Executor):
+)(using @unused executor: Executor):
 
   lila.common.Cli.handle:
     case "password" :: id :: password :: Nil =>

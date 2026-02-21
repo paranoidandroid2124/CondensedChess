@@ -26,15 +26,21 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
     coll.exists($doc("_id" -> id, BSONFields.enabled -> true))
 
   def userIdsWithRoles(roles: List[RoleDbKey]): Fu[Set[UserId]] =
-    coll.distinctEasy[UserId, List]("_id", $doc(BSONFields.roles $in roles)).map(_.toSet)
+    coll.distinctEasy[UserId, List]("_id", $doc(BSONFields.roles.$in(roles))).map(_.toSet)
 
   def filterExists(ids: Set[UserId]): Fu[Set[UserId]] =
-    coll.distinctEasy[UserId, List]("_id", $doc("_id" $in ids)).map(_.toSet)
+    coll.distinctEasy[UserId, List]("_id", $doc("_id".$in(ids))).map(_.toSet)
 
   def exists(id: UserId): Fu[Boolean] = coll.exists($id(id))
 
   def disable(id: UserId): Funit =
     coll.update.one($id(id), $set(BSONFields.enabled -> false)).void
+  
+  def enable(id: UserId): Funit =
+    coll.update.one($id(id), $set(BSONFields.enabled -> true)).void
+
+  def updateEmail(id: UserId, email: EmailAddress): Funit =
+    coll.update.one($id(id), $set(BSONFields.email -> EmailAddress(email.normalize.value))).void
 
   def delete(id: UserId): Funit =
     coll.delete.one($id(id)).void
@@ -44,7 +50,7 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
 
   def autocomplete(term: String): Fu[List[String]] =
     coll
-      .find($doc(BSONFields.username $regex s"^$term"), $doc(BSONFields.username -> true).some)
+      .find($doc(BSONFields.username.$regex(s"^$term")), $doc(BSONFields.username -> true).some)
       .cursor[BSONDocument]()
       .collect[List](10, reactivemongo.api.Cursor.FailOnError[List[BSONDocument]]())
       .map(_.flatMap(_.getAsOpt[String](BSONFields.username)))
@@ -95,4 +101,3 @@ final class UserRepo(val coll: Coll)(using ec: Executor) extends lila.core.user.
 
   private def isDuplicateKey(e: Throwable): Boolean =
     Option(e.getMessage).exists(_.contains("E11000"))
-

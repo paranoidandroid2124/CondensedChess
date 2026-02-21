@@ -29,7 +29,7 @@ case class PlanStateTracker(
       case (_, Some(current)) =>
         // New plan started
         Some(PlanContinuity(current, 1, ply))
-      case (Some(prev), None) =>
+      case (Some(_), None) =>
         // Plan interrupted or finished, but we might want a decay counter instead of instant wipe
         None
       case (None, None) =>

@@ -1,10 +1,8 @@
 package lila.user
 
-import lila.core.user.{ Me, User, RoleDbKey }
+import lila.core.user.User
 import lila.core.userId.*
 import lila.core.email.EmailAddress
-import lila.db.dsl.{ *, given }
-import reactivemongo.api.bson.*
 
 final class UserApi(userRepo: UserRepo)(using
     ec: Executor
@@ -15,15 +13,17 @@ final class UserApi(userRepo: UserRepo)(using
     byIds,
     me,
     isEnabled,
+    enable,
     disable,
     delete,
     updateUsername,
+    updateEmail,
     userIdsWithRoles,
     filterExists
   }
 
   def email(id: UserId): Fu[Option[EmailAddress]] =
-    fuccess(None) // Email lookup disabled for Analysis Only
+    userRepo.byId(id).map(_.flatMap(_.email))
 
   def accountAge(id: UserId): Fu[scalalib.model.Days] =
     userRepo.byId(id).map:

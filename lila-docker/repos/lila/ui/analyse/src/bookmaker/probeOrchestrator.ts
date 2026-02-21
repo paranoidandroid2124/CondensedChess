@@ -41,7 +41,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
   const stop = () => {
     try {
       probeEngine?.stop();
-    } catch {}
+    } catch { }
   };
 
   const workPlyAfterMove = (fen: string): number => (fen.includes(' w ') ? 1 : 0);
@@ -73,7 +73,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
         clearTimeout(timer);
         try {
           engine.stop();
-        } catch {}
+        } catch { }
         resolve(best);
       };
       const timer = setTimeout(finish, timeoutMs);
@@ -176,8 +176,13 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
 
     const maxProbeMoves = maxEffort ? 16 : highEffort ? 10 : 6;
     const totalBudgetMs = maxEffort ? 35000 : highEffort ? 20000 : 8000;
-    const flattened = probeRequests
-      .flatMap(pr => (Array.isArray(pr.moves) ? pr.moves.map(move => ({ pr, move })) : []))
+    const flattened: { pr: ProbeRequest; move?: string }[] = probeRequests
+      .flatMap(pr => {
+        if (Array.isArray(pr.moves) && pr.moves.length > 0) {
+          return pr.moves.map(move => ({ pr, move: move as string | undefined }));
+        }
+        return [{ pr, move: undefined as string | undefined }];
+      })
       .slice(0, maxProbeMoves);
 
     if (!flattened.length) return [];
@@ -190,19 +195,22 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
 
     for (const { pr, move } of flattened) {
       if (!isSessionActive(session)) break;
-      if (!move) continue;
 
       const baseCp = typeof pr.baselineEvalCp === 'number' ? pr.baselineEvalCp : baselineEvalCp;
       const depth = typeof pr.depth === 'number' && pr.depth > 0 ? pr.depth : 20;
       const multiPv = typeof pr.multiPv === 'number' && pr.multiPv > 0 ? pr.multiPv : 2;
-      const ev = await runProbeEval(pr.fen, move, depth, perMoveBudget, multiPv, session);
+
+      const ev = move
+        ? await runProbeEval(pr.fen, move, depth, perMoveBudget, multiPv, session)
+        : await runPositionEval(pr.fen, depth, perMoveBudget, multiPv, session);
+
       if (!ev || !isSessionActive(session)) continue;
 
       const replyPvs = Array.isArray(ev.pvs)
         ? ev.pvs
-            .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
-            .slice(0, Math.max(1, Math.min(4, multiPv)))
-            .map((pv: any) => pv.moves.slice(0, 12))
+          .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
+          .slice(0, Math.max(1, Math.min(4, multiPv)))
+          .map((pv: any) => pv.moves.slice(0, 12))
         : [];
       const evalCp = typeof ev.cp === 'number' ? ev.cp : 0;
 

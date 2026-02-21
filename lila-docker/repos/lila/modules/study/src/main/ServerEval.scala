@@ -51,7 +51,6 @@ object ServerEval:
   final class Merger(
       sequencer: StudySequencer,
       chapterRepo: ChapterRepo,
-      divider: lila.core.game.Divider,
       @unused analysisJson: lila.tree.AnalysisJson
   )(using Executor):
 
@@ -163,12 +162,4 @@ object ServerEval:
           logger.info(s"Analysis progress: study=$studyId chapter=$chapterId complete=$complete")
           funit
 
-    def divisionOf(chapter: Chapter) =
-      divider(
-        id = chapter.id.into(GameId),
-        sans = chapter.root.mainline.map(_.move.san).toVector,
-        variant = chapter.setup.variant,
-        initialFen = chapter.root.fen.some
-      )
-
-  case class Progress(chapterId: StudyChapterId, tree: Root, analysis: JsObject, division: chess.Division)
+  case class Progress(chapterId: StudyChapterId, tree: Root, analysis: JsObject)

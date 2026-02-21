@@ -18,7 +18,8 @@ object AuthorEvidenceBuilder:
     authorQuestions: List[AuthorQuestion],
     probeResults: List[ProbeResult]
   ): List[QuestionEvidence] =
-    val playedUci = playedMove.getOrElse(return Nil)
+    if playedMove.isEmpty then return Nil
+    val playedUci = playedMove.get
     if (probeResults.isEmpty) return Nil
 
     val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
@@ -42,52 +43,54 @@ object AuthorEvidenceBuilder:
         grouped.toList.flatMap { case (purpose, prs) =>
           purpose match
             case "free_tempo_branches" =>
-              val lp = q.latentPlan.getOrElse(return Nil)
-              val cfg = lp.evidencePolicy.freeTempoVerify.getOrElse(FreeTempoVerify())
+              q.latentPlan.toList.flatMap { lp =>
+                val cfg = lp.evidencePolicy.freeTempoVerify.getOrElse(FreeTempoVerify())
 
-              def seedAppears(theirUci: String, pv: List[String]): Boolean =
-                if (pv.isEmpty) return false
-                val afterTheirFen = NarrativeUtils.uciListToFen(afterFen, List(theirUci))
-                val within = Math.max(1, cfg.seedMustAppearWithinPlies)
-                pv.take(within).exists { u =>
-                  lp.candidateMoves.exists(p => MovePredicates.matchesMovePattern(afterTheirFen, u, p))
-                }
+                def seedAppears(theirUci: String, pv: List[String]): Boolean =
+                  if (pv.isEmpty) false
+                  else
+                    val afterTheirFen = NarrativeUtils.uciListToFen(afterFen, List(theirUci))
+                    val within = Math.max(1, cfg.seedMustAppearWithinPlies)
+                    pv.take(within).exists { u =>
+                      lp.candidateMoves.exists(p => MovePredicates.matchesMovePattern(afterTheirFen, u, p))
+                    }
 
-              val branches =
-                prs
-                  .flatMap(pr => pr.probedMove.map(m => m -> pr))
-                  .distinctBy(_._1)
-                  .flatMap { (theirUci, pr) =>
-                    val pvTail = pr.bestReplyPv.take(10)
-                    if (pvTail.isEmpty) None
-                    else if (!seedAppears(theirUci, pvTail)) None
-                    else
-                      val lineUcis = theirUci :: pvTail.take(8)
-                      val sans = NarrativeUtils.uciListToSan(afterFen, lineUcis)
-                      val ok = sans.size == lineUcis.size
-                      if (!ok) None
+                val branches =
+                  prs
+                    .flatMap(pr => pr.probedMove.map(m => m -> pr))
+                    .distinctBy(_._1)
+                    .flatMap { (theirUci, pr) =>
+                      val pvTail = pr.bestReplyPv.take(10)
+                      if (pvTail.isEmpty) None
+                      else if (!seedAppears(theirUci, pvTail)) None
                       else
-                        val safeSans = dropUnsafeEndingCaptures(sans)
-                        if (safeSans.isEmpty) None
+                        val lineUcis = theirUci :: pvTail.take(8)
+                        val sans = NarrativeUtils.uciListToSan(afterFen, lineUcis)
+                        val ok = sans.size == lineUcis.size
+                        if (!ok) None
                         else
-                          val line = NarrativeUtils.formatSanWithMoveNumbers(ply + 1, safeSans)
-                          val key = s"...${NarrativeUtils.uciToSanOrFormat(afterFen, theirUci)}"
-                          Some(
-                            EvidenceBranch(
-                              keyMove = key,
-                              line = line,
-                              evalCp = Some(pr.evalCp),
-                              mate = pr.mate,
-                              depth = pr.depth,
-                              sourceId = Some(pr.id)
+                          val safeSans = dropUnsafeEndingCaptures(sans)
+                          if (safeSans.isEmpty) None
+                          else
+                            val line = NarrativeUtils.formatSanWithMoveNumbers(ply + 1, safeSans)
+                            val key = s"...${NarrativeUtils.uciToSanOrFormat(afterFen, theirUci)}"
+                            Some(
+                              EvidenceBranch(
+                                keyMove = key,
+                                line = line,
+                                evalCp = Some(pr.evalCp),
+                                mate = pr.mate,
+                                depth = pr.depth,
+                                sourceId = Some(pr.id)
+                              )
                             )
-                          )
-                  }
-                  .take(cfg.maxBranches)
+                    }
+                    .take(cfg.maxBranches)
 
-              Option.when(branches.size >= cfg.minBranches)(
-                QuestionEvidence(questionId = q.id, purpose = purpose, branches = branches)
-              )
+                Option.when(branches.size >= cfg.minBranches)(
+                  QuestionEvidence(questionId = q.id, purpose = purpose, branches = branches)
+                )
+              }
 
             case "latent_plan_immediate" =>
               val branches =

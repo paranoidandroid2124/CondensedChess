@@ -173,7 +173,7 @@ object PositionAnalyzer:
         materialPhase = computeMaterialPhase(board),
         lineControl = computeLineControl(board),
         imbalance = computeImbalance(board),
-        centralSpace = computeCentralSpace(board, position),
+        centralSpace = computeCentralSpace(board),
         nature = nature
       )
     }
@@ -202,8 +202,8 @@ object PositionAnalyzer:
     val bHanging = hangingPawns(Color.Black, bPawns)
 
     // Backward pawns
-    val wBackward = backwardPawns(Color.White, wPawns, bPawns, board)
-    val bBackward = backwardPawns(Color.Black, bPawns, wPawns, board)
+    val wBackward = backwardPawns(Color.White, wPawns, board)
+    val bBackward = backwardPawns(Color.Black, bPawns, board)
 
     // P1: Pawn islands
     val wIslands = pawnIslands(wPawns)
@@ -563,7 +563,7 @@ object PositionAnalyzer:
     )
 
   // Unified central space computation - consolidates pawn structure, tension, and piece control
-  private def computeCentralSpace(board: Board, position: Position): CentralSpaceFeatures =
+  private def computeCentralSpace(board: Board): CentralSpaceFeatures =
     val wPawns = board.pawns & board.white
     val bPawns = board.pawns & board.black
     
@@ -671,7 +671,7 @@ object PositionAnalyzer:
   def connectedPawns(color: Color, pawns: Bitboard): List[Square] =
     pawns.squares.filter { p => (p.pawnAttacks(!color) & pawns).nonEmpty }.toList
 
-  def backwardPawns(color: Color, pawns: Bitboard, oppPawns: Bitboard, board: Board): List[Square] =
+  def backwardPawns(color: Color, pawns: Bitboard, board: Board): List[Square] =
      pawns.squares.filter { pawn =>
        val pawnFile = pawn.file.value
        val pawnRank = pawn.rank.value

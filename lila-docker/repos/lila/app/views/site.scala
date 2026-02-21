@@ -4,7 +4,7 @@ import lila.app.UiEnv.*
 
 object message:
 
-  private def errorPage(code: String, title: String, msg: String, icon: String = "⚠️")(using ctx: Context) =
+  private def errorPage(code: String, title: String, msg: String, icon: String) =
     Page(s"$title - Chesstory")
       .css("error")
       .flag(_.noHeader)
@@ -22,16 +22,16 @@ object message:
           )
         )
 
-  def notFound(msg: Option[String] = None)(using Context) =
+  def notFound(msg: Option[String] = None) =
     errorPage("404", "Page Not Found", msg.getOrElse("The page you're looking for doesn't exist or has been moved."), "🔍")
 
-  def serverError(msg: String)(using Context) =
+  def serverError(msg: String) =
     errorPage("500", "Something went wrong", s"We encountered an internal error. $msg", "⚙️")
 
-  def rateLimited(msg: Option[String] = None)(using Context) =
+  def rateLimited(msg: Option[String] = None) =
     errorPage("429", "Too Many Requests", "You've made too many requests in a short time. " + msg.getOrElse("Please slow down."), "⏳")
 
-  def authFailed(using Context) =
+  def authFailed =
     errorPage("403", "Access Denied", "You don't have permission to access this page.", "🔐")
 
   def temporarilyDisabled = Page("Disabled").wrap(_ =>

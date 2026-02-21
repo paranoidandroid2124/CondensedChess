@@ -29,8 +29,8 @@ class Layer1VerificationTest extends FunSuite {
     val bIso = PositionAnalyzer.isolatedPawns(bPawns)
     val wDbl = PositionAnalyzer.doubledPawns(wPawns)
     val bDbl = PositionAnalyzer.doubledPawns(bPawns)
-    val wBackward = PositionAnalyzer.backwardPawns(Color.White, wPawns, bPawns, board)
-    val bBackward = PositionAnalyzer.backwardPawns(Color.Black, bPawns, wPawns, board)
+    val wBackward = PositionAnalyzer.backwardPawns(Color.White, wPawns, board)
+    val bBackward = PositionAnalyzer.backwardPawns(Color.Black, bPawns, board)
     val wPassed = PositionAnalyzer.passedPawns(Color.White, wPawns, bPawns)
     val bPassed = PositionAnalyzer.passedPawns(Color.Black, bPawns, wPawns)
     

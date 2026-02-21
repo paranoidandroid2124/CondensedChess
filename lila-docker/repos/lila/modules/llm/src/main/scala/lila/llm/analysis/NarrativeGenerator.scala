@@ -133,7 +133,7 @@ object NarrativeGenerator:
     parts += "=== SUMMARY ==="
     // Use the top plan's confidence for the primary plan summary
     val planConfidence = ctx.plans.top5.headOption.map(_.confidence).getOrElse(ConfidenceLevel.Heuristic)
-    val threatConfidence = ctx.threats.toUs.headOption.map(_.confidence).getOrElse(ConfidenceLevel.Heuristic)
+
 
     parts += s"• Primary Plan: ${toneWrap(planConfidence, "plan")}${ctx.summary.primaryPlan}"
     ctx.summary.keyThreat.foreach(t => parts += s"• Key Threat: $t")

@@ -108,11 +108,12 @@ final class CreditApi(coll: Coll)(using Executor):
 
   private def defaultEntry(userId: String): CreditEntry =
     val tier = CreditConfig.DefaultTier
+    logger.info(s"Creating default credit entry for user [$userId] with ${tier.maxCredits} credits.")
     CreditEntry(
       _id = userId,
       credits = tier.maxCredits,
-      maxCredits = tier.maxCredits,
-      tier = tier.key,
+      maxCredits = tier.maxCredits, // Retained as per CreditEntry case class
+      tier = tier.key, // Retained as per CreditEntry case class
       resetAt = nextResetAt,
       totalUsed = 0,
       updatedAt = nowInstant

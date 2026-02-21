@@ -105,7 +105,8 @@ case class CounterfactualMatch(
     missedMotifs: List[lila.llm.model.Motif],
     userMoveMotifs: List[lila.llm.model.Motif],
     severity: String,
-    userLine: lila.llm.model.strategic.VariationLine 
+    userLine: lila.llm.model.strategic.VariationLine,
+    causalThreat: Option[lila.llm.analysis.ThreatExtractor.CausalThreat] = None
 )
 case class MoveIntent(
     immediate: String,           // What the move itself does (e.g., "Development")

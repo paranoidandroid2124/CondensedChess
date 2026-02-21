@@ -42,9 +42,7 @@ object CommentaryEngine:
 
   def assess(
       fen: String,
-      pv: List[String],
-      opening: Option[String] = None,
-      phase: Option[String] = None
+      pv: List[String]
   ): Option[PositionAssessment] =
     _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
       PositionAnalyzer.extractFeatures(fen, 1).map { features =>
@@ -104,7 +102,7 @@ object CommentaryEngine:
           opponentPawnAnalysis = Some(oppPawnAnalysis),
           threatsToUs = Some(ownThreats),
           threatsToThem = Some(oppThreats),
-          openingName = opening,
+          openingName = None,
           isWhiteToMove = lastPos.color == White,
           features = Some(features),
           initialPos = Some(initialPos)
@@ -154,10 +152,9 @@ object CommentaryEngine:
   def assessExtended(
       fen: String,
       pv: List[String],
-      opening: Option[String],
-      phase: Option[String],
       ply: Int,
-      prevMove: Option[String]
+      prevMove: Option[String],
+      probeResults: List[ProbeResult]
   ): Option[ExtendedAnalysisData] = {
       val mainVariation = VariationLine(
         moves = pv,
@@ -170,10 +167,11 @@ object CommentaryEngine:
         fen = fen,
         variations = List(mainVariation),
         playedMove = None,
-        opening = opening,
-        phase = phase,
+        opening = None,
+        phase = None,
         ply = ply,
-        prevMove = prevMove
+        prevMove = prevMove,
+        probeResults = probeResults
       )
   }
 
@@ -183,10 +181,10 @@ object CommentaryEngine:
       playedMove: Option[String] = None,
       opening: Option[String] = None,
       phase: Option[String] = None,
-      ply: Int = 1,
+      ply: Int = 0,
       prevMove: Option[String] = None,
       prevPlanContinuity: Option[PlanContinuity] = None,
-      prevAnalysis: Option[ExtendedAnalysisData] = None
+      probeResults: List[ProbeResult] = Nil
   ): Option[ExtendedAnalysisData] =
     _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
       PositionAnalyzer.extractFeatures(fen, 1).map { features =>
@@ -206,7 +204,7 @@ object CommentaryEngine:
             evalCp = Some(bestScore), // Best PV score
             material = lastFen.takeWhile(_ != ' ')
           )
-        val currentPhase = determinePhase(lastPos)
+        val _currentPhase = determinePhase(lastPos)
         // Convert VariationLine to PvLine
         val multiPv = variations.map { v =>
           PvLine(v.moves, v.scoreCp, v.mate, v.depth)
@@ -289,19 +287,21 @@ object CommentaryEngine:
           ply = ply,
           prevMove = prevMove
         )
+        // val currentPhaseName = _currentPhase.toString()
 
         semanticExtractor.extract(
           fen = fen,
           metadata = meta,
           baseData = baseData,
           vars = variations,
-          playedMove = playedMove
+          playedMove = playedMove,
+          probeResults = probeResults
         ).copy(
           tacticalThreatToUs = ctx.tacticalThreatToUs,
           tacticalThreatToThem = ctx.tacticalThreatToThem,
           evalCp = evalCp,
           isWhiteToMove = initialPos.color == White,
-          phase = ctx.phase,
+          phase = phase.getOrElse(_currentPhase.toString),
           integratedContext = Some(ctx)
         )
       }
@@ -310,35 +310,32 @@ object CommentaryEngine:
   def analyzeGame(
       pgn: String,
       evals: Map[Int, List[VariationLine]],
-      initialFen: Option[String] = None,
       extraPlies: Set[Int] = Set.empty
   ): List[ExtendedAnalysisData] = {
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
        case scala.util.Right(plyDataList) =>
-         val startFen = initialFen.getOrElse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+         val moveEvals = plyDataList.map { p =>
+           val vars = evals.getOrElse(p.ply, Nil)
+           val bestV = vars.headOption
+           lila.llm.MoveEval(
+             ply = p.ply,
+             cp = bestV.map(_.scoreCp).getOrElse(0),
+             mate = bestV.flatMap(_.mate),
+             variations = vars
+           )
+         }
 
-           val moveEvals = plyDataList.map { p =>
-             val vars = evals.getOrElse(p.ply, Nil)
-             val bestV = vars.headOption
-             lila.llm.MoveEval(
-               ply = p.ply,
-               cp = bestV.map(_.scoreCp).getOrElse(0),
-               mate = bestV.flatMap(_.mate),
-               variations = vars
-             )
-           }
+         val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
+         val keyPlies: Set[Int] = keyMoments.map(_.ply).toSet ++ extraPlies
 
-           val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
-           val keyPlies = keyMoments.map(_.ply).toSet ++ extraPlies
-
-          // Track both Full Data, Plan Sequence Tracker, and previous Analysis Data
-          val (results, _, _) =
-            plyDataList
-              .filter(p => keyPlies.contains(p.ply)) // Only analyze key plies
-              .sortBy(_.ply)
+         // Track both Full Data, Plan Sequence Tracker, and previous Analysis Data
+         val (results, _) =
+           plyDataList
+             .filter(p => keyPlies.contains(p.ply)) // Only analyze key plies
+             .sortBy(_.ply)
               .foldLeft(
-                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty, Option.empty[ExtendedAnalysisData])
-              ) { case ((acc, planTracker, prevAnalysis), p) =>
+                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty)
+              ) { case ((acc, planTracker), p) =>
                   val playedUci = p.playedUci
                   val vars = evals.getOrElse(p.ply, Nil)
                   val ply = p.ply
@@ -352,25 +349,26 @@ object CommentaryEngine:
                       fen = p.fen,
                       variations = vars,
                       playedMove = Some(playedUci),
+                      opening = None, // Opening is handled by NarrativeContextBuilder
+                      phase = None,   // Phase is handled by NarrativeContextBuilder
                       ply = ply,
                       prevMove = Some(playedUci),
-                      prevPlanContinuity = planTracker.getContinuity(movingColor),
-                      prevAnalysis = prevAnalysis
+                      prevPlanContinuity = planTracker.getContinuity(movingColor)
                     )
 
                     analysis match {
                       case Some(data) => 
                         // Update Tracker with the plans found in this ply
                         val nextTracker = planTracker.update(ply, data.plans.take(1), data.plans.take(1)) // Using same for now
-                        (acc :+ data.copy(planContinuity = planTracker.getContinuity(movingColor)), nextTracker, Some(data))
+                        (acc :+ data.copy(planContinuity = planTracker.getContinuity(movingColor)), nextTracker)
                       case None => 
-                        (acc, planTracker, prevAnalysis)
+                        (acc, planTracker)
                     }
                   } else {
-                    (acc, planTracker, prevAnalysis)
+                    (acc, planTracker)
                   }
-              }
-          results
+         }
+         results
        case scala.util.Left(_) => 
          Nil
      }

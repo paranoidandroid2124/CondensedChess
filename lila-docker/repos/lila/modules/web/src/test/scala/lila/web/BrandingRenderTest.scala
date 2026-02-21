@@ -127,7 +127,7 @@ class BrandingRenderTest extends FunSuite {
     val mockCtx = new Context {
        val req: RequestHeader = mockReq
        def isAuth = false
-       def isOAuth = false
+       def isTokenAuth = false
        def me = None
        def user = None
        def userId = None
@@ -149,7 +149,7 @@ class BrandingRenderTest extends FunSuite {
        
        val req = mockCtx.req
        def isAuth = mockCtx.isAuth
-       def isOAuth = mockCtx.isOAuth
+       def isTokenAuth = mockCtx.isTokenAuth
        def user = mockCtx.user
        def userId = mockCtx.userId
        def pref = mockCtx.pref
