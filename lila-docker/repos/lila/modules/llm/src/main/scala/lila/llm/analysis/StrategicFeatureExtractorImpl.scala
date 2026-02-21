@@ -89,16 +89,12 @@ class StrategicFeatureExtractorImpl(
           tags = Nil,
           parsedMoves = Nil
         )
-        // Extract basic motifs to label the plan (Checkmate Threat vs Material Loss) 
-        val threatPhenomena = lila.llm.analysis.MoveAnalyzer.tokenizePv(nullMoveProbe.flatMap(_.fen).getOrElse(fen), probe.bestReplyPv.take(3))
-        
-        val planId = threatPhenomena.collectFirst {
-          case _: Motif.MateNet => "Checkmate Threat"
-          case _: Motif.Check => "Checkmate Threat"
-          case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => "Material Loss"
-          case _: Motif.Fork => "Fork Threat"
-          case _: Motif.Pin => "Pin Threat"
-        }.getOrElse("Decisive Advantage (Null-Move Threat)")
+        val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(
+          nullMoveProbe.flatMap(_.fen).getOrElse(fen), 
+          color, 
+          threatLine
+        )
+        val planId = causalThreatOpt.map(_.concept).getOrElse("Decisive Advantage (Null-Move Threat)")
         
         (Some(threatLine), Some(planId))
         
@@ -108,13 +104,17 @@ class StrategicFeatureExtractorImpl(
         
         if (detectedThreats.nonEmpty) {
           // Derive planId from actual motifs
-          val planId = detectedThreats.collectFirst {
-            case _: Motif.MateNet => "Checkmate Threat"
-            case _: Motif.Check => "Checkmate Threat"
-            case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => "Material Loss"
-            case _: Motif.Fork => "Fork Threat"
-            case _: Motif.Pin => "Pin Threat"
-          }.getOrElse("Tactical Threat")
+          val threatLine = VariationLine(
+            moves = detectedThreats.flatMap(_.move).take(3),
+            scoreCp = 0, // Placeholder
+            depth = 0,
+            resultingFen = None,
+            mate = None,
+            tags = Nil,
+            parsedMoves = Nil
+          )
+          val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(fen, color, threatLine)
+          val planId = causalThreatOpt.map(_.concept).getOrElse("Tactical Threat")
           
           val threatValue = detectedThreats.map {
             case _: Motif.Check => 100
@@ -140,7 +140,7 @@ class StrategicFeatureExtractorImpl(
 
     // Wire to ProphylaxisAnalyzer with normalized inputs and explicit plan ID
     // Note: inputs are now normalized, so analyzer's scoreDiff will be correct
-    val preventedPlans = prophylaxisAnalyzer.analyze(board, color, normalizedBestVar, threatLineRaw, threatPlanId)
+    val preventedPlans = prophylaxisAnalyzer.analyze(fen, board, color, normalizedBestVar, threatLineRaw, threatPlanId)
 
     // PracticalityScorer expects activity for BOTH sides (it computes mobility diff),
     // so we must provide a complete list rather than only the side-to-move.
@@ -214,7 +214,7 @@ class StrategicFeatureExtractorImpl(
       val normalizedCandidateVar = candidateVar.copy(scoreCp = candScore, mate = None)
       
       // Does this candidate prevent the threat?
-      val candPrevented = prophylaxisAnalyzer.analyze(board, color, normalizedCandidateVar, threatLineRaw, threatPlanId)
+      val candPrevented = prophylaxisAnalyzer.analyze(fen, board, color, normalizedCandidateVar, threatLineRaw, threatPlanId)
       val moveStr = candidateVar.moves.headOption.getOrElse("")
       val candidateFacts = FactExtractor.fromMotifs(board, candMotifs, FactScope.Now)
       

@@ -67,7 +67,35 @@ object ThreatExtractor {
     }
   }
 
-  private def classifyMotif(motif: Motif, playerColor: Color): Option[(String, Int, String)] = {
+  /**
+   * Identifies the primary threat concept from an opponent's line (e.g., a Null-Move threat line).
+   */
+  def extractThreatConcept(
+      fen: String,
+      playerColor: Color,
+      threatLine: VariationLine
+  ): Option[CausalThreat] = {
+    // The threatLine is from the opponent's POV (starts with their punishing move).
+    // So all motifs in this line are relevant threats.
+    val motifs = MoveAnalyzer.tokenizePv(fen, threatLine.moves)
+    val criticalThreats = motifs.flatMap(classifyMotif(_, playerColor))
+
+    if (criticalThreats.isEmpty) {
+      if (threatLine.scoreCp.abs > 200) {
+        Some(CausalThreat("Positional Collapse", 1, "concedes a positional advantage", Nil))
+      } else None
+    } else {
+      val topThreat = criticalThreats.sortBy(-_._2).head
+      Some(CausalThreat(
+        concept = topThreat._1,
+        severity = topThreat._2,
+        narrative = topThreat._3,
+        motifs = motifs
+      ))
+    }
+  }
+
+  def classifyMotif(motif: Motif, playerColor: Color): Option[(String, Int, String)] = {
     // Return (Concept, SeverityScore, Narrative Fragment)
     val oppColor = !playerColor
     val oppColorStr = oppColor.name.capitalize

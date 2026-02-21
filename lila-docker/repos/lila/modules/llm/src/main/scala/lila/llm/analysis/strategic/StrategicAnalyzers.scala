@@ -8,6 +8,7 @@ import lila.llm.model.strategic.VariationLine
 
 trait ProphylaxisAnalyzer {
   def analyze(
+      fen: String,
       board: Board,
       color: Color,
       mainLine: VariationLine,
@@ -46,20 +47,15 @@ trait PracticalityScorer {
 
 // Implementation
 class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
-  def analyze(board: Board, color: Color, mainLine: VariationLine, threatLine: Option[VariationLine], explicitPlanId: Option[String] = None): List[PreventedPlan] = {
+  def analyze(fen: String, board: Board, color: Color, mainLine: VariationLine, threatLine: Option[VariationLine], explicitPlanId: Option[String] = None): List[PreventedPlan] = {
     threatLine.map { threat =>
        val scoreDiff = mainLine.effectiveScore - threat.effectiveScore
        
-       if (scoreDiff > 50) {
-         val threatMoveStr = threat.moves.mkString(" ")
-         val internalPlanId = if (threatMoveStr.contains("#")) "Checkmate Threat"
-                      else if (threatMoveStr.contains("x")) "Material Loss"
-                      else if (threatMoveStr.contains("+")) "King Attack"
-                      else if (scoreDiff > 300) "Decisive Advantage"
-                      else "Positional Concession"
-                      
-         val finalPlanId = explicitPlanId.getOrElse(internalPlanId)
-                      
+        if (scoreDiff > 50) {
+         val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(fen, color, threat)
+         
+         val finalPlanId = explicitPlanId.orElse(causalThreatOpt.map(_.concept)).getOrElse("Tactical Threat")
+                       
          PreventedPlan(
            planId = finalPlanId, 
            deniedSquares = Nil,
