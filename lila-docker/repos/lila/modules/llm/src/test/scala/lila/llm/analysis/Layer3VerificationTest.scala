@@ -471,10 +471,8 @@ class Layer3VerificationTest extends FunSuite {
     val motifs = List(mockMate(Color.Black))
     val analysis = analyzeThreats("Shallow Depth", motifs, shallowPv, isWhiteToMove = true)
     
-    // With shallow depth, reliability penalty (0.8) is applied
-    // BackRankMate base loss is 800 from MotifLossTable, after 0.8 factor = 640
-    // But populateDefenseEvidence may boost it with evalLoss from MultiPV
-    // The key assertion: lossIfIgnoredCp should be LESS than full confidence value
+    // With shallow depth, reliability penalty (0.8) is applied to MultiPV-based evalLoss.
+    // Motif-based threats have lossIfIgnoredCp = 0 (labeling only), boosted by MultiPV delta.
     assert(analysis.threats.head.lossIfIgnoredCp <= 800, s"Expected reduced loss due to shallow depth, got ${analysis.threats.head.lossIfIgnoredCp}")
   }
 

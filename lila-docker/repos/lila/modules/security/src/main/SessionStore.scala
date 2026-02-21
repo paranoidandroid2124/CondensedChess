@@ -9,12 +9,10 @@ import scala.concurrent.blocking
 import lila.common.HTTPRequest
 import lila.core.userId.UserId
 import lila.core.user.User
-import lila.core.lilaism.Core.{ *, given }
+import lila.core.lilaism.Core.*
 import lila.core.id.SessionId
 import lila.core.net.{ ApiVersion, IpAddress, UserAgent }
-import lila.core.misc.oauth.AccessTokenId
 import lila.core.security.{ FingerHash, IsProxy }
-import lila.common.extensions.*
 import lila.db.dsl.{ *, given }
 import java.time.Instant
 import scala.concurrent.duration.*

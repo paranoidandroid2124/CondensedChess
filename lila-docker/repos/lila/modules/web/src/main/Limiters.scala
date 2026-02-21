@@ -1,8 +1,6 @@
 package lila.web
 
 import play.api.mvc.RequestHeader
-import scala.concurrent.duration.*
-
 import lila.core.net.{ IpAddress, Bearer }
 import lila.core.userId.UserId
 import lila.core.user.Me
@@ -54,6 +52,9 @@ final class Limiters(using Executor, lila.core.config.RateLimit):
   val userActivity = RateLimit[IpAddress](credits = 15, duration = 2.minutes, key = "user_activity.api.ip")
 
   val magicLink = RateLimit[String](credits = 3, duration = 1.hour, key = "login.magicLink.token")
+  val passwordLogin = RateLimit[IpAddress](credits = 20, duration = 10.minutes, key = "login.password.ip")
+  val signup = RateLimit[IpAddress](credits = 15, duration = 1.hour, key = "signup.web.ip")
+  val passwordResetRequest = RateLimit[IpAddress](credits = 10, duration = 1.hour, key = "password.reset.request.ip")
 
   val challenge = RateLimit[IpAddress](
     500,
@@ -91,8 +92,6 @@ final class Limiters(using Executor, lila.core.config.RateLimit):
   )
   def imageUpload[A](limited: => Fu[A])(using ctx: lila.ui.Context, me: Me) =
     imageUploadLimiter(ctx.ip -> me.userId, limited)
-
-  val oauthTokenTest = RateLimit[IpAddress](credits = 10_000, duration = 10.minutes, key = "api.token.test")
 
   val planCheckout = RateLimit.composite[lila.core.net.IpAddress](
     key = "plan.checkout.ip"

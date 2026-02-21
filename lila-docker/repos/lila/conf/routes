@@ -20,6 +20,10 @@ POST  /account/delete                  controllers.Account.deleteConfirm
 # Authentication
 GET   /login                           controllers.Auth.login
 POST  /login                           controllers.Auth.authenticate
+GET   /signup                          controllers.Auth.signup
+POST  /signup                          controllers.Auth.signupPost
+GET   /password-reset                  controllers.Auth.passwordReset
+POST  /password-reset                  controllers.Auth.passwordResetApply
 GET   /logout                          controllers.Auth.logoutGet
 POST  /logout                          controllers.Auth.logout
 GET   /auth/magic-link                 controllers.Auth.magicLink
@@ -27,14 +31,13 @@ POST  /auth/magic-link/apply           controllers.Auth.magicLinkApply
 GET   /auth/magic-link/sent            controllers.Auth.magicLinkSent
 GET   /auth/check-email                controllers.Auth.checkYourEmail
 POST  /auth/fix-email                  controllers.Auth.fixEmail
+GET   /auth/password-reset/:token      controllers.Auth.passwordResetToken(token)
+POST  /auth/password-reset/:token      controllers.Auth.passwordResetTokenApply(token)
 GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token)
 
 # Analysis and Study
 GET   /analysis                        controllers.UserAnalysis.index
-GET   /analysis/:id                    controllers.Analyse.replay(id)
-GET   /analysis/:id/:moves             controllers.Analyse.replayWithMoves(id, moves)
-POST  /analysis/:id/request            controllers.Analyse.requestAnalysis(id)
 # Study
 GET   /study                           controllers.Study.allDefault(page: Int ?= 1)
 # GET   /study/search                    controllers.Study.search(text ?= "", page: Int ?= 1, order: Option[StudyOrder] ?= None)
@@ -90,14 +93,6 @@ GET   /plan/checkout/success            controllers.Checkout.success
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)
 # GET   /@/:username/download            controllers.User.download(username: UserStr)
 GET   /@/:username                     controllers.User.show(username: UserStr)
-# GET   /player                          controllers.User.list  # rating module deleted
-# GET   /api/player/autocomplete         controllers.User.autocomplete  # search module deleted
-# GET   /api/player                      controllers.User.apiList  # rating module deleted
-# GET   /player/online                   controllers.User.online  # rating module deleted
-
-# Game
-# GET   /game/export/$gameId<\w{8}>.pgn  controllers.Game.exportOne(gameId: GameId)
-# POST  /game/delete/$gameId<\w{8}>      controllers.Game.delete(gameId: GameId)
 
 # Importer
 GET   /import                          controllers.Importer.importGame
@@ -109,30 +104,15 @@ GET   /editor                          controllers.Editor.index
 GET   /editor.json                     controllers.Editor.data
 GET   /editor/*urlFen                  controllers.Editor.load(urlFen)
 
-# Export
-# GET   /puzzle/:id/thumbnail            controllers.Export.puzzleThumbnail(id: PuzzleId, theme: Option[String] ?= None, piece: Option[String] ?= None)  # puzzle module deleted
-
 # Preferences
 POST  /pref/:name                      controllers.Pref.set(name)
 GET   /api/pref/options                controllers.Pref.options
 GET   /account/preferences/:categ      controllers.Pref.form(categ)
 POST  /account/preferences             controllers.Pref.formApply
 
-# OAuth
-GET    /oauth                          controllers.OAuth.authorize
-POST   /oauth                          controllers.OAuth.authorizeApply
-POST   /api/token                      controllers.OAuth.tokenApply
-DELETE /api/token                      controllers.OAuth.tokenRevoke
-GET    /account/oauth/token            controllers.OAuthToken.index
-GET    /account/oauth/token/create     controllers.OAuthToken.create
-POST   /account/oauth/token/create     controllers.OAuthToken.createApply
-POST   /account/oauth/token/:id/delete controllers.OAuthToken.delete(id)
-
 # API
 # GET   /api/status                      controllers.Api.status
 # GET   /api/user/:user                  controllers.Api.user(user: UserStr)
-# GET   /api/game/:id                    controllers.Api.game(id: GameId)
-# GET   /api/stream/game/:id             controllers.Api.moveStream(id: GameId)
 
 # Assets & Static
 GET   /assets/*file                    controllers.ExternalAssets.at(path="public", file)

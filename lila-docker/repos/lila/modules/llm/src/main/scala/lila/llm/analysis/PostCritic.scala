@@ -19,11 +19,8 @@ object PostCritic:
     val raw = prose.trim
     if raw.isEmpty then prose
     else
-      val cpWhite = evalCpWhite(ctx)
-      val isClose = cpWhite.abs <= 40
-
       val replaced = rewriteCliches(ctx, raw)
-      val toned = toneDownOverconfidence(replaced, isClose)
+      val toned = replaced // toneDownOverconfidence removed
       val earlyOpening =
         if (ctx.phase.current.equalsIgnoreCase("Opening") && ctx.ply <= 2)
           toned.replace("The balance depends on precise calculation.", "Both sides have many sound options from here.")
@@ -37,16 +34,6 @@ object PostCritic:
       val terminalToneSanitized = sanitizeTerminalTone(boilerplateRewritten)
 
       cleanup(terminalToneSanitized)
-
-  private def evalCpWhite(ctx: NarrativeContext): Int =
-    ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).orElse {
-      ctx.semantic.flatMap(_.practicalAssessment).map { a =>
-        // PracticalAssessment is currently in side-to-move perspective; normalize to White.
-        val whiteToMove = (ctx.ply % 2 == 1)
-        if (whiteToMove) a.engineScore else -a.engineScore
-      }
-    }.getOrElse(0)
-
   private def rewriteCliches(ctx: NarrativeContext, text: String): String =
     val phase = ctx.phase.current.toLowerCase
     val replacement =
@@ -74,8 +61,6 @@ object PostCritic:
       .replace("The main task is to pursue the development of the pieces.", "")
       .replace("The main task is to focus on development of the pieces.", "")
       .replace("The balance depends on precise calculation.", "")
-
-  private def toneDownOverconfidence(text: String, isClose: Boolean): String = text
 
   private def limitSentence(text: String, sentence: String, max: Int): String =
     if (max < 0) return text

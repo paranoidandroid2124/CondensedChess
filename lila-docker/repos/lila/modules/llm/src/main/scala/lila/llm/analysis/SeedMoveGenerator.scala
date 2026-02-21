@@ -52,9 +52,7 @@ object SeedMoveGenerator:
   private def genPieceManeuvers(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match
       case "KnightOutpost_Route" =>
-        val enemyPawns = pos.board.pawns & pos.board.byColor(!us)
-        val ourPawns = pos.board.pawns & pos.board.byColor(us)
-        val outposts = getOutpostSquares(pos, us, ourPawns, enemyPawns)
+        val outposts = getOutpostSquares(pos, us)
         val knights = (pos.board.knights & pos.board.byColor(us)).squares
         
         outposts.flatMap { target =>
@@ -154,7 +152,7 @@ object SeedMoveGenerator:
          val piecesList = pos.board.piecesOf(us).toList
          val linePieces = piecesList.filter(p => p._2.role == Rook || p._2.role == Bishop)
          
-         val results = linePieces.flatMap { case (lpSq, lp) =>
+         val results = linePieces.flatMap { case (lpSq, _) =>
             val targetsArr = pos.board.byColor(!us).squares
             targetsArr.flatMap { tSq =>
                val path = Bitboard.between(lpSq, tSq)
@@ -273,7 +271,7 @@ object SeedMoveGenerator:
 
   // --- Helpers ---
   
-  private def getOutpostSquares(pos: Position, us: Color, ourPawns: Bitboard, enemyPawns: Bitboard): List[Square] =
+  private def getOutpostSquares(pos: Position, us: Color): List[Square] = {
     val relevantRanks = if us.white then Bitboard.rank(Rank.Fourth) | Bitboard.rank(Rank.Fifth) | Bitboard.rank(Rank.Sixth)
                         else Bitboard.rank(Rank.Fifth) | Bitboard.rank(Rank.Fourth) | Bitboard.rank(Rank.Third)
     
@@ -287,32 +285,40 @@ object SeedMoveGenerator:
       val enemyPawnControl = pos.board.attackers(sq, !us).exists(s => pos.board.roleAt(s).contains(Pawn))
       supported && !enemyPawnControl && pos.board.pieceAt(sq).forall(_.color == us)
     }
+  }
 
-  private def routeExists(role: Role, from: Square, to: Square, board: Board): Boolean =
+  private def routeExists(role: Role, from: Square, to: Square, board: Board): Boolean = {
     val maxDepth = 4
     val queue = scala.collection.mutable.Queue((from, 0))
     val visited = scala.collection.mutable.Set(from)
     val ourColor = board.pieceAt(from).map(_.color).getOrElse(Color.White)
     val occ = board.occupied
     
-    while queue.nonEmpty do
+    while (queue.nonEmpty) {
       val (curr, depth) = queue.dequeue()
-      if curr == to then return true
-      if depth < maxDepth then
-        val l_attacks: Bitboard = role match
+      if (curr == to) return true
+      if (depth < maxDepth) {
+        val l_attacks: Bitboard = role match {
           case Knight => curr.knightAttacks
           case King   => curr.kingAttacks
           case Bishop => curr.bishopAttacks(occ)
           case Rook   => curr.rookAttacks(occ)
           case Queen  => curr.queenAttacks(occ)
           case Pawn   => Bitboard.empty 
+        }
         
         l_attacks.foreach { dest =>
-          if !visited.contains(dest) then
+          if (!visited.contains(dest)) {
              val isFriendly = board.pieceAt(dest).exists(_.color == ourColor)
-             if !isFriendly || dest == to then  
-               if !isFriendly then
+             if (!isFriendly || dest == to) { 
+               if (!isFriendly) {
                  visited += dest
                  queue.enqueue((dest, depth + 1))
+               }
+             }
+          }
         }
+      }
+    }
     false
+  }

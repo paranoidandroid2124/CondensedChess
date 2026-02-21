@@ -2,6 +2,7 @@ package views
 
 import lila.app.UiEnv.{ *, given }
 import lila.pref.{ PieceSet, PieceSet3d, Pref, Theme, Theme3d }
+import scala.annotation.unused
 
 object account:
 
@@ -74,7 +75,11 @@ object account:
         )
       )
 
-  def pref(user: User, form: play.api.data.Form[lila.pref.Pref], categSlug: String)(using ctx: Context) =
+  def pref(
+      @unused user: User,
+      @unused form: play.api.data.Form[lila.pref.Pref],
+      @unused categSlug: String
+  )(using ctx: Context) =
     settingsPage("Preferences", "preferences"):
       val pref = ctx.pref
       frag(
@@ -126,7 +131,7 @@ object account:
         )
       )
 
-  def close(user: User)(using ctx: Context) =
+  def close(@unused user: User)(using ctx: Context) =
     settingsPage("Close Account", "close"):
       frag(
         h2(cls := "danger")("Close Account"),
@@ -140,7 +145,7 @@ object account:
         )
       )
 
-  def delete(user: User)(using ctx: Context) =
+  def delete(@unused user: User)(using ctx: Context) =
     settingsPage("Permanent Data Deletion", "delete"):
       frag(
         h2(cls := "danger")("Permanent Data Deletion (GDPR)"),
@@ -157,12 +162,3 @@ object account:
           button(tpe := "submit", cls := "btn-danger")("Permanently delete everything")
         )
       )
-
-object oAuth:
-  def authorize(_prompt: lila.oauth.AuthorizationRequest.Prompt, _user: User, _url: String)(using _ctx: Context) =
-    Page("Authorize").wrap(_ => div("Authorize"))
-  object token:
-    def index(_tokens: Any)(using _ctx: Context) =
-      Page("OAuth Tokens").wrap(_ => div("OAuth Tokens"))
-    def create(_form: Any, _me: User)(using _ctx: Context) =
-      Page("Create OAuth Token").wrap(_ => div("Create OAuth Token"))

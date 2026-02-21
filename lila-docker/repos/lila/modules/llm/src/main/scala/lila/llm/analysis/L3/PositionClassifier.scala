@@ -21,7 +21,7 @@ object PositionClassifier:
     tacticalMotifsCount: Int = 0  // Optional: from L2 if available
   ): PositionClassification =
     val nature = classifyNature(features)
-    val criticality = classifyCriticality(multiPv, currentEval)
+    val criticality = classifyCriticality(multiPv)
     val choiceTopology = classifyChoiceTopology(multiPv)
     val gamePhase = classifyGamePhase(features)
     val simplifyBias = classifySimplifyBias(features, currentEval)
@@ -72,7 +72,7 @@ object PositionClassifier:
     )
   // 2. CRITICALITY CLASSIFICATION
 
-  private def classifyCriticality(multiPv: List[PvLine], currentEval: Int): CriticalityResult =
+  private def classifyCriticality(multiPv: List[PvLine]): CriticalityResult =
     val pv1 = multiPv.headOption
     val pv2 = multiPv.lift(1)
 

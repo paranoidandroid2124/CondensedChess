@@ -25,12 +25,7 @@
     "zxcvbn": "^4.4.2"
   },
   "build": {
-    "bundle": [
-      "src/bits!(*.inline).ts",
-      {
-        "inline": "src/bits.oauth.inline.ts"
-      }
-    ],
+    "bundle": ["src/bits!(*.inline).ts"],
     "sync": {
       "node_modules/cropperjs/dist/cropper.min.css": "/public/npm"
     }

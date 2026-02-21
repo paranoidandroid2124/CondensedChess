@@ -1,6 +1,6 @@
 package views.base
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 
 def notFound(msg: Option[String]) =
   Page(msg | "Page not found").css("bits.not-found"):

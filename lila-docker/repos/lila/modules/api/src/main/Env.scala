@@ -11,28 +11,21 @@ final class Env(
     net: lila.core.config.NetConfig,
     securityStore: lila.security.SessionStore,
     @unused mailerEnv: lila.mailer.Env,
-    gameEnv: lila.game.Env,
     @unused prefApi: lila.pref.PrefApi,
     userEnv: lila.user.Env,
-    analyseEnv: lila.analyse.Env,
+    @unused analyseEnv: lila.analyse.Env,
     @unused picfitUrl: lila.memo.PicfitUrl,
     @unused cacheApi: lila.memo.CacheApi,
     webConfig: lila.web.WebConfig,
-    manifest: lila.web.AssetManifest,
-    tokenApi: lila.oauth.AccessTokenApi
+    manifest: lila.web.AssetManifest
 )(using scheduler: Scheduler)(using
     Mode,
-    Executor,
-    ActorSystem,
-    akka.stream.Materializer
+    Executor
 ):
 
   export net.{ baseUrl, domain }
 
   export webConfig.apiToken
-  private lazy val gameRepo = gameEnv.gameRepo
-  private lazy val analysisRepo = analyseEnv.analysisRepo
-  lazy val gameApi = wire[GameApi]
 
   lazy val accountTermination = wire[AccountTermination]
 

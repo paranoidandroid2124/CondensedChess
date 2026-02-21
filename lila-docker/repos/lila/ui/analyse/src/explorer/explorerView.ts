@@ -105,76 +105,34 @@ const showResult = (winner?: Color): VNode =>
 
 function showGameTable(ctrl: AnalyseCtrl, fen: FEN, title: string, games: OpeningGame[]): VNode | null {
   if (!ctrl.explorer.withGames || !games.length) return null;
-  const openedId = ctrl.explorer.gameMenu(),
-    isMasters = ctrl.explorer.db() === 'masters';
+  const isMasters = ctrl.explorer.db() === 'masters';
   return hl('table.games', [
     hl('thead', [hl('tr', [hl('th.title', { attrs: { colspan: isMasters ? 4 : 5 } }, title)])]),
     hl(
       'tbody',
-      moveArrowAttributes(ctrl, {
-        fen,
-        onClick: (e, _) => {
-          const $tr = $(e.target as HTMLElement).parents('tr');
-          const id = $tr.data('id');
-          openGame(ctrl, id);
-        },
-      }),
+      moveArrowAttributes(ctrl, { fen, onClick: (_, uci) => uci && ctrl.explorerMove(uci) }),
       games.map(game => {
-        return openedId === game.id
-          ? gameActions(ctrl, game)
-          : hl('tr', { key: game.id, attrs: { 'data-id': game.id, 'data-uci': game.uci || '' } }, [
-            ctrl.explorer.opts.showRatings &&
-            hl(
-              'td',
-              [game.white, game.black].map(p => hl('span', '' + p.rating)),
-            ),
-            hl(
-              'td',
-              [game.white, game.black].map(p => hl('span', p.name)),
-            ),
-            hl('td', showResult(game.winner)),
-            hl('td', game.month || game.year),
-            !isMasters &&
-            hl(
-              'td',
-              game.speed &&
-              hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
-            ),
-          ]);
+        return hl('tr', { key: game.id, attrs: { 'data-id': game.id, 'data-uci': game.uci || '' } }, [
+          ctrl.explorer.opts.showRatings &&
+          hl(
+            'td',
+            [game.white, game.black].map(p => hl('span', '' + p.rating)),
+          ),
+          hl(
+            'td',
+            [game.white, game.black].map(p => hl('span', p.name)),
+          ),
+          hl('td', showResult(game.winner)),
+          hl('td', game.month || game.year),
+          !isMasters &&
+          hl(
+            'td',
+            game.speed &&
+            hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
+          ),
+        ]);
       }),
     ),
-  ]);
-}
-
-function openGame(ctrl: AnalyseCtrl, gameId: string) {
-  const orientation = ctrl.chessground.state.orientation,
-    fenParam = ctrl.node.ply > 0 ? '?fen=' + ctrl.node.fen : '';
-  let url = '/' + gameId + '/' + orientation + fenParam;
-  if (ctrl.explorer.db() === 'masters') url = '/import/master' + url;
-  window.open(url, '_blank');
-}
-
-function gameActions(ctrl: AnalyseCtrl, game: OpeningGame): VNode {
-
-  return hl('tr', { key: game.id + '-m' }, [
-    hl('td.game_menu', { attrs: { colspan: ctrl.explorer.db() === 'masters' ? 4 : 5 } }, [
-      hl(
-        'div.game_title',
-        `${game.white.name} - ${game.black.name}, ${showResult(game.winner).text}, ${game.year}`,
-      ),
-      hl('div.menu', [
-        hl(
-          'a.text',
-          { attrs: dataIcon(licon.Eye), hook: bind('click', _ => openGame(ctrl, game.id)) },
-          'View',
-        ),
-        hl(
-          'a.text',
-          { attrs: dataIcon(licon.X), hook: bind('click', _ => ctrl.explorer.gameMenu(null), ctrl.redraw) },
-          'Close',
-        ),
-      ]),
-    ]),
   ]);
 }
 

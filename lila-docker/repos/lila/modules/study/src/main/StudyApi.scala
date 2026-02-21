@@ -274,9 +274,7 @@ final class StudyApi(
           } match
             case Some(newChapter) =>
               for _ <- chapterRepo.update(newChapter)
-              yield
-                ()
-                studyRepo.updateNow(study)
+              yield studyRepo.updateNow(study)
             case None =>
               reloadSriBecauseOf(study, chapter.id)
               fufail(s"Invalid delNode $studyId $position")
@@ -384,7 +382,6 @@ final class StudyApi(
   export studyRepo.{ isMember, isContributor }
 
   private def onChapterChange(id: StudyId, chapterId: StudyChapterId, who: Who) =
-    ()
     studyRepo.updateNow(id)
 
   private def onMembersChange(
@@ -392,7 +389,6 @@ final class StudyApi(
       members: StudyMembers,
       sendToUserIds: Iterable[UserId]
   ): Unit =
-    ()
     studyRepo.updateNow(study)
     Bus.pub(StudyMembers.OnChange(study))
 
@@ -500,9 +496,7 @@ final class StudyApi(
         newChapter.root.nodeAt(position.path).so { node =>
           node.comments.findBy(comment.by).so { c =>
             for _ <- chapterRepo.setComments(node.comments.filterEmpty)(newChapter, position.path)
-            yield
-              ()
-              studyRepo.updateNow(study)
+            yield studyRepo.updateNow(study)
           }
         }
       case None =>
@@ -516,9 +510,7 @@ final class StudyApi(
           chapter.deleteComment(id, position.path) match
             case Some(newChapter) =>
               for _ <- chapterRepo.update(newChapter)
-              yield
-                ()
-                studyRepo.updateNow(study)
+              yield studyRepo.updateNow(study)
             case None =>
               reloadSriBecauseOf(study, chapter.id)
               fufail(s"Invalid deleteComment $studyId $position $id")
@@ -758,9 +750,7 @@ final class StudyApi(
           for
             _ <- studyRepo.updateTopics(newStudy)
             _ <- topicApi.userTopicsAdd(who.u, newTopics)
-          yield
-            ()
-            topicApi.recompute()
+          yield topicApi.recompute()
 
   def setVisibility(studyId: StudyId, visibility: hub.Visibility): Funit =
     sequenceStudy(studyId): study =>

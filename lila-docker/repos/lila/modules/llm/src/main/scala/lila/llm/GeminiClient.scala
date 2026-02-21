@@ -4,7 +4,7 @@ import play.api.libs.json.*
 import play.api.libs.ws.StandaloneWSClient
 import play.api.libs.ws.JsonBodyWritables.*
 import play.api.libs.ws.DefaultBodyReadables.*
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.Future
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 

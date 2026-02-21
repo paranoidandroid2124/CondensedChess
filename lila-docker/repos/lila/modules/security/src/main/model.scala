@@ -4,10 +4,10 @@ import lila.core.lilaism.Core.*
 
 import lila.core.id.SessionId
 import lila.core.net.{ IpAddress, UserAgent, ApiVersion }
+import lila.db.dsl.given
 import java.time.Instant
 import reactivemongo.api.bson.*
 import reactivemongo.api.bson.Macros
-import lila.db.dsl.{ *, given }
 
 case class UserSession(
   _id: SessionId,

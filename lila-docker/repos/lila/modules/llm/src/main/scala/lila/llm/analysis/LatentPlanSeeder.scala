@@ -188,35 +188,3 @@ object LatentPlanSeeder:
     // Also check that d-pawn is NOT on d4/d5 (that would be closed center or different system)
     // Actually Maroczy usually has d-file open for the binder.
     cPawn && ePawn
-
-  private def routeExists(role: Role, from: Square, to: Square, board: Board): Boolean =
-    val maxDepth = 4
-    val queue = scala.collection.mutable.Queue((from, 0))
-    val visited = scala.collection.mutable.Set(from)
-    
-    val ourColor = board.pieceAt(from).map(_.color).getOrElse(Color.White)
-    val occ = board.occupied
-    
-    while queue.nonEmpty do
-      val (curr, depth) = queue.dequeue()
-      if curr == to then return true
-      
-      if depth < maxDepth then
-        val attacks: Bitboard = role match
-          case Knight => curr.knightAttacks
-          case King   => curr.kingAttacks
-          case Bishop => curr.bishopAttacks(occ)
-          case Rook   => curr.rookAttacks(occ)
-          case Queen  => curr.queenAttacks(occ)
-          case Pawn   => Bitboard.empty // Pawns don't "maneuver" in this sense usually
-        
-        attacks.foreach { dest =>
-          if !visited.contains(dest) then
-             val isFriendly = board.pieceAt(dest).exists(_.color == ourColor)
-             if !isFriendly || dest == to then  
-               if !isFriendly then
-                 visited += dest
-                 queue.enqueue((dest, depth + 1))
-        }
-    
-    false

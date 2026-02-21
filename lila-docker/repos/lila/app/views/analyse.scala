@@ -19,9 +19,9 @@ object analyse:
     val explorerAndCevalConfig = play.api.libs.json.Json.obj()
 
     object bits:
-      def cspExternalEngine = new:
-        def compose(_f: Any => Any) = lila.web.ContentSecurityPolicy.default
+      object cspExternalEngine:
+        def compose(@unused f: Any => Any) = lila.web.ContentSecurityPolicy.default
 
   object embed:
     def lpv(@unused pgn: Any, @unused board: Boolean = true, @unused title: String = "") = emptyFrag
-    def userAnalysis(_args: Any*) = emptyFrag
+    def userAnalysis(@unused args: Any*) = emptyFrag

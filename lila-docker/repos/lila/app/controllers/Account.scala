@@ -1,8 +1,7 @@
 package controllers
 
 import play.api.libs.json.*
-import play.api.mvc.*
-import lila.app.{ *, given }
+import lila.app.*
 
 final class Account(
     env: Env
@@ -45,11 +44,13 @@ final class Account(
     negotiateJson(JsonOk(Json.obj("nowPlaying" -> JsArray())))
   }
 
-  val apiMe = Scoped() { ctx ?=> me ?=>
+  def apiMe = Auth { _ ?=> me ?=>
     JsonOk(env.user.jsonView.full(me))
   }
 
-  def apiNowPlaying = Scoped()(JsonOk(Json.obj("nowPlaying" -> JsArray())))
+  def apiNowPlaying = Auth { _ ?=> _ ?=>
+    JsonOk(Json.obj("nowPlaying" -> JsArray()))
+  }
 
   def dasher = Auth { _ ?=> me ?=>
     negotiateJson:
@@ -90,8 +91,8 @@ final class Account(
   def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
   def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
   def kid = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def apiKid = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("kid" -> false)) }
+  def apiKid = Auth { _ ?=> _ ?=> JsonOk(Json.obj("kid" -> false)) }
   def kidPost = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def apiKidPost = Scoped() { _ ?=> _ ?=> JsonOk(Json.obj("ok" -> true)) }
+  def apiKidPost = Auth { _ ?=> _ ?=> JsonOk(Json.obj("ok" -> true)) }
   def security = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
   def data = Auth { _ ?=> me ?=> fuccess(Redirect(routes.Account.profile)) }

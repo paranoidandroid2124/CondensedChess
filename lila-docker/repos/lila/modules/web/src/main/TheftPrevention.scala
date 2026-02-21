@@ -11,7 +11,7 @@ trait TheftPrevention:
   self: lila.web.ResponseBuilder =>
 
   protected def PreventTheft(pov: Pov)(ok: => Fu[Result])(using Context): Fu[Result] =
-    if isTheft(pov) then Redirect(routes.Analyse.replay(pov.gameId.value))
+    if isTheft(pov) then Redirect(routes.UserAnalysis.index)
     else ok
 
   protected def isTheft(pov: Pov)(using ctx: Context) =

@@ -120,7 +120,9 @@ html.pro .auth-message {
     margin-bottom: 1.5rem;
 }
 
-.auth-form input[type="email"] {
+.auth-form input[type="email"],
+.auth-form input[type="text"],
+.auth-form input[type="password"] {
     width: 100%;
     padding: 1rem 1.25rem;
     border: 1px solid #E2E8F0;
@@ -133,36 +135,64 @@ html.pro .auth-message {
     box-sizing: border-box;
 }
 
-.auth-form input[type="email"]::placeholder {
+.auth-form input[type="email"]::placeholder,
+.auth-form input[type="text"]::placeholder,
+.auth-form input[type="password"]::placeholder {
     color: $c-shade;
 }
 
-.auth-form input[type="email"]:focus {
+.auth-form input[type="email"]:focus,
+.auth-form input[type="text"]:focus,
+.auth-form input[type="password"]:focus {
     outline: none;
     border-color: $c-primary;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 body.dark .auth-form input[type="email"],
+body.dark .auth-form input[type="text"],
+body.dark .auth-form input[type="password"],
 body.pro .auth-form input[type="email"],
+body.pro .auth-form input[type="text"],
+body.pro .auth-form input[type="password"],
 html.dark .auth-form input[type="email"],
-html.pro .auth-form input[type="email"] {
+html.dark .auth-form input[type="text"],
+html.dark .auth-form input[type="password"],
+html.pro .auth-form input[type="email"],
+html.pro .auth-form input[type="text"],
+html.pro .auth-form input[type="password"] {
     background: $c-bg;
     border-color: $c-border;
     color: $c-font;
 }
 
 body.dark .auth-form input[type="email"]::placeholder,
+body.dark .auth-form input[type="text"]::placeholder,
+body.dark .auth-form input[type="password"]::placeholder,
 body.pro .auth-form input[type="email"]::placeholder,
+body.pro .auth-form input[type="text"]::placeholder,
+body.pro .auth-form input[type="password"]::placeholder,
 html.dark .auth-form input[type="email"]::placeholder,
-html.pro .auth-form input[type="email"]::placeholder {
+html.dark .auth-form input[type="text"]::placeholder,
+html.dark .auth-form input[type="password"]::placeholder,
+html.pro .auth-form input[type="email"]::placeholder,
+html.pro .auth-form input[type="text"]::placeholder,
+html.pro .auth-form input[type="password"]::placeholder {
     color: #64748B;
 }
 
 body.dark .auth-form input[type="email"]:focus,
+body.dark .auth-form input[type="text"]:focus,
+body.dark .auth-form input[type="password"]:focus,
 body.pro .auth-form input[type="email"]:focus,
+body.pro .auth-form input[type="text"]:focus,
+body.pro .auth-form input[type="password"]:focus,
 html.dark .auth-form input[type="email"]:focus,
-html.pro .auth-form input[type="email"]:focus {
+html.dark .auth-form input[type="text"]:focus,
+html.dark .auth-form input[type="password"]:focus,
+html.pro .auth-form input[type="email"]:focus,
+html.pro .auth-form input[type="text"]:focus,
+html.pro .auth-form input[type="password"]:focus {
     border-color: $c-primary;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
@@ -238,6 +268,65 @@ html.pro .auth-submit:hover {
     border-radius: 8px;
     margin-bottom: 1.5rem;
     font-size: 0.9rem;
+}
+
+.auth-success {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.35);
+    color: $c-good;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.auth-field-error {
+    color: $c-bad;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.auth-links {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.9rem;
+}
+
+.auth-links a {
+    color: $c-primary;
+    text-decoration: none;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+.auth-remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #475569;
+}
+
+.auth-remember input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+body.dark .auth-remember,
+body.pro .auth-remember,
+html.dark .auth-remember,
+html.pro .auth-remember {
+    color: $c-shade;
+}
+
+.captcha-group {
+    overflow: hidden;
 }
 
 // Icons

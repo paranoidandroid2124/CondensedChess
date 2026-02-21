@@ -27,8 +27,8 @@ object MoveAnalyzer:
           Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption) match
             case Some(mv) =>
               val moveMotifs = detectMoveMotifs(mv, pos, index, lastMv)
-              // State motifs are detected only at the final position to avoid massive redundancy
-              val stateMotifs = if (index == pv.length - 1) detectStateMotifs(mv.after, index) else Nil
+              // State motifs are detected after each move to trace structural damage at the exact ply it occurs.
+              val stateMotifs = detectStateMotifs(mv.after, index) 
               (mv.after, acc ++ moveMotifs ++ stateMotifs, Some(mv))
             case None => 
               (pos, acc, lastMv)
@@ -362,13 +362,13 @@ object MoveAnalyzer:
     detectDeflection(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
     // Decoy detection (NEW - Phase 11)  
-    detectDecoy(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
+    detectDecoy(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
     // Clearance detection (L2 Completion)
     detectClearance(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
     // Trapped Piece detection (Phase 24)
-    detectTrappedPiece(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
+    detectTrappedPiece(nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
     
     // Blockade detection (Phase 26)
     detectBlockade(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
@@ -715,7 +715,6 @@ object MoveAnalyzer:
     blockedDefenses.result()
 
   private def detectTrappedPiece(
-      mv: Move,
       nextPos: Position,
       color: Color,
       plyIndex: Int,
@@ -724,9 +723,6 @@ object MoveAnalyzer:
     val board = nextPos.board
     val enemyPieces = board.byColor(!color)
     val trapped = List.newBuilder[Motif]
-    
-    // Check valuable pieces: Queen, Rook, Bishop, Knight
-    val valuableRoles = List(Queen, Rook, Bishop, Knight)
     
     val targetSquares = (enemyPieces & (board.queens | board.rooks | board.bishops | board.knights)).squares
     
@@ -778,7 +774,6 @@ object MoveAnalyzer:
         // 2. Check King's valid moves (0, because it's mate)
         // 3. Check if squares around King are occupied by FRIENDS
         val neighbors = kSq.kingAttacks
-        val occupiedByFriend = neighbors & board.byColor(!color)
         
         // Smothered if majority of escape squares are blocked by friends
         // Heuristic: If King has no moves (mate) and > 0 neighbors are blocked by friends, and knight checks...
@@ -830,7 +825,7 @@ object MoveAnalyzer:
               (board.colorAt(sq), board.roleAt(sq)) match
                 case (None, _) =>
                   f += df; r += dr
-                case (Some(hitColor), Some(hitRole)) if hitColor == attacker =>
+                case (Some(hitColor), _) if hitColor == attacker =>
                   stopRay()
                 case (Some(_), Some(hitRole)) =>
                   pinned match
@@ -1309,7 +1304,6 @@ object MoveAnalyzer:
         }
         
         if (protectsValuable) {
-          val attackerIsSafe = nextPos.board.attackers(mv.dest, color).nonEmpty || board.attackers(defenderSq, !color).isEmpty
           // Wait, the deflection attack comes from mv.dest. We want to know if the piece at mv.dest is safe.
           val destIsSafe = nextPos.board.attackers(mv.dest, !color).isEmpty
 
@@ -1327,7 +1321,6 @@ object MoveAnalyzer:
    */
   private def detectDecoy(
       mv: Move,
-      pos: Position,
       nextPos: Position,
       color: Color,
       plyIndex: Int,
@@ -1563,7 +1556,7 @@ object MoveAnalyzer:
         None
       }
       
-      trace(mv.dest).flatMap { case (midSq, midRole, rearSq, rearRole, midColor) =>
+      trace(mv.dest).flatMap { case (_, _, rearSq, rearRole, midColor) =>
         // Only interesting if targeting enemy or supporting friend
         val rearColor = board.colorAt(rearSq).get
         

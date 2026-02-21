@@ -49,7 +49,7 @@ object PositionCharacterizer:
       natureType = natureType,
       tension = adjTension,
       stability = calculateStability(adjTension, fluidity, isDecided),
-      description = deriveDescription(natureType, adjTension, isDecided)
+      description = deriveDescription(natureType, isDecided)
     )
 
   /**
@@ -104,7 +104,7 @@ object PositionCharacterizer:
     if (isDecided) 0.9 // Game is settled, high stability
     else 1.0 - (tension * 0.6 + fluidity * 0.4)
 
-  private def deriveDescription(nt: NatureType, tension: Double, isDecided: Boolean): String = 
+  private def deriveDescription(nt: NatureType, isDecided: Boolean): String = 
     if (isDecided) "A decisive position requiring concrete conversion."
     else nt match
       case NatureType.Static => "A solid, maneuvering position with a fixed structure."

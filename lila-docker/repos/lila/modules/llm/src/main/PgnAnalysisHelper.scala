@@ -66,7 +66,7 @@ object PgnAnalysisHelper:
       prevEvalCp: Int,
       engineBestMoveUci: String
   ): Option[String] =
-    val cpLoss = (prevEvalCp - evalCp).abs
+
     val isWhite = plyData.color.white
     val actualLoss = if (isWhite) prevEvalCp - evalCp else evalCp - prevEvalCp
     

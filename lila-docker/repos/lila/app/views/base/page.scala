@@ -3,7 +3,6 @@ package views.base
 import scalalib.StringUtils.escapeHtmlRaw
 
 import lila.app.UiEnv.{ *, given }
-import scalalib.model.Language
 import lila.common.String.html.safeJsonValue
 import lila.ui.{ RenderedPage, PageFlags }
 import lila.web.ui.ShellPrimitives

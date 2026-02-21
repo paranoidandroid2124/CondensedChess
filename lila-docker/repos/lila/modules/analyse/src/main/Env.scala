@@ -8,7 +8,6 @@ import lila.core.misc.analysis.MyEnginesAsJson
 @Module
 final class Env(
     db: lila.db.Db,
-    gameRepo: lila.core.game.GameRepo,
     cacheApi: lila.memo.CacheApi,
     net: NetConfig
 )(using Executor):
@@ -26,6 +25,3 @@ final class Env(
   val enginesAsJson = MyEnginesAsJson(externalEngine.myExternalEnginesAsJson)
 
   val jsonView = JsonView
-
-  lila.common.Bus.sub[lila.core.misc.oauth.TokenRevoke]: token =>
-    externalEngine.onTokenRevoke(token.id)

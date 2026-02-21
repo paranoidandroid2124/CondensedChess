@@ -41,7 +41,7 @@ object NarrativeContextBuilder:
     val summary = buildSummary(data, ctx)
     val threats = buildThreatTable(ctx, topSan, topUci, data.fen)
     val pawnPlay = buildPawnPlayTable(ctx)
-    val plans = buildPlanTable(data, ctx)
+    val plans = buildPlanTable(data)
     val l1 = buildL1Snapshot(ctx)
     val phase0 = buildPhaseContext(ctx, prevAnalysis)
     val afterPhaseTrigger =
@@ -61,11 +61,11 @@ object NarrativeContextBuilder:
     val afterDelta =
       afterAnalysis
         .filter(_ => data.prevMove.isDefined)
-        .map(after => buildDelta(data, after, afterPhaseTrigger))
+        .map(after => buildDelta(data, after))
 
-    val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data, phase.transitionTrigger))
+    val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data))
     val delta = afterDelta.orElse(prevDelta)
-    val enrichedCandidates = buildCandidatesEnriched(data, ctx, rootProbeResults)
+    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults)
 
     val playedSan = data.prevMove.flatMap { uci =>
       NarrativeUtils
@@ -209,7 +209,7 @@ object NarrativeContextBuilder:
       prevRef: Option[OpeningReference]
   ): Option[OpeningEvent] = {
     // Guard: Only detect events in opening phase
-    if (data.phase != "opening") return None
+    if (!data.phase.equalsIgnoreCase("opening")) return None
     
     // Extract cpLoss for novelty detection
     // counterfactual=None means this IS the best move (cpLoss=0)
@@ -425,8 +425,7 @@ object NarrativeContextBuilder:
   }
   
   private def buildPlanTable(
-    data: ExtendedAnalysisData,
-    ctx: IntegratedContext
+    data: ExtendedAnalysisData
   ): PlanTable = {
     val hasMateCandidate = data.candidates.exists { cand =>
       cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
@@ -472,7 +471,6 @@ object NarrativeContextBuilder:
         val mp = f.materialPhase
         val ks = f.kingSafety
         val act = f.activity
-        val lc = f.lineControl
         val imb = f.imbalance
         
         // Material: "+2" | "=" | "-1" from White POV, then adjust for side
@@ -575,8 +573,8 @@ object NarrativeContextBuilder:
       val moveSan = sanMoves.headOption.getOrElse(cand.move)
       val responseMotifs = cand.motifs.filter(_.plyIndex == 1)
       val alert = responseMotifs.collectFirst {
-        case m: Motif.Check => s"allows ${sanMoves.lift(1).getOrElse("")} check"
-        case m: Motif.Fork => s"allows ${sanMoves.lift(1).getOrElse("")} fork"
+        case _: Motif.Check => s"allows ${sanMoves.lift(1).getOrElse("")} check"
+        case _: Motif.Fork => s"allows ${sanMoves.lift(1).getOrElse("")} fork"
         case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => 
           s"allows ${sanMoves.lift(1).getOrElse("")} winning capture"
         case _: Motif.DiscoveredAttack => "reveals discovered attack"
@@ -620,7 +618,7 @@ object NarrativeContextBuilder:
             Some(s"KnightVsBishop(${kvb.color}, ${kvb.isKnightBetter})")
           case b: Motif.Blockade =>
             Some(s"Blockade(${b.piece}, ${b.pawnSquare})")
-          case sm: Motif.SmotheredMate =>
+          case _: Motif.SmotheredMate =>
             Some(s"SmotheredMate(Knight)")
           case xr: Motif.XRay =>
             Some(s"XRay(${xr.piece} through to ${xr.target} on ${xr.square})")
@@ -736,8 +734,7 @@ object NarrativeContextBuilder:
 
   private def buildDelta(
     prev: ExtendedAnalysisData,
-    current: ExtendedAnalysisData,
-    phaseTrigger: Option[String] = None
+    current: ExtendedAnalysisData
   ): MoveDelta = {
     val evalChange = current.evalCp - prev.evalCp
 
@@ -766,7 +763,7 @@ object NarrativeContextBuilder:
       lostMotifs = lostMotifs,
       structureChange = structureChange,
       openFileCreated = openFileCreated,
-      phaseChange = phaseTrigger
+      phaseChange = None
     )
   }
   // META SIGNALS (B-axis)
@@ -821,7 +818,7 @@ object NarrativeContextBuilder:
     }
   }
 
-  private def buildCandidatesEnriched(data: ExtendedAnalysisData, ctx: IntegratedContext, probeResults: List[ProbeResult]): List[CandidateInfo] = {
+  private def buildCandidatesEnriched(data: ExtendedAnalysisData, probeResults: List[ProbeResult]): List[CandidateInfo] = {
     val isWhiteToMove = data.isWhiteToMove
     val existing = buildCandidates(data)
     val existingUcis = existing.flatMap(_.uci).toSet
@@ -1682,8 +1679,6 @@ object NarrativeContextBuilder:
   }
 
   // Valid chess square coordinates
-  private val ValidFiles = Set('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
-  private val ValidRanks = Set('1', '2', '3', '4', '5', '6', '7', '8')
 
   /**
    * B5: Clean Target Architecture
@@ -1691,7 +1686,6 @@ object NarrativeContextBuilder:
    * Priority: 1 (Urgent/Threat) > 2 (High/Probe) > 3 (Normal/Heuristic).
    */
   private def buildTargets(data: ExtendedAnalysisData, ctx: IntegratedContext, probeResults: List[ProbeResult]): Targets = {
-    import lila.llm.model.{TargetEntry, TargetSquare, TargetFile, TargetPiece}
 
     // 1. Tactical Targets (Attack/Defend)
     val tacticalBuffer = scala.collection.mutable.ListBuffer[TargetEntry]()

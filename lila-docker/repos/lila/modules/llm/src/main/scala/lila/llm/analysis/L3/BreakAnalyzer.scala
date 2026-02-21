@@ -50,7 +50,7 @@ object BreakAnalyzer:
     val advanceOrCapture = checkTensionResolution(features, phase1)
     val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
     val minorityAttack = checkMinorityAttack(board, isWhite)
-    val counterBreak = checkCounterBreak(features, motifs, isWhite)
+    val counterBreak = checkCounterBreak(motifs, isWhite)
     val tensionPolicy = computeTensionPolicy(features, phase1, breakReady, advanceOrCapture)
     val tensionSquares = extractTensionSquares(board)
     val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
@@ -178,7 +178,7 @@ object BreakAnalyzer:
       (PassedPawnUrgency.Background, false, None, None, false)
     else
       // Concept 5: Urgency based on rank
-      val urgency = computePasserUrgency(passedRank, isWhite)
+      val urgency = computePasserUrgency(passedRank)
       
       // Get actual passed pawn squares using PositionAnalyzer logic
       val color = if isWhite then Color.White else Color.Black
@@ -235,7 +235,7 @@ object BreakAnalyzer:
       }
     }
 
-  private def computePasserUrgency(rank: Int, isWhite: Boolean): PassedPawnUrgency =
+  private def computePasserUrgency(rank: Int): PassedPawnUrgency =
     // CRITICAL DEPENDENCY WARNING:
     // This value 'rank' must be normalized by L1 (PositionAnalyzer) to represent "advancement".
     // Contract: 0 = Promotion Square (Not possible for pawn), 1 = Start Rank, 7 = Promotion Rank.
@@ -269,7 +269,6 @@ object BreakAnalyzer:
     myQSide > 0 && myQSide < oppQSide
 
   private def checkCounterBreak(
-    features: PositionFeatures,
     motifs: List[Motif],
     isWhite: Boolean
   ): Boolean =

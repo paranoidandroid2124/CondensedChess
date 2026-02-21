@@ -7,7 +7,6 @@ db.picfit_image.createIndex(
 db.tutor_report.createIndex({ at: -1 });
 db.swiss_pairing.createIndex({ s: 1, p: 1, r: 1 });
 db.swiss_pairing.createIndex({ t: 1 }, { partialFilterExpression: { t: true } });
-db.oauth2_authorization.createIndex({ expires: 1 }, { expireAfterSeconds: 0 });
 db.trophy.createIndex({ user: 1 });
 db.simul.createIndex({ status: 1, createdAt: -1 });
 db.simul.createIndex({ hostSeenAt: -1 }, { partialFilterExpression: { status: 10, featurable: true } });
@@ -220,8 +219,6 @@ db.relay.createIndex(
   { 'sync.upstream.roundIds': 1 },
   { partialFilterExpression: { 'sync.upstream.roundIds': { $exists: 1 } } },
 );
-db.oauth2_access_token.createIndex({ userId: 1 });
-db.oauth2_access_token.createIndex({ expires: 1 }, { expireAfterSeconds: 0 });
 db.cache.createIndex({ e: 1 }, { expireAfterSeconds: 0 });
 db.forecast.createIndex({ date: 1 }, { expireAfterSeconds: 1296000 });
 db.msg_thread.createIndex({ users: 1, 'lastMsg.date': -1 });
@@ -263,7 +260,6 @@ db.f_post.createIndex({ userId: 1 });
 db.f_post.createIndex({ categId: 1, createdAt: -1 });
 db.f_post.createIndex({ topicId: 1, createdAt: -1 });
 db.external_engine.createIndex({ userId: 1 });
-db.external_engine.createIndex({ oauthToken: 1 });
 db.tutor_queue.createIndex({ requestedAt: 1 });
 db.clas_clas.createIndex({ teachers: 1, viewedAt: -1 });
 db.clas_student.createIndex({ clasId: 1, userId: 1 });

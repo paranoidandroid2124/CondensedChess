@@ -143,7 +143,8 @@ object BookStyleRenderer:
 
   private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
     ctx.counterfactual.map { cf =>
-      val theme = cf.missedMotifs.headOption.map(motifName)
+      val theme = cf.causalThreat.map(_.narrative)
+        .orElse(cf.missedMotifs.headOption.map(motifName))
         .orElse(Some(cf.severity))
         .getOrElse("tactic")
       NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)

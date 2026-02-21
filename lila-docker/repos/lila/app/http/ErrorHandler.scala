@@ -13,7 +13,7 @@ final class ErrorHandler(
     config: Configuration,
     router: => Router,
     @unused mainC: => controllers.Main
-)(using Executor)
+)(using @unused executor: Executor)
     extends DefaultHttpErrorHandler(environment, config, router.some)
     with lila.web.ResponseWriter:
 

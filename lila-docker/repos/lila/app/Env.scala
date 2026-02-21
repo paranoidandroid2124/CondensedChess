@@ -40,36 +40,20 @@ final class Env(
     cacheApi = memo.cacheApi
   )
   val mailer: lila.mailer.Env = wire[lila.mailer.Env]
-  val oAuth: lila.oauth.Env = wire[lila.oauth.Env]
   val security: lila.security.Env = wire[lila.security.Env]
   val pref: lila.pref.Env = wire[lila.pref.Env]
-  val game: lila.game.Env = new lila.game.Env(
-    db = mongo.mainDb,
-    lightUserApi = user.lightUserApi,
-    cacheApi = memo.cacheApi,
-    mongoCache = memo.mongoCache
-  )
   val evalCache: lila.evalCache.Env = wire[lila.evalCache.Env]
   val analyse: lila.analyse.Env = new lila.analyse.Env(
     db = mongo.mainDb,
-    gameRepo = game.gameRepo,
     cacheApi = memo.cacheApi,
     net = net
   )
-  
-  // Chesstory: Explorer dummy implementation
-  val explorer: lila.core.game.Explorer = id => game.gameRepo.game(id)
 
   val study: lila.study.Env = new lila.study.Env(
     appConfig = config,
     ws = summon[StandaloneWSClient],
     lightUserApi = user.lightUserApi,
-    gamePgnDump = game.pgnDump,
-    divider = game.divider,
-    gameRepo = game.gameRepo,
-    namer = game.namer,
     userApi = user.api,
-    explorer = explorer,
     analyser = analyse.analyser,
     analysisJson = lila.tree.AnalysisJson,
     annotator = analyse.annotator,

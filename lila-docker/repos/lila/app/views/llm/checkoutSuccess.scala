@@ -1,11 +1,12 @@
 package views.llm
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object checkoutSuccess:
 
-  def apply(me: Me)(using ctx: Context): Page =
+  def apply(@unused me: Me)(using @unused ctx: Context): Page =
     Page("Welcome to Analyst Pro!")
       .css("llm.plan")
       .wrap: _ =>

@@ -490,11 +490,11 @@ object NarrativeOutlineBuilder:
       if !shouldShow then None
       else
         rec.use("counterfactual", cf.userMove, "Teaching point")
-        val theme =
+        val theme = cf.causalThreat.map(_.narrative).getOrElse {
           motifOpt match {
             case Some(Motif.Fork(_, targets, _, _, _, _, _)) if targets.size >= 2 =>
               s"a fork against the ${targets(0).toString.toLowerCase} and ${targets(1).toString.toLowerCase}"
-            case Some(Motif.Pin(_, pinned, target, _, _, _, _, _, _)) =>
+            case Some(Motif.Pin(_, pinned, _, _, _, _, _, _, _)) =>
               s"a pin against the ${pinned.toString.toLowerCase}"
             case Some(Motif.Skewer(_, front, back, _, _, _, _, _, _)) =>
               s"a skewer against the ${front.toString.toLowerCase} and ${back.toString.toLowerCase}"
@@ -505,6 +505,7 @@ object NarrativeOutlineBuilder:
             case Some(m) => NarrativeUtils.humanize(motifName(m))
             case None => cf.severity.toLowerCase
           }
+        }
         val text = NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
         Some(OutlineBeat(
           kind = OutlineBeatKind.TeachingPoint,
@@ -1360,15 +1361,14 @@ object NarrativeOutlineBuilder:
     bead: Int,
     crossBeatState: CrossBeatRepetitionState
   ): Option[String] =
-    val primary = selectHypothesis(focusCandidate, crossBeatState, bead ^ 0x24d8f59c)
-      .orElse(selectHypothesis(supportCandidate, crossBeatState, bead ^ 0x3b5296f1))
+    val primary = selectHypothesis(focusCandidate, crossBeatState)
+      .orElse(selectHypothesis(supportCandidate, crossBeatState))
     primary.map { first =>
       val secondary =
         selectSecondaryHypothesis(
           primary = first.card,
           from = List(focusCandidate, supportCandidate).flatten.distinct,
-          state = crossBeatState,
-          bead = bead ^ 0x6d2b79f5
+          state = crossBeatState
         )
 
       val observation = buildHypothesisObservation(ctx, focusCandidate.orElse(supportCandidate), bead ^ 0x11f17f1d)
@@ -1445,9 +1445,9 @@ object NarrativeOutlineBuilder:
     usedDifferenceTails: scala.collection.mutable.Set[String]
   ): String =
     val mainHyp =
-      pickHypothesisForDifference(mainCandidate, usedHypothesisFamilies, usedHypothesisStems, bead ^ 0x7f4a7c15)
+      pickHypothesisForDifference(mainCandidate, usedHypothesisFamilies, usedHypothesisStems)
     val altHyp =
-      pickHypothesisForDifference(Some(alternative), usedHypothesisFamilies, usedHypothesisStems, bead ^ 0x2a2a2a2a)
+      pickHypothesisForDifference(Some(alternative), usedHypothesisFamilies, usedHypothesisStems)
     val altClaim =
       altHyp
         .map(_.claim)
@@ -1524,8 +1524,7 @@ object NarrativeOutlineBuilder:
 
   private def selectHypothesis(
     candidate: Option[CandidateInfo],
-    state: CrossBeatRepetitionState,
-    bead: Int
+    state: CrossBeatRepetitionState
   ): Option[SelectedHypothesis] =
     candidate.flatMap { c =>
       val sorted = c.hypotheses.sortBy(h => -h.confidence)
@@ -1546,8 +1545,7 @@ object NarrativeOutlineBuilder:
   private def selectSecondaryHypothesis(
     primary: HypothesisCard,
     from: List[CandidateInfo],
-    state: CrossBeatRepetitionState,
-    bead: Int
+    state: CrossBeatRepetitionState
   ): Option[SelectedHypothesis] =
     val pool =
       from.flatMap { c =>
@@ -1572,8 +1570,7 @@ object NarrativeOutlineBuilder:
   private def pickHypothesisForDifference(
     candidate: Option[CandidateInfo],
     usedFamilies: scala.collection.mutable.Set[String],
-    usedStems: scala.collection.mutable.Set[String],
-    bead: Int
+    usedStems: scala.collection.mutable.Set[String]
   ): Option[HypothesisCard] =
     candidate.flatMap { c =>
       val sorted = c.hypotheses.sortBy(h => -h.confidence)
@@ -2031,206 +2028,34 @@ object NarrativeOutlineBuilder:
       Some(polished)
   }
 
-  private def buildImbalanceContrast(ctx: NarrativeContext): Option[(String, String)] = {
-    val semantic = ctx.semantic.getOrElse(return None)
-
-    def formatTag(tag: PositionalTagInfo): Option[String] = tag.tagType match {
-      case "BishopPairAdvantage" => Some("the Bishop pair") // Was 'BishopPair' - brittle string
-      case "OpenFile" => tag.file.map(f => s"control of the $f-file")
-      case "Outpost" => tag.square.map(s => s"a strong outpost on $s")
-      case "PassedPawn" => tag.square.map(s => s"a passed pawn on $s")
-      case "SpaceAdvantage" => Some("a space advantage")
-      // Other tags that are valid positional advantages
-      case "ConnectedRooks" => Some("connected rooks")
-      case _ => None
-    }
-
-    def formatWeakness(weak: WeakComplexInfo): Option[String] = {
-      val squaresText = if (weak.squares.size <= 2) weak.squares.mkString(" and ") else s"${weak.squares.size} weak squares"
-      val colorDesc = if (weak.squareColor.nonEmpty) s"${weak.squareColor}-square " else ""
-      Some(s"exploiting Black's $colorDesc weaknesses on $squaresText") // simplistic, we pass the "owner" context in the caller
-    }
-
-    val whiteTags = semantic.positionalFeatures.filter(_.color == "White")
-    val blackTags = semantic.positionalFeatures.filter(_.color == "Black")
-
-    val whiteAdv = whiteTags.flatMap(formatTag).headOption
-      .orElse(semantic.structuralWeaknesses.filter(_.owner == "Black").headOption.map(w => s"pressure on Black's ${w.squareColor} squares"))
-
-    val blackAdv = blackTags.flatMap(formatTag).headOption
-      .orElse(semantic.structuralWeaknesses.filter(_.owner == "White").headOption.map(w => s"pressure on White's ${w.squareColor} squares"))
-
-    (whiteAdv, blackAdv) match {
-      case (Some(w), Some(b)) if w != b => Some((w, b)) // Only return if both exist and are distinct
-      case _ => None
-    }
-  }
-
-  private def themeKeywordPriority(keyword: String): Int =
-    keyword.toLowerCase match
-      case "bad bishop"               => 100
-      case "bishop pair"              => 100
-      case "zwischenzug"              => 100
-      case "repeat"                   => 100
-      case "opposite-colored bishops" => 95
-      case "minority attack"          => 95
-      case "pawn storm"               => 95
-      case "underpromotion"           => 95
-      case "smothered mate"           => 95
-      case _                          => 70
-
-  private def themeReinforcementSentence(motif: String): Option[(String, String)] =
-    val normalized = normalizeMotifKey(motif)
-    if normalized.contains("iqp") || normalized.contains("isolated_pawn") then
-      Some("isolated" -> "The isolated queen pawn structure is a key strategic reference point.")
-    else if normalized.contains("minority_attack") then
-      Some("minority attack" -> "A minority attack is becoming a practical queenside plan.")
-    else if normalized.contains("bad_bishop") then
-      Some("bad bishop" -> "The bad bishop remains a lasting positional burden.")
-    else if normalized.contains("prophylaxis") then
-      Some("prophylactic" -> "A prophylactic idea is central to limiting counterplay.")
-    else if normalized.contains("interference") then
-      Some("interference" -> "Interference is a live tactical resource in this position.")
-    else if normalized.contains("deflection") then
-      Some("deflection" -> "Deflection is a concrete tactical theme to calculate carefully.")
-    else if normalized.contains("king_hunt") then
-      Some("king hunt" -> "A king hunt can emerge quickly if king safety loosens.")
-    else if normalized.contains("battery") then
-      Some("battery" -> "A battery setup is building pressure on key lines.")
-    else if normalized.contains("bishop_pair") then
-      Some("bishop pair" -> "The bishop pair is a meaningful long-term asset here.")
-    else if normalized.contains("opposite_bishops") || normalized.contains("opposite_color_bishops") then
-      Some("opposite-colored bishops" -> "Opposite-colored bishops increase attacking chances for both sides.")
-    else if normalized.contains("simplification") || normalized.contains("liquidate") then
-      Some("simplification" -> "Simplification is a practical route to consolidate the position.")
-    else if normalized.contains("smothered_mate") then
-      Some("smothered mate" -> "Smothered mate patterns are part of the tactical background.")
-    else if normalized.contains("novelty") then
-      Some("novelty" -> "This position carries novelty value compared with the usual mainline treatment.")
-    else if normalized.contains("rook_lift") then
-      Some("rook lift" -> "A rook lift can become a key attacking mechanism.")
-    else if normalized.contains("zwischenzug") then
-      Some("zwischenzug" -> "A zwischenzug resource may interrupt the expected sequence.")
-    else if normalized.contains("pawn_storm") then
-      Some("pawn storm" -> "A pawn storm is the direct attacking plan around the king.")
-    else if normalized.contains("trapped_piece") || normalized.contains("trapped") then
-      Some("trapped" -> "A trapped piece motif is becoming relevant.")
-    else if normalized.contains("stalemate") then
-      Some("stalemate" -> "Stalemate resources are part of the endgame calculation.")
-    else if normalized.contains("underpromotion") then
-      Some("underpromotion" -> "An underpromotion resource is a concrete tactical possibility.")
-    else if normalized.contains("repetition") || normalized.contains("repeat") then
-      Some("repeat" -> "A repeat line is a practical decision point if risk rises.")
-    else if normalized.contains("kingside_attack") then
-      Some("kingside attack" -> "A kingside attack is the direct plan for both sides.")
-    else if normalized.contains("queenside_attack") then
-      Some("queenside attack" -> "Strategic focus shifts to a queenside attack plan.")
-    else if normalized.contains("centralization") then
-      Some("centralization" -> "Centralization of key pieces is the main priority.")
-    else None
-
-  private def themeSentenceVariants(keyword: String, canonical: String): List[String] =
-    keyword.toLowerCase match
-      case "minority attack" =>
-        List(
-          "A minority attack is becoming a practical queenside plan.",
-          "Minority attack play on the queenside is becoming the most practical plan.",
-          "The queenside minority attack is turning into the key practical route.",
-          "Strategic weight shifts toward a queenside minority attack.",
-          "The most promising plan involves a minority attack on the queenside."
-        )
-      case "bad bishop" =>
-        List(
-          "The bad bishop remains a lasting positional burden.",
-          "The bad bishop continues to limit long-term piece quality.",
-          "A bad bishop handicap is still shaping the strategic plans."
-        )
-      case "repeat" =>
-        List(
-          "A repeat line is a practical decision point if risk rises.",
-          "Repeat options are part of the practical decision tree when risk increases.",
-          "A repeat remains a practical fallback if neither side can improve safely."
-        )
-      case "zwischenzug" =>
-        List(
-          "A zwischenzug resource may interrupt the expected sequence.",
-          "A zwischenzug can reset the move order and change the tactical evaluation.",
-          "The key tactical resource is a zwischenzug that disrupts automatic recapture."
-        )
-      case "bishop pair" =>
-        List(
-          "The bishop pair is a meaningful long-term asset here.",
-          "The bishop pair provides a durable strategic edge over long diagonals.",
-          "Long-term play favors the bishop pair as an enduring strategic asset.",
-          "Managing the bishop pair will be a central theme in the ending.",
-          "The long-term value of the bishop pair begins to define the plans."
-        )
-      case "opposite-colored bishops" =>
-        List(
-          "Opposite-colored bishops increase attacking chances for both sides.",
-          "Opposite-colored bishops often amplify direct attacking chances.",
-          "With opposite-colored bishops, both kings can come under sharper pressure."
-        )
-      case "smothered mate" =>
-        List(
-          "Smothered mate patterns are part of the tactical background.",
-          "Smothered-mate geometry remains a live tactical motif.",
-          "Knight-and-queen coordination keeps smothered-mate motifs relevant."
-        )
-      case "underpromotion" =>
-        List(
-          "An underpromotion resource is a concrete tactical possibility.",
-          "Underpromotion remains a concrete tactical resource in this position.",
-          "A non-queen promotion idea is part of the tactical calculation tree."
-        )
-      case "pawn storm" =>
-        List(
-          "A pawn storm is the direct attacking plan around the king.",
-          "The direct attacking roadmap features a king-side pawn storm.",
-          "Flank pawn-storm timing is central to the attack plan."
-        )
-      case "kingside attack" =>
-        List(
-          "A kingside attack is the direct plan for both sides.",
-          "Strategic focus shifts toward coordination for a kingside attack.",
-          "The immediate goal is building an attack on the kingside.",
-          "The roadmap involves direct pressure against the king's position."
-        )
-      case "queenside attack" =>
-        List(
-          "Strategic focus shifts to a queenside attack plan.",
-          "The queenside attack is becoming the most practical way forward.",
-          "Building pressure on the queenside is the primary strategic task.",
-          "A queenside attack plan defines the technical roadmap here."
-        )
-      case "centralization" =>
-        List(
-          "Centralization of key pieces is the main priority.",
-          "Piece centralization is required to keep the structure stable.",
-          "Technical progress depends on successful centralization of the pieces.",
-          "Consolidating control through centralization is the immediate task."
-        )
-      case _ =>
-        List(canonical)
-
-  private def pickThemeVariant(
-    bead: Int,
-    ply: Int,
-    variants: List[String],
-    existingLow: String
-  ): Option[String] =
-    val clean = variants.map(_.trim).filter(_.nonEmpty).distinct
-    if clean.isEmpty then None
-    else
-      val seed = bead ^ (ply * 0x27d4eb2f)
-      val baseIdx = {
-        val mixed = scala.util.hashing.MurmurHash3.mixLast(0x3c6ef372, seed)
-        val finalized = scala.util.hashing.MurmurHash3.finalizeHash(mixed, 1)
-        Math.floorMod(finalized + ply, clean.size)
+  private def buildImbalanceContrast(ctx: NarrativeContext): Option[(String, String)] =
+    ctx.semantic.flatMap { semantic =>
+      def formatTag(tag: PositionalTagInfo): Option[String] = tag.tagType match {
+        case "BishopPairAdvantage" => Some("the Bishop pair") // Was 'BishopPair' - brittle string
+        case "OpenFile" => tag.file.map(f => s"control of the $f-file")
+        case "Outpost" => tag.square.map(s => s"a strong outpost on $s")
+        case "PassedPawn" => tag.square.map(s => s"a passed pawn on $s")
+        case "SpaceAdvantage" => Some("a space advantage")
+        // Other tags that are valid positional advantages
+        case "ConnectedRooks" => Some("connected rooks")
+        case _ => None
       }
-      (0 until clean.size)
-        .map(i => clean(Math.floorMod(baseIdx + i, clean.size)))
-        .find(s => !existingLow.contains(s.toLowerCase))
+
+      val whiteTags = semantic.positionalFeatures.filter(_.color == "White")
+      val blackTags = semantic.positionalFeatures.filter(_.color == "Black")
+
+      val whiteAdv = whiteTags.flatMap(formatTag).headOption
+        .orElse(semantic.structuralWeaknesses.filter(_.owner == "Black").headOption.map(w => s"pressure on Black's ${w.squareColor} squares"))
+
+      val blackAdv = blackTags.flatMap(formatTag).headOption
+        .orElse(semantic.structuralWeaknesses.filter(_.owner == "White").headOption.map(w => s"pressure on White's ${w.squareColor} squares"))
+
+      (whiteAdv, blackAdv) match {
+        case (Some(w), Some(b)) if w != b => Some((w, b)) // Only return if both exist and are distinct
+        case _ => None
+      }
+    }
+
 
   private def collectDerivedContextMotifs(ctx: NarrativeContext): List[String] =
     val semantic = ctx.semantic.toList

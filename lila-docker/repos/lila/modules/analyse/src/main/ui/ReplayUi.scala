@@ -135,7 +135,7 @@ final class ReplayUi(helpers: Helpers)(analyseUi: AnalyseUi):
                         else
                           postForm(
                             cls := s"future-game-analysis${if (ctx.isAuth) "" else " must-login"}",
-                            action := routeUrl(routes.Analyse.requestAnalysis(gameId.value))
+                            action := routeUrl(routes.UserAnalysis.index)
                           ):
                             submitButton(cls := "button text"):
                               span(cls := "is3 text", dataIcon := Icon.BarChart)(

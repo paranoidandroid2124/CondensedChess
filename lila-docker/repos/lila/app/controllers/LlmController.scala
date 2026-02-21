@@ -7,7 +7,6 @@ import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest, CreditApi, Credit
 import lila.analyse.ui.BookmakerRenderer
 import lila.llm.model.OpeningReference.given
 
-import lila.common.HTTPRequest
 import scala.concurrent.duration.*
 
 final class LlmController(
@@ -99,8 +98,6 @@ final class LlmController(
             fen = commentReq.fen,
             lastMove = commentReq.lastMove,
             eval = commentReq.eval,
-            opening = commentReq.context.opening,
-            phase = commentReq.context.phase,
             ply = commentReq.context.ply
           )
           .map {

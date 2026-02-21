@@ -5,29 +5,18 @@ import chess.format.pgn.{ PgnStr, Tags }
 import chess.variant.Variant
 import scala.annotation.unused
 
-import lila.core.game.Namer
-import lila.core.id.GameFullId
 import lila.tree.{ Branches, Root }
 
 // Chesstory: Removed chatApi dependency - analysis system doesn't need chat notifications
 final private class ChapterMaker(
-    net: lila.core.config.NetConfig,
-    lightUser: lila.core.user.LightUserApi,
-    gameRepo: lila.core.game.GameRepo,
-    pgnDump: lila.core.game.PgnDump,
-    namer: lila.core.game.Namer
+    lightUser: lila.core.user.LightUserApi
 )(using Executor):
 
   import ChapterMaker.*
 
-  def apply(study: Study, data: Data, order: Int, userId: UserId, withRatings: Boolean): Fu[Chapter] =
-    data.game
-      .so(parseGame)
-      .flatMap:
-        case None => fromFenOrPgnOrBlank(study, data, order, userId)
-        case Some(game) => fromGame(study, game, data, order, userId, withRatings)
-      .map: c =>
-        if c.name.value.isEmpty then c.copy(name = Chapter.defaultName(order)) else c
+  def apply(study: Study, data: Data, order: Int, userId: UserId, @unused withRatings: Boolean): Fu[Chapter] =
+    fromFenOrPgnOrBlank(study, data, order, userId).map: c =>
+      if c.name.value.isEmpty then c.copy(name = Chapter.defaultName(order)) else c
 
   def fromFenOrPgnOrBlank(study: Study, data: Data, order: Int, userId: UserId): Fu[Chapter] =
     data.pgn.filter(_.value.trim.nonEmpty) match
@@ -116,70 +105,7 @@ final private class ChapterMaker(
       conceal = data.isConceal.option(root.ply)
     )
 
-  private[study] def fromGame(
-      study: Study,
-      game: Game,
-      data: Data,
-      order: Int,
-      userId: UserId,
-      @unused withRatings: Boolean,
-      initialFen: Option[Fen.Full] = None
-  ): Fu[Chapter] =
-    for
-      root <- makeRoot(game, data.pgn, initialFen)
-      tags <- pgnDump.tags(game, initialFen, none, withOpening = true, none)  // Fixed: withRatings removed, teamIds = none
-      name <-
-        if data.isDefaultName then
-          StudyChapterName.from(namer.gameVsText(game)(using lightUser.async))
-        else fuccess(data.name)
-
-    yield Chapter.make(
-      studyId = study.id,
-      name = name,
-      setup = Chapter.Setup(
-        (!game.synthetic).option(game.id),
-        game.variant,
-        data.orientation match
-          case Orientation.Auto => Color.white
-          case Orientation.Fixed(color) => color
-      ),
-      root = root,
-      tags = StudyPgnTags(tags),
-      order = order,
-      ownerId = userId,
-      practice = data.isPractice,
-      gamebook = data.isGamebook,
-      conceal = data.isConceal.option(root.ply)
-    )
-
-  // Removed notifyChat - analysis system doesn't need chat notifications
-
-  private[study] def makeRoot(
-      game: Game,
-      pgnOpt: Option[PgnStr],
-      initialFen: Option[Fen.Full]
-  ): Fu[Root] =
-    initialFen
-      .fold(gameRepo.initialFen(game)): fen =>
-        fuccess(fen.some)
-      .map: goodFen =>
-        val fromGame = GameToRoot(game, goodFen, withClocks = true)
-        pgnOpt.flatMap(StudyPgnImport.result(_, Nil).toOption.map(_.root)) match
-          case Some(r) => fromGame.merge(r)
-          case None => fromGame
-
-  private val UrlRegex = {
-    val escapedDomain = net.domain.value.replace(".", "\\.")
-    s"""$escapedDomain/(\\w{8,12})"""
-  }.r.unanchored
-
-  @scala.annotation.tailrec
-  private def parseGame(str: String): Fu[Option[Game]] =
-    str match
-      case s if s.lengthIs == GameId.size => gameRepo.game(GameId(s))
-      case s if s.lengthIs == GameFullId.size => gameRepo.game(GameId.take(s))
-      case UrlRegex(id) => parseGame(id)
-      case _ => fuccess(none)
+  // Removed game-id import path: chapter creation is now FEN/PGN only.
 
 private[study] object ChapterMaker:
 

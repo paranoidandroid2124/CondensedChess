@@ -98,24 +98,8 @@ case class Pref(
 
   def forceDarkBg = copy(bg = Pref.Bg.DARK)
 
-  def set(name: String, value: String): Pref = name match
-    case "bg"           => copy(bg = Pref.Bg.fromString.get(value) | bg)
-    case "bgImg"        => copy(bgImg = value.some)
-    case "theme"        => copy(theme = value)
-    case "pieceSet"     => copy(pieceSet = value)
-    case "theme3d"      => copy(theme3d = value)
-    case "pieceSet3d"   => copy(pieceSet3d = value)
-    case "soundSet"     => copy(soundSet = value)
-    case "animation"    => copy(animation = value.toIntOption | animation)
-    case "highlight"    => copy(highlight = value == "1")
-    case "destination"  => copy(destination = value == "1")
-    case "coords"       => copy(coords = value.toIntOption | coords)
-    case "keyboardMove" => copy(keyboardMove = value.toIntOption | keyboardMove)
-    case "zen"          => copy(zen = value.toIntOption | zen)
-    case "rookCastle"   => copy(rookCastle = value.toIntOption | rookCastle)
-    case "moveEvent"    => copy(moveEvent = value.toIntOption | moveEvent)
-    case "pieceNotation" => copy(pieceNotation = value.toIntOption | pieceNotation)
-    case _              => this
+  def set(name: String, value: String): Pref =
+    Pref.validatedUpdate(name, value).fold(this)(_(this))
 
 object Pref:
 
@@ -244,6 +228,42 @@ object Pref:
       YES -> "Yes",
       GAME_AUTO -> "In-game only"
     )
+
+  private def intIn(value: String, allowed: Set[Int]): Option[Int] =
+    value.toIntOption.filter(allowed)
+
+  private def boolFrom01(value: String): Option[Boolean] =
+    value match
+      case "0" => false.some
+      case "1" => true.some
+      case _   => none
+
+  private def bgImgFromValue(value: String): Option[Option[String]] =
+    val trimmed = value.trim
+    if trimmed.isEmpty then Some(None)
+    else if trimmed.length <= 400 && (trimmed.startsWith("https://") || trimmed.startsWith("//"))
+    then Some(trimmed.some)
+    else None
+
+  def validatedUpdate(name: String, value: String): Option[Pref => Pref] =
+    name match
+      case "bg" => Bg.fromString.get(value).map(bg => _.copy(bg = bg))
+      case "bgImg" => bgImgFromValue(value).map(bgImg => _.copy(bgImg = bgImg))
+      case "theme" if Theme.contains(value) => Some(_.copy(theme = value))
+      case "pieceSet" if PieceSet.contains(value) => Some(_.copy(pieceSet = value))
+      case "theme3d" if Theme3d.contains(value) => Some(_.copy(theme3d = value))
+      case "pieceSet3d" if PieceSet3d.contains(value) => Some(_.copy(pieceSet3d = value))
+      case "soundSet" if SoundSet.contains(value) => Some(_.copy(soundSet = value))
+      case "animation" => intIn(value, Set(0, 1, 2, 3)).map(v => _.copy(animation = v))
+      case "highlight" => boolFrom01(value).map(v => _.copy(highlight = v))
+      case "destination" => boolFrom01(value).map(v => _.copy(destination = v))
+      case "coords" => intIn(value, Set(0, 1, 2, 3)).map(v => _.copy(coords = v))
+      case "keyboardMove" => intIn(value, Set(0, 1)).map(v => _.copy(keyboardMove = v))
+      case "zen" => intIn(value, Set(0, 1, 2)).map(v => _.copy(zen = v))
+      case "rookCastle" => intIn(value, Set(0, 1)).map(v => _.copy(rookCastle = v))
+      case "moveEvent" => intIn(value, Set(0, 1, 2)).map(v => _.copy(moveEvent = v))
+      case "pieceNotation" => intIn(value, Set(0, 1)).map(v => _.copy(pieceNotation = v))
+      case _ => None
 
   val darkByDefaultSince = instantOf(2021, 11, 7, 8, 0)
   val systemByDefaultSince = instantOf(2022, 12, 23, 8, 0)

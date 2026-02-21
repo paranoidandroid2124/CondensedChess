@@ -68,10 +68,9 @@ lazy val modules = Seq(
   memo,
   
   // User & Security (Level 5)
-  user, pref, mailer, oauth,
+  user, pref, mailer,
   
   // Analysis Core (Level 5-6)
-  game,
   analyse,
   study,
   
@@ -134,19 +133,12 @@ lazy val ui = module("ui",
 // User & Security Modules
 // ============================================================
 
-// Chesstory: rating module removed (not needed for analysis-only system)
-
 lazy val user = module("user",
-  Seq(db, memo),  // removed rating dependency
+  Seq(db, memo),
   Seq(hasher) ++ tests.bundle ++ playWs.bundle
 )
 
 lazy val pref = module("pref",
-  Seq(memo, ui),
-  Seq()
-)
-
-lazy val oauth = module("oauth",
   Seq(memo, ui),
   Seq()
 )
@@ -157,18 +149,13 @@ lazy val mailer = module("mailer",
 )
 
 lazy val security = module("security",
-  Seq(oauth, user, mailer, pref),
+  Seq(user, mailer, pref),
   Seq(maxmind, hasher, uaparser) ++ tests.bundle
 )
 
 // ============================================================
 // Analysis Core Modules
 // ============================================================
-
-lazy val game = module("game",
-  Seq(tree, memo, ui),  // removed rating dependency
-  Seq(compression) ++ tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
-)
 
 lazy val analyse = module("analyse",
   Seq(tree, memo, ui, llm),
@@ -183,8 +170,6 @@ lazy val study = module("study",
 // ============================================================
 // Analysis Pipeline Modules
 // ============================================================
-
-// Chesstory: fishnet module removed (using client-side analysis only)
 
 lazy val llm = module("llm",
   Seq(db, memo),

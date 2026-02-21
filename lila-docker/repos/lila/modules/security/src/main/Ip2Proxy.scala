@@ -3,7 +3,7 @@ package lila.security
 import play.api.mvc.RequestHeader
 import lila.core.net.IpAddress
 import lila.core.security.{ Ip2ProxyApi, IsProxy }
-import lila.core.lilaism.Core.{ *, given }
+import lila.core.lilaism.Core.*
 
 final class Ip2ProxySkip extends Ip2ProxyApi:
   def ofReq(req: RequestHeader): Fu[IsProxy] = Future.successful(IsProxy.empty)

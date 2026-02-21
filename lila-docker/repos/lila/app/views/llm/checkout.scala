@@ -1,11 +1,12 @@
 package views.llm
 
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object checkout:
 
-  def apply(me: Me, checkoutEnabled: Boolean)(using ctx: Context): Page =
+  def apply(me: Me, checkoutEnabled: Boolean)(using @unused ctx: Context): Page =
     Page(if checkoutEnabled then "Secure Checkout — Analyst Pro" else "Checkout Unavailable — Analyst Pro")
       .css("llm.plan")
       .wrap: _ =>

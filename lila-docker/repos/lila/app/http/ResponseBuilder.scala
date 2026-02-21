@@ -23,7 +23,7 @@ trait ResponseBuilder(using Executor)
   def Found[A](a: Fu[Option[A]])(f: A => Fu[Result])(using Context): Fu[Result] =
     a.flatMap(_.fold(notFound)(f))
 
-  def FoundEmbed[A](a: Fu[Option[A]])(f: A => Fu[Result])(using EmbedContext): Fu[Result] =
+  def FoundEmbed[A](a: Fu[Option[A]])(f: A => Fu[Result])(using @scala.annotation.unused ctx: EmbedContext): Fu[Result] =
     a.flatMap(_.fold(notFoundEmbed)(f))
 
   def Found[A](a: Option[A])(f: A => Fu[Result])(using Context): Fu[Result] =
@@ -66,7 +66,7 @@ trait ResponseBuilder(using Executor)
     negotiate(html, api(ApiVersion.mobile).dmap(_.withHeaders(VARY -> "Accept").as(JSON)))
 
   def negotiate(html: => Fu[Result], json: => Fu[Result])(using ctx: Context): Fu[Result] =
-    if HTTPRequest.acceptsJson(ctx.req) || ctx.isOAuth
+    if HTTPRequest.acceptsJson(ctx.req) || ctx.isTokenAuth
     then json.dmap(_.withHeaders(VARY -> "Accept").as(JSON))
     else html.dmap(_.withHeaders(VARY -> "Accept"))
 
@@ -78,7 +78,7 @@ trait ResponseBuilder(using Executor)
 
   def notFound(using ctx: Context): Fu[Result] = notFound(none)
   def notFound(msg: Option[String])(using ctx: Context): Fu[Result] =
-    if ctx.isOAuth || HTTPRequest.acceptsJson(ctx.req) || HTTPRequest.acceptsNdJson(ctx.req)
+    if ctx.isTokenAuth || HTTPRequest.acceptsJson(ctx.req) || HTTPRequest.acceptsNdJson(ctx.req)
     then msg.fold(notFoundJson())(notFoundJson)
     else if HTTPRequest.isSynchronousHttp(ctx.req)
     then keyPages.notFound(msg)

@@ -17,7 +17,7 @@ object TransitionAnalyzer:
 
   private val MOMENTUM_DECAY = 0.15      // Linear decay per move
   private val MOMENTUM_BOOST = 0.25       // Boost (net +0.1 after decay)
-  private val HISTORY_SIZE = 3           // Track last 3 plans
+
   private val MOMENTUM_MAX = 1.0
   private val MOMENTUM_MIN = 0.0
 
@@ -45,7 +45,7 @@ object TransitionAnalyzer:
         else TransitionType.NaturalShift
     }
     
-    val momentum = calcMomentum(currPlan, None, prevMomentum, transType) // Dummy None object for prevPlan
+    val momentum = calcMomentum(prevMomentum, transType)
     
     (transType, momentum)
   }
@@ -64,12 +64,12 @@ object TransitionAnalyzer:
     case Some(prev) if prev.id == currPlan.id => 
       TransitionType.Continuation
       
-    case Some(prev) =>
+    case Some(_) =>
       // ForcedPivot: tactical threat TO US forces abandonment
       if (ctx.tacticalThreatToUs)
         TransitionType.ForcedPivot
       // Opportunistic: we suddenly have tactical threat TO THEM
-      else if (ctx.tacticalThreatToThem && !prev.category.isAttack)
+      else if (ctx.tacticalThreatToThem)
         TransitionType.Opportunistic
       // NaturalShift: phase change or natural plan evolution
       else
@@ -86,8 +86,6 @@ object TransitionAnalyzer:
    * - Opening: start at 0.5
    */
   def calcMomentum(
-    _currPlan: Plan,
-    _prevPlan: Option[Plan],
     prevMomentum: Double,
     transitionType: TransitionType
   ): Double = transitionType match {
@@ -155,14 +153,6 @@ object TransitionAnalyzer:
     }
   }
 
-  /**
-   * Update plan history, keeping last N entries.
-   */
-  private def updateHistory(
-    currPlanId: PlanId,
-    history: List[PlanId]
-  ): List[PlanId] =
-    (currPlanId :: history).take(HISTORY_SIZE)
 
   // Extension to check if category is attack
   extension (cat: PlanCategory)

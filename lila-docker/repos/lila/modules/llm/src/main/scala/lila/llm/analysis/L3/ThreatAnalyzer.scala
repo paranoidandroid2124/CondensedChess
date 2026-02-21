@@ -48,45 +48,51 @@ object ThreatAnalyzer:
     
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
     val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, isWhiteToMove, fen)
-    val thresholds = adjustThresholds(phase1, multiPv)
-    val threatsWithDefense = populateDefenseEvidence(correctedThreats, multiPv, thresholds)
-    computeAggregates(threatsWithDefense, multiPv, thresholds, phase1)
+    val withDefenses = populateDefenseEvidence(correctedThreats, multiPv)
+    computeAggregates(withDefenses, multiPv, phase1)
 
   /**
-   * FIX #2: Only extract threats made BY the opponent, not our own tactics
+   * Extract opponent threats from L2 motifs. Labeling-only pass:
+   * sets lossIfIgnoredCp = 0 (actual severity comes from MultiPV delta in correctWithMultiPv).
    */
   private def extractOpponentThreats(motifs: List[Motif], isWhiteToMove: Boolean): List[Threat] =
     motifs.flatMap { motif =>
-      // Get motif color - threats are from opponent's perspective
       val motifColor = getMotifColor(motif)
       val isOpponentMotif = motifColor.exists { color =>
         (isWhiteToMove && color == Color.Black) || (!isWhiteToMove && color == Color.White)
       }
       
-      // Only process opponent's motifs as threats
       if !isOpponentMotif then None
       else
         val motifName = motif.getClass.getSimpleName.replace("$", "")
-        val (baseLoss, turnsToImpact) = MotifLossTable.getBaseLoss(motifName)
+        val lower = motifName.toLowerCase
         
-        if baseLoss > 0 then
-          val kind = 
-            if MotifLossTable.isMateMotif(motifName) then ThreatKind.Mate
-            else if baseLoss >= MATERIAL_THREAT_THRESHOLD then ThreatKind.Material
-            else ThreatKind.Positional
-          
-          Some(Threat(
-            kind = kind,
-            lossIfIgnoredCp = baseLoss,
-            turnsToImpact = turnsToImpact,
-            motifs = List(motifName),
-            attackSquares = extractAttackSquares(motif),
-            targetPieces = extractTargetPieces(motif),
-            bestDefense = None,
-            defenseCount = 0  // Will be populated in Step 4
-          ))
-        else None
+        // Classify threat kind from motif type directly
+        val kind = 
+          if lower.contains("mate") || lower.contains("checkmate") || lower == "backrankweakness" then ThreatKind.Mate
+          else if isTacticalMotifName(lower) then ThreatKind.Material
+          else ThreatKind.Positional
+        
+        // Tactical motifs are immediate (1-2 turns), positional are strategic (3+ turns)
+        val turnsToImpact = if kind == ThreatKind.Positional then 3 else 1
+        
+        Some(Threat(
+          kind = kind,
+          lossIfIgnoredCp = 0, // Actual severity will be set by correctWithMultiPv
+          turnsToImpact = turnsToImpact,
+          motifs = List(motifName),
+          attackSquares = extractAttackSquares(motif),
+          targetPieces = extractTargetPieces(motif),
+          bestDefense = None,
+          defenseCount = 0
+        )).filter(_ => kind == ThreatKind.Mate || kind == ThreatKind.Material) // Drop pure positional labels (no value)
     }
+
+  /** Tactical motif names that indicate material-level threats. */
+  private def isTacticalMotifName(lower: String): Boolean =
+    List("fork", "pin", "skewer", "discovered", "deflection", "overloading",
+         "trappedpiece", "interference", "decoy", "zwischenzug", "doublecheck")
+      .exists(lower.contains)
 
   /**
    * Comprehensive motif color extraction.
@@ -131,8 +137,8 @@ object ThreatAnalyzer:
       case m: Motif.BackwardPawn => Some(m.color)
       case m: Motif.PassedPawn => Some(m.color)
       // Positional motifs (strategic, not immediate threats)
-      // NOTE: These are included for completeness but typically have low
-      // threat values in MotifLossTable since they are strategic, not tactical.
+      // NOTE: These are included for completeness but typically produce
+      // ThreatKind.Positional labels, which are filtered out in extractOpponentThreats.
       case m: Motif.OpenFileControl => Some(m.color)
       case m: Motif.WeakBackRank => Some(m.color)
       case m: Motif.SpaceAdvantage => Some(m.color)
@@ -284,8 +290,7 @@ object ThreatAnalyzer:
    */
   private def populateDefenseEvidence(
     threats: List[Threat],
-    multiPv: List[PvLine],
-    thresholds: ThresholdConfig
+    multiPv: List[PvLine]
   ): List[Threat] =
     if threats.isEmpty then threats
     else
@@ -311,13 +316,13 @@ object ThreatAnalyzer:
   private def computeAggregates(
     threats: List[Threat],
     multiPv: List[PvLine],
-    thresholds: ThresholdConfig,
     phase1: PositionClassification
   ): ThreatAnalysis =
     val maxLoss = threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)
     val hasMate = threats.exists(_.kind == ThreatKind.Mate)
     val hasImmediate = threats.exists(_.isImmediate)
     val hasStrategic = threats.exists(_.isStrategic)
+    val thresholds = adjustThresholds(phase1, multiPv) // Re-calculate thresholds inside
     val hasUrgentImmediate = threats.exists { t =>
       t.isImmediate && t.lossIfIgnoredCp >= thresholds.immediateThreshold
     }

@@ -18,8 +18,9 @@ class StrategicFeatureExtractorImpl(
       fen: String,
       metadata: AnalysisMetadata,
       baseData: BaseAnalysisData,
-      vars: List[lila.llm.model.strategic.VariationLine],
-      playedMove: Option[String]
+    vars: List[lila.llm.model.strategic.VariationLine],
+      playedMove: Option[String],
+      probeResults: List[lila.llm.model.ProbeResult] = Nil
   ): ExtendedAnalysisData = {
 
     val board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
@@ -67,33 +68,75 @@ class StrategicFeatureExtractorImpl(
     val normalizedBestScore = normalizeScore(bestVar)
     val normalizedBestVar = bestVar.copy(scoreCp = normalizedBestScore, mate = None)
     val relativeScore = if (color.white) normalizedBestScore else -normalizedBestScore
-    val detectedThreats = lila.llm.analysis.MoveAnalyzer.detectThreats(fen, color)
-    val (threatLineRaw, threatPlanId) = if (detectedThreats.nonEmpty) {
-      // Derive planId from actual motifs
-      val planId = detectedThreats.collectFirst {
-        case _: Motif.Check => "Checkmate Threat"
-        case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => "Material Loss"
-        case _: Motif.Fork => "Fork Threat"
-        case _: Motif.Pin => "Pin Threat"
-      }.getOrElse("Tactical Threat")
-      
-      val threatValue = detectedThreats.map {
-        case _: Motif.Check => 100
-        case _: Motif.Fork => 300
-        case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => 200
-        case _ => 100
-      }.max
-      
-      // Calculate normalized threat score
-      val threatScore = normalizedBestScore - (if (color.white) threatValue else -threatValue)
-      
-      (Some(VariationLine(
-        moves = detectedThreats.flatMap(_.move).take(3),
-        scoreCp = threatScore,
-        mate = None,
-        tags = Nil
-      )), Some(planId))
-    } else (None, None)
+    
+    // Look for a true Null-Move Threat evaluated by the engine client
+    val nullMoveProbe = probeResults.find(_.purpose.contains("NullMoveThreat"))
+    
+    val (threatLineRaw, threatPlanId) = nullMoveProbe match {
+      case Some(probe) if probe.bestReplyPv.nonEmpty =>
+        // We have a concrete engine refutation line!
+        // Best reply PV is the sequence of moves the opponent would use to destroy us
+        // evalCp inside the probe is from the opponent's POV after our null move.
+        // It's the absolute proof of the threat.
+        val threatScore = if (color.white) -probe.evalCp else probe.evalCp 
+        
+        val threatLine = VariationLine(
+          moves = probe.bestReplyPv.take(3), // Top 3 moves of the threat sequence
+          scoreCp = threatScore,
+          depth = probe.depth.getOrElse(0),
+          resultingFen = None,
+          mate = probe.mate,
+          tags = Nil,
+          parsedMoves = Nil
+        )
+        // Extract basic motifs to label the plan (Checkmate Threat vs Material Loss) 
+        val threatPhenomena = lila.llm.analysis.MoveAnalyzer.tokenizePv(nullMoveProbe.flatMap(_.fen).getOrElse(fen), probe.bestReplyPv.take(3))
+        
+        val planId = threatPhenomena.collectFirst {
+          case _: Motif.MateNet => "Checkmate Threat"
+          case _: Motif.Check => "Checkmate Threat"
+          case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => "Material Loss"
+          case _: Motif.Fork => "Fork Threat"
+          case _: Motif.Pin => "Pin Threat"
+        }.getOrElse("Decisive Advantage (Null-Move Threat)")
+        
+        (Some(threatLine), Some(planId))
+        
+      case None =>
+        // Fallback: Extract immediate opponent threats from base motifs (Heuristic)
+        val detectedThreats = baseData.motifs.filter(m => m.color != color && m.plyIndex == 0)
+        
+        if (detectedThreats.nonEmpty) {
+          // Derive planId from actual motifs
+          val planId = detectedThreats.collectFirst {
+            case _: Motif.MateNet => "Checkmate Threat"
+            case _: Motif.Check => "Checkmate Threat"
+            case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => "Material Loss"
+            case _: Motif.Fork => "Fork Threat"
+            case _: Motif.Pin => "Pin Threat"
+          }.getOrElse("Tactical Threat")
+          
+          val threatValue = detectedThreats.map {
+            case _: Motif.Check => 100
+            case _: Motif.Fork => 300
+            case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => 200
+            case _ => 100
+          }.max
+          
+          // Calculate normalized threat score
+          val threatScore = normalizedBestScore - (if (color.white) threatValue else -threatValue)
+          
+          (Some(VariationLine(
+            moves = detectedThreats.flatMap(_.move).take(3),
+            scoreCp = threatScore,
+            depth = 0,
+            resultingFen = None,
+            mate = None,
+            tags = Nil,
+            parsedMoves = Nil
+          )), Some(planId))
+        } else (None, None)
+    }
 
     // Wire to ProphylaxisAnalyzer with normalized inputs and explicit plan ID
     // Note: inputs are now normalized, so analyzer's scoreDiff will be correct
@@ -146,7 +189,8 @@ class StrategicFeatureExtractorImpl(
             bestMove = bestVar.moves.headOption.getOrElse("?"),
             userLine = ul,
             bestLine = bestVar,
-            cpLoss = cpLoss
+            cpLoss = cpLoss,
+            playerColor = color
           ))
         } else None
       }

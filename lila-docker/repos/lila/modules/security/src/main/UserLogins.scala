@@ -1,13 +1,10 @@
 package lila.security
 
-import reactivemongo.api.bson.*
-
-import lila.core.userId.UserId
-import lila.core.lilaism.Core.{ *, given }
+import lila.core.lilaism.Core.*
 import lila.core.net.{ IpAddress, UserAgent }
-import lila.core.security.{ FingerHash, IsProxy }
-import lila.db.dsl.{ *, given }
-import lila.user.{ User, UserRepo }
+import lila.user.User
+import java.time.Instant
+import scala.annotation.unused
 
 case class UserLogins(
     ips: List[UserLogins.IPData],
@@ -16,12 +13,12 @@ case class UserLogins(
 
 final class UserLoginsApi(
     store: SessionStore,
-    userRepo: UserRepo
+    @unused userRepo: lila.user.UserRepo
 )(using Executor):
 
   import UserLogins.*
 
-  def apply(user: User, maxOthers: Int): Fu[UserLogins] =
+  def apply(user: User, @unused maxOthers: Int): Fu[UserLogins] =
     store.chronoInfoByUser(user).map { infos =>
       UserLogins(
         ips = distinctRecent(infos.map(_.datedIp)).map(IPData.apply).toList,

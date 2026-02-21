@@ -1,16 +1,15 @@
 package lila.mailer
 
 import play.api.i18n.Lang
-import scalatags.Text.all.*
+import scala.annotation.unused
 
 import lila.core.config.BaseUrl
-import lila.core.lilaism.LilaException
 
 final class AutomaticEmail(
     userApi: lila.core.user.UserApi,
     mailer: Mailer,
     baseUrl: BaseUrl,
-    lightUser: lila.core.user.LightUserApi
+    @unused lightUser: lila.core.user.LightUserApi
 )(using Executor):
 
   import Mailer.html.*
@@ -19,7 +18,7 @@ final class AutomaticEmail(
 
 The Chesstory team"""
 
-  def welcomeEmail(user: User, email: EmailAddress)(using Lang): Funit =
+  def welcomeEmail(user: User, email: EmailAddress)(using @unused lang: Lang): Funit =
     mailer.canSend.so:
       lila.mon.email.send.welcome.increment()
       val profileUrl = s"$baseUrl/@/${user.username}"
@@ -35,7 +34,6 @@ The Chesstory team"""
         )
 
   def magicLinkLogin(email: EmailAddress, url: String): Funit =
-    given Lang = Lang("en")
     mailer.canSend.so:
       val body =
         s"""Hello,
@@ -55,6 +53,46 @@ The Chesstory team"""
           htmlBody = standardEmail(body).some
         )
 
+  def signupConfirm(user: User, email: EmailAddress, url: String): Funit =
+    mailer.canSend.so:
+      val body =
+        s"""Hello ${user.username.value},
+           |
+           |Confirm your Chesstory account by opening this link:
+           |$url
+           |
+           |If you did not create this account, you can ignore this email.
+           |
+           |$regards
+           |""".stripMargin
+      mailer.sendOrSkip:
+        Mailer.Message(
+          to = email,
+          subject = "Confirm your Chesstory account",
+          text = Mailer.txt.addServiceNote(body),
+          htmlBody = standardEmail(body).some
+        )
+
+  def passwordReset(user: User, email: EmailAddress, url: String): Funit =
+    mailer.canSend.so:
+      val body =
+        s"""Hello ${user.username.value},
+           |
+           |Use this link to reset your Chesstory password:
+           |$url
+           |
+           |If you did not request this, you can ignore this email.
+           |
+           |$regards
+           |""".stripMargin
+      mailer.sendOrSkip:
+        Mailer.Message(
+          to = email,
+          subject = "Reset your Chesstory password",
+          text = Mailer.txt.addServiceNote(body),
+          htmlBody = standardEmail(body).some
+        )
+
   // Social/Game/Patron emails removed for Analysis-Only version
 
   def delete(user: User): Funit =
@@ -66,7 +104,6 @@ Following your request, the Chesstory account "${user.username}" will be deleted
 $regards
 """
     userApi.email(user.id).flatMapz { email =>
-      given Lang = Lang("en")
       mailer.sendOrSkip:
         Mailer.Message(
           to = email,
@@ -75,5 +112,3 @@ $regards
           htmlBody = standardEmail(body).some
         )
     }
-
-  private def userLang(user: User): Lang = Lang("en")

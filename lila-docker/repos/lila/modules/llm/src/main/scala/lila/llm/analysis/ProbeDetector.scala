@@ -43,7 +43,8 @@ object ProbeDetector:
     baseline: Option[PvLine],
     legalUci: Set[String]
   ): List[ProbeRequest] =
-    val playedUci = playedMove.filter(legalUci.contains).getOrElse(return Nil)
+    val playedUci = playedMove.filter(legalUci.contains).getOrElse("")
+    if (playedUci.isEmpty) return Nil
     val afterPlayedFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
 
     def mkProbe(
@@ -496,7 +497,27 @@ object ProbeDetector:
           }
         } else None
 
-        (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes.toList)
+        // 4. Null-Move (Prophylaxis) Probes: Generate a "What if I pass?" FEN to find true threats.
+        // We only do this if there's tension or the baseline eval is somewhat balanced/threatening.
+        val nullMoveProbes = if (ctx.tacticalThreatToUs || ctx.tacticalThreatToThem || (baseline.exists(_.evalCp.abs < 200))) {
+          val nullFen = lila.llm.analysis.FENUtils.passTurn(fen)
+          if (nullFen != fen) {
+            Some(ProbeRequest(
+              id = s"null_move_${Integer.toHexString(fen.hashCode)}",
+              fen = nullFen,
+              moves = Nil, // We want the engine's best move FOR THE OPPONENT
+              depth = DefaultDepth,
+              purpose = Some("NullMoveThreat"),
+              planName = Some("Prophylactic Null-Move Analysis"),
+              baselineMove = baseline.flatMap(_.moves.headOption),
+              baselineEvalCp = baseline.map(_.evalCp),
+              baselineMate = baseline.flatMap(_.mate),
+              baselineDepth = baseline.map(_.depth).filter(_ > 0)
+            ))
+          } else None
+        } else None
+
+        (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes.toList ++ nullMoveProbes.toList)
           .distinctBy(r => s"${r.fen}|${r.moves.mkString(",")}")
           .take(MaxProbeRequests)
     }.getOrElse(Nil)

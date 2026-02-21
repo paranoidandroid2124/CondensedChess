@@ -10,7 +10,7 @@ import lila.core.pref.Pref
 trait Context:
   val req: RequestHeader
   def isAuth: Boolean
-  def isOAuth: Boolean
+  def isTokenAuth: Boolean
   def me: Option[Me]
   def user: Option[User]
   def userId: Option[UserId]

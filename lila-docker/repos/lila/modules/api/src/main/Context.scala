@@ -4,7 +4,6 @@ package lila.api
 import play.api.mvc.{ Request, RequestHeader }
 import lila.common.HTTPRequest
 import lila.core.net.IpAddress
-import lila.oauth.TokenScopes
 import lila.pref.Pref
 import lila.ui.Nonce
 
@@ -12,8 +11,7 @@ import lila.ui.Nonce
 final class LoginContext(
     val me: Option[Me],
     val needsFp: Boolean,
-    val impersonatedBy: Option[lila.core.userId.ModId],
-    val oauth: Option[TokenScopes]
+    val impersonatedBy: Option[lila.core.userId.ModId]
 ):
   export me.{ isDefined as isAuth, isEmpty as isAnon }
   def user: Option[User] = Me.raw(me)
@@ -23,13 +21,11 @@ final class LoginContext(
   def troll = false // Simplified: no moderation marks
   def isAppealUser = me.exists(_.enabled.no)
   def kid = lila.core.user.KidMode(false)
-  def isWebAuth = isAuth && oauth.isEmpty
-  def isOAuth = isAuth && oauth.isDefined
-  def isMobileOauth = oauth.exists(_.has(_.Web.Mobile))
-  def scopes = oauth | TokenScopes(Nil)
+  def isWebAuth = isAuth
+  def isTokenAuth = false
 
 object LoginContext:
-  val anon = LoginContext(none, false, none, none)
+  val anon = LoginContext(none, false, none)
 
 /* Data available in every HTTP request */
 class Context(

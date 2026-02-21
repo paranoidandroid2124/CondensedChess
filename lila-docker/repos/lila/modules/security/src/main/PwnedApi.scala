@@ -3,8 +3,7 @@ package lila.security
 import com.roundeights.hasher.Implicits.*
 import play.api.libs.ws.DefaultBodyReadables.*
 import play.api.libs.ws.StandaloneWSClient
-import lila.core.lilaism.Core.{ *, given }
-import scalalib.future.extensions.*
+import lila.core.lilaism.Core.*
 
 opaque type IsPwned = Boolean
 object IsPwned extends YesNo[IsPwned]
