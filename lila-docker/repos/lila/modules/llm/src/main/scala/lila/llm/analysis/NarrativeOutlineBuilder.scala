@@ -490,29 +490,39 @@ object NarrativeOutlineBuilder:
       if !shouldShow then None
       else
         rec.use("counterfactual", cf.userMove, "Teaching point")
-        val theme = cf.causalThreat.map(_.narrative).getOrElse {
-          motifOpt match {
-            case Some(Motif.Fork(_, targets, _, _, _, _, _)) if targets.size >= 2 =>
-              s"a fork against the ${targets(0).toString.toLowerCase} and ${targets(1).toString.toLowerCase}"
-            case Some(Motif.Pin(_, pinned, _, _, _, _, _, _, _)) =>
-              s"a pin against the ${pinned.toString.toLowerCase}"
-            case Some(Motif.Skewer(_, front, back, _, _, _, _, _, _)) =>
-              s"a skewer against the ${front.toString.toLowerCase} and ${back.toString.toLowerCase}"
-            case Some(Motif.Capture(_, captured, _, lila.llm.model.Motif.CaptureType.Winning, _, _, _, _)) =>
-              s"winning the ${captured.toString.toLowerCase}"
-            case Some(Motif.DiscoveredAttack(_, _, target, _, _, _, _, _, _)) =>
-              s"a discovered attack on the ${target.toString.toLowerCase}"
-            case Some(m) => NarrativeUtils.humanize(motifName(m))
-            case None => cf.severity.toLowerCase
-          }
+        cf.causalThreat match {
+          case Some(ct) =>
+            val text = NarrativeLexicon.getCausalTeachingPoint(bead, ct.concept, ct.narrative, cf.cpLoss)
+            Some(OutlineBeat(
+              kind = OutlineBeatKind.TeachingPoint,
+              text = text,
+              conceptIds = List("teaching_counterfactual"),
+              anchors = List(cf.bestMove)
+            ))
+          case None =>
+            val theme =
+              motifOpt match {
+                case Some(Motif.Fork(_, targets, _, _, _, _, _)) if targets.size >= 2 =>
+                  s"a fork against the ${targets(0).toString.toLowerCase} and ${targets(1).toString.toLowerCase}"
+                case Some(Motif.Pin(_, pinned, _, _, _, _, _, _, _)) =>
+                  s"a pin against the ${pinned.toString.toLowerCase}"
+                case Some(Motif.Skewer(_, front, back, _, _, _, _, _, _)) =>
+                  s"a skewer against the ${front.toString.toLowerCase} and ${back.toString.toLowerCase}"
+                case Some(Motif.Capture(_, captured, _, lila.llm.model.Motif.CaptureType.Winning, _, _, _, _)) =>
+                  s"winning the ${captured.toString.toLowerCase}"
+                case Some(Motif.DiscoveredAttack(_, _, target, _, _, _, _, _, _)) =>
+                  s"a discovered attack on the ${target.toString.toLowerCase}"
+                case Some(m) => NarrativeUtils.humanize(motifName(m))
+                case None => cf.severity.toLowerCase
+              }
+            val text = NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
+            Some(OutlineBeat(
+              kind = OutlineBeatKind.TeachingPoint,
+              text = text,
+              conceptIds = List("teaching_counterfactual"),
+              anchors = List(cf.bestMove)
+            ))
         }
-        val text = NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
-        Some(OutlineBeat(
-          kind = OutlineBeatKind.TeachingPoint,
-          text = text,
-          conceptIds = List("teaching_counterfactual"),
-          anchors = List(cf.bestMove)
-        ))
     }
 
   private def buildMainMoveBeat(

@@ -6,15 +6,18 @@ The current `NarrativeLexicon` and structural tagging systems are robust and exp
 
 ---
 
-## 1. Counterfactual Analysis (반사실적 교차 검증)
+## 1. Counterfactual Analysis (반사실적 교차 검증) - [✅ COMPLETED]
+
+**Status:** Fully integrated into `CounterfactualAnalyzer`, `ProphylaxisAnalyzer`, and `StrategicFeatureExtractorImpl`.
 
 **Goal:** Explain the *Why* behind moves by analyzing what happens if they are not made. Move beyond "this was a good move" to "this move was necessary because otherwise X happens."
 
-**Core Mechanisms:**
-*   **Null Move Profiling:** Introduce a mechanism to calculate the Engine PV (Principal Variation) assuming the opponent is allowed to skip their turn (or makes a non-interfering passing move).
-*   **Threat Extraction:** By comparing the actual PV with the Null Move PV, definitively identify the *threat* the opponent's previous move created or the *threat* the current move defends against.
-*   **Causal Narrative Generation:** Bridge the extracted threat into the narrative.
-    *   *Example:* Instead of "Nd5 occupies an outpost", generate "Nd5! A brilliant decision. If White plays passively here with h3, Black's devastating Nxf3+ shatters the kingside. Nd5 forces the queen to retreat while shutting down the attack."
+**Implemented Mechanisms:**
+*   **Null Move Profiling:** Logic provided by `NullMoveProbe` and `FENUtils` to simulate opponent responses to passing moves.
+*   **Threat Extraction (`ThreatExtractor`):** A unified semantic layer that classifies motifs into causal threats (Checkmate, Material Loss, Structural Ruin, etc.). 
+*   **Engine-Only Severity:** Removed manual tables (`MotifLossTable`) in favor of MultiPV evaluation deltas as the single source of truth for threat severity.
+*   **Causal Narrative Generation:** Connected `ThreatExtractor` to `NarrativeLexicon` using dedicated causal templates (`getCausalTeachingPoint`) for natural phrasing.
+    *   *Realized Example:* "A significant oversight: it allows White to execute a deadly fork on c7."
 
 ## 2. Multi-Ply Plan Tracking (장기 계획 추적 상태 머신)
 

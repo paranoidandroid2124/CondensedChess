@@ -143,11 +143,15 @@ object BookStyleRenderer:
 
   private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
     ctx.counterfactual.map { cf =>
-      val theme = cf.causalThreat.map(_.narrative)
-        .orElse(cf.missedMotifs.headOption.map(motifName))
-        .orElse(Some(cf.severity))
-        .getOrElse("tactic")
-      NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
+      cf.causalThreat match {
+        case Some(ct) => 
+          NarrativeLexicon.getCausalTeachingPoint(bead, ct.concept, ct.narrative, cf.cpLoss)
+        case None =>
+          val theme = cf.missedMotifs.headOption.map(motifName)
+            .orElse(Some(cf.severity))
+            .getOrElse("tactic")
+          NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
+      }
     }.getOrElse("")
 
   private def generateMainMove(ctx: NarrativeContext, bead: Int): String =

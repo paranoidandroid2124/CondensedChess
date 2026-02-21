@@ -728,6 +728,16 @@ object NarrativeLexicon {
       ))
   }
 
+  def getCausalTeachingPoint(bead: Int, concept: String, narrative: String, cpLoss: Int): String = {
+    val severity = if (cpLoss >= 200) "significant" else if (cpLoss >= 100) "noticeable" else "slight"
+    val n = narrative.trim
+    pick(bead, List(
+      s"A $severity oversight: it $n.",
+      s"Failing to account for the truth that it $n was a $severity error.",
+      s"A critical moment: the played line $n, which proved to be a $severity setback."
+    ))
+  }
+
   def getOpeningReference(bead: Int, name: String, games: Int, whitePct: Double): String = {
     val statsNote = if (games >= 100) s" ($games games, White scores ${(whitePct * 100).toInt}%)" else ""
     pick(bead, List(
