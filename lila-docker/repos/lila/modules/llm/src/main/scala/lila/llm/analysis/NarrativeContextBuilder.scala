@@ -174,7 +174,7 @@ object NarrativeContextBuilder:
       authorEvidence = authorEvidence,
       facts = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now) ++ 
               FactExtractor.extractStaticFacts(board, color) ++
-              FactExtractor.extractEndgameFacts(board, color, data.endgameFeatures),
+              FactExtractor.extractEndgameFacts(board, color),
       probeRequests = probeRequests,
       meta = meta,
       strategicFlow = strategicFlow,

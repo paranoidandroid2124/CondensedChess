@@ -3,9 +3,12 @@ package lila.llm
 case class LlmConfig(
     structKbEnabled: Boolean,
     structKbShadowMode: Boolean,
-    structKbMinConfidence: Double
+    structKbMinConfidence: Double,
+    endgameOracleEnabled: Boolean,
+    endgameOracleShadowMode: Boolean
 ):
   def shouldEvaluateStructureKb: Boolean = structKbEnabled || structKbShadowMode
+  def shouldEvaluateEndgameOracle: Boolean = endgameOracleEnabled || endgameOracleShadowMode
 
 object LlmConfig:
 
@@ -28,5 +31,7 @@ object LlmConfig:
         .get("LLM_STRUCT_KB_MIN_CONFIDENCE")
         .flatMap(_.toDoubleOption)
         .filter(v => v > 0.0 && v <= 1.0)
-        .getOrElse(0.72)
+        .getOrElse(0.72),
+      endgameOracleEnabled = boolEnv("LLM_BOOKMAKER_ENDGAME_ORACLE_ENABLED", default = false),
+      endgameOracleShadowMode = boolEnv("LLM_BOOKMAKER_ENDGAME_ORACLE_SHADOW", default = true)
     )
