@@ -125,7 +125,10 @@ object PlanMatcher:
 
     val rawPlans = allScorers.flatten
     val (compatiblePlans, events) = applyCompatWithEvents(rawPlans, ctx, side)
-    val sortedPlans = compatiblePlans.sortBy(-_.score)
+    val prioritizedPlans =
+      if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame) applyEndgamePlanPriority(compatiblePlans)
+      else compatiblePlans
+    val sortedPlans = prioritizedPlans.sortBy(-_.score)
 
     // Fail-closed fallback: always provide at least one plan so renderers and callers
     // don't need to handle "no plan" as a special case.
@@ -989,3 +992,18 @@ object PlanMatcher:
     def isKingside: Boolean = f == File.F || f == File.G || f == File.H
     def isQueenside: Boolean = f == File.A || f == File.B || f == File.C
     def isCentral: Boolean = f == File.D || f == File.E
+
+  private def applyEndgamePlanPriority(plans: List[PlanMatch]): List[PlanMatch] =
+    plans.map { p =>
+      val bonus = p.plan match
+        // Promotion race first.
+        case _: Plan.Promotion => 0.35
+        case _: Plan.PassedPawnPush => 0.30
+        // Forced draw resources second.
+        case _: Plan.Zugzwang => 0.24
+        case _: Plan.Blockade => 0.20
+        // King activity third.
+        case _: Plan.KingActivation => 0.12
+        case _ => 0.0
+      if bonus > 0 then p.copy(score = p.score + bonus) else p
+    }

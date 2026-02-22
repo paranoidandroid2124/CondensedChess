@@ -2,6 +2,7 @@ package lila.llm.analysis
 
 import chess.{ Board, Square, Role, Color }
 import lila.llm.model._
+import lila.llm.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOppositionType, TheoreticalOutcomeHint, RookEndgamePattern as OracleRookPattern }
 
 /**
  * FactExtractor
@@ -63,7 +64,25 @@ object FactExtractor {
   /**
    * Endgame specialized fact extraction.
    */
-  def extractEndgameFacts(board: Board, color: Color): List[Fact] = {
+  def extractEndgameFacts(board: Board, color: Color): List[Fact] =
+    extractEndgameFacts(board, color, None)
+
+  /**
+   * Endgame specialized fact extraction.
+   * If oracle output is present, it is treated as the single source of truth.
+   */
+  def extractEndgameFacts(
+      board: Board,
+      color: Color,
+      oracle: Option[EndgameFeature]
+  ): List[Fact] = {
+    oracle match {
+      case Some(endgame) => extractEndgameFactsFromOracle(board, color, endgame)
+      case None          => extractEndgameFactsHeuristic(board, color)
+    }
+  }
+
+  private def extractEndgameFactsHeuristic(board: Board, color: Color): List[Fact] = {
     // (Approximated here by low total material or absence of major pieces)
     val majorPieces = (board.queens | board.rooks)
     val totalMaterial = board.occupied.count
@@ -101,6 +120,10 @@ object FactExtractor {
             enemyKing = ok, 
             distance = Math.max(fileDiff, rankDiff), 
             isDirect = isDirect, 
+            oppositionType =
+              if (isDirect) EndgameOppositionType.Direct.toString
+              else if (isDistant) EndgameOppositionType.Distant.toString
+              else EndgameOppositionType.Diagonal.toString,
             scope = scope
           )
         }
@@ -108,6 +131,96 @@ object FactExtractor {
     }
 
     facts.toList
+  }
+
+  private def extractEndgameFactsFromOracle(
+      board: Board,
+      color: Color,
+      endgame: EndgameFeature
+  ): List[Fact] = {
+    val myKing = board.kingPosOf(color)
+    val oppKing = board.kingPosOf(!color)
+    val scope = FactScope.Now
+    val facts = scala.collection.mutable.ListBuffer[Fact]()
+
+    myKing.foreach { mk =>
+      val mobility = (mk.kingAttacks & ~board.byColor(color)).count
+      val dist = Math.max((mk.file.value - 4).abs, (mk.rank.value - 4).abs)
+      facts += Fact.KingActivity(mk, mobility.toInt, dist, scope)
+      if (endgame.triangulationAvailable) facts += Fact.TriangulationOpportunity(mk, scope)
+    }
+
+    if (endgame.hasOpposition) {
+      (myKing, oppKing) match {
+        case (Some(mk), Some(ok)) =>
+          val fileDiff = (mk.file.value - ok.file.value).abs
+          val rankDiff = (mk.rank.value - ok.rank.value).abs
+          val isDirect = endgame.oppositionType == EndgameOppositionType.Direct
+          facts += Fact.Opposition(
+            king = mk,
+            enemyKing = ok,
+            distance = Math.max(fileDiff, rankDiff),
+            isDirect = isDirect,
+            oppositionType = endgame.oppositionType.toString,
+            scope = scope
+          )
+        case _ => ()
+      }
+    }
+
+    if (endgame.isZugzwang || endgame.zugzwangLikelihood >= 0.65) {
+      facts += Fact.Zugzwang(color, scope)
+    }
+
+    if (endgame.rookEndgamePattern != OracleRookPattern.None) {
+      facts += Fact.RookEndgamePattern(endgame.rookEndgamePattern.toString, scope)
+    }
+
+    if (endgame.ruleOfSquare != RuleOfSquareStatus.NA) {
+      val enemyPassers = board.byPiece(!color, chess.Pawn).squares.filter(isPassedPawn(board, _, !color))
+      val targetPawnOpt = enemyPassers.sortBy(p => if ((!color).white) -p.rank.value else p.rank.value).headOption
+      targetPawnOpt.foreach { pawnSq =>
+        val promoRank = if ((!color).white) 7 else 0
+        val promoSqOpt = Square.at(pawnSq.file.value, promoRank)
+        for
+          mk <- myKing
+          promoSq <- promoSqOpt
+        do
+          facts += Fact.RuleOfSquare(
+            defenderKing = mk,
+            targetPawn = pawnSq,
+            promotionSquare = promoSq,
+            status = endgame.ruleOfSquare.toString,
+            scope = scope
+          )
+      }
+    }
+
+    if (endgame.theoreticalOutcomeHint != TheoreticalOutcomeHint.Unclear || endgame.confidence > 0.0) {
+      facts += Fact.EndgameOutcome(
+        outcome = endgame.theoreticalOutcomeHint.toString,
+        confidence = endgame.confidence,
+        scope = scope
+      )
+    }
+
+    facts.toList.distinct
+  }
+
+  private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean = {
+    val oppPawnsByFile = board.byPiece(!color, chess.Pawn).squares.groupBy(_.file)
+    val fileValue = pawnSq.file.value
+    val filesToCheck = List(fileValue - 1, fileValue, fileValue + 1).filter(f => f >= 0 && f <= 7)
+    filesToCheck.forall { idx =>
+      chess.File.all.lift(idx).forall { f =>
+        oppPawnsByFile.get(f).forall { pawns =>
+          pawns.forall { oppPawn =>
+            if (color.white) oppPawn.rank.value <= pawnSq.rank.value
+            else oppPawn.rank.value >= pawnSq.rank.value
+          }
+        }
+      }
+    }
   }
 
   private def mapMotifToFact(motif: Motif, board: Board, scope: FactScope): Option[Fact] = {
@@ -154,15 +267,27 @@ object FactExtractor {
       case m: Motif.Centralization =>
         Some(Fact.ActivatesPiece(m.piece, m.square, m.square, false, scope)) // Simplified mapping
 
+      case m: Motif.Opposition =>
+        val fileDiff = (m.ownKingSquare.file.value - m.opponentKingSquare.file.value).abs
+        val rankDiff = (m.ownKingSquare.rank.value - m.opponentKingSquare.rank.value).abs
+        Some(
+          Fact.Opposition(
+            king = m.ownKingSquare,
+            enemyKing = m.opponentKingSquare,
+            distance = Math.max(fileDiff, rankDiff),
+            isDirect = m.oppType == Motif.OppositionType.Direct,
+            oppositionType = m.oppType.toString,
+            scope = scope
+          )
+        )
+
+      case m: Motif.Zugzwang =>
+        Some(Fact.Zugzwang(m.color, scope))
+
       case m: Motif.Check =>
         if (m.checkType == Motif.CheckType.Double) Some(Fact.DoubleCheck(List(m.targetSquare), scope)) // Simplified
         else Some(Fact.TargetPiece(m.targetSquare, chess.King, List(m.targetSquare), Nil, scope))
 
-      /*
-      case m: Motif.Zugzwang =>
-        Some(Fact.Zugzwang(m.color, scope))
-      */
-      
       case m: Motif.PawnPromotion =>
         Some(Fact.PawnPromotion(Square.at(m.file.value, if (m.color.white) 7 else 0).getOrElse(Square.A1), Some(m.promotedTo), scope))
 

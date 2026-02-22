@@ -134,9 +134,46 @@ object Fact {
       enemyKing: Square,
       distance: Int, // 1 for direct, 3/5 for distant
       isDirect: Boolean,
+      oppositionType: String = "Direct",
       scope: FactScope
   ) extends Fact {
     def participants = List(king, enemyKing)
+  }
+
+  /** Rule of the square state against a passed pawn race. */
+  case class RuleOfSquare(
+      defenderKing: Square,
+      targetPawn: Square,
+      promotionSquare: Square,
+      status: String, // "Holds" | "Fails"
+      scope: FactScope
+  ) extends Fact {
+    def participants = List(defenderKing, targetPawn, promotionSquare)
+  }
+
+  /** Triangulation available in king-and-pawn style endgames. */
+  case class TriangulationOpportunity(
+      king: Square,
+      scope: FactScope
+  ) extends Fact {
+    def participants = List(king)
+  }
+
+  /** Canonical rook endgame pattern detected by the oracle. */
+  case class RookEndgamePattern(
+      pattern: String, // "RookBehindPassedPawn" | "KingCutOff"
+      scope: FactScope
+  ) extends Fact {
+    def participants = Nil
+  }
+
+  /** Coarse theoretical outcome hint from deterministic endgame rules. */
+  case class EndgameOutcome(
+      outcome: String, // "Win" | "Draw" | "Unclear"
+      confidence: Double,
+      scope: FactScope
+  ) extends Fact {
+    def participants = Nil
   }
 
   /** Zugzwang - any move worsens the position. */

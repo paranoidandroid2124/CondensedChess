@@ -961,7 +961,15 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ef = EndgameFeature(
       hasOpposition = true,
       isZugzwang = false,
-      keySquaresControlled = List(chess.Square.D5, chess.Square.E5)
+      keySquaresControlled = List(chess.Square.D5, chess.Square.E5),
+      oppositionType = EndgameOppositionType.Direct,
+      zugzwangLikelihood = 0.41,
+      ruleOfSquare = RuleOfSquareStatus.Holds,
+      triangulationAvailable = true,
+      kingActivityDelta = 2,
+      rookEndgamePattern = RookEndgamePattern.KingCutOff,
+      theoreticalOutcomeHint = TheoreticalOutcomeHint.Draw,
+      confidence = 0.78
     )
     
     val data = minimalData().copy(endgameFeatures = Some(ef))
@@ -973,6 +981,11 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(e.isDefined)
     assertEquals(e.get.hasOpposition, true)
     assertEquals(e.get.keySquaresControlled, List("d5", "e5"))
+    assertEquals(e.get.oppositionType, "Direct")
+    assertEquals(e.get.ruleOfSquare, "Holds")
+    assertEquals(e.get.triangulationAvailable, true)
+    assertEquals(e.get.rookEndgamePattern, "KingCutOff")
+    assertEquals(e.get.theoreticalOutcomeHint, "Draw")
   }
 
   test("Semantic: preventedPlans converted with threat type") {

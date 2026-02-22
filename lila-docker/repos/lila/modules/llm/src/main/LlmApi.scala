@@ -8,7 +8,7 @@ import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContext
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
-import lila.llm.model.strategic.VariationLine
+import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
 
 /** Pipeline: CommentaryEngine → BookStyleRenderer (rule-based only). */
 final class LlmApi(
@@ -34,6 +34,9 @@ final class LlmApi(
   private val structureLowConfidenceCount = new AtomicLong(0L)
   private val structureCountByType = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val alignmentBandCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val endgameFeatureCount = new AtomicLong(0L)
+  private val endgameWinHintCount = new AtomicLong(0L)
+  private val endgameHighConfidenceCount = new AtomicLong(0L)
   private val ShadowWindowSize = 2000
   private val latencyWindowLock = new Object
   private var totalLatencyWindowMs = Vector.empty[Long]
@@ -56,6 +59,13 @@ final class LlmApi(
       if profile.confidence < llmConfig.structKbMinConfidence then structureLowConfidenceCount.incrementAndGet()
     }
     data.planAlignment.foreach(pa => incBand(pa.band.toString))
+
+  private def recordEndgameMetrics(data: lila.llm.model.ExtendedAnalysisData): Unit =
+    data.endgameFeatures.foreach { eg =>
+      endgameFeatureCount.incrementAndGet()
+      if eg.theoreticalOutcomeHint == TheoreticalOutcomeHint.Win then endgameWinHintCount.incrementAndGet()
+      if eg.confidence >= 0.75 then endgameHighConfidenceCount.incrementAndGet()
+    }
 
   private def pushWindow(values: Vector[Long], value: Long): Vector[Long] =
     val next = values :+ value
@@ -98,6 +108,11 @@ final class LlmApi(
     else if llmConfig.structKbShadowMode then "shadow"
     else "off"
 
+  private def endgameMode: String =
+    if llmConfig.endgameOracleEnabled then "enabled"
+    else if llmConfig.endgameOracleShadowMode then "shadow"
+    else "off"
+
   private def maybeLogBookmakerMetrics(): Unit =
     val total = bookmakerRequests.get()
     if total > 0 && total % 100 == 0 then
@@ -114,6 +129,15 @@ final class LlmApi(
       val structureLowConfRate =
         if structureProfileCount.get() == 0 then 0.0
         else structureLowConfidenceCount.get().toDouble / structureProfileCount.get().toDouble
+      val endgameCoverage =
+        if !llmConfig.shouldEvaluateEndgameOracle || total == 0 then 0.0
+        else endgameFeatureCount.get().toDouble / total.toDouble
+      val endgameWinHintRate =
+        if endgameFeatureCount.get() == 0 then 0.0
+        else endgameWinHintCount.get().toDouble / endgameFeatureCount.get().toDouble
+      val endgameHighConfRate =
+        if endgameFeatureCount.get() == 0 then 0.0
+        else endgameHighConfidenceCount.get().toDouble / endgameFeatureCount.get().toDouble
       val structureDist = structureCountByType.toList.map { case (k, v) => k -> v.get() }.toMap
       val bandDist = alignmentBandCount.toList.map { case (k, v) => k -> v.get() }.toMap
       val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
@@ -121,6 +145,7 @@ final class LlmApi(
       logger.info(
         s"bookmaker.metrics epoch=$epochSec total=$total " +
           s"struct_mode=${structureMode} " +
+          s"endgame_mode=${endgameMode} " +
           s"shadow_window=$totalWindowSize " +
           f"token_present_rate=$tokenPresentRate%.3f " +
           f"token_emit_rate=$tokenEmitRate%.3f " +
@@ -137,6 +162,9 @@ final class LlmApi(
           f"struct_coverage=$structureCoverage%.3f " +
           f"struct_unknown_rate=$structureUnknownRate%.3f " +
           f"struct_low_conf_rate=$structureLowConfRate%.3f " +
+          f"endgame_coverage=$endgameCoverage%.3f " +
+          f"endgame_win_hint_rate=$endgameWinHintRate%.3f " +
+          f"endgame_high_conf_rate=$endgameHighConfRate%.3f " +
           s"struct_dist=$structureDist " +
           s"alignment_band_dist=$bandDist"
       )
@@ -309,6 +337,7 @@ final class LlmApi(
               continuityAppliedCount.incrementAndGet()
             dataWithContinuity.planSequence.foreach(ps => incTransition(ps.transitionType.toString))
             if llmConfig.shouldEvaluateStructureKb then recordStructureMetrics(dataWithContinuity)
+            if llmConfig.shouldEvaluateEndgameOracle then recordEndgameMetrics(dataWithContinuity)
 
             val afterDataOpt =
               afterFen

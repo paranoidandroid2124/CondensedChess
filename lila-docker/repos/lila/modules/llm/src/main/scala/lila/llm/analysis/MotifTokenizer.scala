@@ -313,7 +313,7 @@ object MotifTokenizer:
       detectPawnStructure(board, plyIndex),
       detectDoubledPieces(board, plyIndex),
       detectBattery(board, plyIndex),
-      detectOpposition(board, plyIndex),
+      detectOpposition(board, pos.color, plyIndex),
       detectStalemateThreat(pos, plyIndex)
     )
 
@@ -378,13 +378,18 @@ object MotifTokenizer:
   private def detectBattery(board: Board, plyIndex: Int): List[Motif] = Nil
 
 
-  private def detectOpposition(board: Board, plyIndex: Int): List[Motif] =
+  private def detectOpposition(board: Board, sideToMove: Color, plyIndex: Int): List[Motif] =
     (board.kingPosOf(White), board.kingPosOf(Black)) match
       case (Some(wk), Some(bk)) =>
         val fDiff = (wk.file.value - bk.file.value).abs
         val rDiff = (wk.rank.value - bk.rank.value).abs
-        if (fDiff == 0 && rDiff == 2) List(Opposition(bk, wk, OppositionType.Direct, White, plyIndex))
-        else if (rDiff == 0 && fDiff == 2) List(Opposition(bk, wk, OppositionType.Direct, White, plyIndex))
+        val sideWithOpposition = !sideToMove
+        if (fDiff == 0 && rDiff == 2) List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
+        else if (rDiff == 0 && fDiff == 2) List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
+        else if ((fDiff == 0 && (rDiff == 4 || rDiff == 6)) || (rDiff == 0 && (fDiff == 4 || fDiff == 6)))
+          List(Opposition(bk, wk, OppositionType.Distant, sideWithOpposition, plyIndex))
+        else if (fDiff == 2 && rDiff == 2)
+          List(Opposition(bk, wk, OppositionType.Diagonal, sideWithOpposition, plyIndex))
         else Nil
       case _ => Nil
 

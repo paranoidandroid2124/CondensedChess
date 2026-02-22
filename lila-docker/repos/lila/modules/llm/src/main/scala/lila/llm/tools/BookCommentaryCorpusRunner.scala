@@ -17,6 +17,7 @@ import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContext
 import lila.llm.model.*
 import lila.llm.model.authoring.OutlineBeatKind
 import lila.llm.model.strategic.VariationLine
+import lila.llm.analysis.strategic.EndgameAnalyzerImpl
 
 /**
  * Offline harness for comparing the current rule-based Bookmaker prose to book-style excerpts.
@@ -83,6 +84,54 @@ object BookCommentaryCorpusRunner:
   object Corpus:
     given Reads[Corpus] = Json.reads[Corpus]
 
+  final case class EndgameExpect(
+      oppositionType: Option[String],
+      ruleOfSquare: Option[String],
+      triangulationAvailable: Option[Boolean],
+      rookEndgamePattern: Option[String],
+      zugzwangLikely: Option[Boolean]
+  )
+  object EndgameExpect:
+    given Reads[EndgameExpect] = Json.reads[EndgameExpect]
+
+  final case class EndgameGoldRow(
+      fen: String,
+      color: String,
+      expect: EndgameExpect
+  )
+  object EndgameGoldRow:
+    given Reads[EndgameGoldRow] = Json.reads[EndgameGoldRow]
+
+  final case class EndgameGoldMetrics(
+      rows: Int,
+      labeledChecks: Int,
+      matchedChecks: Int,
+      mismatchedChecks: Int,
+      conceptF1: Double,
+      oracleLatencyP95Ms: Double
+  )
+
+  final case class EndgameSnapshot(
+      oppositionType: String,
+      ruleOfSquare: String,
+      triangulationAvailable: Boolean,
+      rookEndgamePattern: String,
+      zugzwangLikelihood: Double,
+      isZugzwang: Boolean,
+      outcomeHint: String,
+      confidence: Double
+  )
+
+  final case class EndgameGateStatus(
+      conceptF1: Option[Double],
+      contradictionRate: Double,
+      oracleLatencyP95Ms: Option[Double]
+  ):
+    def passed: Boolean =
+      conceptF1.forall(_ >= 0.85) &&
+        contradictionRate < 0.02 &&
+        oracleLatencyP95Ms.forall(_ <= 40.0)
+
   final case class Metrics(chars: Int, paragraphs: Int)
 
   final case class QualityMetrics(
@@ -121,6 +170,8 @@ object BookCommentaryCorpusRunner:
       qualityFindings: List[String],
       advisoryFindings: List[String],
       outline: Option[OutlineMetrics],
+      endgame: Option[EndgameSnapshot],
+      analysisLatencyMs: Option[Long],
       failures: List[String]
   ):
     def passed: Boolean = failures.isEmpty
@@ -137,7 +188,10 @@ object BookCommentaryCorpusRunner:
   def main(args: Array[String]): Unit =
     val strictQuality     = args.contains("--strict-quality")
     val noOpeningExplorer = args.contains("--no-opening-explorer")
-    val positional        = args.filterNot(_.startsWith("--"))
+    val noEndgameGoldset  = args.contains("--no-endgame-goldset")
+    val endgameGoldsetPath = optionValue(args.toList, "--endgame-goldset")
+      .getOrElse("modules/llm/src/test/resources/endgame_goldset_v1.jsonl")
+    val positional        = positionalArgs(args.toList)
     val corpusPath        = positional.headOption.getOrElse("modules/llm/docs/BookCommentaryCorpus.json")
     val outPath           = positional.lift(1).getOrElse("modules/llm/docs/BookCommentaryCorpusReport.md")
 
@@ -169,8 +223,17 @@ object BookCommentaryCorpusRunner:
             sys.exit(2)
           case Right(c) => c
 
+      val endgameGoldMetrics =
+        if noEndgameGoldset then None
+        else
+          evaluateEndgameGoldset(Paths.get(endgameGoldsetPath)) match
+            case Left(err) =>
+              System.err.println(s"[corpus] Advisory: failed to evaluate endgame goldset `$endgameGoldsetPath`: $err")
+              None
+            case Right(metrics) => Some(metrics)
+
       val results = corpus.cases.map(runCase(_, fetchOpeningRef))
-      val report  = renderReport(corpusPath, results)
+      val report  = renderReport(corpusPath, results, endgameGoldMetrics)
       writeText(Paths.get(outPath), report)
 
       val failed        = results.count(!_.passed)
@@ -178,7 +241,8 @@ object BookCommentaryCorpusRunner:
       val advisories    = results.map(_.advisoryFindings.size).sum
       val total         = results.size
       val gate          = balancedGate(results)
-      val strictOk      = advisories == 0 && gate.passed && failedQuality == 0
+      val endgameGate   = endgameGateStatus(results, endgameGoldMetrics)
+      val strictOk      = advisories == 0 && gate.passed && failedQuality == 0 && endgameGate.passed
 
       if failed == 0 && failedQuality == 0 && (!strictQuality || strictOk) then
         println(s"[corpus] ✅ All $total cases satisfied expectations. Wrote `$outPath`.")
@@ -190,6 +254,10 @@ object BookCommentaryCorpusRunner:
           println(
             s"[corpus] ⚠ Balanced gate not met: precedentCoverage=${gate.precedentCases}/${gate.totalCases} (target >= ${gate.requiredPrecedentCases}), repeated5gram=${gate.repeatedFivegramViolations} (target 0)."
           )
+        if !endgameGate.passed then
+          println(
+            f"[corpus] ⚠ Endgame gate not met: conceptF1=${endgameGate.conceptF1.getOrElse(0.0)}%.3f (target>=0.85), contradictionRate=${endgameGate.contradictionRate}%.3f (target<0.02), oracleP95Ms=${endgameGate.oracleLatencyP95Ms.getOrElse(0.0)}%.3f (target<=40)."
+          )
       else
         if failed > 0 then
           System.err.println(s"[corpus] ❌ $failed/$total cases failed hard expectations. Wrote `$outPath`.")
@@ -197,9 +265,9 @@ object BookCommentaryCorpusRunner:
           System.err.println(
             s"[corpus] ❌ $failedQuality/$total cases failed quality criteria. Wrote `$outPath`."
           )
-        if strictQuality && (advisories > 0 || !gate.passed) then
+        if strictQuality && (advisories > 0 || !gate.passed || !endgameGate.passed) then
           System.err.println(
-            s"[corpus] ❌ Strict quality mode: non-blocking issues detected (advisories=$advisories, gate=${if gate.passed then "PASS" else "FAIL"}). Wrote `$outPath`."
+            s"[corpus] ❌ Strict quality mode: non-blocking issues detected (advisories=$advisories, gate=${if gate.passed then "PASS" else "FAIL"}, endgameGate=${if endgameGate.passed then "PASS" else "FAIL"}). Wrote `$outPath`."
           )
         sys.exit(1)
     finally
@@ -224,11 +292,12 @@ object BookCommentaryCorpusRunner:
         Option.when(c.variations.isEmpty)("Missing `variations` (need at least 1 PV line).")
       ).flatten
 
-    if baseFailures.nonEmpty then return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, baseFailures)
+    if baseFailures.nonEmpty then return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, None, None, baseFailures)
 
     val fen        = fenOpt.get
     val openingRef = c.openingRef.orElse(fetchOpeningRef(fen))
 
+    val analysisStartNs = System.nanoTime()
     val dataOpt =
       try
         CommentaryEngine.assessExtended(
@@ -245,6 +314,7 @@ object BookCommentaryCorpusRunner:
         case NonFatal(e) =>
           System.err.println(s"[case:${c.id}] Exception: ${e.getMessage}")
           None
+    val analysisLatencyMs = ((System.nanoTime() - analysisStartNs) / 1000000L).max(0L)
 
     dataOpt match
       case None =>
@@ -257,6 +327,8 @@ object BookCommentaryCorpusRunner:
           qualityFindings = Nil,
           advisoryFindings = Nil,
           outline = None,
+          endgame = None,
+          analysisLatencyMs = Some(analysisLatencyMs),
           failures = List("Analysis failed (invalid FEN, illegal PV, or internal exception).")
         )
       case Some(data) =>
@@ -321,6 +393,19 @@ object BookCommentaryCorpusRunner:
           qualityFindings = qualityFindings,
           advisoryFindings = advisoryFindings,
           outline = outlineOpt,
+          endgame = data.endgameFeatures.map { eg =>
+            EndgameSnapshot(
+              oppositionType = eg.oppositionType.toString,
+              ruleOfSquare = eg.ruleOfSquare.toString,
+              triangulationAvailable = eg.triangulationAvailable,
+              rookEndgamePattern = eg.rookEndgamePattern.toString,
+              zugzwangLikelihood = eg.zugzwangLikelihood,
+              isZugzwang = eg.isZugzwang,
+              outcomeHint = eg.theoreticalOutcomeHint.toString,
+              confidence = eg.confidence
+            )
+          },
+          analysisLatencyMs = Some(analysisLatencyMs),
           failures = expectationFailures
         )
 
@@ -584,7 +669,11 @@ object BookCommentaryCorpusRunner:
       repeatedFivegramViolations = repeatedFivegramViolations
     )
 
-  private def renderReport(corpusPath: String, results: List[CaseResult]): String =
+  private def renderReport(
+      corpusPath: String,
+      results: List[CaseResult],
+      endgameGoldMetrics: Option[EndgameGoldMetrics]
+  ): String =
     val sb = new StringBuilder()
 
     val total             = results.size
@@ -600,6 +689,14 @@ object BookCommentaryCorpusRunner:
     val precedentMentions = results.flatMap(_.prose).map(precedentMentionCount).sum
     val precedentCases    = results.count(_.prose.exists(precedentMentionCount(_) > 0))
     val gate              = balancedGate(results)
+    val endgameCases      = results.count(_.endgame.isDefined)
+    val endgameNarrativeCases = results.count(r => r.endgame.isDefined && r.prose.isDefined)
+    val contradictionCount = endgameContradictionCount(results)
+    val contradictionRate =
+      if endgameNarrativeCases == 0 then 0.0
+      else contradictionCount.toDouble / endgameNarrativeCases.toDouble
+    val analysisLatencyP95 = percentileLong(results.flatMap(_.analysisLatencyMs), 0.95)
+    val endgameGate = endgameGateStatus(results, endgameGoldMetrics)
 
     val crossCaseSentenceMap = repeatedSentencesAcrossCases(results)
     val topRepeatedSentences = crossCaseSentenceMap.toList.sortBy((_, c) => -c).take(12)
@@ -618,6 +715,17 @@ object BookCommentaryCorpusRunner:
       sb.append(
         s"- Balanced gate: ${if gate.passed then "PASS" else "FAIL"} (repeated 5-gram [4+ cases]=${gate.repeatedFivegramViolations}, target=0; precedent coverage=${gate.precedentCases}/${gate.totalCases}, target>=${gate.requiredPrecedentCases})\n"
       )
+      sb.append(
+        f"- Endgame gate: ${if endgameGate.passed then "PASS" else "FAIL"} (F1=${endgameGate.conceptF1.getOrElse(0.0)}%.3f target>=0.85, contradictionRate=${endgameGate.contradictionRate}%.3f target<0.02, oracleP95Ms=${endgameGate.oracleLatencyP95Ms.getOrElse(0.0)}%.3f target<=40)\n"
+      )
+      sb.append(s"- Endgame cases: $endgameCases/$total (narrative-checked: $endgameNarrativeCases)\n")
+      sb.append(f"- Endgame contradiction count: $contradictionCount (rate=$contradictionRate%.3f)\n")
+      sb.append(f"- Analysis latency p95 (all corpus cases): $analysisLatencyP95%.3f ms\n")
+      endgameGoldMetrics.foreach { gm =>
+        sb.append(
+          f"- Endgame goldset: rows=${gm.rows}, checks=${gm.labeledChecks}, matched=${gm.matchedChecks}, mismatched=${gm.mismatchedChecks}, conceptF1=${gm.conceptF1}%.3f, oracleP95Ms=${gm.oracleLatencyP95Ms}%.3f\n"
+        )
+      }
       sb.append(s"- Low-quality cases (<70): ${lowQualityCases.size}\n")
       if lowQualityCases.nonEmpty then
         sb.append("- Case IDs: ")
@@ -647,7 +755,13 @@ object BookCommentaryCorpusRunner:
       sb.append(s"- `playedMove`: `${r.c.playedMove}`\n")
       r.fen.foreach(f => sb.append(s"- `analysisFen`: `$f`\n"))
       r.metrics.foreach { m => sb.append(s"- Metrics: ${m.chars} chars, ${m.paragraphs} paragraphs\n") }
+      r.analysisLatencyMs.foreach(ms => sb.append(s"- Analysis latency: ${ms} ms\n"))
       r.prose.foreach(p => sb.append(s"- Precedent mentions: ${precedentMentionCount(p)}\n"))
+      r.endgame.foreach { eg =>
+        sb.append(
+          f"- Endgame oracle: opposition=${eg.oppositionType}, ruleOfSquare=${eg.ruleOfSquare}, triangulation=${eg.triangulationAvailable}, rookPattern=${eg.rookEndgamePattern}, zug=${eg.zugzwangLikelihood}%.3f, outcome=${eg.outcomeHint}, conf=${eg.confidence}%.3f\n"
+        )
+      }
       r.quality.foreach { q =>
         sb.append(
           f"- Quality: score=${q.qualityScore}%d/100, lexical=${q.lexicalDiversity}%.3f, uniqueSent=${q.uniqueSentenceRatio}%.3f, anchorCoverage=${q.variationAnchorCoverage}%.3f\n"
@@ -731,6 +845,143 @@ object BookCommentaryCorpusRunner:
   private def average(xs: List[Double]): Double =
     if xs.isEmpty then 0.0
     else xs.sum / xs.size
+
+  private def optionValue(args: List[String], flag: String): Option[String] =
+    args
+      .sliding(2)
+      .collectFirst { case List(f, v) if f == flag => v }
+
+  private def positionalArgs(args: List[String]): List[String] =
+    val flagsWithValue = Set("--endgame-goldset")
+    val out = scala.collection.mutable.ListBuffer[String]()
+    var i = 0
+    while i < args.size do
+      val token = args(i)
+      if flagsWithValue.contains(token) then i += 2
+      else if token.startsWith("--") then i += 1
+      else
+        out += token
+        i += 1
+    out.toList
+
+  private def percentileLong(values: List[Long], p: Double): Double =
+    if values.isEmpty then 0.0
+    else
+      val sorted = values.sorted
+      val idx = math.ceil(p * sorted.size.toDouble).toInt - 1
+      sorted(idx.max(0).min(sorted.size - 1)).toDouble
+
+  private def endgameContradictionCount(results: List[CaseResult]): Int =
+    results.count { r =>
+      (r.prose, r.endgame) match
+        case (Some(prose), Some(eg)) =>
+          val low = prose.toLowerCase
+          val zugMismatch = low.contains("zugzwang") && !eg.isZugzwang && eg.zugzwangLikelihood < 0.65
+          val oppMismatch = low.contains("opposition") && eg.oppositionType.equalsIgnoreCase("None")
+          val ruleMismatch = low.contains("rule of the square") && eg.ruleOfSquare.equalsIgnoreCase("NA")
+          val winMismatch =
+            (low.contains("winning") || low.contains("clearly winning")) &&
+              eg.outcomeHint.equalsIgnoreCase("Draw") &&
+              eg.confidence >= 0.70
+          zugMismatch || oppMismatch || ruleMismatch || winMismatch
+        case _ => false
+    }
+
+  private def endgameGateStatus(
+      results: List[CaseResult],
+      goldMetrics: Option[EndgameGoldMetrics]
+  ): EndgameGateStatus =
+    val narrativeCases = results.count(r => r.endgame.isDefined && r.prose.isDefined)
+    val contradictions = endgameContradictionCount(results)
+    val contradictionRate =
+      if narrativeCases == 0 then 0.0
+      else contradictions.toDouble / narrativeCases.toDouble
+    EndgameGateStatus(
+      conceptF1 = goldMetrics.map(_.conceptF1),
+      contradictionRate = contradictionRate,
+      oracleLatencyP95Ms = goldMetrics.map(_.oracleLatencyP95Ms)
+    )
+
+  private def evaluateEndgameGoldset(path: Path): Either[String, EndgameGoldMetrics] =
+    if !Files.exists(path) then Left("file does not exist")
+    else
+      val linesEither =
+        try Right(Files.readAllLines(path, StandardCharsets.UTF_8).toArray.toList.map(_.toString))
+        catch case NonFatal(e) => Left(e.getMessage)
+
+      linesEither.flatMap { lines =>
+        val cleanLines = lines.map(_.trim).filter(l => l.nonEmpty && !l.startsWith("#"))
+
+        val validatedRowsEither =
+          cleanLines.zipWithIndex.foldLeft[Either[String, List[(EndgameGoldRow, _root_.chess.Color, chess.Board)]]](Right(Nil)) {
+            case (Left(err), _) => Left(err)
+            case (Right(acc), (line, idx)) =>
+              Json.parse(line).validate[EndgameGoldRow] match
+                case JsError(errs) =>
+                  Left(s"invalid jsonl row at line ${idx + 1}: ${errs.toString}")
+                case JsSuccess(row, _) =>
+                  val colorOpt =
+                    if row.color.equalsIgnoreCase("white") then Some(_root_.chess.Color.White)
+                    else if row.color.equalsIgnoreCase("black") then Some(_root_.chess.Color.Black)
+                    else None
+                  colorOpt match
+                    case None => Left(s"invalid color `${row.color}` at line ${idx + 1}")
+                    case Some(color) =>
+                      chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(row.fen)).map(_.board) match
+                        case None => Left(s"invalid FEN at line ${idx + 1}: ${row.fen}")
+                        case Some(board) => Right((row, color, board) :: acc)
+          }
+
+        validatedRowsEither.map { validatedRowsRev =>
+          val validatedRows = validatedRowsRev.reverse
+          val analyzer = new EndgameAnalyzerImpl()
+          var checks = 0
+          var matched = 0
+          var mismatched = 0
+          val latenciesMs = scala.collection.mutable.ListBuffer[Long]()
+
+          def normalized(s: String): String = s.trim.toLowerCase
+          def compare(check: Option[Boolean]): Unit =
+            check.foreach { ok =>
+              checks += 1
+              if ok then matched += 1 else mismatched += 1
+            }
+
+          validatedRows.foreach { case (row, color, board) =>
+            val started = System.nanoTime()
+            val featureOpt = analyzer.analyze(board, color)
+            latenciesMs += ((System.nanoTime() - started) / 1000000L).max(0L)
+
+            compare(row.expect.oppositionType.map { expected =>
+              featureOpt.exists(f => normalized(f.oppositionType.toString) == normalized(expected))
+            })
+            compare(row.expect.ruleOfSquare.map { expected =>
+              featureOpt.exists(f => normalized(f.ruleOfSquare.toString) == normalized(expected))
+            })
+            compare(row.expect.triangulationAvailable.map { expected =>
+              featureOpt.exists(_.triangulationAvailable == expected)
+            })
+            compare(row.expect.rookEndgamePattern.map { expected =>
+              featureOpt.exists(f => normalized(f.rookEndgamePattern.toString) == normalized(expected))
+            })
+            compare(row.expect.zugzwangLikely.map { expected =>
+              featureOpt.exists { f =>
+                val predicted = f.isZugzwang || f.zugzwangLikelihood >= 0.65
+                predicted == expected
+              }
+            })
+          }
+
+          EndgameGoldMetrics(
+            rows = validatedRows.size,
+            labeledChecks = checks,
+            matchedChecks = matched,
+            mismatchedChecks = mismatched,
+            conceptF1 = if checks == 0 then 0.0 else matched.toDouble / checks.toDouble,
+            oracleLatencyP95Ms = percentileLong(latenciesMs.toList, 0.95)
+          )
+        }
+      }
 
   private def readJsonFile(path: Path): Either[String, JsValue] =
     try

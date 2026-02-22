@@ -1040,6 +1040,10 @@ object MoveAnalyzer:
         val sideWithOpposition = !color
         if fDiff == 0 && rDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
         else if rDiff == 0 && fDiff == 2 then List(Opposition(bk, wk, OppositionType.Direct, sideWithOpposition, plyIndex))
+        else if (fDiff == 0 && (rDiff == 4 || rDiff == 6)) || (rDiff == 0 && (fDiff == 4 || fDiff == 6)) then
+          List(Opposition(bk, wk, OppositionType.Distant, sideWithOpposition, plyIndex))
+        else if fDiff == 2 && rDiff == 2 then
+          List(Opposition(bk, wk, OppositionType.Diagonal, sideWithOpposition, plyIndex))
         else Nil
       case _ => Nil
 
