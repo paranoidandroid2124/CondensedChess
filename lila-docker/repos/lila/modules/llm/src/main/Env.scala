@@ -11,6 +11,7 @@ final class Env(
 
   private val geminiConfig = GeminiConfig.fromEnv
   lazy val geminiClient    = GeminiClient(ws, geminiConfig)
+  private val llmConfig    = LlmConfig.fromEnv
 
   lazy val commentaryCache = CommentaryCache()
 
@@ -20,4 +21,4 @@ final class Env(
     scala.concurrent.ExecutionContext.fromExecutor(analysisService)
 
   private lazy val openingExplorer = OpeningExplorerClient(ws)
-  lazy val api: LlmApi = LlmApi(openingExplorer, geminiClient, commentaryCache)(using analysisExecutor)
+  lazy val api: LlmApi = LlmApi(openingExplorer, geminiClient, commentaryCache, llmConfig)(using analysisExecutor)

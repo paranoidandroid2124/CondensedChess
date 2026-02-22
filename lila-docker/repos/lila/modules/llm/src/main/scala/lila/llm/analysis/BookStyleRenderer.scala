@@ -12,6 +12,34 @@ import lila.llm.model.authoring._
  */
 object BookStyleRenderer:
 
+  private val structureLeakTokens = List(
+    "Carlsbad",
+    "IQPWhite",
+    "IQPBlack",
+    "HangingPawnsWhite",
+    "HangingPawnsBlack",
+    "FrenchAdvanceChain",
+    "NajdorfScheveningenCenter",
+    "BenoniCenter",
+    "KIDLockedCenter",
+    "SlavCaroTriangle",
+    "MaroczyBind",
+    "Hedgehog",
+    "FianchettoShell",
+    "Stonewall",
+    "OpenCenter",
+    "LockedCenter",
+    "FluidCenter",
+    "SymmetricCenter",
+    "PA_MATCH",
+    "PRECOND_MISS",
+    "ANTI_PLAN",
+    "LOW_CONF",
+    "LOW_MARGIN",
+    "REQ_MISS",
+    "BLK_CONFLICT"
+  )
+
   /**
    * Render NarrativeContext into book-style prose.
    */
@@ -20,7 +48,7 @@ object BookStyleRenderer:
     val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)
     val validated = NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
     val prose = renderOutline(validated, ctx)
-    PostCritic.revise(ctx, prose)
+    PostCritic.revise(ctx, redactStructureTokens(prose))
 
   /**
    * Render with trace output for debugging.
@@ -205,6 +233,15 @@ object BookStyleRenderer:
 
   private def motifName(m: lila.llm.model.Motif): String =
     m.getClass.getSimpleName.replaceAll("\\$", "")
+
+  private def redactStructureTokens(text: String): String =
+    val basic = structureLeakTokens.foldLeft(text) { (acc, token) =>
+      acc.replace(token, "structure")
+    }
+    basic
+      .replaceAll("\\bREQ_[A-Z0-9_]+\\b", "structure")
+      .replaceAll("\\bSUP_[A-Z0-9_]+\\b", "structure")
+      .replaceAll("\\bBLK_[A-Z0-9_]+\\b", "structure")
 
   def humanizePlan(plan: String): String =
     val low = plan.toLowerCase

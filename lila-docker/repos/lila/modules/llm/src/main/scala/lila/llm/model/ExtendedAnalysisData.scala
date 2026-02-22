@@ -2,6 +2,7 @@ package lila.llm.model
 
 import lila.llm.model.{ Motif, PlanMatch, PositionNature }
 import lila.llm.model.strategic._
+import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
 
 // The SSOT (Single Source of Truth) for LLM Prompt Generation
 case class ExtendedAnalysisData(
@@ -39,6 +40,9 @@ case class ExtendedAnalysisData(
     planSequence: Option[lila.llm.model.PlanSequenceSummary] = None,
     tacticalThreatToUs: Boolean = false,
     tacticalThreatToThem: Boolean = false,
+    structureProfile: Option[StructureProfile] = None,
+    structureEvalLatencyMs: Option[Long] = None,
+    planAlignment: Option[PlanAlignment] = None,
     
     // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
     integratedContext: Option[lila.llm.analysis.IntegratedContext] = None
@@ -50,7 +54,9 @@ case class ExtendedAnalysisData(
         evalCp = evalCp,
         isWhiteToMove = isWhiteToMove,
         threatsToUs = None,
-        threatsToThem = None
+        threatsToThem = None,
+        structureProfile = structureProfile,
+        planAlignment = planAlignment
       )
     }
   }

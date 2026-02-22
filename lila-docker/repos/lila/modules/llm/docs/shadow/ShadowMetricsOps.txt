@@ -1,0 +1,2 @@
+bookmaker.metrics struct_mode=off shadow_window=1200 total_latency_p50_ms=32.2 total_latency_p95_ms=46.1 struct_eval_p50_ms=0.0 struct_eval_p95_ms=0.0
+bookmaker.metrics struct_mode=off shadow_window=1300 total_latency_p50_ms=33.0 total_latency_p95_ms=47.0 struct_eval_p50_ms=0.0 struct_eval_p95_ms=0.0

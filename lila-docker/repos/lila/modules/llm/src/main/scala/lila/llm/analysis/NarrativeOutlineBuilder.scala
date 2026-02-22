@@ -576,12 +576,18 @@ object NarrativeOutlineBuilder:
           playedCand.flatMap { c =>
             val b = bead ^ Math.abs(c.move.hashCode)
             val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
-            val intent = NarrativeLexicon.getIntent(b, c.planAlignment, evidenceOpt, ply = ctx.ply)
+            val intent = NarrativeLexicon.getIntent(b, preferredIntent(c), evidenceOpt, ply = ctx.ply)
             val isTerminal = isTerminalAnnotationMove(ctx, playedSan, bestCand)
             val tagHint = annotationTagHint(b, c.tags, c.practicalDifficulty, c.move, ctx.phase.current, isTerminal)
             val alert = c.tacticalAlert.map(_.trim).filter(_.nonEmpty).map(a => s"Note: $a.").getOrElse("")
+            val alignmentNote =
+              c.alignmentBand.map(_.trim.toLowerCase) match
+                case Some("offplan") => "Structure note: this route is playable only with precise follow-up."
+                case Some("unknown") => "Structure note: verify tactical details before committing."
+                case Some("onbook") => "Structure note: this keeps the strategic structure coherent."
+                case _ => ""
             val intentSentence = if intent.nonEmpty then s"It $intent." else ""
-            val combined = List(intentSentence, tagHint.getOrElse(""), alert).filter(_.trim.nonEmpty).mkString(" ")
+            val combined = List(intentSentence, tagHint.getOrElse(""), alert, alignmentNote).filter(_.trim.nonEmpty).mkString(" ")
             Option.when(combined.nonEmpty)(combined)
           }
         else
@@ -597,7 +603,7 @@ object NarrativeOutlineBuilder:
           val bestIntent =
             bestCand.map { c =>
               val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
-              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), c.planAlignment, evidenceOpt, ply = ctx.ply + 1)
+              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), preferredIntent(c), evidenceOpt, ply = ctx.ply + 1)
               if intent.nonEmpty then s"Better is **$bestSan**; it $intent."
               else s"Better is **$bestSan** to keep tighter control of the position."
             }.getOrElse {
@@ -668,7 +674,7 @@ object NarrativeOutlineBuilder:
       ctx.candidates.headOption.map { main =>
         rec.use("candidates[0]", main.move, "Main move")
         val evidenceOpt = main.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
-        val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, evidenceOpt, ply = ctx.ply)
+        val intent = NarrativeLexicon.getIntent(bead, preferredIntent(main), evidenceOpt, ply = ctx.ply)
         val engineBest = rankedEngineVariations(ctx).headOption.orElse(ctx.engineEvidence.flatMap(_.best))
         val evalScore = engineBest.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
         val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x85ebca6b, evalScore, ply = ctx.ply)
@@ -2996,6 +3002,12 @@ object NarrativeOutlineBuilder:
     if line.trim.isEmpty then implication.trim
     else s"${line.trim} ${implication.trim}".trim
 
+  private def preferredIntent(c: CandidateInfo): String =
+    c.structureGuidance
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .getOrElse(c.planAlignment)
+
   private def renderAlternativeDiversified(
     c: CandidateInfo,
     idx: Int,
@@ -3008,7 +3020,8 @@ object NarrativeOutlineBuilder:
   ): (String, String) =
     val rawReason = c.whyNot.flatMap(humanizeWhyNot).map(_.trim).filter(_.nonEmpty).map(_.stripSuffix("."))
     val move = c.move.trim
-    val plan = c.planAlignment.trim.toLowerCase
+    val plan = preferredIntent(c).trim.toLowerCase
+    val alignmentBand = c.alignmentBand.map(_.trim.toLowerCase)
     val diff = c.practicalDifficulty.trim.toLowerCase
     val diffLabel = diff.replaceAll("""[_\-]+""", " ").trim
     val informativePracticalHint =
@@ -3020,9 +3033,18 @@ object NarrativeOutlineBuilder:
       if informativePracticalHint then
         s" Practical burden: $diffLabel."
       else ""
+    val bandHint =
+      alignmentBand match
+        case Some("offplan") => "The structural route is fragile unless the follow-up is precise."
+        case Some("unknown") => "Structural read is uncertain, so concrete verification is essential."
+        case Some("onbook") => "The continuation stays structurally coherent with accurate handling."
+        case _ => ""
 
     val preferredFamilies: List[String] =
-      if rawReason.nonEmpty then List("tradeoff", "practical", "strategic", "generic")
+      if alignmentBand.contains("offplan") then List("tradeoff", "practical", "strategic", "generic")
+      else if alignmentBand.contains("onbook") then List("technical", "strategic", "practical", "generic")
+      else if rawReason.nonEmpty then List("tradeoff", "practical", "strategic", "generic")
+      else if alignmentBand.contains("unknown") then List("practical", "strategic", "generic")
       else if c.tags.contains(CandidateTag.Sharp) || c.tags.contains(CandidateTag.TacticalGamble) || diff.contains("complex") then
         List("dynamic", "strategic", "practical", "generic")
       else if c.tags.contains(CandidateTag.Solid) || c.tags.contains(CandidateTag.Converting) || diff.contains("clean") then
@@ -3118,8 +3140,11 @@ object NarrativeOutlineBuilder:
         usedStems = usedStems + normalizeStem(contrasted),
         prefixCounts = prefixCounts
       )
+    val withBand =
+      if bandHint.nonEmpty then s"${withImplication.trim} $bandHint".trim
+      else withImplication
 
-    (withImplication, family)
+    (withBand, family)
 
   private def alternativesRepetitionPenalty(lines: List[String]): Int =
     val stems = lines.map(normalizeAlternativeStem).filter(_.nonEmpty)
