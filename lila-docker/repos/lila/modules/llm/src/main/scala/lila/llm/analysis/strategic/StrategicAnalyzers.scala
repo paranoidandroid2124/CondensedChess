@@ -594,41 +594,282 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
 }
 
 class EndgameAnalyzerImpl extends EndgameAnalyzer {
-  
+
+  private val EndgamePieceWindow = 12
+  private val EndgameMaterialThreshold = 40
+  private val ZugzwangLikelyThreshold = 0.65
+
   def analyze(board: Board, color: Color): Option[EndgameFeature] = {
-    if (board.occupied.count > 10) return None
-    
-    val wKing = board.kingPosOf(Color.White)
-    val bKing = board.kingPosOf(Color.Black)
-    
-    val hasOpposition = (wKing, bKing) match {
+    if (!isEndgameWindow(board)) return None
+
+    val oppositionType = detectOppositionType(board)
+    val hasOpposition = oppositionType != EndgameOppositionType.None
+    val controlledKeys = detectKeySquares(board, color)
+    val ruleOfSquare = assessRuleOfSquare(board, color)
+    val triangulationAvailable = detectTriangulationPotential(board, color, oppositionType)
+    val kingActivityDelta = computeKingActivityDelta(board, color)
+    val rookPattern = detectRookPattern(board, color)
+    val zugzwangLikelihood = estimateZugzwangLikelihood(
+      board = board,
+      oppositionType = oppositionType,
+      ruleOfSquare = ruleOfSquare,
+      triangulationAvailable = triangulationAvailable,
+      kingActivityDelta = kingActivityDelta
+    )
+    val isZugzwang = zugzwangLikelihood >= ZugzwangLikelyThreshold
+    val outcomeHint = inferOutcomeHint(
+      board = board,
+      color = color,
+      oppositionType = oppositionType,
+      ruleOfSquare = ruleOfSquare,
+      kingActivityDelta = kingActivityDelta,
+      rookPattern = rookPattern
+    )
+    val confidence = estimateConfidence(
+      board = board,
+      oppositionType = oppositionType,
+      ruleOfSquare = ruleOfSquare,
+      triangulationAvailable = triangulationAvailable,
+      rookPattern = rookPattern,
+      zugzwangLikelihood = zugzwangLikelihood
+    )
+
+    Some(
+      EndgameFeature(
+        hasOpposition = hasOpposition,
+        isZugzwang = isZugzwang,
+        keySquaresControlled = controlledKeys,
+        oppositionType = oppositionType,
+        zugzwangLikelihood = zugzwangLikelihood,
+        ruleOfSquare = ruleOfSquare,
+        triangulationAvailable = triangulationAvailable,
+        kingActivityDelta = kingActivityDelta,
+        rookEndgamePattern = rookPattern,
+        theoreticalOutcomeHint = outcomeHint,
+        confidence = confidence
+      )
+    )
+  }
+
+  private def isEndgameWindow(board: Board): Boolean = {
+    val pieceCount = board.occupied.count
+    val totalMaterial = board.byColor(Color.White).squares.map(sq => board.roleAt(sq).map(pieceValue).getOrElse(0)).sum +
+      board.byColor(Color.Black).squares.map(sq => board.roleAt(sq).map(pieceValue).getOrElse(0)).sum
+    val majors = board.queens.count + board.rooks.count
+    val minors = board.bishops.count + board.knights.count
+    pieceCount <= EndgamePieceWindow || totalMaterial <= EndgameMaterialThreshold || (majors == 0 && minors <= 2)
+  }
+
+  private def detectOppositionType(board: Board): EndgameOppositionType =
+    (board.kingPosOf(Color.White), board.kingPosOf(Color.Black)) match {
       case (Some(wk), Some(bk)) =>
         val fDiff = (wk.file.value - bk.file.value).abs
         val rDiff = (wk.rank.value - bk.rank.value).abs
-        (fDiff == 0 && rDiff == 2) || (rDiff == 0 && fDiff == 2)
+        if ((fDiff == 0 && rDiff == 2) || (rDiff == 0 && fDiff == 2)) EndgameOppositionType.Direct
+        else if ((fDiff == 0 && (rDiff == 4 || rDiff == 6)) || (rDiff == 0 && (fDiff == 4 || fDiff == 6))) EndgameOppositionType.Distant
+        else if (fDiff == 2 && rDiff == 2) EndgameOppositionType.Diagonal
+        else EndgameOppositionType.None
+      case _ => EndgameOppositionType.None
+    }
+
+  private def detectKeySquares(board: Board, color: Color): List[Square] = {
+    val advancedPawns = board.byPiece(color, Pawn).squares.filter { sq =>
+      val rel = if (color.white) sq.rank.value + 1 else 8 - sq.rank.value
+      rel >= 5
+    }
+    val keySquares = advancedPawns.flatMap { pawnSq =>
+      val promotionRank = if (color.white) 7 else 0
+      val oneStepRank = pawnSq.rank.value + (if (color.white) 1 else -1)
+      val central = List(
+        Square.at(pawnSq.file.value, promotionRank),
+        Square.at(pawnSq.file.value, oneStepRank),
+        Square.at(pawnSq.file.value - 1, promotionRank),
+        Square.at(pawnSq.file.value + 1, promotionRank)
+      ).flatten
+      central
+    }.distinct
+    keySquares.filter(sq => board.attackers(sq, color).nonEmpty).take(6)
+  }
+
+  private def assessRuleOfSquare(board: Board, color: Color): RuleOfSquareStatus = {
+    val myKing = board.kingPosOf(color)
+    val enemyPassers = board.byPiece(!color, Pawn).squares.filter(isPassedPawn(board, _, !color))
+    if (enemyPassers.isEmpty || myKing.isEmpty) RuleOfSquareStatus.NA
+    else {
+      val targetPawn = enemyPassers.maxBy(p => relativeRank(p, !color))
+      val promotionRank = if ((!color).white) 7 else 0
+      val promoSq = Square.at(targetPawn.file.value, promotionRank)
+      promoSq match {
+        case None => RuleOfSquareStatus.NA
+        case Some(pr) =>
+          val kingDist = chebyshev(myKing.get, pr)
+          val pawnSteps = if ((!color).white) (7 - targetPawn.rank.value) else targetPawn.rank.value
+          if (kingDist <= pawnSteps) RuleOfSquareStatus.Holds else RuleOfSquareStatus.Fails
+      }
+    }
+  }
+
+  private def detectTriangulationPotential(
+      board: Board,
+      color: Color,
+      oppositionType: EndgameOppositionType
+  ): Boolean = {
+    val onlyKingsAndPawns = board.queens.count == 0 && board.rooks.count == 0 && board.bishops.count == 0 && board.knights.count == 0
+    if (!onlyKingsAndPawns) return false
+    val ourKing = board.kingPosOf(color)
+    val enemyKing = board.kingPosOf(!color)
+    (ourKing, enemyKing) match {
+      case (Some(ok), Some(ek)) =>
+        val maneuverSquares = ok.kingAttacks.squares.filter { sq =>
+          !board.byColor(color).contains(sq) && chebyshev(sq, ek) > 1
+        }
+        maneuverSquares.size >= 2 && oppositionType != EndgameOppositionType.None
       case _ => false
     }
+  }
 
-    val advancedPawns = board.byPiece(color, Pawn).squares.filter { s =>
-      if (color.white) s.rank.value >= 5 else s.rank.value <= 2
+  private def computeKingActivityDelta(board: Board, color: Color): Int = {
+    val centerSquares = List(Square.D4, Square.E4, Square.D5, Square.E5)
+    def centerDistance(sq: Square): Int = centerSquares.map(cs => chebyshev(sq, cs)).min
+    val ourKing = board.kingPosOf(color)
+    val theirKing = board.kingPosOf(!color)
+    (ourKing, theirKing) match {
+      case (Some(ok), Some(tk)) =>
+        val ourCenterDist = centerDistance(ok)
+        val theirCenterDist = centerDistance(tk)
+        val ourMob = (ok.kingAttacks & ~board.byColor(color)).count
+        val theirMob = (tk.kingAttacks & ~board.byColor(!color)).count
+        (theirCenterDist - ourCenterDist) + (ourMob - theirMob)
+      case _ => 0
     }
-    val promotionSquares = advancedPawns.flatMap { s => 
-       Square.at(s.file.value, if (color.white) 7 else 0)
-    }
-    
-    val controlledKeys = promotionSquares.filter { key =>
-      board.attackers(key, color).nonEmpty
-    }
+  }
 
-    // Heuristic: Zugzwang requires legal move generation which is currently inaccessible via Board
-    val isZugzwang = false
+  private def detectRookPattern(board: Board, color: Color): RookEndgamePattern = {
+    val ourRooks = board.byPiece(color, Rook).squares
+    if (ourRooks.isEmpty) return RookEndgamePattern.None
 
-    // Always return a result when in an endgame material window; callers can decide if it's meaningful.
-    Some(EndgameFeature(
-      hasOpposition = hasOpposition,
-      isZugzwang = isZugzwang,
-      keySquaresControlled = controlledKeys
-    ))
+    val ourPassers = board.byPiece(color, Pawn).squares.filter(isPassedPawn(board, _, color))
+    val hasRookBehindPasser = ourPassers.exists { pawnSq =>
+      ourRooks.exists { rookSq =>
+        rookSq.file == pawnSq.file &&
+        (if (color.white) rookSq.rank.value < pawnSq.rank.value else rookSq.rank.value > pawnSq.rank.value)
+      }
+    }
+    if (hasRookBehindPasser) return RookEndgamePattern.RookBehindPassedPawn
+
+    val enemyKing = board.kingPosOf(!color)
+    val hasKingCutOff = enemyKing.exists { ek =>
+      ourRooks.exists { rookSq =>
+        val sameRankCut = rookSq.rank == ek.rank && (rookSq.file.value - ek.file.value).abs >= 2
+        val sameFileCut = rookSq.file == ek.file && (rookSq.rank.value - ek.rank.value).abs >= 2
+        sameRankCut || sameFileCut
+      }
+    }
+    if (hasKingCutOff) RookEndgamePattern.KingCutOff else RookEndgamePattern.None
+  }
+
+  private def estimateZugzwangLikelihood(
+      board: Board,
+      oppositionType: EndgameOppositionType,
+      ruleOfSquare: RuleOfSquareStatus,
+      triangulationAvailable: Boolean,
+      kingActivityDelta: Int
+  ): Double = {
+    val lowComplexityBonus =
+      if (board.queens.count == 0 && board.rooks.count <= 1 && board.bishops.count + board.knights.count <= 1) 0.20
+      else 0.0
+    val oppositionBonus = oppositionType match {
+      case EndgameOppositionType.Direct => 0.30
+      case EndgameOppositionType.Distant => 0.20
+      case EndgameOppositionType.Diagonal => 0.15
+      case EndgameOppositionType.None => 0.0
+    }
+    val triangulationBonus = if (triangulationAvailable) 0.25 else 0.0
+    val squarePressureBonus = ruleOfSquare match {
+      case RuleOfSquareStatus.Fails => 0.10
+      case RuleOfSquareStatus.Holds => 0.05
+      case RuleOfSquareStatus.NA => 0.0
+    }
+    val kingSpacePenalty = if (kingActivityDelta < 0) 0.05 else 0.0
+    val pawnCount = board.pawns.count
+    val sparsePawnBonus = if (pawnCount <= 4) 0.08 else 0.0
+    val score = 0.08 + lowComplexityBonus + oppositionBonus + triangulationBonus + squarePressureBonus + sparsePawnBonus - kingSpacePenalty
+    math.max(0.0, math.min(1.0, score))
+  }
+
+  private def inferOutcomeHint(
+      board: Board,
+      color: Color,
+      oppositionType: EndgameOppositionType,
+      ruleOfSquare: RuleOfSquareStatus,
+      kingActivityDelta: Int,
+      rookPattern: RookEndgamePattern
+  ): TheoreticalOutcomeHint = {
+    val ourPassers = board.byPiece(color, Pawn).squares.count(isPassedPawn(board, _, color))
+    val oppPassers = board.byPiece(!color, Pawn).squares.count(isPassedPawn(board, _, !color))
+    val winningSignals =
+      (if (ourPassers > oppPassers) 1 else 0) +
+      (if (kingActivityDelta > 0) 1 else 0) +
+      (if (rookPattern == RookEndgamePattern.RookBehindPassedPawn) 1 else 0) +
+      (if (ruleOfSquare == RuleOfSquareStatus.Holds) 1 else 0)
+
+    if (winningSignals >= 3) TheoreticalOutcomeHint.Win
+    else if (
+      oppositionType != EndgameOppositionType.None &&
+      kingActivityDelta.abs <= 1 &&
+      ruleOfSquare != RuleOfSquareStatus.Fails &&
+      board.queens.count == 0
+    ) TheoreticalOutcomeHint.Draw
+    else TheoreticalOutcomeHint.Unclear
+  }
+
+  private def estimateConfidence(
+      board: Board,
+      oppositionType: EndgameOppositionType,
+      ruleOfSquare: RuleOfSquareStatus,
+      triangulationAvailable: Boolean,
+      rookPattern: RookEndgamePattern,
+      zugzwangLikelihood: Double
+  ): Double = {
+    val signalCount =
+      (if (oppositionType != EndgameOppositionType.None) 1 else 0) +
+      (if (ruleOfSquare != RuleOfSquareStatus.NA) 1 else 0) +
+      (if (triangulationAvailable) 1 else 0) +
+      (if (rookPattern != RookEndgamePattern.None) 1 else 0) +
+      (if (zugzwangLikelihood >= 0.5) 1 else 0)
+    val complexityPenalty = if (board.occupied.count > 10) 0.12 else 0.0
+    val raw = 0.42 + signalCount * 0.12 - complexityPenalty
+    math.max(0.0, math.min(1.0, raw))
+  }
+
+  private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean = {
+    val oppPawnsByFile = board.byPiece(!color, Pawn).squares.groupBy(_.file)
+    val fileValue = pawnSq.file.value
+    val filesToCheck = List(fileValue - 1, fileValue, fileValue + 1).filter(f => f >= 0 && f <= 7)
+    filesToCheck.forall { idx =>
+      File.all.lift(idx).forall { f =>
+        oppPawnsByFile.get(f).forall { pawns =>
+          pawns.forall { oppPawn =>
+            if (color.white) oppPawn.rank.value <= pawnSq.rank.value else oppPawn.rank.value >= pawnSq.rank.value
+          }
+        }
+      }
+    }
+  }
+
+  private def relativeRank(square: Square, color: Color): Int =
+    if (color.white) square.rank.value + 1 else 8 - square.rank.value
+
+  private def chebyshev(a: Square, b: Square): Int =
+    math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
+
+  private def pieceValue(role: Role): Int = role match {
+    case Pawn => 1
+    case Knight => 3
+    case Bishop => 3
+    case Rook => 5
+    case Queen => 9
+    case King => 0
   }
 }
 
