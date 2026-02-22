@@ -11,7 +11,9 @@ class StrategicFeatureExtractorImpl(
     activityAnalyzer: ActivityAnalyzer,
     structureAnalyzer: StructureAnalyzer,
     endgameAnalyzer: EndgameAnalyzer,
-    practicalityScorer: PracticalityScorer
+    practicalityScorer: PracticalityScorer,
+    endgameOracleEnabled: Boolean = false,
+    endgameOracleShadowMode: Boolean = true
 ) extends StrategicFeatureExtractor {
 
   def extract(
@@ -189,7 +191,18 @@ class StrategicFeatureExtractorImpl(
     val allPositionalFeatures = (positionalFeatures ++ tacticalTags).distinct
 
     val compensation = structureAnalyzer.analyzeCompensation(board, color)
-    val endgameFeatures = endgameAnalyzer.analyze(board, color)
+    val coreEndgameFeatures = endgameAnalyzer.analyze(board, color)
+    val oracleEvaluatedEndgame =
+      if (endgameOracleEnabled || endgameOracleShadowMode)
+        coreEndgameFeatures.flatMap { core =>
+          EndgamePatternOracle
+            .detect(board = board, color = color, coreFeature = core)
+            .map(EndgamePatternOracle.applyPattern(core, _))
+        }
+      else None
+    val endgameFeatures =
+      if (endgameOracleEnabled) oracleEvaluatedEndgame.orElse(coreEndgameFeatures)
+      else coreEndgameFeatures
 
     // Score Practicality with normalized score
     val practicalAssessment = practicalityScorer.score(
@@ -353,9 +366,25 @@ class StrategicFeatureExtractorImpl(
     
     // From Endgame
     endgameFeatures.foreach { eg =>
-      if (eg.isZugzwang) concepts += "Zugzwang"
-      if (eg.hasOpposition) concepts += "King opposition"
+      if (eg.isZugzwang || eg.zugzwangLikelihood >= 0.65) concepts += "Zugzwang pressure"
+      if (eg.hasOpposition) concepts += s"${eg.oppositionType.toString} opposition"
       if (eg.keySquaresControlled.nonEmpty) concepts += "Key square control"
+      eg.primaryPattern.foreach(p => concepts += s"Endgame pattern: $p")
+      eg.ruleOfSquare match {
+        case lila.llm.model.strategic.RuleOfSquareStatus.Holds => concepts += "Rule of the square holds"
+        case lila.llm.model.strategic.RuleOfSquareStatus.Fails => concepts += "Rule of the square fails"
+        case _ => ()
+      }
+      eg.rookEndgamePattern match {
+        case lila.llm.model.strategic.RookEndgamePattern.RookBehindPassedPawn => concepts += "Rook behind passed pawn"
+        case lila.llm.model.strategic.RookEndgamePattern.KingCutOff => concepts += "King cut-off"
+        case _ => ()
+      }
+      eg.theoreticalOutcomeHint match {
+        case lila.llm.model.strategic.TheoreticalOutcomeHint.Win => concepts += "Theoretical win"
+        case lila.llm.model.strategic.TheoreticalOutcomeHint.Draw => concepts += "Theoretical draw"
+        case _ => ()
+      }
     }
     
     concepts.distinct.toList.take(5)
@@ -440,7 +469,12 @@ class StrategicFeatureExtractorImpl(
     
     // 7. Endgame-specific
     endgameFeatures match {
-      case Some(eg) if eg.hasOpposition => return "Gaining opposition"
+      case Some(eg) if eg.rookEndgamePattern == lila.llm.model.strategic.RookEndgamePattern.RookBehindPassedPawn =>
+        return "Rook behind passed pawn"
+      case Some(eg) if eg.rookEndgamePattern == lila.llm.model.strategic.RookEndgamePattern.KingCutOff =>
+        return "King cut-off technique"
+      case Some(eg) if eg.hasOpposition => return s"${eg.oppositionType.toString} opposition"
+      case Some(eg) if eg.ruleOfSquare == lila.llm.model.strategic.RuleOfSquareStatus.Fails => return "Promotion race urgency"
       case Some(eg) if eg.keySquaresControlled.nonEmpty => return "Key square control"
       case _ => ()
     }

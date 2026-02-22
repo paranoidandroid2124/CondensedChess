@@ -1,0 +1,55 @@
+name: LLM Endgame Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: llm-endgame-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  endgame-quality-pr:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: PR gate - contracts and detector tests
+        run: sbt "llm/testOnly lila.llm.analysis.EndgameAnalyzerOracleTest lila.llm.analysis.EndgamePatternDetectorTest lila.llm.analysis.EndgameFlagBehaviorTest lila.llm.analysis.EndgameGoldsetV2ContractTest"
+
+      - name: PR gate - strict quality runner
+        run: sbt "llm/runMain lila.llm.tools.EndgamePatternQualityRunner --strict --v1-input=modules/llm/src/test/resources/endgame_goldset_v1.jsonl --v2-input=modules/llm/src/test/resources/endgame_goldset_v2_patterns.jsonl --out=modules/llm/docs/EndgamePatternQualityReport.md"
+
+  endgame-quality-nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: Nightly strict quality runner
+        run: sbt "llm/runMain lila.llm.tools.EndgamePatternQualityRunner --strict --v1-input=modules/llm/src/test/resources/endgame_goldset_v1.jsonl --v2-input=modules/llm/src/test/resources/endgame_goldset_v2_patterns.jsonl --out=modules/llm/docs/EndgamePatternQualityReport.md"
+

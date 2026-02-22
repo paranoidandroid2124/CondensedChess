@@ -2086,9 +2086,27 @@ object NarrativeOutlineBuilder:
 
   private def endgameMotifs(info: EndgameInfo): List[String] =
     val motifs = scala.collection.mutable.ListBuffer[String]()
-    if info.isZugzwang then motifs += "zugzwang"
-    if info.hasOpposition then motifs += "opposition"
-    motifs.toList
+    // Priority: promotion race > forced draw resource > king activity.
+    if info.ruleOfSquare.equalsIgnoreCase("Fails") || info.rookEndgamePattern.equalsIgnoreCase("RookBehindPassedPawn") then
+      motifs += "promotion_race"
+    if info.isZugzwang || info.zugzwangLikelihood >= 0.65 || info.theoreticalOutcomeHint.equalsIgnoreCase("Draw") then
+      motifs += "forced_draw_resource"
+    if info.hasOpposition || !info.oppositionType.equalsIgnoreCase("None") then
+      motifs += "opposition"
+    if info.rookEndgamePattern.equalsIgnoreCase("KingCutOff") then motifs += "king_cut_off"
+    if info.kingActivityDelta > 0 then motifs += "king_activity"
+    info.primaryPattern.foreach { p =>
+      val low = p.toLowerCase
+      if low.contains("lucena") then motifs += "lucena"
+      else if low.contains("philidor") then motifs += "philidor"
+      else if low.contains("vancura") then motifs += "vancura"
+      else if low.contains("triangulation") then motifs += "triangulation"
+      else if low.contains("outsidepasser") then motifs += "outside_passer"
+      else if low.contains("connectedpassers") then motifs += "connected_passers"
+      else if low.contains("oppositecoloredbishops") then motifs += "opposite_bishops"
+      else if low.contains("wrongrookpawnwrongbishopfortress") then motifs += "wrong_bishop_fortress"
+    }
+    motifs.distinct.toList
 
   private def positionalTagMotifs(tag: PositionalTagInfo): List[String] =
     val key = normalizeMotifKey(tag.tagType)

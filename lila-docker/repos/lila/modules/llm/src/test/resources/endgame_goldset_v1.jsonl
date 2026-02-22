@@ -1,0 +1,8 @@
+{"fen":"8/8/4k3/8/4K3/8/8/8 w - - 0 1","color":"white","expect":{"oppositionType":"Direct","triangulationAvailable":true,"zugzwangLikely":true}}
+{"fen":"8/8/4k3/8/8/8/4K3/8 w - - 0 1","color":"white","expect":{"oppositionType":"Distant","zugzwangLikely":true}}
+{"fen":"8/8/5k2/8/3K4/8/8/8 w - - 0 1","color":"white","expect":{"oppositionType":"Diagonal","zugzwangLikely":true}}
+{"fen":"k7/8/8/8/7p/8/8/K7 w - - 0 1","color":"white","expect":{"ruleOfSquare":"Fails"}}
+{"fen":"k7/8/8/8/7p/8/5K2/8 w - - 0 1","color":"white","expect":{"ruleOfSquare":"Holds"}}
+{"fen":"8/4k3/8/3P4/8/8/6K1/3R4 w - - 0 1","color":"white","expect":{"rookEndgamePattern":"RookBehindPassedPawn"}}
+{"fen":"8/8/8/8/R3k3/8/8/7K w - - 0 1","color":"white","expect":{"rookEndgamePattern":"KingCutOff"}}
+{"fen":"7k/8/8/8/8/8/pppp4/K7 w - - 0 1","color":"white","expect":{"zugzwangLikely":false}}
