@@ -39,7 +39,7 @@ The feature is considered closed only when all of the following are true:
    - `Continuation/NaturalShift/ForcedPivot/Opportunistic` 전략 흐름 문구 반영
    - `PlanTable.isEstablished` uses `consecutivePlies >= 2`.
 
-## 3. "Pawn Structure" Knowledge Base (폰 구조 기반 지식 베이스) - [BOOKMAKER VALIDATION]
+## 3. "Pawn Structure" Knowledge Base (폰 구조 기반 지식 베이스) - [BOOKMAKER CLOSED]
 
 **Goal:** Evaluate middle-game plans based on well-established, GM-level understanding of central pawn structures, rather than relying solely on engine evaluations or superficial ECO names.
 
@@ -104,7 +104,10 @@ The feature is considered closed only when all of the following are true:
 17. v1.1 validation policy is now explicit:
     - Dual Gate 운영: `v1 regression` + `llm_curated quality` 동시 통과
     - Internal-only exposure 유지: 구조 ID/이유코드는 사용자 출력에서 비노출
-    - 상태 정의: implementation complete, validation pending until Dual Gate + shadow gate pass
+    - 상태 정의: Stage 3 완료 (`BOOKMAKER CLOSED`)
+18. completion declaration (2026-02-22):
+    - Pawn Structure KB 3단계 작업 완료
+    - 문서 상태를 `BOOKMAKER CLOSED`로 확정
 
 ## 4. Endgame Oracle (엔드게임 전용 수학적/개념적 평가기)
 
