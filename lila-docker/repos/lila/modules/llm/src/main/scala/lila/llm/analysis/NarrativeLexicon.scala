@@ -2368,8 +2368,11 @@ object NarrativeLexicon {
           s"Keep ${square.key} in mind as an outpost square."
         ))
 
-      case Fact.Opposition(_, _, _, isDirect, _) =>
-        val kind = if isDirect then "direct opposition" else "opposition"
+      case Fact.Opposition(_, _, _, isDirect, oppositionType, _) =>
+        val kind =
+          if oppositionType.nonEmpty && !oppositionType.equalsIgnoreCase("None") then s"${oppositionType.toLowerCase} opposition"
+          else if isDirect then "direct opposition"
+          else "opposition"
         pick(bead, List(
           s"The kings are in $kind.",
           s"$kind is an important endgame detail.",
