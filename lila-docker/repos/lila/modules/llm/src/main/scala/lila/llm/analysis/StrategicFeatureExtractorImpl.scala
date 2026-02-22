@@ -25,6 +25,30 @@ class StrategicFeatureExtractorImpl(
 
     val board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
     val color = metadata.color
+    def normalizeUci(uci: String): String = lila.llm.analysis.NarrativeUtils.normalizeUciMove(uci)
+    def pickProbeForMove(move: String): Option[lila.llm.model.ProbeResult] =
+      val moveNorm = normalizeUci(move)
+      probeResults
+        .filter(pr => pr.probedMove.exists(pm => lila.llm.analysis.NarrativeUtils.uciEquivalent(moveNorm, pm)))
+        .sortBy { pr =>
+          val purposeRank =
+            if (pr.purpose.contains("played_move_counterfactual")) 0 else 1
+          (purposeRank, -pr.depth.getOrElse(0), -pr.bestReplyPv.size)
+        }
+        .headOption
+    def buildProbeCounterfactualLine(move: String): Option[VariationLine] =
+      pickProbeForMove(move).map { probe =>
+        VariationLine(
+          moves = move :: probe.bestReplyPv.take(3),
+          scoreCp = probe.evalCp,
+          mate = probe.mate,
+          depth = probe.depth.getOrElse(0),
+          resultingFen = None,
+          tags = Nil,
+          parsedMoves = Nil
+        )
+      }
+
     // All CP must be White absolute perspective. Mate scores map to high values.
     assert(
       vars.forall(v => v.scoreCp.abs < 10000 || v.mate.isDefined), 
@@ -32,13 +56,17 @@ class StrategicFeatureExtractorImpl(
     )
     val varsWithPlayed = playedMove match {
       case Some(move) if !vars.exists(_.moves.headOption.contains(move)) =>
-        // Create synthetic line for the played move (estimate score as worst of existing or -100)
+        // Prefer probe-backed played line so counterfactual causality can use >=2 ply.
+        val probeLine = buildProbeCounterfactualLine(move).filter(_.moves.size >= 2)
+        // Fallback: synthetic one-ply line when no probe evidence is available.
         val worstScore = vars.map(_.effectiveScore).minOption.getOrElse(0) - 50
-        val playedLine = VariationLine(
-          moves = List(move),
-          scoreCp = worstScore,
-          mate = None,
-          tags = Nil
+        val playedLine = probeLine.getOrElse(
+          VariationLine(
+            moves = List(move),
+            scoreCp = worstScore,
+            mate = None,
+            tags = Nil
+          )
         )
         vars :+ playedLine
       case _ => vars
@@ -76,9 +104,8 @@ class StrategicFeatureExtractorImpl(
       case Some(probe) if probe.bestReplyPv.nonEmpty =>
         // We have a concrete engine refutation line!
         // Best reply PV is the sequence of moves the opponent would use to destroy us
-        // evalCp inside the probe is from the opponent's POV after our null move.
-        // It's the absolute proof of the threat.
-        val threatScore = if (color.white) -probe.evalCp else probe.evalCp 
+        // evalCp is always White POV centipawns (same contract as VariationLine.scoreCp).
+        val threatScore = probe.evalCp
         
         val threatLine = VariationLine(
           moves = probe.bestReplyPv.take(3), // Top 3 moves of the threat sequence
@@ -98,7 +125,7 @@ class StrategicFeatureExtractorImpl(
         
         (Some(threatLine), Some(planId))
         
-      case None =>
+      case _ =>
         // Fallback: Extract immediate opponent threats from base motifs (Heuristic)
         val detectedThreats = baseData.motifs.filter(m => m.color != color && m.plyIndex == 0)
         
@@ -175,13 +202,25 @@ class StrategicFeatureExtractorImpl(
       endgameFeatures
     )
     val counterfactual = playedMove.flatMap { move =>
-      val userLine = sortedVarsParsed.find(_.moves.headOption.contains(move))
-      
-      userLine.flatMap { ul =>
+      val userLineFromVars = sortedVarsParsed.find(_.moves.headOption.contains(move))
+      val probeLineParsed = buildProbeCounterfactualLine(move).map { pl =>
+        val parsedMoves = if (pl.moves.nonEmpty) lila.llm.analysis.MoveAnalyzer.parsePv(fen, pl.moves) else Nil
+        val resultingFen = if (pl.moves.nonEmpty) Some(lila.llm.analysis.NarrativeUtils.uciListToFen(fen, pl.moves)) else None
+        pl.copy(parsedMoves = parsedMoves, resultingFen = resultingFen)
+      }
+      val selectedUserLine = userLineFromVars match {
+        case Some(ul) if ul.moves.size >= 2 => Some(ul)
+        case _ => probeLineParsed.orElse(userLineFromVars)
+      }
+
+      selectedUserLine.flatMap { ul =>
         if (bestVar.moves.headOption != Some(move)) {
           val normalizedUserScore = normalizeScore(ul)
-          val cpLoss = (if (color.white) normalizedBestScore - normalizedUserScore 
-                        else normalizedUserScore - normalizedBestScore).abs
+          val cpLoss = lila.llm.analysis.PerspectiveMath.cpLossForMover(
+            color,
+            normalizedBestScore,
+            normalizedUserScore
+          )
           
           Some(lila.llm.analysis.CounterfactualAnalyzer.createMatchNormalized(
             fen = fen,
@@ -264,7 +303,9 @@ class StrategicFeatureExtractorImpl(
       ply = metadata.ply,
       evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
       isWhiteToMove = color.white,
-      phase = baseData.nature.natureType.toString.toLowerCase
+      phase = baseData.nature.natureType.toString.toLowerCase,
+      planContinuity = baseData.planContinuity,
+      planSequence = baseData.planSequence
     )
   }
   

@@ -2,8 +2,6 @@
 
 AI-powered chess storytelling platform that transforms your games into engaging narratives.
 
-> 🎯 **A [Lichess](https://lichess.org) fork** focused on narrative-driven chess analysis with AI commentary.
-
 ## What is Chesstory?
 
 Chesstory analyzes your chess games and generates **book-style narratives** that explain:
@@ -44,17 +42,21 @@ cd CondensedChess/lila-docker
 Create or edit `settings.env`:
 
 ```env
-# Required for AI narratives
-GEMINI_API_KEY=your-api-key-here
+# Optional Gemini settings (rule-based commentary remains active without a key)
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.0-flash-preview
-```
 
-Get your API key from [Google AI Studio](https://aistudio.google.com/apikey).
+# Optional support links shown on /support
+SUPPORT_PATREON_URL=
+SUPPORT_GITHUB_SPONSORS_URL=
+SUPPORT_BMC_URL=
+```
 
 ### Access
 
 - **Main Site**: http://localhost:8080/
 - **Analysis Board**: http://localhost:8080/analysis
+- **Support**: http://localhost:8080/support
 
 ## Development
 
@@ -83,7 +85,7 @@ See [modules/llm/ARCHITECTURE.md](modules/llm/ARCHITECTURE.md) for detailed tech
 modules/llm/           # AI Commentary Engine
 ├── analysis/          # Motif detection, plan matching
 ├── model/             # Motif & Plan definitions
-└── LlmClient.scala    # Gemini API integration
+└── LlmClient.scala    # Optional Gemini integration (currently disabled in API flow)
 
 ui/analyse/            # Analysis Board UI
 ├── src/narrative/     # Narrative display components
@@ -93,11 +95,4 @@ ui/analyse/            # Analysis Board UI
 ## License
 
 Chesstory is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
-
-This project is a fork of [Lichess](https://github.com/lichess-org/lila). See [COPYING.md](COPYING.md) for full license details and attribution.
-
-## Credits
-
-- [Lichess](https://lichess.org) - The original open-source chess platform
-- [Stockfish](https://stockfishchess.org/) - Chess engine
-- [Google Gemini](https://ai.google.dev/) - AI text generation
+See [COPYING.md](COPYING.md) for full license details and upstream attribution.

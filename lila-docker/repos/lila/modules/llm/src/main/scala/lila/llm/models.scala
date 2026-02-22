@@ -26,7 +26,9 @@ case class CommentRequest(
     // Bookmaker delta: optional post-move position to compute before/after differences.
     afterFen: Option[String] = None,
     afterEval: Option[EvalData] = None,
-    afterVariations: Option[List[lila.llm.model.strategic.VariationLine]] = None
+    afterVariations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
+    // State Passing: persist plan state between individual move queries
+    planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
 )
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]
@@ -35,7 +37,8 @@ case class CommentResponse(
   commentary: String,
   concepts: List[String],
   variations: List[lila.llm.model.strategic.VariationLine] = Nil,
-  probeRequests: List[lila.llm.model.ProbeRequest] = Nil
+  probeRequests: List[lila.llm.model.ProbeRequest] = Nil,
+  planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

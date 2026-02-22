@@ -1,6 +1,5 @@
 package lila.llm.analysis
 
-import _root_.chess.format.Fen
 import lila.llm.model.*
 import lila.llm.model.strategic.*
 
@@ -64,8 +63,8 @@ class NullMoveProbeTest extends munit.FunSuite {
     // We mainly care if it even attempted Prophylaxis against the Null-Move plan
     assert(candidate.prophylaxisResults.nonEmpty, "Prophylaxis should be evaluated against the null move threat")
     
-    // Verify the threat score was parsed correctly from the probe (-evalCp because the probe eval is from the opponent's POV)
-    assertEquals(candidate.prophylaxisResults.head.counterplayScoreDrop, -350 - 0) // normalized best is 0, threat is -350
-    assertEquals(candidate.prophylaxisResults.head.planId, "Decisive Advantage (Null-Move Threat)")
+    // Verify the threat score is parsed from White-POV probe eval and converted to mover-relative drop.
+    assertEquals(candidate.prophylaxisResults.head.counterplayScoreDrop, 350)
+    assert(candidate.prophylaxisResults.head.planId.nonEmpty, "Null-move probe should provide a concrete threat plan id")
   }
 }

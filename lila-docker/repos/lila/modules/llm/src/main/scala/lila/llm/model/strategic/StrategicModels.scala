@@ -94,9 +94,33 @@ case class Hypothesis(move: String, candidateType: String, rationale: String)
 
 case class PlanContinuity(
   planName: String,
+  planId: Option[String],
   consecutivePlies: Int,
   startingPly: Int
 )
+object PlanContinuity:
+  import play.api.libs.json.*
+  given Reads[PlanContinuity] = Reads { js =>
+    for
+      planName <- (js \ "planName").validate[String]
+      planId <- (js \ "planId").validateOpt[String]
+      consecutivePlies <- (js \ "consecutivePlies").validate[Int]
+      startingPly <- (js \ "startingPly").validate[Int]
+    yield PlanContinuity(
+      planName = planName,
+      planId = planId,
+      consecutivePlies = consecutivePlies,
+      startingPly = startingPly
+    )
+  }
+  given Writes[PlanContinuity] = Writes { c =>
+    Json.obj(
+      "planName" -> c.planName,
+      "planId" -> c.planId,
+      "consecutivePlies" -> c.consecutivePlies,
+      "startingPly" -> c.startingPly
+    )
+  }
 
 case class CounterfactualMatch(
     userMove: String,

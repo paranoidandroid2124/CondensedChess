@@ -26,7 +26,7 @@ object landing:
                   ctx.me match
                     case Some(me) =>
                       frag(
-                        a(href := "/plan", cls := "btn-text")("Pricing"),
+                        a(href := "/support", cls := "btn-text")("Support"),
                         a(href := routes.UserAnalysis.index.url, cls := "btn-text")("Analysis"),
                         a(href := routes.User.show(me.username).url, cls := "btn-text")(me.username.value),
                         postForm(action := routes.Auth.logout, cls := "logout-form")(
@@ -35,7 +35,7 @@ object landing:
                       )
                     case None =>
                       frag(
-                        a(href := "/plan", cls := "btn-text")("Pricing"),
+                        a(href := "/support", cls := "btn-text")("Support"),
                         a(href := routes.Auth.login.url, cls := "btn-text")("Log in")
                       )
                 )

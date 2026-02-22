@@ -37,7 +37,7 @@ One workspace package (such as "analyse") may depend on another (such as "lib") 
 ```
 That tells [pnpm](https://pnpm.io) and our build script to resolve the dependency with [/pnpm-workspace.yaml](../pnpm-workspace.yaml).
 
-We do not use devDependencies because no package artifacts are published to npm. There is no useful distinction between dependencies and devDependencies when we're always building assets for the lila server.
+We do not use devDependencies because no package artifacts are published to npm. There is no useful distinction between dependencies and devDependencies when we're always building assets for the server app.
 
 ## tsc import resolution
 tsc type checking uses package.json's `exports` property [(node)](https://nodejs.org/api/packages.html#packages_exports) to resolve static import declarations in external sources to the correct declaration (\*.d.ts) files in the imported package.
@@ -122,7 +122,7 @@ Bundles may also be described by objects containing a "module" path and an "inli
 
 The "module" path serves the same purpose as a bare string - naming the source module for an entry point. The "inline" path identifies a special typescript source from which ui/build will emit javascript statements into a special manifest.\*.json entry.
 
-When that module is requested by a browser, the lila server injects those inline statements into a \<script> tag following the assembled DOM within the \<body> element. This allows blocking setup code to manipulate the DOM based on viewport calculations before rendering to avoid FOUC. This should be rare and globs are not supported here. [/ui/site/package.json](./site/package.json) shows an example:
+When that module is requested by a browser, the server injects those inline statements into a \<script> tag following the assembled DOM within the \<body> element. This allows blocking setup code to manipulate the DOM based on viewport calculations before rendering to avoid FOUC. This should be rare and globs are not supported here. [/ui/site/package.json](./site/package.json) shows an example:
 
 ```json
     "bundle": [
@@ -146,11 +146,11 @@ One usage for sync is to copy npm package assets from node_modules to the /publi
     },
 ```
 
-Sync watch is helpful when you must link a [local version of an npm package](https://github.com/lichess-org/lila/wiki/Lichess-UI-Development#customizing-linked-pnpm-modules). Issues involving chessground, pgn-viewer, or third party dependencies often require this.
+Sync watch is helpful when you must link a local version of an npm package during workspace development. Issues involving chessground, pgn-viewer, or third party dependencies often require this.
 
 ## "hash" property
 
-Why hash? Web asset distribution involves frequent caching, and hashes provide a repeatable way to compute URLs as a function of a file's content. ui/build writes the hashes used to cache asset URLs to a manifest.\*.json file. The server uses this manifest to link content-hashed URLs for unique asset versions in every response. Between the client and server, our Content Delivery Network (CDN) caches static assets via edge servers located around the world. Once the first request for a unique URL triggers an initial response from the lichess server, subsequent requests for that same URL from that region do not involve the lichess data center. The CDN edge servers persist cache entries for up to a year, so responses for the same URL are frozen in time without manual intervention.
+Why hash? Web asset distribution involves frequent caching, and hashes provide a repeatable way to compute URLs as a function of a file's content. ui/build writes the hashes used to cache asset URLs to a manifest.\*.json file. The server uses this manifest to link content-hashed URLs for unique asset versions in every response. Between the client and server, our Content Delivery Network (CDN) caches static assets via edge servers located around the world. Once the first request for a unique URL triggers an initial response from the origin server, subsequent requests for that same URL from that region do not involve the primary application host. The CDN edge servers persist cache entries for up to a year, so responses for the same URL are frozen in time without manual intervention.
 
 ui/build automatically hashes compiled and bundled sources such as typescript and scss. For unmanaged assets, like images, fonts, and dynamically loaded npm repo files, you must use "hash" entries.
 

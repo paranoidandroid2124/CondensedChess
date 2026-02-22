@@ -35,7 +35,7 @@ val sortedVars = vars.sortBy(v =>
 
 | Source | Perspective | Status |
 |:---|:---:|:---:|
-| Lichess backend (Stockfish) | White absolute | ✅ Correct |
+| Server Stockfish backend | White absolute | ✅ Correct |
 | Stockfish WASM (client) | White absolute | ✅ Correct |
 | UCI `info score cp` | White absolute | ✅ Correct |
 

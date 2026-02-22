@@ -49,7 +49,7 @@ object ThreatExtractor {
 
     if (criticalThreats.isEmpty) {
       // Fallback: Check if there's a huge evaluation drop without clear tactical motifs
-      val evalDrop = bestLine.effectiveScore - userLine.effectiveScore
+      val evalDrop = PerspectiveMath.cpLossForMover(playerColor, bestLine.effectiveScore, userLine.effectiveScore)
       if (evalDrop > 200) {
         Some(CausalThreat("Positional Collapse", 1, "concedes a devastating positional advantage", Nil))
       } else {

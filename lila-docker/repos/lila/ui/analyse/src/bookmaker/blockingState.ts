@@ -1,7 +1,7 @@
 import { ratelimitSecondsFromResponse, resetAtFromResponse } from './responsePayload';
 
 function renderBookmakerStateCard(
-  kind: 'credits' | 'auth' | 'quota',
+  kind: 'auth' | 'quota',
   title: string,
   message: string,
   actionHtml: string,
@@ -23,17 +23,17 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const data = await res.json();
       const resetAt = resetAtFromResponse(data);
       return renderBookmakerStateCard(
-        'credits',
-        'Credits Exhausted',
-        `You've used all analysis credits for this period. Next reset: ${resetAt.slice(0, 10)}.`,
-        '<a href="/plan" class="button primary">Upgrade to Pro</a>',
+        'quota',
+        'Request Blocked',
+        `This request was blocked by policy. Please review usage limits and retry. (${resetAt.slice(0, 10)})`,
+        '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
       return renderBookmakerStateCard(
-        'credits',
-        'Credits Exhausted',
-        "You've used all analysis credits for this period. Upgrade to continue.",
-        '<a href="/plan" class="button primary">Upgrade to Pro</a>',
+        'quota',
+        'Request Blocked',
+        'This request was blocked by policy. Please retry shortly.',
+        '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     }
   }

@@ -36,6 +36,35 @@ export type EvalVariation = {
   depth: number;
 };
 
+export type PlanContinuityToken = {
+  planName: string;
+  planId?: string | null;
+  consecutivePlies: number;
+  startingPly: number;
+};
+
+export type PlanTransitionToken = {
+  transitionType: string;
+  momentum: number;
+  primaryPlanId?: string | null;
+  secondaryPlanId?: string | null;
+};
+
+export type PlanColorStateToken = {
+  primary?: PlanContinuityToken | null;
+  secondary?: PlanContinuityToken | null;
+  lastTransition?: PlanTransitionToken | null;
+  lastPly?: number | null;
+};
+
+export type PlanStateToken = {
+  version?: number;
+  history?: {
+    white?: PlanColorStateToken | PlanContinuityToken | null;
+    black?: PlanColorStateToken | PlanContinuityToken | null;
+  };
+};
+
 type OpeningMove = {
   uci: string;
   san: string;

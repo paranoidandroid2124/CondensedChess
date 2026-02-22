@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.{ ExtendedAnalysisData, PlanMatch, Motif, PositionNature }
+import lila.llm.model.strategic.PlanContinuity
 import chess.Color
 
 trait StrategicFeatureExtractor {
@@ -18,7 +19,8 @@ case class BaseAnalysisData(
     nature: PositionNature,
     motifs: List[Motif],
     plans: List[PlanMatch],
-    planSequence: Option[(lila.llm.model.TransitionType, Double)] = None
+    planContinuity: Option[PlanContinuity] = None,
+    planSequence: Option[lila.llm.model.PlanSequenceSummary] = None
 )
 
 case class AnalysisMetadata(

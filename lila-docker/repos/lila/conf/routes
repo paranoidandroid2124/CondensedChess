@@ -81,13 +81,10 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
 POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
-GET   /api/llm/credits                  controllers.LlmController.creditStatus
 GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)
 GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
-GET   /plan                            controllers.AnalystProPlan.index
-GET   /plan/checkout                   controllers.Checkout.show
-POST  /plan/checkout/process            controllers.Checkout.process
-GET   /plan/checkout/success            controllers.Checkout.success
+GET   /support                         controllers.Main.support
+GET   /plan                            controllers.Main.support
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

@@ -29,26 +29,34 @@ object TransitionAnalyzer:
     currentPlans: ActivePlans,
     continuityOpt: Option[PlanContinuity],
     ctx: IntegratedContext
-  ): (TransitionType, Double) = {
+  ): PlanSequenceSummary = {
     val currPlan = currentPlans.primary.plan
-    val prevPlanName = continuityOpt.map(_.planName)
+    val prevPlanKey = continuityOpt.flatMap(_.planId).orElse(continuityOpt.map(_.planName))
     val prevMomentum = continuityOpt.map(c => 0.5 + (c.consecutivePlies * MOMENTUM_BOOST)).getOrElse(0.5)
 
-    // We don't have the full previous Plan object anymore, just the name, 
-    // but we can infer the transition type simply by comparing the names.
-    val transType = (prevPlanName, currPlan.name) match {
-      case (None, _) => TransitionType.Opening
-      case (Some(prev), curr) if prev == curr => TransitionType.Continuation
-      case (Some(_), _) =>
+    val transType = prevPlanKey match
+      case None => TransitionType.Opening
+      case Some(prev) if continuityMatches(prev, currPlan) => TransitionType.Continuation
+      case Some(_) =>
         if (ctx.tacticalThreatToUs) TransitionType.ForcedPivot
         else if (ctx.tacticalThreatToThem) TransitionType.Opportunistic
         else TransitionType.NaturalShift
-    }
     
     val momentum = calcMomentum(prevMomentum, transType)
-    
-    (transType, momentum)
+
+    PlanSequenceSummary(
+      transitionType = transType,
+      momentum = momentum,
+      primaryPlanId = Some(currPlan.id.toString),
+      primaryPlanName = Some(currPlan.name),
+      secondaryPlanId = currentPlans.secondary.map(_.plan.id.toString),
+      secondaryPlanName = currentPlans.secondary.map(_.plan.name)
+    )
   }
+
+  private def continuityMatches(previousKey: String, currentPlan: Plan): Boolean =
+    previousKey.equalsIgnoreCase(currentPlan.id.toString) ||
+      previousKey.equalsIgnoreCase(currentPlan.name)
 
   /**
    * Classify how the plan changed.

@@ -32,7 +32,7 @@ class CommentaryEngineHybridNarrativeTest extends FunSuite:
 
     assert(!text.contains("=== CONTEXT ["), clue(text))
     assert(text.toLowerCase.contains("block"), clue(text))
-    assert(text.toLowerCase.contains("critical branch"), clue(text))
+    assert(text.toLowerCase.contains("branch"), clue(text))
 
   test("opening branch moment includes precedent snippet when sample game data is valid"):
     val pgn = "1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. g4"

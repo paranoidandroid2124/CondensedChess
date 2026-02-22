@@ -1,6 +1,6 @@
 # Lila websocket
 
-Handle incoming websocket traffic for [lichess.org](https://lichess.org).
+Handle incoming websocket traffic for the local Chesstory stack.
 
 ```
 lila <-> redis <-> lila-ws <-> websocket <-> client

@@ -2,8 +2,6 @@
 
 Docker-based development environment for Chesstory, an AI-powered chess storytelling platform.
 
-> This is a modified version of [lila-docker](https://github.com/lichess-org/lila-docker) for Chesstory development.
-
 ## Quick Start
 
 ### Prerequisites
@@ -20,9 +18,14 @@ Docker-based development environment for Chesstory, an AI-powered chess storytel
 Edit `settings.env` to configure:
 
 ```env
-# Required for AI narratives
-GEMINI_API_KEY=your-api-key-here
+# Optional Gemini settings (rule-based commentary is enabled by default)
+GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.0-flash
+
+# Optional support links shown on /support
+SUPPORT_PATREON_URL=
+SUPPORT_GITHUB_SPONSORS_URL=
+SUPPORT_BMC_URL=
 ```
 
 ## URLs
@@ -31,6 +34,7 @@ GEMINI_MODEL=gemini-2.0-flash
 |---------|-----|
 | Main Site | http://localhost:8080/ |
 | Analysis Board | http://localhost:8080/analysis |
+| Support Page | http://localhost:8080/support |
 | MongoDB Admin | http://localhost:8081/ |
 
 ## Development
@@ -71,7 +75,7 @@ lila-docker/
 
 ## License
 
-- Chesstory: AGPL-3.0 (fork of Lichess)
-- lila-docker: AGPL-3.0
+- Chesstory: AGPL-3.0
+- Third-party and upstream attributions: see `repos/lila/COPYING.md`
 
 See [LICENSE](LICENSE) for details.

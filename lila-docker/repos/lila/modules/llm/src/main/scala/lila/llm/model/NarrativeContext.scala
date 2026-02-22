@@ -26,6 +26,7 @@ case class NarrativeContext(
   threats: ThreatTable,
   pawnPlay: PawnPlayTable,
   plans: PlanTable,
+  planContinuity: Option[lila.llm.model.strategic.PlanContinuity] = None,
   snapshots: List[L1Snapshot] = Nil,
   
 
