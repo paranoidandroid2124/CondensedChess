@@ -345,7 +345,16 @@ case class CompensationInfo(
 case class EndgameInfo(
   hasOpposition: Boolean,
   isZugzwang: Boolean,
-  keySquaresControlled: List[String]
+  keySquaresControlled: List[String],
+  oppositionType: String = "None",
+  zugzwangLikelihood: Double = 0.0,
+  ruleOfSquare: String = "NA",
+  triangulationAvailable: Boolean = false,
+  kingActivityDelta: Int = 0,
+  rookEndgamePattern: String = "None",
+  theoreticalOutcomeHint: String = "Unclear",
+  confidence: Double = 0.0,
+  primaryPattern: Option[String] = None
 )
 
 

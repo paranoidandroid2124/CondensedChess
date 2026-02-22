@@ -174,7 +174,7 @@ object NarrativeContextBuilder:
       authorEvidence = authorEvidence,
       facts = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now) ++ 
               FactExtractor.extractStaticFacts(board, color) ++
-              FactExtractor.extractEndgameFacts(board, color),
+              FactExtractor.extractEndgameFacts(board, color, data.endgameFeatures),
       probeRequests = probeRequests,
       meta = meta,
       strategicFlow = strategicFlow,
@@ -2217,7 +2217,16 @@ object NarrativeContextBuilder:
     EndgameInfo(
       hasOpposition = ef.hasOpposition,
       isZugzwang = ef.isZugzwang,
-      keySquaresControlled = ef.keySquaresControlled.map(_.key)
+      keySquaresControlled = ef.keySquaresControlled.map(_.key),
+      oppositionType = ef.oppositionType.toString,
+      zugzwangLikelihood = ef.zugzwangLikelihood,
+      ruleOfSquare = ef.ruleOfSquare.toString,
+      triangulationAvailable = ef.triangulationAvailable,
+      kingActivityDelta = ef.kingActivityDelta,
+      rookEndgamePattern = ef.rookEndgamePattern.toString,
+      theoreticalOutcomeHint = ef.theoreticalOutcomeHint.toString,
+      confidence = ef.confidence,
+      primaryPattern = ef.primaryPattern
     )
   }
 

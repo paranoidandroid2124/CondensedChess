@@ -36,10 +36,31 @@ case class Compensation(
 )
 
 // Endgame Features
+enum EndgameOppositionType:
+  case Direct, Distant, Diagonal, None
+
+enum RuleOfSquareStatus:
+  case Holds, Fails, NA
+
+enum RookEndgamePattern:
+  case RookBehindPassedPawn, KingCutOff, None
+
+enum TheoreticalOutcomeHint:
+  case Win, Draw, Unclear
+
 case class EndgameFeature(
     hasOpposition: Boolean,
     isZugzwang: Boolean,
-    keySquaresControlled: List[Square]
+    keySquaresControlled: List[Square],
+    oppositionType: EndgameOppositionType = EndgameOppositionType.None,
+    zugzwangLikelihood: Double = 0.0,
+    ruleOfSquare: RuleOfSquareStatus = RuleOfSquareStatus.NA,
+    triangulationAvailable: Boolean = false,
+    kingActivityDelta: Int = 0,
+    rookEndgamePattern: RookEndgamePattern = RookEndgamePattern.None,
+    theoreticalOutcomeHint: TheoreticalOutcomeHint = TheoreticalOutcomeHint.Unclear,
+    confidence: Double = 0.0,
+    primaryPattern: Option[String] = None
 )
 
 // Output of PracticalityScorer

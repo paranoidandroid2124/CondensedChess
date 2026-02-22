@@ -40,7 +40,9 @@ object CommentaryEngine:
     activityAnalyzer,
     structureAnalyzer,
     endgameAnalyzer,
-    practicalityScorer
+    practicalityScorer,
+    endgameOracleEnabled = llmConfig.endgameOracleEnabled,
+    endgameOracleShadowMode = llmConfig.endgameOracleShadowMode
   )
 
   def assess(
