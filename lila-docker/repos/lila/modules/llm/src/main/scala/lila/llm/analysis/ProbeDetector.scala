@@ -329,29 +329,21 @@ object ProbeDetector:
         def mkProbe(
             id: String,
             moves: List[String],
-            planName: Option[String]
+            planName: Option[String],
+            purpose: Option[String] = None
         ): ProbeRequest =
           ProbeRequest(
             id = id,
             fen = fen,
             moves = moves,
             depth = DefaultDepth,
+            purpose = purpose,
             planName = planName,
             baselineMove = baseline.flatMap(_.moves.headOption),
             baselineEvalCp = baseline.map(_.evalCp),
             baselineMate = baseline.flatMap(_.mate),
             baselineDepth = baseline.map(_.depth).filter(_ > 0)
           )
-
-
-        def isEdgePawnInOpening(uci: String): Boolean =
-          if (!legalUci.contains(uci)) false
-          else
-            chess.format.Uci(uci).collect { case m: chess.format.Uci.Move => m }.flatMap(pos.move(_).toOption) match
-              case Some(mv) =>
-                val isOpening = pos.board.occupied.count >= 28
-                isOpening && mv.piece.role == Pawn && (mv.orig.file == File.A || mv.orig.file == File.H) && !mv.captures
-              case None => false
 
         // 0) PV validation: if any PV is illegal/mismatched (partial parse), request a probe for baseline.
         val hasSuspiciousPv =
@@ -372,26 +364,21 @@ object ProbeDetector:
                 )
               }
 
-        // 0b) Played move probe: if it isn't in top MultiPV, probe it when it is structurally/tactically critical.
+        // 0b) Played move probe: if it isn't in top MultiPV, always probe for robust counterfactual recovery.
         val playedMoveProbe =
           playedMove
             .filter(legalUci.contains)
             .filterNot(topPvMoves.contains)
             .toList
             .flatMap { mv =>
-              val should =
-                // Central tension: played move resolves tension when policy says maintain
-                (ctx.pawnAnalysis.exists(_.tensionPolicy == TensionPolicy.Maintain) && MovePredicates.isTensionReleaseCandidate(pos, mv)) ||
-                  // Slow edge pawn moves in opening often need concrete justification/refutation
-                  isEdgePawnInOpening(mv) ||
-                  // Tactical pressure situations: show best reply line to anchor claims
-                  ctx.tacticalThreatToUs || ctx.tacticalThreatToThem
+              val should = true
 
               Option.when(should) {
                 mkProbe(
                   id = s"played_${mv}_${Integer.toHexString(fen.hashCode)}",
                   moves = List(mv),
-                  planName = Some("Played move probe")
+                  planName = Some("Played move probe"),
+                  purpose = Some("played_move_counterfactual")
                 )
               }
             }

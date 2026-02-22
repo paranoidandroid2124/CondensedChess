@@ -12,10 +12,25 @@ final class Main(
     assetsC: ExternalAssets
 ) extends LilaController(env):
 
+  private def supportLink(key: String): Option[String] =
+    env.config
+      .getOptional[String](key)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+
   def landing = Open:
     Ok.page(views.pages.landing()
       .flag(_.noHeader)
       .flag(_.fullScreen))
+
+  def support = Open:
+    Ok.page(
+      views.pages.support(
+        patreon = supportLink("support.links.patreon"),
+        githubSponsors = supportLink("support.links.githubSponsors"),
+        buyMeACoffee = supportLink("support.links.buyMeACoffee")
+      )
+    )
 
   def privacy = Open:
     Ok.page(views.pages.privacy())

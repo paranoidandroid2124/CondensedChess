@@ -2,6 +2,6 @@
 
 They are generated, and will be overwritten.
 
-### Instead, [use Crowdin to contribute to lichess translations](https://crowdin.com/project/lichess).
+### Instead, update translation source resources and regenerate this directory.
 
 Thank you!

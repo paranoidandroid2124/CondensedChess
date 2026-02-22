@@ -104,15 +104,7 @@ object NarrativeContextBuilder:
     // Only populate meta if we have meaningful source data
     val meta = buildMetaSignals(data, ctx, targets, rootProbeResults)
 
-    // Longitudinal context from PlanContinuity tracker
-    val strategicFlow = data.planContinuity.flatMap { continuity =>
-      val side = if (data.isWhiteToMove) "White" else "Black"
-      if (continuity.consecutivePlies >= 3) {
-        Some(s"$side has been executing ${continuity.planName} for ${continuity.consecutivePlies} consecutive moves.")
-      } else if (continuity.consecutivePlies >= 2) {
-        Some(s"$side continues their ${continuity.planName} strategy.")
-      } else None
-    }
+    val strategicFlow = buildStrategicFlow(data)
 
     // Phase A: Semantic section from ExtendedAnalysisData
     val semantic = buildSemanticSection(data)
@@ -169,6 +161,7 @@ object NarrativeContextBuilder:
       threats = threats,
       pawnPlay = pawnPlay,
       plans = plans,
+      planContinuity = data.planContinuity,
       snapshots = List(l1),
       delta = delta,
       phase = phase,
@@ -432,7 +425,14 @@ object NarrativeContextBuilder:
     }
     val hasForcedMateForUs = data.alternatives.exists(_.mate.exists(_ > 0)) || hasMateCandidate
     
+    val establishedKey =
+      data.planContinuity
+        .filter(_.consecutivePlies >= 2)
+        .map(c => c.planId.map(_.toLowerCase).getOrElse(c.planName.toLowerCase))
+
     val basePlans = data.plans.take(5).zipWithIndex.map { case (pm, idx) =>
+      val isEstablished =
+        establishedKey.exists(k => k == pm.plan.id.toString.toLowerCase || k == pm.plan.name.toLowerCase)
       PlanRow(
         rank = idx + 1,
         name = pm.plan.name,
@@ -440,7 +440,8 @@ object NarrativeContextBuilder:
         evidence = pm.evidence.take(2).map(_.description),
         supports = pm.supports,
         blockers = pm.blockers,
-        missingPrereqs = pm.missingPrereqs
+        missingPrereqs = pm.missingPrereqs,
+        isEstablished = isEstablished
       )
     }
     val top5 = if (hasForcedMateForUs) {
@@ -462,6 +463,41 @@ object NarrativeContextBuilder:
     val suppressed = List.empty[SuppressedPlan] // Compatibility events removed with PlanSequence migration
     
     PlanTable(top5 = top5, suppressed = suppressed)
+  }
+
+  private def buildStrategicFlow(data: ExtendedAnalysisData): Option[String] = {
+    val side = if (data.isWhiteToMove) "White" else "Black"
+    val anchorPlan =
+      data.planSequence
+        .flatMap(_.primaryPlanName)
+        .orElse(data.plans.headOption.map(_.plan.name))
+        .orElse(data.planContinuity.map(_.planName))
+    val continuitySnippet =
+      data.planContinuity
+        .filter(_.consecutivePlies >= 2)
+        .map(c => s" This idea has held for ${c.consecutivePlies} plies.")
+        .getOrElse("")
+
+    data.planSequence.map { seq =>
+      val planLabel = anchorPlan.getOrElse("the current plan")
+      val base = seq.transitionType match {
+        case TransitionType.Continuation =>
+          s"$side is clearly continuing with $planLabel."
+        case TransitionType.NaturalShift =>
+          s"$side makes a natural strategic shift toward $planLabel."
+        case TransitionType.ForcedPivot =>
+          s"$side is forced to pivot into $planLabel under tactical pressure."
+        case TransitionType.Opportunistic =>
+          s"$side switches opportunistically to $planLabel after a concrete chance appeared."
+        case TransitionType.Opening =>
+          s"$side starts a fresh strategic thread with $planLabel."
+      }
+      s"$base$continuitySnippet".trim
+    }.orElse {
+      data.planContinuity.flatMap { continuity =>
+        Option.when(continuity.consecutivePlies >= 2)(s"$side continues ${continuity.planName}.")
+      }
+    }
   }
   
   private def buildL1Snapshot(ctx: IntegratedContext): L1Snapshot = {

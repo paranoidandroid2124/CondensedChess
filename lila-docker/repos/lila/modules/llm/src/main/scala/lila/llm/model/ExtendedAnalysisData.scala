@@ -36,6 +36,7 @@ case class ExtendedAnalysisData(
     isWhiteToMove: Boolean,
     phase: String = "middlegame",
     planContinuity: Option[PlanContinuity] = None,
+    planSequence: Option[lila.llm.model.PlanSequenceSummary] = None,
     tacticalThreatToUs: Boolean = false,
     tacticalThreatToThem: Boolean = false,
     

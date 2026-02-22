@@ -50,6 +50,9 @@ services:
       - ENABLE_MONITORING=${ENABLE_MONITORING:-false}
       - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SUPPORT_PATREON_URL=${SUPPORT_PATREON_URL}
+      - SUPPORT_GITHUB_SPONSORS_URL=${SUPPORT_GITHUB_SPONSORS_URL}
+      - SUPPORT_BMC_URL=${SUPPORT_BMC_URL}
     volumes:
       - ./repos/lila:/lila
       - ./repos/chessground:/chessground

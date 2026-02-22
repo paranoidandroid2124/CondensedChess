@@ -287,6 +287,28 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(data.toContext.classification.isEmpty)
   }
 
+  test("strategicFlow reflects transition type with continuity context") {
+    val plans = List(PlanMatch(Plan.CentralControl(Color.White), 0.82, Nil))
+    val data = minimalData().copy(
+      plans = plans,
+      planContinuity = Some(PlanContinuity("Central Control", Some("CentralControl"), 2, 5)),
+      planSequence = Some(
+        PlanSequenceSummary(
+          transitionType = TransitionType.Continuation,
+          momentum = 0.7,
+          primaryPlanId = Some("CentralControl"),
+          primaryPlanName = Some("Central Control")
+        )
+      )
+    )
+    val ctx = IntegratedContext(evalCp = 60, isWhiteToMove = true)
+
+    val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
+    val flow = narrativeCtx.strategicFlow.getOrElse(fail("strategicFlow should be generated"))
+    assert(flow.contains("continuing"), s"Expected continuation wording, got: $flow")
+    assert(flow.contains("Central Control"), s"Expected plan anchor, got: $flow")
+  }
+
   test("describeHierarchical outputs PHASE section (A8)") {
     val ctx = lila.llm.model.NarrativeContext(
       fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -338,8 +360,9 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ctx = IntegratedContext(evalCp = 0, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
 
-    assert(narrativeCtx.probeRequests.nonEmpty, "Should emit at least one probe request")
-    val req = narrativeCtx.probeRequests.head
+    val planRequests = narrativeCtx.probeRequests.filterNot(_.purpose.contains("NullMoveThreat"))
+    assert(planRequests.nonEmpty, "Should emit at least one plan probe request")
+    val req = planRequests.head
     assert(req.moves.contains("g2g4"), s"Expected g2g4 in probe moves, got ${req.moves}")
 
     val pos = Fen.read(Standard, Fen.Full(startFen)).getOrElse(sys.error("Invalid FEN"))
@@ -375,7 +398,8 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ctx = IntegratedContext(evalCp = 0, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
 
-    assertEquals(narrativeCtx.probeRequests, Nil, "Should not request probes for already-represented plans")
+    val planRequests = narrativeCtx.probeRequests.filterNot(_.purpose.contains("NullMoveThreat"))
+    assertEquals(planRequests, Nil, "Should not request plan probes for already-represented plans")
   }
 
   test("Probe: score threshold prevents noisy probes") {
@@ -387,7 +411,8 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ctx = IntegratedContext(evalCp = 0, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
 
-    assertEquals(narrativeCtx.probeRequests, Nil, "Plan score below threshold should not trigger probes")
+    val planRequests = narrativeCtx.probeRequests.filterNot(_.purpose.contains("NullMoveThreat"))
+    assertEquals(planRequests, Nil, "Plan score below threshold should not trigger plan probes")
   }
 
   // ============================================================

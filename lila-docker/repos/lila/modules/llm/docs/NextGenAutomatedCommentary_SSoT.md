@@ -6,20 +6,16 @@ The current `NarrativeLexicon` and structural tagging systems are robust and exp
 
 ---
 
-## 1. Counterfactual Analysis (반사실적 교차 검증) - [✅ COMPLETED]
+## 1. Counterfactual Cross-Validation (반사실 교차 검증) - [CLOSED]
 
-**Status:** Fully integrated into `CounterfactualAnalyzer`, `ProphylaxisAnalyzer`, and `StrategicFeatureExtractorImpl`.
+### Completion definition
+The feature is considered closed only when all of the following are true:
+1. Two-pass generation is not neutralized by cache key collisions.
+2. Evaluation perspective is consistent end-to-end (White POV source, mover POV comparison).
+3. Counterfactual explanation can still be generated when played move is absent in top MultiPV.
+4. Compile/tests/docs are aligned with the actual implementation.
 
-**Goal:** Explain the *Why* behind moves by analyzing what happens if they are not made. Move beyond "this was a good move" to "this move was necessary because otherwise X happens."
-
-**Implemented Mechanisms:**
-*   **Null Move Profiling:** Logic provided by `NullMoveProbe` and `FENUtils` to simulate opponent responses to passing moves.
-*   **Threat Extraction (`ThreatExtractor`):** A unified semantic layer that classifies motifs into causal threats (Checkmate, Material Loss, Structural Ruin, etc.). 
-*   **Engine-Only Severity:** Removed manual tables (`MotifLossTable`) in favor of MultiPV evaluation deltas as the single source of truth for threat severity.
-*   **Causal Narrative Generation:** Connected `ThreatExtractor` to `NarrativeLexicon` using dedicated causal templates (`getCausalTeachingPoint`) for natural phrasing.
-    *   *Realized Example:* "A significant oversight: it allows White to execute a deadly fork on c7."
-
-## 2. Multi-Ply Plan Tracking (장기 계획 추적 상태 머신)
+## 2. Multi-Ply Plan Tracking (장기 계획 추적 상태 머신) - [BOOKMAKER CLOSED]
 
 **Goal:** Understand chess as a continuous narrative rather than a sequence of isolated 1-ply snapshots. Connect setup moves to their eventual execution.
 
@@ -28,6 +24,20 @@ The current `NarrativeLexicon` and structural tagging systems are robust and exp
 *   **Phase Transitions:** Track when a plan moves from `Preparation` -> `Execution` -> `Fruition/Failure`.
 *   **Contextual Callbacks:** When a critical move is played, the engine must recall the setup from earlier in the game.
     *   *Example:* "Black finally executes the d5 break. This validates the painstaking preparation started with c6 and Nbd7 five moves ago."
+
+### Bookmaker implementation status (2026-02-22)
+1. `planStateToken` now round-trips end-to-end (`/api/llm/bookmaker-position`) and remains optional for backward compatibility.
+2. `PlanStateTracker` is upgraded to v2:
+   - color별 `primary/secondary` continuity
+   - `lastTransition(TransitionType, momentum)`
+   - `lastPly` 기반 same-ply idempotent update
+   - v1 JSON 읽기 호환, v2 JSON 쓰기 고정
+3. continuity identity is `planId` first, `planName` fallback.
+4. cache isolation now includes state fingerprint:
+   - `fen|lastMove|state:<stateFp>|probe:<probeFp>`
+5. narrative now consumes transition + continuity:
+   - `Continuation/NaturalShift/ForcedPivot/Opportunistic` 전략 흐름 문구 반영
+   - `PlanTable.isEstablished` uses `consecutivePlies >= 2`.
 
 ## 3. "Pawn Structure" Knowledge Base (폰 구조 기반 지식 베이스)
 

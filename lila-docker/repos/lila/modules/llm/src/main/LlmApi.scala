@@ -2,12 +2,13 @@ package lila.llm
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
+import java.util.concurrent.atomic.AtomicLong
 import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.strategic.VariationLine
 
-/** Pipeline: CommentaryEngine → BookStyleRenderer → (optional) GeminiClient.polish */
+/** Pipeline: CommentaryEngine → BookStyleRenderer (rule-based only). */
 final class LlmApi(
     openingExplorer: OpeningExplorerClient,
     geminiClient: GeminiClient,
@@ -17,6 +18,35 @@ final class LlmApi(
   private val logger = lila.log("llm.api")
   private val OpeningRefMinPly = 3
   private val OpeningRefMaxPly = 24
+  private val bookmakerRequests = new AtomicLong(0L)
+  private val tokenPresentCount = new AtomicLong(0L)
+  private val tokenEmitCount = new AtomicLong(0L)
+  private val continuityAppliedCount = new AtomicLong(0L)
+  private val stateAwareCacheHitCount = new AtomicLong(0L)
+  private val stateAwareCacheMissCount = new AtomicLong(0L)
+  private val samePlyIdempotentHitCount = new AtomicLong(0L)
+  private val transitionCountByType = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+
+  private def incTransition(kind: String): Unit =
+    transitionCountByType.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
+
+  private def maybeLogBookmakerMetrics(): Unit =
+    val total = bookmakerRequests.get()
+    if total > 0 && total % 100 == 0 then
+      val tokenPresentRate = tokenPresentCount.get().toDouble / total.toDouble
+      val tokenEmitRate = tokenEmitCount.get().toDouble / total.toDouble
+      val continuityAppliedRate = continuityAppliedCount.get().toDouble / total.toDouble
+      val transitionDist = transitionCountByType.toList.map { case (k, v) => k -> v.get() }.toMap
+      logger.info(
+        s"bookmaker.metrics total=$total " +
+          f"token_present_rate=$tokenPresentRate%.3f " +
+          f"token_emit_rate=$tokenEmitRate%.3f " +
+          f"continuity_applied_rate=$continuityAppliedRate%.3f " +
+          s"state_cache_hit=${stateAwareCacheHitCount.get()} " +
+          s"state_cache_miss=${stateAwareCacheMissCount.get()} " +
+          s"same_ply_idempotent_hits=${samePlyIdempotentHitCount.get()} " +
+          s"transition_dist=$transitionDist"
+      )
 
 
   def isGeminiEnabled: Boolean = geminiClient.isEnabled
@@ -55,7 +85,7 @@ final class LlmApi(
     }
   }
 
-  /** Generate deep bookmaker commentary with optional Gemini polish. */
+  /** Generate deep bookmaker commentary (rule-based). */
   def bookmakerCommentPosition(
       fen: String,
       lastMove: Option[String],
@@ -68,16 +98,24 @@ final class LlmApi(
       afterVariations: Option[List[VariationLine]] = None,
       opening: Option[String],
       phase: String,
-      ply: Int
+      ply: Int,
+      prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
   ): Future[Option[CommentResponse]] =
-    commentaryCache.get(fen, lastMove) match
+    val incomingProbes = probeResults.getOrElse(Nil)
+    bookmakerRequests.incrementAndGet()
+    if prevStateToken.isDefined then tokenPresentCount.incrementAndGet()
+    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken) match
       case Some(cached) =>
+        stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
+        maybeLogBookmakerMetrics()
         Future.successful(Some(cached))
       case None =>
+        stateAwareCacheMissCount.incrementAndGet()
+        maybeLogBookmakerMetrics()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply
+          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken
         )
 
 
@@ -93,7 +131,8 @@ final class LlmApi(
       afterVariations: Option[List[VariationLine]],
       opening: Option[String],
       phase: String,
-      ply: Int
+      ply: Int,
+      prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
   ): Future[Option[CommentResponse]] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
 
@@ -137,6 +176,10 @@ final class LlmApi(
         else Future.successful(None)
 
       mastersFut.flatMap { openingRef =>
+        val isWhiteTurn = fen.contains(" w ")
+        val movingColor = if (isWhiteTurn) _root_.chess.Color.White else _root_.chess.Color.Black
+        val tracker = prevStateToken.getOrElse(lila.llm.analysis.PlanStateTracker.empty)
+
         val dataOpt = CommentaryEngine.assessExtended(
           fen = fen,
           variations = vars,
@@ -145,12 +188,28 @@ final class LlmApi(
           phase = Some(phase),
           ply = effectivePly,
           prevMove = lastMove,
+          prevPlanContinuity = tracker.getContinuity(movingColor),
           probeResults = probeResults.getOrElse(Nil)
         )
 
         dataOpt match
           case None => Future.successful(None)
           case Some(data) =>
+            if tracker.getColorState(movingColor).lastPly.contains(effectivePly) then
+              samePlyIdempotentHitCount.incrementAndGet()
+
+            val nextTracker = tracker.update(
+              movingColor = movingColor,
+              ply = effectivePly,
+              primaryPlan = data.plans.headOption,
+              secondaryPlan = data.plans.lift(1),
+              sequence = data.planSequence
+            )
+            val dataWithContinuity = data.copy(planContinuity = nextTracker.getContinuity(movingColor))
+            if dataWithContinuity.planContinuity.exists(_.consecutivePlies >= 2) then
+              continuityAppliedCount.incrementAndGet()
+            dataWithContinuity.planSequence.foreach(ps => incTransition(ps.transitionType.toString))
+
             val afterDataOpt =
               afterFen
                 .filter(_.nonEmpty)
@@ -168,39 +227,25 @@ final class LlmApi(
                 }
 
             val ctx = NarrativeContextBuilder.build(
-              data = data,
-              ctx = data.toContext,
+              data = dataWithContinuity,
+              ctx = dataWithContinuity.toContext,
               probeResults = probeResults.getOrElse(Nil),
               openingRef = openingRef,
               afterAnalysis = afterDataOpt
             )
             val prose = BookStyleRenderer.render(ctx)
 
-            val evalDelta = eval.map(_.cp)
-            val nature = Some(data.nature.description)
-            val tension = Some(data.nature.tension)
-
-            geminiClient
-              .polish(
-                prose = prose,
-                phase = phase,
-                evalDelta = evalDelta,
-                concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
-                fen = fen,
-                nature = nature,
-                tension = tension
-              )
-              .map { polishedOpt =>
-                val finalProse = polishedOpt.getOrElse(prose)
-                val response = CommentResponse(
-                  commentary = finalProse,
-                  concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
-                  variations = data.alternatives,
-                  probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests
-                )
-                commentaryCache.put(fen, lastMove, response)
-                Some(response)
-              }
+            val response = CommentResponse(
+              commentary = prose,
+              concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
+              variations = dataWithContinuity.alternatives,
+              probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+              planStateToken = Some(nextTracker)
+            )
+            if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
+            commentaryCache.put(fen, lastMove, response, probeResults.getOrElse(Nil), prevStateToken)
+            maybeLogBookmakerMetrics()
+            Future.successful(Some(response))
       }
 
 

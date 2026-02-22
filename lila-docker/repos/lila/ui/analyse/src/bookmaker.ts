@@ -12,9 +12,11 @@ import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './book
 import {
     commentaryFromResponse,
     htmlFromResponse,
+    planStateTokenFromResponse,
     probeRequestsFromResponse,
     variationLinesFromResponse,
 } from './bookmaker/responsePayload';
+import type { PlanStateToken } from './bookmaker/types';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -60,8 +62,32 @@ export function bookmakerToggleBox() {
 
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
     const cache = new Map<string, string>();
+    const planStateByPath = new Map<string, PlanStateToken | null>();
     const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
     const bookmakerEndpoint = '/api/llm/bookmaker-position';
+
+    const canonicalize = (value: unknown): string => {
+        if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
+        if (value && typeof value === 'object') {
+            const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+            return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalize(v)}`).join(',')}}`;
+        }
+        return JSON.stringify(value);
+    };
+
+    const tokenHash = (token: PlanStateToken | null): string => {
+        if (!token) return '-';
+        const str = canonicalize(token);
+        let h = 2166136261;
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+        }
+        return (h >>> 0).toString(16);
+    };
+
+    const cacheKeyOf = (fen: string, originPath: string, token: PlanStateToken | null): string =>
+        `${fen}|${originPath}|${tokenHash(token)}`;
 
     const show = (html: string) => {
         lastShownHtml = html;
@@ -100,7 +126,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 if (blockedHtml) show(blockedHtml);
                 return;
             }
-            if (cache.has(fen)) return show(cache.get(fen)!);
+            const requestToken = planStateByPath.get(originPath) ?? null;
+            const cacheKey = cacheKeyOf(fen, originPath, requestToken);
+            if (cache.has(cacheKey)) return show(cache.get(cacheKey)!);
 
             activeProbeSession++;
             probes.stop();
@@ -156,6 +184,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     afterVariations,
                     phase: phaseOf(node.ply),
                     ply: node.ply,
+                    planStateToken: requestToken,
                 });
 
                 const res = await fetch(bookmakerEndpoint, {
@@ -168,8 +197,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                 if (res.ok) {
                     const data = await res.json();
+                    const emittedToken = planStateTokenFromResponse(data);
+                    if (emittedToken) planStateByPath.set(originPath, emittedToken);
                     const html = htmlFromResponse(data);
-                    cache.set(fen, html);
+                    cache.set(cacheKey, html);
                     show(html);
 
                     const commentary = commentaryFromResponse(data);
@@ -186,6 +217,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                             if (!probeResults.length) return;
 
                             try {
+                                const refinedToken = planStateByPath.get(originPath) ?? requestToken;
+                                const refinedCacheKey = cacheKeyOf(fen, originPath, refinedToken);
                                 const refinedPayload = buildBookmakerRequest({
                                     fen: analysisFen,
                                     lastMove: playedMove || null,
@@ -196,6 +229,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     afterVariations,
                                     phase: phaseOf(node.ply),
                                     ply: node.ply,
+                                    planStateToken: refinedToken,
                                 });
                                 const refinedRes = await fetch(bookmakerEndpoint, {
                                     method: 'POST',
@@ -207,8 +241,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                                 if (refinedRes.ok) {
                                     const refined = await refinedRes.json();
+                                    const emittedRefinedToken = planStateTokenFromResponse(refined);
+                                    if (emittedRefinedToken) planStateByPath.set(originPath, emittedRefinedToken);
                                     const refinedHtml = htmlFromResponse(refined, html);
-                                    cache.set(fen, refinedHtml);
+                                    cache.set(refinedCacheKey, refinedHtml);
                                     show(refinedHtml);
 
                                     const commentary = commentaryFromResponse(refined, commentaryFromResponse(data));

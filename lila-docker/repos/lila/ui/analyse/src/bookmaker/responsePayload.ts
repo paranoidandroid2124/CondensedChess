@@ -1,10 +1,11 @@
-import type { EvalVariation, ProbeRequest } from './types';
+import type { EvalVariation, PlanStateToken, ProbeRequest } from './types';
 
 type MaybeResponse = {
   html?: unknown;
   commentary?: unknown;
   variations?: unknown;
   probeRequests?: unknown;
+  planStateToken?: unknown;
   ratelimit?: {
     seconds?: unknown;
   };
@@ -25,6 +26,12 @@ export function variationLinesFromResponse(data: MaybeResponse, fallback: EvalVa
 
 export function probeRequestsFromResponse(data: MaybeResponse): ProbeRequest[] {
   return Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
+}
+
+export function planStateTokenFromResponse(data: MaybeResponse): PlanStateToken | null {
+  return data?.planStateToken && typeof data.planStateToken === 'object'
+    ? (data.planStateToken as PlanStateToken)
+    : null;
 }
 
 export function ratelimitSecondsFromResponse(data: MaybeResponse): number | null {

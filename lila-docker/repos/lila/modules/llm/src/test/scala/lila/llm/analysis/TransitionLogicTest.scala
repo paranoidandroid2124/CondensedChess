@@ -14,17 +14,17 @@ class TransitionLogicTest extends FunSuite {
   test("Continuation: Same plan persists") {
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.8)
     // Previous continuity was "Kingside Attack" — same as current plan
-    val continuity = Some(PlanContinuity("Kingside Attack", 3, 10))
+    val continuity = Some(PlanContinuity("Kingside Attack", Some("KingsideAttack"), 3, 10))
     val ctx = makeContext()
     
-    val (transType, momentum) = TransitionAnalyzer.analyze(
+    val summary = TransitionAnalyzer.analyze(
       currentPlans = currActive,
       continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(transType, TransitionType.Continuation)
-    assert(momentum > 0.5, s"Expected momentum > 0.5, got $momentum")
+    assertEquals(summary.transitionType, TransitionType.Continuation)
+    assert(summary.momentum > 0.5, s"Expected momentum > 0.5, got ${summary.momentum}")
   }
 
   // --- NATURAL SHIFT ---
@@ -32,51 +32,51 @@ class TransitionLogicTest extends FunSuite {
   test("NaturalShift: Different plan without threat triggers shift") {
     val currActive = makeActivePlans(Plan.Simplification(Color.White), 0.6)
     // Previous continuity was "Kingside Attack" — different from current
-    val continuity = Some(PlanContinuity("Kingside Attack", 5, 8))
+    val continuity = Some(PlanContinuity("Kingside Attack", Some("KingsideAttack"), 5, 8))
     val ctx = makeContext(evalCp = 300)
     
-    val (transType, momentum) = TransitionAnalyzer.analyze(
+    val summary = TransitionAnalyzer.analyze(
       currentPlans = currActive,
       continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(transType, TransitionType.NaturalShift)
-    assertEquals(momentum, 0.5) // Reset to neutral
+    assertEquals(summary.transitionType, TransitionType.NaturalShift)
+    assertEquals(summary.momentum, 0.5) // Reset to neutral
   }
 
   // --- FORCED PIVOT ---
 
   test("ForcedPivot: Tactical threat forces plan abandonment") {
     val currActive = makeActivePlans(Plan.DefensiveConsolidation(Color.White), 0.7)
-    val continuity = Some(PlanContinuity("Kingside Attack", 4, 6))
+    val continuity = Some(PlanContinuity("Kingside Attack", Some("KingsideAttack"), 4, 6))
     val ctx = makeContext(tacticalThreatToUs = true)
     
-    val (transType, momentum) = TransitionAnalyzer.analyze(
+    val summary = TransitionAnalyzer.analyze(
       currentPlans = currActive,
       continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(transType, TransitionType.ForcedPivot)
-    assertEquals(momentum, 0.3)
+    assertEquals(summary.transitionType, TransitionType.ForcedPivot)
+    assertEquals(summary.momentum, 0.3)
   }
 
   // --- OPPORTUNISTIC ---
 
   test("Opportunistic: Unexpected attacking opportunity") {
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.9)
-    val continuity = Some(PlanContinuity("Defensive Consolidation", 2, 12))
+    val continuity = Some(PlanContinuity("Defensive Consolidation", Some("DefensiveConsolidation"), 2, 12))
     val ctx = makeContext(tacticalThreatToThem = true)
     
-    val (transType, momentum) = TransitionAnalyzer.analyze(
+    val summary = TransitionAnalyzer.analyze(
       currentPlans = currActive,
       continuityOpt = continuity,
       ctx = ctx
     )
     
-    assertEquals(transType, TransitionType.Opportunistic)
-    assertEquals(momentum, 0.6)
+    assertEquals(summary.transitionType, TransitionType.Opportunistic)
+    assertEquals(summary.momentum, 0.6)
   }
 
   // --- OPENING (no continuity) ---
@@ -85,14 +85,14 @@ class TransitionLogicTest extends FunSuite {
     val currActive = makeActivePlans(Plan.KingsideAttack(Color.White), 0.9)
     val ctx = makeContext()
     
-    val (transType, momentum) = TransitionAnalyzer.analyze(
+    val summary = TransitionAnalyzer.analyze(
       currentPlans = currActive,
       continuityOpt = None,
       ctx = ctx
     )
     
-    assertEquals(transType, TransitionType.Opening)
-    assertEquals(momentum, 0.5)
+    assertEquals(summary.transitionType, TransitionType.Opening)
+    assertEquals(summary.momentum, 0.5)
   }
 
   // --- EXPLAIN TRANSITION ---

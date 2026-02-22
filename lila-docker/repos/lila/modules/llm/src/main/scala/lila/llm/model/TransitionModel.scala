@@ -27,6 +27,19 @@ case class PlanSequence(
     Option(currentPlans.primary).map(_.plan.id)
 }
 
+/**
+ * Compact transition summary used by Bookmaker runtime path.
+ * Carries enough information for narrative flow and token tracking.
+ */
+case class PlanSequenceSummary(
+  transitionType: TransitionType,
+  momentum: Double,
+  primaryPlanId: Option[String] = None,
+  primaryPlanName: Option[String] = None,
+  secondaryPlanId: Option[String] = None,
+  secondaryPlanName: Option[String] = None
+)
+
 object PlanSequence {
   val empty: PlanSequence = PlanSequence(
     currentPlans = ActivePlans(

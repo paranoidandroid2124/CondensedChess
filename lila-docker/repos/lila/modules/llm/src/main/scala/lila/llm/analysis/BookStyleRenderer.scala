@@ -156,7 +156,9 @@ object BookStyleRenderer:
 
   private def generateMainMove(ctx: NarrativeContext, bead: Int): String =
     ctx.candidates.headOption.map { main =>
-      val intent = NarrativeLexicon.getIntent(bead, main.planAlignment, None, ply = ctx.ply)
+      val continuityOpt = ctx.planContinuity
+      val intentAnchor = ctx.plans.top5.headOption.map(_.name).getOrElse(main.planAlignment)
+      val intent = NarrativeLexicon.getIntent(bead, intentAnchor, None, ply = ctx.ply, continuity = continuityOpt)
       val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
       val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore, ply = ctx.ply)
 

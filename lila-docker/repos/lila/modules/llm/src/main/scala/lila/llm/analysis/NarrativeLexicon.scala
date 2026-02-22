@@ -394,13 +394,34 @@ object NarrativeLexicon {
     }
   }
 
-  def getIntent(bead: Int, alignment: String, evidence: Option[String], ply: Int = 0): String = {
+  def getIntent(bead: Int, alignment: String, evidence: Option[String], ply: Int = 0, continuity: Option[lila.llm.model.strategic.PlanContinuity] = None): String = {
     val ev = evidence.getOrElse("")
     val hasEv = ev.nonEmpty
     val localSeed = bead ^ (ply * 0x4eb2d)
     def choose(options: List[String]): String =
       pickWithPlyRotation(localSeed ^ Math.abs(alignment.hashCode), ply, options)
-    
+
+    def normalizePlanKey(s: String): String =
+      s.toLowerCase.replaceAll("[^a-z0-9]", "")
+    val alignmentKey = normalizePlanKey(alignment)
+    val isContinuing = continuity.exists { c =>
+      c.consecutivePlies > 1 && (
+        c.planId.exists(id => normalizePlanKey(id) == alignmentKey) ||
+          normalizePlanKey(c.planName) == alignmentKey
+      )
+    }
+    val pliesText = continuity.map(c => s" for ${c.consecutivePlies} plies").getOrElse("")
+
+    if (isContinuing) {
+       if (hasEv) return s"persists with the plan by $ev"
+       return choose(List(
+         s"continues the ongoing plan$pliesText",
+         s"stays committed to the plan$pliesText",
+         s"persists with the same idea$pliesText",
+         s"presses forward with the continued plan"
+       ))
+    }
+
     alignment.toLowerCase match {
       // Tactical intents
       case s if s.contains("attack") => 

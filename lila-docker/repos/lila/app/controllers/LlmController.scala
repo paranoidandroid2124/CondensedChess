@@ -3,7 +3,7 @@ package controllers
 import play.api.mvc._
 import play.api.libs.json._
 import lila.app.{ *, given }
-import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest, CreditApi, CreditConfig }
+import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest }
 import lila.analyse.ui.BookmakerRenderer
 import lila.llm.model.OpeningReference.given
 
@@ -11,21 +11,23 @@ import scala.concurrent.duration.*
 
 final class LlmController(
     api: LlmApi,
-    creditApi: CreditApi,
     env: Env
 ) extends LilaController(env):
 
-  // Rate limit for DDoS protection (separate from credit system)
+  // Daily budget (per user/IP) sized to comfortably cover at least one full PGN walkthrough.
+  private val dailyBudgetCredits = 360
+
+  // Rate limit for service protection.
   private val rateLimiter =
     env.memo.mongoRateLimitApi[String](
-      name = "llm.request.user",
-      credits = 120,  // generous per-day rate limit (DDoS only, credits handle billing)
+      name = "llm.request.actor",
+      credits = dailyBudgetCredits,
       duration = 1.day
     )
 
-  /** Full game narrative analysis (local, no Gemini). */
-  def analyzeGameLocal = AuthBody(parse.json) { ctx ?=> me ?=>
-    withCreditCheck(me.userId.value, CreditConfig.FullGameNarrative):
+  /** Full game narrative analysis (local, rule-based). */
+  def analyzeGameLocal = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    withRateLimit(requesterKey, cost = 3):
       ctx.body.body.validate[FullAnalysisRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
@@ -40,13 +42,9 @@ final class LlmController(
               case Some(response) => Ok(Json.toJson(response))
               case None           => ServiceUnavailable("Narrative Analysis unavailable")
       )
-  }
-
-  /** Per-ply bookmaker commentary (rule-based + optional Gemini polish).
-    * Requires authentication for credit tracking.
-    */
-  def bookmakerPosition = AuthBody(parse.json) { ctx ?=> me ?=>
-    withCreditCheck(me.userId.value, CreditConfig.PerPlyAnalysis):
+  /** Per-ply bookmaker commentary (rule-based). */
+  def bookmakerPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    withRateLimit(requesterKey, cost = 1):
       ctx.body.body.validate[CommentRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         commentReq =>
@@ -63,7 +61,8 @@ final class LlmController(
               afterVariations = commentReq.afterVariations,
               opening = commentReq.context.opening,
               phase = commentReq.context.phase,
-              ply = commentReq.context.ply
+              ply = commentReq.context.ply,
+              prevStateToken = commentReq.planStateToken
             )
             .map {
               case Some(response) =>
@@ -80,15 +79,14 @@ final class LlmController(
                     "commentary" -> response.commentary,
                     "variations" -> response.variations,
                     "concepts" -> response.concepts,
-                    "probeRequests" -> response.probeRequests
+                    "probeRequests" -> response.probeRequests,
+                    "planStateToken" -> response.planStateToken
                   )
                 )
               case None => ServiceUnavailable("Lexicon Commentary unavailable")
             }
       )
-  }
-
-  /** Instant briefing (free, no credits, no auth required). */
+  /** Instant briefing (free, no auth required). */
   def bookmakerBriefing = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     ctx.body.body.validate[CommentRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
@@ -114,13 +112,6 @@ final class LlmController(
           }
     )
 
-  /** Get current user's credit status. */
-  def creditStatus = Auth { _ ?=> me ?=>
-    creditApi.remaining(me.userId.value).map { status =>
-      Ok(Json.toJson(status))
-    }
-  }
-
   /** Proxy endpoint for opening explorer masters data. */
   def openingMasters(fen: String) = Open:
     val normalizedFen = fen.trim
@@ -141,20 +132,12 @@ final class LlmController(
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  /** Combined rate limit + credit check gate. */
-  private def withCreditCheck(userId: String, cost: Int)(op: => Fu[Result]): Fu[Result] =
-    rateLimiter.either(userId, cost = 1, msg = "llm-request", limitedMsg = "Too many requests")(
-      creditApi.deduct(userId, cost).flatMap {
-        case Left(err) =>
-          Forbidden(Json.obj(
-            "error" -> "insufficient_credits",
-            "remaining" -> err.remaining,
-            "required" -> err.required,
-            "resetAt" -> err.resetAt.toString
-          )).toFuccess
-        case Right(remaining) =>
-          op.map(_.withHeaders("X-Credits-Remaining" -> remaining.toString))
-      }
-    ).map:
+  private def requesterKey(using ctx: Context): String =
+    ctx.me
+      .map(me => s"user:${me.userId.value}")
+      .getOrElse(s"ip:${ctx.ip.value}")
+
+  private def withRateLimit(key: String, cost: Int)(op: => Fu[Result]): Fu[Result] =
+    rateLimiter.either(key, cost = cost, msg = "llm-request", limitedMsg = "Too many requests")(op).map:
       case Right(res) => res
       case Left(limited) => TooManyRequests(Json.toJson(limited)).as(JSON)

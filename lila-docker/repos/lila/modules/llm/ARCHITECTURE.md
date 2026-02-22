@@ -2,26 +2,26 @@
 
 ## Overview
 
-The LLM module provides AI-powered chess commentary by analyzing positions and moves using motif detection, plan matching, and Gemini-based text generation.
+The LLM module provides AI-powered chess commentary by analyzing positions and moves using motif detection, plan matching, and rule-based text generation.
 
 ## Architecture Decisions
 
-### 1. No Fishnet Usage
+### 1. No Volunteer Distributed Analysis Network Usage
 
-**Decision**: We do NOT use Lichess fishnet for analysis.
+**Decision**: We do NOT use third-party volunteer compute networks for analysis.
 
 **Rationale**:
-- Fishnet uses volunteer CPU donations intended for Lichess.org only
-- Using it for our service would be ethically inappropriate
-- ToS considerations for third-party use
+- Volunteer CPU pools are not part of this product's compute model
+- Operational boundaries should stay explicit and self-managed
+- Third-party usage constraints are avoided by design
 
-**Alternative**: Client-side Stockfish WASM + Lichess Cloud Eval API
+**Alternative**: Client-side Stockfish WASM + Public Cloud Eval API
 
 ### 2. Eval Data Sources
 
 | Source | Use Case | Limit |
 |--------|----------|-------|
-| **Lichess Cloud Eval API** | Cached positions (first ~15 plies) | 3000 req/day per IP |
+| **Public Cloud Eval API** | Cached positions (first ~15 plies) | 3000 req/day per IP |
 | **Stockfish 17.1 WASM** | Uncached positions, sidelines | None (user's CPU) |
 
 ### 3. Supported Variants
@@ -38,10 +38,10 @@ The LLM module provides AI-powered chess commentary by analyzing positions and m
 
 | Component | License | Our Obligation |
 |-----------|---------|----------------|
-| lila (Lichess backend) | AGPL-3.0 | Full source code public |
+| core server backend | AGPL-3.0 | Full source code public |
 | chessground (UI) | GPL-3.0 | Frontend source public |
 | Stockfish WASM | GPL-3.0 | Distribute with source |
-| Lichess Cloud Eval | CC0 | None (public domain) |
+| Public Cloud Eval | CC0 | None (public domain) |
 
 **Conclusion**: Project is fully open-source under AGPL-3.0.
 
@@ -64,7 +64,7 @@ modules/llm/
 │   │   └── PositionCharacterizer.scala
 │   ├── Env.scala                    # Module initialization
 │   ├── LlmApi.scala                 # Service layer
-│   ├── LlmClient.scala              # Gemini API client
+│   ├── LlmClient.scala              # Optional Gemini API client (disabled in runtime flow)
 │   ├── LlmConfig.scala              # Environment config
 │   └── PgnAnalysisHelper.scala      # PGN parsing utilities
 └── docs/
@@ -83,7 +83,7 @@ modules/llm/
 | BookStyleRenderer | ✅ Complete |
 | NarrativeLexicon | ✅ Complete |
 | ConceptLabeler | ✅ Complete |
-| LlmClient (Gemini) | ✅ Complete |
+| LlmClient (Gemini) | ✅ Available (runtime disabled) |
 | Frontend narrative UI | ✅ Complete |
 | Variant restriction | ✅ Complete |
 
@@ -94,20 +94,8 @@ modules/llm/
 ### Environment Variables
 
 ```env
-GEMINI_API_KEY=your-api-key     # Required for AI narratives
+GEMINI_API_KEY=your-api-key     # Optional
 GEMINI_MODEL=gemini-2.0-flash   # Optional, default: gemini-3-flash-preview
-```
-
-### Initialization
-
-The module auto-disables if `GEMINI_API_KEY` is not set:
-
-```scala
-if (config.enabled) {
-  // Initialize LLM services
-} else {
-  lila.log("llm").warn("LLM module disabled: GEMINI_API_KEY not set")
-}
 ```
 
 ---
@@ -123,8 +111,7 @@ Browser
     ├── PlanMatcher: Motifs → Plans
     ├── PositionCharacterizer: Context extraction
     ├── BookStyleRenderer: Template selection
-    └── LlmClient: Gemini API (optional polish)
-        ↓
+    ↓
     Narrative JSON response
 ```
 

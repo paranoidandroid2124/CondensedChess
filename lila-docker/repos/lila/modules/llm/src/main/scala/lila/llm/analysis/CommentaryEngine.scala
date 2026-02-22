@@ -126,6 +126,39 @@ object CommentaryEngine:
     else if (pieces < 12) GamePhase.Endgame
     else GamePhase.Middlegame
 
+  private def evolveContinuity(
+      prev: Option[PlanContinuity],
+      currentPrimary: PlanMatch,
+      ply: Int
+  ): Option[PlanContinuity] =
+    val currentKey = currentPrimary.plan.id.toString.toLowerCase
+    prev match
+      case Some(p) if p.planId.map(_.toLowerCase).contains(currentKey) =>
+        Some(
+          p.copy(
+            planName = currentPrimary.plan.name,
+            planId = Some(currentPrimary.plan.id.toString),
+            consecutivePlies = p.consecutivePlies + 1
+          )
+        )
+      case Some(p) if p.planName.equalsIgnoreCase(currentPrimary.plan.name) =>
+        Some(
+          p.copy(
+            planName = currentPrimary.plan.name,
+            planId = Some(currentPrimary.plan.id.toString),
+            consecutivePlies = p.consecutivePlies + 1
+          )
+        )
+      case _ =>
+        Some(
+          PlanContinuity(
+            planName = currentPrimary.plan.name,
+            planId = Some(currentPrimary.plan.id.toString),
+            consecutivePlies = 1,
+            startingPly = ply
+          )
+        )
+
   /**
    * Formats the assessment into a sparse text representation for the LLM prompt.
    */
@@ -279,7 +312,8 @@ object CommentaryEngine:
           nature = nature,
           motifs = motifs,
           plans = planScoring.topPlans,
-          planSequence = Some(currentSequence) // (TransitionType, Double) tuple
+          planContinuity = planScoring.topPlans.headOption.flatMap(tp => evolveContinuity(prevPlanContinuity, tp, ply)),
+          planSequence = Some(currentSequence)
         )
         
         val meta = AnalysisMetadata(
@@ -359,8 +393,14 @@ object CommentaryEngine:
                     analysis match {
                       case Some(data) => 
                         // Update Tracker with the plans found in this ply
-                        val nextTracker = planTracker.update(ply, data.plans.take(1), data.plans.take(1)) // Using same for now
-                        (acc :+ data.copy(planContinuity = planTracker.getContinuity(movingColor)), nextTracker)
+                        val nextTracker = planTracker.update(
+                          movingColor = movingColor,
+                          ply = ply,
+                          primaryPlan = data.plans.headOption,
+                          secondaryPlan = data.plans.lift(1),
+                          sequence = data.planSequence
+                        )
+                        (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker)
                       case None => 
                         (acc, planTracker)
                     }

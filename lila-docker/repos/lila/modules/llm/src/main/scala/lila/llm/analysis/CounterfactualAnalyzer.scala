@@ -22,7 +22,7 @@ object CounterfactualAnalyzer:
       bestLine: lila.llm.model.strategic.VariationLine,
       playerColor: Color
   ): CounterfactualMatch =
-    val cpLoss = bestLine.effectiveScore - userLine.effectiveScore
+    val cpLoss = PerspectiveMath.cpLossForMover(playerColor, bestLine.effectiveScore, userLine.effectiveScore)
     val userMotifs = MoveAnalyzer.tokenizePv(fen, userLine.moves)
     val bestMotifs = MoveAnalyzer.tokenizePv(fen, bestLine.moves)
     

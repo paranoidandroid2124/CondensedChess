@@ -49,7 +49,11 @@ trait PracticalityScorer {
 class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
   def analyze(fen: String, board: Board, color: Color, mainLine: VariationLine, threatLine: Option[VariationLine], explicitPlanId: Option[String] = None): List[PreventedPlan] = {
     threatLine.map { threat =>
-       val scoreDiff = mainLine.effectiveScore - threat.effectiveScore
+       val scoreDiff = lila.llm.analysis.PerspectiveMath.improvementForMover(
+         color,
+         mainLine.effectiveScore,
+         threat.effectiveScore
+       )
        
         if (scoreDiff > 50) {
          val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(fen, color, threat)
