@@ -1,0 +1,54 @@
+name: LLM Structure Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: llm-structure-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structure-quality-pr:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: PR gate - contract and strict thresholds
+        run: sbt "llm/testOnly lila.llm.analysis.structure.StructureGoldsetContractTest lila.llm.analysis.structure.StructureGoldsetLlmCuratedContractTest lila.llm.analysis.structure.StructureQualityGateTest lila.llm.analysis.structure.StructureDualDatasetGateTest"
+
+  structure-quality-nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: Nightly quality runner (strict)
+        run: sbt "llm/runMain lila.llm.tools.PawnStructureQualityRunner --strict --dual-gate --input=modules/llm/src/test/resources/structure_goldset_v1.jsonl --input=modules/llm/src/test/resources/structure_goldset_v1_llm_curated.jsonl --out=modules/llm/docs/PawnStructureQualityReport.md"
+
+      - name: Nightly shadow latency gate (strict)
+        run: sbt "llm/runMain lila.llm.tools.ShadowMetricsGateRunner --strict --days=3 --min-samples=2000 --max-p95-delta-ms=15"

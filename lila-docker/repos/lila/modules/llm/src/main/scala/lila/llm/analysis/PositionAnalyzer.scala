@@ -193,9 +193,10 @@ object PositionAnalyzer:
     val wPassed = passedPawns(Color.White, wPawns, bPawns)
     val bPassed = passedPawns(Color.Black, bPawns, wPawns)
 
-    // IQP (Isolated Queen Pawn on d-file) - requires EXACTLY one d-pawn (not doubled)
-    val wIQP = wByFile.getOrElse(3, 0) == 1 && wByFile.getOrElse(2, 0) == 0 && wByFile.getOrElse(4, 0) == 0
-    val bIQP = bByFile.getOrElse(3, 0) == 1 && bByFile.getOrElse(2, 0) == 0 && bByFile.getOrElse(4, 0) == 0
+    // IQP (Isolated Queen Pawn on d-file) with practical support-window handling.
+    // We allow distant c/e pawns that are too far to immediately support d-pawn advances.
+    val wIQP = iqpOnDFile(Color.White, wPawns, wByFile)
+    val bIQP = iqpOnDFile(Color.Black, bPawns, bByFile)
 
     // Hanging Pawns
     val wHanging = hangingPawns(Color.White, wPawns)
@@ -660,6 +661,23 @@ object PositionAnalyzer:
       val protectedCount = passed.count { p => (p.pawnAttacks(!color) & pawns).nonEmpty }
       (maxRank, protectedCount)
 
+  private def iqpOnDFile(color: Color, pawns: Bitboard, byFile: Map[Int, Int]): Boolean =
+    val dFileIdx = File.D.value
+    if byFile.getOrElse(dFileIdx, 0) != 1 then false
+    else
+      val dPawnOpt = pawns.squares.find(_.file == File.D)
+      dPawnOpt.exists { dPawn =>
+        val adjacent = pawns.squares.filter(s => s.file == File.C || s.file == File.E)
+        // Immediate support window:
+        // White d4 is no longer "isolated" if c3/e3 or more advanced adjacent pawn exists.
+        // Black d5 is no longer "isolated" if c6/e6 or more advanced adjacent pawn exists.
+        val hasImmediateSupport = adjacent.exists { s =>
+          if color == Color.White then s.rank.value >= (dPawn.rank.value - 1).max(Rank.First.value)
+          else s.rank.value <= (dPawn.rank.value + 1).min(Rank.Eighth.value)
+        }
+        !hasImmediateSupport
+      }
+
   def pawnIslands(pawns: Bitboard): Int =
     val files = pawns.squares.map(_.file.value).distinct.sorted
     if files.isEmpty then 0
@@ -705,20 +723,31 @@ object PositionAnalyzer:
        hasAdjacentFriendly && isBehindAllAdj && !friendlyAhead && isBackward
      }.toList
   
-  def hangingPawns(color: Color, pawns: Bitboard): List[Square] = {
-    val files = pawns.squares.map(_.file.value).toSet
-    val hasC = files.contains(2)
-    val hasD = files.contains(3)
-    val noB = !files.contains(1)
-    val noE = !files.contains(4)
-     
-    if (hasC && hasD && noB && noE) {
-      val cAndD = pawns.squares.filter(s => s.file.value == 2 || s.file.value == 3).toList
-      val rankThreshold = if (color == White) Rank.Fourth.value else Rank.Fifth.value
-      val advanced = cAndD.exists(s => if (color == White) s.rank.value >= rankThreshold else s.rank.value <= rankThreshold)
-      if (advanced) cAndD else Nil
-    } else Nil
-  }
+  def hangingPawns(color: Color, pawns: Bitboard): List[Square] =
+    val cAndD = pawns.squares.filter(s => s.file == File.C || s.file == File.D).toList
+    val hasC = cAndD.exists(_.file == File.C)
+    val hasD = cAndD.exists(_.file == File.D)
+    if !hasC || !hasD then Nil
+    else
+      // Practical criterion:
+      // 1) C/D pair exists and is at least minimally advanced.
+      // 2) Adjacent B/E pawns are allowed when they are distant (e.g. b2/e2),
+      //    but not when they are immediately supporting the pair (b3/e3+ for white, b6/e6- for black).
+      val advancedThreshold = if color == White then Rank.Fourth.value else Rank.Fifth.value
+      val advanced = cAndD.exists(s => if color == White then s.rank.value >= advancedThreshold else s.rank.value <= advancedThreshold)
+      val cPawnRanks = cAndD.filter(_.file == File.C).map(_.rank.value)
+      val dPawnRanks = cAndD.filter(_.file == File.D).map(_.rank.value)
+      val sameRankPair = cPawnRanks.exists(cr => dPawnRanks.contains(cr))
+
+      def hasImmediateSupport(file: File): Boolean =
+        pawns.squares.exists { s =>
+          s.file == file &&
+          (if color == White then s.rank.value >= Rank.Third.value else s.rank.value <= Rank.Sixth.value)
+        }
+
+      val bSupport = hasImmediateSupport(File.B)
+      val eSupport = hasImmediateSupport(File.E)
+      if advanced && sameRankPair && !bSupport && !eSupport then cAndD else Nil
 
   def trappedPieces(board: Board, color: Color): List[(Piece, Square, Int)] = {
     val pieces = (board.knights | board.bishops | board.rooks | board.queens) & board.byColor(color)

@@ -1,9 +1,11 @@
 package lila.llm.analysis
 
 import chess.{ Color, Square }
+import lila.llm.LlmConfig
 import lila.llm.model._
 import lila.llm.model.strategic._
 import lila.llm.analysis.L3._
+import lila.llm.model.structure.AlignmentBand
 
 /**
  * NarrativeContext Builder
@@ -11,6 +13,7 @@ import lila.llm.analysis.L3._
  * Converts existing analysis results into hierarchical NarrativeContext.
  */
 object NarrativeContextBuilder:
+  private val llmConfig = LlmConfig.fromEnv
 
   /**
    * Build NarrativeContext from ExtendedAnalysisData and IntegratedContext.
@@ -65,7 +68,8 @@ object NarrativeContextBuilder:
 
     val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data))
     val delta = afterDelta.orElse(prevDelta)
-    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults)
+    val alignmentForTone = if llmConfig.structKbEnabled then ctx.planAlignment else None
+    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
 
     val playedSan = data.prevMove.flatMap { uci =>
       NarrativeUtils
@@ -250,9 +254,10 @@ object NarrativeContextBuilder:
     data: ExtendedAnalysisData,
     ctx: IntegratedContext
   ): NarrativeSummary = {
+    val alignmentHint = data.planAlignment.map(summaryHintFromAlignment).getOrElse("")
     val primaryPlan = data.plans.headOption
-      .map(p => s"${p.plan.name} (${f"${p.score}%.2f"})")
-      .getOrElse("No clear plan")
+      .map(p => s"${p.plan.name} (${f"${p.score}%.2f"})$alignmentHint")
+      .getOrElse(s"No clear plan$alignmentHint")
     val keyThreat = ctx.threatsToUs.flatMap { ta =>
       ta.threats
         .find(t => t.attackSquares.headOption.flatMap(str => chess.Square.fromKey(str)).exists(sq => NarrativeUtils.isVerifiedThreat(data.fen, sq, if (!data.isWhiteToMove) chess.Color.White else chess.Color.Black)))
@@ -480,6 +485,7 @@ object NarrativeContextBuilder:
 
     data.planSequence.map { seq =>
       val planLabel = anchorPlan.getOrElse("the current plan")
+      val alignmentClause = data.planAlignment.flatMap(flowHintFromAlignment).map(h => s" $h").getOrElse("")
       val base = seq.transitionType match {
         case TransitionType.Continuation =>
           s"$side is clearly continuing with $planLabel."
@@ -492,7 +498,7 @@ object NarrativeContextBuilder:
         case TransitionType.Opening =>
           s"$side starts a fresh strategic thread with $planLabel."
       }
-      s"$base$continuitySnippet".trim
+      s"$base$alignmentClause$continuitySnippet".trim
     }.orElse {
       data.planContinuity.flatMap { continuity =>
         Option.when(continuity.consecutivePlies >= 2)(s"$side continues ${continuity.planName}.")
@@ -678,6 +684,8 @@ object NarrativeContextBuilder:
         uci = Some(cand.move),
         annotation = annotation,
         planAlignment = alignment,
+        structureGuidance = None,
+        alignmentBand = None,
         downstreamTactic = downstream,
         tacticalAlert = alert,
         practicalDifficulty = if (cand.line.moves.length > 6) "complex" else "clean",
@@ -854,12 +862,16 @@ object NarrativeContextBuilder:
     }
   }
 
-  private def buildCandidatesEnriched(data: ExtendedAnalysisData, probeResults: List[ProbeResult]): List[CandidateInfo] = {
+  private def buildCandidatesEnriched(
+    data: ExtendedAnalysisData,
+    probeResults: List[ProbeResult],
+    planAlignment: Option[lila.llm.model.structure.PlanAlignment]
+  ): List[CandidateInfo] = {
     val isWhiteToMove = data.isWhiteToMove
     val existing = buildCandidates(data)
     val existingUcis = existing.flatMap(_.uci).toSet
     
-    val enriched = existing.map { c =>
+    val enriched = existing.zipWithIndex.map { case (c, idx) =>
       val probe = probeResults.find(pr => pr.probedMove == c.uci)
 
       // Probe PV samples (a1/a2): convert probe reply PVs into SAN lines, starting from opponent reply.
@@ -902,11 +914,12 @@ object NarrativeContextBuilder:
         } else None
       }
 
-      c.copy(
+      val baseCandidate = c.copy(
         whyNot = whyNot.orElse(c.whyNot),
         tags = (c.tags ++ probeTags).distinct,
         probeLines = probeLines
       )
+      toneCandidateByAlignment(baseCandidate, idx, planAlignment)
     }
     
     val ghosts = probeResults.filter(pr => pr.probedMove.isDefined && !pr.probedMove.exists(existingUcis.contains)).map { pr =>
@@ -926,6 +939,8 @@ object NarrativeContextBuilder:
         uci = Some(uci),
         annotation = if (moverLoss >= 200) "??" else "?",
         planAlignment = if (pr.id.startsWith("aggressive")) "Tactical Gamble" else "Alternative Path",
+        structureGuidance = None,
+        alignmentBand = None,
         tacticalAlert = None,
         practicalDifficulty = "complex",
         whyNot = Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote"),
@@ -940,6 +955,93 @@ object NarrativeContextBuilder:
     
     enriched ++ ghosts
   }
+
+  private def toneCandidateByAlignment(
+    candidate: CandidateInfo,
+    index: Int,
+    planAlignment: Option[lila.llm.model.structure.PlanAlignment]
+  ): CandidateInfo =
+    if index > 1 then candidate
+    else
+      planAlignment match
+        case Some(pa) =>
+          val guidance = pa.narrativeIntent.orElse(Some(defaultGuidance(pa.band)))
+          val riskNote = riskHintFromAlignment(pa)
+          val whyNotWithRisk = mergeWhyNot(candidate.whyNot, riskNote)
+          pa.band match
+            case AlignmentBand.OnBook =>
+              candidate.copy(
+                structureGuidance = guidance,
+                alignmentBand = Some(pa.band.toString),
+                whyNot = if index == 0 then candidate.whyNot else whyNotWithRisk
+              )
+            case AlignmentBand.Playable =>
+              candidate.copy(
+                planAlignment = s"${candidate.planAlignment} (practical)",
+                structureGuidance = guidance,
+                alignmentBand = Some(pa.band.toString),
+                whyNot = whyNotWithRisk
+              )
+            case AlignmentBand.OffPlan =>
+              candidate.copy(
+                planAlignment = s"${candidate.planAlignment} (risky)",
+                structureGuidance = guidance,
+                alignmentBand = Some(pa.band.toString),
+                whyNot = mergeWhyNot(whyNotWithRisk, Some("plan coherence is fragile if move order slips"))
+              )
+            case AlignmentBand.Unknown =>
+              candidate.copy(
+                planAlignment = s"${candidate.planAlignment} (needs verification)",
+                structureGuidance = guidance,
+                alignmentBand = Some(pa.band.toString),
+                whyNot = mergeWhyNot(whyNotWithRisk, Some("structural read is uncertain, verify concrete tactics"))
+              )
+        case None =>
+          candidate
+
+  private def mergeWhyNot(base: Option[String], extra: Option[String]): Option[String] =
+    (base.map(_.trim).filter(_.nonEmpty), extra.map(_.trim).filter(_.nonEmpty)) match
+      case (Some(a), Some(b)) if a.equalsIgnoreCase(b) => Some(a)
+      case (Some(a), Some(b)) => Some(s"$a; $b")
+      case (Some(a), None) => Some(a)
+      case (None, Some(b)) => Some(b)
+      case _ => None
+
+  private def summaryHintFromAlignment(pa: lila.llm.model.structure.PlanAlignment): String =
+    pa.band match
+      case AlignmentBand.OnBook => " [plan coherence high]"
+      case AlignmentBand.Playable => " [playable structure plan]"
+      case AlignmentBand.OffPlan => " [structural risk]"
+      case AlignmentBand.Unknown => " [structure needs verification]"
+
+  private def flowHintFromAlignment(pa: lila.llm.model.structure.PlanAlignment): Option[String] =
+    pa.band match
+      case AlignmentBand.OnBook => Some("The continuation remains structurally coherent.")
+      case AlignmentBand.Playable => Some("The continuation is playable but needs accurate move order.")
+      case AlignmentBand.OffPlan => Some("The current route drifts from the cleaner structural plan.")
+      case AlignmentBand.Unknown => Some("Structural interpretation is uncertain, so concrete checks matter.")
+
+  private def riskHintFromAlignment(pa: lila.llm.model.structure.PlanAlignment): Option[String] =
+    pa.band match
+      case AlignmentBand.OnBook =>
+        None
+      case AlignmentBand.Playable =>
+        pa.reasonWeights.get("PRECOND_MISS").filter(_ > 0.0).map(_ => "some strategic preconditions are still missing")
+      case AlignmentBand.OffPlan =>
+        val anti = pa.reasonWeights.getOrElse("ANTI_PLAN", 0.0)
+        val pre = pa.reasonWeights.getOrElse("PRECOND_MISS", 0.0)
+        if anti >= 0.15 then Some("main line conflicts with structure-first planning")
+        else if pre > 0.0 then Some("key preconditions for the structure plan are missing")
+        else Some("continuation is strategically brittle")
+      case AlignmentBand.Unknown =>
+        Some("structure confidence is low")
+
+  private def defaultGuidance(band: AlignmentBand): String =
+    band match
+      case AlignmentBand.OnBook => "keep the position coherent and improve pieces behind the pawn skeleton"
+      case AlignmentBand.Playable => "maintain flexibility and avoid irreversible pawn commitments too early"
+      case AlignmentBand.OffPlan => "reassess long-term pawn commitments before forcing activity"
+      case AlignmentBand.Unknown => "verify tactical details first, then commit to a structural route"
 
   private case class HypothesisDraft(
     axis: HypothesisAxis,
@@ -1862,9 +1964,11 @@ object NarrativeContextBuilder:
     val hasPractical = data.practicalAssessment.isDefined
     val hasPrevented = data.preventedPlans.nonEmpty
     val hasConcepts = data.conceptSummary.nonEmpty
+    val hasStructureProfile = data.structureProfile.isDefined
+    val hasPlanAlignment = data.planAlignment.isDefined
 
     if (!hasWeaknesses && !hasActivity && !hasPositional && !hasCompensation && 
-        !hasEndgame && !hasPractical && !hasPrevented && !hasConcepts) None
+        !hasEndgame && !hasPractical && !hasPrevented && !hasConcepts && !hasStructureProfile && !hasPlanAlignment) None
     else Some(SemanticSection(
       structuralWeaknesses = data.structuralWeaknesses.map(convertWeakComplex),
       pieceActivity = data.pieceActivity.map(convertPieceActivity),
@@ -1873,9 +1977,32 @@ object NarrativeContextBuilder:
       endgameFeatures = data.endgameFeatures.map(convertEndgame),
       practicalAssessment = data.practicalAssessment.map(convertPractical),
       preventedPlans = data.preventedPlans.map(convertPreventedPlan),
-      conceptSummary = data.conceptSummary
+      conceptSummary = data.conceptSummary,
+      structureProfile = data.structureProfile.map(convertStructureProfile),
+      planAlignment = data.planAlignment.map(convertPlanAlignment)
     ))
   }
+
+  private def convertStructureProfile(sp: lila.llm.model.structure.StructureProfile): StructureProfileInfo =
+    StructureProfileInfo(
+      primary = sp.primary.toString,
+      confidence = sp.confidence,
+      alternatives = sp.alternatives.map(_.toString),
+      centerState = sp.centerState.toString,
+      evidenceCodes = sp.evidenceCodes
+    )
+
+  private def convertPlanAlignment(pa: lila.llm.model.structure.PlanAlignment): PlanAlignmentInfo =
+    PlanAlignmentInfo(
+      score = pa.score,
+      band = pa.band.toString,
+      matchedPlanIds = pa.matchedPlanIds,
+      missingPlanIds = pa.missingPlanIds,
+      reasonCodes = pa.reasonCodes,
+      narrativeIntent = pa.narrativeIntent,
+      narrativeRisk = pa.narrativeRisk,
+      reasonWeights = pa.reasonWeights
+    )
 
   private def convertWeakComplex(wc: WeakComplex): WeakComplexInfo = {
     val owner = wc.color.name.capitalize

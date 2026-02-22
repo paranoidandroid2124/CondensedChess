@@ -15,6 +15,34 @@ import scala.util.matching.Regex
  */
 object PostCritic:
 
+  private val structureLeakTokens = List(
+    "Carlsbad",
+    "IQPWhite",
+    "IQPBlack",
+    "HangingPawnsWhite",
+    "HangingPawnsBlack",
+    "FrenchAdvanceChain",
+    "NajdorfScheveningenCenter",
+    "BenoniCenter",
+    "KIDLockedCenter",
+    "SlavCaroTriangle",
+    "MaroczyBind",
+    "Hedgehog",
+    "FianchettoShell",
+    "Stonewall",
+    "OpenCenter",
+    "LockedCenter",
+    "FluidCenter",
+    "SymmetricCenter",
+    "PA_MATCH",
+    "PRECOND_MISS",
+    "ANTI_PLAN",
+    "LOW_CONF",
+    "LOW_MARGIN",
+    "REQ_MISS",
+    "BLK_CONFLICT"
+  )
+
   def revise(ctx: NarrativeContext, prose: String): String =
     val raw = prose.trim
     if raw.isEmpty then prose
@@ -94,7 +122,14 @@ object PostCritic:
 
   private def rewriteBoilerplate(text: String): String = text
 
-  private def sanitizeTerminalTone(text: String): String = text
+  private def sanitizeTerminalTone(text: String): String =
+    val basic = structureLeakTokens.foldLeft(text) { (acc, token) =>
+      acc.replace(token, "structure theme")
+    }
+    basic
+      .replaceAll("\\bREQ_[A-Z0-9_]+\\b", "structure theme")
+      .replaceAll("\\bSUP_[A-Z0-9_]+\\b", "structure theme")
+      .replaceAll("\\bBLK_[A-Z0-9_]+\\b", "structure theme")
 
   private def collapseFamilyDuplicates(text: String): String =
     val families = List(

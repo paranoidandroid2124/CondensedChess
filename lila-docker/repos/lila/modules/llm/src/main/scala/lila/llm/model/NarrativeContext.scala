@@ -194,6 +194,8 @@ case class CandidateInfo(
   uci: Option[String] = None,  // NEW: UCI format for probe result matching
   annotation: String,          // "!" | "?" | ""
   planAlignment: String,       // Immediate intent (e.g., "Development")
+  structureGuidance: Option[String] = None, // Internal structure-aware narrative guidance
+  alignmentBand: Option[String] = None,     // OnBook | Playable | OffPlan | Unknown
   downstreamTactic: Option[String] = None,
   tacticalAlert: Option[String], // "allows Qb6 response"
   practicalDifficulty: String, // "clean" | "complex"
@@ -362,6 +364,25 @@ case class PreventedPlanInfo(
   preventedThreatType: Option[String]
 )
 
+case class StructureProfileInfo(
+  primary: String,
+  confidence: Double,
+  alternatives: List[String],
+  centerState: String,
+  evidenceCodes: List[String]
+)
+
+case class PlanAlignmentInfo(
+  score: Int,
+  band: String,
+  matchedPlanIds: List[String],
+  missingPlanIds: List[String],
+  reasonCodes: List[String],
+  narrativeIntent: Option[String] = None,
+  narrativeRisk: Option[String] = None,
+  reasonWeights: Map[String, Double] = Map.empty
+)
+
 /** Exposes ExtendedAnalysisData semantic fields to LLM. */
 case class SemanticSection(
   structuralWeaknesses: List[WeakComplexInfo],
@@ -371,7 +392,9 @@ case class SemanticSection(
   endgameFeatures: Option[EndgameInfo],
   practicalAssessment: Option[PracticalInfo],
   preventedPlans: List[PreventedPlanInfo],
-  conceptSummary: List[String]  // High-level concepts from ConceptLabeler
+  conceptSummary: List[String],  // High-level concepts from ConceptLabeler
+  structureProfile: Option[StructureProfileInfo] = None,
+  planAlignment: Option[PlanAlignmentInfo] = None
 )
 
 

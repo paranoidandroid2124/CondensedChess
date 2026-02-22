@@ -2,6 +2,8 @@ package lila.llm.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
+import lila.llm.LlmConfig
+import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
 import lila.llm.model.strategic.{ VariationLine, PlanContinuity }
 import lila.llm.analysis.L3.*
@@ -24,6 +26,7 @@ enum GamePhase:
   case Opening, Middlegame, Endgame
 
 object CommentaryEngine:
+  private val llmConfig = LlmConfig.fromEnv
 
   // Lazily instantiated Analyzers (stateless)
   private val prophylaxisAnalyzer = new lila.llm.analysis.strategic.ProphylaxisAnalyzerImpl()
@@ -276,6 +279,16 @@ object CommentaryEngine:
           sideToMove = (!initialPos.color).name
         )
         val evalCp = variations.headOption.map(_.scoreCp).getOrElse(0)
+        val structureEvalStartNs = Option.when(llmConfig.shouldEvaluateStructureKb)(System.nanoTime())
+        val structureProfile =
+          Option.when(llmConfig.shouldEvaluateStructureKb) {
+            PawnStructureClassifier.classify(
+              features = features,
+              board = initialPos.board,
+              sideToMove = initialPos.color,
+              minConfidence = llmConfig.structKbMinConfidence
+            )
+          }
 
         // Update counterThreatBetter assessments
         val (finalUs, finalThem) = (ownThreats, oppThreats) match {
@@ -287,7 +300,7 @@ object CommentaryEngine:
              toUs.copy(counterThreatBetter = counterBetter, defense = toUs.defense.copy(counterIsBetter = counterBetter)))
         }
 
-        val ctx = IntegratedContext(
+        val baseCtx = IntegratedContext(
           evalCp = evalCp,
           classification = Some(classification),
           pawnAnalysis = Some(pawnAnalysis),
@@ -297,10 +310,28 @@ object CommentaryEngine:
           openingName = opening,
           isWhiteToMove = initialPos.color == White, // Corrected: use FEN side-to-move for probes
           features = Some(features), // L1 Snapshot injection
-          initialPos = Some(initialPos)
+          initialPos = Some(initialPos),
+          structureProfile = structureProfile
         )
         
-        val planScoring = PlanMatcher.matchPlans(motifs, ctx, initialPos.color)
+        val planScoring = PlanMatcher.matchPlans(motifs, baseCtx, initialPos.color)
+        val planAlignment =
+          structureProfile.flatMap { profile =>
+            StructuralPlaybook.lookup(profile.primary).map { entry =>
+              PlanAlignmentScorer.score(
+                structureProfile = profile,
+                playbookEntry = entry,
+                topPlans = planScoring.topPlans,
+                motifs = motifs,
+                pawnAnalysis = Some(pawnAnalysis),
+                sideToMove = initialPos.color
+              )
+            }.orElse(Some(PlanAlignmentScorer.unknown(planScoring.topPlans)))
+          }
+        val structureEvalLatencyMs = structureEvalStartNs.map { started =>
+          ((System.nanoTime() - started) / 1000000L).max(0L)
+        }
+        val ctx = baseCtx.copy(planAlignment = planAlignment)
         val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
         val currentSequence = TransitionAnalyzer.analyze(
           currentPlans = activePlans,
@@ -336,6 +367,9 @@ object CommentaryEngine:
           evalCp = evalCp,
           isWhiteToMove = initialPos.color == White,
           phase = phase.getOrElse(_currentPhase.toString),
+          structureProfile = structureProfile,
+          structureEvalLatencyMs = structureEvalLatencyMs,
+          planAlignment = planAlignment,
           integratedContext = Some(ctx)
         )
       }

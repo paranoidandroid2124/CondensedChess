@@ -5,6 +5,7 @@ import chess.format.Fen
 import chess.Bitboard
 import chess.Bitboard.*
 import lila.llm.model.authoring.*
+import lila.llm.model.structure.StructureId
 
 /**
  * LatentPlanSeeder turns static SeedLibrary entries into position-specific candidates.
@@ -95,17 +96,25 @@ object LatentPlanSeeder:
           fileStatus(pos.board, file) == status
 
         case Precondition.PawnStructureIs(tpe) =>
-          tpe match
-            case StructureType.IQP =>
-              featuresOpt.exists(f => (us.white && f.pawns.whiteIQP) || (us.black && f.pawns.blackIQP))
-            case StructureType.HangingPawns =>
-              featuresOpt.exists(f => (us.white && f.pawns.whiteHangingPawns) || (us.black && f.pawns.blackHangingPawns))
-            case StructureType.CarlsbadLike =>
-              isCarlsbadLike(pos.board)
-            case StructureType.FianchettoShell =>
-              hasFianchettoShell(pos.board, them)
-            case StructureType.MaroczyBindLike =>
-              isMaroczyBindLike(pos.board, us)
+          val fromProfile =
+            ctx.structureProfile
+              .filter(_.primary != StructureId.Unknown)
+              .map(profile => profileMatches(tpe, profile.primary))
+
+          fromProfile.getOrElse {
+            // Backward-compatible fallback when structure KB is disabled.
+            tpe match
+              case StructureType.IQP =>
+                featuresOpt.exists(f => (us.white && f.pawns.whiteIQP) || (us.black && f.pawns.blackIQP))
+              case StructureType.HangingPawns =>
+                featuresOpt.exists(f => (us.white && f.pawns.whiteHangingPawns) || (us.black && f.pawns.blackHangingPawns))
+              case StructureType.CarlsbadLike =>
+                isCarlsbadLike(pos.board)
+              case StructureType.FianchettoShell =>
+                hasFianchettoShell(pos.board, them)
+              case StructureType.MaroczyBindLike =>
+                isMaroczyBindLike(pos.board, us)
+          }
 
         case Precondition.NoImmediateDefensiveTask(maxThreatCp) =>
           ctx.maxThreatLossToUs <= maxThreatCp
@@ -188,3 +197,16 @@ object LatentPlanSeeder:
     // Also check that d-pawn is NOT on d4/d5 (that would be closed center or different system)
     // Actually Maroczy usually has d-file open for the binder.
     cPawn && ePawn
+
+  private def profileMatches(tpe: StructureType, structure: StructureId): Boolean =
+    tpe match
+      case StructureType.IQP =>
+        structure == StructureId.IQPWhite || structure == StructureId.IQPBlack
+      case StructureType.HangingPawns =>
+        structure == StructureId.HangingPawnsWhite || structure == StructureId.HangingPawnsBlack
+      case StructureType.CarlsbadLike =>
+        structure == StructureId.Carlsbad
+      case StructureType.FianchettoShell =>
+        structure == StructureId.FianchettoShell
+      case StructureType.MaroczyBindLike =>
+        structure == StructureId.MaroczyBind

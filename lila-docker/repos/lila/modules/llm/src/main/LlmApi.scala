@@ -3,16 +3,19 @@ package lila.llm
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
+import java.time.Instant
 import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
+import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.VariationLine
 
 /** Pipeline: CommentaryEngine → BookStyleRenderer (rule-based only). */
 final class LlmApi(
     openingExplorer: OpeningExplorerClient,
     geminiClient: GeminiClient,
-    commentaryCache: CommentaryCache
+    commentaryCache: CommentaryCache,
+    llmConfig: LlmConfig = LlmConfig.fromEnv
 )(using Executor):
 
   private val logger = lila.log("llm.api")
@@ -26,9 +29,74 @@ final class LlmApi(
   private val stateAwareCacheMissCount = new AtomicLong(0L)
   private val samePlyIdempotentHitCount = new AtomicLong(0L)
   private val transitionCountByType = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val structureProfileCount = new AtomicLong(0L)
+  private val structureUnknownCount = new AtomicLong(0L)
+  private val structureLowConfidenceCount = new AtomicLong(0L)
+  private val structureCountByType = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val alignmentBandCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val ShadowWindowSize = 2000
+  private val latencyWindowLock = new Object
+  private var totalLatencyWindowMs = Vector.empty[Long]
+  private var structureEvalLatencyWindowMs = Vector.empty[Long]
 
   private def incTransition(kind: String): Unit =
     transitionCountByType.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
+
+  private def incStructure(kind: String): Unit =
+    structureCountByType.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
+
+  private def incBand(kind: String): Unit =
+    alignmentBandCount.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
+
+  private def recordStructureMetrics(data: lila.llm.model.ExtendedAnalysisData): Unit =
+    data.structureProfile.foreach { profile =>
+      structureProfileCount.incrementAndGet()
+      incStructure(profile.primary.toString)
+      if profile.primary == StructureId.Unknown then structureUnknownCount.incrementAndGet()
+      if profile.confidence < llmConfig.structKbMinConfidence then structureLowConfidenceCount.incrementAndGet()
+    }
+    data.planAlignment.foreach(pa => incBand(pa.band.toString))
+
+  private def pushWindow(values: Vector[Long], value: Long): Vector[Long] =
+    val next = values :+ value
+    if next.size <= ShadowWindowSize then next else next.takeRight(ShadowWindowSize)
+
+  private def percentile(values: Vector[Long], p: Double): Double =
+    if values.isEmpty then 0.0
+    else
+      val sorted = values.sorted
+      val idx = math.ceil(p * sorted.size.toDouble).toInt - 1
+      sorted(idx.max(0).min(sorted.size - 1)).toDouble
+
+  private def recordLatencyMetrics(totalLatencyMs: Long, structureEvalLatencyMs: Option[Long]): Unit =
+    latencyWindowLock.synchronized {
+      totalLatencyWindowMs = pushWindow(totalLatencyWindowMs, totalLatencyMs.max(0L))
+      structureEvalLatencyMs.foreach { ms =>
+        structureEvalLatencyWindowMs = pushWindow(structureEvalLatencyWindowMs, ms.max(0L))
+      }
+    }
+
+  private def latencySnapshot: (Int, Double, Double, Int, Double, Double) =
+    latencyWindowLock.synchronized {
+      val totalWindow = totalLatencyWindowMs
+      val structWindow = structureEvalLatencyWindowMs
+      (
+        totalWindow.size,
+        percentile(totalWindow, 0.50),
+        percentile(totalWindow, 0.95),
+        structWindow.size,
+        percentile(structWindow, 0.50),
+        percentile(structWindow, 0.95)
+      )
+    }
+
+  private inline def elapsedMs(startNs: Long): Long =
+    ((System.nanoTime() - startNs) / 1000000L).max(0L)
+
+  private def structureMode: String =
+    if llmConfig.structKbEnabled then "enabled"
+    else if llmConfig.structKbShadowMode then "shadow"
+    else "off"
 
   private def maybeLogBookmakerMetrics(): Unit =
     val total = bookmakerRequests.get()
@@ -37,15 +105,40 @@ final class LlmApi(
       val tokenEmitRate = tokenEmitCount.get().toDouble / total.toDouble
       val continuityAppliedRate = continuityAppliedCount.get().toDouble / total.toDouble
       val transitionDist = transitionCountByType.toList.map { case (k, v) => k -> v.get() }.toMap
+      val structureCoverage =
+        if !llmConfig.shouldEvaluateStructureKb || total == 0 then 0.0
+        else structureProfileCount.get().toDouble / total.toDouble
+      val structureUnknownRate =
+        if structureProfileCount.get() == 0 then 0.0
+        else structureUnknownCount.get().toDouble / structureProfileCount.get().toDouble
+      val structureLowConfRate =
+        if structureProfileCount.get() == 0 then 0.0
+        else structureLowConfidenceCount.get().toDouble / structureProfileCount.get().toDouble
+      val structureDist = structureCountByType.toList.map { case (k, v) => k -> v.get() }.toMap
+      val bandDist = alignmentBandCount.toList.map { case (k, v) => k -> v.get() }.toMap
+      val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
+      val epochSec = Instant.now().getEpochSecond
       logger.info(
-        s"bookmaker.metrics total=$total " +
+        s"bookmaker.metrics epoch=$epochSec total=$total " +
+          s"struct_mode=${structureMode} " +
+          s"shadow_window=$totalWindowSize " +
           f"token_present_rate=$tokenPresentRate%.3f " +
           f"token_emit_rate=$tokenEmitRate%.3f " +
           f"continuity_applied_rate=$continuityAppliedRate%.3f " +
           s"state_cache_hit=${stateAwareCacheHitCount.get()} " +
           s"state_cache_miss=${stateAwareCacheMissCount.get()} " +
           s"same_ply_idempotent_hits=${samePlyIdempotentHitCount.get()} " +
-          s"transition_dist=$transitionDist"
+          f"total_latency_p50_ms=$totalP50%.3f " +
+          f"total_latency_p95_ms=$totalP95%.3f " +
+          s"struct_latency_samples=$structWindowSize " +
+          f"struct_eval_p50_ms=$structP50%.3f " +
+          f"struct_eval_p95_ms=$structP95%.3f " +
+          s"transition_dist=$transitionDist " +
+          f"struct_coverage=$structureCoverage%.3f " +
+          f"struct_unknown_rate=$structureUnknownRate%.3f " +
+          f"struct_low_conf_rate=$structureLowConfRate%.3f " +
+          s"struct_dist=$structureDist " +
+          s"alignment_band_dist=$bandDist"
       )
 
 
@@ -101,6 +194,7 @@ final class LlmApi(
       ply: Int,
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
   ): Future[Option[CommentResponse]] =
+    val requestStartNs = System.nanoTime()
     val incomingProbes = probeResults.getOrElse(Nil)
     bookmakerRequests.incrementAndGet()
     if prevStateToken.isDefined then tokenPresentCount.incrementAndGet()
@@ -108,15 +202,20 @@ final class LlmApi(
       case Some(cached) =>
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
+        recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
         maybeLogBookmakerMetrics()
         Future.successful(Some(cached))
       case None =>
         stateAwareCacheMissCount.incrementAndGet()
-        maybeLogBookmakerMetrics()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
           afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken
-        )
+        ).map:
+          case (responseOpt, structEvalMsOpt) =>
+          recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
+          maybeLogBookmakerMetrics()
+          responseOpt
+        
 
 
   private def computeBookmakerResponse(
@@ -132,8 +231,8 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int,
-      prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
-  ): Future[Option[CommentResponse]] =
+      prevStateToken: Option[lila.llm.analysis.PlanStateTracker]
+  ): Future[(Option[CommentResponse], Option[Long])] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
 
     val varsFromEval =
@@ -163,7 +262,7 @@ final class LlmApi(
       }
 
     val afterVars = afterVariations.filter(_.nonEmpty).orElse(afterVarsFromEval).getOrElse(Nil)
-    if vars.isEmpty then Future.successful(None)
+    if vars.isEmpty then Future.successful(None -> None)
     else
       val shouldFetchMasters =
         phase.trim.equalsIgnoreCase("opening") &&
@@ -193,7 +292,7 @@ final class LlmApi(
         )
 
         dataOpt match
-          case None => Future.successful(None)
+          case None => Future.successful(None -> None)
           case Some(data) =>
             if tracker.getColorState(movingColor).lastPly.contains(effectivePly) then
               samePlyIdempotentHitCount.incrementAndGet()
@@ -209,6 +308,7 @@ final class LlmApi(
             if dataWithContinuity.planContinuity.exists(_.consecutivePlies >= 2) then
               continuityAppliedCount.incrementAndGet()
             dataWithContinuity.planSequence.foreach(ps => incTransition(ps.transitionType.toString))
+            if llmConfig.shouldEvaluateStructureKb then recordStructureMetrics(dataWithContinuity)
 
             val afterDataOpt =
               afterFen
@@ -244,8 +344,7 @@ final class LlmApi(
             )
             if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
             commentaryCache.put(fen, lastMove, response, probeResults.getOrElse(Nil), prevStateToken)
-            maybeLogBookmakerMetrics()
-            Future.successful(Some(response))
+            Future.successful(Some(response) -> dataWithContinuity.structureEvalLatencyMs)
       }
 
 

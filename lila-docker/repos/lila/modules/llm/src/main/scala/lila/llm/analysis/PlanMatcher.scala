@@ -4,6 +4,7 @@ import chess.*
 import lila.llm.model.*
 import lila.llm.model.Motif.*
 import lila.llm.analysis.L3.{PawnPlayAnalysis, PositionClassification, ThreatAnalysis, RiskLevel}
+import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
 import chess.Color.White
 
 case class IntegratedContext(
@@ -17,7 +18,9 @@ case class IntegratedContext(
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
     features: Option[PositionFeatures] = None,
-    initialPos: Option[Position] = None
+    initialPos: Option[Position] = None,
+    structureProfile: Option[StructureProfile] = None,
+    planAlignment: Option[PlanAlignment] = None
 ) {
   def evalFor(color: Color): Int = if (color == White) evalCp else -evalCp
 
