@@ -64,10 +64,12 @@ export const iconTag = (name: string): VNode => {
 
 import { icons } from '../icons';
 export function icon(name: keyof typeof icons, className?: string): VNode {
+  const klass: Classes = { [`story-icon`]: true, [`story-icon-${name}`]: true };
+  if (className) klass[className] = true;
   return snabH(
     'svg',
     {
-      class: { [`story-icon`]: true, [`story-icon-${name}`]: true, [className || '']: !!className },
+      class: klass,
       attrs: {
         viewBox: '0 0 24 24',
         width: '20',

@@ -1148,11 +1148,55 @@ object NarrativeLexicon {
         case Some(HypothesisAxis.KingSafety) => "timing"
         case Some(HypothesisAxis.Conversion) => "timing"
         case _ => "trajectory"
-    val strategicSentence =
+    val strategicSentenceOptions =
       strategicAnchor match
-        case "timing" => "Strategic focus remains on timing precision."
-        case "coordination" => "Strategic focus remains on coordination quality."
-        case _ => "Strategic focus remains on long-term trajectory."
+        case "timing" =>
+          List(
+            "Strategic focus remains on timing precision.",
+            "The strategic burden is still timing discipline.",
+            "Timing accuracy remains the practical priority.",
+            "Move-order timing is still the central strategic issue.",
+            "Strategic outcomes still hinge on tempo management.",
+            "The plan remains tempo-sensitive at every turn.",
+            "Timing control continues to define the position.",
+            "Precise sequencing remains the strategic anchor.",
+            "Tempo handling still governs practical stability.",
+            "Strategic pressure remains tied to accurate timing.",
+            "The position still rewards strict move-order precision.",
+            "Timing remains the decisive strategic resource."
+          )
+        case "coordination" =>
+          List(
+            "Strategic focus remains on coordination quality.",
+            "Piece coordination remains the strategic baseline.",
+            "The practical edge still comes from cleaner coordination.",
+            "Strategic clarity still depends on piece harmony.",
+            "Coordination quality remains the key strategic metric.",
+            "The plan continues to revolve around coordinated piece play.",
+            "Piece harmony remains the practical conversion driver.",
+            "Strategic control still rests on coordinated deployment.",
+            "Coordination remains the central positional requirement.",
+            "The position still favors superior piece coordination.",
+            "Strategic stability remains tied to coordination discipline.",
+            "Coordination quality still shapes the practical outcome."
+          )
+        case _ =>
+          List(
+            "Strategic focus remains on long-term trajectory.",
+            "The practical story still follows a long-term strategic path.",
+            "Long-range planning remains the core strategic task.",
+            "Strategic direction still matters more than short-term noise.",
+            "The position remains governed by long-horizon planning.",
+            "Long-term route selection is still the strategic anchor.",
+            "Strategic priority remains the overall trajectory of play.",
+            "The game still turns on long-range strategic direction.",
+            "Long-horizon structure remains the decisive strategic layer.",
+            "The position still rewards coherent long-term planning.",
+            "Strategic balance remains defined by trajectory management.",
+            "Long-term strategic steering remains essential here."
+          )
+    val strategicSentence =
+      pick(bead ^ 0x11f6d5a3, strategicSentenceOptions)
     val claimPart = alternativeClaim.map(_.trim.stripSuffix(".")).filter(_.nonEmpty)
       .map(c => s"$c.")
       .getOrElse("")
@@ -1248,15 +1292,15 @@ object NarrativeLexicon {
       else s"${horizonLabel(mainHorizon)} vs ${horizonLabel(altHorizon)} horizon"
     List(
       s"Decisive split: **$mainMove** versus **$altMove** on $axisContrast with $horizonBlend.",
-      s"Key difference: **$mainMove** and **$altMove** separate by $axisContrast across $horizonBlend.",
+      s"Core contrast: **$mainMove** and **$altMove** diverge by $axisContrast across $horizonBlend.",
       s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, with $horizonBlend.",
-      s"Practical key difference: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
+      s"Practical split: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
       s"At the decisive split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
       s"Final decisive split: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
-      s"From a key difference angle, **$mainMove** and **$altMove** contrast through $axisContrast under $horizonBlend.",
+      s"From a practical contrast angle, **$mainMove** and **$altMove** separate through $axisContrast under $horizonBlend.",
       s"Key difference at the main fork: **$mainMove** vs **$altMove** hinges on $axisContrast within $horizonBlend.",
       s"Decisively, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
-      s"Key difference: strategic separation between **$mainMove** and **$altMove** is $axisContrast with $horizonBlend."
+      s"The principal fork is **$mainMove** versus **$altMove**: $axisContrast under $horizonBlend."
     )
       .map(_.replaceAll("""\s+""", " ").trim)
       .distinct
@@ -1637,22 +1681,38 @@ object NarrativeLexicon {
     "isolated_pawn",
     "king_cut_off",
     "king_hunt",
+    "king_activity",
     "knight_domination",
     "knight_vs_bishop",
+    "knight_blockade_rook_pawn",
     "liquidate",
     "liquidation",
+    "lucena",
     "maneuver",
     "minority_attack",
     "novelty",
     "open_file",
+    "opposition",
     "opposite_bishops",
     "passed_pawn",
     "pawn_break",
     "pawn_storm",
+    "philidor",
     "pin",
     "pin_queen",
+    "promotion_race",
     "prophylactic",
     "prophylaxis",
+    "forced_draw_resource",
+    "outside_passer",
+    "connected_passers",
+    "wrong_bishop_fortress",
+    "short_side_defense",
+    "breakthrough_sacrifice",
+    "shouldering",
+    "reti_maneuver",
+    "good_bishop_rook_pawn",
+    "triangulation",
     "repeat",
     "repetition",
     "rook_behind_passed_pawn",
@@ -1670,6 +1730,7 @@ object NarrativeLexicon {
     "trapped_piece",
     "trapped_piece_queen",
     "underpromotion",
+    "vancura",
     "xray",
     "xray_queen",
     "zugzwang",
@@ -1679,6 +1740,50 @@ object NarrativeLexicon {
   def isMotifPrefixSignal(rawMotif: String): Boolean =
     val normalized = normalizeMotifTag(rawMotif)
     normalized.nonEmpty && motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
+
+  def getEndgamePatternPrefix(bead: Int, rawPattern: String): Option[String] =
+    val pattern = normalizeMotifTag(rawPattern)
+    if pattern.isEmpty then None
+    else
+      val templates =
+        if pattern.contains("lucena") then Some(List(
+          "Lucena geometry is present: building a bridge is the core winning method.",
+          "This is a Lucena-type setup where bridge construction decides conversion.",
+          "The position matches Lucena ideas, so shielding checks with a bridge is critical."
+        ))
+        else if pattern.contains("philidor") then Some(List(
+          "Philidor defense geometry is active: the third-rank barrier is the key hold.",
+          "This resembles Philidor defense, where rook activity from the third rank secures the draw.",
+          "Philidor structure is on the board; maintaining the defensive rank is the central task."
+        ))
+        else if pattern.contains("vancura") then Some(List(
+          "Vancura-style defense appears: lateral rook checks are the drawing backbone.",
+          "This is a Vancura-type setup where active rook checking keeps the position holdable.",
+          "The defensive idea is Vancura geometry, with rook activity neutralizing the passer."
+        ))
+        else if pattern.contains("wrongrookpawnwrongbishopfortress") || pattern.contains("wrong_bishop_fortress") then Some(List(
+          "Wrong-bishop rook-pawn fortress logic is in play, so conversion is often blocked.",
+          "This is the wrong-bishop fortress pattern: the corner setup can hold the draw.",
+          "The rook-pawn and wrong-bishop mismatch creates a classic fortress resource."
+        ))
+        else if pattern.contains("triangulationzugzwang") || pattern.contains("triangulation") then Some(List(
+          "Triangulation and zugzwang mechanics dominate: tempo control is the key.",
+          "This is a triangulation-style ending where losing a move can force concessions.",
+          "Zugzwang pressure is tied to triangulation routes in this king-and-pawn structure."
+        ))
+        else if pattern.contains("outsidepasserdecoy") || pattern.contains("outside_passer") then Some(List(
+          "An outside passer is acting as a decoy to pull the enemy king away.",
+          "Outside-passer decoy play is central: one flank pawn distracts while the other side advances.",
+          "The technical plan uses an outside passer to create a distant king diversion."
+        ))
+        else if pattern.contains("connectedpassers") || pattern.contains("connected_passers") then Some(List(
+          "Connected passed pawns are the main conversion engine here.",
+          "The critical endgame asset is the connected passer pair advancing together.",
+          "Connected passers define the position: coordinated pawn advance can overwhelm defense."
+        ))
+        else None
+
+      templates.map(ts => punctuate(pick(bead ^ 0x2a9f47c1, ts)))
 
   def getMotifPrefix(bead: Int, motifs: List[String], ply: Int = 0): Option[String] = {
     val normalized = motifs.map(normalizeMotifTag).filter(_.nonEmpty)
@@ -1700,6 +1805,61 @@ object NarrativeLexicon {
         "Zugzwang ideas are central: useful moves are running out.",
         "This has a zugzwang flavor where every move concedes something.",
         "The key endgame issue is zugzwang: improving moves are scarce."
+      ))
+      else if (hasAny("lucena")) Some(List(
+        "Lucena conversion technique is central: bridge construction is the key method.",
+        "This has a Lucena character where precise rook shelter decides the result.",
+        "Lucena geometry is in focus, so building the bridge becomes the technical priority."
+      ))
+      else if (hasAny("philidor")) Some(List(
+        "Philidor defensive structure is relevant: third-rank control is critical.",
+        "This resembles Philidor defense, where rook activity from the defensive rank matters most.",
+        "The technical drawing method here is Philidor-style rook placement."
+      ))
+      else if (hasAny("vancura")) Some(List(
+        "Vancura defensive ideas are available through active lateral rook checks.",
+        "This has Vancura flavor: rook activity can neutralize the advanced pawn.",
+        "The drawing resource resembles Vancura geometry with checking distance."
+      ))
+      else if (hasAny("triangulation")) Some(List(
+        "Triangulation routes are becoming important for tempo control.",
+        "This king-and-pawn ending hinges on triangulation and move-order precision.",
+        "A triangulation idea can force a favorable tempo shift."
+      ))
+      else if (hasAny("connected_passers")) Some(List(
+        "Connected passers are the dominant technical asset here.",
+        "The conversion plan revolves around advancing connected passed pawns in tandem.",
+        "Connected passer coordination is the central winning mechanism."
+      ))
+      else if (hasAny("outside_passer")) Some(List(
+        "An outside passer can decoy the king and create play on the other wing.",
+        "Outside-passer strategy is now the practical conversion lever.",
+        "The outside passer is a distraction tool that can reshape king placement."
+      ))
+      else if (hasAny("wrong_bishop_fortress")) Some(List(
+        "Wrong-bishop fortress logic gives the defender durable drawing chances.",
+        "This rook-pawn plus wrong-bishop setup often leads to a fortress hold.",
+        "The key endgame resource is the wrong-bishop corner fortress."
+      ))
+      else if (hasAny("short_side_defense")) Some(List(
+        "Short-side defensive geometry is relevant in this rook ending.",
+        "The defender is aiming for short-side checking distance and king shelter.",
+        "Short-side defense is the technical drawing setup to watch."
+      ))
+      else if (hasAny("promotion_race")) Some(List(
+        "A promotion race is the key practical axis, so tempo matters immediately.",
+        "Promotion timing is now central: each king move changes the race outcome.",
+        "This ending is about promotion race arithmetic and accurate tempo handling."
+      ))
+      else if (hasAny("forced_draw_resource")) Some(List(
+        "Forced drawing resources are active despite apparent pressure.",
+        "The defender has concrete draw mechanics if move order stays precise.",
+        "This phase contains technical drawing resources that can hold the balance."
+      ))
+      else if (hasAny("opposition")) Some(List(
+        "King opposition is a defining feature of this ending.",
+        "Opposition geometry is shaping which side can make progress.",
+        "The battle revolves around timing opposition and king squares."
       ))
       else if (hasAny("isolated_pawn", "iqp")) Some(List(
         "The isolated-queen-pawn structure is shaping the plans.",

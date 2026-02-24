@@ -154,6 +154,18 @@ object NarrativeContextBuilder:
         probeResults = probeResults
       )
 
+    val motifFactsRaw = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now)
+    val motifFacts =
+      if data.endgameFeatures.isDefined then
+        motifFactsRaw.filter {
+          case _: Fact.Opposition => false
+          case _: Fact.Zugzwang   => false
+          case _                  => true
+        }
+      else motifFactsRaw
+    val staticFacts = FactExtractor.extractStaticFacts(board, color)
+    val endgameFacts = FactExtractor.extractEndgameFacts(board, color, data.endgameFeatures)
+
     NarrativeContext(
       fen = data.fen,
       header = header,
@@ -172,9 +184,7 @@ object NarrativeContextBuilder:
       candidates = candidates,
       authorQuestions = authorQuestions,
       authorEvidence = authorEvidence,
-      facts = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now) ++ 
-              FactExtractor.extractStaticFacts(board, color) ++
-              FactExtractor.extractEndgameFacts(board, color),
+      facts = motifFacts ++ staticFacts ++ endgameFacts,
       probeRequests = probeRequests,
       meta = meta,
       strategicFlow = strategicFlow,

@@ -103,7 +103,7 @@ body {
     // Chesstory: modern workspace layout with a vertical sidebar.
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.75 + 0.25) * 0.75);
 
-    grid-template-columns: 50px min(var(---col2-uniboard-width), 560px) $analyse-block-gap minmax(360px, 1fr);
+    grid-template-columns: 50px min(var(---col2-uniboard-width), 560px) 24px 450px;
     grid-template-rows: auto auto auto auto $chat-height;
     grid-template-areas:
       'sidebar board        . tools'
@@ -111,7 +111,8 @@ body {
       'sidebar under        . tools'
       'sidebar chat         . uchat';
 
-    grid-row-gap: $analyse-block-gap;
+    grid-row-gap: 24px;
+    padding: 24px;
 
     &__sidebar {
       grid-area: sidebar;
@@ -177,7 +178,7 @@ body {
     // Chesstory: keep wide screens stable and avoid "board suddenly grows" jump.
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.75 + 0.25) * 0.72);
 
-    grid-template-columns: min(var(---col3-uniboard-width), 560px) $analyse-block-gap minmax(360px, 1fr);
+    grid-template-columns: min(var(---col3-uniboard-width), 560px) $analyse-block-gap 450px;
     grid-template-rows: auto auto auto auto auto $chat-height;
     grid-template-areas:
       'board        . tools'
@@ -196,16 +197,19 @@ body {
     }
 
     &--bookmaker {
-      grid-template-rows: auto auto auto auto minmax(22rem, 45vh) auto $chat-height;
+      grid-template-columns: min(var(---col3-uniboard-width), 560px) 24px 450px 24px minmax(360px, 1fr);
+      grid-template-rows: auto auto auto auto auto $chat-height;
       grid-template-areas:
-        'board        . tools'
-        'controls     . tools'
-        'kb-move      . tools'
-        'under        . tools'
-        'side         side side'
-        'round-training round-training round-training'
-        'chat         . uchat';
+        'board        . tools . side'
+        'controls     . tools . side'
+        'kb-move      . tools . side'
+        'under        . tools . side'
+        'round-training round-training round-training round-training round-training'
+        'chat         . uchat . .';
     }
+
+    grid-row-gap: 24px;
+    padding: 32px;
 
     .mchat {
       margin-top: 0;

@@ -159,6 +159,7 @@ object PlanStateTracker:
             (obj \ "lastPly").toOption.isDefined
 
         if isV2Node then obj.validate[ColorPlanState]
+        else if obj.value.isEmpty then JsSuccess(ColorPlanState())
         else obj.validate[PlanContinuity].map(cont => ColorPlanState(primary = Some(cont)))
       case _ => JsSuccess(ColorPlanState())
 

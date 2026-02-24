@@ -1412,7 +1412,7 @@
     {
       "id": "zugzwang_mutual",
       "title": "Mutual Zugzwang: Pawn Endgame (Precision)",
-      "analysisFen": "8/8/p1p5/PpP5/1P1K4/8/8/8 w - - 0 1",
+      "analysisFen": "8/8/p1pk4/PpP5/1P1K4/8/8/8 w - - 0 1",
       "ply": 55,
       "playedMove": "d4c4",
       "phase": "Endgame",

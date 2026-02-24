@@ -10,7 +10,7 @@
 - Checks: 12
 - Matched: 12
 - Concept F1: 1.0000 (gate >= 0.85)
-- Latency p95: 19.000 ms
+- Latency p95: 8.000 ms
 
 ## V2 Pattern Metrics
 
@@ -20,12 +20,12 @@
 - Recall: 1.0000
 - F1: 1.0000 (gate >= 0.88)
 - Macro F1: 1.0000
-- Signal match: 0.6000 (checks=105, matched=63, gate >= 0.55)
-- Latency p95: 4.000 ms
+- Signal match: 0.7382 (checks=359, matched=265, gate >= 0.55)
+- Latency p95: 3.000 ms
 
 ## Combined Latency Gate
 
-- max(v1, v2) p95: 19.000 ms (gate <= 40.00)
+- max(v1, v2) p95: 8.000 ms (gate <= 40.00)
 
 ## Per-Pattern
 
