@@ -26,8 +26,8 @@ object page:
   )
 
   def boardStyle(zoomable: Boolean)(using ctx: lila.api.Context) =
-    s"---board-opacity:${ctx.pref.board.opacity.toDouble / 100};" +
-      s"---board-brightness:${ctx.pref.board.brightness.toDouble / 100};" +
+    s"---board-opacity:${ctx.pref.board.opacity};" +
+      s"---board-brightness:${ctx.pref.board.brightness};" +
       s"---board-hue:${ctx.pref.board.hue};" +
       zoomable.so(s"---zoom:$pageZoom;")
 

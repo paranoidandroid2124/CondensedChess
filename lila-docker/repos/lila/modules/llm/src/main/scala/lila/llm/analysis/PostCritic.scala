@@ -120,7 +120,74 @@ object PostCritic:
       .replaceAll("\\n{3,}", "\n\n")           // collapse extra blank lines
       .trim
 
-  private def rewriteBoilerplate(text: String): String = text
+  private def rewriteBoilerplate(text: String): String =
+    val rewriteRules = List(
+      "keeps coordination and king safety linked" -> Vector(
+        "keeps piece harmony and king cover aligned",
+        "keeps king cover synchronized with piece harmony",
+        "keeps defensive cover and piece harmony in step"
+      ),
+      "coordination and king safety linked" -> Vector(
+        "piece harmony and king cover aligned",
+        "king cover and coordination synchronized",
+        "defensive cover tied to piece harmony"
+      ),
+      "remains the benchmark continuation, with only a modest practical edge" -> Vector(
+        "stays the reference continuation, with a slim practical margin",
+        "remains the practical benchmark, with a narrow edge",
+        "is still the reference move, with only a thin practical edge"
+      ),
+      "with only a modest practical edge" -> Vector(
+        "with a slim practical margin",
+        "with only a narrow practical edge",
+        "with a small practical plus"
+      ),
+      "changes which plan family is easier to execute" -> Vector(
+        "shifts which plan branch is simplest to execute",
+        "changes which strategic branch is easiest to handle",
+        "alters which plan route is most practical"
+      ),
+      "as the central roadmap, limiting early strategic drift" -> Vector(
+        "as the strategic anchor, reducing early drift",
+        "as the main route, keeping early plans coherent",
+        "as the core plan map, avoiding early detours"
+      ),
+      "key difference: strategic separation between" -> Vector(
+        "core contrast between",
+        "main practical split between",
+        "principal divergence between"
+      ),
+      "the struggle has shifted into technical endgame play" -> Vector(
+        "the game has moved into a technical endgame phase",
+        "play has transitioned into technical endgame handling",
+        "the position now demands technical endgame play"
+      ),
+      "this phase is now about endgame conversion technique" -> Vector(
+        "this phase now turns on conversion technique",
+        "conversion technique now defines this phase",
+        "the phase is now decided by technical conversion"
+      )
+    )
+
+    rewriteRules.foldLeft(text) { case (acc, (needle, variants)) =>
+      rewritePhraseWithVariants(acc, needle, variants)
+    }
+
+  private def rewritePhraseWithVariants(
+    text: String,
+    needle: String,
+    variants: Vector[String]
+  ): String =
+    if text.isEmpty || needle.isEmpty || variants.isEmpty then text
+    else
+      val pattern = (s"(?i)${Regex.quote(needle)}").r
+      var occurrence = 0
+      val baseSeed = text.hashCode ^ needle.hashCode ^ 0x7f4a7c15
+      pattern.replaceAllIn(text, _ =>
+        val idx = Math.floorMod(baseSeed ^ (occurrence * 0x9e3779b9), variants.size)
+        occurrence += 1
+        variants(idx)
+      )
 
   private def sanitizeTerminalTone(text: String): String =
     val basic = structureLeakTokens.foldLeft(text) { (acc, token) =>

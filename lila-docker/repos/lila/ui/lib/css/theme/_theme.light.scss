@@ -64,3 +64,19 @@ html.light {
 
   @include light-mix;
 }
+
+// Chesstory Pro Theme Overrides for Light Mode
+html.pro.light {
+  $pro-cream: #f2ede6;
+  $pro-copper: #c96b3a;
+
+  --c-bg-page: #{$pro-cream};
+  --c-bg: #{$pro-cream};
+  --c-primary: #{$pro-copper};
+  --c-link: #{$pro-copper};
+  --c-link-hover: #{darken($pro-copper, 10%)};
+
+  // Update header and chrome to match
+  --c-bg-header-dropdown: #{$pro-cream};
+  --c-bg-input: #{change-color($pro-cream, $lightness: 98%)};
+}

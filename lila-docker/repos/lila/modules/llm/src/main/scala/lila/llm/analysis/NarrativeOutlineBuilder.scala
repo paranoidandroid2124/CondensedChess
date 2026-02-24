@@ -247,7 +247,7 @@ object NarrativeOutlineBuilder:
         }
         .distinct
     val motifPrefixCandidates =
-      (conceptLeadMotifs ++ deltaMotifs ++ counterfactualMotifs)
+      (conceptLeadMotifs ++ derivedContextMotifs ++ deltaMotifs ++ counterfactualMotifs)
         .map(_.trim)
         .filter(_.nonEmpty)
         .filter(m => motifPhaseCompatible(m, phase))
@@ -266,12 +266,20 @@ object NarrativeOutlineBuilder:
           )
         }
         .take(4)
+    val endgamePatternPrefix =
+      ctx.semantic
+        .flatMap(_.endgameFeatures.flatMap(_.primaryPattern))
+        .flatMap(p => NarrativeLexicon.getEndgamePatternPrefix(bead ^ motifHash ^ 0x6f2b3d17, p))
     val motifPrefix = NarrativeLexicon.getMotifPrefix(bead ^ motifHash, motifPrefixCandidates, ply = ctx.ply)
 
     val boardAnchor = buildBoardAnchor(ctx, keyFact, bead)
     boardAnchor.foreach(a => parts += a.text)
 
-    val leadText = List(motifPrefix.map(_.trim).getOrElse(""), openingPart.trim).filter(_.nonEmpty).mkString(" ").trim
+    val leadText = List(
+      endgamePatternPrefix.map(_.trim).getOrElse(""),
+      motifPrefix.map(_.trim).getOrElse(""),
+      openingPart.trim
+    ).filter(_.nonEmpty).mkString(" ").trim
     parts += leadText
     val existingThemeText = List(boardAnchor.map(_.text).getOrElse(""), leadText).mkString(" ")
     val themeSignalPool =
@@ -285,6 +293,15 @@ object NarrativeOutlineBuilder:
       phase = phase
     )
       .foreach(parts += _)
+    val canonicalTermPool =
+      (conceptSummaryMotifs ++ derivedContextMotifs ++ deltaMotifs ++ counterfactualMotifs).distinct
+    buildCanonicalMotifTermSentence(
+      motifs = canonicalTermPool,
+      existingText = parts.mkString(" "),
+      bead = bead ^ 0x31af9d42,
+      ply = ctx.ply,
+      phase = phase
+    ).foreach(parts += _)
 
     // Main threat if exists (adds drama)
     ctx.threats.toUs.headOption.filter(_.lossIfIgnoredCp >= 30).foreach { t =>
@@ -1623,7 +1640,7 @@ object NarrativeOutlineBuilder:
             NarrativeLexicon.pick(bead ^ Math.abs(move.hashCode), List(
               s"$move reshapes the practical balance",
               s"$move redirects the strategic route",
-              s"$move changes which plan family is easier to execute",
+              s"$move shifts which plan branch is simplest to handle",
               s"$move alters the strategic map for both sides",
               s"$move shifts the practical focus of the position",
               s"The move $move introduces a new strategic branch"
@@ -2044,6 +2061,78 @@ object NarrativeOutlineBuilder:
       Some(polished)
   }
 
+  private def buildCanonicalMotifTermSentence(
+    motifs: List[String],
+    existingText: String,
+    bead: Int,
+    ply: Int,
+    phase: String
+  ): Option[String] =
+    val canonicalTerms = motifs
+      .map(normalizeMotifKey)
+      .filter(_.nonEmpty)
+      .filter(m => motifPhaseCompatible(m, phase))
+      .flatMap(canonicalTermForMotif)
+      .distinct
+    val existingLower = existingText.toLowerCase
+    val missingTerms =
+      canonicalTerms.filterNot { term =>
+        existingLower.contains(term.toLowerCase)
+      }
+    if missingTerms.isEmpty then None
+    else
+      val selected = missingTerms.take(2)
+      val rendered =
+        selected match
+          case List(one) =>
+            NarrativeLexicon.pickWithPlyRotation(
+              bead,
+              ply,
+              List(
+                s"Concrete motif term: $one.",
+                s"The practical keyword here is $one.",
+                s"A concrete motif to track is $one."
+              )
+            )
+          case List(one, two) =>
+            NarrativeLexicon.pickWithPlyRotation(
+              bead,
+              ply,
+              List(
+                s"Concrete motif terms: $one and $two.",
+                s"Practical motif keywords are $one and $two.",
+                s"The relevant motif labels here are $one and $two."
+              )
+            )
+          case _ => ""
+      Option.when(rendered.trim.nonEmpty)(rendered.trim)
+
+  private def canonicalTermForMotif(rawMotif: String): Option[String] =
+    val motif = normalizeMotifKey(rawMotif)
+    if motif.isEmpty then None
+    else if motif.contains("passed_pawn") || motif.contains("promotion_race") then Some("passed pawn")
+    else if motif.contains("pawn_storm") then Some("pawn storm")
+    else if motif.contains("zwischenzug") then Some("zwischenzug")
+    else if motif.contains("interference") then Some("interference")
+    else if motif.contains("zugzwang") then Some("zugzwang")
+    else if motif.contains("smothered_mate") || motif.contains("smothered") then Some("smothered mate")
+    else if motif.contains("trapped_piece") || motif.contains("trapped") then Some("trapped")
+    else if motif.contains("prophylaxis") then Some("prophylactic")
+    else if motif.contains("isolated_pawn") || motif == "iqp" then Some("isolated")
+    else if motif.contains("deflection") then Some("deflection")
+    else if motif.contains("king_hunt") then Some("king hunt")
+    else if motif.contains("battery") then Some("battery")
+    else if motif.contains("bishop_pair") then Some("bishop pair")
+    else if motif.contains("opposite_bishops") || motif.contains("opposite_color_bishops") then Some("opposite-colored bishops")
+    else if motif.contains("simplification") then Some("simplification")
+    else if motif.contains("knight_domination") || motif.contains("domination") then Some("dominate")
+    else if motif.contains("novelty") then Some("novelty")
+    else if motif.contains("rook_lift") then Some("rook lift")
+    else if motif.contains("stalemate") then Some("stalemate")
+    else if motif.contains("underpromotion") then Some("underpromotion")
+    else if motif.contains("repetition") || motif.contains("repeat") then Some("repeat")
+    else None
+
   private def buildImbalanceContrast(ctx: NarrativeContext): Option[(String, String)] =
     ctx.semantic.flatMap { semantic =>
       def formatTag(tag: PositionalTagInfo): Option[String] = tag.tagType match {
@@ -2105,6 +2194,12 @@ object NarrativeOutlineBuilder:
       else if low.contains("connectedpassers") then motifs += "connected_passers"
       else if low.contains("oppositecoloredbishops") then motifs += "opposite_bishops"
       else if low.contains("wrongrookpawnwrongbishopfortress") then motifs += "wrong_bishop_fortress"
+      else if low.contains("shortsidedefense") then motifs += "short_side_defense"
+      else if low.contains("breakthroughsacrifice") then motifs += "breakthrough_sacrifice"
+      else if low.contains("shouldering") then motifs += "shouldering"
+      else if low.contains("retimaneuver") then motifs += "reti_maneuver"
+      else if low.contains("goodbishoprookpawnconversion") then motifs += "good_bishop_rook_pawn"
+      else if low.contains("knightblockaderookpawndraw") then motifs += "knight_blockade_rook_pawn"
     }
     motifs.distinct.toList
 
@@ -2222,7 +2317,22 @@ object NarrativeOutlineBuilder:
         "zugzwang",
         "opposition",
         "king_cut_off",
-        "rook_behind_passed_pawn"
+        "rook_behind_passed_pawn",
+        "lucena",
+        "philidor",
+        "vancura",
+        "triangulation",
+        "outside_passer",
+        "connected_passers",
+        "wrong_bishop_fortress",
+        "short_side_defense",
+        "breakthrough_sacrifice",
+        "shouldering",
+        "reti_maneuver",
+        "good_bishop_rook_pawn",
+        "knight_blockade_rook_pawn",
+        "promotion_race",
+        "forced_draw_resource"
       ).exists(motif.contains)
     else true
 
@@ -2252,9 +2362,9 @@ object NarrativeOutlineBuilder:
       case _: Fact.Outpost =>
         List("outpost", "knight_domination", "maneuver", "knight_vs_bishop").exists(motif.contains)
       case _: Fact.Opposition =>
-        motif.contains("zugzwang") || motif.contains("king_cut_off")
+        motif.contains("opposition")
       case _: Fact.KingActivity =>
-        motif.contains("king_cut_off") || motif.contains("passed_pawn") || motif.contains("zugzwang")
+        motif.contains("king_cut_off") || motif.contains("passed_pawn")
       case _ => false
 
   private def motifCorroboratedByThreat(motif: String, threatsToUs: List[ThreatRow]): Boolean =
@@ -2878,7 +2988,9 @@ object NarrativeOutlineBuilder:
                   s"Engine order keeps $bestRef first, though this remains close in practical terms.",
                   s"$bestRef still tops the engine list, but the gap here is narrow.",
                   s"The engine shows a slight preference for $bestRef, while this stays near-equivalent over the board.",
-                  s"$bestRef remains the clean reference continuation, with only a small edge."
+                  s"$bestRef stays the main reference move, and the practical margin is slim.",
+                  s"The reference line still starts with $bestRef, but practical margins are thin.",
+                  s"$bestRef keeps a narrow technical lead while this option stays playable."
                 )
             case Some(loss) =>
               if preferPracticalWording then
@@ -2998,8 +3110,8 @@ object NarrativeOutlineBuilder:
       if role.equalsIgnoreCase("engine_primary") then
         List(
           s"With **$move**, conversion around **$move** can stay smoother$planHint, but initiative around **$move** can swing when **$move** hands away a tempo.",
-          s"Handled precisely, **$move** keeps coordination and king safety linked$planHint through the next phase.",
-          s"From a practical-conversion view, **$move** stays reliable$planHint when defensive coverage remains synchronized.",
+          s"Handled precisely, **$move** keeps piece harmony and king cover aligned$planHint through the next phase.",
+          s"From a practical-conversion view, **$move** stays reliable$planHint when defensive timing and coverage stay coordinated.",
           s"**$move** keeps practical burden manageable$planHint by preserving coordination before exchanges."
         )
       else

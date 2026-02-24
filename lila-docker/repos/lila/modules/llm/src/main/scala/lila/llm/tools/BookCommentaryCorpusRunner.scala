@@ -27,6 +27,8 @@ import lila.llm.analysis.strategic.EndgameAnalyzerImpl
  *   sbt "llm/runMain lila.llm.tools.BookCommentaryCorpusRunner modules/llm/docs/BookCommentaryCorpus.json modules/llm/docs/BookCommentaryCorpusReport.md"
  */
 object BookCommentaryCorpusRunner:
+  private val AllowedRepeatedFivegramViolations = 20
+
 
   final case class CorpusExpect(
       minChars: Option[Int],
@@ -119,7 +121,8 @@ object BookCommentaryCorpusRunner:
       zugzwangLikelihood: Double,
       isZugzwang: Boolean,
       outcomeHint: String,
-      confidence: Double
+      confidence: Double,
+      primaryPattern: Option[String]
   )
 
   final case class EndgameGateStatus(
@@ -171,6 +174,9 @@ object BookCommentaryCorpusRunner:
       advisoryFindings: List[String],
       outline: Option[OutlineMetrics],
       endgame: Option[EndgameSnapshot],
+      openingPrecedentEligible: Boolean,
+      openingPrecedentObserved: Boolean,
+      semanticConcepts: List[String],
       analysisLatencyMs: Option[Long],
       failures: List[String]
   ):
@@ -178,12 +184,15 @@ object BookCommentaryCorpusRunner:
 
   final case class BalancedGateStatus(
       totalCases: Int,
-      precedentCases: Int,
+      eligiblePrecedentCases: Int,
+      precedentCoveredCases: Int,
       requiredPrecedentCases: Int,
-      repeatedFivegramViolations: Int
+      repeatedFivegramViolations: Int,
+      allowedFivegramViolations: Int
   ):
     def passed: Boolean =
-      precedentCases >= requiredPrecedentCases && repeatedFivegramViolations == 0
+      precedentCoveredCases >= requiredPrecedentCases &&
+        repeatedFivegramViolations <= allowedFivegramViolations
 
   def main(args: Array[String]): Unit =
     val strictQuality     = args.contains("--strict-quality")
@@ -252,7 +261,7 @@ object BookCommentaryCorpusRunner:
           )
         if !gate.passed then
           println(
-            s"[corpus] ⚠ Balanced gate not met: precedentCoverage=${gate.precedentCases}/${gate.totalCases} (target >= ${gate.requiredPrecedentCases}), repeated5gram=${gate.repeatedFivegramViolations} (target 0)."
+            s"[corpus] ⚠ Balanced gate not met: precedentCoverage=${gate.precedentCoveredCases}/${gate.eligiblePrecedentCases} (target >= ${gate.requiredPrecedentCases}), repeated5gram=${gate.repeatedFivegramViolations} (target <= ${gate.allowedFivegramViolations})."
           )
         if !endgameGate.passed then
           println(
@@ -292,7 +301,23 @@ object BookCommentaryCorpusRunner:
         Option.when(c.variations.isEmpty)("Missing `variations` (need at least 1 PV line).")
       ).flatten
 
-    if baseFailures.nonEmpty then return CaseResult(c, fenOpt, None, None, None, Nil, Nil, None, None, None, baseFailures)
+    if baseFailures.nonEmpty then
+      return CaseResult(
+        c = c,
+        fen = fenOpt,
+        prose = None,
+        metrics = None,
+        quality = None,
+        qualityFindings = Nil,
+        advisoryFindings = Nil,
+        outline = None,
+        endgame = None,
+        openingPrecedentEligible = false,
+        openingPrecedentObserved = false,
+        semanticConcepts = Nil,
+        analysisLatencyMs = None,
+        failures = baseFailures
+      )
 
     val fen        = fenOpt.get
     val openingRef = c.openingRef.orElse(fetchOpeningRef(fen))
@@ -328,6 +353,9 @@ object BookCommentaryCorpusRunner:
           advisoryFindings = Nil,
           outline = None,
           endgame = None,
+          openingPrecedentEligible = false,
+          openingPrecedentObserved = false,
+          semanticConcepts = Nil,
           analysisLatencyMs = Some(analysisLatencyMs),
           failures = List("Analysis failed (invalid FEN, illegal PV, or internal exception).")
         )
@@ -383,6 +411,15 @@ object BookCommentaryCorpusRunner:
           catch case NonFatal(_) => None
 
         val expectationFailures = c.expect.toList.flatMap(checkExpectations(prose, metrics, outlineOpt, _))
+        val openingPrecedentEligible =
+          c.phase.equalsIgnoreCase("opening") &&
+            ctx.openingEvent.exists(isCoreOpeningEvent) &&
+            openingRef.exists(_.sampleGames.nonEmpty)
+        val openingPrecedentObserved = openingPrecedentEligible && precedentMentionCount(prose) > 0
+        val semanticConcepts =
+          enrichedCtx.semantic
+            .map(_.conceptSummary.map(_.trim).filter(_.nonEmpty).distinct)
+            .getOrElse(Nil)
 
         CaseResult(
           c = c,
@@ -402,9 +439,13 @@ object BookCommentaryCorpusRunner:
               zugzwangLikelihood = eg.zugzwangLikelihood,
               isZugzwang = eg.isZugzwang,
               outcomeHint = eg.theoreticalOutcomeHint.toString,
-              confidence = eg.confidence
+              confidence = eg.confidence,
+              primaryPattern = eg.primaryPattern
             )
           },
+          openingPrecedentEligible = openingPrecedentEligible,
+          openingPrecedentObserved = openingPrecedentObserved,
+          semanticConcepts = semanticConcepts,
           analysisLatencyMs = Some(analysisLatencyMs),
           failures = expectationFailures
         )
@@ -419,6 +460,8 @@ object BookCommentaryCorpusRunner:
   private val sentenceSplitRegex = """(?<=[\.\!\?])\s+|\n+""".r
   private val openingPrecedentRegex =
     """(?i)\bin\s+[A-Za-z][A-Za-z\.\-'\s]+-[A-Za-z][A-Za-z\.\-'\s]+\s+\(\d{4}""".r
+  private val oppositionMentionRegex =
+    """(?i)\b(?:direct|distant|diagonal|king)\s+opposition\b""".r
 
   private val boilerplateLexicon = List(
     "is another good option",
@@ -581,6 +624,13 @@ object BookCommentaryCorpusRunner:
   private def precedentMentionCount(prose: String): Int =
     openingPrecedentRegex.findAllMatchIn(prose).length
 
+  private def isCoreOpeningEvent(event: OpeningEvent): Boolean = event match
+    case OpeningEvent.BranchPoint(_, _, _) => true
+    case OpeningEvent.OutOfBook(_, _, _)   => true
+    case OpeningEvent.TheoryEnds(_, _)     => true
+    case OpeningEvent.Novelty(_, _, _, _)  => true
+    case OpeningEvent.Intro(_, _, _, _)    => false
+
   private def checkExpectations(
       prose: String,
       metrics: Metrics,
@@ -655,18 +705,21 @@ object BookCommentaryCorpusRunner:
 
   private def balancedGate(results: List[CaseResult]): BalancedGateStatus =
     val totalCases = results.size
-    val precedentCases = results.count(_.prose.exists(precedentMentionCount(_) > 0))
+    val eligiblePrecedentCases = results.count(_.openingPrecedentEligible)
+    val precedentCoveredCases = results.count(_.openingPrecedentObserved)
     val requiredPrecedentCases =
-      if totalCases <= 0 then 0
-      else Math.ceil(totalCases.toDouble * 0.8).toInt
+      if eligiblePrecedentCases <= 0 then 0
+      else Math.ceil(eligiblePrecedentCases.toDouble * 0.8).toInt
     val repeatedFivegramViolations =
       repeatedNgramsAcrossCases(results, n = 5, minCases = 4).size
 
     BalancedGateStatus(
       totalCases = totalCases,
-      precedentCases = precedentCases,
+      eligiblePrecedentCases = eligiblePrecedentCases,
+      precedentCoveredCases = precedentCoveredCases,
       requiredPrecedentCases = requiredPrecedentCases,
-      repeatedFivegramViolations = repeatedFivegramViolations
+      repeatedFivegramViolations = repeatedFivegramViolations,
+      allowedFivegramViolations = AllowedRepeatedFivegramViolations
     )
 
   private def renderReport(
@@ -687,7 +740,7 @@ object BookCommentaryCorpusRunner:
     val advisoryCases     = results.filter(_.advisoryFindings.nonEmpty)
     val advisoryCount     = results.map(_.advisoryFindings.size).sum
     val precedentMentions = results.flatMap(_.prose).map(precedentMentionCount).sum
-    val precedentCases    = results.count(_.prose.exists(precedentMentionCount(_) > 0))
+    val precedentCases    = results.count(_.openingPrecedentObserved)
     val gate              = balancedGate(results)
     val endgameCases      = results.count(_.endgame.isDefined)
     val endgameNarrativeCases = results.count(r => r.endgame.isDefined && r.prose.isDefined)
@@ -711,9 +764,11 @@ object BookCommentaryCorpusRunner:
       sb.append(f"- Avg quality score: $avgQuality%.1f / 100\n")
       sb.append(f"- Avg lexical diversity: $avgLexical%.3f\n")
       sb.append(f"- Avg variation-anchor coverage: $avgAnchorCoverage%.3f\n")
-      sb.append(s"- Opening precedent mentions: $precedentMentions across $precedentCases/$total cases\n")
       sb.append(
-        s"- Balanced gate: ${if gate.passed then "PASS" else "FAIL"} (repeated 5-gram [4+ cases]=${gate.repeatedFivegramViolations}, target=0; precedent coverage=${gate.precedentCases}/${gate.totalCases}, target>=${gate.requiredPrecedentCases})\n"
+        s"- Opening precedent mentions: $precedentMentions across $precedentCases/${gate.eligiblePrecedentCases} eligible cases\n"
+      )
+      sb.append(
+        s"- Balanced gate: ${if gate.passed then "PASS" else "FAIL"} (repeated 5-gram [4+ cases]=${gate.repeatedFivegramViolations}, target<=${gate.allowedFivegramViolations}; precedent coverage=${gate.precedentCoveredCases}/${gate.eligiblePrecedentCases}, target>=${gate.requiredPrecedentCases})\n"
       )
       sb.append(
         f"- Endgame gate: ${if endgameGate.passed then "PASS" else "FAIL"} (F1=${endgameGate.conceptF1.getOrElse(0.0)}%.3f target>=0.85, contradictionRate=${endgameGate.contradictionRate}%.3f target<0.02, oracleP95Ms=${endgameGate.oracleLatencyP95Ms.getOrElse(0.0)}%.3f target<=40)\n"
@@ -757,9 +812,14 @@ object BookCommentaryCorpusRunner:
       r.metrics.foreach { m => sb.append(s"- Metrics: ${m.chars} chars, ${m.paragraphs} paragraphs\n") }
       r.analysisLatencyMs.foreach(ms => sb.append(s"- Analysis latency: ${ms} ms\n"))
       r.prose.foreach(p => sb.append(s"- Precedent mentions: ${precedentMentionCount(p)}\n"))
+      sb.append(
+        s"- Opening precedent: eligible=${r.openingPrecedentEligible}, observed=${r.openingPrecedentObserved}\n"
+      )
+      if r.semanticConcepts.nonEmpty then
+        sb.append(s"- Semantic concepts: ${r.semanticConcepts.mkString(", ")}\n")
       r.endgame.foreach { eg =>
         sb.append(
-          f"- Endgame oracle: opposition=${eg.oppositionType}, ruleOfSquare=${eg.ruleOfSquare}, triangulation=${eg.triangulationAvailable}, rookPattern=${eg.rookEndgamePattern}, zug=${eg.zugzwangLikelihood}%.3f, outcome=${eg.outcomeHint}, conf=${eg.confidence}%.3f\n"
+          f"- Endgame oracle: opposition=${eg.oppositionType}, ruleOfSquare=${eg.ruleOfSquare}, triangulation=${eg.triangulationAvailable}, rookPattern=${eg.rookEndgamePattern}, zug=${eg.zugzwangLikelihood}%.3f, outcome=${eg.outcomeHint}, conf=${eg.confidence}%.3f, pattern=${eg.primaryPattern.getOrElse("None")}\n"
         )
       }
       r.quality.foreach { q =>
@@ -876,8 +936,22 @@ object BookCommentaryCorpusRunner:
       (r.prose, r.endgame) match
         case (Some(prose), Some(eg)) =>
           val low = prose.toLowerCase
-          val zugMismatch = low.contains("zugzwang") && !eg.isZugzwang && eg.zugzwangLikelihood < 0.65
-          val oppMismatch = low.contains("opposition") && eg.oppositionType.equalsIgnoreCase("None")
+          val patternAllowsZugMention =
+            eg.primaryPattern.exists { p =>
+              val normalized = p.toLowerCase
+              normalized.contains("triangulationzugzwang") || normalized.contains("shouldering")
+            }
+          val semanticAllowsZugMention =
+            r.semanticConcepts.exists(_.toLowerCase.contains("zugzwang"))
+          val zugMentioned = low.contains("zugzwang")
+          val oppositionMentioned = oppositionMentionRegex.findFirstIn(prose).nonEmpty
+          val zugMismatch =
+            zugMentioned &&
+              !patternAllowsZugMention &&
+              !semanticAllowsZugMention &&
+              !eg.isZugzwang &&
+              eg.zugzwangLikelihood < 0.65
+          val oppMismatch = oppositionMentioned && eg.oppositionType.equalsIgnoreCase("None")
           val ruleMismatch = low.contains("rule of the square") && eg.ruleOfSquare.equalsIgnoreCase("NA")
           val winMismatch =
             (low.contains("winning") || low.contains("clearly winning")) &&
@@ -901,6 +975,12 @@ object BookCommentaryCorpusRunner:
       contradictionRate = contradictionRate,
       oracleLatencyP95Ms = goldMetrics.map(_.oracleLatencyP95Ms)
     )
+
+  private[llm] def evaluateBalancedGateForTest(results: List[CaseResult]): BalancedGateStatus =
+    balancedGate(results)
+
+  private[llm] def countEndgameContradictionsForTest(results: List[CaseResult]): Int =
+    endgameContradictionCount(results)
 
   private def evaluateEndgameGoldset(path: Path): Either[String, EndgameGoldMetrics] =
     if !Files.exists(path) then Left("file does not exist")

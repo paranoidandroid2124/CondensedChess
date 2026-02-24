@@ -278,25 +278,33 @@ object EndgamePatternOracle:
       color: Color,
       core: EndgameFeature
   ): Option[PatternMatch] =
-    val pairs = connectedPassedPairs(board, color).filter { case (a, b) =>
-      relativeRank(a, color) >= 5 && relativeRank(b, color) >= 5
-    }
-    if pairs.isEmpty then None
-    else if board.queens.count > 0 || board.byPiece(!color, Rook).count > 0 then None
+    if !hasOnlyKingsAndPawns(board) then None
+    else if passedPawns(board, !color).nonEmpty then None
     else
-      val blockedByKing = board.kingPosOf(!color).exists { enemyKing =>
-        pairs.exists { case (a, b) => chebyshev(enemyKing, a) <= 1 && chebyshev(enemyKing, b) <= 1 }
+      val pairs = connectedPassedPairs(board, color).filter { case (a, b) =>
+        relativeRank(a, color) >= 5 &&
+        relativeRank(b, color) >= 5 &&
+        (relativeRank(a, color) - relativeRank(b, color)).abs <= 1
       }
-      if blockedByKing then None
+      if pairs.size != 1 then None
       else
-        Some(
-          PatternMatch(
-            id = "ConnectedPassers",
-            outcomeOverride = Some(TheoreticalOutcomeHint.Win),
-            confidenceFloor = 0.78,
-            ambiguityPenalty = if core.kingActivityDelta <= 0 then 0.07 else 0.0
+        val (first, second) = pairs.head
+        val kingSupport = board.kingPosOf(color).exists { ourKing =>
+          chebyshev(ourKing, first) <= 2 || chebyshev(ourKing, second) <= 2
+        }
+        val blockedByKing = board.kingPosOf(!color).exists { enemyKing =>
+          chebyshev(enemyKing, first) <= 1 && chebyshev(enemyKing, second) <= 1
+        }
+        if !kingSupport || blockedByKing then None
+        else
+          Some(
+            PatternMatch(
+              id = "ConnectedPassers",
+              outcomeOverride = Some(TheoreticalOutcomeHint.Win),
+              confidenceFloor = 0.78,
+              ambiguityPenalty = if core.kingActivityDelta <= 0 then 0.07 else 0.0
+            )
           )
-        )
 
   private def detectOutsidePasserDecoy(
       board: Board,
@@ -305,26 +313,34 @@ object EndgamePatternOracle:
   ): Option[PatternMatch] =
     if !hasOnlyKingsAndPawns(board) then None
     else
-      val passers = passedPawns(board, color)
-      val outside = passers.filter(p => p.file == File.A || p.file == File.B || p.file == File.G || p.file == File.H)
-      val supportPawnExists = outside.exists { out =>
-        board.byPiece(color, Pawn).squares.exists(p => fileDistance(p.file, out.file) >= 3)
-      }
-      val enemyFrontBlock = outside.exists { out =>
-        board.kingPosOf(!color).exists { k =>
-          k.file == out.file && (if color.white then k.rank.value > out.rank.value else k.rank.value < out.rank.value)
-        }
-      }
-      if outside.isEmpty || !supportPawnExists || core.kingActivityDelta < 0 || enemyFrontBlock then None
-      else
-        Some(
-          PatternMatch(
-            id = "OutsidePasserDecoy",
-            outcomeOverride = Some(TheoreticalOutcomeHint.Win),
-            confidenceFloor = 0.76,
-            ambiguityPenalty = 0.01
-          )
-        )
+      val outsideCandidates = passedPawns(board, color)
+        .filter(isFlankPawn)
+        .sortBy(p => -relativeRank(p, color))
+      (outsideCandidates.headOption, board.kingPosOf(color), board.kingPosOf(!color)) match
+        case (Some(outsidePawn), Some(ourKing), Some(enemyKing)) =>
+          val outsideRank = relativeRank(outsidePawn, color)
+          val supportPawnOpt = board.byPiece(color, Pawn).squares
+            .filter(p => p != outsidePawn && fileDistance(p.file, outsidePawn.file) >= 3)
+            .sortBy(p => -relativeRank(p, color))
+            .headOption
+          val enemyCounterPasser = passedPawns(board, !color).exists { p =>
+            relativeRank(p, !color) >= math.max(1, outsideRank - 1)
+          }
+          val enemyFrontBlock =
+            enemyKing.file == outsidePawn.file &&
+            (if color.white then enemyKing.rank.value > outsidePawn.rank.value else enemyKing.rank.value < outsidePawn.rank.value)
+          val supportAccess = supportPawnOpt.exists(p => chebyshev(ourKing, p) <= 3)
+          if outsideCandidates.size != 1 || outsideRank < 4 || !supportAccess || core.kingActivityDelta < 0 || enemyCounterPasser || enemyFrontBlock then None
+          else
+            Some(
+              PatternMatch(
+                id = "OutsidePasserDecoy",
+                outcomeOverride = Some(TheoreticalOutcomeHint.Win),
+                confidenceFloor = 0.76,
+                ambiguityPenalty = 0.01
+              )
+            )
+        case _ => None
 
   private def detectBreakthroughSacrifice(
       board: Board,
@@ -333,19 +349,25 @@ object EndgamePatternOracle:
   ): Option[PatternMatch] =
     if !hasOnlyKingsAndPawns(board) then None
     else
-      val ourPawns = board.byPiece(color, Pawn).squares
+      val ourPawns = board.byPiece(color, Pawn).squares.toSet
+      val enemyPawns = board.byPiece(!color, Pawn).squares.toSet
       val targetRank = if color.white then Rank.Fifth else Rank.Fourth
       val frontRank = if color.white then Rank.Sixth else Rank.Third
-      val onTarget = ourPawns.filter(_.rank == targetRank)
-      val files = onTarget.map(_.file.value).sorted
-      val hasTriplet = files.sliding(3).exists {
-        case List(a, b, c) => b == a + 1 && c == b + 1
-        case _ => false
+      val tripletStartOpt = (0 to 5).find { start =>
+        val files = List(start, start + 1, start + 2)
+        val ourAligned = files.forall(f => Square.at(f, targetRank.value).exists(ourPawns.contains))
+        val enemyAligned = files.forall(f => Square.at(f, frontRank.value).exists(enemyPawns.contains))
+        ourAligned && enemyAligned
       }
-      val enemyFront = board.byPiece(!color, Pawn).squares.count(_.rank == frontRank)
-      if !hasTriplet || enemyFront < 3 then None
-      else
-        Some(
+      tripletStartOpt.flatMap { start =>
+        for
+          middle <- Square.at(start + 1, targetRank.value)
+          ourKing <- board.kingPosOf(color)
+          enemyKing <- board.kingPosOf(!color)
+          if chebyshev(ourKing, middle) <= 3
+          if chebyshev(enemyKing, middle) >= 2
+          if passedPawns(board, !color).isEmpty
+        yield
           PatternMatch(
             id = "BreakthroughSacrifice",
             outcomeOverride = Some(TheoreticalOutcomeHint.Win),
@@ -355,7 +377,7 @@ object EndgamePatternOracle:
             ),
             ambiguityPenalty = 0.0
           )
-        )
+      }
 
   private def detectShouldering(
       board: Board,
@@ -364,30 +386,39 @@ object EndgamePatternOracle:
   ): Option[PatternMatch] =
     if !hasOnlyKingsAndPawns(board) then None
     else
-      val pawnOpt = board.byPiece(color, Pawn).squares.sortBy(p => -relativeRank(p, color)).headOption
-      (board.kingPosOf(color), board.kingPosOf(!color), pawnOpt) match
-        case (Some(ourKing), Some(theirKing), Some(pawn)) =>
-          val kingClose = chebyshev(ourKing, theirKing) <= 2
-          val ourNearPawn = chebyshev(ourKing, pawn) <= 1
-          val enemyNearPawn = chebyshev(theirKing, pawn) <= 2
-          val oppositeFlanks =
-            (ourKing.file.value - pawn.file.value) * (theirKing.file.value - pawn.file.value) < 0
-          val progressShield =
-            if color.white then ourKing.rank.value >= pawn.rank.value
-            else ourKing.rank.value <= pawn.rank.value
-          if !kingClose || !ourNearPawn || !enemyNearPawn || !oppositeFlanks || !progressShield then None
-          else
-            Some(
-              PatternMatch(
-                id = "Shouldering",
-                confidenceFloor = 0.74,
-                signalOverrides = PatternSignalOverrides(
-                  zugzwangLikelihood = Some(math.max(core.zugzwangLikelihood, 0.65))
-                ),
-                ambiguityPenalty = 0.0
+      val ourPawns = board.byPiece(color, Pawn).squares
+      if ourPawns.size != 1 then None
+      else
+        val pawn = ourPawns.head
+        (board.kingPosOf(color), board.kingPosOf(!color)) match
+          case (Some(ourKing), Some(theirKing)) =>
+            val pawnIsPassed = isPassedPawn(board, pawn, color)
+            val advanced = relativeRank(pawn, color) >= 4
+            val enemyFrontBlock =
+              theirKing.file == pawn.file &&
+              (if color.white then theirKing.rank.value > pawn.rank.value else theirKing.rank.value < pawn.rank.value)
+            val kingClose = chebyshev(ourKing, theirKing) <= 2
+            val ourNearPawn = chebyshev(ourKing, pawn) <= 1
+            val enemyNearPawn = chebyshev(theirKing, pawn) <= 2
+            val oppositeFlanks =
+              (ourKing.file.value - pawn.file.value) * (theirKing.file.value - pawn.file.value) < 0
+            val shoulderWidth = fileDistance(ourKing.file, theirKing.file) == 2
+            val progressShield =
+              if color.white then ourKing.rank.value >= pawn.rank.value
+              else ourKing.rank.value <= pawn.rank.value
+            if !pawnIsPassed || !advanced || enemyFrontBlock || !kingClose || !ourNearPawn || !enemyNearPawn || !oppositeFlanks || !shoulderWidth || !progressShield then None
+            else
+              Some(
+                PatternMatch(
+                  id = "Shouldering",
+                  confidenceFloor = 0.74,
+                  signalOverrides = PatternSignalOverrides(
+                    zugzwangLikelihood = Some(math.max(core.zugzwangLikelihood, 0.65))
+                  ),
+                  ambiguityPenalty = 0.0
+                )
               )
-            )
-        case _ => None
+          case _ => None
 
   private def detectRetiManeuver(
       board: Board,
@@ -397,23 +428,30 @@ object EndgamePatternOracle:
     val _ = core
     if !hasOnlyKingsAndPawns(board) then None
     else
-      val ourPassers = passedPawns(board, color).filter(isRookPawn).sortBy(p => -relativeRank(p, color))
-      val enemyPassers = passedPawns(board, !color).filterNot(isRookPawn).sortBy(p => -relativeRank(p, !color))
-      (board.kingPosOf(color), ourPassers.headOption, enemyPassers.headOption) match
-        case (Some(ourKing), Some(ourPawn), Some(enemyPawn)) =>
-          val flankSplit = fileDistance(ourPawn.file, enemyPawn.file) >= 5
-          val cornerTarget = promotionSquare(ourPawn, color)
-          val kingOnCorner = cornerTarget.contains(ourKing)
-          if !flankSplit || !kingOnCorner then None
-          else
-            Some(
-              PatternMatch(
-                id = "RetiManeuver",
-                confidenceFloor = 0.74,
-                ambiguityPenalty = 0.0
+      val ourAllPawns = board.byPiece(color, Pawn).squares
+      if ourAllPawns.count(p => !isRookPawn(p)) > 0 then None
+      else
+        val ourPassers = passedPawns(board, color).filter(isRookPawn).sortBy(p => -relativeRank(p, color))
+        val enemyPassers = passedPawns(board, !color).filterNot(isRookPawn).sortBy(p => -relativeRank(p, !color))
+        (board.kingPosOf(color), board.kingPosOf(!color), ourPassers.headOption, enemyPassers.headOption) match
+          case (Some(ourKing), Some(enemyKing), Some(ourPawn), Some(enemyPawn)) =>
+            val ourAdvanced = relativeRank(ourPawn, color) >= 6
+            val enemyAdvanced = relativeRank(enemyPawn, !color) >= 4
+            val kingNotAlreadyGuardingPawn = chebyshev(ourKing, ourPawn) >= 2
+            val flankSplit = fileDistance(ourPawn.file, enemyPawn.file) >= 5
+            val cornerTarget = promotionSquare(ourPawn, color)
+            val kingOnCorner = cornerTarget.contains(ourKing)
+            val enemyFarFromCorner = cornerTarget.forall(pr => chebyshev(enemyKing, pr) > 2)
+            if ourPassers.size != 1 || enemyPassers.size != 1 || !ourAdvanced || !enemyAdvanced || !kingNotAlreadyGuardingPawn || !flankSplit || !kingOnCorner || !enemyFarFromCorner then None
+            else
+              Some(
+                PatternMatch(
+                  id = "RetiManeuver",
+                  confidenceFloor = 0.74,
+                  ambiguityPenalty = 0.0
+                )
               )
-            )
-        case _ => None
+          case _ => None
 
   private def detectShortSideDefense(
       board: Board,

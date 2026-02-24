@@ -986,6 +986,13 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(e.get.triangulationAvailable, true)
     assertEquals(e.get.rookEndgamePattern, "KingCutOff")
     assertEquals(e.get.theoreticalOutcomeHint, "Draw")
+    assert(
+      narrativeCtx.facts.exists {
+        case Fact.EndgameOutcome(outcome, conf, _) => outcome == "Draw" && conf == 0.78
+        case _                                     => false
+      },
+      "endgame facts should be sourced from oracle output when endgameFeatures is present"
+    )
   }
 
   test("Semantic: preventedPlans converted with threat type") {

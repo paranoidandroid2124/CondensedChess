@@ -123,6 +123,21 @@ The feature is considered closed only when all of the following are true:
 *   **Theoretical Positions Library:** Recognize forced win/draw patterns (e.g., Lucena Position, Philidor Position, Vancura Defense) and explain them textually rather than simply reporting a `+5.0` or `0.0` evaluation.
     *   *Example:* "By playing Rg2, White seamlessly enters the Lucena position, guaranteeing the pawn's promotion using the classic 'building a bridge' technique."
 
+**Current Policy Lock (2026-02-22):**
+1. Oracle-first fact wiring in narrative context:
+   - when `endgameFeatures` is present, motif-derived `Opposition`/`Zugzwang` facts are suppressed
+   - endgame facts are sourced from oracle signal first
+2. Book corpus balanced gate policy:
+   - precedent coverage denominator uses only *opening core-event eligible* cases
+   - core events: `BranchPoint`, `OutOfBook`, `TheoryEnds`, `Novelty`
+   - repeated 5-gram gate uses `n=5`, `minCases=4`, allowed violations `<= 20`
+3. Endgame contradiction policy:
+   - opposition mismatch checks king-context mentions (`direct/distant/diagonal/king opposition`)
+   - zugzwang mismatch is buffered when zugzwang semantic pattern is explicitly active (oracle pattern or semantic concept)
+4. Pattern signal exposure:
+   - `primaryPattern` remains optional and backward-compatible in strategic/narrative models
+   - shadow/eanble rollout semantics remain unchanged
+
 ---
 
 *This document should be referenced when designing and implementing new analytical capabilities for the LLM module.*

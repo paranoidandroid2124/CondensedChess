@@ -293,7 +293,9 @@ object EndgamePatternQualityRunner:
                 }
 
                 finalFeatureOpt.foreach { feature =>
-                  val expectedSignals = c.signalsOverride.getOrElse(Json.obj())
+                  val expectedSignals =
+                    if c.expectedLabel == row.pattern then mergeSignals(row.defaultSignals, c.signalsOverride.getOrElse(Json.obj()))
+                    else c.signalsOverride.getOrElse(Json.obj())
                   val (checked, matched) = compareSignals(expectedSignals, feature)
                   signalChecks += checked
                   signalMatches += matched
@@ -371,6 +373,9 @@ object EndgamePatternQualityRunner:
         case _ => ()
     }
     (checks, matches)
+
+  private def mergeSignals(base: JsObject, overrides: JsObject): JsObject =
+    JsObject(base.value ++ overrides.value)
 
   private def matchesToken(actual: String, expectedToken: String): Boolean =
     expectedToken.split("_or_").exists(token => actual.equalsIgnoreCase(token))
