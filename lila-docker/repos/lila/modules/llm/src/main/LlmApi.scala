@@ -4,6 +4,7 @@ import scala.concurrent.Future
 import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
+import java.util.UUID
 import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
@@ -14,8 +15,10 @@ import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
 final class LlmApi(
     openingExplorer: OpeningExplorerClient,
     geminiClient: GeminiClient,
+    openAiClient: OpenAiClient,
     commentaryCache: CommentaryCache,
-    llmConfig: LlmConfig = LlmConfig.fromEnv
+    llmConfig: LlmConfig = LlmConfig.fromEnv,
+    providerConfig: LlmProviderConfig = LlmProviderConfig.fromEnv
 )(using Executor):
 
   private val logger = lila.log("llm.api")
@@ -38,9 +41,33 @@ final class LlmApi(
   private val endgameWinHintCount = new AtomicLong(0L)
   private val endgameHighConfidenceCount = new AtomicLong(0L)
   private val ShadowWindowSize = 2000
+  private val AsyncJobTtlMs = 24L * 60L * 60L * 1000L
+  private val AsyncJobMaxSize = 256
   private val latencyWindowLock = new Object
   private var totalLatencyWindowMs = Vector.empty[Long]
   private var structureEvalLatencyWindowMs = Vector.empty[Long]
+  private val asyncJobs = scala.collection.concurrent.TrieMap.empty[String, AsyncGameAnalysisStatusResponse]
+  private val leakTokens = List("PA_MATCH", "PRECOND_MISS", "REQ_", "SUP_", "BLK_")
+  private val PolishWindowSize = 200
+  private val PolishCircuitCooldownMs = 10L * 60L * 1000L
+  private val polishWindowLock = new Object
+  private var polishLatencyWindowMs = Vector.empty[Long]
+  private var polishFallbackWindow = Vector.empty[Boolean]
+  private var polishCircuitOpenUntilMs = 0L
+  private val polishAttemptCount = new AtomicLong(0L)
+  private val polishAcceptedCount = new AtomicLong(0L)
+  private val polishFallbackCount = new AtomicLong(0L)
+  private val polishCacheHitCount = new AtomicLong(0L)
+  private val polishReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val polishEstimatedCostMicros = new AtomicLong(0L)
+
+  private case class PolishDecision(
+      commentary: String,
+      sourceMode: String,
+      model: Option[String],
+      cacheHit: Boolean,
+      meta: Option[PolishMetaV1]
+  )
 
   private def incTransition(kind: String): Unit =
     transitionCountByType.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
@@ -71,12 +98,75 @@ final class LlmApi(
     val next = values :+ value
     if next.size <= ShadowWindowSize then next else next.takeRight(ShadowWindowSize)
 
+  private def pushBoundedWindow[T](values: Vector[T], value: T, size: Int): Vector[T] =
+    val next = values :+ value
+    if next.size <= size then next else next.takeRight(size)
+
   private def percentile(values: Vector[Long], p: Double): Double =
     if values.isEmpty then 0.0
     else
       val sorted = values.sorted
       val idx = math.ceil(p * sorted.size.toDouble).toInt - 1
       sorted(idx.max(0).min(sorted.size - 1)).toDouble
+
+  private def polishLatencyP95Ms: Double =
+    polishWindowLock.synchronized {
+      percentile(polishLatencyWindowMs, 0.95)
+    }
+
+  private def polishFallbackRate: Double =
+    polishWindowLock.synchronized {
+      if polishFallbackWindow.isEmpty then 0.0
+      else polishFallbackWindow.count(identity).toDouble / polishFallbackWindow.size.toDouble
+    }
+
+  private def shouldOpenPolishCircuit: Boolean =
+    polishWindowLock.synchronized {
+      val enoughSamples = polishFallbackWindow.size >= PolishWindowSize
+      val p95 = percentile(polishLatencyWindowMs, 0.95)
+      val fallbackRate =
+        if polishFallbackWindow.isEmpty then 0.0
+        else polishFallbackWindow.count(identity).toDouble / polishFallbackWindow.size.toDouble
+      enoughSamples && (fallbackRate > 0.08 || p95 > 900.0)
+    }
+
+  private def isPolishCircuitOpen(nowMs: Long): Boolean =
+    polishWindowLock.synchronized {
+      nowMs < polishCircuitOpenUntilMs
+    }
+
+  private def maybeOpenPolishCircuit(nowMs: Long): Unit =
+    if shouldOpenPolishCircuit then
+      polishWindowLock.synchronized {
+        if nowMs >= polishCircuitOpenUntilMs then
+          polishCircuitOpenUntilMs = nowMs + PolishCircuitCooldownMs
+      }
+
+  private def incPolishReason(reason: String): Unit =
+    polishReasonCount.getOrElseUpdate(reason, new AtomicLong(0L)).incrementAndGet()
+
+  private def recordPolishMetrics(
+      sourceMode: String,
+      latencyMs: Long,
+      cacheHit: Boolean,
+      reasons: List[String],
+      estimatedCostUsd: Option[Double]
+  ): Unit =
+    val fallback = sourceMode.startsWith("fallback_rule")
+    polishAttemptCount.incrementAndGet()
+    if sourceMode == "llm_polished" then polishAcceptedCount.incrementAndGet()
+    if fallback then polishFallbackCount.incrementAndGet()
+    if cacheHit then polishCacheHitCount.incrementAndGet()
+    reasons.foreach(incPolishReason)
+    estimatedCostUsd.foreach { usd =>
+      val micros = Math.round(usd * 1000000.0)
+      polishEstimatedCostMicros.addAndGet(micros.max(0L))
+    }
+    polishWindowLock.synchronized {
+      polishLatencyWindowMs = pushBoundedWindow(polishLatencyWindowMs, latencyMs.max(0L), PolishWindowSize)
+      polishFallbackWindow = pushBoundedWindow(polishFallbackWindow, fallback, PolishWindowSize)
+    }
+    maybeOpenPolishCircuit(System.currentTimeMillis())
 
   private def recordLatencyMetrics(totalLatencyMs: Long, structureEvalLatencyMs: Option[Long]): Unit =
     latencyWindowLock.synchronized {
@@ -140,6 +230,17 @@ final class LlmApi(
         else endgameHighConfidenceCount.get().toDouble / endgameFeatureCount.get().toDouble
       val structureDist = structureCountByType.toList.map { case (k, v) => k -> v.get() }.toMap
       val bandDist = alignmentBandCount.toList.map { case (k, v) => k -> v.get() }.toMap
+      val polishAttempts = polishAttemptCount.get()
+      val polishAccepted = polishAcceptedCount.get()
+      val polishAcceptRate =
+        if polishAttempts == 0 then 0.0
+        else polishAccepted.toDouble / polishAttempts.toDouble
+      val avgCostUsd =
+        if polishAttempts == 0 then 0.0
+        else polishEstimatedCostMicros.get().toDouble / polishAttempts.toDouble / 1000000.0
+      val polishReasonDist = polishReasonCount.toList.map { case (k, v) => k -> v.get() }.toMap
+      val polishFallbackRateWindow = polishFallbackRate
+      val polishLatencyP95Window = polishLatencyP95Ms
       val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
       val epochSec = Instant.now().getEpochSecond
       logger.info(
@@ -165,12 +266,713 @@ final class LlmApi(
           f"endgame_coverage=$endgameCoverage%.3f " +
           f"endgame_win_hint_rate=$endgameWinHintRate%.3f " +
           f"endgame_high_conf_rate=$endgameHighConfRate%.3f " +
+          f"polish_acceptance_ratio=$polishAcceptRate%.3f " +
+          f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
+          f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
+          f"polish_avg_cost_usd=$avgCostUsd%.6f " +
+          s"polish_reason_dist=$polishReasonDist " +
           s"struct_dist=$structureDist " +
           s"alignment_band_dist=$bandDist"
       )
 
-
   def isGeminiEnabled: Boolean = geminiClient.isEnabled
+  def isOpenAiEnabled: Boolean = openAiClient.isEnabled
+
+  private def isLlmPolishEnabledForRequest(allowLlmPolish: Boolean): Boolean =
+    if providerConfig.premiumOnly then allowLlmPolish else true
+
+  private def normalizeLang(lang: String): String =
+    Option(lang).map(_.trim.toLowerCase).filter(_.nonEmpty).map(_.take(8)).getOrElse(providerConfig.defaultLang)
+
+  private def templateQualityScore(prose: String): Double =
+    val t = Option(prose).getOrElse("")
+    if t.isBlank then 0.0
+    else
+      val lower = t.toLowerCase
+      val markers = List(
+        "additionally",
+        "furthermore",
+        "moreover",
+        "it is worth noting",
+        "engine-wise",
+        "observed directly:",
+        "initial board read:",
+        "working hypothesis:",
+        "strongest read is that",
+        "clearest read is that",
+        "validation evidence",
+        "validation lines up",
+        "supporting that, we see",
+        "a corroborating idea",
+        "another key pillar is",
+        "this adds weight to",
+        "the practical burden",
+        "the practical immediate future",
+        "the practical medium-horizon task",
+        "practically, this should influence"
+      )
+      val repeatedMarkerCount = markers.map(m => lower.sliding(m.length).count(_ == m)).sum
+      val shortSentencePenalty =
+        lower
+          .split("[.!?]")
+          .map(_.trim)
+          .count(s => s.nonEmpty && s.length < 20)
+          .toDouble * 0.01
+      val score = 1.0 - repeatedMarkerCount.toDouble * 0.08 - shortSentencePenalty
+      score.max(0.0).min(1.0)
+
+  private def wordCount(text: String): Int =
+    Option(text).getOrElse("").split("\\s+").count(_.nonEmpty)
+
+  private def lengthRatioReasonable(polished: String, original: String): Boolean =
+    val originalWords = wordCount(original)
+    val polishedWords = wordCount(polished)
+    if originalWords <= 0 then polishedWords > 0
+    else if originalWords < 35 then polishedWords <= math.max(70, (originalWords.toDouble * 2.2).toInt)
+    else
+      val lowerBound = (originalWords.toDouble * 0.45).toInt.max(18)
+      val upperBound = (originalWords.toDouble * 1.35).toInt.max(originalWords + 8)
+      polishedWords >= lowerBound && polishedWords <= upperBound
+
+  private def looksJsonWrapper(text: String): Boolean =
+    val t = Option(text).map(_.trim).getOrElse("")
+    t.startsWith("{") && t.contains("\"commentary\"")
+
+  private def looksTruncated(text: String): Boolean =
+    val t = Option(text).map(_.trim).getOrElse("")
+    if t.isEmpty then false
+    else
+      def balanced(open: Char, close: Char): Boolean =
+        t.count(_ == open) == t.count(_ == close)
+      val quoteCount = t.count(_ == '"')
+      !balanced('{', '}') || !balanced('[', ']') || (quoteCount % 2 != 0) || t.endsWith("\\") ||
+        MoveAnchorCodec.hasBrokenAnchorPrefix(t)
+
+  private def shouldSkipPolish(prose: String): Boolean =
+    templateQualityScore(prose) >= providerConfig.polishGateThreshold
+
+  private def validatePolishedCommentary(
+      polished: String,
+      original: String,
+      allowedSans: List[String]
+  ): PolishValidation.ValidationResult =
+    val trimmed = Option(polished).getOrElse("").trim
+    if trimmed.isEmpty then PolishValidation.ValidationResult(isValid = false, reasons = List("empty_polish"))
+    else if looksJsonWrapper(trimmed) then
+      PolishValidation.ValidationResult(isValid = false, reasons = List("json_wrapper_unparsed"))
+    else if looksTruncated(trimmed) then
+      PolishValidation.ValidationResult(isValid = false, reasons = List("truncated_output"))
+    else if leakTokens.exists(trimmed.contains) then
+      PolishValidation.ValidationResult(isValid = false, reasons = List("leak_token_detected"))
+    else if !lengthRatioReasonable(trimmed, original) then
+      PolishValidation.ValidationResult(isValid = false, reasons = List("length_ratio_out_of_bounds"))
+    else PolishValidation.validatePolishedCommentary(trimmed, original, allowedSans)
+
+  private def logInvalidPolish(
+      provider: String,
+      phase: String,
+      attempt: String,
+      model: Option[String],
+      reasons: List[String]
+  ): Unit =
+    val reasonStr = if reasons.isEmpty then "unknown" else reasons.mkString(",")
+    logger.debug(
+      s"llm.polish.invalid provider=$provider phase=$phase attempt=$attempt model=${model.getOrElse("-")} reasons=$reasonStr"
+    )
+
+  private def llmCacheContext(
+      allowLlmPolish: Boolean,
+      lang: String,
+      asyncTier: Boolean
+  ): Option[LlmCacheContext] =
+    if !isLlmPolishEnabledForRequest(allowLlmPolish) then None
+    else
+      val normalizedLang = normalizeLang(lang)
+      providerConfig.provider match
+        case "openai" if openAiClient.isEnabled =>
+          val model = if asyncTier then openAiClient.asyncModelName else openAiClient.syncModelName
+          Some(LlmCacheContext(model = model, promptVersion = providerConfig.promptVersion, lang = normalizedLang))
+        case "gemini" if geminiClient.isEnabled =>
+          Some(LlmCacheContext(model = geminiClient.modelName, promptVersion = providerConfig.promptVersion, lang = normalizedLang))
+        case _ => None
+
+  private def sumIntOptions(values: List[Option[Int]]): Option[Int] =
+    if values.exists(_.isDefined) then Some(values.map(_.getOrElse(0)).sum)
+    else None
+
+  private def sumDoubleOptions(values: List[Option[Double]]): Option[Double] =
+    if values.exists(_.isDefined) then Some(values.map(_.getOrElse(0.0)).sum)
+    else None
+
+  private def adaptiveOutputTokenCap(
+      prose: String,
+      refs: Option[BookmakerRefsV1],
+      asyncTier: Boolean
+  ): Int =
+    val minCap = if asyncTier then 320 else 220
+    val maxCap = if asyncTier then 480 else 320
+    val proseWords = wordCount(prose)
+    val anchorCount = refs.toList.flatMap(_.variations).flatMap(_.moves).size
+    val estimated = (proseWords.toDouble * 1.7 + anchorCount.toDouble * 3.0 + 64.0).toInt
+    estimated.max(minCap).min(maxCap)
+
+  private case class CandidateValidation(
+      isValid: Boolean,
+      decodedText: String,
+      reasons: List[String]
+  )
+
+  private def validateCandidate(
+      candidateText: String,
+      originalProse: String,
+      allowedSans: List[String],
+      anchors: MoveAnchorCodec.EncodedCommentary,
+      extraReasons: List[String]
+  ): CandidateValidation =
+    val anchorReasons =
+      if anchors.hasAnchors then
+        MoveAnchorCodec.validateAnchors(
+          text = candidateText,
+          expectedMoveOrder = anchors.expectedMoveOrder,
+          expectedMarkerOrder = anchors.expectedMarkerOrder
+        )
+      else Nil
+    val decoded =
+      if anchors.hasAnchors then MoveAnchorCodec.decode(candidateText, anchors.refById)
+      else candidateText
+    val proseValidation = validatePolishedCommentary(decoded, originalProse, allowedSans)
+    val reasons = (anchorReasons ++ proseValidation.reasons ++ extraReasons).distinct
+    CandidateValidation(
+      isValid = reasons.isEmpty,
+      decodedText = decoded,
+      reasons = reasons
+    )
+
+  private def buildPolishMetaOpenAi(
+      model: Option[String],
+      sourceMode: String,
+      phase: String,
+      validationReasons: List[String],
+      attempts: List[OpenAiPolishResult]
+  ): PolishMetaV1 =
+    PolishMetaV1(
+      provider = "openai",
+      model = model.orElse(attempts.lastOption.map(_.model)),
+      sourceMode = sourceMode,
+      validationPhase = phase,
+      validationReasons = validationReasons,
+      cacheHit = attempts.exists(_.promptCacheHit),
+      promptTokens = sumIntOptions(attempts.map(_.promptTokens)),
+      cachedTokens = sumIntOptions(attempts.map(_.cachedTokens)),
+      completionTokens = sumIntOptions(attempts.map(_.completionTokens)),
+      estimatedCostUsd = sumDoubleOptions(attempts.map(_.estimatedCostUsd))
+    )
+
+  private def buildPolishMetaGemini(
+      model: Option[String],
+      sourceMode: String,
+      phase: String,
+      validationReasons: List[String]
+  ): PolishMetaV1 =
+    PolishMetaV1(
+      provider = "gemini",
+      model = model,
+      sourceMode = sourceMode,
+      validationPhase = phase,
+      validationReasons = validationReasons,
+      cacheHit = false,
+      promptTokens = None,
+      cachedTokens = None,
+      completionTokens = None,
+      estimatedCostUsd = None
+    )
+
+  private def withRecordedPolishMetrics(startNs: Long, decision: PolishDecision): PolishDecision =
+    recordPolishMetrics(
+      sourceMode = decision.sourceMode,
+      latencyMs = elapsedMs(startNs),
+      cacheHit = decision.cacheHit,
+      reasons = decision.meta.map(_.validationReasons).getOrElse(Nil),
+      estimatedCostUsd = decision.meta.flatMap(_.estimatedCostUsd)
+    )
+    decision
+
+  private def maybePolishCommentary(
+      prose: String,
+      phase: String,
+      evalDelta: Option[Int],
+      concepts: List[String],
+      fen: String,
+      openingName: Option[String],
+      allowLlmPolish: Boolean,
+      lang: String,
+      allowedSans: List[String],
+      asyncTier: Boolean,
+      refs: Option[BookmakerRefsV1]
+  ): Future[PolishDecision] =
+    if prose.isBlank then
+      Future.successful(
+        PolishDecision(
+          commentary = prose,
+          sourceMode = "rule",
+          model = None,
+          cacheHit = false,
+          meta = None
+        )
+      )
+    else if !isLlmPolishEnabledForRequest(allowLlmPolish) || providerConfig.isNone then
+      Future.successful(
+        PolishDecision(
+          commentary = prose,
+          sourceMode = "rule",
+          model = None,
+          cacheHit = false,
+          meta = None
+        )
+      )
+    else if shouldSkipPolish(prose) then
+      Future.successful(
+        PolishDecision(
+          commentary = prose,
+          sourceMode = "rule",
+          model = None,
+          cacheHit = false,
+          meta = None
+        )
+      )
+    else if isPolishCircuitOpen(System.currentTimeMillis()) then
+      Future.successful(
+        PolishDecision(
+          commentary = prose,
+          sourceMode = "rule_circuit_open",
+          model = None,
+          cacheHit = false,
+          meta = Some(
+            PolishMetaV1(
+              provider = providerConfig.provider,
+              model = None,
+              sourceMode = "rule_circuit_open",
+              validationPhase = phase,
+              validationReasons = List("circuit_open"),
+              cacheHit = false,
+              promptTokens = None,
+              cachedTokens = None,
+              completionTokens = None,
+              estimatedCostUsd = None
+            )
+          )
+        )
+      )
+    else
+      providerConfig.provider match
+        case "openai" if openAiClient.isEnabled =>
+          val normalizedLang = normalizeLang(lang)
+          val anchors = MoveAnchorCodec.encode(prose, refs)
+          val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
+          val adaptiveCap = adaptiveOutputTokenCap(prose, refs, asyncTier)
+          val requestStartNs = System.nanoTime()
+          val op =
+            if asyncTier then
+              openAiClient.polishAsync(
+                prose = proseForModel,
+                phase = phase,
+                evalDelta = evalDelta,
+                concepts = concepts,
+                fen = fen,
+                openingName = openingName,
+                lang = normalizedLang,
+                maxOutputTokens = Some(adaptiveCap)
+              )
+            else
+              openAiClient.polishSync(
+                prose = proseForModel,
+                phase = phase,
+                evalDelta = evalDelta,
+                concepts = concepts,
+                fen = fen,
+                openingName = openingName,
+                lang = normalizedLang,
+                maxOutputTokens = Some(adaptiveCap)
+              )
+          op.flatMap {
+            case Some(polished) =>
+              val firstValidation = validateCandidate(
+                candidateText = polished.commentary,
+                originalProse = prose,
+                allowedSans = allowedSans,
+                anchors = anchors,
+                extraReasons = polished.parseWarnings
+              )
+              if firstValidation.isValid then
+                Future.successful(
+                  withRecordedPolishMetrics(
+                    requestStartNs,
+                    PolishDecision(
+                      commentary = firstValidation.decodedText,
+                      sourceMode = "llm_polished",
+                      model = Some(polished.model),
+                      cacheHit = polished.promptCacheHit,
+                      meta = Some(
+                        buildPolishMetaOpenAi(
+                          model = Some(polished.model),
+                          sourceMode = "llm_polished",
+                          phase = phase,
+                          validationReasons = Nil,
+                          attempts = List(polished)
+                        )
+                      )
+                    )
+                  )
+                )
+              else
+                logInvalidPolish(
+                  provider = "openai",
+                  phase = phase,
+                  attempt = "primary",
+                  model = Some(polished.model),
+                  reasons = firstValidation.reasons.distinct
+                )
+                val repairFut =
+                  if asyncTier then
+                    openAiClient.repairAsync(
+                      originalProse = proseForModel,
+                      rejectedPolish = polished.commentary,
+                      phase = phase,
+                      evalDelta = evalDelta,
+                      concepts = concepts,
+                      fen = fen,
+                      openingName = openingName,
+                      allowedSans = allowedSans,
+                      lang = normalizedLang,
+                      maxOutputTokens = Some(adaptiveCap)
+                    )
+                  else
+                    openAiClient.repairSync(
+                      originalProse = proseForModel,
+                      rejectedPolish = polished.commentary,
+                      phase = phase,
+                      evalDelta = evalDelta,
+                      concepts = concepts,
+                      fen = fen,
+                      openingName = openingName,
+                      allowedSans = allowedSans,
+                      lang = normalizedLang,
+                      maxOutputTokens = Some(adaptiveCap)
+                    )
+                repairFut.map {
+                  case Some(repaired) =>
+                    val repairedValidation = validateCandidate(
+                      candidateText = repaired.commentary,
+                      originalProse = prose,
+                      allowedSans = allowedSans,
+                      anchors = anchors,
+                      extraReasons = repaired.parseWarnings
+                    )
+                    if repairedValidation.isValid then
+                      withRecordedPolishMetrics(
+                        requestStartNs,
+                        PolishDecision(
+                          commentary = repairedValidation.decodedText,
+                          sourceMode = "llm_polished",
+                          model = Some(repaired.model),
+                          cacheHit = repaired.promptCacheHit,
+                          meta = Some(
+                            buildPolishMetaOpenAi(
+                              model = Some(repaired.model),
+                              sourceMode = "llm_polished",
+                              phase = phase,
+                              validationReasons = Nil,
+                              attempts = List(polished, repaired)
+                            )
+                          )
+                        )
+                      )
+                    else
+                      val reasons = repairedValidation.reasons.distinct
+                      logInvalidPolish(
+                        provider = "openai",
+                        phase = phase,
+                        attempt = "repair",
+                        model = Some(repaired.model),
+                        reasons = reasons
+                      )
+                      withRecordedPolishMetrics(
+                        requestStartNs,
+                        PolishDecision(
+                          commentary = prose,
+                          sourceMode = "fallback_rule_invalid",
+                          model = None,
+                          cacheHit = false,
+                          meta = Some(
+                            buildPolishMetaOpenAi(
+                              model = Some(repaired.model),
+                              sourceMode = "fallback_rule_invalid",
+                              phase = phase,
+                              validationReasons = reasons,
+                              attempts = List(polished, repaired)
+                            )
+                          )
+                        )
+                      )
+                  case None =>
+                    withRecordedPolishMetrics(
+                      requestStartNs,
+                      PolishDecision(
+                        commentary = prose,
+                        sourceMode = "fallback_rule_invalid",
+                        model = None,
+                        cacheHit = false,
+                        meta = Some(
+                          buildPolishMetaOpenAi(
+                            model = Some(polished.model),
+                            sourceMode = "fallback_rule_invalid",
+                            phase = phase,
+                            validationReasons = firstValidation.reasons.distinct,
+                            attempts = List(polished)
+                          )
+                        )
+                      )
+                    )
+                }
+            case None =>
+              Future.successful(
+                withRecordedPolishMetrics(
+                  requestStartNs,
+                  PolishDecision(
+                    commentary = prose,
+                    sourceMode = "fallback_rule_empty",
+                    model = None,
+                    cacheHit = false,
+                    meta = Some(
+                      buildPolishMetaOpenAi(
+                        model = None,
+                        sourceMode = "fallback_rule_empty",
+                        phase = phase,
+                        validationReasons = List("empty_polish"),
+                        attempts = Nil
+                      )
+                    )
+                  )
+                )
+              )
+          }
+        case "gemini" if geminiClient.isEnabled =>
+          val requestStartNs = System.nanoTime()
+          geminiClient
+            .polish(
+              prose = prose,
+              phase = phase,
+              evalDelta = evalDelta,
+              concepts = concepts,
+              fen = fen,
+              openingName = openingName
+            )
+            .map {
+              case Some(polished) =>
+                val validation = validatePolishedCommentary(polished, prose, allowedSans)
+                if validation.isValid then
+                  withRecordedPolishMetrics(
+                    requestStartNs,
+                    PolishDecision(
+                      commentary = polished,
+                      sourceMode = "llm_polished",
+                      model = Some(geminiClient.modelName),
+                      cacheHit = false,
+                      meta = Some(
+                        buildPolishMetaGemini(
+                          model = Some(geminiClient.modelName),
+                          sourceMode = "llm_polished",
+                          phase = phase,
+                          validationReasons = Nil
+                        )
+                      )
+                    )
+                  )
+                else
+                  val reasons = validation.reasons.distinct
+                  logInvalidPolish(
+                    provider = "gemini",
+                    phase = phase,
+                    attempt = "primary",
+                    model = Some(geminiClient.modelName),
+                    reasons = reasons
+                  )
+                  withRecordedPolishMetrics(
+                    requestStartNs,
+                    PolishDecision(
+                      commentary = prose,
+                      sourceMode = "fallback_rule_invalid",
+                      model = None,
+                      cacheHit = false,
+                      meta = Some(
+                        buildPolishMetaGemini(
+                          model = Some(geminiClient.modelName),
+                          sourceMode = "fallback_rule_invalid",
+                          phase = phase,
+                          validationReasons = reasons
+                        )
+                      )
+                    )
+                  )
+              case None =>
+                withRecordedPolishMetrics(
+                  requestStartNs,
+                  PolishDecision(
+                    commentary = prose,
+                    sourceMode = "fallback_rule_empty",
+                    model = None,
+                    cacheHit = false,
+                    meta = Some(
+                      buildPolishMetaGemini(
+                        model = None,
+                        sourceMode = "fallback_rule_empty",
+                        phase = phase,
+                        validationReasons = List("empty_polish")
+                      )
+                    )
+                  )
+                )
+            }
+        case _ =>
+          Future.successful(
+            PolishDecision(
+              commentary = prose,
+              sourceMode = "rule",
+              model = None,
+              cacheHit = false,
+              meta = None
+            )
+          )
+
+  private def phaseFromPly(ply: Int): String =
+    if ply <= 16 then "opening"
+    else if ply <= 60 then "middlegame"
+    else "endgame"
+
+  private def maybePolishGameNarrative(
+      response: GameNarrativeResponse,
+      allowLlmPolish: Boolean,
+      lang: String,
+      asyncTier: Boolean
+  ): Future[GameNarrativeResponse] =
+    if !isLlmPolishEnabledForRequest(allowLlmPolish) || providerConfig.isNone then
+      Future.successful(response.copy(sourceMode = "rule", model = None))
+    else
+      for
+        introPolish <- maybePolishCommentary(
+          prose = response.intro,
+          phase = "opening",
+          evalDelta = None,
+          concepts = response.themes,
+          fen = "",
+          openingName = None,
+          allowLlmPolish = allowLlmPolish,
+          lang = lang,
+          allowedSans = Nil,
+          asyncTier = asyncTier,
+          refs = None
+        )
+        conclusionPolish <- maybePolishCommentary(
+          prose = response.conclusion,
+          phase = "endgame",
+          evalDelta = None,
+          concepts = response.themes,
+          fen = "",
+          openingName = None,
+          allowLlmPolish = allowLlmPolish,
+          lang = lang,
+          allowedSans = Nil,
+          asyncTier = asyncTier,
+          refs = None
+        )
+        polishedMoments <- Future.traverse(response.moments) { moment =>
+          val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
+          maybePolishCommentary(
+            prose = moment.narrative,
+            phase = phaseFromPly(moment.ply),
+            evalDelta = None,
+            concepts = moment.concepts,
+            fen = moment.fen,
+            openingName = None,
+            allowLlmPolish = allowLlmPolish,
+            lang = lang,
+            allowedSans = allowedSans,
+            asyncTier = asyncTier,
+            refs = None
+          ).map { decision =>
+            (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
+          }
+        }
+      yield
+        val sourceModes =
+          (List(introPolish.sourceMode, conclusionPolish.sourceMode) ++ polishedMoments.map(_._2)).distinct
+        val model =
+          (List(introPolish.model, conclusionPolish.model) ++ polishedMoments.map(_._3)).flatten.headOption
+        val sourceMode =
+          if sourceModes.contains("llm_polished") then "llm_polished"
+          else if sourceModes.exists(_.startsWith("fallback_rule")) then "fallback_rule"
+          else if sourceModes.contains("rule_circuit_open") then "rule_circuit_open"
+          else "rule"
+        response.copy(
+          intro = introPolish.commentary,
+          conclusion = conclusionPolish.commentary,
+          moments = polishedMoments.map(_._1),
+          sourceMode = sourceMode,
+          model = model
+        )
+
+  private def fenAfterEachMove(startFen: String, ucis: List[String]): List[String] =
+    var current = startFen
+    ucis.map { uci =>
+      current = NarrativeUtils.uciListToFen(current, List(uci))
+      current
+    }
+
+  private def markerForPly(ply: Int): String =
+    val moveNo = (ply + 1) / 2
+    if ply % 2 == 1 then s"$moveNo."
+    else s"$moveNo..."
+
+  private def buildBookmakerRefs(
+      fenBefore: String,
+      variations: List[VariationLine]
+  ): Option[BookmakerRefsV1] =
+    if variations.isEmpty then None
+    else
+      val startPly = NarrativeUtils.plyFromFen(fenBefore).map(_ + 1).getOrElse(1)
+      val lines = variations.zipWithIndex.map { case (line, lineIdx) =>
+        val sanList = NarrativeUtils.uciListToSan(fenBefore, line.moves)
+        val uciList = line.moves.take(sanList.size)
+        val fensAfter = fenAfterEachMove(fenBefore, uciList).take(sanList.size)
+        val size = List(sanList.size, uciList.size, fensAfter.size).min
+        val moves = (0 until size).toList.map { i =>
+          val ply = startPly + i
+          val moveNo = (ply + 1) / 2
+          MoveRefV1(
+            refId = f"l${lineIdx + 1}%02d_m${i + 1}%02d",
+            san = sanList(i),
+            uci = uciList(i),
+            fenAfter = fensAfter(i),
+            ply = ply,
+            moveNo = moveNo,
+            marker = Some(markerForPly(ply))
+          )
+        }
+        VariationRefV1(
+          lineId = f"line_${lineIdx + 1}%02d",
+          scoreCp = line.scoreCp,
+          mate = line.mate,
+          depth = line.depth,
+          moves = moves
+        )
+      }
+      Some(
+        BookmakerRefsV1(
+          startFen = fenBefore,
+          startPly = startPly,
+          variations = lines
+        )
+      )
 
 
   def fetchOpeningMasters(fen: String): Future[Option[OpeningReference]] =
@@ -220,24 +1022,27 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int,
-      prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
-  ): Future[Option[CommentResponse]] =
+      prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+      allowLlmPolish: Boolean = false,
+      lang: String = "en"
+  ): Future[Option[BookmakerResult]] =
     val requestStartNs = System.nanoTime()
     val incomingProbes = probeResults.getOrElse(Nil)
+    val cacheCtx = llmCacheContext(allowLlmPolish = allowLlmPolish, lang = lang, asyncTier = false)
     bookmakerRequests.incrementAndGet()
     if prevStateToken.isDefined then tokenPresentCount.incrementAndGet()
-    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken) match
+    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, cacheCtx) match
       case Some(cached) =>
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
         recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
         maybeLogBookmakerMetrics()
-        Future.successful(Some(cached))
+        Future.successful(Some(BookmakerResult(response = cached, cacheHit = true)))
       case None =>
         stateAwareCacheMissCount.incrementAndGet()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken
+          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, allowLlmPolish, lang, cacheCtx
         ).map:
           case (responseOpt, structEvalMsOpt) =>
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
@@ -259,8 +1064,11 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int,
-      prevStateToken: Option[lila.llm.analysis.PlanStateTracker]
-  ): Future[(Option[CommentResponse], Option[Long])] =
+      prevStateToken: Option[lila.llm.analysis.PlanStateTracker],
+      allowLlmPolish: Boolean,
+      lang: String,
+      cacheCtx: Option[LlmCacheContext]
+  ): Future[(Option[BookmakerResult], Option[Long])] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
 
     val varsFromEval =
@@ -362,18 +1170,54 @@ final class LlmApi(
               openingRef = openingRef,
               afterAnalysis = afterDataOpt
             )
-            val prose = BookStyleRenderer.render(ctx)
-
-            val response = CommentResponse(
-              commentary = prose,
-              concepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil),
-              variations = dataWithContinuity.alternatives,
-              probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
-              planStateToken = Some(nextTracker)
+            val proseRaw = BookStyleRenderer.render(ctx)
+            val prose = RuleTemplateSanitizer.sanitize(
+              proseRaw,
+              opening = opening,
+              phase = phase,
+              ply = effectivePly,
+              fen = Some(fen)
             )
-            if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
-            commentaryCache.put(fen, lastMove, response, probeResults.getOrElse(Nil), prevStateToken)
-            Future.successful(Some(response) -> dataWithContinuity.structureEvalLatencyMs)
+            val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
+            val allowedSans =
+              dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
+            val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
+
+            maybePolishCommentary(
+              prose = prose,
+              phase = phase,
+              evalDelta = None,
+              concepts = baseConcepts,
+              fen = fen,
+              openingName = opening,
+              allowLlmPolish = allowLlmPolish,
+              lang = lang,
+              allowedSans = allowedSans,
+              asyncTier = false,
+              refs = refs
+            ).map { decision =>
+              val response = CommentResponse(
+                commentary = decision.commentary,
+                concepts = baseConcepts,
+                variations = dataWithContinuity.alternatives,
+                probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+                planStateToken = Some(nextTracker),
+                sourceMode = decision.sourceMode,
+                model = decision.model,
+                refs = refs,
+                polishMeta = decision.meta
+              )
+              if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
+              commentaryCache.put(
+                fen = fen,
+                lastMove = lastMove,
+                response = response,
+                probeResults = probeResults.getOrElse(Nil),
+                planStateToken = prevStateToken,
+                llmContext = cacheCtx
+              )
+              Some(BookmakerResult(response = response, cacheHit = decision.cacheHit)) -> dataWithContinuity.structureEvalLatencyMs
+            }
       }
 
 
@@ -381,35 +1225,120 @@ final class LlmApi(
       pgn: String,
       evals: List[MoveEval],
       style: String = "book",
-      focusOn: List[String] = List("mistakes", "turning_points")
+      focusOn: List[String] = List("mistakes", "turning_points"),
+      allowLlmPolish: Boolean = false,
+      asyncTier: Boolean = false,
+      lang: String = "en"
   ): Future[Option[GameNarrativeResponse]] =
     val _ = (style, focusOn)
     val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
-    fetchOpeningRefsForPgn(pgn).map { openingRefsByFen =>
-      val narrative = CommentaryEngine.generateFullGameNarrative(
-        pgn = pgn,
-        evals = evalMap,
-        openingRefsByFen = openingRefsByFen
-      )
-      Some(
-        GameNarrativeResponse.fromNarrative(
-          narrative = narrative,
-          review = Some(buildGameReview(narrative, pgn, evals))
+    fetchOpeningRefsForPgn(pgn)
+      .map { openingRefsByFen =>
+        CommentaryEngine.generateFullGameNarrative(
+          pgn = pgn,
+          evals = evalMap,
+          openingRefsByFen = openingRefsByFen
         )
+      }
+      .recover { case NonFatal(e) =>
+        logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
+        CommentaryEngine.generateFullGameNarrative(
+          pgn = pgn,
+          evals = evalMap
+        )
+      }
+      .flatMap { narrative =>
+        val base = GameNarrativeResponse.fromNarrative(
+          narrative = narrative,
+          review = Some(buildGameReview(narrative, pgn, evals)),
+          sourceMode = "rule",
+          model = None
+        )
+        maybePolishGameNarrative(
+          response = base,
+          allowLlmPolish = allowLlmPolish,
+          lang = normalizeLang(lang),
+          asyncTier = asyncTier
+        ).map(_.some)
+      }
+
+  def submitGameAnalysisAsync(
+      req: FullAnalysisRequest,
+      allowLlmPolish: Boolean,
+      lang: String
+  ): AsyncGameAnalysisSubmitResponse =
+    cleanupAsyncJobs()
+    val jobId = UUID.randomUUID().toString.replace("-", "")
+    val now = System.currentTimeMillis()
+    asyncJobs.put(
+      jobId,
+      AsyncGameAnalysisStatusResponse(
+        jobId = jobId,
+        status = "queued",
+        createdAtMs = now,
+        updatedAtMs = now
       )
+    )
+    updateAsyncJob(jobId): current =>
+      current.copy(status = "running", updatedAtMs = System.currentTimeMillis())
+
+    analyzeFullGameLocal(
+      pgn = req.pgn,
+      evals = req.evals,
+      style = req.options.style,
+      focusOn = req.options.focusOn,
+      allowLlmPolish = allowLlmPolish,
+      asyncTier = true,
+      lang = lang
+    ).map {
+      case Some(result) =>
+        updateAsyncJob(jobId): current =>
+          current.copy(
+            status = "completed",
+            updatedAtMs = System.currentTimeMillis(),
+            result = Some(result),
+            error = None
+          )
+      case None =>
+        updateAsyncJob(jobId): current =>
+          current.copy(
+            status = "failed",
+            updatedAtMs = System.currentTimeMillis(),
+            error = Some("Narrative Analysis unavailable")
+          )
     }.recover { case NonFatal(e) =>
-      logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
-      val narrative = CommentaryEngine.generateFullGameNarrative(
-        pgn = pgn,
-        evals = evalMap
-      )
-      Some(
-        GameNarrativeResponse.fromNarrative(
-          narrative = narrative,
-          review = Some(buildGameReview(narrative, pgn, evals))
+      updateAsyncJob(jobId): current =>
+        current.copy(
+          status = "failed",
+          updatedAtMs = System.currentTimeMillis(),
+          error = Some(e.getMessage.take(240))
         )
-      )
     }
+    AsyncGameAnalysisSubmitResponse(jobId = jobId, status = "running")
+
+  def getGameAnalysisAsyncStatus(jobId: String): Option[AsyncGameAnalysisStatusResponse] =
+    cleanupAsyncJobs()
+    asyncJobs.get(jobId)
+
+  private def updateAsyncJob(
+      jobId: String
+  )(f: AsyncGameAnalysisStatusResponse => AsyncGameAnalysisStatusResponse): Unit =
+    asyncJobs.get(jobId).foreach { current =>
+      asyncJobs.update(jobId, f(current))
+    }
+
+  private def cleanupAsyncJobs(): Unit =
+    val now = System.currentTimeMillis()
+    asyncJobs.foreach { case (jobId, status) =>
+      if now - status.updatedAtMs > AsyncJobTtlMs then asyncJobs.remove(jobId)
+    }
+    val overflow = asyncJobs.size - AsyncJobMaxSize
+    if overflow > 0 then
+      asyncJobs
+        .toList
+        .sortBy(_._2.updatedAtMs)
+        .take(overflow)
+        .foreach { case (jobId, _) => asyncJobs.remove(jobId) }
 
   private def fetchOpeningRefsForPgn(pgn: String): Future[Map[String, OpeningReference]] =
     val openingFens = PgnAnalysisHelper.extractPlyData(pgn) match
@@ -462,3 +1391,374 @@ final class LlmApi(
       selectedMoments = selectedMomentPlies.size,
       selectedMomentPlies = selectedMomentPlies
     )
+
+private[llm] object RuleTemplateSanitizer:
+
+  private case class OpeningFamily(
+      id: String,
+      aliases: List[String],
+      markers: List[String]
+  )
+
+  // Opening-stage guard: phase labels can drift, so we still sanitize early middle games.
+  private val OpeningStageMaxPly = 24
+
+  private val openingFamilies = List(
+    OpeningFamily(
+      id = "open_games",
+      aliases = List(
+        "open game",
+        "king's pawn",
+        "kings pawn",
+        "italian",
+        "ruy lopez",
+        "spanish",
+        "scotch",
+        "four knights",
+        "petrov",
+        "philidor",
+        "vienna",
+        "bishop's opening",
+        "bishops opening",
+        "ponziani"
+      ),
+      markers = List(
+        "open games (1.e4 e5)",
+        "open games",
+        "central e4-e5 structure",
+        "e4-e5 structure"
+      )
+    ),
+    OpeningFamily(
+      id = "sicilian",
+      aliases = List(
+        "sicilian",
+        "najdorf",
+        "dragon",
+        "scheveningen",
+        "sveshnikov",
+        "taimanov",
+        "kan",
+        "rossolimo",
+        "alapin",
+        "smith-morra",
+        "closed sicilian"
+      ),
+      markers = List("sicilian")
+    ),
+    OpeningFamily(
+      id = "french",
+      aliases = List(
+        "french",
+        "winawer",
+        "tarrasch",
+        "rubinstein",
+        "maccutcheon",
+        "steinitz"
+      ),
+      markers = List("french")
+    ),
+    OpeningFamily(
+      id = "caro_kann",
+      aliases = List("caro-kann", "caro kann"),
+      markers = List("caro-kann", "caro kann")
+    ),
+    OpeningFamily(
+      id = "scandinavian",
+      aliases = List("scandinavian", "center counter"),
+      markers = List("scandinavian")
+    ),
+    OpeningFamily(
+      id = "nimzo_indian",
+      aliases = List("nimzo", "nimzo-indian", "nimzo indian"),
+      markers = List("nimzo")
+    ),
+    OpeningFamily(
+      id = "kings_indian",
+      aliases = List("king's indian", "kings indian", "k.i.d", "kid"),
+      markers = List("king's indian", "kings indian")
+    ),
+    OpeningFamily(
+      id = "benoni",
+      aliases = List("benoni", "modern benoni"),
+      markers = List("benoni")
+    ),
+    OpeningFamily(
+      id = "catalan",
+      aliases = List("catalan"),
+      markers = List("catalan")
+    ),
+    OpeningFamily(
+      id = "queens_gambit",
+      aliases = List("queen's gambit", "queens gambit", "qgd", "qga"),
+      markers = List("queen's gambit", "queens gambit")
+    ),
+    OpeningFamily(
+      id = "london",
+      aliases = List("london"),
+      markers = List("london")
+    ),
+    OpeningFamily(
+      id = "english",
+      aliases = List("english"),
+      markers = List("english")
+    ),
+    OpeningFamily(
+      id = "austrian",
+      aliases = List("austrian attack", "pirc", "modern defense"),
+      markers = List("austrian attack", "pirc", "modern defense")
+    )
+  )
+
+  private val familiesById = openingFamilies.map(f => f.id -> f).toMap
+  private val sentenceBoundaryRegex = java.util.regex.Pattern.compile("""(?<=[.!?])\s+""")
+  private val requiresStructureRegex =
+    """(?i)\brequires?\s+an?\s+([^,.;:!?]{2,60}?)\s+structure\b""".r
+  private val typicalInRegex =
+    """(?i)\btypical in\s+([^,.;:!?]{2,60})""".r
+
+  private def normalizeOpening(opening: Option[String]): String =
+    opening.getOrElse("").trim.toLowerCase
+
+  private def isOpeningStage(phase: String, ply: Int): Boolean =
+    phase.equalsIgnoreCase("opening") ||
+      (phase.equalsIgnoreCase("middlegame") && ply > 0 && ply <= OpeningStageMaxPly)
+
+  private def familyIdFromPhrase(phrase: String): Option[String] =
+    val normalized = phrase.trim.toLowerCase
+    openingFamilies
+      .find { family =>
+        family.aliases.exists(alias => normalized.contains(alias) || alias.contains(normalized))
+      }
+      .map(_.id)
+
+  private def detectMentionedFamilyIds(sentence: String): Set[String] =
+    val lower = sentence.toLowerCase
+    val direct = openingFamilies.collect {
+      case family if family.markers.exists(lower.contains) => family.id
+    }
+    val fromPatterns =
+      (requiresStructureRegex.findAllMatchIn(lower).map(_.group(1)).toList ++
+        typicalInRegex.findAllMatchIn(lower).map(_.group(1)).toList)
+        .flatMap(familyIdFromPhrase)
+    (direct ++ fromPatterns).toSet
+
+  private def openingMatchesFamily(openingLower: String, familyId: String): Boolean =
+    familiesById
+      .get(familyId)
+      .exists(_.aliases.exists(alias => openingLower.contains(alias)))
+
+  private def parseFenPieces(fen: String): Option[Map[String, Char]] =
+    val boardPart = Option(fen).map(_.trim).filter(_.nonEmpty).flatMap(_.split(" ").headOption).getOrElse("")
+    val ranks = boardPart.split("/")
+    if ranks.length != 8 then None
+    else
+      val pieces = scala.collection.mutable.Map.empty[String, Char]
+      var valid = true
+      ranks.zipWithIndex.foreach { case (rankStr, rankIdx) =>
+        if valid then
+          var file = 0
+          rankStr.foreach { ch =>
+            if ch.isDigit then file += ch.asDigit
+            else
+              if file >= 0 && file < 8 then
+                val sq = s"${('a' + file).toChar}${8 - rankIdx}"
+                pieces.update(sq, ch)
+              else valid = false
+              file += 1
+          }
+          if file != 8 then valid = false
+      }
+      if valid then Some(pieces.toMap) else None
+
+  private def hasPiece(board: Map[String, Char], square: String, piece: Char): Boolean =
+    board.get(square).contains(piece)
+
+  private def structureMatchesFamily(fen: Option[String], familyId: String): Boolean =
+    val boardOpt = fen.flatMap(parseFenPieces)
+    boardOpt.exists { board =>
+      familyId match
+        case "open_games" =>
+          hasPiece(board, "e4", 'P') && hasPiece(board, "e5", 'p')
+        case "sicilian" =>
+          hasPiece(board, "c5", 'p')
+        case "french" =>
+          hasPiece(board, "e6", 'p') && hasPiece(board, "d5", 'p')
+        case "caro_kann" =>
+          hasPiece(board, "c6", 'p') && hasPiece(board, "d5", 'p')
+        case "scandinavian" =>
+          hasPiece(board, "e4", 'P') && hasPiece(board, "d5", 'p')
+        case "catalan" =>
+          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P') && hasPiece(board, "g2", 'B')
+        case "queens_gambit" =>
+          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P')
+        case "london" =>
+          hasPiece(board, "d4", 'P') && hasPiece(board, "e3", 'P') && hasPiece(board, "f4", 'B')
+        case "english" =>
+          hasPiece(board, "c4", 'P')
+        case "kings_indian" =>
+          hasPiece(board, "f6", 'n') && hasPiece(board, "g7", 'b') && hasPiece(board, "g6", 'p')
+        case "nimzo_indian" =>
+          hasPiece(board, "f6", 'n') && hasPiece(board, "b4", 'b')
+        case "benoni" =>
+          hasPiece(board, "c5", 'p') && hasPiece(board, "d6", 'p') && hasPiece(board, "d5", 'P')
+        case "austrian" =>
+          hasPiece(board, "e4", 'P') && hasPiece(board, "f4", 'P')
+        case _ => true
+    }
+
+  private def shouldNeutralizeFamilySentence(
+      sentence: String,
+      opening: Option[String],
+      phase: String,
+      ply: Int,
+      fen: Option[String]
+  ): Boolean =
+    val openingLower = normalizeOpening(opening)
+    if openingLower.isEmpty || !isOpeningStage(phase, ply) then false
+    else
+      val mentionedFamilies = detectMentionedFamilyIds(sentence)
+      val labelMismatch =
+        mentionedFamilies.nonEmpty &&
+          mentionedFamilies.forall(familyId => !openingMatchesFamily(openingLower, familyId))
+      val structureMismatch =
+        mentionedFamilies.nonEmpty &&
+          mentionedFamilies.forall(familyId => !structureMatchesFamily(fen, familyId))
+      labelMismatch && structureMismatch
+
+  private def neutralizeUnsupportedFamilyClaims(
+      text: String,
+      opening: Option[String],
+      phase: String,
+      ply: Int,
+      fen: Option[String]
+  ): String =
+    val matcher = sentenceBoundaryRegex.matcher(text)
+    val sb = new StringBuilder()
+    var start = 0
+
+    while matcher.find() do
+      val sentence = text.substring(start, matcher.start())
+      if shouldNeutralizeFamilySentence(sentence, opening, phase, ply, fen) then
+        sb.append("This move follows a thematic idea, but that specific opening-family claim does not match the current pawn structure.")
+      else sb.append(sentence)
+      sb.append(matcher.group())
+      start = matcher.end()
+
+    val tail = text.substring(start)
+    if shouldNeutralizeFamilySentence(tail, opening, phase, ply, fen) then
+      sb.append("This move follows a thematic idea, but that specific opening-family claim does not match the current pawn structure.")
+    else sb.append(tail)
+
+    sb.toString
+
+  private def collapseRepeatedDots(input: String): String =
+    @annotation.tailrec
+    def loop(text: String): String =
+      if text.contains("..") then loop(text.replace("..", "."))
+      else text
+    loop(input)
+
+  def sanitize(text: String, opening: Option[String], phase: String, ply: Int, fen: Option[String] = None): String =
+    val src = Option(text).getOrElse("")
+    val noInvalidFamilyClaim = neutralizeUnsupportedFamilyClaims(src, opening, phase, ply, fen)
+
+    collapseRepeatedDots(noInvalidFamilyClaim)
+      .replaceAll(""":\s*:""", ": ")
+      .replaceAll("""\.\s*:""", ". ")
+      .replaceAll("""\s+\.""", ".")
+
+private[llm] object PolishValidation:
+
+  case class ValidationResult(isValid: Boolean, reasons: List[String])
+
+  private case class MoveMarker(number: Int, style: String):
+    inline def token: String = s"$number$style"
+
+  private val moveTokenRegex =
+    """(?<![A-Za-z0-9])((?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)(?:[+#])?(?:[!?]{1,2})?)""".r
+  private val moveMarkerRegex =
+    """(?<![A-Za-z0-9])(\d+)(\.\.\.|\.|)(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:[+#])?(?:[!?]{1,2})?))""".r
+
+  private def canonicalSanToken(token: String): String =
+    Option(token).getOrElse("").trim
+      .replaceAll("""[!?]+$""", "")
+      .replaceAll("""[+#]+$""", "")
+
+  private def extractMoveTokensOrdered(text: String): List[String] =
+    val t = Option(text).getOrElse("")
+    moveTokenRegex
+      .findAllMatchIn(t)
+      .map(m => canonicalSanToken(m.group(1)))
+      .filter(_.nonEmpty)
+      .toList
+
+  private def extractMoveMarkersOrdered(text: String): List[MoveMarker] =
+    val t = Option(text).getOrElse("")
+    moveMarkerRegex
+      .findAllMatchIn(t)
+      .flatMap { m =>
+        m.group(1).toIntOption.map(n => MoveMarker(number = n, style = m.group(2)))
+      }
+      .toList
+
+  private def isSubsequence(xs: List[String], ys: List[String]): Boolean =
+    if xs.isEmpty then true
+    else
+      @annotation.tailrec
+      def loop(restXs: List[String], restYs: List[String]): Boolean =
+        (restXs, restYs) match
+          case (Nil, _) => true
+          case (_, Nil) => false
+          case (xh :: xt, yh :: yt) =>
+            if xh == yh then loop(xt, yt) else loop(restXs, yt)
+      loop(xs, ys)
+
+  private def tokenCounts(xs: List[String]): Map[String, Int] =
+    xs.groupMapReduce(identity)(_ => 1)(_ + _)
+
+  def validatePolishedCommentary(
+      polished: String,
+      original: String,
+      allowedSans: List[String]
+  ): ValidationResult =
+    val polishedMoves = extractMoveTokensOrdered(polished)
+    val originalMoves = extractMoveTokensOrdered(original)
+    val originalMarkers = extractMoveMarkersOrdered(original)
+    val polishedMarkers = extractMoveMarkersOrdered(polished)
+    val allowedMoves = originalMoves ++ allowedSans.map(canonicalSanToken).filter(_.nonEmpty)
+    val allowedCount = tokenCounts(allowedMoves)
+    val polishedCount = tokenCounts(polishedMoves)
+
+    val withinCountBudget = polishedCount.forall { case (san, count) =>
+      count <= allowedCount.getOrElse(san, 0)
+    }
+    val preservesOrder = isSubsequence(polishedMoves, allowedMoves)
+    val numberingRequired = originalMarkers.nonEmpty && polishedMoves.nonEmpty
+    val numberingSatisfied = !numberingRequired || polishedMarkers.nonEmpty
+    val originalNumberSet = originalMarkers.map(_.number).toSet
+    val polishedMarkersOnOriginalNumbers = polishedMarkers.filter(m => originalNumberSet.contains(m.number))
+    val originalMarkerTokens = originalMarkers.map(_.token)
+    val polishedMarkerTokensOnOriginalNumbers = polishedMarkersOnOriginalNumbers.map(_.token)
+    val markerStyleOrderSatisfied =
+      polishedMarkerTokensOnOriginalNumbers.isEmpty ||
+        isSubsequence(polishedMarkerTokensOnOriginalNumbers, originalMarkerTokens)
+
+    val reasons = List.newBuilder[String]
+    if !withinCountBudget then reasons += "count_budget_exceeded"
+    if !preservesOrder then reasons += "san_order_violation"
+    if !numberingSatisfied then reasons += "numbering_missing"
+    if !markerStyleOrderSatisfied then reasons += "marker_style_mismatch"
+
+    val reasonList = reasons.result()
+    ValidationResult(
+      isValid = reasonList.isEmpty,
+      reasons = reasonList
+    )
+
+  def isPolishedCommentaryValid(
+      polished: String,
+      original: String,
+      allowedSans: List[String]
+  ): Boolean =
+    validatePolishedCommentary(polished, original, allowedSans).isValid

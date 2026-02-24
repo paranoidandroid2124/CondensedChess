@@ -79,6 +79,8 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 
 # LLM Analysis
 POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
+POST  /api/llm/game-analysis-async     controllers.LlmController.analyzeGameAsync
+GET   /api/llm/game-analysis-async/:jobId controllers.LlmController.analyzeGameAsyncStatus(jobId)
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
 POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
 GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)

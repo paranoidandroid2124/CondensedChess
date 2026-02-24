@@ -3,6 +3,7 @@ package lila.analyse.test
 import lila.llm.model.strategic.VariationLine
 import lila.analyse.ui.BookmakerRenderer
 import lila.llm.analysis.NarrativeUtils
+import lila.llm.{ BookmakerRefsV1, MoveRefV1, VariationRefV1 }
 
 class BookmakerRendererTest extends munit.FunSuite:
 
@@ -86,4 +87,114 @@ class BookmakerRendererTest extends munit.FunSuite:
     val html = BookmakerRenderer.render("Just text.", Nil, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").toString
     assert(!html.contains("Alternative Options"))
     assert(html.contains("Just text."))
+  }
+
+  test("variation rendering should include absolute move numbers (including black ellipsis)") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 17"
+    val vars = List(
+      VariationLine(
+        moves = List("e7e5", "g1f3"),
+        scoreCp = 15,
+        mate = None
+      )
+    )
+    val html = BookmakerRenderer.render("Main line.", vars, fen).toString
+    assert(html.contains("17..."))
+    assert(html.contains("18."))
+  }
+
+  test("numbered prose sequence should map each SAN in order for mini-board hover") {
+    val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val uciLine = List("e2e4", "e7e5", "g1f3", "b8c6")
+    val vars = List(VariationLine(moves = uciLine, scoreCp = 30, mate = None))
+    val commentary = "Main line: 1 e4 e5 2 Nf3 Nc6."
+    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+
+    val fenAfterE4 = NarrativeUtils.uciListToFen(fen, List("e2e4"))
+    val fenAfterE5 = NarrativeUtils.uciListToFen(fenAfterE4, List("e7e5"))
+    val fenAfterNf3 = NarrativeUtils.uciListToFen(fenAfterE5, List("g1f3"))
+    val fenAfterNc6 = NarrativeUtils.uciListToFen(fenAfterNf3, List("b8c6"))
+
+    assert(html.contains(s"""data-san="e4" data-uci="e2e4" data-board="$fenAfterE4|e2e4""""))
+    assert(html.contains(s"""data-san="e5" data-uci="e7e5" data-board="$fenAfterE5|e7e5""""))
+    assert(html.contains(s"""data-san="Nf3" data-uci="g1f3" data-board="$fenAfterNf3|g1f3""""))
+    assert(html.contains(s"""data-san="Nc6" data-uci="b8c6" data-board="$fenAfterNc6|b8c6""""))
+  }
+
+  test("black-to-move prose sequence should preserve 17... marker and map chips in order") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 17"
+    val uciLine = List("e7e5", "g1f3")
+    val vars = List(VariationLine(moves = uciLine, scoreCp = 12, mate = None))
+    val commentary = "Critical line: 17... e5! 18 Nf3."
+    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+
+    val fenAfterE5 = NarrativeUtils.uciListToFen(fen, List("e7e5"))
+    val fenAfterNf3 = NarrativeUtils.uciListToFen(fenAfterE5, List("g1f3"))
+
+    assert(html.contains("17..."))
+    assert(html.contains(s"""data-san="e5" data-uci="e7e5" data-board="$fenAfterE5|e7e5""""))
+    assert(html.contains(s"""data-san="Nf3" data-uci="g1f3" data-board="$fenAfterNf3|g1f3""""))
+  }
+
+  test("annotated SAN in prose should still map to move chips by canonical SAN") {
+    val fen = "6k1/8/8/8/8/8/4Q3/4K3 w - - 0 1"
+    val vars = List(
+      VariationLine(
+        moves = List("e2e8"),
+        scoreCp = 900,
+        mate = Some(1)
+      )
+    )
+    val html = BookmakerRenderer.render("Critical sequence: Qe8!.", vars, fen).toString
+    assert(
+      """<span class="move-chip[^"]*" data-san="Qe8" data-uci="e2e8"""".r.findFirstIn(html).nonEmpty
+    )
+    assert(html.contains(">Qe8!</span>"))
+  }
+
+  test("refs contract should emit data-ref-id for prose chips and variation chips") {
+    val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val vars = List(
+      VariationLine(moves = List("e2e4", "e7e5"), scoreCp = 28, mate = None)
+    )
+    val fenAfterE4 = NarrativeUtils.uciListToFen(fen, List("e2e4"))
+    val fenAfterE5 = NarrativeUtils.uciListToFen(fenAfterE4, List("e7e5"))
+    val refs = BookmakerRefsV1(
+      startFen = fen,
+      startPly = 1,
+      variations = List(
+        VariationRefV1(
+          lineId = "line_01",
+          scoreCp = 28,
+          mate = None,
+          depth = 0,
+          moves = List(
+            MoveRefV1(
+              refId = "l01_m01",
+              san = "e4",
+              uci = "e2e4",
+              fenAfter = fenAfterE4,
+              ply = 1,
+              moveNo = 1,
+              marker = Some("1.")
+            ),
+            MoveRefV1(
+              refId = "l01_m02",
+              san = "e5",
+              uci = "e7e5",
+              fenAfter = fenAfterE5,
+              ply = 2,
+              moveNo = 1,
+              marker = Some("1...")
+            )
+          )
+        )
+      )
+    )
+
+    val html = BookmakerRenderer.render("Critical line: 1 e4 e5.", vars, fen, refs = Some(refs)).toString
+    assert(html.contains("""data-ref-id="l01_m01""""))
+    assert(html.contains("""data-ref-id="l01_m02""""))
+    assert(html.contains(s"""data-board="$fenAfterE4|e2e4""""))
+    assert(html.contains(s"""data-board="$fenAfterE5|e7e5""""))
   }

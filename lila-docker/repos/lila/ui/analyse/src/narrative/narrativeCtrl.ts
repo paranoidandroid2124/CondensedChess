@@ -36,6 +36,22 @@ export interface GameNarrativeResponse {
     conclusion: string;
     themes: string[];
     review?: GameNarrativeReview;
+    sourceMode?: string;
+    model?: string | null;
+}
+
+interface AsyncNarrativeSubmitResponse {
+    jobId: string;
+    status: string;
+}
+
+interface AsyncNarrativeStatusResponse {
+    jobId: string;
+    status: string;
+    createdAtMs?: number;
+    updatedAtMs?: number;
+    result?: GameNarrativeResponse | null;
+    error?: string | null;
 }
 
 const AUTO_EVAL_DEPTH = 12;
@@ -43,6 +59,8 @@ const AUTO_EVAL_MULTI_PV = 2;
 const AUTO_EVAL_PER_PLY_TIMEOUT_MS = 450;
 const AUTO_EVAL_MAX_BUDGET_MS = 25000;
 const AUTO_EVAL_MAX_PLY_SCAN = 120;
+const ASYNC_NARRATIVE_POLL_INTERVAL_MS = 1200;
+const ASYNC_NARRATIVE_POLL_TIMEOUT_MS = 180000;
 
 function magicLinkHref(): string {
     return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -109,26 +127,32 @@ export class NarrativeCtrl {
                 this.loadingDetail(detail);
                 this.root.redraw();
             });
+            this.loadingDetail('Submitting async deep analysis job...');
+            this.root.redraw();
 
-            const res = await fetch('/api/llm/game-analysis-local', {
+            const payload = {
+                pgn: pgn,
+                evals,
+                options: { style: 'book', focusOn: ['mistakes', 'turning_points'] }
+            };
+
+            const submitRes = await fetch('/api/llm/game-analysis-async', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    pgn: pgn,
-                    evals,
-                    options: { style: 'book', focusOn: ['mistakes', 'turning_points'] }
-                })
+                body: JSON.stringify(payload)
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                this.data(data as GameNarrativeResponse);
-            } else if (res.status === 401) {
+            if (submitRes.ok) {
+                const submit = (await submitRes.json()) as AsyncNarrativeSubmitResponse;
+                await this.pollAsyncNarrative(submit.jobId);
+            } else if (submitRes.status === 404 || submitRes.status === 405 || submitRes.status === 501) {
+                await this.fetchNarrativeSyncFallback(payload);
+            } else if (submitRes.status === 401) {
                 this.needsLogin(true);
                 this.error('Login required to use AI commentary.');
-            } else if (res.status === 429) {
+            } else if (submitRes.status === 429) {
                 try {
-                    const data = await res.json();
+                    const data = await submitRes.json();
                     const seconds = data?.ratelimit?.seconds;
                     if (typeof seconds === 'number') this.error(`LLM quota exceeded. Try again in ${formatSeconds(seconds)}.`);
                     else this.error('LLM quota exceeded.');
@@ -136,8 +160,8 @@ export class NarrativeCtrl {
                     this.error('LLM quota exceeded.');
                 }
             } else {
-                const txt = await res.text();
-                this.error("Error fetching narrative: " + res.status + " " + txt);
+                const txt = await submitRes.text();
+                this.error("Error submitting async narrative: " + submitRes.status + " " + txt);
             }
         } catch (e) {
             console.error(e);
@@ -147,7 +171,76 @@ export class NarrativeCtrl {
             this.loadingDetail(null);
             this.root.redraw();
         }
-    }
+    };
+
+    private fetchNarrativeSyncFallback = async (payload: unknown): Promise<void> => {
+        this.loadingDetail('Async endpoint unavailable. Falling back to local full analysis...');
+        this.root.redraw();
+
+        const res = await fetch('/api/llm/game-analysis-local', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            this.data(data as GameNarrativeResponse);
+            return;
+        }
+
+        if (res.status === 401) {
+            this.needsLogin(true);
+            this.error('Login required to use AI commentary.');
+            return;
+        }
+
+        if (res.status === 429) {
+            try {
+                const data = await res.json();
+                const seconds = data?.ratelimit?.seconds;
+                if (typeof seconds === 'number') this.error(`LLM quota exceeded. Try again in ${formatSeconds(seconds)}.`);
+                else this.error('LLM quota exceeded.');
+            } catch {
+                this.error('LLM quota exceeded.');
+            }
+            return;
+        }
+
+        const txt = await res.text();
+        this.error('Error fetching narrative: ' + res.status + ' ' + txt);
+    };
+
+    private pollAsyncNarrative = async (jobId: string): Promise<void> => {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < ASYNC_NARRATIVE_POLL_TIMEOUT_MS) {
+            this.loadingDetail('Deep analysis in progress...');
+            this.root.redraw();
+
+            const res = await fetch(`/api/llm/game-analysis-async/${encodeURIComponent(jobId)}`);
+            if (!res.ok) {
+                const txt = await res.text();
+                this.error('Async analysis polling failed: ' + res.status + ' ' + txt);
+                return;
+            }
+
+            const status = (await res.json()) as AsyncNarrativeStatusResponse;
+            const state = (status.status || '').toLowerCase();
+            if (state === 'completed') {
+                if (status.result) this.data(status.result);
+                else this.error('Async analysis completed without result.');
+                return;
+            }
+            if (state === 'failed') {
+                this.error(status.error || 'Async analysis failed.');
+                return;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, ASYNC_NARRATIVE_POLL_INTERVAL_MS));
+        }
+
+        this.error('Async analysis timed out. Please try again.');
+    };
 }
 
 export function make(root: AnalyseCtrl): NarrativeCtrl {
