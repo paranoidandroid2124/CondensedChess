@@ -1,13 +1,12 @@
 package lila.llm
 
-/** System prompt and per-request polish prompt builder for Gemini integration.
+/** System prompt and per-request polish prompt builder for LLM polishing.
   *
-  * The system prompt is ~3000 tokens and intended to be cached via Gemini's
-  * Context Caching API to achieve ~90% input cost reduction.
+  * The system prompt is shared across providers and designed for prompt caching.
   */
 object PolishPrompt:
 
-  /** Static system prompt cached on Gemini's side.
+  /** Static system prompt cached on provider side.
     * Defines the AI's persona, refinement rules, and output format.
     */
   val systemPrompt: String =
@@ -72,6 +71,22 @@ object PolishPrompt:
        |    - Do not infer uncertain precedent details; omit them instead.
        |15. PRESERVE two-stage precedent blocks:
        |    - If a precedent appears as factual line + mechanism/turning-point line, keep both sentences.
+       |16. WHEN citing concrete lines, keep explicit move numbering and side-to-move markers:
+       |    - Use forms like "17... d5!" and "14 Ne6 Nxe5 15 Bxe5 Qf2!".
+       |    - Do not collapse numbered sequences into unnumbered SAN tokens.
+       |    - Keep SAN token order exactly as in the draft for any concrete line.
+       |    - Do not reorder repeated SAN tokens across a line (mini-board mapping depends on this).
+       |    - Preserve move-number marker style for cited lines (e.g., keep "17..." as black marker).
+       |17. REMOVE unsupported opening-family claims:
+       |    - If the draft names an opening family that conflicts with provided Opening/FEN context,
+       |      replace it with a neutral structural description.
+       |18. AVOID generic outro/filler prose:
+       |    - Do not add stock closers such as "overall the battle continues" unless present in draft facts.
+       |    - Keep practical guidance concrete (piece/square/plan), not vague emotional narration.
+       |19. ANCHOR TOKEN INTEGRITY (when present):
+       |    - Preserve placeholders like [[MV_xxx]] and [[MK_xxx]] exactly.
+       |    - Never delete, rename, reorder, or partially rewrite anchor tokens.
+       |    - Keep anchor token order unchanged from the draft.
        |
        |## POSITION CONTEXT FIELDS
       |The per-request prompt will include structured context:
@@ -85,8 +100,9 @@ object PolishPrompt:
       |- `concepts`: high-level chess concepts applicable to the position
       |
       |## OUTPUT FORMAT
-      |Return ONLY the polished commentary text as plain prose.
-      |No JSON wrapper. No metadata. No markdown headers.
+      |Return only the polished commentary prose content.
+      |If an API-level schema is enforced, place that prose in the schema field and nothing else.
+      |No extra metadata. No markdown headers.
       |If the input draft is already high quality, return it with minimal changes.
       |If the draft is empty or nonsensical, return a brief neutral observation
       |about the position based on the context provided.""".stripMargin
@@ -107,11 +123,13 @@ object PolishPrompt:
       evalDelta: Option[Int],
       concepts: List[String],
       fen: String,
+      openingName: Option[String] = None,
       nature: Option[String] = None,
       tension: Option[Double] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val conceptStr = if concepts.isEmpty then "none detected" else concepts.take(6).mkString(", ")
+    val openingStr = openingName.filter(_.trim.nonEmpty).getOrElse("unknown")
     val natureStr = nature.getOrElse("unknown")
     val tensionStr = tension.map(t => f"$t%.2f").getOrElse("N/A")
 
@@ -120,10 +138,61 @@ object PolishPrompt:
        |
        |## CONTEXT
        |Phase: $phase | Eval Δ: $deltaStr | Nature: $natureStr (tension: $tensionStr)
+       |Opening: $openingStr
        |Concepts: $conceptStr
        |FEN: $fen
        |
+       |If anchor tokens like [[MV_*]] or [[MK_*]] appear in the draft, preserve them exactly.
+       |
        |Refine the draft above following the system instructions.""".stripMargin
+
+  /** Build a repair prompt for re-polishing when first output fails strict validation.
+    *
+    * The goal is to keep prose quality gains while restoring strict SAN/marker constraints.
+    */
+  def buildRepairPrompt(
+      originalProse: String,
+      rejectedPolish: String,
+      phase: String,
+      evalDelta: Option[Int],
+      concepts: List[String],
+      fen: String,
+      openingName: Option[String] = None,
+      allowedSans: List[String] = Nil
+  ): String =
+    val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
+    val conceptStr = if concepts.isEmpty then "none detected" else concepts.take(8).mkString(", ")
+    val openingStr = openingName.filter(_.trim.nonEmpty).getOrElse("unknown")
+    val allowedSansStr =
+      allowedSans
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .distinct
+        .take(28)
+        .mkString(", ")
+
+    s"""## ORIGINAL_DRAFT
+       |$originalProse
+       |
+       |## REJECTED_POLISH
+       |$rejectedPolish
+       |
+       |## STRICT REPAIR REQUIREMENTS
+       |- Keep factual claims from ORIGINAL_DRAFT.
+       |- Keep concrete line SAN token order exactly valid for ORIGINAL_DRAFT context.
+       |- Do not add SAN tokens beyond this allowed extension set: ${if allowedSansStr.nonEmpty then allowedSansStr else "none"}.
+       |- Preserve move numbering and marker style for concrete lines (e.g., keep `17...`, do not mutate to `17.`).
+       |- Keep the prose concise and natural; remove repetitive template artifacts.
+       |
+       |## CONTEXT
+       |Phase: $phase | Eval Δ: $deltaStr
+       |Opening: $openingStr
+       |Concepts: $conceptStr
+       |FEN: $fen
+       |
+       |Anchor tokens ([[MV_*]], [[MK_*]]) must be preserved exactly and in-order.
+       |
+       |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
 
   /** Estimate token count for the system prompt (for cost analysis). */
   val estimatedSystemTokens: Int = 3000

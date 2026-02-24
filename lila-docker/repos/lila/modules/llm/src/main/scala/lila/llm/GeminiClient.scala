@@ -41,6 +41,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       evalDelta: Option[Int],
       concepts: List[String],
       fen: String,
+      openingName: Option[String] = None,
       nature: Option[String] = None,
       tension: Option[Double] = None
   ): Future[Option[String]] =
@@ -53,6 +54,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         evalDelta = evalDelta,
         concepts = concepts,
         fen = fen,
+        openingName = openingName,
         nature = nature,
         tension = tension
       )
@@ -64,6 +66,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
 
 
   def isEnabled: Boolean = config.enabled
+  def modelName: String = config.model
 
 
   def estimateTokens(prose: String): GeminiTokenEstimate =

@@ -33,6 +33,8 @@ type GameNarrativeResponse = {
     conclusion: string;
     themes: string[];
     review?: GameNarrativeReview;
+    sourceMode?: string;
+    model?: string | null;
 };
 
 export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
@@ -79,6 +81,12 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
                 : hl('div.narrative-preview-empty', 'Hover a move to preview'),
         ]),
         narrativeReviewView(doc),
+        doc.sourceMode || doc.model
+            ? hl('div.narrative-review-metrics', [
+                doc.sourceMode ? hl('span.narrative-review-metric', `Source: ${doc.sourceMode}`) : null,
+                doc.model ? hl('span.narrative-review-metric', `Model: ${doc.model}`) : null,
+            ])
+            : null,
         hl('div.narrative-intro', [
             hl('div.narrative-themes', doc.themes?.length ? doc.themes.map(t => hl('span.narrative-theme', t)) : null),
             hl('pre.narrative-prose', doc.intro),

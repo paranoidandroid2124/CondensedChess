@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
-import lila.llm.{ CommentResponse, GeminiClient, GeminiConfig, LlmApi, CommentaryCache }
+import lila.llm.{ BookmakerResult, GeminiClient, GeminiConfig, LlmApi, CommentaryCache, LlmConfig, LlmProviderConfig, OpenAiClient, OpenAiConfig }
 import lila.llm.analysis.OpeningExplorerClient
 import lila.llm.model.strategic.VariationLine
 
@@ -38,8 +38,28 @@ object BookmakerLiveSmokeTest:
         contextCacheTtlMinutes = 60, requestTimeoutSeconds = 30
       )
       val geminiClient = GeminiClient(ws, geminiConfig)
+      val openAiConfig = OpenAiConfig(
+        apiKey = "",
+        endpoint = "https://api.openai.com/v1/chat/completions",
+        modelSync = "disabled",
+        modelFallback = "disabled",
+        modelAsync = "disabled",
+        promptCacheKeyPrefix = "bookmaker:polish:v1",
+        enabled = false,
+        temperature = 0.2,
+        maxOutputTokens = 256,
+        requestTimeoutSeconds = 30
+      )
+      val openAiClient = OpenAiClient(ws, openAiConfig)
       val commentaryCache = CommentaryCache()
-      val api = LlmApi(explorer, geminiClient, commentaryCache)
+      val api = LlmApi(
+        openingExplorer = explorer,
+        geminiClient = geminiClient,
+        openAiClient = openAiClient,
+        commentaryCache = commentaryCache,
+        llmConfig = LlmConfig.fromEnv,
+        providerConfig = LlmProviderConfig.fromEnv
+      )
 
       // Corpus case: ruy_c3_prepare_d4 (ply 13)
       val fen =
@@ -64,7 +84,7 @@ object BookmakerLiveSmokeTest:
         )
       )
 
-      val fut: scala.concurrent.Future[Option[CommentResponse]] =
+      val fut: scala.concurrent.Future[Option[BookmakerResult]] =
         api.bookmakerCommentPosition(
           fen = fen,
           lastMove = Some(playedMove),
@@ -83,9 +103,10 @@ object BookmakerLiveSmokeTest:
           System.err.println("[smoke] No commentary produced (unexpected).")
           sys.exit(2)
         case Some(r) =>
-          println(r.commentary.trim)
+          val response = r.response
+          println(response.commentary.trim)
           println()
-          val hasMasters = r.commentary.toLowerCase.contains("masters games")
+          val hasMasters = response.commentary.toLowerCase.contains("masters games")
           println(s"[smoke] masters_paragraph=${if hasMasters then "yes" else "no"}")
 
     finally ws.close()

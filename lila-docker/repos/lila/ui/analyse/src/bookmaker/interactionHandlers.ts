@@ -1,6 +1,7 @@
 import { pubsub } from 'lib/pubsub';
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { uciToMove } from '@lichess-org/chessground/util';
+import type { BookmakerRefsV1 } from './responsePayload';
 
 type BookmakerPreviewState = {
   cg?: CgApi;
@@ -16,6 +17,26 @@ let suppressNextTap = false;
 let swipeStartX = 0;
 let swipeStartY = 0;
 let swipeActiveList: HTMLElement | null = null;
+let refsById = new Map<string, { fenAfter: string; uci: string }>();
+
+function boardPayloadFromElement(el: HTMLElement): string | null {
+  const refId = el.dataset.refId;
+  if (refId) {
+    const ref = refsById.get(refId);
+    if (ref) return `${ref.fenAfter}|${ref.uci}`;
+  }
+  return el.dataset.board ?? null;
+}
+
+export function setBookmakerRefs(refs: BookmakerRefsV1 | null): void {
+  refsById = new Map<string, { fenAfter: string; uci: string }>();
+  if (!refs) return;
+  for (const variation of refs.variations) {
+    for (const move of variation.moves) {
+      refsById.set(move.refId, { fenAfter: move.fenAfter, uci: move.uci });
+    }
+  }
+}
 
 export function setBookmakerPreviewOrientation(orientation: Color): void {
   bookmakerPreviewOrientation = orientation;
@@ -35,7 +56,8 @@ function setActiveVariationItem(item: HTMLElement, syncPreview = true): void {
   });
   item.classList.add('is-active');
   if (!syncPreview) return;
-  const board = item.querySelector<HTMLElement>('[data-board]')?.dataset.board;
+  const firstMove = item.querySelector<HTMLElement>('[data-ref-id], [data-board]');
+  const board = firstMove ? boardPayloadFromElement(firstMove) : null;
   if (board) updateBookmakerPreview(board);
 }
 
@@ -56,15 +78,15 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
   handlersBound = true;
 
   $(document)
-    .on('mouseover.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
-      const board = this.dataset.board;
+    .on('mouseover.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
+      const board = boardPayloadFromElement(this);
       if (board) updateBookmakerPreview(board);
     })
-    .on('focusin.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
-      const board = this.dataset.board;
+    .on('focusin.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
+      const board = boardPayloadFromElement(this);
       if (board) updateBookmakerPreview(board);
     })
-    .on('focusout.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
+    .on('focusout.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
       const root = this.closest('.analyse__bookmaker-text') as HTMLElement | null;
       setTimeout(() => {
         if (root?.contains(document.activeElement)) return;
@@ -96,7 +118,7 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
       const san = $(this).data('san');
       if (uci) pubsub.emit('analysis.bookmaker.move', { uci, san });
     })
-    .on('keydown.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement, e) {
+    .on('keydown.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', function (this: HTMLElement, e) {
       if (e.key !== 'Escape') return;
       e.preventDefault();
       hideBookmakerPreview();
@@ -108,9 +130,9 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
     .on('click.bookmaker', '.analyse__bookmaker-text .variation-item', function (this: HTMLElement) {
       setActiveVariationItem(this, true);
     })
-    .on('touchstart.bookmaker', '.analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
+    .on('touchstart.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', function (this: HTMLElement) {
       if (!('ontouchstart' in window)) return;
-      const board = this.dataset.board;
+      const board = boardPayloadFromElement(this);
       if (!board) return;
       cancelTouchHold();
       touchHoldTriggered = false;
@@ -123,7 +145,7 @@ export function initBookmakerHandlers(onEvalToggle: () => void): void {
         }, 400);
       }, 280);
     })
-    .on('touchend.bookmaker touchcancel.bookmaker', '.analyse__bookmaker-text [data-board]', () => {
+    .on('touchend.bookmaker touchcancel.bookmaker', '.analyse__bookmaker-text [data-ref-id], .analyse__bookmaker-text [data-board]', () => {
       cancelTouchHold();
       if (!touchHoldTriggered) return;
       touchHoldTriggered = false;

@@ -10,7 +10,9 @@ case class GameNarrativeResponse(
     moments: List[GameNarrativeMoment],
     conclusion: String,
     themes: List[String],
-    review: Option[GameNarrativeReview] = None
+    review: Option[GameNarrativeReview] = None,
+    sourceMode: String = "rule",
+    model: Option[String] = None
 )
 
 object GameNarrativeResponse:
@@ -19,7 +21,9 @@ object GameNarrativeResponse:
 
   def fromNarrative(
       narrative: FullGameNarrative,
-      review: Option[GameNarrativeReview] = None
+      review: Option[GameNarrativeReview] = None,
+      sourceMode: String = "rule",
+      model: Option[String] = None
   ): GameNarrativeResponse =
     GameNarrativeResponse(
       schema = schemaV1,
@@ -27,7 +31,9 @@ object GameNarrativeResponse:
       moments = narrative.keyMomentNarratives.map(GameNarrativeMoment.fromMoment),
       conclusion = narrative.conclusion,
       themes = narrative.overallThemes,
-      review = review
+      review = review,
+      sourceMode = sourceMode,
+      model = model
     )
 
   given Writes[GameNarrativeResponse] = Json.writes[GameNarrativeResponse]

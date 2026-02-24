@@ -31,17 +31,47 @@ final class LlmController(
       ctx.body.body.validate[FullAnalysisRequest].fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         analysisReq =>
+          val allowLlmPolish = isPremiumPlan
           api
             .analyzeFullGameLocal(
               pgn = analysisReq.pgn,
               evals = analysisReq.evals,
               style = analysisReq.options.style,
-              focusOn = analysisReq.options.focusOn
+              focusOn = analysisReq.options.focusOn,
+              allowLlmPolish = allowLlmPolish,
+              asyncTier = false,
+              lang = requestLang
             )
             .map:
               case Some(response) => Ok(Json.toJson(response))
               case None           => ServiceUnavailable("Narrative Analysis unavailable")
       )
+
+  /** Full game narrative analysis (async queue; low-cost lane). */
+  def analyzeGameAsync = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+    withRateLimit(requesterKey, cost = 3):
+      ctx.body.body.validate[FullAnalysisRequest].fold(
+        errors => BadRequest(JsError.toJson(errors)).toFuccess,
+        analysisReq =>
+          val submit = api.submitGameAnalysisAsync(
+            req = analysisReq,
+            allowLlmPolish = isPremiumPlan,
+            lang = requestLang
+          )
+          Created(Json.toJson(submit)).toFuccess
+      )
+
+  /** Poll status for async full-game analysis. */
+  def analyzeGameAsyncStatus(jobId: String) = Open:
+    val id = jobId.trim
+    if id.isEmpty then BadRequest(Json.obj("error" -> "missing_job_id")).toFuccess
+    else
+      (
+        api.getGameAnalysisAsyncStatus(id) match
+          case Some(status) => Ok(Json.toJson(status))
+          case None         => NotFound(Json.obj("error" -> "not_found"))
+      ).toFuccess
+
   /** Per-ply bookmaker commentary (rule-based). */
   def bookmakerPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     withRateLimit(requesterKey, cost = 1):
@@ -62,26 +92,37 @@ final class LlmController(
               opening = commentReq.context.opening,
               phase = commentReq.context.phase,
               ply = commentReq.context.ply,
-              prevStateToken = commentReq.planStateToken
+              prevStateToken = commentReq.planStateToken,
+              allowLlmPolish = isPremiumPlan,
+              lang = requestLang
             )
             .map {
-              case Some(response) =>
+              case Some(result) =>
+                val response = result.response
                 val html = BookmakerRenderer
                   .render(
                     commentary = response.commentary,
                     variations = response.variations,
-                    fenBefore = commentReq.fen
+                    fenBefore = commentReq.fen,
+                    refs = response.refs
                   )
                   .toString
+                val baseJson = Json.obj(
+                  "schema" -> "chesstory.bookmaker.v2",
+                  "html" -> html,
+                  "commentary" -> response.commentary,
+                  "variations" -> response.variations,
+                  "concepts" -> response.concepts,
+                  "probeRequests" -> response.probeRequests,
+                  "planStateToken" -> response.planStateToken,
+                  "sourceMode" -> response.sourceMode,
+                  "model" -> response.model,
+                  "cacheHit" -> result.cacheHit
+                )
+                val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
+                val payload = response.polishMeta.fold(withRefs)(m => withRefs ++ Json.obj("polishMeta" -> m))
                 Ok(
-                  Json.obj(
-                    "html" -> html,
-                    "commentary" -> response.commentary,
-                    "variations" -> response.variations,
-                    "concepts" -> response.concepts,
-                    "probeRequests" -> response.probeRequests,
-                    "planStateToken" -> response.planStateToken
-                  )
+                  payload
                 )
               case None => ServiceUnavailable("Lexicon Commentary unavailable")
             }
@@ -104,7 +145,8 @@ final class LlmController(
                 .render(
                   commentary = response.commentary,
                   variations = response.variations,
-                  fenBefore = commentReq.fen
+                  fenBefore = commentReq.fen,
+                  refs = response.refs
                 )
                 .toString
               Ok(Json.obj("html" -> html, "concepts" -> response.concepts))
@@ -136,6 +178,20 @@ final class LlmController(
     ctx.me
       .map(me => s"user:${me.userId.value}")
       .getOrElse(s"ip:${ctx.ip.value}")
+
+  private def isPremiumPlan(using ctx: Context): Boolean =
+    ctx.me.exists(_.tier.isPremium)
+
+  private def requestLang(using RequestHeader): String =
+    val raw = req.headers.get("Accept-Language").getOrElse("")
+    raw
+      .split(",")
+      .toList
+      .map(_.trim.toLowerCase)
+      .find(_.nonEmpty)
+      .map(_.takeWhile(ch => ch.isLetter || ch == '-'))
+      .filter(_.nonEmpty)
+      .getOrElse("en")
 
   private def withRateLimit(key: String, cost: Int)(op: => Fu[Result]): Fu[Result] =
     rateLimiter.either(key, cost = cost, msg = "llm-request", limitedMsg = "Too many requests")(op).map:

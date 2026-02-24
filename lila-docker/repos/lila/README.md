@@ -42,9 +42,20 @@ cd CondensedChess/lila-docker
 Create or edit `settings.env`:
 
 ```env
-# Optional Gemini settings (rule-based commentary remains active without a key)
+# LLM provider (default: openai; without key it falls back to rule-based)
+LLM_PROVIDER=openai # openai | gemini | none
+
+# OpenAI (recommended quality-cost defaults)
+OPENAI_API_KEY=
+OPENAI_MODEL_SYNC=gpt-4.1-mini
+OPENAI_MODEL_FALLBACK=gpt-4o-mini
+OPENAI_MODEL_ASYNC=gpt-4.1-mini
+OPENAI_PROMPT_CACHE_KEY_PREFIX=bookmaker:polish:v1
+OPENAI_MAX_OUTPUT_TOKENS=256
+
+# Optional Gemini fallback
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.0-flash-preview
+GEMINI_MODEL=gemini-2.0-flash
 
 # Optional support links shown on /support
 SUPPORT_PATREON_URL=

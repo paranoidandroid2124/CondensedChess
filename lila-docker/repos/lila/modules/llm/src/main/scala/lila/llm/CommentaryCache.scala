@@ -9,6 +9,12 @@ import play.api.libs.json.*
 
 import lila.memo.CacheApi.*
 
+case class LlmCacheContext(
+    model: String,
+    promptVersion: String,
+    lang: String
+)
+
 /** Server-side Caffeine TTL cache for commentary responses.
   *
   * Provides 2nd-layer caching (after client-side Map in bookmaker.ts).
@@ -21,7 +27,7 @@ final class CommentaryCache(using Executor):
 
   private val cache: Cache[String, CommentResponse] =
     scaffeineNoScheduler
-      .expireAfterWrite(10.minutes)
+      .expireAfterWrite(60.minutes)
       .maximumSize(2048)
       .build[String, CommentResponse]()
 
@@ -71,10 +77,14 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker]
+      planStateToken: Option[PlanStateTracker],
+      llmContext: Option[LlmCacheContext]
   ): String =
     val probePart = probeFingerprint(probeResults).map(fp => s"probe:$fp").getOrElse("probe:-")
-    s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken)}|$probePart"
+    val llmPart = llmContext
+      .map(ctx => s"llm:${ctx.model}:${ctx.promptVersion}:${ctx.lang}")
+      .getOrElse("llm:-")
+    s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken)}|$probePart|$llmPart"
 
   /** Retrieve cached commentary if available. */
   def get(fen: String, lastMove: Option[String]): Option[CommentResponse] =
@@ -90,7 +100,16 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Option[CommentResponse] =
-    cache.getIfPresent(cacheKey(fen, lastMove, probeResults, planStateToken))
+    get(fen, lastMove, probeResults, planStateToken, None)
+
+  def get(
+      fen: String,
+      lastMove: Option[String],
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      llmContext: Option[LlmCacheContext]
+  ): Option[CommentResponse] =
+    cache.getIfPresent(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext))
 
   /** Store commentary in cache. */
   def put(fen: String, lastMove: Option[String], response: CommentResponse): Unit =
@@ -107,7 +126,17 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Unit =
-    cache.put(cacheKey(fen, lastMove, probeResults, planStateToken), response)
+    put(fen, lastMove, response, probeResults, planStateToken, None)
+
+  def put(
+      fen: String,
+      lastMove: Option[String],
+      response: CommentResponse,
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      llmContext: Option[LlmCacheContext]
+  ): Unit =
+    cache.put(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext), response)
 
   /** Invalidate a specific entry. */
   def invalidate(fen: String, lastMove: Option[String]): Unit =
@@ -123,7 +152,16 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Unit =
-    cache.invalidate(cacheKey(fen, lastMove, probeResults, planStateToken))
+    invalidate(fen, lastMove, probeResults, planStateToken, None)
+
+  def invalidate(
+      fen: String,
+      lastMove: Option[String],
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      llmContext: Option[LlmCacheContext]
+  ): Unit =
+    cache.invalidate(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext))
 
   /** Current cache statistics for monitoring. */
   def estimatedSize: Long = cache.estimatedSize()
