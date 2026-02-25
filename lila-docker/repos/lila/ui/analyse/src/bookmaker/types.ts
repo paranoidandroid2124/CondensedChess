@@ -11,6 +11,35 @@ export type ProbeRequest = {
   baselineMove?: string;
   baselineMate?: number | null;
   baselineDepth?: number;
+  objective?: string;
+  seedId?: string;
+  requiredSignals?: string[];
+  horizon?: 'short' | 'medium' | 'long' | string;
+  maxCpLoss?: number;
+};
+
+export type L1DeltaSnapshot = {
+  materialDelta: number;
+  kingSafetyDelta: number;
+  centerControlDelta: number;
+  openFilesDelta: number;
+  mobilityDelta: number;
+  collapseReason?: string | null;
+};
+
+export type TargetsDelta = {
+  tacticalAdded: string[];
+  tacticalRemoved: string[];
+  strategicAdded: string[];
+  strategicRemoved: string[];
+};
+
+export type FutureSnapshot = {
+  resolvedThreatKinds: string[];
+  newThreatKinds: string[];
+  targetsDelta: TargetsDelta;
+  planBlockersRemoved: string[];
+  planPrereqsMet: string[];
 };
 
 export type ProbeResult = {
@@ -27,6 +56,10 @@ export type ProbeResult = {
   probedMove?: string;
   mate?: number | null;
   depth?: number;
+  l1Delta?: L1DeltaSnapshot;
+  futureSnapshot?: FutureSnapshot;
+  objective?: string;
+  seedId?: string;
 };
 
 export type EvalVariation = {
@@ -41,6 +74,9 @@ export type PlanContinuityToken = {
   planId?: string | null;
   consecutivePlies: number;
   startingPly: number;
+  phase?: 'Preparation' | 'Execution' | 'Fruition' | 'Failure' | 'Aborted' | string;
+  commitmentScore?: number;
+  abortedReason?: string | null;
 };
 
 export type PlanTransitionToken = {

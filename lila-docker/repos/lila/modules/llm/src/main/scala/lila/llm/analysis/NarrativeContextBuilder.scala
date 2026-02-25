@@ -3,6 +3,7 @@ package lila.llm.analysis
 import chess.{ Color, Square }
 import lila.llm.LlmConfig
 import lila.llm.model._
+import lila.llm.model.authoring.LatentPlanNarrative
 import lila.llm.model.strategic._
 import lila.llm.analysis.L3._
 import lila.llm.model.structure.AlignmentBand
@@ -30,7 +31,9 @@ object NarrativeContextBuilder:
   ): NarrativeContext = {
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
-    val rootProbeResults = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
+    val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
+    val rootProbeResults = rootProbeResultsRaw.filter(pr => ProbeContractValidator.validate(pr).isValid)
+    val droppedProbeCount = rootProbeResultsRaw.size - rootProbeResults.size
 
     // A7/B7: Candidates built early to extract top move SAN/UCI for threat linkage
     val baseCandidates = buildCandidates(data)
@@ -103,6 +106,29 @@ object NarrativeContextBuilder:
           authorQuestions = authorQuestions
         )
         .distinctBy(_.id)
+
+    val mainStrategicPlans = data.planHypotheses.take(3)
+
+    val latentPlans =
+      authorQuestions
+        .flatMap(_.latentPlan)
+        .take(2)
+        .map { lp =>
+          LatentPlanNarrative(
+            seedId = lp.seedId,
+            planName = lp.mapsToPlan.map(_.toString).getOrElse(lp.seedId.replace("_", " ")),
+            viabilityScore = 0.5,
+            whyAbsentFromTopMultiPv =
+              "requires preparatory moves or has small immediate eval impact"
+          )
+        }
+
+    val absentReasons =
+      buildAbsentFromTopMultiPvReasons(
+        data = data,
+        probeRequests = probeRequests,
+        droppedProbeCount = droppedProbeCount
+      )
     
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
@@ -151,7 +177,7 @@ object NarrativeContextBuilder:
         playedMove = data.prevMove,
         bestMove = bestEngineMove.orElse(candidates.headOption.flatMap(_.uci)),
         authorQuestions = authorQuestions,
-        probeResults = probeResults
+        probeResults = rootProbeResults
       )
 
     val motifFactsRaw = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now)
@@ -186,6 +212,9 @@ object NarrativeContextBuilder:
       authorEvidence = authorEvidence,
       facts = motifFacts ++ staticFacts ++ endgameFacts,
       probeRequests = probeRequests,
+      mainStrategicPlans = mainStrategicPlans,
+      latentPlans = latentPlans,
+      whyAbsentFromTopMultiPV = absentReasons,
       meta = meta,
       strategicFlow = strategicFlow,
       semantic = semantic,
@@ -243,7 +272,25 @@ object NarrativeContextBuilder:
       prevRef = prevRef
     )
   }
-  
+
+  private def buildAbsentFromTopMultiPvReasons(
+      data: ExtendedAnalysisData,
+      probeRequests: List[ProbeRequest],
+      droppedProbeCount: Int
+  ): List[String] =
+    val reasons = scala.collection.mutable.ListBuffer.empty[String]
+    if data.counterfactual.exists(_.cpLoss <= 40) then
+      reasons += "evaluation gap is small, so strategic alternatives may rank below tactical ties"
+    if probeRequests.exists(_.purpose.contains("free_tempo_branches")) then
+      reasons += "plan viability depends on preparatory tempo sequences"
+    if probeRequests.exists(_.purpose.contains("latent_plan_refutation")) then
+      reasons += "latent ideas require refutation checks before becoming principal lines"
+    if droppedProbeCount > 0 then
+      reasons += "some probe evidence was discarded due to missing required signals"
+    if reasons.isEmpty then
+      reasons += "plan needs preparatory moves and is not yet dominant in immediate MultiPV ordering"
+    reasons.toList.distinct.take(3)
+
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)
     

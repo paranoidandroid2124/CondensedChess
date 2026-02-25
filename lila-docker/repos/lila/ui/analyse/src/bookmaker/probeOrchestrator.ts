@@ -1,6 +1,6 @@
 import type { CevalEngine, Work } from 'lib/ceval';
 import type AnalyseCtrl from '../ctrl';
-import type { EvalVariation, ProbeRequest, ProbeResult } from './types';
+import type { EvalVariation, ProbeRequest, ProbeResult, L1DeltaSnapshot, FutureSnapshot, TargetsDelta } from './types';
 
 type SessionActive = (session: number) => boolean;
 
@@ -27,6 +27,99 @@ export type ProbeOrchestrator = {
 
 export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSessionActive: SessionActive): ProbeOrchestrator {
   let probeEngine: CevalEngine | undefined;
+
+  const parseMove = (uci?: string): { fromFile: string; toFile: string; isPawnPush: boolean; isRookPawnPush: boolean } | null => {
+    if (!uci || !/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return null;
+    const fromFile = uci[0]!;
+    const toFile = uci[2]!;
+    const fromRank = Number(uci[1]!);
+    const toRank = Number(uci[3]!);
+    const rankDelta = Math.abs(toRank - fromRank);
+    const isPawnPush = rankDelta === 1 || rankDelta === 2;
+    const isRookPawnPush = isPawnPush && (fromFile === 'a' || fromFile === 'h');
+    return { fromFile, toFile, isPawnPush, isRookPawnPush };
+  };
+
+  const inferKeyMotifs = (
+    move: string | undefined,
+    purpose: string | undefined,
+    replyPvs: string[][],
+  ): string[] => {
+    const motifs = new Set<string>();
+    const parsed = parseMove(move);
+    if (parsed?.isRookPawnPush) motifs.add('rook_pawn_march_candidate');
+    if (parsed?.fromFile !== parsed?.toFile) motifs.add('pawn_lever_or_capture');
+    if (purpose?.includes('recapture')) motifs.add('recapture_branching');
+    if (purpose?.includes('tension')) motifs.add('tension_branching');
+    if (purpose?.includes('convert')) motifs.add('conversion_route');
+    if (purpose?.includes('latent_plan_refutation')) motifs.add('latent_plan_refutation');
+    if (purpose?.includes('free_tempo')) motifs.add('free_tempo_trajectory');
+    const firstPv = replyPvs[0] ?? [];
+    if (firstPv.length >= 3) motifs.add('multi_ply_sequence');
+    if (firstPv.some(m => /^[a-h][1-8][a-h][1-8]/i.test(m) && m[0] !== m[2])) motifs.add('forcing_exchange_pattern');
+    return Array.from(motifs);
+  };
+
+  const buildL1Delta = (
+    deltaVsBaseline: number,
+    keyMotifs: string[],
+    purpose: string | undefined,
+  ): L1DeltaSnapshot => {
+    const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+    const swing = clamp(Math.round(deltaVsBaseline / 60), -6, 6);
+    const kingSafetyDelta = purpose?.includes('refutation') ? -Math.abs(swing) : swing >= 0 ? 1 : -1;
+    const centerControlDelta = keyMotifs.includes('pawn_lever_or_capture') ? swing : Math.sign(swing);
+    const openFilesDelta = keyMotifs.includes('forcing_exchange_pattern') ? Math.sign(swing) : 0;
+    const mobilityDelta = clamp(Math.round(deltaVsBaseline / 25), -8, 8);
+    const collapseReason =
+      deltaVsBaseline <= -120
+        ? 'Structure or king safety deteriorates under accurate defense'
+        : deltaVsBaseline >= 80
+          ? 'Plan preconditions are reinforced with practical upside'
+          : undefined;
+    return {
+      materialDelta: 0,
+      kingSafetyDelta,
+      centerControlDelta,
+      openFilesDelta,
+      mobilityDelta,
+      collapseReason,
+    };
+  };
+
+  const buildFutureSnapshot = (
+    purpose: string | undefined,
+    keyMotifs: string[],
+    deltaVsBaseline: number,
+  ): FutureSnapshot => {
+    const tacticalAdded =
+      keyMotifs.includes('forcing_exchange_pattern') ? ['forcing exchanges'] : [];
+    const strategicAdded = keyMotifs.includes('rook_pawn_march_candidate')
+      ? ['rook-pawn space gain']
+      : keyMotifs.includes('conversion_route')
+        ? ['conversion route']
+        : [];
+    const targetsDelta: TargetsDelta = {
+      tacticalAdded,
+      tacticalRemoved: deltaVsBaseline > 20 ? ['immediate tactical liability'] : [],
+      strategicAdded,
+      strategicRemoved: deltaVsBaseline < -80 ? ['stable plan trajectory'] : [],
+    };
+    const prereqs = [
+      ...(keyMotifs.includes('rook_pawn_march_candidate') ? ['flank space expansion'] : []),
+      ...(purpose?.includes('convert') ? ['simplification channel'] : []),
+      ...(purpose?.includes('tension') ? ['tension handling branch'] : []),
+    ];
+    const blockersRemoved =
+      deltaVsBaseline > 40 ? ['coordination bottleneck'] : [];
+    return {
+      resolvedThreatKinds: deltaVsBaseline > 30 ? ['Counterplay'] : [],
+      newThreatKinds: deltaVsBaseline < -90 ? ['KingSafety'] : [],
+      targetsDelta,
+      planBlockersRemoved: blockersRemoved,
+      planPrereqsMet: prereqs,
+    };
+  };
 
   const ensureProbeEngine = (): CevalEngine | undefined => {
     if (!ctrl) return;
@@ -213,21 +306,32 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
           .map((pv: any) => pv.moves.slice(0, 12))
         : [];
       const evalCp = typeof ev.cp === 'number' ? ev.cp : 0;
-
+      const deltaVsBaseline = evalCp - (typeof baseCp === 'number' ? baseCp : 0);
+      const purpose = typeof pr.purpose === 'string' ? pr.purpose : undefined;
+      const keyMotifs = inferKeyMotifs(move, purpose, replyPvs);
+      const l1Delta = purpose ? buildL1Delta(deltaVsBaseline, keyMotifs, purpose) : undefined;
+      const futureSnapshot =
+        purpose && (purpose.includes('latent') || purpose.includes('convert') || purpose.includes('tension') || purpose.includes('free_tempo'))
+          ? buildFutureSnapshot(purpose, keyMotifs, deltaVsBaseline)
+          : undefined;
       results.push({
         id: pr.id,
         fen: pr.fen,
         evalCp,
         bestReplyPv: replyPvs[0] ?? [],
         replyPvs: replyPvs.length ? replyPvs : undefined,
-        deltaVsBaseline: evalCp - (typeof baseCp === 'number' ? baseCp : 0),
-        keyMotifs: [],
-        purpose: typeof pr.purpose === 'string' ? pr.purpose : undefined,
+        deltaVsBaseline,
+        keyMotifs,
+        purpose,
         questionId: typeof pr.questionId === 'string' ? pr.questionId : undefined,
         questionKind: typeof pr.questionKind === 'string' ? pr.questionKind : undefined,
         probedMove: move,
         mate: typeof ev.mate === 'number' ? ev.mate : undefined,
         depth: typeof ev.depth === 'number' ? ev.depth : undefined,
+        l1Delta,
+        futureSnapshot,
+        objective: typeof pr.objective === 'string' ? pr.objective : undefined,
+        seedId: typeof pr.seedId === 'string' ? pr.seedId : undefined,
       });
     }
 
