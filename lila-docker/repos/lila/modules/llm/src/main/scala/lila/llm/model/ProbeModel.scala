@@ -23,7 +23,13 @@ case class ProbeRequest(
   baselineMove: Option[String] = None,
   baselineEvalCp: Option[Int] = None,
   baselineMate: Option[Int] = None,
-  baselineDepth: Option[Int] = None
+  baselineDepth: Option[Int] = None,
+  // v2: objective-driven probing contract
+  objective: Option[String] = None,        // e.g. "validate_latent_plan", "refute_plan", "compare_branches"
+  seedId: Option[String] = None,           // Latent seed identifier when relevant
+  requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"
+  horizon: Option[String] = None,          // "short" | "medium" | "long"
+  maxCpLoss: Option[Int] = None            // optional fail-closed bound for viability probes
 )
 
 object ProbeRequest:
@@ -52,7 +58,10 @@ case class ProbeResult(
   // Phase C: L1 delta for stronger counterfactual explanations
   l1Delta: Option[L1DeltaSnapshot] = None,
   // P1: Structured future state for accurate delta comparison
-  futureSnapshot: Option[FutureSnapshot] = None
+  futureSnapshot: Option[FutureSnapshot] = None,
+  // v2: optional contract diagnostics
+  objective: Option[String] = None,
+  seedId: Option[String] = None
 )
 
 object ProbeResult:
@@ -107,3 +116,107 @@ case class TargetsDelta(
 object TargetsDelta:
   given Reads[TargetsDelta] = Json.reads[TargetsDelta]
   given Writes[TargetsDelta] = Json.writes[TargetsDelta]
+
+/**
+ * Purpose-aware probe contract validator.
+ * Fail-closed: if required signals are missing for a purpose, the probe should
+ * not be used to support strong commentary claims.
+ */
+object ProbeContractValidator:
+
+  case class ValidationResult(
+      isValid: Boolean,
+      missingSignals: List[String],
+      reasonCodes: List[String]
+  )
+
+  private val branchPurposes = Set(
+    "reply_multipv",
+    "defense_reply_multipv",
+    "convert_reply_multipv",
+    "recapture_branches",
+    "keep_tension_branches",
+    "free_tempo_branches"
+  )
+
+  private val strongPurposeSignals: Map[String, Set[String]] = Map(
+    "latent_plan_refutation" -> Set("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"),
+    "latent_plan_immediate" -> Set("replyPvs", "l1Delta"),
+    "free_tempo_branches" -> Set("replyPvs", "futureSnapshot")
+  )
+
+  def validate(result: ProbeResult): ValidationResult =
+    val purpose = result.purpose.getOrElse("")
+    val required =
+      strongPurposeSignals.getOrElse(
+        purpose,
+        if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
+      )
+    validateSignals(result, required)
+
+  def validateAgainstRequest(
+      request: ProbeRequest,
+      result: ProbeResult
+  ): ValidationResult =
+    val fromRequest = request.requiredSignals.toSet
+    val fromPurpose = validate(result)
+    val required =
+      if fromRequest.nonEmpty then fromRequest
+      else purposeRequiredSignals(result.purpose.getOrElse(""))
+    val base = validateSignals(result, required)
+    val purposeMismatch =
+      request.purpose.flatMap(rp => result.purpose.map(_ != rp)).contains(true)
+    val idMismatch = request.id != result.id
+    val extraReasons =
+      List(
+        Option.when(purposeMismatch)("PURPOSE_MISMATCH"),
+        Option.when(idMismatch)("ID_MISMATCH"),
+        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING")
+      ).flatten
+    base.copy(
+      isValid = base.isValid && !purposeMismatch && !idMismatch,
+      reasonCodes = (base.reasonCodes ++ extraReasons).distinct
+    )
+
+  private def validateSignals(
+      result: ProbeResult,
+      requiredSignals: Set[String]
+  ): ValidationResult =
+    if requiredSignals.isEmpty then
+      ValidationResult(
+        isValid = true,
+        missingSignals = Nil,
+        reasonCodes = List("NO_REQUIRED_SIGNALS")
+      )
+    else
+      val missing = requiredSignals.filterNot(sig => hasSignal(sig, result)).toList.sorted
+      ValidationResult(
+        isValid = missing.isEmpty,
+        missingSignals = missing,
+        reasonCodes =
+          if missing.isEmpty then List("REQUIRED_SIGNALS_PRESENT")
+          else List("MISSING_REQUIRED_SIGNALS")
+      )
+
+  private def purposeRequiredSignals(purpose: String): Set[String] =
+    strongPurposeSignals.getOrElse(
+      purpose,
+      if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
+    )
+
+  private def hasSignal(signal: String, result: ProbeResult): Boolean =
+    signal match
+      case "replyPvs" =>
+        result.replyPvs.exists(_.exists(_.nonEmpty)) || result.bestReplyPv.nonEmpty
+      case "keyMotifs" =>
+        result.keyMotifs.nonEmpty
+      case "l1Delta" =>
+        result.l1Delta.isDefined
+      case "futureSnapshot" =>
+        result.futureSnapshot.isDefined
+      case "purpose" =>
+        result.purpose.exists(_.nonEmpty)
+      case "depth" =>
+        result.depth.exists(_ > 0)
+      case _ =>
+        true
