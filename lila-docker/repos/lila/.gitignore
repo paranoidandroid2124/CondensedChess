@@ -34,6 +34,7 @@ ui/lib/css/theme/gen/*.scss
 ui/.build/build
 ui/voice/crowdv
 ui/*/tsconfig.tsbuildinfo
+ui/tsconfig.base.tsbuildinfo
 hs_*.log
 dependency-graph.png
 dump.rdb
@@ -77,3 +78,4 @@ a11_*.txt
 a12_*.txt
 compile*.txt
 fen_*.txt
+/modules/llm/tmp/

@@ -206,9 +206,19 @@ object BookStyleRenderer:
     }.mkString("\n")
 
   private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
-    ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
-      NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
-    }.getOrElse("")
+    val strategicSummary =
+      if ctx.mainStrategicPlans.nonEmpty then
+        val ranked = ctx.mainStrategicPlans.take(3).map(p => s"${p.rank}) ${p.planName}").mkString(", ")
+        val absence = ctx.whyAbsentFromTopMultiPV.headOption.map(r => s" ($r)").getOrElse("")
+        s"Strategic distribution: $ranked$absence."
+      else ""
+
+    val practicalSummary =
+      ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
+        NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
+      }.getOrElse("")
+
+    List(strategicSummary, practicalSummary).filter(_.nonEmpty).mkString(" ").trim
 
   private def softenText(text: String, bead: Int): String =
     val trimmed = text.trim

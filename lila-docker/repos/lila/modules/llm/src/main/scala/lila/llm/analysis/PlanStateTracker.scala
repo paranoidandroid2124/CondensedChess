@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.{ PlanMatch, PlanSequenceSummary, TransitionType }
-import lila.llm.model.strategic.PlanContinuity
+import lila.llm.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
 import _root_.chess.Color
 
 /**
@@ -49,12 +49,15 @@ case class PlanStateTracker(
         incrementAllowed = !samePly
       )
 
-    val updatedSecondary = updatedSecondaryRaw.filterNot(sec =>
-      updatedPrimary.exists(pri => continuityKey(pri) == continuityKey(sec))
+    val hintedPrimary = applySequenceHints(updatedPrimary, sequence, isPrimary = true)
+    val hintedSecondary = applySequenceHints(updatedSecondaryRaw, sequence, isPrimary = false)
+
+    val updatedSecondary = hintedSecondary.filterNot(sec =>
+      hintedPrimary.exists(pri => continuityKey(pri) == continuityKey(sec))
     )
 
     val updatedColorState = current.copy(
-      primary = updatedPrimary,
+      primary = hintedPrimary,
       secondary = updatedSecondary,
       lastTransition = sequence.map(PlanStateTracker.TransitionSnapshot.fromSummary).orElse(current.lastTransition),
       lastPly = Some(ply)
@@ -88,23 +91,74 @@ case class PlanStateTracker(
 
       matched match
         case Some(prev) =>
+          val nextConsecutive = if incrementAllowed then prev.consecutivePlies + 1 else prev.consecutivePlies
           prev.copy(
             planName = plan.plan.name,
             planId = Some(plan.plan.id.toString),
-            consecutivePlies = if incrementAllowed then prev.consecutivePlies + 1 else prev.consecutivePlies
+            consecutivePlies = nextConsecutive,
+            phase =
+              if nextConsecutive >= 3 then PlanLifecyclePhase.Fruition
+              else if nextConsecutive >= 2 then PlanLifecyclePhase.Execution
+              else PlanLifecyclePhase.Preparation,
+            commitmentScore = math.min(1.0, math.max(prev.commitmentScore, 0.35) + (if incrementAllowed then 0.15 else 0.0)),
+            abortedReason = None
           )
         case None =>
           PlanContinuity(
             planName = plan.plan.name,
             planId = Some(plan.plan.id.toString),
             consecutivePlies = 1,
-            startingPly = ply
+            startingPly = ply,
+            phase = PlanLifecyclePhase.Preparation,
+            commitmentScore = 0.35,
+            abortedReason = None
           )
     }
 
   private def samePlan(c: PlanContinuity, plan: PlanMatch): Boolean =
     c.planId.exists(_.equalsIgnoreCase(plan.plan.id.toString)) ||
       c.planName.equalsIgnoreCase(plan.plan.name)
+
+  private def applySequenceHints(
+      continuity: Option[PlanContinuity],
+      sequence: Option[PlanSequenceSummary],
+      isPrimary: Boolean
+  ): Option[PlanContinuity] =
+    continuity.map { c =>
+      sequence match
+        case Some(seq) =>
+          seq.transitionType match
+            case TransitionType.ForcedPivot if isPrimary =>
+              c.copy(
+                phase = PlanLifecyclePhase.Aborted,
+                commitmentScore = math.max(0.2, c.commitmentScore * 0.5),
+                abortedReason = Some("forced pivot")
+              )
+            case TransitionType.Continuation =>
+              val phase =
+                if c.consecutivePlies >= 3 && seq.momentum >= 0.75 then PlanLifecyclePhase.Fruition
+                else PlanLifecyclePhase.Execution
+              c.copy(
+                phase = phase,
+                commitmentScore = math.min(1.0, math.max(c.commitmentScore, seq.momentum.max(0.0)))
+              )
+            case TransitionType.NaturalShift | TransitionType.Opportunistic | TransitionType.Opening =>
+              c.copy(
+                phase = PlanLifecyclePhase.Preparation,
+                commitmentScore = math.min(0.6, math.max(c.commitmentScore, seq.momentum.max(0.2))),
+                abortedReason = None
+              )
+            case _ =>
+              c
+        case None =>
+          c.phase match
+            case PlanLifecyclePhase.Aborted | PlanLifecyclePhase.Failure =>
+              c
+            case _ =>
+              if c.consecutivePlies >= 3 then c.copy(phase = PlanLifecyclePhase.Fruition)
+              else if c.consecutivePlies >= 2 then c.copy(phase = PlanLifecyclePhase.Execution)
+              else c
+    }
 
 object PlanStateTracker:
   case class TransitionSnapshot(
@@ -178,7 +232,7 @@ object PlanStateTracker:
     },
     Writes { tracker =>
       Json.obj(
-        "version" -> 2,
+        "version" -> 3,
         "history" -> Json.obj(
           "white" -> Json.toJson(tracker.getColorState(Color.White)),
           "black" -> Json.toJson(tracker.getColorState(Color.Black))

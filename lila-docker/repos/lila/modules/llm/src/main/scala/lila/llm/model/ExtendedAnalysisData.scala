@@ -1,6 +1,7 @@
 package lila.llm.model
 
 import lila.llm.model.{ Motif, PlanMatch, PositionNature }
+import lila.llm.model.authoring.PlanHypothesis
 import lila.llm.model.strategic._
 import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
 
@@ -43,6 +44,7 @@ case class ExtendedAnalysisData(
     structureProfile: Option[StructureProfile] = None,
     structureEvalLatencyMs: Option[Long] = None,
     planAlignment: Option[PlanAlignment] = None,
+    planHypotheses: List[PlanHypothesis] = Nil,
     
     // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
     integratedContext: Option[lila.llm.analysis.IntegratedContext] = None
@@ -53,6 +55,7 @@ case class ExtendedAnalysisData(
       lila.llm.analysis.IntegratedContext(
         evalCp = evalCp,
         isWhiteToMove = isWhiteToMove,
+        positionKey = Some(fen),
         threatsToUs = None,
         threatsToThem = None,
         structureProfile = structureProfile,

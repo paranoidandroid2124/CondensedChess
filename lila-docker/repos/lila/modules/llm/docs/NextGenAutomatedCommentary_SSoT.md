@@ -72,12 +72,11 @@ The feature is considered closed only when all of the following are true:
 8. metrics added in `LlmApi`:
    - structure coverage / unknown rate / low-confidence rate
    - structure distribution / alignment-band distribution
-9. test coverage added:
-   - `PawnStructureClassifierTest`
-   - `PlanAlignmentScorerTest`
-   - `CommentaryEngineStructureIntegrationTest`
-   - `NarrativeStructureLeakTest`
-   - `StructureGoldsetContractTest`
+9. test coverage currently maintained (as of 2026-02-25):
+   - `NarrativeContextBuilderTest`
+   - `EndgamePatternSignalContractTest`
+   - `EndgamePatternLabelTest`
+   - Legacy structure-only tests listed in earlier revisions were removed during cleanup.
 10. goldset contract file is present:
     - `src/test/resources/structure_goldset_v1.jsonl` (300 rows)
     - `src/test/resources/structure_goldset_v1_llm_curated.jsonl` (300 rows, high board diversity)
@@ -100,7 +99,7 @@ The feature is considered closed only when all of the following are true:
 16. LLM-assisted curation workflow is available:
     - generator script: `src/test/resources/generate_goldset.py`
     - output target (default): `structure_goldset_v1_llm_curated.jsonl`
-    - dedicated contract test: `StructureGoldsetLlmCuratedContractTest`
+    - dedicated structure contract tests were removed during cleanup (2026-02-25)
 17. v1.1 validation policy is now explicit:
     - Dual Gate 운영: `v1 regression` + `llm_curated quality` 동시 통과
     - Internal-only exposure 유지: 구조 ID/이유코드는 사용자 출력에서 비노출

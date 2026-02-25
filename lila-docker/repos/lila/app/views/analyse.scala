@@ -12,9 +12,10 @@ object analyse:
   object ui:
     def userAnalysis(
         data: play.api.libs.json.JsObject,
-        pov: lila.core.game.Pov
+        pov: lila.core.game.Pov,
+        inlinePgn: Option[String] = None
     )(using Context) =
-      analyseUi.userAnalysis(data, pov)
+      analyseUi.userAnalysis(data, pov, inlinePgn = inlinePgn)
 
     val explorerAndCevalConfig = play.api.libs.json.Json.obj()
 

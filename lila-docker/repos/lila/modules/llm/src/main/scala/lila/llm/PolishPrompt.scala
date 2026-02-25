@@ -84,7 +84,7 @@ object PolishPrompt:
        |    - Do not add stock closers such as "overall the battle continues" unless present in draft facts.
        |    - Keep practical guidance concrete (piece/square/plan), not vague emotional narration.
        |19. ANCHOR TOKEN INTEGRITY (when present):
-       |    - Preserve placeholders like [[MV_xxx]] and [[MK_xxx]] exactly.
+       |    - Preserve placeholders like [[MV_xxx]], [[MK_xxx]], [[EV_xxx]], and [[VB_xxx]] exactly.
        |    - Never delete, rename, reorder, or partially rewrite anchor tokens.
        |    - Keep anchor token order unchanged from the draft.
        |
@@ -142,7 +142,7 @@ object PolishPrompt:
        |Concepts: $conceptStr
        |FEN: $fen
        |
-       |If anchor tokens like [[MV_*]] or [[MK_*]] appear in the draft, preserve them exactly.
+       |If anchor tokens like [[MV_*]], [[MK_*]], [[EV_*]], or [[VB_*]] appear in the draft, preserve them exactly.
        |
        |Refine the draft above following the system instructions.""".stripMargin
 
@@ -190,7 +190,7 @@ object PolishPrompt:
        |Concepts: $conceptStr
        |FEN: $fen
        |
-       |Anchor tokens ([[MV_*]], [[MK_*]]) must be preserved exactly and in-order.
+       |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
        |
        |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
 

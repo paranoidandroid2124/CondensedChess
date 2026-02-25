@@ -32,8 +32,7 @@ object NarrativeContextBuilder:
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
     val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
-    val rootProbeResults = rootProbeResultsRaw.filter(pr => ProbeContractValidator.validate(pr).isValid)
-    val droppedProbeCount = rootProbeResultsRaw.size - rootProbeResults.size
+    val prevalidatedRootProbeResults = rootProbeResultsRaw.filter(pr => ProbeContractValidator.validate(pr).isValid)
 
     // A7/B7: Candidates built early to extract top move SAN/UCI for threat linkage
     val baseCandidates = buildCandidates(data)
@@ -72,7 +71,7 @@ object NarrativeContextBuilder:
     val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data))
     val delta = afterDelta.orElse(prevDelta)
     val alignmentForTone = if llmConfig.structKbEnabled then ctx.planAlignment else None
-    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
+    val questionCandidates = buildCandidatesEnriched(data, prevalidatedRootProbeResults, alignmentForTone)
 
     val playedSan = data.prevMove.flatMap { uci =>
       NarrativeUtils
@@ -84,10 +83,9 @@ object NarrativeContextBuilder:
       AuthorQuestionGenerator.generate(
         data = data,
         ctx = ctx,
-        candidates = enrichedCandidates,
+        candidates = questionCandidates,
         playedSan = playedSan
       )
-    val targets = buildTargets(data, ctx, rootProbeResults)
     val planScoring = PlanScoringResult(
       topPlans = data.plans,
       confidence = 0.0, // fallback
@@ -102,33 +100,45 @@ object NarrativeContextBuilder:
           multiPv = multiPv,
           fen = data.fen,
           playedMove = data.prevMove,
-          candidates = enrichedCandidates,
+          candidates = questionCandidates,
           authorQuestions = authorQuestions
         )
         .distinctBy(_.id)
 
-    val mainStrategicPlans = data.planHypotheses.take(3)
+    val probeValidation =
+      PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, probeRequests)
+    val rootProbeResults = probeValidation.validResults
+    val droppedProbeCount = probeValidation.droppedCount
+    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
+    val targets = buildTargets(data, ctx, rootProbeResults)
 
+    val strategicPartition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = data.planHypotheses,
+        probeRequests = probeRequests,
+        validatedProbeResults = rootProbeResults,
+        rulePlanIds = data.plans.map(_.plan.id.toString.toLowerCase).toSet,
+        isWhiteToMove = data.isWhiteToMove,
+        droppedProbeCount = droppedProbeCount,
+        droppedProbeReasons = probeValidation.droppedReasons,
+        invalidByRequestId = probeValidation.invalidByRequestId
+      )
+
+    val fallbackLatentPlans = latentNarrativesFromQuestions(authorQuestions)
+    val mainStrategicPlans = strategicPartition.mainPlans.take(3)
     val latentPlans =
-      authorQuestions
-        .flatMap(_.latentPlan)
-        .take(2)
-        .map { lp =>
-          LatentPlanNarrative(
-            seedId = lp.seedId,
-            planName = lp.mapsToPlan.map(_.toString).getOrElse(lp.seedId.replace("_", " ")),
-            viabilityScore = 0.5,
-            whyAbsentFromTopMultiPv =
-              "requires preparatory moves or has small immediate eval impact"
-          )
-        }
+      if strategicPartition.latentPlans.nonEmpty then strategicPartition.latentPlans
+      else fallbackLatentPlans.take(2)
 
     val absentReasons =
-      buildAbsentFromTopMultiPvReasons(
-        data = data,
-        probeRequests = probeRequests,
-        droppedProbeCount = droppedProbeCount
-      )
+      val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
+      if evidenceReasons.nonEmpty then evidenceReasons
+      else
+        buildAbsentFromTopMultiPvReasons(
+          data = data,
+          probeRequests = probeRequests,
+          droppedProbeCount = droppedProbeCount
+        )
     
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
@@ -290,6 +300,21 @@ object NarrativeContextBuilder:
     if reasons.isEmpty then
       reasons += "plan needs preparatory moves and is not yet dominant in immediate MultiPV ordering"
     reasons.toList.distinct.take(3)
+
+  private def latentNarrativesFromQuestions(
+      authorQuestions: List[lila.llm.model.authoring.AuthorQuestion]
+  ): List[LatentPlanNarrative] =
+    authorQuestions
+      .flatMap(_.latentPlan)
+      .take(2)
+      .map { lp =>
+        LatentPlanNarrative(
+          seedId = lp.seedId,
+          planName = lp.mapsToPlan.map(_.toString).getOrElse(lp.seedId.replace("_", " ")),
+          viabilityScore = 0.45,
+          whyAbsentFromTopMultiPv = "awaiting purpose-aligned probe evidence"
+        )
+      }
 
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)

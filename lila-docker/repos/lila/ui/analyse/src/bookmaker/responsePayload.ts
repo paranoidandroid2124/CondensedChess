@@ -1,4 +1,4 @@
-import type { EvalVariation, PlanStateToken, ProbeRequest } from './types';
+import type { EvalVariation, LatentPlanNarrative, PlanHypothesis, PlanStateToken, ProbeRequest } from './types';
 
 export type MoveRefV1 = {
   refId: string;
@@ -43,6 +43,9 @@ type MaybeResponse = {
   commentary?: unknown;
   variations?: unknown;
   probeRequests?: unknown;
+  mainStrategicPlans?: unknown;
+  latentPlans?: unknown;
+  whyAbsentFromTopMultiPV?: unknown;
   planStateToken?: unknown;
   sourceMode?: unknown;
   model?: unknown;
@@ -73,6 +76,20 @@ export function variationLinesFromResponse(data: MaybeResponse, fallback: EvalVa
 
 export function probeRequestsFromResponse(data: MaybeResponse): ProbeRequest[] {
   return Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
+}
+
+export function mainStrategicPlansFromResponse(data: MaybeResponse): PlanHypothesis[] {
+  return Array.isArray(data?.mainStrategicPlans) ? (data.mainStrategicPlans as PlanHypothesis[]) : [];
+}
+
+export function latentPlansFromResponse(data: MaybeResponse): LatentPlanNarrative[] {
+  return Array.isArray(data?.latentPlans) ? (data.latentPlans as LatentPlanNarrative[]) : [];
+}
+
+export function whyAbsentFromTopMultiPVFromResponse(data: MaybeResponse): string[] {
+  return Array.isArray(data?.whyAbsentFromTopMultiPV)
+    ? (data.whyAbsentFromTopMultiPV as unknown[]).filter((v): v is string => typeof v === 'string')
+    : [];
 }
 
 export function planStateTokenFromResponse(data: MaybeResponse): PlanStateToken | null {

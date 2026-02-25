@@ -307,6 +307,5 @@ declare namespace PowerTip {
 
 declare const site: Site;
 declare const fipr: Fipr;
-declare module 'tablesort';
 declare const $html: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts
 declare const $trim: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts

@@ -113,25 +113,54 @@ enum PositionalTag:
 
 case class Hypothesis(move: String, candidateType: String, rationale: String)
 
+enum PlanLifecyclePhase:
+  case Preparation
+  case Execution
+  case Fruition
+  case Failure
+  case Aborted
+
 case class PlanContinuity(
   planName: String,
   planId: Option[String],
   consecutivePlies: Int,
-  startingPly: Int
+  startingPly: Int,
+  phase: PlanLifecyclePhase = PlanLifecyclePhase.Preparation,
+  commitmentScore: Double = 0.0,
+  abortedReason: Option[String] = None
 )
 object PlanContinuity:
   import play.api.libs.json.*
+  private given Reads[PlanLifecyclePhase] = Reads {
+    case JsString(value) =>
+      scala.util.Try(PlanLifecyclePhase.valueOf(value)).toOption match
+        case Some(v) => JsSuccess(v)
+        case None    => JsError(s"invalid plan lifecycle phase: $value")
+    case _ => JsError("phase must be a string")
+  }
+  private given Writes[PlanLifecyclePhase] = Writes(v => JsString(v.toString))
+
   given Reads[PlanContinuity] = Reads { js =>
     for
       planName <- (js \ "planName").validate[String]
       planId <- (js \ "planId").validateOpt[String]
       consecutivePlies <- (js \ "consecutivePlies").validate[Int]
       startingPly <- (js \ "startingPly").validate[Int]
+      phase <- (js \ "phase").validateOpt[PlanLifecyclePhase]
+      commitmentScore <- (js \ "commitmentScore").validateOpt[Double]
+      abortedReason <- (js \ "abortedReason").validateOpt[String]
     yield PlanContinuity(
       planName = planName,
       planId = planId,
       consecutivePlies = consecutivePlies,
-      startingPly = startingPly
+      startingPly = startingPly,
+      phase = phase.getOrElse(PlanLifecyclePhase.Preparation),
+      commitmentScore = commitmentScore.getOrElse {
+        if consecutivePlies >= 3 then 0.75
+        else if consecutivePlies == 2 then 0.55
+        else 0.35
+      },
+      abortedReason = abortedReason
     )
   }
   given Writes[PlanContinuity] = Writes { c =>
@@ -139,7 +168,10 @@ object PlanContinuity:
       "planName" -> c.planName,
       "planId" -> c.planId,
       "consecutivePlies" -> c.consecutivePlies,
-      "startingPly" -> c.startingPly
+      "startingPly" -> c.startingPly,
+      "phase" -> c.phase,
+      "commitmentScore" -> c.commitmentScore,
+      "abortedReason" -> c.abortedReason
     )
   }
 

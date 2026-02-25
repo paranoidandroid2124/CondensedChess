@@ -62,6 +62,32 @@ export type ProbeResult = {
   seedId?: string;
 };
 
+export type PlanViability = {
+  score: number;
+  label: string;
+  risk: string;
+};
+
+export type PlanHypothesis = {
+  planId: string;
+  planName: string;
+  rank: number;
+  score: number;
+  preconditions: string[];
+  executionSteps: string[];
+  failureModes: string[];
+  viability: PlanViability;
+  refutation?: string | null;
+  evidenceSources?: string[];
+};
+
+export type LatentPlanNarrative = {
+  seedId: string;
+  planName: string;
+  viabilityScore: number;
+  whyAbsentFromTopMultiPv: string;
+};
+
 export type EvalVariation = {
   moves: string[];
   scoreCp: number;

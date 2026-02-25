@@ -26,10 +26,10 @@ class PolishValidationTest extends munit.FunSuite:
     assert(!PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
   }
 
-  test("allows prose-only polish without SAN tokens") {
+  test("rejects prose-only polish when original contains SAN tokens") {
     val original = "Main line: 14 Ne6 Nxe5 15 Bxe5 Qf2! wins material."
     val polished = "Black keeps the initiative and practical pressure."
-    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+    assert(!PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
   }
 
   test("allows extension lines only when they are in allowed SAN list") {
@@ -64,4 +64,26 @@ class PolishValidationTest extends munit.FunSuite:
     val result = PolishValidation.validatePolishedCommentary(polished, original, allowedSans = Nil)
     assertEquals(result.isValid, false)
     assert(result.reasons.contains("marker_style_mismatch"))
+  }
+
+  test("keeps multi-pv eval tokens unchanged") {
+    val original = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
+    val polished = "a) Bxh7+ Kxh7 Qh5+ (+1.5), with pressure.\nb) O-O b6 Re1 (+0.3), more stable."
+    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+  }
+
+  test("rejects changed multi-pv eval tokens") {
+    val original = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
+    val polished = "a) Bxh7+ Kxh7 Qh5+ (+0.8)\nb) O-O b6 Re1 (+0.3)"
+    val result = PolishValidation.validatePolishedCommentary(polished, original, allowedSans = Nil)
+    assertEquals(result.isValid, false)
+    assert(result.reasons.contains("eval_order_violation"))
+  }
+
+  test("rejects dropping variation branch labels") {
+    val original = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
+    val polished = "Bxh7+ Kxh7 Qh5+ (+1.5)\nO-O b6 Re1 (+0.3)"
+    val result = PolishValidation.validatePolishedCommentary(polished, original, allowedSans = Nil)
+    assertEquals(result.isValid, false)
+    assert(result.reasons.contains("variation_branch_violation"))
   }

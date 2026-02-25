@@ -69,3 +69,33 @@ class MoveAnchorCodecTest extends munit.FunSuite:
     )
     assert(reasons.contains("anchor_order_violation"))
   }
+
+  test("encode/decode should preserve eval tokens and variation labels") {
+    val prose = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
+    val encoded = MoveAnchorCodec.encode(prose, None)
+    assert(encoded.anchoredText.contains("[[VB_b001]]"))
+    assert(encoded.anchoredText.contains("[[VB_b002]]"))
+    assert(encoded.anchoredText.contains("[[EV_e001]]"))
+    assert(encoded.anchoredText.contains("[[EV_e002]]"))
+    val decoded = MoveAnchorCodec.decode(
+      text = encoded.anchoredText,
+      refById = encoded.refById,
+      evalById = encoded.evalById,
+      branchById = encoded.branchById
+    )
+    assertEquals(decoded, prose)
+  }
+
+  test("validateAnchors should detect missing eval anchors") {
+    val prose = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
+    val encoded = MoveAnchorCodec.encode(prose, None)
+    val broken = encoded.anchoredText.replace("[[EV_e002]]", "")
+    val reasons = MoveAnchorCodec.validateAnchors(
+      text = broken,
+      expectedMoveOrder = encoded.expectedMoveOrder,
+      expectedMarkerOrder = encoded.expectedMarkerOrder,
+      expectedEvalOrder = encoded.expectedEvalOrder,
+      expectedBranchOrder = encoded.expectedBranchOrder
+    )
+    assert(reasons.contains("anchor_missing"))
+  }

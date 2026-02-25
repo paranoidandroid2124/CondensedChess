@@ -164,6 +164,12 @@ object BookCommentaryCorpusRunner:
       branches: Int
   )
 
+  final case class StrategicMetrics(
+      planRecallAt3: Double,
+      latentPrecision: Double,
+      pvCouplingRatio: Double
+  )
+
   final case class CaseResult(
       c: CorpusCase,
       fen: Option[String],
@@ -177,6 +183,7 @@ object BookCommentaryCorpusRunner:
       openingPrecedentEligible: Boolean,
       openingPrecedentObserved: Boolean,
       semanticConcepts: List[String],
+      strategic: Option[StrategicMetrics],
       analysisLatencyMs: Option[Long],
       failures: List[String]
   ):
@@ -315,6 +322,7 @@ object BookCommentaryCorpusRunner:
         openingPrecedentEligible = false,
         openingPrecedentObserved = false,
         semanticConcepts = Nil,
+        strategic = None,
         analysisLatencyMs = None,
         failures = baseFailures
       )
@@ -356,6 +364,7 @@ object BookCommentaryCorpusRunner:
           openingPrecedentEligible = false,
           openingPrecedentObserved = false,
           semanticConcepts = Nil,
+          strategic = None,
           analysisLatencyMs = Some(analysisLatencyMs),
           failures = List("Analysis failed (invalid FEN, illegal PV, or internal exception).")
         )
@@ -420,6 +429,7 @@ object BookCommentaryCorpusRunner:
           enrichedCtx.semantic
             .map(_.conceptSummary.map(_.trim).filter(_.nonEmpty).distinct)
             .getOrElse(Nil)
+        val strategicMetrics = computeStrategicMetrics(data, enrichedCtx)
 
         CaseResult(
           c = c,
@@ -446,6 +456,7 @@ object BookCommentaryCorpusRunner:
           openingPrecedentEligible = openingPrecedentEligible,
           openingPrecedentObserved = openingPrecedentObserved,
           semanticConcepts = semanticConcepts,
+          strategic = Some(strategicMetrics),
           analysisLatencyMs = Some(analysisLatencyMs),
           failures = expectationFailures
         )
@@ -453,6 +464,36 @@ object BookCommentaryCorpusRunner:
   private def computeMetrics(prose: String): Metrics =
     val paras = prose.split("\n\n").iterator.map(_.trim).count(_.nonEmpty)
     Metrics(chars = prose.length, paragraphs = paras)
+
+  private def computeStrategicMetrics(
+      data: ExtendedAnalysisData,
+      ctx: NarrativeContext
+  ): StrategicMetrics =
+    val topRuleIds = data.plans.take(3).map(_.plan.id.toString).toSet
+    val topHypothesisId = ctx.mainStrategicPlans.headOption.map(_.planId)
+    val planRecallAt3 =
+      if topHypothesisId.exists(topRuleIds.contains) then 1.0 else 0.0
+
+    val latentPrecision =
+      if ctx.latentPlans.isEmpty then 1.0
+      else
+        val supported = ctx.latentPlans.count { lp =>
+          ctx.authorEvidence.exists { ev =>
+            val p = ev.purpose.toLowerCase
+            (p.contains("free_tempo") || p.contains("latent_plan")) && ev.branches.nonEmpty &&
+              ev.branches.exists(b => Option(b.line).exists(_.toLowerCase.contains(lp.seedId.toLowerCase.take(6))))
+          }
+        }
+        supported.toDouble / ctx.latentPlans.size.toDouble
+
+    val pvCouplingRatio =
+      if ctx.whyAbsentFromTopMultiPV.nonEmpty then 0.0 else 1.0
+
+    StrategicMetrics(
+      planRecallAt3 = planRecallAt3,
+      latentPrecision = latentPrecision,
+      pvCouplingRatio = pvCouplingRatio
+    )
 
   private val moveTokenRegex  = """(?i)\b(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b""".r
   private val scoreTokenRegex = """(?i)(?:\([+\-]\d+\.\d\)|\bmate\b|\bcp\b|#[0-9]+)""".r
@@ -736,6 +777,10 @@ object BookCommentaryCorpusRunner:
     val avgQuality        = average(qualityList.map(_.qualityScore.toDouble))
     val avgLexical        = average(qualityList.map(_.lexicalDiversity))
     val avgAnchorCoverage = average(qualityList.map(_.variationAnchorCoverage))
+    val strategicList     = results.flatMap(_.strategic)
+    val avgPlanRecallAt3  = average(strategicList.map(_.planRecallAt3))
+    val avgLatentPrecision = average(strategicList.map(_.latentPrecision))
+    val avgPvCouplingRatio = average(strategicList.map(_.pvCouplingRatio))
     val lowQualityCases   = results.filter(_.quality.exists(_.qualityScore < 70))
     val advisoryCases     = results.filter(_.advisoryFindings.nonEmpty)
     val advisoryCount     = results.map(_.advisoryFindings.size).sum
@@ -764,6 +809,9 @@ object BookCommentaryCorpusRunner:
       sb.append(f"- Avg quality score: $avgQuality%.1f / 100\n")
       sb.append(f"- Avg lexical diversity: $avgLexical%.3f\n")
       sb.append(f"- Avg variation-anchor coverage: $avgAnchorCoverage%.3f\n")
+      sb.append(f"- Strategic metric PlanRecall@3: $avgPlanRecallAt3%.3f\n")
+      sb.append(f"- Strategic metric LatentPrecision: $avgLatentPrecision%.3f\n")
+      sb.append(f"- Strategic metric PV-coupling ratio: $avgPvCouplingRatio%.3f\n")
       sb.append(
         s"- Opening precedent mentions: $precedentMentions across $precedentCases/${gate.eligiblePrecedentCases} eligible cases\n"
       )
@@ -828,6 +876,11 @@ object BookCommentaryCorpusRunner:
         )
         sb.append(
           s"- Quality details: sentences=${q.sentenceCount}, dup=${q.duplicateSentenceCount}, triRepeat=${q.repeatedTrigramTypes}, fourRepeat=${q.repeatedFourgramTypes}, maxNgramRepeat=${q.maxNgramRepeat}, boilerplate=${q.boilerplateHits}, mateToneConflict=${q.mateToneConflictHits}, moveTokens=${q.moveTokenCount}, scoreTokens=${q.scoreTokenCount}\n"
+        )
+      }
+      r.strategic.foreach { s =>
+        sb.append(
+          f"- Strategic: PlanRecall@3=${s.planRecallAt3}%.3f, LatentPrecision=${s.latentPrecision}%.3f, PV-coupling=${s.pvCouplingRatio}%.3f\n"
         )
       }
       if r.qualityFindings.nonEmpty then

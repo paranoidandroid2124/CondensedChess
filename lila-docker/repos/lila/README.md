@@ -61,6 +61,9 @@ GEMINI_MODEL=gemini-2.0-flash
 SUPPORT_PATREON_URL=
 SUPPORT_GITHUB_SPONSORS_URL=
 SUPPORT_BMC_URL=
+
+# Beta mode: logged-in users get premium-grade LLM experience/quota.
+CHESSTORY_BETA_PREMIUM_ALL=true
 ```
 
 ### Access

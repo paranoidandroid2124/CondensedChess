@@ -5,6 +5,8 @@ import lila.llm.model.*
 import lila.llm.model.Motif.*
 import lila.llm.analysis.L3.{PawnPlayAnalysis, PositionClassification, ThreatAnalysis, RiskLevel}
 import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
+import lila.llm.analysis.prior.{ StrategicPrior, StrategicPriorFeatures }
+import lila.llm.LlmConfig
 import chess.Color.White
 
 case class IntegratedContext(
@@ -17,6 +19,7 @@ case class IntegratedContext(
     threatsToThem: Option[ThreatAnalysis] = None, // Threats WE make TO THEM (attacking opportunity)
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
+    positionKey: Option[String] = None,
     features: Option[PositionFeatures] = None,
     initialPos: Option[Position] = None,
     structureProfile: Option[StructureProfile] = None,
@@ -75,6 +78,7 @@ case class IntegratedContext(
  * Applies Plan Compatibility Matrix for conflict/synergy resolution.
  */
 object PlanMatcher:
+  private val llmConfig = LlmConfig.fromEnv
 
   /** Normalized output with primary/secondary/suppressed plans + compatibility trace */
   case class ActivePlans(
@@ -128,7 +132,11 @@ object PlanMatcher:
     val prioritizedPlans =
       if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame) applyEndgamePlanPriority(compatiblePlans)
       else compatiblePlans
-    val sortedPlans = prioritizedPlans.sortBy(-_.score)
+    val priorSampleKey = ctx.positionKey.orElse(ctx.openingName).getOrElse(s"${ctx.evalCp}:${side.name}:${ctx.phase}")
+    val priorAdjustedPlans =
+      if llmConfig.shouldApplyStrategicPrior(priorSampleKey) then applyStrategicPrior(prioritizedPlans, ctx)
+      else prioritizedPlans
+    val sortedPlans = priorAdjustedPlans.sortBy(-_.score)
 
     // Fail-closed fallback: always provide at least one plan so renderers and callers
     // don't need to handle "no plan" as a special case.
@@ -292,6 +300,21 @@ object PlanMatcher:
     
     (kept, events.toList)
   }
+
+  private def applyStrategicPrior(plans: List[PlanMatch], ctx: IntegratedContext): List[PlanMatch] =
+    val priorWeight = llmConfig.strategicPriorWeight.max(0.0).min(0.8)
+    plans.map { p =>
+      val prior = StrategicPrior.score(
+        planId = p.plan.id.toString,
+        features = strategicPriorFeatures(p, ctx)
+      )
+      val blended = ((1.0 - priorWeight) * p.score) + (priorWeight * prior)
+      p.copy(score = blended.max(0.0))
+    }
+
+  private def strategicPriorFeatures(p: PlanMatch, ctx: IntegratedContext): Map[String, Double] =
+    val executionEase = (1.0 - ((p.blockers.size.min(3).toDouble * 0.2) + (p.missingPrereqs.size.min(3).toDouble * 0.2))).max(0.0)
+    StrategicPriorFeatures.fromContext(p.plan.color, ctx, executionEase)
 
   private def scoreKingsideAttack(
       motifs: List[Motif],

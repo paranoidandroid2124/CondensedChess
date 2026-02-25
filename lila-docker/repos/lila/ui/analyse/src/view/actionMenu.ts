@@ -114,6 +114,14 @@ async function overwriteStudyChapter(ctrl: AnalyseCtrl): Promise<void> {
     .catch(e => console.warn('saveStudyChapter failed', e));
 }
 
+function importLatestFromProvider(provider: 'lichess' | 'chesscom'): void {
+  const label = provider === 'lichess' ? 'Lichess' : 'Chess.com';
+  const input = window.prompt(`${label} username to import latest public game:`, '');
+  const username = input?.trim();
+  if (!username) return;
+  window.location.href = `/import/${provider}/${encodeURIComponent(username)}`;
+}
+
 type StudyCfg = {
   id: string;
   chapterId: string;
@@ -321,6 +329,22 @@ export function view(ctrl: AnalyseCtrl): VNode {
           attrs: dataIcon(licon.UploadCloud),
         },
         'Overwrite chapter',
+      ),
+      hl(
+        'a',
+        {
+          hook: bind('click', () => importLatestFromProvider('lichess')),
+          attrs: dataIcon(licon.Download),
+        },
+        'Import latest from Lichess',
+      ),
+      hl(
+        'a',
+        {
+          hook: bind('click', () => importLatestFromProvider('chesscom')),
+          attrs: dataIcon(licon.Download),
+        },
+        'Import latest from Chess.com',
       ),
       !ctrl.ongoing &&
       hl(
