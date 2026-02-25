@@ -78,6 +78,9 @@ final class Main(
   def instantChess = Open:
     Redirect(routes.UserAnalysis.index)
 
+  def healthz = Anon:
+    Ok("ok").toFuccess
+
   def prometheusMetrics(key: String) = Anon:
     if key == env.web.config.prometheusKey
     then

@@ -134,6 +134,17 @@ final case class PositionFeatures(
     nature: PositionNature
 )
 
+final case class StrategicStateFeatures(
+    whiteEntrenchedPieces: Int,
+    blackEntrenchedPieces: Int,
+    whiteRookPawnMarchReady: Boolean,
+    blackRookPawnMarchReady: Boolean,
+    whiteHookCreationChance: Boolean,
+    blackHookCreationChance: Boolean,
+    whiteColorComplexClamp: Boolean,
+    blackColorComplexClamp: Boolean
+)
+
 object PositionFeatures:
   def empty: PositionFeatures = PositionFeatures(
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -149,7 +160,34 @@ object PositionFeatures:
     nature = PositionNature(NatureType.Static, 0.0, 1.0, "Initial position.")
   )
 
+object StrategicStateFeatures:
+  val empty: StrategicStateFeatures = StrategicStateFeatures(
+    whiteEntrenchedPieces = 0,
+    blackEntrenchedPieces = 0,
+    whiteRookPawnMarchReady = false,
+    blackRookPawnMarchReady = false,
+    whiteHookCreationChance = false,
+    blackHookCreationChance = false,
+    whiteColorComplexClamp = false,
+    blackColorComplexClamp = false
+  )
+
 object PositionAnalyzer:
+
+  def extractStrategicState(fen: String): Option[StrategicStateFeatures] =
+    Fen.read(chess.variant.Standard, Fen.Full(fen)).map { pos =>
+      val board = pos.board
+      StrategicStateFeatures(
+        whiteEntrenchedPieces = entrenchedPieceCount(board, Color.White),
+        blackEntrenchedPieces = entrenchedPieceCount(board, Color.Black),
+        whiteRookPawnMarchReady = rookPawnMarchReady(board, Color.White),
+        blackRookPawnMarchReady = rookPawnMarchReady(board, Color.Black),
+        whiteHookCreationChance = hookCreationChance(board, Color.White),
+        blackHookCreationChance = hookCreationChance(board, Color.Black),
+        whiteColorComplexClamp = colorComplexClamp(board, Color.White),
+        blackColorComplexClamp = colorComplexClamp(board, Color.Black)
+      )
+    }
 
   def extractFeatures(fen: String, plyCount: Int): Option[PositionFeatures] =
     Fen.read(chess.variant.Standard, Fen.Full(fen)).map { position =>
@@ -768,3 +806,54 @@ object PositionAnalyzer:
       }
     }.flatten.toList
   }
+
+  private def entrenchedPieceCount(board: Board, color: Color): Int =
+    val pieces = ((board.knights | board.bishops) & board.byColor(color)).squares
+    pieces.count { sq =>
+      val enemyPawnAttack = (board.pawns & board.byColor(!color)).squares.exists { ep =>
+        (ep.pawnAttacks(!color) & sq.bb).nonEmpty
+      }
+      val defenders = board.attackers(sq, color).count
+      val centralOrAdvanced =
+        if color.white then sq.rank.value >= Rank.Fourth.value
+        else sq.rank.value <= Rank.Fifth.value
+      !enemyPawnAttack && defenders >= 2 && centralOrAdvanced
+    }
+
+  private def rookPawnMarchReady(board: Board, color: Color): Boolean =
+    val aFile = if color.white then List(Square.A2, Square.A3, Square.A4, Square.A5) else List(Square.A7, Square.A6, Square.A5, Square.A4)
+    val hFile = if color.white then List(Square.H2, Square.H3, Square.H4, Square.H5) else List(Square.H7, Square.H6, Square.H5, Square.H4)
+    val hasA = aFile.exists(sq => board.pieceAt(sq).contains(Piece(color, Pawn)))
+    val hasH = hFile.exists(sq => board.pieceAt(sq).contains(Piece(color, Pawn)))
+    val kingFlankAligned =
+      board.kingPosOf(color).exists { k =>
+        if hasH then k.file.value >= File.F.value
+        else if hasA then k.file.value <= File.C.value
+        else false
+      }
+    (hasA || hasH) && kingFlankAligned
+
+  private def hookCreationChance(board: Board, color: Color): Boolean =
+    val enemy = !color
+    val flankPairs =
+      if color.white then
+        List((Square.G4, Square.G5), (Square.H4, Square.H5), (Square.A4, Square.A5), (Square.B4, Square.B5))
+      else
+        List((Square.G5, Square.G4), (Square.H5, Square.H4), (Square.A5, Square.A4), (Square.B5, Square.B4))
+    flankPairs.exists { case (ourSq, theirSq) =>
+      board.pieceAt(ourSq).contains(Piece(color, Pawn)) &&
+      board.pieceAt(theirSq).contains(Piece(enemy, Pawn))
+    }
+
+  private def colorComplexClamp(board: Board, color: Color): Boolean =
+    val enemy = !color
+    val enemyKing = board.kingPosOf(enemy)
+    enemyKing.exists { kSq =>
+      val ring = kSq.kingAttacks.squares
+      val attacked = ring.count(sq => board.attackers(sq, color).nonEmpty)
+      val sameColorBias =
+        val darkSquares = ring.count(!_.isLight)
+        val lightSquares = ring.count(_.isLight)
+        Math.abs(darkSquares - lightSquares) <= 3
+      attacked >= 5 && sameColorBias
+    }

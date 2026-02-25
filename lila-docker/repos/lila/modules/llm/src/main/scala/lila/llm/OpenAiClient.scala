@@ -399,24 +399,24 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       val contentOpt = extractMessageContent(json)
       val parsedFromContent = contentOpt.flatMap(parseCommentaryPayload)
       val wrapperDetected = contentOpt.exists(looksLikeJsonWrapper)
-      val fallbackPlain =
-        contentOpt.map(_.trim).filter(_.nonEmpty).flatMap { c =>
-          if wrapperDetected then None else Some(c)
-        }
+      val fallbackPlain = contentOpt.map(_.trim).filter(_.nonEmpty).filter(_ => !wrapperDetected)
+      val wrapperRaw = contentOpt.map(_.trim).filter(_.nonEmpty).filter(_ => wrapperDetected)
       val polished = directParsed.orElse(parsedFromContent).orElse(fallbackPlain)
-      if polished.isEmpty && wrapperDetected then None
-      else polished.map { commentary =>
-        val model = (json \ "model").asOpt[String].getOrElse(requestedModel)
-        val promptTokens = (json \ "usage" \ "prompt_tokens").asOpt[Int]
-        val cachedTokens = (json \ "usage" \ "prompt_tokens_details" \ "cached_tokens").asOpt[Int]
-        val completionTokens =
-          (json \ "usage" \ "completion_tokens")
-            .asOpt[Int]
-            .orElse((json \ "usage" \ "output_tokens").asOpt[Int])
-        val finishReason = (json \ "choices" \ 0 \ "finish_reason").asOpt[String].getOrElse("")
+
+      val model = (json \ "model").asOpt[String].getOrElse(requestedModel)
+      val promptTokens = (json \ "usage" \ "prompt_tokens").asOpt[Int]
+      val cachedTokens = (json \ "usage" \ "prompt_tokens_details" \ "cached_tokens").asOpt[Int]
+      val completionTokens =
+        (json \ "usage" \ "completion_tokens")
+          .asOpt[Int]
+          .orElse((json \ "usage" \ "output_tokens").asOpt[Int])
+      val finishReason = (json \ "choices" \ 0 \ "finish_reason").asOpt[String].getOrElse("")
+
+      def buildResult(commentary: String, extraWarnings: List[String] = Nil): OpenAiPolishResult =
         val warnings = List.newBuilder[String]
         if finishReason.equalsIgnoreCase("length") then warnings += "truncated_output"
         if isLikelyTruncated(commentary) then warnings += "truncated_output"
+        extraWarnings.foreach(warnings += _)
         val estimatedCost = estimateCostUsd(
           model = model,
           promptTokens = promptTokens,
@@ -433,7 +433,14 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
           estimatedCostUsd = estimatedCost,
           parseWarnings = warnings.result().distinct
         )
-      }
+
+      polished
+        .map(buildResult(_))
+        .orElse {
+          // Keep wrapper text to allow strict validation+repair path in LlmApi
+          // instead of dropping directly to fallback_rule_empty.
+          wrapperRaw.map(raw => buildResult(raw, extraWarnings = List("json_wrapper_unparsed")))
+        }
     catch
       case NonFatal(e) =>
         logger.warn(s"Failed to parse OpenAI response: ${e.getMessage}")
@@ -469,12 +476,32 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     val trimmed = Option(raw).map(_.trim).getOrElse("")
     if trimmed.isEmpty then None
     else
-      try
-        val parsed = Json.parse(trimmed)
-        val fromObject = parsed.asOpt[JsObject].flatMap(o => (o \ "commentary").asOpt[String])
-        val fromAny = (parsed \ "commentary").asOpt[String]
-        fromObject.orElse(fromAny).map(_.trim).filter(_.nonEmpty)
-      catch case NonFatal(_) => None
+      def extractCommentary(parsed: JsValue): Option[String] =
+        val direct = (parsed \ "commentary").asOpt[String].map(_.trim).filter(_.nonEmpty)
+        val nested =
+          (parsed \ "commentary").toOption.flatMap {
+            case obj: JsObject =>
+              List("text", "value", "content")
+                .view
+                .flatMap(k => (obj \ k).asOpt[String].map(_.trim))
+                .find(_.nonEmpty)
+            case _ => None
+          }
+        direct.orElse(nested)
+
+      def parseJson(text: String): Option[String] =
+        try extractCommentary(Json.parse(text))
+        catch case NonFatal(_) => None
+
+      val fenceRegex = """(?s)```(?:json)?\s*(\{.*?\})\s*```""".r
+      val fenced = fenceRegex.findFirstMatchIn(trimmed).map(_.group(1).trim)
+      val objectSlice =
+        val start = trimmed.indexOf('{')
+        val end = trimmed.lastIndexOf('}')
+        if start >= 0 && end > start then Some(trimmed.substring(start, end + 1).trim)
+        else None
+
+      List(Some(trimmed), fenced, objectSlice).flatten.distinct.view.flatMap(parseJson).headOption
 
   private def looksLikeJsonWrapper(text: String): Boolean =
     val t = Option(text).map(_.trim).getOrElse("")

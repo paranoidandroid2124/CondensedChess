@@ -38,6 +38,7 @@ import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
 import pgnImport from './pgnImport';
+import { emptyPgnError, normalizeInlinePgn, submitPgnToImportPipeline } from './pgnPipeline';
 import ForecastCtrl from './forecast/forecastCtrl';
 import * as studyApi from './studyApi';
 
@@ -571,9 +572,15 @@ export default class AnalyseCtrl implements CevalHandler {
 
   changePgn(pgn: string, andReload: boolean): AnalyseData | undefined {
     this.pgnError = '';
+    const normalized = normalizeInlinePgn(pgn);
+    if (!normalized) {
+      this.pgnError = emptyPgnError;
+      requestAnimationFrame(this.redraw);
+      return undefined;
+    }
     try {
       const data: AnalyseData = {
-        ...pgnImport(pgn),
+        ...pgnImport(normalized),
         orientation: this.bottomColor(),
         pref: this.data.pref,
         externalEngines: this.data.externalEngines,
@@ -589,6 +596,18 @@ export default class AnalyseCtrl implements CevalHandler {
       requestAnimationFrame(this.redraw);
     }
     return undefined;
+  }
+
+  importPgn(rawPgn: string): boolean {
+    this.pgnError = '';
+    if (!submitPgnToImportPipeline(rawPgn)) {
+      this.pgnError = emptyPgnError;
+      requestAnimationFrame(this.redraw);
+      return false;
+    }
+    this.redirecting = true;
+    this.redraw();
+    return true;
   }
 
   changeFen(fen: FEN): void {

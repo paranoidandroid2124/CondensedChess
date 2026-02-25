@@ -40,6 +40,12 @@ final class LlmApi(
   private val endgameFeatureCount = new AtomicLong(0L)
   private val endgameWinHintCount = new AtomicLong(0L)
   private val endgameHighConfidenceCount = new AtomicLong(0L)
+  private val planRecallTotal = new AtomicLong(0L)
+  private val planRecallHit = new AtomicLong(0L)
+  private val latentPrecisionTotal = new AtomicLong(0L)
+  private val latentPrecisionHit = new AtomicLong(0L)
+  private val pvCouplingTotal = new AtomicLong(0L)
+  private val pvCouplingHit = new AtomicLong(0L)
   private val ShadowWindowSize = 2000
   private val AsyncJobTtlMs = 24L * 60L * 60L * 1000L
   private val AsyncJobMaxSize = 256
@@ -93,6 +99,32 @@ final class LlmApi(
       if eg.theoreticalOutcomeHint == TheoreticalOutcomeHint.Win then endgameWinHintCount.incrementAndGet()
       if eg.confidence >= 0.75 then endgameHighConfidenceCount.incrementAndGet()
     }
+
+  private def recordStrategicMetrics(
+      data: lila.llm.model.ExtendedAnalysisData,
+      ctx: lila.llm.model.NarrativeContext,
+      probeResults: List[lila.llm.model.ProbeResult]
+  ): Unit =
+    if ctx.mainStrategicPlans.nonEmpty then
+      planRecallTotal.incrementAndGet()
+      val topRulePlan = data.plans.headOption.map(_.plan.id.toString)
+      val topHypothesis = ctx.mainStrategicPlans.headOption.map(_.planId)
+      if topRulePlan.isDefined && topRulePlan == topHypothesis then planRecallHit.incrementAndGet()
+
+    val latent = ctx.latentPlans
+    if latent.nonEmpty then
+      latentPrecisionTotal.addAndGet(latent.size.toLong)
+      latent.foreach { lp =>
+        val support = probeResults.exists { pr =>
+          val seedOk = pr.seedId.contains(lp.seedId) || pr.id.contains(lp.seedId)
+          val purposeOk = pr.purpose.exists(p => p == "free_tempo_branches" || p == "latent_plan_immediate")
+          seedOk && purposeOk && pr.deltaVsBaseline >= -80
+        }
+        if support then latentPrecisionHit.incrementAndGet()
+      }
+
+    pvCouplingTotal.incrementAndGet()
+    if ctx.whyAbsentFromTopMultiPV.isEmpty then pvCouplingHit.incrementAndGet()
 
   private def pushWindow(values: Vector[Long], value: Long): Vector[Long] =
     val next = values :+ value
@@ -203,6 +235,12 @@ final class LlmApi(
     else if llmConfig.endgameOracleShadowMode then "shadow"
     else "off"
 
+  private def strategicPriorMode: String =
+    if llmConfig.strategicPriorEnabled then "enabled"
+    else if llmConfig.strategicPriorCanaryRate > 0.0 then "canary"
+    else if llmConfig.strategicPriorShadowMode then "shadow"
+    else "off"
+
   private def maybeLogBookmakerMetrics(): Unit =
     val total = bookmakerRequests.get()
     if total > 0 && total % 100 == 0 then
@@ -241,12 +279,22 @@ final class LlmApi(
       val polishReasonDist = polishReasonCount.toList.map { case (k, v) => k -> v.get() }.toMap
       val polishFallbackRateWindow = polishFallbackRate
       val polishLatencyP95Window = polishLatencyP95Ms
+      val planRecallAt3 =
+        if planRecallTotal.get() == 0 then 0.0
+        else planRecallHit.get().toDouble / planRecallTotal.get().toDouble
+      val latentPrecision =
+        if latentPrecisionTotal.get() == 0 then 0.0
+        else latentPrecisionHit.get().toDouble / latentPrecisionTotal.get().toDouble
+      val pvCouplingRatio =
+        if pvCouplingTotal.get() == 0 then 0.0
+        else pvCouplingHit.get().toDouble / pvCouplingTotal.get().toDouble
       val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
       val epochSec = Instant.now().getEpochSecond
       logger.info(
         s"bookmaker.metrics epoch=$epochSec total=$total " +
           s"struct_mode=${structureMode} " +
           s"endgame_mode=${endgameMode} " +
+          s"strategic_prior_mode=${strategicPriorMode} " +
           s"shadow_window=$totalWindowSize " +
           f"token_present_rate=$tokenPresentRate%.3f " +
           f"token_emit_rate=$tokenEmitRate%.3f " +
@@ -269,6 +317,9 @@ final class LlmApi(
           f"polish_acceptance_ratio=$polishAcceptRate%.3f " +
           f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
           f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
+          f"plan_recall_at3=$planRecallAt3%.3f " +
+          f"latent_precision=$latentPrecision%.3f " +
+          f"pv_coupling_ratio=$pvCouplingRatio%.3f " +
           f"polish_avg_cost_usd=$avgCostUsd%.6f " +
           s"polish_reason_dist=$polishReasonDist " +
           s"struct_dist=$structureDist " +
@@ -409,11 +460,13 @@ final class LlmApi(
       refs: Option[BookmakerRefsV1],
       asyncTier: Boolean
   ): Int =
-    val minCap = if asyncTier then 320 else 220
-    val maxCap = if asyncTier then 480 else 320
+    // Structured polish prompts can become long once anchors (MV/MK/EV/VB) are embedded.
+    // Keep a higher floor/ceiling to reduce wrapper truncation and empty-polish fallbacks.
+    val minCap = if asyncTier then 420 else 320
+    val maxCap = if asyncTier then 720 else 560
     val proseWords = wordCount(prose)
     val anchorCount = refs.toList.flatMap(_.variations).flatMap(_.moves).size
-    val estimated = (proseWords.toDouble * 1.7 + anchorCount.toDouble * 3.0 + 64.0).toInt
+    val estimated = (proseWords.toDouble * 2.4 + anchorCount.toDouble * 5.0 + 96.0).toInt
     estimated.max(minCap).min(maxCap)
 
   private case class CandidateValidation(
@@ -434,11 +487,19 @@ final class LlmApi(
         MoveAnchorCodec.validateAnchors(
           text = candidateText,
           expectedMoveOrder = anchors.expectedMoveOrder,
-          expectedMarkerOrder = anchors.expectedMarkerOrder
+          expectedMarkerOrder = anchors.expectedMarkerOrder,
+          expectedEvalOrder = anchors.expectedEvalOrder,
+          expectedBranchOrder = anchors.expectedBranchOrder
         )
       else Nil
     val decoded =
-      if anchors.hasAnchors then MoveAnchorCodec.decode(candidateText, anchors.refById)
+      if anchors.hasAnchors then
+        MoveAnchorCodec.decode(
+          text = candidateText,
+          refById = anchors.refById,
+          evalById = anchors.evalById,
+          branchById = anchors.branchById
+        )
       else candidateText
     val proseValidation = validatePolishedCommentary(decoded, originalProse, allowedSans)
     val reasons = (anchorReasons ++ proseValidation.reasons ++ extraReasons).distinct
@@ -496,6 +557,160 @@ final class LlmApi(
       estimatedCostUsd = decision.meta.flatMap(_.estimatedCostUsd)
     )
     decision
+
+  private def maybePolishBySegmentsOpenAi(
+      prose: String,
+      phase: String,
+      evalDelta: Option[Int],
+      concepts: List[String],
+      fen: String,
+      openingName: Option[String],
+      lang: String,
+      allowedSans: List[String],
+      asyncTier: Boolean
+  ): Future[Option[PolishDecision]] =
+    val segmentation = PolishSegmenter.segment(prose)
+    val editable = segmentation.editableSegments
+    if editable.isEmpty then Future.successful(None)
+    else
+      val segmentCap = adaptiveOutputTokenCap(prose, refs = None, asyncTier = asyncTier).min(if asyncTier then 360 else 280).max(128)
+      val maxSegments = if asyncTier then 6 else 4
+      val candidateEditable =
+        editable
+          .sortBy(s => -wordCount(s.text))
+          .take(maxSegments)
+      final case class SegmentRewrite(id: String, commentary: String, attempt: OpenAiPolishResult)
+
+      def validateSegmentCandidate(
+          candidate: OpenAiPolishResult,
+          originalSegment: String,
+          masked: PolishSegmenter.MaskedSegment
+      ): Option[String] =
+        val lockReasons =
+          if masked.hasLocks then PolishSegmenter.validateLocks(candidate.commentary, masked.expectedOrder)
+          else Nil
+        val unmasked =
+          if masked.hasLocks then PolishSegmenter.unmask(candidate.commentary, masked.tokenById)
+          else candidate.commentary
+        val proseValidation = validatePolishedCommentary(unmasked, originalSegment, Nil)
+        val reasons = (lockReasons ++ proseValidation.reasons ++ candidate.parseWarnings).distinct
+        if reasons.isEmpty then Some(unmasked) else None
+
+      def polishSegment(seg: PolishSegmenter.Segment): Future[Option[SegmentRewrite]] =
+        val masked = PolishSegmenter.maskStructuralTokens(seg.text)
+        val modelInput = if masked.hasLocks then masked.maskedText else seg.text
+
+        def callPolish(input: String): Future[Option[OpenAiPolishResult]] =
+          if asyncTier then
+            openAiClient.polishAsync(
+              prose = input,
+              phase = phase,
+              evalDelta = evalDelta,
+              concepts = concepts,
+              fen = fen,
+              openingName = openingName,
+              lang = lang,
+              maxOutputTokens = Some(segmentCap)
+            )
+          else
+            openAiClient.polishSync(
+              prose = input,
+              phase = phase,
+              evalDelta = evalDelta,
+              concepts = concepts,
+              fen = fen,
+              openingName = openingName,
+              lang = lang,
+              maxOutputTokens = Some(segmentCap)
+            )
+
+        def callRepair(input: String, rejected: String): Future[Option[OpenAiPolishResult]] =
+          if asyncTier then
+            openAiClient.repairAsync(
+              originalProse = input,
+              rejectedPolish = rejected,
+              phase = phase,
+              evalDelta = evalDelta,
+              concepts = concepts,
+              fen = fen,
+              openingName = openingName,
+              allowedSans = Nil,
+              lang = lang,
+              maxOutputTokens = Some(segmentCap)
+            )
+          else
+            openAiClient.repairSync(
+              originalProse = input,
+              rejectedPolish = rejected,
+              phase = phase,
+              evalDelta = evalDelta,
+              concepts = concepts,
+              fen = fen,
+              openingName = openingName,
+              allowedSans = Nil,
+              lang = lang,
+              maxOutputTokens = Some(segmentCap)
+            )
+
+        def acceptedRewrite(
+            attempt: OpenAiPolishResult
+        ): Option[SegmentRewrite] =
+          validateSegmentCandidate(attempt, seg.text, masked)
+            .map(rewritten => SegmentRewrite(seg.id, rewritten, attempt))
+
+        def fallbackToOriginal(attempt: OpenAiPolishResult): Option[SegmentRewrite] =
+          Some(SegmentRewrite(seg.id, seg.text, attempt))
+
+        callPolish(modelInput).flatMap {
+          case Some(primary) =>
+            acceptedRewrite(primary) match
+              case Some(rewritten) =>
+                Future.successful(Some(rewritten))
+              case None =>
+                callRepair(modelInput, primary.commentary).map {
+                  case Some(repaired) =>
+                    acceptedRewrite(repaired)
+                      .orElse(fallbackToOriginal(repaired))
+                  case None =>
+                    // Prefer structural safety over aggressive rewrite: keep original segment.
+                    fallbackToOriginal(primary)
+                }
+          case None => Future.successful(None)
+        }
+
+      val rewritesFut =
+        candidateEditable.foldLeft(Future.successful(Vector.empty[Option[SegmentRewrite]])) { (accFut, seg) =>
+          accFut.flatMap(acc => polishSegment(seg).map(r => acc :+ r))
+        }
+
+      rewritesFut.map { results =>
+        val successes = results.flatten
+        if successes.isEmpty then None
+        else
+          val rewrites = successes.map(s => s.id -> s.commentary).toMap
+          val merged = segmentation.merge(rewrites)
+          val mergedValidation = validatePolishedCommentary(merged, prose, allowedSans)
+          if !mergedValidation.isValid then None
+          else
+            val attempts = successes.map(_.attempt).toList
+            Some(
+              PolishDecision(
+                commentary = merged,
+                sourceMode = "llm_polished",
+                model = attempts.lastOption.map(_.model),
+                cacheHit = attempts.exists(_.promptCacheHit),
+                meta = Some(
+                  buildPolishMetaOpenAi(
+                    model = attempts.lastOption.map(_.model),
+                    sourceMode = "llm_polished",
+                    phase = phase,
+                    validationReasons = Nil,
+                    attempts = attempts
+                  )
+                )
+              )
+            )
+      }
 
   private def maybePolishCommentary(
       prose: String,
@@ -567,267 +782,366 @@ final class LlmApi(
       providerConfig.provider match
         case "openai" if openAiClient.isEnabled =>
           val normalizedLang = normalizeLang(lang)
-          val anchors = MoveAnchorCodec.encode(prose, refs)
-          val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
-          val adaptiveCap = adaptiveOutputTokenCap(prose, refs, asyncTier)
           val requestStartNs = System.nanoTime()
-          val op =
-            if asyncTier then
-              openAiClient.polishAsync(
-                prose = proseForModel,
+          val shouldTrySegmentPolish = refs.exists(_.variations.nonEmpty) || allowedSans.nonEmpty
+          val segmentAttemptFut =
+            if shouldTrySegmentPolish then
+              maybePolishBySegmentsOpenAi(
+                prose = prose,
                 phase = phase,
                 evalDelta = evalDelta,
                 concepts = concepts,
                 fen = fen,
                 openingName = openingName,
                 lang = normalizedLang,
-                maxOutputTokens = Some(adaptiveCap)
-              )
-            else
-              openAiClient.polishSync(
-                prose = proseForModel,
-                phase = phase,
-                evalDelta = evalDelta,
-                concepts = concepts,
-                fen = fen,
-                openingName = openingName,
-                lang = normalizedLang,
-                maxOutputTokens = Some(adaptiveCap)
-              )
-          op.flatMap {
-            case Some(polished) =>
-              val firstValidation = validateCandidate(
-                candidateText = polished.commentary,
-                originalProse = prose,
                 allowedSans = allowedSans,
-                anchors = anchors,
-                extraReasons = polished.parseWarnings
+                asyncTier = asyncTier
               )
-              if firstValidation.isValid then
-                Future.successful(
-                  withRecordedPolishMetrics(
-                    requestStartNs,
-                    PolishDecision(
-                      commentary = firstValidation.decodedText,
-                      sourceMode = "llm_polished",
-                      model = Some(polished.model),
-                      cacheHit = polished.promptCacheHit,
-                      meta = Some(
-                        buildPolishMetaOpenAi(
-                          model = Some(polished.model),
-                          sourceMode = "llm_polished",
-                          phase = phase,
-                          validationReasons = Nil,
-                          attempts = List(polished)
-                        )
-                      )
-                    )
+            else Future.successful(None)
+
+          segmentAttemptFut.flatMap {
+            case Some(segmentDecision) =>
+              Future.successful(withRecordedPolishMetrics(requestStartNs, segmentDecision))
+            case None =>
+              val anchors = MoveAnchorCodec.encode(prose, refs)
+              val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
+              val adaptiveCap = adaptiveOutputTokenCap(prose, refs, asyncTier)
+              val op =
+                if asyncTier then
+                  openAiClient.polishAsync(
+                    prose = proseForModel,
+                    phase = phase,
+                    evalDelta = evalDelta,
+                    concepts = concepts,
+                    fen = fen,
+                    openingName = openingName,
+                    lang = normalizedLang,
+                    maxOutputTokens = Some(adaptiveCap)
                   )
-                )
-              else
-                logInvalidPolish(
-                  provider = "openai",
-                  phase = phase,
-                  attempt = "primary",
-                  model = Some(polished.model),
-                  reasons = firstValidation.reasons.distinct
-                )
-                val repairFut =
-                  if asyncTier then
-                    openAiClient.repairAsync(
-                      originalProse = proseForModel,
-                      rejectedPolish = polished.commentary,
-                      phase = phase,
-                      evalDelta = evalDelta,
-                      concepts = concepts,
-                      fen = fen,
-                      openingName = openingName,
-                      allowedSans = allowedSans,
-                      lang = normalizedLang,
-                      maxOutputTokens = Some(adaptiveCap)
-                    )
-                  else
-                    openAiClient.repairSync(
-                      originalProse = proseForModel,
-                      rejectedPolish = polished.commentary,
-                      phase = phase,
-                      evalDelta = evalDelta,
-                      concepts = concepts,
-                      fen = fen,
-                      openingName = openingName,
-                      allowedSans = allowedSans,
-                      lang = normalizedLang,
-                      maxOutputTokens = Some(adaptiveCap)
-                    )
-                repairFut.map {
-                  case Some(repaired) =>
-                    val repairedValidation = validateCandidate(
-                      candidateText = repaired.commentary,
-                      originalProse = prose,
-                      allowedSans = allowedSans,
-                      anchors = anchors,
-                      extraReasons = repaired.parseWarnings
-                    )
-                    if repairedValidation.isValid then
+                else
+                  openAiClient.polishSync(
+                    prose = proseForModel,
+                    phase = phase,
+                    evalDelta = evalDelta,
+                    concepts = concepts,
+                    fen = fen,
+                    openingName = openingName,
+                    lang = normalizedLang,
+                    maxOutputTokens = Some(adaptiveCap)
+                  )
+              op.flatMap {
+                case Some(polished) =>
+                  val firstValidation = validateCandidate(
+                    candidateText = polished.commentary,
+                    originalProse = prose,
+                    allowedSans = allowedSans,
+                    anchors = anchors,
+                    extraReasons = polished.parseWarnings
+                  )
+                  if firstValidation.isValid then
+                    Future.successful(
                       withRecordedPolishMetrics(
                         requestStartNs,
                         PolishDecision(
-                          commentary = repairedValidation.decodedText,
+                          commentary = firstValidation.decodedText,
                           sourceMode = "llm_polished",
-                          model = Some(repaired.model),
-                          cacheHit = repaired.promptCacheHit,
+                          model = Some(polished.model),
+                          cacheHit = polished.promptCacheHit,
                           meta = Some(
                             buildPolishMetaOpenAi(
-                              model = Some(repaired.model),
+                              model = Some(polished.model),
                               sourceMode = "llm_polished",
                               phase = phase,
                               validationReasons = Nil,
-                              attempts = List(polished, repaired)
+                              attempts = List(polished)
                             )
                           )
                         )
                       )
-                    else
-                      val reasons = repairedValidation.reasons.distinct
-                      logInvalidPolish(
-                        provider = "openai",
-                        phase = phase,
-                        attempt = "repair",
-                        model = Some(repaired.model),
-                        reasons = reasons
-                      )
-                      withRecordedPolishMetrics(
-                        requestStartNs,
-                        PolishDecision(
-                          commentary = prose,
-                          sourceMode = "fallback_rule_invalid",
-                          model = None,
-                          cacheHit = false,
-                          meta = Some(
-                            buildPolishMetaOpenAi(
+                    )
+                  else
+                    logInvalidPolish(
+                      provider = "openai",
+                      phase = phase,
+                      attempt = "primary",
+                      model = Some(polished.model),
+                      reasons = firstValidation.reasons.distinct
+                    )
+                    val repairFut =
+                      if asyncTier then
+                        openAiClient.repairAsync(
+                          originalProse = proseForModel,
+                          rejectedPolish = polished.commentary,
+                          phase = phase,
+                          evalDelta = evalDelta,
+                          concepts = concepts,
+                          fen = fen,
+                          openingName = openingName,
+                          allowedSans = allowedSans,
+                          lang = normalizedLang,
+                          maxOutputTokens = Some(adaptiveCap)
+                        )
+                      else
+                        openAiClient.repairSync(
+                          originalProse = proseForModel,
+                          rejectedPolish = polished.commentary,
+                          phase = phase,
+                          evalDelta = evalDelta,
+                          concepts = concepts,
+                          fen = fen,
+                          openingName = openingName,
+                          allowedSans = allowedSans,
+                          lang = normalizedLang,
+                          maxOutputTokens = Some(adaptiveCap)
+                        )
+                    repairFut.map {
+                      case Some(repaired) =>
+                        val repairedValidation = validateCandidate(
+                          candidateText = repaired.commentary,
+                          originalProse = prose,
+                          allowedSans = allowedSans,
+                          anchors = anchors,
+                          extraReasons = repaired.parseWarnings
+                        )
+                        if repairedValidation.isValid then
+                          withRecordedPolishMetrics(
+                            requestStartNs,
+                            PolishDecision(
+                              commentary = repairedValidation.decodedText,
+                              sourceMode = "llm_polished",
                               model = Some(repaired.model),
+                              cacheHit = repaired.promptCacheHit,
+                              meta = Some(
+                                buildPolishMetaOpenAi(
+                                  model = Some(repaired.model),
+                                  sourceMode = "llm_polished",
+                                  phase = phase,
+                                  validationReasons = Nil,
+                                  attempts = List(polished, repaired)
+                                )
+                              )
+                            )
+                          )
+                        else
+                          val reasons = repairedValidation.reasons.distinct
+                          logInvalidPolish(
+                            provider = "openai",
+                            phase = phase,
+                            attempt = "repair",
+                            model = Some(repaired.model),
+                            reasons = reasons
+                          )
+                          withRecordedPolishMetrics(
+                            requestStartNs,
+                            PolishDecision(
+                              commentary = prose,
                               sourceMode = "fallback_rule_invalid",
-                              phase = phase,
-                              validationReasons = reasons,
-                              attempts = List(polished, repaired)
+                              model = None,
+                              cacheHit = false,
+                              meta = Some(
+                                buildPolishMetaOpenAi(
+                                  model = Some(repaired.model),
+                                  sourceMode = "fallback_rule_invalid",
+                                  phase = phase,
+                                  validationReasons = reasons,
+                                  attempts = List(polished, repaired)
+                                )
+                              )
+                            )
+                          )
+                      case None =>
+                        withRecordedPolishMetrics(
+                          requestStartNs,
+                          PolishDecision(
+                            commentary = prose,
+                            sourceMode = "fallback_rule_invalid",
+                            model = None,
+                            cacheHit = false,
+                            meta = Some(
+                              buildPolishMetaOpenAi(
+                                model = Some(polished.model),
+                                sourceMode = "fallback_rule_invalid",
+                                phase = phase,
+                                validationReasons = firstValidation.reasons.distinct,
+                                attempts = List(polished)
+                              )
                             )
                           )
                         )
-                      )
-                  case None =>
+                    }
+                case None =>
+                  Future.successful(
                     withRecordedPolishMetrics(
                       requestStartNs,
                       PolishDecision(
                         commentary = prose,
-                        sourceMode = "fallback_rule_invalid",
+                        sourceMode = "fallback_rule_empty",
                         model = None,
                         cacheHit = false,
                         meta = Some(
                           buildPolishMetaOpenAi(
-                            model = Some(polished.model),
-                            sourceMode = "fallback_rule_invalid",
+                            model = None,
+                            sourceMode = "fallback_rule_empty",
                             phase = phase,
-                            validationReasons = firstValidation.reasons.distinct,
-                            attempts = List(polished)
+                            validationReasons = List("empty_polish"),
+                            attempts = Nil
                           )
                         )
                       )
                     )
-                }
-            case None =>
-              Future.successful(
-                withRecordedPolishMetrics(
-                  requestStartNs,
-                  PolishDecision(
-                    commentary = prose,
-                    sourceMode = "fallback_rule_empty",
-                    model = None,
-                    cacheHit = false,
-                    meta = Some(
-                      buildPolishMetaOpenAi(
-                        model = None,
-                        sourceMode = "fallback_rule_empty",
-                        phase = phase,
-                        validationReasons = List("empty_polish"),
-                        attempts = Nil
-                      )
-                    )
                   )
-                )
-              )
+              }
           }
         case "gemini" if geminiClient.isEnabled =>
           val requestStartNs = System.nanoTime()
+          val anchors = MoveAnchorCodec.encode(prose, refs)
+          val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
           geminiClient
             .polish(
-              prose = prose,
+              prose = proseForModel,
               phase = phase,
               evalDelta = evalDelta,
               concepts = concepts,
               fen = fen,
               openingName = openingName
             )
-            .map {
+            .flatMap {
               case Some(polished) =>
-                val validation = validatePolishedCommentary(polished, prose, allowedSans)
+                val validation = validateCandidate(
+                  candidateText = polished,
+                  originalProse = prose,
+                  allowedSans = allowedSans,
+                  anchors = anchors,
+                  extraReasons = Nil
+                )
                 if validation.isValid then
-                  withRecordedPolishMetrics(
-                    requestStartNs,
-                    PolishDecision(
-                      commentary = polished,
-                      sourceMode = "llm_polished",
-                      model = Some(geminiClient.modelName),
-                      cacheHit = false,
-                      meta = Some(
-                        buildPolishMetaGemini(
-                          model = Some(geminiClient.modelName),
-                          sourceMode = "llm_polished",
-                          phase = phase,
-                          validationReasons = Nil
+                  Future.successful(
+                    withRecordedPolishMetrics(
+                      requestStartNs,
+                      PolishDecision(
+                        commentary = validation.decodedText,
+                        sourceMode = "llm_polished",
+                        model = Some(geminiClient.modelName),
+                        cacheHit = false,
+                        meta = Some(
+                          buildPolishMetaGemini(
+                            model = Some(geminiClient.modelName),
+                            sourceMode = "llm_polished",
+                            phase = phase,
+                            validationReasons = Nil
+                          )
                         )
                       )
                     )
                   )
                 else
-                  val reasons = validation.reasons.distinct
+                  val primaryReasons = validation.reasons.distinct
                   logInvalidPolish(
                     provider = "gemini",
                     phase = phase,
                     attempt = "primary",
                     model = Some(geminiClient.modelName),
-                    reasons = reasons
+                    reasons = primaryReasons
                   )
+                  geminiClient
+                    .repair(
+                      originalProse = proseForModel,
+                      rejectedPolish = polished,
+                      phase = phase,
+                      evalDelta = evalDelta,
+                      concepts = concepts,
+                      fen = fen,
+                      openingName = openingName,
+                      allowedSans = allowedSans
+                    )
+                    .map {
+                      case Some(repaired) =>
+                        val repairedValidation = validateCandidate(
+                          candidateText = repaired,
+                          originalProse = prose,
+                          allowedSans = allowedSans,
+                          anchors = anchors,
+                          extraReasons = Nil
+                        )
+                        if repairedValidation.isValid then
+                          withRecordedPolishMetrics(
+                            requestStartNs,
+                            PolishDecision(
+                              commentary = repairedValidation.decodedText,
+                              sourceMode = "llm_polished",
+                              model = Some(geminiClient.modelName),
+                              cacheHit = false,
+                              meta = Some(
+                                buildPolishMetaGemini(
+                                  model = Some(geminiClient.modelName),
+                                  sourceMode = "llm_polished",
+                                  phase = phase,
+                                  validationReasons = Nil
+                                )
+                              )
+                            )
+                          )
+                        else
+                          val reasons = repairedValidation.reasons.distinct
+                          logInvalidPolish(
+                            provider = "gemini",
+                            phase = phase,
+                            attempt = "repair",
+                            model = Some(geminiClient.modelName),
+                            reasons = reasons
+                          )
+                          withRecordedPolishMetrics(
+                            requestStartNs,
+                            PolishDecision(
+                              commentary = prose,
+                              sourceMode = "fallback_rule_invalid",
+                              model = None,
+                              cacheHit = false,
+                              meta = Some(
+                                buildPolishMetaGemini(
+                                  model = Some(geminiClient.modelName),
+                                  sourceMode = "fallback_rule_invalid",
+                                  phase = phase,
+                                  validationReasons = reasons
+                                )
+                              )
+                            )
+                          )
+                      case None =>
+                        withRecordedPolishMetrics(
+                          requestStartNs,
+                          PolishDecision(
+                            commentary = prose,
+                            sourceMode = "fallback_rule_invalid",
+                            model = None,
+                            cacheHit = false,
+                            meta = Some(
+                              buildPolishMetaGemini(
+                                model = Some(geminiClient.modelName),
+                                sourceMode = "fallback_rule_invalid",
+                                phase = phase,
+                                validationReasons = primaryReasons
+                              )
+                            )
+                          )
+                        )
+                    }
+              case None =>
+                Future.successful(
                   withRecordedPolishMetrics(
                     requestStartNs,
                     PolishDecision(
                       commentary = prose,
-                      sourceMode = "fallback_rule_invalid",
+                      sourceMode = "fallback_rule_empty",
                       model = None,
                       cacheHit = false,
                       meta = Some(
                         buildPolishMetaGemini(
-                          model = Some(geminiClient.modelName),
-                          sourceMode = "fallback_rule_invalid",
+                          model = None,
+                          sourceMode = "fallback_rule_empty",
                           phase = phase,
-                          validationReasons = reasons
+                          validationReasons = List("empty_polish")
                         )
-                      )
-                    )
-                  )
-              case None =>
-                withRecordedPolishMetrics(
-                  requestStartNs,
-                  PolishDecision(
-                    commentary = prose,
-                    sourceMode = "fallback_rule_empty",
-                    model = None,
-                    cacheHit = false,
-                    meta = Some(
-                      buildPolishMetaGemini(
-                        model = None,
-                        sourceMode = "fallback_rule_empty",
-                        phase = phase,
-                        validationReasons = List("empty_polish")
                       )
                     )
                   )
@@ -1170,6 +1484,11 @@ final class LlmApi(
               openingRef = openingRef,
               afterAnalysis = afterDataOpt
             )
+            recordStrategicMetrics(
+              data = dataWithContinuity,
+              ctx = ctx,
+              probeResults = probeResults.getOrElse(Nil)
+            )
             val proseRaw = BookStyleRenderer.render(ctx)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,
@@ -1201,6 +1520,9 @@ final class LlmApi(
                 concepts = baseConcepts,
                 variations = dataWithContinuity.alternatives,
                 probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+                mainStrategicPlans = ctx.mainStrategicPlans,
+                latentPlans = ctx.latentPlans,
+                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,
                 planStateToken = Some(nextTracker),
                 sourceMode = decision.sourceMode,
                 model = decision.model,
@@ -1679,11 +2001,18 @@ private[llm] object PolishValidation:
     """(?<![A-Za-z0-9])((?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)(?:[+#])?(?:[!?]{1,2})?)""".r
   private val moveMarkerRegex =
     """(?<![A-Za-z0-9])(\d+)(\.\.\.|\.|)(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:[+#])?(?:[!?]{1,2})?))""".r
+  private val evalTokenRegex =
+    """(?i)\(\s*(?:[+-]?\d+(?:\.\d+)?|#?[+-]?\d+|mate\s+in\s+\d+|mated\s+in\s+\d+)\s*\)""".r
+  private val variationBranchRegex =
+    """(?m)^\s*([a-z]\))""".r
 
   private def canonicalSanToken(token: String): String =
     Option(token).getOrElse("").trim
       .replaceAll("""[!?]+$""", "")
       .replaceAll("""[+#]+$""", "")
+
+  private def canonicalEvalToken(token: String): String =
+    Option(token).getOrElse("").trim.toLowerCase.replaceAll("""\s+""", "")
 
   private def extractMoveTokensOrdered(text: String): List[String] =
     val t = Option(text).getOrElse("")
@@ -1701,6 +2030,14 @@ private[llm] object PolishValidation:
         m.group(1).toIntOption.map(n => MoveMarker(number = n, style = m.group(2)))
       }
       .toList
+
+  private def extractEvalTokensOrdered(text: String): List[String] =
+    val t = Option(text).getOrElse("")
+    evalTokenRegex.findAllMatchIn(t).map(m => canonicalEvalToken(m.group(0))).toList
+
+  private def extractVariationBranchesOrdered(text: String): List[String] =
+    val t = Option(text).getOrElse("")
+    variationBranchRegex.findAllMatchIn(t).map(_.group(1).toLowerCase).toList
 
   private def isSubsequence(xs: List[String], ys: List[String]): Boolean =
     if xs.isEmpty then true
@@ -1729,12 +2066,15 @@ private[llm] object PolishValidation:
     val allowedMoves = originalMoves ++ allowedSans.map(canonicalSanToken).filter(_.nonEmpty)
     val allowedCount = tokenCounts(allowedMoves)
     val polishedCount = tokenCounts(polishedMoves)
+    val originalHasMoves = originalMoves.nonEmpty
 
     val withinCountBudget = polishedCount.forall { case (san, count) =>
       count <= allowedCount.getOrElse(san, 0)
     }
-    val preservesOrder = isSubsequence(polishedMoves, allowedMoves)
-    val numberingRequired = originalMarkers.nonEmpty && polishedMoves.nonEmpty
+    val sanPresenceSatisfied = !originalHasMoves || polishedMoves.nonEmpty
+    val preservesOriginalSequence = isSubsequence(originalMoves, polishedMoves)
+    val respectsAllowedOrder = isSubsequence(polishedMoves, allowedMoves)
+    val numberingRequired = originalMarkers.nonEmpty && originalHasMoves
     val numberingSatisfied = !numberingRequired || polishedMarkers.nonEmpty
     val originalNumberSet = originalMarkers.map(_.number).toSet
     val polishedMarkersOnOriginalNumbers = polishedMarkers.filter(m => originalNumberSet.contains(m.number))
@@ -1744,11 +2084,36 @@ private[llm] object PolishValidation:
       polishedMarkerTokensOnOriginalNumbers.isEmpty ||
         isSubsequence(polishedMarkerTokensOnOriginalNumbers, originalMarkerTokens)
 
+    val originalEvalTokens = extractEvalTokensOrdered(original)
+    val polishedEvalTokens = extractEvalTokensOrdered(polished)
+    val evalAllowedCount = tokenCounts(originalEvalTokens)
+    val evalPolishedCount = tokenCounts(polishedEvalTokens)
+    val evalWithinCountBudget = evalPolishedCount.forall { case (token, count) =>
+      count <= evalAllowedCount.getOrElse(token, 0)
+    }
+    val evalOrderSatisfied = isSubsequence(originalEvalTokens, polishedEvalTokens)
+
+    val originalBranches = extractVariationBranchesOrdered(original)
+    val polishedBranches = extractVariationBranchesOrdered(polished)
+    val branchAllowedCount = tokenCounts(originalBranches)
+    val branchPolishedCount = tokenCounts(polishedBranches)
+    val branchWithinCountBudget = branchPolishedCount.forall { case (label, count) =>
+      count <= branchAllowedCount.getOrElse(label, 0)
+    }
+    val branchOrderSatisfied = isSubsequence(originalBranches, polishedBranches)
+
     val reasons = List.newBuilder[String]
+    if !sanPresenceSatisfied then reasons += "san_missing"
     if !withinCountBudget then reasons += "count_budget_exceeded"
-    if !preservesOrder then reasons += "san_order_violation"
+    if !preservesOriginalSequence then reasons += "san_core_missing"
+    if !respectsAllowedOrder then reasons += "san_order_violation"
     if !numberingSatisfied then reasons += "numbering_missing"
     if !markerStyleOrderSatisfied then reasons += "marker_style_mismatch"
+    if originalEvalTokens.nonEmpty && polishedEvalTokens.isEmpty then reasons += "eval_missing"
+    if !evalWithinCountBudget then reasons += "eval_count_budget_exceeded"
+    if !evalOrderSatisfied then reasons += "eval_order_violation"
+    if !branchWithinCountBudget then reasons += "variation_branch_count_exceeded"
+    if !branchOrderSatisfied then reasons += "variation_branch_violation"
 
     val reasonList = reasons.result()
     ValidationResult(

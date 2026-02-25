@@ -1,7 +1,7 @@
 package lila.llm.model
 
 import chess.Color
-import lila.llm.model.authoring.{ AuthorQuestion, QuestionEvidence }
+import lila.llm.model.authoring.{ AuthorQuestion, LatentPlanNarrative, PlanHypothesis, QuestionEvidence }
 import play.api.libs.json.*
 
 /** Aggregates all analysis layers into a hierarchical structure for LLM prompts. */
@@ -38,6 +38,9 @@ case class NarrativeContext(
 
   // === EVIDENCE AUGMENTATION ===
   probeRequests: List[ProbeRequest] = Nil,
+  mainStrategicPlans: List[PlanHypothesis] = Nil,
+  latentPlans: List[LatentPlanNarrative] = Nil,
+  whyAbsentFromTopMultiPV: List[String] = Nil,
 
 
   meta: Option[MetaSignals] = None,

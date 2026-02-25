@@ -16,6 +16,18 @@ object ProbeDetector:
   private val MaxMovesPerPlan = 3
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
+  private val PurposeBudget: Map[String, Int] = Map(
+    "reply_multipv" -> 2,
+    "defense_reply_multipv" -> 2,
+    "convert_reply_multipv" -> 2,
+    "recapture_branches" -> 1,
+    "keep_tension_branches" -> 1,
+    "free_tempo_branches" -> 1,
+    "latent_plan_refutation" -> 1,
+    "latent_plan_immediate" -> 1,
+    "played_move_counterfactual" -> 1,
+    "NullMoveThreat" -> 1
+  )
 
   case class StrategicFrame(
     cause: String,
@@ -54,7 +66,9 @@ object ProbeDetector:
       purpose: String,
       question: AuthorQuestion,
       multiPv: Int,
-      planName: String
+      planName: String,
+      seedId: Option[String] = None,
+      maxCpLoss: Option[Int] = None
     ): ProbeRequest =
       val base = Option.when(probeFen == fen)(baseline).flatten
       ProbeRequest(
@@ -67,6 +81,11 @@ object ProbeDetector:
         questionKind = Some(question.kind.toString),
         multiPv = Some(multiPv),
         planName = Some(planName),
+        objective = objectiveForPurpose(purpose),
+        seedId = seedId,
+        requiredSignals = requiredSignalsForPurpose(purpose),
+        horizon = horizonForPurpose(purpose),
+        maxCpLoss = maxCpLoss,
         baselineMove = base.flatMap(_.moves.headOption),
         baselineEvalCp = base.map(_.evalCp),
         baselineMate = base.flatMap(_.mate),
@@ -194,7 +213,9 @@ object ProbeDetector:
               purpose = "free_tempo_branches",
               question = q,
               multiPv = freeTempoCfg.replyMultiPv,
-              planName = s"Evidence: free tempo (${lp.seedId})"
+              planName = s"Evidence: free tempo (${lp.seedId})",
+              seedId = Some(lp.seedId),
+              maxCpLoss = Some(60)
             )
 
           // 2) Immediate Viability (Why not now?)
@@ -217,7 +238,9 @@ object ProbeDetector:
                  purpose = "latent_plan_immediate",
                  question = q,
                  multiPv = ivCfg.replyMultiPv,
-                 planName = s"Evidence: immediate viability (${lp.seedId})"
+                 planName = s"Evidence: immediate viability (${lp.seedId})",
+                 seedId = Some(lp.seedId),
+                 maxCpLoss = Some(ivCfg.maxMoverLossCp)
                )
           }
 
@@ -264,7 +287,9 @@ object ProbeDetector:
               purpose = "latent_plan_refutation",
               question = q,
               multiPv = refCfg.replyMultiPv,
-              planName = s"Evidence: refutation (${lp.seedId})"
+              planName = s"Evidence: refutation (${lp.seedId})",
+              seedId = Some(lp.seedId),
+              maxCpLoss = Some(120)
             )
         }
       }
@@ -339,6 +364,9 @@ object ProbeDetector:
             depth = DefaultDepth,
             purpose = purpose,
             planName = planName,
+            objective = purpose.flatMap(objectiveForPurpose),
+            requiredSignals = purpose.map(requiredSignalsForPurpose).getOrElse(Nil),
+            horizon = purpose.flatMap(horizonForPurpose),
             baselineMove = baseline.flatMap(_.moves.headOption),
             baselineEvalCp = baseline.map(_.evalCp),
             baselineMate = baseline.flatMap(_.mate),
@@ -432,6 +460,9 @@ object ProbeDetector:
                 planId = Some(pm.plan.id.toString),
                 planName = Some(pm.plan.name),
                 planScore = Some(pm.score),
+                objective = Some("validate_plan_presence"),
+                requiredSignals = List("replyPvs", "keyMotifs"),
+                horizon = Some("medium"),
                 baselineMove = baseline.flatMap(_.moves.headOption),
                 baselineEvalCp = baseline.map(_.evalCp),
                 baselineMate = baseline.flatMap(_.mate),
@@ -452,6 +483,9 @@ object ProbeDetector:
               moves = List(move),
               depth = DefaultDepth,
               planName = Some(s"Competitive Alternative: $move"),
+              objective = Some("compare_branches"),
+              requiredSignals = List("replyPvs"),
+              horizon = Some("short"),
               baselineMove = bestPv.moves.headOption,
               baselineEvalCp = Some(bestPv.evalCp),
               baselineMate = bestPv.mate,
@@ -475,6 +509,9 @@ object ProbeDetector:
                 moves = List(move),
                 depth = DefaultDepth,
                 planName = Some(s"Aggressive Alternative: $move"),
+                objective = Some("refute_aggressive_line"),
+                requiredSignals = List("replyPvs", "l1Delta"),
+                horizon = Some("short"),
                 baselineMove = bestPv.moves.headOption,
                 baselineEvalCp = Some(bestPv.evalCp),
                 baselineMate = bestPv.mate,
@@ -496,6 +533,9 @@ object ProbeDetector:
               depth = DefaultDepth,
               purpose = Some("NullMoveThreat"),
               planName = Some("Prophylactic Null-Move Analysis"),
+              objective = Some("detect_null_move_threat"),
+              requiredSignals = List("replyPvs", "keyMotifs"),
+              horizon = Some("short"),
               baselineMove = baseline.flatMap(_.moves.headOption),
               baselineEvalCp = baseline.map(_.evalCp),
               baselineMate = baseline.flatMap(_.mate),
@@ -504,11 +544,62 @@ object ProbeDetector:
           } else None
         } else None
 
-        (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes.toList ++ nullMoveProbes.toList)
-          .distinctBy(r => s"${r.fen}|${r.moves.mkString(",")}")
-          .take(MaxProbeRequests)
+        applyPurposeBudget(
+          (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes.toList ++ nullMoveProbes.toList)
+            .distinctBy(r => s"${r.fen}|${r.moves.mkString(",")}")
+        ).take(MaxProbeRequests)
     }.getOrElse(Nil)
   }
+
+  private def applyPurposeBudget(requests: List[ProbeRequest]): List[ProbeRequest] =
+    val counters = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+    requests.filter { req =>
+      val key = req.purpose.getOrElse("none")
+      val limit = PurposeBudget.getOrElse(key, 2)
+      val current = counters(key)
+      if current >= limit then false
+      else
+        counters(key) = current + 1
+        true
+    }
+
+  private def requiredSignalsForPurpose(purpose: String): List[String] =
+    purpose match
+      case "latent_plan_refutation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
+      case "latent_plan_immediate"  => List("replyPvs", "l1Delta")
+      case "free_tempo_branches"    => List("replyPvs", "futureSnapshot")
+      case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" |
+          "recapture_branches" | "keep_tension_branches" =>
+        List("replyPvs")
+      case "played_move_counterfactual" =>
+        List("replyPvs", "l1Delta")
+      case "NullMoveThreat" =>
+        List("replyPvs", "keyMotifs")
+      case _ =>
+        Nil
+
+  private def objectiveForPurpose(purpose: String): Option[String] =
+    purpose match
+      case "latent_plan_refutation" => Some("refute_plan")
+      case "latent_plan_immediate"  => Some("validate_immediate_viability")
+      case "free_tempo_branches"    => Some("validate_latent_plan")
+      case "reply_multipv"          => Some("compare_reply_branches")
+      case "defense_reply_multipv"  => Some("validate_defensive_resources")
+      case "convert_reply_multipv"  => Some("validate_conversion_route")
+      case "recapture_branches"     => Some("compare_recapture_structures")
+      case "keep_tension_branches"  => Some("compare_tension_branches")
+      case "played_move_counterfactual" => Some("counterfactual_probe")
+      case "NullMoveThreat"         => Some("null_move_threat_detection")
+      case _                        => None
+
+  private def horizonForPurpose(purpose: String): Option[String] =
+    purpose match
+      case "latent_plan_refutation" | "free_tempo_branches" => Some("long")
+      case "latent_plan_immediate" | "convert_reply_multipv" => Some("medium")
+      case "reply_multipv" | "defense_reply_multipv" | "recapture_branches" | "keep_tension_branches" =>
+        Some("short")
+      case "played_move_counterfactual" | "NullMoveThreat" => Some("short")
+      case _ => None
 
   /**
    * Structured probe-derived signals for hypothesis validation/ranking.

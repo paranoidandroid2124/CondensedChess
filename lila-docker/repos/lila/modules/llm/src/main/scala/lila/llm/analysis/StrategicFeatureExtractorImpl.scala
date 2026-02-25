@@ -27,6 +27,7 @@ class StrategicFeatureExtractorImpl(
 
     val board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
     val color = metadata.color
+    val strategicState = PositionAnalyzer.extractStrategicState(fen).getOrElse(StrategicStateFeatures.empty)
     def normalizeUci(uci: String): String = lila.llm.analysis.NarrativeUtils.normalizeUciMove(uci)
     def pickProbeForMove(move: String): Option[lila.llm.model.ProbeResult] =
       val moveNorm = normalizeUci(move)
@@ -311,7 +312,7 @@ class StrategicFeatureExtractorImpl(
       candidates = candidates,
       counterfactual = counterfactual,
       // DEBT 4: Populate concept summary from detected features
-      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, endgameFeatures),
+      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, endgameFeatures, strategicState),
       prevMove = metadata.prevMove,
       ply = metadata.ply,
       evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
@@ -327,7 +328,8 @@ class StrategicFeatureExtractorImpl(
       nature: PositionNature,
       plans: List[lila.llm.model.PlanMatch],
       positionalFeatures: List[PositionalTag],
-      endgameFeatures: Option[EndgameFeature]
+      endgameFeatures: Option[EndgameFeature],
+      strategicState: StrategicStateFeatures
   ): List[String] = {
     val concepts = scala.collection.mutable.ListBuffer[String]()
     
@@ -386,6 +388,15 @@ class StrategicFeatureExtractorImpl(
         case _ => ()
       }
     }
+
+    if strategicState.whiteEntrenchedPieces > 0 || strategicState.blackEntrenchedPieces > 0 then
+      concepts += "Entrenched piece potential"
+    if strategicState.whiteRookPawnMarchReady || strategicState.blackRookPawnMarchReady then
+      concepts += "Rook-pawn march resource"
+    if strategicState.whiteHookCreationChance || strategicState.blackHookCreationChance then
+      concepts += "Hook creation chance"
+    if strategicState.whiteColorComplexClamp || strategicState.blackColorComplexClamp then
+      concepts += "Color-complex clamp"
     
     concepts.distinct.toList.take(5)
   }

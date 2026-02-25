@@ -100,24 +100,40 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
 
 function renderSidebar(ctrl: AnalyseCtrl): VNode {
   return hl('div.analyse__sidebar', [
-    hl('button.fbt', {
-      attrs: {
-        title: 'Opening explorer',
-        'data-act': 'opening-explorer',
+    hl(
+      'button.fbt',
+      {
+        attrs: {
+          title: 'Opening explorer',
+          'data-act': 'opening-explorer',
+        },
+        hook: bind('click', () => {
+          ctrl.toggleExplorer();
+          ctrl.redraw();
+        }),
+        class: {
+          active: ctrl.activeControlBarTool() === 'opening-explorer',
+        },
       },
-      class: {
-        active: ctrl.activeControlBarTool() === 'opening-explorer',
+      [icon(licon.Book as any), hl('span.label', 'Explorer')],
+    ),
+    hl(
+      'button.fbt',
+      {
+        attrs: {
+          title: 'Analysis Menu',
+          'data-act': 'menu',
+        },
+        hook: bind('click', () => {
+          ctrl.toggleActionMenu();
+          ctrl.redraw();
+        }),
+        class: {
+          active: ctrl.activeControlBarTool() === 'action-menu',
+        },
       },
-    }, [icon(licon.Book as any)]),
-    hl('button.fbt', {
-      attrs: {
-        title: 'Analysis Menu',
-        'data-act': 'menu',
-      },
-      class: {
-        active: ctrl.activeControlBarTool() === 'action-menu',
-      },
-    }, [icon(licon.Hamburger as any)]),
+      [icon(licon.Hamburger as any), hl('span.label', 'Workbench')],
+    ),
   ]);
 }
 
@@ -140,17 +156,15 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
 }
 
 export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewContext, skipInfo = false) {
-  return hl(
-    'div.analyse__board-wrap',
-    [
-      gaugeOn && cevalView.renderHorizontalGauge(ctrl),
-      hl(
-        'div.analyse__board.main-board',
-        {
-          hook:
-            'ontouchstart' in window || !storage.boolean('scrollMoves').getOrDefault(true)
-              ? undefined
-              : bindNonPassive(
+  return hl('div.analyse__board-wrap', [
+    gaugeOn && cevalView.renderHorizontalGauge(ctrl),
+    hl(
+      'div.analyse__board.main-board',
+      {
+        hook:
+          'ontouchstart' in window || !storage.boolean('scrollMoves').getOrDefault(true)
+            ? undefined
+            : bindNonPassive(
                 'wheel',
                 stepwiseScroll((e: WheelEvent, scroll: boolean) => {
                   const target = e.target as HTMLElement;
@@ -168,17 +182,16 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
                   }
                 }),
               ),
-        },
-        [
-          !skipInfo && playerStrips,
-          !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
-          chessground.render(ctrl),
-          !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
-          ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
-        ],
-      ),
-    ],
-  );
+      },
+      [
+        !skipInfo && playerStrips,
+        !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
+        chessground.render(ctrl),
+        !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
+        ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
+      ],
+    ),
+  ]);
 }
 
 export function renderUnderboard({ ctrl }: ViewContext) {
@@ -231,17 +244,17 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
           hook: {
             ...onInsert((el: HTMLTextAreaElement) => {
               el.value = defined(ctrl.pgnInput) ? ctrl.pgnInput : pgnExport.renderFullTxt(ctrl);
-              const changePgnIfDifferent = () =>
-                el.value !== pgnExport.renderFullTxt(ctrl) && ctrl.changePgn(el.value, true);
+              const importPgnIfDifferent = () =>
+                el.value !== pgnExport.renderFullTxt(ctrl) && ctrl.importPgn(el.value);
 
               el.addEventListener('input', () => (ctrl.pgnInput = el.value));
 
               el.addEventListener('keypress', (e: KeyboardEvent) => {
                 if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || isMobile())
                   return;
-                else if (changePgnIfDifferent()) e.preventDefault();
+                else if (importPgnIfDifferent()) e.preventDefault();
               });
-              if (isMobile()) el.addEventListener('focusout', changePgnIfDifferent);
+              if (isMobile()) el.addEventListener('focusout', importPgnIfDifferent);
             }),
             postpatch: (_, vnode) => {
               (vnode.elm as HTMLTextAreaElement).value = defined(ctrl.pgnInput)
@@ -251,16 +264,16 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
           },
         }),
         !isMobile() &&
-        hl(
-          'button.button.button-thin.bottom-item.bottom-action.text',
-          {
-            hook: bind('click', _ => {
-              const pgn = $('.copyables .pgn textarea').val() as string;
-              if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.changePgn(pgn, true);
-            }),
-          },
-          [icon(licon.PlayTriangle as any), ' Import PGN'],
-        ),
+          hl(
+            'button.button.button-thin.bottom-item.bottom-action.text',
+            {
+              hook: bind('click', _ => {
+                const pgn = $('.copyables .pgn textarea').val() as string;
+                if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
+              }),
+            },
+            [icon(licon.PlayTriangle as any), ' Import PGN'],
+          ),
         hl(
           'button.button.button-thin.bottom-item.bottom-action.text',
           {
@@ -274,21 +287,17 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
           },
           [icon(licon.Book as any), ' Deep Analyze Full Game'],
         ),
-        hl(
-          'div.bottom-item.bottom-error',
-          { class: { 'is-error': !!ctrl.pgnError } },
-          [icon(licon.CautionTriangle as any), renderPgnError(ctrl.pgnError)],
-        ),
+        hl('div.bottom-item.bottom-error', { class: { 'is-error': !!ctrl.pgnError } }, [
+          icon(licon.CautionTriangle as any),
+          renderPgnError(ctrl.pgnError),
+        ]),
       ]),
     ]),
   ]);
 }
 
 export function renderResult(ctrl: AnalyseCtrl): VNode[] {
-  const render = (result: string, status: string) => [
-    hl('div.result', result),
-    hl('div.status', status),
-  ];
+  const render = (result: string, status: string) => [hl('div.result', result), hl('div.status', status)];
   if (ctrl.data.game.status.id >= 30) {
     const winner = ctrl.data.game.winner;
     const result = winner === 'white' ? '1-0' : winner === 'black' ? '0-1' : '½-½';
@@ -339,7 +348,6 @@ export const renderMaterialDiffs = (ctrl: AnalyseCtrl): [VNode, VNode] =>
     ctrl.nodeList,
     ctrl.node.ply,
   );
-
 
 function makeConcealOf(_: AnalyseCtrl): ConcealOf | undefined {
   return undefined;

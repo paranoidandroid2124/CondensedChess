@@ -109,6 +109,7 @@ object CommentaryEngine:
           threatsToThem = Some(oppThreats),
           openingName = None,
           isWhiteToMove = lastPos.color == White,
+          positionKey = Some(fen),
           features = Some(features),
           initialPos = Some(initialPos)
         )
@@ -311,6 +312,7 @@ object CommentaryEngine:
           threatsToThem = Some(finalUs),
           openingName = opening,
           isWhiteToMove = initialPos.color == White, // Corrected: use FEN side-to-move for probes
+          positionKey = Some(fen),
           features = Some(features), // L1 Snapshot injection
           initialPos = Some(initialPos),
           structureProfile = structureProfile
@@ -334,6 +336,27 @@ object CommentaryEngine:
           ((System.nanoTime() - started) / 1000000L).max(0L)
         }
         val ctx = baseCtx.copy(planAlignment = planAlignment)
+        val planFirstHypotheses =
+          PlanProposalEngine.propose(
+            fen = fen,
+            ply = ply,
+            ctx = ctx,
+            maxItems = 5
+          )
+        val engineHypotheses =
+          HypothesisGenerator.generateWithPrior(
+            planScoring = planScoring,
+            ctx = ctx,
+            maxItems = 5,
+            priorWeight = llmConfig.strategicPriorWeight,
+            usePrior = llmConfig.shouldApplyStrategicPrior(fen)
+          )
+        val planHypotheses =
+          PlanProposalEngine.mergePlanFirstWithEngine(
+            planFirst = planFirstHypotheses,
+            engineHypotheses = engineHypotheses,
+            maxItems = 3
+          )
         val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
         val currentSequence = TransitionAnalyzer.analyze(
           currentPlans = activePlans,
@@ -372,6 +395,7 @@ object CommentaryEngine:
           structureProfile = structureProfile,
           structureEvalLatencyMs = structureEvalLatencyMs,
           planAlignment = planAlignment,
+          planHypotheses = planHypotheses,
           integratedContext = Some(ctx)
         )
       }

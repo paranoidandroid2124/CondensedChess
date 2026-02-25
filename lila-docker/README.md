@@ -18,7 +18,18 @@ Docker-based development environment for Chesstory, an AI-powered chess storytel
 Edit `settings.env` to configure:
 
 ```env
-# Optional Gemini settings (rule-based commentary is enabled by default)
+# LLM provider (default: openai; without key it falls back to rule-based)
+LLM_PROVIDER=openai # openai | gemini | none
+
+# OpenAI (recommended quality-cost defaults)
+OPENAI_API_KEY=
+OPENAI_MODEL_SYNC=gpt-4.1-mini
+OPENAI_MODEL_FALLBACK=gpt-4o-mini
+OPENAI_MODEL_ASYNC=gpt-4.1-mini
+OPENAI_PROMPT_CACHE_KEY_PREFIX=bookmaker:polish:v1
+OPENAI_MAX_OUTPUT_TOKENS=256
+
+# Optional Gemini fallback
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.0-flash
 

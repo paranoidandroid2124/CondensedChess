@@ -220,9 +220,6 @@ importers:
       stockfish.wasm:
         specifier: ^0.10.0
         version: 0.10.0
-      tablesort:
-        specifier: 5.5.0
-        version: 5.5.0
 
   ui/serviceWorker: {}
 
@@ -1926,10 +1923,6 @@ packages:
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
-
-  tablesort@5.5.0:
-    resolution: {integrity: sha512-/yi34JHVmfuzwtK+6O/rhxbIimNp+eAZGXlVz8pWTyoJggAs8lDf76bsbjeGpE2sbvsNmIR9u8a0KfUj0YGGvw==}
-    engines: {node: '>= 16', npm: '>= 8'}
 
   textarea-caret@3.1.0:
     resolution: {integrity: sha512-cXAvzO9pP5CGa6NKx0WYHl+8CHKZs8byMkt3PCJBCmq2a34YA9pO1NrQET5pzeqnBjBdToF5No4rrmkDUgQC2Q==}
@@ -3939,8 +3932,6 @@ snapshots:
   supports-preserve-symlinks-flag@1.0.0: {}
 
   symbol-tree@3.2.4: {}
-
-  tablesort@5.5.0: {}
 
   textarea-caret@3.1.0: {}
 

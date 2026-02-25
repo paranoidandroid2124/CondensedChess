@@ -64,6 +64,36 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
           None
         }
 
+  /** Repair pass for strict preservation when first polish output fails validation. */
+  def repair(
+      originalProse: String,
+      rejectedPolish: String,
+      phase: String,
+      evalDelta: Option[Int],
+      concepts: List[String],
+      fen: String,
+      openingName: Option[String] = None,
+      allowedSans: List[String] = Nil
+  ): Future[Option[String]] =
+    if !config.enabled then Future.successful(None)
+    else if originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
+    else
+      val repairPrompt = PolishPrompt.buildRepairPrompt(
+        originalProse = originalProse,
+        rejectedPolish = rejectedPolish,
+        phase = phase,
+        evalDelta = evalDelta,
+        concepts = concepts,
+        fen = fen,
+        openingName = openingName,
+        allowedSans = allowedSans
+      )
+      callWithSystemPrompt(repairPrompt)
+        .recover { case e: Throwable =>
+          logger.warn(s"Gemini repair failed, using rule-based fallback: ${e.getMessage}")
+          None
+        }
+
 
   def isEnabled: Boolean = config.enabled
   def modelName: String = config.model

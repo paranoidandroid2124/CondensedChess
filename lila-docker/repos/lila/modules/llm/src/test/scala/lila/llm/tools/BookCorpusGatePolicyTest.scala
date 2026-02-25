@@ -45,6 +45,7 @@ class BookCorpusGatePolicyTest extends FunSuite:
       openingPrecedentEligible = eligible,
       openingPrecedentObserved = observed,
       semanticConcepts = Nil,
+      strategic = None,
       analysisLatencyMs = Some(1L),
       failures = Nil
     )
@@ -123,4 +124,3 @@ class BookCorpusGatePolicyTest extends FunSuite:
     val contradictions = BookCommentaryCorpusRunner.countEndgameContradictionsForTest(rows)
     assertEquals(contradictions, 2)
   }
-

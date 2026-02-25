@@ -97,6 +97,8 @@ GET   /@/:username                     controllers.User.show(username: UserStr)
 GET   /import                          controllers.Importer.importGame
 POST  /import                          controllers.Importer.sendGame
 POST  /api/import                      controllers.Importer.apiSendGame
+GET   /import/lichess/:username       controllers.Importer.importFromLichess(username: String)
+GET   /import/chesscom/:username      controllers.Importer.importFromChessCom(username: String)
 
 # Editor
 GET   /editor                          controllers.Editor.index
@@ -117,6 +119,8 @@ POST  /account/preferences             controllers.Pref.formApply
 GET   /assets/*file                    controllers.ExternalAssets.at(path="public", file)
 GET   /manifest.json                   controllers.Main.manifest
 GET   /robots.txt                      controllers.Main.robots
+GET   /healthz                         controllers.Main.healthz
+GET   /prometheus-metrics/:key         controllers.Main.prometheusMetrics(key)
 
 GET   /contact                         controllers.Main.contact
 GET   /privacy                         controllers.Main.privacy

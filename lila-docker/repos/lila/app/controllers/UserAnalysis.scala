@@ -2,9 +2,6 @@ package controllers
 
 import play.api.mvc.*
 import lila.app.*
-import lila.analyse.CondensedJsonView
-import lila.core.game.Pov
-import lila.tree.Root
 
 final class UserAnalysis(
     env: Env
@@ -12,10 +9,7 @@ final class UserAnalysis(
     with lila.web.TheftPrevention:
 
   def index = Open:
-    val pov = makePov(None, chess.variant.Standard)
-    val root = Root.default(pov.game.variant)
-    val data = CondensedJsonView(pov, root, ctx.pref)
-    Ok.page(views.analyse.ui.userAnalysis(data, pov))
+    Ok.page(AnalysePgnPipeline.page())
 
   def parseArg(arg: String) = Open:
     val (key, fenStr) = arg.indexOf('/') match
@@ -29,21 +23,14 @@ final class UserAnalysis(
       .filter(_.trim.nonEmpty)
       .map(chess.format.Fen.Full.clean)
 
-    val pov = makePov(fen, variant)
-    val root = fen.fold(Root.default(variant))(f => Root.default(variant).copy(fen = f))
-
-    val data = CondensedJsonView(pov, root, ctx.pref)
-    Ok.page(views.analyse.ui.userAnalysis(data, pov))
+    Ok.page(AnalysePgnPipeline.page(variant = variant, fen = fen))
 
   def pgn(pgnString: String) = Open:
-    pgnString.length
-    val pov = makePov(None, chess.variant.Standard)
-    val root = Root.default(pov.game.variant)
-    val data = CondensedJsonView(pov, root, ctx.pref)
-    Ok.page(views.analyse.ui.userAnalysis(data, pov))
+    val decodedPgn = lila.common.String.decodeUriPath(pgnString).getOrElse(pgnString)
+    AnalysePgnPipeline.normalizedInlinePgn(decodedPgn).fold[Fu[Result]](
+      BadRequest("Empty PGN payload.").toFuccess
+    ): inlinePgn =>
+      Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
 
   def embed = Anon:
     Ok("Analysis Board Embed").toFuccess
-
-  private[controllers] def makePov(fen: Option[chess.format.Fen.Full], variant: chess.variant.Variant): Pov =
-    Pov(lila.core.game.Game.make(variant, fen), chess.Color.White)
