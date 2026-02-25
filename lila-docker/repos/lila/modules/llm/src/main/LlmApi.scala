@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient }
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator }
 import lila.llm.analysis.NarrativeLexicon.Style
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
@@ -46,6 +46,14 @@ final class LlmApi(
   private val latentPrecisionHit = new AtomicLong(0L)
   private val pvCouplingTotal = new AtomicLong(0L)
   private val pvCouplingHit = new AtomicLong(0L)
+  private val evidenceReasonTotal = new AtomicLong(0L)
+  private val evidenceReasonHit = new AtomicLong(0L)
+  private val hypothesisProbeTotal = new AtomicLong(0L)
+  private val hypothesisProbeHit = new AtomicLong(0L)
+  private val contractProbeTotal = new AtomicLong(0L)
+  private val contractProbeDropped = new AtomicLong(0L)
+  private val probeFenTotal = new AtomicLong(0L)
+  private val probeFenMissing = new AtomicLong(0L)
   private val ShadowWindowSize = 2000
   private val AsyncJobTtlMs = 24L * 60L * 60L * 1000L
   private val AsyncJobMaxSize = 256
@@ -100,6 +108,14 @@ final class LlmApi(
       if eg.confidence >= 0.75 then endgameHighConfidenceCount.incrementAndGet()
     }
 
+  private def isHypothesisProbeRequest(req: lila.llm.model.ProbeRequest): Boolean =
+    req.seedId.exists(_.trim.nonEmpty) ||
+      req.purpose.exists { purpose =>
+        purpose == "free_tempo_branches" ||
+        purpose == "latent_plan_immediate" ||
+        purpose == "latent_plan_refutation"
+      }
+
   private def recordStrategicMetrics(
       data: lila.llm.model.ExtendedAnalysisData,
       ctx: lila.llm.model.NarrativeContext,
@@ -125,6 +141,27 @@ final class LlmApi(
 
     pvCouplingTotal.incrementAndGet()
     if ctx.whyAbsentFromTopMultiPV.isEmpty then pvCouplingHit.incrementAndGet()
+
+    if ctx.whyAbsentFromTopMultiPV.nonEmpty then
+      evidenceReasonTotal.incrementAndGet()
+      if ctx.absentReasonSource == "evidence" then evidenceReasonHit.incrementAndGet()
+
+    if probeResults.nonEmpty then
+      probeFenTotal.addAndGet(probeResults.size.toLong)
+      probeFenMissing.addAndGet(probeResults.count(_.fen.isEmpty).toLong)
+
+    val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
+    if rootProbeResultsRaw.nonEmpty then
+      val validation = PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, ctx.probeRequests)
+
+      contractProbeTotal.addAndGet(rootProbeResultsRaw.size.toLong)
+      contractProbeDropped.addAndGet(validation.droppedCount.toLong)
+
+      val hypothesisRequests = ctx.probeRequests.filter(isHypothesisProbeRequest)
+      if hypothesisRequests.nonEmpty then
+        val validIds = validation.validResults.map(_.id).toSet
+        hypothesisProbeTotal.addAndGet(hypothesisRequests.size.toLong)
+        hypothesisProbeHit.addAndGet(hypothesisRequests.count(req => validIds.contains(req.id)).toLong)
 
   private def pushWindow(values: Vector[Long], value: Long): Vector[Long] =
     val next = values :+ value
@@ -288,6 +325,18 @@ final class LlmApi(
       val pvCouplingRatio =
         if pvCouplingTotal.get() == 0 then 0.0
         else pvCouplingHit.get().toDouble / pvCouplingTotal.get().toDouble
+      val evidenceReasonCoverage =
+        if evidenceReasonTotal.get() == 0 then 1.0
+        else evidenceReasonHit.get().toDouble / evidenceReasonTotal.get().toDouble
+      val hypothesisProbeHitRate =
+        if hypothesisProbeTotal.get() == 0 then 1.0
+        else hypothesisProbeHit.get().toDouble / hypothesisProbeTotal.get().toDouble
+      val contractDropRate =
+        if contractProbeTotal.get() == 0 then 0.0
+        else contractProbeDropped.get().toDouble / contractProbeTotal.get().toDouble
+      val legacyFenMissingRate =
+        if probeFenTotal.get() == 0 then 0.0
+        else probeFenMissing.get().toDouble / probeFenTotal.get().toDouble
       val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
       val epochSec = Instant.now().getEpochSecond
       logger.info(
@@ -320,6 +369,10 @@ final class LlmApi(
           f"plan_recall_at3=$planRecallAt3%.3f " +
           f"latent_precision=$latentPrecision%.3f " +
           f"pv_coupling_ratio=$pvCouplingRatio%.3f " +
+          f"evidence_reason_coverage=$evidenceReasonCoverage%.3f " +
+          f"hypothesis_probe_hit_rate=$hypothesisProbeHitRate%.3f " +
+          f"contract_drop_rate=$contractDropRate%.3f " +
+          f"legacy_fen_missing_rate=$legacyFenMissingRate%.3f " +
           f"polish_avg_cost_usd=$avgCostUsd%.6f " +
           s"polish_reason_dist=$polishReasonDist " +
           s"struct_dist=$structureDist " +

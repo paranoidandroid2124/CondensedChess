@@ -41,6 +41,7 @@ case class NarrativeContext(
   mainStrategicPlans: List[PlanHypothesis] = Nil,
   latentPlans: List[LatentPlanNarrative] = Nil,
   whyAbsentFromTopMultiPV: List[String] = Nil,
+  absentReasonSource: String = "none",
 
 
   meta: Option[MetaSignals] = None,

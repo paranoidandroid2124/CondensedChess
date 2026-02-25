@@ -130,15 +130,15 @@ object NarrativeContextBuilder:
       if strategicPartition.latentPlans.nonEmpty then strategicPartition.latentPlans
       else fallbackLatentPlans.take(2)
 
-    val absentReasons =
+    val (absentReasons, absentReasonSource) =
       val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
-      if evidenceReasons.nonEmpty then evidenceReasons
+      if evidenceReasons.nonEmpty then evidenceReasons -> "evidence"
       else
         buildAbsentFromTopMultiPvReasons(
           data = data,
           probeRequests = probeRequests,
           droppedProbeCount = droppedProbeCount
-        )
+        ) -> "fallback"
     
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
@@ -225,6 +225,7 @@ object NarrativeContextBuilder:
       mainStrategicPlans = mainStrategicPlans,
       latentPlans = latentPlans,
       whyAbsentFromTopMultiPV = absentReasons,
+      absentReasonSource = absentReasonSource,
       meta = meta,
       strategicFlow = strategicFlow,
       semantic = semantic,

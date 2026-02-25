@@ -13,7 +13,7 @@ import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeOutlineBuilder, NarrativeUtils, OpeningExplorerClient, TraceRecorder }
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeOutlineBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, TraceRecorder }
 import lila.llm.model.*
 import lila.llm.model.authoring.OutlineBeatKind
 import lila.llm.model.strategic.VariationLine
@@ -167,7 +167,11 @@ object BookCommentaryCorpusRunner:
   final case class StrategicMetrics(
       planRecallAt3: Double,
       latentPrecision: Double,
-      pvCouplingRatio: Double
+      pvCouplingRatio: Double,
+      evidenceReasonCoverage: Double,
+      hypothesisProbeHitRate: Double,
+      contractDropRate: Double,
+      legacyFenMissingRate: Double
   )
 
   final case class CaseResult(
@@ -429,7 +433,7 @@ object BookCommentaryCorpusRunner:
           enrichedCtx.semantic
             .map(_.conceptSummary.map(_.trim).filter(_.nonEmpty).distinct)
             .getOrElse(Nil)
-        val strategicMetrics = computeStrategicMetrics(data, enrichedCtx)
+        val strategicMetrics = computeStrategicMetrics(data, enrichedCtx, c.probeResults.getOrElse(Nil))
 
         CaseResult(
           c = c,
@@ -467,7 +471,8 @@ object BookCommentaryCorpusRunner:
 
   private def computeStrategicMetrics(
       data: ExtendedAnalysisData,
-      ctx: NarrativeContext
+      ctx: NarrativeContext,
+      rawProbeResults: List[ProbeResult]
   ): StrategicMetrics =
     val topRuleIds = data.plans.take(3).map(_.plan.id.toString).toSet
     val topHypothesisId = ctx.mainStrategicPlans.headOption.map(_.planId)
@@ -489,11 +494,45 @@ object BookCommentaryCorpusRunner:
     val pvCouplingRatio =
       if ctx.whyAbsentFromTopMultiPV.nonEmpty then 0.0 else 1.0
 
+    val evidenceReasonCoverage =
+      if ctx.whyAbsentFromTopMultiPV.isEmpty then 1.0
+      else if ctx.absentReasonSource == "evidence" then 1.0
+      else 0.0
+
+    val rootProbeResultsRaw = rawProbeResults.filter(pr => pr.fen.forall(_ == data.fen))
+    val validation = PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, ctx.probeRequests)
+    val hypothesisRequests = ctx.probeRequests.filter(isHypothesisProbeRequest)
+    val hypothesisProbeHitRate =
+      if hypothesisRequests.isEmpty then 1.0
+      else
+        val validIds = validation.validResults.map(_.id).toSet
+        hypothesisRequests.count(req => validIds.contains(req.id)).toDouble / hypothesisRequests.size.toDouble
+
+    val contractDropRate =
+      if rootProbeResultsRaw.isEmpty then 0.0
+      else validation.droppedCount.toDouble / rootProbeResultsRaw.size.toDouble
+
+    val legacyFenMissingRate =
+      if rawProbeResults.isEmpty then 0.0
+      else rawProbeResults.count(_.fen.isEmpty).toDouble / rawProbeResults.size.toDouble
+
     StrategicMetrics(
       planRecallAt3 = planRecallAt3,
       latentPrecision = latentPrecision,
-      pvCouplingRatio = pvCouplingRatio
+      pvCouplingRatio = pvCouplingRatio,
+      evidenceReasonCoverage = evidenceReasonCoverage,
+      hypothesisProbeHitRate = hypothesisProbeHitRate,
+      contractDropRate = contractDropRate,
+      legacyFenMissingRate = legacyFenMissingRate
     )
+
+  private def isHypothesisProbeRequest(req: ProbeRequest): Boolean =
+    req.seedId.exists(_.trim.nonEmpty) ||
+      req.purpose.exists { purpose =>
+        purpose == "free_tempo_branches" ||
+        purpose == "latent_plan_immediate" ||
+        purpose == "latent_plan_refutation"
+      }
 
   private val moveTokenRegex  = """(?i)\b(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?)\b""".r
   private val scoreTokenRegex = """(?i)(?:\([+\-]\d+\.\d\)|\bmate\b|\bcp\b|#[0-9]+)""".r
@@ -781,6 +820,10 @@ object BookCommentaryCorpusRunner:
     val avgPlanRecallAt3  = average(strategicList.map(_.planRecallAt3))
     val avgLatentPrecision = average(strategicList.map(_.latentPrecision))
     val avgPvCouplingRatio = average(strategicList.map(_.pvCouplingRatio))
+    val avgEvidenceReasonCoverage = average(strategicList.map(_.evidenceReasonCoverage))
+    val avgHypothesisProbeHitRate = average(strategicList.map(_.hypothesisProbeHitRate))
+    val avgContractDropRate = average(strategicList.map(_.contractDropRate))
+    val avgLegacyFenMissingRate = average(strategicList.map(_.legacyFenMissingRate))
     val lowQualityCases   = results.filter(_.quality.exists(_.qualityScore < 70))
     val advisoryCases     = results.filter(_.advisoryFindings.nonEmpty)
     val advisoryCount     = results.map(_.advisoryFindings.size).sum
@@ -812,6 +855,10 @@ object BookCommentaryCorpusRunner:
       sb.append(f"- Strategic metric PlanRecall@3: $avgPlanRecallAt3%.3f\n")
       sb.append(f"- Strategic metric LatentPrecision: $avgLatentPrecision%.3f\n")
       sb.append(f"- Strategic metric PV-coupling ratio: $avgPvCouplingRatio%.3f\n")
+      sb.append(f"- Strategic metric EvidenceReasonCoverage: $avgEvidenceReasonCoverage%.3f\n")
+      sb.append(f"- Strategic metric HypothesisProbeHitRate: $avgHypothesisProbeHitRate%.3f\n")
+      sb.append(f"- Strategic metric ContractDropRate: $avgContractDropRate%.3f\n")
+      sb.append(f"- Strategic metric LegacyFenMissingRate: $avgLegacyFenMissingRate%.3f\n")
       sb.append(
         s"- Opening precedent mentions: $precedentMentions across $precedentCases/${gate.eligiblePrecedentCases} eligible cases\n"
       )
@@ -880,7 +927,7 @@ object BookCommentaryCorpusRunner:
       }
       r.strategic.foreach { s =>
         sb.append(
-          f"- Strategic: PlanRecall@3=${s.planRecallAt3}%.3f, LatentPrecision=${s.latentPrecision}%.3f, PV-coupling=${s.pvCouplingRatio}%.3f\n"
+          f"- Strategic: PlanRecall@3=${s.planRecallAt3}%.3f, LatentPrecision=${s.latentPrecision}%.3f, PV-coupling=${s.pvCouplingRatio}%.3f, EvidenceReasonCoverage=${s.evidenceReasonCoverage}%.3f, HypothesisProbeHitRate=${s.hypothesisProbeHitRate}%.3f, ContractDropRate=${s.contractDropRate}%.3f, LegacyFenMissingRate=${s.legacyFenMissingRate}%.3f\n"
         )
       }
       if r.qualityFindings.nonEmpty then
