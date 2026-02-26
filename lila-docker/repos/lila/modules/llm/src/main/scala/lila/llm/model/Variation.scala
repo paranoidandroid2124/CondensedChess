@@ -42,31 +42,6 @@ case class VariationLine(
   
   /** Get opponent's reply (index 1) */
   def theirReply: Option[PvMove] = parsedMoves.lift(1)
-  
-  /** Get sample line as SAN string (e.g., "Qb3 Qb6 Bd3") */
-  def sampleLine(n: Int = 6): String = 
-    parsedMoves.take(n).map(_.san).mkString(" ")
-
-  /** Get sample line from a specific index (e.g., skip first 2 moves) */
-  def sampleLineFrom(startIdx: Int, maxPly: Int): Option[String] = {
-    if (parsedMoves.isEmpty) return None
-
-    // `maxPly` is treated as an end-index (exclusive) into `parsedMoves`.
-    // Extend beyond it if we would otherwise end the cited line on a non-check capture.
-    var end = Math.min(maxPly, parsedMoves.size)
-    var slice = parsedMoves.slice(startIdx, end)
-
-    // Recapture sanity: never cite a line that ends on a capture (unless it gives check/mate),
-    // if we can include one more reply from the PV.
-    while (slice.nonEmpty && slice.last.isCapture && !slice.last.givesCheck && end < parsedMoves.size) {
-      end += 1
-      slice = parsedMoves.slice(startIdx, end)
-    }
-
-    // If we still end on a capture and cannot show the reply, drop trailing captures.
-    val safe = slice.reverse.dropWhile(m => m.isCapture && !m.givesCheck).reverse
-    Option.when(safe.nonEmpty)(safe.map(_.san).mkString(" "))
-  }
 
 object VariationLine:
   given Reads[VariationLine] = Json.reads[VariationLine]
@@ -107,4 +82,3 @@ object VariationTag:
       catch case _: Exception => JsError(s"Invalid VariationTag: $s")
     case _ => JsError("String expected")
   given Writes[VariationTag] = Writes(t => JsString(t.toString))
-

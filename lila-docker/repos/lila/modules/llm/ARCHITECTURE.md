@@ -58,7 +58,7 @@ modules/llm/
 │   ├── analysis/
 │   │   ├── BookStyleRenderer.scala  # Narrative text generation
 │   │   ├── ConceptLabeler.scala     # Semantic labeling
-│   │   ├── MotifTokenizer.scala     # PV → Motifs
+│   │   ├── MoveAnalyzer.scala       # State/trajectory motifs + variation analysis
 │   │   ├── NarrativeLexicon.scala   # Template library
 │   │   ├── PlanMatcher.scala        # Motifs → Plans
 │   │   └── PositionCharacterizer.scala
@@ -107,7 +107,7 @@ Browser
 ├── Stockfish 17.1 WASM (local analysis)
 │   └── Position eval + PV lines
 └── POST /api/llm/comment
-    ├── MotifTokenizer: PV → Motifs
+    ├── MoveAnalyzer (state/trajectory provider): PV/state → Motifs
     ├── PlanMatcher: Motifs → Plans
     ├── PositionCharacterizer: Context extraction
     ├── BookStyleRenderer: Template selection
