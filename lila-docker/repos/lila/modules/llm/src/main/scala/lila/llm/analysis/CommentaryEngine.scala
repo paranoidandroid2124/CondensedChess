@@ -687,7 +687,7 @@ object CommentaryEngine:
               s"Engine preference is clear: **$bestMove** over **$altMove** by about $gapPawns pawns.",
               s"Compared with **$altMove**, **$bestMove** holds roughly a $gapPawns-pawn edge."
             ))
-        val bestSeq = bestLine.map(l => s" Best continuation: **$bestMove** $l.").getOrElse(s" Best continuation starts with **$bestMove**.")
+        val bestSeq = bestLine.map(l => s" Primary engine line: **$bestMove** $l.").getOrElse(s" Primary engine line starts with **$bestMove**.")
         val altLabel = if altIsPlayed then "Played branch" else "Alternative branch"
         val altSeq = altLine.map(l => s" $altLabel: **$altMove** $l.").getOrElse(s" $altLabel starts with **$altMove**.")
         val reason = branchReasonClause(ctx, bestMove).map(r => s" $r").getOrElse("")

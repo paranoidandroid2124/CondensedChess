@@ -2,6 +2,13 @@
 
 목표: `PV 우선 해설`에서 `Plan-first 제안 + Evidence 판정`으로 전환하면서, 기존 PV 중심 모듈을 언제/어떻게 강등/대체/삭제할지 운영 기준을 고정한다.
 
+## 진행 상태 (2026-02-26)
+
+- `R+1` 완료: competitive/defensive probe shadow demote, absent-reason fallback 강등, ghost probe 1차 demote.
+- `R+2` 완료: outline/renderer의 PV1 앵커 제거, plan distribution-first 전환, PlanRecall@3 dual-write(legacy + hypothesis-first), UI motif fallback compat-only demote.
+- `R+3` 완료: state/trajectory motif provider 전환 + dual-run parity 계측, `Variation.sampleLine*` 의존 제거, `MotifTokenizer.scala` 삭제.
+- 잔여 유지 정책: `Compat only` 항목(`StrategicModels v1/v2 read`, `ProbeModel legacy fen optional`)은 클라이언트 전환 완료 전까지 유지.
+
 ## 1-Page Map
 
 | Module / Path | 현재 성격 (PV 의존도) | 분류 | 조치 시점 | 종료(삭제/강등) 게이트 |

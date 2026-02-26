@@ -221,7 +221,7 @@ BookStyleRenderer
 ## 5) 우리가 가장 심하게 묶인 곳(PV 결박) — 왜 ‘빈약함’이 생기는가
 
 현재 구조에서 PV 결박이 강한 지점:
-- 모티프/전술 인식이 PV를 따라 생성됨(`tokenizePv`) → PV가 빈약하면 의미도 빈약해진다.
+- 모티프/전술 인식의 기본 경로가 상태/궤적 provider(`MoveAnalyzer.tokenizePv`)로 전환되어, PV 품질 편향을 완화한다(legacy path는 parity/rollback 용도로만 유지).
 - 대안/후보 구조가 MultiPV 분포에 매임 → “설명 목적 분기”가 아니라 “엔진이 준 분기”가 된다.
 - probe도 baseline/topPvMoves 중심 → PV가 앵커 역할을 한다(보강은 되지만 구심점이 되기 쉽다).
 
@@ -1212,7 +1212,7 @@ Perception -> AuthorQuestions -> EvidencePlan -> VerifiedEvidence -> Outline -> 
   - 현재 포함: Philidor `4...h6?`의 **Legal’s mate** 라인(엄격 적용 + 최종 체크메이트 확인)
   - 연결: `AuthorQuestionGenerator`(TacticalTest 질문 생성) + `BookStyleRenderer`(annotated move에 트랩 라인 강제 삽입)
 - (구현 ✅) Recapture sanity 강화: “캡처로 끝나는 인용 라인(체크/메이트 제외)”을 금지/다운그레이드
-  - PV 인용: `modules/llm/src/main/scala/lila/llm/model/Variation.scala` (`VariationLine.sampleLineFrom`)
+  - PV 샘플 기반 인용은 제거되었고, 근거 기반 문장/분기 설명으로 대체됨(R+3)
   - PV 슬라이스: `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala` (`bookSanSlice`)
   - Probe 인용: `modules/llm/src/main/scala/lila/llm/analysis/AuthorEvidenceBuilder.scala` (PV tail 확장 + unsafe capture tail 제거)
 - (구현 ✅) 방향(Orientation) 게이트: “긴장 유지가 정답인데 캡처로 풀어버린” 케이스에서 실전 결론이 뒤집히지 않도록 보정

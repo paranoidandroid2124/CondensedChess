@@ -3091,7 +3091,7 @@ object NarrativeOutlineBuilder:
                   s"In the sampled lines, $bestRef remains the benchmark move."
                 )
         case Some(r) if r >= 3 =>
-          val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the principal continuation")
+          val bestRef = signal.bestSan.map(s => s"**$s**").getOrElse("the primary reference line")
           signal.cpLoss match
             case Some(loss) if loss <= 70 =>
               if preferPracticalWording then
