@@ -133,6 +133,7 @@ object NarrativeContextBuilder:
     val (absentReasons, absentReasonSource) =
       val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
       if evidenceReasons.nonEmpty then evidenceReasons -> "evidence"
+      else if strategicPartition.evaluated.nonEmpty then Nil -> "none"
       else
         buildAbsentFromTopMultiPvReasons(
           data = data,

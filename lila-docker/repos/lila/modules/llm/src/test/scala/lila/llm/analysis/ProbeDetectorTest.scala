@@ -103,3 +103,82 @@ class ProbeDetectorTest extends FunSuite:
     assert(purposes.contains("played_move_counterfactual"), clue(requests))
     assert(requests.size <= 8, clue(requests.map(_.id)))
   }
+
+  test("competitive and defensive probes are shadow-only by default") {
+    val quietCtx = IntegratedContext(evalCp = 10, isWhiteToMove = true)
+    val competitivePv = List(
+      PvLine(List("e2e4", "e7e5"), evalCp = 10, mate = None, depth = 20),
+      PvLine(List("d2d4", "d7d5"), evalCp = -5, mate = None, depth = 20)
+    )
+
+    val competitiveRequests = ProbeDetector.detect(
+      ctx = quietCtx,
+      planScoring = emptyScoring,
+      multiPv = competitivePv,
+      fen = StartFen
+    )
+    assert(!competitiveRequests.exists(_.id.startsWith("competitive_")), clue(competitiveRequests))
+
+    val tacticalFen = "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1"
+    val defensivePv = List(
+      PvLine(List("e4e5"), evalCp = 20, mate = None, depth = 20),
+      PvLine(List("e4d5"), evalCp = -60, mate = None, depth = 20)
+    )
+    val defensiveRequests = ProbeDetector.detect(
+      ctx = IntegratedContext(evalCp = 20, isWhiteToMove = true),
+      planScoring = emptyScoring,
+      multiPv = defensivePv,
+      fen = tacticalFen
+    )
+    assert(!defensiveRequests.exists(_.id.startsWith("aggressive_why_not_")), clue(defensiveRequests))
+  }
+
+  test("low-confidence ghost probes are shadow-only while high-confidence ghosts remain emitted") {
+    val lowConfidencePlan = matchPlan(
+      Plan.KingsideAttack(Color.White),
+      score = 0.79
+    ).copy(
+      evidence = List(
+        lila.llm.model.EvidenceAtom(
+          motif = lila.llm.model.Motif.PawnAdvance(
+            file = chess.File.G,
+            fromRank = 2,
+            toRank = 4,
+            color = Color.White,
+            plyIndex = 0,
+            move = Some("g4")
+          ),
+          weight = 1.0,
+          description = "g-pawn push"
+        )
+      )
+    )
+    val lowScoring = PlanScoringResult(
+      topPlans = List(lowConfidencePlan),
+      confidence = 0.79,
+      phase = "opening"
+    )
+    val lowRequests = ProbeDetector.detect(
+      ctx = IntegratedContext(evalCp = 20, isWhiteToMove = true),
+      planScoring = lowScoring,
+      multiPv = List(PvLine(List("e2e4"), evalCp = 20, mate = None, depth = 20)),
+      fen = StartFen
+    )
+    assert(!lowRequests.exists(_.objective.contains("validate_plan_presence")), clue(lowRequests))
+
+    val highConfidencePlan = lowConfidencePlan.copy(score = 0.85)
+    val highScoring = PlanScoringResult(
+      topPlans = List(highConfidencePlan),
+      confidence = 0.85,
+      phase = "opening"
+    )
+    val highRequests = ProbeDetector.detect(
+      ctx = IntegratedContext(evalCp = 20, isWhiteToMove = true),
+      planScoring = highScoring,
+      multiPv = List(PvLine(List("e2e4"), evalCp = 20, mate = None, depth = 20)),
+      fen = StartFen
+    )
+    val ghost = highRequests.find(_.objective.contains("validate_plan_presence"))
+    assert(ghost.nonEmpty, clue(highRequests))
+    assert(ghost.exists(_.moves.contains("g2g4")), clue(highRequests))
+  }
