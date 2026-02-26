@@ -13,6 +13,8 @@ import lila.llm.analysis.MoveAnalyzer
 object ProbeDetector:
 
   private val ScoreThreshold = 0.70
+  private val HighConfidenceGhostScore = 0.80
+  private val HighConfidenceGlobalScore = 0.78
   private val MaxMovesPerPlan = 3
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
@@ -46,6 +48,30 @@ object ProbeDetector:
     longConfidenceDelta: Double,
     strategicFrame: Option[StrategicFrame]
   )
+
+  private def boolSetting(propKey: String, envKey: String, default: Boolean): Boolean =
+    sys.props
+      .get(propKey)
+      .orElse(sys.env.get(envKey))
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _ => None
+      }
+      .getOrElse(default)
+
+  // R+1 demote policy:
+  // - competitive/defensive probes are shadow-only by default (not emitted to client).
+  // - low-confidence plan ghost probes are shadow-only by default.
+  private def emitCompetitiveDemoted: Boolean =
+    boolSetting("llm.probe.emitCompetitiveDemoted", "LLM_PROBE_EMIT_COMPETITIVE_DEMOTED", default = false)
+
+  private def emitDefensiveDemoted: Boolean =
+    boolSetting("llm.probe.emitDefensiveDemoted", "LLM_PROBE_EMIT_DEFENSIVE_DEMOTED", default = false)
+
+  private def emitLowConfidenceGhostDemoted: Boolean =
+    boolSetting("llm.probe.emitLowConfidenceGhostDemoted", "LLM_PROBE_EMIT_LOW_CONF_GHOST_DEMOTED", default = false)
 
   private def planEvidenceProbes(
     fen: String,
@@ -442,8 +468,10 @@ object ProbeDetector:
               }.toList
             }
 
-        // 1. Plan-based Ghost Probes (Existing)
-        val planProbes = planScoring.topPlans.flatMap { pm =>
+        // 1. Plan-based Ghost Probes:
+        // Keep high-confidence probes on by default.
+        // Low-confidence probes are demoted to shadow-only in R+1 unless explicitly enabled.
+        val planProbeCandidates = planScoring.topPlans.flatMap { pm =>
           if (pm.score < ScoreThreshold) None
           else if (pm.plan.color != sideToMove) None
           else
@@ -452,26 +480,31 @@ object ProbeDetector:
 
             if (repMoves.isEmpty || isRepresented) None
             else
-              Some(ProbeRequest(
-                id = stableRequestId(pm.plan, fen),
-                fen = fen,
-                moves = repMoves,
-                depth = DefaultDepth,
-                planId = Some(pm.plan.id.toString),
-                planName = Some(pm.plan.name),
-                planScore = Some(pm.score),
-                objective = Some("validate_plan_presence"),
-                requiredSignals = List("replyPvs", "keyMotifs"),
-                horizon = Some("medium"),
-                baselineMove = baseline.flatMap(_.moves.headOption),
-                baselineEvalCp = baseline.map(_.evalCp),
-                baselineMate = baseline.flatMap(_.mate),
-                baselineDepth = baseline.map(_.depth).filter(_ > 0)
-              ))
+              Some(
+                ProbeRequest(
+                  id = stableRequestId(pm.plan, fen),
+                  fen = fen,
+                  moves = repMoves,
+                  depth = DefaultDepth,
+                  planId = Some(pm.plan.id.toString),
+                  planName = Some(pm.plan.name),
+                  planScore = Some(pm.score),
+                  objective = Some("validate_plan_presence"),
+                  requiredSignals = List("replyPvs", "keyMotifs"),
+                  horizon = Some("medium"),
+                  baselineMove = baseline.flatMap(_.moves.headOption),
+                  baselineEvalCp = baseline.map(_.evalCp),
+                  baselineMate = baseline.flatMap(_.mate),
+                  baselineDepth = baseline.map(_.depth).filter(_ > 0)
+                ) -> isHighConfidenceGhostProbe(pm, planScoring)
+              )
         }
+        val planProbes =
+          if emitLowConfidenceGhostDemoted then planProbeCandidates.map(_._1)
+          else planProbeCandidates.collect { case (req, true) => req }
 
         // 2. Competitive Probes: Similar engine scores but different moves
-        val competitiveProbes = multiPv.drop(1).take(2).flatMap { pv =>
+        val competitiveProbesRaw = multiPv.drop(1).take(2).flatMap { pv =>
           val bestPv = multiPv.head
           val scoreDiff = (pv.evalCp - bestPv.evalCp).abs
           // If second/third best move is close (e.g. < 30cp difference), probe it for "choice" explanation
@@ -493,9 +526,11 @@ object ProbeDetector:
             ))
           } else None
         }
+        val competitiveProbes =
+          if emitCompetitiveDemoted then competitiveProbesRaw else Nil
 
         // 3. Defensive Probes: If top move is passive but an aggressive one is slightly worse
-        val defensiveProbes = if (multiPv.size > 1 && baseline.exists(_.evalCp > -50)) {
+        val defensiveProbesRaw = if (multiPv.size > 1 && baseline.exists(_.evalCp > -50)) {
           val aggressiveMoves = legalMoves.filter(m => m.captures || m.after.check.yes).map(_.toUci.uci)
           multiPv.filter(pv => pv.moves.headOption.exists(aggressiveMoves.contains)).headOption.flatMap { aggPv =>
             val bestPv = multiPv.head
@@ -520,6 +555,8 @@ object ProbeDetector:
             } else None
           }
         } else None
+        val defensiveProbes =
+          if emitDefensiveDemoted then defensiveProbesRaw.toList else Nil
 
         // 4. Null-Move (Prophylaxis) Probes: Generate a "What if I pass?" FEN to find true threats.
         // We only do this if there's tension or the baseline eval is somewhat balanced/threatening.
@@ -545,7 +582,7 @@ object ProbeDetector:
         } else None
 
         applyPurposeBudget(
-          (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes.toList ++ nullMoveProbes.toList)
+          (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes ++ nullMoveProbes.toList)
             .distinctBy(r => s"${r.fen}|${r.moves.mkString(",")}")
         ).take(MaxProbeRequests)
     }.getOrElse(Nil)
@@ -810,6 +847,15 @@ object ProbeDetector:
 
     (evidenceUci ++ fallbackUci).take(MaxMovesPerPlan)
   }
+
+  private def isHighConfidenceGhostProbe(pm: PlanMatch, planScoring: PlanScoringResult): Boolean =
+    val strongPlanScore = pm.score >= HighConfidenceGhostScore
+    val stableGlobalScore =
+      if planScoring.confidence <= 0.0 then true
+      else planScoring.confidence >= HighConfidenceGlobalScore
+    val hasSupport = pm.evidence.nonEmpty || pm.supports.nonEmpty
+    val lowUncertainty = pm.blockers.size <= 1 && pm.missingPrereqs.isEmpty
+    strongPlanScore && stableGlobalScore && hasSupport && lowUncertainty
 
   private def movesFromMotif(motif: Motif, pos: Position, legalMoves: List[Move]): List[Move] = {
     val sideToMove = pos.color
