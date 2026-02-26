@@ -129,21 +129,18 @@ object NarrativeOutlineBuilder:
     if altBeat.text.nonEmpty then beats += altBeat
 
     // 10. STRATEGIC DISTRIBUTION
-    buildStrategicDistributionBeat(ctx, bead).foreach(beats += _)
+    buildStrategicDistributionBeat(ctx).foreach(beats += _)
 
     // 11. WRAP-UP
     buildWrapUpBeat(ctx, bead, crossBeatState).foreach(beats += _)
 
     (NarrativeOutline(beats.toList, Some(diag)), diag)
 
-  private def buildStrategicDistributionBeat(
-      ctx: NarrativeContext,
-      bead: Int
-  ): Option[OutlineBeat] =
+  private def buildStrategicDistributionBeat(ctx: NarrativeContext): Option[OutlineBeat] =
     val plans = ctx.mainStrategicPlans.take(3)
     if plans.isEmpty then None
     else
-      val bestContinuation = ctx.candidates.headOption.map(_.move).getOrElse("the principal continuation")
+      val leadPlan = plans.head.planName
       val planText = plans.map { p =>
         val score = f"${p.score}%.2f"
         s"${p.rank}. ${p.planName} ($score)"
@@ -155,8 +152,8 @@ object NarrativeOutlineBuilder:
       Some(
         OutlineBeat(
           kind = OutlineBeatKind.WrapUp,
-          text = s"Best continuation is $bestContinuation. Strategic plans: $planText.$absence",
-          conceptIds = List("strategic_distribution"),
+          text = s"Strategic distribution: $planText. Primary plan focus starts with $leadPlan.$absence",
+          conceptIds = List("strategic_distribution_first"),
           confidenceLevel = 1.0
         )
       )

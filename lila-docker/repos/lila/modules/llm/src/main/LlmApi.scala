@@ -42,6 +42,8 @@ final class LlmApi(
   private val endgameHighConfidenceCount = new AtomicLong(0L)
   private val planRecallTotal = new AtomicLong(0L)
   private val planRecallHit = new AtomicLong(0L)
+  private val planRecallHypothesisFirstTotal = new AtomicLong(0L)
+  private val planRecallHypothesisFirstHit = new AtomicLong(0L)
   private val latentPrecisionTotal = new AtomicLong(0L)
   private val latentPrecisionHit = new AtomicLong(0L)
   private val pvCouplingTotal = new AtomicLong(0L)
@@ -121,11 +123,15 @@ final class LlmApi(
       ctx: lila.llm.model.NarrativeContext,
       probeResults: List[lila.llm.model.ProbeResult]
   ): Unit =
-    if ctx.mainStrategicPlans.nonEmpty then
+    val topRulePlan = data.plans.headOption.map(_.plan.id.toString)
+    val topRulePlansAt3 = data.plans.take(3).map(_.plan.id.toString).toSet
+    val topHypothesis = ctx.mainStrategicPlans.headOption.map(_.planId)
+
+    if topHypothesis.isDefined then
       planRecallTotal.incrementAndGet()
-      val topRulePlan = data.plans.headOption.map(_.plan.id.toString)
-      val topHypothesis = ctx.mainStrategicPlans.headOption.map(_.planId)
       if topRulePlan.isDefined && topRulePlan == topHypothesis then planRecallHit.incrementAndGet()
+      planRecallHypothesisFirstTotal.incrementAndGet()
+      if topHypothesis.exists(topRulePlansAt3.contains) then planRecallHypothesisFirstHit.incrementAndGet()
 
     val latent = ctx.latentPlans
     if latent.nonEmpty then
@@ -316,9 +322,13 @@ final class LlmApi(
       val polishReasonDist = polishReasonCount.toList.map { case (k, v) => k -> v.get() }.toMap
       val polishFallbackRateWindow = polishFallbackRate
       val polishLatencyP95Window = polishLatencyP95Ms
-      val planRecallAt3 =
+      val planRecallAt3Legacy =
         if planRecallTotal.get() == 0 then 0.0
         else planRecallHit.get().toDouble / planRecallTotal.get().toDouble
+      val planRecallAt3HypothesisFirst =
+        if planRecallHypothesisFirstTotal.get() == 0 then 0.0
+        else planRecallHypothesisFirstHit.get().toDouble / planRecallHypothesisFirstTotal.get().toDouble
+      val planRecallAt3 = planRecallAt3Legacy
       val latentPrecision =
         if latentPrecisionTotal.get() == 0 then 0.0
         else latentPrecisionHit.get().toDouble / latentPrecisionTotal.get().toDouble
@@ -367,6 +377,8 @@ final class LlmApi(
           f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
           f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
           f"plan_recall_at3=$planRecallAt3%.3f " +
+          f"plan_recall_at3_legacy=$planRecallAt3Legacy%.3f " +
+          f"plan_recall_at3_hypothesis_first=$planRecallAt3HypothesisFirst%.3f " +
           f"latent_precision=$latentPrecision%.3f " +
           f"pv_coupling_ratio=$pvCouplingRatio%.3f " +
           f"evidence_reason_coverage=$evidenceReasonCoverage%.3f " +

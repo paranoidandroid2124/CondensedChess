@@ -60,6 +60,9 @@ export type ProbeResult = {
   futureSnapshot?: FutureSnapshot;
   objective?: string;
   seedId?: string;
+  requiredSignals?: string[];
+  generatedRequiredSignals?: string[];
+  motifInferenceMode?: 'purpose_only' | 'purpose_plus_compat' | string;
 };
 
 export type PlanViability = {

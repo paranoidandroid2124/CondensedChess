@@ -208,9 +208,14 @@ object BookStyleRenderer:
   private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
     val strategicSummary =
       if ctx.mainStrategicPlans.nonEmpty then
-        val ranked = ctx.mainStrategicPlans.take(3).map(p => s"${p.rank}) ${p.planName}").mkString(", ")
-        val absence = ctx.whyAbsentFromTopMultiPV.headOption.map(r => s" ($r)").getOrElse("")
-        s"Strategic distribution: $ranked$absence."
+        val topPlans = ctx.mainStrategicPlans.take(3)
+        val ranked = topPlans.map(p => s"${p.rank}) ${p.planName} (${f"${p.score}%.2f"})").mkString(", ")
+        val leadPlan = topPlans.head.planName
+        val absence =
+          ctx.whyAbsentFromTopMultiPV.headOption
+            .map(r => s" Some routes remain outside top MultiPV because $r.")
+            .getOrElse("")
+        s"Strategic distribution: $ranked. Primary plan focus starts with $leadPlan.$absence"
       else ""
 
     val practicalSummary =
