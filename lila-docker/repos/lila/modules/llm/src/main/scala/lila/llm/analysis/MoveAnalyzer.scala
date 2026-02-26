@@ -6,35 +6,143 @@ import lila.llm.model.Motif.*
 
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Unified Move Analyzer
  * 
  * Combines:
- * - MotifTokenizer: Detects tactical/structural motifs from PV lines
+ * - State/Trajectory motif provider: Detects tactical/structural motifs from state transitions
  * - ExperimentExecutor: Runs counterfactual experiments comparing moves
  * 
  */
 object MoveAnalyzer:
 
-  /**
-   * Translates a PV (list of UCI moves) into a list of Motifs.
-   */
-  def tokenizePv(initialFen: String, pv: List[String]): List[Motif] =
+  private val logger = lila.log("llm.moveAnalyzer")
+  private val ParityScale = 1000000L
+  private val paritySamples = new AtomicLong(0L)
+  private val parityExact = new AtomicLong(0L)
+  private val parityOverlapScaled = new AtomicLong(0L)
+
+  private def boolSetting(propKey: String, envKey: String, default: Boolean): Boolean =
+    sys.props
+      .get(propKey)
+      .orElse(sys.env.get(envKey))
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _ => None
+      }
+      .getOrElse(default)
+
+  private def intSetting(propKey: String, envKey: String, default: Int, min: Int, max: Int): Int =
+    sys.props
+      .get(propKey)
+      .orElse(sys.env.get(envKey))
+      .flatMap(_.toIntOption)
+      .map(_.max(min).min(max))
+      .getOrElse(default)
+
+  // R+3 rollout:
+  // - default: state/trajectory motif provider ON
+  // - dual-run parity measurement ON for one release
+  // - rollback flag preserves legacy PV tokenizer path
+  private def useStateTrajectoryProvider: Boolean =
+    boolSetting(
+      "llm.moveAnalyzer.useStateTrajectoryProvider",
+      "LLM_MOVE_ANALYZER_USE_STATE_TRAJECTORY_PROVIDER",
+      default = true
+    )
+
+  private def dualRunParityEnabled: Boolean =
+    boolSetting(
+      "llm.moveAnalyzer.dualRunParity",
+      "LLM_MOVE_ANALYZER_DUAL_RUN_PARITY",
+      default = true
+    )
+
+  private def parityLogEvery: Int =
+    intSetting("llm.moveAnalyzer.parityLogEvery", "LLM_MOVE_ANALYZER_PARITY_LOG_EVERY", default = 200, min = 20, max = 5000)
+
+  private def motifSignature(m: Motif): String =
+    val prefix = m.getClass.getSimpleName.replace("$", "")
+    s"$prefix|${m.category}|${m.color}|${m.plyIndex}|${m.move.getOrElse("")}"
+
+  private def parityOverlapRatio(legacy: List[Motif], trajectory: List[Motif]): Double =
+    val legacyCounts = legacy.groupMapReduce(motifSignature)(_ => 1)(_ + _)
+    val trajectoryCounts = trajectory.groupMapReduce(motifSignature)(_ => 1)(_ + _)
+    val denom = legacy.size.max(trajectory.size).toDouble
+    if denom == 0.0 then 1.0
+    else
+      val overlap = legacyCounts.iterator.map { case (k, c) =>
+        math.min(c, trajectoryCounts.getOrElse(k, 0))
+      }.sum.toDouble
+      overlap / denom
+
+  private def recordParity(legacy: List[Motif], trajectory: List[Motif]): Unit =
+    val exact = legacy.map(motifSignature) == trajectory.map(motifSignature)
+    val overlap = parityOverlapRatio(legacy, trajectory)
+    val sample = paritySamples.incrementAndGet()
+    if exact then parityExact.incrementAndGet()
+    parityOverlapScaled.addAndGet(Math.round(overlap * ParityScale.toDouble))
+    if sample % parityLogEvery == 0 then
+      val exactRate = parityExact.get().toDouble / sample.toDouble
+      val overlapAvg = parityOverlapScaled.get().toDouble / sample.toDouble / ParityScale.toDouble
+      logger.info(
+        f"move_analyzer.parity samples=$sample exact_rate=$exactRate%.3f overlap_avg=$overlapAvg%.3f provider=${if useStateTrajectoryProvider then "state_trajectory" else "legacy_pv"} dual_run=${dualRunParityEnabled}"
+      )
+
+  private object StateTrajectoryMotifProvider:
+    private case class Step(before: Position, move: Move, after: Position, plyIndex: Int, previousMove: Option[Move])
+
+    def tokenize(initialFen: String, pv: List[String]): List[Motif] =
+      Fen.read(chess.variant.Standard, Fen.Full(initialFen)).map { initialPos =>
+        val (_, _, motifs) = pv.zipWithIndex.foldLeft((initialPos, Option.empty[Move], List.empty[Motif])) {
+          case ((pos, lastMv, acc), (uciStr, index)) =>
+            Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption) match
+              case Some(mv) =>
+                val step = Step(pos, mv, mv.after, index, lastMv)
+                val moveMotifs = detectMoveMotifs(step.move, step.before, step.plyIndex, step.previousMove)
+                val stateMotifs = detectStateMotifs(step.after, step.plyIndex)
+                (step.after, Some(step.move), acc ++ moveMotifs ++ stateMotifs)
+              case None =>
+                (pos, lastMv, acc)
+        }
+        motifs
+      }.getOrElse(Nil)
+
+  private def tokenizePvLegacy(initialFen: String, pv: List[String]): List[Motif] =
     Fen.read(chess.variant.Standard, Fen.Full(initialFen)).map { initialPos =>
       val (_, motifs, _) = pv.zipWithIndex.foldLeft((initialPos, List.empty[Motif], Option.empty[Move])) {
         case ((pos, acc, lastMv), (uciStr, index)) =>
           Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption) match
             case Some(mv) =>
               val moveMotifs = detectMoveMotifs(mv, pos, index, lastMv)
-              // State motifs are detected after each move to trace structural damage at the exact ply it occurs.
-              val stateMotifs = detectStateMotifs(mv.after, index) 
+              val stateMotifs = detectStateMotifs(mv.after, index)
               (mv.after, acc ++ moveMotifs ++ stateMotifs, Some(mv))
-            case None => 
+            case None =>
               (pos, acc, lastMv)
       }
       motifs
     }.getOrElse(Nil)
+
+  /**
+   * Translates a PV (list of UCI moves) into a list of Motifs.
+   */
+  def tokenizePv(initialFen: String, pv: List[String]): List[Motif] =
+    if useStateTrajectoryProvider then
+      val trajectory = StateTrajectoryMotifProvider.tokenize(initialFen, pv)
+      if dualRunParityEnabled then
+        val legacy = tokenizePvLegacy(initialFen, pv)
+        recordParity(legacy, trajectory)
+      trajectory
+    else
+      val legacy = tokenizePvLegacy(initialFen, pv)
+      if dualRunParityEnabled then
+        val trajectory = StateTrajectoryMotifProvider.tokenize(initialFen, pv)
+        recordParity(legacy, trajectory)
+      legacy
 
   /**
    * Parse UCI moves into PvMove with SAN, piece, capture, check metadata.

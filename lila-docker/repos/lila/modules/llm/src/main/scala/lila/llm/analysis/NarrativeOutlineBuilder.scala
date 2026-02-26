@@ -459,13 +459,15 @@ object NarrativeOutlineBuilder:
       if variations.size >= 2 then
         val labels = List("a)", "b)", "c)")
         val formatted = variations.zip(labels).map { case (v, label) =>
-          val moveSan = v.ourMove.map(_.san).getOrElse(v.moves.headOption.getOrElse(""))
-          val lineSample = v.sampleLine(4)
-          val line0 = lineSample.trim
+          val moveSan = variationLeadSan(ctx.fen, v)
+          val reply = variationReplySan(ctx.fen, v).map(r => s"...$r")
+          val evidence = variationEvidenceClause(v)
           val line =
-            if line0.isEmpty then moveSan
-            else if moveSan.nonEmpty && line0.startsWith(moveSan) then line0
-            else s"$moveSan $line0".trim
+            reply match
+              case Some(r) if evidence.nonEmpty => s"$moveSan with $r as the principal reply; $evidence"
+              case Some(r) => s"$moveSan with $r as the principal reply"
+              case None if evidence.nonEmpty => s"$moveSan; $evidence"
+              case _ => moveSan
           s"$label $line (${formatCp(v.scoreCp)})"
         }
         rec.use("engineEvidence.variations", variations.size.toString, "Evidence fallback from engine PV")
@@ -720,10 +722,19 @@ object NarrativeOutlineBuilder:
         val engineBest = rankedEngineVariations(ctx).headOption.orElse(ctx.engineEvidence.flatMap(_.best))
         val evalScore = engineBest.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
         val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x85ebca6b, evalScore, ply = ctx.ply)
-        val replySan = engineBest.flatMap(_.theirReply).map(_.san)
-        val sampleRest = engineBest.flatMap(_.sampleLineFrom(2, 6))
+        val replySan = engineBest.flatMap(v => variationReplySan(ctx.fen, v))
+        val consequence = engineBest.flatMap(variationConsequenceClause).getOrElse("")
 
-        val text = NarrativeLexicon.getMainFlow(bead, main.move, main.annotation, intent, replySan, sampleRest, evalTerm)
+        val text = NarrativeLexicon.getMainFlow(
+          bead = bead,
+          move = main.move,
+          annotation = main.annotation,
+          intent = intent,
+          replySan = replySan,
+          sampleRest = None,
+          evalTerm = evalTerm,
+          consequence = consequence
+        )
         val hypothesisText =
           buildMainHypothesisNarrative(
             ctx = ctx,
@@ -2876,6 +2887,39 @@ object NarrativeOutlineBuilder:
       .map(_.trim)
       .filter(_.nonEmpty)
       .map(_.replaceAll("""^[\.\u2026]+""", ""))
+
+  private def variationLeadSan(fen: String, variation: VariationLine): String =
+    variation.ourMove
+      .map(_.san.trim)
+      .filter(_.nonEmpty)
+      .orElse {
+        variation.moves.headOption
+          .map(uci => NarrativeUtils.uciToSanOrFormat(fen, uci).trim)
+          .filter(_.nonEmpty)
+      }
+      .orElse(variation.moves.headOption)
+      .getOrElse("")
+
+  private def variationReplySan(fen: String, variation: VariationLine): Option[String] =
+    variation.theirReply
+      .map(_.san.trim)
+      .filter(_.nonEmpty)
+      .orElse {
+        variation.moves.lift(1)
+          .map(uci => NarrativeUtils.uciToSanOrFormat(NarrativeUtils.uciListToFen(fen, variation.moves.take(1)), uci).trim)
+          .filter(_.nonEmpty)
+      }
+
+  private def variationEvidenceClause(variation: VariationLine): String =
+    val lowerTags = variation.tags.map(_.toString.toLowerCase).toSet
+    if lowerTags.contains("sharp") then "evidence indicates tactical volatility in the branch"
+    else if lowerTags.contains("simplification") then "evidence favors simplification pressure"
+    else if lowerTags.contains("prophylaxis") then "evidence stresses prophylactic coverage"
+    else if lowerTags.contains("solid") then "evidence keeps structure handling stable"
+    else "evidence keeps strategic commitments coherent"
+
+  private def variationConsequenceClause(variation: VariationLine): Option[String] =
+    Option.when(variation.moves.nonEmpty)(s"Evidence trend: ${variationEvidenceClause(variation)}")
 
   private def normalizeStem(text: String): String =
     Option(text).getOrElse("")
