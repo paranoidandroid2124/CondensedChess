@@ -27,6 +27,18 @@ export type ProbeOrchestrator = {
 
 export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSessionActive: SessionActive): ProbeOrchestrator {
   let probeEngine: CevalEngine | undefined;
+  let purposeSignalSamples = 0;
+  const PurposeSignalLogEvery = 20;
+  const purposeSignalStats = new Map<
+    string,
+    { probes: number; requiredSlots: number; generatedRequired: number; compatFallbackUses: number }
+  >();
+  type MotifInference = {
+    keyMotifs: string[];
+    requiredSignals: string[];
+    generatedRequiredSignals: string[];
+    compatFallbackUsed: boolean;
+  };
 
   const parseMove = (uci?: string): { fromFile: string; toFile: string; isPawnPush: boolean; isRookPawnPush: boolean } | null => {
     if (!uci || !/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) return null;
@@ -40,7 +52,39 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     return { fromFile, toFile, isPawnPush, isRookPawnPush };
   };
 
-  const inferKeyMotifs = (
+  const purposeRequiredSignals = (purpose: string | undefined, requestRequiredSignals: string[] | undefined): string[] => {
+    const required = new Set<string>();
+    if (Array.isArray(requestRequiredSignals)) {
+      requestRequiredSignals.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).forEach(s => required.add(s));
+    }
+    if (purpose?.includes('recapture')) required.add('recapture_branching');
+    if (purpose?.includes('tension')) required.add('tension_branching');
+    if (purpose?.includes('convert')) required.add('conversion_route');
+    if (purpose?.includes('latent_plan_refutation')) required.add('latent_plan_refutation');
+    if (purpose?.includes('free_tempo')) required.add('free_tempo_trajectory');
+    if (purpose?.includes('defense_reply')) required.add('defense_reply_branching');
+    return Array.from(required);
+  };
+
+  const inferPurposeMotifs = (
+    move: string | undefined,
+    purpose: string | undefined,
+    replyPvs: string[][],
+  ): string[] => {
+    const motifs = new Set<string>();
+    const parsed = parseMove(move);
+    if (purpose?.includes('recapture')) motifs.add('recapture_branching');
+    if (purpose?.includes('tension')) motifs.add('tension_branching');
+    if (purpose?.includes('convert')) motifs.add('conversion_route');
+    if (purpose?.includes('latent_plan_refutation')) motifs.add('latent_plan_refutation');
+    if (purpose?.includes('free_tempo')) motifs.add('free_tempo_trajectory');
+    if (purpose?.includes('defense_reply')) motifs.add('defense_reply_branching');
+    if (purpose?.includes('free_tempo') && parsed?.isRookPawnPush) motifs.add('rook_pawn_march_candidate');
+    if (purpose?.includes('convert') && (replyPvs[0] ?? []).length >= 3) motifs.add('multi_ply_sequence');
+    return Array.from(motifs);
+  };
+
+  const inferCompatFallbackMotifs = (
     move: string | undefined,
     purpose: string | undefined,
     replyPvs: string[][],
@@ -58,6 +102,65 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     if (firstPv.length >= 3) motifs.add('multi_ply_sequence');
     if (firstPv.some(m => /^[a-h][1-8][a-h][1-8]/i.test(m) && m[0] !== m[2])) motifs.add('forcing_exchange_pattern');
     return Array.from(motifs);
+  };
+
+  const isCompatMotifFallbackEnabled = (): boolean => {
+    const g = globalThis as Record<string, unknown>;
+    const runtimeFlag = g['__bookmakerCompatMotifFallback'];
+    if (typeof runtimeFlag === 'boolean') return runtimeFlag;
+    try {
+      const stored = globalThis.localStorage?.getItem('bookmaker.compatMotifFallback');
+      return stored === '1' || stored === 'true';
+    } catch {
+      return false;
+    }
+  };
+
+  const computeMotifInference = (
+    move: string | undefined,
+    purpose: string | undefined,
+    replyPvs: string[][],
+    requestRequiredSignals: string[] | undefined,
+  ): MotifInference => {
+    const requiredSignals = purposeRequiredSignals(purpose, requestRequiredSignals);
+    const motifs = new Set<string>(inferPurposeMotifs(move, purpose, replyPvs));
+    const compatFallbackUsed = isCompatMotifFallbackEnabled();
+    if (compatFallbackUsed) inferCompatFallbackMotifs(move, purpose, replyPvs).forEach(m => motifs.add(m));
+    const generatedRequiredSignals = requiredSignals.filter(s => motifs.has(s));
+    return {
+      keyMotifs: Array.from(motifs),
+      requiredSignals,
+      generatedRequiredSignals,
+      compatFallbackUsed,
+    };
+  };
+
+  const trackPurposeSignalCoverage = (
+    purpose: string | undefined,
+    requiredSignals: string[],
+    generatedRequiredSignals: string[],
+    compatFallbackUsed: boolean,
+  ): void => {
+    if (!purpose || !requiredSignals.length) return;
+    const current = purposeSignalStats.get(purpose) ?? {
+      probes: 0,
+      requiredSlots: 0,
+      generatedRequired: 0,
+      compatFallbackUses: 0,
+    };
+    current.probes += 1;
+    current.requiredSlots += requiredSignals.length;
+    current.generatedRequired += generatedRequiredSignals.length;
+    if (compatFallbackUsed) current.compatFallbackUses += 1;
+    purposeSignalStats.set(purpose, current);
+
+    purposeSignalSamples += 1;
+    if (purposeSignalSamples % PurposeSignalLogEvery !== 0) return;
+    const coverage = current.requiredSlots > 0 ? current.generatedRequired / current.requiredSlots : 1;
+    const compatRate = current.probes > 0 ? current.compatFallbackUses / current.probes : 0;
+    console.info(
+      `[bookmaker.probe.signals] purpose=${purpose} probes=${current.probes} required_slots=${current.requiredSlots} generated=${current.generatedRequired} coverage=${coverage.toFixed(3)} compat_fallback_rate=${compatRate.toFixed(3)}`,
+    );
   };
 
   const buildL1Delta = (
@@ -308,7 +411,19 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
       const evalCp = typeof ev.cp === 'number' ? ev.cp : 0;
       const deltaVsBaseline = evalCp - (typeof baseCp === 'number' ? baseCp : 0);
       const purpose = typeof pr.purpose === 'string' ? pr.purpose : undefined;
-      const keyMotifs = inferKeyMotifs(move, purpose, replyPvs);
+      const motifInference = computeMotifInference(
+        move,
+        purpose,
+        replyPvs,
+        Array.isArray(pr.requiredSignals) ? pr.requiredSignals : undefined,
+      );
+      const keyMotifs = motifInference.keyMotifs;
+      trackPurposeSignalCoverage(
+        purpose,
+        motifInference.requiredSignals,
+        motifInference.generatedRequiredSignals,
+        motifInference.compatFallbackUsed,
+      );
       const l1Delta = purpose ? buildL1Delta(deltaVsBaseline, keyMotifs, purpose) : undefined;
       const futureSnapshot =
         purpose && (purpose.includes('latent') || purpose.includes('convert') || purpose.includes('tension') || purpose.includes('free_tempo'))
@@ -332,6 +447,11 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
         futureSnapshot,
         objective: typeof pr.objective === 'string' ? pr.objective : undefined,
         seedId: typeof pr.seedId === 'string' ? pr.seedId : undefined,
+        requiredSignals: motifInference.requiredSignals.length ? motifInference.requiredSignals : undefined,
+        generatedRequiredSignals: motifInference.generatedRequiredSignals.length
+          ? motifInference.generatedRequiredSignals
+          : undefined,
+        motifInferenceMode: motifInference.compatFallbackUsed ? 'purpose_plus_compat' : 'purpose_only',
       });
     }
 

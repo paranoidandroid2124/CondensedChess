@@ -166,6 +166,8 @@ object BookCommentaryCorpusRunner:
 
   final case class StrategicMetrics(
       planRecallAt3: Double,
+      planRecallAt3Legacy: Double,
+      planRecallAt3HypothesisFirst: Double,
       latentPrecision: Double,
       pvCouplingRatio: Double,
       evidenceReasonCoverage: Double,
@@ -474,10 +476,14 @@ object BookCommentaryCorpusRunner:
       ctx: NarrativeContext,
       rawProbeResults: List[ProbeResult]
   ): StrategicMetrics =
+    val topRuleId = data.plans.headOption.map(_.plan.id.toString)
     val topRuleIds = data.plans.take(3).map(_.plan.id.toString).toSet
     val topHypothesisId = ctx.mainStrategicPlans.headOption.map(_.planId)
-    val planRecallAt3 =
+    val planRecallAt3Legacy =
+      if topHypothesisId.isDefined && topRuleId == topHypothesisId then 1.0 else 0.0
+    val planRecallAt3HypothesisFirst =
       if topHypothesisId.exists(topRuleIds.contains) then 1.0 else 0.0
+    val planRecallAt3 = planRecallAt3Legacy
 
     val latentPrecision =
       if ctx.latentPlans.isEmpty then 1.0
@@ -518,6 +524,8 @@ object BookCommentaryCorpusRunner:
 
     StrategicMetrics(
       planRecallAt3 = planRecallAt3,
+      planRecallAt3Legacy = planRecallAt3Legacy,
+      planRecallAt3HypothesisFirst = planRecallAt3HypothesisFirst,
       latentPrecision = latentPrecision,
       pvCouplingRatio = pvCouplingRatio,
       evidenceReasonCoverage = evidenceReasonCoverage,
@@ -818,6 +826,8 @@ object BookCommentaryCorpusRunner:
     val avgAnchorCoverage = average(qualityList.map(_.variationAnchorCoverage))
     val strategicList     = results.flatMap(_.strategic)
     val avgPlanRecallAt3  = average(strategicList.map(_.planRecallAt3))
+    val avgPlanRecallAt3Legacy = average(strategicList.map(_.planRecallAt3Legacy))
+    val avgPlanRecallAt3HypothesisFirst = average(strategicList.map(_.planRecallAt3HypothesisFirst))
     val avgLatentPrecision = average(strategicList.map(_.latentPrecision))
     val avgPvCouplingRatio = average(strategicList.map(_.pvCouplingRatio))
     val avgEvidenceReasonCoverage = average(strategicList.map(_.evidenceReasonCoverage))
@@ -852,7 +862,9 @@ object BookCommentaryCorpusRunner:
       sb.append(f"- Avg quality score: $avgQuality%.1f / 100\n")
       sb.append(f"- Avg lexical diversity: $avgLexical%.3f\n")
       sb.append(f"- Avg variation-anchor coverage: $avgAnchorCoverage%.3f\n")
-      sb.append(f"- Strategic metric PlanRecall@3: $avgPlanRecallAt3%.3f\n")
+      sb.append(f"- Strategic metric PlanRecall@3(active): $avgPlanRecallAt3%.3f\n")
+      sb.append(f"- Strategic metric PlanRecall@3(legacy top-rule match): $avgPlanRecallAt3Legacy%.3f\n")
+      sb.append(f"- Strategic metric PlanRecall@3(hypothesis-first): $avgPlanRecallAt3HypothesisFirst%.3f\n")
       sb.append(f"- Strategic metric LatentPrecision: $avgLatentPrecision%.3f\n")
       sb.append(f"- Strategic metric PV-coupling ratio: $avgPvCouplingRatio%.3f\n")
       sb.append(f"- Strategic metric EvidenceReasonCoverage: $avgEvidenceReasonCoverage%.3f\n")
@@ -927,7 +939,7 @@ object BookCommentaryCorpusRunner:
       }
       r.strategic.foreach { s =>
         sb.append(
-          f"- Strategic: PlanRecall@3=${s.planRecallAt3}%.3f, LatentPrecision=${s.latentPrecision}%.3f, PV-coupling=${s.pvCouplingRatio}%.3f, EvidenceReasonCoverage=${s.evidenceReasonCoverage}%.3f, HypothesisProbeHitRate=${s.hypothesisProbeHitRate}%.3f, ContractDropRate=${s.contractDropRate}%.3f, LegacyFenMissingRate=${s.legacyFenMissingRate}%.3f\n"
+          f"- Strategic: PlanRecall@3=${s.planRecallAt3}%.3f, PlanRecall@3Legacy=${s.planRecallAt3Legacy}%.3f, PlanRecall@3HypothesisFirst=${s.planRecallAt3HypothesisFirst}%.3f, LatentPrecision=${s.latentPrecision}%.3f, PV-coupling=${s.pvCouplingRatio}%.3f, EvidenceReasonCoverage=${s.evidenceReasonCoverage}%.3f, HypothesisProbeHitRate=${s.hypothesisProbeHitRate}%.3f, ContractDropRate=${s.contractDropRate}%.3f, LegacyFenMissingRate=${s.legacyFenMissingRate}%.3f\n"
         )
       }
       if r.qualityFindings.nonEmpty then
