@@ -1,4 +1,5 @@
 import { prop, type Prop } from 'lib';
+import { pubsub } from 'lib/pubsub';
 import type AnalyseCtrl from '../ctrl';
 import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
@@ -12,21 +13,65 @@ interface VariationLine {
     tags?: string[];
 }
 
+export interface ActivePlanRef {
+    themeL1: string;
+    subplanId?: string;
+    phase?: string;
+    commitmentScore?: number;
+}
+
+export interface EngineAlternative {
+    uci: string;
+    san?: string;
+    cpAfterAlt?: number;
+    cpLossVsPlayed?: number;
+    pv?: string[];
+}
+
+export interface CollapseAnalysis {
+    interval: string;
+    rootCause: string;
+    earliestPreventablePly: number;
+    patchLineUci: string[];
+    recoverabilityPlies: number;
+}
+
 interface GameNarrativeMoment {
+    momentId?: string;
     ply: number;
+    moveNumber?: number;
+    side?: 'white' | 'black';
+    moveClassification?: string;
     momentType: string;
     fen: string;
     narrative: string;
     concepts: string[];
     variations: VariationLine[];
+    cpBefore?: number;
+    cpAfter?: number;
+    mateBefore?: number;
+    mateAfter?: number;
+    wpaSwing?: number;
+    strategicSalience?: 'High' | 'Low';
+    transitionType?: string;
+    transitionConfidence?: number;
+    activePlan?: ActivePlanRef;
+    topEngineMove?: EngineAlternative;
+    collapse?: CollapseAnalysis;
 }
 
 interface GameNarrativeReview {
+    schemaVersion?: number;
+    reviewPerspective?: string;
     totalPlies: number;
     evalCoveredPlies: number;
     evalCoveragePct: number;
     selectedMoments: number;
     selectedMomentPlies: number[];
+    blundersCount?: number;
+    missedWinsCount?: number;
+    brilliantMovesCount?: number;
+    momentTypeCounts?: Record<string, number>;
 }
 
 export interface GameNarrativeResponse {
@@ -38,6 +83,7 @@ export interface GameNarrativeResponse {
     review?: GameNarrativeReview;
     sourceMode?: string;
     model?: string | null;
+    ccaEnabled?: boolean;
 }
 
 interface AsyncNarrativeSubmitResponse {
@@ -52,6 +98,16 @@ interface AsyncNarrativeStatusResponse {
     updatedAtMs?: number;
     result?: GameNarrativeResponse | null;
     error?: string | null;
+    ccaEnabled?: boolean;
+}
+
+export interface DefeatDnaReport {
+    userId: string;
+    totalGamesAnalyzed: number;
+    rootCauseDistribution: Record<string, number>;
+    avgRecoverabilityPlies: number;
+    mostCommonPatchLines: string[];
+    recentCollapses: CollapseAnalysis[];
 }
 
 const AUTO_EVAL_DEPTH = 12;
@@ -61,6 +117,7 @@ const AUTO_EVAL_MAX_BUDGET_MS = 25000;
 const AUTO_EVAL_MAX_PLY_SCAN = 120;
 const ASYNC_NARRATIVE_POLL_INTERVAL_MS = 1200;
 const ASYNC_NARRATIVE_POLL_TIMEOUT_MS = 180000;
+const COLLAPSE_OVERLAY_GLOBAL_KEY = '__chesstoryCollapseOverlays';
 
 function magicLinkHref(): string {
     return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -85,6 +142,12 @@ export class NarrativeCtrl {
     loadingDetail: Prop<string | null> = prop(null);
 
     pvBoard: Prop<{ fen: string; uci: string } | null> = prop(null);
+    dnaTab: Prop<'narrative' | 'collapse' | 'dna'> = prop('narrative' as 'narrative' | 'collapse' | 'dna');
+    dnaData: Prop<DefeatDnaReport | null> = prop(null);
+    dnaLoading: Prop<boolean> = prop(false);
+    dnaError: Prop<string | null> = prop(null);
+    showAllCollapses: Prop<boolean> = prop(false);
+    patchReplay: Prop<{ collapseId: string; step: number; mode: 'original' | 'patch' } | null> = prop(null);
 
     constructor(readonly root: AnalyseCtrl) {
         this.enabled = storedBooleanProp('analyse.narrative.enabled', false);
@@ -97,7 +160,65 @@ export class NarrativeCtrl {
         if (this.enabled() && !this.data() && !this.loading()) {
             this.fetchNarrative();
         }
+    };
+
+    patchOpen = (collapseId: string) => {
+        this.patchReplay({ collapseId, step: 0, mode: 'patch' });
         this.root.redraw();
+    };
+
+    patchClose = () => {
+        this.patchReplay(null);
+        this.root.redraw();
+    };
+
+    patchStep = (delta: number, maxSteps: number) => {
+        const state = this.patchReplay();
+        if (!state) return;
+        const next = Math.max(0, Math.min(maxSteps, state.step + delta));
+        this.patchReplay({ ...state, step: next });
+        this.root.redraw();
+    };
+
+    patchToggle = () => {
+        const state = this.patchReplay();
+        if (!state) return;
+        this.patchReplay({
+            ...state,
+            step: 0,
+            mode: state.mode === 'patch' ? 'original' : 'patch',
+        });
+        this.root.redraw();
+    };
+
+    switchTab = (tab: 'narrative' | 'collapse' | 'dna') => {
+        this.dnaTab(tab);
+        if (tab === 'dna' && !this.dnaData() && !this.dnaLoading()) {
+            this.fetchDefeatDna();
+        }
+        this.showAllCollapses(false);
+        this.root.redraw();
+    };
+
+    fetchDefeatDna = async () => {
+        this.dnaLoading(true);
+        this.dnaError(null);
+        this.root.redraw();
+        try {
+            const res = await fetch('/api/llm/defeat-dna');
+            if (res.ok) {
+                this.dnaData(await res.json() as DefeatDnaReport);
+            } else if (res.status === 404) {
+                this.dnaError('Defeat DNA not available for your account.');
+            } else {
+                this.dnaError('Failed to load Defeat DNA.');
+            }
+        } catch {
+            this.dnaError('Network error loading Defeat DNA.');
+        } finally {
+            this.dnaLoading(false);
+            this.root.redraw();
+        }
     };
 
     openAndFetch = async () => {
@@ -113,11 +234,25 @@ export class NarrativeCtrl {
         }
     };
 
+    private publishCollapseOverlay = (response: GameNarrativeResponse | null): void => {
+        const collapses = (response?.moments || [])
+            .flatMap(m => (m.collapse
+                ? [{
+                    interval: m.collapse.interval,
+                    earliestPreventablePly: m.collapse.earliestPreventablePly,
+                    rootCause: m.collapse.rootCause,
+                }]
+                : []));
+        (window as any)[COLLAPSE_OVERLAY_GLOBAL_KEY] = collapses;
+        pubsub.emit('analysis.collapse.update', collapses);
+    };
+
     fetchNarrative = async () => {
         this.loading(true);
         this.error(null);
         this.needsLogin(false);
         this.pvBoard(null);
+        this.publishCollapseOverlay(null);
         this.loadingDetail('Deep analysis prep: collecting PGN and existing eval...');
         this.root.redraw();
         try {
@@ -185,7 +320,9 @@ export class NarrativeCtrl {
 
         if (res.ok) {
             const data = await res.json();
-            this.data(data as GameNarrativeResponse);
+            const response = data as GameNarrativeResponse;
+            this.data(response);
+            this.publishCollapseOverlay(response);
             return;
         }
 
@@ -227,7 +364,14 @@ export class NarrativeCtrl {
             const status = (await res.json()) as AsyncNarrativeStatusResponse;
             const state = (status.status || '').toLowerCase();
             if (state === 'completed') {
-                if (status.result) this.data(status.result);
+                if (status.result) {
+                    // Merge ccaEnabled from the polling envelope into the result
+                    if (typeof status.ccaEnabled === 'boolean') {
+                        status.result.ccaEnabled = status.ccaEnabled;
+                    }
+                    this.data(status.result);
+                    this.publishCollapseOverlay(status.result);
+                }
                 else this.error('Async analysis completed without result.');
                 return;
             }
@@ -344,10 +488,10 @@ async function enrichMissingEvalsWithWasm(
     } finally {
         try {
             engine.stop();
-        } catch {}
+        } catch { }
         try {
             engine.destroy();
-        } catch {}
+        } catch { }
     }
 
     return enriched;
@@ -362,7 +506,7 @@ async function runNodeEval(
 ): Promise<Tree.LocalEval | null> {
     try {
         engine.stop();
-    } catch {}
+    } catch { }
 
     return await new Promise<Tree.LocalEval | null>(resolve => {
         let best: Tree.LocalEval | null = null;
@@ -373,7 +517,7 @@ async function runNodeEval(
             clearTimeout(timer);
             try {
                 engine.stop();
-            } catch {}
+            } catch { }
             resolve(best);
         };
         const timer = setTimeout(finish, AUTO_EVAL_PER_PLY_TIMEOUT_MS);

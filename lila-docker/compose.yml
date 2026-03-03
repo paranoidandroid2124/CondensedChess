@@ -41,11 +41,36 @@ services:
       dockerfile: sbt.Dockerfile
     user: ${USER_ID:-}:${GROUP_ID:-}
     working_dir: /lila
-    entrypoint: ./lila.sh run
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        if [ "$${LILA_RUNTIME:-dev}" = "prod" ]; then
+          case "$${LILA_STAGE_ON_BOOT:-auto}" in
+            always) ./lila.sh stage ;;
+            auto) [ -x "$${LILA_STAGE_BIN:-/tmp/lila-target/lila/universal/stage/bin/lila}" ] || ./lila.sh stage ;;
+            skip) ;;
+            *) echo "Invalid LILA_STAGE_ON_BOOT=$${LILA_STAGE_ON_BOOT}. Use auto|always|skip." >&2; exit 1 ;;
+          esac
+          stage_bin="$${LILA_STAGE_BIN:-/tmp/lila-target/lila/universal/stage/bin/lila}"
+          [ -x "$${stage_bin}" ] || stage_bin=/lila/target/universal/stage/bin/lila
+          [ -x "$${stage_bin}" ] || { echo "Stage binary not found at configured paths." >&2; exit 1; }
+          exec "$${stage_bin}" \
+            -Dconfig.file="$${LILA_CONFIG_FILE:-/lila/conf/application.conf}" \
+            -Dlogger.file="$${LILA_LOGGER_FILE:-/lila/conf/logger.dev.xml}"
+        else
+          exec ./lila.sh run
+        fi
     restart: unless-stopped
     environment:
       - LILA_DOMAIN=${LILA_DOMAIN:-localhost:8080}
       - LILA_URL=${LILA_URL:-http://localhost:8080}
+      - LILA_RUNTIME=${LILA_RUNTIME:-dev}
+      - LILA_STAGE_ON_BOOT=${LILA_STAGE_ON_BOOT:-auto}
+      - LILA_STAGE_BIN=${LILA_STAGE_BIN:-/tmp/lila-target/lila/universal/stage/bin/lila}
+      - LILA_CONFIG_FILE=${LILA_CONFIG_FILE:-/lila/conf/application.conf}
+      - LILA_LOGGER_FILE=${LILA_LOGGER_FILE:-/lila/conf/logger.dev.xml}
       - MOCK_EMAIL=${MOCK_EMAIL:-true}
       - ENABLE_MONITORING=${ENABLE_MONITORING:-false}
       - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}

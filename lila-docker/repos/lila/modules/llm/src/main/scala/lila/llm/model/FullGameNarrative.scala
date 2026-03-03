@@ -1,6 +1,7 @@
 package lila.llm.model
 
 import lila.llm.model.ExtendedAnalysisData
+import lila.llm.model.CollapseAnalysis
 
 import play.api.libs.json._
 
@@ -19,7 +20,20 @@ case class MomentNarrative(
   ply: Int,
   momentType: String,          // "Blunder", "MissedWin", "TensionPeak", etc.
   narrative: String,           // The generated Book-Style narrative text
-  analysisData: ExtendedAnalysisData
+  analysisData: ExtendedAnalysisData,
+  
+  // UX Specific Metadata fields passed to Frontend
+  moveClassification: Option[String] = None,
+  cpBefore: Option[Int] = None,
+  cpAfter: Option[Int] = None,
+  mateBefore: Option[Int] = None,
+  mateAfter: Option[Int] = None,
+  wpaSwing: Option[Double] = None,
+  transitionType: Option[String] = None,
+  transitionConfidence: Option[Double] = None,
+  activePlan: Option[lila.llm.ActivePlanRef] = None,
+  topEngineMove: Option[lila.llm.EngineAlternative] = None,
+  collapse: Option[CollapseAnalysis] = None
 )
 object MomentNarrative {
   implicit val writes: OWrites[MomentNarrative] = Json.writes[MomentNarrative]

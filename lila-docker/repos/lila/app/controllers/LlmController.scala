@@ -68,11 +68,11 @@ final class LlmController(
 
   /** Full game narrative analysis. */
   def analyzeGameLocal = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    withFullGameQuota:
-      allowLlmPolish =>
-        ctx.body.body.validate[FullAnalysisRequest].fold(
-          errors => BadRequest(JsError.toJson(errors)).toFuccess,
-          analysisReq =>
+    ctx.body.body.validate[FullAnalysisRequest].fold(
+      errors => BadRequest(JsError.toJson(errors)).toFuccess,
+      analysisReq =>
+        withFullGameQuota:
+          allowLlmPolish =>
             api
               .analyzeFullGameLocal(
                 pgn = analysisReq.pgn,
@@ -84,24 +84,29 @@ final class LlmController(
                 lang = requestLang
               )
               .map:
-                case Some(response) => Ok(Json.toJson(response))
+                case Some(response) =>
+                  val uidOpt = ctx.me.map(_.userId.value)
+                  val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
+                  uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
+                  val wrapper = Json.toJson(response).as[JsObject] ++ Json.obj("ccaEnabled" -> isCcaEnabled)
+                  Ok(wrapper)
                 case None           => ServiceUnavailable("Narrative Analysis unavailable")
-        )
+    )
 
   /** Full game narrative analysis (async queue). */
   def analyzeGameAsync = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    withFullGameQuota:
-      allowLlmPolish =>
-        ctx.body.body.validate[FullAnalysisRequest].fold(
-          errors => BadRequest(JsError.toJson(errors)).toFuccess,
-          analysisReq =>
+    ctx.body.body.validate[FullAnalysisRequest].fold(
+      errors => BadRequest(JsError.toJson(errors)).toFuccess,
+      analysisReq =>
+        withFullGameQuota:
+          allowLlmPolish =>
             val submit = api.submitGameAnalysisAsync(
               req = analysisReq,
               allowLlmPolish = allowLlmPolish,
               lang = requestLang
             )
             Created(Json.toJson(submit)).toFuccess
-        )
+    )
 
   /** Poll status for async full-game analysis. */
   def analyzeGameAsyncStatus(jobId: String) = Open:
@@ -110,7 +115,17 @@ final class LlmController(
     else
       (
         api.getGameAnalysisAsyncStatus(id) match
-          case Some(status) => Ok(Json.toJson(status))
+          case Some(status) =>
+            val base = Json.toJson(status).as[JsObject]
+            val isCcaEnabled = ctx.me.map(_.userId.value)
+              .filter(_ => status.result.isDefined)
+              .exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
+            // Stash CCA data from the completed async result (fire-and-forget)
+            for {
+              uid <- ctx.me.map(_.userId.value)
+              result <- status.result
+            } api.stashCcaResults(uid, result)
+            Ok(base ++ Json.obj("ccaEnabled" -> isCcaEnabled))
           case None         => NotFound(Json.obj("error" -> "not_found"))
       ).toFuccess
 
@@ -157,6 +172,9 @@ final class LlmController(
                     "variations" -> response.variations,
                     "concepts" -> response.concepts,
                     "probeRequests" -> response.probeRequests,
+                    "mainStrategicPlans" -> response.mainStrategicPlans,
+                    "latentPlans" -> response.latentPlans,
+                    "whyAbsentFromTopMultiPV" -> response.whyAbsentFromTopMultiPV,
                     "planStateToken" -> response.planStateToken,
                     "sourceMode" -> response.sourceMode,
                     "model" -> response.model,
@@ -170,33 +188,6 @@ final class LlmController(
                 case None => ServiceUnavailable("Lexicon Commentary unavailable")
               }
         )
-  /** Instant briefing (free, no auth required). */
-  def bookmakerBriefing = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    ctx.body.body.validate[CommentRequest].fold(
-      errors => BadRequest(JsError.toJson(errors)).toFuccess,
-      commentReq =>
-        api
-          .briefCommentPosition(
-            fen = commentReq.fen,
-            lastMove = commentReq.lastMove,
-            eval = commentReq.eval,
-            ply = commentReq.context.ply
-          )
-          .map {
-            case Some(response) =>
-              val html = BookmakerRenderer
-                .render(
-                  commentary = response.commentary,
-                  variations = response.variations,
-                  fenBefore = commentReq.fen,
-                  refs = response.refs
-                )
-                .toString
-              Ok(Json.obj("html" -> html, "concepts" -> response.concepts))
-            case None => NotFound("Briefing unavailable")
-          }
-    )
-
   /** Proxy endpoint for opening explorer masters data. */
   def openingMasters(fen: String) = Open:
     val normalizedFen = fen.trim
@@ -214,6 +205,23 @@ final class LlmController(
       api.fetchOpeningMasterPgn(gameId).map:
         case Some(pgn) => Ok(pgn).as("text/plain; charset=utf-8")
         case None      => NotFound(Json.obj("error" -> "not_found"))
+
+  /** Defeat DNA Aggregation for User */
+  def defeatDna = Open:
+    (ctx: Context) ?=>
+      ctx.me match
+        case Some(user) =>
+          val uid = user.userId.value
+          val dnaApi = new lila.llm.DefeatDnaApi()
+          if dnaApi.isCcaEnabledForUser(uid) then
+            api.getCcaHistory(uid).map: history =>
+              val report = dnaApi.aggregateDna(uid, history)
+              Ok(Json.toJson(report)(lila.llm.DefeatDnaReport.writes))
+          else
+            NotFound(Json.obj("error" -> "cca_not_enabled")).toFuccess
+        case None =>
+          Unauthorized(Json.obj("error" -> "login_required")).toFuccess
+
 
   // ── Helpers ──────────────────────────────────────────────────────────
 

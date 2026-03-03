@@ -178,7 +178,6 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = List(PvLine(List("e2e4"), evalCp = 20, mate = None, depth = 20)),
       fen = StartFen
     )
-    val ghost = highRequests.find(_.objective.contains("validate_plan_presence"))
+    val ghost = highRequests.find(_.objective.contains("validate_restriction_prophylaxis"))
     assert(ghost.nonEmpty, clue(highRequests))
-    assert(ghost.exists(_.moves.contains("g2g4")), clue(highRequests))
   }

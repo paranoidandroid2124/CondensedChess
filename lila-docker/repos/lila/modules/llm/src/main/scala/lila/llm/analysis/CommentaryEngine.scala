@@ -5,9 +5,10 @@ import _root_.chess.format.Uci
 import lila.llm.LlmConfig
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
-import lila.llm.model.strategic.{ VariationLine, PlanContinuity }
+import lila.llm.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PositionAnalyzer
+import lila.llm.analysis.ThemeTaxonomy.ThemeResolver
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
 
 /**
@@ -22,11 +23,18 @@ case class PositionAssessment(
     phase: GamePhase
 )
 
-enum GamePhase:
-  case Opening, Middlegame, Endgame
-
 object CommentaryEngine:
   private val llmConfig = LlmConfig.fromEnv
+  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
+
+  private def themeMaxShareFromHypotheses(
+      hypotheses: List[lila.llm.model.authoring.PlanHypothesis]
+  ): Double =
+    val themes = hypotheses.map(ThemeResolver.fromHypothesis).map(_.id).filter(_.nonEmpty)
+    if themes.isEmpty then 1.0
+    else
+      val counts = themes.groupBy(identity).view.mapValues(_.size).toMap
+      counts.values.maxOption.getOrElse(0).toDouble / themes.size.toDouble
 
   // Lazily instantiated Analyzers (stateless)
   private val prophylaxisAnalyzer = new lila.llm.analysis.strategic.ProphylaxisAnalyzerImpl()
@@ -223,7 +231,8 @@ object CommentaryEngine:
       ply: Int = 0,
       prevMove: Option[String] = None,
       prevPlanContinuity: Option[PlanContinuity] = None,
-      probeResults: List[ProbeResult] = Nil
+      probeResults: List[ProbeResult] = Nil,
+      evalDeltaCp: Option[Int] = None
   ): Option[ExtendedAnalysisData] =
     _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
       PositionAnalyzer.extractFeatures(fen, 1).map { features =>
@@ -344,18 +353,21 @@ object CommentaryEngine:
             maxItems = 5
           )
         val engineHypotheses =
-          HypothesisGenerator.generateWithPrior(
+          HypothesisGenerator.generate(
             planScoring = planScoring,
             ctx = ctx,
-            maxItems = 5,
-            priorWeight = llmConfig.strategicPriorWeight,
-            usePrior = llmConfig.shouldApplyStrategicPrior(fen)
+            maxItems = 5
           )
         val planHypotheses =
           PlanProposalEngine.mergePlanFirstWithEngine(
             planFirst = planFirstHypotheses,
             engineHypotheses = engineHypotheses,
             maxItems = 3
+          )
+        val salienceThemeShare =
+          themeMaxShareFromHypotheses(
+            (planFirstHypotheses ++ engineHypotheses)
+              .distinctBy(h => s"${h.planId.trim.toLowerCase}|${h.subplanId.getOrElse("").trim.toLowerCase}")
           )
         val activePlans = PlanMatcher.toActivePlans(planScoring.topPlans, planScoring.compatibilityEvents)
         val currentSequence = TransitionAnalyzer.analyze(
@@ -364,14 +376,20 @@ object CommentaryEngine:
           ctx = ctx
         )
 
+        val currentContinuity = planScoring.topPlans.headOption.flatMap(tp => evolveContinuity(prevPlanContinuity, tp, ply))
         val baseData = BaseAnalysisData(
           nature = nature,
           motifs = motifs,
-          plans = planScoring.topPlans,
-          planContinuity = planScoring.topPlans.headOption.flatMap(tp => evolveContinuity(prevPlanContinuity, tp, ply)),
-          planSequence = Some(currentSequence)
+          plans = planScoring.topPlans
         )
         
+        val salience = StrategicSalience.calculate(
+          transitionType = currentSequence.transitionType,
+          consecutivePlies = currentContinuity.map(_.consecutivePlies).getOrElse(1),
+          evalDeltaCp = evalDeltaCp.getOrElse(0),
+          themeMaxShare = salienceThemeShare
+        )
+
         val meta = AnalysisMetadata(
           color = initialPos.color,
           ply = ply,
@@ -396,6 +414,7 @@ object CommentaryEngine:
           structureEvalLatencyMs = structureEvalLatencyMs,
           planAlignment = planAlignment,
           planHypotheses = planHypotheses,
+          strategicSalience = salience,
           integratedContext = Some(ctx)
         )
       }
@@ -526,11 +545,51 @@ object CommentaryEngine:
                   )
                   val fullText = renderHybridMomentNarrative(ctx, moment)
                   
+                  val (classification, narrativeEvent) = moment.momentType match {
+                    case "Blunder" => (Some("Blunder"), "AdvantageSwing")
+                    case "MissedWin" => (Some("MissedWin"), "AdvantageSwing")
+                    case "Equalization" => (None, "Equalization")
+                    case "SustainedPressure" => (None, "SustainedPressure")
+                    case "TensionPeak" => (None, "TensionPeak")
+                    case "MateFound" | "MateLost" | "MateShift" => (None, "MatePivot")
+                    case other => (None, other)
+                  }
+
+                  val collapseData = if (moment.momentType == "Blunder" || moment.momentType == "SustainedPressure") {
+                    CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
+                  } else None
+
                   val momentNarrative = MomentNarrative(
                     ply = moment.ply,
-                    momentType = moment.momentType,
+                    momentType = narrativeEvent,
                     narrative = fullText,
-                    analysisData = data
+                    analysisData = data,
+                    moveClassification = classification,
+                    cpBefore = Some(moment.cpBefore),
+                    cpAfter = Some(moment.cpAfter),
+                    mateBefore = moment.mateBefore,
+                    mateAfter = moment.mateAfter,
+                    wpaSwing = moment.wpaSwing,
+                    transitionType = data.planSequence.map(_.transitionType.toString),
+                    transitionConfidence = None,
+                    activePlan = data.planSequence.flatMap(seq => 
+                      seq.primaryPlanName.map(name => lila.llm.ActivePlanRef(
+                        themeL1 = name,
+                        subplanId = seq.primaryPlanId,
+                        phase = Some("Execution"), 
+                        commitmentScore = Some(seq.momentum)
+                      ))
+                    ),
+                    topEngineMove = data.alternatives.headOption.map { alt => 
+                      lila.llm.EngineAlternative(
+                        uci = alt.moves.headOption.getOrElse(""),
+                        san = None, 
+                        cpAfterAlt = Some(alt.scoreCp),
+                        cpLossVsPlayed = Some(cpLossForSideToMove(data.fen, alt.scoreCp, moment.cpAfter)),
+                        pv = alt.moves
+                      )
+                    },
+                    collapse = collapseData
                   )
                   
                   // Update budget from ctx.updatedBudget for next iteration
@@ -541,9 +600,16 @@ object CommentaryEngine:
           }
            
           
+          val totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
+          val blundersCount = allMoments.count(_.momentType == "Blunder")
+          val missedWinsCount = allMoments.count(_.momentType == "MissedWin")
+
           val gameIntro = lila.llm.analysis.NarrativeLexicon.gameIntro(
-            metadata.white, metadata.black, metadata.event, metadata.date, metadata.result
+            metadata.white, metadata.black, metadata.event, metadata.date, metadata.result,
+            totalPlies = totalPlies,
+            keyMomentsCount = allMoments.size
           )
+          
           val planThemes = keyMomentsWithData.flatMap(_.plans.map(_.plan.name)).distinct
           val allThemes = if (planThemes.nonEmpty) planThemes.take(3) 
                           else keyMomentsWithData.flatMap(_.conceptSummary).distinct.take(3)
@@ -552,7 +618,9 @@ object CommentaryEngine:
             winner = if (metadata.result.startsWith("1-0")) Some(metadata.white) 
                      else if (metadata.result.startsWith("0-1")) Some(metadata.black) 
                      else None,
-            themes = allThemes
+            themes = allThemes,
+            blunders = blundersCount,
+            missedWins = missedWinsCount
           )
           
           FullGameNarrative(gameIntro, momentNarratives, conclusion, allThemes)
@@ -569,7 +637,7 @@ object CommentaryEngine:
   private def renderHybridMomentNarrative(ctx: NarrativeContext, moment: KeyMoment): String = {
     val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
     val phase = ctx.phase.current
-    val plan = ctx.plans.top5.headOption.map(_.name)
+    val plan = topStrategicPlanName(ctx)
     val cpWhite = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
     val rankedVars = rankEngineVariationsForFen(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
     val tacticalPressure =
@@ -604,6 +672,23 @@ object CommentaryEngine:
     else if body.nonEmpty then body
     else preface
   }
+
+  private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
+    ctx.mainStrategicPlans.headOption.map(_.planName).orElse {
+      if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(_.name)
+      else None
+    }
+
+  private def boolEnv(name: String, default: Boolean): Boolean =
+    sys.env
+      .get(name)
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _                              => None
+      }
+      .getOrElse(default)
 
   private def rankEngineVariationsForFen(
     fen: String,

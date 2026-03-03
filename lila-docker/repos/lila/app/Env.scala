@@ -62,7 +62,10 @@ final class Env(
     cacheApi = memo.cacheApi
   )
   
-  val llm: lila.llm.Env = wire[lila.llm.Env]
+  val llm: lila.llm.Env = new lila.llm.Env(
+    db = mongo.mainDb,
+    ws = summon[StandaloneWSClient]
+  )
   val web: lila.web.Env = wire[lila.web.Env]
   val api: lila.api.Env = wire[lila.api.Env]
   lazy val apiC: lila.api.Api = wire[lila.api.Api]

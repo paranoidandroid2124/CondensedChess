@@ -3,9 +3,11 @@ package lila.llm
 import com.softwaremill.macwire.*
 import play.api.libs.ws.StandaloneWSClient
 import lila.llm.analysis.OpeningExplorerClient
+import lila.core.config.CollName
 
 @Module
 final class Env(
+    db: lila.db.Db,
     ws: StandaloneWSClient
 )(using Executor):
 
@@ -18,6 +20,8 @@ final class Env(
 
   lazy val commentaryCache = CommentaryCache()
 
+  lazy val ccaHistoryRepo = CcaHistoryRepo(db(CollName("cca_history")))
+
   private val analysisThreadCount = Math.max(1, Runtime.getRuntime.availableProcessors() - 1)
   private val analysisService     = java.util.concurrent.Executors.newFixedThreadPool(analysisThreadCount)
   lazy val analysisExecutor: Executor =
@@ -25,4 +29,5 @@ final class Env(
 
   private lazy val openingExplorer = OpeningExplorerClient(ws)
   lazy val api: LlmApi =
-    LlmApi(openingExplorer, geminiClient, openAiClient, commentaryCache, llmConfig, providerConfig)(using analysisExecutor)
+    LlmApi(openingExplorer, geminiClient, openAiClient, commentaryCache, llmConfig, providerConfig, ccaHistoryRepo)(using analysisExecutor)
+

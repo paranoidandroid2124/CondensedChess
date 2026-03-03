@@ -1,0 +1,30 @@
+{
+  "name": "chart",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "chart.js": "4.5.1",
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "chessops": "^0.15",
+    "lib": "workspace:*"
+  },
+  "build": {
+    "bundle": "src/chart.*ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": {
+        "source": "./src/index.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": {
+        "source": "./src/*.ts",
+        "default": "./dist/*.js"
+      }
+    }
+  }
+}

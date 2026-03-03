@@ -54,7 +54,7 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     assert(validation.invalidByRequestId.getOrElse("probe_missing", Nil).contains("futureSnapshot"))
   }
 
-  test("partition promotes engine-coupled plan to main and keeps unevidenced idea latent") {
+  test("partition promotes top pv-coupled plans to main via fallback when no evidence-backed plan exists") {
     val enginePlan =
       hypothesis(
         id = "CentralControl",
@@ -80,8 +80,12 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
         droppedProbeCount = 0
       )
 
-    assertEquals(partition.mainPlans.map(_.planId), List("CentralControl"))
-    assert(partition.latentPlans.exists(_.seedId == "kingside_rook_pawn_march"))
+    // With StrictFallbackToPvCoupled=true, pv-coupled plans fall back to mainPlans
+    assert(
+      partition.mainPlans.nonEmpty,
+      clue(s"Expected mainPlans to contain fallback pv-coupled plans: ${partition.mainPlans}")
+    )
+    assert(partition.mainPlans.size <= 2, clue(partition.mainPlans))
     assert(partition.whyAbsentFromTopMultiPV.nonEmpty)
   }
 

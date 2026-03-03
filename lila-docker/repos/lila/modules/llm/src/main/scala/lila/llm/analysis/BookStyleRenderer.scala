@@ -2,6 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model._
 import lila.llm.model.authoring._
+import lila.llm.analysis.ThemeTaxonomy.ThemeResolver
 
 /**
  * BookStyleRenderer: Pure prose assembler (SSOT Phase 5)
@@ -39,6 +40,7 @@ object BookStyleRenderer:
     "REQ_MISS",
     "BLK_CONFLICT"
   )
+  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
 
   /**
    * Render NarrativeContext into book-style prose.
@@ -49,45 +51,6 @@ object BookStyleRenderer:
     val validated = NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
     val prose = renderOutline(validated, ctx)
     PostCritic.revise(ctx, redactStructureTokens(prose))
-
-  /**
-   * Render with trace output for debugging.
-   */
-  def renderTrace(ctx: NarrativeContext): String =
-    val rec = new TraceRecorder()
-    val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)
-    val validated = NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
-
-    val sb = new StringBuilder()
-    sb.append("# Outline Diagnostics\n")
-    sb.append(s"${diag.summary}\n\n")
-
-    if diag.droppedBeats.nonEmpty then
-      sb.append("## Dropped Beats\n")
-      diag.droppedBeats.foreach { case (kind, reason) => sb.append(s"- $kind: $reason\n") }
-      sb.append("\n")
-
-    if diag.downgradedBeats.nonEmpty then
-      sb.append("## Downgraded Beats\n")
-      diag.downgradedBeats.foreach { case (kind, reason) => sb.append(s"- $kind: $reason\n") }
-      sb.append("\n")
-
-    sb.append("## Outline Structure\n")
-    validated.beats.foreach { b =>
-      val conf = if b.confidenceLevel < 1.0 then s" (conf=${b.confidenceLevel})" else ""
-      sb.append(s"- ${b.kind}$conf\n")
-    }
-    sb.append("\n")
-
-    sb.append("## Trace Table\n")
-    sb.append(rec.renderTable)
-    sb.toString()
-
-  /**
-   * Full lossless appendix (for debugging/QA).
-   */
-  def renderFull(ctx: NarrativeContext): String =
-    AppendixRenderer.render(ctx)
 
   private def renderOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
@@ -185,7 +148,7 @@ object BookStyleRenderer:
   private def generateMainMove(ctx: NarrativeContext, bead: Int): String =
     ctx.candidates.headOption.map { main =>
       val continuityOpt = ctx.planContinuity
-      val intentAnchor = ctx.plans.top5.headOption.map(_.name).getOrElse(main.planAlignment)
+      val intentAnchor = topStrategicPlanName(ctx).getOrElse(main.planAlignment)
       val intent = NarrativeLexicon.getIntent(bead, intentAnchor, None, ply = ctx.ply, continuity = continuityOpt)
       val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
       val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore, ply = ctx.ply)
@@ -209,13 +172,33 @@ object BookStyleRenderer:
     val strategicSummary =
       if ctx.mainStrategicPlans.nonEmpty then
         val topPlans = ctx.mainStrategicPlans.take(3)
-        val ranked = topPlans.map(p => s"${p.rank}) ${p.planName} (${f"${p.score}%.2f"})").mkString(", ")
-        val leadPlan = topPlans.head.planName
-        val absence =
-          ctx.whyAbsentFromTopMultiPV.headOption
-            .map(r => s" Some routes remain outside top MultiPV because $r.")
-            .getOrElse("")
-        s"Strategic distribution: $ranked. Primary plan focus starts with $leadPlan.$absence"
+        val lead = topPlans.head
+        val slots = ThemeNarrativeSlots.forTheme(themeIdOfHypothesis(lead))
+        val ranked = topPlans.map(p => s"${p.rank}. ${p.planName} (${f"${p.score}%.2f"})").mkString("; ")
+        val preconditions =
+          lead.preconditions.map(_.trim).filter(_.nonEmpty).take(2)
+        val sources =
+          topPlans
+            .flatMap(_.evidenceSources)
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .distinct
+            .take(3)
+            .mkString(", ")
+        val failures =
+          (lead.failureModes ++ lead.refutation.toList ++ ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .distinct
+        val preconditionText =
+          if preconditions.nonEmpty then s" Preconditions: ${preconditions.mkString("; ")}." else ""
+        val evidenceText =
+          if sources.nonEmpty then s"${slots.evidence} Signals: $sources."
+          else s"${slots.evidence} Probe + structural evidence is still limited."
+        val holdText =
+          if failures.nonEmpty then s"${slots.hold} ${failures.take(2).mkString("; ")}."
+          else s"${slots.hold} No explicit refutation was detected."
+        s"Idea: ${slots.idea} Primary route is ${lead.planName}. Ranked stack: $ranked.$preconditionText Evidence: $evidenceText Refutation/Hold: $holdText"
       else ""
 
     val practicalSummary =
@@ -224,6 +207,25 @@ object BookStyleRenderer:
       }.getOrElse("")
 
     List(strategicSummary, practicalSummary).filter(_.nonEmpty).mkString(" ").trim
+
+  private def themeIdOfHypothesis(plan: PlanHypothesis): String =
+    ThemeResolver.fromHypothesis(plan).id
+
+  private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
+    ctx.mainStrategicPlans.headOption.map(_.planName).orElse {
+      if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(_.name) else None
+    }
+
+  private def boolEnv(name: String, default: Boolean): Boolean =
+    sys.env
+      .get(name)
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _                              => None
+      }
+      .getOrElse(default)
 
   private def softenText(text: String, bead: Int): String =
     val trimmed = text.trim
@@ -266,22 +268,3 @@ object BookStyleRenderer:
     else if low.contains("consolidation") then "consolidation and coordination"
     else if low.contains("prophylaxis") then "positional prophylaxis"
     else low.replaceAll("good", "").trim
-
-  /**
-   * Automated Lossless Appendix Renderer.
-   */
-  private[analysis] object AppendixRenderer:
-    def render(ctx: NarrativeContext): String =
-      val sb = new StringBuilder()
-      sb.append("# Narrative Appendix (Lossless)\n")
-      sb.append("> Units: 100cp = 1.0 pawn. Scores are from White's perspective.\n\n")
-
-      sb.append("## KEY FACTS\n")
-      ctx.plans.top5.headOption.foreach(p => sb.append(s"- Top Plan: ${p.name}\n"))
-      ctx.threats.toUs.headOption.foreach { t =>
-        sb.append(s"- Primary Threat: ${t.kind}${t.square.map(s => s" on $s").getOrElse("")} (${t.lossIfIgnoredCp}cp)\n")
-      }
-      ctx.candidates.headOption.foreach(c => sb.append(s"- Recommended: ${c.move}${c.annotation}\n"))
-      ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).foreach(cp => sb.append(s"- Engine Score (White POV): $cp\n"))
-      sb.append("\n")
-      sb.toString()

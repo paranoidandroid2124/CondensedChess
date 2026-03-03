@@ -3,20 +3,23 @@ package lila.llm.analysis
 import chess.*
 import lila.llm.model.*
 import lila.llm.model.Motif.*
-import lila.llm.analysis.L3.{PawnPlayAnalysis, PositionClassification, ThreatAnalysis, RiskLevel}
+import lila.llm.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
 import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
-import lila.llm.analysis.prior.{ StrategicPrior, StrategicPriorFeatures }
-import lila.llm.LlmConfig
 import chess.Color.White
+import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, SubplanId }
+
+private val ThemeDiversityPenalty: Boolean =
+  sys.env.get("LLM_THEME_DIVERSITY_PENALTY")
+    .map(_.trim.toLowerCase)
+    .exists(v => v == "1" || v == "true" || v == "yes" || v == "on")
 
 case class IntegratedContext(
-    evalCp: Int, // Centipawns, ALWAYS White POV
+    evalCp: Int,
     classification: Option[PositionClassification] = None,
-    pawnAnalysis: Option[PawnPlayAnalysis] = None,          // Side to move
-    opponentPawnAnalysis: Option[PawnPlayAnalysis] = None,  // Opponent
-    // THREAT POV CLARIFICATION:
-    threatsToUs: Option[ThreatAnalysis] = None,   // Threats OPPONENT makes TO US (defensive concern)
-    threatsToThem: Option[ThreatAnalysis] = None, // Threats WE make TO THEM (attacking opportunity)
+    pawnAnalysis: Option[PawnPlayAnalysis] = None,
+    opponentPawnAnalysis: Option[PawnPlayAnalysis] = None,
+    threatsToUs: Option[ThreatAnalysis] = None,
+    threatsToThem: Option[ThreatAnalysis] = None,
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
     positionKey: Option[String] = None,
@@ -24,1009 +27,548 @@ case class IntegratedContext(
     initialPos: Option[Position] = None,
     structureProfile: Option[StructureProfile] = None,
     planAlignment: Option[PlanAlignment] = None
-) {
-  def evalFor(color: Color): Int = if (color == White) evalCp else -evalCp
-
-  /** Derive phase from classification or fallback to "middlegame" */
-  def phase: String = phaseEnum match {
+):
+  def evalFor(color: Color): Int = if color == White then evalCp else -evalCp
+  def phase: String = phaseEnum match
     case lila.llm.analysis.L3.GamePhaseType.Opening    => "opening"
     case lila.llm.analysis.L3.GamePhaseType.Middlegame => "middlegame"
     case lila.llm.analysis.L3.GamePhaseType.Endgame    => "endgame"
-  }
-
-  def phaseEnum: lila.llm.analysis.L3.GamePhaseType = classification
-    .map(_.gamePhase.phaseType)
-    .getOrElse(lila.llm.analysis.L3.GamePhaseType.Middlegame)
-  // NUMERIC-BASED THREAT ASSESSMENT (replaces label-based)
-  
-  /** Tactical threat TO US: 1-2 moves, >= 200cp loss (mate, forced tactic) */
-  def tacticalThreatToUs: Boolean = threatsToUs.exists(_.threats.exists(t => 
-    t.turnsToImpact <= 2 && t.lossIfIgnoredCp >= 200
-  ))
-  
-  /** Strategic threat TO US: 3-5 moves, >= 100cp loss (structure, passer, file) */
-  def strategicThreatToUs: Boolean = threatsToUs.exists(_.threats.exists(t =>
-    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToUs
-  ))
-  
-  /** Tactical threat TO THEM: 1-2 moves, >= 200cp (we have forcing attack) */
-  def tacticalThreatToThem: Boolean = threatsToThem.exists(_.threats.exists(t =>
-    t.turnsToImpact <= 2 && t.lossIfIgnoredCp >= 200
-  ))
-  
-  /** Strategic threat TO THEM: 3-5 moves, >= 100cp (we have positional pressure) */
-  def strategicThreatToThem: Boolean = threatsToThem.exists(_.threats.exists(t =>
-    t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToThem
-  ))
-  
-  /** Max loss if we ignore threats TO US */
-  def maxThreatLossToUs: Int = threatsToUs.map(_.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)).getOrElse(0)
-  
-  /** Max loss if opponent ignores our threats */
-  def maxThreatLossToThem: Int = threatsToThem.map(_.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)).getOrElse(0)
-  
-  // Legacy helpers (use numeric versions above for new code)
+  def phaseEnum: lila.llm.analysis.L3.GamePhaseType =
+    classification.map(_.gamePhase.phaseType).getOrElse(lila.llm.analysis.L3.GamePhaseType.Middlegame)
+  def tacticalThreatToUs: Boolean =
+    threatsToUs.exists(_.threats.exists(t => t.turnsToImpact <= 2 && t.lossIfIgnoredCp >= 200))
+  def strategicThreatToUs: Boolean =
+    threatsToUs.exists(_.threats.exists(t =>
+      t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToUs
+    ))
+  def tacticalThreatToThem: Boolean =
+    threatsToThem.exists(_.threats.exists(t => t.turnsToImpact <= 2 && t.lossIfIgnoredCp >= 200))
+  def strategicThreatToThem: Boolean =
+    threatsToThem.exists(_.threats.exists(t =>
+      t.turnsToImpact <= 5 && t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP && !tacticalThreatToThem
+    ))
+  def maxThreatLossToUs: Int =
+    threatsToUs.map(_.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)).getOrElse(0)
+  def maxThreatLossToThem: Int =
+    threatsToThem.map(_.threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)).getOrElse(0)
   def underDefensivePressure: Boolean = tacticalThreatToUs || strategicThreatToUs
   def holdingAttackingThreats: Boolean = tacticalThreatToThem || strategicThreatToThem
   def simplificationReliefPossible: Boolean = underDefensivePressure
   def attackingOpportunityAtRisk: Boolean = holdingAttackingThreats
-}
 
-/**
- * Matches detected Motifs to high-level strategic Plans.
- * Uses scoring with phase gating and motif category weights.
- * Applies Plan Compatibility Matrix for conflict/synergy resolution.
- */
 object PlanMatcher:
-  private val llmConfig = LlmConfig.fromEnv
+  object Theme:
+    val Restriction = ThemeL1.RestrictionProphylaxis.id
+    val Redeployment = ThemeL1.PieceRedeployment.id
+    val SpaceClamp = ThemeL1.SpaceClamp.id
+    val WeaknessFixation = ThemeL1.WeaknessFixation.id
+    val PawnBreakPreparation = ThemeL1.PawnBreakPreparation.id
+    val FavorableExchange = ThemeL1.FavorableExchange.id
+    val FlankInfrastructure = ThemeL1.FlankInfrastructure.id
+    val AdvantageTransformation = ThemeL1.AdvantageTransformation.id
+    val ImmediateTacticalGain = ThemeL1.ImmediateTacticalGain.id
 
-  /** Normalized output with primary/secondary/suppressed plans + compatibility trace */
+  object Subplan:
+    val Restriction = SubplanId.ProphylaxisRestraint.id
+    val Redeployment = SubplanId.WorstPieceImprovement.id
+    val OutpostEntrenchment = SubplanId.OutpostEntrenchment.id
+    val RookFileTransfer = SubplanId.RookFileTransfer.id
+    val SpaceClamp = SubplanId.FlankClamp.id
+    val WeaknessFixation = SubplanId.StaticWeaknessFixation.id
+    val PawnBreakPreparation = SubplanId.CentralBreakTiming.id
+    val WingBreakTiming = SubplanId.WingBreakTiming.id
+    val TensionMaintenance = SubplanId.TensionMaintenance.id
+    val FavorableExchange = SubplanId.SimplificationWindow.id
+    val FlankInfrastructure = SubplanId.RookPawnMarch.id
+    val HookCreation = SubplanId.HookCreation.id
+    val RookLiftScaffold = SubplanId.RookLiftScaffold.id
+    val AdvantageTransformation = SubplanId.SimplificationConversion.id
+    val ImmediateTacticalGain = SubplanId.ForcingTacticalShot.id
+    val DefenderOverload = SubplanId.DefenderOverload.id
+    val ClearanceBreak = SubplanId.ClearanceBreak.id
+
   case class ActivePlans(
-    primary: PlanMatch,
-    secondary: Option[PlanMatch],
-    suppressed: List[PlanMatch],
-    allPlans: List[PlanMatch],            // Pre-compatibility list for debugging
-    compatibilityEvents: List[CompatibilityEvent] = Nil // Compatibility trace
+      primary: PlanMatch,
+      secondary: Option[PlanMatch],
+      suppressed: List[PlanMatch],
+      allPlans: List[PlanMatch],
+      compatibilityEvents: List[CompatibilityEvent] = Nil
   )
 
-  def matchPlans(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): PlanScoringResult =
-    val allScorers = List(
-      // Attack plans
-      scoreKingsideAttack(motifs, ctx, side),
-      scoreQueensideAttack(motifs, ctx, side),
-      scorePawnStorm(motifs, ctx, side),
-      scorePerpetualCheck(motifs, ctx, side),
-      scoreDirectMate(motifs, ctx, side),
-      // Positional plans
-      scoreCentralControl(motifs, ctx, side),
-      scorePieceActivation(motifs, ctx, side),
-      scoreRookActivation(motifs, ctx, side),
-      // Transition
-      scoreSimplification(motifs, ctx, side),
-      scoreQueenTrade(motifs, ctx, side),
-      // Structural plans
-      scorePassedPawnPush(motifs, ctx, side),
-      scoreBlockade(motifs, ctx, side),
-      scorePawnChain(motifs, side),
-      scoreMinorityAttack(motifs, ctx, side),
-      // Endgame plans
-      scoreKingActivation(motifs, ctx, side),
-      scorePromotion(motifs, side),
-      scoreZugzwang(motifs, ctx, side),
-      // Defensive plans
-      scoreDefensiveConsolidation(motifs, ctx, side),
-      scoreProphylaxis(motifs, ctx, side),
-      // Misc
-      scoreSpaceAdvantage(motifs, ctx, side),
-      scoreSacrifice(motifs, ctx, side),
-      scoreMinorPieceManeuver(motifs, side),
-      scoreFileControl(motifs, ctx, side)
+  private case class SideSnapshot(
+      lockedCenter: Boolean,
+      openCenter: Boolean,
+      space: Int,
+      devLag: Int,
+      lowMobility: Int,
+      kingExposure: Int,
+      oppWeakness: Int,
+      ourPassers: Int,
+      oppPassers: Int,
+      entrenched: Int,
+      rookPawnReady: Boolean,
+      hookChance: Boolean,
+      clamp: Boolean
+  )
+
+  def matchPlans(motifs: List[Motif], ctx: IntegratedContext, side: Color): PlanScoringResult =
+    val s = snapshot(ctx, side)
+    val raw = List(
+      restriction(motifs, ctx, side, s),
+      redeployment(motifs, ctx, side, s),
+      spaceClamp(motifs, ctx, side, s),
+      weaknessFixation(motifs, ctx, side, s),
+      breakPrep(motifs, ctx, side, s),
+      favorableExchange(motifs, ctx, side, s),
+      flankInfrastructure(motifs, ctx, side, s),
+      advantageTransformation(motifs, ctx, side, s),
+      immediateTacticalGain(motifs, ctx, side)
     )
-
-    val rawPlans = allScorers.flatten
-    val (compatiblePlans, events) = applyCompatWithEvents(rawPlans, ctx, side)
-    val prioritizedPlans =
-      if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame) applyEndgamePlanPriority(compatiblePlans)
-      else compatiblePlans
-    val priorSampleKey = ctx.positionKey.orElse(ctx.openingName).getOrElse(s"${ctx.evalCp}:${side.name}:${ctx.phase}")
-    val priorAdjustedPlans =
-      if llmConfig.shouldApplyStrategicPrior(priorSampleKey) then applyStrategicPrior(prioritizedPlans, ctx)
-      else prioritizedPlans
-    val sortedPlans = priorAdjustedPlans.sortBy(-_.score)
-
-    // Fail-closed fallback: always provide at least one plan so renderers and callers
-    // don't need to handle "no plan" as a special case.
+    val (compatible, events) = applyCompatWithEvents(raw, ctx, side)
+    val l1Scores = computeL1PolicyScores(compatible)
+    val annotated = compatible.map(pm => annotateWithL1Score(pm, l1Scores.getOrElse(themeOf(pm), 0.0)))
+    val top = annotated.sortBy(p => -p.score).filter(_.score >= 0.18).take(5)
     val plans =
-      if (sortedPlans.nonEmpty) sortedPlans
+      if top.nonEmpty then top
       else
-        val fallbackPlan =
-          ctx.phaseEnum match
-            case lila.llm.analysis.L3.GamePhaseType.Opening => Plan.PieceActivation(side)
-            case lila.llm.analysis.L3.GamePhaseType.Endgame => Plan.KingActivation(side)
-            case _                                          => Plan.CentralControl(side)
-        List(PlanMatch(fallbackPlan, 0.25, Nil, Nil, Nil, Nil))
+        List(
+          themed(
+            Theme.Redeployment,
+            Plan.PieceActivation(side),
+            0.3,
+            Nil,
+            Nil,
+            Nil,
+            List("need stronger evidence"),
+            subplanId = Some(Subplan.Redeployment)
+          )
+        )
+    PlanScoringResult(plans, plans.head.score, ctx.phase, events)
 
-    val confidence = plans.headOption.map(_.score).getOrElse(0.0)
-
-    PlanScoringResult(
-      topPlans = plans.take(5),
-      confidence = confidence,
-      phase = ctx.phase,
-      compatibilityEvents = events
-    )
-
-  /**
-   * Convert sorted plan list to ActivePlans structure.
-   * Used by TransitionAnalyzer for plan sequence tracking.
-   */
-  def toActivePlans(sortedPlans: List[PlanMatch], events: List[CompatibilityEvent] = Nil): ActivePlans = {
-    val primary = sortedPlans.headOption.getOrElse(
-      PlanMatch(Plan.CentralControl(Color.White), 0.0, Nil)
-    )
+  def toActivePlans(sortedPlans: List[PlanMatch], events: List[CompatibilityEvent] = Nil): ActivePlans =
+    val primary = sortedPlans.headOption.getOrElse(PlanMatch(Plan.CentralControl(Color.White), 0.0, Nil))
     val secondary = sortedPlans.lift(1)
-    val suppressThreshold = primary.score * 0.5
-    val suppressed = sortedPlans.drop(2).filter(_.score < suppressThreshold)
-    
-    ActivePlans(
-      primary = primary,
-      secondary = secondary,
-      suppressed = suppressed,
-      allPlans = sortedPlans,
-      compatibilityEvents = events
-    )
-  }
-  
-  /**
-   * A4: Apply compatibility with event tracking.
-   * Returns (adjusted plans, events log).
-   */
+    val suppressed = sortedPlans.drop(2).filter(_.score < primary.score * 0.5)
+    ActivePlans(primary, secondary, suppressed, sortedPlans, events)
+
   def applyCompatWithEvents(
-    plans: List[PlanMatch], 
-    ctx: IntegratedContext, 
-    side: Color
-  ): (List[PlanMatch], List[CompatibilityEvent]) = {
+      plans: List[PlanMatch],
+      ctx: IntegratedContext,
+      side: Color
+  ): (List[PlanMatch], List[CompatibilityEvent]) =
     import scala.collection.mutable.ListBuffer
-    val events = ListBuffer[CompatibilityEvent]()
-    
-    // Build mutable map for tracking: planName -> current score
-    val scoreMap = scala.collection.mutable.Map[String, Double]()
-    var result = plans.map { p =>
-      scoreMap(p.plan.name) = p.score
-      p.copy()
-    }
-    
-    def logAdjustment(plan: PlanMatch, newScore: Double, reason: String): Unit = {
-      val origScore = scoreMap(plan.plan.name)
-      val delta = newScore - origScore
-      if (delta != 0.0) {
-        val eventType = if (newScore <= 0) "removed" else if (delta > 0) "boosted" else "downweight"
-        events += CompatibilityEvent(plan.plan.name, origScore, newScore, delta, reason, eventType)
-        scoreMap(plan.plan.name) = newScore
+    val events = ListBuffer.empty[CompatibilityEvent]
+
+    def theme(pm: PlanMatch): String =
+      pm.supports.collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:") }.getOrElse("")
+
+    def adjust(list: List[PlanMatch], t: String, factor: Double, reason: String): List[PlanMatch] =
+      list.map { p =>
+        if theme(p) != t then p
+        else
+          val before = p.score
+          val after = clamp(before * factor)
+          if math.abs(after - before) > 1e-6 then
+            events += CompatibilityEvent(
+              planName = p.plan.name,
+              originalScore = before,
+              finalScore = after,
+              delta = after - before,
+              reason = reason,
+              eventType = if after > before then "boosted" else "downweight"
+            )
+          p.copy(score = after)
       }
-    }
-    
-    // --- CONFLICT RULES (⟂ = mutual suppression) ---
-    
-    // Attack ⟂ Simplification
-    if (ctx.tacticalThreatToThem) {
-      result = result.map {
-        case p if p.plan.isInstanceOf[Plan.Simplification] =>
-          val newScore = p.score - 0.5
-          logAdjustment(p, newScore, "conflict: attack ⟂ simplification")
-          p.copy(score = newScore)
-        case p if p.plan.isInstanceOf[Plan.QueenTrade] =>
-          val newScore = p.score - 0.4
-          logAdjustment(p, newScore, "conflict: attack ⟂ queen trade")
-          p.copy(score = newScore)
-        case p => p
+
+    var out = plans
+    val tactical = out.find(theme(_) == Theme.ImmediateTacticalGain).map(_.score).getOrElse(0.0)
+    if tactical >= 0.72 then
+      out.filter(p => theme(p) != Theme.ImmediateTacticalGain).foreach { p =>
+        out = adjust(out, theme(p), 0.48, "override: immediate tactical gain")
       }
+    if ctx.underDefensivePressure then
+      out = adjust(out, Theme.Restriction, 1.15, "defensive pressure boost")
+      out = adjust(out, Theme.FlankInfrastructure, 0.74, "defensive pressure penalty")
+      out = adjust(out, Theme.PawnBreakPreparation, 0.82, "defensive pressure penalty")
+    if ctx.classification.exists(_.simplifyBias.shouldSimplify) && ctx.evalFor(side) >= 80 then
+      out = adjust(out, Theme.FavorableExchange, 1.15, "conversion boost")
+      out = adjust(out, Theme.AdvantageTransformation, 1.12, "conversion boost")
+    if ctx.features.exists(_.centralSpace.openCenter) && kingExposure(ctx.features, side) >= 2 then
+      out = adjust(out, Theme.FlankInfrastructure, 0.72, "open-center flank penalty")
+    (out, events.toList)
+
+  private def restriction(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.18) {
+      case x @ Domination(_, _, _, c, _, _) if c == side => "domination restricts enemy mobility"
+      case x @ Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
+      case x @ OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
     }
-    
-    // Prophylaxis ⟂ Sacrifice
-    if (ctx.tacticalThreatToUs) {
-      result = result.map {
-        case p if p.plan.isInstanceOf[Plan.Sacrifice] =>
-          val newScore = p.score - 0.3
-          logAdjustment(p, newScore, "conflict: threat ⟂ sacrifice")
-          p.copy(score = newScore)
-        case p => p
-      }
+    val score =
+      0.28 +
+        (if ctx.tacticalThreatToUs then 0.22 else 0.0) +
+        (if ctx.strategicThreatToUs then 0.12 else 0.0) +
+        (if s.clamp then 0.14 else 0.0) +
+        (if s.lockedCenter then 0.06 else 0.0) +
+        math.min(0.16, ev.size * 0.05) -
+        (if ctx.tacticalThreatToThem && !ctx.tacticalThreatToUs then 0.08 else 0.0)
+    themed(
+      Theme.Restriction,
+      Plan.Prophylaxis(side, "counterplay"),
+      score,
+      ev,
+      List("prevent opponent plan first"),
+      Option.when(ctx.tacticalThreatToThem && !ctx.tacticalThreatToUs)("forcing tactical line may be stronger").toList,
+      Option.when(!s.clamp && ev.isEmpty)("need stable restraint geometry").toList,
+      subplanId = Some(Subplan.Restriction)
+    )
+
+  private def redeployment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.17) {
+      case x @ Outpost(_, _, c, _, _) if c == side        => "outpost route exists"
+      case x @ Centralization(_, _, c, _, _) if c == side => "centralization improves coordination"
+      case x @ Maneuver(_, _, c, _, _) if c == side       => "quiet maneuver improves worst piece"
+      case x @ RookLift(_, _, _, c, _, _) if c == side    => "rook lift supports redeployment"
     }
-    
-    // Defensive ⟂ Attack
-    val hasDefensive = result.exists(p => p.plan.isInstanceOf[Plan.DefensiveConsolidation] || p.plan.isInstanceOf[Plan.Prophylaxis])
-    val hasAttack = result.exists(p => p.plan.isInstanceOf[Plan.KingsideAttack] || p.plan.isInstanceOf[Plan.QueensideAttack])
-    if (hasDefensive && hasAttack) {
-      val defScore = result.filter(p => p.plan.isInstanceOf[Plan.DefensiveConsolidation] || p.plan.isInstanceOf[Plan.Prophylaxis]).map(_.score).maxOption.getOrElse(0.0)
-      val attScore = result.filter(p => p.plan.isInstanceOf[Plan.KingsideAttack] || p.plan.isInstanceOf[Plan.QueensideAttack]).map(_.score).maxOption.getOrElse(0.0)
-      if (defScore > attScore) {
-        result = result.map {
-          case p if p.plan.isInstanceOf[Plan.KingsideAttack] || p.plan.isInstanceOf[Plan.QueensideAttack] =>
-            val newScore = p.score * 0.5
-            logAdjustment(p, newScore, "conflict: defense > attack")
-            p.copy(score = newScore)
-          case p => p
+    val prefersOutpost =
+      s.entrenched > 0 ||
+        m.exists {
+          case Outpost(_, _, c, _, _) if c == side => true
+          case _                                    => false
         }
-      } else {
-        result = result.map {
-          case p if p.plan.isInstanceOf[Plan.DefensiveConsolidation] || p.plan.isInstanceOf[Plan.Prophylaxis] =>
-            val newScore = p.score * 0.5
-            logAdjustment(p, newScore, "conflict: attack > defense")
-            p.copy(score = newScore)
-          case p => p
+    val prefersRookFileTransfer =
+      !prefersOutpost &&
+        m.exists {
+          case RookLift(_, _, _, c, _, _) if c == side      => true
+          case OpenFileControl(_, c, _, _) if c == side     => true
+          case SemiOpenFileControl(_, c, _, _) if c == side => true
+          case _                                             => false
         }
+    val subplanId =
+      if prefersOutpost then Subplan.OutpostEntrenchment
+      else if prefersRookFileTransfer then Subplan.RookFileTransfer
+      else Subplan.Redeployment
+    val score =
+      (if ThemeDiversityPenalty then 0.32 else 0.28) + // Increased base score (was 0.30/0.26)
+        math.min(0.18, s.devLag * 0.05) +
+        math.min(0.14, s.lowMobility * 0.04) +
+        math.min(0.14, s.entrenched * 0.06) +
+        math.min(0.14, ev.size * 0.04) -
+        (if ctx.tacticalThreatToUs then 0.07 else 0.0)
+    themed(
+      Theme.Redeployment,
+      Plan.PieceActivation(side),
+      score,
+      ev,
+      List("improve worst-placed piece"),
+      Option.when(ctx.tacticalThreatToUs)("defensive urgency may delay reroutes").toList,
+      Option.when(ev.isEmpty && s.devLag <= 1 && s.lowMobility <= 1)("few clear improvement targets").toList,
+      subplanId = Some(subplanId)
+    )
+
+  private def spaceClamp(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.16) {
+      case x @ SpaceAdvantage(c, _, _, _) if c == side                             => "space edge supports clamp"
+      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && isFlank(file)      => "flank pawn advance builds clamp"
+    }
+    val score =
+      0.24 +
+        (if s.space > 0 then math.min(0.20, s.space * 0.05) else -math.min(0.10, s.space.abs * 0.03)) +
+        (if s.clamp then 0.16 else 0.0) +
+        (if s.lockedCenter then 0.06 else 0.0) +
+        math.min(0.14, ev.size * 0.04) -
+        (if s.openCenter && s.kingExposure >= 2 then 0.10 else 0.0)
+    themed(
+      Theme.SpaceClamp,
+      Plan.SpaceAdvantage(side),
+      score,
+      ev,
+      List("space limits opponent freedom"),
+      Option.when(s.openCenter && s.kingExposure >= 2)("open center punishes slow clamp moves").toList,
+      Option.when(!s.clamp && s.space <= 0)("need more pawn-front control first").toList,
+      subplanId = Some(Subplan.SpaceClamp)
+    )
+
+  private def weaknessFixation(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val opp = !side
+    val ev = evidence(m, side, 0.17) {
+      case x @ IsolatedPawn(_, _, c, _, _) if c == opp  => "isolated pawn can be fixed"
+      case x @ BackwardPawn(_, _, c, _, _) if c == opp  => "backward pawn can be fixed"
+      case x @ DoubledPawns(_, c, _, _) if c == opp     => "doubled pawns provide a static target"
+      case x @ Blockade(_, _, _, c, _, _) if c == side  => "blockade supports fixation"
+    }
+    val score =
+      0.23 +
+        math.min(0.24, s.oppWeakness * 0.05) +
+        (if s.hookChance then 0.10 else 0.0) +
+        math.min(0.16, ev.size * 0.05) -
+        (if s.oppWeakness == 0 && ev.isEmpty then 0.05 else 0.0)
+    themed(
+      Theme.WeaknessFixation,
+      Plan.WeakPawnAttack(side, "fixed"),
+      score,
+      ev,
+      List("create and fix long-term targets"),
+      Option.when(ctx.tacticalThreatToUs && !ctx.tacticalThreatToThem)("immediate defense can postpone fixation").toList,
+      Option.when(s.oppWeakness == 0 && ev.isEmpty)("need to induce weakness before attacking it").toList,
+      subplanId = Some(Subplan.WeaknessFixation)
+    )
+
+  private def breakPrep(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.18) {
+      case x @ PawnBreak(_, _, c, _, _) if c == side => "break route is visible"
+      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.C || file == File.D || file == File.E || file == File.F) =>
+        "central pawn move supports break timing"
+    }
+    val pa = ctx.pawnAnalysis
+    val breakFile = pa.flatMap(_.breakFile)
+    val breakLabel = breakFile.map(f => s"$f-break").getOrElse("central")
+    val subplanId =
+      if pa.exists(_.tensionPolicy == TensionPolicy.Maintain) then Subplan.TensionMaintenance
+      else if breakFile.exists(isWingBreakFile) then Subplan.WingBreakTiming
+      else Subplan.PawnBreakPreparation
+    val score =
+      (if ThemeDiversityPenalty then 0.30 else 0.26) + // Increased base score (was 0.28/0.24)
+        (if pa.exists(_.pawnBreakReady) then 0.24 else 0.0) +
+        (if pa.exists(_.tensionPolicy == TensionPolicy.Maintain) then 0.06 else 0.0) +
+        (if pa.exists(_.tensionPolicy == TensionPolicy.Release) then 0.10 else 0.0) +
+        math.min(0.12, ctx.features.map(_.centralSpace.pawnTensionCount).getOrElse(0) * 0.03) +
+        math.min(0.16, ev.size * 0.05) -
+        (if ctx.tacticalThreatToUs then 0.08 else 0.0)
+    themed(
+      Theme.PawnBreakPreparation,
+      Plan.PawnBreakPreparation(side, breakLabel),
+      score,
+      ev,
+      List("prepare structure change before committing"),
+      Option.when(ctx.tacticalThreatToUs)("defensive tasks delay break prep").toList,
+      Option.when(!pa.exists(_.pawnBreakReady))("break preconditions not fully met").toList,
+      subplanId = Some(subplanId)
+    )
+
+  private def favorableExchange(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.17) {
+      case x @ Capture(_, _, _, t, c, _, _, _) if c == side &&
+          (t == CaptureType.Exchange || t == CaptureType.Recapture || t == CaptureType.Winning) =>
+        "capture pattern supports favorable exchange"
+      case x @ RemovingTheDefender(_, _, _, _, c, _, _) if c == side => "defender removal supports exchange design"
+    }
+    val evalEdge = ctx.evalFor(side)
+    val simplifyWindow = ctx.classification.exists(_.simplifyBias.shouldSimplify)
+    val score =
+      0.20 +
+        (if simplifyWindow then 0.20 else 0.0) +
+        (if evalEdge >= 80 then 0.10 else if evalEdge <= -80 then -0.08 else 0.0) +
+        math.min(0.15, ev.size * 0.05)
+    themed(
+      Theme.FavorableExchange,
+      Plan.Exchange(side, "favorable simplification"),
+      score,
+      ev,
+      List("exchange only when structure improves"),
+      Option.when(evalEdge <= -80)("behind on eval; simplification may help opponent").toList,
+      Option.when(!simplifyWindow && ev.isEmpty)("need clear exchange asymmetry first").toList,
+      subplanId = Some(Subplan.FavorableExchange)
+    )
+
+  private def flankInfrastructure(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.19) {
+      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.A || file == File.H) =>
+        "rook pawn advance builds flank infrastructure"
+      case x @ RookLift(_, _, _, c, _, _) if c == side => "rook lift supports flank pressure"
+      case x @ PawnChain(_, _, c, _, _) if c == side   => "pawn chain anchors flank expansion"
+    }
+    val hasRookLiftSignal =
+      m.exists {
+        case RookLift(_, _, _, c, _, _) if c == side => true
+        case _                                        => false
       }
+    val hasHookSignal =
+      s.hookChance ||
+        m.exists {
+          case PawnChain(_, _, c, _, _) if c == side => true
+          case PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.B || file == File.G) =>
+            true
+          case _ => false
+        }
+    val subplanId =
+      if hasRookLiftSignal then Subplan.RookLiftScaffold
+      else if hasHookSignal && (!s.rookPawnReady || ev.size <= 1) then Subplan.HookCreation
+      else Subplan.FlankInfrastructure
+    val flank = if s.rookPawnReady || s.hookChance then "kingside" else "queenside"
+    val score =
+      0.16 + // Reduce base score (was 0.22)
+        (if s.rookPawnReady then (if ThemeDiversityPenalty then 0.08 else 0.12) else 0.0) +
+        (if s.hookChance then (if ThemeDiversityPenalty then 0.04 else 0.08) else 0.0) +
+        math.min(0.25, ev.size * 0.10) - // Increase motif evidence cap from 0.18->0.25 and scaling from 0.06->0.10
+        (if s.openCenter && s.kingExposure >= 2 then 0.12 else 0.0) -
+        (if ctx.tacticalThreatToUs then 0.08 else 0.0)
+    themed(
+      Theme.FlankInfrastructure,
+      Plan.PawnStorm(side, flank),
+      score,
+      ev,
+      List("build attack infrastructure before direct assault"),
+      List(
+        Option.when(s.openCenter && s.kingExposure >= 2)("open center + king exposure can refute flank race"),
+        Option.when(ctx.tacticalThreatToUs)("urgent defense may override flank plan")
+      ).flatten,
+      Option.when(!s.rookPawnReady && !s.hookChance)("need hook/lever before commitment").toList,
+      subplanId = Some(subplanId)
+    )
+
+  private def advantageTransformation(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, side, 0.17) {
+      case x @ PassedPawnPush(_, _, c, _, _) if c == side    => "passed pawn can convert dynamic edge"
+      case x @ RookBehindPassedPawn(_, c, _, _) if c == side => "rook behind passer supports conversion"
+      case x @ SeventhRankInvasion(c, _, _) if c == side     => "seventh-rank activity helps conversion"
     }
-    
-    // --- SYNERGY RULES (↔ = mutual boost) ---
-    
-    val hasBlockade = result.exists(_.plan.isInstanceOf[Plan.Blockade])
-    val hasSimplification = result.exists(_.plan.isInstanceOf[Plan.Simplification])
-    if (hasBlockade && hasSimplification && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame && ctx.evalFor(side) > 100) {
-      result = result.map {
-        case p if p.plan.isInstanceOf[Plan.Blockade] =>
-          val newScore = p.score + 0.2
-          logAdjustment(p, newScore, "synergy: blockade ↔ simplification (endgame)")
-          p.copy(score = newScore)
-        case p if p.plan.isInstanceOf[Plan.Simplification] =>
-          val newScore = p.score + 0.2
-          logAdjustment(p, newScore, "synergy: blockade ↔ simplification (endgame)")
-          p.copy(score = newScore)
-        case p => p
+    val evalEdge = ctx.evalFor(side)
+    val score =
+      0.22 +
+        (if evalEdge.abs >= 70 then 0.14 else 0.0) +
+        (if s.ourPassers > s.oppPassers then 0.10 else 0.0) +
+        (if ctx.classification.exists(_.simplifyBias.shouldSimplify) then 0.10 else 0.0) +
+        math.min(0.16, ev.size * 0.05)
+    themed(
+      Theme.AdvantageTransformation,
+      Plan.Simplification(side),
+      score,
+      ev,
+      List("convert one advantage form into another"),
+      Nil,
+      Option.when(evalEdge.abs < 40 && ev.isEmpty)("need clearer imbalance before transformation").toList,
+      subplanId = Some(Subplan.AdvantageTransformation)
+    )
+
+  private def immediateTacticalGain(m: List[Motif], ctx: IntegratedContext, side: Color): PlanMatch =
+    val ev = evidence(m, side, 0.20) {
+      case x @ Motif.Check(_, _, _, c, _, _) if c == side                   => "forcing check sequence exists"
+      case x @ Fork(_, _, _, _, c, _, _) if c == side                        => "fork gives immediate tactical gains"
+      case x @ Pin(_, _, _, c, _, _, _, _, _) if c == side                   => "pin creates forcing pressure"
+      case x @ Skewer(_, _, _, c, _, _, _, _, _) if c == side                => "skewer creates forcing pressure"
+      case x @ DiscoveredAttack(_, _, _, c, _, _, _, _, _) if c == side     => "discovered attack increases forcing value"
+      case x @ Capture(_, _, _, t, c, _, _, _) if c == side &&
+          (t == CaptureType.Winning || t == CaptureType.Sacrifice || t == CaptureType.ExchangeSacrifice) =>
+        "forcing capture sequence is available"
+    }
+    val overloadSignal =
+      m.exists {
+        case Overloading(_, _, _, c, _, _) if c == side           => true
+        case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => true
+        case Deflection(_, _, c, _, _) if c == side               => true
+        case _                                                    => false
       }
-    }
-    
-    val hasSpace = result.exists(_.plan.isInstanceOf[Plan.SpaceAdvantage])
-    val hasProphylaxis = result.exists(_.plan.isInstanceOf[Plan.Prophylaxis])
-    if (hasSpace && hasProphylaxis && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Middlegame) {
-      result = result.map {
-        case p if p.plan.isInstanceOf[Plan.Prophylaxis] =>
-          val newScore = p.score + 0.1
-          logAdjustment(p, newScore, "synergy: space ↔ prophylaxis")
-          p.copy(score = newScore)
-        case p => p
-      }
-    }
-    
-    // Filter and log removed plans
-    val (kept, removed) = result.partition(_.score > 0)
-    removed.foreach { _ =>
-      // Already logged as "removed" when score went <= 0
-    }
-    
-    (kept, events.toList)
-  }
+    val clearanceSignal =
+      !overloadSignal &&
+        m.exists {
+          case Clearance(_, _, _, _, c, _, _) if c == side => true
+          case Interference(_, _, _, _, c, _, _) if c == side => true
+          case _ => false
+        }
+    val subplanId =
+      if overloadSignal then Subplan.DefenderOverload
+      else if clearanceSignal then Subplan.ClearanceBreak
+      else Subplan.ImmediateTacticalGain
+    val tacticalCount = m.count(mm => mm.category == MotifCategory.Tactical && mm.color == side)
+    val score =
+      0.18 +
+        math.min(0.28, tacticalCount * 0.06) +
+        (if ctx.tacticalThreatToThem then 0.22 else 0.0) +
+        (if ctx.maxThreatLossToThem >= Thresholds.URGENT_THREAT_CP then 0.10 else 0.0) +
+        math.min(0.18, ev.size * 0.06) -
+        (if ctx.tacticalThreatToUs && !ctx.tacticalThreatToThem then 0.12 else 0.0)
+    themed(
+      Theme.ImmediateTacticalGain,
+      Plan.Counterplay(side, "immediate tactical gain"),
+      score,
+      ev,
+      List("forcing line takes priority when available"),
+      Option.when(ctx.tacticalThreatToUs && !ctx.tacticalThreatToThem)("opponent threat can override our tactic").toList,
+      Option.when(tacticalCount == 0 && !ctx.tacticalThreatToThem)("no forcing tactical edge detected").toList,
+      subplanId = Some(subplanId)
+    )
 
-  private def applyStrategicPrior(plans: List[PlanMatch], ctx: IntegratedContext): List[PlanMatch] =
-    val priorWeight = llmConfig.strategicPriorWeight.max(0.0).min(0.8)
-    plans.map { p =>
-      val prior = StrategicPrior.score(
-        planId = p.plan.id.toString,
-        features = strategicPriorFeatures(p, ctx)
-      )
-      val blended = ((1.0 - priorWeight) * p.score) + (priorWeight * prior)
-      p.copy(score = blended.max(0.0))
-    }
+  private def themed(
+      themeId: String,
+      plan: Plan,
+      score: Double,
+      evidence: List[EvidenceAtom],
+      supports: List[String],
+      blockers: List[String],
+      missing: List[String],
+      subplanId: Option[String] = None
+  ): PlanMatch =
+    PlanMatch(
+      plan = plan,
+      score = clamp(score),
+      evidence = evidence.take(4),
+      supports = (List(s"theme:$themeId") ++ subplanId.map(id => s"subplan:$id") ++ supports).distinct.take(8),
+      blockers = blockers.distinct.take(4),
+      missingPrereqs = missing.distinct.take(3)
+    )
 
-  private def strategicPriorFeatures(p: PlanMatch, ctx: IntegratedContext): Map[String, Double] =
-    val executionEase = (1.0 - ((p.blockers.size.min(3).toDouble * 0.2) + (p.missingPrereqs.size.min(3).toDouble * 0.2))).max(0.0)
-    StrategicPriorFeatures.fromContext(p.plan.color, ctx, executionEase)
+  private def themeOf(pm: PlanMatch): String =
+    pm.supports.collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:") }.getOrElse("")
 
-  private def scoreKingsideAttack(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val relevantMotifs = motifs.filter:
-      case m: PawnAdvance   => m.file.isKingside
-      case m: RookLift      => m.file.isKingside
-      case m: Motif.Check   => m.targetSquare.file.isKingside
-      case _: PieceLift     => true
-      case m: Fork          => m.targets.contains(King)
-      case _                => false
-
-    // P1 FIX: Flank attacks require more evidence in the opening
-    if (relevantMotifs.isEmpty || (ctx.phase == "opening" && relevantMotifs.size < 2)) None
+  private def computeL1PolicyScores(plans: List[PlanMatch]): Map[String, Double] =
+    val nonNegative = plans.map(p => p -> p.score.max(0.0))
+    val total = nonNegative.map(_._2).sum
+    if total <= 1e-9 then Map.empty
     else
-      val baseScore = relevantMotifs.size * 0.2
-      val phaseMultiplier = ctx.phaseEnum match
-        case lila.llm.analysis.L3.GamePhaseType.Opening    => 0.7
-        case lila.llm.analysis.L3.GamePhaseType.Middlegame => 1.4
-        case lila.llm.analysis.L3.GamePhaseType.Endgame    => 0.5
+      nonNegative
+        .groupBy((p, _) => themeOf(p))
+        .view
+        .mapValues(v => v.map(_._2).sum / total)
+        .toMap
 
-      val evidence = relevantMotifs.take(3).map: m =>
-        EvidenceAtom(m, 0.2, s"Kingside pressure: ${m.move.getOrElse("")}")
+  private def annotateWithL1Score(pm: PlanMatch, l1Score: Double): PlanMatch =
+    val cleaned = pm.supports.filterNot(_.startsWith("l1_score:"))
+    pm.copy(supports = (cleaned :+ f"l1_score:${l1Score.max(0.0).min(1.0)}%.3f").distinct)
 
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val enemyKing = if (side == White) f.kingSafety.blackKingExposedFiles else f.kingSafety.whiteKingExposedFiles
-        val ourAttackers = if (side == White) f.kingSafety.whiteAttackersCount else f.kingSafety.blackAttackersCount
-        val enemyShield = if (side == White) f.kingSafety.blackKingShield else f.kingSafety.whiteKingShield
-
-        if (enemyKing > 0) supports += "Opponent king exposed"
-        if (ourAttackers >= 2) supports += s"$ourAttackers pieces near king zone"
-        
-        if (enemyShield >= 2) blockers += "Strong defensive pawn shield"
-        if (f.centralSpace.pawnTensionCount > 0) blockers += "Unstable center"
-        
-        if (ourAttackers < 2) missing += "Need more pieces in the attack zone"
-        if (f.centralSpace.lockedCenter == false && f.centralSpace.openCenter == false) missing += "Center should be stabilized"
-      }
-
-      Some(PlanMatch(
-        Plan.KingsideAttack(side), 
-        baseScore * phaseMultiplier, 
-        evidence,
-        supports.toList,
-        blockers.toList,
-        missing.toList
-      ))
-
-  private def scoreQueensideAttack(
+  private def evidence(
       motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val relevantMotifs = motifs.filter:
-      case m: PawnAdvance => m.file.isQueenside
-      case m: PawnBreak   => m.targetFile.isQueenside
-      case m: RookLift    => m.file.isQueenside
-      case _              => false
-
-    // P1 FIX: Flank attacks require more evidence in the opening
-    if (relevantMotifs.isEmpty || (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening && relevantMotifs.size < 2)) None
-    else
-      val baseScore = relevantMotifs.size * 0.25
-      val phaseMultiplier = ctx.phaseEnum match
-        case lila.llm.analysis.L3.GamePhaseType.Middlegame => 1.2
-        case lila.llm.analysis.L3.GamePhaseType.Endgame    => 0.8
-        case _                                             => 1.0
-
-      val evidence = relevantMotifs.take(3).map: m =>
-        EvidenceAtom(m, 0.25, s"Queenside expansion: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val mobility = if (side == White) f.activity.whitePseudoMobility else f.activity.blackPseudoMobility
-
-        if (mobility > 30) supports += "High overall piece mobility"
-        if (f.imbalance.whiteBishopPair && side == White) supports += "Bishop pair favors open play"
-
-        if (f.centralSpace.lockedCenter) blockers += "Locked center limits flank activity"
-        
-        if (f.lineControl.openFilesCount == 0) missing += "Need to open files for major pieces"
-      }
-
-      Some(PlanMatch(
-        Plan.QueensideAttack(side), 
-        baseScore * phaseMultiplier, 
-        evidence,
-        supports.toList,
-        blockers.toList,
-        missing.toList
-      ))
-
-  private def scorePawnStorm(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val pawnAdvances = motifs.collect { case m: PawnAdvance => m }
-    val kingsidePawns = pawnAdvances.filter(_.file.isKingside)
-    val queensidePawns = pawnAdvances.filter(_.file.isQueenside)
-
-    val (stormSide, stormPawns) = 
-      if (kingsidePawns.size >= 2) ("kingside", kingsidePawns)
-      else if (queensidePawns.size >= 2) ("queenside", queensidePawns)
-      else return None
-
-    // Only in middlegame/endgame
-    if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening) return None
-
-    val evidence = stormPawns.take(3).map: m =>
-      EvidenceAtom(m, 0.3, s"Pawn storm: ${m.move.getOrElse("")}")
-
-    val supports = scala.collection.mutable.ListBuffer[String]()
-    val blockers = scala.collection.mutable.ListBuffer[String]()
-    val missing = scala.collection.mutable.ListBuffer[String]()
-
-    ctx.features.foreach { f =>
-      val enemyKingSide = if (side == White) f.kingSafety.blackCastledSide == "short" else f.kingSafety.whiteCastledSide == "short"
-      if (stormSide == "kingside" && enemyKingSide) supports += "Attacking castled king"
-      
-      if (f.centralSpace.pawnTensionCount > 0) blockers += "Counterplay in center exists"
-      
-      if (stormPawns.size < 3) missing += "Need more pawns to commit to the storm"
-    }
-
-    Some(PlanMatch(
-      Plan.PawnStorm(side, stormSide), 
-      stormPawns.size * 0.3, 
-      evidence,
-      supports.toList,
-      blockers.toList,
-      missing.toList
-    ))
-
-  private def scorePerpetualCheck(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val checks = motifs.collect { case m: Motif.Check => m }
-    // Need 3+ checks and eval near 0 (drawish) to suggest perpetual
-    if (checks.size >= 3 && ctx.evalCp.abs < 50)
-      val evidence = checks.take(3).map: m =>
-        EvidenceAtom(m, 1.0, s"Repetitive check: ${m.move.getOrElse("")}")
-      
-      val supports = List("Continuous checking sequence possible")
-      val blockers = List("Opponent king may find a safe square")
-      
-      Some(PlanMatch(Plan.PerpetualCheck(side), 1.0, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreDirectMate(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val checks = motifs.collect { case m: Motif.Check => m }
-    // P1 FIX: Detect if immediate mate is present in threats
-    // We check threatsToThem because DirectMate is an attacking plan for 'side'
-    val hasImmediateMate = ctx.threatsToThem.exists(_.threats.exists(t => 
-      t.kind == lila.llm.analysis.L3.ThreatKind.Mate && t.turnsToImpact <= 2
-    ))
-    val evalForSide = ctx.evalFor(side)
-
-    if (hasImmediateMate || (checks.nonEmpty && evalForSide > 500))
-      val evidence = checks.take(3).map: m =>
-        EvidenceAtom(m, 1.0, s"Mating attack: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val ourAttackers = if (side == White) f.kingSafety.whiteAttackersCount else f.kingSafety.blackAttackersCount
-        val enemyEscapes = if (side == White) f.kingSafety.blackEscapeSquares else f.kingSafety.whiteEscapeSquares
-        
-        if (ourAttackers >= 3) supports += "Sufficient attacking force near king"
-        if (enemyEscapes == 0) supports += "Opponent king has limited mobility"
-        
-        if (enemyEscapes > 2) blockers += "Opponent king has multiple escape routes"
-        if (f.centralSpace.pawnTensionCount > 0) blockers += "Unresolved central tension may grant counterplay"
-
-        if (ourAttackers < 3) missing += "Need to bring more pieces into the attack"
-      }
-
-      // Strong boost for forced mate
-      val finalScore = if (hasImmediateMate) 5.0 else 1.5
-
-      Some(PlanMatch(Plan.DirectMate(side), finalScore, evidence, supports.toList, blockers.toList, missing.toList))
-    else None
-
-  private def scoreCentralControl(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val relevantMotifs = motifs.filter:
-      case m: PawnAdvance    => m.file.isCentral
-      case _: Centralization => true
-      case _: Outpost        => true
-      case _                 => false
-
-    if (relevantMotifs.isEmpty) None
-    else
-      val baseScore = relevantMotifs.size * 0.3
-      val phaseMultiplier = ctx.phaseEnum match
-        case lila.llm.analysis.L3.GamePhaseType.Opening => 1.5
-        case _                                          => 0.8
-
-      val evidence = relevantMotifs.take(3).map: m =>
-        EvidenceAtom(m, 0.3, s"Central influence: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val ourControl = if (side == White) f.centralSpace.whiteCenterControl else f.centralSpace.blackCenterControl
-        val ourPawns = if (side == White) f.centralSpace.whiteCentralPawns else f.centralSpace.blackCentralPawns
-        val ourMobility = if (side == White) f.activity.whiteMinorPieceMobility else f.activity.blackMinorPieceMobility
-        val devLag = if (side == White) f.activity.whiteDevelopmentLag else f.activity.blackDevelopmentLag
-
-        if (ourControl >= 3) supports += "Strong central square control"
-        if (ourPawns >= 2) supports += "Solid central pawn structure"
-        
-        if (f.centralSpace.pawnTensionCount > 0) blockers += "Central tension requires resolution"
-        if (f.centralSpace.lockedCenter) blockers += "Center is locked"
-        
-        if (devLag > 0) missing += "Completion of development needed"
-        if (ourMobility < 5) missing += "Piece mobility in center is restricted"
-      }
-
-      Some(PlanMatch(
-        Plan.CentralControl(side), 
-        baseScore * phaseMultiplier, 
-        evidence,
-        supports.toList,
-        blockers.toList,
-        missing.toList
-      ))
-
-  private def scorePieceActivation(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val relevantMotifs = motifs.filter:
-      case _: Fianchetto     => true
-      case _: Outpost        => true
-      case _: Centralization => true
-      case _: PieceLift      => true
-      case _: Pin            => true
-      case _: Maneuver       => true
-      case _                 => false
-
-    val minEvidence = if ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening then 1 else 2
-    if (relevantMotifs.size < minEvidence) None
-    else
-      val baseScore = relevantMotifs.size * 0.25
-      val evidence = relevantMotifs.take(3).map: m =>
-        EvidenceAtom(m, 0.25, s"Piece development: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val lag = if (side == White) f.activity.whiteDevelopmentLag else f.activity.blackDevelopmentLag
-        val mobility = if (side == White) f.activity.whitePseudoMobility else f.activity.blackPseudoMobility
-        
-        if (mobility < 25) supports += "Significant room for activity improvement"
-        if (lag > 0) supports += s"$lag pieces waiting to be developed"
-        
-        if (f.centralSpace.lockedCenter) blockers += "Closed center limits piece maneuvering"
-        
-        if (lag > 0) missing += "Back-rank pieces need to find active roles"
-      }
-
-      Some(PlanMatch(Plan.PieceActivation(side), baseScore, evidence, supports.toList, blockers.toList, missing.toList))
-
-  private def scoreRookActivation(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val rookMotifs = motifs.collect { 
-      case m: RookLift => m 
-      case m: DoubledPieces if m.role == Rook => m
-    }
-
-    if (rookMotifs.isEmpty) None
-    else
-      val evidence = rookMotifs.take(2).map: m =>
-        EvidenceAtom(m, 0.4, s"Rook activation: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val ourRooks = if (side == White) f.imbalance.whiteRooks else f.imbalance.blackRooks
-        val openFiles = f.lineControl.openFilesCount
-        
-        if (openFiles > 0) supports += s"$openFiles open files available for rooks"
-        if (ourRooks >= 2) supports += "Opportunity for rook doubling"
-        
-        if (openFiles == 0) blockers += "Lack of open files for rook activity"
-        
-        if (openFiles == 0) missing += "Need to open files via pawn breaks"
-      }
-
-      Some(PlanMatch(Plan.RookActivation(side), rookMotifs.size * 0.4, evidence, supports.toList, blockers.toList, missing.toList))
-
-  private def scorePassedPawnPush(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    // Filter by side color to avoid counting opponent's pawn advances
-    val pawnMotifs = motifs.collect { 
-      case m: PawnAdvance if m.color == side && m.relativeTo >= 5 => m
-      case m: PassedPawnPush if m.color == side => m
-      case m: PawnPromotion if m.color == side => m
-    }
-
-    val isAdvanced = pawnMotifs.exists {
-      case m: PassedPawnPush => Motif.relativeRank(m.toRank, side) >= 6
-      case m: PawnAdvance => m.relativeTo >= 6
-      case _: PawnPromotion => true
-      case _ => false
-    }
-
-    if (pawnMotifs.isEmpty || (ctx.phaseEnum != lila.llm.analysis.L3.GamePhaseType.Endgame && !isAdvanced)) None
-    else
-      val evidence = pawnMotifs.take(2).map: m =>
-        EvidenceAtom(m, 0.5, s"Passed pawn advance: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val ourPassers = if (side == White) f.pawns.whitePassedPawns else f.pawns.blackPassedPawns
-        val ourPasserRank = if (side == White) f.pawns.whitePassedPawnRank else f.pawns.blackPassedPawnRank
-        val ourRookOn7th = if (side == White) f.lineControl.whiteRookOn7th else f.lineControl.blackRookOn7th
-
-        if (ourPassers > 0) supports += s"$ourPassers passed pawns"
-        if (ourPasserRank >= 6) supports += "Highly advanced passed pawn"
-        if (ourRookOn7th) supports += "Rook on 7th rank supports advance"
-
-        if (ctx.pawnAnalysis.exists(_.blockadeSquare.isDefined)) blockers += "Passed pawn is currently blockaded"
-        
-        if (ctx.phaseEnum != lila.llm.analysis.L3.GamePhaseType.Endgame) missing += "Plan is most effective in endgame"
-        if (ourPassers == 0) missing += "Need to create a passed pawn first"
-        if (f.kingSafety.whiteCastledSide == "none" && side == White) missing += "King activation needed"
-      }
-      
-      // Additional gating: suppress if no passers and no advanced pawns
-      val ourPassers = ctx.features.map(f => if (side == White) f.pawns.whitePassedPawns else f.pawns.blackPassedPawns).getOrElse(0)
-      val finalScore = (0.8 + (if (isAdvanced) 0.5 else 0.0) + (if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame) 0.4 else 0.0)) * (if (ourPassers > 0) 1.0 else 0.3)
-
-      Some(PlanMatch(
-        Plan.PassedPawnPush(side), 
-        finalScore, 
-        evidence,
-        supports.toList,
-        blockers.toList,
-        missing.toList
-      ))
-
-  private def scoreKingActivation(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val kingMoves = motifs.collect:
-      case m: KingStep if m.stepType == KingStepType.Activation => m
-
-    if (ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame && kingMoves.nonEmpty)
-      val evidence = kingMoves.take(2).map: m =>
-        EvidenceAtom(m, 0.4, s"King march: ${m.move.getOrElse("")}")
-      
-      val supports = List("Endgame phase permits king activity", "King can support passed pawns")
-      val blockers = List("Remaining enemy major pieces posed a threat")
-      
-      Some(PlanMatch(Plan.KingActivation(side), 0.7 + kingMoves.size * 0.1, evidence, supports, blockers, Nil))
-    else None
-
-  private def scorePromotion(
-      motifs: List[Motif],
-      side: Color
-  ): Option[PlanMatch] =
-    val promoMotifs = motifs.collect { case m: PawnPromotion => m }
-
-    if (promoMotifs.nonEmpty)
-      val evidence = promoMotifs.map: m =>
-        EvidenceAtom(m, 1.0, s"Promotion: ${m.move.getOrElse("")}")
-      
-      val supports = List("Pawn has reached the penultimate rank", "Clear path to promotion")
-      val blockers = List("Opponent pieces blockading the square")
-      val missing = List("Need to deflect the blockader")
-      
-      Some(PlanMatch(Plan.Promotion(side), 1.2, evidence, supports, blockers, missing))
-    else None
-
-  private def scoreDefensiveConsolidation(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val defensiveMotifs = motifs.filter:
-      case m: KingStep if m.stepType == KingStepType.ToCorner => true
-      case m: KingStep if m.stepType == KingStepType.Evasion => true
-      case _: Castling => true
-      case m: Capture if m.captureType == CaptureType.Exchange => true
-      case _ => false
-
-    if (defensiveMotifs.size < 2) None
-    else
-      val evidence = defensiveMotifs.take(2).map: m =>
-        EvidenceAtom(m, 0.3, s"Defensive move: ${m.move.getOrElse("")}")
-
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-
-      ctx.features.foreach { f =>
-        val ourKingExposed = if (side == White) f.kingSafety.whiteKingExposedFiles else f.kingSafety.blackKingExposedFiles
-        val ourBackRankWeak = if (side == White) f.kingSafety.whiteBackRankWeakness else f.kingSafety.blackBackRankWeakness
-
-        if (ourKingExposed == 0) supports += "Solid pawn wall around king"
-        if (!ourBackRankWeak) supports += "Healthy back rank"
-
-        if (ourKingExposed > 1) blockers += "Significant king exposure"
-        if (ourBackRankWeak) blockers += "Vulnerable back rank"
-
-        if (ctx.evalFor(side) < -100) missing += "Material deficit makes consolidation difficult"
-      }
-
-      Some(PlanMatch(
-        Plan.DefensiveConsolidation(side), 
-        defensiveMotifs.size * 0.3, 
-        evidence,
-        supports.toList,
-        blockers.toList,
-        missing.toList
-      ))
-
-  private def scoreProphylaxis(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-     // DESIGN: Prophylaxis uses threatsToUs (threats opponent makes TO US)
-     // because it represents defensive preparation against incoming threats.
-     val needProphylaxis = ctx.threatsToUs.exists(_.defense.prophylaxisNeeded)
-     
-     val defensiveMoves = motifs.collect {
-       case m: KingStep if m.stepType == KingStepType.ToCorner => m
-       case m: KingStep if m.stepType == KingStepType.Evasion => m
-       case m: RookLift => m 
-     }
-     
-     if (needProphylaxis && defensiveMoves.nonEmpty)
-       val topThreat = ctx.threatsToUs.flatMap(_.threats.sortBy(_.lossIfIgnoredCp).reverse.headOption)
-       val threatDesc = topThreat.map(t => s"neutralize ${t.kind.toString.toLowerCase} threat within ${t.turnsToImpact} turns").getOrElse("neutralize upcoming threat")
-       val evidence = defensiveMoves.map(m => EvidenceAtom(m, 0.6, s"Prophylactic maneuver to $threatDesc"))
-       
-       val supports = List("Threat identified early", "Resources available for defense")
-       val blockers = List("Defensive move may concede initiative")
-       
-       Some(PlanMatch(Plan.Prophylaxis(side, "Attack"), 0.8, evidence, supports, blockers, Nil))
-     else if (ctx.evalFor(side) < -50 && defensiveMoves.nonEmpty)
-       // Fallback for general defensive posture
-       val evidence = defensiveMoves.map(m => EvidenceAtom(m, 0.4, "Defensive repositioning"))
-       Some(PlanMatch(Plan.Prophylaxis(side, "Attack"), 0.5, evidence, List("General defensive posture"), Nil, Nil))
-     else None
-
-  private def scoreSimplification(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val simplifyBias = ctx.classification.exists(_.simplifyBias.shouldSimplify)
-    val winning = ctx.evalFor(side) > 200 // +2.0 pawn advantage
-    
-    // CHESS-CORRECT GATING:
-    // - BLOCK if we hold attacking threats (simplification wastes attack)
-    // - ALLOW (even encourage) if we're under defensive pressure (simplification relieves pressure)
-    val attackOpportunityAtRisk = ctx.attackingOpportunityAtRisk
-    val reliefBonus = if (ctx.simplificationReliefPossible) 0.3 else 0.0
-    
-    val exchanges = motifs.collect { case m: Capture if m.captureType == CaptureType.Exchange => m }
-    
-    if ((simplifyBias || winning) && !attackOpportunityAtRisk && exchanges.nonEmpty)
-      val evidence = exchanges.map(m => EvidenceAtom(m, 0.8, s"Simplifying exchange to capitalize on +${ctx.evalFor(side)}cp lead"))
-      val supports = List("Winning material advantage", "Reduced complexity increases win probability")
-      val blockers = List("Exchanging active pieces for passive ones")
-      Some(PlanMatch(Plan.Simplification(side), 1.0 + exchanges.size * 0.2 + reliefBonus, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreQueenTrade(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val queenTrades = motifs.collect { case m: Capture if m.captured == Queen => m }
-    val drawish = ctx.classification.exists(_.drawBias.tendsToDraw)
-    val winning = ctx.evalFor(side) > 150 
-    
-    // CHESS-CORRECT: Don't trade queens if we hold attacking threats (mate threats, etc.)
-    val attackOpportunityAtRisk = ctx.attackingOpportunityAtRisk
-    
-    // P1 FIX: Only trade queens if both sides HAVE queens
-    val countQueens = ctx.features.map(f => f.imbalance.whiteQueens + f.imbalance.blackQueens).getOrElse(0)
-    
-    if (queenTrades.nonEmpty && (winning || drawish) && !attackOpportunityAtRisk && countQueens >= 2)
-      val reason = if (winning) "Simplification (Winning)" else "Transition to Draw"
-      val evidence = queenTrades.map(m => EvidenceAtom(m, 1.0, s"Queen exchange: $reason"))
-      val supports = List("Neutralizes opponent's dynamic potential", "Solidifies structural advantage")
-      val blockers = List("Losing own attacking potential")
-      Some(PlanMatch(Plan.QueenTrade(side), 1.2, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreBlockade(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    // Blockade is a plan for the DEFENDER.
-    // We suggest it if the OPPONENT has a passed pawn that is blockaded.
-    val isOpponentPasserBlocked = ctx.opponentPawnAnalysis.exists((a: PawnPlayAnalysis) => a.passerBlockade)
-    
-    if (isOpponentPasserBlocked)
-      val pAnalysis = ctx.opponentPawnAnalysis
-      val blockadeSq = pAnalysis.flatMap(_.blockadeSquare).map(_.key).getOrElse("passer")
-      val blockadePiece = pAnalysis.flatMap(_.blockadeRole).map(_.name).getOrElse("piece")
-      
-      // Motif-based evidence (high-quality narrative)
-      val motifEvidence = motifs.collect {
-        case m: Centralization => EvidenceAtom(m, 0.7, s"Blockading ${m.piece.name} on ${m.square.key} (Centralized)")
-        case m: Outpost => EvidenceAtom(m, 0.8, s"Establishing outpost for ${m.piece.name} on ${m.square.key} in front of passer")
-      }
-      
-      val blockadeSquareStr = pAnalysis.flatMap(_.blockadeSquare).map(_.key).getOrElse {
-        motifs.collectFirst {
-          case m: Centralization => m.square.key
-          case m: Outpost => m.square.key
-        }.getOrElse("passer")
-      }
-      val phase3Evidence = if (pAnalysis.exists(a => a.blockadeSquare.isDefined && a.blockadeRole.isDefined)) {
-        List(EvidenceAtom(Zugzwang(side, 0, None), 0.5, s"Passed pawn successfully blockaded by $blockadePiece on $blockadeSq"))
-      } else {
-        // Generic evidence when Phase 3 data is missing
-        List(EvidenceAtom(Zugzwang(side, 0, None), 0.3, "Passed pawn advance halted"))
-      }
-      
-      val finalEvidence = (motifEvidence ++ phase3Evidence).distinct
-      
-      // EVIDENCE-BASED SCORE: Lower score without detailed evidence (defensive design)
-      val hasDetailedEvidence = pAnalysis.exists(a => a.blockadeSquare.isDefined && a.blockadeRole.isDefined)
-      val baseScore = if (hasDetailedEvidence) 0.9 else 0.7
-      val supports = List("Halts passed pawn advance", "Blockading piece is safe (Outpost/Centralized)")
-      val blockers = List("Blockading piece is tied down to defense")
-      val missing = if (!hasDetailedEvidence) List("Need to secure the blockade square") else Nil
-
-      Some(PlanMatch(Plan.Blockade(side, blockadeSquareStr), baseScore, finalEvidence, supports, blockers, missing))
-    else None
-
-  private def scoreMinorityAttack(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    if (ctx.pawnAnalysis.exists((a: PawnPlayAnalysis) => a.minorityAttack || a.counterBreak))
-       val evidence = motifs.collect { 
-         case m: PawnAdvance if m.file.isQueenside => 
-           EvidenceAtom(m, 0.6, s"Queenside pawn push on ${m.file.toString}-file (Minority Attack strategy)")
-       }
-       val supports = List("Creating weaknesses in opponent's pawn structure", "Queenside space advantage")
-       val blockers = List("Opening lines for opponent's pieces")
-       val missing = List("Need to advance terminal pawn (a or b file)")
-       Some(PlanMatch(Plan.MinorityAttack(side), 0.85, evidence, supports, blockers, missing))
-    else None
-
-  private def scorePawnChain(motifs: List[Motif], side: Color): Option[PlanMatch] =
-    val chainMotifs = motifs.collect { case m: PawnChain => m }
-    if (chainMotifs.nonEmpty)
-      val evidence = chainMotifs.map(m => EvidenceAtom(m, 0.4, "Pawn chain structure"))
-      val supports = List("Solid pawn structure", "Long-term positional stability")
-      val blockers = List("Inflexible pawns can become targets")
-      Some(PlanMatch(Plan.PawnChain(side), 0.5 + chainMotifs.size * 0.1, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreSpaceAdvantage(motifs: List[Motif], ctx: IntegratedContext, side: Color): Option[PlanMatch] =
-    val spaceMotifs = motifs.collect { case m: SpaceAdvantage => m }
-    if (spaceMotifs.nonEmpty)
-      val evidence = spaceMotifs.map(m => EvidenceAtom(m, 0.7, "Space advantage"))
-      val supports = List("Greater piece mobility", "Easier maneuvering between flanks")
-      val blockers = List("Overextended pawns can be weak")
-      val missing = if (ctx.features.exists(_.activity.whiteDevelopmentLag > 0)) List("Completion of development to utilize space") else Nil
-      Some(PlanMatch(Plan.SpaceAdvantage(side), 0.7, evidence, supports, blockers, missing))
-    else None
-    
-  private def scoreZugzwang(motifs: List[Motif], ctx: IntegratedContext, side: Color): Option[PlanMatch] =
-    val zugMotifs = motifs.collect { case m: Zugzwang => m }
-    if (zugMotifs.nonEmpty && ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame)
-       val evidence = zugMotifs.map(m => EvidenceAtom(m, 1.0, "Zugzwang pattern"))
-       val supports = List("Opponent has exhausted useful moves", "Dominant piece placement")
-       val blockers = List("Stalemate risks if not careful")
-       Some(PlanMatch(Plan.Zugzwang(side), 1.3, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreSacrifice(motifs: List[Motif], ctx: IntegratedContext, side: Color): Option[PlanMatch] =
-    val sacrifices = motifs.collect {
-      case m: Capture if m.captureType == CaptureType.Sacrifice || m.captureType == CaptureType.ExchangeSacrifice => m
-    }
-    
-    if (sacrifices.nonEmpty)
-      val eval = ctx.evalFor(side)
-      // Suppress sacrifice in clearly losing positions
-      if (eval < -300) then return None
-      
-      // Eval-based scaling: more aggressive in winning positions
-      val evalBonus = if (eval >= 200) 0.3 else if (eval > 0) 0.1 else 0.0
-      
-      val riskProfile = ctx.classification.map(_.riskProfile)
-      val highRiskBonus = if (riskProfile.exists(_.riskLevel == RiskLevel.High)) 0.3 else 0.0
-      // NOTE: kingExposureSum measures OPPONENT's king exposure (favorable for attacking sacrifice)
-      // If this were OUR king exposure, it would be a liability, not a bonus
-      val opponentKingExposedBonus = if (riskProfile.exists(_.kingExposureSum > 5)) 0.2 else 0.0
-      
-      // Base: attacking 1.0, defensive 0.6
-      val isAttacking = eval > -150
-      val baseScore = (if (isAttacking) 1.0 else 0.6) + evalBonus + highRiskBonus + opponentKingExposedBonus
-      
-      val evidence = sacrifices.map(m => EvidenceAtom(m, 1.2, s"Tactical ${m.captureType.toString} to achieve strategic objective"))
-      val sacPiece = sacrifices.headOption.map(_.piece.name).getOrElse("Piece")
-      
-      val supports = scala.collection.mutable.ListBuffer[String]()
-      val blockers = scala.collection.mutable.ListBuffer[String]()
-      val missing = scala.collection.mutable.ListBuffer[String]()
-      
-      val kingExposure = riskProfile.map(_.kingExposureSum).getOrElse(0)
-      if (kingExposure > 5) supports += "Exposed opponent king justifies investment"
-      if (evalBonus > 0) supports += "Strong overall position allows for material sacrifice"
-      
-      if (eval < 0) blockers += "Material deficit makes sacrifice risky"
-      
-      if (highRiskBonus > 0) missing += "Careful calculation of subsequent lines required"
-
-      Some(PlanMatch(Plan.Sacrifice(side, sacPiece), baseScore.min(2.0), evidence, supports.toList, blockers.toList, missing.toList))
-    else None
-
-  private def scoreMinorPieceManeuver(
-      motifs: List[Motif],
-      side: Color
-  ): Option[PlanMatch] =
-    val maneuverMotifs = motifs.collect { case m: Centralization => m }
-    if (maneuverMotifs.nonEmpty)
-      val targetSq = maneuverMotifs.headOption.map(_.square.key).getOrElse("weak square")
-      val evidence = maneuverMotifs
-        .take(1)
-        .map(m => EvidenceAtom(m, 0.4, s"Minor piece maneuver: ${m.move.getOrElse("")}"))
-      val supports = List("Improved piece coordination", "Targeting weak squares")
-      val blockers = List("Maneuver takes multiple turns")
-      Some(PlanMatch(Plan.MinorPieceManeuver(side, targetSq), 0.5, evidence, supports, blockers, Nil))
-    else None
-
-  private def scoreFileControl(
-      motifs: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): Option[PlanMatch] =
-    val fileMotifs = motifs.collect { case m: OpenFileControl => m }
-    
-    // P1 FIX: Open file control requires ROOKS, not just a Queen or empty file
-    val hasRooks = ctx.features.exists(f => (side == White && f.imbalance.whiteRooks > 0) || (side == Black && f.imbalance.blackRooks > 0))
-    
-    if (fileMotifs.nonEmpty && hasRooks)
-      val evidence = fileMotifs.map(m => EvidenceAtom(m, 0.6, s"Control of ${m.file} file"))
-      val supports = List("Infiltration path for major pieces", "Restricts opponent's lateral mobility")
-      val blockers = List("File can be contested by opponent rooks")
-      val missing = Nil // Missing field handled by hasRooks check now
-      Some(PlanMatch(Plan.FileControl(side, "Open"), 0.8, evidence, supports, blockers, missing))
-    else None
-
-  extension (f: File)
-    def isKingside: Boolean = f == File.F || f == File.G || f == File.H
-    def isQueenside: Boolean = f == File.A || f == File.B || f == File.C
-    def isCentral: Boolean = f == File.D || f == File.E
-
-  private def applyEndgamePlanPriority(plans: List[PlanMatch]): List[PlanMatch] =
-    plans.map { p =>
-      val bonus = p.plan match
-        // Promotion race first.
-        case _: Plan.Promotion => 0.35
-        case _: Plan.PassedPawnPush => 0.30
-        // Forced draw resources second.
-        case _: Plan.Zugzwang => 0.24
-        case _: Plan.Blockade => 0.20
-        // King activity third.
-        case _: Plan.KingActivation => 0.12
-        case _ => 0.0
-      if bonus > 0 then p.copy(score = p.score + bonus) else p
-    }
+      side: Color,
+      weight: Double
+  )(pf: PartialFunction[Motif, String]): List[EvidenceAtom] =
+    motifs.collect { case m if pf.isDefinedAt(m) => EvidenceAtom(m, weight, pf(m)) }.take(4)
+
+  private def snapshot(ctx: IntegratedContext, side: Color): SideSnapshot =
+    val f = ctx.features.getOrElse(PositionFeatures.empty)
+    val p = f.pawns
+    val a = f.activity
+    val k = f.kingSafety
+    val c = f.centralSpace
+    val st = ctx.positionKey.flatMap(PositionAnalyzer.extractStrategicState).getOrElse(StrategicStateFeatures.empty)
+    val w = side.white
+    val oppWeakness =
+      if w then p.blackIsolatedPawns + p.blackBackwardPawns + p.blackDoubledPawns
+      else p.whiteIsolatedPawns + p.whiteBackwardPawns + p.whiteDoubledPawns
+    SideSnapshot(
+      lockedCenter = c.lockedCenter,
+      openCenter = c.openCenter,
+      space = if w then c.spaceDiff else -c.spaceDiff,
+      devLag = if w then a.whiteDevelopmentLag else a.blackDevelopmentLag,
+      lowMobility = if w then a.whiteLowMobilityPieces else a.blackLowMobilityPieces,
+      kingExposure = if w then k.whiteKingExposedFiles else k.blackKingExposedFiles,
+      oppWeakness = oppWeakness,
+      ourPassers = if w then p.whitePassedPawns else p.blackPassedPawns,
+      oppPassers = if w then p.blackPassedPawns else p.whitePassedPawns,
+      entrenched = if w then st.whiteEntrenchedPieces else st.blackEntrenchedPieces,
+      rookPawnReady = if w then st.whiteRookPawnMarchReady else st.blackRookPawnMarchReady,
+      hookChance = if w then st.whiteHookCreationChance else st.blackHookCreationChance,
+      clamp = if w then st.whiteColorComplexClamp else st.blackColorComplexClamp
+    )
+
+  private def kingExposure(features: Option[PositionFeatures], side: Color): Int =
+    features match
+      case Some(f) => if side.white then f.kingSafety.whiteKingExposedFiles else f.kingSafety.blackKingExposedFiles
+      case None    => 0
+
+  private def isFlank(file: File): Boolean =
+    file == File.A || file == File.B || file == File.C || file == File.F || file == File.G || file == File.H
+
+  private def isWingBreakFile(raw: String): Boolean =
+    val low = Option(raw).getOrElse("").trim.toLowerCase
+    low == "a" || low == "b" || low == "g" || low == "h"
+
+  private def clamp(v: Double): Double = math.max(0.0, math.min(1.0, v))

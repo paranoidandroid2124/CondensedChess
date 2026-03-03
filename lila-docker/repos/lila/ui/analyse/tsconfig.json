@@ -9,6 +9,9 @@
       "path": "../bits/tsconfig.json"
     },
     {
+      "path": "../chart/tsconfig.json"
+    },
+    {
       "path": "../lib/tsconfig.json"
     },
     {

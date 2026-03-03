@@ -5,8 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeLexicon, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator }
-import lila.llm.analysis.NarrativeLexicon.Style
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -18,7 +17,8 @@ final class LlmApi(
     openAiClient: OpenAiClient,
     commentaryCache: CommentaryCache,
     llmConfig: LlmConfig = LlmConfig.fromEnv,
-    providerConfig: LlmProviderConfig = LlmProviderConfig.fromEnv
+    providerConfig: LlmProviderConfig = LlmProviderConfig.fromEnv,
+    ccaHistoryRepo: CcaHistoryRepo = null
 )(using Executor):
 
   private val logger = lila.log("llm.api")
@@ -113,6 +113,7 @@ final class LlmApi(
   private def isHypothesisProbeRequest(req: lila.llm.model.ProbeRequest): Boolean =
     req.seedId.exists(_.trim.nonEmpty) ||
       req.purpose.exists { purpose =>
+        purpose == "theme_plan_validation" ||
         purpose == "free_tempo_branches" ||
         purpose == "latent_plan_immediate" ||
         purpose == "latent_plan_refutation"
@@ -157,17 +158,16 @@ final class LlmApi(
       probeFenMissing.addAndGet(probeResults.count(_.fen.isEmpty).toLong)
 
     val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
-    if rootProbeResultsRaw.nonEmpty then
-      val validation = PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, ctx.probeRequests)
+    val validation = PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, ctx.probeRequests)
 
-      contractProbeTotal.addAndGet(rootProbeResultsRaw.size.toLong)
-      contractProbeDropped.addAndGet(validation.droppedCount.toLong)
+    contractProbeTotal.addAndGet(rootProbeResultsRaw.size.toLong)
+    contractProbeDropped.addAndGet(validation.droppedCount.toLong)
 
-      val hypothesisRequests = ctx.probeRequests.filter(isHypothesisProbeRequest)
-      if hypothesisRequests.nonEmpty then
-        val validIds = validation.validResults.map(_.id).toSet
-        hypothesisProbeTotal.addAndGet(hypothesisRequests.size.toLong)
-        hypothesisProbeHit.addAndGet(hypothesisRequests.count(req => validIds.contains(req.id)).toLong)
+    val hypothesisRequests = ctx.probeRequests.filter(isHypothesisProbeRequest)
+    if hypothesisRequests.nonEmpty then
+      val validIds = validation.validResults.map(_.id).toSet
+      hypothesisProbeTotal.addAndGet(hypothesisRequests.size.toLong)
+      hypothesisProbeHit.addAndGet(hypothesisRequests.count(req => validIds.contains(req.id)).toLong)
 
   private def pushWindow(values: Vector[Long], value: Long): Vector[Long] =
     val next = values :+ value
@@ -278,12 +278,6 @@ final class LlmApi(
     else if llmConfig.endgameOracleShadowMode then "shadow"
     else "off"
 
-  private def strategicPriorMode: String =
-    if llmConfig.strategicPriorEnabled then "enabled"
-    else if llmConfig.strategicPriorCanaryRate > 0.0 then "canary"
-    else if llmConfig.strategicPriorShadowMode then "shadow"
-    else "off"
-
   private def maybeLogBookmakerMetrics(): Unit =
     val total = bookmakerRequests.get()
     if total > 0 && total % 100 == 0 then
@@ -353,7 +347,6 @@ final class LlmApi(
         s"bookmaker.metrics epoch=$epochSec total=$total " +
           s"struct_mode=${structureMode} " +
           s"endgame_mode=${endgameMode} " +
-          s"strategic_prior_mode=${strategicPriorMode} " +
           s"shadow_window=$totalWindowSize " +
           f"token_present_rate=$tokenPresentRate%.3f " +
           f"token_emit_rate=$tokenEmitRate%.3f " +
@@ -390,9 +383,6 @@ final class LlmApi(
           s"struct_dist=$structureDist " +
           s"alignment_band_dist=$bandDist"
       )
-
-  def isGeminiEnabled: Boolean = geminiClient.isEnabled
-  def isOpenAiEnabled: Boolean = openAiClient.isEnabled
 
   private def isLlmPolishEnabledForRequest(allowLlmPolish: Boolean): Boolean =
     if providerConfig.premiumOnly then allowLlmPolish else true
@@ -630,6 +620,8 @@ final class LlmApi(
       concepts: List[String],
       fen: String,
       openingName: Option[String],
+      salience: Option[lila.llm.model.strategic.StrategicSalience],
+      momentType: Option[String],
       lang: String,
       allowedSans: List[String],
       asyncTier: Boolean
@@ -674,6 +666,8 @@ final class LlmApi(
               concepts = concepts,
               fen = fen,
               openingName = openingName,
+              salience = salience,
+              momentType = momentType,
               lang = lang,
               maxOutputTokens = Some(segmentCap)
             )
@@ -685,6 +679,8 @@ final class LlmApi(
               concepts = concepts,
               fen = fen,
               openingName = openingName,
+              salience = salience,
+              momentType = momentType,
               lang = lang,
               maxOutputTokens = Some(segmentCap)
             )
@@ -784,11 +780,13 @@ final class LlmApi(
       concepts: List[String],
       fen: String,
       openingName: Option[String],
+      salience: Option[lila.llm.model.strategic.StrategicSalience],
       allowLlmPolish: Boolean,
       lang: String,
       allowedSans: List[String],
       asyncTier: Boolean,
-      refs: Option[BookmakerRefsV1]
+      refs: Option[BookmakerRefsV1],
+      momentType: Option[String] = None
   ): Future[PolishDecision] =
     if prose.isBlank then
       Future.successful(
@@ -858,6 +856,8 @@ final class LlmApi(
                 concepts = concepts,
                 fen = fen,
                 openingName = openingName,
+                salience = salience,
+                momentType = momentType,
                 lang = normalizedLang,
                 allowedSans = allowedSans,
                 asyncTier = asyncTier
@@ -880,6 +880,8 @@ final class LlmApi(
                     concepts = concepts,
                     fen = fen,
                     openingName = openingName,
+                    salience = salience,
+                    momentType = momentType,
                     lang = normalizedLang,
                     maxOutputTokens = Some(adaptiveCap)
                   )
@@ -891,6 +893,8 @@ final class LlmApi(
                     concepts = concepts,
                     fen = fen,
                     openingName = openingName,
+                    salience = salience,
+                    momentType = momentType,
                     lang = normalizedLang,
                     maxOutputTokens = Some(adaptiveCap)
                   )
@@ -1068,7 +1072,9 @@ final class LlmApi(
               evalDelta = evalDelta,
               concepts = concepts,
               fen = fen,
-              openingName = openingName
+              openingName = openingName,
+              salience = salience,
+              momentType = momentType
             )
             .flatMap {
               case Some(polished) =>
@@ -1245,11 +1251,13 @@ final class LlmApi(
           concepts = response.themes,
           fen = "",
           openingName = None,
+          salience = None,
           allowLlmPolish = allowLlmPolish,
           lang = lang,
           allowedSans = Nil,
           asyncTier = asyncTier,
-          refs = None
+          refs = None,
+          momentType = Some("Game Intro")
         )
         conclusionPolish <- maybePolishCommentary(
           prose = response.conclusion,
@@ -1258,11 +1266,13 @@ final class LlmApi(
           concepts = response.themes,
           fen = "",
           openingName = None,
+          salience = None,
           allowLlmPolish = allowLlmPolish,
           lang = lang,
           allowedSans = Nil,
           asyncTier = asyncTier,
-          refs = None
+          refs = None,
+          momentType = Some("Game Conclusion")
         )
         polishedMoments <- Future.traverse(response.moments) { moment =>
           val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
@@ -1273,11 +1283,13 @@ final class LlmApi(
             concepts = moment.concepts,
             fen = moment.fen,
             openingName = None,
+            salience = None,
             allowLlmPolish = allowLlmPolish,
             lang = lang,
             allowedSans = allowedSans,
             asyncTier = asyncTier,
-            refs = None
+            refs = None,
+            momentType = Some(moment.momentType)
           ).map { decision =>
             (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
           }
@@ -1360,32 +1372,6 @@ final class LlmApi(
 
   def fetchOpeningMasterPgn(gameId: String): Future[Option[String]] =
     openingExplorer.fetchMasterPgn(gameId)
-
-  /** Generate an instant rule-based briefing for a position. */
-  def briefCommentPosition(
-      fen: String,
-      lastMove: Option[String],
-      eval: Option[EvalData],
-      ply: Int
-  ): Future[Option[CommentResponse]] = Future {
-    val _ = ply
-    val pv = eval.flatMap(_.pv).getOrElse(Nil)
-    CommentaryEngine.assess(fen, pv).map { assessment =>
-      val bead = Math.abs(fen.hashCode)
-      val intro = NarrativeLexicon.intro(bead, assessment.nature.natureType.toString, assessment.nature.tension, Style.Book)
-
-      val bestPlan = assessment.plans.topPlans.headOption.map(_.plan.name).getOrElse("strategic improvement")
-      val intent = lastMove.map(m => NarrativeLexicon.intent(bead, m, bestPlan, Style.Book)).getOrElse("")
-
-      val briefing = s"$intro\n\n$intent"
-
-      CommentResponse(
-        commentary = briefing,
-        concepts = assessment.plans.topPlans.map(_.plan.name),
-        variations = Nil
-      )
-    }
-  }
 
   /** Generate deep bookmaker commentary (rule-based). */
   def bookmakerCommentPosition(
@@ -1574,6 +1560,7 @@ final class LlmApi(
               concepts = baseConcepts,
               fen = fen,
               openingName = opening,
+              salience = Some(dataWithContinuity.strategicSalience),
               allowLlmPolish = allowLlmPolish,
               lang = lang,
               allowedSans = allowedSans,
@@ -1727,6 +1714,19 @@ final class LlmApi(
         .take(overflow)
         .foreach { case (jobId, _) => asyncJobs.remove(jobId) }
 
+  /** Stash CCA results from a completed game analysis for the Defeat DNA aggregation. */
+  def stashCcaResults(userId: String, response: GameNarrativeResponse): Funit =
+    if ccaHistoryRepo == null then funit
+    else
+      val newCollapses = response.moments.flatMap(_.collapse)
+      if newCollapses.nonEmpty then ccaHistoryRepo.insert(userId, newCollapses)
+      else funit
+
+  /** Retrieve accumulated CCA history for a user. */
+  def getCcaHistory(userId: String): Fu[List[lila.llm.model.CollapseAnalysis]] =
+    if ccaHistoryRepo == null then fuccess(Nil)
+    else ccaHistoryRepo.recent(userId)
+
   private def fetchOpeningRefsForPgn(pgn: String): Future[Map[String, OpeningReference]] =
     val openingFens = PgnAnalysisHelper.extractPlyData(pgn) match
       case Left(err) =>
@@ -1772,11 +1772,19 @@ final class LlmApi(
     val selectedMomentPlies = narrative.keyMomentNarratives.map(_.ply).filter(_ > 0).distinct.sorted
 
     GameNarrativeReview(
+      schemaVersion = 2,
+      reviewPerspective = "both",
       totalPlies = inferredTotalPlies,
       evalCoveredPlies = evalCoveredPlies,
       evalCoveragePct = evalCoveragePct.max(0).min(100),
       selectedMoments = selectedMomentPlies.size,
-      selectedMomentPlies = selectedMomentPlies
+      selectedMomentPlies = selectedMomentPlies,
+      blundersCount = narrative.keyMomentNarratives.count(m => m.momentType == "AdvantageSwing" && m.moveClassification.contains("Blunder")),
+      missedWinsCount = narrative.keyMomentNarratives.count(m => m.momentType == "AdvantageSwing" && m.moveClassification.contains("MissedWin")),
+      brilliantMovesCount = 0,
+      accuracyWhite = None,
+      accuracyBlack = None,
+      momentTypeCounts = narrative.keyMomentNarratives.groupBy(_.momentType).map { case (k, v) => k -> v.size }
     )
 
 private[llm] object RuleTemplateSanitizer:

@@ -139,16 +139,32 @@ object ProbeContractValidator:
     "free_tempo_branches"
   )
 
-  private val strongPurposeSignals: Map[String, Set[String]] = Map(
+  /** Strict mode: full signal requirements for fail-closed safety. */
+  private val strictPurposeSignals: Map[String, Set[String]] = Map(
     "latent_plan_refutation" -> Set("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"),
     "latent_plan_immediate" -> Set("replyPvs", "l1Delta"),
     "free_tempo_branches" -> Set("replyPvs", "futureSnapshot")
   )
 
+  /** Relaxed mode: reduced requirements to improve probe hit rate. */
+  private val relaxedPurposeSignals: Map[String, Set[String]] = Map(
+    "latent_plan_refutation" -> Set("replyPvs", "l1Delta"),
+    "latent_plan_immediate" -> Set("replyPvs"),
+    "free_tempo_branches" -> Set("replyPvs")
+  )
+
+  private val RelaxLatentSignals: Boolean =
+    sys.env.get("LLM_PROBE_RELAX_LATENT_SIGNALS")
+      .map(_.trim.toLowerCase)
+      .exists(v => v == "1" || v == "true" || v == "yes" || v == "on")
+
+  private def activePurposeSignals: Map[String, Set[String]] =
+    if RelaxLatentSignals then relaxedPurposeSignals else strictPurposeSignals
+
   def validate(result: ProbeResult): ValidationResult =
     val purpose = result.purpose.getOrElse("")
     val required =
-      strongPurposeSignals.getOrElse(
+      activePurposeSignals.getOrElse(
         purpose,
         if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
       )
@@ -199,7 +215,7 @@ object ProbeContractValidator:
       )
 
   private def purposeRequiredSignals(purpose: String): Set[String] =
-    strongPurposeSignals.getOrElse(
+    activePurposeSignals.getOrElse(
       purpose,
       if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
     )

@@ -73,12 +73,14 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
   ): string[] => {
     const motifs = new Set<string>();
     const parsed = parseMove(move);
+    if (purpose?.includes('theme_plan_validation')) motifs.add('theme_plan_validation');
     if (purpose?.includes('recapture')) motifs.add('recapture_branching');
     if (purpose?.includes('tension')) motifs.add('tension_branching');
     if (purpose?.includes('convert')) motifs.add('conversion_route');
     if (purpose?.includes('latent_plan_refutation')) motifs.add('latent_plan_refutation');
     if (purpose?.includes('free_tempo')) motifs.add('free_tempo_trajectory');
     if (purpose?.includes('defense_reply')) motifs.add('defense_reply_branching');
+    if (purpose?.includes('theme_plan_validation') && parsed?.isRookPawnPush) motifs.add('rook_pawn_march_candidate');
     if (purpose?.includes('free_tempo') && parsed?.isRookPawnPush) motifs.add('rook_pawn_march_candidate');
     if (purpose?.includes('convert') && (replyPvs[0] ?? []).length >= 3) motifs.add('multi_ply_sequence');
     return Array.from(motifs);
@@ -126,6 +128,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     const motifs = new Set<string>(inferPurposeMotifs(move, purpose, replyPvs));
     const compatFallbackUsed = isCompatMotifFallbackEnabled();
     if (compatFallbackUsed) inferCompatFallbackMotifs(move, purpose, replyPvs).forEach(m => motifs.add(m));
+    if (requiredSignals.includes('keyMotifs') && motifs.size === 0) motifs.add('plan_validation_signal');
     const generatedRequiredSignals = requiredSignals.filter(s => motifs.has(s));
     return {
       keyMotifs: Array.from(motifs),
@@ -424,9 +427,18 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
         motifInference.generatedRequiredSignals,
         motifInference.compatFallbackUsed,
       );
-      const l1Delta = purpose ? buildL1Delta(deltaVsBaseline, keyMotifs, purpose) : undefined;
+      const shouldBuildL1Delta = Boolean(purpose) || motifInference.requiredSignals.includes('l1Delta');
+      const l1Delta = shouldBuildL1Delta ? buildL1Delta(deltaVsBaseline, keyMotifs, purpose) : undefined;
+      const shouldBuildFutureSnapshot =
+        ((purpose != null) &&
+          (purpose.includes('theme_plan_validation') ||
+            purpose.includes('latent') ||
+            purpose.includes('convert') ||
+            purpose.includes('tension') ||
+            purpose.includes('free_tempo'))) ||
+        motifInference.requiredSignals.includes('futureSnapshot');
       const futureSnapshot =
-        purpose && (purpose.includes('latent') || purpose.includes('convert') || purpose.includes('tension') || purpose.includes('free_tempo'))
+        shouldBuildFutureSnapshot
           ? buildFutureSnapshot(purpose, keyMotifs, deltaVsBaseline)
           : undefined;
       results.push({

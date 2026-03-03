@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model.{ PlanMatch, PlanScoringResult }
 import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
-import lila.llm.analysis.prior.{ StrategicPrior, StrategicPriorFeatures }
+import lila.llm.analysis.ThemeTaxonomy.{ ThemeResolver, ThemeL1 }
 
 /**
  * Plan Proposal Layer v2:
@@ -27,37 +27,6 @@ object HypothesisGenerator:
     raw.sortBy(r => -r.hypothesis.score).zipWithIndex.map { case (rh, idx) =>
       rh.hypothesis.copy(rank = idx + 1)
     }
-
-  def generateWithPrior(
-      planScoring: PlanScoringResult,
-      ctx: IntegratedContext,
-      maxItems: Int = 3,
-      priorWeight: Double = 0.35,
-      usePrior: Boolean = true
-  ): List[PlanHypothesis] =
-    val base = generate(planScoring, ctx, maxItems = maxItems)
-    if !usePrior then base
-    else
-      val priorMap = buildPriorMap(planScoring.topPlans.take(maxItems), ctx)
-      blendWithPrior(base, priorMap, priorWeight = priorWeight)
-
-  def blendWithPrior(
-      hypotheses: List[PlanHypothesis],
-      prior: Map[String, Double],
-      priorWeight: Double = 0.35
-  ): List[PlanHypothesis] =
-    if hypotheses.isEmpty then Nil
-    else
-      val w = priorWeight.max(0.0).min(0.8)
-      hypotheses
-        .map { h =>
-          val p = prior.getOrElse(h.planId, 0.5).max(0.0).min(1.0)
-          val blended = ((1.0 - w) * h.score) + (w * p)
-          h.copy(score = blended)
-        }
-        .sortBy(h => -h.score)
-        .zipWithIndex
-        .map { case (h, idx) => h.copy(rank = idx + 1) }
 
   private def scoreHypothesis(pm: PlanMatch, ctx: IntegratedContext): RankedHypothesis =
     val structuralFit = structuralFitScore(pm, ctx)
@@ -87,6 +56,8 @@ object HypothesisGenerator:
       (pm.blockers.take(2) ++ pm.missingPrereqs.take(2).map(mp => s"precondition miss: $mp")).distinct
 
     val hypothesis = PlanHypothesis(
+      themeL1 = themeIdFromPlanMatch(pm),
+      subplanId = subplanIdFromPlanMatch(pm),
       planId = pm.plan.id.toString,
       planName = pm.plan.name,
       rank = 0,
@@ -96,7 +67,12 @@ object HypothesisGenerator:
       failureModes = failureModes,
       viability = viability,
       refutation = failureModes.headOption,
-      evidenceSources = pm.evidence.take(2).map(_.description)
+      evidenceSources =
+        (
+          pm.supports.collect { case s if s.startsWith("theme:") => s } ++
+          pm.supports.collect { case s if s.startsWith("subplan:") => s } ++
+          pm.evidence.take(2).map(_.description)
+        ).distinct
     )
     RankedHypothesis(
       hypothesis = hypothesis,
@@ -105,15 +81,6 @@ object HypothesisGenerator:
       counterplayRisk = counterplayRisk
     )
 
-  private def buildPriorMap(plans: List[PlanMatch], ctx: IntegratedContext): Map[String, Double] =
-    plans.map { pm =>
-      val features = priorFeatures(pm, ctx)
-      pm.plan.id.toString -> StrategicPrior.score(pm.plan.id.toString, features)
-    }.toMap
-
-  private def priorFeatures(pm: PlanMatch, ctx: IntegratedContext): Map[String, Double] =
-    val executionEase = 1.0 - executionDifficultyScore(pm, ctx)
-    StrategicPriorFeatures.fromContext(pm.plan.color, ctx, executionEase)
 
   private def structuralFitScore(pm: PlanMatch, ctx: IntegratedContext): Double =
     val supports = pm.supports.size.min(4).toDouble / 4.0
@@ -157,3 +124,19 @@ object HypothesisGenerator:
     else if executionDifficulty >= 0.65 then "high execution burden"
     else if counterplayRisk >= 0.45 || executionDifficulty >= 0.45 then "manageable but sensitive"
     else "stable practical path"
+
+  private def themeIdFromPlanMatch(pm: PlanMatch): String =
+    pm.supports
+      .collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:").trim }
+      .filter(_.nonEmpty)
+      .orElse {
+        val resolved = ThemeResolver.fromPlanId(pm.plan.id.toString)
+        Option.when(resolved != ThemeL1.Unknown)(resolved.id)
+      }
+      .getOrElse(ThemeL1.Unknown.id)
+
+  private def subplanIdFromPlanMatch(pm: PlanMatch): Option[String] =
+    pm.supports
+      .collectFirst { case s if s.startsWith("subplan:") => s.stripPrefix("subplan:").trim }
+      .filter(_.nonEmpty)
+      .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString).map(_.id))

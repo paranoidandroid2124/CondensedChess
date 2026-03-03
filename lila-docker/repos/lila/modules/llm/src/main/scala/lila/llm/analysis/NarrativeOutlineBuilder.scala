@@ -3,6 +3,7 @@ package lila.llm.analysis
 import lila.llm.model._
 import lila.llm.model.authoring._
 import lila.llm.model.strategic.VariationLine
+import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
 
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
@@ -18,6 +19,7 @@ object NarrativeOutlineBuilder:
     "strategic_shift" -> 1,
     "engine" -> 1
   )
+  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
 
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class AlternativeEngineSignal(
@@ -138,25 +140,228 @@ object NarrativeOutlineBuilder:
 
   private def buildStrategicDistributionBeat(ctx: NarrativeContext): Option[OutlineBeat] =
     val plans = ctx.mainStrategicPlans.take(3)
-    if plans.isEmpty then None
+    val tacticalOverride = hasImmediateTacticalPriority(ctx, plans)
+    val hasPartitionStrategicPayload = plans.nonEmpty || ctx.latentPlans.nonEmpty || ctx.whyAbsentFromTopMultiPV.nonEmpty
+    if !hasPartitionStrategicPayload && !tacticalOverride then None
     else
-      val leadPlan = plans.head.planName
-      val planText = plans.map { p =>
-        val score = f"${p.score}%.2f"
-        s"${p.rank}. ${p.planName} ($score)"
-      }.mkString("; ")
-      val absence =
-        ctx.whyAbsentFromTopMultiPV.headOption
-          .map(r => s" Some strategic routes remain outside top MultiPV because $r.")
-          .getOrElse("")
+      val ranked =
+        if plans.nonEmpty then plans.map(p => s"${p.rank}. ${p.planName} (${f"${p.score}%.2f"})").mkString("; ")
+        else
+          ctx.latentPlans
+            .take(2)
+            .zipWithIndex
+            .map { case (lp, idx) => s"${idx + 1}. ${lp.planName} (${f"${lp.viabilityScore}%.2f"})" }
+            .mkString("; ")
+      val primarySlots = plans.headOption.map(slotsForPlan).getOrElse(ThemeNarrativeSlots.forTheme("unknown"))
+      val preconditionsText = plans.headOption.flatMap(renderPreconditions)
+      val holdReasons =
+        collectHoldReasons(ctx, plans.headOption)
+
+      val ideaLine =
+        if tacticalOverride then
+          plans.headOption match
+            case Some(p) =>
+              s"Idea: ${ThemeNarrativeSlots.forTheme("immediate_tactical_gain").idea}. Strategic fallback remains ${p.planName}."
+            case None =>
+              s"Idea: ${ThemeNarrativeSlots.forTheme("immediate_tactical_gain").idea}."
+        else
+          plans.headOption match
+            case Some(p) =>
+              val slots = slotsForPlan(p)
+              val precondClause = preconditionsText.map(t => s" Preconditions: $t.").getOrElse("")
+              s"Idea: ${slots.idea} Primary route is ${p.planName}. Ranked stack: $ranked.$precondClause"
+            case None =>
+              if ranked.nonEmpty then s"Idea: Main strategic promotion is pending; latent stack is $ranked."
+              else "Idea: No plan is promotable yet; strategic intent remains conditional."
+
+      val evidenceLine =
+        val sourceText = summarizeStrategicEvidence(ctx, plans)
+        val slot = primarySlots
+        if sourceText.nonEmpty then s"Evidence: ${slot.evidence} Signals: $sourceText."
+        else if tacticalOverride then s"Evidence: ${slot.evidence} Forcing tactical signals currently dominate continuation quality."
+        else s"Evidence: ${slot.evidence} Structural and probe support remains limited."
+
+      val holdLine =
+        val slot = primarySlots
+        if holdReasons.nonEmpty then s"Refutation/Hold: ${slot.hold} ${holdReasons.take(2).mkString("; ")}."
+        else if tacticalOverride then s"Refutation/Hold: ${slot.hold} Strategic claims are held until forcing lines are resolved."
+        else s"Refutation/Hold: ${slot.hold} No strong refutation signal was found for the leading route."
+
+      val primaryThemeId =
+        plans.headOption.map(themeIdOfHypothesis)
+          .orElse(ctx.latentPlans.headOption.map(lp => ThemeResolver.fromPlanName(lp.planName).id))
+          .filter(_ != ThemeL1.Unknown.id)
+          .getOrElse(ThemeL1.Unknown.id)
+      val primarySubplanId =
+        plans.headOption.flatMap(subplanIdOfHypothesis).getOrElse("none")
       Some(
         OutlineBeat(
           kind = OutlineBeatKind.WrapUp,
-          text = s"Strategic distribution: $planText. Primary plan focus starts with $leadPlan.$absence",
-          conceptIds = List("strategic_distribution_first"),
+          text = List(ideaLine, evidenceLine, holdLine).mkString(" "),
+          conceptIds =
+            List(
+              "strategic_distribution_first",
+              "plan_evidence_three_stage",
+              s"theme_slot:$primaryThemeId",
+              s"subplan_slot:$primarySubplanId"
+            ),
           confidenceLevel = 1.0
         )
       )
+
+  private def hasImmediateTacticalPriority(
+      ctx: NarrativeContext,
+      plans: List[PlanHypothesis]
+  ): Boolean =
+    val planTaggedTactical =
+      plans.headOption.exists { p =>
+        val lowName = p.planName.toLowerCase
+        val lowId = p.planId.toLowerCase
+        lowName.contains("immediate tactical gain") ||
+        lowName.contains("mating") ||
+        lowId.contains("counterplay")
+      }
+    val urgentThreat =
+      ctx.threats.toThem.headOption.exists(t => t.lossIfIgnoredCp >= Thresholds.URGENT_THREAT_CP || t.kind.equalsIgnoreCase("Mate"))
+    val tacticalByLegacyFallback =
+      LegacyStrategicFallbackText &&
+        ctx.plans.top5.headOption.exists(_.name.toLowerCase.contains("immediate tactical gain"))
+    planTaggedTactical || urgentThreat || tacticalByLegacyFallback
+
+  private def summarizeStrategicEvidence(
+      ctx: NarrativeContext,
+      plans: List[PlanHypothesis]
+  ): String =
+    val sourceTokens =
+      plans
+        .flatMap(_.evidenceSources)
+        .map(normalizeEvidenceSource)
+        .filter(_.nonEmpty)
+    val probePurposes =
+      ctx.authorEvidence
+        .map(_.purpose)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filter(p =>
+          p.contains("plan") || p.contains("refutation") || p.contains("NullMove") || p.contains("theme")
+        )
+        .distinct
+        .take(2)
+        .map(p => s"probe:$p")
+    (sourceTokens ++ probePurposes).distinct.take(4).mkString(", ")
+
+  private val SubplanNarrativeSlots: Map[String, ThemeSlots] = Map(
+    "prophylaxis_restraint" -> ThemeSlots(
+      idea = "Prophylaxis route: first deny the opponent break windows before expanding.",
+      evidence = "Evidence should show opponent break attempts losing force after our preparatory moves.",
+      hold = "If break denial is not visible in probe replies, this restraint route stays conditional."
+    ),
+    "outpost_entrenchment" -> ThemeSlots(
+      idea = "Entrenchment route: stabilize a piece on a durable outpost and build play around it.",
+      evidence = "Evidence should confirm the outpost cannot be chased profitably in key reply lines.",
+      hold = "If the outpost is removable with tempo, this route is deferred."
+    ),
+    "rook_pawn_march" -> ThemeSlots(
+      idea = "Rook-pawn march route: use flank pawn expansion to build attacking infrastructure.",
+      evidence = "Evidence must show hook/contact creation survives central counterplay in probe branches.",
+      hold = "If center breaks punish the pawn march timing, the plan is held."
+    ),
+    "hook_creation" -> ThemeSlots(
+      idea = "Hook-creation route: fix a pawn contact point and attack behind it.",
+      evidence = "Evidence should show files/diagonals open after hook pressure under best defense.",
+      hold = "If the hook dissolves or cannot be fixed, this route is postponed."
+    ),
+    "central_break_timing" -> ThemeSlots(
+      idea = "Break-timing route: prepare a central break only after coordination is complete.",
+      evidence = "Evidence needs stable center control before and after the break attempt.",
+      hold = "If break timing loses control or material, keep it as a latent plan."
+    ),
+    "forcing_tactical_shot" -> ThemeSlots(
+      idea = "Forcing tactical route overrides slow planning when concrete gain is available.",
+      evidence = "Evidence requires forcing continuations that hold under best defensive replies.",
+      hold = "If forcing lines are not stable, strategic plans regain priority."
+    )
+  )
+
+  private def slotsForPlan(plan: PlanHypothesis): ThemeSlots =
+    subplanIdOfHypothesis(plan)
+      .flatMap(SubplanNarrativeSlots.get)
+      .orElse(subplanIdOfHypothesis(plan).flatMap(generatedSubplanSlots))
+      .getOrElse(ThemeNarrativeSlots.forTheme(themeIdOfHypothesis(plan)))
+
+  private def generatedSubplanSlots(subplanId: String): Option[ThemeSlots] =
+    SubplanId
+      .fromId(subplanId)
+      .flatMap(sp => SubplanCatalog.specs.get(sp).map(spec => sp -> spec))
+      .map { case (sp, spec) =>
+        val route = sp.id.replace("_", " ")
+        val required =
+          if spec.requiredSignals.nonEmpty then spec.requiredSignals.mkString(", ")
+          else "probe contract"
+        ThemeSlots(
+          idea = s"${route.capitalize} route: ${spec.objective}.",
+          evidence = s"Evidence should satisfy $required signals over a ${spec.horizon} horizon.",
+          hold = "If required signals are missing or refuted, this route remains conditional."
+        )
+      }
+
+  private def themeIdOfHypothesis(plan: PlanHypothesis): String =
+    ThemeL1.fromId(plan.themeL1)
+      .filter(_ != ThemeL1.Unknown)
+      .map(_.id)
+      .getOrElse(ThemeResolver.fromHypothesis(plan).id)
+
+  private def subplanIdOfHypothesis(plan: PlanHypothesis): Option[String] =
+    plan.subplanId
+      .flatMap(SubplanId.fromId)
+      .map(_.id)
+      .orElse(ThemeResolver.subplanFromHypothesis(plan).map(_.id))
+
+  private def collectHoldReasons(
+      ctx: NarrativeContext,
+      primary: Option[PlanHypothesis]
+  ): List[String] =
+    val primaryFailures =
+      primary.toList.flatMap(_.failureModes).map(_.trim).filter(_.nonEmpty)
+    val primaryRefutation =
+      primary.flatMap(_.refutation).toList.map(_.trim).filter(_.nonEmpty)
+    val globalReasons =
+      (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
+        .map(_.trim)
+        .filter(_.nonEmpty)
+    (primaryFailures ++ primaryRefutation ++ globalReasons).distinct
+
+  private def renderPreconditions(plan: PlanHypothesis): Option[String] =
+    val items = plan.preconditions.map(_.trim).filter(_.nonEmpty).take(2)
+    Option.when(items.nonEmpty)(items.mkString("; "))
+
+  private def strategicPlanNames(ctx: NarrativeContext): List[String] =
+    val partitionNames = ctx.mainStrategicPlans.map(_.planName).map(_.trim).filter(_.nonEmpty)
+    if partitionNames.nonEmpty then partitionNames
+    else if LegacyStrategicFallbackText then ctx.plans.top5.map(_.name).map(_.trim).filter(_.nonEmpty).take(3)
+    else Nil
+
+  private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
+    strategicPlanNames(ctx).headOption
+
+  private def boolEnv(name: String, default: Boolean): Boolean =
+    sys.env
+      .get(name)
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _                              => None
+      }
+      .getOrElse(default)
+
+  private def normalizeEvidenceSource(raw: String): String =
+    val low = raw.trim.toLowerCase
+    if low.startsWith("structural_state:") then s"structural:${low.stripPrefix("structural_state:")}"
+    else if low.startsWith("latent_seed:") then s"seed:${low.stripPrefix("latent_seed:")}"
+    else if low.startsWith("proposal:") then low
+    else if low.startsWith("support:") then low
+    else low
 
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
@@ -213,8 +418,9 @@ object NarrativeOutlineBuilder:
 
     // Position statement and Asymmetric Imbalance
     val evalOpt = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp))
-    val wPlan = ctx.plans.top5.headOption.map(_.name)
-    val bPlan = ctx.plans.top5.lift(1).map(_.name)
+    val strategicNames = strategicPlanNames(ctx)
+    val wPlan = strategicNames.headOption
+    val bPlan = strategicNames.lift(1)
     
     // Extract Imbalance if evaluation is balanced (-80 to +80)
     val isBalanced = evalOpt.exists(cp => cp >= -80 && cp <= 80)
@@ -336,9 +542,9 @@ object NarrativeOutlineBuilder:
       concepts += s"threat_${t.kind}"
     }
 
-    // Top plan (strategic direction). Filter speculative tactical labels unless board evidence supports them.
-    ctx.plans.top5.find { p =>
-      val planKey = normalizeMotifKey(p.name)
+    // Top strategic route (partition-authoritative by default). Filter speculative tactical labels unless board evidence supports them.
+    topStrategicPlanName(ctx).filter { planName =>
+      val planKey = normalizeMotifKey(planName)
       val needsTacticalProof =
         List("sacrifice", "mate", "smothered", "trap", "combination").exists(planKey.contains)
       val sacrificeSpecific =
@@ -367,10 +573,10 @@ object NarrativeOutlineBuilder:
               t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP || t.kind.toLowerCase.contains("mate")
             )
         hasTacticalProof
-    }.foreach { p =>
-      rec.use("plans.top5[0]", p.name, "Context plan")
-      parts += NarrativeLexicon.getPlanStatement(bead ^ Math.abs(p.name.hashCode) ^ 0x2b2b2b, p.name, ply = ctx.ply)
-      concepts += s"plan_${p.name}"
+    }.foreach { planName =>
+      rec.use("strategic.main[0]", planName, "Context plan")
+      parts += NarrativeLexicon.getPlanStatement(bead ^ Math.abs(planName.hashCode) ^ 0x2b2b2b, planName, ply = ctx.ply)
+      concepts += s"plan_$planName"
     }
 
     // One concrete, verified observation to avoid generic boilerplate.
@@ -813,8 +1019,8 @@ object NarrativeOutlineBuilder:
     scope: String
   ): Option[String] =
     val planHint =
-      ctx.plans.top5.headOption
-        .map(_.name.replaceAll("""[_\-]+""", " ").trim.toLowerCase)
+      topStrategicPlanName(ctx)
+        .map(_.replaceAll("""[_\-]+""", " ").trim.toLowerCase)
         .filter(_.nonEmpty)
     val evalCp = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp))
     val evalHint = evalCp.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x7f4a7c15, cp, ply = ctx.ply))
@@ -2117,7 +2323,14 @@ object NarrativeOutlineBuilder:
       }
     if missingTerms.isEmpty then None
     else
-      val selected = missingTerms.take(2)
+      // Prioritize high-specificity concept motifs over generic positional ones
+      val highPriority = Set(
+        "stalemate", "repeat", "zugzwang", "perpetual check", "fortress",
+        "smothered mate", "underpromotion", "interference", "zwischenzug",
+        "greek gift", "king hunt", "deflection"
+      )
+      val prioritized = missingTerms.sortBy(t => if highPriority(t.toLowerCase) then 0 else 1)
+      val selected = prioritized.take(2)
       val rendered =
         selected match
           case List(one) =>
@@ -2204,10 +2417,21 @@ object NarrativeOutlineBuilder:
     val weaknesses = semantic.flatMap(_.structuralWeaknesses.flatMap(weakComplexMotifs))
     val endgame = semantic.flatMap(_.endgameFeatures.toList.flatMap(endgameMotifs))
     val evidence = ctx.candidates.flatMap(_.tacticEvidence.flatMap(tacticEvidenceMotifs))
-    (positional ++ weaknesses ++ endgame ++ evidence)
+    val conceptMotifs = semantic.flatMap(_.conceptSummary).flatMap(conceptToMotif)
+    (positional ++ weaknesses ++ endgame ++ evidence ++ conceptMotifs)
       .map(_.trim)
       .filter(_.nonEmpty)
       .distinct
+
+  /** Maps conceptSummary labels to motif IDs that canonicalTermForMotif can resolve. */
+  private def conceptToMotif(concept: String): Option[String] =
+    val low = concept.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
+    if low.contains("stalemate") then Some("stalemate_trick")
+    else if low.contains("repetition") || low.contains("repeat") then Some("repetition_threat")
+    else if low.contains("perpetual") then Some("perpetual_check")
+    else if low.contains("fortress") then Some("fortress")
+    else if low.contains("zugzwang") then Some("zugzwang")
+    else None
 
   private def endgameMotifs(info: EndgameInfo): List[String] =
     val motifs = scala.collection.mutable.ListBuffer[String]()

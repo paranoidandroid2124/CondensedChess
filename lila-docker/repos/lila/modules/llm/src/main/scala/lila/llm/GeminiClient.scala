@@ -43,7 +43,9 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       fen: String,
       openingName: Option[String] = None,
       nature: Option[String] = None,
-      tension: Option[Double] = None
+      tension: Option[Double] = None,
+      salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
+      momentType: Option[String] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if prose.isBlank then Future.successful(None)
@@ -56,7 +58,9 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         fen = fen,
         openingName = openingName,
         nature = nature,
-        tension = tension
+        tension = tension,
+        salience = salience,
+        momentType = momentType
       )
       callWithSystemPrompt(userPrompt)
         .recover { case e: Throwable =>
@@ -97,15 +101,6 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
 
   def isEnabled: Boolean = config.enabled
   def modelName: String = config.model
-
-
-  def estimateTokens(prose: String): GeminiTokenEstimate =
-    GeminiTokenEstimate(
-      systemTokens = PolishPrompt.estimatedSystemTokens,
-      inputTokens = PolishPrompt.estimateRequestTokens(prose),
-      cachedDiscount = 0.9,
-      outputTokens = 100 // typical polish output
-    )
 
 
   private def ensureCachedContent(): Future[Option[String]] =
@@ -219,20 +214,3 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       case e: Throwable =>
         logger.warn(s"Failed to parse Gemini response: ${e.getMessage}")
         None
-
-
-case class GeminiTokenEstimate(
-    systemTokens: Int,
-    inputTokens: Int,
-    cachedDiscount: Double,
-    outputTokens: Int
-):
-
-  def effectiveInputTokens: Int =
-    (systemTokens * (1.0 - cachedDiscount)).toInt + inputTokens
-
-
-  def estimatedCostUsd: Double =
-    val inputCost = effectiveInputTokens * 0.10 / 1_000_000  // $0.10 per 1M tokens
-    val outputCost = outputTokens * 0.40 / 1_000_000         // $0.40 per 1M tokens
-    inputCost + outputCost

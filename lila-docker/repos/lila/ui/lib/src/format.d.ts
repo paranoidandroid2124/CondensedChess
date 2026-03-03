@@ -1,0 +1,12 @@
+export declare const displayLocale: string;
+export declare const commonDateFormat: (d?: Date | number) => string;
+export declare const timeago: (d: DateLike) => string;
+export declare const toDate: (input: DateLike) => Date;
+export declare const use24h: () => boolean;
+export declare const formatAgo: (seconds: number) => string;
+type DateLike = Date | number | string;
+export declare const numberFormat: (n: number) => string;
+export declare const currencyFormat: (n: number, currency: string, options?: Intl.NumberFormatOptions) => string;
+export declare const percentFormat: (n: number, precision: number) => string;
+export declare const numberSpread: (el: HTMLElement, nbSteps: number, duration: number, previous: number) => (nb: number, overrideNbSteps?: number) => void;
+export {};

@@ -94,6 +94,9 @@ importers:
       bits:
         specifier: workspace:*
         version: link:../bits
+      chart:
+        specifier: workspace:*
+        version: link:../chart
       debounce-promise:
         specifier: ^3.1.2
         version: 3.1.2
@@ -175,6 +178,21 @@ importers:
       zxcvbn:
         specifier: ^4.4.2
         version: 4.4.2
+
+  ui/chart:
+    dependencies:
+      chart.js:
+        specifier: 4.5.1
+        version: 4.5.1
+      chartjs-plugin-datalabels:
+        specifier: ^2.2.0
+        version: 2.2.0(chart.js@4.5.1)
+      chessops:
+        specifier: ^0.15
+        version: 0.15.0
+      lib:
+        specifier: workspace:*
+        version: link:../lib
 
   ui/cli:
     dependencies:
@@ -513,6 +531,9 @@ packages:
   '@juggle/resize-observer@3.4.0':
     resolution: {integrity: sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA==}
 
+  '@kurkle/color@0.3.4':
+    resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
+
   '@lichess-org/chessground@9.9.0':
     resolution: {integrity: sha512-0BAyVXgRLaYTC8lj69Wr5EZoQzHRRwY1oGsggCbNXnkdcoQPP6lQgW0bHgbTScADGiNZvRs8VcV5JEZTTMEPfg==}
 
@@ -812,6 +833,15 @@ packages:
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
+
+  chart.js@4.5.1:
+    resolution: {integrity: sha512-GIjfiT9dbmHRiYi6Nl2yFCq7kkwdkp1W/lp2J99rX0yo9tgJGn3lKQATztIjb5tVtevcBtIdICNWqlq5+E8/Pw==}
+    engines: {pnpm: '>=8'}
+
+  chartjs-plugin-datalabels@2.2.0:
+    resolution: {integrity: sha512-14ZU30lH7n89oq+A4bWaJPnAG8a7ZTk7dKf48YAzMvJjQtjrgg5Dpk9f+LbjCF6bpx3RAGTeL13IXpKQYyRvlw==}
+    peerDependencies:
+      chart.js: '>=3.0.0'
 
   cheerio-select@2.1.0:
     resolution: {integrity: sha512-9v9kG0LvzrlcungtnJtpGNxY+fzECQKhK4EGJX2vByejiMX84MFNQw4UxPJl3bFbTMw+Dfs37XaIkCwTZfLh4g==}
@@ -2321,6 +2351,8 @@ snapshots:
 
   '@juggle/resize-observer@3.4.0': {}
 
+  '@kurkle/color@0.3.4': {}
+
   '@lichess-org/chessground@9.9.0': {}
 
   '@lichess-org/pgn-viewer@2.5.5':
@@ -2672,6 +2704,14 @@ snapshots:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
+
+  chart.js@4.5.1:
+    dependencies:
+      '@kurkle/color': 0.3.4
+
+  chartjs-plugin-datalabels@2.2.0(chart.js@4.5.1):
+    dependencies:
+      chart.js: 4.5.1
 
   cheerio-select@2.1.0:
     dependencies:

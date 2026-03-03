@@ -10,6 +10,7 @@ import lila.llm.model.strategic.*
  * Focuses on "what to say" so the LLM can focus on "how to say it".
  */
 object NarrativeGenerator:
+  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
   // 1. POSITION STRUCTURE NARRATIVE
   // 2. VARIATION NARRATIVE (Multi-PV)
 
@@ -131,11 +132,11 @@ object NarrativeGenerator:
     
     // === SUMMARY (5 lines) ===
     parts += "=== SUMMARY ==="
-    // Use the top plan's confidence for the primary plan summary
-    val planConfidence = ctx.plans.top5.headOption.map(_.confidence).getOrElse(ConfidenceLevel.Heuristic)
+    val planConfidence = strategicPlanConfidence(ctx)
+    val primaryPlanText = strategicPrimaryPlanSummary(ctx).getOrElse(ctx.summary.primaryPlan)
 
 
-    parts += s"• Primary Plan: ${toneWrap(planConfidence, "plan")}${ctx.summary.primaryPlan}"
+    parts += s"• Primary Plan: ${toneWrap(planConfidence, "plan")}$primaryPlanText"
     ctx.summary.keyThreat.foreach(t => parts += s"• Key Threat: $t")
     parts += s"• Choice Type: ${lila.llm.analysis.NarrativeUtils.humanize(ctx.summary.choiceType)}"
     parts += s"• Tension: ${lila.llm.analysis.NarrativeUtils.humanize(ctx.summary.tensionPolicy)}"
@@ -181,9 +182,27 @@ object NarrativeGenerator:
       parts += ""
     }
     
-    // === PLANS (Top 5) ===
-    if (ctx.plans.top5.nonEmpty) {
-      parts += "=== PLANS ==="
+    // === STRATEGIC PLANS (partition SSOT) ===
+    if (ctx.mainStrategicPlans.nonEmpty || ctx.latentPlans.nonEmpty || ctx.whyAbsentFromTopMultiPV.nonEmpty) {
+      parts += "=== STRATEGIC PLANS (EVIDENCE PARTITION) ==="
+      ctx.mainStrategicPlans.foreach { p =>
+        parts += s"${p.rank}. ${toneWrap(ConfidenceLevel.Probe, "plan")}${p.planName} ${f"${p.score}%.2f"}"
+        if (p.preconditions.nonEmpty) parts += s"   • Preconditions: ${p.preconditions.take(2).mkString(", ")}"
+        if (p.executionSteps.nonEmpty) parts += s"   • Execution: ${p.executionSteps.take(2).mkString(", ")}"
+        if (p.failureModes.nonEmpty) parts += s"   • Failure Modes: ${p.failureModes.take(2).mkString(", ")}"
+      }
+      if (ctx.latentPlans.nonEmpty) {
+        parts += "• Latent/Deferred:"
+        ctx.latentPlans.foreach { lp =>
+          parts += s"   - ${lp.planName} (${f"${lp.viabilityScore}%.2f"}): ${lp.whyAbsentFromTopMultiPv}"
+        }
+      }
+      if (ctx.whyAbsentFromTopMultiPV.nonEmpty) {
+        parts += s"• Hold Reasons: ${ctx.whyAbsentFromTopMultiPV.mkString("; ")}"
+      }
+      parts += ""
+    } else if (LegacyStrategicFallbackText && ctx.plans.top5.nonEmpty) {
+      parts += "=== PLANS (LEGACY FALLBACK) ==="
       ctx.plans.top5.foreach { p =>
         val evidenceStr = if (p.evidence.nonEmpty) s" (${p.evidence.mkString(", ")})" else ""
         parts += s"${p.rank}. ${toneWrap(p.confidence, "plan")}${p.name} ${f"${p.score}%.2f"}$evidenceStr"
@@ -337,3 +356,27 @@ object NarrativeGenerator:
     
     parts.result().mkString("\n")
   }
+
+  private def strategicPrimaryPlanSummary(ctx: NarrativeContext): Option[String] =
+    ctx.mainStrategicPlans.headOption.map { p =>
+      s"${p.planName} (${f"${p.score}%.2f"})"
+    }.orElse {
+      if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(p => s"${p.name} (${f"${p.score}%.2f"})")
+      else None
+    }
+
+  private def strategicPlanConfidence(ctx: NarrativeContext): ConfidenceLevel =
+    if ctx.mainStrategicPlans.nonEmpty then ConfidenceLevel.Probe
+    else if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(_.confidence).getOrElse(ConfidenceLevel.Heuristic)
+    else ConfidenceLevel.Heuristic
+
+  private def boolEnv(name: String, default: Boolean): Boolean =
+    sys.env
+      .get(name)
+      .map(_.trim.toLowerCase)
+      .flatMap {
+        case "1" | "true" | "yes" | "on"  => Some(true)
+        case "0" | "false" | "no" | "off" => Some(false)
+        case _                              => None
+      }
+      .getOrElse(default)

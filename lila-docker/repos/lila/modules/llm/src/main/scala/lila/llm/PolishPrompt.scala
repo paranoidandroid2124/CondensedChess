@@ -47,12 +47,12 @@ object PolishPrompt:
       |   - |Δcp| 50–100: clear mistake language ("a significant inaccuracy", "lets slip")
       |   - |Δcp| > 100: severe language ("a serious error", "a decisive mistake")
       |   - |Δcp| > 200: blunder language ("a catastrophic oversight", "loses by force")
-      |9. NEVER contradict the evaluation: if eval says +0.3, don't describe the position
-      |   as "clearly winning". If eval says −2.0, don't call it "roughly equal".
-      |10. HANDLE special positions:
-      |    - Opening theory: reference the opening name, typical plans, model games
-      |    - Endgame technique: be precise about winning/drawing techniques
-      |    - Tactical sequences: walk through the forcing line step by step
+       |9. NEVER contradict the evaluation: if eval says +0.3, don't describe the position
+       |   as "clearly winning". If eval says −2.0, don't call it "roughly equal".
+       |10. HANDLE special positions:
+       |    - Opening theory: reference the opening name, typical plans, model games
+       |    - Endgame technique: be precise about winning/drawing techniques
+       |    - Tactical sequences: walk through the forcing line step by step
        |11. AVOID template cadence:
         |    - Do not reuse the same sentence stem repeatedly in one response
         |      (e.g., "X is playable..., but ...", "Engine-wise..., ...")
@@ -62,28 +62,31 @@ object PolishPrompt:
         |      A = move sequence/route, B = strategic transition, C = practical decision driver
         |    - Limit repeated fixed prefixes ("Sequence focus", "Strategic shift", "Engine ...")
         |      to at most once each within one response
-       |12. PRECEDENT integrity:
+       |12. SALIENT CONTEXT:
+       |    - If `Salience: Low` is provided, DO NOT elaborate on long-term plans or structural shifts. Keep the commentary extremely brief (1-2 sentences) purely focusing on the concrete tactical meaning of the move.
+       |    - Only emphasize long-term L1/L2 strategic plans when `Salience: High` is present.
+       |13. PRECEDENT integrity:
         |    - If the draft includes precedent references (players/year/event/line/result),
         |      keep those facts exactly unchanged.
-       |13. NO fabricated historical references:
+       |14. NO fabricated historical references:
        |    - If no precedent reference exists in the draft, do not add one.
-       |14. NO speculative precedent claims:
+       |15. NO speculative precedent claims:
        |    - Do not infer uncertain precedent details; omit them instead.
-       |15. PRESERVE two-stage precedent blocks:
+       |16. PRESERVE two-stage precedent blocks:
        |    - If a precedent appears as factual line + mechanism/turning-point line, keep both sentences.
-       |16. WHEN citing concrete lines, keep explicit move numbering and side-to-move markers:
+       |17. WHEN citing concrete lines, keep explicit move numbering and side-to-move markers:
        |    - Use forms like "17... d5!" and "14 Ne6 Nxe5 15 Bxe5 Qf2!".
        |    - Do not collapse numbered sequences into unnumbered SAN tokens.
        |    - Keep SAN token order exactly as in the draft for any concrete line.
        |    - Do not reorder repeated SAN tokens across a line (mini-board mapping depends on this).
        |    - Preserve move-number marker style for cited lines (e.g., keep "17..." as black marker).
-       |17. REMOVE unsupported opening-family claims:
+       |18. REMOVE unsupported opening-family claims:
        |    - If the draft names an opening family that conflicts with provided Opening/FEN context,
        |      replace it with a neutral structural description.
-       |18. AVOID generic outro/filler prose:
+       |19. AVOID generic outro/filler prose:
        |    - Do not add stock closers such as "overall the battle continues" unless present in draft facts.
        |    - Keep practical guidance concrete (piece/square/plan), not vague emotional narration.
-       |19. ANCHOR TOKEN INTEGRITY (when present):
+       |20. ANCHOR TOKEN INTEGRITY (when present):
        |    - Preserve placeholders like [[MV_xxx]], [[MK_xxx]], [[EV_xxx]], and [[VB_xxx]] exactly.
        |    - Never delete, rename, reorder, or partially rewrite anchor tokens.
        |    - Keep anchor token order unchanged from the draft.
@@ -98,6 +101,7 @@ object PolishPrompt:
       |- `plans`: active strategic plans and their confidence scores
       |- `motifs`: tactical and positional motifs detected in the position
       |- `concepts`: high-level chess concepts applicable to the position
+      |- `Salience`: High/Low flag determining if long-term strategic plans should be discussed
       |
       |## OUTPUT FORMAT
       |Return only the polished commentary prose content.
@@ -125,13 +129,17 @@ object PolishPrompt:
       fen: String,
       openingName: Option[String] = None,
       nature: Option[String] = None,
-      tension: Option[Double] = None
+      tension: Option[Double] = None,
+      salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
+      momentType: Option[String] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val conceptStr = if concepts.isEmpty then "none detected" else concepts.take(6).mkString(", ")
     val openingStr = openingName.filter(_.trim.nonEmpty).getOrElse("unknown")
     val natureStr = nature.getOrElse("unknown")
     val tensionStr = tension.map(t => f"$t%.2f").getOrElse("N/A")
+    val salienceStr = salience.map(_.toString).getOrElse("High")
+    val momentTypeStr = momentType.map(m => s"Key Moment ($m) - Part of Full Game Review").getOrElse("Isolated Move")
 
     s"""## DRAFT COMMENTARY
        |$prose
@@ -141,6 +149,8 @@ object PolishPrompt:
        |Opening: $openingStr
        |Concepts: $conceptStr
        |FEN: $fen
+       |Salience: $salienceStr
+       |Context Mode: $momentTypeStr
        |
        |If anchor tokens like [[MV_*]], [[MK_*]], [[EV_*]], or [[VB_*]] appear in the draft, preserve them exactly.
        |

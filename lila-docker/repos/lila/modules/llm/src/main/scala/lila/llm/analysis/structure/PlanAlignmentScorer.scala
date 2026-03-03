@@ -117,10 +117,16 @@ object PlanAlignmentScorer:
       case "counter_break_watch" =>
         pawnAnalysis.exists(_.counterBreak)
       case "king_flank_focus" =>
-        pawnAnalysis.exists(_.breakFile.exists(f => f == "f" || f == "g" || f == "h")) ||
+        val flankPawnPush = pawnAnalysis.exists(_.breakFile.exists(f => f == "f" || f == "g" || f == "h")) ||
           motifs.exists {
             case m: Motif.PawnAdvance => Set('f', 'g', 'h').contains(m.file.char)
             case _ => false
           }
+        val flankPieceActivity = motifs.exists {
+          case m: Motif.Outpost => Set('f', 'g', 'h').contains(m.square.file.char)
+          case m: Motif.Maneuver => m.move.exists(moveStr => moveStr.contains("f") || moveStr.contains("g") || moveStr.contains("h") || moveStr.contains("O-O"))
+          case _ => false
+        }
+        flankPawnPush && flankPieceActivity
       case _ =>
         true

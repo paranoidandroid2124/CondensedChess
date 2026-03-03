@@ -76,7 +76,9 @@ case class NarrativeContext(
   facts: List[Fact] = Nil,
 
 
-  deltaAfterMove: Boolean = false
+
+  deltaAfterMove: Boolean = false,
+  strategicSalience: lila.llm.model.strategic.StrategicSalience = lila.llm.model.strategic.StrategicSalience.High
 )
 
 

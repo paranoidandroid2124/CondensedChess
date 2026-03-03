@@ -1,0 +1,20 @@
+ 
+import type { Hooks } from 'snabbdom';
+export declare const linkRegex: RegExp;
+export declare const newLineRegex: RegExp;
+export declare const userPattern: RegExp;
+export declare const isMoreThanText: (str: string) => boolean;
+export declare function toLink(url: string): string;
+export declare const autolink: (str: string, callback: (str: string) => string) => string;
+export declare const innerHTML: <A>(a: A, toHtml: (a: A) => string) => Hooks;
+export declare function linkReplace(href: string, body?: string, expandable?: boolean): string;
+export declare const userLinkReplace: (_: string, prefix: string, user: string) => string;
+export declare const expandMentions: (html: string) => string;
+export declare function enrichText(text: string, allowNewlines?: boolean): string;
+export declare function richHTML(text: string, newLines?: boolean): Hooks;
+export declare const movePattern: RegExp;
+export interface EnhanceOpts {
+    plies?: boolean;
+    boards?: boolean;
+}
+export declare function enhance(text: string, opts?: EnhanceOpts): string;

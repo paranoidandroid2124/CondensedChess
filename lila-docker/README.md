@@ -60,6 +60,18 @@ SUPPORT_BMC_URL=
 ./lila-docker lila restart
 ```
 
+### Prod-Like Runtime (No `sbt run`)
+To run `lila` with Play stage binaries (Prod mode) instead of dev hot-reload:
+
+```bash
+# PowerShell
+$env:LILA_RUNTIME="prod"
+$env:LILA_STAGE_ON_BOOT="auto" # auto | always | skip
+docker compose --profile base up -d --force-recreate lila
+```
+
+Default stage binary path is `/tmp/lila-target/lila/universal/stage/bin/lila` (override with `LILA_STAGE_BIN`).
+
 ### Full UI Build
 ```bash
 docker compose run --rm -w /lila ui node ui/build.mjs

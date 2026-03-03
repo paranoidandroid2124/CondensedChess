@@ -6,19 +6,21 @@ import lila.llm.analysis.L3.{ PvLine, TensionPolicy }
 import chess.*
 import chess.format.Fen
 import lila.llm.analysis.MoveAnalyzer
+import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
 
 /**
  * Detects "Ghost Plans" and generates ProbeRequests for the client.
  */
 object ProbeDetector:
 
-  private val ScoreThreshold = 0.70
-  private val HighConfidenceGhostScore = 0.80
-  private val HighConfidenceGlobalScore = 0.78
+  private val ScoreThreshold = 0.62
+  private val HighConfidenceGhostScore = 0.72
+  private val HighConfidenceGlobalScore = 0.65
   private val MaxMovesPerPlan = 3
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
   private val PurposeBudget: Map[String, Int] = Map(
+    "theme_plan_validation" -> 3,
     "reply_multipv" -> 2,
     "defense_reply_multipv" -> 2,
     "convert_reply_multipv" -> 2,
@@ -28,7 +30,7 @@ object ProbeDetector:
     "latent_plan_refutation" -> 1,
     "latent_plan_immediate" -> 1,
     "played_move_counterfactual" -> 1,
-    "NullMoveThreat" -> 1
+    "NullMoveThreat" -> 2
   )
 
   case class StrategicFrame(
@@ -48,30 +50,6 @@ object ProbeDetector:
     longConfidenceDelta: Double,
     strategicFrame: Option[StrategicFrame]
   )
-
-  private def boolSetting(propKey: String, envKey: String, default: Boolean): Boolean =
-    sys.props
-      .get(propKey)
-      .orElse(sys.env.get(envKey))
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on"  => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _ => None
-      }
-      .getOrElse(default)
-
-  // R+1 demote policy:
-  // - competitive/defensive probes are shadow-only by default (not emitted to client).
-  // - low-confidence plan ghost probes are shadow-only by default.
-  private def emitCompetitiveDemoted: Boolean =
-    boolSetting("llm.probe.emitCompetitiveDemoted", "LLM_PROBE_EMIT_COMPETITIVE_DEMOTED", default = false)
-
-  private def emitDefensiveDemoted: Boolean =
-    boolSetting("llm.probe.emitDefensiveDemoted", "LLM_PROBE_EMIT_DEFENSIVE_DEMOTED", default = false)
-
-  private def emitLowConfidenceGhostDemoted: Boolean =
-    boolSetting("llm.probe.emitLowConfidenceGhostDemoted", "LLM_PROBE_EMIT_LOW_CONF_GHOST_DEMOTED", default = false)
 
   private def planEvidenceProbes(
     fen: String,
@@ -350,6 +328,7 @@ object ProbeDetector:
   def detect(
     ctx: IntegratedContext,
     planScoring: PlanScoringResult,
+    planHypotheses: List[PlanHypothesis] = Nil,
     multiPv: List[PvLine],
     fen: String,
     playedMove: Option[String] = None,
@@ -468,97 +447,96 @@ object ProbeDetector:
               }.toList
             }
 
-        // 1. Plan-based Ghost Probes:
-        // Keep high-confidence probes on by default.
-        // Low-confidence probes are demoted to shadow-only in R+1 unless explicitly enabled.
-        val planProbeCandidates = planScoring.topPlans.flatMap { pm =>
-          if (pm.score < ScoreThreshold) None
-          else if (pm.plan.color != sideToMove) None
-          else
-            val repMoves = representativeMoves(pos, pm, legalMoves).take(MaxMovesPerPlan)
-            val isRepresented = repMoves.exists(topPvMoves.contains)
-
-            if (repMoves.isEmpty || isRepresented) None
-            else
-              Some(
-                ProbeRequest(
-                  id = stableRequestId(pm.plan, fen),
-                  fen = fen,
-                  moves = repMoves,
-                  depth = DefaultDepth,
-                  planId = Some(pm.plan.id.toString),
-                  planName = Some(pm.plan.name),
-                  planScore = Some(pm.score),
-                  objective = Some("validate_plan_presence"),
-                  requiredSignals = List("replyPvs", "keyMotifs"),
-                  horizon = Some("medium"),
-                  baselineMove = baseline.flatMap(_.moves.headOption),
-                  baselineEvalCp = baseline.map(_.evalCp),
-                  baselineMate = baseline.flatMap(_.mate),
-                  baselineDepth = baseline.map(_.depth).filter(_ > 0)
-                ) -> isHighConfidenceGhostProbe(pm, planScoring)
-              )
-        }
+        // 1. Theme plan validation probes:
+        // Probe strategic hypotheses directly; PV is treated as validation support.
         val planProbes =
-          if emitLowConfidenceGhostDemoted then planProbeCandidates.map(_._1)
-          else planProbeCandidates.collect { case (req, true) => req }
+          val hypothesisDriven =
+            planHypotheses
+              .groupBy(hypothesisKey)
+              .values
+              .toList
+              .flatMap(_.sortBy(h => -h.score).headOption)
+              .sortBy(h => -h.score)
+              .flatMap { h =>
+                if h.score < ScoreThreshold || !isPlanValidationCandidate(h) then None
+                else
+                  val contract = themePlanContract(h)
+                  val repMoves = representativeMoves(pos, h, legalMoves, planScoring).take(MaxMovesPerPlan)
+                  val novelMoves = repMoves.filterNot(topPvMoves.contains)
+                  val selectedMoves =
+                    if novelMoves.nonEmpty then novelMoves.take(MaxMovesPerPlan)
+                    else if h.score >= HighConfidenceGhostScore && repMoves.nonEmpty then repMoves.take(1)
+                    else Nil
+                  if selectedMoves.isEmpty then None
+                  else
+                    val labeledPlanName =
+                      contract.subplanId
+                        .map(sp => s"${h.planName} [subplan:${sp.id}]")
+                        .getOrElse(h.planName)
+                    Some(
+                      ProbeRequest(
+                        id = stableRequestId(h, fen),
+                        fen = fen,
+                        moves = selectedMoves,
+                        depth = DefaultDepth,
+                        planId = Some(h.planId),
+                        planName = Some(labeledPlanName),
+                        planScore = Some(h.score),
+                        purpose = Some("theme_plan_validation"),
+                        objective = contract.objective,
+                        requiredSignals = contract.requiredSignals,
+                        horizon = contract.horizon,
+                        maxCpLoss = Some(110),
+                        baselineMove = baseline.flatMap(_.moves.headOption),
+                        baselineEvalCp = baseline.map(_.evalCp),
+                        baselineMate = baseline.flatMap(_.mate),
+                        baselineDepth = baseline.map(_.depth).filter(_ > 0)
+                      )
+                    )
+              }
+              .take(3)
 
-        // 2. Competitive Probes: Similar engine scores but different moves
-        val competitiveProbesRaw = multiPv.drop(1).take(2).flatMap { pv =>
-          val bestPv = multiPv.head
-          val scoreDiff = (pv.evalCp - bestPv.evalCp).abs
-          // If second/third best move is close (e.g. < 30cp difference), probe it for "choice" explanation
-          if (scoreDiff < 30 && pv.moves.nonEmpty) {
-            val move = pv.moves.head
-            Some(ProbeRequest(
-              id = s"competitive_${move}_${Integer.toHexString(fen.hashCode)}",
-              fen = fen,
-              moves = List(move),
-              depth = DefaultDepth,
-              planName = Some(s"Competitive Alternative: $move"),
-              objective = Some("compare_branches"),
-              requiredSignals = List("replyPvs"),
-              horizon = Some("short"),
-              baselineMove = bestPv.moves.headOption,
-              baselineEvalCp = Some(bestPv.evalCp),
-              baselineMate = bestPv.mate,
-              baselineDepth = Some(bestPv.depth).filter(_ > 0)
-            ))
-          } else None
-        }
-        val competitiveProbes =
-          if emitCompetitiveDemoted then competitiveProbesRaw else Nil
+          if hypothesisDriven.nonEmpty then hypothesisDriven
+          else
+            planScoring.topPlans.flatMap { pm =>
+              if (pm.plan.color != sideToMove || pm.score < ScoreThreshold || !isPlanValidationCandidate(pm, planScoring)) None
+              else
+                val contract = themePlanContract(pm)
+                val repMoves = representativeMoves(pos, pm, legalMoves).take(MaxMovesPerPlan)
+                val novelMoves = repMoves.filterNot(topPvMoves.contains)
+                val selectedMoves =
+                  if novelMoves.nonEmpty then novelMoves.take(MaxMovesPerPlan)
+                  else if pm.score >= HighConfidenceGhostScore && repMoves.nonEmpty then repMoves.take(1)
+                  else Nil
+                if selectedMoves.isEmpty then None
+                else
+                  val labeledPlanName =
+                    contract.subplanId
+                      .map(sp => s"${pm.plan.name} [subplan:${sp.id}]")
+                      .getOrElse(pm.plan.name)
+                  Some(
+                    ProbeRequest(
+                      id = stableRequestId(pm.plan, fen),
+                      fen = fen,
+                      moves = selectedMoves,
+                      depth = DefaultDepth,
+                      planId = Some(pm.plan.id.toString),
+                      planName = Some(labeledPlanName),
+                      planScore = Some(pm.score),
+                      purpose = Some("theme_plan_validation"),
+                      objective = contract.objective,
+                      requiredSignals = contract.requiredSignals,
+                      horizon = contract.horizon,
+                      maxCpLoss = Some(110),
+                      baselineMove = baseline.flatMap(_.moves.headOption),
+                      baselineEvalCp = baseline.map(_.evalCp),
+                      baselineMate = baseline.flatMap(_.mate),
+                      baselineDepth = baseline.map(_.depth).filter(_ > 0)
+                    )
+                  )
+            }.take(3)
 
-        // 3. Defensive Probes: If top move is passive but an aggressive one is slightly worse
-        val defensiveProbesRaw = if (multiPv.size > 1 && baseline.exists(_.evalCp > -50)) {
-          val aggressiveMoves = legalMoves.filter(m => m.captures || m.after.check.yes).map(_.toUci.uci)
-          multiPv.filter(pv => pv.moves.headOption.exists(aggressiveMoves.contains)).headOption.flatMap { aggPv =>
-            val bestPv = multiPv.head
-            val cost = (bestPv.evalCp - aggPv.evalCp)
-            // If an aggressive move exists that costs 50-150cp, probe it to explain "Why not X?"
-            if (cost >= 50 && cost <= 150) {
-              val move = aggPv.moves.head
-              Some(ProbeRequest(
-                id = s"aggressive_why_not_${move}_${Integer.toHexString(fen.hashCode)}",
-                fen = fen,
-                moves = List(move),
-                depth = DefaultDepth,
-                planName = Some(s"Aggressive Alternative: $move"),
-                objective = Some("refute_aggressive_line"),
-                requiredSignals = List("replyPvs", "l1Delta"),
-                horizon = Some("short"),
-                baselineMove = bestPv.moves.headOption,
-                baselineEvalCp = Some(bestPv.evalCp),
-                baselineMate = bestPv.mate,
-                baselineDepth = Some(bestPv.depth).filter(_ > 0)
-              ))
-            } else None
-          }
-        } else None
-        val defensiveProbes =
-          if emitDefensiveDemoted then defensiveProbesRaw.toList else Nil
-
-        // 4. Null-Move (Prophylaxis) Probes: Generate a "What if I pass?" FEN to find true threats.
+        // 2. Null-Move (Prophylaxis) Probes: Generate a "What if I pass?" FEN to find true threats.
         // We only do this if there's tension or the baseline eval is somewhat balanced/threatening.
         val nullMoveProbes = if (ctx.tacticalThreatToUs || ctx.tacticalThreatToThem || (baseline.exists(_.evalCp.abs < 200))) {
           val nullFen = lila.llm.analysis.FENUtils.passTurn(fen)
@@ -569,10 +547,10 @@ object ProbeDetector:
               moves = Nil, // We want the engine's best move FOR THE OPPONENT
               depth = DefaultDepth,
               purpose = Some("NullMoveThreat"),
-              planName = Some("Prophylactic Null-Move Analysis"),
-              objective = Some("detect_null_move_threat"),
-              requiredSignals = List("replyPvs", "keyMotifs"),
-              horizon = Some("short"),
+              planName = Some("Restriction/Prophylaxis Null-Move Check"),
+              objective = objectiveForPurpose("NullMoveThreat"),
+              requiredSignals = requiredSignalsForPurpose("NullMoveThreat"),
+              horizon = horizonForPurpose("NullMoveThreat"),
               baselineMove = baseline.flatMap(_.moves.headOption),
               baselineEvalCp = baseline.map(_.evalCp),
               baselineMate = baseline.flatMap(_.mate),
@@ -582,7 +560,7 @@ object ProbeDetector:
         } else None
 
         applyPurposeBudget(
-          (evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ planProbes ++ competitiveProbes ++ defensiveProbes ++ nullMoveProbes.toList)
+          (planProbes ++ evidenceProbes ++ pvRepairProbes ++ playedMoveProbe ++ tensionProbes ++ nullMoveProbes.toList)
             .distinctBy(r => s"${r.fen}|${r.moves.mkString(",")}")
         ).take(MaxProbeRequests)
     }.getOrElse(Nil)
@@ -600,8 +578,96 @@ object ProbeDetector:
         true
     }
 
+  private case class ThemePlanContract(
+      subplanId: Option[SubplanId],
+      objective: Option[String],
+      requiredSignals: List[String],
+      horizon: Option[String]
+  )
+
+  private def themePlanContract(pm: PlanMatch): ThemePlanContract =
+    val taggedSubplan =
+      pm.supports
+        .collectFirst { case s if s.startsWith("subplan:") => s.stripPrefix("subplan:").trim }
+        .filter(_.nonEmpty)
+        .flatMap(SubplanId.fromId)
+    val inferredSubplan =
+      taggedSubplan
+        .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString))
+        .orElse(ThemeResolver.subplanFromPlanName(pm.plan.name))
+    inferredSubplan.flatMap(SubplanCatalog.specs.get) match
+      case Some(spec) =>
+        val required =
+          inferredSubplan
+            .map(sp => broadenThemeContractForDefaultSubplan(sp, spec.requiredSignals))
+            .getOrElse(spec.requiredSignals.distinct)
+        ThemePlanContract(
+          subplanId = inferredSubplan,
+          objective = Some(spec.objective),
+          requiredSignals = required,
+          horizon = Some(spec.horizon)
+        )
+      case None =>
+        ThemePlanContract(
+          subplanId = inferredSubplan,
+          objective = objectiveForPurpose("theme_plan_validation"),
+          requiredSignals = requiredSignalsForPurpose("theme_plan_validation"),
+          horizon = horizonForPurpose("theme_plan_validation")
+        )
+
+  private def themePlanContract(h: PlanHypothesis): ThemePlanContract =
+    val inferredSubplan = hypothesisSubplanId(h)
+    inferredSubplan.flatMap(SubplanCatalog.specs.get) match
+      case Some(spec) =>
+        val required =
+          inferredSubplan
+            .map(sp => broadenThemeContractForDefaultSubplan(sp, spec.requiredSignals))
+            .getOrElse(spec.requiredSignals.distinct)
+        ThemePlanContract(
+          subplanId = inferredSubplan,
+          objective = Some(spec.objective),
+          requiredSignals = required,
+          horizon = Some(spec.horizon)
+        )
+      case None =>
+        ThemePlanContract(
+          subplanId = inferredSubplan,
+          objective = objectiveForPurpose("theme_plan_validation"),
+          requiredSignals = requiredSignalsForPurpose("theme_plan_validation"),
+          horizon = horizonForPurpose("theme_plan_validation")
+        )
+
+  private def hypothesisKey(h: PlanHypothesis): String =
+    val sub = hypothesisSubplanId(h).map(_.id).getOrElse("")
+    s"${h.planId.trim.toLowerCase}|${sub.toLowerCase}"
+
+  private def hypothesisThemeId(h: PlanHypothesis): ThemeL1 =
+    ThemeResolver.fromHypothesis(h)
+
+  private def hypothesisSubplanId(h: PlanHypothesis): Option[SubplanId] =
+    ThemeResolver.subplanFromHypothesis(h).orElse(h.subplanId.flatMap(SubplanId.fromId))
+
+  private val SignalPriority = List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
+
+  private def broadenThemeContractForDefaultSubplan(
+      subplan: SubplanId,
+      baseSignals: List[String]
+  ): List[String] =
+    val isDefault = ThemeResolver.defaultSubplanForTheme(subplan.theme).contains(subplan)
+    val merged =
+      if isDefault then
+        val themeSignals =
+          SubplanCatalog
+            .byTheme(subplan.theme)
+            .flatMap(_._2.requiredSignals)
+            .toSet
+        baseSignals.toSet ++ themeSignals
+      else baseSignals.toSet
+    SignalPriority.filter(merged.contains) ++ (merged -- SignalPriority.toSet).toList.sorted
+
   private def requiredSignalsForPurpose(purpose: String): List[String] =
     purpose match
+      case "theme_plan_validation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
       case "latent_plan_refutation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
       case "latent_plan_immediate"  => List("replyPvs", "l1Delta")
       case "free_tempo_branches"    => List("replyPvs", "futureSnapshot")
@@ -611,12 +677,13 @@ object ProbeDetector:
       case "played_move_counterfactual" =>
         List("replyPvs", "l1Delta")
       case "NullMoveThreat" =>
-        List("replyPvs", "keyMotifs")
+        List("replyPvs", "keyMotifs", "l1Delta")
       case _ =>
         Nil
 
   private def objectiveForPurpose(purpose: String): Option[String] =
     purpose match
+      case "theme_plan_validation" => Some("validate_plan_presence")
       case "latent_plan_refutation" => Some("refute_plan")
       case "latent_plan_immediate"  => Some("validate_immediate_viability")
       case "free_tempo_branches"    => Some("validate_latent_plan")
@@ -626,11 +693,12 @@ object ProbeDetector:
       case "recapture_branches"     => Some("compare_recapture_structures")
       case "keep_tension_branches"  => Some("compare_tension_branches")
       case "played_move_counterfactual" => Some("counterfactual_probe")
-      case "NullMoveThreat"         => Some("null_move_threat_detection")
+      case "NullMoveThreat"         => Some("validate_restriction_prophylaxis")
       case _                        => None
 
   private def horizonForPurpose(purpose: String): Option[String] =
     purpose match
+      case "theme_plan_validation" => Some("medium")
       case "latent_plan_refutation" | "free_tempo_branches" => Some("long")
       case "latent_plan_immediate" | "convert_reply_multipv" => Some("medium")
       case "reply_multipv" | "defense_reply_multipv" | "recapture_branches" | "keep_tension_branches" =>
@@ -811,14 +879,140 @@ object ProbeDetector:
       }
 
   private def stableRequestId(plan: Plan, fen: String): String =
-    val slug = plan.name
+    val slug = slugify(plan.name)
+    s"${plan.id}_${slug}_${Integer.toHexString(fen.hashCode)}"
+
+  private def stableRequestId(h: PlanHypothesis, fen: String): String =
+    val subplanTag = hypothesisSubplanId(h).map(_.id).getOrElse("none")
+    val slug = slugify(s"${h.planId}_${h.planName}_$subplanTag")
+    s"hyp_${slug}_${Integer.toHexString(fen.hashCode)}"
+
+  private def slugify(raw: String): String =
+    raw
       .toLowerCase
-      .map(c => if (c.isLetterOrDigit) c else '_')
+      .map(c => if c.isLetterOrDigit then c else '_')
       .mkString
       .replaceAll("_+", "_")
       .stripPrefix("_")
       .stripSuffix("_")
-    s"${plan.id}_${slug}_${Integer.toHexString(fen.hashCode)}"
+
+  private def isPlanValidationCandidate(pm: PlanMatch, planScoring: PlanScoringResult): Boolean =
+    val strongPlanScore = pm.score >= HighConfidenceGhostScore
+    val stableGlobalScore =
+      if planScoring.confidence <= 0.0 then true
+      else planScoring.confidence >= HighConfidenceGlobalScore
+    val hasSupport = pm.evidence.nonEmpty || pm.supports.nonEmpty
+    val manageableUncertainty = pm.blockers.size <= 2 && pm.missingPrereqs.size <= 1
+    val nearTopScore =
+      planScoring.topPlans.headOption.forall(top => pm.score >= (top.score - 0.14))
+    hasSupport && manageableUncertainty && (strongPlanScore || stableGlobalScore || nearTopScore)
+
+  private def isPlanValidationCandidate(h: PlanHypothesis): Boolean =
+    val hasSupport = h.evidenceSources.nonEmpty || h.executionSteps.nonEmpty || h.preconditions.nonEmpty
+    val manageableUncertainty = h.failureModes.size <= 3
+    val viable = h.viability.score >= 0.45
+    hasSupport && manageableUncertainty && viable
+
+  private def representativeMoves(
+      pos: Position,
+      h: PlanHypothesis,
+      legalMoves: List[Move],
+      planScoring: PlanScoringResult
+  ): List[String] =
+    val fromRulePlans =
+      planScoring.topPlans
+        .filter(pm => hypothesisMatchesPlanMatch(h, pm))
+        .flatMap(pm => representativeMoves(pos, pm, legalMoves))
+        .distinct
+    val fallback =
+      movesFromHypothesis(h, legalMoves)
+        .map(_.toUci.uci)
+        .distinct
+        .filterNot(fromRulePlans.contains)
+    (fromRulePlans ++ fallback).distinct.take(MaxMovesPerPlan)
+
+  private def hypothesisMatchesPlanMatch(h: PlanHypothesis, pm: PlanMatch): Boolean =
+    val hypPlanId = h.planId.trim.toLowerCase
+    val pmPlanId = pm.plan.id.toString.trim.toLowerCase
+    val hypTheme = hypothesisThemeId(h)
+    val pmTheme = ThemeResolver.fromPlanId(pm.plan.id.toString)
+    val hypSubplan = hypothesisSubplanId(h).map(_.id)
+    val pmSubplan = themePlanContract(pm).subplanId.map(_.id)
+    hypPlanId == pmPlanId ||
+      (hypSubplan.nonEmpty && hypSubplan == pmSubplan) ||
+      (hypTheme != ThemeL1.Unknown && hypTheme == pmTheme)
+
+  private def movesFromHypothesis(
+      h: PlanHypothesis,
+      legalMoves: List[Move]
+  ): List[Move] =
+    val subplanMoves = hypothesisSubplanId(h).toList.flatMap(sp => movesFromSubplan(sp, legalMoves))
+    val themeMoves = movesFromTheme(hypothesisThemeId(h), legalMoves)
+    (subplanMoves ++ themeMoves).distinct
+
+  private def movesFromSubplan(
+      subplan: SubplanId,
+      legalMoves: List[Move]
+  ): List[Move] =
+    subplan match
+      case SubplanId.ProphylaxisRestraint | SubplanId.BreakPrevention | SubplanId.KeySquareDenial |
+          SubplanId.MobilitySuppression =>
+        legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
+      case SubplanId.OutpostEntrenchment | SubplanId.WorstPieceImprovement =>
+        legalMoves.filter(mv =>
+          !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop)
+        )
+      case SubplanId.RookFileTransfer | SubplanId.RookLiftScaffold =>
+        legalMoves.filter(mv => mv.piece.role == Rook && !mv.captures)
+      case SubplanId.FlankClamp | SubplanId.RookPawnMarch | SubplanId.HookCreation | SubplanId.WingBreakTiming |
+          SubplanId.MinorityAttackFixation =>
+        legalMoves.filter(mv =>
+          mv.piece.role == Pawn &&
+            !mv.dest.file.isCentral &&
+            (!mv.captures || mv.dest.file.isKingside || mv.dest.file.isQueenside)
+        )
+      case SubplanId.CentralSpaceBind | SubplanId.CentralBreakTiming | SubplanId.TensionMaintenance =>
+        legalMoves.filter(mv =>
+          mv.piece.role == Pawn &&
+            (mv.orig.file.isCentral || mv.dest.file.isCentral)
+        )
+      case SubplanId.StaticWeaknessFixation | SubplanId.BackwardPawnTargeting =>
+        legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
+      case SubplanId.SimplificationWindow | SubplanId.DefenderTrade | SubplanId.QueenTradeShield |
+          SubplanId.SimplificationConversion | SubplanId.InvasionTransition =>
+        legalMoves.filter(mv => mv.captures || mv.piece.role == Rook)
+      case SubplanId.PasserConversion =>
+        legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
+      case SubplanId.ForcingTacticalShot | SubplanId.DefenderOverload | SubplanId.ClearanceBreak =>
+        legalMoves.filter(mv => mv.captures || mv.after.check.yes)
+
+  private def movesFromTheme(theme: ThemeL1, legalMoves: List[Move]): List[Move] =
+    theme match
+      case ThemeL1.RestrictionProphylaxis =>
+        legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
+      case ThemeL1.PieceRedeployment =>
+        legalMoves.filter(mv =>
+          !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == Rook)
+        )
+      case ThemeL1.SpaceClamp =>
+        legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
+      case ThemeL1.WeaknessFixation =>
+        legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
+      case ThemeL1.PawnBreakPreparation =>
+        legalMoves.filter(mv => mv.piece.role == Pawn && (mv.orig.file.isCentral || mv.dest.file.isCentral))
+      case ThemeL1.FavorableExchange =>
+        legalMoves.filter(_.captures)
+      case ThemeL1.FlankInfrastructure =>
+        legalMoves.filter(mv =>
+          (mv.piece.role == Rook && !mv.captures) ||
+            (mv.piece.role == Pawn && (mv.dest.file.isKingside || mv.dest.file.isQueenside))
+        )
+      case ThemeL1.AdvantageTransformation =>
+        legalMoves.filter(mv => mv.captures || mv.piece.role == Pawn)
+      case ThemeL1.ImmediateTacticalGain =>
+        legalMoves.filter(mv => mv.captures || mv.after.check.yes)
+      case ThemeL1.Unknown =>
+        legalMoves.filter(mv => !mv.captures)
 
   /**
    * Produces representative LEGAL UCI moves for a plan in the current position.
@@ -847,15 +1041,6 @@ object ProbeDetector:
 
     (evidenceUci ++ fallbackUci).take(MaxMovesPerPlan)
   }
-
-  private def isHighConfidenceGhostProbe(pm: PlanMatch, planScoring: PlanScoringResult): Boolean =
-    val strongPlanScore = pm.score >= HighConfidenceGhostScore
-    val stableGlobalScore =
-      if planScoring.confidence <= 0.0 then true
-      else planScoring.confidence >= HighConfidenceGlobalScore
-    val hasSupport = pm.evidence.nonEmpty || pm.supports.nonEmpty
-    val lowUncertainty = pm.blockers.size <= 1 && pm.missingPrereqs.isEmpty
-    strongPlanScore && stableGlobalScore && hasSupport && lowUncertainty
 
   private def movesFromMotif(motif: Motif, pos: Position, legalMoves: List[Move]): List[Move] = {
     val sideToMove = pos.color

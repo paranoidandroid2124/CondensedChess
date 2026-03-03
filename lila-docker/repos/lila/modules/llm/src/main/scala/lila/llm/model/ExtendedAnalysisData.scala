@@ -45,6 +45,7 @@ case class ExtendedAnalysisData(
     structureEvalLatencyMs: Option[Long] = None,
     planAlignment: Option[PlanAlignment] = None,
     planHypotheses: List[PlanHypothesis] = Nil,
+    strategicSalience: StrategicSalience = StrategicSalience.High,
     
     // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
     integratedContext: Option[lila.llm.analysis.IntegratedContext] = None

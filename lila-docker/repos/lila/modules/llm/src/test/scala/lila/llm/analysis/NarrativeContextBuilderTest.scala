@@ -399,7 +399,10 @@ class NarrativeContextBuilderTest extends FunSuite {
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
 
     val planRequests = narrativeCtx.probeRequests.filterNot(_.purpose.contains("NullMoveThreat"))
-    assertEquals(planRequests, Nil, "Should not request plan probes for already-represented plans")
+    // Under the new fallback rules, a probe might still be emitted for theme validation
+    // Even if represented, but it should explicitly be a theme_plan_validation
+    assert(planRequests.forall(_.purpose.contains("theme_plan_validation")), 
+      s"Should only request theme_plan_validation probes, got: $planRequests")
   }
 
   test("Probe: score threshold prevents noisy probes") {
