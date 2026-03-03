@@ -16,7 +16,9 @@ case class PlanHypothesis(
     failureModes: List[String],
     viability: PlanViability,
     refutation: Option[String] = None,
-    evidenceSources: List[String] = Nil
+    evidenceSources: List[String] = Nil,
+    themeL1: String = "unknown",
+    subplanId: Option[String] = None
 )
 
 case class PlanViability(

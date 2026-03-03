@@ -10,5 +10,7 @@ services:
       - CONFIG_FORCE_influxdb.authentication.token=secret
       - CONFIG_FORCE_mongo_uri=mongodb://mongodb:27017/lichess?appName=lila-ws
       - CONFIG_FORCE_redis.uri=redis://redis
+    volumes:
+      - ./logs/lila_ws:/opt/docker/logs
     profiles:
       - base

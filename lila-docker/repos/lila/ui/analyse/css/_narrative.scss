@@ -122,6 +122,18 @@
   background: $c-bg-zebra;
   font-size: 0.78em;
   opacity: 0.95;
+
+  &.blunder {
+    border-color: rgba(#df5353, 0.4);
+    background: rgba(#df5353, 0.1);
+    color: #df5353;
+  }
+
+  &.missed {
+    border-color: rgba(#ff9d42, 0.4);
+    background: rgba(#ff9d42, 0.1);
+    color: #ff9d42;
+  }
 }
 
 .narrative-review-timeline {
@@ -177,6 +189,91 @@
   font-size: 0.92em;
 }
 
+.narrative-top-engine-move {
+  margin-top: 0.6rem;
+  padding: 0.5rem;
+  border: $border;
+  border-radius: 4px;
+  background: $m-primary_bg--mix-10;
+
+  h3 {
+    margin: 0 0 0.35rem 0;
+    font-size: 0.85em;
+    opacity: 0.7;
+    text-transform: uppercase;
+  }
+}
+
+.narrative-active-plan-box {
+  margin-top: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(#3c7ebb, 0.3);
+  border-radius: 4px;
+  background: rgba(#3c7ebb, 0.05);
+}
+
+.narrative-active-plan-theme {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.narrative-plan-label {
+  font-size: 0.8em;
+  font-weight: bold;
+  opacity: 0.6;
+}
+
+.narrative-plan-theme-text {
+  font-weight: bold;
+  color: #3c7ebb;
+}
+
+.narrative-active-plan-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.narrative-plan-detail {
+  font-size: 0.72em;
+  opacity: 0.6;
+  font-style: italic;
+
+  &.phase {
+    @extend %label !optional;
+    font-style: normal;
+    text-transform: uppercase;
+    font-size: 0.65em;
+    padding: 0.1rem 0.3rem;
+    background: $c-bg-zebra;
+  }
+}
+
+.narrative-alt-move {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.narrative-alt-label {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.narrative-alt-san {
+  font-weight: bold;
+  color: $c-primary;
+}
+
+.narrative-alt-loss {
+  font-size: 0.8em;
+  color: #df5353;
+  font-variant-numeric: tabular-nums;
+}
+
 .narrative-moment {
   padding: 0.65rem;
   border: $border;
@@ -190,6 +287,96 @@
   justify-content: space-between;
   gap: 0.7rem;
   margin-bottom: 0.5rem;
+}
+
+.narrative-moment-title-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.narrative-side {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  font-weight: bold;
+  opacity: 0.6;
+
+  &.white {
+    color: $c-font;
+  }
+
+  &.black {
+    color: $c-font;
+    opacity: 0.4;
+  }
+}
+
+.narrative-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72em;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+
+  &.classification {
+    &.blunder {
+      color: #fff;
+      background: #df5353;
+    }
+
+    &.mistake {
+      color: #fff;
+      background: #ff9d42;
+    }
+
+    &.inaccuracy {
+      color: #fff;
+      background: #929292;
+    }
+
+    &.good,
+    &.best {
+      color: #fff;
+      background: #6a9c3c;
+    }
+
+    &.great {
+      color: #fff;
+      background: #3c7ebb;
+    }
+
+    &.brilliant {
+      color: #fff;
+      background: #26c2a3;
+    }
+
+    &.book {
+      color: #fff;
+      background: #a58a43;
+    }
+  }
+
+  &.type {
+    border-color: $c-primary;
+    color: $c-primary;
+    background: transparent;
+  }
+
+  &.salience {
+    &.high {
+      border-color: #3c7ebb;
+      color: #3c7ebb;
+    }
+
+    &.low {
+      opacity: 0.5;
+      font-weight: normal;
+    }
+  }
 }
 
 .narrative-jump {
@@ -267,5 +454,536 @@
 
   .narrative-move:hover {
     color: $c-primary;
+  }
+}
+
+.narrative-collapse-card {
+  margin-top: 0.8rem;
+  padding: 0.6rem;
+  border: 1px solid rgba(#df5353, 0.4);
+  border-radius: 4px;
+  background: rgba(#df5353, 0.08);
+}
+
+.narrative-collapse-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9em;
+  color: #df5353;
+  text-transform: uppercase;
+}
+
+.narrative-collapse-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.narrative-collapse-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85em;
+}
+
+.narrative-collapse-label {
+  opacity: 0.7;
+  min-width: 150px;
+}
+
+.narrative-collapse-value {
+  font-weight: bold;
+
+  &.cause {
+    color: #ff9d42;
+  }
+
+  &.patch-line {
+    font-family: monospace;
+    color: $c-primary;
+  }
+}
+
+// ── Narrative Tabs ────────────────────────────────────────────────────
+
+.narrative-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid $c-border;
+  padding: 0 0.7rem;
+  background: $m-primary_bg--mix-80;
+}
+
+.narrative-tab {
+  @extend %button-none;
+
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: $c-font-dim;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: $c-font;
+  }
+
+  &.active {
+    color: $c-primary;
+    border-bottom-color: $c-primary;
+  }
+}
+
+// ── Defeat DNA Dashboard ──────────────────────────────────────────────
+
+.defeat-dna-dashboard {
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.dna-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.dna-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 0.4rem;
+  border-radius: 8px;
+  background: $m-primary_bg--mix-60;
+  border: 1px solid $c-border;
+}
+
+.dna-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: $c-primary;
+  line-height: 1.2;
+}
+
+.dna-stat-label {
+  font-size: 0.7rem;
+  color: $c-font-dim;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.2rem;
+}
+
+// ── Bar Chart ─────────────────────────────────────────────────────────
+
+.dna-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  color: $c-font;
+}
+
+.dna-bar-chart {
+  display: flex;
+  flex-direction: column;
+}
+
+.dna-bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 30px;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.dna-bar-label {
+  font-size: 0.75rem;
+  color: $c-font;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dna-bar-track {
+  height: 16px;
+  background: $m-primary_bg--mix-40;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dna-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  min-width: 4px;
+  transition: width 0.4s ease;
+}
+
+.dna-bar-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: $c-font-dim;
+  text-align: center;
+}
+
+// ── Recent Collapses Table ────────────────────────────────────────────
+
+.dna-recent-collapses {
+  display: flex;
+  flex-direction: column;
+}
+
+.dna-collapse-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+
+  th {
+    text-align: left;
+    padding: 0.35rem 0.4rem;
+    font-weight: 600;
+    color: $c-font-dim;
+    border-bottom: 1px solid $c-border;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid $m-primary_bg--mix-40;
+  }
+
+  tr:hover td {
+    background: $m-primary_bg--mix-60;
+  }
+}
+
+.dna-cell-interval {
+  font-family: monospace;
+  font-weight: 500;
+}
+
+.dna-cell-cause {
+  font-weight: 600;
+}
+
+.dna-cell-recov,
+.dna-cell-prevent {
+  font-family: monospace;
+  color: $c-font-dim;
+}
+
+// ── Empty State ───────────────────────────────────────────────────────
+
+.dna-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.dna-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.dna-empty-hint {
+  font-size: 0.8rem;
+  color: $c-font-dim;
+}
+
+.dna-recent-empty {
+  padding: 0.8rem;
+  text-align: center;
+  color: $c-font-dim;
+  font-size: 0.82rem;
+}
+
+// ── Show More Button ──────────────────────────────────────────────────
+
+.dna-show-more {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.4rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: $c-primary;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ── Collapse Tab ──────────────────────────────────────────────────────
+
+.collapse-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  overflow-y: auto;
+}
+
+.collapse-tab-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: $c-font-dim;
+}
+
+// ── Collapse Timeline ─────────────────────────────────────────────────
+
+.collapse-timeline {
+  margin-bottom: 0.6rem;
+}
+
+.timeline-track {
+  position: relative;
+  height: 22px;
+  background: $m-primary_bg--mix-40;
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.timeline-segment {
+  position: absolute;
+  top: 2px;
+  height: 18px;
+  border-radius: 3px;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+
+  &:hover {
+    opacity: 1;
+    transform: scaleY(1.15);
+    z-index: 2;
+  }
+}
+
+.timeline-marker {
+  position: absolute;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: #fff;
+  border: 2px solid $c-primary;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  cursor: pointer;
+  z-index: 3;
+  transition: transform 0.1s;
+
+  &:hover {
+    transform: rotate(45deg) scale(1.3);
+    border-color: $c-font;
+  }
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.15rem 0.1rem 0;
+  font-size: 0.65rem;
+  color: $c-font-dimmer;
+  font-family: monospace;
+}
+
+// ── Mobile Responsive ─────────────────────────────────────────────────
+
+@media (max-width: 600px) {
+  .dna-stat-row {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.3rem;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      height: 3px;
+    }
+  }
+
+  .dna-stat-card {
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+
+  .dna-bar-row {
+    grid-template-columns: 90px 1fr 26px;
+    gap: 0.3rem;
+  }
+
+  .dna-bar-label {
+    font-size: 0.68rem;
+  }
+
+  .narrative-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .narrative-tab {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    padding: 0.4rem 0.7rem;
+  }
+}
+
+// ── Patch Replay Panel ────────────────────────────────────────────────
+
+.patch-replay-closed {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+}
+
+.patch-replay-open-btn {
+  font-size: 0.82rem;
+  color: $c-primary;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.patch-replay-panel {
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  border-radius: 6px;
+  background: $m-primary_bg--mix-60;
+  border: 1px solid $c-border;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.patch-replay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.patch-replay-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: $c-font;
+}
+
+.patch-replay-close {
+  font-size: 0.8rem;
+  padding: 0.15rem 0.3rem;
+  color: $c-font-dim;
+
+  &:hover {
+    color: $c-font;
+  }
+}
+
+.patch-replay-moves {
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+
+  .narrative-move {
+    cursor: pointer;
+
+    &:hover {
+      background: $m-primary_bg--mix-40;
+      border-radius: 2px;
+    }
+  }
+}
+
+.patch-replay-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.patch-ctrl-btn {
+  @extend %button-none;
+
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  color: $c-primary;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover:not(:disabled) {
+    background: $m-primary_bg--mix-40;
+  }
+
+  &:disabled {
+    color: $c-font-dimmer;
+    cursor: default;
+  }
+}
+
+.patch-replay-step {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: $c-font-dim;
+  min-width: 40px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.patch-replay-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid $c-border;
+}
+
+.patch-toggle-btn {
+  @extend %button-none;
+
+  flex: 1;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  color: $c-font-dim;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &.active {
+    background: $c-primary;
+    color: #fff;
+  }
+
+  &:hover:not(.active) {
+    background: $m-primary_bg--mix-40;
+  }
+}
+
+.patch-jump-btn {
+  display: block;
+  width: 100%;
+  padding: 0.35rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: $c-primary;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
   }
 }

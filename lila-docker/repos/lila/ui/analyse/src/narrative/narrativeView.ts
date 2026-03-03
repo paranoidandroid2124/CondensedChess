@@ -1,5 +1,5 @@
 import type { VNode } from 'snabbdom';
-import type { NarrativeCtrl } from './narrativeCtrl';
+import type { NarrativeCtrl, DefeatDnaReport } from './narrativeCtrl';
 import { hl, bind, dataIcon, onInsert } from 'lib/view';
 import * as licon from 'lib/licon';
 import { renderEval } from 'lib/ceval/util';
@@ -11,20 +11,65 @@ import { makeSanAndPlay } from 'chessops/san';
 import { parseUci } from 'chessops/util';
 
 type VariationLine = { moves: string[]; scoreCp: number; mate?: number | null; depth?: number; tags?: string[] };
+
+export type CollapseAnalysis = {
+    interval: string;
+    rootCause: string;
+    earliestPreventablePly: number;
+    patchLineUci: string[];
+    recoverabilityPlies: number;
+};
+
+export type ActivePlanRef = {
+    themeL1: string;
+    subplanId?: string;
+    phase?: string;
+    commitmentScore?: number;
+};
+
+export type EngineAlternative = {
+    uci: string;
+    san?: string;
+    cpAfterAlt?: number;
+    cpLossVsPlayed?: number;
+    pv?: string[];
+};
+
 type GameNarrativeMoment = {
+    momentId?: string;
     ply: number;
+    moveNumber?: number;
+    side?: 'white' | 'black';
+    moveClassification?: string;
     momentType: string;
     fen: string;
     narrative: string;
     concepts: string[];
     variations: VariationLine[];
+    cpBefore?: number;
+    cpAfter?: number;
+    mateBefore?: number;
+    mateAfter?: number;
+    wpaSwing?: number;
+    strategicSalience?: 'High' | 'Low';
+    transitionType?: string;
+    transitionConfidence?: number;
+    activePlan?: ActivePlanRef;
+    topEngineMove?: EngineAlternative;
+    collapse?: CollapseAnalysis;
 };
 type GameNarrativeReview = {
+    schemaVersion?: number;
+    reviewPerspective?: string;
     totalPlies: number;
     evalCoveredPlies: number;
     evalCoveragePct: number;
     selectedMoments: number;
     selectedMomentPlies: number[];
+    blundersCount?: number;
+    missedWinsCount?: number;
+    brilliantMovesCount?: number;
+    momentTypeCounts?: Record<string, number>;
 };
 type GameNarrativeResponse = {
     schema: string;
@@ -39,6 +84,10 @@ type GameNarrativeResponse = {
 
 export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
     if (!ctrl.enabled()) return null;
+
+    const ccaEnabled = ctrl.data()?.ccaEnabled;
+    const activeTab = ctrl.dnaTab();
+    const hasCollapses = ctrl.data()?.moments?.some(m => m.collapse);
 
     return hl('div.narrative-box', {
         hook: {
@@ -55,13 +104,30 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
                 hook: bind('click', ctrl.toggle, ctrl.root.redraw)
             }, hl('span', { attrs: { ...dataIcon(licon.X) } }))
         ]),
-        hl('div.narrative-content', [
-            ctrl.loading() ? hl('div.loader', ctrl.loadingDetail() || 'Deep full analysis in progress...') :
-                ctrl.error() ? hl('div.error', [
-                    hl('div', ctrl.error()),
-                    ctrl.needsLogin() ? hl('a.button', { attrs: { href: ctrl.loginHref() } }, 'Sign in') : null
-                ]) : ctrl.data() ? narrativeDocView(ctrl, ctrl.data()!) : hl('div.narrative-empty', 'No narrative generated yet.'),
-        ]),
+        // 3-tab bar (visible when CCA is enabled and data exists)
+        ccaEnabled && ctrl.data() ? hl('div.narrative-tabs', [
+            hl('button.narrative-tab' + (activeTab === 'narrative' ? '.active' : ''), {
+                hook: bind('click', () => ctrl.switchTab('narrative'))
+            }, 'Narrative'),
+            hasCollapses ? hl('button.narrative-tab' + (activeTab === 'collapse' ? '.active' : ''), {
+                hook: bind('click', () => ctrl.switchTab('collapse'))
+            }, 'Collapse') : null,
+            hl('button.narrative-tab' + (activeTab === 'dna' ? '.active' : ''), {
+                hook: bind('click', () => ctrl.switchTab('dna'))
+            }, 'Defeat DNA'),
+        ]) : null,
+        // Content area routed by active tab
+        activeTab === 'dna' && ccaEnabled
+            ? defeatDnaContentView(ctrl)
+            : activeTab === 'collapse' && ccaEnabled
+                ? collapseTabView(ctrl)
+                : hl('div.narrative-content', [
+                    ctrl.loading() ? hl('div.loader', ctrl.loadingDetail() || 'Deep full analysis in progress...') :
+                        ctrl.error() ? hl('div.error', [
+                            hl('div', ctrl.error()),
+                            ctrl.needsLogin() ? hl('a.button', { attrs: { href: ctrl.loginHref() } }, 'Sign in') : null
+                        ]) : ctrl.data() ? narrativeDocView(ctrl, ctrl.data()!) : hl('div.narrative-empty', 'No narrative generated yet.'),
+                ]),
         !ctrl.loading() && !ctrl.data() && hl('div.actions', [
             hl('div.narrative-disclosure', 'Full Analysis runs a deeper on-device WASM scan and may take longer on large PGNs.'),
             hl('button.button.action', {
@@ -70,6 +136,192 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
         ])
     ]);
 }
+
+// ── Collapse Tab ──────────────────────────────────────────────────────
+
+function collapseTabView(ctrl: NarrativeCtrl): VNode {
+    const data = ctrl.data();
+    const moments = (data?.moments || []).filter(m => m.collapse);
+    if (!moments.length) {
+        return hl('div.narrative-content.collapse-tab-empty', [
+            hl('p', 'No causal collapse detected in this game.'),
+        ]);
+    }
+    return hl('div.narrative-content.collapse-tab', [
+        hl('h3.dna-section-title', `${moments.length} Collapse${moments.length > 1 ? 's' : ''} Detected`),
+        collapseTimelineView(ctrl, moments),
+        ...moments.map(m => narrativeCollapseCardView(ctrl, m)),
+    ]);
+}
+
+function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrativeMoment[]): VNode {
+    const totalPlies = ctrl.root.mainline.length > 0
+        ? ctrl.root.mainline[ctrl.root.mainline.length - 1].ply
+        : 1;
+
+    const segments: VNode[] = [];
+    const markers: VNode[] = [];
+
+    for (const m of moments) {
+        const c = m.collapse!;
+        // Parse interval "22-27" → [22, 27]
+        const parts = c.interval.split('-').map(Number);
+        const start = parts[0] || 0;
+        const end = parts[1] || start;
+        const color = CAUSE_COLORS[c.rootCause] || DEFAULT_CAUSE_COLOR;
+
+        const leftPct = (start / totalPlies) * 100;
+        const widthPct = Math.max(((end - start + 1) / totalPlies) * 100, 1.5);
+
+        // Collapse interval segment
+        segments.push(
+            hl('div.timeline-segment', {
+                style: { left: `${leftPct}%`, width: `${widthPct}%`, background: color },
+                attrs: { title: `${c.rootCause} (ply ${c.interval})` },
+                hook: bind('click', () => {
+                    ctrl.root.jumpToMain(start);
+                    ctrl.root.redraw();
+                }),
+            }),
+        );
+
+        // Earliest preventable ply marker (diamond)
+        const preventPct = (c.earliestPreventablePly / totalPlies) * 100;
+        markers.push(
+            hl('div.timeline-marker', {
+                style: { left: `${preventPct}%` },
+                attrs: { title: `Preventable at ply ${c.earliestPreventablePly}` },
+                hook: bind('click', () => {
+                    ctrl.root.jumpToMain(c.earliestPreventablePly);
+                    ctrl.root.redraw();
+                }),
+            }),
+        );
+    }
+
+    return hl('div.collapse-timeline', [
+        hl('div.timeline-track', [...segments, ...markers]),
+        hl('div.timeline-labels', [
+            hl('span', '1'),
+            hl('span', String(totalPlies)),
+        ]),
+    ]);
+}
+
+// ── Defeat DNA Dashboard ──────────────────────────────────────────────
+
+const CAUSE_COLORS: Record<string, string> = {
+    'Tactical Miss': 'hsl(0, 70%, 55%)',
+    'Plan Deviation': 'hsl(35, 80%, 55%)',
+    'King Safety': 'hsl(280, 60%, 55%)',
+    'Time Pressure': 'hsl(200, 70%, 50%)',
+    'Positional Error': 'hsl(160, 55%, 45%)',
+};
+const DEFAULT_CAUSE_COLOR = 'hsl(220, 40%, 55%)';
+
+function defeatDnaContentView(ctrl: NarrativeCtrl): VNode {
+    if (ctrl.dnaLoading()) {
+        return hl('div.narrative-content.dna-loading', hl('div.loader', 'Loading Defeat DNA...'));
+    }
+    if (ctrl.dnaError()) {
+        return hl('div.narrative-content.dna-error', hl('div.error', ctrl.dnaError()));
+    }
+    const report = ctrl.dnaData();
+    if (!report || report.totalGamesAnalyzed === 0) {
+        return hl('div.narrative-content.dna-empty', [
+            hl('div.dna-empty-icon', '🧬'),
+            hl('p', 'No Defeat DNA data yet.'),
+            hl('p.dna-empty-hint', 'Run a few game analyses to build your profile.'),
+        ]);
+    }
+    return hl('div.defeat-dna-dashboard', [
+        defeatDnaStatCards(report),
+        defeatDnaBarChart(report),
+        defeatDnaRecentTable(ctrl),
+    ]);
+}
+
+function defeatDnaStatCards(report: DefeatDnaReport): VNode {
+    return hl('div.dna-stat-row', [
+        hl('div.dna-stat-card', [
+            hl('div.dna-stat-value', String(report.totalGamesAnalyzed)),
+            hl('div.dna-stat-label', 'Games Analyzed'),
+        ]),
+        hl('div.dna-stat-card', [
+            hl('div.dna-stat-value', report.avgRecoverabilityPlies.toFixed(1)),
+            hl('div.dna-stat-label', 'Avg Recovery (plies)'),
+        ]),
+        hl('div.dna-stat-card', [
+            hl('div.dna-stat-value', String(Object.keys(report.rootCauseDistribution).length)),
+            hl('div.dna-stat-label', 'Cause Types'),
+        ]),
+    ]);
+}
+
+function defeatDnaBarChart(report: DefeatDnaReport): VNode {
+    const dist = report.rootCauseDistribution;
+    const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+    const maxVal = entries.length ? entries[0][1] : 1;
+
+    return hl('div.dna-bar-chart', [
+        hl('h3.dna-section-title', 'Root Cause Distribution'),
+        ...entries.map(([cause, count]) => {
+            const pct = Math.round((count / maxVal) * 100);
+            const color = CAUSE_COLORS[cause] || DEFAULT_CAUSE_COLOR;
+            return hl('div.dna-bar-row', [
+                hl('span.dna-bar-label', cause),
+                hl('div.dna-bar-track', [
+                    hl('div.dna-bar-fill', {
+                        style: { width: `${pct}%`, background: color },
+                    }),
+                ]),
+                hl('span.dna-bar-count', String(count)),
+            ]);
+        }),
+    ]);
+}
+
+function defeatDnaRecentTable(ctrl: NarrativeCtrl): VNode {
+    const report = ctrl.dnaData();
+    const allCollapses = report?.recentCollapses || [];
+    const showAll = ctrl.showAllCollapses();
+    const visible = showAll ? allCollapses.slice(0, 10) : allCollapses.slice(0, 5);
+    const hasMore = !showAll && allCollapses.length > 5;
+
+    if (!visible.length) {
+        return hl('div.dna-recent-empty', 'No collapse history yet. Analyze more games to build your profile.');
+    }
+
+    return hl('div.dna-recent-collapses', [
+        hl('h3.dna-section-title', 'Recent Collapses'),
+        hl('table.dna-collapse-table', [
+            hl('thead', hl('tr', [
+                hl('th', 'Interval'),
+                hl('th', 'Root Cause'),
+                hl('th', 'Recovery'),
+                hl('th', 'Preventable'),
+            ])),
+            hl('tbody', visible.map(c =>
+                hl('tr', [
+                    hl('td.dna-cell-interval', `Ply ${c.interval}`),
+                    hl('td.dna-cell-cause', {
+                        style: { color: CAUSE_COLORS[c.rootCause] || DEFAULT_CAUSE_COLOR }
+                    }, c.rootCause),
+                    hl('td.dna-cell-recov', `${c.recoverabilityPlies}p`),
+                    hl('td.dna-cell-prevent', `Ply ${c.earliestPreventablePly}`),
+                ])
+            )),
+        ]),
+        hasMore ? hl('button.button.button-empty.dna-show-more', {
+            hook: bind('click', () => {
+                ctrl.showAllCollapses(true);
+                ctrl.root.redraw();
+            })
+        }, `Show ${allCollapses.length - 5} more`) : null,
+    ]);
+}
+
+// ── Story View ────────────────────────────────────────────────────────
 
 function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode {
     return hl('div.narrative-doc', {
@@ -116,8 +368,9 @@ function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
     return hl('section.narrative-review', [
         hl('div.narrative-review-summary', summary),
         hl('div.narrative-review-metrics', [
+            review.blundersCount !== undefined ? hl('span.narrative-review-metric.blunder', `Blunders: ${review.blundersCount}`) : null,
+            review.missedWinsCount !== undefined ? hl('span.narrative-review-metric.missed', `Missed Wins: ${review.missedWinsCount}`) : null,
             hl('span.narrative-review-metric', `Selected moments: ${selectedMoments}`),
-            hl('span.narrative-review-metric', `Moment plies: ${selectedMomentPlies.join(', ') || 'none'}`),
         ]),
         totalPlies > 0
             ? hl('div.narrative-review-timeline', [
@@ -136,30 +389,203 @@ function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
 }
 
 function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
-    const title = `${moment.momentType} · ply ${moment.ply}`;
+    const title = `Ply ${moment.ply}`;
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
 
-    return hl('section.narrative-moment', [
+    return hl('section.narrative-moment', {
+        attrs: { 'data-ply': moment.ply }
+    }, [
         hl('header.narrative-moment-header', [
-            hl('button.button.button-empty.narrative-jump', {
-                hook: bind(
-                    'click',
-                    () => {
-                        ctrl.root.jumpToMain(moment.ply);
-                        ctrl.root.redraw();
-                    },
-                    undefined,
-                ),
-            }, title),
+            hl('div.narrative-moment-title-box', [
+                hl('button.button.button-empty.narrative-jump', {
+                    hook: bind(
+                        'click',
+                        () => {
+                            ctrl.root.jumpToMain(moment.ply);
+                            ctrl.root.redraw();
+                        },
+                        undefined,
+                    ),
+                }, title),
+                moment.side ? hl(`span.narrative-side.${moment.side}`, moment.side) : null,
+                moment.moveClassification ? narrativeBadgeView(moment.moveClassification, 'classification') : null,
+                moment.momentType ? narrativeBadgeView(moment.momentType, 'type') : null,
+                moment.strategicSalience ? narrativeBadgeView(moment.strategicSalience, 'salience') : null,
+            ]),
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
         hl('pre.narrative-prose', moment.narrative),
+        moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
+        moment.collapse ? narrativeCollapseCardView(ctrl, moment) : null,
+        moment.topEngineMove ? narrativeTopEngineMoveView(ctrl, moment) : null,
         variations.length
             ? hl('div.narrative-variations', [
                 hl('h3', 'Variations'),
                 hl('div.narrative-variation-list', variations.map((v, i) => narrativeVariationView(ctrl, moment.fen, v, i))),
             ])
             : null,
+    ]);
+}
+
+function narrativeActivePlanView(plan: ActivePlanRef): VNode {
+    return hl('div.narrative-active-plan-box', [
+        hl('div.narrative-active-plan-theme', [
+            hl('span.narrative-plan-label', 'Active Plan:'),
+            hl('span.narrative-plan-theme-text', plan.themeL1),
+        ]),
+        plan.subplanId || plan.phase ? hl('div.narrative-active-plan-details', [
+            plan.subplanId ? hl('span.narrative-plan-detail', plan.subplanId) : null,
+            plan.phase ? hl('span.narrative-plan-detail.phase', plan.phase) : null,
+        ]) : null,
+    ]);
+}
+
+function narrativeCollapseCardView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
+    const collapse = moment.collapse;
+    if (!collapse) return null;
+
+    return hl('div.narrative-collapse-card', [
+        hl('h3.narrative-collapse-title', [
+            hl('span.icon', { attrs: { ...dataIcon(licon.Target) } }),
+            ' Causal Collapse Analyzer'
+        ]),
+        hl('div.narrative-collapse-body', [
+            hl('div.narrative-collapse-row', [
+                hl('span.narrative-collapse-label', 'Collapse Interval:'),
+                hl('span.narrative-collapse-value', `Ply ${collapse.interval}`)
+            ]),
+            hl('div.narrative-collapse-row', [
+                hl('span.narrative-collapse-label', 'Root Cause:'),
+                hl('span.narrative-collapse-value.cause', collapse.rootCause)
+            ]),
+            hl('div.narrative-collapse-row', [
+                hl('span.narrative-collapse-label', 'Earliest Preventable:'),
+                hl('button.button.button-empty.narrative-jump', {
+                    hook: bind('click', () => {
+                        ctrl.root.jumpToMain(collapse.earliestPreventablePly);
+                        ctrl.root.redraw();
+                    })
+                }, `Ply ${collapse.earliestPreventablePly}`)
+            ]),
+            hl('div.narrative-collapse-row', [
+                hl('span.narrative-collapse-label', 'Recoverability Window:'),
+                hl('span.narrative-collapse-value', `${collapse.recoverabilityPlies} plies`)
+            ]),
+            patchReplayPanel(ctrl, moment),
+        ])
+    ]);
+}
+
+function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
+    const collapse = moment.collapse!;
+    const collapseId = collapse.interval;
+    const patchMoves = collapse.patchLineUci || [];
+    const replayState = ctrl.patchReplay();
+    const isActive = replayState?.collapseId === collapseId;
+
+    if (!patchMoves.length) {
+        return hl('div.narrative-collapse-row', [
+            hl('span.narrative-collapse-label', 'Patch Line:'),
+            hl('span.narrative-collapse-value', 'N/A'),
+        ]);
+    }
+
+    if (!isActive) {
+        return hl('div.patch-replay-closed', [
+            hl('span.narrative-collapse-label', 'Patch Line:'),
+            hl('button.button.button-empty.patch-replay-open-btn', {
+                hook: bind('click', () => ctrl.patchOpen(collapseId))
+            }, `▶ Replay ${patchMoves.length} moves`),
+        ]);
+    }
+
+    // Get FEN at the earliest preventable ply from mainline
+    const ply = collapse.earliestPreventablePly;
+    const mainline = ctrl.root.mainline;
+    const node = mainline.find(n => n.ply === ply);
+    const fen = node?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    // Determine which moves to show: original (game continuation) or patch
+    const mode = replayState!.mode;
+    let movesToShow: string[];
+    if (mode === 'patch') {
+        movesToShow = patchMoves;
+    } else {
+        // Original = game moves from this ply onward
+        const startIdx = mainline.findIndex(n => n.ply === ply);
+        movesToShow = startIdx >= 0
+            ? mainline.slice(startIdx + 1, startIdx + 1 + patchMoves.length)
+                .map(n => n.uci || '')
+                .filter(u => u.length > 0)
+            : [];
+    }
+
+    const totalSteps = movesToShow.length;
+    const step = replayState!.step;
+
+    return hl('div.patch-replay-panel', {
+        hook: onInsert((el: HTMLElement) => bindPreviewHover(ctrl, el)),
+    }, [
+        hl('div.patch-replay-header', [
+            hl('span.patch-replay-title', mode === 'patch' ? '✨ Improved Line' : '📋 Original Line'),
+            hl('button.button.button-empty.patch-replay-close', {
+                hook: bind('click', () => ctrl.patchClose())
+            }, '✕'),
+        ]),
+        hl('div.patch-replay-moves', renderMoves(ctrl, fen, step > 0 ? movesToShow.slice(0, step) : [])),
+        hl('div.patch-replay-controls', [
+            hl('button.button.button-empty.patch-ctrl-btn', {
+                attrs: { disabled: step === 0 },
+                hook: bind('click', () => ctrl.patchStep(-step, totalSteps))
+            }, '⏮'),
+            hl('button.button.button-empty.patch-ctrl-btn', {
+                attrs: { disabled: step === 0 },
+                hook: bind('click', () => ctrl.patchStep(-1, totalSteps))
+            }, '◀'),
+            hl('span.patch-replay-step', `${step}/${totalSteps}`),
+            hl('button.button.button-empty.patch-ctrl-btn', {
+                attrs: { disabled: step >= totalSteps },
+                hook: bind('click', () => ctrl.patchStep(1, totalSteps))
+            }, '▶'),
+            hl('button.button.button-empty.patch-ctrl-btn', {
+                attrs: { disabled: step >= totalSteps },
+                hook: bind('click', () => ctrl.patchStep(totalSteps - step, totalSteps))
+            }, '⏭'),
+        ]),
+        hl('div.patch-replay-toggle', [
+            hl('button.button.button-empty.patch-toggle-btn' + (mode === 'patch' ? '.active' : ''), {
+                hook: bind('click', () => { if (mode !== 'patch') ctrl.patchToggle(); })
+            }, 'Improved'),
+            hl('button.button.button-empty.patch-toggle-btn' + (mode === 'original' ? '.active' : ''), {
+                hook: bind('click', () => { if (mode !== 'original') ctrl.patchToggle(); })
+            }, 'Original'),
+        ]),
+        hl('button.button.button-empty.patch-jump-btn', {
+            hook: bind('click', () => {
+                ctrl.root.jumpToMain(ply);
+                ctrl.root.redraw();
+            })
+        }, `↗ Jump to Ply ${ply}`),
+    ]);
+}
+
+function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience'): VNode {
+    const cls = text.toLowerCase().replace(/\s+/g, '-');
+    return hl(`span.narrative-badge.${kind}.${cls}`, text);
+}
+
+function narrativeTopEngineMoveView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
+    const alt = moment.topEngineMove;
+    if (!alt) return null;
+
+    return hl('div.narrative-top-engine-move', [
+        hl('h3', 'Why Not?'),
+        hl('div.narrative-alt-move', [
+            hl('span.narrative-alt-label', 'Better was:'),
+            hl('span.narrative-alt-san', alt.san || alt.uci),
+            alt.cpLossVsPlayed !== undefined ? hl('span.narrative-alt-loss', `(+${(alt.cpLossVsPlayed / 100).toFixed(1)} pawns)`) : null,
+        ]),
+        alt.pv?.length ? hl('div.narrative-variation-moves', renderMoves(ctrl, moment.fen, alt.pv)) : null,
     ]);
 }
 

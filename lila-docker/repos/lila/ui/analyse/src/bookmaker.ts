@@ -15,6 +15,8 @@ import {
     cacheHitFromResponse,
     commentaryFromResponse,
     htmlFromResponse,
+    latentPlansFromResponse,
+    mainStrategicPlansFromResponse,
     modelFromResponse,
     planStateTokenFromResponse,
     polishMetaFromResponse,
@@ -22,6 +24,7 @@ import {
     refsFromResponse,
     sourceModeFromResponse,
     variationLinesFromResponse,
+    whyAbsentFromTopMultiPVFromResponse,
 } from './bookmaker/responsePayload';
 import type { PlanStateToken } from './bookmaker/types';
 
@@ -34,6 +37,9 @@ type BookmakerCacheEntry = {
     sourceMode: string | null;
     model: string | null;
     cacheHit: boolean | null;
+    mainPlansCount: number;
+    latentPlansCount: number;
+    holdReasonsCount: number;
 };
 
 let requestsBlocked = false;
@@ -181,6 +187,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
     const cacheKeyOf = (fen: string, originPath: string, token: PlanStateToken | null): string =>
         `${fen}|${originPath}|${tokenHash(token)}`;
+    const stateKeyOf = (originPath: string, analysisFen: string): string =>
+        `${originPath}|${analysisFen}`;
 
     const show = (html: string, remember = true) => {
         if (remember) lastShownHtml = html;
@@ -219,6 +227,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             root.removeAttribute('data-llm-polish-cache-hit');
             root.removeAttribute('data-llm-polish-reasons');
         }
+    };
+
+    const applyStrategicMetaToRoot = (mainPlansCount: number, latentPlansCount: number, holdReasonsCount: number) => {
+        const root = document.querySelector('.analyse__bookmaker-text');
+        if (!root) return;
+        root.setAttribute('data-llm-main-plans-count', String(mainPlansCount));
+        root.setAttribute('data-llm-latent-plans-count', String(latentPlansCount));
+        root.setAttribute('data-llm-hold-reasons-count', String(holdReasonsCount));
     };
 
     const stopLoadingTicker = () => {
@@ -285,6 +301,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             const analysisCeval = playedMove ? prevNode?.ceval : node.ceval;
             const commentPath = ctrl?.path ?? '';
             const originPath = playedMove ? treePath.init(commentPath) : commentPath;
+            const stateKey = stateKeyOf(originPath, analysisFen);
             const syncStudy = (commentary: string, lines: any[]) => {
                 if (!commentary) return;
                 const payload = { commentPath, originPath, commentary, variations: lines };
@@ -297,13 +314,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 setBookmakerRefs(null);
                 return;
             }
-            const requestToken = planStateByPath.get(originPath) ?? null;
+            const requestToken = planStateByPath.get(stateKey) ?? null;
             const cacheKey = cacheKeyOf(fen, originPath, requestToken);
             const cached = cache.get(cacheKey);
             if (cached) {
                 setBookmakerRefs(cached.refs);
                 show(cached.html);
                 applyMetaToRoot(cached.sourceMode, cached.model, cached.cacheHit, cached.polishMeta);
+                applyStrategicMetaToRoot(cached.mainPlansCount, cached.latentPlansCount, cached.holdReasonsCount);
                 return;
             }
 
@@ -393,7 +411,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 if (res.ok) {
                     const data = await res.json();
                     const emittedToken = planStateTokenFromResponse(data);
-                    if (emittedToken) planStateByPath.set(originPath, emittedToken);
+                    if (emittedToken) planStateByPath.set(stateKey, emittedToken);
+                    else planStateByPath.delete(stateKey);
                     const html = htmlFromResponse(data);
                     const sourceMode = sourceModeFromResponse(data);
                     const model = modelFromResponse(data);
@@ -401,6 +420,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     const refs = refsFromResponse(data);
                     const polishMeta = polishMetaFromResponse(data);
                     const commentary = commentaryFromResponse(data);
+                    const mainStrategicPlans = mainStrategicPlansFromResponse(data);
+                    const latentPlans = latentPlansFromResponse(data);
+                    const holdReasons = whyAbsentFromTopMultiPVFromResponse(data);
                     const shouldStream = sourceMode === 'llm_polished' && commentary.length > 0;
 
                     if (shouldStream) {
@@ -418,11 +440,15 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         sourceMode,
                         model,
                         cacheHit,
+                        mainPlansCount: mainStrategicPlans.length,
+                        latentPlansCount: latentPlans.length,
+                        holdReasonsCount: holdReasons.length,
                     };
                     cache.set(cacheKey, initialEntry);
                     setBookmakerRefs(refs);
                     show(html);
                     applyMetaToRoot(sourceMode, model, cacheHit, polishMeta);
+                    applyStrategicMetaToRoot(mainStrategicPlans.length, latentPlans.length, holdReasons.length);
 
                     const vLines = variationLinesFromResponse(data, variations);
                     syncStudy(commentary, vLines);
@@ -437,7 +463,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                             if (!probeResults.length) return;
 
                             try {
-                                const refinedToken = planStateByPath.get(originPath) ?? requestToken;
+                                const refinedToken = planStateByPath.get(stateKey) ?? requestToken;
                                 const refinedCacheKey = cacheKeyOf(fen, originPath, refinedToken);
                                 const refinedPayload = buildBookmakerRequest({
                                     fen: analysisFen,
@@ -462,13 +488,17 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                 if (refinedRes.ok) {
                                     const refined = await refinedRes.json();
                                     const emittedRefinedToken = planStateTokenFromResponse(refined);
-                                    if (emittedRefinedToken) planStateByPath.set(originPath, emittedRefinedToken);
+                                    if (emittedRefinedToken) planStateByPath.set(stateKey, emittedRefinedToken);
+                                    else planStateByPath.delete(stateKey);
                                     const refinedHtml = htmlFromResponse(refined, html);
                                     const refinedSourceMode = sourceModeFromResponse(refined);
                                     const refinedModel = modelFromResponse(refined);
                                     const refinedCacheHit = cacheHitFromResponse(refined);
                                     const refinedRefs = refsFromResponse(refined);
                                     const refinedPolishMeta = polishMetaFromResponse(refined);
+                                    const refinedMainPlans = mainStrategicPlansFromResponse(refined);
+                                    const refinedLatentPlans = latentPlansFromResponse(refined);
+                                    const refinedHoldReasons = whyAbsentFromTopMultiPVFromResponse(refined);
                                     const refinedEntry: BookmakerCacheEntry = {
                                         html: refinedHtml,
                                         refs: refinedRefs,
@@ -476,11 +506,19 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                         sourceMode: refinedSourceMode,
                                         model: refinedModel,
                                         cacheHit: refinedCacheHit,
+                                        mainPlansCount: refinedMainPlans.length,
+                                        latentPlansCount: refinedLatentPlans.length,
+                                        holdReasonsCount: refinedHoldReasons.length,
                                     };
                                     cache.set(refinedCacheKey, refinedEntry);
                                     setBookmakerRefs(refinedRefs);
                                     show(refinedHtml);
                                     applyMetaToRoot(refinedSourceMode, refinedModel, refinedCacheHit, refinedPolishMeta);
+                                    applyStrategicMetaToRoot(
+                                        refinedMainPlans.length,
+                                        refinedLatentPlans.length,
+                                        refinedHoldReasons.length,
+                                    );
 
                                     const commentary = commentaryFromResponse(refined, commentaryFromResponse(data));
                                     const vLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));

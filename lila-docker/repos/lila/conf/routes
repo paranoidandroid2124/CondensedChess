@@ -82,9 +82,9 @@ POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLoca
 POST  /api/llm/game-analysis-async     controllers.LlmController.analyzeGameAsync
 GET   /api/llm/game-analysis-async/:jobId controllers.LlmController.analyzeGameAsyncStatus(jobId)
 POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
-POST  /api/llm/bookmaker-briefing      controllers.LlmController.bookmakerBriefing
 GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)
 GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
+GET   /api/llm/defeat-dna              controllers.LlmController.defeatDna
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.support
 

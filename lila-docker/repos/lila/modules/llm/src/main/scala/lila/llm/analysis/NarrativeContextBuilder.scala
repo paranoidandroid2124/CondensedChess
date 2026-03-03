@@ -3,7 +3,6 @@ package lila.llm.analysis
 import chess.{ Color, Square }
 import lila.llm.LlmConfig
 import lila.llm.model._
-import lila.llm.model.authoring.LatentPlanNarrative
 import lila.llm.model.strategic._
 import lila.llm.analysis.L3._
 import lila.llm.model.structure.AlignmentBand
@@ -97,6 +96,7 @@ object NarrativeContextBuilder:
         .detect(
           ctx = ctx,
           planScoring = planScoring,
+          planHypotheses = data.planHypotheses,
           multiPv = multiPv,
           fen = data.fen,
           playedMove = data.prevMove,
@@ -106,8 +106,8 @@ object NarrativeContextBuilder:
         .distinctBy(_.id)
 
     val probeValidation =
-      PlanEvidenceEvaluator.validateProbeResults(rootProbeResultsRaw, probeRequests)
-    val rootProbeResults = probeValidation.validResults
+      PlanEvidenceEvaluator.validateProbeResults(probeResults, probeRequests)
+    val rootProbeResults = probeValidation.validResults.filter(pr => pr.fen.forall(_ == data.fen))
     val droppedProbeCount = probeValidation.droppedCount
     val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
     val targets = buildTargets(data, ctx, rootProbeResults)
@@ -116,7 +116,7 @@ object NarrativeContextBuilder:
       PlanEvidenceEvaluator.partition(
         hypotheses = data.planHypotheses,
         probeRequests = probeRequests,
-        validatedProbeResults = rootProbeResults,
+        validatedProbeResults = probeValidation.validResults,
         rulePlanIds = data.plans.map(_.plan.id.toString.toLowerCase).toSet,
         isWhiteToMove = data.isWhiteToMove,
         droppedProbeCount = droppedProbeCount,
@@ -124,31 +124,29 @@ object NarrativeContextBuilder:
         invalidByRequestId = probeValidation.invalidByRequestId
       )
 
-    val fallbackLatentPlans = latentNarrativesFromQuestions(authorQuestions)
     val mainStrategicPlans = strategicPartition.mainPlans.take(3)
-    val latentPlans =
-      if strategicPartition.latentPlans.nonEmpty then strategicPartition.latentPlans
-      else fallbackLatentPlans.take(2)
+    val latentPlans = strategicPartition.latentPlans.take(2)
 
     val (absentReasons, absentReasonSource) =
       val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
       if evidenceReasons.nonEmpty then evidenceReasons -> "evidence"
-      else if strategicPartition.evaluated.nonEmpty then Nil -> "none"
-      else
-        buildAbsentFromTopMultiPvReasons(
-          data = data,
-          probeRequests = probeRequests,
-          droppedProbeCount = droppedProbeCount
-        ) -> "fallback"
+      else Nil -> "none"
     
+    // Phase A: Semantic section from ExtendedAnalysisData
+    val semantic = 
+      if data.strategicSalience == StrategicSalience.Low then None
+      else buildSemanticSection(data)
+
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
-    val meta = buildMetaSignals(data, ctx, targets, rootProbeResults)
+    val rawMeta = buildMetaSignals(data, ctx, targets, rootProbeResults)
+    val meta = 
+      if data.strategicSalience == StrategicSalience.Low then None
+      else rawMeta
 
-    val strategicFlow = buildStrategicFlow(data)
-
-    // Phase A: Semantic section from ExtendedAnalysisData
-    val semantic = buildSemanticSection(data)
+    val strategicFlow = 
+      if data.strategicSalience == StrategicSalience.Low then None
+      else buildStrategicFlow(data)
 
     // Phase B: Opponent plan (side=!toMove)
     val opponentPlan = buildOpponentPlan(data, ctx)
@@ -239,7 +237,8 @@ object NarrativeContextBuilder:
         depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
         variations = data.alternatives
       )),
-      deltaAfterMove = afterDelta.isDefined
+      deltaAfterMove = afterDelta.isDefined,
+      strategicSalience = data.strategicSalience
     )
   }
 
@@ -284,39 +283,6 @@ object NarrativeContextBuilder:
       prevRef = prevRef
     )
   }
-
-  private def buildAbsentFromTopMultiPvReasons(
-      data: ExtendedAnalysisData,
-      probeRequests: List[ProbeRequest],
-      droppedProbeCount: Int
-  ): List[String] =
-    val reasons = scala.collection.mutable.ListBuffer.empty[String]
-    if data.counterfactual.exists(_.cpLoss <= 40) then
-      reasons += "evaluation gap is small, so strategic alternatives may rank below tactical ties"
-    if probeRequests.exists(_.purpose.contains("free_tempo_branches")) then
-      reasons += "plan viability depends on preparatory tempo sequences"
-    if probeRequests.exists(_.purpose.contains("latent_plan_refutation")) then
-      reasons += "latent ideas require refutation checks before becoming principal lines"
-    if droppedProbeCount > 0 then
-      reasons += "some probe evidence was discarded due to missing required signals"
-    if reasons.isEmpty then
-      reasons += "plan needs preparatory moves and is not yet dominant in immediate MultiPV ordering"
-    reasons.toList.distinct.take(3)
-
-  private def latentNarrativesFromQuestions(
-      authorQuestions: List[lila.llm.model.authoring.AuthorQuestion]
-  ): List[LatentPlanNarrative] =
-    authorQuestions
-      .flatMap(_.latentPlan)
-      .take(2)
-      .map { lp =>
-        LatentPlanNarrative(
-          seedId = lp.seedId,
-          planName = lp.mapsToPlan.map(_.toString).getOrElse(lp.seedId.replace("_", " ")),
-          viabilityScore = 0.45,
-          whyAbsentFromTopMultiPv = "awaiting purpose-aligned probe evidence"
-        )
-      }
 
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)

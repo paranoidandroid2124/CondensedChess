@@ -77,9 +77,6 @@ case class BiasFactor(
     weight: Double
 )
 
-enum GamePhase:
-  case Opening, Middlegame, Endgame
-
 // (VariationLine and VariationTag moved to Variation.scala)
 
 // StructureTag and PlanTag have been removed as they were obsolete dead code.
@@ -110,8 +107,6 @@ enum PositionalTag:
   // case PerpetualCheck(color: Color)
   case RemovingTheDefender(target: Role, color: Color)
   case Initiative(color: Color)
-
-case class Hypothesis(move: String, candidateType: String, rationale: String)
 
 enum PlanLifecyclePhase:
   case Preparation
@@ -174,6 +169,32 @@ object PlanContinuity:
       "abortedReason" -> c.abortedReason
     )
   }
+
+enum StrategicSalience:
+  case High, Low
+
+object StrategicSalience:
+  def calculate(
+      transitionType: lila.llm.model.TransitionType,
+      consecutivePlies: Int,
+      evalDeltaCp: Int,
+      themeMaxShare: Double = 1.0
+  ): StrategicSalience =
+    import lila.llm.model.TransitionType.*
+    
+    // High Entropy / Chaos fallback
+    if themeMaxShare < 0.35 then return StrategicSalience.Low
+    
+    // Tactical override: Huge eval swings should suppress Strategy to focus strictly on the blunder/tactics
+    if evalDeltaCp.abs >= 200 then return StrategicSalience.Low
+
+    // Evaluate based on transition
+    transitionType match
+      case ForcedPivot | NaturalShift | Opportunistic => StrategicSalience.High
+      case Continuation =>
+        if consecutivePlies == 2 || consecutivePlies == 3 then StrategicSalience.High // Execution or Fruition
+        else StrategicSalience.Low // Standard development/maintenance
+      case Opening => StrategicSalience.Low
 
 case class CounterfactualMatch(
     userMove: String,

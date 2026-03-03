@@ -8,6 +8,9 @@ export interface PubsubEvents {
   'analysis.closeAll': () => void;
   'analysis.change': (fen: FEN, path: string) => void;
   'analysis.chart.click': (index: number) => void;
+  'analysis.collapse.update': (
+    collapses: { interval: string; earliestPreventablePly: number; rootCause?: string }[],
+  ) => void;
   'analysis.comp.toggle': (enabled: boolean) => void;
   'analysis.server.progress': (analyseData: any) => void;
   'analysis.bookmaker.hover': (data: { fen: string; color: string; lastmove: string | undefined } | null) => void;

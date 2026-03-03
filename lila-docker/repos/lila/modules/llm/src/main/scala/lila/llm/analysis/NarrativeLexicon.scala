@@ -25,14 +25,25 @@ object NarrativeLexicon {
   // Mixed seed helper
   def mixSeed(seeds: Int*): Int = seeds.foldLeft(0)(_ ^ _.hashCode)
 
-  def gameIntro(white: String, black: String, event: String, date: String, result: String): String =
-    s"In this encounter between **$white** and **$black** ($event, $date), the game concluded with **$result**. Let's examine the critical moments."
+  def gameIntro(white: String, black: String, event: String, date: String, result: String, totalPlies: Int, keyMomentsCount: Int): String = {
+    val lengthDesc = if (totalPlies < 50) "a sharp and relatively brief encounter" 
+                     else if (totalPlies > 120) "a grueling marathon of endurance" 
+                     else "a hard-fought struggle"
+                     
+    s"In this encounter between **$white** and **$black** ($event, $date), the game concluded with **$result** after $totalPlies plies. This was $lengthDesc featuring $keyMomentsCount critical turning points. Let's examine the key moments that shaped the narrative."
+  }
 
-  def gameConclusion(winner: Option[String], themes: List[String]): String =
+  def gameConclusion(winner: Option[String], themes: List[String], blunders: Int, missedWins: Int): String = {
+    val themeStr = if (themes.nonEmpty) s" Key strategic and tactical themes included ${themes.mkString(", ")}." else ""
+    val dramaStr = if (blunders + missedWins > 4) " This was a highly volatile game defined by wild swings in evaluation and missed opportunities." 
+                   else if (blunders + missedWins == 0) " It was a remarkably clean and precise game with very few major turning points."
+                   else ""
+
     winner match {
-      case Some(w) => s"**$w** prevailed, capitalizing on key turning points. The game featured themes such as ${themes.mkString(", ")}."
-      case None => s"The game ended in a draw. Both sides missed opportunities to tip the balance, with themes like ${themes.mkString(", ")} emerging."
+      case Some(w) => s"**$w** ultimately prevailed, capitalizing on the critical moments.$dramaStr$themeStr"
+      case None => s"The game ultimately ended in a draw, with both sides navigating the tension without a decisive breakthrough.$dramaStr$themeStr"
     }
+  }
 
   def momentBlockLead(bead: Int, phase: String, momentType: String, ply: Int): String = {
     val p = Option(phase).getOrElse("").trim.toLowerCase

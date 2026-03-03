@@ -4,6 +4,7 @@ import chess.*
 import chess.Bitboard
 import chess.format.Fen
 import lila.llm.model.authoring.*
+import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
 
 /**
  * Plan-first proposal layer:
@@ -27,9 +28,11 @@ object PlanProposalEngine:
 
     val structural = structuralProposals(state, features, us)
     val seeded = seedProposals(fen, features, ctx, us, them)
-    val combined = mergeDuplicates(structural ++ seeded)
+    val combined = mergeDuplicates(structural ++ seeded).map(ensureHierarchy)
+    val expanded = expandSubplanAlternatives(combined)
+    val ranked = rankBySubplanViability(expanded)
 
-    combined.take(maxItems).zipWithIndex.map { case (h, idx) =>
+    ranked.take(maxItems).zipWithIndex.map { case (h, idx) =>
       h.copy(rank = idx + 1)
     }
 
@@ -43,8 +46,9 @@ object PlanProposalEngine:
     planFirst
       .sortBy(h => -h.score)
       .foreach { h =>
-        val withSource =
+        val withSource = ensureHierarchy(
           h.copy(evidenceSources = (h.evidenceSources :+ "proposal:plan_first").distinct)
+        )
         merged.update(keyOf(withSource), withSource)
       }
 
@@ -57,7 +61,7 @@ object PlanProposalEngine:
             val mergedScore = prev.score.max((prev.score * 0.7) + (h.score * 0.3))
             merged.update(
               key,
-              prev.copy(
+              ensureHierarchy(prev.copy(
                 score = mergedScore,
                 viability = toViability(mergedScore, prev.viability.risk),
                 preconditions = (prev.preconditions ++ h.preconditions).distinct.take(5),
@@ -66,15 +70,16 @@ object PlanProposalEngine:
                 refutation = prev.refutation.orElse(h.refutation),
                 evidenceSources =
                   (prev.evidenceSources ++ h.evidenceSources ++ List("support:engine_hypothesis")).distinct
-              )
+              ))
             )
           case None =>
-            val withSource =
+            val withSource = ensureHierarchy(
               h.copy(evidenceSources = (h.evidenceSources :+ "support:engine_hypothesis").distinct)
+            )
             merged.update(key, withSource)
       }
 
-    val result = merged.values.toList.sortBy(h => -h.score).take(maxItems)
+    val result = rankBySubplanViability(merged.values.toList).take(maxItems)
     result.zipWithIndex.map { case (h, idx) => h.copy(rank = idx + 1) }
 
   private def structuralProposals(
@@ -114,7 +119,13 @@ object PlanProposalEngine:
         ),
         viability = toViability(score, "outpost can collapse under pawn lever timing"),
         refutation = Some("if center opens immediately, outpost plan may be too slow"),
-        evidenceSources = List("structural_state:entrenched_piece")
+        evidenceSources = List(
+          s"theme:${ThemeL1.PieceRedeployment.id}",
+          s"subplan:${SubplanId.OutpostEntrenchment.id}",
+          "structural_state:entrenched_piece"
+        ),
+        themeL1 = ThemeL1.PieceRedeployment.id,
+        subplanId = Some(SubplanId.OutpostEntrenchment.id)
       )
 
     if rookPawnReady then
@@ -138,7 +149,13 @@ object PlanProposalEngine:
         ),
         viability = toViability(base, "flank expansion can backfire if center is unstable"),
         refutation = Some("if tactical threats appear in center, postpone pawn march"),
-        evidenceSources = List("structural_state:rook_pawn_march")
+        evidenceSources = List(
+          s"theme:${ThemeL1.FlankInfrastructure.id}",
+          s"subplan:${SubplanId.RookPawnMarch.id}",
+          "structural_state:rook_pawn_march"
+        ),
+        themeL1 = ThemeL1.FlankInfrastructure.id,
+        subplanId = Some(SubplanId.RookPawnMarch.id)
       )
 
     if hookChance then
@@ -162,7 +179,13 @@ object PlanProposalEngine:
         ),
         viability = toViability(score, "requires coordinated piece arrival to convert"),
         refutation = Some("if opponent neutralizes hook contact, switch to central plan"),
-        evidenceSources = List("structural_state:hook_creation")
+        evidenceSources = List(
+          s"theme:${ThemeL1.FlankInfrastructure.id}",
+          s"subplan:${SubplanId.HookCreation.id}",
+          "structural_state:hook_creation"
+        ),
+        themeL1 = ThemeL1.FlankInfrastructure.id,
+        subplanId = Some(SubplanId.HookCreation.id)
       )
 
     if clamp then
@@ -186,7 +209,13 @@ object PlanProposalEngine:
         ),
         viability = toViability(clampScore, "clamp may dissipate after major-piece trades"),
         refutation = Some("if clamp squares are no longer contested, transition plan"),
-        evidenceSources = List("structural_state:color_complex_clamp")
+        evidenceSources = List(
+          s"theme:${ThemeL1.RestrictionProphylaxis.id}",
+          s"subplan:${SubplanId.ProphylaxisRestraint.id}",
+          "structural_state:color_complex_clamp"
+        ),
+        themeL1 = ThemeL1.RestrictionProphylaxis.id,
+        subplanId = Some(SubplanId.ProphylaxisRestraint.id)
       )
 
     if out.isEmpty then
@@ -209,7 +238,13 @@ object PlanProposalEngine:
         failureModes = List("slow moves allow opponent to seize initiative"),
         viability = toViability(genericScore, "generic plan can lose race to forcing lines"),
         refutation = None,
-        evidenceSources = List("structural_state:generic_center_plan")
+        evidenceSources = List(
+          s"theme:${ThemeL1.PawnBreakPreparation.id}",
+          s"subplan:${SubplanId.CentralBreakTiming.id}",
+          "structural_state:generic_center_plan"
+        ),
+        themeL1 = ThemeL1.PawnBreakPreparation.id,
+        subplanId = Some(SubplanId.CentralBreakTiming.id)
       )
 
     out.toList
@@ -235,6 +270,8 @@ object PlanProposalEngine:
             val preconds = seed.preconditions.take(3).map(pc => preconditionText(pc.condition))
             val failures =
               (seed.typicalCounters.take(2).map(counterText) :+ "fails if tactical refutation appears first").distinct
+            val seedTheme = ThemeResolver.fromSeed(seed)
+            val seedSubplan = ThemeResolver.subplanFromSeed(seed)
             List(
               PlanHypothesis(
                 planId = seed.mapsToPlan.map(_.toString).getOrElse(seed.id),
@@ -246,7 +283,13 @@ object PlanProposalEngine:
                 failureModes = failures,
                 viability = toViability(score, "seed idea needs proof against best defense"),
                 refutation = Some("requires probe validation before being asserted"),
-                evidenceSources = List(s"latent_seed:${seed.id}", "proposal:plan_first")
+                evidenceSources = List(
+                  s"latent_seed:${seed.id}",
+                  "proposal:plan_first",
+                  s"theme:${seedTheme.id}"
+                ) ++ seedSubplan.map(sp => s"subplan:${sp.id}"),
+                themeL1 = seedTheme.id,
+                subplanId = seedSubplan.map(_.id)
               )
             )
         }
@@ -324,6 +367,74 @@ object PlanProposalEngine:
             evidenceSources = (a.evidenceSources ++ b.evidenceSources).distinct
           )
         }
+      }
+      .sortBy(h => -h.score)
+
+  private def ensureHierarchy(h: PlanHypothesis): PlanHypothesis =
+    val theme = ThemeResolver.fromHypothesis(h)
+    val subplan =
+      ThemeResolver
+        .subplanFromHypothesis(h)
+        .orElse(ThemeResolver.defaultSubplanForTheme(theme))
+    h.copy(
+      themeL1 = theme.id,
+      subplanId = subplan.map(_.id),
+      evidenceSources =
+        (h.evidenceSources ++ List(s"theme:${theme.id}") ++ subplan.map(sp => s"subplan:${sp.id}"))
+          .distinct
+    )
+
+  private def expandSubplanAlternatives(items: List[PlanHypothesis]): List[PlanHypothesis] =
+    items
+      .flatMap { h =>
+        val theme = ThemeResolver.fromHypothesis(h)
+        val baseSubplan = h.subplanId.flatMap(SubplanId.fromId)
+        val alternatives =
+          SubplanCatalog
+            .byTheme(theme)
+            .map(_._1)
+            .filterNot(s => baseSubplan.contains(s))
+            .take(2)
+        val ordered = baseSubplan.toList ++ alternatives
+        if ordered.isEmpty then List(h)
+        else
+          ordered.zipWithIndex.map { case (subplan, idx) =>
+            if idx == 0 then
+              h.copy(
+                subplanId = Some(subplan.id),
+                evidenceSources = (h.evidenceSources :+ s"subplan:${subplan.id}").distinct
+              )
+            else
+              val scaled = (h.score * (0.93 - (idx - 1) * 0.06)).max(0.15)
+              h.copy(
+                subplanId = Some(subplan.id),
+                planName = s"${h.planName} (${subplan.id.replace("_", " ")})",
+                score = scaled,
+                viability = toViability(scaled, h.viability.risk),
+                evidenceSources = (h.evidenceSources :+ s"subplan:${subplan.id}" :+ "proposal:l2_variant").distinct
+              )
+          }
+      }
+      .groupBy(h => s"${h.planId.toLowerCase}|${h.subplanId.getOrElse("").toLowerCase}")
+      .values
+      .toList
+      .flatMap(_.sortBy(h => -h.score).headOption)
+
+  private def rankBySubplanViability(items: List[PlanHypothesis]): List[PlanHypothesis] =
+    items
+      .map { h =>
+        val specOpt =
+          h.subplanId
+            .flatMap(SubplanId.fromId)
+            .flatMap(SubplanCatalog.specs.get)
+        val signalComplexityBoost = specOpt.map(s => math.min(0.05, s.requiredSignals.size * 0.012)).getOrElse(0.0)
+        val horizonBoost = specOpt.map(_.horizon).map {
+          case "long"   => 0.03
+          case "medium" => 0.02
+          case _        => 0.01
+        }.getOrElse(0.0)
+        val adjusted = (h.score + signalComplexityBoost + horizonBoost).min(0.98)
+        h.copy(score = adjusted, viability = toViability(adjusted, h.viability.risk))
       }
       .sortBy(h => -h.score)
 

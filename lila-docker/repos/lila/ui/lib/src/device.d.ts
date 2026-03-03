@@ -1,0 +1,26 @@
+import { type Hooks } from './view';
+export declare const hookMobileMousedown: (f: (e: Event) => any) => Hooks;
+export declare const prefersLightThemeQuery: () => MediaQueryList;
+export declare const currentTheme: () => "light" | "dark";
+export declare function displayColumns(): number;
+export declare const isTouchDevice: () => boolean;
+export declare const isMobile: () => boolean;
+export declare const isAndroid: () => boolean;
+export declare const isIos: () => boolean;
+export declare const isIPad: () => boolean;
+export type VersionConstraint = {
+    atLeast?: string;
+    below?: string;
+};
+export declare const isChrome: (constraint?: VersionConstraint) => boolean;
+export declare const isFirefox: (constraint?: VersionConstraint) => boolean;
+export declare const isSafari: (constraint?: VersionConstraint) => boolean;
+export declare const isWebkit: (constraint?: VersionConstraint) => boolean;
+export declare const isApple: () => boolean;
+export declare const isMac: () => boolean;
+export declare const shareIcon: () => string;
+export type Feature = 'wasm' | 'sharedMem' | 'simd' | 'dynamicImportFromWorker' | 'bigint' | 'structuredClone';
+export declare const hasFeature: (feat: Feature) => boolean;
+export declare const features: () => readonly Feature[];
+export declare const reducedMotion: () => boolean;
+export declare function isVersionCompatible(version: string | undefined | false, vc?: VersionConstraint): boolean;

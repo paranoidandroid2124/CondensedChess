@@ -51,6 +51,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String] = None,
       nature: Option[String] = None,
       tension: Option[Double] = None,
+      salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
+      momentType: Option[String] = None,
       lang: String = "en",
       maxOutputTokens: Option[Int] = None
   ): Future[Option[OpenAiPolishResult]] =
@@ -63,6 +65,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName = openingName,
       nature = nature,
       tension = tension,
+      salience = salience,
+      momentType = momentType,
       model = config.modelSync,
       serviceTier = None,
       lang = lang,
@@ -78,6 +82,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String] = None,
       nature: Option[String] = None,
       tension: Option[Double] = None,
+      salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
+      momentType: Option[String] = None,
       lang: String = "en",
       maxOutputTokens: Option[Int] = None
   ): Future[Option[OpenAiPolishResult]] =
@@ -90,6 +96,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName = openingName,
       nature = nature,
       tension = tension,
+      salience = salience,
+      momentType = momentType,
       model = config.modelAsync,
       serviceTier = Some("flex"),
       lang = lang,
@@ -159,6 +167,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String],
       nature: Option[String],
       tension: Option[Double],
+      salience: Option[lila.llm.model.strategic.StrategicSalience],
+      momentType: Option[String],
       model: String,
       serviceTier: Option[String],
       lang: String,
@@ -175,6 +185,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         openingName = openingName,
         nature = nature,
         tension = tension,
+        salience = salience,
+        momentType = momentType,
         model = model,
         serviceTier = serviceTier,
         lang = lang,
@@ -193,6 +205,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
               openingName = openingName,
               nature = nature,
               tension = tension,
+              salience = salience,
+              momentType = momentType,
               model = fb,
               serviceTier = serviceTier,
               lang = lang,
@@ -261,6 +275,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String],
       nature: Option[String],
       tension: Option[Double],
+      salience: Option[lila.llm.model.strategic.StrategicSalience],
+      momentType: Option[String],
       model: String,
       serviceTier: Option[String],
       lang: String,
@@ -274,7 +290,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       fen = fen,
       openingName = openingName,
       nature = nature,
-      tension = tension
+      tension = tension,
+      salience = salience
     )
     callModelWithPrompt(
       userPrompt = userPrompt,
