@@ -77,6 +77,9 @@ GET   /analysis/*something             controllers.UserAnalysis.parseArg(somethi
 GET   /embed/analysis                  controllers.UserAnalysis.embed
 # GET   /api/cloud-eval                  controllers.Api.cloudEval
 
+# Explorer Proxy (authenticated upstream relay)
+GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
+
 # LLM Analysis
 POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
 POST  /api/llm/game-analysis-async     controllers.LlmController.analyzeGameAsync

@@ -38,7 +38,6 @@ export interface AnalyseData {
   forecast?: ForecastData;
   sidelines?: Tree.Node[][];
   treeParts: Tree.NodeOptionalChildren[];
-  practiceGoal?: any;
   clock?: Clock;
   pref: AnalysePref;
   userTv?: {
@@ -140,7 +139,6 @@ export interface AnalyseOpts {
   socketSend: AnalyseSocketSend;
   study?: any;
   tagTypes?: string;
-  practice?: any;
   relay?: any;
   $side?: Cash;
   $underboard?: Cash;

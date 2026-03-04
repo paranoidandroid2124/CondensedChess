@@ -19,6 +19,8 @@ export async function initModule({ mode, cfg }: { mode: 'userAnalysis' | 'replay
 }
 
 function userAnalysis(cfg: any) {
+  const useExplorerProxy = document.body.dataset.brandExplorerProxy !== '0';
+  if (useExplorerProxy && cfg?.explorer) cfg.explorer.endpoint = `${location.origin}/api/explorer`;
   cfg.$side = $('.analyse__side').clone();
   cfg.socketSend = ((_: any, ..._args: any[]) => { }) as AnalyseSocketSend;
   start(cfg);

@@ -12,6 +12,8 @@ export async function initModule({ cfg }: { cfg: any }) {
   } catch (e) {
     console.warn('loadPieces failed', e);
   }
+  const useExplorerProxy = document.body.dataset.brandExplorerProxy !== '0';
+  if (useExplorerProxy && cfg?.explorer) cfg.explorer.endpoint = `${location.origin}/api/explorer`;
   cfg.socketSend = ((_: any, ..._args: any[]) => {}) as AnalyseSocketSend;
   start(cfg);
 }

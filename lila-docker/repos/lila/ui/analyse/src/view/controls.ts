@@ -1,7 +1,6 @@
-import { renderEval, view as cevalView } from 'lib/ceval';
 import { repeater, myUserId } from 'lib';
 import * as licon from 'lib/licon';
-import { type VNode, type LooseVNode, onInsert, hl, icon } from 'lib/view';
+import { type VNode, onInsert, hl, icon } from 'lib/view';
 import { displayColumns, isTouchDevice } from 'lib/device';
 import { addPointerListeners } from 'lib/pointer';
 import * as control from '../control';
@@ -16,10 +15,7 @@ type Action =
   | 'scrub-help'
   | 'opening-explorer'
   | 'menu'
-  | 'analysis'
-  | 'engine-mode';
-
-type EngineMode = 'ceval' | 'practice' | 'retro';
+  | 'analysis';
 
 export function renderControls(ctrl: AnalyseCtrl) {
   const canJumpPrev = ctrl.path !== '',
@@ -37,81 +33,56 @@ export function renderControls(ctrl: AnalyseCtrl) {
       ),
     },
     [
-      displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileCevalTab(ctrl),
-      hl('button.fbt', {
-        attrs: {
-          title: 'Opening explorer and Tablebase',
-          'data-act': 'opening-explorer',
+      displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileAnalysisTab(ctrl),
+      hl(
+        'button.fbt',
+        {
+          attrs: {
+            title: 'Opening explorer and Tablebase',
+            'data-act': 'opening-explorer',
+          },
+          class: {
+            hidden: !ctrl.explorer.allowed(),
+            active: ctrl.activeControlBarTool() === 'opening-explorer',
+          },
         },
-        class: {
-          hidden: !ctrl.explorer.allowed() || (!!ctrl.retro && !isMobileUi()),
-          active: ctrl.activeControlBarTool() === 'opening-explorer',
-        },
-      }, [
-        icon(licon.Book as any)
-      ]),
-      displayColumns() > 1 && !ctrl.retro && !ctrl.ongoing && renderPracticeTab(ctrl),
+        [icon(licon.Book as any)],
+      ),
       hl('div.jumps', [
         !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
         isMobileUi() &&
-        !scrubHelpAcknowledged() &&
-        hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, [icon(licon.InfoCircle as any)]),
+          !scrubHelpAcknowledged() &&
+          hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, [icon(licon.InfoCircle as any)]),
         jumpButton(licon.GreaterThan, 'next', canJumpNext),
         !isMobileUi() &&
-        jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
+          jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
       ]),
-      [
-        hl('button.fbt', {
+      hl(
+        'button.fbt',
+        {
           class: { active: ctrl.activeControlBarTool() === 'action-menu' },
           attrs: { title: 'Menu', 'data-act': 'menu' },
-        }, [
-          icon(licon.Hamburger as any)
-        ]),
-      ],
+        },
+        [icon(licon.Hamburger as any)],
+      ),
     ],
   );
 }
 
-function renderPracticeTab(ctrl: AnalyseCtrl): LooseVNode {
-  return hl('button.fbt', {
-    attrs: {
-      title: 'Practice with computer',
-      'data-act': 'engine-mode',
-      'data-mode': 'practice',
-    },
-    class: {
-      active: !!ctrl.practice && !ctrl.activeControlBarTool(),
-      latent: !!ctrl.practice && !!ctrl.activeControlBarTool(),
-    },
-  }, [
-    icon(licon.Bullseye as any)
-  ]);
-}
-
-function renderMobileCevalTab(ctrl: AnalyseCtrl): LooseVNode {
-  const engineMode = ctrl.activeControlMode() || 'ceval',
-    ev = ctrl.allowedEval() || undefined,
-    evalstr = ev?.cp !== undefined ? renderEval(ev.cp) : ev?.mate ? '#' + ev.mate : '',
-    active = ctrl.activeControlMode() && !ctrl.activeControlBarTool(),
-    latent = ctrl.activeControlMode() && !!ctrl.activeControlBarTool();
-
+function renderMobileAnalysisTab(ctrl: AnalyseCtrl): VNode {
+  const active = ctrl.showCeval() && !ctrl.activeControlBarTool(),
+    latent = ctrl.showCeval() && !!ctrl.activeControlBarTool();
   return hl(
     'button.fbt',
     {
-      key: 'engine-mode',
-      attrs: { 'data-act': 'engine-mode', 'data-mode': engineMode },
+      attrs: {
+        title: 'Toggle local analysis',
+        'data-act': 'analysis',
+      },
       class: { active, latent, computing: ctrl.ceval.isComputing },
     },
-    [
-      engineMode === 'ceval' && [
-        hl('div.bar'),
-        cevalView.renderCevalSwitch(ctrl),
-        evalstr && ctrl.showAnalysis() && hl('eval', evalstr),
-      ],
-      engineMode === 'practice' && evalstr && hl('eval', evalstr),
-      engineMode === 'retro' && ctrl.retro?.completion().join('/'),
-    ],
+    [icon(licon.Cogs as any)],
   );
 }
 
@@ -137,16 +108,12 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   else if (action === 'scrub-help') scrubHelp(ctrl);
   else if (action === 'opening-explorer') ctrl.toggleExplorer();
   else if (action === 'menu') ctrl.toggleActionMenu();
-  else if (action === 'engine-mode' && !e.target.closest<HTMLElement>('.switch')) {
-    const mode = e.target.dataset.mode as EngineMode;
+  else if (action === 'analysis') {
     if (ctrl.activeControlBarTool()) {
       ctrl.explorer.enabled(false);
       ctrl.actionMenu(false);
-      if (ctrl.showCeval() || mode !== 'ceval') return ctrl.redraw();
     }
-    if (mode === 'practice') ctrl.togglePractice();
-    else if (mode === 'retro') ctrl.toggleRetro();
-    else ctrl.showCeval(!ctrl.showCeval());
+    ctrl.showCeval(!ctrl.showCeval());
   }
   ctrl.redraw();
 }

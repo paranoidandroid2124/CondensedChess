@@ -3,7 +3,6 @@ import type AnalyseCtrl from '../ctrl';
 
 import { getPlayer } from 'lib/game';
 import * as licon from 'lib/licon';
-import { bind, dataIcon } from 'lib/view';
 import { ratingDiff } from 'lib/view/userLink';
 
 type AdviceKind = 'inaccuracy' | 'mistake' | 'blunder';
@@ -93,15 +92,6 @@ const doRender = (ctrl: AnalyseCtrl): VNode => {
     },
     [
       playerTable(ctrl, 'white'),
-      h(
-        'a.button.text',
-        {
-          class: { active: !!ctrl.retro },
-          attrs: dataIcon(licon.PlayTriangle),
-          hook: bind('click', ctrl.toggleRetro, ctrl.redraw),
-        },
-        'Learn from your mistakes',
-      ),
       playerTable(ctrl, 'black'),
     ],
   );
@@ -128,15 +118,12 @@ export function puzzleLink(ctrl: AnalyseCtrl): VNode | undefined {
 }
 
 export function render(ctrl: AnalyseCtrl): VNode | undefined {
-  if (
-    !ctrl.data.analysis ||
-    !ctrl.showFishnetAnalysis()
-  )
+  if (!ctrl.data.analysis)
     return h('div.analyse__round-training', puzzleLink(ctrl));
 
   // don't cache until the analysis is complete!
   const buster = ctrl.data.analysis.partial ? Math.random() : '';
-  const cacheKey = '' + buster + !!ctrl.retro;
+  const cacheKey = '' + buster;
 
   return h('div.analyse__round-training', [
     h('div.analyse__acpl', thunk('div.advice-summary', doRender, [ctrl, cacheKey])),

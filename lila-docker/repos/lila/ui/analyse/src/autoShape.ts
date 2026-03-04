@@ -36,22 +36,6 @@ export function makeShapesFromUci(
 export function compute(ctrl: AnalyseCtrl): DrawShape[] {
   const color = ctrl.node.fen.includes(' w ') ? 'white' : 'black';
   const rcolor = opposite(color);
-  if (ctrl.practice) {
-    const hovering = ctrl.practice.hovering();
-    if (hovering) return makeShapesFromUci(color, hovering.uci, 'green');
-    const hint = ctrl.practice.hinting();
-    if (hint) {
-      if (hint.mode === 'move') return makeShapesFromUci(color, hint.uci, 'paleBlue');
-      else
-        return [
-          {
-            orig: (hint.uci[1] === '@' ? hint.uci.slice(2, 4) : hint.uci.slice(0, 2)) as Key,
-            brush: 'paleBlue',
-          },
-        ];
-    }
-    return [];
-  }
   const {
     eval: nEval = {} as Partial<Tree.ServerEval>,
     fen: nFen,
@@ -66,13 +50,7 @@ export function compute(ctrl: AnalyseCtrl): DrawShape[] {
     hovering = ctrl.ceval.hovering();
   }
 
-  let shapes: DrawShape[] = [],
-    badNode;
-  if (ctrl.retro && (badNode = ctrl.retro.showBadNode())) {
-    return makeShapesFromUci(color, badNode.uci!, 'paleRed', {
-      lineWidth: 8,
-    });
-  }
+  let shapes: DrawShape[] = [];
   if (hovering?.fen === nFen) shapes = shapes.concat(makeShapesFromUci(color, hovering.uci, 'paleBlue'));
   ctrl.fork.hover(hovering?.uci);
 

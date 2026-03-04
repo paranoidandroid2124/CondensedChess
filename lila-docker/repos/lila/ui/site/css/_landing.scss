@@ -28,6 +28,9 @@ html {
 }
 
 .landing-pro {
+  // `#main-wrap` is a grid shell; force landing root to span the full shell width.
+  // Without this, the first grid column can clip content to a narrow strip.
+  grid-column: 1 / -1;
   --landing-max-width: 1320px;
   min-height: 100vh;
   background:
