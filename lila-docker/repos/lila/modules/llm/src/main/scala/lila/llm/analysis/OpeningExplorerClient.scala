@@ -16,8 +16,23 @@ import lila.llm.PgnAnalysisHelper
  * Provides historical context and representative games for the narrative.
  */
 final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionContext):
-  private val mastersUrl = "https://explorer.lichess.ovh/masters"
-  private val mastersPgnUrl = "https://explorer.lichess.ovh/master/pgn"
+  private val explorerBase =
+    sys.env
+      .get("EXPLORER_API_BASE")
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .getOrElse("https://explorer.lichess.org")
+      .stripSuffix("/")
+  private val mastersUrl = s"$explorerBase/masters"
+  private val mastersPgnUrl = s"$explorerBase/master/pgn"
+  private val authHeaders =
+    sys.env
+      .get("LICHESS_EXPLORER_TOKEN")
+      .orElse(sys.env.get("LICHESS_API_TOKEN"))
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(token => Seq("Authorization" -> s"Bearer $token"))
+      .getOrElse(Seq.empty)
   private val requestTimeout = 2000.millis
   private val pgnTimeout = 2000.millis
   private val cacheTtl = 10.minutes
@@ -42,6 +57,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
         inFlight.getOrElseUpdate(
           fenKey,
           ws.url(mastersUrl)
+            .addHttpHeaders(authHeaders*)
             .withQueryStringParameters("fen" -> fenKey)
             .withRequestTimeout(requestTimeout)
             .get()
@@ -70,6 +86,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
   /** Fetches the raw PGN for a master game id. */
   def fetchMasterPgn(gameId: String): Future[Option[String]] =
     ws.url(s"$mastersPgnUrl/$gameId")
+      .addHttpHeaders(authHeaders*)
       .withRequestTimeout(pgnTimeout)
       .get()
       .map: response =>
@@ -138,6 +155,7 @@ final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionCon
 
   private def fetchPgnSnippet(gameId: String, targetFenKey: String): Future[Option[String]] =
     ws.url(s"$mastersPgnUrl/$gameId")
+      .addHttpHeaders(authHeaders*)
       .withRequestTimeout(pgnTimeout)
       .get()
       .map { response =>

@@ -63,10 +63,7 @@ export class InlineView {
     if (!this.ctrl.showComments || !node.comments) return [];
     return node.comments
       .map(comment =>
-        this.ctrl.retro?.hideComputerLine(node)
-          ? hl('comment', 'Learn from this mistake')
-          : (!this.isFishnetComment(comment) || this.ctrl.showFishnetAnalysis()) &&
-          hl('comment', {
+        hl('comment', {
             class: {
               inaccuracy: comment.text.startsWith('Inaccuracy.'),
               mistake: comment.text.startsWith('Mistake.'),
@@ -79,10 +76,6 @@ export class InlineView {
           }),
       )
       .filter(Boolean);
-  }
-
-  private isFishnetComment(comment: Tree.Comment): boolean {
-    return comment.by === 'lichess' && comment.text.endsWith(' was best.');
   }
 
   protected lines(lines: Tree.Node[], args: Args): LooseVNodes {
@@ -139,7 +132,7 @@ export class InlineView {
     const path = parentPath + node.id;
     const currentPath =
       (!ctrl.synthetic && playable(ctrl.data) && ctrl.initialPath) ||
-      ctrl.retro?.current()?.prev.path;
+      undefined;
     const withIndex =
       (!isMainline || this.inline) &&
       (node.ply % 2 === 1 ||

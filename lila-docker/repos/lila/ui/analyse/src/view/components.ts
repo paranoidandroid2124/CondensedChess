@@ -17,8 +17,6 @@ import { isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
 
 import { view as actionMenu } from './actionMenu';
-import retroView from '../retrospect/retroView';
-import practiceView from '../practice/practiceView';
 import explorerView from '../explorer/explorerView';
 import { narrativeView } from '../narrative/narrativeView';
 import { view as forkView } from '../fork';
@@ -51,11 +49,11 @@ export interface ViewContext {
 
 export function viewContext(ctrl: AnalyseCtrl): ViewContext {
   const playerBars = undefined;
-  const gaugeOn = ctrl.showGauge() && ctrl.isCevalAllowed();
+  const gaugeOn = ctrl.showEvalGauge();
   return {
     ctrl,
     concealOf: makeConcealOf(ctrl),
-    showCevalPvs: !ctrl.retro?.isSolving() && !ctrl.practice,
+    showCevalPvs: true,
     gamebookPlayView: undefined,
     playerBars,
     playerStrips: renderPlayerStrips(ctrl),
@@ -86,7 +84,6 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         },
       },
       class: {
-        'comp-off': !ctrl.showFishnetAnalysis(),
         'gauge-on': gaugeOn,
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
@@ -142,12 +139,12 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
   const narrativeEnabled = !!ctrl.narrative?.enabled();
   const narrativeNode = ctrl.narrative ? narrativeView(ctrl.narrative) : null;
   const activeTool = narrativeEnabled
-    ? narrativeNode || retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl)
-    : retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl) || narrativeNode;
+    ? narrativeNode || explorerView(ctrl)
+    : explorerView(ctrl) || narrativeNode;
   return hl('div.analyse__tools', [
     allowVideo && embeddedVideo,
     showCeval && cevalView.renderCeval(ctrl),
-    showCeval && !ctrl.retro?.isSolving() && !ctrl.practice && cevalView.renderPvs(ctrl),
+    showCeval && cevalView.renderPvs(ctrl),
     renderMoveList(ctrl, concealOf),
     forkView(ctrl, concealOf),
     activeTool,

@@ -79,7 +79,6 @@ const eventToIndex = (e: MouseEvent): number | undefined => {
 };
 
 export function view(ctrl: AnalyseCtrl, concealOf?: ConcealOf) {
-  if (ctrl.retro?.isSolving()) return;
   ctrl.fork.update();
   if (!ctrl.fork.isVisible) return;
   const isMainline = concealOf && ctrl.onMainline;
@@ -107,7 +106,7 @@ export function view(ctrl: AnalyseCtrl, concealOf?: ConcealOf) {
         return hl(
           'move',
           { class: classes, attrs: { 'data-it': it } },
-          renderIndexAndMove(node, ctrl.showFishnetAnalysis(), ctrl.showFishnetAnalysis()),
+          renderIndexAndMove(node, false, true),
         );
       return undefined;
     }),

@@ -69,13 +69,6 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
 
   if (!site.blindMode) {
     pubsub.on('board.change', () => inputFen && updateGifLinks(inputFen.value));
-    pubsub.on('analysis.comp.toggle', (enabled: boolean) => {
-      if (enabled) {
-        setTimeout(() => $menu.find('[data-panel="computer-analysis"]').first().trigger('click'), 50);
-      } else {
-        $menu.find('[data-panel]:not([data-panel="computer-analysis"])').first().trigger('click');
-      }
-    });
     pubsub.on('analysis.server.progress', (d: AnalyseData) => {
       if (!advChart) startAdvantageChart();
       else advChart.updateData(d, ctrl.serverMainline());
@@ -168,9 +161,6 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
         });
         return false;
       }
-
-      ctrl.showFishnetAnalysis(true);
-      ctrl.redraw();
 
       xhrTextRaw(this.action, { method: this.method }).then(res => {
         if (res.ok) startAdvantageChart();

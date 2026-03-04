@@ -1,7 +1,6 @@
 import type { ExplorerDb, OpeningData, TablebaseData } from './interfaces';
 import * as xhr from 'lib/xhr';
 import { readNdJson } from 'lib/xhr';
-import type { ExplorerConfigData } from './explorerConfig';
 
 interface OpeningXhrOpts {
   endpoint: string;
@@ -9,8 +8,7 @@ interface OpeningXhrOpts {
   rootFen: FEN;
   play: string[];
   fen: FEN;
-  variant?: VariantKey; // only lichess & player
-  config: ExplorerConfigData;
+  variant?: VariantKey;
   withGames?: boolean;
 }
 
@@ -19,31 +17,13 @@ export async function opening(
   processData: (data: OpeningData) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const conf = opts.config;
-  const confByDb = conf.byDb();
-  const url = new URL(`/${opts.db}`, opts.endpoint);
+  if (!opts.endpoint) throw new Error('Missing explorer endpoint');
+  const endpoint = opts.endpoint.endsWith('/') ? opts.endpoint : `${opts.endpoint}/`;
+  const url = new URL(opts.db, endpoint);
   const params = url.searchParams;
   params.set('variant', opts.variant || 'standard');
   params.set('fen', opts.rootFen);
   params.set('play', opts.play.join(','));
-  if (opts.db === 'masters') {
-    if (confByDb.since()) params.set('since', confByDb.since().split('-')[0]);
-    if (confByDb.until()) params.set('until', confByDb.until().split('-')[0]);
-  } else {
-    if (confByDb.since()) params.set('since', confByDb.since());
-    if (confByDb.until()) params.set('until', confByDb.until());
-    params.set('speeds', conf.speed().join(','));
-  }
-  if (opts.db === 'lichess') {
-    params.set('ratings', conf.rating().join(','));
-  }
-  if (opts.db === 'player') {
-    const playerName = conf.playerName.value();
-    if (!playerName) throw new Error('Missing player name');
-    params.set('player', playerName);
-    params.set('color', conf.color());
-    params.set('modes', conf.mode().join(','));
-  }
   if (!opts.withGames) {
     params.set('topGames', '0');
     params.set('recentGames', '0');

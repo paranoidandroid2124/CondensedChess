@@ -56,7 +56,7 @@ export default class ExplorerCtrl {
     this.withGames = root.synthetic || replayable(root.data) || !!root.data.opponent.ai;
     this.effectiveVariant =
       root.data.game.variant.key === 'fromPosition' ? 'standard' : root.data.game.variant.key;
-    this.config = new ExplorerConfigCtrl(root, this.effectiveVariant, this.reload, previous?.config);
+    this.config = new ExplorerConfigCtrl(root, this.effectiveVariant, previous?.config);
     window.addEventListener('hashchange', this.checkHash, false);
     this.checkHash();
   }
@@ -66,10 +66,6 @@ export default class ExplorerCtrl {
     if (parts[0] === '#explorer' || parts[0] === '#opening') {
       this.enabled(true);
       if (parts[1] === 'lichess' || parts[1] === 'masters') this.config.data.db(parts[1]);
-      else if (parts[1]?.match(/[A-Za-z0-9_-]{2,30}/)) {
-        this.config.selectPlayer(parts[1]);
-        this.config.data.color(parts[2] === 'black' ? 'black' : 'white');
-      }
       if (e) this.reload();
     }
   };
@@ -84,7 +80,6 @@ export default class ExplorerCtrl {
 
   private baseXhrOpening = () => ({
     endpoint: this.opts.endpoint,
-    config: this.config.data,
   });
 
   private fetch = debounce(
@@ -184,12 +179,7 @@ export default class ExplorerCtrl {
     this.hovering(uci ? { fen, uci } : null);
     this.root.setAutoShapes();
   };
-  onFlip = () => {
-    if (this.db() === 'player') {
-      this.cache = {};
-      this.setNode();
-    }
-  };
+  onFlip = () => {};
   isIndexing = () => !!this.lastStream && !defined(this.lastStream.sync);
   fetchMasterOpening = async (fen: FEN): Promise<OpeningData> => {
     const deferred = defer<OpeningData>();

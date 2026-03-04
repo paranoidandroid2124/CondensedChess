@@ -3,7 +3,6 @@ import * as licon from 'lib/licon';
 import { displayLocale, numberFormat } from 'lib/format';
 import perfIcons from 'lib/game/perfIcons';
 import { bind, dataIcon, type MaybeVNode, type LooseVNodes, hl } from 'lib/view';
-import { view as renderConfig } from './explorerConfig';
 import { moveArrowAttributes, ucfirst } from './explorerUtil';
 import type AnalyseCtrl from '../ctrl';
 import {
@@ -37,15 +36,15 @@ function showMoveTable(ctrl: AnalyseCtrl, data: OpeningData): VNode | null {
   const movesWithCurrent =
     data.moves.length > 1
       ? [
-        ...data.moves,
-        {
-          white: data.white,
-          black: data.black,
-          draws: data.draws,
-          uci: '',
-          san: 'Σ',
-        } as OpeningMoveStats,
-      ]
+          ...data.moves,
+          {
+            white: data.white,
+            black: data.black,
+            draws: data.draws,
+            uci: '',
+            san: 'Σ',
+          } as OpeningMoveStats,
+        ]
       : data.moves;
 
   return hl('table.moves', [
@@ -114,10 +113,10 @@ function showGameTable(ctrl: AnalyseCtrl, fen: FEN, title: string, games: Openin
       games.map(game => {
         return hl('tr', { key: game.id, attrs: { 'data-id': game.id, 'data-uci': game.uci || '' } }, [
           ctrl.explorer.opts.showRatings &&
-          hl(
-            'td',
-            [game.white, game.black].map(p => hl('span', '' + p.rating)),
-          ),
+            hl(
+              'td',
+              [game.white, game.black].map(p => hl('span', '' + p.rating)),
+            ),
           hl(
             'td',
             [game.white, game.black].map(p => hl('span', p.name)),
@@ -125,11 +124,11 @@ function showGameTable(ctrl: AnalyseCtrl, fen: FEN, title: string, games: Openin
           hl('td', showResult(game.winner)),
           hl('td', game.month || game.year),
           !isMasters &&
-          hl(
-            'td',
-            game.speed &&
-            hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
-          ),
+            hl(
+              'td',
+              game.speed &&
+                hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
+            ),
         ]);
       }),
     ),
@@ -152,8 +151,7 @@ const showEmpty = (ctrl: AnalyseCtrl, data?: OpeningData): VNode => {
       hl('strong', isTooDeep ? 'Max depth reached' : 'No game found'),
       !!data?.queuePosition
         ? hl('p.explanation', `Indexing ${data.queuePosition} other players first ...`)
-        : !(ctrl.explorer.config.fullHouse() || isTooDeep) &&
-        hl('p.explanation', 'Maybe include more games from the preferences menu'),
+        : hl('p.explanation', 'Try another line or switch database'),
     ]),
   ]);
 };
@@ -238,39 +236,16 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
       },
       label,
     );
-  const playerLink = () =>
-    hl(
-      'button.button-link.player',
-      {
-        key: 'player',
-        hook: bind(
-          'click',
-          () => {
-            explorer.config.selectPlayer(playerName || 'me');
-            if (explorer.db() !== 'player') {
-              explorer.config.data.db('player');
-              explorer.config.data.open(true);
-            }
-          },
-          explorer.reload,
-        ),
-      },
-      'Player',
-    );
   const active = (nodes: LooseVNodes, title: string) =>
     hl(
       'span.active.text.' + db,
       {
         attrs: { title, ...dataIcon(licon.Book) },
-        hook: db === 'player' ? bind('click', explorer.config.toggleColor, explorer.reload) : undefined,
       },
       nodes,
     );
-  const playerName = explorer.config.data.playerName.value();
   const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08',
     onlineDbExplanation = 'Large community database';
-  const data = explorer.current();
-  const queuePosition = data && isOpening(data) && data.queuePosition;
   return hl('div.explorer-title', [
     db === 'masters'
       ? active([hl('strong', 'Masters'), ' database'], masterDbExplanation)
@@ -278,36 +253,12 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
     db === 'lichess'
       ? active([hl('strong', 'Online'), ' database'], onlineDbExplanation)
       : otherLink('lichess', 'Online', onlineDbExplanation),
-    db === 'player'
-      ? playerName
-        ? active(
-          [
-            hl(`strong${playerName.length > 14 ? '.long' : ''}`, playerName),
-            ` ${explorer.config.data.color() === 'white' ? 'as White' : 'as Black'}`,
-            explorer.isIndexing() &&
-            !explorer.config.data.open() &&
-            hl('i.ddloader', {
-              attrs: {
-                title: queuePosition
-                  ? `Indexing ${queuePosition} other players first ...`
-                  : 'Indexing ...',
-              },
-            }),
-          ],
-          'Switch sides',
-        )
-        : active([hl('strong', 'Player'), ' database'], '')
-      : playerLink(),
   ]);
 };
 
 function showTitle(variant: Variant) {
   if (variant.key === 'standard' || variant.key === 'fromPosition') return 'Opening explorer';
   return `${variant.name} opening explorer`;
-}
-
-function showConfig(ctrl: AnalyseCtrl): VNode {
-  return hl('div.config', [explorerTitle(ctrl.explorer), renderConfig(ctrl.explorer.config)]);
 }
 
 function showFailing(ctrl: AnalyseCtrl) {
@@ -327,14 +278,12 @@ export default function (ctrl: AnalyseCtrl): VNode | undefined {
   const explorer = ctrl.explorer;
   if (!explorer.enabled()) return;
   const data = explorer.current(),
-    config = explorer.config,
-    configOpened = config.data.open(),
-    loading = !configOpened && (explorer.loading() || (!data && !explorer.failing())),
-    content = configOpened ? showConfig(ctrl) : explorer.failing() ? showFailing(ctrl) : show(ctrl);
+    loading = explorer.loading() || (!data && !explorer.failing()),
+    content = explorer.failing() ? showFailing(ctrl) : show(ctrl);
   return hl(
-    `section.explorer-box.sub-box${configOpened ? '.explorer__config' : ''}`,
+    'section.explorer-box.sub-box',
     {
-      class: { loading, reduced: !configOpened && (!!explorer.failing() || explorer.movesAway() > 2) },
+      class: { loading, reduced: !!explorer.failing() || explorer.movesAway() > 2 },
       hook: {
         insert: vnode => ((vnode.elm as HTMLElement).scrollTop = 0),
         postpatch(_, vnode) {
@@ -344,16 +293,6 @@ export default function (ctrl: AnalyseCtrl): VNode | undefined {
         },
       },
     },
-    [
-      hl('div.overlay'),
-      content,
-      hl('button.fbt.toconf', {
-        attrs: {
-          'aria-label': configOpened ? 'Close configuration' : 'Open configuration',
-          ...dataIcon(configOpened ? licon.X : licon.Gear),
-        },
-        hook: bind('click', () => ctrl.explorer.config.toggleOpen(), ctrl.redraw),
-      }),
-    ],
+    [hl('div.overlay'), content],
   );
 }

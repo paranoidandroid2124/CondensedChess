@@ -119,6 +119,7 @@ final class LilaComponents(
   lazy val analyse: Analyse = wire[Analyse]
   lazy val auth: Auth = wire[Auth]
   lazy val editor: Editor = wire[Editor]
+  lazy val explorerProxy: ExplorerProxy = wire[ExplorerProxy]
   lazy val importer: Importer = wire[Importer]
   lazy val main: Main = wire[Main]
   lazy val pref: Pref = wire[Pref]

@@ -37,8 +37,7 @@ export const bind = (ctrl: AnalyseCtrl) => {
       ctrl.redraw();
     });
   kbd.bind('space', () => {
-    if (ctrl.practice) return;
-    else if (ctrl.cevalEnabled()) ctrl.playBestMove();
+    if (ctrl.cevalEnabled()) ctrl.playBestMove();
     else if (ctrl.isCevalAllowed() && ctrl.ceval.analysable) ctrl.cevalEnabled(!ctrl.cevalEnabled());
   });
 
@@ -52,14 +51,6 @@ export const bind = (ctrl: AnalyseCtrl) => {
     })
     .bind('l', () => {
       if (ctrl.isCevalAllowed() && ctrl.ceval.analysable) ctrl.cevalEnabled(!ctrl.cevalEnabled());
-    })
-    .bind('z', () => {
-      ctrl.toggleFishnetAnalysis();
-      ctrl.redraw();
-    })
-    .bind('a', () => {
-      ctrl.showBestMoveArrowsProp(!ctrl.showBestMoveArrowsProp());
-      ctrl.redraw();
     })
     .bind('v', () => {
       ctrl.toggleVariationArrows();
@@ -88,22 +79,6 @@ export const bind = (ctrl: AnalyseCtrl) => {
       ctrl.userJumpIfCan(ctrl.idbTree.stepLine(ctrl.path, 'prev'), true);
       ctrl.redraw();
     });
-
-  const keyToMouseEvent = (key: string, eventName: string, selector: string) =>
-    kbd.bind(key, () =>
-      $(selector).each(function (this: HTMLElement) {
-        this.dispatchEvent(new MouseEvent(eventName));
-      }),
-    );
-
-  //'Request computer analysis' & 'Learn From Your Mistakes' (mutually exclusive)
-  keyToMouseEvent(
-    'r',
-    'click',
-    '.analyse__underboard__panels .computer-analysis button, .analyse__round-training .advice-summary a.button',
-  );
-  //'Next' button ("in Learn From Your Mistake")
-  keyToMouseEvent('enter', 'click', '.analyse__tools .training-box a.continue');
 
   //First explorer move
   kbd.bind('shift+space', () => {

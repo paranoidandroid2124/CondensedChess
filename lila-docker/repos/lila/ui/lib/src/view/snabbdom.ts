@@ -11,6 +11,7 @@ import {
   h as snabH,
   thunk,
 } from 'snabbdom';
+import { toDataIcon } from '../licon';
 
 export type { Attrs, Hooks, Classes, VNode, VNodeData, VNodeChildElement, VNodeChildren };
 export type MaybeVNode = VNode | string | null | undefined;
@@ -54,8 +55,18 @@ export function bindSubmit(f: (e: SubmitEvent) => unknown, redraw?: () => void):
 }
 
 export const dataIcon = (icon: string): Attrs => ({
-  'data-icon': icon,
+  'data-icon': toDataIcon(icon),
 });
+
+const normalizeDataIconAttr = (data?: VNodeData): VNodeData | null => {
+  if (!data) return null;
+  const attrs = data.attrs;
+  if (!attrs) return data;
+  const icon = attrs['data-icon'];
+  if (typeof icon !== 'string') return data;
+  const normalized = toDataIcon(icon);
+  return normalized === icon ? data : { ...data, attrs: { ...attrs, 'data-icon': normalized } };
+};
 
 export const iconTag = (name: string): VNode => {
   if (icons[name as keyof typeof icons]) return icon(name as any);
@@ -101,11 +112,11 @@ const filterKids = (children: LooseVNodes): VNodeChildElement[] => {
 // strip boolean results and flatten arrays in renders.  Allows
 //   hl('div', isDivEmpty || [ 'foo', fooHasBar && [ 'has', 'bar' ])
 export function hl(sel: string, dataOrKids?: VNodeData | LooseVNodes, kids?: LooseVNodes): VNode {
-  if (kids) return snabH(sel, dataOrKids as VNodeData, filterKids(kids));
+  if (kids) return snabH(sel, normalizeDataIconAttr(dataOrKids as VNodeData), filterKids(kids));
   if (!kidFilter(dataOrKids)) return snabH(sel);
   if (Array.isArray(dataOrKids) || (typeof dataOrKids === 'object' && 'sel' in dataOrKids!))
     return snabH(sel, filterKids(dataOrKids as LooseVNodes));
-  else return snabH(sel, dataOrKids as VNodeData);
+  else return snabH(sel, normalizeDataIconAttr(dataOrKids as VNodeData));
 }
 
 // for deep trees i think it's more efficient to flatten arrays here than to spread them in renders.
@@ -116,4 +127,3 @@ const flattenKids = (maybeArray: LooseVNodes, out: LooseVNode[]) => {
 };
 
 export const noTrans: (s: string) => VNode = s => snabH('span', { attrs: { lang: 'en' } }, s);
-
