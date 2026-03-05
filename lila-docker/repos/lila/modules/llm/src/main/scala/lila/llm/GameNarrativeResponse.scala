@@ -12,7 +12,9 @@ case class GameNarrativeResponse(
     themes: List[String],
     review: Option[GameNarrativeReview] = None,
     sourceMode: String = "rule",
-    model: Option[String] = None
+    model: Option[String] = None,
+    planTier: String = PlanTier.Basic,
+    llmLevel: String = LlmLevel.Polish
 )
 
 object GameNarrativeResponse:
@@ -23,7 +25,9 @@ object GameNarrativeResponse:
       narrative: FullGameNarrative,
       review: Option[GameNarrativeReview] = None,
       sourceMode: String = "rule",
-      model: Option[String] = None
+      model: Option[String] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): GameNarrativeResponse =
     GameNarrativeResponse(
       schema = schemaV2,
@@ -33,7 +37,9 @@ object GameNarrativeResponse:
       themes = narrative.overallThemes,
       review = review,
       sourceMode = sourceMode,
-      model = model
+      model = model,
+      planTier = PlanTier.normalize(planTier),
+      llmLevel = LlmLevel.normalize(llmLevel)
     )
 
   given Writes[GameNarrativeResponse] = Json.writes[GameNarrativeResponse]
@@ -59,7 +65,13 @@ case class GameNarrativeMoment(
     transitionConfidence: Option[Double],
     activePlan: Option[ActivePlanRef],
     topEngineMove: Option[EngineAlternative],
-    collapse: Option[lila.llm.model.CollapseAnalysis]
+    collapse: Option[lila.llm.model.CollapseAnalysis],
+    strategyPack: Option[lila.llm.StrategyPack] = None,
+    strategicBranch: Boolean = false,
+    activeStrategicNote: Option[String] = None,
+    activeStrategicSourceMode: Option[String] = None,
+    activeStrategicRoutes: List[ActiveStrategicRouteRef] = Nil,
+    activeStrategicMoves: List[ActiveStrategicMoveRef] = Nil
 )
 
 object GameNarrativeMoment:
@@ -88,7 +100,13 @@ object GameNarrativeMoment:
       transitionConfidence = moment.transitionConfidence,
       activePlan = moment.activePlan,
       topEngineMove = moment.topEngineMove,
-      collapse = moment.collapse
+      collapse = moment.collapse,
+      strategyPack = moment.strategyPack,
+      strategicBranch = moment.strategicBranch,
+      activeStrategicNote = moment.activeStrategicNote,
+      activeStrategicSourceMode = moment.activeStrategicSourceMode,
+      activeStrategicRoutes = moment.activeStrategicRoutes,
+      activeStrategicMoves = moment.activeStrategicMoves
     )
 
   given Writes[GameNarrativeMoment] = Json.writes[GameNarrativeMoment]

@@ -2,6 +2,24 @@ package lila.llm
 
 import play.api.libs.json.*
 
+object PlanTier:
+  val Basic = "basic"
+  val Pro = "pro"
+
+  def normalize(raw: String): String =
+    Option(raw).map(_.trim.toLowerCase) match
+      case Some(Pro) => Pro
+      case _         => Basic
+
+object LlmLevel:
+  val Polish = "polish"
+  val Active = "active"
+
+  def normalize(raw: String): String =
+    Option(raw).map(_.trim.toLowerCase) match
+      case Some(Active) => Active
+      case _            => Polish
+
 case class EvalData(cp: Int, mate: Option[Int], pv: Option[List[String]])
 object EvalData:
   given Reads[EvalData] = Json.reads[EvalData]
@@ -74,10 +92,82 @@ case class PolishMetaV1(
     promptTokens: Option[Int],
     cachedTokens: Option[Int],
     completionTokens: Option[Int],
-    estimatedCostUsd: Option[Double]
+    estimatedCostUsd: Option[Double],
+    strategyCoverage: Option[StrategyCoverageMetaV1] = None
 )
 object PolishMetaV1:
   given Writes[PolishMetaV1] = Json.writes[PolishMetaV1]
+
+case class StrategyCoverageMetaV1(
+    mode: String,
+    enforced: Boolean,
+    threshold: Double,
+    availableCategories: Int,
+    coveredCategories: Int,
+    requiredCategories: Int,
+    coverageScore: Double,
+    passesThreshold: Boolean,
+    planSignals: Int,
+    planHits: Int,
+    routeSignals: Int,
+    routeHits: Int,
+    focusSignals: Int,
+    focusHits: Int
+)
+object StrategyCoverageMetaV1:
+  given Writes[StrategyCoverageMetaV1] = Json.writes[StrategyCoverageMetaV1]
+
+case class StrategySidePlan(
+    side: String,
+    horizon: String,
+    planName: String,
+    priorities: List[String] = Nil,
+    riskTriggers: List[String] = Nil
+)
+object StrategySidePlan:
+  given Writes[StrategySidePlan] = Json.writes[StrategySidePlan]
+
+case class StrategyPieceRoute(
+    piece: String,
+    from: String,
+    route: List[String],
+    purpose: String,
+    confidence: Double,
+    evidence: List[String] = Nil
+)
+object StrategyPieceRoute:
+  given Writes[StrategyPieceRoute] = Json.writes[StrategyPieceRoute]
+
+case class StrategyPack(
+    schema: String = "chesstory.strategyPack.v1",
+    sideToMove: String,
+    plans: List[StrategySidePlan] = Nil,
+    pieceRoutes: List[StrategyPieceRoute] = Nil,
+    longTermFocus: List[String] = Nil,
+    evidence: List[String] = Nil
+)
+object StrategyPack:
+  given Writes[StrategyPack] = Json.writes[StrategyPack]
+
+case class ActiveStrategicRouteRef(
+    routeId: String,
+    piece: String,
+    route: List[String],
+    purpose: String,
+    confidence: Double
+)
+object ActiveStrategicRouteRef:
+  given Writes[ActiveStrategicRouteRef] = Json.writes[ActiveStrategicRouteRef]
+
+case class ActiveStrategicMoveRef(
+    label: String,
+    source: String,
+    uci: String,
+    san: Option[String] = None,
+    fenAfter: Option[String] = None
+)
+object ActiveStrategicMoveRef:
+  given Writes[ActiveStrategicMoveRef] = Json.writes[ActiveStrategicMoveRef]
 
 case class CommentResponse(
   commentary: String,
@@ -91,7 +181,10 @@ case class CommentResponse(
   sourceMode: String = "rule",
   model: Option[String] = None,
   refs: Option[BookmakerRefsV1] = None,
-  polishMeta: Option[PolishMetaV1] = None
+  polishMeta: Option[PolishMetaV1] = None,
+  planTier: String = PlanTier.Basic,
+  llmLevel: String = LlmLevel.Polish,
+  strategyPack: Option[StrategyPack] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

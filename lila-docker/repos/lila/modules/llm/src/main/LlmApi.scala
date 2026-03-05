@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator }
+import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -76,6 +76,11 @@ final class LlmApi(
   private val polishCacheHitCount = new AtomicLong(0L)
   private val polishReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val polishEstimatedCostMicros = new AtomicLong(0L)
+  private val activeNoteSelectedCount = new AtomicLong(0L)
+  private val activeNoteAttemptCount = new AtomicLong(0L)
+  private val activeNoteAttachedCount = new AtomicLong(0L)
+  private val activeNoteOmittedCount = new AtomicLong(0L)
+  private val activeNoteFailureReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
 
   private case class PolishDecision(
       commentary: String,
@@ -220,6 +225,9 @@ final class LlmApi(
   private def incPolishReason(reason: String): Unit =
     polishReasonCount.getOrElseUpdate(reason, new AtomicLong(0L)).incrementAndGet()
 
+  private def incActiveNoteReason(reason: String): Unit =
+    activeNoteFailureReasonCount.getOrElseUpdate(reason, new AtomicLong(0L)).incrementAndGet()
+
   private def recordPolishMetrics(
       sourceMode: String,
       latencyMs: Long,
@@ -250,6 +258,28 @@ final class LlmApi(
         structureEvalLatencyWindowMs = pushWindow(structureEvalLatencyWindowMs, ms.max(0L))
       }
     }
+
+  private def recordActiveNoteOutcome(attached: Boolean, reasons: List[String]): Unit =
+    val attempt = activeNoteAttemptCount.incrementAndGet()
+    if attached then activeNoteAttachedCount.incrementAndGet()
+    else activeNoteOmittedCount.incrementAndGet()
+    reasons.map(_.trim).filter(_.nonEmpty).distinct.foreach(incActiveNoteReason)
+    if attempt > 0 && attempt % 100 == 0 then maybeLogActiveNoteMetrics()
+
+  private def maybeLogActiveNoteMetrics(): Unit =
+    val selected = activeNoteSelectedCount.get()
+    val attempts = activeNoteAttemptCount.get()
+    val attached = activeNoteAttachedCount.get()
+    val omitted = activeNoteOmittedCount.get()
+    val attachRate =
+      if attempts == 0 then 0.0
+      else attached.toDouble / attempts.toDouble
+    val reasonDist = activeNoteFailureReasonCount.toList.map { case (k, v) => k -> v.get() }.toMap
+    logger.info(
+      s"active_note.metrics active_note_selected_count=$selected " +
+        s"active_note_attempt_count=$attempts active_note_attached_count=$attached active_note_omitted_count=$omitted " +
+        f"attach_rate=$attachRate%.3f active_note_failure_reason_count=$reasonDist"
+    )
 
   private def latencySnapshot: (Int, Double, Double, Int, Double, Double) =
     latencyWindowLock.synchronized {
@@ -390,6 +420,25 @@ final class LlmApi(
   private def normalizeLang(lang: String): String =
     Option(lang).map(_.trim.toLowerCase).filter(_.nonEmpty).map(_.take(8)).getOrElse(providerConfig.defaultLang)
 
+  private def normalizePlanTier(raw: String): String =
+    PlanTier.normalize(raw)
+
+  private def normalizeLlmLevel(raw: String): String =
+    LlmLevel.normalize(raw)
+
+  private def effectiveLlmLevel(
+      planTier: String,
+      requestedLevel: String,
+      allowLlmPolish: Boolean
+  ): String =
+    val tier = normalizePlanTier(planTier)
+    val requested = normalizeLlmLevel(requestedLevel)
+    if tier == PlanTier.Pro && requested == LlmLevel.Active && allowLlmPolish then LlmLevel.Active
+    else LlmLevel.Polish
+
+  private def strategyHints(pack: Option[StrategyPack]): List[String] =
+    pack.toList.flatMap(StrategyPackBuilder.promptHints)
+
   private def templateQualityScore(prose: String): Double =
     val t = Option(prose).getOrElse("")
     if t.isBlank then 0.0
@@ -489,17 +538,39 @@ final class LlmApi(
   private def llmCacheContext(
       allowLlmPolish: Boolean,
       lang: String,
-      asyncTier: Boolean
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
   ): Option[LlmCacheContext] =
     if !isLlmPolishEnabledForRequest(allowLlmPolish) then None
     else
       val normalizedLang = normalizeLang(lang)
+      val normalizedPlanTier = normalizePlanTier(planTier)
+      val normalizedLlmLevel = normalizeLlmLevel(llmLevel)
       providerConfig.provider match
         case "openai" if openAiClient.isEnabled =>
-          val model = if asyncTier then openAiClient.asyncModelName else openAiClient.syncModelName
-          Some(LlmCacheContext(model = model, promptVersion = providerConfig.promptVersion, lang = normalizedLang))
+          val model =
+            if asyncTier then openAiClient.asyncModelName(normalizedPlanTier, normalizedLlmLevel)
+            else openAiClient.syncModelName(normalizedPlanTier, normalizedLlmLevel)
+          Some(
+            LlmCacheContext(
+              model = model,
+              promptVersion = providerConfig.promptVersion,
+              lang = normalizedLang,
+              planTier = normalizedPlanTier,
+              llmLevel = normalizedLlmLevel
+            )
+          )
         case "gemini" if geminiClient.isEnabled =>
-          Some(LlmCacheContext(model = geminiClient.modelName, promptVersion = providerConfig.promptVersion, lang = normalizedLang))
+          Some(
+            LlmCacheContext(
+              model = geminiClient.modelName,
+              promptVersion = providerConfig.promptVersion,
+              lang = normalizedLang,
+              planTier = normalizedPlanTier,
+              llmLevel = normalizedLlmLevel
+            )
+          )
         case _ => None
 
   private def sumIntOptions(values: List[Option[Int]]): Option[Int] =
@@ -524,9 +595,220 @@ final class LlmApi(
     val estimated = (proseWords.toDouble * 2.4 + anchorCount.toDouble * 5.0 + 96.0).toInt
     estimated.max(minCap).min(maxCap)
 
+  // Pro(active) uses stronger models, so keep the gate lenient to reduce over-fallback.
+  private val StrategyCoverageThreshold = 0.34
+  private val strategyStopwords = Set(
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "into",
+    "onto",
+    "over",
+    "under",
+    "this",
+    "that",
+    "these",
+    "those",
+    "white",
+    "black",
+    "plan",
+    "plans",
+    "long",
+    "term",
+    "focus",
+    "route",
+    "routes",
+    "piece",
+    "pieces",
+    "move",
+    "moves",
+    "side",
+    "their",
+    "your"
+  )
+
+  private val pieceWordByCode = Map(
+    "P" -> List("pawn"),
+    "N" -> List("knight"),
+    "B" -> List("bishop"),
+    "R" -> List("rook"),
+    "Q" -> List("queen"),
+    "K" -> List("king")
+  )
+
+  private case class StrategyCoverageEvaluation(
+      meta: Option[StrategyCoverageMetaV1],
+      reasons: List[String]
+  )
+
+  private def signalTokens(text: String): Set[String] =
+    Option(text)
+      .getOrElse("")
+      .toLowerCase
+      .replaceAll("[^a-z0-9\\s]", " ")
+      .split("\\s+")
+      .toList
+      .map(_.trim)
+      .filter(token => token.length >= 4 && !token.forall(_.isDigit) && !strategyStopwords(token))
+      .toSet
+
+  private def phraseMentioned(textLower: String, phrase: String): Boolean =
+    val normalized = Option(phrase).map(_.trim.toLowerCase).getOrElse("")
+    normalized.nonEmpty && textLower.contains(normalized)
+
+  private def extractSquares(textLower: String): Set[String] =
+    "(?i)\\b[a-h][1-8]\\b".r.findAllIn(textLower).map(_.toLowerCase).toSet
+
+  private def containsOrderedRoute(textLower: String, route: List[String]): Boolean =
+    if route.size < 2 then false
+    else
+      route.foldLeft((-1, true)) { case ((idx, ok), square) =>
+        if !ok then (idx, false)
+        else
+          val next = textLower.indexOf(square, idx + 1)
+          (next, next >= 0)
+      }._2
+
+  private def routeMentioned(textLower: String, route: StrategyPieceRoute): Boolean =
+    val routeSquares =
+      route.route
+        .map(_.trim.toLowerCase)
+        .filter(_.matches("^[a-h][1-8]$"))
+        .distinct
+    if routeSquares.isEmpty then false
+    else
+      val seenSquares = extractSquares(textLower)
+      val squareHits = routeSquares.count(seenSquares.contains)
+      val pieceCode = Option(route.piece).map(_.trim.toUpperCase).getOrElse("")
+      val pieceWords = pieceWordByCode.getOrElse(pieceCode, Nil)
+      val pieceWithSquareMention = routeSquares.exists(sq => textLower.contains(s"${pieceCode.toLowerCase}$sq"))
+      val mentionsPiece = pieceWords.exists(textLower.contains) || pieceWithSquareMention
+      containsOrderedRoute(textLower, routeSquares) ||
+      squareHits >= 2 ||
+      (mentionsPiece && squareHits >= 1)
+
+  private def evaluateStrategyCoverage(
+      commentary: String,
+      strategyPack: Option[StrategyPack],
+      planTier: String,
+      llmLevel: String
+  ): StrategyCoverageEvaluation =
+    val normalizedTier = normalizePlanTier(planTier)
+    val normalizedLevel = normalizeLlmLevel(llmLevel)
+    val shouldEnforce = normalizedTier == PlanTier.Pro && normalizedLevel == LlmLevel.Active
+    if !shouldEnforce then StrategyCoverageEvaluation(meta = None, reasons = Nil)
+    else
+      val packOpt =
+        strategyPack.filter(pack => pack.plans.nonEmpty || pack.pieceRoutes.nonEmpty || pack.longTermFocus.nonEmpty)
+      packOpt match
+        case None =>
+          StrategyCoverageEvaluation(
+            meta = Some(
+              StrategyCoverageMetaV1(
+                mode = "no_signals",
+                enforced = false,
+                threshold = StrategyCoverageThreshold,
+                availableCategories = 0,
+                coveredCategories = 0,
+                requiredCategories = 0,
+                coverageScore = 1.0,
+                passesThreshold = true,
+                planSignals = 0,
+                planHits = 0,
+                routeSignals = 0,
+                routeHits = 0,
+                focusSignals = 0,
+                focusHits = 0
+              )
+            ),
+            reasons = Nil
+          )
+        case Some(pack) =>
+          val commentaryLower = Option(commentary).getOrElse("").toLowerCase
+          val commentaryTokens = signalTokens(commentaryLower)
+
+          val planCandidates = pack.plans.map(_.planName).filter(_.trim.nonEmpty).distinct.take(2)
+          val planSignals = planCandidates.size
+          val planHits = planCandidates.count { planName =>
+            val planTokens = signalTokens(planName)
+            phraseMentioned(commentaryLower, planName) ||
+            (planTokens.nonEmpty && planTokens.intersect(commentaryTokens).nonEmpty)
+          }
+
+          val routeCandidates = pack.pieceRoutes.take(2)
+          val routeSignals = routeCandidates.size
+          val routeHits = routeCandidates.count(routeMentioned(commentaryLower, _))
+
+          val focusCandidates = pack.longTermFocus.map(_.trim).filter(_.nonEmpty).distinct.take(2)
+          val focusSignals = focusCandidates.size
+          val focusHits = focusCandidates.count { focus =>
+            val focusTokens = signalTokens(focus)
+            phraseMentioned(commentaryLower, focus) ||
+            (focusTokens.nonEmpty && focusTokens.intersect(commentaryTokens).nonEmpty)
+          }
+
+          val availableCategories = List(planSignals, routeSignals, focusSignals).count(_ > 0)
+          val coveredCategories = List(planHits, routeHits, focusHits).count(_ > 0)
+          // Lenient gate: at least one strategic axis is enough to pass.
+          val requiredCategories =
+            if availableCategories == 0 then 0
+            else 1
+          val coverageScore =
+            if availableCategories == 0 then 1.0
+            else coveredCategories.toDouble / availableCategories.toDouble
+          val passesThreshold = coveredCategories >= requiredCategories
+          val missingReasons =
+            if passesThreshold then Nil
+            else
+              (
+                List(
+                  Option.when(planSignals > 0 && planHits == 0)("strategy_plan_missing"),
+                  Option.when(routeSignals > 0 && routeHits == 0)("strategy_route_missing"),
+                  Option.when(focusSignals > 0 && focusHits == 0)("strategy_focus_missing"),
+                  Some("strategy_coverage_low")
+                ).flatten.distinct
+              )
+
+          StrategyCoverageEvaluation(
+            meta = Some(
+              StrategyCoverageMetaV1(
+                mode = "active_enforced",
+                enforced = true,
+                threshold = StrategyCoverageThreshold,
+                availableCategories = availableCategories,
+                coveredCategories = coveredCategories,
+                requiredCategories = requiredCategories,
+                coverageScore = coverageScore,
+                passesThreshold = passesThreshold,
+                planSignals = planSignals,
+                planHits = planHits,
+                routeSignals = routeSignals,
+                routeHits = routeHits,
+                focusSignals = focusSignals,
+                focusHits = focusHits
+              )
+            ),
+            reasons = missingReasons
+          )
+
   private case class CandidateValidation(
       isValid: Boolean,
       decodedText: String,
+      reasons: List[String],
+      strategyCoverage: Option[StrategyCoverageMetaV1]
+  )
+
+  private case class ActiveStrategicNoteDecision(
+      note: Option[String],
+      sourceMode: Option[String],
+      reasons: List[String]
+  )
+
+  private case class ActiveStrategicNoteValidation(
+      isValid: Boolean,
+      text: String,
       reasons: List[String]
   )
 
@@ -535,7 +817,10 @@ final class LlmApi(
       originalProse: String,
       allowedSans: List[String],
       anchors: MoveAnchorCodec.EncodedCommentary,
-      extraReasons: List[String]
+      extraReasons: List[String],
+      strategyPack: Option[StrategyPack],
+      planTier: String,
+      llmLevel: String
   ): CandidateValidation =
     val anchorReasons =
       if anchors.hasAnchors then
@@ -557,19 +842,318 @@ final class LlmApi(
         )
       else candidateText
     val proseValidation = validatePolishedCommentary(decoded, originalProse, allowedSans)
-    val reasons = (anchorReasons ++ proseValidation.reasons ++ extraReasons).distinct
+    val strategyValidation = evaluateStrategyCoverage(decoded, strategyPack, planTier, llmLevel)
+    val reasons = (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ extraReasons).distinct
     CandidateValidation(
       isValid = reasons.isEmpty,
       decodedText = decoded,
+      reasons = reasons,
+      strategyCoverage = strategyValidation.meta
+    )
+
+  private def sentenceCount(text: String): Int =
+    Option(text)
+      .getOrElse("")
+      .split("(?<=[.!?])\\s+")
+      .map(_.trim)
+      .count(_.nonEmpty)
+
+  private def hasAnyReferenceMention(text: String, refs: List[String]): Boolean =
+    val normalizedText = Option(text).map(_.toLowerCase).getOrElse("")
+    refs.exists { ref =>
+      val normalizedRef = Option(ref).map(_.trim.toLowerCase).getOrElse("")
+      normalizedRef.nonEmpty && normalizedText.contains(normalizedRef)
+    }
+
+  private def validateActiveStrategicNote(
+      candidateText: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef]
+  ): ActiveStrategicNoteValidation =
+    val trimmed = Option(candidateText).map(_.trim).getOrElse("")
+    val baseReasons =
+      List(
+        Option.when(trimmed.isEmpty)("empty_polish"),
+        Option.when(trimmed.nonEmpty && looksJsonWrapper(trimmed))("json_wrapper_unparsed"),
+        Option.when(trimmed.nonEmpty && looksTruncated(trimmed))("truncated_output"),
+        Option.when(trimmed.nonEmpty && leakTokens.exists(trimmed.contains))("leak_token_detected")
+      ).flatten
+    val sentenceReasons =
+      if trimmed.isEmpty then Nil
+      else
+        val count = sentenceCount(trimmed)
+        Option.when(count < 2 || count > 4)("active_note_sentence_count").toList
+    val strategyReasons =
+      if trimmed.isEmpty then Nil
+      else evaluateStrategyCoverage(trimmed, strategyPack, PlanTier.Pro, LlmLevel.Active).reasons
+    val routeRefIds = routeRefs.map(_.routeId).map(_.trim).filter(_.nonEmpty).distinct
+    val moveLabels = moveRefs.map(_.label).map(_.trim).filter(_.nonEmpty).distinct
+    val referenceReasons =
+      if trimmed.isEmpty then Nil
+      else
+        List(
+          Option.when(routeRefIds.nonEmpty && !hasAnyReferenceMention(trimmed, routeRefIds))(
+            "active_route_ref_missing"
+          ),
+          Option.when(moveLabels.nonEmpty && !hasAnyReferenceMention(trimmed, moveLabels))(
+            "active_move_label_missing"
+          )
+        ).flatten
+    val reasons = (baseReasons ++ sentenceReasons ++ strategyReasons ++ referenceReasons).distinct
+    ActiveStrategicNoteValidation(
+      isValid = reasons.isEmpty,
+      text = trimmed,
       reasons = reasons
     )
+
+  private def maybeGenerateActiveStrategicNote(
+      moment: GameNarrativeMoment,
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      allowLlmPolish: Boolean,
+      lang: String,
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
+  ): Future[ActiveStrategicNoteDecision] =
+    val normalizedPlanTier = normalizePlanTier(planTier)
+    val normalizedLlmLevel = normalizeLlmLevel(llmLevel)
+    val canAttempt =
+      isLlmPolishEnabledForRequest(allowLlmPolish) &&
+        !providerConfig.isNone &&
+        normalizedPlanTier == PlanTier.Pro &&
+        normalizedLlmLevel == LlmLevel.Active
+
+    if !canAttempt then
+      Future.successful(
+        ActiveStrategicNoteDecision(
+          note = None,
+          sourceMode = Some("omitted"),
+          reasons = List("active_note_not_enabled")
+        )
+      )
+    else
+      val phase = phaseFromPly(moment.ply)
+      val momentType = Option(moment.momentType).map(_.trim).filter(_.nonEmpty).getOrElse("Strategic Moment")
+      val concepts = moment.concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
+      val maxTokens = Some(if asyncTier then 320 else 260)
+
+      providerConfig.provider match
+        case "openai" if openAiClient.isEnabled =>
+          val op =
+            if asyncTier then
+              openAiClient.activeStrategicNoteAsync(
+                baseNarrative = moment.narrative,
+                phase = phase,
+                momentType = momentType,
+                concepts = concepts,
+                fen = moment.fen,
+                strategyPack = moment.strategyPack,
+                routeRefs = routeRefs,
+                moveRefs = moveRefs,
+                lang = normalizeLang(lang),
+                maxOutputTokens = maxTokens,
+                planTier = normalizedPlanTier,
+                llmLevel = normalizedLlmLevel
+              )
+            else
+              openAiClient.activeStrategicNoteSync(
+                baseNarrative = moment.narrative,
+                phase = phase,
+                momentType = momentType,
+                concepts = concepts,
+                fen = moment.fen,
+                strategyPack = moment.strategyPack,
+                routeRefs = routeRefs,
+                moveRefs = moveRefs,
+                lang = normalizeLang(lang),
+                maxOutputTokens = maxTokens,
+                planTier = normalizedPlanTier,
+                llmLevel = normalizedLlmLevel
+              )
+          op.flatMap {
+            case Some(primary) =>
+              val primaryValidation = validateActiveStrategicNote(
+                candidateText = primary.commentary,
+                strategyPack = moment.strategyPack,
+                routeRefs = routeRefs,
+                moveRefs = moveRefs
+              )
+              if primaryValidation.isValid then
+                Future.successful(
+                  ActiveStrategicNoteDecision(
+                    note = Some(primaryValidation.text),
+                    sourceMode = Some("llm_polished"),
+                    reasons = Nil
+                  )
+                )
+              else
+                val repairOp =
+                  if asyncTier then
+                    openAiClient.repairActiveStrategicNoteAsync(
+                      baseNarrative = moment.narrative,
+                      rejectedNote = primary.commentary,
+                      failureReasons = primaryValidation.reasons,
+                      phase = phase,
+                      momentType = momentType,
+                      concepts = concepts,
+                      fen = moment.fen,
+                      strategyPack = moment.strategyPack,
+                      routeRefs = routeRefs,
+                      moveRefs = moveRefs,
+                      lang = normalizeLang(lang),
+                      maxOutputTokens = maxTokens,
+                      planTier = normalizedPlanTier,
+                      llmLevel = normalizedLlmLevel
+                    )
+                  else
+                    openAiClient.repairActiveStrategicNoteSync(
+                      baseNarrative = moment.narrative,
+                      rejectedNote = primary.commentary,
+                      failureReasons = primaryValidation.reasons,
+                      phase = phase,
+                      momentType = momentType,
+                      concepts = concepts,
+                      fen = moment.fen,
+                      strategyPack = moment.strategyPack,
+                      routeRefs = routeRefs,
+                      moveRefs = moveRefs,
+                      lang = normalizeLang(lang),
+                      maxOutputTokens = maxTokens,
+                      planTier = normalizedPlanTier,
+                      llmLevel = normalizedLlmLevel
+                    )
+                repairOp.map {
+                  case Some(repaired) =>
+                    val repairedValidation = validateActiveStrategicNote(
+                      candidateText = repaired.commentary,
+                      strategyPack = moment.strategyPack,
+                      routeRefs = routeRefs,
+                      moveRefs = moveRefs
+                    )
+                    if repairedValidation.isValid then
+                      ActiveStrategicNoteDecision(
+                        note = Some(repairedValidation.text),
+                        sourceMode = Some("llm_polished"),
+                        reasons = Nil
+                      )
+                    else
+                      ActiveStrategicNoteDecision(
+                        note = None,
+                        sourceMode = Some("omitted"),
+                        reasons = repairedValidation.reasons.distinct
+                      )
+                  case None =>
+                    ActiveStrategicNoteDecision(
+                      note = None,
+                      sourceMode = Some("omitted"),
+                      reasons = (primaryValidation.reasons :+ "active_note_repair_empty").distinct
+                    )
+                }
+            case None =>
+              Future.successful(
+                ActiveStrategicNoteDecision(
+                  note = None,
+                  sourceMode = Some("omitted"),
+                  reasons = List("empty_polish")
+                )
+              )
+          }
+        case "gemini" if geminiClient.isEnabled =>
+          geminiClient
+            .activeStrategicNote(
+              baseNarrative = moment.narrative,
+              phase = phase,
+              momentType = momentType,
+              concepts = concepts,
+              fen = moment.fen,
+              strategyPack = moment.strategyPack,
+              routeRefs = routeRefs,
+              moveRefs = moveRefs
+            )
+            .flatMap {
+              case Some(primary) =>
+                val primaryValidation = validateActiveStrategicNote(
+                  candidateText = primary,
+                  strategyPack = moment.strategyPack,
+                  routeRefs = routeRefs,
+                  moveRefs = moveRefs
+                )
+                if primaryValidation.isValid then
+                  Future.successful(
+                    ActiveStrategicNoteDecision(
+                      note = Some(primaryValidation.text),
+                      sourceMode = Some("llm_polished"),
+                      reasons = Nil
+                    )
+                  )
+                else
+                  geminiClient
+                    .repairActiveStrategicNote(
+                      baseNarrative = moment.narrative,
+                      rejectedNote = primary,
+                      failureReasons = primaryValidation.reasons,
+                      phase = phase,
+                      momentType = momentType,
+                      concepts = concepts,
+                      fen = moment.fen,
+                      strategyPack = moment.strategyPack,
+                      routeRefs = routeRefs,
+                      moveRefs = moveRefs
+                    )
+                    .map {
+                      case Some(repaired) =>
+                        val repairedValidation = validateActiveStrategicNote(
+                          candidateText = repaired,
+                          strategyPack = moment.strategyPack,
+                          routeRefs = routeRefs,
+                          moveRefs = moveRefs
+                        )
+                        if repairedValidation.isValid then
+                          ActiveStrategicNoteDecision(
+                            note = Some(repairedValidation.text),
+                            sourceMode = Some("llm_polished"),
+                            reasons = Nil
+                          )
+                        else
+                          ActiveStrategicNoteDecision(
+                            note = None,
+                            sourceMode = Some("omitted"),
+                            reasons = repairedValidation.reasons.distinct
+                          )
+                      case None =>
+                        ActiveStrategicNoteDecision(
+                          note = None,
+                          sourceMode = Some("omitted"),
+                          reasons = (primaryValidation.reasons :+ "active_note_repair_empty").distinct
+                        )
+                    }
+              case None =>
+                Future.successful(
+                  ActiveStrategicNoteDecision(
+                    note = None,
+                    sourceMode = Some("omitted"),
+                    reasons = List("empty_polish")
+                  )
+                )
+            }
+        case _ =>
+          Future.successful(
+            ActiveStrategicNoteDecision(
+              note = None,
+              sourceMode = Some("omitted"),
+              reasons = List("provider_unavailable")
+            )
+          )
 
   private def buildPolishMetaOpenAi(
       model: Option[String],
       sourceMode: String,
       phase: String,
       validationReasons: List[String],
-      attempts: List[OpenAiPolishResult]
+      attempts: List[OpenAiPolishResult],
+      strategyCoverage: Option[StrategyCoverageMetaV1]
   ): PolishMetaV1 =
     PolishMetaV1(
       provider = "openai",
@@ -581,14 +1165,16 @@ final class LlmApi(
       promptTokens = sumIntOptions(attempts.map(_.promptTokens)),
       cachedTokens = sumIntOptions(attempts.map(_.cachedTokens)),
       completionTokens = sumIntOptions(attempts.map(_.completionTokens)),
-      estimatedCostUsd = sumDoubleOptions(attempts.map(_.estimatedCostUsd))
+      estimatedCostUsd = sumDoubleOptions(attempts.map(_.estimatedCostUsd)),
+      strategyCoverage = strategyCoverage
     )
 
   private def buildPolishMetaGemini(
       model: Option[String],
       sourceMode: String,
       phase: String,
-      validationReasons: List[String]
+      validationReasons: List[String],
+      strategyCoverage: Option[StrategyCoverageMetaV1]
   ): PolishMetaV1 =
     PolishMetaV1(
       provider = "gemini",
@@ -600,7 +1186,8 @@ final class LlmApi(
       promptTokens = None,
       cachedTokens = None,
       completionTokens = None,
-      estimatedCostUsd = None
+      estimatedCostUsd = None,
+      strategyCoverage = strategyCoverage
     )
 
   private def withRecordedPolishMetrics(startNs: Long, decision: PolishDecision): PolishDecision =
@@ -624,7 +1211,10 @@ final class LlmApi(
       momentType: Option[String],
       lang: String,
       allowedSans: List[String],
-      asyncTier: Boolean
+      asyncTier: Boolean,
+      strategyPack: Option[StrategyPack],
+      planTier: String,
+      llmLevel: String
   ): Future[Option[PolishDecision]] =
     val segmentation = PolishSegmenter.segment(prose)
     val editable = segmentation.editableSegments
@@ -669,7 +1259,9 @@ final class LlmApi(
               salience = salience,
               momentType = momentType,
               lang = lang,
-              maxOutputTokens = Some(segmentCap)
+              maxOutputTokens = Some(segmentCap),
+              planTier = planTier,
+              llmLevel = llmLevel
             )
           else
             openAiClient.polishSync(
@@ -682,7 +1274,9 @@ final class LlmApi(
               salience = salience,
               momentType = momentType,
               lang = lang,
-              maxOutputTokens = Some(segmentCap)
+              maxOutputTokens = Some(segmentCap),
+              planTier = planTier,
+              llmLevel = llmLevel
             )
 
         def callRepair(input: String, rejected: String): Future[Option[OpenAiPolishResult]] =
@@ -697,7 +1291,9 @@ final class LlmApi(
               openingName = openingName,
               allowedSans = Nil,
               lang = lang,
-              maxOutputTokens = Some(segmentCap)
+              maxOutputTokens = Some(segmentCap),
+              planTier = planTier,
+              llmLevel = llmLevel
             )
           else
             openAiClient.repairSync(
@@ -710,7 +1306,9 @@ final class LlmApi(
               openingName = openingName,
               allowedSans = Nil,
               lang = lang,
-              maxOutputTokens = Some(segmentCap)
+              maxOutputTokens = Some(segmentCap),
+              planTier = planTier,
+              llmLevel = llmLevel
             )
 
         def acceptedRewrite(
@@ -751,7 +1349,9 @@ final class LlmApi(
           val rewrites = successes.map(s => s.id -> s.commentary).toMap
           val merged = segmentation.merge(rewrites)
           val mergedValidation = validatePolishedCommentary(merged, prose, allowedSans)
-          if !mergedValidation.isValid then None
+          val strategyValidation = evaluateStrategyCoverage(merged, strategyPack, planTier, llmLevel)
+          val mergedReasons = (mergedValidation.reasons ++ strategyValidation.reasons).distinct
+          if mergedReasons.nonEmpty then None
           else
             val attempts = successes.map(_.attempt).toList
             Some(
@@ -766,7 +1366,8 @@ final class LlmApi(
                     sourceMode = "llm_polished",
                     phase = phase,
                     validationReasons = Nil,
-                    attempts = attempts
+                    attempts = attempts,
+                    strategyCoverage = strategyValidation.meta
                   )
                 )
               )
@@ -778,6 +1379,8 @@ final class LlmApi(
       phase: String,
       evalDelta: Option[Int],
       concepts: List[String],
+      strategyHints: List[String],
+      strategyPack: Option[StrategyPack],
       fen: String,
       openingName: Option[String],
       salience: Option[lila.llm.model.strategic.StrategicSalience],
@@ -786,6 +1389,8 @@ final class LlmApi(
       allowedSans: List[String],
       asyncTier: Boolean,
       refs: Option[BookmakerRefsV1],
+      planTier: String,
+      llmLevel: String,
       momentType: Option[String] = None
   ): Future[PolishDecision] =
     if prose.isBlank then
@@ -836,12 +1441,18 @@ final class LlmApi(
               promptTokens = None,
               cachedTokens = None,
               completionTokens = None,
-              estimatedCostUsd = None
+              estimatedCostUsd = None,
+              strategyCoverage = evaluateStrategyCoverage(prose, strategyPack, planTier, llmLevel).meta
+            )
             )
           )
-        )
       )
     else
+      val normalizedPlanTier = normalizePlanTier(planTier)
+      val normalizedLlmLevel = normalizeLlmLevel(llmLevel)
+      val baselineCoverage =
+        evaluateStrategyCoverage(prose, strategyPack, normalizedPlanTier, normalizedLlmLevel).meta
+      val promptConcepts = (concepts ++ strategyHints).map(_.trim).filter(_.nonEmpty).distinct.take(12)
       providerConfig.provider match
         case "openai" if openAiClient.isEnabled =>
           val normalizedLang = normalizeLang(lang)
@@ -853,14 +1464,17 @@ final class LlmApi(
                 prose = prose,
                 phase = phase,
                 evalDelta = evalDelta,
-                concepts = concepts,
+                concepts = promptConcepts,
                 fen = fen,
                 openingName = openingName,
                 salience = salience,
                 momentType = momentType,
                 lang = normalizedLang,
                 allowedSans = allowedSans,
-                asyncTier = asyncTier
+                asyncTier = asyncTier,
+                strategyPack = strategyPack,
+                planTier = normalizedPlanTier,
+                llmLevel = normalizedLlmLevel
               )
             else Future.successful(None)
 
@@ -877,26 +1491,30 @@ final class LlmApi(
                     prose = proseForModel,
                     phase = phase,
                     evalDelta = evalDelta,
-                    concepts = concepts,
+                    concepts = promptConcepts,
                     fen = fen,
                     openingName = openingName,
                     salience = salience,
                     momentType = momentType,
                     lang = normalizedLang,
-                    maxOutputTokens = Some(adaptiveCap)
+                    maxOutputTokens = Some(adaptiveCap),
+                    planTier = normalizedPlanTier,
+                    llmLevel = normalizedLlmLevel
                   )
                 else
                   openAiClient.polishSync(
                     prose = proseForModel,
                     phase = phase,
                     evalDelta = evalDelta,
-                    concepts = concepts,
+                    concepts = promptConcepts,
                     fen = fen,
                     openingName = openingName,
                     salience = salience,
                     momentType = momentType,
                     lang = normalizedLang,
-                    maxOutputTokens = Some(adaptiveCap)
+                    maxOutputTokens = Some(adaptiveCap),
+                    planTier = normalizedPlanTier,
+                    llmLevel = normalizedLlmLevel
                   )
               op.flatMap {
                 case Some(polished) =>
@@ -905,7 +1523,10 @@ final class LlmApi(
                     originalProse = prose,
                     allowedSans = allowedSans,
                     anchors = anchors,
-                    extraReasons = polished.parseWarnings
+                    extraReasons = polished.parseWarnings,
+                    strategyPack = strategyPack,
+                    planTier = normalizedPlanTier,
+                    llmLevel = normalizedLlmLevel
                   )
                   if firstValidation.isValid then
                     Future.successful(
@@ -922,7 +1543,8 @@ final class LlmApi(
                               sourceMode = "llm_polished",
                               phase = phase,
                               validationReasons = Nil,
-                              attempts = List(polished)
+                              attempts = List(polished),
+                              strategyCoverage = firstValidation.strategyCoverage
                             )
                           )
                         )
@@ -943,12 +1565,14 @@ final class LlmApi(
                           rejectedPolish = polished.commentary,
                           phase = phase,
                           evalDelta = evalDelta,
-                          concepts = concepts,
+                          concepts = promptConcepts,
                           fen = fen,
                           openingName = openingName,
                           allowedSans = allowedSans,
                           lang = normalizedLang,
-                          maxOutputTokens = Some(adaptiveCap)
+                          maxOutputTokens = Some(adaptiveCap),
+                          planTier = normalizedPlanTier,
+                          llmLevel = normalizedLlmLevel
                         )
                       else
                         openAiClient.repairSync(
@@ -956,12 +1580,14 @@ final class LlmApi(
                           rejectedPolish = polished.commentary,
                           phase = phase,
                           evalDelta = evalDelta,
-                          concepts = concepts,
+                          concepts = promptConcepts,
                           fen = fen,
                           openingName = openingName,
                           allowedSans = allowedSans,
                           lang = normalizedLang,
-                          maxOutputTokens = Some(adaptiveCap)
+                          maxOutputTokens = Some(adaptiveCap),
+                          planTier = normalizedPlanTier,
+                          llmLevel = normalizedLlmLevel
                         )
                     repairFut.map {
                       case Some(repaired) =>
@@ -970,7 +1596,10 @@ final class LlmApi(
                           originalProse = prose,
                           allowedSans = allowedSans,
                           anchors = anchors,
-                          extraReasons = repaired.parseWarnings
+                          extraReasons = repaired.parseWarnings,
+                          strategyPack = strategyPack,
+                          planTier = normalizedPlanTier,
+                          llmLevel = normalizedLlmLevel
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -986,7 +1615,8 @@ final class LlmApi(
                                   sourceMode = "llm_polished",
                                   phase = phase,
                                   validationReasons = Nil,
-                                  attempts = List(polished, repaired)
+                                  attempts = List(polished, repaired),
+                                  strategyCoverage = repairedValidation.strategyCoverage
                                 )
                               )
                             )
@@ -1013,7 +1643,9 @@ final class LlmApi(
                                   sourceMode = "fallback_rule_invalid",
                                   phase = phase,
                                   validationReasons = reasons,
-                                  attempts = List(polished, repaired)
+                                  attempts = List(polished, repaired),
+                                  strategyCoverage =
+                                    repairedValidation.strategyCoverage.orElse(firstValidation.strategyCoverage)
                                 )
                               )
                             )
@@ -1032,7 +1664,8 @@ final class LlmApi(
                                 sourceMode = "fallback_rule_invalid",
                                 phase = phase,
                                 validationReasons = firstValidation.reasons.distinct,
-                                attempts = List(polished)
+                                attempts = List(polished),
+                                strategyCoverage = firstValidation.strategyCoverage
                               )
                             )
                           )
@@ -1053,7 +1686,8 @@ final class LlmApi(
                             sourceMode = "fallback_rule_empty",
                             phase = phase,
                             validationReasons = List("empty_polish"),
-                            attempts = Nil
+                            attempts = Nil,
+                            strategyCoverage = baselineCoverage
                           )
                         )
                       )
@@ -1070,7 +1704,7 @@ final class LlmApi(
               prose = proseForModel,
               phase = phase,
               evalDelta = evalDelta,
-              concepts = concepts,
+              concepts = promptConcepts,
               fen = fen,
               openingName = openingName,
               salience = salience,
@@ -1083,7 +1717,10 @@ final class LlmApi(
                   originalProse = prose,
                   allowedSans = allowedSans,
                   anchors = anchors,
-                  extraReasons = Nil
+                  extraReasons = Nil,
+                  strategyPack = strategyPack,
+                  planTier = normalizedPlanTier,
+                  llmLevel = normalizedLlmLevel
                 )
                 if validation.isValid then
                   Future.successful(
@@ -1099,7 +1736,8 @@ final class LlmApi(
                             model = Some(geminiClient.modelName),
                             sourceMode = "llm_polished",
                             phase = phase,
-                            validationReasons = Nil
+                            validationReasons = Nil,
+                            strategyCoverage = validation.strategyCoverage
                           )
                         )
                       )
@@ -1120,7 +1758,7 @@ final class LlmApi(
                       rejectedPolish = polished,
                       phase = phase,
                       evalDelta = evalDelta,
-                      concepts = concepts,
+                      concepts = promptConcepts,
                       fen = fen,
                       openingName = openingName,
                       allowedSans = allowedSans
@@ -1132,7 +1770,10 @@ final class LlmApi(
                           originalProse = prose,
                           allowedSans = allowedSans,
                           anchors = anchors,
-                          extraReasons = Nil
+                          extraReasons = Nil,
+                          strategyPack = strategyPack,
+                          planTier = normalizedPlanTier,
+                          llmLevel = normalizedLlmLevel
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -1147,7 +1788,8 @@ final class LlmApi(
                                   model = Some(geminiClient.modelName),
                                   sourceMode = "llm_polished",
                                   phase = phase,
-                                  validationReasons = Nil
+                                  validationReasons = Nil,
+                                  strategyCoverage = repairedValidation.strategyCoverage
                                 )
                               )
                             )
@@ -1173,7 +1815,9 @@ final class LlmApi(
                                   model = Some(geminiClient.modelName),
                                   sourceMode = "fallback_rule_invalid",
                                   phase = phase,
-                                  validationReasons = reasons
+                                  validationReasons = reasons,
+                                  strategyCoverage =
+                                    repairedValidation.strategyCoverage.orElse(validation.strategyCoverage)
                                 )
                               )
                             )
@@ -1191,7 +1835,8 @@ final class LlmApi(
                                 model = Some(geminiClient.modelName),
                                 sourceMode = "fallback_rule_invalid",
                                 phase = phase,
-                                validationReasons = primaryReasons
+                                validationReasons = primaryReasons,
+                                strategyCoverage = validation.strategyCoverage
                               )
                             )
                           )
@@ -1211,11 +1856,12 @@ final class LlmApi(
                           model = None,
                           sourceMode = "fallback_rule_empty",
                           phase = phase,
-                          validationReasons = List("empty_polish")
+                          validationReasons = List("empty_polish"),
+                          strategyCoverage = baselineCoverage
                         )
                       )
                     )
-                  )
+                )
                 )
             }
         case _ =>
@@ -1238,79 +1884,220 @@ final class LlmApi(
       response: GameNarrativeResponse,
       allowLlmPolish: Boolean,
       lang: String,
-      asyncTier: Boolean
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
   ): Future[GameNarrativeResponse] =
     if !isLlmPolishEnabledForRequest(allowLlmPolish) || providerConfig.isNone then
       Future.successful(response.copy(sourceMode = "rule", model = None))
     else
-      for
-        introPolish <- maybePolishCommentary(
-          prose = response.intro,
-          phase = "opening",
-          evalDelta = None,
-          concepts = response.themes,
-          fen = "",
-          openingName = None,
-          salience = None,
-          allowLlmPolish = allowLlmPolish,
-          lang = lang,
-          allowedSans = Nil,
-          asyncTier = asyncTier,
-          refs = None,
-          momentType = Some("Game Intro")
-        )
-        conclusionPolish <- maybePolishCommentary(
-          prose = response.conclusion,
-          phase = "endgame",
-          evalDelta = None,
-          concepts = response.themes,
-          fen = "",
-          openingName = None,
-          salience = None,
-          allowLlmPolish = allowLlmPolish,
-          lang = lang,
-          allowedSans = Nil,
-          asyncTier = asyncTier,
-          refs = None,
-          momentType = Some("Game Conclusion")
-        )
-        polishedMoments <- Future.traverse(response.moments) { moment =>
-          val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
-          maybePolishCommentary(
-            prose = moment.narrative,
-            phase = phaseFromPly(moment.ply),
+      val normalizedPlanTier = normalizePlanTier(planTier)
+      val normalizedLlmLevel = normalizeLlmLevel(llmLevel)
+      val basePolishLevel = LlmLevel.Polish
+
+      val basePolishFut =
+        for
+          introPolish <- maybePolishCommentary(
+            prose = response.intro,
+            phase = "opening",
             evalDelta = None,
-            concepts = moment.concepts,
-            fen = moment.fen,
+            concepts = response.themes,
+            strategyHints = Nil,
+            strategyPack = None,
+            fen = "",
             openingName = None,
             salience = None,
             allowLlmPolish = allowLlmPolish,
             lang = lang,
-            allowedSans = allowedSans,
+            allowedSans = Nil,
             asyncTier = asyncTier,
             refs = None,
-            momentType = Some(moment.momentType)
-          ).map { decision =>
-            (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
+            planTier = normalizedPlanTier,
+            llmLevel = basePolishLevel,
+            momentType = Some("Game Intro")
+          )
+          conclusionPolish <- maybePolishCommentary(
+            prose = response.conclusion,
+            phase = "endgame",
+            evalDelta = None,
+            concepts = response.themes,
+            strategyHints = Nil,
+            strategyPack = None,
+            fen = "",
+            openingName = None,
+            salience = None,
+            allowLlmPolish = allowLlmPolish,
+            lang = lang,
+            allowedSans = Nil,
+            asyncTier = asyncTier,
+            refs = None,
+            planTier = normalizedPlanTier,
+            llmLevel = basePolishLevel,
+            momentType = Some("Game Conclusion")
+          )
+          polishedMoments <- Future.traverse(response.moments) { moment =>
+            val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
+            maybePolishCommentary(
+              prose = moment.narrative,
+              phase = phaseFromPly(moment.ply),
+              evalDelta = None,
+              concepts = moment.concepts,
+              strategyHints = Nil,
+              strategyPack = None,
+              fen = moment.fen,
+              openingName = None,
+              salience = None,
+              allowLlmPolish = allowLlmPolish,
+              lang = lang,
+              allowedSans = allowedSans,
+              asyncTier = asyncTier,
+              refs = None,
+              planTier = normalizedPlanTier,
+              llmLevel = basePolishLevel,
+              momentType = Some(moment.momentType)
+            ).map { decision =>
+              (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
+            }
           }
+        yield
+          val sourceModes =
+            (List(introPolish.sourceMode, conclusionPolish.sourceMode) ++ polishedMoments.map(_._2)).distinct
+          val model =
+            (List(introPolish.model, conclusionPolish.model) ++ polishedMoments.map(_._3)).flatten.headOption
+          val sourceMode =
+            if sourceModes.contains("llm_polished") then "llm_polished"
+            else if sourceModes.exists(_.startsWith("fallback_rule")) then "fallback_rule"
+            else if sourceModes.contains("rule_circuit_open") then "rule_circuit_open"
+            else "rule"
+          response.copy(
+            intro = introPolish.commentary,
+            conclusion = conclusionPolish.commentary,
+            moments = polishedMoments.map(_._1),
+            sourceMode = sourceMode,
+            model = model
+          )
+
+      val shouldRunActiveNotes =
+        allowLlmPolish &&
+          normalizedPlanTier == PlanTier.Pro &&
+          normalizedLlmLevel == LlmLevel.Active
+
+      basePolishFut.flatMap { basePolished =>
+        if shouldRunActiveNotes then
+          attachActiveStrategicNotes(
+            response = basePolished,
+            allowLlmPolish = allowLlmPolish,
+            lang = lang,
+            asyncTier = asyncTier,
+            planTier = normalizedPlanTier,
+            llmLevel = normalizedLlmLevel
+          )
+        else Future.successful(basePolished)
+      }
+
+  private def attachActiveStrategicNotes(
+      response: GameNarrativeResponse,
+      allowLlmPolish: Boolean,
+      lang: String,
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
+  ): Future[GameNarrativeResponse] =
+    val selectedByPly = StrategicBranchSelector.select(response.moments).map(_.ply).toSet
+    activeNoteSelectedCount.addAndGet(selectedByPly.size.toLong)
+
+    Future.traverse(response.moments) { moment =>
+      if selectedByPly.contains(moment.ply) then
+        val routeRefs = buildActiveStrategicRouteRefs(moment)
+        val moveRefs = buildActiveStrategicMoveRefs(moment)
+        maybeGenerateActiveStrategicNote(
+          moment = moment,
+          routeRefs = routeRefs,
+          moveRefs = moveRefs,
+          allowLlmPolish = allowLlmPolish,
+          lang = lang,
+          asyncTier = asyncTier,
+          planTier = planTier,
+          llmLevel = llmLevel
+        ).map { decision =>
+          val isAttached = decision.note.exists(_.trim.nonEmpty)
+          recordActiveNoteOutcome(attached = isAttached, reasons = decision.reasons)
+          moment.copy(
+            strategicBranch = true,
+            activeStrategicNote = decision.note,
+            activeStrategicSourceMode = decision.sourceMode.orElse(Some("omitted")),
+            activeStrategicRoutes = routeRefs,
+            activeStrategicMoves = moveRefs
+          )
         }
-      yield
-        val sourceModes =
-          (List(introPolish.sourceMode, conclusionPolish.sourceMode) ++ polishedMoments.map(_._2)).distinct
-        val model =
-          (List(introPolish.model, conclusionPolish.model) ++ polishedMoments.map(_._3)).flatten.headOption
-        val sourceMode =
-          if sourceModes.contains("llm_polished") then "llm_polished"
-          else if sourceModes.exists(_.startsWith("fallback_rule")) then "fallback_rule"
-          else if sourceModes.contains("rule_circuit_open") then "rule_circuit_open"
-          else "rule"
-        response.copy(
-          intro = introPolish.commentary,
-          conclusion = conclusionPolish.commentary,
-          moments = polishedMoments.map(_._1),
-          sourceMode = sourceMode,
-          model = model
+      else
+        Future.successful(
+          moment.copy(
+            strategicBranch = false,
+            activeStrategicNote = None,
+            activeStrategicSourceMode = None,
+            activeStrategicRoutes = Nil,
+            activeStrategicMoves = Nil
+          )
         )
+    }.map(polishedMoments => response.copy(moments = polishedMoments))
+
+  private def buildActiveStrategicRouteRefs(moment: GameNarrativeMoment): List[ActiveStrategicRouteRef] =
+    val routeRegex = "^[a-h][1-8]$".r
+    moment.strategyPack.toList
+      .flatMap(_.pieceRoutes)
+      .zipWithIndex
+      .flatMap { case (route, idx) =>
+        val squares =
+          route.route
+            .map(_.trim.toLowerCase)
+            .filter(s => routeRegex.matches(s))
+            .distinct
+        Option.when(squares.size >= 2)(
+          ActiveStrategicRouteRef(
+            routeId = s"route_${idx + 1}",
+            piece = route.piece,
+            route = squares,
+            purpose = route.purpose,
+            confidence = route.confidence
+          )
+        )
+      }
+      .take(3)
+
+  private def buildActiveStrategicMoveRefs(moment: GameNarrativeMoment): List[ActiveStrategicMoveRef] =
+    val fromEngine =
+      moment.topEngineMove.toList
+        .map(_.uci.trim.toLowerCase)
+        .filter(_.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))
+        .take(1)
+        .map { uci =>
+          ActiveStrategicMoveRef(
+            label = "Engine preference",
+            source = "top_engine_move",
+            uci = uci,
+            san = NarrativeUtils.uciToSan(moment.fen, uci),
+            fenAfter = Some(NarrativeUtils.uciListToFen(moment.fen, List(uci)))
+          )
+        }
+
+    val fromVariation =
+      moment.variations.headOption
+        .flatMap(_.moves.headOption)
+        .map(_.trim.toLowerCase)
+        .filter(_.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))
+        .toList
+        .map { uci =>
+          ActiveStrategicMoveRef(
+            label = "Principal line",
+            source = "top_variation",
+            uci = uci,
+            san = NarrativeUtils.uciToSan(moment.fen, uci),
+            fenAfter = Some(NarrativeUtils.uciListToFen(moment.fen, List(uci)))
+          )
+        }
+
+    (fromEngine ++ fromVariation).groupBy(_.uci).values.map(_.head).toList.take(2)
 
   private def fenAfterEachMove(startFen: String, ucis: List[String]): List[String] =
     var current = startFen
@@ -1389,11 +2176,22 @@ final class LlmApi(
       ply: Int,
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
       allowLlmPolish: Boolean = false,
-      lang: String = "en"
+      lang: String = "en",
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[BookmakerResult]] =
     val requestStartNs = System.nanoTime()
+    val normalizedPlanTier = normalizePlanTier(planTier)
+    val effectiveLevel = effectiveLlmLevel(normalizedPlanTier, llmLevel, allowLlmPolish)
     val incomingProbes = probeResults.getOrElse(Nil)
-    val cacheCtx = llmCacheContext(allowLlmPolish = allowLlmPolish, lang = lang, asyncTier = false)
+    val cacheCtx =
+      llmCacheContext(
+        allowLlmPolish = allowLlmPolish,
+        lang = lang,
+        asyncTier = false,
+        planTier = normalizedPlanTier,
+        llmLevel = effectiveLevel
+      )
     bookmakerRequests.incrementAndGet()
     if prevStateToken.isDefined then tokenPresentCount.incrementAndGet()
     commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, cacheCtx) match
@@ -1407,7 +2205,7 @@ final class LlmApi(
         stateAwareCacheMissCount.incrementAndGet()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, allowLlmPolish, lang, cacheCtx
+          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, allowLlmPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
         ).map:
           case (responseOpt, structEvalMsOpt) =>
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
@@ -1432,7 +2230,9 @@ final class LlmApi(
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker],
       allowLlmPolish: Boolean,
       lang: String,
-      cacheCtx: Option[LlmCacheContext]
+      cacheCtx: Option[LlmCacheContext],
+      planTier: String,
+      llmLevel: String
   ): Future[(Option[BookmakerResult], Option[Long])] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
 
@@ -1552,12 +2352,19 @@ final class LlmApi(
             val allowedSans =
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
+            val strategyPack =
+              Option.when(llmLevel == LlmLevel.Active)(
+                StrategyPackBuilder.build(dataWithContinuity, ctx)
+              ).flatten
+            val strategyPromptHints = strategyHints(strategyPack)
 
             maybePolishCommentary(
               prose = prose,
               phase = phase,
               evalDelta = None,
               concepts = baseConcepts,
+              strategyHints = strategyPromptHints,
+              strategyPack = strategyPack,
               fen = fen,
               openingName = opening,
               salience = Some(dataWithContinuity.strategicSalience),
@@ -1565,7 +2372,9 @@ final class LlmApi(
               lang = lang,
               allowedSans = allowedSans,
               asyncTier = false,
-              refs = refs
+              refs = refs,
+              planTier = planTier,
+              llmLevel = llmLevel
             ).map { decision =>
               val response = CommentResponse(
                 commentary = decision.commentary,
@@ -1579,7 +2388,10 @@ final class LlmApi(
                 sourceMode = decision.sourceMode,
                 model = decision.model,
                 refs = refs,
-                polishMeta = decision.meta
+                polishMeta = decision.meta,
+                planTier = planTier,
+                llmLevel = llmLevel,
+                strategyPack = strategyPack
               )
               if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
               commentaryCache.put(
@@ -1602,23 +2414,37 @@ final class LlmApi(
       focusOn: List[String] = List("mistakes", "turning_points"),
       allowLlmPolish: Boolean = false,
       asyncTier: Boolean = false,
-      lang: String = "en"
+      lang: String = "en",
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[GameNarrativeResponse]] =
-    val _ = (style, focusOn)
+    val normalizedPlanTier = normalizePlanTier(planTier)
+    val styleHint = Option(style).map(_.trim.toLowerCase).getOrElse("book")
+    val focusHints = focusOn.map(_.trim.toLowerCase)
+    val requestedLevel =
+      if focusHints.exists(f => f.contains("long_plan") || f.contains("piece_route") || f.contains("strategy")) ||
+          styleHint.contains("active") ||
+          styleHint.contains("coach")
+      then
+        LlmLevel.Active
+      else normalizeLlmLevel(llmLevel)
+    val effectiveLevel = effectiveLlmLevel(normalizedPlanTier, requestedLevel, allowLlmPolish)
     val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
     fetchOpeningRefsForPgn(pgn)
       .map { openingRefsByFen =>
         CommentaryEngine.generateFullGameNarrative(
           pgn = pgn,
           evals = evalMap,
-          openingRefsByFen = openingRefsByFen
+          openingRefsByFen = openingRefsByFen,
+          llmLevel = effectiveLevel
         )
       }
       .recover { case NonFatal(e) =>
         logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
         CommentaryEngine.generateFullGameNarrative(
           pgn = pgn,
-          evals = evalMap
+          evals = evalMap,
+          llmLevel = effectiveLevel
         )
       }
       .flatMap { narrative =>
@@ -1626,20 +2452,26 @@ final class LlmApi(
           narrative = narrative,
           review = Some(buildGameReview(narrative, pgn, evals)),
           sourceMode = "rule",
-          model = None
+          model = None,
+          planTier = normalizedPlanTier,
+          llmLevel = effectiveLevel
         )
         maybePolishGameNarrative(
           response = base,
           allowLlmPolish = allowLlmPolish,
           lang = normalizeLang(lang),
-          asyncTier = asyncTier
+          asyncTier = asyncTier,
+          planTier = normalizedPlanTier,
+          llmLevel = effectiveLevel
         ).map(_.some)
       }
 
   def submitGameAnalysisAsync(
       req: FullAnalysisRequest,
       allowLlmPolish: Boolean,
-      lang: String
+      lang: String,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): AsyncGameAnalysisSubmitResponse =
     cleanupAsyncJobs()
     val jobId = UUID.randomUUID().toString.replace("-", "")
@@ -1663,7 +2495,9 @@ final class LlmApi(
       focusOn = req.options.focusOn,
       allowLlmPolish = allowLlmPolish,
       asyncTier = true,
-      lang = lang
+      lang = lang,
+      planTier = planTier,
+      llmLevel = llmLevel
     ).map {
       case Some(result) =>
         updateAsyncJob(jobId): current =>

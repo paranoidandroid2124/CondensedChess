@@ -98,6 +98,74 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
           None
         }
 
+  def activeStrategicNote(
+      baseNarrative: String,
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil
+  ): Future[Option[String]] =
+    if !config.enabled then Future.successful(None)
+    else if baseNarrative.isBlank then Future.successful(None)
+    else
+      val prompt = ActiveStrategicPrompt.buildPrompt(
+        baseNarrative = baseNarrative,
+        phase = phase,
+        momentType = momentType,
+        fen = fen,
+        concepts = concepts,
+        strategyPack = strategyPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs
+      )
+      callWithSystemPrompt(
+        userPrompt = prompt,
+        systemPrompt = ActiveStrategicPrompt.systemPrompt,
+        allowContextCache = false
+      ).recover { case e: Throwable =>
+        logger.warn(s"Gemini active note failed, omitting note: ${e.getMessage}")
+        None
+      }
+
+  def repairActiveStrategicNote(
+      baseNarrative: String,
+      rejectedNote: String,
+      failureReasons: List[String],
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil
+  ): Future[Option[String]] =
+    if !config.enabled then Future.successful(None)
+    else if baseNarrative.isBlank || rejectedNote.isBlank then Future.successful(None)
+    else
+      val prompt = ActiveStrategicPrompt.buildRepairPrompt(
+        baseNarrative = baseNarrative,
+        rejectedNote = rejectedNote,
+        failureReasons = failureReasons,
+        phase = phase,
+        momentType = momentType,
+        fen = fen,
+        concepts = concepts,
+        strategyPack = strategyPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs
+      )
+      callWithSystemPrompt(
+        userPrompt = prompt,
+        systemPrompt = ActiveStrategicPrompt.systemPrompt,
+        allowContextCache = false
+      ).recover { case e: Throwable =>
+        logger.warn(s"Gemini active note repair failed, omitting note: ${e.getMessage}")
+        None
+      }
+
 
   def isEnabled: Boolean = config.enabled
   def modelName: String = config.model
@@ -158,8 +226,16 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       }
 
 
-  private def callWithSystemPrompt(userPrompt: String): Future[Option[String]] =
-    ensureCachedContent().flatMap { cachedNameOpt =>
+  private def callWithSystemPrompt(
+      userPrompt: String,
+      systemPrompt: String = PolishPrompt.systemPrompt,
+      allowContextCache: Boolean = true
+  ): Future[Option[String]] =
+    val cacheFut =
+      if allowContextCache && systemPrompt == PolishPrompt.systemPrompt then ensureCachedContent()
+      else Future.successful(None)
+
+    cacheFut.flatMap { cachedNameOpt =>
       val contents = Json.arr(
         Json.obj(
           "role" -> "user",
@@ -182,7 +258,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         case None =>
           Json.obj(
             "systemInstruction" -> Json.obj(
-              "parts" -> Json.arr(Json.obj("text" -> PolishPrompt.systemPrompt))
+              "parts" -> Json.arr(Json.obj("text" -> systemPrompt))
             ),
             "contents" -> contents,
             "generationConfig" -> generationConfig

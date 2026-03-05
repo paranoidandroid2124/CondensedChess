@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.llm.LlmConfig
+import lila.llm.{ LlmConfig, LlmLevel }
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
 import lila.llm.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
@@ -497,7 +497,8 @@ object CommentaryEngine:
       pgn: String,
       evals: Map[Int, List[VariationLine]],
       providedMetadata: Option[GameMetadata] = None,
-      openingRefsByFen: Map[String, OpeningReference] = Map.empty
+      openingRefsByFen: Map[String, OpeningReference] = Map.empty,
+      llmLevel: String = LlmLevel.Polish
   ): FullGameNarrative = {
      
      val metadata = providedMetadata.getOrElse(extractMetadata(pgn))
@@ -558,6 +559,10 @@ object CommentaryEngine:
                   val collapseData = if (moment.momentType == "Blunder" || moment.momentType == "SustainedPressure") {
                     CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
                   } else None
+                  val strategyPack =
+                    if LlmLevel.normalize(llmLevel) == LlmLevel.Active then
+                      StrategyPackBuilder.build(data, ctx)
+                    else None
 
                   val momentNarrative = MomentNarrative(
                     ply = moment.ply,
@@ -589,7 +594,8 @@ object CommentaryEngine:
                         pv = alt.moves
                       )
                     },
-                    collapse = collapseData
+                    collapse = collapseData,
+                    strategyPack = strategyPack
                   )
                   
                   // Update budget from ctx.updatedBudget for next iteration

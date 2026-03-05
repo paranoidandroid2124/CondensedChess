@@ -4,6 +4,7 @@ import type AnalyseCtrl from '../ctrl';
 import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
+import type { BoardPreview } from 'lib/view/boardPreview';
 
 interface VariationLine {
     moves: string[];
@@ -58,6 +59,27 @@ interface GameNarrativeMoment {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    strategicBranch?: boolean;
+    activeStrategicNote?: string;
+    activeStrategicSourceMode?: string;
+    activeStrategicRoutes?: ActiveStrategicRouteRef[];
+    activeStrategicMoves?: ActiveStrategicMoveRef[];
+}
+
+export interface ActiveStrategicRouteRef {
+    routeId: string;
+    piece: string;
+    route: string[];
+    purpose: string;
+    confidence: number;
+}
+
+export interface ActiveStrategicMoveRef {
+    label: string;
+    source: string;
+    uci: string;
+    san?: string;
+    fenAfter?: string;
 }
 
 interface GameNarrativeReview {
@@ -83,6 +105,8 @@ export interface GameNarrativeResponse {
     review?: GameNarrativeReview;
     sourceMode?: string;
     model?: string | null;
+    planTier?: string;
+    llmLevel?: string;
     ccaEnabled?: boolean;
 }
 
@@ -141,7 +165,7 @@ export class NarrativeCtrl {
     needsLogin: Prop<boolean> = prop(false);
     loadingDetail: Prop<string | null> = prop(null);
 
-    pvBoard: Prop<{ fen: string; uci: string } | null> = prop(null);
+    pvBoard: Prop<BoardPreview | null> = prop(null);
     dnaTab: Prop<'narrative' | 'collapse' | 'dna'> = prop('narrative' as 'narrative' | 'collapse' | 'dna');
     dnaData: Prop<DefeatDnaReport | null> = prop(null);
     dnaLoading: Prop<boolean> = prop(false);

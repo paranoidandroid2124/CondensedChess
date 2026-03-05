@@ -81,7 +81,9 @@ final class LlmController(
                 focusOn = analysisReq.options.focusOn,
                 allowLlmPolish = allowLlmPolish,
                 asyncTier = false,
-                lang = requestLang
+                lang = requestLang,
+                planTier = resolvedPlanTier,
+                llmLevel = resolvedGameAnalysisLlmLevel
               )
               .map:
                 case Some(response) =>
@@ -103,7 +105,9 @@ final class LlmController(
             val submit = api.submitGameAnalysisAsync(
               req = analysisReq,
               allowLlmPolish = allowLlmPolish,
-              lang = requestLang
+              lang = requestLang,
+              planTier = resolvedPlanTier,
+              llmLevel = resolvedGameAnalysisLlmLevel
             )
             Created(Json.toJson(submit)).toFuccess
     )
@@ -152,7 +156,9 @@ final class LlmController(
                 ply = commentReq.context.ply,
                 prevStateToken = commentReq.planStateToken,
                 allowLlmPolish = allowLlmPolish,
-                lang = requestLang
+                lang = requestLang,
+                planTier = resolvedPlanTier,
+                llmLevel = resolvedBookmakerLlmLevel
               )
               .map {
                 case Some(result) =>
@@ -178,6 +184,9 @@ final class LlmController(
                     "planStateToken" -> response.planStateToken,
                     "sourceMode" -> response.sourceMode,
                     "model" -> response.model,
+                    "planTier" -> response.planTier,
+                    "llmLevel" -> response.llmLevel,
+                    "strategyPack" -> response.strategyPack,
                     "cacheHit" -> result.cacheHit
                   )
                   val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
@@ -239,6 +248,17 @@ final class LlmController(
 
   private def hasPremiumExperience(using ctx: Context): Boolean =
     isPremiumPlan || (betaPremiumForAllLoggedIn && isLoggedIn)
+
+  private def resolvedPlanTier(using ctx: Context): String =
+    if hasPremiumExperience then lila.llm.PlanTier.Pro
+    else lila.llm.PlanTier.Basic
+
+  private def resolvedGameAnalysisLlmLevel(using ctx: Context): String =
+    if resolvedPlanTier == lila.llm.PlanTier.Pro then lila.llm.LlmLevel.Active
+    else lila.llm.LlmLevel.Polish
+
+  private def resolvedBookmakerLlmLevel: String =
+    lila.llm.LlmLevel.Polish
 
   private def requestLang(using RequestHeader): String =
     val raw = req.headers.get("Accept-Language").getOrElse("")
