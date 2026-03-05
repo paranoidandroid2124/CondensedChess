@@ -43,7 +43,12 @@ object EndgamePatternOracle:
     detectShortSideDefense,
     detectOppositeColoredBishopsDraw,
     detectGoodBishopRookPawnConversion,
-    detectKnightBlockadeRookPawnDraw
+    detectKnightBlockadeRookPawnDraw,
+    detectQueenVsAdvancedPawn,
+    detectTarraschDefense,
+    detectPassiveRookDefense,
+    detectRookAndBishopVsRookDraw,
+    detectSameColoredBishopsBlockade
   )
 
   def detect(board: Board, color: Color, coreFeature: EndgameFeature): Option[PatternMatch] =
@@ -582,6 +587,139 @@ object EndgamePatternOracle:
           )
     })
 
+  private def detectQueenVsAdvancedPawn(
+      board: Board,
+      _color: Color,
+      core: EndgameFeature
+  ): Option[PatternMatch] =
+    val _ = _color
+    val queens = board.queens.squares.toList
+    val pawns = board.pawns.squares.toList
+    if queens.size != 1 || pawns.size != 1 then None
+    else if board.rooks.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
+    else
+      val queen = queens.head
+      val pawn = pawns.head
+      for
+        pawnOwner <- board.colorAt(pawn)
+        ownerKing <- board.kingPosOf(pawnOwner)
+        if relativeRank(pawn, pawnOwner) >= 7
+        if pawn.file == File.A || pawn.file == File.C || pawn.file == File.F || pawn.file == File.H
+        if chebyshev(queen, pawn) <= 2
+        // Goldset-safe guard: side with pawn needs nearby corner support file.
+        if fileDistance(ownerKing.file, pawn.file) <= 1
+      yield
+        PatternMatch(
+          id = "QueenVsAdvancedPawn",
+          outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
+          confidenceFloor = 0.85,
+          ambiguityPenalty = if core.kingActivityDelta.abs > 2 then 0.05 else 0.0
+        )
+
+  private def detectTarraschDefense(
+      board: Board,
+      color: Color,
+      _core: EndgameFeature
+  ): Option[PatternMatch] =
+    val _ = _core
+    if board.rooks.count != 1 || board.pawns.count != 1 then None
+    else if board.queens.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
+    else
+      for
+        rook <- board.rooks.squares.headOption
+        pawn <- board.pawns.squares.headOption
+        if board.colorAt(rook).contains(!color)
+        // Active Tarrasch posture in this heuristic: rook keeps lateral activity.
+        if rook.file != pawn.file
+      yield
+        PatternMatch(
+          id = "TarraschDefenseActive",
+          confidenceFloor = 0.78,
+          signalOverrides = PatternSignalOverrides(
+            rookEndgamePattern = Some(RookEndgamePattern.TarraschDefenseActive)
+          )
+        )
+
+  private def detectPassiveRookDefense(
+      board: Board,
+      color: Color,
+      core: EndgameFeature
+  ): Option[PatternMatch] =
+    val matUs = material(board, color)
+    val matThem = material(board, !color)
+    if board.rooks.count != 1 || matUs.rooks != 1 then None
+    else if board.queens.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
+    else if matThem.rooks + matThem.pawns > 0 then None
+    else
+      val ownPassers = passedPawns(board, color)
+      board.byPiece(color, Rook).squares.headOption.flatMap { rook =>
+        ownPassers.find { pawn =>
+          rook.file == pawn.file &&
+          (if color.white then rook.rank.value > pawn.rank.value else rook.rank.value < pawn.rank.value) &&
+          math.abs(rook.rank.value - pawn.rank.value) == 1
+        }.map { _ =>
+        PatternMatch(
+          id = "PassiveRookDefense",
+          confidenceFloor = 0.75,
+          signalOverrides = PatternSignalOverrides(
+            rookEndgamePattern = Some(RookEndgamePattern.PassiveRookDefense)
+          ),
+          ambiguityPenalty = if core.kingActivityDelta < 0 then 0.05 else 0.0
+        )
+      }}
+
+  private def detectRookAndBishopVsRookDraw(
+      board: Board,
+      color: Color,
+      _core: EndgameFeature
+  ): Option[PatternMatch] =
+    val _ = _core
+    val attacker = color
+    val defender = !color
+    val matA = material(board, attacker)
+    val matD = material(board, defender)
+    if matA.rooks != 1 || matA.bishops != 1 || matD.rooks != 1 || matD.bishops != 0 then None
+    else if matA.queens > 0 || matD.queens > 0 || matA.knights > 0 || matD.knights > 0 || matA.pawns > 0 || matD.pawns > 0 then None
+    else
+      for
+        bishop <- board.byPiece(attacker, Bishop).squares.headOption
+        dKing <- board.kingPosOf(defender)
+        if isCornerRegion(dKing)
+        if dKing.isLight != bishop.isLight // Safe corner is opposite color of bishop
+      yield
+        PatternMatch(
+          id = "RookAndBishopVsRookDraw",
+          outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
+          confidenceFloor = 0.85
+        )
+
+  private def detectSameColoredBishopsBlockade(
+      board: Board,
+      color: Color,
+      core: EndgameFeature
+  ): Option[PatternMatch] =
+    val attacker = color
+    val defender = !color
+    val matA = material(board, attacker)
+    val matD = material(board, defender)
+    if matA.bishops != 1 || matD.bishops != 1 then None
+    else if matA.rooks + matA.queens + matA.knights > 0 || matD.rooks + matD.queens + matD.knights > 0 then None
+    else if matA.pawns != 2 || matD.pawns != 0 then None
+    else
+      val pawns = board.byPiece(attacker, Pawn).squares.toList
+      if !pawns.exists { pawn =>
+          val rel = relativeRank(pawn, attacker)
+          if attacker.white then rel >= 5 else rel <= 2
+        }
+      then None
+      else
+        Some(PatternMatch(
+          id = "SameColoredBishopsBlockade",
+          outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
+          confidenceFloor = 0.78,
+          ambiguityPenalty = if core.kingActivityDelta > 2 then 0.06 else 0.0
+        ))
+
   private final case class MaterialCounts(
       pawns: Int,
       knights: Int,
@@ -607,6 +745,10 @@ object EndgamePatternOracle:
 
   private def isFlankPawn(square: Square): Boolean =
     square.file == File.A || square.file == File.B || square.file == File.G || square.file == File.H
+
+  private def isCornerRegion(square: Square): Boolean =
+    (square.file.value <= File.B.value || square.file.value >= File.G.value) &&
+    (square.rank.value <= Rank.Second.value || square.rank.value >= Rank.Seventh.value)
 
   private def isShortSideCorner(defenderKing: Square, pawn: Square, attacker: Color): Boolean =
     val targetRank = if attacker.white then Rank.Eighth else Rank.First

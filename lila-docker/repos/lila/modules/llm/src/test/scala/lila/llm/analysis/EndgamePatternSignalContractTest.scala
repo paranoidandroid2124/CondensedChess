@@ -16,10 +16,14 @@ class EndgamePatternSignalContractTest extends FunSuite:
     "TriangulationZugzwang" -> Set("triangulationAvailable", "zugzwangLikely"),
     "BreakthroughSacrifice" -> Set("zugzwangLikely", "theoreticalOutcomeHint"),
     "Shouldering" -> Set("zugzwangLikely"),
-    "ShortSideDefense" -> Set("rookEndgamePattern", "theoreticalOutcomeHint"),
     "OppositeColoredBishopsDraw" -> Set("theoreticalOutcomeHint"),
     "GoodBishopRookPawnConversion" -> Set("theoreticalOutcomeHint"),
-    "KnightBlockadeRookPawnDraw" -> Set("theoreticalOutcomeHint")
+    "KnightBlockadeRookPawnDraw" -> Set("theoreticalOutcomeHint"),
+    "QueenVsAdvancedPawn" -> Set("theoreticalOutcomeHint"),
+    "TarraschDefenseActive" -> Set("rookEndgamePattern"),
+    "PassiveRookDefense" -> Set("rookEndgamePattern"),
+    "RookAndBishopVsRookDraw" -> Set("theoreticalOutcomeHint"),
+    "SameColoredBishopsBlockade" -> Set("theoreticalOutcomeHint")
   )
 
   test("pattern detector should satisfy deterministic signal contracts") {

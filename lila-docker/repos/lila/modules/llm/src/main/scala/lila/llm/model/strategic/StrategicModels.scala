@@ -43,7 +43,7 @@ enum RuleOfSquareStatus:
   case Holds, Fails, NA
 
 enum RookEndgamePattern:
-  case RookBehindPassedPawn, KingCutOff, None
+  case RookBehindPassedPawn, KingCutOff, TarraschDefenseActive, PassiveRookDefense, None
 
 enum TheoreticalOutcomeHint:
   case Win, Draw, Unclear
@@ -194,7 +194,10 @@ object StrategicSalience:
       case Continuation =>
         if consecutivePlies == 2 || consecutivePlies == 3 then StrategicSalience.High // Execution or Fruition
         else StrategicSalience.Low // Standard development/maintenance
-      case Opening => StrategicSalience.Low
+      case Opening =>
+        // Opening can still carry stable strategic content when theme coherence is clear.
+        if (consecutivePlies >= 2 && themeMaxShare >= 0.55) || themeMaxShare >= 0.72 then StrategicSalience.High
+        else StrategicSalience.Low
 
 case class CounterfactualMatch(
     userMove: String,
