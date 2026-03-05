@@ -34,13 +34,54 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
 
   if config.enabled then
     logger.info(
-      s"OpenAI polish enabled: sync=${config.modelSync}, async=${config.modelAsync}, fallback=${config.modelFallback}, max_output_tokens=${config.maxOutputTokens}"
+      s"OpenAI polish enabled: sync=${config.modelSync}, async=${config.modelAsync}, fallback=${config.modelFallback}, " +
+        s"pro_sync=${config.modelProSync}, pro_async=${config.modelProAsync}, pro_fallback=${config.modelProFallback}, " +
+        s"max_output_tokens=${config.maxOutputTokens}"
     )
   else logger.info("OpenAI polish disabled (no API key)")
 
+  private case class ModelRoute(
+      primary: String,
+      fallback: Option[String],
+      serviceTier: Option[String]
+  )
+
   def isEnabled: Boolean = config.enabled
-  def syncModelName: String = config.modelSync
-  def asyncModelName: String = config.modelAsync
+  def syncModelName(planTier: String = PlanTier.Basic, llmLevel: String = LlmLevel.Polish): String =
+    selectModelRoute(asyncTier = false, planTier = planTier, llmLevel = llmLevel).primary
+
+  def asyncModelName(planTier: String = PlanTier.Basic, llmLevel: String = LlmLevel.Polish): String =
+    selectModelRoute(asyncTier = true, planTier = planTier, llmLevel = llmLevel).primary
+
+  private def clean(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+
+  private def selectModelRoute(
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
+  ): ModelRoute =
+    val normalizedTier = PlanTier.normalize(planTier)
+    val normalizedLevel = LlmLevel.normalize(llmLevel)
+    val wantsPro = normalizedTier == PlanTier.Pro && normalizedLevel == LlmLevel.Active
+    val defaultPrimary =
+      if asyncTier then clean(config.modelAsync)
+      else clean(config.modelSync)
+    val defaultFallback = clean(config.modelFallback)
+    val proPrimary =
+      if asyncTier then clean(config.modelProAsync)
+      else clean(config.modelProSync)
+    val proFallback = clean(config.modelProFallback).orElse(defaultFallback)
+    val chosenPrimary = if wantsPro then proPrimary.orElse(defaultPrimary) else defaultPrimary
+    val primary = chosenPrimary.getOrElse("gpt-4o-mini")
+    val fallback =
+      if wantsPro then proFallback.filter(_ != primary)
+      else defaultFallback.filter(_ != primary)
+    ModelRoute(
+      primary = primary,
+      fallback = fallback,
+      serviceTier = Option.when(asyncTier)("flex")
+    )
 
   def polishSync(
       prose: String,
@@ -54,7 +95,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
       lang: String = "en",
-      maxOutputTokens: Option[Int] = None
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -67,8 +110,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       tension = tension,
       salience = salience,
       momentType = momentType,
-      model = config.modelSync,
-      serviceTier = None,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -85,7 +129,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
       lang: String = "en",
-      maxOutputTokens: Option[Int] = None
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -98,8 +144,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       tension = tension,
       salience = salience,
       momentType = momentType,
-      model = config.modelAsync,
-      serviceTier = Some("flex"),
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -114,7 +161,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
       lang: String = "en",
-      maxOutputTokens: Option[Int] = None
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -125,8 +174,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       fen = fen,
       openingName = openingName,
       allowedSans = allowedSans,
-      model = config.modelSync,
-      serviceTier = None,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -141,7 +191,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
       lang: String = "en",
-      maxOutputTokens: Option[Int] = None
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -152,8 +204,137 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       fen = fen,
       openingName = openingName,
       allowedSans = allowedSans,
-      model = config.modelAsync,
-      serviceTier = Some("flex"),
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def activeStrategicNoteSync(
+      baseNarrative: String,
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Pro,
+      llmLevel: String = LlmLevel.Active
+  ): Future[Option[OpenAiPolishResult]] =
+    activeStrategicNoteWithFallback(
+      baseNarrative = baseNarrative,
+      phase = phase,
+      momentType = momentType,
+      concepts = concepts,
+      fen = fen,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def activeStrategicNoteAsync(
+      baseNarrative: String,
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Pro,
+      llmLevel: String = LlmLevel.Active
+  ): Future[Option[OpenAiPolishResult]] =
+    activeStrategicNoteWithFallback(
+      baseNarrative = baseNarrative,
+      phase = phase,
+      momentType = momentType,
+      concepts = concepts,
+      fen = fen,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs,
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def repairActiveStrategicNoteSync(
+      baseNarrative: String,
+      rejectedNote: String,
+      failureReasons: List[String],
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Pro,
+      llmLevel: String = LlmLevel.Active
+  ): Future[Option[OpenAiPolishResult]] =
+    repairActiveStrategicNoteWithFallback(
+      baseNarrative = baseNarrative,
+      rejectedNote = rejectedNote,
+      failureReasons = failureReasons,
+      phase = phase,
+      momentType = momentType,
+      concepts = concepts,
+      fen = fen,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def repairActiveStrategicNoteAsync(
+      baseNarrative: String,
+      rejectedNote: String,
+      failureReasons: List[String],
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef] = Nil,
+      moveRefs: List[ActiveStrategicMoveRef] = Nil,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Pro,
+      llmLevel: String = LlmLevel.Active
+  ): Future[Option[OpenAiPolishResult]] =
+    repairActiveStrategicNoteWithFallback(
+      baseNarrative = baseNarrative,
+      rejectedNote = rejectedNote,
+      failureReasons = failureReasons,
+      phase = phase,
+      momentType = momentType,
+      concepts = concepts,
+      fen = fen,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs,
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -169,13 +350,15 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       tension: Option[Double],
       salience: Option[lila.llm.model.strategic.StrategicSalience],
       momentType: Option[String],
-      model: String,
-      serviceTier: Option[String],
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
+      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
       callModel(
         prose = prose,
         phase = phase,
@@ -187,32 +370,33 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         tension = tension,
         salience = salience,
         momentType = momentType,
-        model = model,
-        serviceTier = serviceTier,
+        model = route.primary,
+        serviceTier = route.serviceTier,
         lang = lang,
         maxOutputTokens = maxOutputTokens
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
-          val fb = config.modelFallback.trim
-          if fb.nonEmpty && fb != model then
-            callModel(
-              prose = prose,
-              phase = phase,
-              evalDelta = evalDelta,
-              concepts = concepts,
-              fen = fen,
-              openingName = openingName,
-              nature = nature,
-              tension = tension,
-              salience = salience,
-              momentType = momentType,
-              model = fb,
-              serviceTier = serviceTier,
-              lang = lang,
-              maxOutputTokens = maxOutputTokens
-            )
-          else Future.successful(None)
+          route.fallback match
+            case Some(fb) =>
+              callModel(
+                prose = prose,
+                phase = phase,
+                evalDelta = evalDelta,
+                concepts = concepts,
+                fen = fen,
+                openingName = openingName,
+                nature = nature,
+                tension = tension,
+                salience = salience,
+                momentType = momentType,
+                model = fb,
+                serviceTier = route.serviceTier,
+                lang = lang,
+                maxOutputTokens = maxOutputTokens
+              )
+            case None =>
+              Future.successful(None)
       }
 
   private def repairWithFallback(
@@ -224,13 +408,15 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       fen: String,
       openingName: Option[String],
       allowedSans: List[String],
-      model: String,
-      serviceTier: Option[String],
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
+      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
       callRepairModel(
         originalProse = originalProse,
         rejectedPolish = rejectedPolish,
@@ -240,30 +426,143 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         fen = fen,
         openingName = openingName,
         allowedSans = allowedSans,
-        model = model,
-        serviceTier = serviceTier,
+        model = route.primary,
+        serviceTier = route.serviceTier,
         lang = lang,
         maxOutputTokens = maxOutputTokens
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
-          val fb = config.modelFallback.trim
-          if fb.nonEmpty && fb != model then
-            callRepairModel(
-              originalProse = originalProse,
-              rejectedPolish = rejectedPolish,
-              phase = phase,
-              evalDelta = evalDelta,
-              concepts = concepts,
-              fen = fen,
-              openingName = openingName,
-              allowedSans = allowedSans,
-              model = fb,
-              serviceTier = serviceTier,
-              lang = lang,
-              maxOutputTokens = maxOutputTokens
-            )
-          else Future.successful(None)
+          route.fallback match
+            case Some(fb) =>
+              callRepairModel(
+                originalProse = originalProse,
+                rejectedPolish = rejectedPolish,
+                phase = phase,
+                evalDelta = evalDelta,
+                concepts = concepts,
+                fen = fen,
+                openingName = openingName,
+                allowedSans = allowedSans,
+                model = fb,
+                serviceTier = route.serviceTier,
+                lang = lang,
+                maxOutputTokens = maxOutputTokens
+              )
+            case None =>
+              Future.successful(None)
+      }
+
+  private def activeStrategicNoteWithFallback(
+      baseNarrative: String,
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    if !config.enabled || baseNarrative.isBlank then Future.successful(None)
+    else
+      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      callActiveStrategicNoteModel(
+        baseNarrative = baseNarrative,
+        phase = phase,
+        momentType = momentType,
+        concepts = concepts,
+        fen = fen,
+        strategyPack = strategyPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs,
+        model = route.primary,
+        serviceTier = route.serviceTier,
+        lang = lang,
+        maxOutputTokens = maxOutputTokens
+      ).flatMap {
+        case some @ Some(_) => Future.successful(some)
+        case None =>
+          route.fallback match
+            case Some(fb) =>
+              callActiveStrategicNoteModel(
+                baseNarrative = baseNarrative,
+                phase = phase,
+                momentType = momentType,
+                concepts = concepts,
+                fen = fen,
+                strategyPack = strategyPack,
+                routeRefs = routeRefs,
+                moveRefs = moveRefs,
+                model = fb,
+                serviceTier = route.serviceTier,
+                lang = lang,
+                maxOutputTokens = maxOutputTokens
+              )
+            case None => Future.successful(None)
+      }
+
+  private def repairActiveStrategicNoteWithFallback(
+      baseNarrative: String,
+      rejectedNote: String,
+      failureReasons: List[String],
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    if !config.enabled || baseNarrative.isBlank || rejectedNote.isBlank then Future.successful(None)
+    else
+      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      callRepairActiveStrategicNoteModel(
+        baseNarrative = baseNarrative,
+        rejectedNote = rejectedNote,
+        failureReasons = failureReasons,
+        phase = phase,
+        momentType = momentType,
+        concepts = concepts,
+        fen = fen,
+        strategyPack = strategyPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs,
+        model = route.primary,
+        serviceTier = route.serviceTier,
+        lang = lang,
+        maxOutputTokens = maxOutputTokens
+      ).flatMap {
+        case some @ Some(_) => Future.successful(some)
+        case None =>
+          route.fallback match
+            case Some(fb) =>
+              callRepairActiveStrategicNoteModel(
+                baseNarrative = baseNarrative,
+                rejectedNote = rejectedNote,
+                failureReasons = failureReasons,
+                phase = phase,
+                momentType = momentType,
+                concepts = concepts,
+                fen = fen,
+                strategyPack = strategyPack,
+                routeRefs = routeRefs,
+                moveRefs = moveRefs,
+                model = fb,
+                serviceTier = route.serviceTier,
+                lang = lang,
+                maxOutputTokens = maxOutputTokens
+              )
+            case None => Future.successful(None)
       }
 
   private def callModel(
@@ -282,6 +581,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
+    val _ = momentType
     val userPrompt = PolishPrompt.buildPolishPrompt(
       prose = prose,
       phase = phase,
@@ -299,6 +599,76 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       serviceTier = serviceTier,
       lang = lang,
       maxOutputTokens = maxOutputTokens
+    )
+
+  private def callActiveStrategicNoteModel(
+      baseNarrative: String,
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      model: String,
+      serviceTier: Option[String],
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    val userPrompt = ActiveStrategicPrompt.buildPrompt(
+      baseNarrative = baseNarrative,
+      phase = phase,
+      momentType = momentType,
+      fen = fen,
+      concepts = concepts,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs
+    )
+    callModelWithPrompt(
+      userPrompt = userPrompt,
+      model = model,
+      serviceTier = serviceTier,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens,
+      systemPrompt = ActiveStrategicPrompt.systemPrompt
+    )
+
+  private def callRepairActiveStrategicNoteModel(
+      baseNarrative: String,
+      rejectedNote: String,
+      failureReasons: List[String],
+      phase: String,
+      momentType: String,
+      concepts: List[String],
+      fen: String,
+      strategyPack: Option[StrategyPack],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      model: String,
+      serviceTier: Option[String],
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    val userPrompt = ActiveStrategicPrompt.buildRepairPrompt(
+      baseNarrative = baseNarrative,
+      rejectedNote = rejectedNote,
+      failureReasons = failureReasons,
+      phase = phase,
+      momentType = momentType,
+      fen = fen,
+      concepts = concepts,
+      strategyPack = strategyPack,
+      routeRefs = routeRefs,
+      moveRefs = moveRefs
+    )
+    callModelWithPrompt(
+      userPrompt = userPrompt,
+      model = model,
+      serviceTier = serviceTier,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens,
+      systemPrompt = ActiveStrategicPrompt.systemPrompt
     )
 
   private def callRepairModel(
@@ -338,7 +708,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       model: String,
       serviceTier: Option[String],
       lang: String,
-      maxOutputTokens: Option[Int]
+      maxOutputTokens: Option[Int],
+      systemPrompt: String = PolishPrompt.systemPrompt
   ): Future[Option[OpenAiPolishResult]] =
     val completionCap = maxOutputTokens
       .filter(v => v >= 64 && v <= 2048)
@@ -350,7 +721,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       "messages" -> Json.arr(
         Json.obj(
           "role" -> "system",
-          "content" -> PolishPrompt.systemPrompt
+          "content" -> systemPrompt
         ),
         Json.obj(
           "role" -> "user",

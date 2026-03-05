@@ -219,6 +219,26 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             if (polishMeta.validationReasons.length)
                 root.setAttribute('data-llm-polish-reasons', polishMeta.validationReasons.join(','));
             else root.removeAttribute('data-llm-polish-reasons');
+            if (polishMeta.strategyCoverage) {
+                const s = polishMeta.strategyCoverage;
+                root.setAttribute('data-llm-strategy-mode', s.mode);
+                root.setAttribute('data-llm-strategy-score', s.coverageScore.toFixed(2));
+                root.setAttribute('data-llm-strategy-covered', String(s.coveredCategories));
+                root.setAttribute('data-llm-strategy-required', String(s.requiredCategories));
+                root.setAttribute('data-llm-strategy-pass', String(s.passesThreshold));
+                root.setAttribute('data-llm-strategy-plan', `${s.planHits}/${s.planSignals}`);
+                root.setAttribute('data-llm-strategy-route', `${s.routeHits}/${s.routeSignals}`);
+                root.setAttribute('data-llm-strategy-focus', `${s.focusHits}/${s.focusSignals}`);
+            } else {
+                root.removeAttribute('data-llm-strategy-mode');
+                root.removeAttribute('data-llm-strategy-score');
+                root.removeAttribute('data-llm-strategy-covered');
+                root.removeAttribute('data-llm-strategy-required');
+                root.removeAttribute('data-llm-strategy-pass');
+                root.removeAttribute('data-llm-strategy-plan');
+                root.removeAttribute('data-llm-strategy-route');
+                root.removeAttribute('data-llm-strategy-focus');
+            }
         } else {
             root.removeAttribute('data-llm-polish-provider');
             root.removeAttribute('data-llm-polish-phase');
@@ -226,6 +246,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             root.removeAttribute('data-llm-polish-source');
             root.removeAttribute('data-llm-polish-cache-hit');
             root.removeAttribute('data-llm-polish-reasons');
+            root.removeAttribute('data-llm-strategy-mode');
+            root.removeAttribute('data-llm-strategy-score');
+            root.removeAttribute('data-llm-strategy-covered');
+            root.removeAttribute('data-llm-strategy-required');
+            root.removeAttribute('data-llm-strategy-pass');
+            root.removeAttribute('data-llm-strategy-plan');
+            root.removeAttribute('data-llm-strategy-route');
+            root.removeAttribute('data-llm-strategy-focus');
         }
     };
 

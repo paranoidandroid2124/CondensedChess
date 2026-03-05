@@ -33,7 +33,13 @@ case class MomentNarrative(
   transitionConfidence: Option[Double] = None,
   activePlan: Option[lila.llm.ActivePlanRef] = None,
   topEngineMove: Option[lila.llm.EngineAlternative] = None,
-  collapse: Option[CollapseAnalysis] = None
+  collapse: Option[CollapseAnalysis] = None,
+  strategyPack: Option[lila.llm.StrategyPack] = None,
+  strategicBranch: Boolean = false,
+  activeStrategicNote: Option[String] = None,
+  activeStrategicSourceMode: Option[String] = None,
+  activeStrategicRoutes: List[lila.llm.ActiveStrategicRouteRef] = Nil,
+  activeStrategicMoves: List[lila.llm.ActiveStrategicMoveRef] = Nil
 )
 object MomentNarrative {
   implicit val writes: OWrites[MomentNarrative] = Json.writes[MomentNarrative]

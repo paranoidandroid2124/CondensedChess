@@ -92,6 +92,14 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
         // 2. No legal squares to move
         // 3. Either under attack OR not on home square (truly stuck, not just undeveloped)
         val isTrapped = piece.role != Pawn && mobility == 0 && (!isOnHomeRank || isUnderAttack)
+        val keyRoutes = suggestKeyRoute(
+          board = board,
+          piece = piece,
+          from = square,
+          currentMobility = mobility,
+          isBadBishop = isBadBishop,
+          isTrapped = isTrapped
+        )
         
         PieceActivity(
           piece = piece.role,
@@ -99,7 +107,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
           mobilityScore = normalizeMobility(piece.role, mobility),
           isTrapped = isTrapped,
           isBadBishop = isBadBishop,
-          keyRoutes = Nil, 
+          keyRoutes = keyRoutes,
           coordinationLinks = Nil 
         )
       }
@@ -154,6 +162,204 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     case Rook => count / 14.0
     case Queen => count / 27.0
     case King => count / 8.0
+  }
+
+  private def suggestKeyRoute(
+      board: Board,
+      piece: chess.Piece,
+      from: Square,
+      currentMobility: Int,
+      isBadBishop: Boolean,
+      isTrapped: Boolean
+  ): List[Square] = {
+    piece.role match {
+      case Pawn | King => Nil
+      case role =>
+        val shouldAnalyze =
+          isBadBishop ||
+            isTrapped ||
+            currentMobility < (role match {
+              case Knight => 5
+              case Bishop => 6
+              case Rook   => 7
+              case Queen  => 10
+              case _      => 6
+            })
+        if (!shouldAnalyze) return Nil
+        val targets = candidateTargets(board, piece, from, isBadBishop, isTrapped)
+        val best =
+          targets
+            .flatMap { target =>
+              shortestRoute(role, from, target, board, piece.color, maxDepth = if (role == Knight) 4 else 3)
+                .map { route =>
+                  val mobilityGain = projectedMobility(board, piece, target) - currentMobility
+                  val score = routeScore(
+                    board = board,
+                    role = role,
+                    color = piece.color,
+                    target = target,
+                    route = route,
+                    mobilityGain = mobilityGain,
+                    isBadBishop = isBadBishop,
+                    isTrapped = isTrapped
+                  )
+                  route -> score
+                }
+            }
+            .sortBy { case (_, score) => -score }
+            .headOption
+
+        best
+          .filter(_._2 >= 0.30)
+          .map(_._1.drop(1).take(3))
+          .getOrElse(Nil)
+    }
+  }
+
+  private def candidateTargets(
+      board: Board,
+      piece: chess.Piece,
+      from: Square,
+      isBadBishop: Boolean,
+      isTrapped: Boolean
+  ): List[Square] = {
+    val color = piece.color
+    val role = piece.role
+    val candidates = Square.all
+      .filter(sq => sq != from && board.pieceAt(sq).forall(_.color != color))
+      .map { sq =>
+        sq -> targetPreference(board, role, color, sq, isBadBishop, isTrapped)
+      }
+      .filter(_._2 > 0.10)
+      .sortBy { case (_, score) => -score }
+      .map(_._1)
+      .take(18)
+    candidates
+  }
+
+  private def targetPreference(
+      board: Board,
+      role: Role,
+      color: Color,
+      sq: Square,
+      isBadBishop: Boolean,
+      isTrapped: Boolean
+  ): Double = {
+    val centerBonus =
+      if (Set(File.C, File.D, File.E, File.F).contains(sq.file) && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank))
+        0.30
+      else 0.0
+    val knightBonus = if (role == Knight && isOutpostSquare(board, sq, color)) 0.35 else 0.0
+    val rookBonus =
+      if (role == Rook && (isOpenFile(board, sq.file) || isSemiOpenFileFor(board, sq.file, color))) 0.30
+      else 0.0
+    val bishopBonus =
+      if (role == Bishop && isBadBishop) 0.14
+      else 0.0
+    val queenBonus =
+      if (role == Queen && Set(Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank)) 0.12
+      else 0.0
+    val trappedBonus = if (isTrapped) 0.18 else 0.0
+    centerBonus + knightBonus + rookBonus + bishopBonus + queenBonus + trappedBonus
+  }
+
+  private def shortestRoute(
+      role: Role,
+      from: Square,
+      to: Square,
+      board: Board,
+      color: Color,
+      maxDepth: Int
+  ): Option[List[Square]] = {
+    val queue = scala.collection.mutable.Queue((from, List(from)))
+    val visited = scala.collection.mutable.Set(from)
+    var found: Option[List[Square]] = None
+
+    while (queue.nonEmpty && found.isEmpty) {
+      val (curr, path) = queue.dequeue()
+      val depth = path.size - 1
+      if (depth < maxDepth) {
+        val nextSquares = pseudoMoves(role, curr, board.occupied).squares.filter { sq =>
+          board.pieceAt(sq).forall(_.color != color)
+        }
+        nextSquares.foreach { sq =>
+          val nextPath = path :+ sq
+          if (sq == to && found.isEmpty) found = Some(nextPath)
+          if (found.isEmpty && !visited.contains(sq)) {
+            visited += sq
+            queue.enqueue((sq, nextPath))
+          }
+        }
+      }
+    }
+    found
+  }
+
+  private def pseudoMoves(role: Role, sq: Square, occupied: Bitboard): Bitboard =
+    role match {
+      case Knight => sq.knightAttacks
+      case Bishop => sq.bishopAttacks(occupied)
+      case Rook   => sq.rookAttacks(occupied)
+      case Queen  => sq.queenAttacks(occupied)
+      case King   => sq.kingAttacks
+      case Pawn   => Bitboard.empty
+    }
+
+  private def projectedMobility(
+      board: Board,
+      piece: chess.Piece,
+      target: Square
+  ): Int = {
+    val targets = piece.role match {
+      case Pawn   => target.pawnAttacks(piece.color)
+      case Knight => target.knightAttacks
+      case Bishop => target.bishopAttacks(board.occupied)
+      case Rook   => target.rookAttacks(board.occupied)
+      case Queen  => target.queenAttacks(board.occupied)
+      case King   => target.kingAttacks
+    }
+    (targets & ~board.byColor(piece.color)).count
+  }
+
+  private def routeScore(
+      board: Board,
+      role: Role,
+      color: Color,
+      target: Square,
+      route: List[Square],
+      mobilityGain: Int,
+      isBadBishop: Boolean,
+      isTrapped: Boolean
+  ): Double = {
+    val centerBonus =
+      if (Set(File.C, File.D, File.E, File.F).contains(target.file) && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(target.rank))
+        0.22
+      else 0.0
+    val outpostBonus = if (role == Knight && isOutpostSquare(board, target, color)) 0.30 else 0.0
+    val rookFileBonus =
+      if (role == Rook && (isOpenFile(board, target.file) || isSemiOpenFileFor(board, target.file, color))) 0.25
+      else 0.0
+    val bishopReliefBonus = if (role == Bishop && isBadBishop) 0.16 else 0.0
+    val trappedBonus = if (isTrapped) 0.16 else 0.0
+    val gainBonus = (mobilityGain.toDouble * 0.07).max(-0.18)
+    val lengthPenalty = (route.size - 1).toDouble * 0.08
+    centerBonus + outpostBonus + rookFileBonus + bishopReliefBonus + trappedBonus + gainBonus - lengthPenalty
+  }
+
+  private def isOutpostSquare(board: Board, sq: Square, color: Color): Boolean = {
+    val supportedByPawn = board.attackers(sq, color).intersects(board.byPiece(color, Pawn))
+    val attackedByEnemyPawn = board.attackers(sq, !color).intersects(board.byPiece(!color, Pawn))
+    supportedByPawn && !attackedByEnemyPawn
+  }
+
+  private def isOpenFile(board: Board, file: File): Boolean =
+    (board.pawns & Bitboard.file(file)).isEmpty
+
+  private def isSemiOpenFileFor(board: Board, file: File, color: Color): Boolean = {
+    val mask = Bitboard.file(file)
+    val ours = board.pawns & board.byColor(color) & mask
+    val theirs = board.pawns & board.byColor(!color) & mask
+    ours.isEmpty && theirs.nonEmpty
   }
 
   private def checkBadBishop(board: Board, piece: chess.Piece, square: chess.Square): Boolean = {

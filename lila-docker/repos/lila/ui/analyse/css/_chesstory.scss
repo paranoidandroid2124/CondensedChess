@@ -9,14 +9,14 @@
   --atlas-surface-strong: #f2e6d2;
   --atlas-border: #d4c2aa;
   --atlas-text: #172329;
-  --atlas-muted: #66707a;
-  --atlas-accent: #c4652f;
+  --atlas-muted: #575f68;
+  --atlas-accent: #a65527;
   --atlas-accent-strong: #8f431c;
   --atlas-shadow: 0 18px 38px rgba(67, 44, 21, 0.14);
 
   color: var(--atlas-text);
   background:
-    radial-gradient(circle at 12% 10%, rgba(196, 101, 48, 0.16), transparent 36%),
+    radial-gradient(circle at 12% 10%, rgba(166, 85, 39, 0.16), transparent 36%),
     radial-gradient(circle at 88% 84%, rgba(23, 35, 41, 0.12), transparent 44%),
     linear-gradient(145deg, var(--atlas-bg), var(--atlas-bg-edge));
   position: relative;
@@ -35,7 +35,7 @@
     z-index: 0;
   }
 
-  > * {
+  >* {
     position: relative;
     z-index: 1;
   }
@@ -145,12 +145,12 @@
 
       &:hover {
         color: var(--atlas-accent-strong);
-        border-color: rgba(196, 101, 48, 0.36);
-        background: rgba(196, 101, 48, 0.09);
+        border-color: rgba(166, 85, 39, 0.36);
+        background: rgba(166, 85, 39, 0.09);
       }
 
       &:focus-visible {
-        outline: 2px solid rgba(196, 101, 48, 0.45);
+        outline: 2px solid rgba(166, 85, 39, 0.45);
         outline-offset: 2px;
       }
 
@@ -158,7 +158,7 @@
         border-color: transparent;
         color: #fff;
         background: linear-gradient(145deg, var(--atlas-accent), #a14f20);
-        box-shadow: 0 9px 18px rgba(159, 74, 30, 0.35);
+        box-shadow: 0 9px 18px rgba(140, 65, 25, 0.35);
       }
     }
   }
@@ -185,7 +185,7 @@
       inset: 0 auto auto 0;
       width: 100%;
       height: 4px;
-      background: linear-gradient(90deg, rgba(196, 101, 48, 0.96), rgba(196, 101, 48, 0));
+      background: linear-gradient(90deg, rgba(166, 85, 39, 0.96), rgba(166, 85, 39, 0));
       pointer-events: none;
     }
 
@@ -239,8 +239,8 @@
 
       &:hover {
         color: var(--atlas-accent-strong);
-        border-color: rgba(196, 101, 48, 0.25);
-        background: rgba(196, 101, 48, 0.08);
+        border-color: rgba(166, 85, 39, 0.25);
+        background: rgba(166, 85, 39, 0.08);
       }
 
       &.active {
@@ -269,7 +269,7 @@
 
     .ceval {
       background: linear-gradient(180deg, #f1e6d5 0%, #e5d4bd 100%) !important;
-      border-bottom: 1px solid rgba(143, 67, 28, 0.34);
+      border-bottom: 1px solid rgba(130, 60, 25, 0.34);
       color: #21323c;
       padding-inline: 0.5rem;
       box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.35);
@@ -280,7 +280,7 @@
       }
 
       .engine {
-        color: #49687c;
+        color: #435f72;
         font-weight: 600;
       }
 
@@ -292,19 +292,19 @@
       .switch {
         margin-inline-start: 0;
 
-        .cmn-toggle + label {
+        .cmn-toggle+label {
           border: 1px solid rgba(45, 68, 84, 0.45);
           background: #2a4453;
         }
 
-        .cmn-toggle + label::before {
+        .cmn-toggle+label::before {
           display: none;
           content: none;
           background: #f8f2e6;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
         }
 
-        .cmn-toggle:checked + label {
+        .cmn-toggle:checked+label {
           background: linear-gradient(145deg, #22a5a7, #18868d);
         }
       }
@@ -321,18 +321,18 @@
       .show-threat:hover:not(.hidden),
       .show-threat.active {
         color: #8f431c;
-        background: rgba(196, 101, 48, 0.15);
+        background: rgba(166, 85, 39, 0.15);
       }
 
       .settings-gear {
         margin-inline-end: 0;
         padding-inline: 0.55rem;
-        background: rgba(196, 101, 48, 0.2);
+        background: rgba(166, 85, 39, 0.2);
       }
 
       .settings-gear:hover {
         color: #8f431c;
-        background: rgba(196, 101, 48, 0.3);
+        background: rgba(166, 85, 39, 0.3);
       }
 
       .settings-gear.active {
@@ -408,9 +408,9 @@
 
     .tview2 move.current {
       border-radius: 6px;
-      background: rgba(196, 101, 48, 0.22) !important;
+      background: rgba(166, 85, 39, 0.22) !important;
       color: var(--atlas-accent-strong) !important;
-      box-shadow: inset 0 0 0 1px rgba(196, 101, 48, 0.3);
+      box-shadow: inset 0 0 0 1px rgba(166, 85, 39, 0.3);
     }
 
     .tview2 move:hover:not(.current) {
@@ -455,8 +455,8 @@
       padding: 0;
 
       legend {
-        border: 1px solid rgba(196, 101, 48, 0.34);
-        background: rgba(196, 101, 48, 0.1);
+        border: 1px solid rgba(166, 85, 39, 0.34);
+        background: rgba(166, 85, 39, 0.1);
         color: var(--atlas-accent-strong);
         border-radius: 999px;
         letter-spacing: 0.05em;
@@ -499,21 +499,21 @@
       font-size: 0.84rem;
 
       &:focus {
-        border-color: rgba(196, 101, 48, 0.55) !important;
-        box-shadow: 0 0 0 2px rgba(196, 101, 48, 0.16);
+        border-color: rgba(166, 85, 39, 0.55) !important;
+        box-shadow: 0 0 0 2px rgba(166, 85, 39, 0.16);
         outline: none;
       }
     }
 
     .button {
-      border: 1px solid rgba(196, 101, 48, 0.35);
+      border: 1px solid rgba(166, 85, 39, 0.35);
       border-radius: 999px;
-      background: rgba(196, 101, 48, 0.1);
+      background: rgba(166, 85, 39, 0.1);
       color: var(--atlas-accent-strong);
       font-weight: 700;
 
       &:hover {
-        background: rgba(196, 101, 48, 0.18);
+        background: rgba(166, 85, 39, 0.18);
       }
     }
   }
@@ -525,7 +525,7 @@
     border-radius: 12px;
     border: 1px solid rgba(23, 35, 41, 0.14);
     background:
-      linear-gradient(135deg, rgba(196, 101, 48, 0.1), rgba(196, 101, 48, 0)), rgba(255, 255, 255, 0.58);
+      linear-gradient(135deg, rgba(166, 85, 39, 0.1), rgba(166, 85, 39, 0)), rgba(255, 255, 255, 0.58);
 
     .hud-content {
       .hud-stage {
@@ -570,8 +570,9 @@
     }
 
     &__tools {
+
       button,
-      > a {
+      >a {
         color: #e6f0f9;
       }
     }
@@ -602,7 +603,7 @@
 
       .active {
         color: #e9f2fa;
-        background: rgba(196, 101, 48, 0.26);
+        background: rgba(166, 85, 39, 0.26);
 
         strong {
           color: #ffc793;
@@ -636,7 +637,7 @@
     }
 
     .moves tbody tr.sum {
-      background: rgba(196, 101, 48, 0.24);
+      background: rgba(166, 85, 39, 0.24);
       color: #f8fbff;
     }
 
@@ -694,6 +695,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .analyse {
+
     .analyse__board-wrap,
     .analyse__tools,
     .analyse__side,

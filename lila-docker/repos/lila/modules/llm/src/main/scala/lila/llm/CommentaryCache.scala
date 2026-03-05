@@ -12,7 +12,9 @@ import lila.memo.CacheApi.*
 case class LlmCacheContext(
     model: String,
     promptVersion: String,
-    lang: String
+    lang: String,
+    planTier: String,
+    llmLevel: String
 )
 
 /** Server-side Caffeine TTL cache for commentary responses.
@@ -82,7 +84,7 @@ final class CommentaryCache(using Executor):
   ): String =
     val probePart = probeFingerprint(probeResults).map(fp => s"probe:$fp").getOrElse("probe:-")
     val llmPart = llmContext
-      .map(ctx => s"llm:${ctx.model}:${ctx.promptVersion}:${ctx.lang}")
+      .map(ctx => s"llm:${ctx.model}:${ctx.promptVersion}:${ctx.lang}:${ctx.planTier}:${ctx.llmLevel}")
       .getOrElse("llm:-")
     s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken)}|$probePart|$llmPart"
 

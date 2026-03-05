@@ -36,6 +36,24 @@ export type PolishMetaV1 = {
   cachedTokens?: number | null;
   completionTokens?: number | null;
   estimatedCostUsd?: number | null;
+  strategyCoverage?: StrategyCoverageMetaV1 | null;
+};
+
+export type StrategyCoverageMetaV1 = {
+  mode: string;
+  enforced: boolean;
+  threshold: number;
+  availableCategories: number;
+  coveredCategories: number;
+  requiredCategories: number;
+  coverageScore: number;
+  passesThreshold: boolean;
+  planSignals: number;
+  planHits: number;
+  routeSignals: number;
+  routeHits: number;
+  focusSignals: number;
+  focusHits: number;
 };
 
 type MaybeResponse = {
@@ -181,6 +199,7 @@ export function polishMetaFromResponse(data: MaybeResponse): PolishMetaV1 | null
 
   const validationReasons = raw.validationReasons.filter((v): v is string => typeof v === 'string');
   if (validationReasons.length !== raw.validationReasons.length) return null;
+  const strategyCoverage = parseStrategyCoverage(raw.strategyCoverage);
 
   return {
     provider: raw.provider,
@@ -193,6 +212,45 @@ export function polishMetaFromResponse(data: MaybeResponse): PolishMetaV1 | null
     cachedTokens: typeof raw.cachedTokens === 'number' ? raw.cachedTokens : null,
     completionTokens: typeof raw.completionTokens === 'number' ? raw.completionTokens : null,
     estimatedCostUsd: typeof raw.estimatedCostUsd === 'number' ? raw.estimatedCostUsd : null,
+    strategyCoverage,
+  };
+}
+
+function parseStrategyCoverage(raw: unknown): StrategyCoverageMetaV1 | null {
+  if (!isRecord(raw)) return null;
+  if (
+    typeof raw.mode !== 'string' ||
+    typeof raw.enforced !== 'boolean' ||
+    typeof raw.threshold !== 'number' ||
+    typeof raw.availableCategories !== 'number' ||
+    typeof raw.coveredCategories !== 'number' ||
+    typeof raw.requiredCategories !== 'number' ||
+    typeof raw.coverageScore !== 'number' ||
+    typeof raw.passesThreshold !== 'boolean' ||
+    typeof raw.planSignals !== 'number' ||
+    typeof raw.planHits !== 'number' ||
+    typeof raw.routeSignals !== 'number' ||
+    typeof raw.routeHits !== 'number' ||
+    typeof raw.focusSignals !== 'number' ||
+    typeof raw.focusHits !== 'number'
+  )
+    return null;
+
+  return {
+    mode: raw.mode,
+    enforced: raw.enforced,
+    threshold: raw.threshold,
+    availableCategories: raw.availableCategories,
+    coveredCategories: raw.coveredCategories,
+    requiredCategories: raw.requiredCategories,
+    coverageScore: raw.coverageScore,
+    passesThreshold: raw.passesThreshold,
+    planSignals: raw.planSignals,
+    planHits: raw.planHits,
+    routeSignals: raw.routeSignals,
+    routeHits: raw.routeHits,
+    focusSignals: raw.focusSignals,
+    focusHits: raw.focusHits,
   };
 }
 

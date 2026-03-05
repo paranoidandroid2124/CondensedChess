@@ -3,19 +3,21 @@
 import { h, type VNode } from 'snabbdom';
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { uciToMove } from '@lichess-org/chessground/util';
+import type { DrawShape } from '@lichess-org/chessground/draw';
 
-export type BoardPreview = { fen: FEN; uci: Uci };
+export type BoardPreview = { fen: FEN; uci?: Uci; shapes?: DrawShape[] };
 
 export function renderBoardPreview(preview: BoardPreview, orientation: Color, sel = 'div.pv-board'): VNode {
   const cgConfig = {
     fen: preview.fen,
-    lastMove: uciToMove(preview.uci),
+    lastMove: preview.uci ? uciToMove(preview.uci) : undefined,
     orientation,
     coordinates: false,
     viewOnly: true,
     drawable: {
       enabled: false,
-      visible: false,
+      visible: true,
+      autoShapes: preview.shapes || [],
     },
   };
 
@@ -29,4 +31,3 @@ export function renderBoardPreview(preview: BoardPreview, orientation: Color, se
 
   return h(sel, [h('div.pv-board-square', [cgVNode])]);
 }
-

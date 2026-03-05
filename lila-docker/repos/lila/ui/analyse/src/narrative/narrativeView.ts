@@ -35,6 +35,22 @@ export type EngineAlternative = {
     pv?: string[];
 };
 
+export type ActiveStrategicRouteRef = {
+    routeId: string;
+    piece: string;
+    route: string[];
+    purpose: string;
+    confidence: number;
+};
+
+export type ActiveStrategicMoveRef = {
+    label: string;
+    source: string;
+    uci: string;
+    san?: string;
+    fenAfter?: string;
+};
+
 type GameNarrativeMoment = {
     momentId?: string;
     ply: number;
@@ -57,6 +73,11 @@ type GameNarrativeMoment = {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    strategicBranch?: boolean;
+    activeStrategicNote?: string;
+    activeStrategicSourceMode?: string;
+    activeStrategicRoutes?: ActiveStrategicRouteRef[];
+    activeStrategicMoves?: ActiveStrategicMoveRef[];
 };
 type GameNarrativeReview = {
     schemaVersion?: number;
@@ -80,6 +101,8 @@ type GameNarrativeResponse = {
     review?: GameNarrativeReview;
     sourceMode?: string;
     model?: string | null;
+    planTier?: string;
+    llmLevel?: string;
 };
 
 export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
@@ -333,10 +356,12 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
                 : hl('div.narrative-preview-empty', 'Hover a move to preview'),
         ]),
         narrativeReviewView(doc),
-        doc.sourceMode || doc.model
+        doc.sourceMode || doc.model || doc.planTier || doc.llmLevel
             ? hl('div.narrative-review-metrics', [
                 doc.sourceMode ? hl('span.narrative-review-metric', `Source: ${doc.sourceMode}`) : null,
                 doc.model ? hl('span.narrative-review-metric', `Model: ${doc.model}`) : null,
+                doc.planTier ? hl('span.narrative-review-metric', `Plan: ${doc.planTier}`) : null,
+                doc.llmLevel ? hl('span.narrative-review-metric', `Level: ${doc.llmLevel}`) : null,
             ])
             : null,
         hl('div.narrative-intro', [
@@ -391,6 +416,10 @@ function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
 function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
     const title = `Ply ${moment.ply}`;
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
+    const hasStrategicBlock =
+        !!moment.activeStrategicNote ||
+        !!moment.activeStrategicMoves?.length ||
+        !!moment.activeStrategicRoutes?.length;
 
     return hl('section.narrative-moment', {
         attrs: { 'data-ply': moment.ply }
@@ -411,10 +440,12 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
                 moment.moveClassification ? narrativeBadgeView(moment.moveClassification, 'classification') : null,
                 moment.momentType ? narrativeBadgeView(moment.momentType, 'type') : null,
                 moment.strategicSalience ? narrativeBadgeView(moment.strategicSalience, 'salience') : null,
+                moment.strategicBranch ? narrativeBadgeView('Strategic Branch', 'branch') : null,
             ]),
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
         hl('pre.narrative-prose', moment.narrative),
+        hasStrategicBlock ? narrativeStrategicNoteView(moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
         moment.collapse ? narrativeCollapseCardView(ctrl, moment) : null,
         moment.topEngineMove ? narrativeTopEngineMoveView(ctrl, moment) : null,
@@ -424,6 +455,44 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
                 hl('div.narrative-variation-list', variations.map((v, i) => narrativeVariationView(ctrl, moment.fen, v, i))),
             ])
             : null,
+    ]);
+}
+
+function narrativeStrategicNoteView(moment: GameNarrativeMoment): VNode {
+    const note = moment.activeStrategicNote;
+    const strategicMoves = (moment.activeStrategicMoves || []).filter(m => typeof m.uci === 'string' && m.uci.length >= 4);
+    const strategicRoutes = (moment.activeStrategicRoutes || []).filter(r => Array.isArray(r.route) && r.route.length >= 2);
+
+    return hl('div.narrative-strategic-note-box', [
+        hl('h3.narrative-strategic-note-title', 'Strategic Note'),
+        note ? hl('pre.narrative-prose', note) : null,
+        strategicMoves.length ? hl('div.narrative-strategic-moves', [
+            hl('span.narrative-strategic-label', 'Mini-board moves:'),
+            hl('div.narrative-strategic-move-list', strategicMoves.map((move, idx) => {
+                const uci = move.uci.toLowerCase();
+                const afterFen = move.fenAfter || '';
+                const preview = afterFen && uci.length >= 4 ? `${afterFen}|${uci}` : null;
+                return hl('span.narrative-strategic-chip', {
+                    key: `${move.source}:${uci}:${idx}`,
+                    attrs: preview ? { 'data-board': preview, title: move.label } : { title: move.label },
+                }, move.san || uci);
+            })),
+        ]) : null,
+        strategicRoutes.length ? hl('div.narrative-strategic-routes', [
+            hl('span.narrative-strategic-label', 'Reroute paths:'),
+            hl('div.narrative-strategic-route-list', strategicRoutes.map(route => {
+                const routeText = route.route.join('-');
+                const title = `${route.piece} ${route.purpose}`;
+                return hl('span.narrative-strategic-chip.route', {
+                    key: route.routeId,
+                    attrs: {
+                        'data-route': routeText,
+                        'data-route-fen': moment.fen,
+                        title,
+                    },
+                }, `${route.piece}${routeText} (${Math.round(route.confidence * 100)}%)`);
+            })),
+        ]) : null,
     ]);
 }
 
@@ -569,7 +638,7 @@ function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNo
     ]);
 }
 
-function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience'): VNode {
+function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience' | 'branch'): VNode {
     const cls = text.toLowerCase().replace(/\s+/g, '-');
     return hl(`span.narrative-badge.${kind}.${cls}`, text);
 }
@@ -637,12 +706,45 @@ function renderMoves(ctrl: NarrativeCtrl, fen: string, moves: string[]): Array<V
     return vnodes;
 }
 
+function routePreviewFromDataset(el: HTMLElement): BoardPreview | null {
+    const routeRaw = el.dataset.route;
+    const fen = el.dataset.routeFen;
+    if (!routeRaw || !fen) return null;
+    const squares = routeRaw
+        .split('-')
+        .map(s => s.trim().toLowerCase())
+        .filter(s => /^[a-h][1-8]$/.test(s));
+    if (squares.length < 2) return null;
+
+    const shapes = [];
+    for (let i = 0; i < squares.length - 1; i++) {
+        shapes.push({
+            orig: squares[i],
+            dest: squares[i + 1],
+            brush: 'paleBlue',
+            modifiers: i === squares.length - 2 ? { hilite: 'white' } : undefined,
+        });
+    }
+    const fallbackUci = `${squares[0]}${squares[1]}`;
+    return { fen, uci: fallbackUci, shapes } as BoardPreview;
+}
+
 function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
     const anyRoot: any = root;
     if (anyRoot._chesstoryNarrativeBound) return;
     anyRoot._chesstoryNarrativeBound = true;
 
     root.addEventListener('mouseover', (e: MouseEvent) => {
+        const routeEl = (e.target as HTMLElement | null)?.closest?.('[data-route][data-route-fen]') as HTMLElement | null;
+        if (routeEl) {
+            const routePreview = routePreviewFromDataset(routeEl);
+            if (routePreview) {
+                ctrl.pvBoard(routePreview);
+                ctrl.root.redraw();
+                return;
+            }
+        }
+
         const el = (e.target as HTMLElement | null)?.closest?.('[data-board]') as HTMLElement | null;
         const board = el?.dataset?.board;
         if (!board || !board.includes('|')) return;
