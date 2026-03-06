@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
+import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -2359,10 +2359,9 @@ final class LlmApi(
             val allowedSans =
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
-            val strategyPack =
-              Option.when(llmLevel == LlmLevel.Active)(
-                StrategyPackBuilder.build(dataWithContinuity, ctx)
-              ).flatten
+            val strategyPack = StrategyPackBuilder.build(dataWithContinuity, ctx)
+            val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
+            val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
             val strategyPromptHints = strategyHints(strategyPack)
 
             maybePolishCommentary(
@@ -2388,6 +2387,8 @@ final class LlmApi(
                 concepts = baseConcepts,
                 variations = dataWithContinuity.alternatives,
                 probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+                authorQuestions = authorQuestions,
+                authorEvidence = authorEvidence,
                 mainStrategicPlans = ctx.mainStrategicPlans,
                 latentPlans = ctx.latentPlans,
                 whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,
@@ -2399,7 +2400,8 @@ final class LlmApi(
                 polishMeta = decision.meta,
                 planTier = planTier,
                 llmLevel = llmLevel,
-                strategyPack = strategyPack
+                strategyPack = strategyPack,
+                signalDigest = strategyPack.flatMap(_.signalDigest)
               )
               if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
               commentaryCache.put(

@@ -131,7 +131,8 @@ object NarrativeOutlineBuilder:
       beats += OutlineBeat(
         kind = OutlineBeatKind.PsychologicalVerdict,
         text = recon.description,
-        conceptIds = List(s"psych_${recon.kind.toString.toLowerCase}")
+        conceptIds = List(s"psych_${recon.kind.toString.toLowerCase}"),
+        focusPriority = 58
       )
     }
 
@@ -217,7 +218,8 @@ object NarrativeOutlineBuilder:
               s"theme_slot:$primaryThemeId",
               s"subplan_slot:$primarySubplanId"
             ),
-          confidenceLevel = 1.0
+          confidenceLevel = 1.0,
+          focusPriority = 80
         )
       )
 
@@ -600,6 +602,36 @@ object NarrativeOutlineBuilder:
       parts += NarrativeLexicon.getPlanStatement(bead ^ Math.abs(planName.hashCode) ^ 0x2b2b2b, planName, ply = ctx.ply)
       concepts += s"plan_$planName"
     }
+    buildOpeningContextSentence(ctx, parts.mkString(" ")).foreach { openingText =>
+      rec.use("openingData", openingText, "Context opening")
+      parts += openingText
+      concepts += "opening_context"
+    }
+    buildStrategicStackContextSentence(ctx, parts.mkString(" ")).foreach { stackText =>
+      rec.use("mainStrategicPlans", stackText, "Context strategic stack")
+      parts += stackText
+      concepts += "strategic_stack"
+    }
+    buildStructuralContextSentence(ctx, parts.mkString(" ")).foreach { structureText =>
+      rec.use("semantic.planAlignment", structureText, "Context structure")
+      parts += structureText
+      concepts += "structural_context"
+    }
+    buildStrategicFlowContextSentence(ctx, parts.mkString(" ")).foreach { flowText =>
+      rec.use("strategicFlow", flowText, "Context flow")
+      parts += flowText
+      concepts += "strategic_flow"
+    }
+    buildOpponentPlanContextSentence(ctx, parts.mkString(" ")).foreach { opponentText =>
+      rec.use("opponentPlan", opponentText, "Context opponent")
+      parts += opponentText
+      concepts += "opponent_plan"
+    }
+    buildMetaContextSentence(ctx, parts.mkString(" ")).foreach { metaText =>
+      rec.use("meta.choiceType", metaText, "Context meta")
+      parts += metaText
+      concepts += "decision_context"
+    }
 
     // One concrete, verified observation to avoid generic boilerplate.
     if !boardAnchor.exists(_.consumedFact) then
@@ -616,7 +648,9 @@ object NarrativeOutlineBuilder:
     OutlineBeat(
       kind = OutlineBeatKind.Context,
       text = parts.filter(_.nonEmpty).mkString(" ").trim,
-      conceptIds = concepts.toList
+      conceptIds = concepts.toList,
+      focusPriority = 100,
+      fullGameEssential = true
     )
 
   private def buildDecisionBeat(
@@ -625,18 +659,326 @@ object NarrativeOutlineBuilder:
     rec: TraceRecorder
   ): Option[OutlineBeat] =
     val nonLatent = questions.filterNot(_.kind == AuthorQuestionKind.LatentPlan)
-    nonLatent.headOption.map { q =>
-      val alignedQuestion = alignDecisionQuestionWithEvidence(q.question, ctx.authorEvidence.filter(_.questionId == q.id))
-      rec.use(s"authorQuestions[${q.id}]", alignedQuestion, "Decision point")
+    val questionOpt = nonLatent.headOption
+    val alignedQuestion = questionOpt.map { q =>
+      alignDecisionQuestionWithEvidence(q.question, ctx.authorEvidence.filter(_.questionId == q.id))
+    }
+    buildDecisionNarrativeText(ctx, alignedQuestion).map { text =>
+      questionOpt.foreach { q =>
+        rec.use(s"authorQuestions[${q.id}]", alignedQuestion.getOrElse(q.question), "Decision point")
+      }
+      ctx.decision.foreach { d =>
+        rec.use("decision.logicSummary", d.logicSummary, "Decision rationale")
+      }
+      ctx.meta.flatMap(_.whyNot).foreach { whyNot =>
+        rec.use("meta.whyNot", whyNot, "Decision meta")
+      }
       OutlineBeat(
         kind = OutlineBeatKind.DecisionPoint,
-        text = alignedQuestion,
-        questionIds = List(q.id),
-        questionKinds = List(q.kind),
-        anchors = q.anchors,
-        requiresEvidence = true
+        text = text,
+        questionIds = questionOpt.map(_.id).toList,
+        questionKinds = questionOpt.map(_.kind).toList,
+        anchors = (questionOpt.toList.flatMap(_.anchors) ++ ctx.decision.flatMap(_.focalPoint.map(renderTargetRef)).toList).distinct,
+        requiresEvidence = questionOpt.isDefined,
+        focusPriority = 96,
+        fullGameEssential = true
       )
     }
+
+  private def buildDecisionNarrativeText(
+    ctx: NarrativeContext,
+    alignedQuestion: Option[String]
+  ): Option[String] =
+    val parts = scala.collection.mutable.ListBuffer[String]()
+    alignedQuestion.map(ensureSentence).foreach(parts += _)
+    ctx.decision.flatMap(buildDecisionRationaleSentence).foreach(parts += _)
+    ctx.meta.flatMap(buildMetaDecisionSentence).foreach(parts += _)
+    Option.when(parts.nonEmpty)(parts.mkString(" ").trim)
+
+  private def buildStrategicFlowContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    ctx.strategicFlow
+      .map(ensureSentence)
+      .filter(sentenceIsNovel(_, existingText))
+
+  private def buildOpeningContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    val sentence =
+      ctx.openingEvent.flatMap {
+        case OpeningEvent.OutOfBook(_, _, _) =>
+          ctx.openingData.flatMap(_.name).map(name => s"This move already leaves the main $name reference paths.")
+        case OpeningEvent.Novelty(_, cpLoss, _, _) =>
+          val cost = if cpLoss > 0 then s" with only a small engine cost" else ""
+          Some(s"This is effectively a novelty rather than a standard theory branch$cost.")
+        case OpeningEvent.TheoryEnds(_, sampleCount) =>
+          Some(s"Reference theory is already thinning out here, with only about $sampleCount games left in sample.")
+        case OpeningEvent.BranchPoint(divergingMoves, _, _) if divergingMoves.nonEmpty =>
+          Some(s"The opening now branches around ${joinWithOr(divergingMoves.take(3))}.")
+        case OpeningEvent.Intro(_, name, _, _) =>
+          Some(s"The game is still tracking $name territory.")
+        case _ =>
+          ctx.openingData.flatMap(_.name).map { name =>
+            if ctx.openingData.exists(_.totalGames >= 12) then s"The structure still tracks known $name ideas."
+            else s"Known $name references are already starting to thin out."
+          }
+      }
+    sentence
+      .map(ensureSentence)
+      .filter(sentenceIsNovel(_, existingText))
+
+  private def buildStrategicStackContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    val primary = ctx.mainStrategicPlans.headOption
+    val secondary = ctx.mainStrategicPlans.lift(1)
+    val latent = ctx.latentPlans.headOption
+    val holdReason =
+      (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
+        .map(compactNarrativeReason)
+        .find(_.nonEmpty)
+
+    val base =
+      primary match
+        case Some(main) if secondary.isDefined =>
+          val backup = secondary.get.planName
+          Some(s"The strategic stack still favors ${main.planName} first, with $backup as the backup route.")
+        case Some(main) if holdReason.isDefined =>
+          Some(s"The strategic stack still favors ${main.planName}, while slower ideas stay secondary because ${holdReason.get}.")
+        case Some(main) =>
+          Some(s"The strategic stack still points first to ${main.planName}.")
+        case None =>
+          latent.map(lp => s"A slower idea like ${lp.planName} remains conditional for now.")
+
+    base
+      .map(ensureSentence)
+      .filter(sentenceIsNovel(_, existingText))
+
+  private def compactNarrativeReason(raw: String): String =
+    Option(raw)
+      .map(_.trim.replaceAll("\\s+", " "))
+      .filter(_.nonEmpty)
+      .map(_.stripPrefix("because ").stripSuffix("."))
+      .getOrElse("")
+
+  private def buildStructuralContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    val structure = ctx.semantic.flatMap(_.structureProfile)
+    val sentence =
+      ctx.semantic.flatMap(_.planAlignment).flatMap { alignment =>
+        val structureClause = renderStructureProfileClause(structure)
+        val band = alignment.band.trim.toLowerCase
+        val intent = alignment.narrativeIntent.map(compactNarrativeReason).filter(_.nonEmpty)
+        val risk = alignment.narrativeRisk.map(compactNarrativeReason).filter(_.nonEmpty)
+        val reasons = alignment.reasonCodes.flatMap(humanizeAlignmentReason).distinct.take(2)
+        def withLead(body: String): String =
+          structureClause.map(lead => s"$lead $body").getOrElse(body)
+        val base =
+          band match
+            case "offplan" =>
+              intent
+                .map(i => withLead(s"The move leans off the clean structural route because the position would rather $i."))
+                .getOrElse(withLead("The move leans off the clean structural route."))
+            case "playable" =>
+              intent
+                .map(i => withLead(s"The structure still supports $i, but move order matters."))
+                .getOrElse(withLead("The fit is playable, but move order matters."))
+            case "unknown" =>
+              withLead("The structural read is still noisy, so concrete calculation has to confirm the plan.")
+            case _ =>
+              intent
+                .map(i => withLead(s"The structure is coherent with $i."))
+                .getOrElse(withLead("The move stays structurally coherent."))
+        val caveat =
+          risk
+            .orElse(reasons.headOption)
+            .filter(text => !base.toLowerCase.contains(text.toLowerCase))
+            .map(text => s"The main structural caveat is $text.")
+        Some(List(base, caveat.getOrElse("")).filter(_.trim.nonEmpty).mkString(" ").trim)
+      }.orElse {
+        ctx.semantic.flatMap(_.preventedPlans.headOption).flatMap(renderStructuralProphylaxisSentence)
+      }
+    sentence
+      .map(ensureSentence)
+      .filter(sentenceIsNovel(_, existingText))
+
+  private def renderStructureProfileClause(
+    structure: Option[StructureProfileInfo]
+  ): Option[String] =
+    structure.flatMap { sp =>
+      val primary = Option(sp.primary).map(_.trim).filter(text => text.nonEmpty && !text.equalsIgnoreCase("Unknown"))
+      val center = Option(sp.centerState).map(_.trim.toLowerCase).filter(_.nonEmpty)
+      (primary, center) match
+        case (Some(p), Some(c)) => Some(s"Structurally, the pawn structure is $p, with a $c center.")
+        case (Some(p), None)    => Some(s"Structurally, the pawn structure is $p.")
+        case (None, Some(c))    => Some(s"Structurally, the center is $c.")
+        case _                  => None
+    }
+
+  private def humanizeAlignmentReason(raw: String): Option[String] =
+    Option(raw).map(_.trim.toUpperCase).filter(_.nonEmpty).map {
+      case "PA_MATCH"     => "the expected structure plan is present"
+      case "PRECOND_MISS" => "some structural preconditions are still missing"
+      case "ANTI_PLAN"    => "the move order fights the structure's cleanest route"
+      case "LOW_CONF"     => "the structure classification is still uncertain"
+      case code if code.startsWith("TOP_") => "the current top plan disagrees with the structure template"
+      case code => code.toLowerCase.replace('_', ' ')
+    }
+
+  private def renderStructuralProphylaxisSentence(prevented: PreventedPlanInfo): Option[String] =
+    val target =
+      prevented.preventedThreatType.map(_.trim).filter(_.nonEmpty)
+        .orElse(prevented.breakNeutralized.map(file => s"$file-break"))
+    val impact =
+      Option.when(prevented.counterplayScoreDrop >= 100)(s"blunting roughly ${prevented.counterplayScoreDrop}cp of counterplay")
+    target.map { t =>
+      val tail = impact.map(i => s" and $i").getOrElse("")
+      s"Structurally, the move is also prophylactic because it cuts out $t$tail."
+    }
+
+  private def buildOpponentPlanContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    ctx.opponentPlan.flatMap { plan =>
+      val evidenceClause =
+        plan.evidence.headOption
+          .map(_.trim)
+          .filter(text => text.nonEmpty && text.length <= 72)
+          .map(ev => s", backed by $ev")
+          .getOrElse("")
+      val base =
+        if plan.isEstablished then s"The opponent already has ${plan.name} in motion$evidenceClause."
+        else s"The opponent's main counterplan is ${plan.name}$evidenceClause."
+      Option.when(sentenceIsNovel(base, existingText))(base)
+    }
+
+  private def buildMetaContextSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    ctx.meta.flatMap { meta =>
+      val choiceSentence = meta.choiceType match
+        case ChoiceType.OnlyMove => "Concrete pressure leaves very little choice here."
+        case ChoiceType.NarrowChoice => "The margins are narrow, so move order matters."
+        case ChoiceType.StyleChoice => "There is still some stylistic freedom here."
+        case ChoiceType.Complex => "Several sharp branches keep the decision complex."
+      val concurrencySentence =
+        meta.planConcurrency.secondary.map { secondary =>
+          meta.planConcurrency.relationship match
+            case rel if rel.toLowerCase.contains("synergy") =>
+              s"${meta.planConcurrency.primary} and $secondary reinforce each other."
+            case rel if rel.toLowerCase.contains("conflict") =>
+              s"${meta.planConcurrency.primary} and $secondary compete for priority."
+            case _ =>
+              s"${meta.planConcurrency.primary} and $secondary both matter in the position."
+        }
+      val merged = (choiceSentence :: concurrencySentence.toList).mkString(" ").trim
+      Option.when(sentenceIsNovel(merged, existingText))(merged)
+    }
+
+  private def buildDecisionRationaleSentence(
+    decision: DecisionRationale
+  ): Option[String] =
+    val parts = scala.collection.mutable.ListBuffer[String]()
+    val idea = normalizeDecisionIdea(decision.logicSummary)
+    if idea.nonEmpty then
+      parts += s"The idea is straightforward: $idea."
+    decision.focalPoint
+      .map(renderTargetRef)
+      .filter(_.nonEmpty)
+      .foreach(label => parts += s"The focal point is $label.")
+    buildDecisionDeltaSentence(decision.delta).foreach(parts += _)
+    Option.when(parts.nonEmpty)(parts.mkString(" ").trim)
+
+  private def buildDecisionDeltaSentence(delta: PVDelta): Option[String] =
+    val actions = List(
+      delta.resolvedThreats.headOption.map(threat => s"neutralizes $threat"),
+      delta.newOpportunities.headOption.map(target => s"creates pressure on ${renderOpportunity(target)}"),
+      delta.planAdvancements.headOption.map(renderPlanAdvancement)
+    ).flatten
+    val gainSentence =
+      actions match
+        case Nil => None
+        case one :: Nil => Some(s"It mainly $one.")
+        case a :: b :: _ => Some(s"It mainly $a and $b.")
+    val concessionSentence =
+      delta.concessions.headOption
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .map(concession => s"The tradeoff is $concession.")
+    val rendered = List(gainSentence, concessionSentence).flatten.mkString(" ").trim
+    Option.when(rendered.nonEmpty)(rendered)
+
+  private def buildMetaDecisionSentence(meta: MetaSignals): Option[String] =
+    meta.whyNot
+      .map(_.replace("[Verified]", "").replaceAll("\\s+", " ").trim)
+      .filter(_.nonEmpty)
+      .map(snippet => ensureSentence(s"Probe evidence says $snippet"))
+      .orElse {
+        meta.errorClass.map { error =>
+          if error.isTactical then "The alternative failure mode is tactical rather than cosmetic."
+          else "The alternative failure mode is positional rather than tactical."
+        }
+      }
+      .orElse {
+        meta.divergence.flatMap(_.punisherMove.map(move => s"The punishment starts with $move."))
+      }
+
+  private def normalizeDecisionIdea(raw: String): String =
+    Option(raw).getOrElse("")
+      .trim
+      .replace(" -> ", "; then ")
+      .replace("->", "; then ")
+      .replace("(probe needed for validation)", "probe confirmation is still needed")
+      .replaceAll("\\s+", " ")
+      .replace(" ;", ";")
+      .stripSuffix(".")
+      .stripPrefix("The idea is ")
+      .stripPrefix("the idea is ")
+      .trim match
+        case "" => ""
+        case text => lowerCaseFirst(text)
+
+  private def renderPlanAdvancement(raw: String): String =
+    val clean = Option(raw).getOrElse("").trim
+    if clean.isEmpty then "advances the plan"
+    else if clean.startsWith("Removed:") then s"removes ${clean.stripPrefix("Removed:").trim} as a blocker"
+    else if clean.startsWith("Met:") then s"meets ${clean.stripPrefix("Met:").trim}"
+    else s"advances $clean"
+
+  private def renderOpportunity(raw: String): String =
+    Option(raw).getOrElse("").trim match
+      case "" => "the position"
+      case text => text
+
+  private def renderTargetRef(target: TargetRef): String =
+    target match
+      case TargetSquare(key) => key
+      case TargetFile(file) => s"$file-file"
+      case TargetPiece(role, square) => s"${NarrativeUtils.humanize(role)} on $square"
+
+  private def sentenceIsNovel(candidate: String, existingText: String): Boolean =
+    val candidateStem = normalizeStem(candidate)
+    val existingStem = normalizeStem(existingText)
+    candidateStem.nonEmpty && candidateStem != existingStem && !existingText.toLowerCase.contains(candidateStem)
+
+  private def ensureSentence(raw: String): String =
+    val clean = Option(raw).getOrElse("").trim
+    if clean.isEmpty then ""
+    else if ".!?".contains(clean.last) then clean
+    else s"$clean."
+
+  private def lowerCaseFirst(raw: String): String =
+    val clean = Option(raw).getOrElse("").trim
+    if clean.isEmpty then ""
+    else s"${clean.head.toLower}${clean.drop(1)}"
 
   /**
    * Build evidence beat from authorEvidence OR fallback to engineEvidence.
@@ -713,6 +1055,8 @@ object NarrativeOutlineBuilder:
     rec: TraceRecorder
   ): Option[OutlineBeat] =
     question.latentPlan.map { lp =>
+      val narrativeLatent =
+        ctx.latentPlans.find(_.seedId == lp.seedId)
       rec.use(s"latentPlan[${lp.seedId}]", lp.narrative.template, "Conditional plan")
 
       val hasViability = ctx.authorEvidence.exists { ev =>
@@ -726,6 +1070,16 @@ object NarrativeOutlineBuilder:
       val purposes =
         (if hasViability then List("free_tempo_branches") else Nil) ++
           (if hasRefutation then List("latent_plan_refutation") else Nil)
+      val heuristicPurposes =
+        if purposes.nonEmpty then Nil
+        else
+          Option.when(
+            narrativeLatent.exists(_.viabilityScore >= 0.58) ||
+              narrativeLatent.exists(lat => compactNarrativeReason(lat.whyAbsentFromTopMultiPv).nonEmpty)
+          )("latent_plan_heuristic").toList
+      val confidence =
+        if purposes.nonEmpty then 1.0
+        else (0.62 + narrativeLatent.map(_.viabilityScore).getOrElse(0.6) * 0.24).min(0.82)
 
       OutlineBeat(
         kind = OutlineBeatKind.ConditionalPlan,
@@ -734,8 +1088,10 @@ object NarrativeOutlineBuilder:
         anchors = lp.candidateMoves.take(2).map(_.toString),
         questionIds = List(question.id),
         questionKinds = List(AuthorQuestionKind.LatentPlan),
-        evidencePurposes = purposes,
-        requiresEvidence = true
+        evidencePurposes = purposes ++ heuristicPurposes,
+        requiresEvidence = purposes.nonEmpty,
+        confidenceLevel = confidence,
+        focusPriority = 84
       )
     }
 
@@ -937,11 +1293,22 @@ object NarrativeOutlineBuilder:
       val rawText = List(baseText, detailText.getOrElse(""), hypothesisText, deltaText, precedentBridge, precedentText)
         .filter(_.trim.nonEmpty)
         .mkString(" ")
-      val tonedText = harmonizeAnnotationTone(rawText, cpLoss, isBest, bead ^ Math.abs(playedSan.hashCode))
+      val practicalText = buildPracticalMainMoveSentence(ctx, rawText).getOrElse("")
+      val enrichedRawText =
+        List(rawText, practicalText)
+          .filter(_.trim.nonEmpty)
+          .mkString(" ")
+      val tonedText = harmonizeAnnotationTone(enrichedRawText, cpLoss, isBest, bead ^ Math.abs(playedSan.hashCode))
       val text = enforceAnnotationPolarity(tonedText, cpLoss, isBest, bead ^ Math.abs(bestSan.hashCode))
       if text.trim.nonEmpty then trackTemplateUsage(text, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
-      OutlineBeat(kind = OutlineBeatKind.MainMove, text = text, anchors = List(playedSan, bestSan).filter(_.nonEmpty).distinct)
+      OutlineBeat(
+        kind = OutlineBeatKind.MainMove,
+        text = text,
+        anchors = List(playedSan, bestSan).filter(_.nonEmpty).distinct,
+        focusPriority = 92,
+        fullGameEssential = true
+      )
     else
       ctx.candidates.headOption.map { main =>
         rec.use("candidates[0]", main.move, "Main move")
@@ -971,9 +1338,7 @@ object NarrativeOutlineBuilder:
             bead = bead ^ Math.abs(main.move.hashCode) ^ 0x4f6cdd1d,
             crossBeatState = crossBeatState
           ).getOrElse("")
-        val prophylaxisText = ctx.semantic.flatMap(_.preventedPlans.headOption).map { pp =>
-          NarrativeLexicon.getPreventedPlanStatement(bead, pp.planId)
-        }
+        val prophylaxisText = buildProphylaxisMainMoveSentence(ctx, bead)
         val precedentText = precedentTextOpt
         precedentText.foreach(_ => rec.use("openingData.sampleGames", "1", "Move-level precedent"))
         val shouldUsePrecedentFallback =
@@ -984,7 +1349,14 @@ object NarrativeOutlineBuilder:
           if !shouldUsePrecedentFallback then ""
           else buildPrecedentFallbackSentence(ctx, bead ^ 0x4f6cdd1d, scope = "main").getOrElse("")
         val mergedText =
-          List(text, hypothesisText, prophylaxisText.getOrElse(""), precedentBridge, precedentText.getOrElse(""))
+          List(
+            text,
+            hypothesisText,
+            prophylaxisText.getOrElse(""),
+            buildPracticalMainMoveSentence(ctx, text).getOrElse(""),
+            precedentBridge,
+            precedentText.getOrElse("")
+          )
             .filter(_.trim.nonEmpty)
             .mkString(" ")
         if mergedText.trim.nonEmpty then trackTemplateUsage(mergedText, crossBeatState.usedStems, crossBeatState.prefixCounts)
@@ -992,7 +1364,9 @@ object NarrativeOutlineBuilder:
         OutlineBeat(
           kind = OutlineBeatKind.MainMove, 
           text = mergedText, 
-          anchors = List(main.move)
+          anchors = List(main.move),
+          focusPriority = 92,
+          fullGameEssential = true
         )
       }.getOrElse(OutlineBeat(OutlineBeatKind.MainMove, ""))
 
@@ -1032,7 +1406,8 @@ object NarrativeOutlineBuilder:
         kind = OutlineBeatKind.OpeningTheory,
         text = text,
         conceptIds = concepts,
-        anchors = anchors
+        anchors = anchors,
+        focusPriority = 82
       ))
 
   private def buildPrecedentFallbackSentence(
@@ -1639,17 +2014,132 @@ object NarrativeOutlineBuilder:
     }
 
     ctx.semantic.flatMap(_.practicalAssessment).foreach { pa =>
-      val seed = bead ^ Math.abs(pa.verdict.hashCode) ^ (cpWhite << 1)
-      parts += NarrativeLexicon.getPracticalVerdict(seed, pa.verdict, cpWhite, ply = ctx.ply)
+      parts += buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)
     }
     ctx.semantic.flatMap(_.compensation).foreach { comp =>
-      parts += NarrativeLexicon.getCompensationStatement(bead, comp.conversionPlan, "Sufficient")
+      parts += buildCompensationWrapUpSentence(comp, bead)
     }
 
     buildWrapUpHypothesisDifference(ctx, bead ^ 0x5f356495, crossBeatState).foreach(parts += _)
 
     if parts.isEmpty then None
-    else Some(OutlineBeat(kind = OutlineBeatKind.WrapUp, text = parts.mkString(" "), conceptIds = List("practical_assessment")))
+    else
+      Some(
+        OutlineBeat(
+          kind = OutlineBeatKind.WrapUp,
+          text = parts.mkString(" "),
+          conceptIds = List("practical_assessment"),
+          focusPriority = 72
+        )
+      )
+
+  private def buildPracticalMainMoveSentence(
+    ctx: NarrativeContext,
+    existingText: String
+  ): Option[String] =
+    val sentence =
+      ctx.semantic.flatMap(_.practicalAssessment).flatMap { pa =>
+        val verdict = pa.verdict.trim.toLowerCase
+        val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
+        if verdict.isEmpty && drivers.isEmpty then None
+        else if verdict.contains("conversion") then Some("The practical task is less about a new tactic than converting the edge cleanly.")
+        else if verdict.contains("defen") then Some("Practically, the move also keeps the defensive task manageable.")
+        else if verdict.contains("counter") then Some("Practically, the move matters because it limits the opponent's easiest counterplay.")
+        else
+          val verdictText = if verdict.nonEmpty then s"Practically, the key task is ${verdict.stripSuffix(".")}" else "Practically, the task is defined by the easiest plans to handle"
+          val driverText =
+            Option.when(drivers.nonEmpty)(s", with the workload driven by ${drivers.mkString(" and ")}")
+              .getOrElse("")
+          Some(s"$verdictText$driverText.")
+      }.orElse {
+        ctx.semantic.flatMap(_.compensation).flatMap { comp =>
+          Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty).map { plan =>
+            val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
+            val vectorText =
+              Option.when(vectors.nonEmpty)(s", especially through ${vectors.mkString(" and ")}")
+                .getOrElse("")
+            s"Any compensation still has to justify itself through $plan$vectorText."
+          }
+        }
+      }
+    sentence
+      .map(ensureSentence)
+      .filter(sentenceIsNovel(_, existingText))
+
+  private def buildProphylaxisMainMoveSentence(
+    ctx: NarrativeContext,
+    bead: Int
+  ): Option[String] =
+    ctx.semantic.flatMap(_.preventedPlans.headOption).flatMap { pp =>
+      val target =
+        pp.preventedThreatType.map(_.trim).filter(_.nonEmpty)
+          .orElse(pp.breakNeutralized.map(file => s"$file-break"))
+      val impact = Option.when(pp.counterplayScoreDrop >= 100)(s"blunting roughly ${pp.counterplayScoreDrop}cp of counterplay")
+      val sentence =
+        target match
+          case Some(t) =>
+            Some(s"The move is prophylactic too: it cuts out $t${impact.map(i => s" while $i").getOrElse("")}.")
+          case None if pp.counterplayScoreDrop >= 120 =>
+            Some(s"The move is prophylactic too, stripping away roughly ${pp.counterplayScoreDrop}cp of counterplay.")
+          case _ =>
+            Option.when(pp.planId.trim.nonEmpty)(NarrativeLexicon.getPreventedPlanStatement(bead, pp.planId))
+      sentence
+    }
+
+  private def buildPracticalWrapUpSentence(
+    pa: PracticalInfo,
+    bead: Int,
+    cpWhite: Int,
+    ply: Int
+  ): String =
+    val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
+    val lowerVerdict = pa.verdict.trim.toLowerCase
+    if lowerVerdict.nonEmpty && drivers.nonEmpty then
+      s"Practically, the position is ${lowerVerdict.stripSuffix(".")} because ${drivers.mkString(" and ")}."
+    else
+      val seed = bead ^ Math.abs(pa.verdict.hashCode) ^ (cpWhite << 1)
+      NarrativeLexicon.getPracticalVerdict(seed, pa.verdict, cpWhite, ply = ply)
+
+  private def buildCompensationWrapUpSentence(
+    comp: CompensationInfo,
+    bead: Int
+  ): String =
+    val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
+    val plan = Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty).getOrElse("practical play")
+    if comp.investedMaterial > 0 && vectors.nonEmpty then
+      s"If the ${comp.investedMaterial}cp investment is to work, it has to cash out through $plan, driven by ${vectors.mkString(" and ")}."
+    else if comp.investedMaterial > 0 then
+      s"If the ${comp.investedMaterial}cp investment is to work, it has to cash out through $plan."
+    else
+      NarrativeLexicon.getCompensationStatement(bead, comp.conversionPlan, "Sufficient")
+
+  private def summarizePracticalDrivers(
+    biasFactors: List[PracticalBiasInfo],
+    limit: Int
+  ): List[String] =
+    biasFactors
+      .sortBy(bf => -Math.abs(bf.weight))
+      .take(limit)
+      .flatMap { bf =>
+        val factor = Option(bf.factor).map(_.trim).filter(_.nonEmpty)
+        val description = Option(bf.description).map(_.trim).filter(_.nonEmpty)
+        factor.map { f =>
+          description match
+            case Some(d) if !d.equalsIgnoreCase(f) => s"${f.toLowerCase} ($d)"
+            case _                                 => f.toLowerCase
+        }
+      }
+
+  private def summarizeCompensationVectors(
+    returnVector: Map[String, Double],
+    limit: Int
+  ): List[String] =
+    returnVector.toList
+      .sortBy { case (_, weight) => -weight }
+      .take(limit)
+      .flatMap { case (label, weight) =>
+        Option(label).map(_.trim).filter(_.nonEmpty).map(l => s"$l (${f"$weight%.1f"})")
+      }
 
   private def buildMainHypothesisNarrative(
     ctx: NarrativeContext,

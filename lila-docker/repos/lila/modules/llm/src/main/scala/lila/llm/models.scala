@@ -140,13 +140,41 @@ case class StrategyPieceRoute(
 object StrategyPieceRoute:
   given Writes[StrategyPieceRoute] = Json.writes[StrategyPieceRoute]
 
+case class NarrativeSignalDigest(
+    opening: Option[String] = None,
+    strategicStack: List[String] = Nil,
+    latentPlan: Option[String] = None,
+    latentReason: Option[String] = None,
+    authoringEvidence: Option[String] = None,
+    practicalVerdict: Option[String] = None,
+    practicalFactors: List[String] = Nil,
+    compensation: Option[String] = None,
+    compensationVectors: List[String] = Nil,
+    investedMaterial: Option[Int] = None,
+    structuralCue: Option[String] = None,
+    structureProfile: Option[String] = None,
+    centerState: Option[String] = None,
+    alignmentBand: Option[String] = None,
+    alignmentReasons: List[String] = Nil,
+    prophylaxisPlan: Option[String] = None,
+    prophylaxisThreat: Option[String] = None,
+    counterplayScoreDrop: Option[Int] = None,
+    decision: Option[String] = None,
+    strategicFlow: Option[String] = None,
+    opponentPlan: Option[String] = None,
+    preservedSignals: List[String] = Nil
+)
+object NarrativeSignalDigest:
+  given Writes[NarrativeSignalDigest] = Json.writes[NarrativeSignalDigest]
+
 case class StrategyPack(
     schema: String = "chesstory.strategyPack.v1",
     sideToMove: String,
     plans: List[StrategySidePlan] = Nil,
     pieceRoutes: List[StrategyPieceRoute] = Nil,
     longTermFocus: List[String] = Nil,
-    evidence: List[String] = Nil
+    evidence: List[String] = Nil,
+    signalDigest: Option[NarrativeSignalDigest] = None
 )
 object StrategyPack:
   given Writes[StrategyPack] = Json.writes[StrategyPack]
@@ -171,11 +199,55 @@ case class ActiveStrategicMoveRef(
 object ActiveStrategicMoveRef:
   given Writes[ActiveStrategicMoveRef] = Json.writes[ActiveStrategicMoveRef]
 
+case class AuthorQuestionSummary(
+    id: String,
+    kind: String,
+    priority: Int,
+    question: String,
+    why: Option[String] = None,
+    anchors: List[String] = Nil,
+    confidence: String,
+    latentPlanName: Option[String] = None,
+    latentSeedId: Option[String] = None
+)
+object AuthorQuestionSummary:
+  given Writes[AuthorQuestionSummary] = Json.writes[AuthorQuestionSummary]
+
+case class EvidenceBranchSummary(
+    keyMove: String,
+    line: String,
+    evalCp: Option[Int] = None,
+    mate: Option[Int] = None,
+    depth: Option[Int] = None,
+    sourceId: Option[String] = None
+)
+object EvidenceBranchSummary:
+  given Writes[EvidenceBranchSummary] = Json.writes[EvidenceBranchSummary]
+
+case class AuthorEvidenceSummary(
+    questionId: String,
+    questionKind: String,
+    question: String,
+    why: Option[String] = None,
+    status: String,
+    purposes: List[String] = Nil,
+    branchCount: Int = 0,
+    branches: List[EvidenceBranchSummary] = Nil,
+    pendingProbeIds: List[String] = Nil,
+    pendingProbeCount: Int = 0,
+    probeObjectives: List[String] = Nil,
+    linkedPlans: List[String] = Nil
+)
+object AuthorEvidenceSummary:
+  given Writes[AuthorEvidenceSummary] = Json.writes[AuthorEvidenceSummary]
+
 case class CommentResponse(
   commentary: String,
   concepts: List[String],
   variations: List[lila.llm.model.strategic.VariationLine] = Nil,
   probeRequests: List[lila.llm.model.ProbeRequest] = Nil,
+  authorQuestions: List[AuthorQuestionSummary] = Nil,
+  authorEvidence: List[AuthorEvidenceSummary] = Nil,
   mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
   latentPlans: List[lila.llm.model.authoring.LatentPlanNarrative] = Nil,
   whyAbsentFromTopMultiPV: List[String] = Nil,
@@ -187,7 +259,8 @@ case class CommentResponse(
   polishMeta: Option[PolishMetaV1] = None,
   planTier: String = PlanTier.Basic,
   llmLevel: String = LlmLevel.Polish,
-  strategyPack: Option[StrategyPack] = None
+  strategyPack: Option[StrategyPack] = None,
+  signalDigest: Option[NarrativeSignalDigest] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

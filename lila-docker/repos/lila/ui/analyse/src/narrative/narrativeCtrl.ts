@@ -21,6 +21,44 @@ export interface ActivePlanRef {
     commitmentScore?: number;
 }
 
+export interface StrategicPlanSummary {
+    planId: string;
+    planName: string;
+    rank: number;
+    score: number;
+}
+
+export interface LatentPlanSummary {
+    seedId: string;
+    planName: string;
+    viabilityScore: number;
+    whyAbsentFromTopMultiPv: string;
+}
+
+export interface NarrativeSignalDigest {
+    opening?: string;
+    strategicStack?: string[];
+    latentPlan?: string;
+    latentReason?: string;
+    practicalVerdict?: string;
+    practicalFactors?: string[];
+    compensation?: string;
+    compensationVectors?: string[];
+    investedMaterial?: number;
+    structuralCue?: string;
+    structureProfile?: string;
+    centerState?: string;
+    alignmentBand?: string;
+    alignmentReasons?: string[];
+    prophylaxisPlan?: string;
+    prophylaxisThreat?: string;
+    counterplayScoreDrop?: number;
+    decision?: string;
+    strategicFlow?: string;
+    opponentPlan?: string;
+    preservedSignals?: string[];
+}
+
 export interface EngineAlternative {
     uci: string;
     san?: string;
@@ -59,6 +97,10 @@ interface GameNarrativeMoment {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    signalDigest?: NarrativeSignalDigest;
+    mainStrategicPlans?: StrategicPlanSummary[];
+    latentPlans?: LatentPlanSummary[];
+    whyAbsentFromTopMultiPV?: string[];
     strategicBranch?: boolean;
     activeStrategicNote?: string;
     activeStrategicSourceMode?: string;

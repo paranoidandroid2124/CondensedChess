@@ -179,6 +179,8 @@ final class LlmController(
                     "variations" -> response.variations,
                     "concepts" -> response.concepts,
                     "probeRequests" -> response.probeRequests,
+                    "authorQuestions" -> response.authorQuestions,
+                    "authorEvidence" -> response.authorEvidence,
                     "mainStrategicPlans" -> response.mainStrategicPlans,
                     "latentPlans" -> response.latentPlans,
                     "whyAbsentFromTopMultiPV" -> response.whyAbsentFromTopMultiPV,
@@ -189,6 +191,7 @@ final class LlmController(
                     "planTier" -> response.planTier,
                     "llmLevel" -> response.llmLevel,
                     "strategyPack" -> response.strategyPack,
+                    "signalDigest" -> response.signalDigest,
                     "cacheHit" -> result.cacheHit
                   )
                   val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))

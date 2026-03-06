@@ -67,8 +67,8 @@ function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
 
   return hl('aside.analyse__side', {
     hook: {
-      insert: () => bookmakerToggleBox(),
-      update: () => bookmakerToggleBox(),
+      insert: () => bookmakerToggleBox(ctrl),
+      update: () => bookmakerToggleBox(ctrl),
     },
   }, [
     hl(

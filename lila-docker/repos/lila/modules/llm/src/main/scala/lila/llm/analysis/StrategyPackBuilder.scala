@@ -25,6 +25,7 @@ object StrategyPackBuilder:
     val routes = buildRoutes(data, sideToMoveColor, plans)
     val longTermFocus = buildLongTermFocus(ctx, plans, routes)
     val evidence = buildEvidence(ctx, routes)
+    val signalDigest = NarrativeSignalDigestBuilder.build(ctx)
 
     Option.when(plans.nonEmpty || routes.nonEmpty || longTermFocus.nonEmpty)(
       StrategyPack(
@@ -32,7 +33,8 @@ object StrategyPackBuilder:
         plans = plans,
         pieceRoutes = routes,
         longTermFocus = longTermFocus,
-        evidence = evidence
+        evidence = evidence,
+        signalDigest = signalDigest
       )
     )
 
@@ -44,7 +46,22 @@ object StrategyPackBuilder:
       s"${r.side} ${r.piece} route ${r.route.mkString("-")} (${r.purpose})"
     }
     val focusHints = pack.longTermFocus.take(2).map(v => s"long-term focus: $v")
-    (planHints ++ routeHints ++ focusHints).map(_.trim).filter(_.nonEmpty).distinct.take(8)
+    val digestHints =
+      pack.signalDigest.toList.flatMap { digest =>
+        List(
+          digest.opening.map(v => s"opening: $v"),
+          digest.latentPlan.map(v => s"latent plan: $v"),
+          digest.authoringEvidence.map(v => s"authoring evidence: $v"),
+          digest.practicalVerdict.map(v => s"practical: $v"),
+          Option.when(digest.practicalFactors.nonEmpty)(s"practical factors: ${digest.practicalFactors.mkString("; ")}"),
+          digest.structureProfile.map(v => s"structural profile: $v"),
+          digest.alignmentBand.map(v => s"plan fit: $v"),
+          digest.prophylaxisPlan.map(v => s"prophylaxis: $v"),
+          digest.decision.map(v => s"decision: $v"),
+          digest.opponentPlan.map(v => s"opponent plan: $v")
+        ).flatten
+      }
+    (planHints ++ routeHints ++ focusHints ++ digestHints).map(_.trim).filter(_.nonEmpty).distinct.take(8)
 
   private def buildPlans(
       ctx: NarrativeContext,
@@ -286,10 +303,30 @@ object StrategyPackBuilder:
   ): List[String] =
     val routeEvidence =
       routes.flatMap(route => route.evidence.map(signal => s"route:${route.side}:$signal"))
+    val authoringEvidence =
+      AuthoringEvidenceSummaryBuilder
+        .summarizeEvidence(ctx)
+        .flatMap { summary =>
+          val branchHint =
+            Option.when(summary.branchCount > 0)(s"branches=${summary.branchCount}")
+          val pendingHint =
+            Option.when(summary.pendingProbeCount > 0)(s"pending_probes=${summary.pendingProbeCount}")
+          val planHint =
+            summary.linkedPlans.headOption.map(plan => s"plan=$plan")
+          val detail = List(branchHint, pendingHint, planHint).flatten.mkString(" ")
+          Option(summary.question.trim)
+            .filter(_.nonEmpty)
+            .map { question =>
+              val suffix = if detail.nonEmpty then s" [$detail]" else ""
+              s"authoring:${summary.questionKind}:${summary.status}:$question$suffix"
+            }
+        }
     (
       ctx.mainStrategicPlans.flatMap(_.evidenceSources) ++
         ctx.whyAbsentFromTopMultiPV ++
-        routeEvidence
+        routeEvidence ++
+        authoringEvidence ++
+        AuthoringEvidenceSummaryBuilder.headline(ctx).toList.map(v => s"authoring_headline:$v")
     ).map(_.trim).filter(_.nonEmpty).distinct.take(MaxEvidence)
 
   private def sideName(color: Color): String =

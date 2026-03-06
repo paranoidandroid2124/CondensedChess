@@ -128,7 +128,9 @@ object NarrativeOutlineValidator:
         val hasSupport =
           b.evidencePurposes.contains("free_tempo_branches") ||
             b.evidencePurposes.contains("latent_plan_refutation") ||
-            b.evidencePurposes.contains("latent_plan_immediate")
+            b.evidencePurposes.contains("latent_plan_immediate") ||
+            b.evidencePurposes.contains("latent_plan_heuristic") ||
+            (!b.requiresEvidence && b.confidenceLevel >= 0.7)
 
         if hasSupport then true
         else

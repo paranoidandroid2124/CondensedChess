@@ -229,6 +229,88 @@
   opacity: 0.9;
 }
 
+.narrative-signal-box {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(#2f5f9f, 0.28);
+  border-radius: 4px;
+  background: rgba(#3c7ebb, 0.07);
+}
+
+.narrative-signal-title {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.78em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #245382;
+  opacity: 0.9;
+}
+
+.narrative-signal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  margin-top: 0.35rem;
+}
+
+.narrative-signal-label,
+.narrative-signal-row-label {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+}
+
+.narrative-signal-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.narrative-signal-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(#2f5f9f, 0.24);
+  background: rgba(#3c7ebb, 0.12);
+  color: #245382;
+  font-size: 0.78em;
+  font-weight: 600;
+
+  &.latent {
+    border-color: rgba(#7a5c1f, 0.28);
+    background: rgba(#c99a2a, 0.12);
+    color: #6f5114;
+  }
+
+  &.preserved {
+    border-color: rgba(#4c7330, 0.24);
+    background: rgba(#6a9c3c, 0.12);
+    color: #315022;
+  }
+}
+
+.narrative-signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-top: 0.35rem;
+}
+
+.narrative-signal-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  font-size: 0.84em;
+  line-height: 1.35;
+}
+
+.narrative-signal-row-value {
+  opacity: 0.92;
+}
+
 .narrative-strategic-moves,
 .narrative-strategic-routes {
   margin-top: 0.45rem;
@@ -548,14 +630,16 @@
 
 .narrative-collapse-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
   font-size: 0.85em;
 }
 
 .narrative-collapse-label {
   opacity: 0.7;
-  min-width: 150px;
+  flex: 0 0 150px;
+  min-width: 120px;
 }
 
 .narrative-collapse-value {
@@ -903,6 +987,11 @@
     font-size: 0.78rem;
     padding: 0.4rem 0.7rem;
   }
+
+  .narrative-collapse-label {
+    flex-basis: 100%;
+    min-width: 0;
+  }
 }
 
 // ── Patch Replay Panel ────────────────────────────────────────────────
@@ -937,8 +1026,10 @@
 
 .patch-replay-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 0.4rem;
 }
 
 .patch-replay-title {
@@ -974,6 +1065,7 @@
 
 .patch-replay-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
@@ -1011,6 +1103,7 @@
 .patch-replay-toggle {
   display: flex;
   gap: 0;
+  max-width: 100%;
   border-radius: 4px;
   overflow: hidden;
   border: 1px solid $c-border;
@@ -1020,6 +1113,7 @@
   @extend %button-none;
 
   flex: 1;
+  min-width: 0;
   padding: 0.3rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
@@ -1050,5 +1144,25 @@
 
   &:hover {
     text-decoration: underline;
+  }
+}
+
+@media (max-width: 600px) {
+  .patch-replay-controls {
+    justify-content: space-between;
+  }
+
+  .patch-replay-step {
+    flex: 1 0 100%;
+    order: -1;
+  }
+
+  .patch-ctrl-btn {
+    flex: 1 1 calc(25% - 0.3rem);
+    text-align: center;
+  }
+
+  .patch-replay-toggle {
+    width: 100%;
   }
 }

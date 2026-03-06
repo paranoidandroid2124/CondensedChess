@@ -144,6 +144,34 @@ object ActiveStrategicPrompt:
           pack.longTermFocus.map(_.trim).filter(_.nonEmpty).map(f => s"- $f")
         val evidence =
           pack.evidence.map(_.trim).filter(_.nonEmpty).take(4).map(e => s"- $e")
+        val signalDigest =
+          pack.signalDigest
+            .map { digest =>
+              List(
+                digest.opening.map(v => s"- opening: $v"),
+                Option.when(digest.strategicStack.nonEmpty)(s"- strategic stack: ${digest.strategicStack.mkString("; ")}"),
+                digest.latentPlan.map(v => s"- latent plan: $v"),
+                digest.latentReason.map(v => s"- latent reason: $v"),
+                digest.practicalVerdict.map(v => s"- practical verdict: $v"),
+                Option.when(digest.practicalFactors.nonEmpty)(s"- practical factors: ${digest.practicalFactors.mkString("; ")}"),
+                digest.compensation.map(v => s"- compensation: $v"),
+                Option.when(digest.compensationVectors.nonEmpty)(s"- compensation vectors: ${digest.compensationVectors.mkString("; ")}"),
+                digest.investedMaterial.map(v => s"- invested material: ${v}cp"),
+                digest.structuralCue.map(v => s"- structure: $v"),
+                digest.structureProfile.map(v => s"- structure profile: $v"),
+                digest.centerState.map(v => s"- center state: $v"),
+                digest.alignmentBand.map(v => s"- alignment band: $v"),
+                Option.when(digest.alignmentReasons.nonEmpty)(s"- alignment reasons: ${digest.alignmentReasons.mkString("; ")}"),
+                digest.prophylaxisPlan.map(v => s"- prophylaxis plan: $v"),
+                digest.prophylaxisThreat.map(v => s"- prophylaxis target: $v"),
+                digest.counterplayScoreDrop.map(v => s"- counterplay drop: ${v}cp"),
+                digest.decision.map(v => s"- decision: $v"),
+                digest.strategicFlow.map(v => s"- strategic flow: $v"),
+                digest.opponentPlan.map(v => s"- opponent plan: $v"),
+                Option.when(digest.preservedSignals.nonEmpty)(s"- preserved signals: ${digest.preservedSignals.mkString(", ")}")
+              ).flatten
+            }
+            .getOrElse(Nil)
 
         val planBlock =
           if plans.isEmpty then "Plans:\n- none"
@@ -157,12 +185,16 @@ object ActiveStrategicPrompt:
         val evidenceBlock =
           if evidence.isEmpty then "Evidence:\n- none"
           else s"Evidence:\n${evidence.mkString("\n")}"
+        val digestBlock =
+          if signalDigest.isEmpty then "Signal Digest:\n- none"
+          else s"Signal Digest:\n${signalDigest.mkString("\n")}"
 
         s"""Side to move: $side
            |$planBlock
            |$routeBlock
            |$focusBlock
-           |$evidenceBlock""".stripMargin
+           |$evidenceBlock
+           |$digestBlock""".stripMargin
 
   private def routeRefBlock(routeRefs: List[ActiveStrategicRouteRef]): String =
     val lines =

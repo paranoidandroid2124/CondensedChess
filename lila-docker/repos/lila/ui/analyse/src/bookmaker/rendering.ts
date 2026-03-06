@@ -4,6 +4,16 @@ import { mountBookmakerPreview, setBookmakerPreviewOrientation } from './interac
 const bookmakerTextSelector = '.analyse__bookmaker-text';
 const bookmakerPanelSelector = '.analyse__bookmaker';
 
+function hydrateBookmakerPanel($text: Cash, html: string, orientation: Color, showEval: boolean): void {
+  setBookmakerPreviewOrientation(orientation);
+  $text.html(html);
+  syncBookmakerEvalDisplay(showEval);
+  if (!html) return;
+
+  initMiniBoards($text[0] as HTMLElement);
+  mountBookmakerPreview($text[0] as HTMLElement);
+}
+
 export function syncBookmakerEvalDisplay(showEval: boolean): void {
   const $scope = $(bookmakerTextSelector);
   $scope.find('.bookmaker-content').toggleClass('bookmaker-hide-eval', !showEval);
@@ -16,24 +26,17 @@ export function syncBookmakerEvalDisplay(showEval: boolean): void {
 export function renderBookmakerPanel(html: string, orientation: Color, showEval: boolean): void {
   $(bookmakerPanelSelector).toggleClass('empty', !html);
   const $text = $(bookmakerTextSelector);
-  setBookmakerPreviewOrientation(orientation);
-  $text.html(html);
-  syncBookmakerEvalDisplay(showEval);
-  if (!html) return;
-
-  initMiniBoards($text[0] as HTMLElement);
-  mountBookmakerPreview($text[0] as HTMLElement);
+  hydrateBookmakerPanel($text, html, orientation, showEval);
 }
 
 export function clearBookmakerPanel(): void {
   $(bookmakerPanelSelector).toggleClass('empty', true);
 }
 
-export function restoreBookmakerPanel(lastShownHtml: string, showEval: boolean): void {
+export function restoreBookmakerPanel(lastShownHtml: string, orientation: Color, showEval: boolean): void {
   const $text = $(bookmakerTextSelector);
   if (!$text.length) return;
   if ($text.html() || !lastShownHtml) return;
   $(bookmakerPanelSelector).toggleClass('empty', !lastShownHtml);
-  $text.html(lastShownHtml);
-  syncBookmakerEvalDisplay(showEval);
+  hydrateBookmakerPanel($text, lastShownHtml, orientation, showEval);
 }
