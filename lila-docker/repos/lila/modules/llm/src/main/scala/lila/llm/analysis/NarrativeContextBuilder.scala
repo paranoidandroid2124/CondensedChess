@@ -133,8 +133,8 @@ object NarrativeContextBuilder:
       else Nil -> "none"
     
     // Phase A: Semantic section from ExtendedAnalysisData
-    val semantic = 
-      if data.strategicSalience == StrategicSalience.Low then None
+    val semantic =
+      if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty then None
       else buildSemanticSection(data)
 
     // B-axis: Meta signals (Step 1-3)
@@ -2024,7 +2024,7 @@ object NarrativeContextBuilder:
       pieceActivity = data.pieceActivity.map(convertPieceActivity),
       positionalFeatures = filteredPositional.map(convertPositionalTag),
       compensation = data.compensation.map(convertCompensation),
-      endgameFeatures = data.endgameFeatures.map(convertEndgame),
+      endgameFeatures = data.endgameFeatures.map(convertEndgame(_, data)),
       practicalAssessment = data.practicalAssessment.map(convertPractical),
       preventedPlans = data.preventedPlans.map(convertPreventedPlan),
       conceptSummary = data.conceptSummary,
@@ -2263,7 +2263,7 @@ object NarrativeContextBuilder:
     )
   }
 
-  private def convertEndgame(ef: EndgameFeature): EndgameInfo = {
+  private def convertEndgame(ef: EndgameFeature, data: ExtendedAnalysisData): EndgameInfo = {
     EndgameInfo(
       hasOpposition = ef.hasOpposition,
       isZugzwang = ef.isZugzwang,
@@ -2276,7 +2276,9 @@ object NarrativeContextBuilder:
       rookEndgamePattern = ef.rookEndgamePattern.toString,
       theoreticalOutcomeHint = ef.theoreticalOutcomeHint.toString,
       confidence = ef.confidence,
-      primaryPattern = ef.primaryPattern
+      primaryPattern = ef.primaryPattern,
+      patternAge = data.endgamePatternAge,
+      transition = data.endgameTransition
     )
   }
 

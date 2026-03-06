@@ -46,7 +46,8 @@ case class CommentRequest(
     afterEval: Option[EvalData] = None,
     afterVariations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
     // State Passing: persist plan state between individual move queries
-    planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None
+    planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+    endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None
 )
 object CommentRequest:
   given Reads[CommentRequest] = Json.reads[CommentRequest]
@@ -128,6 +129,7 @@ object StrategySidePlan:
   given Writes[StrategySidePlan] = Json.writes[StrategySidePlan]
 
 case class StrategyPieceRoute(
+    side: String,
     piece: String,
     from: String,
     route: List[String],
@@ -178,6 +180,7 @@ case class CommentResponse(
   latentPlans: List[lila.llm.model.authoring.LatentPlanNarrative] = Nil,
   whyAbsentFromTopMultiPV: List[String] = Nil,
   planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+  endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None,
   sourceMode: String = "rule",
   model: Option[String] = None,
   refs: Option[BookmakerRefsV1] = None,

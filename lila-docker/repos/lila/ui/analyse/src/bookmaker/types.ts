@@ -130,6 +130,15 @@ export type PlanStateToken = {
   };
 };
 
+export type EndgameStateToken = {
+  activePattern?: string | null;
+  patternAge: number;
+  outcomeHint: 'Win' | 'Draw' | 'Unclear' | string;
+  prevKingActivityDelta: number;
+  prevConfidence: number;
+  lastPly: number;
+};
+
 type OpeningMove = {
   uci: string;
   san: string;

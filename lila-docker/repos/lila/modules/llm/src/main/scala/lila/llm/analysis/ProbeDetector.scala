@@ -955,6 +955,11 @@ object ProbeDetector:
       legalMoves: List[Move]
   ): List[Move] =
     subplan match
+      case SubplanId.OpeningDevelopment =>
+        legalMoves.filter(mv =>
+          (!mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == King)) ||
+            (mv.piece.role == Pawn && (mv.dest.file == File.C || mv.dest.file == File.D || mv.dest.file == File.E || mv.dest.file == File.F))
+        )
       case SubplanId.ProphylaxisRestraint | SubplanId.BreakPrevention | SubplanId.KeySquareDenial |
           SubplanId.MobilitySuppression =>
         legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
@@ -988,6 +993,11 @@ object ProbeDetector:
 
   private def movesFromTheme(theme: ThemeL1, legalMoves: List[Move]): List[Move] =
     theme match
+      case ThemeL1.OpeningPrinciples =>
+        legalMoves.filter(mv =>
+          (!mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == King)) ||
+            (mv.piece.role == Pawn && (mv.dest.file == File.C || mv.dest.file == File.D || mv.dest.file == File.E || mv.dest.file == File.F))
+        )
       case ThemeL1.RestrictionProphylaxis =>
         legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
       case ThemeL1.PieceRedeployment =>

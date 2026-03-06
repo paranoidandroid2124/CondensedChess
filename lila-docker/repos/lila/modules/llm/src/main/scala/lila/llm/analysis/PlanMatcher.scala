@@ -58,6 +58,7 @@ case class IntegratedContext(
 
 object PlanMatcher:
   object Theme:
+    val Opening = ThemeL1.OpeningPrinciples.id
     val Restriction = ThemeL1.RestrictionProphylaxis.id
     val Redeployment = ThemeL1.PieceRedeployment.id
     val SpaceClamp = ThemeL1.SpaceClamp.id
@@ -69,6 +70,7 @@ object PlanMatcher:
     val ImmediateTacticalGain = ThemeL1.ImmediateTacticalGain.id
 
   object Subplan:
+    val OpeningDevelopment = SubplanId.OpeningDevelopment.id
     val Restriction = SubplanId.ProphylaxisRestraint.id
     val Redeployment = SubplanId.WorstPieceImprovement.id
     val OutpostEntrenchment = SubplanId.OutpostEntrenchment.id
@@ -113,17 +115,24 @@ object PlanMatcher:
 
   def matchPlans(motifs: List[Motif], ctx: IntegratedContext, side: Color): PlanScoringResult =
     val s = snapshot(ctx, side)
-    val raw = List(
-      restriction(motifs, ctx, side, s),
-      redeployment(motifs, ctx, side, s),
-      spaceClamp(motifs, ctx, side, s),
-      weaknessFixation(motifs, ctx, side, s),
-      breakPrep(motifs, ctx, side, s),
-      favorableExchange(motifs, ctx, side, s),
-      flankInfrastructure(motifs, ctx, side, s),
-      advantageTransformation(motifs, ctx, side, s),
-      immediateTacticalGain(motifs, ctx, side)
-    )
+    val openingRaw =
+      Option
+        .when(ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening)(
+          openingDevelopment(motifs, ctx, side, s)
+        )
+        .toList
+    val raw =
+      openingRaw ++ List(
+        restriction(motifs, ctx, side, s),
+        redeployment(motifs, ctx, side, s),
+        spaceClamp(motifs, side, s),
+        weaknessFixation(motifs, ctx, side, s),
+        breakPrep(motifs, ctx, side),
+        favorableExchange(motifs, ctx, side),
+        flankInfrastructure(motifs, ctx, side, s),
+        advantageTransformation(motifs, ctx, side, s),
+        immediateTacticalGain(motifs, ctx, side)
+      )
     val (compatible, events) = applyCompatWithEvents(raw, ctx, side)
     val l1Scores = computeL1PolicyScores(compatible)
     val annotated = compatible.map(pm => annotateWithL1Score(pm, l1Scores.getOrElse(themeOf(pm), 0.0)))
@@ -195,13 +204,79 @@ object PlanMatcher:
       out = adjust(out, Theme.AdvantageTransformation, 1.12, "conversion boost")
     if ctx.features.exists(_.centralSpace.openCenter) && kingExposure(ctx.features, side) >= 2 then
       out = adjust(out, Theme.FlankInfrastructure, 0.72, "open-center flank penalty")
+    if ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Opening then
+      out = adjust(out, Theme.FlankInfrastructure, 0.68, "opening principle: finish development before flank commitment")
+      out = adjust(out, Theme.AdvantageTransformation, 0.78, "opening phase: conversion plan is premature")
     (out, events.toList)
 
+  private def openingDevelopment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, 0.18) {
+      case Centralization(piece, _, c, _, _) if c == side && (piece == Knight || piece == Bishop) =>
+        "minor piece development supports opening control"
+      case PawnAdvance(file, _, _, c, _, _) if c == side &&
+          (file == File.C || file == File.D || file == File.E || file == File.F) =>
+        "central pawn claim supports opening space"
+      case PawnBreak(file, targetFile, c, _, _) if c == side &&
+          (file == File.C || file == File.D || file == File.E || file == File.F ||
+            targetFile == File.C || targetFile == File.D || targetFile == File.E || targetFile == File.F) =>
+        "central break timing is part of opening development"
+      case Castling(_, c, _, _) if c == side =>
+        "castling secures king safety while completing development"
+      case Fianchetto(_, c, _, _) if c == side =>
+        "fianchetto development reinforces long-diagonal control"
+      case OpenFileControl(file, c, _, _) if c == side && (file == File.D || file == File.E) =>
+        "central file pressure supports opening initiative"
+      case SpaceAdvantage(c, pawnDelta, _, _) if c == side && pawnDelta > 0 =>
+        "space advantage reflects successful opening coordination"
+      case Maneuver(_, purpose, c, _, _) if c == side && purpose.toLowerCase.contains("improv") =>
+        "piece improvement keeps opening tempo healthy"
+    }
+    val f = ctx.features.getOrElse(PositionFeatures.empty)
+    val centerControlDiff =
+      if side.white then f.centralSpace.whiteCenterControl - f.centralSpace.blackCenterControl
+      else f.centralSpace.blackCenterControl - f.centralSpace.whiteCenterControl
+    val ourCenterPawns =
+      if side.white then f.centralSpace.whiteCentralPawns
+      else f.centralSpace.blackCentralPawns
+    val hasCastled =
+      m.exists {
+        case Castling(_, c, _, _) if c == side => true
+        case _                                  => false
+      }
+    val developmentNeed = s.devLag.max(0)
+    val score =
+      0.26 +
+        math.min(0.12, developmentNeed * 0.04) +
+        math.min(0.08, centerControlDiff.max(0) * 0.015) +
+        math.min(0.06, ourCenterPawns.max(0) * 0.03) +
+        (if hasCastled then 0.05 else 0.0) +
+        math.min(0.18, ev.size * 0.05) -
+        (if developmentNeed == 0 && !hasCastled && ev.isEmpty then 0.08 else 0.0) -
+        (if ctx.tacticalThreatToUs then 0.12 else 0.0) -
+        (if ctx.tacticalThreatToThem then 0.08 else 0.0)
+    themed(
+      Theme.Opening,
+      Plan.OpeningDevelopment(side),
+      score,
+      ev,
+      List("develop first, then commit to structural or flank operations"),
+      List(
+        Option.when(ctx.tacticalThreatToUs)("tactical defense can delay opening development goals"),
+        Option.when(ctx.tacticalThreatToThem)("forcing tactical chance may outweigh pure development moves")
+      ).flatten,
+      List(
+        Option.when(!hasCastled)("king safety remains unresolved"),
+        Option.when(ourCenterPawns <= 0)("center presence is still underdeveloped"),
+        Option.when(developmentNeed <= 0 && ev.isEmpty)("development edge is not clearly visible")
+      ).flatten,
+      subplanId = Some(Subplan.OpeningDevelopment)
+    )
+
   private def restriction(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.18) {
-      case x @ Domination(_, _, _, c, _, _) if c == side => "domination restricts enemy mobility"
-      case x @ Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
-      case x @ OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
+    val ev = evidence(m, 0.18) {
+      case Domination(_, _, _, c, _, _) if c == side => "domination restricts enemy mobility"
+      case Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
+      case OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
     }
     val score =
       0.28 +
@@ -223,11 +298,11 @@ object PlanMatcher:
     )
 
   private def redeployment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.17) {
-      case x @ Outpost(_, _, c, _, _) if c == side        => "outpost route exists"
-      case x @ Centralization(_, _, c, _, _) if c == side => "centralization improves coordination"
-      case x @ Maneuver(_, _, c, _, _) if c == side       => "quiet maneuver improves worst piece"
-      case x @ RookLift(_, _, _, c, _, _) if c == side    => "rook lift supports redeployment"
+    val ev = evidence(m, 0.17) {
+      case Outpost(_, _, c, _, _) if c == side        => "outpost route exists"
+      case Centralization(_, _, c, _, _) if c == side => "centralization improves coordination"
+      case Maneuver(_, _, c, _, _) if c == side       => "quiet maneuver improves worst piece"
+      case RookLift(_, _, _, c, _, _) if c == side    => "rook lift supports redeployment"
     }
     val prefersOutpost =
       s.entrenched > 0 ||
@@ -265,10 +340,10 @@ object PlanMatcher:
       subplanId = Some(subplanId)
     )
 
-  private def spaceClamp(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.16) {
-      case x @ SpaceAdvantage(c, _, _, _) if c == side                             => "space edge supports clamp"
-      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && isFlank(file)      => "flank pawn advance builds clamp"
+  private def spaceClamp(m: List[Motif], side: Color, s: SideSnapshot): PlanMatch =
+    val ev = evidence(m, 0.16) {
+      case SpaceAdvantage(c, _, _, _) if c == side                             => "space edge supports clamp"
+      case PawnAdvance(file, _, _, c, _, _) if c == side && isFlank(file)      => "flank pawn advance builds clamp"
     }
     val score =
       0.24 +
@@ -290,11 +365,11 @@ object PlanMatcher:
 
   private def weaknessFixation(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val opp = !side
-    val ev = evidence(m, side, 0.17) {
-      case x @ IsolatedPawn(_, _, c, _, _) if c == opp  => "isolated pawn can be fixed"
-      case x @ BackwardPawn(_, _, c, _, _) if c == opp  => "backward pawn can be fixed"
-      case x @ DoubledPawns(_, c, _, _) if c == opp     => "doubled pawns provide a static target"
-      case x @ Blockade(_, _, _, c, _, _) if c == side  => "blockade supports fixation"
+    val ev = evidence(m, 0.17) {
+      case IsolatedPawn(_, _, c, _, _) if c == opp  => "isolated pawn can be fixed"
+      case BackwardPawn(_, _, c, _, _) if c == opp  => "backward pawn can be fixed"
+      case DoubledPawns(_, c, _, _) if c == opp     => "doubled pawns provide a static target"
+      case Blockade(_, _, _, c, _, _) if c == side  => "blockade supports fixation"
     }
     val score =
       0.23 +
@@ -313,10 +388,10 @@ object PlanMatcher:
       subplanId = Some(Subplan.WeaknessFixation)
     )
 
-  private def breakPrep(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.18) {
-      case x @ PawnBreak(_, _, c, _, _) if c == side => "break route is visible"
-      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.C || file == File.D || file == File.E || file == File.F) =>
+  private def breakPrep(m: List[Motif], ctx: IntegratedContext, side: Color): PlanMatch =
+    val ev = evidence(m, 0.18) {
+      case PawnBreak(_, _, c, _, _) if c == side => "break route is visible"
+      case PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.C || file == File.D || file == File.E || file == File.F) =>
         "central pawn move supports break timing"
     }
     val pa = ctx.pawnAnalysis
@@ -345,12 +420,12 @@ object PlanMatcher:
       subplanId = Some(subplanId)
     )
 
-  private def favorableExchange(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.17) {
-      case x @ Capture(_, _, _, t, c, _, _, _) if c == side &&
+  private def favorableExchange(m: List[Motif], ctx: IntegratedContext, side: Color): PlanMatch =
+    val ev = evidence(m, 0.17) {
+      case Capture(_, _, _, t, c, _, _, _) if c == side &&
           (t == CaptureType.Exchange || t == CaptureType.Recapture || t == CaptureType.Winning) =>
         "capture pattern supports favorable exchange"
-      case x @ RemovingTheDefender(_, _, _, _, c, _, _) if c == side => "defender removal supports exchange design"
+      case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => "defender removal supports exchange design"
     }
     val evalEdge = ctx.evalFor(side)
     val simplifyWindow = ctx.classification.exists(_.simplifyBias.shouldSimplify)
@@ -371,11 +446,11 @@ object PlanMatcher:
     )
 
   private def flankInfrastructure(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.19) {
-      case x @ PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.A || file == File.H) =>
+    val ev = evidence(m, 0.19) {
+      case PawnAdvance(file, _, _, c, _, _) if c == side && (file == File.A || file == File.H) =>
         "rook pawn advance builds flank infrastructure"
-      case x @ RookLift(_, _, _, c, _, _) if c == side => "rook lift supports flank pressure"
-      case x @ PawnChain(_, _, c, _, _) if c == side   => "pawn chain anchors flank expansion"
+      case RookLift(_, _, _, c, _, _) if c == side => "rook lift supports flank pressure"
+      case PawnChain(_, _, c, _, _) if c == side   => "pawn chain anchors flank expansion"
     }
     val hasRookLiftSignal =
       m.exists {
@@ -417,10 +492,10 @@ object PlanMatcher:
     )
 
   private def advantageTransformation(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
-    val ev = evidence(m, side, 0.17) {
-      case x @ PassedPawnPush(_, _, c, _, _) if c == side    => "passed pawn can convert dynamic edge"
-      case x @ RookBehindPassedPawn(_, c, _, _) if c == side => "rook behind passer supports conversion"
-      case x @ SeventhRankInvasion(c, _, _) if c == side     => "seventh-rank activity helps conversion"
+    val ev = evidence(m, 0.17) {
+      case PassedPawnPush(_, _, c, _, _) if c == side    => "passed pawn can convert dynamic edge"
+      case RookBehindPassedPawn(_, c, _, _) if c == side => "rook behind passer supports conversion"
+      case SeventhRankInvasion(c, _, _) if c == side     => "seventh-rank activity helps conversion"
     }
     val evalEdge = ctx.evalFor(side)
     val score =
@@ -441,13 +516,13 @@ object PlanMatcher:
     )
 
   private def immediateTacticalGain(m: List[Motif], ctx: IntegratedContext, side: Color): PlanMatch =
-    val ev = evidence(m, side, 0.20) {
-      case x @ Motif.Check(_, _, _, c, _, _) if c == side                   => "forcing check sequence exists"
-      case x @ Fork(_, _, _, _, c, _, _) if c == side                        => "fork gives immediate tactical gains"
-      case x @ Pin(_, _, _, c, _, _, _, _, _) if c == side                   => "pin creates forcing pressure"
-      case x @ Skewer(_, _, _, c, _, _, _, _, _) if c == side                => "skewer creates forcing pressure"
-      case x @ DiscoveredAttack(_, _, _, c, _, _, _, _, _) if c == side     => "discovered attack increases forcing value"
-      case x @ Capture(_, _, _, t, c, _, _, _) if c == side &&
+    val ev = evidence(m, 0.20) {
+      case Motif.Check(_, _, _, c, _, _) if c == side                   => "forcing check sequence exists"
+      case Fork(_, _, _, _, c, _, _) if c == side                        => "fork gives immediate tactical gains"
+      case Pin(_, _, _, c, _, _, _, _, _) if c == side                   => "pin creates forcing pressure"
+      case Skewer(_, _, _, c, _, _, _, _, _) if c == side                => "skewer creates forcing pressure"
+      case DiscoveredAttack(_, _, _, c, _, _, _, _, _) if c == side     => "discovered attack increases forcing value"
+      case Capture(_, _, _, t, c, _, _, _) if c == side &&
           (t == CaptureType.Winning || t == CaptureType.Sacrifice || t == CaptureType.ExchangeSacrifice) =>
         "forcing capture sequence is available"
     }
@@ -496,7 +571,7 @@ object PlanMatcher:
       supports: List[String],
       blockers: List[String],
       missing: List[String],
-      subplanId: Option[String] = None
+      subplanId: Option[String]
   ): PlanMatch =
     PlanMatch(
       plan = plan,
@@ -527,7 +602,6 @@ object PlanMatcher:
 
   private def evidence(
       motifs: List[Motif],
-      side: Color,
       weight: Double
   )(pf: PartialFunction[Motif, String]): List[EvidenceAtom] =
     motifs.collect { case m if pf.isDefinedAt(m) => EvidenceAtom(m, weight, pf(m)) }.take(4)

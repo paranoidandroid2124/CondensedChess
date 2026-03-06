@@ -276,6 +276,7 @@ export class NarrativeCtrl {
         this.error(null);
         this.needsLogin(false);
         this.pvBoard(null);
+        this.root.setNarrativeRouteOverlay(null);
         this.publishCollapseOverlay(null);
         this.loadingDetail('Deep analysis prep: collecting PGN and existing eval...');
         this.root.redraw();

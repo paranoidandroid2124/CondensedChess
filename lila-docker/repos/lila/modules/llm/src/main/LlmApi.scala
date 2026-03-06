@@ -304,9 +304,7 @@ final class LlmApi(
     else "off"
 
   private def endgameMode: String =
-    if llmConfig.endgameOracleEnabled then "enabled"
-    else if llmConfig.endgameOracleShadowMode then "shadow"
-    else "off"
+    "enabled"
 
   private def maybeLogBookmakerMetrics(): Unit =
     val total = bookmakerRequests.get()
@@ -325,7 +323,7 @@ final class LlmApi(
         if structureProfileCount.get() == 0 then 0.0
         else structureLowConfidenceCount.get().toDouble / structureProfileCount.get().toDouble
       val endgameCoverage =
-        if !llmConfig.shouldEvaluateEndgameOracle || total == 0 then 0.0
+        if total == 0 then 0.0
         else endgameFeatureCount.get().toDouble / total.toDouble
       val endgameWinHintRate =
         if endgameFeatureCount.get() == 0 then 0.0
@@ -1943,7 +1941,7 @@ final class LlmApi(
               evalDelta = None,
               concepts = moment.concepts,
               strategyHints = Nil,
-              strategyPack = None,
+              strategyPack = moment.strategyPack,
               fen = moment.fen,
               openingName = None,
               salience = None,
@@ -2175,6 +2173,7 @@ final class LlmApi(
       phase: String,
       ply: Int,
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+      prevEndgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None,
       allowLlmPolish: Boolean = false,
       lang: String = "en",
       planTier: String = PlanTier.Basic,
@@ -2193,8 +2192,8 @@ final class LlmApi(
         llmLevel = effectiveLevel
       )
     bookmakerRequests.incrementAndGet()
-    if prevStateToken.isDefined then tokenPresentCount.incrementAndGet()
-    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, cacheCtx) match
+    if prevStateToken.isDefined || prevEndgameStateToken.isDefined then tokenPresentCount.incrementAndGet()
+    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, prevEndgameStateToken, cacheCtx) match
       case Some(cached) =>
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
@@ -2205,7 +2204,7 @@ final class LlmApi(
         stateAwareCacheMissCount.incrementAndGet()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, allowLlmPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
+          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, prevEndgameStateToken, allowLlmPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
         ).map:
           case (responseOpt, structEvalMsOpt) =>
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
@@ -2228,6 +2227,7 @@ final class LlmApi(
       phase: String,
       ply: Int,
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker],
+      prevEndgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState],
       allowLlmPolish: Boolean,
       lang: String,
       cacheCtx: Option[LlmCacheContext],
@@ -2289,6 +2289,7 @@ final class LlmApi(
           ply = effectivePly,
           prevMove = lastMove,
           prevPlanContinuity = tracker.getContinuity(movingColor),
+          prevEndgameState = prevEndgameStateToken,
           probeResults = probeResults.getOrElse(Nil)
         )
 
@@ -2305,12 +2306,18 @@ final class LlmApi(
               secondaryPlan = data.plans.lift(1),
               sequence = data.planSequence
             )
+            val nextEndgameState =
+              lila.llm.model.strategic.EndgamePatternState.evolve(
+                prevEndgameStateToken,
+                data.endgameFeatures,
+                effectivePly
+              )
             val dataWithContinuity = data.copy(planContinuity = nextTracker.getContinuity(movingColor))
             if dataWithContinuity.planContinuity.exists(_.consecutivePlies >= 2) then
               continuityAppliedCount.incrementAndGet()
             dataWithContinuity.planSequence.foreach(ps => incTransition(ps.transitionType.toString))
             if llmConfig.shouldEvaluateStructureKb then recordStructureMetrics(dataWithContinuity)
-            if llmConfig.shouldEvaluateEndgameOracle then recordEndgameMetrics(dataWithContinuity)
+            recordEndgameMetrics(dataWithContinuity)
 
             val afterDataOpt =
               afterFen
@@ -2385,6 +2392,7 @@ final class LlmApi(
                 latentPlans = ctx.latentPlans,
                 whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,
                 planStateToken = Some(nextTracker),
+                endgameStateToken = nextEndgameState,
                 sourceMode = decision.sourceMode,
                 model = decision.model,
                 refs = refs,
@@ -2400,6 +2408,7 @@ final class LlmApi(
                 response = response,
                 probeResults = probeResults.getOrElse(Nil),
                 planStateToken = prevStateToken,
+                endgameStateToken = prevEndgameStateToken,
                 llmContext = cacheCtx
               )
               Some(BookmakerResult(response = response, cacheHit = decision.cacheHit)) -> dataWithContinuity.structureEvalLatencyMs

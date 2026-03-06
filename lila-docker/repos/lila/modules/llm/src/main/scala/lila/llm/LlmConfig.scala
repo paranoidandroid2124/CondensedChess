@@ -8,7 +8,7 @@ case class LlmConfig(
     endgameOracleShadowMode: Boolean
 ):
   def shouldEvaluateStructureKb: Boolean = structKbEnabled || structKbShadowMode
-  def shouldEvaluateEndgameOracle: Boolean = endgameOracleEnabled || endgameOracleShadowMode
+  def shouldEvaluateEndgameOracle: Boolean = true
 
 object LlmConfig:
 
@@ -32,6 +32,6 @@ object LlmConfig:
         .flatMap(_.toDoubleOption)
         .filter(v => v > 0.0 && v <= 1.0)
         .getOrElse(0.72),
-      endgameOracleEnabled = boolEnv("LLM_BOOKMAKER_ENDGAME_ORACLE_ENABLED", default = false),
-      endgameOracleShadowMode = boolEnv("LLM_BOOKMAKER_ENDGAME_ORACLE_SHADOW", default = true)
+      endgameOracleEnabled = true,
+      endgameOracleShadowMode = false
     )

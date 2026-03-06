@@ -9,6 +9,7 @@ import { setupPosition } from 'chessops/variant';
 import { lichessRules } from 'chessops/compat';
 import { makeSanAndPlay } from 'chessops/san';
 import { parseUci } from 'chessops/util';
+import type { DrawShape } from '@lichess-org/chessground/draw';
 
 type VariationLine = { moves: string[]; scoreCp: number; mate?: number | null; depth?: number; tags?: string[] };
 
@@ -444,8 +445,8 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
             ]),
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
-        hl('pre.narrative-prose', moment.narrative),
-        hasStrategicBlock ? narrativeStrategicNoteView(moment) : null,
+        narrativeProseView(ctrl, moment, moment.narrative, 'moment'),
+        hasStrategicBlock ? narrativeStrategicNoteView(ctrl, moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
         moment.collapse ? narrativeCollapseCardView(ctrl, moment) : null,
         moment.topEngineMove ? narrativeTopEngineMoveView(ctrl, moment) : null,
@@ -458,14 +459,14 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
     ]);
 }
 
-function narrativeStrategicNoteView(moment: GameNarrativeMoment): VNode {
+function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
     const note = moment.activeStrategicNote;
     const strategicMoves = (moment.activeStrategicMoves || []).filter(m => typeof m.uci === 'string' && m.uci.length >= 4);
     const strategicRoutes = (moment.activeStrategicRoutes || []).filter(r => Array.isArray(r.route) && r.route.length >= 2);
 
     return hl('div.narrative-strategic-note-box', [
         hl('h3.narrative-strategic-note-title', 'Strategic Note'),
-        note ? hl('pre.narrative-prose', note) : null,
+        note ? narrativeProseView(ctrl, moment, note, 'note') : null,
         strategicMoves.length ? hl('div.narrative-strategic-moves', [
             hl('span.narrative-strategic-label', 'Mini-board moves:'),
             hl('div.narrative-strategic-move-list', strategicMoves.map((move, idx) => {
@@ -494,6 +495,136 @@ function narrativeStrategicNoteView(moment: GameNarrativeMoment): VNode {
             })),
         ]) : null,
     ]);
+}
+
+function narrativeProseView(
+    ctrl: NarrativeCtrl,
+    moment: GameNarrativeMoment,
+    prose: string,
+    scope: 'moment' | 'note',
+): VNode {
+    const moveRefs = buildInlineMoveRefMap(moment, ctrl.root.data.game.variant.key);
+    const chunks = prose.split(/(\s+)/);
+    const nodes: Array<VNode | string> = [];
+
+    chunks.forEach((chunk, idx) => {
+        if (!chunk || /^\s+$/.test(chunk)) {
+            nodes.push(chunk);
+            return;
+        }
+        const rendered = renderInlineToken(chunk, idx, moment, moveRefs, scope);
+        if (rendered.length) nodes.push(...rendered);
+        else nodes.push(chunk);
+    });
+
+    return hl('pre.narrative-prose', nodes);
+}
+
+function buildInlineMoveRefMap(moment: GameNarrativeMoment, variantKey: string): Map<string, string> {
+    const refs = new Map<string, string>();
+
+    const addRef = (sanRaw: string | undefined, boardPayload: string | null): void => {
+        const san = normalizeSanToken(sanRaw);
+        if (!san || !boardPayload || refs.has(san)) return;
+        refs.set(san, boardPayload);
+    };
+
+    (moment.activeStrategicMoves || []).forEach(move => {
+        const uci = typeof move.uci === 'string' ? move.uci.trim().toLowerCase() : '';
+        const fenAfter = typeof move.fenAfter === 'string' ? move.fenAfter.trim() : '';
+        if (!uci || !fenAfter) return;
+        addRef(move.san, `${fenAfter}|${uci}`);
+    });
+
+    const addFromVariation = (moves: string[]): void => {
+        const setup = parseFen(moment.fen);
+        if (!setup.isOk) return;
+        const pos = setupPosition(lichessRules(variantKey as any), setup.value);
+        if (!pos.isOk) return;
+        for (const rawUci of moves.slice(0, 20)) {
+            const uci = (rawUci || '').trim().toLowerCase();
+            const parsed = parseUci(uci);
+            if (!parsed) break;
+            const san = makeSanAndPlay(pos.value, parsed);
+            const afterFen = makeBoardFen(pos.value.board);
+            if (san === '--') break;
+            addRef(san, `${afterFen}|${uci}`);
+        }
+    };
+
+    const topLines = (moment.variations || [])
+        .filter(v => Array.isArray(v.moves) && v.moves.length)
+        .slice(0, 2);
+    topLines.forEach(v => addFromVariation(v.moves));
+
+    return refs;
+}
+
+function normalizeSanToken(raw: string | undefined): string {
+    return (raw || '')
+        .trim()
+        .replace(/^[\(\[\{'"“”‘’]+/, '')
+        .replace(/[\)\]\}'"“”‘’]+$/, '')
+        .replace(/[!?]+$/g, '')
+        .trim();
+}
+
+function renderInlineToken(
+    token: string,
+    idx: number,
+    moment: GameNarrativeMoment,
+    moveRefs: Map<string, string>,
+    scope: 'moment' | 'note',
+): Array<VNode | string> {
+    const leading = token.match(/^[^A-Za-z0-9O]+/)?.[0] || '';
+    const trailing = token.match(/[^A-Za-z0-9O#+=\-!?]+$/)?.[0] || '';
+    let core = token.slice(leading.length, token.length - trailing.length);
+
+    const nodes: Array<VNode | string> = [];
+    if (leading) nodes.push(leading);
+    if (!core) {
+        if (trailing) nodes.push(trailing);
+        return nodes;
+    }
+
+    const movePrefix = core.match(/^(\d+\.(?:\.\.)?)(.+)$/);
+    if (movePrefix) {
+        nodes.push(movePrefix[1]);
+        core = movePrefix[2];
+    }
+
+    const routeMatch = core.match(/^([KQRBN]?)([a-h][1-8](?:-[a-h][1-8]){1,6})([+#!?]*)$/);
+    if (routeMatch) {
+        const routeSquares = routeMatch[2].split('-').map(s => s.toLowerCase());
+        nodes.push(
+            hl('span.narrative-strategic-chip.route.narrative-inline-route', {
+                key: `${scope}-route-${idx}-${routeMatch[2]}`,
+                attrs: {
+                    'data-route': routeSquares.join('-'),
+                    'data-route-fen': moment.fen,
+                    title: 'Route preview',
+                },
+            }, core),
+        );
+        if (trailing) nodes.push(trailing);
+        return nodes;
+    }
+
+    const normalizedCore = normalizeSanToken(core);
+    const boardPayload = moveRefs.get(normalizedCore);
+    if (boardPayload) {
+        nodes.push(
+            hl('span.narrative-move', {
+                key: `${scope}-move-${idx}-${normalizedCore}`,
+                attrs: { 'data-board': boardPayload },
+            }, core),
+        );
+    } else {
+        nodes.push(core);
+    }
+
+    if (trailing) nodes.push(trailing);
+    return nodes;
 }
 
 function narrativeActivePlanView(plan: ActivePlanRef): VNode {
@@ -707,26 +838,36 @@ function renderMoves(ctrl: NarrativeCtrl, fen: string, moves: string[]): Array<V
 }
 
 function routePreviewFromDataset(el: HTMLElement): BoardPreview | null {
-    const routeRaw = el.dataset.route;
     const fen = el.dataset.routeFen;
-    if (!routeRaw || !fen) return null;
+    const squares = routeSquaresFromDataset(el);
+    if (!fen || !squares) return null;
+    const shapes = routeShapesFromSquares(squares);
+    const fallbackUci = `${squares[0]}${squares[1]}`;
+    return { fen, uci: fallbackUci, shapes } as BoardPreview;
+}
+
+function routeSquaresFromDataset(el: HTMLElement): string[] | null {
+    const routeRaw = el.dataset.route;
+    if (!routeRaw) return null;
     const squares = routeRaw
         .split('-')
         .map(s => s.trim().toLowerCase())
         .filter(s => /^[a-h][1-8]$/.test(s));
     if (squares.length < 2) return null;
+    return squares;
+}
 
-    const shapes = [];
+function routeShapesFromSquares(squares: string[]) {
+    const shapes: DrawShape[] = [];
     for (let i = 0; i < squares.length - 1; i++) {
         shapes.push({
-            orig: squares[i],
-            dest: squares[i + 1],
+            orig: squares[i] as any,
+            dest: squares[i + 1] as any,
             brush: 'paleBlue',
             modifiers: i === squares.length - 2 ? { hilite: 'white' } : undefined,
         });
     }
-    const fallbackUci = `${squares[0]}${squares[1]}`;
-    return { fen, uci: fallbackUci, shapes } as BoardPreview;
+    return shapes;
 }
 
 function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
@@ -739,7 +880,12 @@ function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
         if (routeEl) {
             const routePreview = routePreviewFromDataset(routeEl);
             if (routePreview) {
+                const routeSquares = routeSquaresFromDataset(routeEl);
                 ctrl.pvBoard(routePreview);
+                ctrl.root.setNarrativeRouteOverlay({
+                    fen: routePreview.fen,
+                    shapes: routeSquares ? routeShapesFromSquares(routeSquares) : [],
+                });
                 ctrl.root.redraw();
                 return;
             }
@@ -750,11 +896,13 @@ function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
         if (!board || !board.includes('|')) return;
         const [fen, uci] = board.split('|');
         if (!fen || !uci) return;
+        ctrl.root.setNarrativeRouteOverlay(null);
         ctrl.pvBoard({ fen, uci });
         ctrl.root.redraw();
     });
 
     root.addEventListener('mouseleave', () => {
+        ctrl.root.setNarrativeRouteOverlay(null);
         ctrl.pvBoard(null);
         ctrl.root.redraw();
     });

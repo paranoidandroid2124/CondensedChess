@@ -100,6 +100,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
           isBadBishop = isBadBishop,
           isTrapped = isTrapped
         )
+        val coordinationLinks = detectCoordinationLinks(board, piece, square)
         
         PieceActivity(
           piece = piece.role,
@@ -108,7 +109,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
           isTrapped = isTrapped,
           isBadBishop = isBadBishop,
           keyRoutes = keyRoutes,
-          coordinationLinks = Nil 
+          coordinationLinks = coordinationLinks
         )
       }
     }
@@ -162,6 +163,36 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     case Rook => count / 14.0
     case Queen => count / 27.0
     case King => count / 8.0
+  }
+
+  private def detectCoordinationLinks(
+      board: Board,
+      piece: chess.Piece,
+      from: Square
+  ): List[Square] = {
+    val occupied = board.occupied
+    val ownColor = piece.color
+    val attackMask = piece.role match {
+      case Pawn => from.pawnAttacks(ownColor)
+      case Knight => from.knightAttacks
+      case Bishop => from.bishopAttacks(occupied)
+      case Rook => from.rookAttacks(occupied)
+      case Queen => from.queenAttacks(occupied)
+      case King => from.kingAttacks
+    }
+
+    attackMask.squares
+      .filter { target =>
+        val friendlyAttackers =
+          board
+            .attackers(target, ownColor)
+            .squares
+            .filterNot(_ == from)
+            .flatMap(board.pieceAt)
+            .count(p => p.color == ownColor && p.role != Pawn)
+        friendlyAttackers > 0
+      }
+      .take(4)
   }
 
   private def suggestKeyRoute(

@@ -1,4 +1,4 @@
-import type { EvalVariation, LatentPlanNarrative, PlanHypothesis, PlanStateToken, ProbeRequest } from './types';
+import type { EndgameStateToken, EvalVariation, LatentPlanNarrative, PlanHypothesis, PlanStateToken, ProbeRequest } from './types';
 
 export type MoveRefV1 = {
   refId: string;
@@ -65,6 +65,7 @@ type MaybeResponse = {
   latentPlans?: unknown;
   whyAbsentFromTopMultiPV?: unknown;
   planStateToken?: unknown;
+  endgameStateToken?: unknown;
   sourceMode?: unknown;
   model?: unknown;
   cacheHit?: unknown;
@@ -113,6 +114,12 @@ export function whyAbsentFromTopMultiPVFromResponse(data: MaybeResponse): string
 export function planStateTokenFromResponse(data: MaybeResponse): PlanStateToken | null {
   return data?.planStateToken && typeof data.planStateToken === 'object'
     ? (data.planStateToken as PlanStateToken)
+    : null;
+}
+
+export function endgameStateTokenFromResponse(data: MaybeResponse): EndgameStateToken | null {
+  return data?.endgameStateToken && typeof data.endgameStateToken === 'object'
+    ? (data.endgameStateToken as EndgameStateToken)
     : null;
 }
 

@@ -48,9 +48,7 @@ object CommentaryEngine:
     activityAnalyzer,
     structureAnalyzer,
     endgameAnalyzer,
-    practicalityScorer,
-    endgameOracleEnabled = llmConfig.endgameOracleEnabled,
-    endgameOracleShadowMode = llmConfig.endgameOracleShadowMode
+    practicalityScorer
   )
 
   def assess(
@@ -232,7 +230,8 @@ object CommentaryEngine:
       prevMove: Option[String] = None,
       prevPlanContinuity: Option[PlanContinuity] = None,
       probeResults: List[ProbeResult] = Nil,
-      evalDeltaCp: Option[Int] = None
+      evalDeltaCp: Option[Int] = None,
+      prevEndgameState: Option[lila.llm.model.strategic.EndgamePatternState] = None
   ): Option[ExtendedAnalysisData] =
     _root_.chess.format.Fen.read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen)).flatMap { initialPos =>
       PositionAnalyzer.extractFeatures(fen, 1).map { features =>
@@ -403,7 +402,8 @@ object CommentaryEngine:
           baseData = baseData,
           vars = variations,
           playedMove = playedMove,
-          probeResults = probeResults
+          probeResults = probeResults,
+          prevEndgameState = prevEndgameState
         ).copy(
           tacticalThreatToUs = ctx.tacticalThreatToUs,
           tacticalThreatToThem = ctx.tacticalThreatToThem,
@@ -442,13 +442,13 @@ object CommentaryEngine:
          val keyPlies: Set[Int] = keyMoments.map(_.ply).toSet ++ extraPlies
 
          // Track both Full Data, Plan Sequence Tracker, and previous Analysis Data
-         val (results, _) =
+         val (results, _, _) =
            plyDataList
              .filter(p => keyPlies.contains(p.ply)) // Only analyze key plies
              .sortBy(_.ply)
               .foldLeft(
-                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty)
-              ) { case ((acc, planTracker), p) =>
+                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty, Option.empty[lila.llm.model.strategic.EndgamePatternState])
+              ) { case ((acc, planTracker, prevEgState), p) =>
                   val playedUci = p.playedUci
                   val vars = evals.getOrElse(p.ply, Nil)
                   val ply = p.ply
@@ -462,11 +462,12 @@ object CommentaryEngine:
                       fen = p.fen,
                       variations = vars,
                       playedMove = Some(playedUci),
-                      opening = None, // Opening is handled by NarrativeContextBuilder
-                      phase = None,   // Phase is handled by NarrativeContextBuilder
+                      opening = None,
+                      phase = None,
                       ply = ply,
                       prevMove = Some(playedUci),
-                      prevPlanContinuity = planTracker.getContinuity(movingColor)
+                      prevPlanContinuity = planTracker.getContinuity(movingColor),
+                      prevEndgameState = prevEgState
                     )
 
                     analysis match {
@@ -479,12 +480,13 @@ object CommentaryEngine:
                           secondaryPlan = data.plans.lift(1),
                           sequence = data.planSequence
                         )
-                        (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker)
+                        val nextEgState = lila.llm.model.strategic.EndgamePatternState.evolve(prevEgState, data.endgameFeatures, ply)
+                        (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker, nextEgState)
                       case None => 
-                        (acc, planTracker)
+                        (acc, planTracker, prevEgState)
                     }
                   } else {
-                    (acc, planTracker)
+                    (acc, planTracker, prevEgState)
                   }
          }
          results

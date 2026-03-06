@@ -1,5 +1,8 @@
 package lila.llm.analysis
 
+import chess.*
+import chess.format.Fen
+import chess.variant.Standard
 import lila.llm.model._
 import lila.llm.model.authoring._
 import lila.llm.model.strategic.VariationLine
@@ -40,6 +43,15 @@ object NarrativeOutlineBuilder:
     pivotMove: Option[String],
     mechanism: PrecedentMechanism,
     confidence: Double
+  )
+  private case class RookEndgameFrame(
+    attacker: Color,
+    defender: Color,
+    pawn: Square,
+    attackerKing: Square,
+    defenderKing: Square,
+    attackerRook: Square,
+    defenderRook: Square
   )
 
   private case class OpeningPrecedentLine(
@@ -501,6 +513,14 @@ object NarrativeOutlineBuilder:
       ctx.semantic
         .flatMap(_.endgameFeatures.flatMap(_.primaryPattern))
         .flatMap(p => NarrativeLexicon.getEndgamePatternPrefix(bead ^ motifHash ^ 0x6f2b3d17, p))
+    val endgameContinuityText =
+      ctx.semantic
+        .flatMap(_.endgameFeatures)
+        .flatMap(buildEndgameContinuitySentence)
+    val endgameCausalityText =
+      ctx.semantic
+        .flatMap(_.endgameFeatures)
+        .flatMap(info => buildEndgameCausalitySentence(ctx, info))
     val motifPrefix = NarrativeLexicon.getMotifPrefix(bead ^ motifHash, motifPrefixCandidates, ply = ctx.ply)
 
     val boardAnchor = buildBoardAnchor(ctx, keyFact, bead)
@@ -508,6 +528,8 @@ object NarrativeOutlineBuilder:
 
     val leadText = List(
       endgamePatternPrefix.map(_.trim).getOrElse(""),
+      endgameContinuityText.map(_.trim).getOrElse(""),
+      endgameCausalityText.map(_.trim).getOrElse(""),
       motifPrefix.map(_.trim).getOrElse(""),
       openingPart.trim
     ).filter(_.nonEmpty).mkString(" ").trim
@@ -2409,6 +2431,367 @@ object NarrativeOutlineBuilder:
         case _ => None
       }
     }
+
+  private val EndgameTransitionPattern = raw"(.+)\((.+)\)\s*→\s*(.+)\((.+)\)".r
+
+  private def buildEndgameContinuitySentence(info: EndgameInfo): Option[String] =
+    info.transition.flatMap {
+      case EndgameTransitionPattern(fromRaw, fromHintRaw, toRaw, toHintRaw) =>
+        val fromLabel = humanizeEndgamePattern(fromRaw)
+        val toLabel = humanizeEndgamePattern(toRaw)
+        val fromTask = endgameTaskPhrase(fromHintRaw)
+        val toTask = endgameTaskPhrase(toHintRaw)
+        Some(
+          if fromRaw.equalsIgnoreCase("none") then
+            s"A new $toLabel pattern has emerged, giving the position a clearer $toTask."
+          else if toRaw.equalsIgnoreCase("none") then
+            s"The $fromLabel pattern has dissolved, so the earlier $fromTask no longer holds automatically."
+          else
+            s"The endgame geometry has shifted from $fromLabel to $toLabel, turning the position from a $fromTask into a $toTask."
+        )
+      case _ => None
+    }.orElse {
+      info.primaryPattern.flatMap { pattern =>
+        Option.when(info.patternAge >= 2) {
+          val duration =
+            if info.patternAge >= 8 then "for several plies"
+            else if info.patternAge >= 4 then "for multiple plies"
+            else s"for ${info.patternAge} plies"
+          val label = humanizeEndgamePattern(pattern)
+          val task = endgameTaskPhrase(info.theoreticalOutcomeHint)
+          s"The $label structure has held $duration, so the same $task remains in force."
+        }
+      }
+    }
+
+  private def humanizeEndgamePattern(raw: String): String =
+    val normalized = Option(raw).getOrElse("").trim
+    if normalized.isEmpty then "endgame pattern"
+    else if normalized.equalsIgnoreCase("none") then "no stable endgame pattern"
+    else
+      normalized
+        .replaceAll("([a-z0-9])([A-Z])", "$1 $2")
+        .replace('_', ' ')
+
+  private def endgameTaskPhrase(rawHint: String): String =
+    Option(rawHint).getOrElse("").trim.toLowerCase match
+      case "win"     => "winning method"
+      case "draw"    => "drawing setup"
+      case "unclear" => "technical plan"
+      case other if other.nonEmpty => s"${other} technical task"
+      case _ => "technical plan"
+
+  private def buildEndgameCausalitySentence(ctx: NarrativeContext, info: EndgameInfo): Option[String] =
+    parseBoard(ctx.fen).flatMap { board =>
+      info.transition.flatMap {
+        case EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
+          val lossClause = endgamePatternLossClause(board, fromRaw)
+          val gainClause =
+            Option.when(!toRaw.equalsIgnoreCase("none"))(endgamePatternHoldClause(board, toRaw, transitioned = true)).flatten
+          (lossClause, gainClause) match
+            case (Some(loss), Some(gain)) => Some(s"$loss $gain")
+            case (Some(loss), None)       => Some(loss)
+            case (None, Some(gain))       => Some(gain)
+            case _                        => None
+        case _ => None
+      }.orElse {
+        info.primaryPattern.flatMap(pattern =>
+          Option.when(info.patternAge >= 2)(endgamePatternHoldClause(board, pattern, transitioned = false)).flatten
+        )
+      }
+    }
+
+  private def endgamePatternLossClause(board: Board, rawPattern: String): Option[String] =
+    Option(rawPattern).map(_.trim).filter(_.nonEmpty).flatMap {
+      case pattern if pattern.equalsIgnoreCase("Lucena")          => lucenaLossClause(board)
+      case pattern if pattern.equalsIgnoreCase("PhilidorDefense") => philidorLossClause(board)
+      case pattern if pattern.equalsIgnoreCase("VancuraDefense")  => vancuraLossClause(board)
+      case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") => Some("The wrong-rook-pawn fortress has failed because the defender can no longer sit on the promotion corner against the wrong-colored bishop.")
+      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") => Some("The outside passer decoy has failed because the remote passer no longer drags the enemy king away from the main pawn mass.")
+      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") => Some("The connected passers plan has failed because the pawns are no longer advancing together with king support.")
+      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares breakthrough has failed because the king no longer controls the entry squares needed to escort the pawn through.")
+      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") => Some("The triangulation zugzwang has failed because the spare triangulation tempo is gone, so the side to move is no longer being squeezed.")
+      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The breakthrough sacrifice no longer works because the pawn wedge cannot force open a passer at the right moment.")
+      case pattern if pattern.equalsIgnoreCase("Shouldering") => Some("The shouldering plan has failed because the stronger king no longer keeps the enemy king pushed off the pawn's path.")
+      case pattern if pattern.equalsIgnoreCase("RetiManeuver") => Some("The Reti maneuver has failed because the king can no longer combine pursuit of the passer with support for its own pawn.")
+      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") => Some("The short-side defense has failed because the defender has lost the checking distance and side-room needed to harass the king.")
+      case pattern if pattern.equalsIgnoreCase("OppositeColoredBishopsDraw") => Some("The opposite-colored bishops draw has failed because the defender can no longer blockade on the bishop's color complex.")
+      case pattern if pattern.equalsIgnoreCase("GoodBishopRookPawnConversion") => Some("The good-bishop rook-pawn conversion has failed because the bishop and king no longer control the promotion corner together.")
+      case pattern if pattern.equalsIgnoreCase("KnightBlockadeRookPawnDraw") => Some("The knight blockade draw has failed because the knight no longer controls the promotion square and blockade ring.")
+      case pattern if pattern.equalsIgnoreCase("QueenVsAdvancedPawn") => Some("The queen-versus-pawn balance has failed because the defender no longer keeps the advanced pawn far enough from the king to hold theory.")
+      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") => Some("The Tarrasch defense has failed because the rook is no longer actively checking from behind the pawn.")
+      case pattern if pattern.equalsIgnoreCase("PassiveRookDefense") => Some("The passive rook defense has failed because the rook can no longer sit behind the pawn and hold the file.")
+      case pattern if pattern.equalsIgnoreCase("RookAndBishopVsRookDraw") => Some("The rook-and-bishop-versus-rook draw has failed because the defender has lost the safe checking or corner setup.")
+      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") => Some("The same-colored bishops blockade has failed because the defender can no longer lock the pawn chain on the shared color complex.")
+      case _ => None
+    }
+
+  private def endgamePatternHoldClause(board: Board, rawPattern: String, transitioned: Boolean): Option[String] =
+    Option(rawPattern).map(_.trim).filter(_.nonEmpty).flatMap {
+      case pattern if pattern.equalsIgnoreCase("Lucena")          => lucenaHoldClause(board, transitioned)
+      case pattern if pattern.equalsIgnoreCase("PhilidorDefense") => philidorHoldClause(board, transitioned)
+      case pattern if pattern.equalsIgnoreCase("VancuraDefense")  => vancuraHoldClause(board, transitioned)
+      case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") =>
+        Some(s"${if transitioned then "The wrong-rook-pawn fortress now holds because" else "The wrong-rook-pawn fortress still holds because"} the defender remains on the promotion corner and the bishop cannot force the right-colored entry squares.")
+      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") =>
+        Some(s"${if transitioned then "The outside passer decoy now works because" else "The outside passer decoy still works because"} the remote passer is still dragging the enemy king away from the real breakthrough wing.")
+      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") =>
+        Some(s"${if transitioned then "The connected passers plan now works because" else "The connected passers plan still works because"} the pawns advance together and the king still supports their front.")
+      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") =>
+        Some(s"${if transitioned then "The key-squares breakthrough now works because" else "The key-squares breakthrough still works because"} the king still controls the critical entry squares in front of the pawn.")
+      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") =>
+        Some(s"${if transitioned then "The triangulation zugzwang now holds because" else "The triangulation zugzwang still holds because"} one side still keeps a spare king tempo to force the move order.")
+      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") =>
+        Some(s"${if transitioned then "The breakthrough sacrifice now works because" else "The breakthrough sacrifice still works because"} the pawn wedge still creates a forced passer once the center is opened.")
+      case pattern if pattern.equalsIgnoreCase("Shouldering") =>
+        Some(s"${if transitioned then "The shouldering plan now works because" else "The shouldering plan still works because"} the king still keeps the opposing king shoved off the pawn's route.")
+      case pattern if pattern.equalsIgnoreCase("RetiManeuver") =>
+        Some(s"${if transitioned then "The Reti maneuver now works because" else "The Reti maneuver still works because"} the king can still chase the passer while staying inside its own support route.")
+      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") =>
+        Some(s"${if transitioned then "The short-side defense now holds because" else "The short-side defense still holds because"} the defender still has checking room on the short side and lateral space for the rook.")
+      case pattern if pattern.equalsIgnoreCase("OppositeColoredBishopsDraw") =>
+        Some(s"${if transitioned then "The opposite-colored bishops draw now holds because" else "The opposite-colored bishops draw still holds because"} each bishop still controls different color complexes, limiting direct penetration.")
+      case pattern if pattern.equalsIgnoreCase("GoodBishopRookPawnConversion") =>
+        Some(s"${if transitioned then "The good-bishop rook-pawn conversion now works because" else "The good-bishop rook-pawn conversion still works because"} the bishop matches the promotion corner and the king still escorts the pawn.")
+      case pattern if pattern.equalsIgnoreCase("KnightBlockadeRookPawnDraw") =>
+        Some(s"${if transitioned then "The knight blockade draw now holds because" else "The knight blockade draw still holds because"} the knight still covers the promotion square and keeps the rook pawn fixed.")
+      case pattern if pattern.equalsIgnoreCase("QueenVsAdvancedPawn") =>
+        Some(s"${if transitioned then "The queen-versus-pawn balance now holds because" else "The queen-versus-pawn balance still holds because"} the queen side still keeps the advanced pawn contained by checking distance.")
+      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") =>
+        Some(s"${if transitioned then "The Tarrasch defense now holds because" else "The Tarrasch defense still holds because"} the rook remains active behind the pawn with checking play available.")
+      case pattern if pattern.equalsIgnoreCase("PassiveRookDefense") =>
+        Some(s"${if transitioned then "The passive rook defense now holds because" else "The passive rook defense still holds because"} the rook still stays behind the pawn and keeps the file blocked.")
+      case pattern if pattern.equalsIgnoreCase("RookAndBishopVsRookDraw") =>
+        Some(s"${if transitioned then "The rook-and-bishop-versus-rook draw now holds because" else "The rook-and-bishop-versus-rook draw still holds because"} the defender still has the known safe setup against mating nets.")
+      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") =>
+        Some(s"${if transitioned then "The same-colored bishops blockade now holds because" else "The same-colored bishops blockade still holds because"} the defender still locks the pawns on the bishop's shared color complex.")
+      case _ => None
+    }
+
+  private def lucenaLossClause(board: Board): Option[String] =
+    lucenaFrame(board, strict = false).flatMap { frame =>
+      val promo = promotionSquare(frame.pawn, frame.attacker)
+      promo.flatMap { promotion =>
+        if chebyshev(frame.attackerKing, promotion) > 1 then
+          Some("Lucena has broken down because the stronger king is no longer beside the promotion square.")
+        else if chebyshev(frame.defenderKing, promotion) < 2 then
+          Some("Lucena has broken down because the defending king has reached the promotion-square zone.")
+        else if frame.attackerRook.file == frame.pawn.file then
+          Some("Lucena has broken down because the rook has fallen onto the pawn file instead of building a bridge from the side.")
+        else if fileDistance(frame.attackerRook.file, frame.pawn.file) < 2 then
+          Some("Lucena has broken down because the rook no longer has the lateral bridge-building distance.")
+        else None
+      }
+    }.orElse(
+      Some("Lucena has broken down because the winning side no longer keeps the promotion-square king plus bridge-building rook setup.")
+    )
+
+  private def lucenaHoldClause(board: Board, transitioned: Boolean): Option[String] =
+    lucenaFrame(board, strict = true).map { frame =>
+      val opener = if transitioned then "Lucena now works because" else "Lucena still works because"
+      val kingCutoff =
+        if promotionSquare(frame.pawn, frame.attacker).exists(promo => chebyshev(frame.defenderKing, promo) >= 2) then
+          " and the defending king is still cut off from the promotion square"
+        else ""
+      s"$opener the stronger king stays beside the promotion square, the rook keeps bridge-building distance$kingCutoff."
+    }
+
+  private def philidorLossClause(board: Board): Option[String] =
+    philidorFrame(board, strict = false).flatMap { frame =>
+      if !isPhilidorBarrierHeld(frame) then
+        Some("Philidor no longer holds because the defending rook has left the barrier rank.")
+      else if !isPhilidorDefenderKingAhead(frame) then
+        Some("Philidor no longer holds because the defending king is no longer in front of the pawn.")
+      else if !isPhilidorAttackingKingBehind(frame) then
+        Some("Philidor no longer holds because the stronger king has crossed the barrier.")
+      else None
+    }.orElse(
+      Some("Philidor no longer holds because the barrier-rank defense has been lost.")
+    )
+
+  private def philidorHoldClause(board: Board, transitioned: Boolean): Option[String] =
+    philidorFrame(board, strict = true).map { frame =>
+      val opener = if transitioned then "Philidor now holds because" else "Philidor still holds because"
+      val kingFront =
+        if isPhilidorDefenderKingAhead(frame) then " and the defending king stays in front of the pawn" else ""
+      s"$opener the rook still guards the barrier rank, and the stronger king has not crossed it$kingFront."
+    }
+
+  private def vancuraLossClause(board: Board): Option[String] =
+    vancuraFrame(board, strict = false).flatMap { frame =>
+      if relativeRank(frame.pawn, frame.attacker) != 6 || !isFlankPawn(frame.pawn) then
+        Some("Vancura no longer holds because the pawn is no longer the sixth-rank rook pawn required for the side-checking setup.")
+      else if frame.defenderRook.rank != frame.pawn.rank then
+        Some("Vancura no longer holds because the defending rook has left the pawn's rank, so the side-checking defense is gone.")
+      else if fileDistance(frame.defenderRook.file, frame.pawn.file) < 1 then
+        Some("Vancura no longer holds because the defending rook has no side-checking room.")
+      else if isRookBehindPawn(board, frame.attacker, frame.pawn) then
+        Some("Vancura no longer holds because the attacking rook has reached a behind-the-pawn setup.")
+      else None
+    }.orElse {
+      advancedFlankPawnFrame(board).flatMap { frame =>
+        if relativeRank(frame.pawn, frame.attacker) != 6 then
+          Some("Vancura no longer holds because the pawn is no longer the sixth-rank rook pawn required for the side-checking setup.")
+        else if frame.defenderRook.rank != frame.pawn.rank then
+          Some("Vancura no longer holds because the defending rook has left the pawn's rank, so the side-checking defense is gone.")
+        else if fileDistance(frame.defenderRook.file, frame.pawn.file) < 1 then
+          Some("Vancura no longer holds because the defending rook has no side-checking room.")
+        else if isRookBehindPawn(board, frame.attacker, frame.pawn) then
+          Some("Vancura no longer holds because the attacking rook has reached a behind-the-pawn setup.")
+        else None
+      }
+    }.orElse(
+      Some("Vancura no longer holds because the rook has lost the side-checking formation on the pawn's rank.")
+    )
+
+  private def vancuraHoldClause(board: Board, transitioned: Boolean): Option[String] =
+    vancuraFrame(board, strict = true).map { _ =>
+      val opener = if transitioned then "Vancura now holds because" else "Vancura still holds because"
+      s"$opener the rook stays on the pawn's rank with side-checking room, and the attacking rook is not yet behind the pawn."
+    }
+
+  private def parseBoard(fen: String): Option[Board] =
+    Fen.read(Standard, Fen.Full(fen)).map(_.board)
+
+  private def lucenaFrame(board: Board, strict: Boolean): Option[RookEndgameFrame] =
+    rookEndgameFrame(
+      board,
+      pawnFilter = (pawn, attacker) =>
+        !isRookPawn(pawn) &&
+          relativeRank(pawn, attacker) >= (if strict then 6 else 5) &&
+          (if strict then isPassedPawn(board, pawn, attacker) else true)
+    )
+
+  private def philidorFrame(board: Board, strict: Boolean): Option[RookEndgameFrame] =
+    rookEndgameFrame(
+      board,
+      pawnFilter = (pawn, attacker) => relativeRank(pawn, attacker) <= (if strict then 5 else 6)
+    )
+
+  private def vancuraFrame(board: Board, strict: Boolean): Option[RookEndgameFrame] =
+    rookEndgameFrame(
+      board,
+      pawnFilter = (pawn, attacker) =>
+        isFlankPawn(pawn) &&
+          relativeRank(pawn, attacker) >= (if strict then 6 else 5) &&
+          (if strict then isPassedPawn(board, pawn, attacker) else true)
+    )
+
+  private def rookEndgameFrame(
+      board: Board,
+      pawnFilter: (Square, Color) => Boolean
+  ): Option[RookEndgameFrame] =
+    List(Color.White, Color.Black)
+      .flatMap { attacker =>
+        val defender = !attacker
+        if !isPureRookEndgame(board, attacker, defender) then Nil
+        else
+          val pawns = board.byPiece(attacker, Pawn).squares
+            .filter(pawn => pawnFilter(pawn, attacker))
+            .toList
+            .sortBy(pawn => -relativeRank(pawn, attacker))
+          val frame =
+            for
+              pawn <- pawns.headOption
+              attackerKing <- board.kingPosOf(attacker)
+              defenderKing <- board.kingPosOf(defender)
+              attackerRook <- board.byPiece(attacker, Rook).squares.headOption
+              defenderRook <- board.byPiece(defender, Rook).squares.headOption
+            yield RookEndgameFrame(attacker, defender, pawn, attackerKing, defenderKing, attackerRook, defenderRook)
+          frame.toList
+      }
+      .sortBy(frame => -relativeRank(frame.pawn, frame.attacker))
+      .headOption
+
+  private def advancedFlankPawnFrame(board: Board): Option[RookEndgameFrame] =
+    List(Color.White, Color.Black)
+      .flatMap { attacker =>
+        val defender = !attacker
+        val pawns = board.byPiece(attacker, Pawn).squares
+          .filter(pawn => isFlankPawn(pawn) && relativeRank(pawn, attacker) >= 5)
+          .toList
+          .sortBy(pawn => -relativeRank(pawn, attacker))
+        val frame =
+          for
+            pawn <- pawns.headOption
+            attackerKing <- board.kingPosOf(attacker)
+            defenderKing <- board.kingPosOf(defender)
+            attackerRook <- board.byPiece(attacker, Rook).squares.headOption
+            defenderRook <- board.byPiece(defender, Rook).squares.headOption
+          yield RookEndgameFrame(attacker, defender, pawn, attackerKing, defenderKing, attackerRook, defenderRook)
+        frame.toList
+      }
+      .sortBy(frame => -relativeRank(frame.pawn, frame.attacker))
+      .headOption
+
+  private def isPhilidorBarrierHeld(frame: RookEndgameFrame): Boolean =
+    frame.defenderRook.rank == philidorBarrierRank(frame.attacker)
+
+  private def isPhilidorDefenderKingAhead(frame: RookEndgameFrame): Boolean =
+    if frame.attacker.white then frame.defenderKing.rank.value > frame.pawn.rank.value
+    else frame.defenderKing.rank.value < frame.pawn.rank.value
+
+  private def isPhilidorAttackingKingBehind(frame: RookEndgameFrame): Boolean =
+    relativeRank(frame.attackerKing, frame.attacker) <= 5
+
+  private def philidorBarrierRank(attacker: Color): Rank =
+    if attacker.white then Rank.Sixth else Rank.Third
+
+  private def isPureRookEndgame(board: Board, attacker: Color, defender: Color): Boolean =
+    val matA = sideMaterial(board, attacker)
+    val matD = sideMaterial(board, defender)
+    matA.rooks == 1 &&
+      matD.rooks == 1 &&
+      matA.queens == 0 &&
+      matD.queens == 0 &&
+      matA.knights == 0 &&
+      matA.bishops == 0 &&
+      matD.knights == 0 &&
+      matD.bishops == 0
+
+  private case class SideMaterial(rooks: Int, queens: Int, bishops: Int, knights: Int)
+
+  private def sideMaterial(board: Board, color: Color): SideMaterial =
+    SideMaterial(
+      rooks = board.byPiece(color, Rook).count,
+      queens = board.byPiece(color, Queen).count,
+      bishops = board.byPiece(color, Bishop).count,
+      knights = board.byPiece(color, Knight).count
+    )
+
+  private def isPassedPawn(board: Board, pawn: Square, color: Color): Boolean =
+    val enemyPawns = board.byPiece(!color, Pawn).squares
+    enemyPawns.forall { enemy =>
+      val fileClose = (enemy.file.value - pawn.file.value).abs <= 1
+      val blocksForward =
+        if color.white then enemy.rank.value >= pawn.rank.value
+        else enemy.rank.value <= pawn.rank.value
+      !(fileClose && blocksForward)
+    }
+
+  private def relativeRank(square: Square, color: Color): Int =
+    if color.white then square.rank.value + 1 else 8 - square.rank.value
+
+  private def isRookPawn(square: Square): Boolean =
+    square.file == File.A || square.file == File.H
+
+  private def isFlankPawn(square: Square): Boolean =
+    square.file == File.A || square.file == File.B || square.file == File.G || square.file == File.H
+
+  private def promotionSquare(pawn: Square, color: Color): Option[Square] =
+    Square.at(pawn.file.value, if color.white then 7 else 0)
+
+  private def isRookBehindPawn(board: Board, color: Color, pawn: Square): Boolean =
+    board.byPiece(color, Rook).squares.exists { rook =>
+      rook.file == pawn.file &&
+        (if color.white then rook.rank.value < pawn.rank.value else rook.rank.value > pawn.rank.value)
+    }
+
+  private def chebyshev(a: Square, b: Square): Int =
+    math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
+
+  private def fileDistance(a: File, b: File): Int =
+    (a.value - b.value).abs
 
 
   private def collectDerivedContextMotifs(ctx: NarrativeContext): List[String] =

@@ -589,56 +589,66 @@ object EndgamePatternOracle:
 
   private def detectQueenVsAdvancedPawn(
       board: Board,
-      _color: Color,
+      color: Color,
       core: EndgameFeature
   ): Option[PatternMatch] =
-    val _ = _color
-    val queens = board.queens.squares.toList
-    val pawns = board.pawns.squares.toList
-    if queens.size != 1 || pawns.size != 1 then None
-    else if board.rooks.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
-    else
-      val queen = queens.head
-      val pawn = pawns.head
-      for
-        pawnOwner <- board.colorAt(pawn)
-        ownerKing <- board.kingPosOf(pawnOwner)
-        if relativeRank(pawn, pawnOwner) >= 7
-        if pawn.file == File.A || pawn.file == File.C || pawn.file == File.F || pawn.file == File.H
-        if chebyshev(queen, pawn) <= 2
-        // Goldset-safe guard: side with pawn needs nearby corner support file.
-        if fileDistance(ownerKing.file, pawn.file) <= 1
-      yield
-        PatternMatch(
-          id = "QueenVsAdvancedPawn",
-          outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
-          confidenceFloor = 0.85,
-          ambiguityPenalty = if core.kingActivityDelta.abs > 2 then 0.05 else 0.0
-        )
+    List((color, !color), (!color, color)).collectFirst(Function.unlift { (attacker, defender) =>
+      val matA = material(board, attacker)
+      val matD = material(board, defender)
+      if matA.queens != 1 || matA.rooks + matA.bishops + matA.knights + matA.pawns > 0 then None
+      else if matD.queens + matD.rooks + matD.bishops + matD.knights > 0 || matD.pawns != 1 then None
+      else
+        val pawnOpt = board.byPiece(defender, Pawn).squares.filter(p => relativeRank(p, defender) >= 7).headOption
+        for
+          pawn <- pawnOpt
+          promo <- promotionSquare(pawn, defender)
+          aKing <- board.kingPosOf(attacker)
+        yield
+          val isDrawingPawn = pawn.file == File.A || pawn.file == File.C || pawn.file == File.F || pawn.file == File.H
+          val attackerKingTooFar = chebyshev(aKing, promo) > 3
+          val isTheoreticalDraw = isDrawingPawn && attackerKingTooFar
+          PatternMatch(
+            id = "QueenVsAdvancedPawn",
+            outcomeOverride = Some(if isTheoreticalDraw then TheoreticalOutcomeHint.Draw else TheoreticalOutcomeHint.Win),
+            confidenceFloor = 0.85,
+            ambiguityPenalty = if core.kingActivityDelta.abs > 2 then 0.05 else 0.0
+          )
+    })
 
   private def detectTarraschDefense(
       board: Board,
       color: Color,
-      _core: EndgameFeature
+      core: EndgameFeature
   ): Option[PatternMatch] =
-    val _ = _core
-    if board.rooks.count != 1 || board.pawns.count != 1 then None
-    else if board.queens.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
-    else
-      for
-        rook <- board.rooks.squares.headOption
-        pawn <- board.pawns.squares.headOption
-        if board.colorAt(rook).contains(!color)
-        // Active Tarrasch posture in this heuristic: rook keeps lateral activity.
-        if rook.file != pawn.file
-      yield
-        PatternMatch(
-          id = "TarraschDefenseActive",
-          confidenceFloor = 0.78,
-          signalOverrides = PatternSignalOverrides(
-            rookEndgamePattern = Some(RookEndgamePattern.TarraschDefenseActive)
+    List((color, !color), (!color, color)).collectFirst(Function.unlift { (attacker, defender) =>
+      val matA = material(board, attacker)
+      val matD = material(board, defender)
+      if matA.rooks != 1 || matD.rooks != 1 then None
+      else if matA.queens + matA.bishops + matA.knights + matD.queens + matD.bishops + matD.knights > 0 then None
+      else
+        val pawnOpt = passedPawns(board, attacker)
+          .filter(p => relativeRank(p, attacker) >= 5)
+          .sortBy(p => -relativeRank(p, attacker))
+          .headOption
+        for
+          pawn <- pawnOpt
+          dRook <- board.byPiece(defender, Rook).squares.headOption
+          dKing <- board.kingPosOf(defender)
+          if dRook.file == pawn.file
+          // Defender rook must truly be behind the passed pawn, not in front.
+          if (if attacker.white then dRook.rank.value < pawn.rank.value else dRook.rank.value > pawn.rank.value)
+          if chebyshev(dKing, pawn) >= 3
+        yield
+          val rankGap = math.abs(dRook.rank.value - pawn.rank.value)
+          PatternMatch(
+            id = "TarraschDefenseActive",
+            confidenceFloor = 0.78,
+            signalOverrides = PatternSignalOverrides(
+              rookEndgamePattern = Some(RookEndgamePattern.TarraschDefenseActive)
+            ),
+            ambiguityPenalty = if rankGap < 2 then 0.06 else if core.kingActivityDelta < 0 then 0.03 else 0.0
           )
-        )
+    })
 
   private def detectPassiveRookDefense(
       board: Board,
@@ -646,27 +656,27 @@ object EndgamePatternOracle:
       core: EndgameFeature
   ): Option[PatternMatch] =
     val matUs = material(board, color)
-    val matThem = material(board, !color)
-    if board.rooks.count != 1 || matUs.rooks != 1 then None
+    if matUs.rooks != 1 then None
     else if board.queens.count > 0 || board.bishops.count > 0 || board.knights.count > 0 then None
-    else if matThem.rooks + matThem.pawns > 0 then None
     else
-      val ownPassers = passedPawns(board, color)
+      val ownPassers = passedPawns(board, color).filter(p => relativeRank(p, color) >= 5)
       board.byPiece(color, Rook).squares.headOption.flatMap { rook =>
         ownPassers.find { pawn =>
           rook.file == pawn.file &&
+          // Rook sits in front of its own passed pawn and is tied to passive duty.
           (if color.white then rook.rank.value > pawn.rank.value else rook.rank.value < pawn.rank.value) &&
-          math.abs(rook.rank.value - pawn.rank.value) == 1
+          math.abs(rook.rank.value - pawn.rank.value) <= 2
         }.map { _ =>
-        PatternMatch(
-          id = "PassiveRookDefense",
-          confidenceFloor = 0.75,
-          signalOverrides = PatternSignalOverrides(
-            rookEndgamePattern = Some(RookEndgamePattern.PassiveRookDefense)
-          ),
-          ambiguityPenalty = if core.kingActivityDelta < 0 then 0.05 else 0.0
-        )
-      }}
+          PatternMatch(
+            id = "PassiveRookDefense",
+            confidenceFloor = 0.75,
+            signalOverrides = PatternSignalOverrides(
+              rookEndgamePattern = Some(RookEndgamePattern.PassiveRookDefense)
+            ),
+            ambiguityPenalty = if core.kingActivityDelta < 0 then 0.05 else 0.0
+          )
+        }
+      }
 
   private def detectRookAndBishopVsRookDraw(
       board: Board,
@@ -698,27 +708,45 @@ object EndgamePatternOracle:
       color: Color,
       core: EndgameFeature
   ): Option[PatternMatch] =
-    val attacker = color
-    val defender = !color
-    val matA = material(board, attacker)
-    val matD = material(board, defender)
-    if matA.bishops != 1 || matD.bishops != 1 then None
-    else if matA.rooks + matA.queens + matA.knights > 0 || matD.rooks + matD.queens + matD.knights > 0 then None
-    else if matA.pawns != 2 || matD.pawns != 0 then None
-    else
-      val pawns = board.byPiece(attacker, Pawn).squares.toList
-      if !pawns.exists { pawn =>
-          val rel = relativeRank(pawn, attacker)
-          if attacker.white then rel >= 5 else rel <= 2
-        }
-      then None
+    List((color, !color), (!color, color)).collectFirst(Function.unlift { (attacker, defender) =>
+      val matA = material(board, attacker)
+      val matD = material(board, defender)
+      if matA.bishops != 1 || matD.bishops != 1 then None
+      else if matA.rooks + matA.queens + matA.knights > 0 || matD.rooks + matD.queens + matD.knights > 0 then None
+      else if matA.pawns > 2 || matD.pawns > 2 then None
       else
-        Some(PatternMatch(
-          id = "SameColoredBishopsBlockade",
-          outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
-          confidenceFloor = 0.78,
-          ambiguityPenalty = if core.kingActivityDelta > 2 then 0.06 else 0.0
-        ))
+        (for
+          aBishop <- board.byPiece(attacker, Bishop).squares.headOption
+          dBishop <- board.byPiece(defender, Bishop).squares.headOption
+          if aBishop.isLight == dBishop.isLight
+          dKing <- board.kingPosOf(defender)
+        yield (dBishop, dKing)).flatMap { (dBishop, dKing) =>
+          val attackerPawns = board.byPiece(attacker, Pawn).squares.toList
+          val advancedAttackerPawns = attackerPawns.filter(p => relativeRank(p, attacker) >= 4)
+          val defenderPawns = board.byPiece(defender, Pawn).squares.toList
+          val blockingPawnsOnBishopColor = defenderPawns.filter(_.isLight == dBishop.isLight)
+          val isBlockading =
+            advancedAttackerPawns.nonEmpty &&
+              blockingPawnsOnBishopColor.nonEmpty &&
+              advancedAttackerPawns.forall { pawn =>
+                blockingPawnsOnBishopColor.exists { blocker =>
+                  blocker.file == pawn.file &&
+                  (if attacker.white then blocker.rank.value >= pawn.rank.value else blocker.rank.value <= pawn.rank.value) &&
+                  math.abs(blocker.rank.value - pawn.rank.value) <= 2
+                } || chebyshev(dKing, pawn) <= 2
+              }
+          if !isBlockading then None
+          else
+            Some(
+              PatternMatch(
+                id = "SameColoredBishopsBlockade",
+                outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
+                confidenceFloor = 0.78,
+                ambiguityPenalty = if core.kingActivityDelta > 2 then 0.06 else 0.0
+              )
+            )
+        }
+    })
 
   private final case class MaterialCounts(
       pawns: Int,

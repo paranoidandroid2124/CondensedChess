@@ -138,7 +138,7 @@ object ActiveStrategicPrompt:
               r.evidence.map(_.trim).filter(_.nonEmpty).take(3) match
                 case Nil  => ""
                 case list => s" | evidence: ${list.mkString(", ")}"
-            s"- ${r.piece} route: $route | purpose: ${r.purpose} | confidence: ${"%.2f".format(r.confidence)}$evidence"
+            s"- ${r.side} ${r.piece} route: $route | purpose: ${r.purpose} | confidence: ${"%.2f".format(r.confidence)}$evidence"
           }
         val focus =
           pack.longTermFocus.map(_.trim).filter(_.nonEmpty).map(f => s"- $f")

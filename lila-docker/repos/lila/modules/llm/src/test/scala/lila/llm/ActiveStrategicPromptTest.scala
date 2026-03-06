@@ -17,6 +17,7 @@ class ActiveStrategicPromptTest extends FunSuite:
     ),
     pieceRoutes = List(
       StrategyPieceRoute(
+        side = "white",
         piece = "N",
         from = "d2",
         route = List("d2", "f1", "e3"),

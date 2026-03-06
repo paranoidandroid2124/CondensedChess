@@ -360,7 +360,9 @@ case class EndgameInfo(
   rookEndgamePattern: String = "None",
   theoreticalOutcomeHint: String = "Unclear",
   confidence: Double = 0.0,
-  primaryPattern: Option[String] = None
+  primaryPattern: Option[String] = None,
+  patternAge: Int = 0,
+  transition: Option[String] = None
 )
 
 

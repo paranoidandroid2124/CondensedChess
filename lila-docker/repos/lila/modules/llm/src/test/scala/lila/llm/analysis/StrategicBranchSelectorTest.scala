@@ -40,7 +40,7 @@ class StrategicBranchSelectorTest extends FunSuite:
   private val richPack = StrategyPack(
     sideToMove = "white",
     plans = List(StrategySidePlan("white", "long", "Kingside pressure")),
-    pieceRoutes = List(StrategyPieceRoute("N", "d2", List("d2", "f1", "e3"), "king defense", 0.8)),
+    pieceRoutes = List(StrategyPieceRoute("white", "N", "d2", List("d2", "f1", "e3"), "king defense", 0.8)),
     longTermFocus = List("Dark-square control")
   )
 
@@ -84,3 +84,13 @@ class StrategicBranchSelectorTest extends FunSuite:
     assertEquals(selected, List(9, 27, 18))
   }
 
+  test("selector includes advantage swings and mate pivots") {
+    val moments = List(
+      moment(ply = 14, momentType = "AdvantageSwing"),
+      moment(ply = 28, momentType = "MatePivot"),
+      moment(ply = 35, momentType = "Quiet")
+    )
+
+    val selected = StrategicBranchSelector.select(moments).map(_.ply).toSet
+    assertEquals(selected, Set(14, 28))
+  }
