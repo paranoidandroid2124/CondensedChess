@@ -231,6 +231,164 @@
       }
     }
 
+    .bookmaker-strategic-summary {
+      margin: 0 0 0.75rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba($c-primary, 0.16);
+      border-radius: 8px;
+      background: mix($c-bg-zebra, $c-primary, 94%);
+    }
+
+    .bookmaker-strategic-summary__title {
+      margin: 0 0 0.35rem;
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: $c-primary;
+    }
+
+    .bookmaker-strategic-summary__row {
+      margin-top: 0.22rem;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: $c-font;
+
+      strong {
+        color: $c-primary;
+      }
+    }
+
+    .bookmaker-probe-summary {
+      margin-top: 0.55rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid rgba($c-primary, 0.12);
+    }
+
+    .bookmaker-probe-summary__title {
+      margin: 0 0 0.3rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: $c-font-dim;
+    }
+
+    .bookmaker-probe-summary__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: baseline;
+      margin-top: 0.24rem;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: $c-font-dim;
+
+      strong {
+        color: $c-font;
+      }
+
+      code {
+        padding: 0.08rem 0.35rem;
+        border-radius: 999px;
+        background: rgba($c-primary, 0.08);
+        color: $c-primary;
+        font-size: 0.76rem;
+      }
+    }
+
+    .bookmaker-authoring-summary {
+      margin-top: 0.55rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid rgba($c-primary, 0.12);
+    }
+
+    .bookmaker-authoring-summary__card {
+      margin-top: 0.45rem;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid rgba($c-primary, 0.12);
+      border-radius: 7px;
+      background: rgba($c-bg-box, 0.7);
+    }
+
+    .bookmaker-authoring-summary__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem 0.6rem;
+      font-size: 0.76rem;
+
+      strong {
+        color: $c-font;
+      }
+    }
+
+    .bookmaker-authoring-summary__status {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.14rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: rgba($c-primary, 0.1);
+      color: $c-primary;
+    }
+
+    .bookmaker-authoring-summary__status--resolved {
+      background: rgba($m-good, 0.12);
+      color: $m-good--text;
+    }
+
+    .bookmaker-authoring-summary__status--pending,
+    .bookmaker-authoring-summary__status--question_only {
+      background: rgba($m-brag_bg--mix-50, 0.28);
+      color: $c-font-dim;
+    }
+
+    .bookmaker-authoring-summary__question {
+      margin-top: 0.32rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      line-height: 1.35;
+      color: $c-font;
+    }
+
+    .bookmaker-authoring-summary__why,
+    .bookmaker-authoring-summary__meta {
+      margin-top: 0.26rem;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      color: $c-font-dim;
+    }
+
+    .bookmaker-authoring-summary__branches {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin-top: 0.38rem;
+    }
+
+    .bookmaker-authoring-summary__branch {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.32rem;
+      align-items: baseline;
+      font-size: 0.77rem;
+      line-height: 1.35;
+      color: $c-font-dim;
+
+      code {
+        padding: 0.08rem 0.35rem;
+        border-radius: 999px;
+        background: rgba($c-primary, 0.08);
+        color: $c-primary;
+        font-size: 0.74rem;
+      }
+    }
+
     .bookmaker-state--credits {
       border-color: $m-bad_bg--mix-50;
       background: $m-bad_bg--mix-20;
@@ -293,8 +451,10 @@
 
       .variation-item {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 0.35rem 0.6rem;
         width: 100%;
         padding: 0.4rem 0.6rem;
         border-radius: 4px;
@@ -316,7 +476,9 @@
           font-size: 0.95em;
           color: $c-font;
           cursor: pointer;
-          flex: 1;
+          flex: 1 1 14rem;
+          min-width: 0;
+          overflow-wrap: anywhere;
 
           strong {
             color: $c-font-dim;
@@ -338,13 +500,15 @@
         }
 
         .eval-badge {
-          margin-left: 1rem;
+          margin-left: auto;
+          flex: 0 0 auto;
           font-size: 0.8em;
           padding: 0.1em 0.4em;
           border-radius: 3px;
           background: $c-bg-zebra;
           color: $c-font-dim;
           font-family: 'Roboto Mono', monospace;
+          white-space: nowrap;
           box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
         }
       }

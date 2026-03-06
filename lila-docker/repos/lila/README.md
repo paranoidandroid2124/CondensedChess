@@ -96,6 +96,7 @@ docker compose run --rm -w /lila ui node ui/build.mjs
 ## Architecture
 
 Legacy architecture documents were removed during cleanup. Refer to current source under `modules/llm/src/main` and controller/routes for the live design.
+For the commentary-helper utilization audit and producer-to-frontend consumption map, see `modules/llm/docs/CommentaryPipelineSSOT.md`.
 
 ### Key Components
 

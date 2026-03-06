@@ -2,13 +2,15 @@ package lila.llm.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.llm.{ LlmConfig, LlmLevel }
+import lila.llm.{ LlmConfig, LlmLevel, NarrativeSignalDigest }
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
+import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 import lila.llm.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PositionAnalyzer
 import lila.llm.analysis.ThemeTaxonomy.ThemeResolver
+import scala.annotation.unused
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
 
 /**
@@ -500,7 +502,7 @@ object CommentaryEngine:
       evals: Map[Int, List[VariationLine]],
       providedMetadata: Option[GameMetadata] = None,
       openingRefsByFen: Map[String, OpeningReference] = Map.empty,
-      llmLevel: String = LlmLevel.Polish
+      @unused llmLevel: String = LlmLevel.Polish
   ): FullGameNarrative = {
      
      val metadata = providedMetadata.getOrElse(extractMetadata(pgn))
@@ -546,7 +548,7 @@ object CommentaryEngine:
                     prevRef,
                     budget
                   )
-                  val fullText = renderHybridMomentNarrative(ctx, moment)
+                  val (fullText, focusedOutline) = renderHybridMomentNarrative(ctx, moment)
                   
                   val (classification, narrativeEvent) = moment.momentType match {
                     case "Blunder" => (Some("Blunder"), "AdvantageSwing")
@@ -561,10 +563,10 @@ object CommentaryEngine:
                   val collapseData = if (moment.momentType == "Blunder" || moment.momentType == "SustainedPressure") {
                     CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
                   } else None
-                  val strategyPack =
-                    if LlmLevel.normalize(llmLevel) == LlmLevel.Active then
-                      StrategyPackBuilder.build(data, ctx)
-                    else None
+                  val strategyPack = StrategyPackBuilder.build(data, ctx)
+                  val signalDigest = buildMomentSignalDigest(ctx, focusedOutline)
+                  val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
+                  val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
 
                   val momentNarrative = MomentNarrative(
                     ply = moment.ply,
@@ -597,7 +599,14 @@ object CommentaryEngine:
                       )
                     },
                     collapse = collapseData,
-                    strategyPack = strategyPack
+                    strategyPack = strategyPack,
+                    signalDigest = signalDigest,
+                    probeRequests = ctx.probeRequests,
+                    authorQuestions = authorQuestions,
+                    authorEvidence = authorEvidence,
+                    mainStrategicPlans = ctx.mainStrategicPlans.take(3),
+                    latentPlans = ctx.latentPlans.take(2),
+                    whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
                   )
                   
                   // Update budget from ctx.updatedBudget for next iteration
@@ -642,7 +651,10 @@ object CommentaryEngine:
       }
   }
 
-  private def renderHybridMomentNarrative(ctx: NarrativeContext, moment: KeyMoment): String = {
+  private def renderHybridMomentNarrative(
+    ctx: NarrativeContext,
+    moment: KeyMoment
+  ): (String, NarrativeOutline) = {
     val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
     val phase = ctx.phase.current
     val plan = topStrategicPlanName(ctx)
@@ -668,18 +680,61 @@ object CommentaryEngine:
       ply = ctx.ply
     )
     val criticalBranch = buildCriticalBranchNarrative(ctx, rankedVars, bead)
+    val validatedOutline = BookStyleRenderer.validatedOutline(ctx)
+    val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty)
 
-    val bookBody = BookStyleRenderer.render(ctx).trim
+    val bookBody = BookStyleRenderer.renderValidatedOutline(validatedOutline, ctx).trim
+    val focusedBody = BookStyleRenderer.renderValidatedOutline(focusedOutline, ctx).trim
     val fallback = lila.llm.NarrativeGenerator.describeHierarchical(ctx).trim
     val body0 = if bookBody.nonEmpty then bookBody else fallback
-    val body = focusMomentBody(body0, keepParagraphs = if criticalBranch.nonEmpty then 3 else 4)
+    val body =
+      if focusedBody.nonEmpty then focusedBody
+      else focusMomentBody(body0, keepParagraphs = if criticalBranch.nonEmpty then 3 else 4)
     val preface = List(lead, bridge).map(_.trim).filter(_.nonEmpty).mkString(" ")
 
     val parts = List(preface, criticalBranch.getOrElse(""), body).map(_.trim).filter(_.nonEmpty)
-    if parts.nonEmpty then parts.mkString("\n\n")
-    else if body.nonEmpty then body
-    else preface
+    val rendered =
+      if parts.nonEmpty then parts.mkString("\n\n")
+      else if body.nonEmpty then body
+      else preface
+    (rendered, focusedOutline)
   }
+
+  private[analysis] def focusMomentOutline(
+    outline: NarrativeOutline,
+    hasCriticalBranch: Boolean
+  ): NarrativeOutline =
+    val maxBeats = if hasCriticalBranch then 5 else 6
+    val candidates =
+      outline.beats.zipWithIndex.filter { case (beat, _) =>
+        beat.kind != OutlineBeatKind.MoveHeader &&
+          beat.kind != OutlineBeatKind.Evidence &&
+          beat.kind != OutlineBeatKind.Alternatives
+      }
+    val filtered =
+      candidates.filterNot { case (beat, _) =>
+        beat.kind == OutlineBeatKind.WrapUp &&
+          beat.focusPriority < 75 &&
+          isGenericWrapupParagraph(beat.text)
+      }
+    val essentials = filtered.filter(_._1.fullGameEssential)
+    val essentialSlots =
+      if essentials.size <= maxBeats then essentials
+      else essentials.sortBy { case (beat, idx) => (-beat.focusPriority, idx) }.take(maxBeats)
+    val selectedIndices = scala.collection.mutable.Set.empty[Int]
+    essentialSlots.foreach { case (_, idx) => selectedIndices += idx }
+    val remainingSlots = (maxBeats - essentialSlots.size).max(0)
+    filtered
+      .filterNot { case (_, idx) => selectedIndices.contains(idx) }
+      .sortBy { case (beat, idx) => (-beat.focusPriority, idx) }
+      .take(remainingSlots)
+      .foreach { case (_, idx) => selectedIndices += idx }
+    val selectedBeats =
+      filtered
+        .filter { case (_, idx) => selectedIndices.contains(idx) }
+        .sortBy(_._2)
+        .map(_._1)
+    NarrativeOutline(selectedBeats, outline.diagnostics)
 
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
     ctx.mainStrategicPlans.headOption.map(_.planName).orElse {
@@ -795,6 +850,15 @@ object CommentaryEngine:
       .toList
     val filtered = paras.filterNot(isGenericWrapupParagraph)
     filtered.take(keepParagraphs.max(1)).mkString("\n\n")
+
+  private def buildMomentSignalDigest(
+    ctx: NarrativeContext,
+    focusedOutline: NarrativeOutline
+  ): Option[NarrativeSignalDigest] =
+    NarrativeSignalDigestBuilder.build(
+      ctx,
+      preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline))
+    )
 
   private def isGenericWrapupParagraph(p: String): Boolean =
     val low = Option(p).getOrElse("").trim.toLowerCase

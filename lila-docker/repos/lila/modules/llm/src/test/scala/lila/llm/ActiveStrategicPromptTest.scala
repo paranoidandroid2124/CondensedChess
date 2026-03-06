@@ -27,7 +27,15 @@ class ActiveStrategicPromptTest extends FunSuite:
       )
     ),
     longTermFocus = List("Dark-square control"),
-    evidence = List("top_multipv")
+    evidence = List("top_multipv"),
+    signalDigest = Some(
+      NarrativeSignalDigest(
+        opening = Some("Ruy Lopez"),
+        practicalVerdict = Some("conversion requires precision"),
+        decision = Some("Resolves back-rank pressure before expanding"),
+        preservedSignals = List("opening", "practical", "decision")
+      )
+    )
   )
 
   private val sampleRouteRefs = List(
@@ -64,6 +72,9 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("Kingside expansion"))
     assert(prompt.contains("d2-f1-e3"))
     assert(prompt.contains("Dark-square control"))
+    assert(prompt.contains("Signal Digest"))
+    assert(prompt.contains("Ruy Lopez"))
+    assert(prompt.contains("conversion requires precision"))
     assert(prompt.contains("route_1"))
     assert(prompt.contains("Engine preference"))
     assert(prompt.contains("cite exact routeId and/or move label"))
@@ -86,6 +97,7 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("Play better somehow."))
     assert(prompt.contains("active_note_sentence_count"))
     assert(prompt.contains("strategy_coverage_low"))
+    assert(prompt.contains("Signal Digest"))
     assert(prompt.contains("route_1"))
     assert(prompt.contains("Engine preference"))
     assert(prompt.contains("Repair output must cite exact routeId and/or move label"))

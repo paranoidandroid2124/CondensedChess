@@ -2286,7 +2286,15 @@ object NarrativeContextBuilder:
     PracticalInfo(
       engineScore = pa.engineScore,
       practicalScore = pa.practicalScore,
-      verdict = pa.verdict
+      verdict = pa.verdict,
+      biasFactors =
+        pa.biasFactors.map { bf =>
+          PracticalBiasInfo(
+            factor = bf.factor,
+            description = bf.description,
+            weight = bf.weight
+          )
+        }
     )
   }
 
@@ -2296,6 +2304,7 @@ object NarrativeContextBuilder:
       deniedSquares = pp.deniedSquares.map(_.key),
       breakNeutralized = pp.breakNeutralized,
       mobilityDelta = pp.mobilityDelta,
+      counterplayScoreDrop = pp.counterplayScoreDrop,
       preventedThreatType = pp.preventedThreatType
     )
   }

@@ -1,4 +1,13 @@
-import type { EndgameStateToken, EvalVariation, LatentPlanNarrative, PlanHypothesis, PlanStateToken, ProbeRequest } from './types';
+import type {
+  AuthorEvidenceSummary,
+  AuthorQuestionSummary,
+  EndgameStateToken,
+  EvalVariation,
+  LatentPlanNarrative,
+  PlanHypothesis,
+  PlanStateToken,
+  ProbeRequest,
+} from './types';
 
 export type MoveRefV1 = {
   refId: string;
@@ -56,11 +65,37 @@ export type StrategyCoverageMetaV1 = {
   focusHits: number;
 };
 
+export type NarrativeSignalDigest = {
+  opening?: string;
+  strategicStack?: string[];
+  latentPlan?: string;
+  latentReason?: string;
+  practicalVerdict?: string;
+  practicalFactors?: string[];
+  compensation?: string;
+  compensationVectors?: string[];
+  investedMaterial?: number;
+  structuralCue?: string;
+  structureProfile?: string;
+  centerState?: string;
+  alignmentBand?: string;
+  alignmentReasons?: string[];
+  prophylaxisPlan?: string;
+  prophylaxisThreat?: string;
+  counterplayScoreDrop?: number;
+  decision?: string;
+  strategicFlow?: string;
+  opponentPlan?: string;
+  preservedSignals?: string[];
+};
+
 type MaybeResponse = {
   html?: unknown;
   commentary?: unknown;
   variations?: unknown;
   probeRequests?: unknown;
+  authorQuestions?: unknown;
+  authorEvidence?: unknown;
   mainStrategicPlans?: unknown;
   latentPlans?: unknown;
   whyAbsentFromTopMultiPV?: unknown;
@@ -69,6 +104,7 @@ type MaybeResponse = {
   sourceMode?: unknown;
   model?: unknown;
   cacheHit?: unknown;
+  signalDigest?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
   ratelimit?: {
@@ -95,6 +131,14 @@ export function variationLinesFromResponse(data: MaybeResponse, fallback: EvalVa
 
 export function probeRequestsFromResponse(data: MaybeResponse): ProbeRequest[] {
   return Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
+}
+
+export function authorQuestionsFromResponse(data: MaybeResponse): AuthorQuestionSummary[] {
+  return Array.isArray(data?.authorQuestions) ? (data.authorQuestions as AuthorQuestionSummary[]) : [];
+}
+
+export function authorEvidenceFromResponse(data: MaybeResponse): AuthorEvidenceSummary[] {
+  return Array.isArray(data?.authorEvidence) ? (data.authorEvidence as AuthorEvidenceSummary[]) : [];
 }
 
 export function mainStrategicPlansFromResponse(data: MaybeResponse): PlanHypothesis[] {
@@ -133,6 +177,10 @@ export function modelFromResponse(data: MaybeResponse): string | null {
 
 export function cacheHitFromResponse(data: MaybeResponse): boolean | null {
   return typeof data?.cacheHit === 'boolean' ? data.cacheHit : null;
+}
+
+export function signalDigestFromResponse(data: MaybeResponse): NarrativeSignalDigest | null {
+  return isRecord(data?.signalDigest) ? (data.signalDigest as NarrativeSignalDigest) : null;
 }
 
 export function refsFromResponse(data: MaybeResponse): BookmakerRefsV1 | null {

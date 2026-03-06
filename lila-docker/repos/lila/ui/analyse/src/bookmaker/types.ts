@@ -7,6 +7,9 @@ export type ProbeRequest = {
   questionId?: string;
   questionKind?: string;
   multiPv?: number;
+  planId?: string;
+  planName?: string;
+  planScore?: number;
   baselineEvalCp?: number;
   baselineMove?: string;
   baselineMate?: number | null;
@@ -89,6 +92,42 @@ export type LatentPlanNarrative = {
   planName: string;
   viabilityScore: number;
   whyAbsentFromTopMultiPv: string;
+};
+
+export type AuthorQuestionSummary = {
+  id: string;
+  kind: string;
+  priority: number;
+  question: string;
+  why?: string | null;
+  anchors?: string[];
+  confidence: string;
+  latentPlanName?: string | null;
+  latentSeedId?: string | null;
+};
+
+export type EvidenceBranchSummary = {
+  keyMove: string;
+  line: string;
+  evalCp?: number | null;
+  mate?: number | null;
+  depth?: number | null;
+  sourceId?: string | null;
+};
+
+export type AuthorEvidenceSummary = {
+  questionId: string;
+  questionKind: string;
+  question: string;
+  why?: string | null;
+  status: string;
+  purposes?: string[];
+  branchCount: number;
+  branches?: EvidenceBranchSummary[];
+  pendingProbeIds?: string[];
+  pendingProbeCount: number;
+  probeObjectives?: string[];
+  linkedPlans?: string[];
 };
 
 export type EvalVariation = {

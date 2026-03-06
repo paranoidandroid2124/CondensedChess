@@ -37,6 +37,8 @@ enum OutlineBeatKind:
  * @param evidenceSourceIds ProbeResult IDs that back this beat
  * @param requiresEvidence If true, Validator enforces proof exists
  * @param confidenceLevel 0.0-1.0, used for downgrade decisions
+ * @param focusPriority Full-game focus-preservation score (higher survives clipping)
+ * @param fullGameEssential Preserve this beat when building full-game moment bodies
  * @param mustMention Legacy field, use anchors instead
  */
 case class OutlineBeat(
@@ -52,6 +54,8 @@ case class OutlineBeat(
   // Quality control
   requiresEvidence: Boolean = false,
   confidenceLevel: Double = 1.0,
+  focusPriority: Int = 0,
+  fullGameEssential: Boolean = false,
   // Legacy compatibility
   mustMention: List[String] = Nil
 ):

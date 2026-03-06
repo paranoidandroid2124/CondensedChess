@@ -28,6 +28,44 @@ export type ActivePlanRef = {
     commitmentScore?: number;
 };
 
+export type StrategicPlanSummary = {
+    planId: string;
+    planName: string;
+    rank: number;
+    score: number;
+};
+
+export type LatentPlanSummary = {
+    seedId: string;
+    planName: string;
+    viabilityScore: number;
+    whyAbsentFromTopMultiPv: string;
+};
+
+export type NarrativeSignalDigest = {
+    opening?: string;
+    strategicStack?: string[];
+    latentPlan?: string;
+    latentReason?: string;
+    practicalVerdict?: string;
+    practicalFactors?: string[];
+    compensation?: string;
+    compensationVectors?: string[];
+    investedMaterial?: number;
+    structuralCue?: string;
+    structureProfile?: string;
+    centerState?: string;
+    alignmentBand?: string;
+    alignmentReasons?: string[];
+    prophylaxisPlan?: string;
+    prophylaxisThreat?: string;
+    counterplayScoreDrop?: number;
+    decision?: string;
+    strategicFlow?: string;
+    opponentPlan?: string;
+    preservedSignals?: string[];
+};
+
 export type EngineAlternative = {
     uci: string;
     san?: string;
@@ -74,6 +112,10 @@ type GameNarrativeMoment = {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    signalDigest?: NarrativeSignalDigest;
+    mainStrategicPlans?: StrategicPlanSummary[];
+    latentPlans?: LatentPlanSummary[];
+    whyAbsentFromTopMultiPV?: string[];
     strategicBranch?: boolean;
     activeStrategicNote?: string;
     activeStrategicSourceMode?: string;
@@ -446,6 +488,7 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
         narrativeProseView(ctrl, moment, moment.narrative, 'moment'),
+        narrativeSignalSummaryView(moment),
         hasStrategicBlock ? narrativeStrategicNoteView(ctrl, moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
         moment.collapse ? narrativeCollapseCardView(ctrl, moment) : null,
@@ -456,6 +499,129 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
                 hl('div.narrative-variation-list', variations.map((v, i) => narrativeVariationView(ctrl, moment.fen, v, i))),
             ])
             : null,
+    ]);
+}
+
+function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
+    const digest = moment.signalDigest;
+    const mainPlans = (moment.mainStrategicPlans || []).slice(0, 2);
+    const latentPlans = (moment.latentPlans || []).slice(0, 1);
+    const holdReasons = (moment.whyAbsentFromTopMultiPV || []).filter(Boolean).slice(0, 2);
+    const preserved = (digest?.preservedSignals || []).filter(Boolean).slice(0, 6);
+    const alignmentReasons = (digest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
+    const practicalFactors = (digest?.practicalFactors || []).filter(Boolean).slice(0, 2);
+    const compensationVectors = (digest?.compensationVectors || []).filter(Boolean).slice(0, 3);
+
+    const structureProfileBits = [
+        digest?.structureProfile,
+        digest?.centerState ? `${digest.centerState.toLowerCase()} center` : null,
+        digest?.alignmentBand ? `plan fit ${digest.alignmentBand.toLowerCase()}` : null,
+    ].filter(Boolean) as string[];
+
+    const signalRows = [
+        digest?.opening ? ['Opening', digest.opening] : null,
+        digest?.decision ? ['Decision', digest.decision] : null,
+        digest?.strategicFlow ? ['Flow', digest.strategicFlow] : null,
+        digest?.opponentPlan ? ['Opponent', digest.opponentPlan] : null,
+        digest?.latentReason ? ['Latent gate', digest.latentReason] : null,
+    ].filter(Boolean) as [string, string][];
+    const structureRows = [
+        digest?.structuralCue ? ['Summary', digest.structuralCue] : null,
+        structureProfileBits.length ? ['Profile', structureProfileBits.join(' · ')] : null,
+        alignmentReasons.length ? ['Fit reasons', alignmentReasons.join('; ')] : null,
+    ].filter(Boolean) as [string, string][];
+    const prophylaxisRows = [
+        digest?.prophylaxisPlan ? ['Denied plan', digest.prophylaxisPlan] : null,
+        digest?.prophylaxisThreat ? ['Counterplay cut', digest.prophylaxisThreat] : null,
+        typeof digest?.counterplayScoreDrop === 'number'
+            ? ['Impact', `${digest.counterplayScoreDrop}cp of counterplay removed`]
+            : null,
+    ].filter(Boolean) as [string, string][];
+    const practicalRows = [
+        digest?.practicalVerdict ? ['Verdict', digest.practicalVerdict] : null,
+        practicalFactors.length ? ['Drivers', practicalFactors.join('; ')] : null,
+    ].filter(Boolean) as [string, string][];
+    const compensationRows = [
+        digest?.compensation ? ['Plan', digest.compensation] : null,
+        typeof digest?.investedMaterial === 'number' ? ['Investment', `${digest.investedMaterial}cp`] : null,
+        compensationVectors.length ? ['Return', compensationVectors.join('; ')] : null,
+    ].filter(Boolean) as [string, string][];
+
+    if (
+        !mainPlans.length &&
+        !latentPlans.length &&
+        !holdReasons.length &&
+        !signalRows.length &&
+        !structureRows.length &&
+        !prophylaxisRows.length &&
+        !practicalRows.length &&
+        !compensationRows.length &&
+        !preserved.length
+    ) return null;
+
+    return hl('div.narrative-signal-box', [
+        hl('h3.narrative-signal-title', 'Strategic Signals'),
+        mainPlans.length
+            ? hl('div.narrative-signal-group', [
+                hl('span.narrative-signal-label', 'Main plans'),
+                hl('div.narrative-signal-chip-list', mainPlans.map(plan =>
+                    hl('span.narrative-signal-chip', {
+                        key: `${plan.planId}:${plan.rank}`,
+                    }, `${plan.rank}. ${plan.planName} (${plan.score.toFixed(2)})`),
+                )),
+            ])
+            : null,
+        latentPlans.length
+            ? hl('div.narrative-signal-group', [
+                hl('span.narrative-signal-label', 'Latent plan'),
+                hl('div.narrative-signal-chip-list', latentPlans.map(plan =>
+                    hl('span.narrative-signal-chip.latent', {
+                        key: `${plan.seedId}:${plan.planName}`,
+                    }, `${plan.planName} (${Math.round(plan.viabilityScore * 100)}%)`),
+                )),
+            ])
+            : null,
+        holdReasons.length
+            ? hl('div.narrative-signal-group', [
+                hl('span.narrative-signal-label', 'Why not top line'),
+                hl('div.narrative-signal-list', holdReasons.map((reason, idx) =>
+                    hl('div.narrative-signal-row', { key: `hold-${idx}` }, reason),
+                )),
+            ])
+            : null,
+        signalRows.length
+            ? hl('div.narrative-signal-list', signalRows.map(([label, value], idx) =>
+                hl('div.narrative-signal-row', { key: `${label}-${idx}` }, [
+                    hl('span.narrative-signal-row-label', `${label}:`),
+                    hl('span.narrative-signal-row-value', value),
+                ]),
+            ))
+            : null,
+        structureRows.length ? narrativeSignalGroupView('Structure', structureRows) : null,
+        prophylaxisRows.length ? narrativeSignalGroupView('Prophylaxis', prophylaxisRows) : null,
+        practicalRows.length ? narrativeSignalGroupView('Practical Task', practicalRows) : null,
+        compensationRows.length ? narrativeSignalGroupView('Compensation', compensationRows) : null,
+        preserved.length
+            ? hl('div.narrative-signal-group', [
+                hl('span.narrative-signal-label', 'Preserved beats'),
+                hl('div.narrative-signal-chip-list', preserved.map((signal, idx) =>
+                    hl('span.narrative-signal-chip.preserved', { key: `${signal}-${idx}` }, signal.replace(/_/g, ' ')),
+                )),
+            ])
+            : null,
+    ]);
+}
+
+function narrativeSignalGroupView(title: string, rows: [string, string][]): VNode | null {
+    if (!rows.length) return null;
+    return hl('div.narrative-signal-group', [
+        hl('span.narrative-signal-label', title),
+        hl('div.narrative-signal-list', rows.map(([label, value], idx) =>
+            hl('div.narrative-signal-row', { key: `${title}-${label}-${idx}` }, [
+                hl('span.narrative-signal-row-label', `${label}:`),
+                hl('span.narrative-signal-row-value', value),
+            ]),
+        )),
     ]);
 }
 

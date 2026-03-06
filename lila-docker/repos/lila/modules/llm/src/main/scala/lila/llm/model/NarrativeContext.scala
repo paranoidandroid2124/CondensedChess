@@ -369,7 +369,14 @@ case class EndgameInfo(
 case class PracticalInfo(
   engineScore: Int,
   practicalScore: Double,
-  verdict: String               // "Unpleasant Draw", "White is Fighting"
+  verdict: String,              // "Unpleasant Draw", "White is Fighting"
+  biasFactors: List[PracticalBiasInfo] = Nil
+)
+
+case class PracticalBiasInfo(
+  factor: String,
+  description: String,
+  weight: Double
 )
 
 
@@ -378,6 +385,7 @@ case class PreventedPlanInfo(
   deniedSquares: List[String],
   breakNeutralized: Option[String],
   mobilityDelta: Int,
+  counterplayScoreDrop: Int,
   preventedThreatType: Option[String]
 )
 

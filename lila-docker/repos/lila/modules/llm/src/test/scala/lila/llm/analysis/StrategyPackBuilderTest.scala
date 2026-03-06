@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import chess.{ Color, Square, Knight }
 import lila.llm.model.*
-import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
+import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, EvidenceBranch, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.llm.model.strategic.{ PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag }
 import munit.FunSuite
 
@@ -28,7 +28,11 @@ class StrategyPackBuilderTest extends FunSuite:
       opponent: Option[PlanRow] = None,
       continuity: Option[PlanContinuity] = None,
       conceptSummary: List[String] = Nil,
-      whyAbsent: List[String] = Nil
+      whyAbsent: List[String] = Nil,
+      semantic: Option[SemanticSection] = None,
+      probeRequests: List[ProbeRequest] = Nil,
+      authorQuestions: List[AuthorQuestion] = Nil,
+      authorEvidence: List[QuestionEvidence] = Nil
   ): NarrativeContext =
     NarrativeContext(
       fen = testFen,
@@ -44,19 +48,24 @@ class StrategyPackBuilderTest extends FunSuite:
       candidates = Nil,
       mainStrategicPlans = mainPlans,
       whyAbsentFromTopMultiPV = whyAbsent,
-      semantic = Option.when(conceptSummary.nonEmpty)(
-        SemanticSection(
-          structuralWeaknesses = Nil,
-          pieceActivity = Nil,
-          positionalFeatures = Nil,
-          compensation = None,
-          endgameFeatures = None,
-          practicalAssessment = None,
-          preventedPlans = Nil,
-          conceptSummary = conceptSummary
+      probeRequests = probeRequests,
+      semantic = semantic.orElse(
+        Option.when(conceptSummary.nonEmpty)(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = conceptSummary
+          )
         )
       ),
-      opponentPlan = opponent
+      opponentPlan = opponent,
+      authorQuestions = authorQuestions,
+      authorEvidence = authorEvidence
     )
 
   def data(
@@ -200,4 +209,149 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.contains("route")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("route:")), clue(pack.evidence))
     assert(pack.evidence.exists(_.contains("line rejected")), clue(pack.evidence))
+  }
+
+  test("build emits rich structure practical and prophylaxis digest details") {
+    val semantic = SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = Nil,
+      positionalFeatures = Nil,
+      compensation = Some(
+        CompensationInfo(
+          investedMaterial = 100,
+          returnVector = Map("Attack on King" -> 1.1, "Space Advantage" -> 0.7),
+          expiryPly = None,
+          conversionPlan = "Mating Attack"
+        )
+      ),
+      endgameFeatures = None,
+      practicalAssessment = Some(
+        PracticalInfo(
+          engineScore = 45,
+          practicalScore = 88.0,
+          verdict = "Comfortable",
+          biasFactors = List(
+            PracticalBiasInfo("Mobility", "Diff: 1.8", 36.0),
+            PracticalBiasInfo("Forgiveness", "2 safe moves", -18.0)
+          )
+        )
+      ),
+      preventedPlans = List(
+        PreventedPlanInfo(
+          planId = "Queenside Counterplay",
+          deniedSquares = Nil,
+          breakNeutralized = Some("c5"),
+          mobilityDelta = 0,
+          counterplayScoreDrop = 140,
+          preventedThreatType = Some("counterplay")
+        )
+      ),
+      conceptSummary = Nil,
+      structureProfile = Some(
+        StructureProfileInfo(
+          primary = "Carlsbad",
+          confidence = 0.84,
+          alternatives = Nil,
+          centerState = "Locked",
+          evidenceCodes = List("MAJORITY")
+        )
+      ),
+      planAlignment = Some(
+        PlanAlignmentInfo(
+          score = 61,
+          band = "Playable",
+          matchedPlanIds = List("minority_attack"),
+          missingPlanIds = List("central_break"),
+          reasonCodes = List("PRECOND_MISS"),
+          narrativeIntent = Some("play around queenside pressure"),
+          narrativeRisk = Some("counterplay if move order slips")
+        )
+      )
+    )
+
+    val pack =
+      StrategyPackBuilder
+        .build(
+          data(),
+          ctx(
+            mainPlans = List(hypothesis("Minority Attack", 0.81, 1)),
+            semantic = Some(semantic)
+          )
+        )
+        .getOrElse(fail("pack missing"))
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    assertEquals(digest.structureProfile, Some("Carlsbad"))
+    assertEquals(digest.centerState, Some("Locked"))
+    assertEquals(digest.alignmentBand, Some("Playable"))
+    assert(digest.alignmentReasons.exists(_.contains("preconditions")), clue(digest.alignmentReasons))
+    assertEquals(digest.prophylaxisPlan, Some("Queenside Counterplay"))
+    assertEquals(digest.prophylaxisThreat, Some("counterplay"))
+    assertEquals(digest.counterplayScoreDrop, Some(140))
+    assertEquals(digest.practicalVerdict, Some("Comfortable"))
+    assert(digest.practicalFactors.exists(_.contains("Mobility")), clue(digest.practicalFactors))
+    assertEquals(digest.compensation, Some("Mating Attack"))
+    assertEquals(digest.investedMaterial, Some(100))
+    assert(digest.compensationVectors.exists(_.contains("Attack on King")), clue(digest.compensationVectors))
+  }
+
+  test("build carries authoring evidence into digest prompt hints and pack evidence") {
+    val question = AuthorQuestion(
+      id = "latent_1",
+      kind = AuthorQuestionKind.LatentPlan,
+      priority = 1,
+      question = "Can the kingside expansion survive ...c5?",
+      why = Some("Need a concrete refutation line."),
+      confidence = ConfidenceLevel.Probe
+    )
+    val request = ProbeRequest(
+      id = "probe_latent_1",
+      fen = testFen,
+      moves = List("g2g4"),
+      depth = 18,
+      purpose = Some("latent_plan_refutation"),
+      questionId = Some("latent_1"),
+      questionKind = Some("LatentPlan"),
+      objective = Some("validate_latent_plan"),
+      planName = Some("Kingside Expansion"),
+      seedId = Some("kingside_expansion")
+    )
+    val evidence = QuestionEvidence(
+      questionId = "latent_1",
+      purpose = "latent_plan_refutation",
+      branches = List(
+        EvidenceBranch(
+          keyMove = "...c5",
+          line = "...c5 dxc5",
+          evalCp = Some(64),
+          depth = Some(20),
+          sourceId = Some("probe_latent_1")
+        )
+      )
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(),
+        ctx(
+          mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)),
+          probeRequests = List(request),
+          authorQuestions = List(question),
+          authorEvidence = List(evidence)
+        )
+      )
+      .getOrElse(fail("pack missing"))
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    assertEquals(
+      digest.authoringEvidence,
+      Some("latent plan evidence is resolved via 1 branch"),
+      clue(digest)
+    )
+    assert(
+      pack.evidence.exists(_.startsWith("authoring:LatentPlan:resolved:Can the kingside expansion survive ...c5?")),
+      clue(pack.evidence)
+    )
+    val hints = StrategyPackBuilder.promptHints(pack)
+    assert(hints.exists(_.contains("authoring evidence: latent plan evidence is resolved")), clue(hints))
   }

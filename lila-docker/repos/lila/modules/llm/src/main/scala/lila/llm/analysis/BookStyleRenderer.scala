@@ -14,24 +14,6 @@ import lila.llm.analysis.ThemeTaxonomy.ThemeResolver
 object BookStyleRenderer:
 
   private val structureLeakTokens = List(
-    "Carlsbad",
-    "IQPWhite",
-    "IQPBlack",
-    "HangingPawnsWhite",
-    "HangingPawnsBlack",
-    "FrenchAdvanceChain",
-    "NajdorfScheveningenCenter",
-    "BenoniCenter",
-    "KIDLockedCenter",
-    "SlavCaroTriangle",
-    "MaroczyBind",
-    "Hedgehog",
-    "FianchettoShell",
-    "Stonewall",
-    "OpenCenter",
-    "LockedCenter",
-    "FluidCenter",
-    "SymmetricCenter",
     "PA_MATCH",
     "PRECOND_MISS",
     "ANTI_PLAN",
@@ -46,13 +28,18 @@ object BookStyleRenderer:
    * Render NarrativeContext into book-style prose.
    */
   def render(ctx: NarrativeContext): String =
+    renderValidatedOutline(validatedOutline(ctx), ctx)
+
+  def validatedOutline(ctx: NarrativeContext): NarrativeOutline =
     val rec = new TraceRecorder()
     val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)
-    val validated = NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
-    val prose = renderOutline(validated, ctx)
+    NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
+
+  def renderValidatedOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
+    val prose = renderOutlineRaw(outline, ctx)
     PostCritic.revise(ctx, redactStructureTokens(prose))
 
-  private def renderOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
+  private def renderOutlineRaw(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
     val sb = new StringBuilder()
     var lastKind: Option[OutlineBeatKind] = None

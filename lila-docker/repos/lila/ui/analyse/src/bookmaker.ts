@@ -11,7 +11,10 @@ import { blockedHtmlFromErrorResponse } from './bookmaker/blockingState';
 import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
 import {
     type BookmakerRefsV1,
+    type NarrativeSignalDigest,
     type PolishMetaV1,
+    authorEvidenceFromResponse,
+    authorQuestionsFromResponse,
     cacheHitFromResponse,
     commentaryFromResponse,
     endgameStateTokenFromResponse,
@@ -23,11 +26,18 @@ import {
     polishMetaFromResponse,
     probeRequestsFromResponse,
     refsFromResponse,
+    signalDigestFromResponse,
     sourceModeFromResponse,
     variationLinesFromResponse,
     whyAbsentFromTopMultiPVFromResponse,
 } from './bookmaker/responsePayload';
-import type { EndgameStateToken, PlanStateToken } from './bookmaker/types';
+import type {
+    AuthorEvidenceSummary,
+    AuthorQuestionSummary,
+    EndgameStateToken,
+    PlanStateToken,
+    ProbeRequest,
+} from './bookmaker/types';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -125,6 +135,247 @@ function splitWords(text: string): string[] {
         .filter(Boolean);
 }
 
+function humanizeToken(raw: string): string {
+    return splitWords(raw.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
+        .map(word => (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+        .join(' ');
+}
+
+function formatEvidenceStatus(status: string): string {
+    switch (status.trim().toLowerCase()) {
+        case 'resolved':
+            return 'Resolved';
+        case 'pending':
+            return 'Pending';
+        case 'question_only':
+            return 'Heuristic';
+        default:
+            return humanizeToken(status);
+    }
+}
+
+function formatEvidenceScore(evalCp?: number | null, mate?: number | null): string {
+    if (typeof mate === 'number') return `mate ${mate}`;
+    if (typeof evalCp === 'number') return `${evalCp >= 0 ? '+' : ''}${evalCp}cp`;
+    return '';
+}
+
+function decorateBookmakerHtml(
+    html: string,
+    signalDigest: NarrativeSignalDigest | null,
+    mainPlans: Array<{ planName?: string; score?: number }>,
+    latentPlans: Array<{ planName?: string; viabilityScore?: number }>,
+    holdReasons: string[],
+    probeRequests: ProbeRequest[],
+    authorQuestions: AuthorQuestionSummary[],
+    authorEvidence: AuthorEvidenceSummary[],
+): string {
+    const rows: string[] = [];
+    const probeRows: string[] = [];
+    const authorRows: string[] = [];
+    const alignmentReasons = (signalDigest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
+    const practicalFactors = (signalDigest?.practicalFactors || []).filter(Boolean).slice(0, 2);
+    const compensationVectors = (signalDigest?.compensationVectors || []).filter(Boolean).slice(0, 3);
+    const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
+    const planText = mainPlans
+        .slice(0, 2)
+        .map(plan => {
+            const name = typeof plan.planName === 'string' ? plan.planName.trim() : '';
+            if (!name) return '';
+            const score = typeof plan.score === 'number' ? ` (${plan.score.toFixed(2)})` : '';
+            return `${escapeHtml(name)}${score}`;
+        })
+        .filter(Boolean)
+        .join(' · ');
+    const latentText = latentPlans
+        .slice(0, 1)
+        .map(plan => {
+            const name = typeof plan.planName === 'string' ? plan.planName.trim() : '';
+            if (!name) return '';
+            const score = typeof plan.viabilityScore === 'number' ? ` (${Math.round(plan.viabilityScore * 100)}%)` : '';
+            return `${escapeHtml(name)}${score}`;
+        })
+        .filter(Boolean)
+        .join(' · ');
+
+    if (planText) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Main plans:</strong> ${planText}</div>`);
+    if (latentText) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Latent:</strong> ${latentText}</div>`);
+    if (signalDigest?.opening) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Opening:</strong> ${escapeHtml(signalDigest.opening)}</div>`);
+    if (signalDigest?.decision) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Decision:</strong> ${escapeHtml(signalDigest.decision)}</div>`);
+    if (signalDigest?.strategicFlow)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Flow:</strong> ${escapeHtml(signalDigest.strategicFlow)}</div>`);
+    if (signalDigest?.opponentPlan)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Opponent:</strong> ${escapeHtml(signalDigest.opponentPlan)}</div>`);
+    const structureBits = [
+        signalDigest?.structureProfile || '',
+        signalDigest?.centerState ? `${signalDigest.centerState.toLowerCase()} center` : '',
+        signalDigest?.alignmentBand ? `plan fit ${signalDigest.alignmentBand.toLowerCase()}` : '',
+    ].filter(Boolean);
+    if (signalDigest?.structuralCue)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Structure:</strong> ${escapeHtml(signalDigest.structuralCue)}</div>`);
+    if (structureBits.length)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Structure profile:</strong> ${escapeHtml(structureBits.join(' · '))}</div>`);
+    if (alignmentReasons.length)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Plan fit:</strong> ${escapeHtml(alignmentReasons.join('; '))}</div>`);
+    if (signalDigest?.prophylaxisPlan || signalDigest?.prophylaxisThreat || typeof signalDigest?.counterplayScoreDrop === 'number') {
+        const prophylaxisDetails = [
+            signalDigest?.prophylaxisPlan ? `plan ${signalDigest.prophylaxisPlan}` : '',
+            signalDigest?.prophylaxisThreat ? `cuts out ${signalDigest.prophylaxisThreat}` : '',
+            typeof signalDigest?.counterplayScoreDrop === 'number'
+                ? `${signalDigest.counterplayScoreDrop}cp of counterplay removed`
+                : '',
+        ].filter(Boolean);
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Prophylaxis:</strong> ${escapeHtml(prophylaxisDetails.join(' · '))}</div>`);
+    }
+    if (signalDigest?.practicalVerdict)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Practical:</strong> ${escapeHtml(signalDigest.practicalVerdict)}${practicalFactors.length ? ` · ${escapeHtml(practicalFactors.join('; '))}` : ''}</div>`);
+    if (signalDigest?.compensation || compensationVectors.length || typeof signalDigest?.investedMaterial === 'number') {
+        const compensationDetails = [
+            signalDigest?.compensation || '',
+            typeof signalDigest?.investedMaterial === 'number' ? `${signalDigest.investedMaterial}cp invested` : '',
+            compensationVectors.join('; '),
+        ].filter(Boolean);
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Compensation:</strong> ${escapeHtml(compensationDetails.join(' · '))}</div>`);
+    }
+    if (holdReasons.length)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Why not top line:</strong> ${escapeHtml(holdReasons.slice(0, 2).join('; '))}</div>`);
+
+    probeRequests
+        .slice(0, 2)
+        .forEach((probe, idx) => {
+            const planName = typeof probe.planName === 'string' ? probe.planName.trim() : '';
+            const questionKind = typeof probe.questionKind === 'string' ? probe.questionKind.trim() : '';
+            const purpose = typeof probe.purpose === 'string' ? probe.purpose.trim() : '';
+            const objective = typeof probe.objective === 'string' ? probe.objective.trim() : '';
+            const primary =
+                planName ||
+                questionKind ||
+                objective ||
+                purpose ||
+                `probe ${idx + 1}`;
+            const details = [
+                purpose && purpose !== primary ? purpose : '',
+                objective && objective !== primary ? objective : '',
+                typeof probe.depth === 'number' ? `depth ${probe.depth}` : '',
+                typeof probe.multiPv === 'number' ? `MultiPV ${probe.multiPv}` : '',
+                Array.isArray(probe.requiredSignals) && probe.requiredSignals.length
+                    ? `signals ${probe.requiredSignals.slice(0, 3).join(', ')}`
+                    : '',
+            ].filter(Boolean);
+            const movePreview =
+                Array.isArray(probe.moves) && probe.moves.length
+                    ? probe.moves.slice(0, 2).map((move: string) => escapeHtml(move)).join(' / ')
+                    : '';
+            probeRows.push(`
+              <div class="bookmaker-probe-summary__row">
+                <strong>${escapeHtml(primary)}:</strong>
+                <span>${escapeHtml(details.join(' | '))}</span>
+                ${movePreview ? `<code>${movePreview}</code>` : ''}
+              </div>
+            `);
+        });
+
+    authorEvidence.slice(0, 2).forEach(summary => {
+        const question = authorQuestionById.get(summary.questionId);
+        const statusKey = (summary.status || 'question_only').trim().toLowerCase();
+        const why = (summary.why || question?.why || '').trim();
+        const confidence = question?.confidence ? humanizeToken(question.confidence) : '';
+        const anchors = (question?.anchors || []).filter(Boolean).slice(0, 2);
+        const purposes = (summary.purposes || []).filter(Boolean).slice(0, 2);
+        const objectives = (summary.probeObjectives || []).filter(Boolean).slice(0, 2);
+        const linkedPlans = (summary.linkedPlans || []).filter(Boolean).slice(0, 2);
+        const branches = (summary.branches || []).slice(0, 2);
+        const meta = [
+            confidence ? `confidence ${confidence}` : '',
+            linkedPlans.length ? `plans ${linkedPlans.join(', ')}` : '',
+            purposes.length ? `focus ${purposes.join('; ')}` : '',
+            objectives.length ? `objective ${objectives.join('; ')}` : '',
+            anchors.length ? `anchors ${anchors.join(', ')}` : '',
+            summary.pendingProbeCount > 0 ? `${summary.pendingProbeCount} pending probe${summary.pendingProbeCount === 1 ? '' : 's'}` : '',
+        ].filter(Boolean);
+        const branchMarkup = branches
+            .map(branch => {
+                const details = [
+                    branch.line,
+                    formatEvidenceScore(branch.evalCp, branch.mate),
+                    typeof branch.depth === 'number' ? `d${branch.depth}` : '',
+                ].filter(Boolean);
+                return `
+                  <div class="bookmaker-authoring-summary__branch">
+                    <code>${escapeHtml(branch.keyMove)}</code>
+                    <span>${escapeHtml(details.join(' · '))}</span>
+                  </div>
+                `;
+            })
+            .join('');
+        authorRows.push(`
+          <div class="bookmaker-authoring-summary__card">
+            <div class="bookmaker-authoring-summary__head">
+              <strong>${escapeHtml(humanizeToken(summary.questionKind || question?.kind || 'Authoring'))}</strong>
+              <span class="bookmaker-authoring-summary__status bookmaker-authoring-summary__status--${escapeHtml(statusKey)}">${escapeHtml(formatEvidenceStatus(statusKey))}</span>
+            </div>
+            <div class="bookmaker-authoring-summary__question">${escapeHtml(summary.question)}</div>
+            ${why ? `<div class="bookmaker-authoring-summary__why">${escapeHtml(why)}</div>` : ''}
+            ${meta.length ? `<div class="bookmaker-authoring-summary__meta">${escapeHtml(meta.join(' · '))}</div>` : ''}
+            ${branchMarkup ? `<div class="bookmaker-authoring-summary__branches">${branchMarkup}</div>` : ''}
+          </div>
+        `);
+    });
+
+    if (!authorRows.length) {
+        authorQuestions.slice(0, 2).forEach(question => {
+            const why = (question.why || '').trim();
+            const anchors = (question.anchors || []).filter(Boolean).slice(0, 2);
+            const meta = [
+                question.confidence ? `confidence ${humanizeToken(question.confidence)}` : '',
+                question.latentPlanName ? `latent ${question.latentPlanName}` : '',
+                anchors.length ? `anchors ${anchors.join(', ')}` : '',
+            ].filter(Boolean);
+            authorRows.push(`
+              <div class="bookmaker-authoring-summary__card">
+                <div class="bookmaker-authoring-summary__head">
+                  <strong>${escapeHtml(humanizeToken(question.kind || 'Authoring'))}</strong>
+                  <span class="bookmaker-authoring-summary__status bookmaker-authoring-summary__status--question_only">Heuristic</span>
+                </div>
+                <div class="bookmaker-authoring-summary__question">${escapeHtml(question.question)}</div>
+                ${why ? `<div class="bookmaker-authoring-summary__why">${escapeHtml(why)}</div>` : ''}
+                ${meta.length ? `<div class="bookmaker-authoring-summary__meta">${escapeHtml(meta.join(' · '))}</div>` : ''}
+              </div>
+            `);
+        });
+    }
+
+    if (!rows.length && !probeRows.length && !authorRows.length) return html;
+
+    return `
+      <div class="bookmaker-strategic-summary">
+        <div class="bookmaker-strategic-summary__title">Strategic Signals</div>
+        ${rows.join('')}
+        ${
+            probeRows.length
+                ? `
+          <div class="bookmaker-probe-summary">
+            <div class="bookmaker-probe-summary__title">Evidence Probes</div>
+            ${probeRows.join('')}
+          </div>
+        `
+                : ''
+        }
+        ${
+            authorRows.length
+                ? `
+          <div class="bookmaker-authoring-summary">
+            <div class="bookmaker-probe-summary__title">Authoring Evidence</div>
+            ${authorRows.join('')}
+          </div>
+        `
+                : ''
+        }
+      </div>
+      ${html}
+    `;
+}
+
 export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
     flushBookmakerStudySyncQueue(ctrl);
 }
@@ -133,7 +384,7 @@ const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.show
     syncBookmakerEvalDisplay(value);
 });
 
-export function bookmakerToggleBox() {
+export function bookmakerToggleBox(ctrl?: AnalyseCtrl) {
     initBookmakerHandlers(() => bookmakerEvalDisplay(!bookmakerEvalDisplay()));
 
     $('#bookmaker-field').each(function (this: HTMLElement) {
@@ -156,7 +407,7 @@ export function bookmakerToggleBox() {
     });
 
     syncBookmakerEvalDisplay(bookmakerEvalDisplay());
-    bookmakerRestore();
+    bookmakerRestore(ctrl);
 }
 
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
@@ -459,9 +710,23 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     const refs = refsFromResponse(data);
                     const polishMeta = polishMetaFromResponse(data);
                     const commentary = commentaryFromResponse(data);
+                    const signalDigest = signalDigestFromResponse(data);
                     const mainStrategicPlans = mainStrategicPlansFromResponse(data);
                     const latentPlans = latentPlansFromResponse(data);
                     const holdReasons = whyAbsentFromTopMultiPVFromResponse(data);
+                    const probeRequests = probeRequestsFromResponse(data);
+                    const authorQuestions = authorQuestionsFromResponse(data);
+                    const authorEvidence = authorEvidenceFromResponse(data);
+                    const decoratedHtml = decorateBookmakerHtml(
+                        html,
+                        signalDigest,
+                        mainStrategicPlans,
+                        latentPlans,
+                        holdReasons,
+                        probeRequests,
+                        authorQuestions,
+                        authorEvidence,
+                    );
                     const shouldStream = sourceMode === 'llm_polished' && commentary.length > 0;
 
                     if (shouldStream) {
@@ -473,7 +738,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     }
 
                     const initialEntry: BookmakerCacheEntry = {
-                        html,
+                        html: decoratedHtml,
                         refs,
                         polishMeta,
                         sourceMode,
@@ -485,14 +750,13 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     };
                     cache.set(cacheKey, initialEntry);
                     setBookmakerRefs(refs);
-                    show(html);
+                    show(decoratedHtml);
                     applyMetaToRoot(sourceMode, model, cacheHit, polishMeta);
                     applyStrategicMetaToRoot(mainStrategicPlans.length, latentPlans.length, holdReasons.length);
 
                     const vLines = variationLinesFromResponse(data, variations);
                     syncStudy(commentary, vLines);
 
-                    const probeRequests = probeRequestsFromResponse(data);
                     const baselineCp = toBaselineCp(variations, evalData);
 
                     if (probeRequests.length && ctrl) {
@@ -545,11 +809,33 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     const refinedCacheHit = cacheHitFromResponse(refined);
                                     const refinedRefs = refsFromResponse(refined);
                                     const refinedPolishMeta = polishMetaFromResponse(refined);
+                                    const refinedSignalDigest = signalDigestFromResponse(refined);
                                     const refinedMainPlans = mainStrategicPlansFromResponse(refined);
                                     const refinedLatentPlans = latentPlansFromResponse(refined);
                                     const refinedHoldReasons = whyAbsentFromTopMultiPVFromResponse(refined);
+                                    const refinedProbeRequests = probeRequests.length
+                                        ? probeRequests
+                                        : probeRequestsFromResponse(refined);
+                                    const refinedAuthorQuestionsRaw = authorQuestionsFromResponse(refined);
+                                    const refinedAuthorEvidenceRaw = authorEvidenceFromResponse(refined);
+                                    const refinedAuthorQuestions = refinedAuthorQuestionsRaw.length
+                                        ? refinedAuthorQuestionsRaw
+                                        : authorQuestions;
+                                    const refinedAuthorEvidence = refinedAuthorEvidenceRaw.length
+                                        ? refinedAuthorEvidenceRaw
+                                        : authorEvidence;
+                                    const decoratedRefinedHtml = decorateBookmakerHtml(
+                                        refinedHtml,
+                                        refinedSignalDigest,
+                                        refinedMainPlans,
+                                        refinedLatentPlans,
+                                        refinedHoldReasons,
+                                        refinedProbeRequests,
+                                        refinedAuthorQuestions,
+                                        refinedAuthorEvidence,
+                                    );
                                     const refinedEntry: BookmakerCacheEntry = {
-                                        html: refinedHtml,
+                                        html: decoratedRefinedHtml,
                                         refs: refinedRefs,
                                         polishMeta: refinedPolishMeta,
                                         sourceMode: refinedSourceMode,
@@ -561,7 +847,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     };
                                     cache.set(refinedCacheKey, refinedEntry);
                                     setBookmakerRefs(refinedRefs);
-                                    show(refinedHtml);
+                                    show(decoratedRefinedHtml);
                                     applyMetaToRoot(refinedSourceMode, refinedModel, refinedCacheHit, refinedPolishMeta);
                                     applyStrategicMetaToRoot(
                                         refinedMainPlans.length,
@@ -604,7 +890,7 @@ export function bookmakerClear() {
     clearBookmakerPanel();
 }
 
-export function bookmakerRestore(): void {
+export function bookmakerRestore(ctrl?: AnalyseCtrl): void {
     setBookmakerRefs(null);
-    restoreBookmakerPanel(lastShownHtml, bookmakerEvalDisplay());
+    restoreBookmakerPanel(lastShownHtml, ctrl?.getOrientation() ?? 'white', bookmakerEvalDisplay());
 }
