@@ -1,4 +1,4 @@
-import type { EvalVariation, OpeningReferencePayload, PlanStateToken, ProbeResult } from './types';
+import type { EndgameStateToken, EvalVariation, OpeningReferencePayload, PlanStateToken, ProbeResult } from './types';
 
 export type EvalData = {
   cp: number;
@@ -17,6 +17,7 @@ type BuildBookmakerRequestInput = {
   phase: string;
   ply: number;
   planStateToken: PlanStateToken | null;
+  endgameStateToken: EndgameStateToken | null;
 };
 
 export function toEvalData(variations: EvalVariation[] | null): EvalData | null {
@@ -57,7 +58,7 @@ export function deriveAfterVariations(
 }
 
 export function buildBookmakerRequest(input: BuildBookmakerRequestInput) {
-  const { fen, lastMove, variations, probeResults, openingData, afterFen, afterVariations, phase, ply, planStateToken } = input;
+  const { fen, lastMove, variations, probeResults, openingData, afterFen, afterVariations, phase, ply, planStateToken, endgameStateToken } = input;
   return {
     fen,
     lastMove: lastMove || null,
@@ -74,5 +75,6 @@ export function buildBookmakerRequest(input: BuildBookmakerRequestInput) {
       ply,
     },
     planStateToken,
+    endgameStateToken,
   };
 }

@@ -975,7 +975,11 @@ class NarrativeContextBuilderTest extends FunSuite {
       confidence = 0.78
     )
     
-    val data = minimalData().copy(endgameFeatures = Some(ef))
+    val data = minimalData().copy(
+      endgameFeatures = Some(ef),
+      endgamePatternAge = 4,
+      endgameTransition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+    )
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
     
@@ -989,6 +993,8 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(e.get.triangulationAvailable, true)
     assertEquals(e.get.rookEndgamePattern, "KingCutOff")
     assertEquals(e.get.theoreticalOutcomeHint, "Draw")
+    assertEquals(e.get.patternAge, 4)
+    assertEquals(e.get.transition, Some("Lucena(Win) → PhilidorDefense(Draw)"))
     assert(
       narrativeCtx.facts.exists {
         case Fact.EndgameOutcome(outcome, conf, _) => outcome == "Draw" && conf == 0.78

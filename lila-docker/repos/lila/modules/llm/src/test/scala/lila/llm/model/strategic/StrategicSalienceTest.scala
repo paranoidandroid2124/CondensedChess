@@ -65,4 +65,44 @@ class StrategicSalienceTest extends FunSuite:
     assertEquals(salience, StrategicSalience.Low)
   }
 
+  test("Opening should yield High salience when theme coherence is strong") {
+    val salience = StrategicSalience.calculate(
+      transitionType = TransitionType.Opening,
+      consecutivePlies = 1,
+      evalDeltaCp = 0,
+      themeMaxShare = 0.8
+    )
+    assertEquals(salience, StrategicSalience.High)
+  }
+
+  test("Opening should remain Low when theme coherence is weak") {
+    val salience = StrategicSalience.calculate(
+      transitionType = TransitionType.Opening,
+      consecutivePlies = 1,
+      evalDeltaCp = 0,
+      themeMaxShare = 0.5
+    )
+    assertEquals(salience, StrategicSalience.Low)
+  }
+
+  test("Opening boundary: consecutivePlies=2 and themeMaxShare=0.55 should yield High") {
+    val salience = StrategicSalience.calculate(
+      transitionType = TransitionType.Opening,
+      consecutivePlies = 2,
+      evalDeltaCp = 0,
+      themeMaxShare = 0.55
+    )
+    assertEquals(salience, StrategicSalience.High)
+  }
+
+  test("Opening boundary: consecutivePlies=1 and themeMaxShare=0.71 should remain Low") {
+    val salience = StrategicSalience.calculate(
+      transitionType = TransitionType.Opening,
+      consecutivePlies = 1,
+      evalDeltaCp = 0,
+      themeMaxShare = 0.71
+    )
+    assertEquals(salience, StrategicSalience.Low)
+  }
+
 

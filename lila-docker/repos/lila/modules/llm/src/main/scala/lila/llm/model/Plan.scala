@@ -40,6 +40,7 @@ case class EvidenceAtom(
  * High-level strategic plan inferred from motif patterns.
  * 
  * Categories:
+ * - Opening Plans: Development, center claim, and theory-tempo discipline
  * - Attack Plans: Direct assault on opponent's king or weaknesses
  * - Positional Plans: Improving piece placement and control
  * - Structural Plans: Exploiting or creating pawn structure advantages
@@ -53,9 +54,14 @@ sealed trait Plan:
   def color: Color
 
 enum PlanCategory:
-  case Attack, Positional, Structural, Endgame, Defensive, Transition
+  case Opening, Attack, Positional, Structural, Endgame, Defensive, Transition
 
 object Plan:
+
+  case class OpeningDevelopment(color: Color) extends Plan:
+    val id = PlanId.OpeningDevelopment
+    val name = "Opening Development and Center Control"
+    val category = PlanCategory.Opening
 
   case class KingsideAttack(color: Color) extends Plan:
     val id = PlanId.KingsideAttack
@@ -218,6 +224,8 @@ object Plan:
     val category = PlanCategory.Attack
 
 enum PlanId:
+  // Opening
+  case OpeningDevelopment
   // Attack
   case KingsideAttack, QueensideAttack, CentralBreakthrough, PawnStorm, PerpetualCheck, DirectMate, Sacrifice
   // Positional

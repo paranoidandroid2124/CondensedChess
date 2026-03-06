@@ -5,6 +5,7 @@ import lila.llm.model.authoring.{ LatentSeed, PlanHypothesis, SeedFamily }
 object ThemeTaxonomy:
 
   enum ThemeL1(val id: String):
+    case OpeningPrinciples extends ThemeL1("opening_principles")
     case RestrictionProphylaxis extends ThemeL1("restriction_prophylaxis")
     case PieceRedeployment extends ThemeL1("piece_redeployment")
     case SpaceClamp extends ThemeL1("space_clamp")
@@ -18,6 +19,7 @@ object ThemeTaxonomy:
 
   object ThemeL1:
     val ranked: List[ThemeL1] = List(
+      OpeningPrinciples,
       RestrictionProphylaxis,
       PieceRedeployment,
       SpaceClamp,
@@ -34,6 +36,7 @@ object ThemeTaxonomy:
       byId.get(normalize(raw))
 
   enum SubplanId(val id: String, val theme: ThemeL1):
+    case OpeningDevelopment extends SubplanId("opening_development", ThemeL1.OpeningPrinciples)
     case ProphylaxisRestraint extends SubplanId("prophylaxis_restraint", ThemeL1.RestrictionProphylaxis)
     case BreakPrevention extends SubplanId("break_prevention", ThemeL1.RestrictionProphylaxis)
     case KeySquareDenial extends SubplanId("key_square_denial", ThemeL1.RestrictionProphylaxis)
@@ -86,6 +89,12 @@ object ThemeTaxonomy:
 
   object SubplanCatalog:
     val specs: Map[SubplanId, SubplanSpec] = Map(
+      SubplanId.OpeningDevelopment -> SubplanSpec(
+        requiredSignals = List("keyMotifs", "futureSnapshot"),
+        objective = "complete development while securing king and center",
+        horizon = "short",
+        aliases = List("opening development", "opening principles")
+      ),
       SubplanId.ProphylaxisRestraint -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "restrict opponent counterplay before expansion",
@@ -257,6 +266,9 @@ object ThemeTaxonomy:
     import ThemeL1.*
 
     private val planAliases: List[(String, ThemeL1)] = List(
+      "openingprinciples" -> OpeningPrinciples,
+      "openingdevelopment" -> OpeningPrinciples,
+      "opening development" -> OpeningPrinciples,
       "restriction" -> RestrictionProphylaxis,
       "prophylaxis" -> RestrictionProphylaxis,
       "defensiveconsolidation" -> RestrictionProphylaxis,
@@ -357,6 +369,9 @@ object ThemeTaxonomy:
 
     private val subplanAliases: List[(String, SubplanId)] =
       List(
+        "opening_development" -> SubplanId.OpeningDevelopment,
+        "openingdevelopment" -> SubplanId.OpeningDevelopment,
+        "opening development" -> SubplanId.OpeningDevelopment,
         "prophylaxis_restraint" -> SubplanId.ProphylaxisRestraint,
         "break_prevention" -> SubplanId.BreakPrevention,
         "key_square_denial" -> SubplanId.KeySquareDenial,
@@ -539,6 +554,7 @@ object ThemeTaxonomy:
 
     def defaultSubplanForTheme(theme: ThemeL1): Option[SubplanId] =
       theme match
+        case OpeningPrinciples => Some(SubplanId.OpeningDevelopment)
         case RestrictionProphylaxis => Some(SubplanId.ProphylaxisRestraint)
         case PieceRedeployment => Some(SubplanId.WorstPieceImprovement)
         case SpaceClamp => Some(SubplanId.FlankClamp)

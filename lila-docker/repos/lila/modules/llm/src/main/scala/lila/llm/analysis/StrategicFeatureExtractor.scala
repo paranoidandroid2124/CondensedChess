@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.{ ExtendedAnalysisData, PlanMatch, Motif, PositionNature }
-import lila.llm.model.strategic.PlanContinuity
+import lila.llm.model.strategic.{ PlanContinuity, EndgamePatternState }
 import chess.Color
 
 trait StrategicFeatureExtractor {
@@ -11,7 +11,8 @@ trait StrategicFeatureExtractor {
       baseData: BaseAnalysisData,
       vars: List[lila.llm.model.strategic.VariationLine],
       playedMove: Option[String],
-      probeResults: List[lila.llm.model.ProbeResult] = Nil
+      probeResults: List[lila.llm.model.ProbeResult] = Nil,
+      prevEndgameState: Option[EndgamePatternState] = None
   ): ExtendedAnalysisData
 }
 

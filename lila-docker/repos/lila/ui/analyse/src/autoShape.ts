@@ -97,6 +97,8 @@ export function compute(ctrl: AnalyseCtrl): DrawShape[] {
   }
   if (ctrl.showMoveAnnotationsOnBoard()) shapes = shapes.concat(annotationShapes(ctrl.node));
   if (ctrl.showVariationArrows()) hiliteVariations(ctrl, shapes);
+  const narrativeOverlay = ctrl.narrativeRouteOverlayShapes();
+  if (narrativeOverlay.length) shapes = shapes.concat(narrativeOverlay);
   return shapes;
 }
 

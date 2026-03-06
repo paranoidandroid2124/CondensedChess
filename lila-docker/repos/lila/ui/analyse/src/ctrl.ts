@@ -123,6 +123,7 @@ export default class AnalyseCtrl implements CevalHandler {
   requestInitialPly?: number; // start ply from the URL location hash
   cgConfig: any; // latest chessground config (useful for revert)
   pvUciQueue: Uci[] = [];
+  private narrativeRouteOverlay: { fen: FEN; shapes: DrawShape[] } | null = null;
 
   constructor(
     readonly opts: AnalyseOpts,
@@ -796,6 +797,15 @@ export default class AnalyseCtrl implements CevalHandler {
   setAutoShapes = (): void => {
     if (!site.blindMode) this.chessground?.setAutoShapes(computeAutoShapes(this));
   };
+
+  setNarrativeRouteOverlay = (overlay: { fen: FEN; shapes: DrawShape[] } | null): void => {
+    this.narrativeRouteOverlay = overlay;
+    this.setAutoShapes();
+    this.redraw();
+  };
+
+  narrativeRouteOverlayShapes = (): DrawShape[] =>
+    this.narrativeRouteOverlay?.fen === this.node.fen ? this.narrativeRouteOverlay.shapes : [];
 
   private onNewCeval = (ev: Tree.ClientEval, path: Tree.Path, isThreat?: boolean): void => {
     this.tree.updateAt(path, (node: Tree.Node) => {

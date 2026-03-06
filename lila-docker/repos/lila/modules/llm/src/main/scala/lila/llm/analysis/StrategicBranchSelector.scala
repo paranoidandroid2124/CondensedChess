@@ -11,7 +11,9 @@ object StrategicBranchSelector:
     "OpeningTheoryEnds",
     "TensionPeak",
     "Equalization",
-    "SustainedPressure"
+    "SustainedPressure",
+    "AdvantageSwing",
+    "MatePivot"
   )
 
   private val CandidateTransitionTypes = Set(
@@ -27,7 +29,9 @@ object StrategicBranchSelector:
     "OpeningTheoryEnds" -> 2.9,
     "TensionPeak" -> 2.8,
     "Equalization" -> 2.3,
-    "SustainedPressure" -> 2.5
+    "SustainedPressure" -> 2.5,
+    "AdvantageSwing" -> 3.8,
+    "MatePivot" -> 4.2
   )
 
   private val TransitionWeight = Map(
@@ -71,4 +75,3 @@ object StrategicBranchSelector:
             (pack.pieceRoutes.size.min(2) * 0.3) +
             (pack.longTermFocus.size.min(2) * 0.2)
         planSignal + routeSignal + focusSignal + volume
-

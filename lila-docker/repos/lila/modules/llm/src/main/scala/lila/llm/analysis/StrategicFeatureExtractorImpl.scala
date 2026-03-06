@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.model.{ Motif, ExtendedAnalysisData, FactScope, PositionNature }
-import lila.llm.model.strategic.{ VariationLine, VariationTag, PreventedPlan, PositionalTag, EndgameFeature }
+import lila.llm.model.strategic.{ VariationLine, VariationTag, PreventedPlan, PositionalTag, EndgameFeature, EndgamePatternState }
 import lila.llm.analysis.strategic._
 import chess.format.Fen
 import chess.variant.Standard
@@ -11,9 +11,7 @@ class StrategicFeatureExtractorImpl(
     activityAnalyzer: ActivityAnalyzer,
     structureAnalyzer: StructureAnalyzer,
     endgameAnalyzer: EndgameAnalyzer,
-    practicalityScorer: PracticalityScorer,
-    endgameOracleEnabled: Boolean = false,
-    endgameOracleShadowMode: Boolean = true
+    practicalityScorer: PracticalityScorer
 ) extends StrategicFeatureExtractor {
 
   def extract(
@@ -22,7 +20,8 @@ class StrategicFeatureExtractorImpl(
       baseData: BaseAnalysisData,
     vars: List[lila.llm.model.strategic.VariationLine],
       playedMove: Option[String],
-      probeResults: List[lila.llm.model.ProbeResult] = Nil
+      probeResults: List[lila.llm.model.ProbeResult] = Nil,
+      prevEndgameState: Option[EndgamePatternState] = None
   ): ExtendedAnalysisData = {
 
     val board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
@@ -194,16 +193,12 @@ class StrategicFeatureExtractorImpl(
     val compensation = structureAnalyzer.analyzeCompensation(board, color)
     val coreEndgameFeatures = endgameAnalyzer.analyze(board, color)
     val oracleEvaluatedEndgame =
-      if (endgameOracleEnabled || endgameOracleShadowMode)
-        coreEndgameFeatures.flatMap { core =>
-          EndgamePatternOracle
-            .detect(board = board, color = color, coreFeature = core)
-            .map(EndgamePatternOracle.applyPattern(core, _))
-        }
-      else None
-    val endgameFeatures =
-      if (endgameOracleEnabled) oracleEvaluatedEndgame.orElse(coreEndgameFeatures)
-      else coreEndgameFeatures
+      coreEndgameFeatures.flatMap { core =>
+        EndgamePatternOracle
+          .detect(board = board, color = color, coreFeature = core)
+          .map(EndgamePatternOracle.applyPattern(core, _))
+      }
+    val endgameFeatures = oracleEvaluatedEndgame.orElse(coreEndgameFeatures)
 
     // Score Practicality with normalized score
     val practicalAssessment = practicalityScorer.score(
@@ -311,15 +306,20 @@ class StrategicFeatureExtractorImpl(
       alternatives = enrichedAlternatives,
       candidates = candidates,
       counterfactual = counterfactual,
+      
+      // Calculate current endgame logic including ply gap
       // DEBT 4: Populate concept summary from detected features
-      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, endgameFeatures, strategicState),
+
+      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, endgameFeatures, strategicState, prevEndgameState, EndgamePatternState.evolve(prevEndgameState, endgameFeatures, metadata.ply).map(_.patternAge).getOrElse(0)),
       prevMove = metadata.prevMove,
       ply = metadata.ply,
       evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
       isWhiteToMove = color.white,
       phase = baseData.nature.natureType.toString.toLowerCase,
       planContinuity = baseData.planContinuity,
-      planSequence = baseData.planSequence
+      planSequence = baseData.planSequence,
+      endgamePatternAge = EndgamePatternState.evolve(prevEndgameState, endgameFeatures, metadata.ply).map(_.patternAge).getOrElse(0),
+      endgameTransition = deriveTransitionLabel(prevEndgameState, endgameFeatures)
     )
   }
   
@@ -329,7 +329,9 @@ class StrategicFeatureExtractorImpl(
       plans: List[lila.llm.model.PlanMatch],
       positionalFeatures: List[PositionalTag],
       endgameFeatures: Option[EndgameFeature],
-      strategicState: StrategicStateFeatures
+      strategicState: StrategicStateFeatures,
+      prevEndgameState: Option[EndgamePatternState] = None,
+      currentPatternAge: Int = 0
   ): List[String] = {
     val concepts = scala.collection.mutable.ListBuffer[String]()
     
@@ -366,12 +368,35 @@ class StrategicFeatureExtractorImpl(
       case _ => ()
     }
     
-    // From Endgame
+    // From Endgame – pattern-state-aware concept generation
     endgameFeatures.foreach { eg =>
       if (eg.isZugzwang || eg.zugzwangLikelihood >= 0.65) concepts += "Zugzwang pressure"
       if (eg.hasOpposition) concepts += s"${eg.oppositionType.toString} opposition"
       if (eg.keySquaresControlled.nonEmpty) concepts += "Key square control"
-      eg.primaryPattern.foreach(p => concepts += s"Endgame pattern: $p")
+
+      val currentPattern = eg.primaryPattern
+      val prevPattern = prevEndgameState.flatMap(_.activePattern)
+      val samePattern = currentPattern.isDefined && currentPattern == prevPattern
+
+      if samePattern then
+        // Same pattern continuing: vary the concept label by age (measured in plies)
+        val ageLabel = currentPatternAge match
+          case a if a >= 8 => "sustained"
+          case a if a >= 4 => "continuation"
+          case _           => "developing"
+        currentPattern.foreach(p => concepts += s"Endgame $ageLabel: $p")
+        // Progress delta: compare king activity between plies
+        val prevKAD = prevEndgameState.map(_.prevKingActivityDelta).getOrElse(0)
+        val kadDelta = eg.kingActivityDelta - prevKAD
+        if kadDelta > 0 then concepts += "King advancing"
+        else if kadDelta < -1 then concepts += "King retreating"
+      else
+        // New pattern introduction or transition
+        currentPattern.foreach(p => concepts += s"Endgame pattern: $p")
+        if prevPattern.isDefined && currentPattern != prevPattern then
+          val from = prevPattern.getOrElse("unknown")
+          concepts += s"Pattern shift: $from dissolved"
+
       eg.ruleOfSquare match {
         case lila.llm.model.strategic.RuleOfSquareStatus.Holds => concepts += "Rule of the square holds"
         case lila.llm.model.strategic.RuleOfSquareStatus.Fails => concepts += "Rule of the square fails"
@@ -382,6 +407,7 @@ class StrategicFeatureExtractorImpl(
         case lila.llm.model.strategic.RookEndgamePattern.KingCutOff => concepts += "King cut-off"
         case _ => ()
       }
+      // Outcome hint always emitted regardless of age
       eg.theoreticalOutcomeHint match {
         case lila.llm.model.strategic.TheoreticalOutcomeHint.Win => concepts += "Theoretical win"
         case lila.llm.model.strategic.TheoreticalOutcomeHint.Draw => concepts += "Theoretical draw"
@@ -400,6 +426,27 @@ class StrategicFeatureExtractorImpl(
     
     concepts.distinct.toList.take(5)
   }
+
+  /** Build a human-readable label when the endgame pattern changes between plies. */
+  private def deriveTransitionLabel(
+      prev: Option[EndgamePatternState],
+      current: Option[EndgameFeature]
+  ): Option[String] =
+    val prevP = prev.flatMap(_.activePattern)
+    val currP = current.flatMap(_.primaryPattern)
+    val prevHint = prev.map(_.outcomeHint).getOrElse(lila.llm.model.strategic.TheoreticalOutcomeHint.Unclear)
+    val currHint = current.map(_.theoreticalOutcomeHint).getOrElse(lila.llm.model.strategic.TheoreticalOutcomeHint.Unclear)
+    (prevP, currP) match
+      case (Some(from), Some(to)) if from != to =>
+        Some(s"$from($prevHint) → $to($currHint)")
+      case (Some(from), None) =>
+        Some(s"$from($prevHint) → none($currHint)")
+      case (None, Some(to)) if prev.exists(_.patternAge > 0) =>
+        // Only label gain if there was a tracked previous state
+        Some(s"none($prevHint) → $to($currHint)")
+      case _ if prevHint != currHint && prevP.isDefined =>
+        Some(s"${prevP.getOrElse("?")}($prevHint) → ${currP.getOrElse("?")}($currHint)")
+      case _ => None
   private def deriveDualIntent(
     move: String,
     candMotifs: List[Motif],

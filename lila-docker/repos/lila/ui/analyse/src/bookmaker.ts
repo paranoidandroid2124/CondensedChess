@@ -14,6 +14,7 @@ import {
     type PolishMetaV1,
     cacheHitFromResponse,
     commentaryFromResponse,
+    endgameStateTokenFromResponse,
     htmlFromResponse,
     latentPlansFromResponse,
     mainStrategicPlansFromResponse,
@@ -26,7 +27,7 @@ import {
     variationLinesFromResponse,
     whyAbsentFromTopMultiPVFromResponse,
 } from './bookmaker/responsePayload';
-import type { PlanStateToken } from './bookmaker/types';
+import type { EndgameStateToken, PlanStateToken } from './bookmaker/types';
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
@@ -161,6 +162,7 @@ export function bookmakerToggleBox() {
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
     const cache = new Map<string, BookmakerCacheEntry>();
     const planStateByPath = new Map<string, PlanStateToken | null>();
+    const endgameStateByPath = new Map<string, EndgameStateToken | null>();
     const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
     const bookmakerEndpoint = '/api/llm/bookmaker-position';
     let loadingTicker: number | null = null;
@@ -174,7 +176,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         return JSON.stringify(value);
     };
 
-    const tokenHash = (token: PlanStateToken | null): string => {
+    const tokenHash = (token: unknown): string => {
         if (!token) return '-';
         const str = canonicalize(token);
         let h = 2166136261;
@@ -185,8 +187,12 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         return (h >>> 0).toString(16);
     };
 
-    const cacheKeyOf = (fen: string, originPath: string, token: PlanStateToken | null): string =>
-        `${fen}|${originPath}|${tokenHash(token)}`;
+    const cacheKeyOf = (
+        fen: string,
+        originPath: string,
+        planToken: PlanStateToken | null,
+        endgameToken: EndgameStateToken | null,
+    ): string => `${fen}|${originPath}|${tokenHash(planToken)}|${tokenHash(endgameToken)}`;
     const stateKeyOf = (originPath: string, analysisFen: string): string =>
         `${originPath}|${analysisFen}`;
 
@@ -343,7 +349,8 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 return;
             }
             const requestToken = planStateByPath.get(stateKey) ?? null;
-            const cacheKey = cacheKeyOf(fen, originPath, requestToken);
+            const requestEndgameToken = endgameStateByPath.get(stateKey) ?? null;
+            const cacheKey = cacheKeyOf(fen, originPath, requestToken, requestEndgameToken);
             const cached = cache.get(cacheKey);
             if (cached) {
                 setBookmakerRefs(cached.refs);
@@ -421,6 +428,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                     phase: phaseOf(node.ply),
                     ply: node.ply,
                     planStateToken: requestToken,
+                    endgameStateToken: requestEndgameToken,
                 });
 
                 setLoadingStage('polish', isCurrentSession);
@@ -439,8 +447,11 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 if (res.ok) {
                     const data = await res.json();
                     const emittedToken = planStateTokenFromResponse(data);
+                    const emittedEndgameToken = endgameStateTokenFromResponse(data);
                     if (emittedToken) planStateByPath.set(stateKey, emittedToken);
                     else planStateByPath.delete(stateKey);
+                    if (emittedEndgameToken) endgameStateByPath.set(stateKey, emittedEndgameToken);
+                    else endgameStateByPath.delete(stateKey);
                     const html = htmlFromResponse(data);
                     const sourceMode = sourceModeFromResponse(data);
                     const model = modelFromResponse(data);
@@ -492,7 +503,13 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
                             try {
                                 const refinedToken = planStateByPath.get(stateKey) ?? requestToken;
-                                const refinedCacheKey = cacheKeyOf(fen, originPath, refinedToken);
+                                const refinedEndgameToken = endgameStateByPath.get(stateKey) ?? requestEndgameToken;
+                                const refinedCacheKey = cacheKeyOf(
+                                    fen,
+                                    originPath,
+                                    refinedToken,
+                                    refinedEndgameToken,
+                                );
                                 const refinedPayload = buildBookmakerRequest({
                                     fen: analysisFen,
                                     lastMove: playedMove || null,
@@ -504,6 +521,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                     phase: phaseOf(node.ply),
                                     ply: node.ply,
                                     planStateToken: refinedToken,
+                                    endgameStateToken: refinedEndgameToken,
                                 });
                                 const refinedRes = await fetch(bookmakerEndpoint, {
                                     method: 'POST',
@@ -516,8 +534,11 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                                 if (refinedRes.ok) {
                                     const refined = await refinedRes.json();
                                     const emittedRefinedToken = planStateTokenFromResponse(refined);
+                                    const emittedRefinedEndgameToken = endgameStateTokenFromResponse(refined);
                                     if (emittedRefinedToken) planStateByPath.set(stateKey, emittedRefinedToken);
                                     else planStateByPath.delete(stateKey);
+                                    if (emittedRefinedEndgameToken) endgameStateByPath.set(stateKey, emittedRefinedEndgameToken);
+                                    else endgameStateByPath.delete(stateKey);
                                     const refinedHtml = htmlFromResponse(refined, html);
                                     const refinedSourceMode = sourceModeFromResponse(refined);
                                     const refinedModel = modelFromResponse(refined);

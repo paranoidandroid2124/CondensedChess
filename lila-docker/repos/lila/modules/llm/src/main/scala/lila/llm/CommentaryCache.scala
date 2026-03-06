@@ -5,6 +5,7 @@ import java.security.MessageDigest
 
 import lila.llm.analysis.PlanStateTracker
 import lila.llm.model.ProbeResult
+import lila.llm.model.strategic.EndgamePatternState
 import play.api.libs.json.*
 
 import lila.memo.CacheApi.*
@@ -69,24 +70,35 @@ final class CommentaryCache(using Executor):
         values.map(canonicalJson).mkString("[", ",", "]")
       case other => Json.stringify(other)
 
-  private def stateFingerprint(planStateToken: Option[PlanStateTracker]): String =
-    planStateToken match
-      case Some(token) =>
-        sha1Hex(canonicalJson(Json.toJson(token)))
-      case None => "-"
+  private def stateFingerprint(
+      planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState]
+  ): String =
+    (planStateToken, endgameStateToken) match
+      case (None, None) => "-"
+      case _ =>
+        sha1Hex(
+          canonicalJson(
+            Json.obj(
+              "plan" -> planStateToken.map(Json.toJson(_)).getOrElse(JsNull),
+              "endgame" -> endgameStateToken.map(Json.toJson(_)).getOrElse(JsNull)
+            )
+          )
+        )
 
   private def cacheKey(
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): String =
     val probePart = probeFingerprint(probeResults).map(fp => s"probe:$fp").getOrElse("probe:-")
     val llmPart = llmContext
       .map(ctx => s"llm:${ctx.model}:${ctx.promptVersion}:${ctx.lang}:${ctx.planTier}:${ctx.llmLevel}")
       .getOrElse("llm:-")
-    s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken)}|$probePart|$llmPart"
+    s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken, endgameStateToken)}|$probePart|$llmPart"
 
   /** Retrieve cached commentary if available. */
   def get(fen: String, lastMove: Option[String]): Option[CommentResponse] =
@@ -102,16 +114,26 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Option[CommentResponse] =
-    get(fen, lastMove, probeResults, planStateToken, None)
+    get(fen, lastMove, probeResults, planStateToken, None, None)
 
   def get(
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState]
+  ): Option[CommentResponse] =
+    get(fen, lastMove, probeResults, planStateToken, endgameStateToken, None)
+
+  def get(
+      fen: String,
+      lastMove: Option[String],
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Option[CommentResponse] =
-    cache.getIfPresent(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext))
+    cache.getIfPresent(cacheKey(fen, lastMove, probeResults, planStateToken, endgameStateToken, llmContext))
 
   /** Store commentary in cache. */
   def put(fen: String, lastMove: Option[String], response: CommentResponse): Unit =
@@ -128,7 +150,7 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Unit =
-    put(fen, lastMove, response, probeResults, planStateToken, None)
+    put(fen, lastMove, response, probeResults, planStateToken, None, None)
 
   def put(
       fen: String,
@@ -136,9 +158,20 @@ final class CommentaryCache(using Executor):
       response: CommentResponse,
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState]
+  ): Unit =
+    put(fen, lastMove, response, probeResults, planStateToken, endgameStateToken, None)
+
+  def put(
+      fen: String,
+      lastMove: Option[String],
+      response: CommentResponse,
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Unit =
-    cache.put(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext), response)
+    cache.put(cacheKey(fen, lastMove, probeResults, planStateToken, endgameStateToken, llmContext), response)
 
   /** Invalidate a specific entry. */
   def invalidate(fen: String, lastMove: Option[String]): Unit =
@@ -154,16 +187,26 @@ final class CommentaryCache(using Executor):
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker]
   ): Unit =
-    invalidate(fen, lastMove, probeResults, planStateToken, None)
+    invalidate(fen, lastMove, probeResults, planStateToken, None, None)
 
   def invalidate(
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState]
+  ): Unit =
+    invalidate(fen, lastMove, probeResults, planStateToken, endgameStateToken, None)
+
+  def invalidate(
+      fen: String,
+      lastMove: Option[String],
+      probeResults: List[ProbeResult],
+      planStateToken: Option[PlanStateTracker],
+      endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Unit =
-    cache.invalidate(cacheKey(fen, lastMove, probeResults, planStateToken, llmContext))
+    cache.invalidate(cacheKey(fen, lastMove, probeResults, planStateToken, endgameStateToken, llmContext))
 
   /** Current cache statistics for monitoring. */
   def estimatedSize: Long = cache.estimatedSize()
