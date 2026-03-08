@@ -313,6 +313,44 @@ Key references:
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala`
   - `modules/llm/src/test/scala/lila/llm/PolishPromptTest.scala`
 - `2026-03-08` working-tree update:
+  - tactical mistake / blunder criticism now has higher priority on the
+    Bookmaker prose path than a competing strategic thesis.
+  - when `MetaSignals.errorClass` or counterfactual severity marks the move as
+    a tactical mistake / blunder, `BookmakerPolishSlotsBuilder` now promotes
+    the negative `MainMove` annotation sentence into `p1=claim` instead of
+    opening with structure / plan prose and deferring the error to later
+    paragraphs.
+  - `NarrativeOutlineBuilder` also now prioritizes tactical missed-motif and
+    forcing-reply issue text ahead of generic practical framing, and prefers
+    forcing tactical punishment in consequence text before falling back to
+    generic severity summaries.
+  - result: single-position commentary starts with the concrete tactical
+    verdict more reliably when the played move is a tactical error, while the
+    rest of the Bookmaker slot / polish contract remains unchanged.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+- `2026-03-08` working-tree update:
+  - opening precedents are now consumed as `player game -> strategic branch`
+    rather than only as loose historical snippets.
+  - a new shared helper ranks opening sample games by local move overlap,
+    metadata richness, and coarse mechanism/plan compatibility, then derives a
+    representative strategic branch label such as a pressure / simplification /
+    structural-transformation branch.
+  - `StrategicThesisBuilder` now uses that representative line on the opening
+    lens so Bookmaker prose can mention a concrete player game and explain
+    which strategic branch it points toward.
+  - `NarrativeOutlineBuilder` now also injects the same branch summary into the
+    opening-theory beat and prefers the representative branch sentence over a
+    raw precedent block when only a single focused precedent is needed.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/OpeningPrecedentBranching.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/OpeningPrecedentBranchingTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+- `2026-03-08` working-tree update:
   - `mode: userAnalysis` now consumes full-game commentary through a
     narrative-first `Review Shell`, not an optional side tool. The primary
     frontend path is `Overview / Moments / Repair / Patterns`, while

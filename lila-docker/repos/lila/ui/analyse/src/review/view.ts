@@ -4,6 +4,7 @@ import { bind, hl, icon } from 'lib/view';
 import type AnalyseCtrl from '../ctrl';
 import type { NarrativeMomentFilter, ReviewPrimaryTab, ReviewReferenceTab } from './state';
 import type { GameNarrativeMoment } from '../narrative/narrativeCtrl';
+import { isOpening } from '../explorer/interfaces';
 import {
   collapseTimelineView,
   defeatDnaContentView,
@@ -50,7 +51,7 @@ const primaryTabs: ReviewTabMeta[] = [
 
 const referenceTabs: ReferenceTabMeta[] = [
   { tab: 'explorer', label: 'Explorer' },
-  { tab: 'board', label: 'Board' },
+  { tab: 'board', label: 'Board View' },
   { tab: 'import', label: 'Import' },
 ];
 
@@ -380,6 +381,7 @@ function renderReference(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
       hl('h3', 'Reference'),
       hl('p', referenceHint(ctrl.reviewReferenceTab())),
     ]),
+    renderReferenceSummary(ctrl),
     hl(
       'div.analyse-review__subtabs',
       {
@@ -404,6 +406,37 @@ function renderReference(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
       ),
     ),
     hl('div.analyse-review__reference-body', [renderReferenceBody(ctrl, nodes)]),
+  ]);
+}
+
+function renderReferenceSummary(ctrl: AnalyseCtrl): VNode {
+  const explorerAllowed = ctrl.explorer.allowed();
+  const explorerCurrent = typeof ctrl.explorer.current === 'function' ? ctrl.explorer.current() : undefined;
+  const explorerDb = typeof ctrl.explorer.db === 'function' ? ctrl.explorer.db() : 'lichess';
+  const explorerLoading = typeof ctrl.explorer.loading === 'function' ? ctrl.explorer.loading() : false;
+  const explorerOpening = explorerCurrent && isOpening(explorerCurrent) ? explorerCurrent.opening : undefined;
+  const positionFen = ctrl.node?.fen;
+  const sideToMove = positionFen?.split(' ')[1] === 'b' ? 'Black to move' : 'White to move';
+  const openingName = explorerOpening?.name || ctrl.data.game.opening?.name || ctrl.data.game.variant.name;
+  const openingEco = explorerOpening?.eco || ctrl.data.game.opening?.eco;
+  const ply = typeof ctrl.node?.ply === 'number' ? `${ctrl.node.ply} ply` : 'Current node';
+
+  return hl('div.analyse-review__summary-grid', [
+    compactStat(
+      !explorerAllowed
+        ? 'Unavailable'
+        : explorerLoading
+          ? 'Loading'
+          : explorerCurrent?.moves?.length
+            ? `${explorerCurrent.moves.length} moves`
+            : 'Ready',
+      'explorer status',
+    ),
+    compactStat(
+      openingEco ? `${openingEco} ${openingName}` : openingName || 'Custom position',
+      'current position',
+    ),
+    compactStat(`${sideToMove} • ${ply}`, explorerDb === 'masters' ? 'masters db' : 'online db'),
   ]);
 }
 
@@ -484,9 +517,9 @@ function referenceHint(tab: ReviewReferenceTab): string {
     case 'explorer':
       return 'Theory, game database, and tablebase access stay available as a secondary lookup surface.';
     case 'board':
-      return 'Flip the board, change notation mode, and tune board display without leaving the review flow.';
+      return 'Tune board view, guides, and perspective without dropping out of the review flow.';
     case 'import':
-      return 'Paste a FEN or PGN, import it, and relaunch the review from the same shell.';
+      return 'Stage a FEN jump or PGN import, preview the change, and relaunch from the same shell.';
   }
 }
 

@@ -28,7 +28,7 @@ import type { Result } from '@badrap/result';
 import { setupPosition } from 'chessops/variant';
 import { makeSanAndPlay } from 'chessops/san';
 import { makeUci } from 'chessops';
-import { storedBooleanProp, tempStorage } from 'lib/storage';
+import { storedBooleanProp, storedProp, tempStorage } from 'lib/storage';
 import { PromotionCtrl } from 'lib/game/promotion';
 import { valid as crazyValid } from './crazy/crazyCtrl';
 import bookmakerNarrative, { bookmakerClear, type BookmakerNarrative } from './bookmaker';
@@ -45,6 +45,13 @@ import type { PgnError } from 'chessops/pgn';
 import { confirm } from 'lib/view';
 import api from './api';
 import { displayColumns } from 'lib/device';
+import { dispatchChessgroundResize } from 'lib/chessgroundResize';
+import * as Prefs from 'lib/prefs';
+import {
+  boardLabelModeFromCoords,
+  boardLabelModeToCoords,
+  type BoardLabelMode,
+} from './boardWorkspace';
 import { make as makeNarrative, type GameNarrativeMoment, type NarrativeCtrl } from './narrative/narrativeCtrl';
 import {
   initialReviewState,
@@ -58,6 +65,7 @@ import {
 } from './review/state';
 
 const reviewStateStorageKey = 'analyse.review-shell.v1';
+const recentImportStorageKey = 'analyse.import-recents.v1';
 const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
   'overview',
   'moments',
@@ -68,6 +76,7 @@ const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
 ]);
 const reviewReferenceTabs = new Set<ReviewReferenceTab>(['explorer', 'board', 'import']);
 const reviewMomentFilters = new Set<NarrativeMomentFilter>(['all', 'critical', 'collapses']);
+const boardLabelModes = new Set<BoardLabelMode>(['off', 'rim', 'full']);
 
 export default class AnalyseCtrl implements CevalHandler {
   data: AnalyseData;
@@ -111,8 +120,10 @@ export default class AnalyseCtrl implements CevalHandler {
   flipped = false;
   showComments = true; // whether to display comments in the move tree
   variationArrowOpacity: Prop<number | false>;
-  showGauge = () => true;
+  showGauge: Prop<boolean>;
   private showCevalProp: Prop<boolean> = storedBooleanProp('analyse.show-engine', !!this.cevalEnabledProp());
+  private boardLabelModeProp!: Prop<BoardLabelMode>;
+  private showCapturedProp!: Prop<boolean>;
   possiblyShowMoveAnnotationsOnBoard = storedBooleanProp('analyse.show-move-annotation', true);
   keyboardHelp: boolean = location.hash === '#keyboard';
   threatMode: Prop<boolean> = prop(false);
@@ -129,6 +140,7 @@ export default class AnalyseCtrl implements CevalHandler {
   fenInput?: string;
   pgnInput?: string;
   pgnError?: string;
+  private recentImportDraftsCache?: string[];
 
   // study write queue (HTTP only, no sockets)
   private studyWriteQueue: Array<() => Promise<void>> = [];
@@ -172,6 +184,8 @@ export default class AnalyseCtrl implements CevalHandler {
     if (opts.inlinePgn) this.data = this.changePgn(opts.inlinePgn, false) || this.data;
 
     this.initialize(this.data, false);
+    this.initWorkspacePrefs();
+    this.syncWorkspacePrefs();
     this.initCeval();
     this.pendingCopyPath = propWithEffect(null, this.redraw);
     this.pendingDeletionPath = propWithEffect(null, this.redraw);
@@ -561,6 +575,7 @@ export default class AnalyseCtrl implements CevalHandler {
 
   reloadData(data: AnalyseData, merge: boolean): void {
     this.initialize(data, merge);
+    this.syncWorkspacePrefs();
     this.redirecting = false;
     this.setPath(treePath.root);
     this.refreshReviewShellState();
@@ -605,6 +620,7 @@ export default class AnalyseCtrl implements CevalHandler {
       requestAnimationFrame(this.redraw);
       return false;
     }
+    this.rememberRecentImportDraft(rawPgn);
     this.redirecting = true;
     this.redraw();
     return true;
@@ -940,6 +956,48 @@ export default class AnalyseCtrl implements CevalHandler {
     );
   }
 
+  boardLabelMode = (): BoardLabelMode => this.boardLabelModeProp();
+
+  boardCoords = (): Prefs.Coords => boardLabelModeToCoords(this.boardLabelModeProp());
+
+  setBoardLabelMode = (mode: BoardLabelMode): void => {
+    if (!boardLabelModes.has(mode)) return;
+    this.boardLabelModeProp(mode);
+    this.syncWorkspacePrefs();
+    this.chessground?.set({
+      coordinates: this.boardCoords() !== Prefs.Coords.Hidden,
+      coordinatesOnSquares: this.boardCoords() === Prefs.Coords.All,
+    });
+    requestAnimationFrame(dispatchChessgroundResize);
+    this.redraw();
+  };
+
+  showCapturedMaterial = (): boolean => this.showCapturedProp();
+
+  setShowCapturedMaterial = (show: boolean): void => {
+    this.showCapturedProp(show);
+    this.syncWorkspacePrefs();
+    requestAnimationFrame(dispatchChessgroundResize);
+    this.redraw();
+  };
+
+  setShowEvalGauge = (show: boolean): void => {
+    this.showGauge(show);
+    requestAnimationFrame(dispatchChessgroundResize);
+    this.redraw();
+  };
+
+  resetOrientation = (): void => {
+    if (!this.flipped) return;
+    this.flipped = false;
+    this.chessground?.set({
+      orientation: this.bottomColor(),
+    });
+    this.explorer.onFlip();
+    this.onChange();
+    this.redraw();
+  };
+
   showCeval = (show?: boolean) => {
     const barMode = this.activeControlMode();
     if (show === undefined) return displayColumns() > 1 || barMode === 'ceval';
@@ -963,6 +1021,31 @@ export default class AnalyseCtrl implements CevalHandler {
   selectedReviewMomentPly = (): Ply | null => this.reviewState().selectedMomentPly;
 
   selectedReviewCollapseId = (): string | null => this.reviewState().selectedCollapseId;
+
+  private initWorkspacePrefs() {
+    const defaultBoardLabelMode = boardLabelModeFromCoords(this.data.pref.coords);
+    this.boardLabelModeProp = storedProp<BoardLabelMode>(
+      'analyse.board-view.labels',
+      defaultBoardLabelMode,
+      str => (boardLabelModes.has(str as BoardLabelMode) ? (str as BoardLabelMode) : defaultBoardLabelMode),
+      v => v,
+    );
+    this.showCapturedProp = storedBooleanProp('analyse.board-view.material', !!this.data.pref.showCaptured);
+    this.showGauge = storedBooleanProp('analyse.board-view.gauge', true);
+  }
+
+  private syncWorkspacePrefs() {
+    this.data.pref.coords = this.boardCoords();
+    this.data.pref.showCaptured = this.showCapturedMaterial();
+  }
+
+  private rememberRecentImportDraft(rawPgn: string) {
+    const normalized = normalizeInlinePgn(rawPgn);
+    if (!normalized) return;
+    const next = [normalized, ...this.recentImportDrafts().filter(pgn => pgn !== normalized)].slice(0, 4);
+    this.recentImportDraftsCache = next;
+    tempStorage.set(recentImportStorageKey, JSON.stringify(next));
+  }
 
   private loadStoredReviewState(): ReviewUIState {
     const fallback = initialReviewState();
@@ -1203,6 +1286,36 @@ export default class AnalyseCtrl implements CevalHandler {
   togglePossiblyShowMoveAnnotationsOnBoard = (v: boolean): void => {
     this.possiblyShowMoveAnnotationsOnBoard(v);
     this.resetAutoShapes();
+    this.redraw();
+  };
+
+  recentImportDrafts = (): string[] => {
+    if (this.recentImportDraftsCache) return this.recentImportDraftsCache;
+    const raw = tempStorage.get(recentImportStorageKey);
+    if (!raw) return (this.recentImportDraftsCache = []);
+    try {
+      const parsed = JSON.parse(raw);
+      this.recentImportDraftsCache = Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch (_) {
+      this.recentImportDraftsCache = [];
+    }
+    return this.recentImportDraftsCache;
+  };
+
+  useImportDraft = (draft: string): void => {
+    this.pgnInput = draft;
+    this.pgnError = '';
+    this.redirecting = false;
+    this.setReviewReferenceTab('import');
+    this.redraw();
+  };
+
+  resetImportDraft = (): void => {
+    this.fenInput = undefined;
+    this.pgnInput = undefined;
+    this.pgnError = '';
+    this.redirecting = false;
+    this.redraw();
   };
 
   toggleActionMenu = () => {

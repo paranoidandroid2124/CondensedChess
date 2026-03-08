@@ -1384,6 +1384,13 @@ object NarrativeOutlineBuilder:
             reason = reason,
             bestIntent = bestIntent,
             bead = b ^ 0x3f84d5b5,
+            tacticalEmphasis =
+              cpLoss >= Thresholds.MISTAKE_CP &&
+                (
+                  missedMotif.nonEmpty ||
+                    bestReply.exists(isForcingReplySan) ||
+                    ctx.meta.flatMap(_.errorClass).exists(_.isTactical)
+                ),
             usedStems = crossBeatState.usedStems.toSet,
             prefixCounts = crossBeatState.prefixCounts.toMap
             )
@@ -1507,11 +1514,16 @@ object NarrativeOutlineBuilder:
       else buildOpeningPrecedentSnippets(ctx, openingRef, Math.abs(ctx.hashCode) ^ 0x4b1d0f6a)
     if precedentSnippets.nonEmpty then
       rec.use("openingData.sampleGames", precedentSnippets.length.toString, "Opening precedents")
+    val branchSummary =
+      Option.when(!suppressPrecedents) {
+        OpeningPrecedentBranching.summarySentence(ctx, openingRef, requireFocus = false)
+      }.flatten
+    branchSummary.foreach(_ => rec.use("openingData.sampleGames", "branch", "Opening branch summary"))
 
     val precedentBridge =
       if precedentSnippets.nonEmpty || openingText.isEmpty || !openingRef.exists(_.sampleGames.isEmpty) then ""
       else buildPrecedentFallbackSentence(ctx, Math.abs(ctx.hashCode) ^ 0x19f8b4ad, scope = "opening").getOrElse("")
-    val text = List(openingText.getOrElse(""), precedentBridge, precedentSnippets.mkString(" "))
+    val text = List(openingText.getOrElse(""), branchSummary.getOrElse(""), precedentBridge, precedentSnippets.mkString(" "))
       .filter(_.trim.nonEmpty)
       .mkString(" ")
       .trim
@@ -1590,7 +1602,8 @@ object NarrativeOutlineBuilder:
       else if shouldUsePrecedentComparison(ctx, lines, requireFocus = true) then
         Some(renderPrecedentComparison(lines, bead))
       else
-        lines.headOption.map(line => renderPrecedentBlock(line, bead))
+        OpeningPrecedentBranching.representativeSentence(ctx, ctx.openingData, requireFocus = true)
+          .orElse(lines.headOption.map(line => renderPrecedentBlock(line, bead)))
 
   private def shouldUsePrecedentComparison(
     ctx: NarrativeContext,
@@ -2726,6 +2739,7 @@ object NarrativeOutlineBuilder:
     reason: String,
     bestIntent: String,
     bead: Int,
+    tacticalEmphasis: Boolean,
     usedStems: Set[String],
     prefixCounts: Map[String, Int]
   ): String =
@@ -2736,14 +2750,24 @@ object NarrativeOutlineBuilder:
     val reasonBridge =
       Option.when(rank.nonEmpty && issue.nonEmpty) {
         selectNonRepeatingTemplate(
-          templates = List(
-            "From a practical perspective,",
-            "In strategic terms,",
-            "That makes the practical picture clear:",
-            "So the practical verdict is straightforward:",
-            "Viewed through a practical lens,",
-            "The practical takeaway is immediate:"
-          ),
+          templates =
+            if tacticalEmphasis then
+              List(
+                "The tactical verdict is immediate:",
+                "The tactical problem is clear:",
+                "The tactical punishment is straightforward:",
+                "The tactical point is concrete:",
+                "The tactical flaw is immediate:"
+              )
+            else
+              List(
+                "From a practical perspective,",
+                "In strategic terms,",
+                "That makes the practical picture clear:",
+                "So the practical verdict is straightforward:",
+                "Viewed through a practical lens,",
+                "The practical takeaway is immediate:"
+              ),
           seed = bead ^ 0x24d8f59c,
           usedStems = usedStems ++ rank.toSet.map(normalizeStem),
           prefixCounts = prefixCounts,
@@ -2798,6 +2822,24 @@ object NarrativeOutlineBuilder:
     threatsToUs: List[ThreatRow],
     contextHint: Int
   ): String =
+    val severity = Thresholds.classifySeverity(cpLoss)
+    val tacticalIssue =
+      Option.when(cpLoss >= Thresholds.MISTAKE_CP) {
+        (missedMotif.map(_.trim).filter(_.nonEmpty), bestReply.filter(isForcingReplySan)) match
+          case (Some(motif), Some(reply)) if severity == "blunder" =>
+            Some(s"Issue: this is a tactical blunder; it misses the idea of $motif and allows ...$reply by force.")
+          case (Some(motif), Some(reply)) =>
+            Some(s"Issue: this misses the tactical idea of $motif and allows ...$reply.")
+          case (Some(motif), _) if severity == "blunder" =>
+            Some(s"Issue: this is a tactical blunder; it misses the idea of $motif.")
+          case (Some(motif), _) =>
+            Some(s"Issue: this misses the tactical idea of $motif.")
+          case (None, Some(reply)) if severity == "blunder" =>
+            Some(s"Issue: this is a tactical blunder; after this, ...$reply forces the issue.")
+          case (None, Some(reply)) =>
+            Some(s"Issue: after this, ...$reply gives the opponent a forcing tactical reply.")
+          case _ => None
+      }.flatten
     val threatIssue = unresolvedThreatIssue(threatsToUs, playedSan, playedUci, bestSan, bestUci)
     val factIssue = playedCand.flatMap(c => extractFactConsequence(c.facts)).map(s => s"Issue: $s")
     val alertIssue = alert.map(a => s"Issue: ${a.stripSuffix(".")}.")
@@ -2806,9 +2848,9 @@ object NarrativeOutlineBuilder:
       Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
         missedMotif.map(m => s"Issue: this bypasses the tactical idea of $m.")
       }.flatten
-    val hasConcreteEvidence = List(threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue).flatten.nonEmpty
+    val hasConcreteEvidence = List(tacticalIssue, threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue).flatten.nonEmpty
     val replyIssue =
-      Option.when(cpLoss >= Thresholds.INACCURACY_CP && hasConcreteEvidence) {
+      Option.when(cpLoss >= Thresholds.INACCURACY_CP && hasConcreteEvidence && tacticalIssue.isEmpty) {
         bestReply.filter(isForcingReplySan).map(r => s"Issue: after this, ...$r gives the opponent a forcing reply.")
       }.flatten
     val rankIssue =
@@ -2822,7 +2864,7 @@ object NarrativeOutlineBuilder:
         case _ => None
     val fallbackIssue = Option.when(cpLoss >= Thresholds.INACCURACY_CP)(s"Issue: ${defaultIssueBySeverity(bead, cpLoss)}.")
     val cause =
-      List(threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue, replyIssue, rankIssue, fallbackIssue)
+      List(tacticalIssue, threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue, replyIssue, rankIssue, fallbackIssue)
         .flatten
         .find(_.trim.nonEmpty)
         .getOrElse("")
@@ -3826,7 +3868,11 @@ object NarrativeOutlineBuilder:
 
     val replyConsequence =
       Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
-        bestReply.filter(isForcingReplySan).map(r => s"Consequence: the opponent can answer with ...$r and seize the initiative.")
+        bestReply.filter(isForcingReplySan).map { r =>
+          if cpLoss >= Thresholds.BLUNDER_CP then
+            s"Consequence: the opponent has ...$r by force, and the tactical damage is immediate."
+          else s"Consequence: the opponent can answer with ...$r and seize the initiative."
+        }
       }.flatten
 
     val severityConsequence =
@@ -3855,8 +3901,8 @@ object NarrativeOutlineBuilder:
 
     factConsequence
       .orElse(threatConsequence)
-      .orElse(severityConsequence)
       .orElse(replyConsequence)
+      .orElse(severityConsequence)
 
   private def isForcingReplySan(reply: String): Boolean =
     val r = Option(reply).getOrElse("").trim

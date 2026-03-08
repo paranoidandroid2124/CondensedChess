@@ -300,3 +300,56 @@ class StrategicThesisBuilderTest extends FunSuite:
     assert(paras(1).toLowerCase.contains("queenside pressure"))
     assert(paras(1).toLowerCase.contains("territory"))
   }
+
+  test("opening lens can cite a representative player game and strategic branch") {
+    val ctx = baseContext.copy(
+      openingData = Some(
+        OpeningReference(
+          eco = Some("E04"),
+          name = Some("Catalan"),
+          totalGames = 120,
+          topMoves = List(
+            ExplorerMove("b2b3", "b3", 38, 16, 10, 12, 2520),
+            ExplorerMove("d4c5", "dxc5", 31, 13, 8, 10, 2510)
+          ),
+          sampleGames = List(
+            ExplorerGame(
+              id = "game1",
+              winner = Some(chess.White),
+              white = ExplorerPlayer("Kramnik, Vladimir", 2810),
+              black = ExplorerPlayer("Anand, Viswanathan", 2791),
+              year = 2008,
+              month = 10,
+              event = Some("WCh"),
+              pgn = Some("9. b3 Qe7 10. Bb2 Rd8 11. Rc1")
+            )
+          )
+        )
+      ),
+      openingEvent = Some(OpeningEvent.BranchPoint(List("Qc2", "b3", "dxc5"), "Main line shifts", Some("lichess.org/game1"))),
+      mainStrategicPlans = List(
+        PlanHypothesis(
+          planId = "pressure_c_file",
+          planName = "Queenside Pressure",
+          rank = 1,
+          score = 0.82,
+          preconditions = Nil,
+          executionSteps = Nil,
+          failureModes = Nil,
+          viability = PlanViability(0.76, "medium", "slow"),
+          themeL1 = "open_file"
+        )
+      )
+    )
+
+    val thesis = StrategicThesisBuilder.build(ctx).getOrElse(fail("missing opening thesis"))
+    assertEquals(thesis.lens, StrategicLens.Opening)
+    assert(thesis.support.exists(_.contains("Vladimir Kramnik-Viswanathan Anand")))
+    assert(thesis.support.exists(_.toLowerCase.contains("queenside pressure branch")))
+
+    val prose = BookStyleRenderer.render(ctx)
+    val paras = paragraphs(prose)
+    assert(paras.head.contains("Catalan"))
+    assert(paras(1).contains("Vladimir Kramnik-Viswanathan Anand"))
+    assert(paras(1).toLowerCase.contains("queenside pressure branch"))
+  }

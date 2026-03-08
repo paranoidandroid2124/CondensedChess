@@ -379,6 +379,9 @@ $label-width: 5ch;
 
   &__reference-body {
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
   &__panel--board,
@@ -407,6 +410,132 @@ $label-width: 5ch;
   }
 
   .copyables {
+    &--workspace {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    &__summary {
+      margin-bottom: 0;
+    }
+
+    &__panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1rem;
+      border: 1px solid rgba($c-border, 0.85);
+      border-radius: $box-radius-size;
+      background: rgba($c-bg-box, 0.88);
+    }
+
+    &__status {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      margin-top: 0;
+
+      strong {
+        font-size: 0.92rem;
+      }
+
+      span {
+        color: $c-font-dim;
+        line-height: 1.4;
+      }
+
+      &.is-error {
+        color: $c-bad;
+
+        span {
+          color: inherit;
+        }
+      }
+    }
+
+    &__meta {
+      font-size: 0.85rem;
+      color: $c-font-dim;
+    }
+
+    &__preview {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    &__preview-card,
+    &__recent,
+    &__recent-item {
+      border: 1px solid rgba($c-border, 0.8);
+      border-radius: 0.9rem;
+      background: rgba($c-bg-low, 0.96);
+    }
+
+    &__preview-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.85rem 0.95rem;
+
+      strong {
+        font-size: 0.98rem;
+      }
+
+      span:last-child {
+        color: $c-font-dim;
+      }
+    }
+
+    &__preview-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: $c-font-dim;
+    }
+
+    &__recent {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.95rem;
+    }
+
+    &__recent-head {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+
+      span {
+        color: $c-font-dim;
+      }
+    }
+
+    &__recent-list {
+      display: grid;
+      gap: 0.6rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    &__recent-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+      padding: 0.8rem 0.9rem;
+      text-align: left;
+
+      span {
+        color: $c-font-dim;
+      }
+
+      &:hover {
+        border-color: rgba($c-primary, 0.5);
+        color: $c-primary;
+      }
+    }
+
     .pair {
       align-items: flex-start;
     }
@@ -425,6 +554,147 @@ $label-width: 5ch;
 
     .bottom-error {
       left: auto;
+    }
+  }
+
+  .action-menu__workspace-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .action-menu__workspace-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    h4,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: $c-font-dim;
+      line-height: 1.45;
+    }
+  }
+
+  .action-menu__workspace-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+
+  .action-menu__workspace-card,
+  .action-menu__workspace-action {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba($c-border, 0.85);
+    border-radius: 0.95rem;
+    background: rgba($c-bg-box, 0.92);
+    text-align: left;
+
+    &.is-active,
+    &.active {
+      border-color: rgba($c-primary, 0.5);
+      box-shadow: 0 0 0 1px rgba($c-primary, 0.16);
+    }
+
+    &.disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+  }
+
+  .action-menu__workspace-card--stacked {
+    flex-direction: column;
+  }
+
+  .action-menu__workspace-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    strong {
+      font-size: 0.98rem;
+    }
+
+    span {
+      color: $c-font-dim;
+      line-height: 1.4;
+    }
+  }
+
+  .action-menu__workspace-pill {
+    flex: 0 0 auto;
+    min-width: 3rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    background: rgba($c-primary, 0.1);
+    color: $c-primary;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .action-menu__workspace-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .action-menu__workspace-choice {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba($c-border, 0.9);
+    border-radius: 999px;
+    background: rgba($c-bg-low, 0.9);
+    font-weight: 600;
+
+    &.active {
+      border-color: rgba($c-primary, 0.5);
+      background: rgba($c-primary, 0.1);
+      color: $c-primary;
+    }
+  }
+
+  .action-menu__workspace-range {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    width: 100%;
+
+    label {
+      color: $c-font-dim;
+    }
+  }
+
+  .action-menu__workspace-actions {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .action-menu__workspace-action {
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding-inline-start: 2.8rem;
+
+    &::before {
+      position: absolute;
+      inset-inline-start: 1rem;
+      top: 1rem;
+      font-size: 1rem;
+    }
+
+    span {
+      color: $c-font-dim;
+      line-height: 1.4;
     }
   }
 

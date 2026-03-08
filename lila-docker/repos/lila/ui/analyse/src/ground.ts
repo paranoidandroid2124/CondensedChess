@@ -22,6 +22,7 @@ export function promote(ground: CgApi, key: Key, role: Role) {
 export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
   const d = ctrl.data,
     pref = d.pref,
+    coords = ctrl.boardCoords(),
     opts = ctrl.makeCgOpts();
   const config = {
     turnColor: opts.turnColor,
@@ -29,8 +30,8 @@ export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
     check: opts.check,
     lastMove: opts.lastMove,
     orientation: ctrl.bottomColor(),
-    coordinates: pref.coords !== Prefs.Coords.Hidden,
-    coordinatesOnSquares: pref.coords === Prefs.Coords.All,
+    coordinates: coords !== Prefs.Coords.Hidden,
+    coordinatesOnSquares: coords === Prefs.Coords.All,
     addPieceZIndex: pref.is3d,
     addDimensionsCssVarsTo: document.body,
     touchIgnoreRadius: 0,

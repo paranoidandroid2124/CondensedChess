@@ -130,14 +130,25 @@ object BookmakerPolishSlotsBuilder:
     val decisionBeat = outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint).map(_.text).filter(_.nonEmpty)
     val conditionalBeat = outline.beats.find(_.kind == OutlineBeatKind.ConditionalPlan).map(_.text).filter(_.nonEmpty)
     val wrapBeat = outline.beats.find(_.kind == OutlineBeatKind.WrapUp).map(_.text).filter(_.nonEmpty)
-    val claimCore = thesis.map(_.claim).orElse(contextBeat).map(BookmakerSlotSanitizer.sanitizeUserText).filter(_.nonEmpty)
+    val mainMoveSentences =
+      splitSentences(mainMoveBeat.getOrElse(""))
+        .map(BookmakerSlotSanitizer.sanitizeUserText)
+        .filter(_.nonEmpty)
+    val annotationOverride = annotationClaimOverride(ctx, mainMoveSentences)
+    val claimCore =
+      annotationOverride.map(_._1)
+        .orElse(thesis.map(_.claim))
+        .orElse(contextBeat)
+        .map(BookmakerSlotSanitizer.sanitizeUserText)
+        .filter(_.nonEmpty)
     claimCore.map { baseClaim =>
       val claim = prefixMoveHeader(ctx, baseClaim)
       val supports =
-        thesis.map(_.support).filter(_.nonEmpty)
-          .getOrElse(splitSentences(mainMoveBeat.getOrElse("")))
+        annotationOverride.map(_._2)
+          .getOrElse(thesis.map(_.support).filter(_.nonEmpty).getOrElse(mainMoveSentences))
           .map(BookmakerSlotSanitizer.sanitizeUserText)
           .filter(_.nonEmpty)
+          .distinct
           .take(2)
       val tension =
         thesis.flatMap(_.tension)
@@ -173,14 +184,35 @@ object BookmakerPolishSlotsBuilder:
     }
 
   private def prefixMoveHeader(ctx: NarrativeContext, claim: String): String =
-    val moveHeader =
-      for
-        san <- ctx.playedSan.filter(_.trim.nonEmpty)
-      yield
-        val moveNum = (ctx.ply + 1) / 2
-        val prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
-        s"$prefix $san:"
-    moveHeader.map(h => s"$h $claim").getOrElse(claim)
+    if Option(claim).exists(_.matches("""^\d+\.(?:\.\.)?\s+[^:]+:\s*.*""")) then claim
+    else
+      val moveHeader =
+        for
+          san <- ctx.playedSan.filter(_.trim.nonEmpty)
+        yield
+          val moveNum = (ctx.ply + 1) / 2
+          val prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
+          s"$prefix $san:"
+      moveHeader.map(h => s"$h $claim").getOrElse(claim)
+
+  private def annotationClaimOverride(
+      ctx: NarrativeContext,
+      mainMoveSentences: List[String]
+  ): Option[(String, List[String])] =
+    Option.when(shouldPrioritizeCriticalAnnotation(ctx) && mainMoveSentences.nonEmpty) {
+      val claim = mainMoveSentences.head
+      val support = mainMoveSentences.drop(1)
+      (claim, support)
+    }
+
+  private def shouldPrioritizeCriticalAnnotation(ctx: NarrativeContext): Boolean =
+    val tacticalMeta =
+      ctx.meta.flatMap(_.errorClass).exists(ec => ec.isTactical || ec.missedMotifs.nonEmpty)
+    val tacticalCounterfactual =
+      ctx.counterfactual.exists(cf => cf.cpLoss >= Thresholds.MISTAKE_CP && cf.missedMotifs.nonEmpty)
+    val severeBlunder =
+      ctx.counterfactual.exists(cf => cf.cpLoss >= Thresholds.BLUNDER_CP && cf.severity == "blunder")
+    tacticalMeta || tacticalCounterfactual || severeBlunder
 
   private def splitSentences(text: String): List[String] =
     Option(text)

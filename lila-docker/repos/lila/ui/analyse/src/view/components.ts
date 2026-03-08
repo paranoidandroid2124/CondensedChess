@@ -33,7 +33,8 @@ import statusView from 'lib/game/view/status';
 import { fixCrazySan, plyToTurn } from 'lib/game/chess';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import serverSideUnderboard from '../serverSideUnderboard';
-import { renderPgnError } from '../pgnImport';
+import pgnImport, { renderPgnError } from '../pgnImport';
+import { normalizeInlinePgn } from '../pgnPipeline';
 import { storage } from 'lib/storage';
 
 export interface ViewContext {
@@ -59,7 +60,7 @@ export function viewContext(ctrl: AnalyseCtrl): ViewContext {
     playerBars,
     playerStrips: renderPlayerStrips(ctrl),
     gaugeOn,
-    needsInnerCoords: ctrl.data.pref.showCaptured || !!playerBars,
+    needsInnerCoords: ctrl.showCapturedMaterial() || !!playerBars,
   };
 }
 
@@ -230,7 +231,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
         moveListNode: renderMoveList(ctrl, concealOf),
         forkNode: forkView(ctrl, concealOf),
         explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
-        boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false }),
+        boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false, mode: 'workspace' }),
         importNode: renderInputs(ctrl),
       }),
     ]);
@@ -306,50 +307,73 @@ export function renderUnderboard({ ctrl }: ViewContext) {
 export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
   if (ctrl.ongoing || !ctrl.data.userAnalysis) return;
   if (ctrl.redirecting) return spinner();
-  return hl('div.copyables', [
-    hl('div.pair', [
-      hl('label.name', 'FEN'),
-      hl('input.copyable', {
-        attrs: { spellcheck: 'false', enterkeyhint: 'done' },
-        hook: {
-          insert: vnode => {
-            const el = vnode.elm as HTMLInputElement;
-            el.value = defined(ctrl.fenInput) ? ctrl.fenInput : ctrl.node.fen;
-            el.addEventListener('change', () => {
-              if (el.value !== ctrl.node.fen && el.reportValidity()) ctrl.changeFen(el.value.trim());
-            });
-            el.addEventListener('input', () => {
-              ctrl.fenInput = el.value;
-              el.setCustomValidity(parseFen(el.value.trim()).isOk ? '' : 'Invalid FEN');
-            });
-          },
-          postpatch: (_, vnode) => {
-            const el = vnode.elm as HTMLInputElement;
-            if (!defined(ctrl.fenInput)) {
-              el.value = ctrl.node.fen;
-              el.setCustomValidity('');
-            } else if (el.value !== ctrl.fenInput) el.value = ctrl.fenInput;
-          },
-        },
-      }),
+  const currentPgn = pgnExport.renderFullTxt(ctrl);
+  const currentInspection = inspectPgnDraft(currentPgn, currentPgn);
+  const draftPgn = defined(ctrl.pgnInput) ? ctrl.pgnInput : currentPgn;
+  const pgnInspection = inspectPgnDraft(draftPgn, currentPgn);
+  const fenInspection = inspectFenDraft(defined(ctrl.fenInput) ? ctrl.fenInput : ctrl.node.fen, ctrl.node.fen);
+  const recentDrafts = ctrl
+    .recentImportDrafts()
+    .filter(draft => draft !== pgnInspection.normalized && draft !== currentInspection.normalized);
+  return hl('div.copyables.copyables--workspace', [
+    hl('div.analyse-review__summary-grid.copyables__summary', [
+      compactSummaryCard(pgnInspection.headline, 'import status'),
+      compactSummaryCard(
+        pgnInspection.preview ? `${pgnInspection.preview.plies} plies` : String(Math.max(1, pgnInspection.lines)),
+        pgnInspection.preview ? 'incoming line' : 'draft lines',
+      ),
+      compactSummaryCard(fenInspection.headline, 'fen jump'),
     ]),
-    hl('div.pgn', [
+    hl('div.copyables__panel', [
+      hl('div.pair', [
+        hl('label.name', 'FEN'),
+        hl('input.copyable', {
+          attrs: { spellcheck: 'false', enterkeyhint: 'done' },
+          hook: {
+            insert: vnode => {
+              const el = vnode.elm as HTMLInputElement;
+              el.value = defined(ctrl.fenInput) ? ctrl.fenInput : ctrl.node.fen;
+              el.addEventListener('change', () => {
+                if (el.value !== ctrl.node.fen && el.reportValidity()) ctrl.changeFen(el.value.trim());
+              });
+              el.addEventListener('input', () => {
+                ctrl.fenInput = el.value;
+                el.setCustomValidity(parseFen(el.value.trim()).isOk ? '' : 'Invalid FEN');
+                requestAnimationFrame(ctrl.redraw);
+              });
+            },
+            postpatch: (_, vnode) => {
+              const el = vnode.elm as HTMLInputElement;
+              if (!defined(ctrl.fenInput)) {
+                el.value = ctrl.node.fen;
+                el.setCustomValidity('');
+              } else if (el.value !== ctrl.fenInput) el.value = ctrl.fenInput;
+            },
+          },
+        }),
+      ]),
+      renderInlineStatus(fenInspection.headline, fenInspection.message, fenInspection.status === 'invalid'),
+    ]),
+    hl('div.copyables__panel.copyables__panel--pgn', [
       hl('div.pair', [
         hl('label.name', 'PGN'),
         hl('textarea.copyable', {
           attrs: { spellcheck: 'false' },
-          class: { 'is-error': !!ctrl.pgnError },
+          class: { 'is-error': !!ctrl.pgnError || pgnInspection.status === 'invalid' },
           hook: {
             ...onInsert((el: HTMLTextAreaElement) => {
               el.value = defined(ctrl.pgnInput) ? ctrl.pgnInput : pgnExport.renderFullTxt(ctrl);
               const importPgnIfDifferent = () =>
                 el.value !== pgnExport.renderFullTxt(ctrl) && ctrl.importPgn(el.value);
 
-              el.addEventListener('input', () => (ctrl.pgnInput = el.value));
+              el.addEventListener('input', () => {
+                ctrl.pgnInput = el.value;
+                ctrl.pgnError = '';
+                requestAnimationFrame(ctrl.redraw);
+              });
 
               el.addEventListener('keypress', (e: KeyboardEvent) => {
-                if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || isMobile())
-                  return;
+                if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || isMobile()) return;
                 else if (importPgnIfDifferent()) e.preventDefault();
               });
               if (isMobile()) el.addEventListener('focusout', importPgnIfDifferent);
@@ -361,37 +385,228 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             },
           },
         }),
-        hl('div.bottom-item.bottom-actions', [
-          !isMobile() &&
-            hl(
-              'button.button.button-thin.bottom-action.text',
-              {
-                hook: bind('click', _ => {
-                  const pgn = $('.copyables .pgn textarea').val() as string;
-                  if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
-                }),
-              },
-              [icon(licon.PlayTriangle as any), ' Import PGN'],
-            ),
+      ]),
+      hl('div.bottom-item.bottom-actions', [
+        !isMobile() &&
           hl(
             'button.button.button-thin.bottom-action.text',
             {
-              attrs: {
-                title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
-              },
+              attrs: pgnInspection.status !== 'ready' ? { disabled: true } : {},
               hook: bind('click', () => {
-                void ctrl.openNarrative();
-              }),
-            },
-            [icon(licon.Book as any), ' Deep Analyze Full Game'],
+                if (pgnInspection.status !== 'ready') return;
+                const pgn = $('.copyables textarea').val() as string;
+                  if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
+                }),
+              },
+            [icon(licon.PlayTriangle as any), ' Import PGN'],
           ),
-        ]),
-        hl('div.bottom-item.bottom-error', { class: { 'is-error': !!ctrl.pgnError } }, [
-          icon(licon.CautionTriangle as any),
-          renderPgnError(ctrl.pgnError),
-        ]),
+        pgnInspection.status !== 'current' &&
+          hl(
+            'button.button.button-thin.bottom-action.text',
+            {
+              hook: bind('click', () => ctrl.resetImportDraft()),
+            },
+            [icon(licon.Reload as any), ' Reset draft'],
+          ),
+        hl(
+          'button.button.button-thin.bottom-action.text',
+          {
+            attrs: {
+              title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
+            },
+            hook: bind('click', () => {
+              void ctrl.openNarrative();
+            }),
+          },
+          [icon(licon.Book as any), ' Deep Analyze Full Game'],
+        ),
       ]),
+      renderInlineStatus(
+        pgnInspection.headline,
+        pgnInspection.preview
+          ? `${pgnInspection.message} ${pgnInspection.preview.variant} • ${pgnInspection.preview.plies} plies${
+              pgnInspection.preview.opening ? ` • ${pgnInspection.preview.opening}` : ''
+            }`
+          : pgnInspection.message,
+        pgnInspection.status === 'invalid',
+      ),
+      hl('div.bottom-item.bottom-error', { class: { 'is-error': !!ctrl.pgnError || pgnInspection.status === 'invalid' } }, [
+        icon(licon.CautionTriangle as any),
+        renderPgnError(ctrl.pgnError || pgnInspection.error),
+      ]),
+      renderImportPreview(currentInspection, pgnInspection),
+      recentDrafts.length ? renderRecentImportDrafts(ctrl, recentDrafts) : null,
     ]),
+  ]);
+}
+
+type FenDraftInspection = {
+  status: 'current' | 'ready' | 'invalid';
+  headline: string;
+  message: string;
+};
+
+type PgnDraftInspection = {
+  status: 'empty' | 'current' | 'ready' | 'invalid';
+  headline: string;
+  message: string;
+  chars: number;
+  lines: number;
+  normalized?: string;
+  error?: string;
+  preview?: {
+    variant: string;
+    plies: number;
+    opening?: string;
+  };
+};
+
+let lastPgnInspection: { draft: string; current: string; result: PgnDraftInspection } | undefined;
+
+function inspectFenDraft(draft: string, currentFen: string): FenDraftInspection {
+  const trimmed = draft.trim();
+  if (!trimmed || trimmed === currentFen) {
+    return {
+      status: 'current',
+      headline: 'Current position',
+      message: 'Edit the FEN and press Enter to reopen analysis from a new position.',
+    };
+  }
+  if (!parseFen(trimmed).isOk) {
+    return {
+      status: 'invalid',
+      headline: 'FEN needs fixes',
+      message: 'The jump is blocked until the FEN parses cleanly.',
+    };
+  }
+  return {
+    status: 'ready',
+    headline: 'Ready to jump',
+    message: 'Press Enter to relaunch analysis from this board state.',
+  };
+}
+
+function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection {
+  if (lastPgnInspection?.draft === draft && lastPgnInspection.current === currentPgn) return lastPgnInspection.result;
+  const normalized = normalizeInlinePgn(draft);
+  const normalizedCurrent = normalizeInlinePgn(currentPgn);
+  const lines = draft ? draft.split(/\r?\n/).length : 0;
+  const chars = draft.trim().length;
+  let result: PgnDraftInspection;
+  if (!normalized) {
+    result = {
+      status: 'empty',
+      headline: 'Draft empty',
+      message: 'Paste a PGN to stage a new game import.',
+      chars,
+      lines,
+    };
+  } else {
+    try {
+      const imported = pgnImport(normalized);
+      const game = imported.game;
+      const plies = Math.max(0, (game?.turns || imported.treeParts?.length || 1) - 1);
+      const preview = {
+        variant: game?.variant?.name || 'Chess',
+        plies,
+        opening: game?.opening?.name,
+      };
+      result =
+        normalizedCurrent === normalized
+          ? {
+              status: 'current',
+              headline: 'Current board snapshot',
+              message: 'The draft matches the PGN already loaded in this shell.',
+              chars,
+              lines,
+              normalized,
+              preview,
+            }
+          : {
+              status: 'ready',
+              headline: 'Ready to import',
+              message: 'Import will replace the current analysis tree with this PGN.',
+              chars,
+              lines,
+              normalized,
+              preview,
+            };
+    } catch (err) {
+      result = {
+        status: 'invalid',
+        headline: 'PGN needs fixes',
+        message: 'Import is blocked until the draft parses cleanly.',
+        chars,
+        lines,
+        normalized,
+        error: (err as Error).message,
+      };
+    }
+  }
+  lastPgnInspection = { draft, current: currentPgn, result };
+  return result;
+}
+
+function renderInlineStatus(headline: string, message: string, error = false): VNode {
+  return hl(`div.bottom-item.bottom-status.copyables__status${error ? '.is-error' : ''}`, [
+    hl('strong', headline),
+    hl('span', message),
+  ]);
+}
+
+function compactSummaryCard(value: string, label: string): VNode {
+  return hl('div.analyse-review__summary-card', [hl('strong', value), hl('span', label)]);
+}
+
+function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInspection): VNode {
+  return hl('div.copyables__preview', [
+    hl('div.copyables__preview-card', [
+      hl('span.copyables__preview-label', 'Current'),
+      hl('strong', current.preview?.opening || current.preview?.variant || 'Current analysis'),
+      hl('span', `${current.preview?.plies || 0} plies • ${current.chars} chars`),
+    ]),
+    hl('div.copyables__preview-card', [
+      hl('span.copyables__preview-label', 'Incoming'),
+      hl(
+        'strong',
+        incoming.preview?.opening || incoming.preview?.variant || (incoming.status === 'invalid' ? 'PGN needs fixes' : 'Awaiting draft'),
+      ),
+      hl(
+        'span',
+        incoming.preview
+          ? `${incoming.preview.plies} plies • ${incoming.chars} chars`
+          : `${incoming.lines} lines • ${incoming.chars} chars`,
+      ),
+    ]),
+  ]);
+}
+
+function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
+  return hl('div.copyables__recent', [
+    hl('div.copyables__recent-head', [hl('strong', 'Recent drafts'), hl('span', 'Session-only drafts you already imported.')]),
+    hl(
+      'div.copyables__recent-list',
+      drafts.map((draft, index) => {
+        const inspection = inspectPgnDraft(draft, '');
+        return hl(
+          'button.copyables__recent-item',
+          {
+            key: draft.slice(0, 40) + index,
+            attrs: { type: 'button' },
+            hook: bind('click', () => ctrl.useImportDraft(draft)),
+          },
+          [
+            hl('strong', inspection.preview?.opening || inspection.preview?.variant || `Draft ${index + 1}`),
+            hl(
+              'span',
+              inspection.preview
+                ? `${inspection.preview.plies} plies • ${inspection.chars} chars`
+                : `${inspection.lines} lines • ${inspection.chars} chars`,
+            ),
+          ],
+        );
+      }),
+    ),
   ]);
 }
 
@@ -440,7 +655,7 @@ const renderMoveList = (ctrl: AnalyseCtrl, concealOf?: ConcealOf): VNode =>
 
 export const renderMaterialDiffs = (ctrl: AnalyseCtrl): [VNode, VNode] =>
   materialView.renderMaterialDiffs(
-    !!ctrl.data.pref.showCaptured,
+    ctrl.showCapturedMaterial(),
     ctrl.bottomColor(),
     ctrl.node.fen,
     !!(ctrl.data.player.checks || ctrl.data.opponent.checks), // showChecks

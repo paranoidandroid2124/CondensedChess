@@ -190,8 +190,11 @@ private[analysis] object StrategicThesisBuilder:
       if planClue.isEmpty then None
       else
         val claim = s"The move extends $openingName ideas toward ${planClue.get.toLowerCase}."
+        val precedentBranch = OpeningPrecedentBranching.representative(ctx, ctx.openingData, requireFocus = true)
         val support = List(
+          precedentBranch.map(_.representativeSentence),
           ctx.openingEvent.map(renderOpeningEventSupport),
+          precedentBranch.map(_.summarySentence),
           ctx.semantic.flatMap(_.structureProfile).map { profile =>
             val center = normalizeText(profile.centerState)
             if center.nonEmpty then s"The position already points to a ${center.toLowerCase} center and long-term maneuvering."

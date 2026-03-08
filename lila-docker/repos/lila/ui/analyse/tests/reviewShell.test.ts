@@ -98,6 +98,23 @@ describe('review shell', () => {
     assert.match(text, /Patterns unlock after more analysis/);
     assert.match(text, /Defeat DNA becomes active/);
   });
+
+  test('reference shows explorer and position summaries above the active panel', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'reference',
+        referenceTab: 'board',
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Reference/);
+    assert.match(text, /explorer status/);
+    assert.match(text, /French Defense/);
+    assert.match(text, /Black to move/);
+    assert.match(text, /Board View/);
+  });
 });
 
 function makeCtrl({
@@ -121,7 +138,8 @@ function makeCtrl({
     mainline: [],
     data: {
       game: {
-        variant: { key: 'standard' },
+        variant: { key: 'standard', name: 'Standard' },
+        opening: { name: 'French Defense', eco: 'C00', ply: 4 },
       },
     },
   };
@@ -146,8 +164,25 @@ function makeCtrl({
   };
 
   return {
-    explorer: { allowed: () => true },
+    explorer: {
+      allowed: () => true,
+      db: () => 'lichess',
+      loading: () => false,
+      current: () => ({
+        isOpening: true,
+        opening: { name: 'French Defense', eco: 'C00' },
+        moves: [{ san: 'e4', uci: 'e2e4' }],
+        fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+        white: 1,
+        black: 1,
+        draws: 0,
+      }),
+    },
     narrative,
+    node: {
+      ply: 7,
+      fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2',
+    },
     reviewPrimaryTab: () => primaryTab,
     reviewReferenceTab: () => referenceTab,
     reviewMomentFilter: () => momentFilter,
