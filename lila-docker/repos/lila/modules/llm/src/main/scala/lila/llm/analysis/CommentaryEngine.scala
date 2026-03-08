@@ -546,7 +546,8 @@ object CommentaryEngine:
                     Nil,  // probeResults
                     openingRefsByFen.get(data.fen),
                     prevRef,
-                    budget
+                    budget,
+                    renderMode = NarrativeRenderMode.FullGame
                   )
                   val (fullText, focusedOutline) = renderHybridMomentNarrative(ctx, moment)
                   

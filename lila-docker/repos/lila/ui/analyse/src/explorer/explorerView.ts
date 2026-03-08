@@ -17,6 +17,11 @@ import {
 import ExplorerCtrl, { MAX_DEPTH } from './explorerCtrl';
 import { showTablebase } from './tablebaseView';
 
+type ExplorerViewOpts = {
+  force?: boolean;
+  closable?: boolean;
+};
+
 function resultBar(move: OpeningMoveStats): VNode {
   const sum = move.white + move.draws + move.black;
   const section = (key: 'white' | 'black' | 'draws') => {
@@ -142,10 +147,10 @@ const closeButton = (ctrl: AnalyseCtrl): VNode =>
     'Close',
   );
 
-const showEmpty = (ctrl: AnalyseCtrl, data?: OpeningData): VNode => {
+const showEmpty = (ctrl: AnalyseCtrl, data: OpeningData | undefined, opts: ExplorerViewOpts): VNode => {
   const isTooDeep = ctrl.explorer.root.node.ply >= MAX_DEPTH;
   return hl('div.data.empty', [
-    explorerTitle(ctrl.explorer),
+    explorerTitle(ctrl.explorer, ctrl, opts),
     openingTitle(ctrl, data),
     hl('div.message', [
       hl('strong', isTooDeep ? 'Max depth reached' : 'No game found'),
@@ -156,10 +161,11 @@ const showEmpty = (ctrl: AnalyseCtrl, data?: OpeningData): VNode => {
   ]);
 };
 
-const showGameEnd = (ctrl: AnalyseCtrl, title: string): VNode =>
+const showGameEnd = (ctrl: AnalyseCtrl, title: string, opts: ExplorerViewOpts): VNode =>
   hl('div.data.empty', [
+    explorerTitle(ctrl.explorer, ctrl, opts),
     hl('div.title', 'Game over'),
-    hl('div.message', [hl('i', { attrs: dataIcon(licon.InfoCircle) }), hl('h3', title), closeButton(ctrl)]),
+    hl('div.message', [hl('i', { attrs: dataIcon(licon.InfoCircle) }), hl('h3', title)]),
   ]);
 
 const openingTitle = (ctrl: AnalyseCtrl, data?: OpeningData) => {
@@ -179,7 +185,7 @@ export const clearLastShow = () => {
   lastShow = undefined;
 };
 
-function show(ctrl: AnalyseCtrl): MaybeVNode {
+function show(ctrl: AnalyseCtrl, opts: ExplorerViewOpts): MaybeVNode {
   const data = ctrl.explorer.current();
   if (data && isOpening(data)) {
     const moveTable = showMoveTable(ctrl, data),
@@ -187,13 +193,13 @@ function show(ctrl: AnalyseCtrl): MaybeVNode {
       topTable = showGameTable(ctrl, data.fen, 'Top games', data.topGames || []);
     if (moveTable || recentTable || topTable)
       lastShow = hl('div.data', [
-        explorerTitle(ctrl.explorer),
+        explorerTitle(ctrl.explorer, ctrl, opts),
         data?.opening && openingTitle(ctrl, data),
         moveTable,
         topTable,
         recentTable,
       ]);
-    else lastShow = showEmpty(ctrl, data);
+    else lastShow = showEmpty(ctrl, data, opts);
   } else if (data && isTablebase(data)) {
     const row = (category: TablebaseCategory, title: string, tooltip?: string) =>
       showTablebase(
@@ -216,15 +222,15 @@ function show(ctrl: AnalyseCtrl): MaybeVNode {
         row('syzygy-win', 'Loss or 50 moves by prior mistake', 'Unknown due to rounding'),
         row('win', 'Losing'),
       ]);
-    else if (data.checkmate) lastShow = showGameEnd(ctrl, 'Checkmate');
-    else if (data.stalemate) lastShow = showGameEnd(ctrl, 'Stalemate');
-    else if (data.variant_win || data.variant_loss) lastShow = showGameEnd(ctrl, 'Variant ending');
-    else lastShow = showEmpty(ctrl);
+    else if (data.checkmate) lastShow = showGameEnd(ctrl, 'Checkmate', opts);
+    else if (data.stalemate) lastShow = showGameEnd(ctrl, 'Stalemate', opts);
+    else if (data.variant_win || data.variant_loss) lastShow = showGameEnd(ctrl, 'Variant ending', opts);
+    else lastShow = showEmpty(ctrl, undefined, opts);
   }
   return lastShow;
 }
 
-const explorerTitle = (explorer: ExplorerCtrl) => {
+const explorerTitle = (explorer: ExplorerCtrl, ctrl: AnalyseCtrl, opts: ExplorerViewOpts) => {
   const db = explorer.db();
   const otherLink = (dbKey: ExplorerDb, label: string, title: string) =>
     hl(
@@ -247,12 +253,15 @@ const explorerTitle = (explorer: ExplorerCtrl) => {
   const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08',
     onlineDbExplanation = 'Large community database';
   return hl('div.explorer-title', [
-    db === 'masters'
-      ? active([hl('strong', 'Masters'), ' database'], masterDbExplanation)
-      : explorer.config.allDbs.includes('masters') && otherLink('masters', 'Masters', masterDbExplanation),
-    db === 'lichess'
-      ? active([hl('strong', 'Online'), ' database'], onlineDbExplanation)
-      : otherLink('lichess', 'Online', onlineDbExplanation),
+    hl('div.explorer-title__dbs', [
+      db === 'masters'
+        ? active([hl('strong', 'Masters'), ' database'], masterDbExplanation)
+        : explorer.config.allDbs.includes('masters') && otherLink('masters', 'Masters', masterDbExplanation),
+      db === 'lichess'
+        ? active([hl('strong', 'Online'), ' database'], onlineDbExplanation)
+        : otherLink('lichess', 'Online', onlineDbExplanation),
+    ]),
+    opts.closable === false ? null : closeButton(ctrl),
   ]);
 };
 
@@ -261,25 +270,25 @@ function showTitle(variant: Variant) {
   return `${variant.name} opening explorer`;
 }
 
-function showFailing(ctrl: AnalyseCtrl) {
+function showFailing(ctrl: AnalyseCtrl, opts: ExplorerViewOpts) {
   return hl('div.data.empty', [
+    explorerTitle(ctrl.explorer, ctrl, opts),
     hl('div.title', showTitle(ctrl.data.game.variant)),
     hl('div.failing.message', [
       hl('h3', 'Oops, sorry!'),
       hl('p.explanation', ctrl.explorer.failing()?.toString()),
-      closeButton(ctrl),
     ]),
   ]);
 }
 
 let lastFen: FEN = '';
 
-export default function (ctrl: AnalyseCtrl): VNode | undefined {
+export function renderExplorerPanel(ctrl: AnalyseCtrl, opts: ExplorerViewOpts = {}): VNode | undefined {
   const explorer = ctrl.explorer;
-  if (!explorer.enabled()) return;
+  if (!opts.force && !explorer.enabled()) return;
   const data = explorer.current(),
     loading = explorer.loading() || (!data && !explorer.failing()),
-    content = explorer.failing() ? showFailing(ctrl) : show(ctrl);
+    content = explorer.failing() ? showFailing(ctrl, opts) : show(ctrl, opts);
   return hl(
     'section.explorer-box.sub-box',
     {
@@ -295,4 +304,8 @@ export default function (ctrl: AnalyseCtrl): VNode | undefined {
     },
     [hl('div.overlay'), content],
   );
+}
+
+export default function (ctrl: AnalyseCtrl): VNode | undefined {
+  return renderExplorerPanel(ctrl);
 }

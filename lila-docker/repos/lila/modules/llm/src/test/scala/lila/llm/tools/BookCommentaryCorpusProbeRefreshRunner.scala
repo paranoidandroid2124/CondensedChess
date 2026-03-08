@@ -183,7 +183,8 @@ object BookCommentaryCorpusProbeRefreshRunner:
               openingRef = None,
               prevOpeningRef = None,
               openingBudget = OpeningEventBudget(),
-              afterAnalysis = None
+              afterAnalysis = None,
+              renderMode = NarrativeRenderMode.Bookmaker
             )
           ctx.probeRequests
         }

@@ -14,12 +14,14 @@ type Action =
   | 'last'
   | 'scrub-help'
   | 'opening-explorer'
+  | 'narrative'
   | 'menu'
   | 'analysis';
 
 export function renderControls(ctrl: AnalyseCtrl) {
   const canJumpPrev = ctrl.path !== '',
     canJumpNext = !!ctrl.node.children[0];
+  const reviewShell = ctrl.isReviewShell();
 
   return hl(
     'div.analyse__controls.analyse-controls',
@@ -34,20 +36,6 @@ export function renderControls(ctrl: AnalyseCtrl) {
     },
     [
       displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileAnalysisTab(ctrl),
-      hl(
-        'button.fbt',
-        {
-          attrs: {
-            title: 'Opening explorer and Tablebase',
-            'data-act': 'opening-explorer',
-          },
-          class: {
-            hidden: !ctrl.explorer.allowed(),
-            active: ctrl.activeControlBarTool() === 'opening-explorer',
-          },
-        },
-        [icon(licon.Book as any)],
-      ),
       hl('div.jumps', [
         !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
@@ -58,14 +46,45 @@ export function renderControls(ctrl: AnalyseCtrl) {
         !isMobileUi() &&
           jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
       ]),
-      hl(
-        'button.fbt',
-        {
-          class: { active: ctrl.activeControlBarTool() === 'action-menu' },
-          attrs: { title: 'Menu', 'data-act': 'menu' },
-        },
-        [icon(licon.Hamburger as any)],
-      ),
+      !reviewShell &&
+        hl(
+          'button.fbt',
+          {
+            attrs: {
+              title: 'Opening explorer and Tablebase',
+              'data-act': 'opening-explorer',
+            },
+            class: {
+              hidden: !ctrl.explorer.allowed(),
+              active: ctrl.activeControlBarTool() === 'opening-explorer',
+            },
+          },
+          [icon(licon.Book as any)],
+        ),
+      !reviewShell &&
+        ctrl.narrative &&
+        hl(
+          'button.fbt',
+          {
+            attrs: {
+              title: 'Deep game insights',
+              'data-act': 'narrative',
+            },
+            class: {
+              active: ctrl.activeControlBarTool() === 'narrative',
+            },
+          },
+          [icon(licon.BubbleSpeech as any)],
+        ),
+      !reviewShell &&
+        hl(
+          'button.fbt',
+          {
+            class: { active: ctrl.activeControlBarTool() === 'action-menu' },
+            attrs: { title: 'Menu', 'data-act': 'menu' },
+          },
+          [icon(licon.Hamburger as any)],
+        ),
     ],
   );
 }
@@ -107,10 +126,12 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   else if (action === 'last') control.last(ctrl);
   else if (action === 'scrub-help') scrubHelp(ctrl);
   else if (action === 'opening-explorer') ctrl.toggleExplorer();
+  else if (action === 'narrative') ctrl.toggleNarrative();
   else if (action === 'menu') ctrl.toggleActionMenu();
   else if (action === 'analysis') {
     if (ctrl.activeControlBarTool()) {
-      ctrl.explorer.enabled(false);
+      ctrl.explorer.disable();
+      ctrl.narrative?.enabled(false);
       ctrl.actionMenu(false);
     }
     ctrl.showCeval(!ctrl.showCeval());

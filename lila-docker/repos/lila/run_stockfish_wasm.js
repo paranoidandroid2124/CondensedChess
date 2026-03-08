@@ -2,12 +2,23 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 // stockfish.wasm on Node 22 can fail by preferring fetch() with unsupported local paths.
 // Force fs-based loading path.
 globalThis.fetch = undefined;
 
-const Stockfish = require('stockfish.wasm');
+function loadStockfishWasm() {
+  try {
+    return require('stockfish.wasm');
+  } catch (_primaryErr) {
+    const uiLibNodeModules = path.join(__dirname, 'ui', 'lib', 'node_modules');
+    const resolved = require.resolve('stockfish.wasm', { paths: [uiLibNodeModules] });
+    return require(resolved);
+  }
+}
+
+const Stockfish = loadStockfishWasm();
 
 const JSON_START = '---JSON_START---';
 const JSON_END = '---JSON_END---';

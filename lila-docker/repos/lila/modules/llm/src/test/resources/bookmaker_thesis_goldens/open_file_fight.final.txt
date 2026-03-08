@@ -1,0 +1,5 @@
+12... Rc3: The key decision is to choose Open File Fight and postpone Qh5, because contest the c file > switch the rook to g3 > pressure g7.
+
+It does that by resolving back-rank counterplay and then creating pressure on g7. The whole decision turns on g7.
+
+The direct alternative stays secondary because the immediate "Qh5" thrust lets Black trade queens and kill the attack. Probe evidence starts with...Rc8: Rc8 Rc3 Rg6 (+0.42).

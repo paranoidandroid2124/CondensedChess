@@ -7,6 +7,7 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
+import lila.llm.analysis.BookmakerPolishSlots
 
 case class OpenAiPolishResult(
     commentary: String,
@@ -97,7 +98,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String = "en",
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
-      llmLevel: String = LlmLevel.Polish
+      llmLevel: String = LlmLevel.Polish,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -114,7 +116,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier = planTier,
       llmLevel = llmLevel,
       lang = lang,
-      maxOutputTokens = maxOutputTokens
+      maxOutputTokens = maxOutputTokens,
+      bookmakerSlots = bookmakerSlots
     )
 
   def polishAsync(
@@ -131,7 +134,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String = "en",
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
-      llmLevel: String = LlmLevel.Polish
+      llmLevel: String = LlmLevel.Polish,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -148,7 +152,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier = planTier,
       llmLevel = llmLevel,
       lang = lang,
-      maxOutputTokens = maxOutputTokens
+      maxOutputTokens = maxOutputTokens,
+      bookmakerSlots = bookmakerSlots
     )
 
   def repairSync(
@@ -163,7 +168,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String = "en",
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
-      llmLevel: String = LlmLevel.Polish
+      llmLevel: String = LlmLevel.Polish,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -178,7 +184,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier = planTier,
       llmLevel = llmLevel,
       lang = lang,
-      maxOutputTokens = maxOutputTokens
+      maxOutputTokens = maxOutputTokens,
+      bookmakerSlots = bookmakerSlots
     )
 
   def repairAsync(
@@ -193,7 +200,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String = "en",
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
-      llmLevel: String = LlmLevel.Polish
+      llmLevel: String = LlmLevel.Polish,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -208,7 +216,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier = planTier,
       llmLevel = llmLevel,
       lang = lang,
-      maxOutputTokens = maxOutputTokens
+      maxOutputTokens = maxOutputTokens,
+      bookmakerSlots = bookmakerSlots
     )
 
   def activeStrategicNoteSync(
@@ -354,7 +363,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier: String,
       llmLevel: String,
       lang: String,
-      maxOutputTokens: Option[Int]
+      maxOutputTokens: Option[Int],
+      bookmakerSlots: Option[BookmakerPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
@@ -373,7 +383,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         model = route.primary,
         serviceTier = route.serviceTier,
         lang = lang,
-        maxOutputTokens = maxOutputTokens
+        maxOutputTokens = maxOutputTokens,
+        bookmakerSlots = bookmakerSlots
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
@@ -393,7 +404,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 model = fb,
                 serviceTier = route.serviceTier,
                 lang = lang,
-                maxOutputTokens = maxOutputTokens
+                maxOutputTokens = maxOutputTokens,
+                bookmakerSlots = bookmakerSlots
               )
             case None =>
               Future.successful(None)
@@ -412,7 +424,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       planTier: String,
       llmLevel: String,
       lang: String,
-      maxOutputTokens: Option[Int]
+      maxOutputTokens: Option[Int],
+      bookmakerSlots: Option[BookmakerPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
@@ -429,7 +442,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         model = route.primary,
         serviceTier = route.serviceTier,
         lang = lang,
-        maxOutputTokens = maxOutputTokens
+        maxOutputTokens = maxOutputTokens,
+        bookmakerSlots = bookmakerSlots
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
@@ -447,7 +461,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 model = fb,
                 serviceTier = route.serviceTier,
                 lang = lang,
-                maxOutputTokens = maxOutputTokens
+                maxOutputTokens = maxOutputTokens,
+                bookmakerSlots = bookmakerSlots
               )
             case None =>
               Future.successful(None)
@@ -579,7 +594,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       model: String,
       serviceTier: Option[String],
       lang: String,
-      maxOutputTokens: Option[Int]
+      maxOutputTokens: Option[Int],
+      bookmakerSlots: Option[BookmakerPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     val _ = momentType
     val userPrompt = PolishPrompt.buildPolishPrompt(
@@ -591,7 +607,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       openingName = openingName,
       nature = nature,
       tension = tension,
-      salience = salience
+      salience = salience,
+      momentType = momentType,
+      bookmakerSlots = bookmakerSlots
     )
     callModelWithPrompt(
       userPrompt = userPrompt,
@@ -683,7 +701,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       model: String,
       serviceTier: Option[String],
       lang: String,
-      maxOutputTokens: Option[Int]
+      maxOutputTokens: Option[Int],
+      bookmakerSlots: Option[BookmakerPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     val repairPrompt = PolishPrompt.buildRepairPrompt(
       originalProse = originalProse,
@@ -693,7 +712,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       concepts = concepts,
       fen = fen,
       openingName = openingName,
-      allowedSans = allowedSans
+      allowedSans = allowedSans,
+      bookmakerSlots = bookmakerSlots
     )
     callModelWithPrompt(
       userPrompt = repairPrompt,

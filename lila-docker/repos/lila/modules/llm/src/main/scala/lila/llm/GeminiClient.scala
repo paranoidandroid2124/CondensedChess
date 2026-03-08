@@ -7,6 +7,7 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
+import lila.llm.analysis.BookmakerPolishSlots
 
 /** Gemini API client with context caching.
   * Falls back to `None` when disabled or on error.
@@ -45,7 +46,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       nature: Option[String] = None,
       tension: Option[Double] = None,
       salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
-      momentType: Option[String] = None
+      momentType: Option[String] = None,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if prose.isBlank then Future.successful(None)
@@ -60,7 +62,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         nature = nature,
         tension = tension,
         salience = salience,
-        momentType = momentType
+        momentType = momentType,
+        bookmakerSlots = bookmakerSlots
       )
       callWithSystemPrompt(userPrompt)
         .recover { case e: Throwable =>
@@ -77,7 +80,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       concepts: List[String],
       fen: String,
       openingName: Option[String] = None,
-      allowedSans: List[String] = Nil
+      allowedSans: List[String] = Nil,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
@@ -90,7 +94,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         concepts = concepts,
         fen = fen,
         openingName = openingName,
-        allowedSans = allowedSans
+        allowedSans = allowedSans,
+        bookmakerSlots = bookmakerSlots
       )
       callWithSystemPrompt(repairPrompt)
         .recover { case e: Throwable =>

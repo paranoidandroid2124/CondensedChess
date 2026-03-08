@@ -13,13 +13,14 @@ import {
   hl,
 } from 'lib/view';
 import { playable } from 'lib/game';
-import { isMobile } from 'lib/device';
+import { displayColumns, isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
 
-import { view as actionMenu } from './actionMenu';
-import explorerView from '../explorer/explorerView';
+import { boardSettingsView, view as actionMenu } from './actionMenu';
+import explorerView, { renderExplorerPanel } from '../explorer/explorerView';
 import { narrativeView } from '../narrative/narrativeView';
 import { view as forkView } from '../fork';
+import { reviewView } from '../review/view';
 import renderClocks from './clocks';
 import * as control from '../control';
 import * as chessground from '../ground';
@@ -89,53 +90,151 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
         'analyse--bookmaker': !!ctrl.opts.bookmaker,
+        'analyse--review-shell': ctrl.isReviewShell(),
       },
     },
     [renderSidebar(ctrl), ...kids],
   );
 }
 
-function renderSidebar(ctrl: AnalyseCtrl): VNode {
-  return hl('div.analyse__sidebar', [
-    hl(
-      'button.fbt',
-      {
-        attrs: {
-          title: 'Opening explorer',
-          'data-act': 'opening-explorer',
+function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
+  if (ctrl.isReviewShell()) return;
+  return hl(
+    'div.analyse__sidebar',
+    workspaceTools(ctrl).map(tool =>
+      hl(
+        'button.fbt',
+        {
+          key: tool.id,
+          attrs: {
+            title: tool.summary,
+            'data-act': tool.id,
+          },
+          hook: bind('click', tool.open, ctrl.redraw),
+          class: {
+            active: tool.active,
+            busy: !!tool.busy,
+          },
         },
-        hook: bind('click', () => {
-          ctrl.toggleExplorer();
-          ctrl.redraw();
-        }),
-        class: {
-          active: ctrl.activeControlBarTool() === 'opening-explorer',
-        },
-      },
-      [icon(licon.Book as any), hl('span.label', 'Explorer')],
+        [icon(tool.icon as any), hl('span.label', tool.label)],
+      ),
     ),
+  );
+}
+
+type WorkspaceToolId = 'opening-explorer' | 'narrative' | 'action-menu';
+
+type WorkspaceTool = {
+  id: WorkspaceToolId;
+  label: string;
+  summary: string;
+  icon: string;
+  active: boolean;
+  busy?: boolean;
+  open: () => void;
+};
+
+function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
+  const tools: WorkspaceTool[] = [
+    {
+      id: 'opening-explorer',
+      label: 'Explorer',
+      summary: 'Opening explorer and tablebase',
+      icon: licon.Book,
+      active: ctrl.activeControlBarTool() === 'opening-explorer',
+      open: ctrl.toggleExplorer,
+    },
+  ];
+
+  if (ctrl.narrative) {
+    tools.push({
+      id: 'narrative',
+      label: 'Insights',
+      summary: ctrl.narrative.loading()
+        ? 'Deep analysis is running'
+        : ctrl.narrative.data()
+          ? 'Resume full-game narrative insights'
+          : 'Run deep full-game analysis',
+      icon: licon.BubbleSpeech,
+      active: ctrl.activeControlBarTool() === 'narrative',
+      busy: ctrl.narrative.loading(),
+      open: ctrl.toggleNarrative,
+    });
+  }
+
+  tools.push({
+    id: 'action-menu',
+    label: 'Workbench',
+    summary: 'Board, notation, and display controls',
+    icon: licon.Hamburger,
+    active: ctrl.activeControlBarTool() === 'action-menu',
+    open: ctrl.toggleActionMenu,
+  });
+
+  return tools;
+}
+
+function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
+  const activeTool = ctrl.activeControlBarTool();
+  const tools = workspaceTools(ctrl);
+  return hl(`section.analyse__workspace-dock${activeTool ? '' : '.is-idle'}`, [
+    hl('div.analyse__workspace-dock-head', [
+      hl('strong', activeTool ? 'Switch workspace' : 'Open a workspace'),
+      hl(
+        'span',
+        activeTool
+          ? 'Jump between openings, deep commentary, and board controls without leaving the move list.'
+          : 'Keep the move list anchored and open the tool you need beside it.',
+      ),
+    ]),
     hl(
-      'button.fbt',
-      {
-        attrs: {
-          title: 'Analysis Menu',
-          'data-act': 'menu',
-        },
-        hook: bind('click', () => {
-          ctrl.toggleActionMenu();
-          ctrl.redraw();
-        }),
-        class: {
-          active: ctrl.activeControlBarTool() === 'action-menu',
-        },
-      },
-      [icon(licon.Hamburger as any), hl('span.label', 'Workbench')],
+      'div.analyse__workspace-dock-grid',
+      tools.map(tool =>
+        hl(
+          'button.analyse__workspace-card',
+          {
+            key: tool.id,
+            attrs: {
+              type: 'button',
+              title: tool.summary,
+              'data-tool-id': tool.id,
+            },
+            hook: bind('click', tool.open, ctrl.redraw),
+            class: {
+              active: tool.active,
+              busy: !!tool.busy,
+            },
+          },
+          [
+            hl('span.analyse__workspace-card-icon', [icon(tool.icon as any)]),
+            hl('span.analyse__workspace-card-copy', [
+              hl('strong', tool.label),
+              hl('span', tool.summary),
+            ]),
+            tool.busy ? hl('span.analyse__workspace-card-state', 'Running') : null,
+          ],
+        ),
+      ),
     ),
   ]);
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
   const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
+  if (ctrl.isReviewShell()) {
+    return hl('div.analyse__tools.analyse__tools--review', [
+      allowVideo && embeddedVideo,
+      reviewView(ctrl, {
+        cevalNode: showCeval ? cevalView.renderCeval(ctrl) : undefined,
+        pvsNode: showCeval ? cevalView.renderPvs(ctrl) : undefined,
+        moveListNode: renderMoveList(ctrl, concealOf),
+        forkNode: forkView(ctrl, concealOf),
+        explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
+        boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false }),
+        importNode: renderInputs(ctrl),
+      }),
+    ]);
+  }
   const narrativeEnabled = !!ctrl.narrative?.enabled();
   const narrativeNode = ctrl.narrative ? narrativeView(ctrl.narrative) : null;
   const activeTool = narrativeEnabled
@@ -147,6 +246,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
     showCeval && cevalView.renderPvs(ctrl),
     renderMoveList(ctrl, concealOf),
     forkView(ctrl, concealOf),
+    displayColumns() > 1 && renderWorkspaceDock(ctrl),
     activeTool,
     ctrl.actionMenu() && actionMenu(ctrl),
   ]);
@@ -192,6 +292,7 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
 }
 
 export function renderUnderboard({ ctrl }: ViewContext) {
+  if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__underboard',
     {
@@ -260,30 +361,31 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             },
           },
         }),
-        !isMobile() &&
+        hl('div.bottom-item.bottom-actions', [
+          !isMobile() &&
+            hl(
+              'button.button.button-thin.bottom-action.text',
+              {
+                hook: bind('click', _ => {
+                  const pgn = $('.copyables .pgn textarea').val() as string;
+                  if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
+                }),
+              },
+              [icon(licon.PlayTriangle as any), ' Import PGN'],
+            ),
           hl(
-            'button.button.button-thin.bottom-item.bottom-action.text',
+            'button.button.button-thin.bottom-action.text',
             {
-              hook: bind('click', _ => {
-                const pgn = $('.copyables .pgn textarea').val() as string;
-                if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
+              attrs: {
+                title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
+              },
+              hook: bind('click', () => {
+                void ctrl.openNarrative();
               }),
             },
-            [icon(licon.PlayTriangle as any), ' Import PGN'],
+            [icon(licon.Book as any), ' Deep Analyze Full Game'],
           ),
-        hl(
-          'button.button.button-thin.bottom-item.bottom-action.text',
-          {
-            attrs: {
-              title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
-            },
-            hook: bind('click', () => {
-              ctrl.actionMenu(false);
-              void ctrl.narrative?.openAndFetch();
-            }),
-          },
-          [icon(licon.Book as any), ' Deep Analyze Full Game'],
-        ),
+        ]),
         hl('div.bottom-item.bottom-error', { class: { 'is-error': !!ctrl.pgnError } }, [
           icon(licon.CautionTriangle as any),
           renderPgnError(ctrl.pgnError),

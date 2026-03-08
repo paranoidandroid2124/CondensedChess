@@ -28,7 +28,8 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       ),
       delta = None,
       phase = PhaseContext("Middlegame", "Balanced middlegame"),
-      candidates = Nil
+      candidates = Nil,
+      renderMode = NarrativeRenderMode.FullGame
     )
 
   test("context beat carries strategic flow, opponent plan, and meta choice signals into prose") {

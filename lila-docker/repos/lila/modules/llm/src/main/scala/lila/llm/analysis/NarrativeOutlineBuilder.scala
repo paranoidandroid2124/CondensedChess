@@ -94,6 +94,7 @@ object NarrativeOutlineBuilder:
     var diag = OutlineDiagnostics()
 
     val isAnnotation = isMoveAnnotation(ctx)
+    val thesisOpt = Option.when(isBookmakerMode(ctx))(StrategicThesisBuilder.build(ctx)).flatten
     val questions = ctx.authorQuestions.sortBy(-_.priority).take(3)
     diag = diag.copy(selectedQuestions = questions)
 
@@ -102,6 +103,17 @@ object NarrativeOutlineBuilder:
 
     val missingPurposes = EvidencePlanner.getMissingPurposesFromEvidence(questions, ctx.authorEvidence)
     diag = diag.copy(missingEvidencePurposes = missingPurposes)
+
+    thesisOpt.foreach { thesis =>
+      if isAnnotation then
+        buildMoveHeader(ctx, rec).foreach(beats += _)
+      beats += buildBookmakerThesisContextBeat(thesis, rec)
+      beats += buildBookmakerThesisMainMoveBeat(ctx, thesis, rec)
+      buildBookmakerThesisTensionBeat(thesis, rec).foreach(beats += _)
+      buildBookmakerThesisWrapUpBeat(ctx, thesis).foreach(beats += _)
+    }
+    if thesisOpt.isDefined then
+      return (NarrativeOutline(beats.toList, Some(diag)), diag)
 
     // 1. MOVE HEADER
     if isAnnotation then
@@ -379,6 +391,113 @@ object NarrativeOutlineBuilder:
 
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
+
+  private def isBookmakerMode(ctx: NarrativeContext): Boolean =
+    ctx.renderMode == NarrativeRenderMode.Bookmaker
+
+  private def buildBookmakerThesisContextBeat(
+    thesis: StrategicThesis,
+    rec: TraceRecorder
+  ): OutlineBeat =
+    rec.use(s"strategicThesis.${thesis.lens.toString.toLowerCase}", thesis.claim, "Bookmaker thesis claim")
+    OutlineBeat(
+      kind = OutlineBeatKind.Context,
+      text = ensureSentence(thesis.claim),
+      conceptIds = List(s"thesis_${thesis.lens.toString.toLowerCase}"),
+      focusPriority = 100,
+      fullGameEssential = true
+    )
+
+  private def buildBookmakerThesisMainMoveBeat(
+    ctx: NarrativeContext,
+    thesis: StrategicThesis,
+    rec: TraceRecorder
+  ): OutlineBeat =
+    thesis.support.take(2).zipWithIndex.foreach { case (line, idx) =>
+      rec.use(s"strategicThesis.support[$idx]", line, "Bookmaker thesis support")
+    }
+    val mainText =
+      thesis.support
+        .take(2)
+        .map(ensureSentence)
+        .filter(_.nonEmpty)
+        .mkString(" ")
+        .trim
+    val fallbackText =
+      Option.when(mainText.isEmpty) {
+        val primary = topStrategicPlanName(ctx).getOrElse(ctx.summary.primaryPlan)
+        ensureSentence(s"The follow-up is to make $primary concrete without losing the position's balance")
+      }.getOrElse("")
+    OutlineBeat(
+      kind = OutlineBeatKind.MainMove,
+      text = if mainText.nonEmpty then mainText else fallbackText,
+      anchors = ctx.playedSan.toList,
+      focusPriority = 92,
+      fullGameEssential = true
+    )
+
+  private def buildBookmakerThesisTensionBeat(
+    thesis: StrategicThesis,
+    rec: TraceRecorder
+  ): Option[OutlineBeat] =
+    val lines =
+      List(
+        thesis.tension.map(ensureSentence).filter(_.nonEmpty),
+        thesis.evidenceHook.map(ensureSentence).filter(_.nonEmpty)
+      ).flatten
+    if lines.isEmpty then None
+    else
+      thesis.tension.foreach(t => rec.use("strategicThesis.tension", t, "Bookmaker thesis tension"))
+      thesis.evidenceHook.foreach(e => rec.use("strategicThesis.evidenceHook", e, "Bookmaker thesis evidence"))
+      Some(
+        OutlineBeat(
+          kind = OutlineBeatKind.DecisionPoint,
+          text = lines.distinct.mkString(" "),
+          focusPriority = 88,
+          fullGameEssential = true
+        )
+      )
+
+  private def buildBookmakerThesisWrapUpBeat(
+    ctx: NarrativeContext,
+    thesis: StrategicThesis
+  ): Option[OutlineBeat] =
+    val parts = scala.collection.mutable.ListBuffer[String]()
+    if thesis.lens != StrategicLens.Practical then
+      ctx.semantic.flatMap(_.practicalAssessment).flatMap(buildBookmakerPracticalWrapSentence).foreach(parts += _)
+    if thesis.lens != StrategicLens.Compensation then
+      ctx.semantic.flatMap(_.compensation).flatMap(buildBookmakerCompensationWrapSentence).foreach(parts += _)
+    Option.when(parts.nonEmpty) {
+      OutlineBeat(
+        kind = OutlineBeatKind.WrapUp,
+        text = parts.take(2).mkString(" "),
+        conceptIds = List("bookmaker_thesis_wrap"),
+        focusPriority = 72
+      )
+    }
+
+  private def buildBookmakerPracticalWrapSentence(pa: PracticalInfo): Option[String] =
+    val verdict = Option(pa.verdict).map(_.trim).filter(_.nonEmpty)
+    val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
+    if verdict.isEmpty && drivers.isEmpty then None
+    else
+      val verdictText = verdict.map(_.stripSuffix(".").toLowerCase)
+      val sentence =
+        (verdictText, drivers) match
+          case (Some(v), ds) if ds.nonEmpty => s"Practically, that leaves a $v task because ${ds.mkString(" and ")}."
+          case (Some(v), _)                 => s"Practically, that leaves a $v task."
+          case (None, ds) if ds.nonEmpty    => s"Practically, the workload is defined by ${ds.mkString(" and ")}."
+          case _                            => ""
+      Option.when(sentence.nonEmpty)(sentence)
+
+  private def buildBookmakerCompensationWrapSentence(comp: CompensationInfo): Option[String] =
+    val plan = Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty)
+    val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
+    if comp.investedMaterial <= 0 || (plan.isEmpty && vectors.isEmpty) then None
+    else
+      val vectorText = Option.when(vectors.nonEmpty)(s" through ${vectors.mkString(" and ")}").getOrElse("")
+      val planText = plan.getOrElse("practical follow-up")
+      Some(s"The investment still has to justify itself through $planText$vectorText.")
 
   private def buildMoveHeader(ctx: NarrativeContext, rec: TraceRecorder): Option[OutlineBeat] =
     ctx.playedSan.map { san =>

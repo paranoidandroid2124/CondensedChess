@@ -1,0 +1,5 @@
+12... h5: The move reorganizes the pieces around Kingside Clamp and its locked center, aiming at Rook Pawn March.
+
+It follows the structure's logic of prepare the h pawn lever and rook lift attack. That makes move order matter because the center can break open if the lever is mistimed.
+
+The direct alternative stays secondary because the direct kingside break only works once the h pawn has fixed the structure.

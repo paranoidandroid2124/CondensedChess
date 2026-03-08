@@ -1,0 +1,8 @@
+lens=Structure
+claim=12... h5: The move reorganizes the pieces around Kingside Clamp and its locked center, aiming at Rook Pawn March.
+supportPrimary=It follows the structure's logic of prepare the h pawn lever and rook lift attack.
+supportSecondary=That makes move order matter because the center can break open if the lever is mistimed.
+tension=The direct alternative stays secondary because the direct kingside break only works once the h pawn has fixed the structure.
+evidenceHook=
+coda=
+paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence

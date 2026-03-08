@@ -5,7 +5,8 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
+import play.api.libs.json.{ JsObject, JsString, Json }
+import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -74,6 +75,7 @@ final class LlmApi(
   private val polishAcceptedCount = new AtomicLong(0L)
   private val polishFallbackCount = new AtomicLong(0L)
   private val polishCacheHitCount = new AtomicLong(0L)
+  private val softRepairAppliedCount = new AtomicLong(0L)
   private val polishReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val polishEstimatedCostMicros = new AtomicLong(0L)
   private val activeNoteSelectedCount = new AtomicLong(0L)
@@ -338,6 +340,9 @@ final class LlmApi(
       val polishAcceptRate =
         if polishAttempts == 0 then 0.0
         else polishAccepted.toDouble / polishAttempts.toDouble
+      val softRepairRate =
+        if polishAccepted == 0 then 0.0
+        else softRepairAppliedCount.get().toDouble / polishAccepted.toDouble
       val avgCostUsd =
         if polishAttempts == 0 then 0.0
         else polishEstimatedCostMicros.get().toDouble / polishAttempts.toDouble / 1000000.0
@@ -395,6 +400,7 @@ final class LlmApi(
           f"endgame_win_hint_rate=$endgameWinHintRate%.3f " +
           f"endgame_high_conf_rate=$endgameHighConfRate%.3f " +
           f"polish_acceptance_ratio=$polishAcceptRate%.3f " +
+          f"polish_soft_repair_rate=$softRepairRate%.3f " +
           f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
           f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
           f"plan_recall_at3=$planRecallAt3%.3f " +
@@ -491,6 +497,26 @@ final class LlmApi(
     val t = Option(text).map(_.trim).getOrElse("")
     t.startsWith("{") && t.contains("\"commentary\"")
 
+  private def unwrapCommentaryPayload(text: String): String =
+    val trimmed = Option(text).map(_.trim).getOrElse("")
+    if trimmed.isEmpty || !trimmed.startsWith("{") then trimmed
+    else
+      try
+        Json.parse(trimmed) match
+          case obj: JsObject =>
+            (obj \ "commentary").toOption.flatMap {
+              case JsString(value) => Option(value).map(_.trim).filter(_.nonEmpty)
+              case nested: JsObject =>
+                List("text", "value", "content")
+                  .view
+                  .flatMap(k => (nested \ k).asOpt[String].map(_.trim))
+                  .find(_.nonEmpty)
+              case _ => None
+            }.getOrElse(trimmed)
+          case _ => trimmed
+      catch
+        case NonFatal(_) => trimmed
+
   private def looksTruncated(text: String): Boolean =
     val t = Option(text).map(_.trim).getOrElse("")
     if t.isEmpty then false
@@ -507,7 +533,8 @@ final class LlmApi(
   private def validatePolishedCommentary(
       polished: String,
       original: String,
-      allowedSans: List[String]
+      allowedSans: List[String],
+      slotMode: Boolean = false
   ): PolishValidation.ValidationResult =
     val trimmed = Option(polished).getOrElse("").trim
     if trimmed.isEmpty then PolishValidation.ValidationResult(isValid = false, reasons = List("empty_polish"))
@@ -517,7 +544,7 @@ final class LlmApi(
       PolishValidation.ValidationResult(isValid = false, reasons = List("truncated_output"))
     else if leakTokens.exists(trimmed.contains) then
       PolishValidation.ValidationResult(isValid = false, reasons = List("leak_token_detected"))
-    else if !lengthRatioReasonable(trimmed, original) then
+    else if !slotMode && !lengthRatioReasonable(trimmed, original) then
       PolishValidation.ValidationResult(isValid = false, reasons = List("length_ratio_out_of_bounds"))
     else PolishValidation.validatePolishedCommentary(trimmed, original, allowedSans)
 
@@ -795,7 +822,9 @@ final class LlmApi(
       isValid: Boolean,
       decodedText: String,
       reasons: List[String],
-      strategyCoverage: Option[StrategyCoverageMetaV1]
+      strategyCoverage: Option[StrategyCoverageMetaV1],
+      softRepairApplied: Boolean = false,
+      softRepairActions: List[String] = Nil
   )
 
   private case class ActiveStrategicNoteDecision(
@@ -818,12 +847,14 @@ final class LlmApi(
       extraReasons: List[String],
       strategyPack: Option[StrategyPack],
       planTier: String,
-      llmLevel: String
+      llmLevel: String,
+      bookmakerSlots: Option[BookmakerPolishSlots]
   ): CandidateValidation =
+    val normalizedCandidate = unwrapCommentaryPayload(candidateText)
     val anchorReasons =
-      if anchors.hasAnchors then
+      if anchors.hasAnchors && bookmakerSlots.isEmpty then
         MoveAnchorCodec.validateAnchors(
-          text = candidateText,
+          text = normalizedCandidate,
           expectedMoveOrder = anchors.expectedMoveOrder,
           expectedMarkerOrder = anchors.expectedMarkerOrder,
           expectedEvalOrder = anchors.expectedEvalOrder,
@@ -833,20 +864,36 @@ final class LlmApi(
     val decoded =
       if anchors.hasAnchors then
         MoveAnchorCodec.decode(
-          text = candidateText,
+          text = normalizedCandidate,
           refById = anchors.refById,
           evalById = anchors.evalById,
           branchById = anchors.branchById
         )
-      else candidateText
-    val proseValidation = validatePolishedCommentary(decoded, originalProse, allowedSans)
-    val strategyValidation = evaluateStrategyCoverage(decoded, strategyPack, planTier, llmLevel)
+      else normalizedCandidate
+    val repaired = bookmakerSlots match
+      case Some(slots) =>
+        val repair = BookmakerSoftRepair.repair(decoded, slots)
+        repair
+      case None =>
+        BookmakerSoftRepair.RepairResult(
+          text = decoded,
+          applied = false,
+          actions = Nil,
+          evaluation = BookmakerProseContract.Evaluation(Nil, claimLikeFirstParagraph = true, paragraphBudgetOk = true, placeholderHits = Nil, genericHits = Nil)
+        )
+    if repaired.applied then
+      softRepairAppliedCount.incrementAndGet()
+      logger.debug(s"llm.polish.soft_repair applied=true actions=${repaired.actions.mkString(",")}")
+    val proseValidation = validatePolishedCommentary(repaired.text, originalProse, allowedSans, slotMode = bookmakerSlots.isDefined)
+    val strategyValidation = evaluateStrategyCoverage(repaired.text, strategyPack, planTier, llmLevel)
     val reasons = (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ extraReasons).distinct
     CandidateValidation(
       isValid = reasons.isEmpty,
-      decodedText = decoded,
+      decodedText = repaired.text,
       reasons = reasons,
-      strategyCoverage = strategyValidation.meta
+      strategyCoverage = strategyValidation.meta,
+      softRepairApplied = repaired.applied,
+      softRepairActions = repaired.actions
     )
 
   private def sentenceCount(text: String): Int =
@@ -1374,6 +1421,7 @@ final class LlmApi(
 
   private def maybePolishCommentary(
       prose: String,
+      validationSeed: String,
       phase: String,
       evalDelta: Option[Int],
       concepts: List[String],
@@ -1389,7 +1437,8 @@ final class LlmApi(
       refs: Option[BookmakerRefsV1],
       planTier: String,
       llmLevel: String,
-      momentType: Option[String] = None
+      momentType: Option[String] = None,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): Future[PolishDecision] =
     if prose.isBlank then
       Future.successful(
@@ -1455,7 +1504,7 @@ final class LlmApi(
         case "openai" if openAiClient.isEnabled =>
           val normalizedLang = normalizeLang(lang)
           val requestStartNs = System.nanoTime()
-          val shouldTrySegmentPolish = refs.exists(_.variations.nonEmpty) || allowedSans.nonEmpty
+          val shouldTrySegmentPolish = bookmakerSlots.isEmpty && (refs.exists(_.variations.nonEmpty) || allowedSans.nonEmpty)
           val segmentAttemptFut =
             if shouldTrySegmentPolish then
               maybePolishBySegmentsOpenAi(
@@ -1480,8 +1529,11 @@ final class LlmApi(
             case Some(segmentDecision) =>
               Future.successful(withRecordedPolishMetrics(requestStartNs, segmentDecision))
             case None =>
-              val anchors = MoveAnchorCodec.encode(prose, refs)
-              val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
+              val anchorSeed = if bookmakerSlots.isDefined then validationSeed else prose
+              val anchors = MoveAnchorCodec.encode(anchorSeed, refs)
+              val slotsForModel =
+                bookmakerSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
+              val proseForModel = if bookmakerSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
               val adaptiveCap = adaptiveOutputTokenCap(prose, refs, asyncTier)
               val op =
                 if asyncTier then
@@ -1497,7 +1549,8 @@ final class LlmApi(
                     lang = normalizedLang,
                     maxOutputTokens = Some(adaptiveCap),
                     planTier = normalizedPlanTier,
-                    llmLevel = normalizedLlmLevel
+                    llmLevel = normalizedLlmLevel,
+                    bookmakerSlots = slotsForModel
                   )
                 else
                   openAiClient.polishSync(
@@ -1512,19 +1565,21 @@ final class LlmApi(
                     lang = normalizedLang,
                     maxOutputTokens = Some(adaptiveCap),
                     planTier = normalizedPlanTier,
-                    llmLevel = normalizedLlmLevel
+                    llmLevel = normalizedLlmLevel,
+                    bookmakerSlots = slotsForModel
                   )
               op.flatMap {
                 case Some(polished) =>
                   val firstValidation = validateCandidate(
                     candidateText = polished.commentary,
-                    originalProse = prose,
+                    originalProse = validationSeed,
                     allowedSans = allowedSans,
                     anchors = anchors,
                     extraReasons = polished.parseWarnings,
                     strategyPack = strategyPack,
                     planTier = normalizedPlanTier,
-                    llmLevel = normalizedLlmLevel
+                    llmLevel = normalizedLlmLevel,
+                    bookmakerSlots = bookmakerSlots
                   )
                   if firstValidation.isValid then
                     Future.successful(
@@ -1559,7 +1614,7 @@ final class LlmApi(
                     val repairFut =
                       if asyncTier then
                         openAiClient.repairAsync(
-                          originalProse = proseForModel,
+                          originalProse = validationSeed,
                           rejectedPolish = polished.commentary,
                           phase = phase,
                           evalDelta = evalDelta,
@@ -1570,11 +1625,12 @@ final class LlmApi(
                           lang = normalizedLang,
                           maxOutputTokens = Some(adaptiveCap),
                           planTier = normalizedPlanTier,
-                          llmLevel = normalizedLlmLevel
+                          llmLevel = normalizedLlmLevel,
+                          bookmakerSlots = slotsForModel
                         )
                       else
                         openAiClient.repairSync(
-                          originalProse = proseForModel,
+                          originalProse = validationSeed,
                           rejectedPolish = polished.commentary,
                           phase = phase,
                           evalDelta = evalDelta,
@@ -1585,19 +1641,21 @@ final class LlmApi(
                           lang = normalizedLang,
                           maxOutputTokens = Some(adaptiveCap),
                           planTier = normalizedPlanTier,
-                          llmLevel = normalizedLlmLevel
+                          llmLevel = normalizedLlmLevel,
+                          bookmakerSlots = slotsForModel
                         )
                     repairFut.map {
                       case Some(repaired) =>
                         val repairedValidation = validateCandidate(
                           candidateText = repaired.commentary,
-                          originalProse = prose,
+                          originalProse = validationSeed,
                           allowedSans = allowedSans,
                           anchors = anchors,
                           extraReasons = repaired.parseWarnings,
                           strategyPack = strategyPack,
                           planTier = normalizedPlanTier,
-                          llmLevel = normalizedLlmLevel
+                          llmLevel = normalizedLlmLevel,
+                          bookmakerSlots = bookmakerSlots
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -1695,8 +1753,11 @@ final class LlmApi(
           }
         case "gemini" if geminiClient.isEnabled =>
           val requestStartNs = System.nanoTime()
-          val anchors = MoveAnchorCodec.encode(prose, refs)
-          val proseForModel = if anchors.hasAnchors then anchors.anchoredText else prose
+          val anchorSeed = if bookmakerSlots.isDefined then validationSeed else prose
+          val anchors = MoveAnchorCodec.encode(anchorSeed, refs)
+          val slotsForModel =
+            bookmakerSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
+          val proseForModel = if bookmakerSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
           geminiClient
             .polish(
               prose = proseForModel,
@@ -1706,19 +1767,21 @@ final class LlmApi(
               fen = fen,
               openingName = openingName,
               salience = salience,
-              momentType = momentType
+              momentType = momentType,
+              bookmakerSlots = slotsForModel
             )
             .flatMap {
               case Some(polished) =>
                 val validation = validateCandidate(
                   candidateText = polished,
-                  originalProse = prose,
+                  originalProse = validationSeed,
                   allowedSans = allowedSans,
                   anchors = anchors,
                   extraReasons = Nil,
                   strategyPack = strategyPack,
                   planTier = normalizedPlanTier,
-                  llmLevel = normalizedLlmLevel
+                  llmLevel = normalizedLlmLevel,
+                  bookmakerSlots = bookmakerSlots
                 )
                 if validation.isValid then
                   Future.successful(
@@ -1752,26 +1815,28 @@ final class LlmApi(
                   )
                   geminiClient
                     .repair(
-                      originalProse = proseForModel,
+                      originalProse = validationSeed,
                       rejectedPolish = polished,
                       phase = phase,
                       evalDelta = evalDelta,
                       concepts = promptConcepts,
                       fen = fen,
                       openingName = openingName,
-                      allowedSans = allowedSans
+                      allowedSans = allowedSans,
+                      bookmakerSlots = slotsForModel
                     )
                     .map {
                       case Some(repaired) =>
                         val repairedValidation = validateCandidate(
                           candidateText = repaired,
-                          originalProse = prose,
+                          originalProse = validationSeed,
                           allowedSans = allowedSans,
                           anchors = anchors,
                           extraReasons = Nil,
                           strategyPack = strategyPack,
                           planTier = normalizedPlanTier,
-                          llmLevel = normalizedLlmLevel
+                          llmLevel = normalizedLlmLevel,
+                          bookmakerSlots = bookmakerSlots
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -1897,6 +1962,7 @@ final class LlmApi(
         for
           introPolish <- maybePolishCommentary(
             prose = response.intro,
+            validationSeed = response.intro,
             phase = "opening",
             evalDelta = None,
             concepts = response.themes,
@@ -1916,6 +1982,7 @@ final class LlmApi(
           )
           conclusionPolish <- maybePolishCommentary(
             prose = response.conclusion,
+            validationSeed = response.conclusion,
             phase = "endgame",
             evalDelta = None,
             concepts = response.themes,
@@ -1937,6 +2004,7 @@ final class LlmApi(
             val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
             maybePolishCommentary(
               prose = moment.narrative,
+              validationSeed = moment.narrative,
               phase = phaseFromPly(moment.ply),
               evalDelta = None,
               concepts = moment.concepts,
@@ -2340,14 +2408,16 @@ final class LlmApi(
               ctx = dataWithContinuity.toContext,
               probeResults = probeResults.getOrElse(Nil),
               openingRef = openingRef,
-              afterAnalysis = afterDataOpt
+              afterAnalysis = afterDataOpt,
+              renderMode = lila.llm.model.NarrativeRenderMode.Bookmaker
             )
             recordStrategicMetrics(
               data = dataWithContinuity,
               ctx = ctx,
               probeResults = probeResults.getOrElse(Nil)
             )
-            val proseRaw = BookStyleRenderer.render(ctx)
+            val outline = BookStyleRenderer.validatedOutline(ctx)
+            val proseRaw = BookStyleRenderer.renderValidatedOutline(outline, ctx)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,
               opening = opening,
@@ -2360,12 +2430,15 @@ final class LlmApi(
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val strategyPack = StrategyPackBuilder.build(dataWithContinuity, ctx)
+            val bookmakerSlots = BookmakerPolishSlotsBuilder.build(ctx, outline, refs)
             val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
             val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
             val strategyPromptHints = strategyHints(strategyPack)
+            val validationSeed = bookmakerSlots.map(_.validationSeedText).filter(_.nonEmpty).getOrElse(prose)
 
             maybePolishCommentary(
               prose = prose,
+              validationSeed = validationSeed,
               phase = phase,
               evalDelta = None,
               concepts = baseConcepts,
@@ -2380,7 +2453,8 @@ final class LlmApi(
               asyncTier = false,
               refs = refs,
               planTier = planTier,
-              llmLevel = llmLevel
+              llmLevel = llmLevel,
+              bookmakerSlots = bookmakerSlots
             ).map { decision =>
               val response = CommentResponse(
                 commentary = decision.commentary,

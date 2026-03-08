@@ -26,7 +26,8 @@ object NarrativeContextBuilder:
     openingRef: Option[OpeningReference] = None,
     prevOpeningRef: Option[OpeningReference] = None,  // For BranchPoint/TheoryEnds detection
     openingBudget: OpeningEventBudget = OpeningEventBudget(),  // Passed from game-level tracker
-    afterAnalysis: Option[ExtendedAnalysisData] = None
+    afterAnalysis: Option[ExtendedAnalysisData] = None,
+    renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame
   ): NarrativeContext = {
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
@@ -238,7 +239,8 @@ object NarrativeContextBuilder:
         variations = data.alternatives
       )),
       deltaAfterMove = afterDelta.isDefined,
-      strategicSalience = data.strategicSalience
+      strategicSalience = data.strategicSalience,
+      renderMode = renderMode
     )
   }
 

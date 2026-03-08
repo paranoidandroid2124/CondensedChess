@@ -75,7 +75,7 @@ export interface CollapseAnalysis {
     recoverabilityPlies: number;
 }
 
-interface GameNarrativeMoment {
+export interface GameNarrativeMoment {
     momentId?: string;
     ply: number;
     moveNumber?: number;
@@ -124,7 +124,7 @@ export interface ActiveStrategicMoveRef {
     fenAfter?: string;
 }
 
-interface GameNarrativeReview {
+export interface GameNarrativeReview {
     schemaVersion?: number;
     reviewPerspective?: string;
     totalPlies: number;
@@ -390,6 +390,7 @@ export class NarrativeCtrl {
             const response = data as GameNarrativeResponse;
             this.data(response);
             this.publishCollapseOverlay(response);
+            this.root.refreshReviewShellState();
             return;
         }
 
@@ -438,6 +439,7 @@ export class NarrativeCtrl {
                     }
                     this.data(status.result);
                     this.publishCollapseOverlay(status.result);
+                    this.root.refreshReviewShellState();
                 }
                 else this.error('Async analysis completed without result.');
                 return;

@@ -48,6 +48,28 @@ Covered runtime paths:
 Related runtime-contract doc:
 - `modules/llm/docs/BookmakerProseContract.md`
 
+Validation artifacts for thesis-driven Bookmaker prose:
+- golden snapshots:
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.slots.txt`
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.draft.txt`
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.final.txt`
+- golden regression tests:
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenFixtures.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+- refresh / QA tools:
+  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerProseGoldenDump.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerThesisQaRunner.scala`
+- latest QA report:
+  - `modules/llm/docs/BookmakerThesisQaReport.md`
+  - current live snapshot:
+    - six thesis motif fixtures active
+    - `polish_acceptance_ratio=1.000`
+    - `polish_fallback_rate=0.000`
+    - `claim_like_first_paragraph=6/6`
+    - `paragraph_budget_2_4=6/6`
+    - `placeholder_leakage=6/6`
+
 ## Runtime Path Map
 
 ### Full-game path
@@ -242,6 +264,105 @@ Key references:
   - `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala:5`
   - `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala:205`
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala:144`
+- `2026-03-08` working-tree update:
+  - Bookmaker prose is now thesis-driven before LLM polish. The deterministic
+    draft no longer treats rich helper signals as a flat parallel list when a
+    dominant strategic lens is available.
+  - `NarrativeContext` now carries an internal `renderMode`, so the new thesis
+    path is scoped to Bookmaker while full-game continues to use the existing
+    focused-outline flow.
+  - `StrategicThesisBuilder` selects one internal lens in fixed priority order:
+    `compensation -> prophylaxis -> structure -> decision -> practical -> opening`.
+  - When a thesis exists, Bookmaker outline construction collapses to
+    `MoveHeader + Context(claim) + MainMove(cause/effect) + optional
+    DecisionPoint(tension/evidence) + optional WrapUp(practical/compensation)`.
+  - Standalone Bookmaker paragraphs are therefore explicitly organized as:
+    dominant claim, causal support, optional tension/evidence, optional
+    practical/compensation coda.
+  - Bookmaker polish is now slot-driven rather than prose-blob-driven.
+    `BookmakerPolishSlots` carries `claim`, `supportPrimary`,
+    `supportSecondary`, `tension`, `evidenceHook`, `coda`,
+    `factGuardrails`, and `paragraphPlan`, and the LLM sees labeled slot
+    sections instead of a long draft blob.
+  - User-facing sanitization of authoring / probe / evidence placeholders now
+    happens before polish via `BookmakerSlotSanitizer`; raw labels like
+    `subplan:*`, `theme:*`, `support:*`, `seed:*`, `proposal:*`, and
+    placeholder tokens such as `{them}` are stripped or rewritten before the
+    prompt is built.
+  - `LlmApi` now applies a Bookmaker-only soft repair pass after LLM polish.
+    Paragraph count, missing claim, and placeholder leakage are repaired
+    deterministically without turning prose-shape issues into hard fallback
+    reasons.
+  - Slot-mode hard validation now stays focused on factual preservation.
+    Length-ratio failures and paragraph-shape issues are repaired softly,
+    while SAN / eval / branch integrity still remains the hard gate.
+  - `PolishPrompt` now explicitly tells the LLM not to flatten the dominant
+    strategic claim or its cause/effect chain into generic advantage wording.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
+  - `modules/llm/docs/BookmakerProseContract.md`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/PolishPromptTest.scala`
+- `2026-03-08` working-tree update:
+  - `mode: userAnalysis` now consumes full-game commentary through a
+    narrative-first `Review Shell`, not an optional side tool. The primary
+    frontend path is `Overview / Moments / Repair / Patterns`, while
+    `Moves / Reference` keep the raw move tree, explorer, board settings, and
+    PGN/FEN import as secondary surfaces.
+  - `AnalyseCtrl` owns explicit review UI state
+    (`primaryTab`, `referenceTab`, `momentFilter`,
+    `selectedMomentPly`, `selectedCollapseId`) and only the free-analysis
+    surface uses it. `replay` / `study` continue to use the legacy stacked tool
+    model.
+  - `NarrativeCtrl.enabled` is no longer used as the visibility source of truth
+    on free analysis. The review shell is always present, and narrative fetches
+    are now triggered from `Overview` / `openNarrative()` while
+    `Moments / Repair / Patterns` reuse the same narrative, collapse, and DNA
+    payloads.
+  - the former underboard PGN/FEN import flow has moved into
+    `Reference > Import`, so the right-hand tools column is now the single
+    consumption surface for review, reference, and raw analysis on `/analysis`.
+  - review-shell polish now persists tab / filter / selected review targets for
+    the session and keeps the active tab or selected moment / collapse card in
+    view while the board is navigated from the control bar.
+- Verification:
+  - `ui/analyse/src/ctrl.ts:940`
+  - `ui/analyse/src/ctrl.ts:952`
+  - `ui/analyse/src/ctrl.ts:1114`
+  - `ui/analyse/src/ctrl.ts:1130`
+  - `ui/analyse/src/ctrl.ts:1144`
+  - `ui/analyse/src/ctrl.ts:950`
+  - `ui/analyse/src/ctrl.ts:991`
+  - `ui/analyse/src/ctrl.ts:1082`
+  - `ui/analyse/src/view/components.ts:93`
+  - `ui/analyse/src/view/components.ts:222`
+  - `ui/analyse/src/view/components.ts:294`
+  - `ui/analyse/src/view/components.ts:306`
+  - `ui/analyse/src/view/controls.ts:21`
+  - `ui/analyse/src/view/actionMenu.ts:18`
+  - `ui/analyse/src/explorer/explorerView.ts:286`
+  - `ui/analyse/src/review/view.ts:56`
+  - `ui/analyse/src/review/view.ts:387`
+  - `ui/analyse/src/review/view.ts:111`
+  - `ui/analyse/src/review/view.ts:205`
+  - `ui/analyse/src/review/view.ts:245`
+  - `ui/analyse/src/review/view.ts:285`
+  - `ui/analyse/src/review/view.ts:312`
+  - `ui/analyse/src/narrative/narrativeView.ts:208`
+  - `ui/analyse/src/narrative/narrativeView.ts:225`
+  - `ui/analyse/src/narrative/narrativeView.ts:290`
+  - `ui/analyse/src/narrative/narrativeView.ts:421`
+  - `ui/analyse/src/narrative/narrativeView.ts:461`
+  - `ui/analyse/src/narrative/narrativeView.ts:821`
 
 ## Findings
 

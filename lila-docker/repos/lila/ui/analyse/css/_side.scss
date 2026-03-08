@@ -236,7 +236,7 @@
       padding: 0.65rem 0.8rem;
       border: 1px solid rgba($c-primary, 0.16);
       border-radius: 8px;
-      background: mix($c-bg-zebra, $c-primary, 94%);
+      background: $c-bg-zebra;
     }
 
     .bookmaker-strategic-summary__title {
@@ -338,8 +338,8 @@
     }
 
     .bookmaker-authoring-summary__status--resolved {
-      background: rgba($m-good, 0.12);
-      color: $m-good--text;
+      background: rgba($c-good, 0.12);
+      color: $c-good;
     }
 
     .bookmaker-authoring-summary__status--pending,

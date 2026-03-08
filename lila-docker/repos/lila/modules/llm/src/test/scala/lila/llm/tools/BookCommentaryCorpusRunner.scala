@@ -428,7 +428,8 @@ object BookCommentaryCorpusRunner:
             openingRef = openingRef,
             prevOpeningRef = None,
             openingBudget = OpeningEventBudget(),
-            afterAnalysis = None
+            afterAnalysis = None,
+            renderMode = NarrativeRenderMode.Bookmaker
           )
 
         // Inject virtual motifs for corpus validation

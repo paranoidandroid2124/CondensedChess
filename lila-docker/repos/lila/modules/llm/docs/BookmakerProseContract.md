@@ -1,6 +1,6 @@
 # Bookmaker Prose Contract
 
-Snapshot: `2026-03-06`
+Snapshot: `2026-03-08`
 
 ## Purpose
 
@@ -54,10 +54,10 @@ For isolated-move / Bookmaker commentary:
 - Target `2-4` short paragraphs.
 - Keep each paragraph to `1-3` sentences.
 - Prefer this order when supported by the draft:
-- Paragraph 1: immediate move meaning and evaluation direction
-- Paragraph 2: strategic consequence and opponent resource or plan
-- Paragraph 3: optional concrete line, practical verdict, or evidence-backed nuance
-- Paragraph 4: only if the draft already needs an extra supported paragraph
+- Paragraph 1: the dominant strategic claim for the move
+- Paragraph 2: the main cause -> effect chain that supports that claim
+- Paragraph 3: only when supported, the opponent resource, deferred alternative, or evidence-backed line
+- Paragraph 4: only when supported, a practical or compensation coda
 
 For full-game intro / conclusion / moment polishing using the same polish path:
 
@@ -70,9 +70,9 @@ Not every structured signal belongs in prose.
 
 The body should prioritize:
 
-- the main move explanation
-- the most important strategic consequence
-- the most decision-relevant concrete line or practical note
+- the dominant strategic claim
+- the most important cause -> effect support for that claim
+- the most decision-relevant concrete line, tension, or practical note
 
 Secondary evidence should stay in UI-owned blocks when available.
 
@@ -92,13 +92,44 @@ The contract does not weaken existing preservation rules:
   - implementation note:
     - the full contract is documented here, but per-request polish / repair prompts
       should carry only a short structure reminder to reduce token cost
+- Slot builder + user-safe sanitizer:
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+- Bookmaker-only soft repair after LLM polish:
+  - `modules/llm/src/main/LlmApi.scala`
 - Deterministic paragraph rendering:
   - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+- Deterministic thesis selection before outline construction:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
 - Post-processing that preserves paragraph breaks:
   - `modules/llm/src/main/scala/lila/llm/analysis/PostCritic.scala`
 - Frontend UI-owned blocks:
   - `ui/analyse/src/bookmaker.ts`
   - `ui/analyse/css/_side.scss`
+
+## Validation Artifacts
+
+- Golden prose snapshots:
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.slots.txt`
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.draft.txt`
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.final.txt`
+- Snapshot regression tests:
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
+- Slot regression tests:
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+- Snapshot refresh tool:
+  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerProseGoldenDump.scala`
+- Sample QA + prompt-envelope report:
+  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerThesisQaRunner.scala`
+  - `modules/llm/docs/BookmakerThesisQaReport.md`
+
+Current environment caveat:
+
+- the latest QA report uses the six thesis motif fixtures and, when provider
+  keys are present, records live slot-driven polish runs against them
+- provider-side `prompt_tokens`, paragraph counts, and acceptance / fallback
+  ratios are recorded in `BookmakerThesisQaReport.md`
+- `estimatedCostUsd` may still be `n/a` when the provider metadata does not
+  return a cost estimate for the active model
 
 ## Non-Goals
 

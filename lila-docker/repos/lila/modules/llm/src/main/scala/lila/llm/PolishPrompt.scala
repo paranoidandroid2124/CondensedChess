@@ -1,5 +1,7 @@
 package lila.llm
 
+import lila.llm.analysis.BookmakerPolishSlots
+
 /** System prompt and per-request polish prompt builder for LLM polishing.
   *
   * The system prompt is shared across providers and designed for prompt caching.
@@ -29,8 +31,8 @@ object PolishPrompt:
       |   - move numbering / side-to-move markers such as `17...`
       |   - eval tokens and branch labels like `a)`, `b)`, `c)`
       |   - anchor tokens such as [[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]
-      |3. Improve wording only: remove template filler, merge redundant phrasing,
-      |   and add brief cause -> effect links where the draft already supports them.
+      |3. Improve wording only: remove template filler and merge redundant phrasing,
+      |   but preserve the draft's dominant strategic claim and cause -> effect chain instead of flattening them into generic advantage language.
       |4. Keep prose concrete. Name moves, squares, plans, structure, and piece roles explicitly
       |   when the draft already provides them.
       |5. Respect evaluation and salience:
@@ -73,7 +75,8 @@ object PolishPrompt:
       nature: Option[String] = None,
       tension: Option[Double] = None,
       salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
-      momentType: Option[String] = None
+      momentType: Option[String] = None,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val conceptStr = if concepts.isEmpty then "none detected" else concepts.take(6).mkString(", ")
@@ -83,24 +86,60 @@ object PolishPrompt:
     val salienceStr = salience.map(_.toString).getOrElse("High")
     val momentTypeStr = momentType.map(m => s"Key Moment ($m) - Part of Full Game Review").getOrElse("Isolated Move")
     val modeReminder = bookmakerParagraphReminder(momentType)
-
-    s"""## DRAFT COMMENTARY
-       |$prose
-       |
-       |## CONTEXT
-       |Phase: $phase | Eval Δ: $deltaStr | Nature: $natureStr (tension: $tensionStr)
-       |Opening: $openingStr
-       |Concepts: $conceptStr
-       |FEN: $fen
-       |Salience: $salienceStr
-       |Context Mode: $momentTypeStr
-       |
-       |If anchor tokens like [[MV_*]], [[MK_*]], [[EV_*]], or [[VB_*]] appear in the draft, preserve them exactly.
-       |
-       |$proseModeReminder
-       |$modeReminder
-       |
-       |Refine the draft above following the system instructions.""".stripMargin
+    bookmakerSlots match
+      case Some(slots) =>
+        val supportText = slots.support.mkString("\n")
+        val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
+        val evidenceSection = slots.evidenceHook.map(e => s"\n## SLOT EVIDENCE\n$e").getOrElse("")
+        val codaSection = slots.coda.map(c => s"\n## SLOT CODA\n$c").getOrElse("")
+        val guardrailText =
+          if slots.factGuardrails.nonEmpty then slots.factGuardrails.mkString("\n")
+          else "Keep the move header/SAN and any exact branch/eval tokens already implied by the slots."
+        val paragraphPlan =
+          if slots.paragraphPlan.nonEmpty then slots.paragraphPlan.mkString(", ") else "p1=claim, p2=support_chain"
+        s"""## SLOT CLAIM
+           |${slots.claim}
+           |
+           |## SLOT SUPPORT
+           |$supportText$tensionSection$evidenceSection$codaSection
+           |
+           |## FACT GUARDRAILS
+           |$guardrailText
+           |
+           |## CONTEXT
+           |Phase: $phase | Eval Δ: $deltaStr | Nature: $natureStr (tension: $tensionStr)
+           |Opening: $openingStr
+           |Concepts: $conceptStr
+           |FEN: $fen
+           |Salience: $salienceStr
+           |Context Mode: $momentTypeStr
+           |Paragraph Plan: $paragraphPlan
+           |
+           |If anchor tokens like [[MV_*]], [[MK_*]], [[EV_*]], or [[VB_*]] appear in the guardrails, preserve them exactly.
+           |
+           |$proseModeReminder
+           |$modeReminder
+           |Keep paragraph order aligned to the slots: claim first, then the support chain, then optional tension/evidence, then optional coda.
+           |
+           |Turn the slots into polished commentary following the system instructions.""".stripMargin
+      case None =>
+        s"""## DRAFT COMMENTARY
+           |$prose
+           |
+           |## CONTEXT
+           |Phase: $phase | Eval Δ: $deltaStr | Nature: $natureStr (tension: $tensionStr)
+           |Opening: $openingStr
+           |Concepts: $conceptStr
+           |FEN: $fen
+           |Salience: $salienceStr
+           |Context Mode: $momentTypeStr
+           |
+           |If anchor tokens like [[MV_*]], [[MK_*]], [[EV_*]], or [[VB_*]] appear in the draft, preserve them exactly.
+           |
+           |$proseModeReminder
+           |$modeReminder
+           |
+           |Refine the draft above following the system instructions.""".stripMargin
 
   /** Build a repair prompt for re-polishing when first output fails strict validation.
     *
@@ -114,7 +153,8 @@ object PolishPrompt:
       concepts: List[String],
       fen: String,
       openingName: Option[String] = None,
-      allowedSans: List[String] = Nil
+      allowedSans: List[String] = Nil,
+      bookmakerSlots: Option[BookmakerPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val conceptStr = if concepts.isEmpty then "none detected" else concepts.take(8).mkString(", ")
@@ -126,39 +166,80 @@ object PolishPrompt:
         .distinct
         .take(28)
         .mkString(", ")
-
-    s"""## ORIGINAL_DRAFT
-       |$originalProse
-       |
-       |## REJECTED_POLISH
-       |$rejectedPolish
-       |
-       |## STRICT REPAIR REQUIREMENTS
-       |- Keep factual claims from ORIGINAL_DRAFT.
-       |- Keep concrete line SAN token order exactly valid for ORIGINAL_DRAFT context.
-       |- Do not add SAN tokens beyond this allowed extension set: ${if allowedSansStr.nonEmpty then allowedSansStr else "none"}.
-       |- Preserve move numbering and marker style for concrete lines (e.g., keep `17...`, do not mutate to `17.`).
-       |- Keep the prose concise and natural; remove repetitive template artifacts.
-       |
-       |## CONTEXT
-       |Phase: $phase | Eval Δ: $deltaStr
-       |Opening: $openingStr
-       |Concepts: $conceptStr
-       |FEN: $fen
-       |
-       |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
-       |
-       |$proseModeReminder
-       |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
-       |
-       |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
+    bookmakerSlots match
+      case Some(slots) =>
+        val supportText = slots.support.mkString("\n")
+        val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
+        val evidenceSection = slots.evidenceHook.map(e => s"\n## SLOT EVIDENCE\n$e").getOrElse("")
+        val codaSection = slots.coda.map(c => s"\n## SLOT CODA\n$c").getOrElse("")
+        val guardrailText =
+          if slots.factGuardrails.nonEmpty then slots.factGuardrails.mkString("\n")
+          else originalProse
+        s"""## SLOT CLAIM
+           |${slots.claim}
+           |
+           |## SLOT SUPPORT
+           |$supportText$tensionSection$evidenceSection$codaSection
+           |
+           |## FACT GUARDRAILS
+           |$guardrailText
+           |
+           |## REJECTED_POLISH
+           |$rejectedPolish
+           |
+           |## STRICT REPAIR REQUIREMENTS
+           |- Keep factual claims from the slots.
+           |- Keep concrete line SAN token order exactly valid for the guardrails.
+           |- Do not add SAN tokens beyond this allowed extension set: ${if allowedSansStr.nonEmpty then allowedSansStr else "none"}.
+           |- Preserve move numbering, branch labels, eval tokens, and marker style for concrete lines.
+           |- Restore the dominant strategic claim in paragraph 1 and keep the support chain in paragraph 2.
+           |- Keep the prose concise and natural; remove repetitive template artifacts.
+           |
+           |## CONTEXT
+           |Phase: $phase | Eval Δ: $deltaStr
+           |Opening: $openingStr
+           |Concepts: $conceptStr
+           |FEN: $fen
+           |
+           |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
+           |
+           |$proseModeReminder
+           |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
+           |
+           |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
+      case None =>
+        s"""## ORIGINAL_DRAFT
+           |$originalProse
+           |
+           |## REJECTED_POLISH
+           |$rejectedPolish
+           |
+           |## STRICT REPAIR REQUIREMENTS
+           |- Keep factual claims from ORIGINAL_DRAFT.
+           |- Keep concrete line SAN token order exactly valid for ORIGINAL_DRAFT context.
+           |- Do not add SAN tokens beyond this allowed extension set: ${if allowedSansStr.nonEmpty then allowedSansStr else "none"}.
+           |- Preserve move numbering and marker style for concrete lines (e.g., keep `17...`, do not mutate to `17.`).
+           |- Keep the prose concise and natural; remove repetitive template artifacts.
+           |
+           |## CONTEXT
+           |Phase: $phase | Eval Δ: $deltaStr
+           |Opening: $openingStr
+           |Concepts: $conceptStr
+           |FEN: $fen
+           |
+           |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
+           |
+           |$proseModeReminder
+           |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
+           |
+           |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
 
   /** Estimate token count for the system prompt (for cost analysis). */
   val estimatedSystemTokens: Int = 1500
 
   /** Estimate per-request input tokens (prose + context, excluding system). */
-  def estimateRequestTokens(prose: String): Int =
+  def estimateRequestTokens(input: String): Int =
     // Rough heuristic: 1 token ≈ 4 characters for English text
-    val proseTokens = (prose.length / 4.0).toInt
+    val proseTokens = (input.length / 4.0).toInt
     val overheadTokens = 80 // context fields, formatting
     proseTokens + overheadTokens

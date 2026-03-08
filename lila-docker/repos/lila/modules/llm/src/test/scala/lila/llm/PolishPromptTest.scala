@@ -22,6 +22,12 @@ class PolishPromptTest extends FunSuite:
     assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
   }
 
+  test("system prompt preserves the dominant strategic claim and causal chain") {
+    assert(PolishPrompt.systemPrompt.contains("dominant strategic claim"))
+    assert(PolishPrompt.systemPrompt.contains("cause -> effect chain"))
+    assert(PolishPrompt.estimatedSystemTokens <= 1500)
+  }
+
   test("buildRepairPrompt keeps a short repair reminder") {
     val prompt = PolishPrompt.buildRepairPrompt(
       originalProse = "White centralizes the rook.\n\nThat keeps the pressure alive.",

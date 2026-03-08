@@ -1,0 +1,5 @@
+12... Rxc6: The point of the move is not an immediate score, but to accept a 180cp investment for attack on king and dark square bind.
+
+The compensation has to cash out through Mating Attack. That only works if the initiative keeps generating attack on king and dark square bind.
+
+The direct alternative stays secondary because the calm recapture lets Black untangle and trade off the attack. Probe evidence starts with...Qe7: Qe7 h5 Rh6 (+0.68).

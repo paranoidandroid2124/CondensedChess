@@ -115,7 +115,8 @@ object PlanHierarchyAuditRunner:
                   openingRef = None,
                   prevOpeningRef = None,
                   openingBudget = OpeningEventBudget(),
-                  afterAnalysis = None
+                  afterAnalysis = None,
+                  renderMode = NarrativeRenderMode.Bookmaker
                 )
 
               val rec = new TraceRecorder()

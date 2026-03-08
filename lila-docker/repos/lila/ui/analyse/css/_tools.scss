@@ -43,6 +43,117 @@
   }
 }
 
+.analyse__workspace-dock {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-top: $border;
+  background: $c-bg-zebra;
+
+  &.is-idle {
+    background: linear-gradient(180deg, $c-bg-box 0%, $c-bg-zebra 100%);
+  }
+}
+
+.analyse__workspace-dock-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+
+  strong {
+    font-size: 0.9rem;
+  }
+
+  span {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: $c-font-dim;
+  }
+}
+
+.analyse__workspace-dock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.55rem;
+}
+
+.analyse__workspace-card {
+  @extend %button-none;
+
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border: $border;
+  border-radius: $box-radius-size;
+  background: $c-bg-box;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    border-color: $c-secondary;
+    background: $c-bg-zebra;
+    transform: translateY(-1px);
+  }
+
+  &.active {
+    border-color: rgba($c-secondary, 0.45);
+    background: $c-bg-zebra;
+  }
+
+  &.busy {
+    border-color: rgba($c-primary, 0.45);
+  }
+}
+
+.analyse__workspace-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 2rem;
+  color: $c-secondary;
+
+  svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}
+
+.analyse__workspace-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+
+  strong {
+    font-size: 0.9rem;
+  }
+
+  span {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: $c-font-dim;
+    white-space: normal;
+  }
+}
+
+.analyse__workspace-card-state {
+  margin-inline-start: auto;
+  align-self: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba($c-primary, 0.12);
+  color: $c-primary;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .analyse__moves {
   @include prevent-select;
   flex: 2 1 0;
@@ -129,6 +240,10 @@
     margin-top: -3px;
     padding-top: 3px;
     color: $c-over;
+  }
+
+  .fbt.busy {
+    box-shadow: inset 0 0 0 1px rgba($c-secondary, 0.4);
   }
 
   .fbt.latent {

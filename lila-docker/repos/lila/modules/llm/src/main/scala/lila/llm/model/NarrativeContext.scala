@@ -4,6 +4,10 @@ import chess.Color
 import lila.llm.model.authoring.{ AuthorQuestion, LatentPlanNarrative, PlanHypothesis, QuestionEvidence }
 import play.api.libs.json.*
 
+enum NarrativeRenderMode:
+  case FullGame
+  case Bookmaker
+
 /** Aggregates all analysis layers into a hierarchical structure for LLM prompts. */
 case class NarrativeContext(
 
@@ -78,7 +82,8 @@ case class NarrativeContext(
 
 
   deltaAfterMove: Boolean = false,
-  strategicSalience: lila.llm.model.strategic.StrategicSalience = lila.llm.model.strategic.StrategicSalience.High
+  strategicSalience: lila.llm.model.strategic.StrategicSalience = lila.llm.model.strategic.StrategicSalience.High,
+  renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame
 )
 
 

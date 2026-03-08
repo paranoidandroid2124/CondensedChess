@@ -30,6 +30,9 @@ object BookStyleRenderer:
   def render(ctx: NarrativeContext): String =
     renderValidatedOutline(validatedOutline(ctx), ctx)
 
+  private[llm] def renderDraft(ctx: NarrativeContext): String =
+    renderOutlineRaw(validatedOutline(ctx), ctx)
+
   def validatedOutline(ctx: NarrativeContext): NarrativeOutline =
     val rec = new TraceRecorder()
     val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)

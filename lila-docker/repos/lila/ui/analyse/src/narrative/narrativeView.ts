@@ -148,6 +148,32 @@ type GameNarrativeResponse = {
     llmLevel?: string;
 };
 
+const reviewCardInteractiveSelector = [
+    'button',
+    'a[href]',
+    'input',
+    'select',
+    'textarea',
+    'summary',
+    '[role="button"]',
+    '[role="link"]',
+    '[role="tab"]',
+    '[data-board]',
+    '[data-route]',
+    '[data-route-fen]',
+    '[contenteditable="true"]',
+].join(',');
+
+function eventTargetElement(target: EventTarget | null): Element | null {
+    const candidate = target as Partial<Node> | null;
+    if (!candidate || typeof candidate !== 'object' || typeof candidate.nodeType !== 'number') return null;
+    return candidate.nodeType === 1 ? candidate as Element : (candidate as Node).parentElement;
+}
+
+export function shouldIgnoreReviewCardClick(target: EventTarget | null): boolean {
+    return !!eventTargetElement(target)?.closest(reviewCardInteractiveSelector);
+}
+
 export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
     if (!ctrl.enabled()) return null;
 
@@ -205,7 +231,7 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
 
 // ── Collapse Tab ──────────────────────────────────────────────────────
 
-function collapseTabView(ctrl: NarrativeCtrl): VNode {
+export function collapseTabView(ctrl: NarrativeCtrl, activeCollapseId?: string | null): VNode {
     const data = ctrl.data();
     const moments = (data?.moments || []).filter(m => m.collapse);
     if (!moments.length) {
@@ -216,11 +242,13 @@ function collapseTabView(ctrl: NarrativeCtrl): VNode {
     return hl('div.narrative-content.collapse-tab', [
         hl('h3.dna-section-title', `${moments.length} Collapse${moments.length > 1 ? 's' : ''} Detected`),
         collapseTimelineView(ctrl, moments),
-        ...moments.map(m => narrativeCollapseCardView(ctrl, m)),
+        ...moments.map(m => narrativeCollapseCardView(ctrl, m, {
+            selected: !!activeCollapseId && m.collapse?.interval === activeCollapseId,
+        })),
     ]);
 }
 
-function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrativeMoment[]): VNode {
+export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrativeMoment[]): VNode {
     const totalPlies = ctrl.root.mainline.length > 0
         ? ctrl.root.mainline[ctrl.root.mainline.length - 1].ply
         : 1;
@@ -285,7 +313,7 @@ const CAUSE_COLORS: Record<string, string> = {
 };
 const DEFAULT_CAUSE_COLOR = 'hsl(220, 40%, 55%)';
 
-function defeatDnaContentView(ctrl: NarrativeCtrl): VNode {
+export function defeatDnaContentView(ctrl: NarrativeCtrl): VNode {
     if (ctrl.dnaLoading()) {
         return hl('div.narrative-content.dna-loading', hl('div.loader', 'Loading Defeat DNA...'));
     }
@@ -416,7 +444,7 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
     ]);
 }
 
-function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
+export function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
     const review = doc.review;
     if (!review) return null;
 
@@ -456,7 +484,11 @@ function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
     ]);
 }
 
-function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
+export function narrativeMomentView(
+    ctrl: NarrativeCtrl,
+    moment: GameNarrativeMoment,
+    opts: { selected?: boolean; onSelect?: () => void } = {},
+): VNode {
     const title = `Ply ${moment.ply}`;
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
     const hasStrategicBlock =
@@ -465,7 +497,13 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
         !!moment.activeStrategicRoutes?.length;
 
     return hl('section.narrative-moment', {
-        attrs: { 'data-ply': moment.ply }
+        attrs: { 'data-ply': moment.ply },
+        class: { active: !!opts.selected },
+        hook: opts.onSelect
+            ? bind('click', e => {
+                if (!shouldIgnoreReviewCardClick(e.target)) opts.onSelect?.();
+            })
+            : undefined,
     }, [
         hl('header.narrative-moment-header', [
             hl('div.narrative-moment-title-box', [
@@ -473,6 +511,7 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
                     hook: bind(
                         'click',
                         () => {
+                            opts.onSelect?.();
                             ctrl.root.jumpToMain(moment.ply);
                             ctrl.root.redraw();
                         },
@@ -491,7 +530,10 @@ function narrativeMomentView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): 
         narrativeSignalSummaryView(moment),
         hasStrategicBlock ? narrativeStrategicNoteView(ctrl, moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
-        moment.collapse ? narrativeCollapseCardView(ctrl, moment) : null,
+        moment.collapse ? narrativeCollapseCardView(ctrl, moment, {
+            selected: !!opts.selected,
+            onSelect: opts.onSelect,
+        }) : null,
         moment.topEngineMove ? narrativeTopEngineMoveView(ctrl, moment) : null,
         variations.length
             ? hl('div.narrative-variations', [
@@ -806,11 +848,23 @@ function narrativeActivePlanView(plan: ActivePlanRef): VNode {
     ]);
 }
 
-function narrativeCollapseCardView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
+export function narrativeCollapseCardView(
+    ctrl: NarrativeCtrl,
+    moment: GameNarrativeMoment,
+    opts: { selected?: boolean; onSelect?: () => void } = {},
+): VNode | null {
     const collapse = moment.collapse;
     if (!collapse) return null;
 
-    return hl('div.narrative-collapse-card', [
+    return hl('div.narrative-collapse-card', {
+        attrs: { 'data-collapse-id': collapse.interval },
+        class: { active: !!opts.selected },
+        hook: opts.onSelect
+            ? bind('click', e => {
+                if (!shouldIgnoreReviewCardClick(e.target)) opts.onSelect?.();
+            })
+            : undefined,
+    }, [
         hl('h3.narrative-collapse-title', [
             hl('span.icon', { attrs: { ...dataIcon(licon.Target) } }),
             ' Causal Collapse Analyzer'
@@ -828,6 +882,7 @@ function narrativeCollapseCardView(ctrl: NarrativeCtrl, moment: GameNarrativeMom
                 hl('span.narrative-collapse-label', 'Earliest Preventable:'),
                 hl('button.button.button-empty.narrative-jump', {
                     hook: bind('click', () => {
+                        opts.onSelect?.();
                         ctrl.root.jumpToMain(collapse.earliestPreventablePly);
                         ctrl.root.redraw();
                     })
