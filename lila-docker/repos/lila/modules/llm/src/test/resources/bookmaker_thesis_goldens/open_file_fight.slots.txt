@@ -3,6 +3,6 @@ claim=12... Rc3: The key decision is to choose Open File Fight and postpone Qh5,
 supportPrimary=It does that by resolving back-rank counterplay and then creating pressure on g7.
 supportSecondary=The whole decision turns on g7.
 tension=The direct alternative stays secondary because the immediate "Qh5" thrust lets Black trade queens and kill the attack.
-evidenceHook=Probe evidence starts with...Rc8: Rc8 Rc3 Rg6 (+0.42).
+evidenceHook=Probe evidence starts with ...Rc8: Rc8 Rc3 Rg6 (+0.42).
 coda=
 paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence

@@ -26,12 +26,19 @@ class ActiveStrategicPromptTest extends FunSuite:
         evidence = List("piece_activity")
       )
     ),
-    longTermFocus = List("Dark-square control"),
-    evidence = List("top_multipv"),
+    longTermFocus = List("dominant thesis: The French Chain calls for a knight reroute toward e3.", "Dark-square control"),
+    evidence = List("dominant_thesis:The French Chain calls for a knight reroute toward e3.", "top_multipv"),
     signalDigest = Some(
       NarrativeSignalDigest(
         opening = Some("Ruy Lopez"),
         practicalVerdict = Some("conversion requires precision"),
+        structureProfile = Some("French Chain"),
+        alignmentBand = Some("Playable"),
+        deploymentPiece = Some("N"),
+        deploymentRoute = List("d2", "f1", "e3"),
+        deploymentPurpose = Some("kingside clamp"),
+        deploymentContribution = Some("This move starts that route immediately."),
+        deploymentConfidence = Some(0.81),
         decision = Some("Resolves back-rank pressure before expanding"),
         preservedSignals = List("opening", "practical", "decision")
       )
@@ -75,6 +82,9 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("Signal Digest"))
     assert(prompt.contains("Ruy Lopez"))
     assert(prompt.contains("conversion requires precision"))
+    assert(prompt.contains("dominant thesis"))
+    assert(prompt.contains("structure deployment: N d2-f1-e3"))
+    assert(prompt.contains("deployment purpose: kingside clamp"))
     assert(prompt.contains("route_1"))
     assert(prompt.contains("Engine preference"))
     assert(prompt.contains("cite exact routeId and/or move label"))

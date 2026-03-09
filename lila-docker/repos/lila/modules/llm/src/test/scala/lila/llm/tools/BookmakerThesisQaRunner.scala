@@ -35,6 +35,8 @@ object BookmakerThesisQaRunner:
 
   private final case class QaResult(
       fixture: Fixture,
+      slots: BookmakerPolishSlots,
+      digest: Option[NarrativeSignalDigest],
       ruleCommentary: String,
       finalCommentary: String,
       evaluation: BookmakerProseContract.Evaluation,
@@ -83,6 +85,8 @@ object BookmakerThesisQaRunner:
           directPolish.map(_.softRepaired).getOrElse(BookmakerSoftRepair.repair(ruleCommentary, slots).text)
         QaResult(
           fixture = fixture,
+          slots = slots,
+          digest = NarrativeSignalDigestBuilder.build(ctx),
           ruleCommentary = ruleCommentary,
           finalCommentary = finalCommentary,
           evaluation = BookmakerProseContract.evaluate(finalCommentary, slots),
@@ -127,7 +131,8 @@ object BookmakerThesisQaRunner:
           ),
           scala.concurrent.duration.Duration(120, "seconds")
         ).map { result =>
-          val repaired = BookmakerSoftRepair.repair(result.commentary, slots)
+          val normalized = CommentaryPayloadNormalizer.normalize(result.commentary)
+          val repaired = BookmakerSoftRepair.repair(normalized, slots)
           DirectPolishMetrics(
             provider = "openai",
             model = Some(result.model),
@@ -136,7 +141,7 @@ object BookmakerThesisQaRunner:
             cachedTokens = result.cachedTokens,
             completionTokens = result.completionTokens,
             estimatedCostUsd = result.estimatedCostUsd,
-            rawPolished = result.commentary,
+            rawPolished = normalized,
             softRepaired = repaired.text,
             softRepairApplied = repaired.applied
           )
@@ -154,7 +159,8 @@ object BookmakerThesisQaRunner:
           ),
           scala.concurrent.duration.Duration(120, "seconds")
         ).map { result =>
-          val repaired = BookmakerSoftRepair.repair(result, slots)
+          val normalized = CommentaryPayloadNormalizer.normalize(result)
+          val repaired = BookmakerSoftRepair.repair(normalized, slots)
           DirectPolishMetrics(
             provider = "gemini",
             model = sys.env.get("GEMINI_MODEL").filter(_.trim.nonEmpty),
@@ -163,7 +169,7 @@ object BookmakerThesisQaRunner:
             cachedTokens = None,
             completionTokens = None,
             estimatedCostUsd = None,
-            rawPolished = result,
+            rawPolished = normalized,
             softRepaired = repaired.text,
             softRepairApplied = repaired.applied
           )
@@ -200,6 +206,16 @@ object BookmakerThesisQaRunner:
     val paragraphPass = results.count(_.evaluation.paragraphBudgetOk)
     val genericPass = results.count(_.evaluation.genericHits.isEmpty)
     val placeholderPass = results.count(_.evaluation.placeholderHits.isEmpty)
+    val structureResults = results.filter(_.fixture.expectedLens.toString == "Structure")
+    val structureClaimRate =
+      if structureResults.isEmpty then None
+      else Some(structureResults.count(_.evaluation.claimLikeFirstParagraph).toDouble / structureResults.size.toDouble)
+    val deploymentMentionRate =
+      if structureResults.isEmpty then None
+      else Some(structureResults.count(mentionsDeployment).toDouble / structureResults.size.toDouble)
+    val moveContributionRate =
+      if structureResults.isEmpty then None
+      else Some(structureResults.count(mentionsContribution).toDouble / structureResults.size.toDouble)
     val directPolish = results.flatMap(_.directPolish)
     val softRepairAppliedRate =
       if directPolish.isEmpty then None
@@ -235,6 +251,9 @@ object BookmakerThesisQaRunner:
     sb.append(s"- Paragraph budget (2-4): $paragraphPass/${results.size}\n")
     sb.append(s"- No banned generic phrase hits: $genericPass/${results.size}\n")
     sb.append(s"- No placeholder / authoring leakage hits: $placeholderPass/${results.size}\n")
+    structureClaimRate.foreach(rate => sb.append(f"- structure_claim_rate: $rate%.3f\n"))
+    deploymentMentionRate.foreach(rate => sb.append(f"- deployment_mention_rate: $rate%.3f\n"))
+    moveContributionRate.foreach(rate => sb.append(f"- move_contribution_rate: $rate%.3f\n"))
     softRepairAppliedRate.foreach(rate => sb.append(f"- soft_repair_applied_rate: $rate%.3f\n"))
     sb.append("\n")
 
@@ -285,3 +304,37 @@ object BookmakerThesisQaRunner:
       sb.append(f"- polish_fallback_rate: ${fallbackRate.getOrElse(0.0)}%.3f\n")
       sb.append(s"- avg_estimated_cost_usd: ${avgCostUsd.map(v => f"$v%.6f").getOrElse("n/a")}\n")
     sb.toString
+
+  private def mentionsDeployment(result: QaResult): Boolean =
+    val low = result.finalCommentary.toLowerCase
+    result.digest.exists { digest =>
+      val route = digest.deploymentRoute.map(_.toLowerCase)
+      val piece = digest.deploymentPiece.map(_.toLowerCase)
+      val purpose = digest.deploymentPurpose.map(_.toLowerCase)
+      route.exists(path => path.nonEmpty && path.exists(low.contains)) ||
+      piece.exists(low.contains) ||
+      purpose.exists(low.contains)
+    }
+
+  private def mentionsContribution(result: QaResult): Boolean =
+    val low = result.finalCommentary.toLowerCase
+    val semanticHits = List(
+      "starts that route",
+      "begins that route",
+      "starts the transfer",
+      "begins the transfer",
+      "supports that route",
+      "clears the route",
+      "connects with that route",
+      "places the",
+      "reinforces the target file"
+    ).exists(low.contains)
+    semanticHits || result.digest.flatMap(_.deploymentContribution).exists { contribution =>
+      val tokens =
+        contribution
+          .toLowerCase
+          .split("""[^a-z0-9]+""")
+          .filter(token => token.nonEmpty && token.length > 4)
+          .toList
+      tokens.nonEmpty && tokens.count(low.contains) >= 2
+    }

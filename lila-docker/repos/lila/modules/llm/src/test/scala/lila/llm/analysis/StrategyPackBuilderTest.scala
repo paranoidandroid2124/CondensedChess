@@ -214,7 +214,17 @@ class StrategyPackBuilderTest extends FunSuite:
   test("build emits rich structure practical and prophylaxis digest details") {
     val semantic = SemanticSection(
       structuralWeaknesses = Nil,
-      pieceActivity = Nil,
+      pieceActivity = List(
+        PieceActivityInfo(
+          piece = "Rook",
+          square = "a1",
+          mobilityScore = 0.40,
+          isTrapped = false,
+          isBadBishop = false,
+          keyRoutes = List("b1", "b3"),
+          coordinationLinks = List("b4")
+        )
+      ),
       positionalFeatures = Nil,
       compensation = Some(
         CompensationInfo(
@@ -285,6 +295,10 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(digest.centerState, Some("Locked"))
     assertEquals(digest.alignmentBand, Some("Playable"))
     assert(digest.alignmentReasons.exists(_.contains("preconditions")), clue(digest.alignmentReasons))
+    assertEquals(digest.deploymentPiece, Some("R"))
+    assert(digest.deploymentRoute.nonEmpty, clue(digest))
+    assertEquals(digest.deploymentPurpose, Some("queenside pressure"))
+    assert(digest.deploymentContribution.exists(_.contains("This move")), clue(digest))
     assertEquals(digest.prophylaxisPlan, Some("Queenside Counterplay"))
     assertEquals(digest.prophylaxisThreat, Some("counterplay"))
     assertEquals(digest.counterplayScoreDrop, Some(140))
@@ -349,9 +363,112 @@ class StrategyPackBuilderTest extends FunSuite:
       clue(digest)
     )
     assert(
-      pack.evidence.exists(_.startsWith("authoring:LatentPlan:resolved:Can the kingside expansion survive ...c5?")),
+      pack.evidence.exists(ev =>
+        ev.startsWith("authoring:LatentPlan:resolved:Can the kingside expansion survive") &&
+          ev.contains("[branches=1 pending_probes=1 plan=Kingside Expansion]")
+      ),
       clue(pack.evidence)
     )
     val hints = StrategyPackBuilder.promptHints(pack)
     assert(hints.exists(_.contains("authoring evidence: latent plan evidence is resolved")), clue(hints))
+  }
+
+  test("build uses structure arc to enrich long term focus and deployment evidence") {
+    val semantic = SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = List(
+        PieceActivityInfo(
+          piece = "Knight",
+          square = "d2",
+          mobilityScore = 0.28,
+          isTrapped = false,
+          isBadBishop = false,
+          keyRoutes = List("f1", "e3", "g4"),
+          coordinationLinks = List("e3", "g4")
+        )
+      ),
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      preventedPlans = Nil,
+      conceptSummary = Nil,
+      structureProfile = Some(
+        StructureProfileInfo("French Chain", 0.80, Nil, "Closed", List("ENTRENCHED"))
+      ),
+      planAlignment = Some(
+        PlanAlignmentInfo(
+          score = 70,
+          band = "Playable",
+          matchedPlanIds = List("restriction_play"),
+          missingPlanIds = Nil,
+          reasonCodes = List("PA_MATCH"),
+          narrativeIntent = Some("reroute toward e3 and g4"),
+          narrativeRisk = Some("Black can free the game with ...c5")
+        )
+      )
+    )
+
+    val pack =
+      StrategyPackBuilder
+        .build(
+          data(),
+          ctx(
+            mainPlans = List(hypothesis("Restrict the Entrenched Knight", 0.82, 1)),
+            semantic = Some(semantic)
+          ).copy(playedMove = Some("d2f1"), playedSan = Some("Nf1"))
+        )
+        .getOrElse(fail("pack missing"))
+
+    assert(pack.longTermFocus.exists(_.toLowerCase.startsWith("structure deployment: french chain asks for")), clue(pack.longTermFocus))
+    assert(pack.evidence.exists(_.startsWith("deployment:N:")), clue(pack.evidence))
+  }
+
+  test("build carries the dominant thesis into long-term focus and evidence for active parity") {
+    val semantic = SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = List(
+        PieceActivityInfo(
+          piece = "Knight",
+          square = "d2",
+          mobilityScore = 0.30,
+          isTrapped = false,
+          isBadBishop = false,
+          keyRoutes = List("f1", "e3"),
+          coordinationLinks = List("e3")
+        )
+      ),
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      preventedPlans = Nil,
+      conceptSummary = Nil,
+      structureProfile = Some(StructureProfileInfo("French Chain", 0.81, Nil, "Closed", List("CHAIN"))),
+      planAlignment = Some(
+        PlanAlignmentInfo(
+          score = 71,
+          band = "Playable",
+          matchedPlanIds = List("restriction_play"),
+          missingPlanIds = Nil,
+          reasonCodes = List("PA_MATCH"),
+          narrativeIntent = Some("reroute toward e3"),
+          narrativeRisk = Some("counterplay appears if the center breaks too early")
+        )
+      )
+    )
+
+    val pack =
+      StrategyPackBuilder
+        .build(
+          data(),
+          ctx(
+            mainPlans = List(hypothesis("Restrict the Entrenched Knight", 0.83, 1)),
+            semantic = Some(semantic)
+          ).copy(playedMove = Some("d2f1"), playedSan = Some("Nf1"))
+        )
+        .getOrElse(fail("pack missing"))
+
+    assert(pack.longTermFocus.exists(_.toLowerCase.startsWith("dominant thesis:")), clue(pack.longTermFocus))
+    assert(pack.evidence.exists(_.startsWith("dominant_thesis:")), clue(pack.evidence))
   }

@@ -365,7 +365,7 @@ function renderMoves(nodes: ReviewViewNodes): VNode {
         'p',
         nodes.cevalNode
           ? 'Engine lines, move tree, and branch workbench remain available as reference.'
-          : 'Turn on local analysis from the control bar to surface engine lines alongside the move tree.',
+          : 'Enable the engine panel from Board View, or turn on local analysis from the control bar to surface engine lines.',
       ),
     ]),
     nodes.cevalNode,

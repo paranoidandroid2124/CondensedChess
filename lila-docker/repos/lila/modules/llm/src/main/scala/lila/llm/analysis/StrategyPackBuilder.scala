@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import _root_.chess.{ Color, Role }
+import _root_.chess.Color
 import _root_.chess.format.Fen
 import lila.llm.{ StrategyPack, StrategyPieceRoute, StrategySidePlan }
 import lila.llm.model.{ ExtendedAnalysisData, NarrativeContext }
@@ -21,10 +21,11 @@ object StrategyPackBuilder:
   ): Option[StrategyPack] =
     val sideToMoveColor = if data.isWhiteToMove then Color.White else Color.Black
     val sideToMove = sideName(sideToMoveColor)
+    val structureArc = StructurePlanArcBuilder.build(ctx)
     val plans = buildPlans(ctx, sideToMoveColor)
-    val routes = buildRoutes(data, sideToMoveColor, plans)
-    val longTermFocus = buildLongTermFocus(ctx, plans, routes)
-    val evidence = buildEvidence(ctx, routes)
+    val routes = buildRoutes(data, sideToMoveColor, plans, structureArc)
+    val longTermFocus = buildLongTermFocus(ctx, plans, routes, structureArc)
+    val evidence = buildEvidence(ctx, routes, structureArc)
     val signalDigest = NarrativeSignalDigestBuilder.build(ctx)
 
     Option.when(plans.nonEmpty || routes.nonEmpty || longTermFocus.nonEmpty)(
@@ -56,6 +57,13 @@ object StrategyPackBuilder:
           Option.when(digest.practicalFactors.nonEmpty)(s"practical factors: ${digest.practicalFactors.mkString("; ")}"),
           digest.structureProfile.map(v => s"structural profile: $v"),
           digest.alignmentBand.map(v => s"plan fit: $v"),
+          digest.deploymentPiece.map { piece =>
+            val route =
+              if digest.deploymentRoute.nonEmpty then digest.deploymentRoute.mkString("-")
+              else "n/a"
+            s"deployment: $piece $route"
+          },
+          digest.deploymentPurpose.map(v => s"deployment purpose: $v"),
           digest.prophylaxisPlan.map(v => s"prophylaxis: $v"),
           digest.decision.map(v => s"decision: $v"),
           digest.opponentPlan.map(v => s"opponent plan: $v")
@@ -95,12 +103,15 @@ object StrategyPackBuilder:
   private def buildRoutes(
       data: ExtendedAnalysisData,
       sideToMoveColor: Color,
-      plans: List[StrategySidePlan]
+      plans: List[StrategySidePlan],
+      structureArc: Option[StructurePlanArc]
   ): List[StrategyPieceRoute] =
     val boardOpt =
       Fen.read(_root_.chess.variant.Standard, Fen.Full(data.fen)).map(_.board)
     val sides = List(sideToMoveColor, !sideToMoveColor)
     val sideToMove = sideName(sideToMoveColor)
+    val preferredRouteKey =
+      structureArc.map(arc => s"${arc.primaryDeployment.piece}|${arc.primaryDeployment.from}|${arc.primaryDeployment.route.lastOption.getOrElse(arc.primaryDeployment.from)}")
 
     sides
       .flatMap { routeColor =>
@@ -108,7 +119,11 @@ object StrategyPackBuilder:
         val sidePlans = plans.filter(_.side == routeSide)
         data.pieceActivity.flatMap(pa => toPieceRoute(pa, boardOpt, routeColor, data.positionalFeatures, sidePlans))
       }
-      .sortBy(r => (if r.side == sideToMove then 0 else 1, -r.confidence))
+      .sortBy { r =>
+        val routeKey = s"${r.piece}|${r.from}|${r.route.lastOption.getOrElse(r.from)}"
+        val preferred = preferredRouteKey.contains(routeKey)
+        (if preferred then 0 else 1, if r.side == sideToMove then 0 else 1, -r.confidence)
+      }
       .distinctBy(r => s"${r.side}|${r.piece}|${r.from}|${r.route.lastOption.getOrElse(r.from)}")
       .take(MaxRoutes)
 
@@ -119,34 +134,25 @@ object StrategyPackBuilder:
       positionalFeatures: List[PositionalTag],
       plans: List[StrategySidePlan]
   ): Option[StrategyPieceRoute] =
-    if pa.keyRoutes.isEmpty then None
-    else
-      boardOpt
-        .flatMap(_.pieceAt(pa.square))
-        .filter(_.color == routeColor)
-        .flatMap { piece =>
-          val route = (pa.square :: pa.keyRoutes).map(_.key).distinct
-          Option.when(route.size >= 2) {
-            val destination = route.lastOption.getOrElse(pa.square.key)
-            StrategyPieceRoute(
-              side = sideName(routeColor),
-              piece = pieceLabel(piece.role),
-              from = pa.square.key,
-              route = route,
-              purpose = routePurpose(
-                role = piece.role,
-                pa = pa,
-                destination = destination,
-                boardOpt = boardOpt,
-                routeColor = routeColor,
-                positionalFeatures = positionalFeatures,
-                plans = plans
-              ),
-              confidence = routeConfidence(pa),
-              evidence = routeEvidence(pa, destination)
-            )
-          }
-        }
+    StructurePlanArcBuilder
+      .cueFromStrategicActivity(
+        activity = pa,
+        boardOpt = boardOpt,
+        routeColor = routeColor,
+        positionalFeatures = positionalFeatures,
+        planLabels = plans.map(_.planName)
+      )
+      .map { cue =>
+        StrategyPieceRoute(
+          side = sideName(routeColor),
+          piece = cue.piece,
+          from = cue.from,
+          route = cue.routeSquares,
+          purpose = cue.purpose,
+          confidence = cue.confidence,
+          evidence = StructurePlanArcBuilder.evidenceFromStrategicActivity(pa, cue.lastSquare.getOrElse(cue.from))
+        )
+      }
 
   private def fromHypothesis(side: String, h: PlanHypothesis): StrategySidePlan =
     StrategySidePlan(
@@ -171,71 +177,14 @@ object StrategyPackBuilder:
       riskTriggers = risks.take(3)
     )
 
-  private def routePurpose(
-      role: Role,
-      pa: PieceActivity,
-      destination: String,
-      boardOpt: Option[_root_.chess.Board],
-      routeColor: Color,
-      positionalFeatures: List[PositionalTag],
-      plans: List[StrategySidePlan]
-  ): String =
-    val destinationSquare = _root_.chess.Square.all.find(_.key == destination)
-    val outpostSignal =
-      positionalFeatures.exists {
-        case PositionalTag.Outpost(square, color) =>
-          color == routeColor && square.key == destination
-        case PositionalTag.StrongKnight(square, color) =>
-          color == routeColor && square.key == destination
-        case _ => false
-      }
-    val rookFileSignal =
-      role == _root_.chess.Rook &&
-        destinationSquare.exists(sq => boardOpt.exists(board => isOpenOrSemiOpenFileFor(board, sq.file, routeColor)))
-    val centerSignal = destinationSquare.exists(isCentralSquare)
-    val planActivationSignal =
-      plans.exists { p =>
-        val name = p.planName.trim.toLowerCase
-        (name.contains("attack") && role == _root_.chess.Queen) ||
-        (name.contains("file") && role == _root_.chess.Rook) ||
-        (name.contains("activation") && (role == _root_.chess.Knight || role == _root_.chess.Bishop))
-      }
-
-    if pa.isBadBishop then "bad bishop reroute"
-    else if pa.isTrapped then "piece liberation"
-    else if outpostSignal then "outpost reinforcement"
-    else if rookFileSignal then "open-file occupation"
-    else if pa.coordinationLinks.nonEmpty then "coordination lift"
-    else if planActivationSignal then "plan activation lane"
-    else if centerSignal then "centralization route"
-    else if pa.mobilityScore < 0.4 then "mobility recovery"
-    else "coordination improvement"
-
-  private def routeConfidence(pa: PieceActivity): Double =
-    val mobilityGainSignal = (0.55 - pa.mobilityScore).max(0.0) * 0.45
-    val trappedBonus = if pa.isTrapped then 0.22 else 0.0
-    val bishopBonus = if pa.isBadBishop then 0.16 else 0.0
-    val coordinationBonus = pa.coordinationLinks.size.min(3) * 0.04
-    val lengthPenalty = pa.keyRoutes.size.toDouble * 0.04
-    (0.38 + mobilityGainSignal + trappedBonus + bishopBonus + coordinationBonus - lengthPenalty).max(0.22).min(0.92)
-
-  private def routeEvidence(pa: PieceActivity, destination: String): List[String] =
-    List(
-      Option.when(pa.isBadBishop)("bishop_quality_signal"),
-      Option.when(pa.isTrapped)("trapped_piece_signal"),
-      Option.when(pa.mobilityScore < 0.4)("low_mobility_signal"),
-      Option.when(pa.keyRoutes.size >= 2)("multi_hop_route"),
-      Option.when(pa.coordinationLinks.nonEmpty)(s"coordination_links_${pa.coordinationLinks.size.min(4)}"),
-      Option.when(pa.keyRoutes.lastOption.exists(_.key == destination))("destination_from_piece_activity"),
-      Some("piece_activity")
-    ).flatten
-
   private def buildLongTermFocus(
       ctx: NarrativeContext,
       plans: List[StrategySidePlan],
-      routes: List[StrategyPieceRoute]
+      routes: List[StrategyPieceRoute],
+      structureArc: Option[StructurePlanArc]
   ): List[String] =
     val scored = scala.collection.mutable.HashMap.empty[String, Double]
+    val dominantThesis = StrategicThesisBuilder.build(ctx).map(_.claim).map(_.trim).filter(_.nonEmpty)
     val planNameKeys = plans.map(_.planName.trim.toLowerCase).toSet
 
     def push(raw: String, weight: Double): Unit =
@@ -278,6 +227,12 @@ object StrategyPackBuilder:
       )
     }
 
+    structureArc.foreach { arc =>
+      push(s"structure deployment: ${arc.structureLabel} asks for ${StructurePlanArcBuilder.focusLine(arc)}", 2.18)
+      push(s"move contribution: ${arc.moveContribution}", 1.92)
+    }
+    dominantThesis.foreach(thesis => push(s"dominant thesis: $thesis", 2.42))
+
     ctx.semantic.foreach { semantic =>
       semantic.conceptSummary.take(4).zipWithIndex.foreach { case (concept, idx) =>
         push(concept, 1.10 - (idx * 0.05))
@@ -299,10 +254,20 @@ object StrategyPackBuilder:
 
   private def buildEvidence(
       ctx: NarrativeContext,
-      routes: List[StrategyPieceRoute]
+      routes: List[StrategyPieceRoute],
+      structureArc: Option[StructurePlanArc]
   ): List[String] =
+    val dominantThesis = StrategicThesisBuilder.build(ctx).map(_.claim).map(_.trim).filter(_.nonEmpty)
     val routeEvidence =
       routes.flatMap(route => route.evidence.map(signal => s"route:${route.side}:$signal"))
+    val structureEvidence =
+      structureArc.toList.flatMap { arc =>
+        List(
+          Some(s"structure_arc:${arc.structureLabel}:${arc.planLabel}"),
+          Some(s"deployment:${arc.primaryDeployment.piece}:${arc.primaryDeployment.routeSquares.mkString("-")}:${arc.primaryDeployment.purpose}"),
+          Some(s"deployment_contribution:${arc.moveContribution}")
+        ).flatten
+      }
     val authoringEvidence =
       AuthoringEvidenceSummaryBuilder
         .summarizeEvidence(ctx)
@@ -325,31 +290,11 @@ object StrategyPackBuilder:
       ctx.mainStrategicPlans.flatMap(_.evidenceSources) ++
         ctx.whyAbsentFromTopMultiPV ++
         routeEvidence ++
+        structureEvidence ++
+        dominantThesis.toList.map(v => s"dominant_thesis:$v") ++
         authoringEvidence ++
         AuthoringEvidenceSummaryBuilder.headline(ctx).toList.map(v => s"authoring_headline:$v")
     ).map(_.trim).filter(_.nonEmpty).distinct.take(MaxEvidence)
 
   private def sideName(color: Color): String =
     if color.white then "white" else "black"
-
-  private def pieceLabel(role: Role): String =
-    role match
-      case _root_.chess.Pawn   => "P"
-      case _root_.chess.Knight => "N"
-      case _root_.chess.Bishop => "B"
-      case _root_.chess.Rook   => "R"
-      case _root_.chess.Queen  => "Q"
-      case _root_.chess.King   => "K"
-
-  private def isOpenOrSemiOpenFileFor(
-      board: _root_.chess.Board,
-      file: _root_.chess.File,
-      color: Color
-  ): Boolean =
-    val mask = _root_.chess.Bitboard.file(file)
-    val ownPawns = board.pawns & board.byColor(color) & mask
-    ownPawns.isEmpty
-
-  private def isCentralSquare(square: _root_.chess.Square): Boolean =
-    Set(_root_.chess.File.C, _root_.chess.File.D, _root_.chess.File.E, _root_.chess.File.F).contains(square.file) &&
-      Set(_root_.chess.Rank.Third, _root_.chess.Rank.Fourth, _root_.chess.Rank.Fifth, _root_.chess.Rank.Sixth).contains(square.rank)

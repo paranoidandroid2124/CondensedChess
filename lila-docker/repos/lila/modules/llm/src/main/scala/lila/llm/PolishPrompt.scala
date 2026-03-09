@@ -17,6 +17,20 @@ object PolishPrompt:
     else
       "For isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each."
 
+  private def claimOpeningClause(claim: String): String =
+    val trimmed = Option(claim).map(_.trim).getOrElse("")
+    val stripped = trimmed.replaceFirst("""^\d+\.(?:\.\.)?\s+[^:]+:\s*""", "").trim
+    val punctuated =
+      List(",", ";", ":")
+        .flatMap(mark => Option.when(stripped.contains(mark))(stripped.indexOf(mark)))
+        .sorted
+        .headOption
+        .map(idx => stripped.take(idx).trim)
+        .filter(_.nonEmpty)
+    punctuated.getOrElse {
+      stripped.split("\\s+").take(9).mkString(" ").trim
+    }
+
   /** Static system prompt cached on provider side.
     * Defines the AI's persona, refinement rules, and output format.
     */
@@ -89,6 +103,7 @@ object PolishPrompt:
     bookmakerSlots match
       case Some(slots) =>
         val supportText = slots.support.mkString("\n")
+        val claimLead = claimOpeningClause(slots.claim)
         val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
         val evidenceSection = slots.evidenceHook.map(e => s"\n## SLOT EVIDENCE\n$e").getOrElse("")
         val codaSection = slots.coda.map(c => s"\n## SLOT CODA\n$c").getOrElse("")
@@ -120,6 +135,8 @@ object PolishPrompt:
            |$proseModeReminder
            |$modeReminder
            |Keep paragraph order aligned to the slots: claim first, then the support chain, then optional tension/evidence, then optional coda.
+           |Paragraph 1 must begin with this exact opening clause: "$claimLead".
+           |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
            |
            |Turn the slots into polished commentary following the system instructions.""".stripMargin
       case None =>
@@ -169,6 +186,7 @@ object PolishPrompt:
     bookmakerSlots match
       case Some(slots) =>
         val supportText = slots.support.mkString("\n")
+        val claimLead = claimOpeningClause(slots.claim)
         val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
         val evidenceSection = slots.evidenceHook.map(e => s"\n## SLOT EVIDENCE\n$e").getOrElse("")
         val codaSection = slots.coda.map(c => s"\n## SLOT CODA\n$c").getOrElse("")
@@ -205,6 +223,8 @@ object PolishPrompt:
            |
            |$proseModeReminder
            |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
+           |Paragraph 1 must begin with this exact opening clause: "$claimLead".
+           |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
            |
            |Repair REJECTED_POLISH into a strict-valid final commentary.""".stripMargin
       case None =>

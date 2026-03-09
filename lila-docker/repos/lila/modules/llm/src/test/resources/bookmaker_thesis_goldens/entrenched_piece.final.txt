@@ -1,3 +1,5 @@
-12... f4: The move reorganizes the pieces around French Chain and its closed center, aiming at Punish the Entrenched Knight.
+12... Nf1: In the French Chain structure, with a closed center, the long plan is Punish the Entrenched Knight, and the knight belongs on g4.
 
-It follows the structure's logic of fix the e5 knight and squeeze it with f4 f5. That makes move order matter because Black gets c5 counterplay if the queenside opens first.
+The knight wants d2-f1-e3-g4 because that is where restriction play gains force. This move starts that route immediately.
+
+That still leaves Black gets c5 counterplay if the queenside opens first.

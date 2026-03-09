@@ -23,6 +23,7 @@ Meaning:
 UI-owned structure:
 
 - `Strategic Signals`
+- `Piece Deployment`
 - `Evidence Probes`
 - `Authoring Evidence`
 - `Alternative Options`
@@ -76,6 +77,16 @@ The body should prioritize:
 
 Secondary evidence should stay in UI-owned blocks when available.
 
+For structure-led positions, the commentary body should keep only:
+
+- the structure name
+- the long plan it implies
+- one primary piece deployment cue
+- the current move's contribution to that route
+
+Secondary routes, alignment reasons, and practical/prophylaxis detail should
+stay in `Strategic Signals`.
+
 ## Compatibility Rules
 
 The contract does not weaken existing preservation rules:
@@ -96,10 +107,14 @@ The contract does not weaken existing preservation rules:
   - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
 - Bookmaker-only soft repair after LLM polish:
   - `modules/llm/src/main/LlmApi.scala`
+- Common payload normalization before repair / validation:
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryPayloadNormalizer.scala`
 - Deterministic paragraph rendering:
   - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
 - Deterministic thesis selection before outline construction:
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+- Shared structure-to-deployment synthesis:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala`
 - Post-processing that preserves paragraph breaks:
   - `modules/llm/src/main/scala/lila/llm/analysis/PostCritic.scala`
 - Frontend UI-owned blocks:
@@ -130,6 +145,11 @@ Current environment caveat:
   ratios are recorded in `BookmakerThesisQaReport.md`
 - `estimatedCostUsd` may still be `n/a` when the provider metadata does not
   return a cost estimate for the active model
+- `soft_repair_applied_rate` should now be read together with
+  `soft_repair_material_rate`: wrapper / fence normalization happens before
+  repair, and claim-only opening-clause restoration is treated as cosmetic for
+  closeout QA, while paragraph/evidence/placeholder fixes remain material
+  repairs
 
 ## Non-Goals
 

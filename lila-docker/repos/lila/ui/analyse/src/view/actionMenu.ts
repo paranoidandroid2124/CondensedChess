@@ -12,6 +12,24 @@ type BoardSettingsOpts = {
   mode?: 'menu' | 'workspace';
 };
 
+const flipBoard = (ctrl: AnalyseCtrl, closeMenu: () => void) => {
+  ctrl.flip();
+  closeMenu();
+  ctrl.redraw();
+};
+
+const setInlineMoveList = (ctrl: AnalyseCtrl, closeMenu: () => void, inline: boolean) => {
+  ctrl.treeView.modePreference(inline ? 'inline' : 'column');
+  closeMenu();
+  ctrl.redraw();
+};
+
+const setVariationControls = (ctrl: AnalyseCtrl, closeMenu: () => void, enabled: boolean) => {
+  ctrl.disclosureMode(enabled);
+  closeMenu();
+  ctrl.redraw();
+};
+
 export function view(ctrl: AnalyseCtrl): VNode {
   return hl('div.action-menu', boardSettingsView(ctrl));
 }
@@ -30,11 +48,7 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
       hl(
         'a',
         {
-          hook: bind('click', () => {
-            ctrl.flip();
-            closeMenu();
-            ctrl.redraw();
-          }),
+          hook: bind('click', () => flipBoard(ctrl, closeMenu)),
           attrs: { 'data-icon': licon.ChasingArrows, title: 'Hotkey: f' },
         },
         'Flip board',
@@ -47,10 +61,7 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
         title: 'Shift+I',
         id: 'inline',
         checked: ctrl.treeView.modePreference() === 'inline',
-        change(v) {
-          ctrl.treeView.modePreference(v ? 'inline' : 'column');
-          closeMenu();
-        },
+        change: v => setInlineMoveList(ctrl, closeMenu, v),
       },
       ctrl,
     ),
@@ -60,7 +71,7 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
         title: 'Show disclosure buttons to expand/collapse variations',
         id: 'disclosure',
         checked: ctrl.disclosureMode(),
-        change: ctrl.disclosureMode,
+        change: v => setVariationControls(ctrl, closeMenu, v),
       },
       ctrl,
     ),
@@ -74,15 +85,16 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
     workspaceSection('View', 'Shape how the board and move stream read at a glance.', [
       workspaceChoiceCard(
         'Board labels',
-        'Choose whether coordinates stay off, frame the rim, or label every square.',
+        'Choose whether coordinates stay off, stay inside, frame the rim, or label every square.',
         [
           { key: 'off', label: 'Off' },
+          { key: 'inside', label: 'Inside' },
           { key: 'rim', label: 'Rim' },
           { key: 'full', label: 'Full' },
         ],
         ctrl.boardLabelMode(),
         mode => {
-          ctrl.setBoardLabelMode(mode as 'off' | 'rim' | 'full');
+          ctrl.setBoardLabelMode(mode as 'off' | 'inside' | 'rim' | 'full');
           closeMenu();
         },
       ),
@@ -99,21 +111,16 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         'Inline move list',
         'Show the move history as a flowing line instead of stacked columns.',
         ctrl.treeView.modePreference() === 'inline',
-        next => {
-          ctrl.treeView.modePreference(next ? 'inline' : 'column');
-          ctrl.redraw();
-          closeMenu();
-        },
+        next => setInlineMoveList(ctrl, closeMenu, next),
       ),
     ]),
     workspaceSection('Guides', 'Tune how much engine and annotation scaffolding stays on screen.', [
       workspaceSwitchCard(
         'Engine panel',
         engineUnavailable ? 'Engine guidance is unavailable in this position.' : 'Show engine lines beside the move tree.',
-        ctrl.showCeval(),
+        ctrl.showEnginePanel(),
         next => {
-          ctrl.showCeval(next);
-          ctrl.redraw();
+          ctrl.setShowEnginePanel(next);
           closeMenu();
         },
         engineUnavailable,
@@ -140,11 +147,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         'Variation controls',
         'Show expand and collapse handles inside the move tree.',
         ctrl.disclosureMode(),
-        next => {
-          ctrl.disclosureMode(next);
-          ctrl.redraw();
-          closeMenu();
-        },
+        next => setVariationControls(ctrl, closeMenu, next),
       ),
       workspaceSliderCard(
         'Line emphasis',
@@ -158,10 +161,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
           'Flip board',
           'Swap sides instantly.',
           licon.ChasingArrows,
-          () => {
-            ctrl.flip();
-            closeMenu();
-          },
+          () => flipBoard(ctrl, closeMenu),
         ),
         workspaceAction(
           'Return to player side',

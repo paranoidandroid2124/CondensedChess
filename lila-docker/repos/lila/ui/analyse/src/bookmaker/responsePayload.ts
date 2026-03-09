@@ -80,6 +80,11 @@ export type NarrativeSignalDigest = {
   centerState?: string;
   alignmentBand?: string;
   alignmentReasons?: string[];
+  deploymentPiece?: string;
+  deploymentRoute?: string[];
+  deploymentPurpose?: string;
+  deploymentContribution?: string;
+  deploymentConfidence?: number;
   prophylaxisPlan?: string;
   prophylaxisThreat?: string;
   counterplayScoreDrop?: number;

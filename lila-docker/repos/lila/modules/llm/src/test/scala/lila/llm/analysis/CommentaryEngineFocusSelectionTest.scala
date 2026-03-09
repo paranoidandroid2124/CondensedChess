@@ -82,3 +82,38 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     assertEquals(latentBeat.requiresEvidence, false)
     assert(latentBeat.confidenceLevel >= 0.7)
   }
+
+  test("focusMomentOutline keeps alternative-support decision text when it is marked essential") {
+    val outline = NarrativeOutline(
+      List(
+        OutlineBeat(kind = OutlineBeatKind.Context, text = "Structure thesis.", focusPriority = 100, fullGameEssential = true),
+        OutlineBeat(
+          kind = OutlineBeatKind.DecisionPoint,
+          text = "The practical alternative Qh5 stays secondary because Black can trade queens.",
+          focusPriority = 96,
+          fullGameEssential = true
+        ),
+        OutlineBeat(kind = OutlineBeatKind.MainMove, text = "This move starts the rook transfer.", focusPriority = 92, fullGameEssential = true),
+        OutlineBeat(kind = OutlineBeatKind.WrapUp, text = "Practical coda.", focusPriority = 60)
+      )
+    )
+
+    val focused = CommentaryEngine.focusMomentOutline(outline, hasCriticalBranch = false)
+    val decision = focused.beats.find(_.kind == OutlineBeatKind.DecisionPoint).getOrElse(fail("missing decision beat"))
+    assert(decision.text.contains("practical alternative Qh5"))
+  }
+
+  test("focusMomentOutline keeps structure deployment main-move text ahead of generic wrap-up") {
+    val outline = NarrativeOutline(
+      List(
+        OutlineBeat(kind = OutlineBeatKind.Context, text = "The Carlsbad structure calls for the minority attack.", focusPriority = 100, fullGameEssential = true),
+        OutlineBeat(kind = OutlineBeatKind.MainMove, text = "The rook belongs on the b-file, and this move starts that route immediately.", focusPriority = 92, fullGameEssential = true),
+        OutlineBeat(kind = OutlineBeatKind.WrapUp, text = "The position remains dynamically balanced.", focusPriority = 40)
+      )
+    )
+
+    val focused = CommentaryEngine.focusMomentOutline(outline, hasCriticalBranch = true)
+    val mainMove = focused.beats.find(_.kind == OutlineBeatKind.MainMove).getOrElse(fail("missing main-move beat"))
+    assert(mainMove.text.contains("rook belongs on the b-file"))
+    assert(!focused.beats.exists(_.text == "The position remains dynamically balanced."))
+  }

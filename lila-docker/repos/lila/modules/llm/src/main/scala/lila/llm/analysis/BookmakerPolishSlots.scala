@@ -30,92 +30,11 @@ final case class BookmakerPolishSlots(
     copy(factGuardrails = lines.map(_.trim).filter(_.nonEmpty))
 
 object BookmakerSlotSanitizer:
-
-  private val placeholderRewrites: List[(String, String)] = List(
-    "probe needed for validation" -> "more confirmation is still needed",
-    "under strict evidence mode" -> "under the current evidence threshold",
-    "supported by engine-coupled continuation" -> "supported by the current engine line",
-    "supported by engine coupled continuation" -> "supported by the current engine line",
-    "probe evidence pending" -> "confirmation is still pending",
-    "probe contract passed but support signal is insufficient" -> "current supporting evidence is still thin",
-    "{them}" -> "the opponent",
-    "{us}" -> "the attacking side",
-    "{seed}" -> "the intended pawn lever"
-  )
-  private val rawLabelRegex = """\b(?:subplan|theme|support|seed|proposal):([a-z0-9_]+)\b""".r
-  private val bracketedSubplanRegex = """\s*\[subplan:[^\]]+\]""".r
-  private val placeholderPatterns: List[String] = List(
-    "probe needed for validation",
-    "under strict evidence mode",
-    "supported by engine coupled continuation",
-    "supported by engine-coupled continuation",
-    "probe evidence pending",
-    "probe contract passed but support signal is insufficient",
-    "[subplan:",
-    "subplan:",
-    "theme:",
-    "support:",
-    "seed:",
-    "proposal:",
-    "{them}",
-    "{us}",
-    "{seed}"
-  )
-
   def sanitizeUserText(raw: String): String =
-    cleanup(
-      collapseWhitespace(
-        rawLabelRegex
-          .replaceAllIn(
-            placeholderRewrites.foldLeft(bracketedSubplanRegex.replaceAllIn(Option(raw).getOrElse(""), "")) {
-              case (acc, (needle, replacement)) => acc.replace(needle, replacement)
-            },
-            m => humanizeLabel(m.group(1))
-          )
-      )
-    )
+    UserFacingSignalSanitizer.sanitize(raw)
 
   def placeholderHits(raw: String): List[String] =
-    val low = Option(raw).getOrElse("").toLowerCase
-    placeholderPatterns.filter(low.contains)
-
-  private def humanizeLabel(raw: String): String =
-    Option(raw).getOrElse("").replace('_', ' ').trim
-
-  private def collapseWhitespace(text: String): String =
-    text
-      .replaceAll("""[ \t]+""", " ")
-      .replaceAll("""\s+\.""", ".")
-      .replaceAll("""\s+,""", ",")
-      .replaceAll("""\(\s+""", "(")
-      .replaceAll("""\s+\)""", ")")
-      .trim
-
-  private def cleanup(text: String): String =
-    normalizeChessMarkers(
-      text
-        .replaceAll("""\s{2,}""", " ")
-        .replaceAll("""\.{4,}""", "...")
-        .replaceAll("""\s+([.;:])""", "$1")
-        .replaceAll("""(?<!\.)([.;:])(?!\.)([A-Za-z])""", "$1 $2")
-        .trim
-    )
-
-  private def normalizeChessMarkers(text: String): String =
-    Option(text)
-      .getOrElse("")
-      .replaceAll(
-        """(\d+)\.\.\s+(?=(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?))""",
-        "$1..."
-      )
-      .replaceAll(
-        """([A-Za-z])\.\.\s+(?=(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?))""",
-        "$1 ..."
-      )
-      .replaceAll(
-        """\b(starts with|begins with|with|after)\.\s+(?=(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?))""",
-        "$1 ..."
-      )
+    UserFacingSignalSanitizer.placeholderHits(raw)
 
 object BookmakerPolishSlotsBuilder:
 
@@ -199,20 +118,11 @@ object BookmakerPolishSlotsBuilder:
       ctx: NarrativeContext,
       mainMoveSentences: List[String]
   ): Option[(String, List[String])] =
-    Option.when(shouldPrioritizeCriticalAnnotation(ctx) && mainMoveSentences.nonEmpty) {
+    Option.when(CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx) && mainMoveSentences.nonEmpty) {
       val claim = mainMoveSentences.head
       val support = mainMoveSentences.drop(1)
       (claim, support)
     }
-
-  private def shouldPrioritizeCriticalAnnotation(ctx: NarrativeContext): Boolean =
-    val tacticalMeta =
-      ctx.meta.flatMap(_.errorClass).exists(ec => ec.isTactical || ec.missedMotifs.nonEmpty)
-    val tacticalCounterfactual =
-      ctx.counterfactual.exists(cf => cf.cpLoss >= Thresholds.MISTAKE_CP && cf.missedMotifs.nonEmpty)
-    val severeBlunder =
-      ctx.counterfactual.exists(cf => cf.cpLoss >= Thresholds.BLUNDER_CP && cf.severity == "blunder")
-    tacticalMeta || tacticalCounterfactual || severeBlunder
 
   private def splitSentences(text: String): List[String] =
     Option(text)
@@ -248,6 +158,13 @@ object BookmakerPolishSlotsBuilder:
         f" ($sign${scoreCp.toDouble / 100}%.1f)"
 
 object BookmakerProseContract:
+
+  private val claimStopWords = Set(
+    "this", "that", "with", "from", "into", "where", "because", "belongs", "calls",
+    "move", "plan", "long", "term", "structure", "keeps", "stays", "there", "their",
+    "have", "will", "after", "before", "than", "then", "here", "when", "line",
+    "branch", "side", "piece", "pieces", "route", "routes", "through", "around"
+  )
 
   final case class Evaluation(
       paragraphs: List[String],
@@ -291,7 +208,8 @@ object BookmakerProseContract:
     val stripped = stripMoveHeader(paragraph)
     val claimCore = stripMoveHeader(claim)
     stripped.startsWith(claimCore.stripSuffix(".")) ||
-    commonPrefixWords(stripped, claimCore) >= 4
+    commonPrefixWords(stripped, claimCore) >= 4 ||
+    significantClaimTokenOverlap(stripped, claimCore) >= 3
 
   def stripMoveHeader(paragraph: String): String =
     Option(paragraph).getOrElse("").replaceFirst("""^\d+\.(?:\.\.)?\s+[^:]+:\s*""", "").trim
@@ -304,12 +222,21 @@ object BookmakerProseContract:
   private def normalizeWords(text: String): List[String] =
     Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").split("\\s+").toList.filter(_.nonEmpty)
 
+  private def significantClaimTokenOverlap(a: String, b: String): Int =
+    val as = normalizeWords(a).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
+    val bs = normalizeWords(b).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
+    (as intersect bs).size
+
 object BookmakerSoftRepair:
+
+  private val CosmeticActions = Set("claim_restore")
 
   final case class RepairResult(
       text: String,
       applied: Boolean,
       actions: List[String],
+      materialApplied: Boolean,
+      materialActions: List[String],
       evaluation: BookmakerProseContract.Evaluation
   )
 
@@ -359,16 +286,20 @@ object BookmakerSoftRepair:
 
     val repairedText = paragraphs.map(_.trim).filter(_.nonEmpty).mkString("\n\n")
     val evaluation = BookmakerProseContract.evaluate(repairedText, slots)
+    val distinctActions = actions.toList.distinct
+    val materialActions = distinctActions.filterNot(CosmeticActions.contains)
     RepairResult(
       text = repairedText,
-      applied = actions.nonEmpty,
-      actions = actions.toList.distinct,
+      applied = distinctActions.nonEmpty,
+      actions = distinctActions,
+      materialApplied = materialActions.nonEmpty,
+      materialActions = materialActions,
       evaluation = evaluation
     )
 
   def deterministicParagraphs(slots: BookmakerPolishSlots): List[String] =
     val supportParagraph = slots.support.mkString(" ").trim
-    val thirdParagraph = List(slots.tension, slots.evidenceHook).flatten.mkString(" ").trim
+    val thirdParagraph = composeThirdParagraph(slots).trim
     List(
       Some(slots.claim.trim),
       Option.when(supportParagraph.nonEmpty)(supportParagraph),
@@ -378,3 +309,21 @@ object BookmakerSoftRepair:
 
   private def normalizeParagraphs(text: String): List[String] =
     BookmakerProseContract.splitParagraphs(text).map(_.trim).filter(_.nonEmpty)
+
+  private def composeThirdParagraph(slots: BookmakerPolishSlots): String =
+    (slots.tension.map(_.trim).filter(_.nonEmpty), slots.evidenceHook.map(_.trim).filter(_.nonEmpty)) match
+      case (Some(tension), Some(evidence)) =>
+        s"${ensureSentence(tension)} ${normalizeEvidenceHook(evidence)}".trim
+      case (Some(tension), None) => tension
+      case (None, Some(evidence)) => normalizeEvidenceHook(evidence)
+      case (None, None) => ""
+
+  private def normalizeEvidenceHook(text: String): String =
+    val trimmed = text.trim
+    if trimmed.matches("""^[a-z]\)\s+.*""") then s"A concrete line is $trimmed"
+    else trimmed
+
+  private def ensureSentence(text: String): String =
+    val trimmed = text.trim
+    if trimmed.isEmpty || trimmed.matches(""".*[.!?]$""") then trimmed
+    else s"$trimmed."

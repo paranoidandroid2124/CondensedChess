@@ -30,18 +30,11 @@ object NarrativeOutlineBuilder:
     cpLoss: Option[Int],
     bestSan: Option[String]
   )
-  private enum PrecedentMechanism:
-    case TacticalPressure
-    case ExchangeCascade
-    case PromotionRace
-    case StructuralTransformation
-    case InitiativeSwing
-
   private case class PrecedentSignal(
     triggerMove: String,
     replyMove: Option[String],
     pivotMove: Option[String],
-    mechanism: PrecedentMechanism,
+    mechanism: OpeningBranchMechanism,
     confidence: Double
   )
   private case class RookEndgameFrame(
@@ -812,6 +805,18 @@ object NarrativeOutlineBuilder:
     alignedQuestion.map(ensureSentence).foreach(parts += _)
     ctx.decision.flatMap(buildDecisionRationaleSentence).foreach(parts += _)
     ctx.meta.flatMap(buildMetaDecisionSentence).foreach(parts += _)
+    val alternativeSentence =
+      AlternativeNarrativeSupport.sentence(ctx)
+        .map(ensureSentence)
+        .filter(_.nonEmpty)
+    alternativeSentence.foreach { sentence =>
+      val existing = parts.mkString(" ").toLowerCase
+      val isCritical = CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx)
+      if parts.nonEmpty then
+        if !existing.contains(sentence.toLowerCase) then parts += sentence
+      else if !isCritical then
+        parts += sentence
+    }
     Option.when(parts.nonEmpty)(parts.mkString(" ").trim)
 
   private def buildStrategicFlowContextSentence(
@@ -1384,13 +1389,12 @@ object NarrativeOutlineBuilder:
             reason = reason,
             bestIntent = bestIntent,
             bead = b ^ 0x3f84d5b5,
-            tacticalEmphasis =
-              cpLoss >= Thresholds.MISTAKE_CP &&
-                (
-                  missedMotif.nonEmpty ||
-                    bestReply.exists(isForcingReplySan) ||
-                    ctx.meta.flatMap(_.errorClass).exists(_.isTactical)
-                ),
+            tacticalEmphasis = CriticalAnnotationPolicy.shouldUseTacticalEmphasis(
+              ctx = ctx,
+              cpLoss = cpLoss,
+              missedMotifPresent = missedMotif.nonEmpty,
+              hasForcingReply = bestReply.exists(isForcingReplySan)
+            ),
             usedStems = crossBeatState.usedStems.toSet,
             prefixCounts = crossBeatState.prefixCounts.toMap
             )
@@ -1406,6 +1410,10 @@ object NarrativeOutlineBuilder:
         ).getOrElse("")
 
       val deltaText = buildDeltaAfterMoveText(ctx, bead).getOrElse("")
+      val alternativeSupportText =
+        Option.when(CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx)) {
+          AlternativeNarrativeSupport.sentence(ctx).map(ensureSentence).filter(_.nonEmpty).getOrElse("")
+        }.filter(_.nonEmpty).getOrElse("")
       val precedentText = precedentTextOpt.getOrElse("")
       if precedentText.nonEmpty then
         rec.use("openingData.sampleGames", "1", "Move-level precedent")
@@ -1416,7 +1424,15 @@ object NarrativeOutlineBuilder:
       val precedentBridge =
         if !shouldUsePrecedentFallback then ""
         else buildPrecedentFallbackSentence(ctx, bead ^ 0x56f839d3, scope = "main").getOrElse("")
-      val rawText = List(baseText, detailText.getOrElse(""), hypothesisText, deltaText, precedentBridge, precedentText)
+      val rawText = List(
+        baseText,
+        detailText.getOrElse(""),
+        alternativeSupportText,
+        hypothesisText,
+        deltaText,
+        precedentBridge,
+        precedentText
+      )
         .filter(_.trim.nonEmpty)
         .mkString(" ")
       val practicalText = buildPracticalMainMoveSentence(ctx, rawText).getOrElse("")
@@ -1519,11 +1535,22 @@ object NarrativeOutlineBuilder:
         OpeningPrecedentBranching.summarySentence(ctx, openingRef, requireFocus = false)
       }.flatten
     branchSummary.foreach(_ => rec.use("openingData.sampleGames", "branch", "Opening branch summary"))
+    val branchRelation =
+      Option.when(!suppressPrecedents) {
+        OpeningPrecedentBranching.relationSentence(ctx, openingRef, requireFocus = false)
+      }.flatten
+    branchRelation.foreach(_ => rec.use("openingData.sampleGames", "relation", "Opening branch relation"))
 
     val precedentBridge =
       if precedentSnippets.nonEmpty || openingText.isEmpty || !openingRef.exists(_.sampleGames.isEmpty) then ""
       else buildPrecedentFallbackSentence(ctx, Math.abs(ctx.hashCode) ^ 0x19f8b4ad, scope = "opening").getOrElse("")
-    val text = List(openingText.getOrElse(""), branchSummary.getOrElse(""), precedentBridge, precedentSnippets.mkString(" "))
+    val text = List(
+      openingText.getOrElse(""),
+      branchSummary.getOrElse(""),
+      branchRelation.getOrElse(""),
+      precedentBridge,
+      precedentSnippets.mkString(" ")
+    )
       .filter(_.trim.nonEmpty)
       .mkString(" ")
       .trim
@@ -1602,8 +1629,13 @@ object NarrativeOutlineBuilder:
       else if shouldUsePrecedentComparison(ctx, lines, requireFocus = true) then
         Some(renderPrecedentComparison(lines, bead))
       else
-        OpeningPrecedentBranching.representativeSentence(ctx, ctx.openingData, requireFocus = true)
-          .orElse(lines.headOption.map(line => renderPrecedentBlock(line, bead)))
+        val rep = OpeningPrecedentBranching.representativeSentence(ctx, ctx.openingData, requireFocus = true)
+        val relation = OpeningPrecedentBranching.relationSentence(ctx, ctx.openingData, requireFocus = true)
+        List(rep, relation).flatten match
+          case Nil =>
+            lines.headOption.map(line => renderPrecedentBlock(line, bead))
+          case parts =>
+            Some(parts.mkString(" "))
 
   private def shouldUsePrecedentComparison(
     ctx: NarrativeContext,
@@ -1642,7 +1674,7 @@ object NarrativeOutlineBuilder:
     val usedStems = scala.collection.mutable.HashSet.empty[String]
     val prefixCounts = scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
     val seenSequenceKeys = scala.collection.mutable.HashSet.empty[String]
-    val mechanismUseCounts = scala.collection.mutable.HashMap.empty[PrecedentMechanism, Int].withDefaultValue(0)
+    val mechanismUseCounts = scala.collection.mutable.HashMap.empty[OpeningBranchMechanism, Int].withDefaultValue(0)
 
     val items = rankedWithSignals.zipWithIndex.map { case ((line, signal), idx) =>
       val label = ('A' + idx).toChar
@@ -1728,34 +1760,34 @@ object NarrativeOutlineBuilder:
 
     List(header, items.mkString(" "), summary).filter(_.nonEmpty).mkString(" ")
 
-  private def precedentMechanismLabel(mechanism: PrecedentMechanism, seed: Int, occurrence: Int): String =
+  private def precedentMechanismLabel(mechanism: OpeningBranchMechanism, seed: Int, occurrence: Int): String =
     val variants =
       mechanism match
-        case PrecedentMechanism.TacticalPressure =>
+        case OpeningBranchMechanism.TacticalPressure =>
           List(
             "forcing tactical pressure around king safety and move order",
             "forcing tactical pressure tied to king safety and tempo",
             "tactical pressure built on forcing move-order threats"
           )
-        case PrecedentMechanism.ExchangeCascade =>
+        case OpeningBranchMechanism.ExchangeCascade =>
           List(
             "exchange timing that simplified into a cleaner structure",
             "a cascade of exchanges that clarified the structure",
             "exchange sequencing that reduced the position to a cleaner frame"
           )
-        case PrecedentMechanism.PromotionRace =>
+        case OpeningBranchMechanism.PromotionRace =>
           List(
             "promotion threats forcing both sides into tempo-driven play",
             "promotion pressure that turned play into a tempo race",
             "promotion motifs that forced tempo-accurate decisions"
           )
-        case PrecedentMechanism.StructuralTransformation =>
+        case OpeningBranchMechanism.StructuralTransformation =>
           List(
             "pawn-structure transformation that redirected long-term plans",
             "structural pawn shifts that changed long-plan priorities",
             "pawn-skeleton changes that rerouted strategic plans"
           )
-        case PrecedentMechanism.InitiativeSwing =>
+        case OpeningBranchMechanism.InitiativeSwing =>
           List(
             "initiative swings created by faster piece activity",
             "initiative shifts driven by quicker piece deployment",
@@ -1767,21 +1799,21 @@ object NarrativeOutlineBuilder:
       val idx = Math.floorMod(base + occurrence, variants.size)
       variants(idx)
 
-  private def precedentMechanismSummaryLabel(mechanism: PrecedentMechanism): String =
+  private def precedentMechanismSummaryLabel(mechanism: OpeningBranchMechanism): String =
     mechanism match
-      case PrecedentMechanism.TacticalPressure =>
+      case OpeningBranchMechanism.TacticalPressure =>
         "forcing tactical pressure around king safety"
-      case PrecedentMechanism.ExchangeCascade =>
+      case OpeningBranchMechanism.ExchangeCascade =>
         "exchange timing and simplification control"
-      case PrecedentMechanism.PromotionRace =>
+      case OpeningBranchMechanism.PromotionRace =>
         "promotion threats and tempo races"
-      case PrecedentMechanism.StructuralTransformation =>
+      case OpeningBranchMechanism.StructuralTransformation =>
         "pawn-structure transformation and plan rerouting"
-      case PrecedentMechanism.InitiativeSwing =>
+      case OpeningBranchMechanism.InitiativeSwing =>
         "initiative swings from piece activity"
 
   private def buildPrecedentComparisonSummaryTemplates(
-    mechanisms: List[PrecedentMechanism]
+    mechanisms: List[OpeningBranchMechanism]
   ): List[String] =
     if mechanisms.isEmpty then Nil
     else
@@ -1806,7 +1838,7 @@ object NarrativeOutlineBuilder:
     line: OpeningPrecedentLine,
     bead: Int
   ): String =
-    val anchorMove = line.game.pgn.flatMap(raw => openingPrecedentSanMoves(raw).headOption)
+    val anchorMove = line.game.pgn.flatMap(raw => OpeningPrecedentBranching.precedentSanMoves(Some(raw)).headOption)
     val lead = NarrativeLexicon.getPrecedentLead(
       bead = bead ^ Math.abs(line.text.hashCode),
       factualLine = line.text,
@@ -1871,8 +1903,8 @@ object NarrativeOutlineBuilder:
   private def openingPrecedentMetadataScore(game: ExplorerGame): Int =
     (if game.year > 0 then 3 else 0) +
       (if game.winner.isDefined then 2 else 0) +
-      (if normalizeExplorerPlayer(game.white.name).isDefined then 1 else 0) +
-      (if normalizeExplorerPlayer(game.black.name).isDefined then 1 else 0) +
+      (if OpeningPrecedentBranching.normalizePlayerName(game.white.name).isDefined then 1 else 0) +
+      (if OpeningPrecedentBranching.normalizePlayerName(game.black.name).isDefined then 1 else 0) +
       (if game.event.exists(_.trim.nonEmpty) then 2 else 0) +
       (if game.pgn.exists(_.trim.nonEmpty) then 3 else 0)
 
@@ -1886,7 +1918,7 @@ object NarrativeOutlineBuilder:
 
   private def buildPrecedentSignal(line: OpeningPrecedentLine): Option[PrecedentSignal] =
     line.game.pgn.flatMap { raw =>
-      val sanMoves = openingPrecedentSanMoves(raw)
+      val sanMoves = OpeningPrecedentBranching.precedentSanMoves(Some(raw))
       sanMoves.headOption.map { trigger =>
         val reply = sanMoves.lift(1)
         val pivot = sanMoves.lift(2)
@@ -1899,18 +1931,18 @@ object NarrativeOutlineBuilder:
           if sanMoves.nonEmpty then (captures + checks + promotions).toDouble / sanMoves.size.toDouble
           else 0.0
         val mechanismScores = Map(
-          PrecedentMechanism.TacticalPressure ->
+          OpeningBranchMechanism.TacticalPressure ->
             (checks * 2 + captures + Option.when(forcingDensity >= 0.45)(1).getOrElse(0)),
-          PrecedentMechanism.ExchangeCascade ->
+          OpeningBranchMechanism.ExchangeCascade ->
             (captures * 2 + Option.when(captures >= 2)(2).getOrElse(0) + Option.when(pieceMoves >= 2)(1).getOrElse(0)),
-          PrecedentMechanism.PromotionRace ->
+          OpeningBranchMechanism.PromotionRace ->
             (promotions * 3 + Option.when(captures >= 1)(1).getOrElse(0) + Option.when(checks >= 1)(1).getOrElse(0)),
-          PrecedentMechanism.StructuralTransformation ->
+          OpeningBranchMechanism.StructuralTransformation ->
             (pawnPushes * 2 + Option.when(captures <= 1)(1).getOrElse(0) + Option.when(pieceMoves >= 1)(1).getOrElse(0)),
-          PrecedentMechanism.InitiativeSwing ->
+          OpeningBranchMechanism.InitiativeSwing ->
             (pieceMoves + Option.when(captures == 1)(1).getOrElse(0) + Option.when(checks == 0)(1).getOrElse(0))
         )
-        val mechanism = mechanismScores.maxBy(_._2)._1
+        val mechanism = OpeningPrecedentBranching.inferMechanismFromSanMoves(sanMoves)
         val sortedScores = mechanismScores.values.toList.sorted(using Ordering[Int].reverse)
         val dominance = sortedScores match
           case top :: second :: _ => ((top - second).max(0).min(3)).toDouble / 3.0
@@ -1957,8 +1989,8 @@ object NarrativeOutlineBuilder:
     case OpeningEvent.Intro(_, _, _, _)    => false
 
   private def formatOpeningPrecedentSnippet(game: ExplorerGame): Option[String] =
-    val whiteName = normalizeExplorerPlayer(game.white.name)
-    val blackName = normalizeExplorerPlayer(game.black.name)
+    val whiteName = OpeningPrecedentBranching.normalizePlayerName(game.white.name)
+    val blackName = OpeningPrecedentBranching.normalizePlayerName(game.black.name)
     val year = Option.when(game.year > 0)(game.year)
     val sanSnippet = game.pgn.map(_.trim).filter(_.nonEmpty).map(shortOpeningPrecedentSan)
     val winnerInfo = game.winner.flatMap { color =>
@@ -1981,8 +2013,8 @@ object NarrativeOutlineBuilder:
       s"In $white-$black ($y$eventSuffix), after $line, $winnerName won ($result)."
 
   private def formatOpeningPrecedentRepeatedSnippet(game: ExplorerGame, bead: Int): Option[String] =
-    val whiteName = normalizeExplorerPlayer(game.white.name)
-    val blackName = normalizeExplorerPlayer(game.black.name)
+    val whiteName = OpeningPrecedentBranching.normalizePlayerName(game.white.name)
+    val blackName = OpeningPrecedentBranching.normalizePlayerName(game.black.name)
     val year = Option.when(game.year > 0)(game.year)
     val winnerInfo = game.winner.flatMap { color =>
       val winner = if color == chess.White then whiteName else blackName
@@ -2004,34 +2036,14 @@ object NarrativeOutlineBuilder:
         s"In $white-$black ($y$eventSuffix), the same structural branch again produced $winnerName winning ($result)."
       ))
 
-  private def normalizeExplorerPlayer(name: String): Option[String] =
-    Option(name)
-      .map(_.trim)
-      .filter(n => n.nonEmpty && n != "?")
-      .map { n =>
-        val parts = n.split(",").map(_.trim).filter(_.nonEmpty).toList
-        parts match
-          case last :: first :: Nil => s"$first $last"
-          case _                    => n
-      }
-
   private def shortOpeningPrecedentSan(line: String): String =
     val tokens = Option(line).getOrElse("").trim.split("\\s+").toList.filter(_.nonEmpty)
     val clipped = tokens.take(8).mkString(" ")
     if tokens.size > 8 then s"$clipped..." else clipped
 
-  private def openingPrecedentSanMoves(line: String): List[String] =
-    val resultTokens = Set("1-0", "0-1", "1/2-1/2", "*")
-    Option(line).getOrElse("").trim.split("\\s+").toList
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .map(_.replaceAll("""^\d+\.(?:\.\.)?""", ""))
-      .map(_.replaceAll("""^\.\.\.""", ""))
-      .filter(token => token.nonEmpty && !resultTokens.contains(token))
-
   private def openingPrecedentSequenceKey(game: ExplorerGame): String =
     game.pgn
-      .map(openingPrecedentSanMoves)
+      .map(raw => OpeningPrecedentBranching.precedentSanMoves(Some(raw)))
       .getOrElse(Nil)
       .take(3)
       .map(normalizeMoveToken)

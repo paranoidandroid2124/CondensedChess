@@ -38,8 +38,8 @@ object AuthoringEvidenceSummaryBuilder:
           .take(MaxBranches)
           .map { branch =>
             EvidenceBranchSummary(
-              keyMove = branch.keyMove,
-              line = branch.line,
+              keyMove = UserFacingSignalSanitizer.sanitize(branch.keyMove),
+              line = UserFacingSignalSanitizer.sanitize(branch.line),
               evalCp = branch.evalCp,
               mate = branch.mate,
               depth = branch.depth,
@@ -66,8 +66,8 @@ object AuthoringEvidenceSummaryBuilder:
       AuthorEvidenceSummary(
         questionId = q.id,
         questionKind = q.kind.toString,
-        question = q.question,
-        why = q.why,
+        question = UserFacingSignalSanitizer.sanitize(q.question),
+        why = q.why.map(UserFacingSignalSanitizer.sanitize),
         status = status,
         purposes = purposes,
         branchCount = evidence.flatMap(_.branches).size,
@@ -117,8 +117,8 @@ object AuthoringEvidenceSummaryBuilder:
       id = q.id,
       kind = q.kind.toString,
       priority = q.priority,
-      question = q.question,
-      why = q.why,
+      question = UserFacingSignalSanitizer.sanitize(q.question),
+      why = q.why.map(UserFacingSignalSanitizer.sanitize),
       anchors = q.anchors.take(4),
       confidence = q.confidence.toString,
       latentPlanName = q.latentPlan.map(_.seedId.replace('_', ' ')),

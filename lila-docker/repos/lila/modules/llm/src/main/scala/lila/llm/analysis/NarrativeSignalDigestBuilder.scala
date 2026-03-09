@@ -27,6 +27,7 @@ object NarrativeSignalDigestBuilder:
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)
     val authoringEvidence = AuthoringEvidenceSummaryBuilder.headline(ctx)
+    val structureArc = StructurePlanArcBuilder.build(ctx)
 
     val practicalVerdict = practical.flatMap(pa => normalized(pa.verdict))
     val practicalFactors =
@@ -56,6 +57,7 @@ object NarrativeSignalDigestBuilder:
         .distinct
         .take(3)
     val structuralCue = buildStructuralCue(structure, alignment)
+    val deployment = structureArc.flatMap(StructurePlanArcBuilder.visibleDeployment)
 
     val prophylaxisPlan = prevented.flatMap(pp => normalized(pp.planId))
     val prophylaxisThreat =
@@ -107,6 +109,11 @@ object NarrativeSignalDigestBuilder:
         centerState = centerState,
         alignmentBand = alignmentBand,
         alignmentReasons = alignmentReasons,
+        deploymentPiece = deployment.map(_.piece),
+        deploymentRoute = deployment.map(_.routeSquares).getOrElse(Nil),
+        deploymentPurpose = deployment.map(_.purpose),
+        deploymentContribution = structureArc.map(_.moveContribution).filter(_.nonEmpty),
+        deploymentConfidence = deployment.map(_.confidence),
         prophylaxisPlan = prophylaxisPlan,
         prophylaxisThreat = prophylaxisThreat,
         counterplayScoreDrop = counterplayScoreDrop,

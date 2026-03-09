@@ -29,5 +29,4 @@ final class Env(
 
   private lazy val openingExplorer = OpeningExplorerClient(ws)
   lazy val api: LlmApi =
-    LlmApi(openingExplorer, geminiClient, openAiClient, commentaryCache, llmConfig, providerConfig, ccaHistoryRepo)(using analysisExecutor)
-
+    LlmApi(openingExplorer, geminiClient, openAiClient, commentaryCache, llmConfig, providerConfig, Some(ccaHistoryRepo))(using analysisExecutor)

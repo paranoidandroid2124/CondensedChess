@@ -125,10 +125,22 @@ class StrategicThesisBuilderTest extends FunSuite:
 
   test("structure lens names the structure and plan fit instead of flattening it") {
     val ctx = baseContext.copy(
+      playedMove = Some("a1b1"),
+      playedSan = Some("Rb1"),
       semantic = Some(
         SemanticSection(
           structuralWeaknesses = Nil,
-          pieceActivity = Nil,
+          pieceActivity = List(
+            PieceActivityInfo(
+              piece = "Rook",
+              square = "a1",
+              mobilityScore = 0.40,
+              isTrapped = false,
+              isBadBishop = false,
+              keyRoutes = List("b1", "b3"),
+              coordinationLinks = List("b4")
+            )
+          ),
           positionalFeatures = Nil,
           compensation = None,
           endgameFeatures = None,
@@ -176,13 +188,86 @@ class StrategicThesisBuilderTest extends FunSuite:
     assertEquals(thesis.lens, StrategicLens.Structure)
     assert(thesis.claim.contains("Carlsbad"))
     assert(thesis.claim.toLowerCase.contains("minority attack"))
+    assert(thesis.claim.toLowerCase.contains("rook"))
+    assert(thesis.claim.toLowerCase.contains("b-file"))
+    assert(thesis.support.exists(_.toLowerCase.contains("queenside pressure")))
+    assert(thesis.support.exists(_.toLowerCase.contains("starts that route immediately")))
 
     val prose = BookStyleRenderer.render(ctx)
     val paras = paragraphs(prose)
-    assertEquals(paras.size, 2)
+    assertEquals(paras.size, 3)
     assert(paras.head.contains("Carlsbad"))
     assert(paras(1).toLowerCase.contains("queenside pressure"))
-    assert(paras(1).toLowerCase.contains("move order"))
+    assert(paras(1).toLowerCase.contains("starts that route immediately"))
+    assert(paras(2).toLowerCase.contains("move order"))
+  }
+
+  test("off-plan structure keeps deployment as caution instead of the main claim") {
+    val ctx = baseContext.copy(
+      playedMove = Some("a1b1"),
+      playedSan = Some("Rb1"),
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = List(
+            PieceActivityInfo(
+              piece = "Rook",
+              square = "a1",
+              mobilityScore = 0.38,
+              isTrapped = false,
+              isBadBishop = false,
+              keyRoutes = List("b1", "b3"),
+              coordinationLinks = List("b4")
+            )
+          ),
+          positionalFeatures = Nil,
+          compensation = None,
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans = Nil,
+          conceptSummary = Nil,
+          structureProfile = Some(
+            StructureProfileInfo(
+              primary = "Carlsbad",
+              confidence = 0.84,
+              alternatives = Nil,
+              centerState = "Locked",
+              evidenceCodes = List("MAJORITY")
+            )
+          ),
+          planAlignment = Some(
+            PlanAlignmentInfo(
+              score = 34,
+              band = "OffPlan",
+              matchedPlanIds = Nil,
+              missingPlanIds = List("minority_attack"),
+              reasonCodes = List("ANTI_PLAN"),
+              narrativeIntent = Some("play around queenside pressure"),
+              narrativeRisk = Some("the move order fights the structure")
+            )
+          )
+        )
+      ),
+      mainStrategicPlans = List(
+        PlanHypothesis(
+          planId = "minority_attack",
+          planName = "Minority Attack",
+          rank = 1,
+          score = 0.88,
+          preconditions = Nil,
+          executionSteps = Nil,
+          failureModes = Nil,
+          viability = PlanViability(0.82, "high", "slow"),
+          themeL1 = "minority_attack"
+        )
+      )
+    )
+
+    val thesis = StrategicThesisBuilder.build(ctx).getOrElse(fail("missing structure thesis"))
+    assertEquals(thesis.lens, StrategicLens.Structure)
+    assert(thesis.claim.contains("Carlsbad"))
+    assert(!thesis.claim.toLowerCase.contains("rook belongs on the b-file"))
+    assert(thesis.support.exists(_.toLowerCase.contains("still wants the b-file")))
   }
 
   test("decision lens makes the chosen route and deferred alternative explicit") {
@@ -303,6 +388,8 @@ class StrategicThesisBuilderTest extends FunSuite:
 
   test("opening lens can cite a representative player game and strategic branch") {
     val ctx = baseContext.copy(
+      playedMove = Some("b2b3"),
+      playedSan = Some("b3"),
       openingData = Some(
         OpeningReference(
           eco = Some("E04"),
@@ -346,10 +433,12 @@ class StrategicThesisBuilderTest extends FunSuite:
     assertEquals(thesis.lens, StrategicLens.Opening)
     assert(thesis.support.exists(_.contains("Vladimir Kramnik-Viswanathan Anand")))
     assert(thesis.support.exists(_.toLowerCase.contains("queenside pressure branch")))
+    assert(thesis.support.exists(_.toLowerCase.contains("keeps the game inside")))
 
     val prose = BookStyleRenderer.render(ctx)
     val paras = paragraphs(prose)
     assert(paras.head.contains("Catalan"))
     assert(paras(1).contains("Vladimir Kramnik-Viswanathan Anand"))
     assert(paras(1).toLowerCase.contains("queenside pressure branch"))
+    assert(paras(1).toLowerCase.contains("keeps the game inside"))
   }

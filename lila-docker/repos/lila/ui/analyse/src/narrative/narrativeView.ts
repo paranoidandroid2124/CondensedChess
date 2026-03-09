@@ -47,6 +47,7 @@ export type NarrativeSignalDigest = {
     strategicStack?: string[];
     latentPlan?: string;
     latentReason?: string;
+    authoringEvidence?: string;
     practicalVerdict?: string;
     practicalFactors?: string[];
     compensation?: string;
@@ -57,6 +58,11 @@ export type NarrativeSignalDigest = {
     centerState?: string;
     alignmentBand?: string;
     alignmentReasons?: string[];
+    deploymentPiece?: string;
+    deploymentRoute?: string[];
+    deploymentPurpose?: string;
+    deploymentContribution?: string;
+    deploymentConfidence?: number;
     prophylaxisPlan?: string;
     prophylaxisThreat?: string;
     counterplayScoreDrop?: number;
@@ -90,6 +96,54 @@ export type ActiveStrategicMoveRef = {
     fenAfter?: string;
 };
 
+export type ProbeRequest = {
+    id: string;
+    fen: string;
+    moves: string[];
+    depth: number;
+    purpose?: string;
+    questionId?: string;
+    questionKind?: string;
+    multiPv?: number;
+    planId?: string;
+    planName?: string;
+    objective?: string;
+    requiredSignals?: string[];
+};
+
+export type AuthorQuestionSummary = {
+    id: string;
+    kind: string;
+    priority: number;
+    question: string;
+    why?: string | null;
+    anchors?: string[];
+    confidence: string;
+    latentPlanName?: string | null;
+};
+
+export type EvidenceBranchSummary = {
+    keyMove: string;
+    line: string;
+    evalCp?: number | null;
+    mate?: number | null;
+    depth?: number | null;
+};
+
+export type AuthorEvidenceSummary = {
+    questionId: string;
+    questionKind: string;
+    question: string;
+    why?: string | null;
+    status: string;
+    purposes?: string[];
+    branchCount: number;
+    branches?: EvidenceBranchSummary[];
+    pendingProbeCount: number;
+    probeObjectives?: string[];
+    linkedPlans?: string[];
+};
+
 type GameNarrativeMoment = {
     momentId?: string;
     ply: number;
@@ -113,6 +167,9 @@ type GameNarrativeMoment = {
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
     signalDigest?: NarrativeSignalDigest;
+    probeRequests?: ProbeRequest[];
+    authorQuestions?: AuthorQuestionSummary[];
+    authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
     latentPlans?: LatentPlanSummary[];
     whyAbsentFromTopMultiPV?: string[];
@@ -163,6 +220,51 @@ const reviewCardInteractiveSelector = [
     '[data-route-fen]',
     '[contenteditable="true"]',
 ].join(',');
+
+function splitWords(text: string): string[] {
+    return text
+        .split(/\s+/)
+        .map(t => t.trim())
+        .filter(Boolean);
+}
+
+function humanizeToken(raw: string): string {
+    return splitWords(raw.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
+        .map(word => (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+        .join(' ');
+}
+
+function formatEvidenceStatus(status: string): string {
+    switch (status.trim().toLowerCase()) {
+        case 'resolved':
+            return 'Resolved';
+        case 'pending':
+            return 'Pending';
+        case 'question_only':
+            return 'Heuristic';
+        default:
+            return humanizeToken(status);
+    }
+}
+
+function formatEvidenceScore(evalCp?: number | null, mate?: number | null): string {
+    if (typeof mate === 'number') return `mate ${mate}`;
+    if (typeof evalCp === 'number') return `${evalCp >= 0 ? '+' : ''}${evalCp}cp`;
+    return '';
+}
+
+function formatNarrativeDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
+    if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
+    const route = (signalDigest.deploymentRoute || []).filter(Boolean);
+    const confidence = typeof signalDigest.deploymentConfidence === 'number' ? signalDigest.deploymentConfidence : null;
+    const exact = !!confidence && confidence >= 0.78 && route.length >= 3;
+    const destination = route[route.length - 1] || '';
+    const lead = exact
+        ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
+        : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
+    const contribution = signalDigest.deploymentContribution?.trim();
+    return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
+}
 
 function eventTargetElement(target: EventTarget | null): Element | null {
     const candidate = target as Partial<Node> | null;
@@ -528,6 +630,7 @@ export function narrativeMomentView(
         ]),
         narrativeProseView(ctrl, moment, moment.narrative, 'moment'),
         narrativeSignalSummaryView(moment),
+        narrativeEvidenceSummaryView(moment),
         hasStrategicBlock ? narrativeStrategicNoteView(ctrl, moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
         moment.collapse ? narrativeCollapseCardView(ctrl, moment, {
@@ -553,6 +656,7 @@ function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
     const alignmentReasons = (digest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
     const practicalFactors = (digest?.practicalFactors || []).filter(Boolean).slice(0, 2);
     const compensationVectors = (digest?.compensationVectors || []).filter(Boolean).slice(0, 3);
+    const deploymentSummary = digest ? formatNarrativeDeploymentSummary(digest) : null;
 
     const structureProfileBits = [
         digest?.structureProfile,
@@ -570,6 +674,7 @@ function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
     const structureRows = [
         digest?.structuralCue ? ['Summary', digest.structuralCue] : null,
         structureProfileBits.length ? ['Profile', structureProfileBits.join(' · ')] : null,
+        deploymentSummary ? ['Piece deployment', deploymentSummary] : null,
         alignmentReasons.length ? ['Fit reasons', alignmentReasons.join('; ')] : null,
     ].filter(Boolean) as [string, string][];
     const prophylaxisRows = [
@@ -664,6 +769,109 @@ function narrativeSignalGroupView(title: string, rows: [string, string][]): VNod
                 hl('span.narrative-signal-row-value', value),
             ]),
         )),
+    ]);
+}
+
+function narrativeEvidenceSummaryView(moment: GameNarrativeMoment): VNode | null {
+    const probeRequests = (moment.probeRequests || []).slice(0, 1);
+    const authorEvidence = (moment.authorEvidence || []).slice(0, 2);
+    const authorQuestions = (moment.authorQuestions || []).slice(0, 2);
+
+    if (!probeRequests.length && !authorEvidence.length && !authorQuestions.length) return null;
+
+    const questionById = new Map(authorQuestions.map(question => [question.id, question]));
+
+    return hl('div.narrative-evidence-box', [
+        hl('h3.narrative-evidence-title', 'Authoring Evidence'),
+        probeRequests.length
+            ? hl('div.narrative-evidence-group', [
+                hl('span.narrative-signal-label', 'Evidence Probes'),
+                hl('div.narrative-signal-list', probeRequests.map((probe, idx) => {
+                    const primary =
+                        (probe.planName || '').trim() ||
+                        (probe.questionKind || '').trim() ||
+                        (probe.objective || '').trim() ||
+                        (probe.purpose || '').trim() ||
+                        `probe ${idx + 1}`;
+                    const details = [
+                        probe.purpose && probe.purpose !== primary ? probe.purpose : '',
+                        probe.objective && probe.objective !== primary ? probe.objective : '',
+                        typeof probe.depth === 'number' ? `depth ${probe.depth}` : '',
+                        typeof probe.multiPv === 'number' ? `MultiPV ${probe.multiPv}` : '',
+                        Array.isArray(probe.requiredSignals) && probe.requiredSignals.length
+                            ? `signals ${probe.requiredSignals.slice(0, 3).join(', ')}`
+                            : '',
+                    ].filter(Boolean);
+                    return hl('div.narrative-signal-row', { key: `probe-${probe.id}-${idx}` }, [
+                        hl('span.narrative-signal-row-label', `${primary}:`),
+                        hl('span.narrative-signal-row-value', details.join(' · ')),
+                    ]);
+                })),
+            ])
+            : null,
+        authorEvidence.length
+            ? hl('div.narrative-evidence-group', authorEvidence.map(summary => {
+                const question = questionById.get(summary.questionId);
+                const statusKey = (summary.status || 'question_only').trim().toLowerCase();
+                const why = (summary.why || question?.why || '').trim();
+                const confidence = question?.confidence ? humanizeToken(question.confidence) : '';
+                const anchors = (question?.anchors || []).filter(Boolean).slice(0, 2);
+                const purposes = (summary.purposes || []).filter(Boolean).slice(0, 2);
+                const objectives = (summary.probeObjectives || []).filter(Boolean).slice(0, 2);
+                const linkedPlans = (summary.linkedPlans || []).filter(Boolean).slice(0, 2);
+                const branches = (summary.branches || []).slice(0, 2);
+                const meta = [
+                    confidence ? `confidence ${confidence}` : '',
+                    linkedPlans.length ? `plans ${linkedPlans.join(', ')}` : '',
+                    purposes.length ? `focus ${purposes.join('; ')}` : '',
+                    objectives.length ? `objective ${objectives.join('; ')}` : '',
+                    anchors.length ? `anchors ${anchors.join(', ')}` : '',
+                    summary.pendingProbeCount > 0 ? `${summary.pendingProbeCount} pending probe${summary.pendingProbeCount === 1 ? '' : 's'}` : '',
+                ].filter(Boolean);
+                return hl('div.narrative-evidence-card', { key: `evidence-${summary.questionId}` }, [
+                    hl('div.narrative-evidence-card-head', [
+                        hl('strong', humanizeToken(summary.questionKind || question?.kind || 'Authoring')),
+                        hl(`span.narrative-evidence-status.narrative-evidence-status--${statusKey}`, formatEvidenceStatus(statusKey)),
+                    ]),
+                    hl('div.narrative-evidence-question', summary.question),
+                    why ? hl('div.narrative-evidence-why', why) : null,
+                    meta.length ? hl('div.narrative-evidence-meta', meta.join(' · ')) : null,
+                    branches.length
+                        ? hl('div.narrative-evidence-branches', branches.map((branch, idx) =>
+                            hl('div.narrative-evidence-branch', { key: `${summary.questionId}-branch-${idx}` }, [
+                                hl('code', branch.keyMove),
+                                hl(
+                                    'span',
+                                    [branch.line, formatEvidenceScore(branch.evalCp, branch.mate), typeof branch.depth === 'number' ? `d${branch.depth}` : '']
+                                        .filter(Boolean)
+                                        .join(' · '),
+                                ),
+                            ]),
+                        ))
+                        : null,
+                ]);
+            }))
+            : null,
+        !authorEvidence.length && authorQuestions.length
+            ? hl('div.narrative-evidence-group', authorQuestions.map(question => {
+                const why = (question.why || '').trim();
+                const anchors = (question.anchors || []).filter(Boolean).slice(0, 2);
+                const meta = [
+                    question.confidence ? `confidence ${humanizeToken(question.confidence)}` : '',
+                    question.latentPlanName ? `latent ${question.latentPlanName}` : '',
+                    anchors.length ? `anchors ${anchors.join(', ')}` : '',
+                ].filter(Boolean);
+                return hl('div.narrative-evidence-card', { key: `question-${question.id}` }, [
+                    hl('div.narrative-evidence-card-head', [
+                        hl('strong', humanizeToken(question.kind || 'Authoring')),
+                        hl('span.narrative-evidence-status.narrative-evidence-status--question_only', 'Heuristic'),
+                    ]),
+                    hl('div.narrative-evidence-question', question.question),
+                    why ? hl('div.narrative-evidence-why', why) : null,
+                    meta.length ? hl('div.narrative-evidence-meta', meta.join(' · ')) : null,
+                ]);
+            }))
+            : null,
     ]);
 }
 

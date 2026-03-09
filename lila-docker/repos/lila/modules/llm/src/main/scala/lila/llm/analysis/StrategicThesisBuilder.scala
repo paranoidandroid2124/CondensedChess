@@ -93,30 +93,53 @@ private[analysis] object StrategicThesisBuilder:
     val hasStructure = profileOpt.isDefined || alignmentOpt.exists(pa => pa.reasonCodes.nonEmpty || normalizeText(pa.band).nonEmpty)
     if !hasStructure then None
     else
+      val arcOpt = StructurePlanArcBuilder.build(ctx)
       val structureName = profileOpt.map(_.primary).map(normalizeText).filter(_.nonEmpty)
       val centerState = profileOpt.map(_.centerState).map(normalizeText).filter(_.nonEmpty)
       val leadPlan =
         leadingPlanName(ctx)
           .orElse(alignmentOpt.flatMap(_.narrativeIntent).map(normalizeText).filter(_.nonEmpty))
-      val structureLead = structureName.orElse(centerState).getOrElse("the structure")
-      val planLead = leadPlan.getOrElse("the natural plan")
       val claim =
-        val centerText = centerState.filterNot(s => structureName.contains(s)).map(s => s" and its ${s.toLowerCase} center").getOrElse("")
-        s"The move reorganizes the pieces around $structureLead$centerText, aiming at $planLead."
-      val support = List(
-        alignmentOpt.flatMap(_.narrativeIntent).map(intent => s"It follows the structure's logic of ${normalizeSentenceFragment(intent)}."),
-        alignmentOpt.flatMap(_.narrativeRisk).map(risk => s"That makes move order matter because ${normalizeSentenceFragment(risk)}."),
-        Option.when(alignmentOpt.exists(_.reasonCodes.nonEmpty)) {
-          val reasons = alignmentOpt.toList.flatMap(_.reasonCodes).map(humanizeCode).filter(_.nonEmpty).take(2)
-          Option.when(reasons.nonEmpty)(s"The plan fit is shaped by ${joinNatural(reasons)}.").getOrElse("")
-        }.filter(_.nonEmpty)
-      ).flatten
+        arcOpt.filter(StructurePlanArcBuilder.proseEligible).map(StructurePlanArcBuilder.claimText)
+          .getOrElse {
+            val structureLead = structureName.orElse(centerState).getOrElse("the structure")
+            val planLead = leadPlan.getOrElse("the natural plan")
+            val centerText =
+              centerState.filterNot(s => structureName.contains(s)).map(s => s" and its ${s.toLowerCase} center").getOrElse("")
+            s"The move reorganizes the pieces around $structureLead$centerText, aiming at $planLead."
+          }
+      val support =
+        arcOpt match
+          case Some(arc) if StructurePlanArcBuilder.proseEligible(arc) =>
+            List(
+              Some(StructurePlanArcBuilder.supportPrimaryText(arc)),
+              Some(StructurePlanArcBuilder.supportSecondaryText(arc))
+            ).flatten
+          case Some(arc) =>
+            List(
+              alignmentOpt.flatMap(_.narrativeIntent).map(intent => s"It follows the structure's logic of ${normalizeSentenceFragment(intent)}."),
+              Some(StructurePlanArcBuilder.cautionSupportText(arc)),
+              alignmentOpt.flatMap(_.narrativeRisk).map(risk => s"That makes move order matter because ${normalizeSentenceFragment(risk)}.")
+            ).flatten
+          case None =>
+            List(
+              alignmentOpt.flatMap(_.narrativeIntent).map(intent => s"It follows the structure's logic of ${normalizeSentenceFragment(intent)}."),
+              alignmentOpt.flatMap(_.narrativeRisk).map(risk => s"That makes move order matter because ${normalizeSentenceFragment(risk)}."),
+              Option.when(alignmentOpt.exists(_.reasonCodes.nonEmpty)) {
+                val reasons = alignmentOpt.toList.flatMap(_.reasonCodes).map(humanizeCode).filter(_.nonEmpty).take(2)
+                Option.when(reasons.nonEmpty)(s"The plan fit is shaped by ${joinNatural(reasons)}.").getOrElse("")
+              }.filter(_.nonEmpty)
+            ).flatten
+      val tension =
+        arcOpt.flatMap(_.prophylaxisSupport)
+          .orElse(alignmentOpt.flatMap(_.narrativeRisk).map(risk => s"That still leaves ${normalizeSentenceFragment(risk)}."))
+          .orElse(opponentOrAbsenceTension(ctx))
       Some(
         StrategicThesis(
           lens = StrategicLens.Structure,
           claim = claim,
           support = support.take(2),
-          tension = opponentOrAbsenceTension(ctx),
+          tension = tension,
           evidenceHook = chooseEvidenceHook(ctx)
         )
       )
@@ -132,7 +155,7 @@ private[analysis] object StrategicThesisBuilder:
             .orElse(normalizedDecisionSummary(decision.logicSummary))
             .getOrElse("the main continuation")
         val deferred =
-          alternativeLabel(ctx)
+          AlternativeNarrativeSupport.moveLabel(ctx)
             .orElse(ctx.meta.flatMap(_.whyNot).flatMap(extractQuotedMove))
             .getOrElse("the most direct alternative")
         val reason =
@@ -193,8 +216,9 @@ private[analysis] object StrategicThesisBuilder:
         val precedentBranch = OpeningPrecedentBranching.representative(ctx, ctx.openingData, requireFocus = true)
         val support = List(
           precedentBranch.map(_.representativeSentence),
-          ctx.openingEvent.map(renderOpeningEventSupport),
+          OpeningPrecedentBranching.relationSentence(ctx, ctx.openingData, requireFocus = true),
           precedentBranch.map(_.summarySentence),
+          ctx.openingEvent.map(renderOpeningEventSupport),
           ctx.semantic.flatMap(_.structureProfile).map { profile =>
             val center = normalizeText(profile.centerState)
             if center.nonEmpty then s"The position already points to a ${center.toLowerCase} center and long-term maneuvering."
@@ -221,17 +245,11 @@ private[analysis] object StrategicThesisBuilder:
       }
 
   private def opponentOrAbsenceTension(ctx: NarrativeContext): Option[String] =
-    absenceTension(ctx).orElse(opponentPlanTension(ctx))
+    AlternativeNarrativeSupport.sentence(ctx).orElse(opponentPlanTension(ctx))
 
   private def leadingPlanName(ctx: NarrativeContext): Option[String] =
     ctx.mainStrategicPlans.headOption.map(_.planName).map(normalizeText).filter(_.nonEmpty)
       .orElse(ctx.plans.top5.headOption.map(_.name).map(normalizeText).filter(_.nonEmpty))
-
-  private def absenceTension(ctx: NarrativeContext): Option[String] =
-    ctx.whyAbsentFromTopMultiPV.headOption
-      .map(normalizeSentenceFragment)
-      .filter(_.nonEmpty)
-      .map(reason => s"The direct alternative stays secondary because $reason.")
 
   private def opponentPlanTension(ctx: NarrativeContext): Option[String] =
     ctx.opponentPlan.map(_.name).map(normalizeText).filter(_.nonEmpty).map { plan =>
@@ -242,6 +260,7 @@ private[analysis] object StrategicThesisBuilder:
     authorEvidenceHook(ctx.authorEvidence)
       .orElse(probeRequestHook(ctx.probeRequests))
       .orElse(topVariationHook(ctx))
+      .map(UserFacingSignalSanitizer.sanitize)
 
   private def authorEvidenceHook(evidence: List[QuestionEvidence]): Option[String] =
     evidence.flatMap(_.branches).headOption.map { branch =>
@@ -294,15 +313,6 @@ private[analysis] object StrategicThesisBuilder:
         s"Theory is already thinning out here, with only about $sampleCount games left in sample."
       case _ =>
         "The opening reference is already giving way to independent strategic play."
-
-  private def alternativeLabel(ctx: NarrativeContext): Option[String] =
-    val topAlt =
-      ctx.whyAbsentFromTopMultiPV.headOption.flatMap(extractQuotedMove)
-    topAlt.orElse {
-      ctx.engineEvidence.flatMap(_.best).flatMap { line =>
-        variationLeadSan(ctx.fen, line)
-      }
-    }
 
   private def variationLeadSan(fen: String, line: VariationLine): Option[String] =
     line.ourMove.map(_.san).map(normalizeText).filter(_.nonEmpty)

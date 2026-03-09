@@ -3,6 +3,6 @@ claim=12... Rxc6: The point of the move is not an immediate score, but to accept
 supportPrimary=The compensation has to cash out through Mating Attack.
 supportSecondary=That only works if the initiative keeps generating attack on king and dark square bind.
 tension=The direct alternative stays secondary because the calm recapture lets Black untangle and trade off the attack.
-evidenceHook=Probe evidence starts with...Qe7: Qe7 h5 Rh6 (+0.68).
+evidenceHook=Probe evidence starts with ...Qe7: Qe7 h5 Rh6 (+0.68).
 coda=
 paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence

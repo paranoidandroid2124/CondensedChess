@@ -160,6 +160,19 @@ function formatEvidenceScore(evalCp?: number | null, mate?: number | null): stri
     return '';
 }
 
+function formatDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
+    if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
+    const route = (signalDigest.deploymentRoute || []).filter(Boolean);
+    const confidence = typeof signalDigest.deploymentConfidence === 'number' ? signalDigest.deploymentConfidence : null;
+    const exact = !!confidence && confidence >= 0.78 && route.length >= 3;
+    const destination = route[route.length - 1] || '';
+    const lead = exact
+        ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
+        : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
+    const contribution = signalDigest.deploymentContribution?.trim();
+    return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
+}
+
 function decorateBookmakerHtml(
     html: string,
     signalDigest: NarrativeSignalDigest | null,
@@ -217,6 +230,9 @@ function decorateBookmakerHtml(
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Structure profile:</strong> ${escapeHtml(structureBits.join(' · '))}</div>`);
     if (alignmentReasons.length)
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Plan fit:</strong> ${escapeHtml(alignmentReasons.join('; '))}</div>`);
+    const deploymentSummary = signalDigest ? formatDeploymentSummary(signalDigest) : null;
+    if (deploymentSummary)
+        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Piece Deployment:</strong> ${escapeHtml(deploymentSummary)}</div>`);
     if (signalDigest?.prophylaxisPlan || signalDigest?.prophylaxisThreat || typeof signalDigest?.counterplayScoreDrop === 'number') {
         const prophylaxisDetails = [
             signalDigest?.prophylaxisPlan ? `plan ${signalDigest.prophylaxisPlan}` : '',

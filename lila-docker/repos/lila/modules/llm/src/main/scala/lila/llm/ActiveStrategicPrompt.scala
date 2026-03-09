@@ -12,9 +12,12 @@ object ActiveStrategicPrompt:
       |
       |## HARD RULES
       |1. Return exactly one concise note in 2-4 sentences.
-      |2. Mention at least one concrete strategic plan.
+      |2. Preserve the dominant strategic thesis from the base narrative or strategy pack instead of switching to a different lens.
+      |   Mention at least one concrete strategic plan.
       |3. When available in context, prefer citing at least one concrete piece route
       |   (example style: Nd2-f1-e3) or one explicit long-term focus.
+      |   If both a structure signal and a route are present, connect them explicitly:
+      |   explain that the structure calls for that deployment.
       |4. Do not invent facts, moves, evaluations, or lines that are not provided.
       |5. Do not contradict provided evaluation intent or side-to-move context.
       |6. No markdown headers, no bullet lists, no metadata.
@@ -162,6 +165,15 @@ object ActiveStrategicPrompt:
                 digest.centerState.map(v => s"- center state: $v"),
                 digest.alignmentBand.map(v => s"- alignment band: $v"),
                 Option.when(digest.alignmentReasons.nonEmpty)(s"- alignment reasons: ${digest.alignmentReasons.mkString("; ")}"),
+                digest.deploymentPiece.map { piece =>
+                  val route =
+                    if digest.deploymentRoute.nonEmpty then digest.deploymentRoute.mkString("-")
+                    else "n/a"
+                  s"- structure deployment: $piece $route"
+                },
+                digest.deploymentPurpose.map(v => s"- deployment purpose: $v"),
+                digest.deploymentContribution.map(v => s"- move contribution: $v"),
+                digest.deploymentConfidence.map(v => s"- deployment confidence: ${"%.2f".format(v)}"),
                 digest.prophylaxisPlan.map(v => s"- prophylaxis plan: $v"),
                 digest.prophylaxisThreat.map(v => s"- prophylaxis target: $v"),
                 digest.counterplayScoreDrop.map(v => s"- counterplay drop: ${v}cp"),

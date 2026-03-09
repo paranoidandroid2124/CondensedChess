@@ -88,4 +88,19 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     assert(precedent.representativeSentence.contains("Vladimir Kramnik-Viswanathan Anand"))
     assert(precedent.representativeSentence.toLowerCase.contains("queenside pressure branch"))
     assert(precedent.summarySentence.toLowerCase.contains("queenside pressure branch"))
+    val relation = OpeningPrecedentBranching.relationSentence(ctx, ctx.openingData, requireFocus = true).getOrElse(fail("missing relation"))
+    assert(relation.toLowerCase.contains("keeps the game inside"))
+    assert(relation.toLowerCase.contains("queenside pressure branch"))
+  }
+
+  test("out-of-book opening move is described as bending away from the representative branch") {
+    val outOfBookCtx =
+      ctx.copy(
+        playedMove = Some("g2g4"),
+        playedSan = Some("g4"),
+        openingEvent = Some(OpeningEvent.OutOfBook("g4", List("b3", "dxc5", "Qc2"), 16))
+      )
+    val relation = OpeningPrecedentBranching.relationSentence(outOfBookCtx, outOfBookCtx.openingData, requireFocus = true).getOrElse(fail("missing relation"))
+    assert(relation.toLowerCase.contains("bends away"))
+    assert(relation.toLowerCase.contains("queenside pressure"))
   }

@@ -221,7 +221,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
-  const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
+  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval());
   if (ctrl.isReviewShell()) {
     return hl('div.analyse__tools.analyse__tools--review', [
       allowVideo && embeddedVideo,

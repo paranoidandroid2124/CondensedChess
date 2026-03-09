@@ -85,14 +85,24 @@ object BookmakerProseGoldenFixtures:
       expectedLens = StrategicLens.Structure,
       ctx = baseContext(
         fen = "r1b2rk1/pp3pp1/2n1pn1p/2pp4/3P3P/2P1PN2/PPQ1BPP1/R1B2RK1 w - - 0 16",
-        playedMove = "h4h5",
-        playedSan = "h5",
+        playedMove = "h1h3",
+        playedSan = "Rh3",
         primaryPlan = "Rook-Pawn March"
       ).copy(
         semantic = Some(
           SemanticSection(
             structuralWeaknesses = Nil,
-            pieceActivity = Nil,
+            pieceActivity = List(
+              PieceActivityInfo(
+                piece = "Rook",
+                square = "h1",
+                mobilityScore = 0.39,
+                isTrapped = false,
+                isBadBishop = false,
+                keyRoutes = List("h3", "g3"),
+                coordinationLinks = List("h5", "g4")
+              )
+            ),
             positionalFeatures = Nil,
             compensation = None,
             endgameFeatures = None,
@@ -115,7 +125,7 @@ object BookmakerProseGoldenFixtures:
                 matchedPlanIds = List("rook_pawn_march"),
                 missingPlanIds = Nil,
                 reasonCodes = List("SPACE_RACE", "TIMING"),
-                narrativeIntent = Some("prepare the h-pawn lever and rook-lift attack"),
+                narrativeIntent = Some("prepare the rook lift behind the h-pawn lever"),
                 narrativeRisk = Some("the center can break open if the lever is mistimed")
               )
             )
@@ -129,7 +139,7 @@ object BookmakerProseGoldenFixtures:
             evidence = List("locked center", "kingside space")
           )
         ),
-        whyAbsentFromTopMultiPV = List("the direct kingside break only works once the h-pawn has fixed the structure")
+        whyAbsentFromTopMultiPV = List("the direct kingside break only works once the rook lift is in place")
       )
     )
 
@@ -239,14 +249,24 @@ object BookmakerProseGoldenFixtures:
       expectedLens = StrategicLens.Structure,
       ctx = baseContext(
         fen = "r2q1rk1/pp1nbpp1/2p1p2p/3pN3/3P4/2P1B3/PPQ2PPP/R4RK1 w - - 0 19",
-        playedMove = "f2f4",
-        playedSan = "f4",
+        playedMove = "d2f1",
+        playedSan = "Nf1",
         primaryPlan = "Punish the Entrenched Knight"
       ).copy(
         semantic = Some(
           SemanticSection(
             structuralWeaknesses = Nil,
-            pieceActivity = Nil,
+            pieceActivity = List(
+              PieceActivityInfo(
+                piece = "Knight",
+                square = "d2",
+                mobilityScore = 0.31,
+                isTrapped = false,
+                isBadBishop = false,
+                keyRoutes = List("f1", "e3", "g4"),
+                coordinationLinks = List("e3", "g4")
+              )
+            ),
             positionalFeatures = Nil,
             compensation = None,
             endgameFeatures = None,
@@ -269,7 +289,7 @@ object BookmakerProseGoldenFixtures:
                 matchedPlanIds = List("entrenched_knight"),
                 missingPlanIds = Nil,
                 reasonCodes = List("ENTRENCHED", "TIMING"),
-                narrativeIntent = Some("fix the e5-knight and squeeze it with f4-f5"),
+                narrativeIntent = Some("reroute the knight toward e3 and g4 to squeeze the e5-knight"),
                 narrativeRisk = Some("Black gets c5 counterplay if the queenside opens first")
               )
             )

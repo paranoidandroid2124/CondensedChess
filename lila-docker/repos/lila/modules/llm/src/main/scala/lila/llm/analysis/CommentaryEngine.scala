@@ -532,10 +532,10 @@ object CommentaryEngine:
           // Analyze only key moment plies
           val keyMomentsWithData = analyzeGame(pgn, evals, extraPlies = extraOpeningPlies)
           val dataByPly = keyMomentsWithData.map(d => d.ply -> d).toMap
-          val (momentNarratives, _, _, _) = allMoments.foldLeft(
-            (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference])
+          val (momentNarratives, _, _, _, _) = allMoments.foldLeft(
+            (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
           ) {
-            case ((acc, prevAnalysis, budget, prevRef), moment) =>
+            case ((acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed), moment) =>
               dataByPly.get(moment.ply) match {
                 case Some(data) =>
                   // Build NarrativeContext with A9 budget and prevRef
@@ -568,6 +568,16 @@ object CommentaryEngine:
                   val signalDigest = buildMomentSignalDigest(ctx, focusedOutline)
                   val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
                   val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
+                  val evidenceEligible =
+                    evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
+                      FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
+                  val surfacedEvidence =
+                    FullGameEvidenceSurfacePolicy.payload(
+                      eligible = evidenceEligible,
+                      probeRequests = ctx.probeRequests,
+                      authorQuestions = authorQuestions,
+                      authorEvidence = authorEvidence
+                    )
 
                   val momentNarrative = MomentNarrative(
                     ply = moment.ply,
@@ -602,9 +612,9 @@ object CommentaryEngine:
                     collapse = collapseData,
                     strategyPack = strategyPack,
                     signalDigest = signalDigest,
-                    probeRequests = ctx.probeRequests,
-                    authorQuestions = authorQuestions,
-                    authorEvidence = authorEvidence,
+                    probeRequests = surfacedEvidence.probeRequests,
+                    authorQuestions = surfacedEvidence.authorQuestions,
+                    authorEvidence = surfacedEvidence.authorEvidence,
                     mainStrategicPlans = ctx.mainStrategicPlans.take(3),
                     latentPlans = ctx.latentPlans.take(2),
                     whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
@@ -612,8 +622,10 @@ object CommentaryEngine:
                   
                   // Update budget from ctx.updatedBudget for next iteration
                   val nextRef = ctx.openingData.orElse(prevRef)
-                  (acc :+ momentNarrative, Some(data), ctx.updatedBudget, nextRef)
-                case None => (acc, prevAnalysis, budget, prevRef)
+                  val nextEvidenceCount =
+                    evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
+                  (acc :+ momentNarrative, Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
+                case None => (acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed)
               }
           }
            

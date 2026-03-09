@@ -5,8 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import play.api.libs.json.{ JsObject, JsString, Json }
-import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
+import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -19,7 +18,7 @@ final class LlmApi(
     commentaryCache: CommentaryCache,
     llmConfig: LlmConfig = LlmConfig.fromEnv,
     providerConfig: LlmProviderConfig = LlmProviderConfig.fromEnv,
-    ccaHistoryRepo: CcaHistoryRepo = null
+    ccaHistoryRepo: Option[CcaHistoryRepo] = None
 )(using Executor):
 
   private val logger = lila.log("llm.api")
@@ -498,24 +497,7 @@ final class LlmApi(
     t.startsWith("{") && t.contains("\"commentary\"")
 
   private def unwrapCommentaryPayload(text: String): String =
-    val trimmed = Option(text).map(_.trim).getOrElse("")
-    if trimmed.isEmpty || !trimmed.startsWith("{") then trimmed
-    else
-      try
-        Json.parse(trimmed) match
-          case obj: JsObject =>
-            (obj \ "commentary").toOption.flatMap {
-              case JsString(value) => Option(value).map(_.trim).filter(_.nonEmpty)
-              case nested: JsObject =>
-                List("text", "value", "content")
-                  .view
-                  .flatMap(k => (nested \ k).asOpt[String].map(_.trim))
-                  .find(_.nonEmpty)
-              case _ => None
-            }.getOrElse(trimmed)
-          case _ => trimmed
-      catch
-        case NonFatal(_) => trimmed
+    CommentaryPayloadNormalizer.normalize(text)
 
   private def looksTruncated(text: String): Boolean =
     val t = Option(text).map(_.trim).getOrElse("")
@@ -879,6 +861,8 @@ final class LlmApi(
           text = decoded,
           applied = false,
           actions = Nil,
+          materialApplied = false,
+          materialActions = Nil,
           evaluation = BookmakerProseContract.Evaluation(Nil, claimLikeFirstParagraph = true, paragraphBudgetOk = true, placeholderHits = Nil, genericHits = Nil)
         )
     if repaired.applied then
@@ -2635,16 +2619,15 @@ final class LlmApi(
 
   /** Stash CCA results from a completed game analysis for the Defeat DNA aggregation. */
   def stashCcaResults(userId: String, response: GameNarrativeResponse): Funit =
-    if ccaHistoryRepo == null then funit
-    else
+    ccaHistoryRepo.fold(funit) { repo =>
       val newCollapses = response.moments.flatMap(_.collapse)
-      if newCollapses.nonEmpty then ccaHistoryRepo.insert(userId, newCollapses)
+      if newCollapses.nonEmpty then repo.insert(userId, newCollapses)
       else funit
+    }
 
   /** Retrieve accumulated CCA history for a user. */
   def getCcaHistory(userId: String): Fu[List[lila.llm.model.CollapseAnalysis]] =
-    if ccaHistoryRepo == null then fuccess(Nil)
-    else ccaHistoryRepo.recent(userId)
+    ccaHistoryRepo.fold(fuccess(Nil))(_.recent(userId))
 
   private def fetchOpeningRefsForPgn(pgn: String): Future[Map[String, OpeningReference]] =
     val openingFens = PgnAnalysisHelper.extractPlyData(pgn) match

@@ -76,7 +76,7 @@ const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
 ]);
 const reviewReferenceTabs = new Set<ReviewReferenceTab>(['explorer', 'board', 'import']);
 const reviewMomentFilters = new Set<NarrativeMomentFilter>(['all', 'critical', 'collapses']);
-const boardLabelModes = new Set<BoardLabelMode>(['off', 'rim', 'full']);
+const boardLabelModes = new Set<BoardLabelMode>(['off', 'inside', 'rim', 'full']);
 
 export default class AnalyseCtrl implements CevalHandler {
   data: AnalyseData;
@@ -984,6 +984,15 @@ export default class AnalyseCtrl implements CevalHandler {
   setShowEvalGauge = (show: boolean): void => {
     this.showGauge(show);
     requestAnimationFrame(dispatchChessgroundResize);
+    this.redraw();
+  };
+
+  showEnginePanel = (): boolean => (this.isReviewShell() ? this.showCevalProp() : this.showCeval());
+
+  setShowEnginePanel = (show: boolean): void => {
+    this.ceval.showEnginePrefs(false);
+    this.showCevalProp(show);
+    if (show) this.cevalEnabled(true);
     this.redraw();
   };
 

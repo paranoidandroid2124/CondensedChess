@@ -258,6 +258,50 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala:144`
   - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala:184`
   - `modules/llm/src/test/scala/lila/llm/PolishPromptTest.scala:5`
+- `2026-03-08` working-tree update:
+  - `StructureProfile / PlanAlignment / pieceActivity/keyRoutes` now feed a
+    shared synthesis helper, `StructurePlanArcBuilder`, instead of reaching
+    Bookmaker prose only as loosely connected generic structure text.
+  - Bookmaker structure thesis can now consume a deterministic
+    `structure -> long plan -> primary deployment -> current move contribution`
+    arc.
+  - `NarrativeSignalDigest` now carries optional deployment fields
+    (`deploymentPiece`, `deploymentRoute`, `deploymentPurpose`,
+    `deploymentContribution`, `deploymentConfidence`), and Bookmaker renders a
+    lightweight `Piece Deployment` row inside `Strategic Signals`.
+  - Active mode reuses the same deployment cue through `StrategyPackBuilder`,
+    `longTermFocus`, `evidence`, and `ActiveStrategicPrompt`.
+  - This does not introduce a new producer; it deterministically joins already
+    existing structure/alignment/piece-activity signals.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala:1`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:82`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala:12`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala:16`
+  - `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala:3`
+  - `modules/llm/src/main/scala/lila/llm/models.scala:110`
+  - `ui/analyse/src/bookmaker/responsePayload.ts:52`
+  - `ui/analyse/src/bookmaker.ts:139`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StructurePlanArcBuilderTest.scala:1`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:1`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala:1`
+  - `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala:1`
+- `2026-03-08` cleanup update:
+  - route-purpose / route-confidence heuristics are no longer duplicated across
+    `StructurePlanArcBuilder` and `StrategyPackBuilder`; the strategy-pack path
+    now reuses `StructurePlanArcBuilder.cueFromStrategicActivity`.
+  - `LlmApi` no longer carries `ccaHistoryRepo = null` as a sentinel default;
+    the dependency is now modeled as `Option[CcaHistoryRepo]`.
+  - user-facing placeholder scrubbing is now centralized in
+    `UserFacingSignalSanitizer` and reused by Bookmaker slot sanitation,
+    strategy-pack authoring evidence summaries, and thesis evidence hooks.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala:90`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala:91`
+  - `modules/llm/src/main/LlmApi.scala:15`
+  - `modules/llm/src/main/Env.scala:32`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala:1`
+  - `modules/llm/src/main/scala/lila/llm/analysis/AuthoringEvidenceSummaryBuilder.scala:7`
   - `ui/analyse/src/narrative/narrativeView.ts:448`
   - `ui/analyse/src/bookmaker.ts:130`
   - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala:8`
@@ -312,6 +356,29 @@ Key references:
   - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala`
   - `modules/llm/src/test/scala/lila/llm/PolishPromptTest.scala`
+- `2026-03-08` closeout-quality update:
+  - provider payload wrappers are now normalized through
+    `CommentaryPayloadNormalizer` before Bookmaker soft repair or contract
+    validation. JSON / quoted-JSON / fenced payload wrappers are no longer
+    treated as prose failures.
+  - slot-mode polish/repair prompts now carry the exact opening clause of the
+    claim, so paragraph 1 is pushed to preserve the thesis opening clause more
+    literally instead of rephrasing it into generic first-sentence prose.
+  - deterministic paragraph 3 now wraps bare variation evidence as prose
+    (`A concrete line is ...`) so tension/evidence paragraphs survive polish
+    with less repair pressure.
+  - closeout QA now distinguishes `soft_repair_applied_rate` from
+    `soft_repair_material_rate`: claim-only opening-clause restoration is
+    treated as cosmetic, while paragraph/evidence/placeholder fixes remain
+    material.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryPayloadNormalizer.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryPayloadNormalizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CoreCommentaryCloseoutQaRunner.scala`
 - `2026-03-08` working-tree update:
   - tactical mistake / blunder criticism now has higher priority on the
     Bookmaker prose path than a competing strategic thesis.
@@ -344,12 +411,34 @@ Key references:
   - `NarrativeOutlineBuilder` now also injects the same branch summary into the
     opening-theory beat and prefers the representative branch sentence over a
     raw precedent block when only a single focused precedent is needed.
+  - the opening path now also states whether the current move stays inside that
+    representative branch or bends away from it. This relation is derived
+    deterministically from the current opening event (`BranchPoint`,
+    `OutOfBook`, `Novelty`, `TheoryEnds`, `Intro`), the representative
+    trigger move, and opening top-move membership.
+  - this closes the intended `L3` opening contract for Bookmaker:
+    opening name, representative player game, strategic branch label, and the
+    current move's relation to that branch.
 - Verification:
   - `modules/llm/src/main/scala/lila/llm/analysis/OpeningPrecedentBranching.scala`
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
   - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
   - `modules/llm/src/test/scala/lila/llm/analysis/OpeningPrecedentBranchingTest.scala`
   - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+- `2026-03-08` working-tree update:
+  - cleanup-only pass reduced active duplication in the Bookmaker/opening stack.
+  - `OpeningPrecedentBranching` now owns shared opening-precedent player
+    normalization, SAN tokenization, and mechanism inference used by both the
+    thesis path and the older opening-theory comparison path.
+  - tactical/blunder escalation policy is now centralized in
+    `CriticalAnnotationPolicy`, so Bookmaker claim promotion and outline-level
+    `tacticalEmphasis` no longer keep separate predicates.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/OpeningPrecedentBranching.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CriticalAnnotationPolicy.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CriticalAnnotationPolicyTest.scala`
 - `2026-03-08` working-tree update:
   - `mode: userAnalysis` now consumes full-game commentary through a
     narrative-first `Review Shell`, not an optional side tool. The primary

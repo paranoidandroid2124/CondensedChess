@@ -20,6 +20,28 @@ class BookmakerPolishSlotsTest extends FunSuite:
     }
   }
 
+  test("structure-led slots preserve deployment reason and move contribution roles") {
+    val fixture = BookmakerProseGoldenFixtures.entrenchedPiece
+    val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
+    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None).getOrElse(fail("missing slots"))
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(claim.contains("french chain"))
+    assert(claim.contains("knight"))
+    assert(slots.supportPrimary.exists(text => {
+      val low = text.toLowerCase
+      low.contains("belongs") || low.contains("wants")
+    }))
+    assert(slots.supportPrimary.exists(text => {
+      val low = text.toLowerCase
+      low.contains("gains force") || low.contains("squeeze")
+    }))
+    assert(slots.supportSecondary.exists(text => text.toLowerCase.contains("this move")))
+    assert(slots.supportSecondary.exists(text => {
+      val low = text.toLowerCase
+      low.contains("route") || low.contains("post")
+    }))
+  }
+
   test("soft repair restores missing claim and strips placeholders") {
     val fixture = BookmakerProseGoldenFixtures.practicalChoice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
@@ -34,6 +56,50 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertEquals(repaired.evaluation.genericHits, Nil)
     assert(repaired.evaluation.claimLikeFirstParagraph)
     assert(repaired.evaluation.paragraphBudgetOk)
+    assert(repaired.materialApplied)
+    assert(repaired.materialActions.nonEmpty)
+  }
+
+  test("soft repair treats claim-only restore as cosmetic") {
+    val slots =
+      BookmakerPolishSlots(
+        lens = StrategicLens.Decision,
+        claim = "1. e4: This move claims central space.",
+        supportPrimary = Some("It opens lines for both bishops."),
+        supportSecondary = None,
+        tension = None,
+        evidenceHook = None,
+        coda = None,
+        factGuardrails = Nil,
+        paragraphPlan = List("p1=claim", "p2=support_chain")
+      )
+    val generic =
+      """The move remains preferable.
+        |
+        |It opens lines for both bishops.""".stripMargin
+    val repaired = BookmakerSoftRepair.repair(generic, slots)
+    assert(repaired.applied)
+    assert(repaired.actions.contains("claim_restore"))
+    assert(!repaired.materialApplied)
+    assertEquals(repaired.materialActions, Nil)
+  }
+
+  test("deterministic third paragraph wraps bare variation evidence in prose") {
+    val slots =
+      BookmakerPolishSlots(
+        lens = StrategicLens.Decision,
+        claim = "1. e4: This move claims central space.",
+        supportPrimary = Some("It opens lines for both bishops."),
+        supportSecondary = Some("This move prepares rapid development."),
+        tension = Some("Black can still challenge the center if White drifts."),
+        evidenceHook = Some("a) ...c5 Nf3 Nc6 (+0.2)"),
+        coda = None,
+        factGuardrails = Nil,
+        paragraphPlan = List("p1=claim", "p2=support_chain", "p3=tension_or_evidence")
+      )
+    val paragraphs = BookmakerSoftRepair.deterministicParagraphs(slots)
+    assertEquals(paragraphs.size, 3)
+    assert(paragraphs(2).contains("A concrete line is a) ...c5 Nf3 Nc6 (+0.2)"))
   }
 
   test("sanitizer preserves chess ellipsis markers in prose") {

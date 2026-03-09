@@ -40,6 +40,7 @@ export interface NarrativeSignalDigest {
     strategicStack?: string[];
     latentPlan?: string;
     latentReason?: string;
+    authoringEvidence?: string;
     practicalVerdict?: string;
     practicalFactors?: string[];
     compensation?: string;
@@ -50,6 +51,11 @@ export interface NarrativeSignalDigest {
     centerState?: string;
     alignmentBand?: string;
     alignmentReasons?: string[];
+    deploymentPiece?: string;
+    deploymentRoute?: string[];
+    deploymentPurpose?: string;
+    deploymentContribution?: string;
+    deploymentConfidence?: number;
     prophylaxisPlan?: string;
     prophylaxisThreat?: string;
     counterplayScoreDrop?: number;
@@ -98,6 +104,9 @@ export interface GameNarrativeMoment {
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
     signalDigest?: NarrativeSignalDigest;
+    probeRequests?: ProbeRequest[];
+    authorQuestions?: AuthorQuestionSummary[];
+    authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
     latentPlans?: LatentPlanSummary[];
     whyAbsentFromTopMultiPV?: string[];
@@ -106,6 +115,54 @@ export interface GameNarrativeMoment {
     activeStrategicSourceMode?: string;
     activeStrategicRoutes?: ActiveStrategicRouteRef[];
     activeStrategicMoves?: ActiveStrategicMoveRef[];
+}
+
+export interface ProbeRequest {
+    id: string;
+    fen: string;
+    moves: string[];
+    depth: number;
+    purpose?: string;
+    questionId?: string;
+    questionKind?: string;
+    multiPv?: number;
+    planId?: string;
+    planName?: string;
+    objective?: string;
+    requiredSignals?: string[];
+}
+
+export interface AuthorQuestionSummary {
+    id: string;
+    kind: string;
+    priority: number;
+    question: string;
+    why?: string | null;
+    anchors?: string[];
+    confidence: string;
+    latentPlanName?: string | null;
+}
+
+export interface EvidenceBranchSummary {
+    keyMove: string;
+    line: string;
+    evalCp?: number | null;
+    mate?: number | null;
+    depth?: number | null;
+}
+
+export interface AuthorEvidenceSummary {
+    questionId: string;
+    questionKind: string;
+    question: string;
+    why?: string | null;
+    status: string;
+    purposes?: string[];
+    branchCount: number;
+    branches?: EvidenceBranchSummary[];
+    pendingProbeCount: number;
+    probeObjectives?: string[];
+    linkedPlans?: string[];
 }
 
 export interface ActiveStrategicRouteRef {
