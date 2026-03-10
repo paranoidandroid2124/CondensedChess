@@ -31,7 +31,8 @@ final class Env(
     endpoint = config.influxEventEndpoint,
     env = config.influxEventEnv
   )
-  if mode.isProd then scheduler.scheduleOnce(5.seconds)(influxEvent.start())
+  if mode.isProd && config.influxEventEndpoint.trim.nonEmpty then
+    scheduler.scheduleOnce(5.seconds)(influxEvent.start())
 
   object settings:
     import lila.core.data.{ Strings, UserIds }

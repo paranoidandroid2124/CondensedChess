@@ -1,7 +1,7 @@
 import { ratelimitSecondsFromResponse, resetAtFromResponse } from './responsePayload';
 
 function renderBookmakerStateCard(
-  kind: 'auth' | 'quota',
+  kind: 'auth' | 'quota' | 'idle' | 'error',
   title: string,
   message: string,
   actionHtml: string,
@@ -15,6 +15,24 @@ function renderBookmakerStateCard(
       <div class="bookmaker-state__actions">${actionHtml}</div>
     </div>
   `;
+}
+
+export function bookmakerIdleHtml(): string {
+  return renderBookmakerStateCard(
+    'idle',
+    'Bookmaker is on demand',
+    'Generate commentary for the current move only when you want it. This keeps requests cheaper and avoids queue pileups.',
+    '<button type="button" class="button button-metal" data-bookmaker-request="1">Explain this move</button>',
+  );
+}
+
+export function bookmakerRetryHtml(message = 'Commentary generation took too long or failed. Try again when the position is settled.'): string {
+  return renderBookmakerStateCard(
+    'error',
+    'Commentary unavailable',
+    message,
+    '<button type="button" class="button button-metal" data-bookmaker-request="1" data-bookmaker-force="1">Retry commentary</button>',
+  );
 }
 
 export async function blockedHtmlFromErrorResponse(res: Response, loginHref: string): Promise<string | null> {

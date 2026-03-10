@@ -10,6 +10,10 @@ import { lichessRules } from 'chessops/compat';
 import { makeSanAndPlay } from 'chessops/san';
 import { parseUci } from 'chessops/util';
 import type { DrawShape } from '@lichess-org/chessground/draw';
+import {
+    buildDecisionComparisonSurface,
+    type DecisionComparisonDigestLike,
+} from '../decisionComparison';
 
 type VariationLine = { moves: string[]; scoreCp: number; mate?: number | null; depth?: number; tags?: string[] };
 
@@ -47,6 +51,7 @@ export type NarrativeSignalDigest = {
     strategicStack?: string[];
     latentPlan?: string;
     latentReason?: string;
+    decisionComparison?: DecisionComparisonDigest;
     authoringEvidence?: string;
     practicalVerdict?: string;
     practicalFactors?: string[];
@@ -72,6 +77,8 @@ export type NarrativeSignalDigest = {
     preservedSignals?: string[];
 };
 
+export type DecisionComparisonDigest = DecisionComparisonDigestLike;
+
 export type EngineAlternative = {
     uci: string;
     san?: string;
@@ -94,6 +101,37 @@ export type ActiveStrategicMoveRef = {
     uci: string;
     san?: string;
     fenAfter?: string;
+};
+
+export type ActiveBranchRouteCue = {
+    routeId: string;
+    piece: string;
+    route: string[];
+    purpose: string;
+    confidence: number;
+};
+
+export type ActiveBranchMoveCue = {
+    label: string;
+    uci: string;
+    san?: string;
+    source: string;
+};
+
+export type ActiveBranchDossier = {
+    dominantLens: string;
+    chosenBranchLabel: string;
+    engineBranchLabel?: string;
+    deferredBranchLabel?: string;
+    whyChosen?: string;
+    whyDeferred?: string;
+    opponentResource?: string;
+    routeCue?: ActiveBranchRouteCue;
+    moveCue?: ActiveBranchMoveCue;
+    evidenceCue?: string;
+    continuationFocus?: string;
+    practicalRisk?: string;
+    comparisonGapCp?: number;
 };
 
 export type ProbeRequest = {
@@ -178,6 +216,7 @@ type GameNarrativeMoment = {
     activeStrategicSourceMode?: string;
     activeStrategicRoutes?: ActiveStrategicRouteRef[];
     activeStrategicMoves?: ActiveStrategicMoveRef[];
+    activeBranchDossier?: ActiveBranchDossier;
 };
 type GameNarrativeReview = {
     schemaVersion?: number;
@@ -595,6 +634,7 @@ export function narrativeMomentView(
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
     const hasStrategicBlock =
         !!moment.activeStrategicNote ||
+        !!moment.activeBranchDossier ||
         !!moment.activeStrategicMoves?.length ||
         !!moment.activeStrategicRoutes?.length;
 
@@ -629,15 +669,14 @@ export function narrativeMomentView(
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
         narrativeProseView(ctrl, moment, moment.narrative, 'moment'),
-        narrativeSignalSummaryView(moment),
-        narrativeEvidenceSummaryView(moment),
+        narrativeSignalSummaryView(ctrl, moment),
+        narrativeEvidenceSummaryView(ctrl, moment),
         hasStrategicBlock ? narrativeStrategicNoteView(ctrl, moment) : null,
         moment.activePlan ? narrativeActivePlanView(moment.activePlan) : null,
         moment.collapse ? narrativeCollapseCardView(ctrl, moment, {
             selected: !!opts.selected,
             onSelect: opts.onSelect,
         }) : null,
-        moment.topEngineMove ? narrativeTopEngineMoveView(ctrl, moment) : null,
         variations.length
             ? hl('div.narrative-variations', [
                 hl('h3', 'Variations'),
@@ -647,16 +686,27 @@ export function narrativeMomentView(
     ]);
 }
 
-function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
+function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
     const digest = moment.signalDigest;
+    const canonicalDecisionComparison = digest?.decisionComparison;
+    const fallbackDecisionComparison = !canonicalDecisionComparison
+        ? narrativeFallbackDecisionComparison(moment)
+        : undefined;
+    const decisionComparison = canonicalDecisionComparison || fallbackDecisionComparison;
+    const moveRefs = buildInlineMoveRefMap(moment, ctrl.root.data.game.variant.key);
     const mainPlans = (moment.mainStrategicPlans || []).slice(0, 2);
     const latentPlans = (moment.latentPlans || []).slice(0, 1);
-    const holdReasons = (moment.whyAbsentFromTopMultiPV || []).filter(Boolean).slice(0, 2);
+    const holdReasons =
+        canonicalDecisionComparison ? [] : (moment.whyAbsentFromTopMultiPV || []).filter(Boolean).slice(0, 2);
     const preserved = (digest?.preservedSignals || []).filter(Boolean).slice(0, 6);
     const alignmentReasons = (digest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
     const practicalFactors = (digest?.practicalFactors || []).filter(Boolean).slice(0, 2);
     const compensationVectors = (digest?.compensationVectors || []).filter(Boolean).slice(0, 3);
     const deploymentSummary = digest ? formatNarrativeDeploymentSummary(digest) : null;
+    const decisionSurface = buildDecisionComparisonSurface(decisionComparison, {
+        includeEngineLine: true,
+        includeEvidence: true,
+    });
 
     const structureProfileBits = [
         digest?.structureProfile,
@@ -698,6 +748,10 @@ function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
         !mainPlans.length &&
         !latentPlans.length &&
         !holdReasons.length &&
+        !decisionSurface.headline &&
+        !decisionSurface.secondary &&
+        !decisionSurface.engineLine &&
+        !decisionSurface.evidence &&
         !signalRows.length &&
         !structureRows.length &&
         !prophylaxisRows.length &&
@@ -728,14 +782,7 @@ function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
                 )),
             ])
             : null,
-        holdReasons.length
-            ? hl('div.narrative-signal-group', [
-                hl('span.narrative-signal-label', 'Why not top line'),
-                hl('div.narrative-signal-list', holdReasons.map((reason, idx) =>
-                    hl('div.narrative-signal-row', { key: `hold-${idx}` }, reason),
-                )),
-            ])
-            : null,
+        narrativeDecisionComparisonView(decisionComparison, decisionSurface, holdReasons, moveRefs),
         signalRows.length
             ? hl('div.narrative-signal-list', signalRows.map(([label, value], idx) =>
                 hl('div.narrative-signal-row', { key: `${label}-${idx}` }, [
@@ -759,6 +806,115 @@ function narrativeSignalSummaryView(moment: GameNarrativeMoment): VNode | null {
     ]);
 }
 
+function narrativeFallbackDecisionComparison(
+    moment: GameNarrativeMoment,
+): DecisionComparisonDigest | undefined {
+    const alt = moment.topEngineMove;
+    if (!alt) return undefined;
+
+    const engineBestMove = (alt.san || alt.uci || '').trim();
+    if (!engineBestMove) return undefined;
+
+    return {
+        engineBestMove,
+        engineBestPv: (alt.pv || []).filter(Boolean),
+        cpLossVsChosen: typeof alt.cpLossVsPlayed === 'number' ? alt.cpLossVsPlayed : undefined,
+        chosenMatchesBest: false,
+    };
+}
+
+function narrativeDecisionComparisonView(
+    comparison: DecisionComparisonDigest | undefined,
+    surface: ReturnType<typeof buildDecisionComparisonSurface>,
+    holdReasons: string[],
+    moveRefs: Map<string, string>,
+): VNode | null {
+    const fallbackReason = !surface.headline ? holdReasons[0]?.trim() || null : null;
+    const detailRows: Array<[string, string]> = [];
+
+    if (surface.engineLine) detailRows.push(['Engine line', surface.engineLine]);
+    if (surface.evidence) detailRows.push(['Evidence', surface.evidence]);
+    if (surface.headline && holdReasons.length)
+        holdReasons.slice(0, 2).forEach((reason, idx) => detailRows.push([idx === 0 ? 'Why deferred' : 'Also', reason]));
+    else if (!surface.headline && fallbackReason) detailRows.push(['Why deferred', fallbackReason]);
+
+    const headline = surface.headline || (fallbackReason ? 'Top line deferred' : null);
+    const secondary = surface.secondary || (!surface.headline && holdReasons.length > 1 ? holdReasons[1] : null);
+
+    if (!headline && !secondary && !detailRows.length) return null;
+
+    const moveStrip = narrativeDecisionMoveStrip(comparison, moveRefs);
+
+    const containerSelector = detailRows.length
+        ? 'details.narrative-decision-compare'
+        : 'div.narrative-decision-compare.narrative-decision-compare--static';
+    const summaryChildren = [
+        hl('span.narrative-decision-compare__kicker', 'Decision compare'),
+        hl('div.narrative-decision-compare__copy', [
+            moveStrip,
+            headline ? hl('div.narrative-decision-compare__headline', headline) : null,
+            secondary ? hl('div.narrative-decision-compare__secondary', secondary) : null,
+        ]),
+        surface.gap ? hl('span.narrative-decision-compare__gap', surface.gap) : null,
+    ];
+
+    return hl(containerSelector, [
+        detailRows.length
+            ? hl('summary.narrative-decision-compare__summary', summaryChildren)
+            : hl('div.narrative-decision-compare__summary.narrative-decision-compare__summary--static', summaryChildren),
+        detailRows.length
+            ? hl('div.narrative-decision-compare__details', detailRows.map(([label, value], idx) =>
+                hl('div.narrative-decision-compare__detail', { key: `${label}-${idx}` }, [
+                    hl('span.narrative-decision-compare__detail-label', `${label}:`),
+                    hl('span.narrative-decision-compare__detail-value', value),
+                ]),
+            ))
+            : null,
+    ]);
+}
+
+function narrativeDecisionMoveStrip(
+    comparison: DecisionComparisonDigest | undefined,
+    moveRefs: Map<string, string>,
+): VNode | null {
+    if (!comparison) return null;
+
+    const chips = [
+        narrativeDecisionMoveChip('Chosen', comparison.chosenMove, moveRefs, 'chosen'),
+        !comparison.chosenMatchesBest
+            ? narrativeDecisionMoveChip('Engine', comparison.engineBestMove, moveRefs, 'engine')
+            : null,
+        comparison.deferredMove
+            ? narrativeDecisionMoveChip(
+                comparison.practicalAlternative ? 'Practical' : 'Deferred',
+                comparison.deferredMove,
+                moveRefs,
+                'deferred',
+            )
+            : null,
+    ].filter(Boolean) as VNode[];
+
+    if (!chips.length) return null;
+    return hl('div.narrative-decision-compare__moves', chips);
+}
+
+function narrativeDecisionMoveChip(
+    label: string,
+    move: string | undefined,
+    moveRefs: Map<string, string>,
+    tone: 'chosen' | 'engine' | 'deferred',
+): VNode | null {
+    const normalized = normalizeSanToken(move);
+    if (!normalized) return null;
+    const payload = moveRefs.get(normalized);
+    return hl(`span.narrative-decision-compare__move.narrative-decision-compare__move--${tone}`, [
+        hl('span.narrative-decision-compare__move-label', label),
+        hl(`span.narrative-decision-compare__move-chip${payload ? '.narrative-move' : ''}`, payload ? {
+            attrs: { 'data-board': payload, title: `${label}: ${move}` },
+        } : undefined, move || normalized),
+    ]);
+}
+
 function narrativeSignalGroupView(title: string, rows: [string, string][]): VNode | null {
     if (!rows.length) return null;
     return hl('div.narrative-signal-group', [
@@ -772,10 +928,11 @@ function narrativeSignalGroupView(title: string, rows: [string, string][]): VNod
     ]);
 }
 
-function narrativeEvidenceSummaryView(moment: GameNarrativeMoment): VNode | null {
+function narrativeEvidenceSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
     const probeRequests = (moment.probeRequests || []).slice(0, 1);
     const authorEvidence = (moment.authorEvidence || []).slice(0, 2);
     const authorQuestions = (moment.authorQuestions || []).slice(0, 2);
+    const moveRefs = buildInlineMoveRefMap(moment, ctrl.root.data.game.variant.key);
 
     if (!probeRequests.length && !authorEvidence.length && !authorQuestions.length) return null;
 
@@ -839,7 +996,7 @@ function narrativeEvidenceSummaryView(moment: GameNarrativeMoment): VNode | null
                     branches.length
                         ? hl('div.narrative-evidence-branches', branches.map((branch, idx) =>
                             hl('div.narrative-evidence-branch', { key: `${summary.questionId}-branch-${idx}` }, [
-                                hl('code', branch.keyMove),
+                                narrativeEvidenceMoveChip(branch.keyMove, moveRefs),
                                 hl(
                                     'span',
                                     [branch.line, formatEvidenceScore(branch.evalCp, branch.mate), typeof branch.depth === 'number' ? `d${branch.depth}` : '']
@@ -875,15 +1032,31 @@ function narrativeEvidenceSummaryView(moment: GameNarrativeMoment): VNode | null
     ]);
 }
 
+function narrativeEvidenceMoveChip(keyMove: string, moveRefs: Map<string, string>): VNode {
+    const normalized = normalizeSanToken(keyMove);
+    const payload = normalized ? moveRefs.get(normalized) : null;
+    if (!payload) return hl('code', keyMove);
+    return hl('span.narrative-strategic-chip.narrative-evidence-move', {
+        attrs: {
+            'data-board': payload,
+            title: `Preview ${keyMove}`,
+        },
+    }, keyMove);
+}
+
 function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
     const note = moment.activeStrategicNote;
+    const dossier = moment.activeBranchDossier;
     const strategicMoves = (moment.activeStrategicMoves || []).filter(m => typeof m.uci === 'string' && m.uci.length >= 4);
     const strategicRoutes = (moment.activeStrategicRoutes || []).filter(r => Array.isArray(r.route) && r.route.length >= 2);
+    const showFallbackMoves = strategicMoves.length && !dossier?.moveCue;
+    const showFallbackRoutes = strategicRoutes.length && !dossier?.routeCue;
 
     return hl('div.narrative-strategic-note-box', [
         hl('h3.narrative-strategic-note-title', 'Strategic Note'),
         note ? narrativeProseView(ctrl, moment, note, 'note') : null,
-        strategicMoves.length ? hl('div.narrative-strategic-moves', [
+        dossier ? narrativeBranchDossierView(moment, strategicMoves) : null,
+        showFallbackMoves ? hl('div.narrative-strategic-moves', [
             hl('span.narrative-strategic-label', 'Mini-board moves:'),
             hl('div.narrative-strategic-move-list', strategicMoves.map((move, idx) => {
                 const uci = move.uci.toLowerCase();
@@ -895,7 +1068,7 @@ function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMo
                 }, move.san || uci);
             })),
         ]) : null,
-        strategicRoutes.length ? hl('div.narrative-strategic-routes', [
+        showFallbackRoutes ? hl('div.narrative-strategic-routes', [
             hl('span.narrative-strategic-label', 'Reroute paths:'),
             hl('div.narrative-strategic-route-list', strategicRoutes.map(route => {
                 const routeText = route.route.join('-');
@@ -911,6 +1084,114 @@ function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMo
             })),
         ]) : null,
     ]);
+}
+
+function narrativeBranchDossierView(
+    moment: GameNarrativeMoment,
+    strategicMoves: ActiveStrategicMoveRef[],
+): VNode {
+    const dossier = moment.activeBranchDossier!;
+    const moveCue = dossier.moveCue;
+    const matchedMove =
+        moveCue &&
+        strategicMoves.find(move =>
+            move.label === moveCue.label ||
+            move.uci.toLowerCase() === moveCue.uci.toLowerCase(),
+        );
+    const routeCue = dossier.routeCue;
+    const detailRows: Array<[string, string | VNode]> = [
+        dossier.whyDeferred ? ['Why deferred', dossier.whyDeferred] : null,
+        dossier.opponentResource ? ['Opponent resource', dossier.opponentResource] : null,
+        dossier.evidenceCue ? ['Evidence', dossier.evidenceCue] : null,
+        dossier.continuationFocus ? ['Continuation', dossier.continuationFocus] : null,
+        dossier.practicalRisk ? ['Practical risk', dossier.practicalRisk] : null,
+    ].filter(Boolean) as Array<[string, string | VNode]>;
+
+    const summaryRows: VNode[] = [
+        hl('div.narrative-branch-dossier__row', [
+            hl('span.narrative-branch-dossier__label', 'Chosen'),
+            hl('span.narrative-branch-dossier__value', dossier.chosenBranchLabel),
+        ]),
+        dossier.engineBranchLabel
+            ? hl('div.narrative-branch-dossier__row', [
+                hl('span.narrative-branch-dossier__label', 'Engine'),
+                hl('span.narrative-branch-dossier__value', dossier.engineBranchLabel),
+            ])
+            : null,
+        dossier.deferredBranchLabel
+            ? hl('div.narrative-branch-dossier__row', [
+                hl('span.narrative-branch-dossier__label', 'Deferred'),
+                hl('span.narrative-branch-dossier__value', dossier.deferredBranchLabel),
+            ])
+            : null,
+        routeCue
+            ? hl('div.narrative-branch-dossier__row', [
+                hl('span.narrative-branch-dossier__label', 'Route'),
+                narrativeBranchRouteChip(moment, routeCue),
+            ])
+            : null,
+        moveCue
+            ? hl('div.narrative-branch-dossier__row', [
+                hl('span.narrative-branch-dossier__label', 'Move ref'),
+                narrativeBranchMoveChip(moveCue, matchedMove),
+            ])
+            : null,
+    ].filter(Boolean) as VNode[];
+
+    const summary = [
+        hl('span.narrative-branch-dossier__title', 'Branch Dossier'),
+        dossier.comparisonGapCp !== undefined && dossier.comparisonGapCp !== null
+            ? hl('span.narrative-branch-dossier__gap', `${dossier.comparisonGapCp}cp`)
+            : null,
+    ];
+
+    const body = hl('div.narrative-branch-dossier__body', [
+        ...summaryRows,
+        detailRows.length
+            ? hl('div.narrative-branch-dossier__details', detailRows.map(([label, value]) =>
+                hl('div.narrative-branch-dossier__detail', { key: label }, [
+                    hl('span.narrative-branch-dossier__detail-label', `${label}:`),
+                    typeof value === 'string'
+                        ? hl('span.narrative-branch-dossier__detail-value', value)
+                        : value,
+                ]),
+            ))
+            : null,
+    ]);
+
+    return detailRows.length
+        ? hl('details.narrative-branch-dossier', [
+            hl('summary.narrative-branch-dossier__summary', summary),
+            body,
+        ])
+        : hl('div.narrative-branch-dossier', [
+            hl('div.narrative-branch-dossier__summary', summary),
+            body,
+        ]);
+}
+
+function narrativeBranchRouteChip(moment: GameNarrativeMoment, cue: ActiveBranchRouteCue): VNode {
+    const routeText = cue.route.join('-');
+    return hl('span.narrative-strategic-chip.route.narrative-branch-dossier__chip', {
+        attrs: {
+            'data-route': routeText,
+            'data-route-fen': moment.fen,
+            title: `${cue.routeId} · ${cue.purpose}`,
+        },
+    }, `${cue.routeId} ${cue.piece}${routeText}`);
+}
+
+function narrativeBranchMoveChip(
+    cue: ActiveBranchMoveCue,
+    matchedMove?: ActiveStrategicMoveRef,
+): VNode {
+    const uci = matchedMove?.uci || cue.uci;
+    const san = matchedMove?.san || cue.san || cue.uci;
+    const fenAfter = matchedMove?.fenAfter || '';
+    const preview = fenAfter && uci.length >= 4 ? `${fenAfter}|${uci.toLowerCase()}` : null;
+    return hl('span.narrative-strategic-chip.narrative-branch-dossier__chip', {
+        attrs: preview ? { 'data-board': preview, title: cue.label } : { title: cue.label },
+    }, `${cue.label}: ${san}`);
 }
 
 function narrativeProseView(
@@ -1201,21 +1482,6 @@ function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNo
 function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience' | 'branch'): VNode {
     const cls = text.toLowerCase().replace(/\s+/g, '-');
     return hl(`span.narrative-badge.${kind}.${cls}`, text);
-}
-
-function narrativeTopEngineMoveView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
-    const alt = moment.topEngineMove;
-    if (!alt) return null;
-
-    return hl('div.narrative-top-engine-move', [
-        hl('h3', 'Why Not?'),
-        hl('div.narrative-alt-move', [
-            hl('span.narrative-alt-label', 'Better was:'),
-            hl('span.narrative-alt-san', alt.san || alt.uci),
-            alt.cpLossVsPlayed !== undefined ? hl('span.narrative-alt-loss', `(+${(alt.cpLossVsPlayed / 100).toFixed(1)} pawns)`) : null,
-        ]),
-        alt.pv?.length ? hl('div.narrative-variation-moves', renderMoves(ctrl, moment.fen, alt.pv)) : null,
-    ]);
 }
 
 function narrativeVariationView(ctrl: NarrativeCtrl, fen: string, line: VariationLine, index: number): VNode {

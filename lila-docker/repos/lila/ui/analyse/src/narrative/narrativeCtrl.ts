@@ -5,6 +5,7 @@ import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type { BoardPreview } from 'lib/view/boardPreview';
+import type { DecisionComparisonDigestLike } from '../decisionComparison';
 
 interface VariationLine {
     moves: string[];
@@ -40,6 +41,7 @@ export interface NarrativeSignalDigest {
     strategicStack?: string[];
     latentPlan?: string;
     latentReason?: string;
+    decisionComparison?: DecisionComparisonDigest;
     authoringEvidence?: string;
     practicalVerdict?: string;
     practicalFactors?: string[];
@@ -64,6 +66,8 @@ export interface NarrativeSignalDigest {
     opponentPlan?: string;
     preservedSignals?: string[];
 }
+
+export type DecisionComparisonDigest = DecisionComparisonDigestLike;
 
 export interface EngineAlternative {
     uci: string;
@@ -115,6 +119,7 @@ export interface GameNarrativeMoment {
     activeStrategicSourceMode?: string;
     activeStrategicRoutes?: ActiveStrategicRouteRef[];
     activeStrategicMoves?: ActiveStrategicMoveRef[];
+    activeBranchDossier?: ActiveBranchDossier;
 }
 
 export interface ProbeRequest {
@@ -179,6 +184,37 @@ export interface ActiveStrategicMoveRef {
     uci: string;
     san?: string;
     fenAfter?: string;
+}
+
+export interface ActiveBranchRouteCue {
+    routeId: string;
+    piece: string;
+    route: string[];
+    purpose: string;
+    confidence: number;
+}
+
+export interface ActiveBranchMoveCue {
+    label: string;
+    uci: string;
+    san?: string;
+    source: string;
+}
+
+export interface ActiveBranchDossier {
+    dominantLens: string;
+    chosenBranchLabel: string;
+    engineBranchLabel?: string;
+    deferredBranchLabel?: string;
+    whyChosen?: string;
+    whyDeferred?: string;
+    opponentResource?: string;
+    routeCue?: ActiveBranchRouteCue;
+    moveCue?: ActiveBranchMoveCue;
+    evidenceCue?: string;
+    continuationFocus?: string;
+    practicalRisk?: string;
+    comparisonGapCp?: number;
 }
 
 export interface GameNarrativeReview {

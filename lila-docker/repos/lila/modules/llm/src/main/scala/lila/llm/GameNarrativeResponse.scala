@@ -78,7 +78,8 @@ case class GameNarrativeMoment(
     activeStrategicNote: Option[String] = None,
     activeStrategicSourceMode: Option[String] = None,
     activeStrategicRoutes: List[ActiveStrategicRouteRef] = Nil,
-    activeStrategicMoves: List[ActiveStrategicMoveRef] = Nil
+    activeStrategicMoves: List[ActiveStrategicMoveRef] = Nil,
+    activeBranchDossier: Option[ActiveBranchDossier] = None
 )
 
 object GameNarrativeMoment:
@@ -120,7 +121,8 @@ object GameNarrativeMoment:
       activeStrategicNote = moment.activeStrategicNote,
       activeStrategicSourceMode = moment.activeStrategicSourceMode,
       activeStrategicRoutes = moment.activeStrategicRoutes,
-      activeStrategicMoves = moment.activeStrategicMoves
+      activeStrategicMoves = moment.activeStrategicMoves,
+      activeBranchDossier = moment.activeBranchDossier
     )
 
   given Writes[GameNarrativeMoment] = Json.writes[GameNarrativeMoment]

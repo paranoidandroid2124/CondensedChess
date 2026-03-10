@@ -15,6 +15,14 @@ final class WebConfig(
 
 object WebConfig:
 
+  private def configuredString(c: Configuration, path: String): Option[String] =
+    c.getOptional[String](path).map(_.trim).filter(_.nonEmpty)
+
+  private def configuredOrEnv(c: Configuration, path: String, envName: String): String =
+    configuredString(c, path)
+      .orElse(sys.env.get(envName).map(_.trim).filter(_.nonEmpty))
+      .getOrElse("")
+
   object blindCookie:
     val name = "mBzamRgfXgRBSnXB"
     val maxAge = 365.days
@@ -28,16 +36,16 @@ object WebConfig:
   def loadFrom(c: Configuration) =
     WebConfig(
       c.get[Secret]("api.token"),
-      c.getOptional[String]("api.influx_event.endpoint").getOrElse(""),
-      c.getOptional[String]("api.influx_event.env").getOrElse(""),
-      c.getOptional[String]("kamon.prometheus.lilaKey").getOrElse("")
+      configuredOrEnv(c, "api.influx_event.endpoint", "INFLUX_EVENT_ENDPOINT"),
+      configuredOrEnv(c, "api.influx_event.env", "INFLUX_EVENT_ENV"),
+      configuredString(c, "kamon.prometheus.lilaKey").getOrElse("")
     )
 
   def analyseEndpoints(c: Configuration) =
     lila.ui.AnalyseEndpoints(
-      explorer = c.getOptional[String]("explorer.endpoint").getOrElse(""),
-      tablebase = c.getOptional[String]("explorer.tablebase_endpoint").getOrElse(""),
-      externalEngine = c.getOptional[String]("externalEngine.endpoint").getOrElse("")
+      explorer = configuredOrEnv(c, "explorer.endpoint", "EXPLORER_API_BASE"),
+      tablebase = configuredOrEnv(c, "explorer.tablebase_endpoint", "TABLEBASE_API_BASE"),
+      externalEngine = configuredString(c, "externalEngine.endpoint").getOrElse("")
     )
 
   def netConfig(c: Configuration) = NetConfig(

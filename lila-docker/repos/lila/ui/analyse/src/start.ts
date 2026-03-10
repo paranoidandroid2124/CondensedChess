@@ -11,16 +11,20 @@ export default function (
   return function (opts: AnalyseOpts): AnalyseApi {
     opts.element = document.querySelector('main.analyse') as HTMLElement;
 
-    const ctrl = (site.analysis = new makeCtrl(opts, redraw));
     const view = makeView();
+    let ctrl: InstanceType<typeof makeCtrl> | undefined;
+    let vnode: VNode | Element | DocumentFragment = opts.element;
+
+    function redraw() {
+      if (!ctrl) return;
+      vnode = patch(vnode, view(ctrl));
+    }
+
+    ctrl = (site.analysis = new makeCtrl(opts, redraw));
 
     const blueprint = view(ctrl);
     opts.element.innerHTML = '';
-    let vnode = patch(opts.element, blueprint);
-
-    function redraw() {
-      vnode = patch(vnode, view(ctrl));
-    }
+    vnode = patch(opts.element, blueprint);
 
     menuHover();
 

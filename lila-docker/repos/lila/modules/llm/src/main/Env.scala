@@ -1,6 +1,7 @@
 package lila.llm
 
 import com.softwaremill.macwire.*
+import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
 import lila.llm.analysis.OpeningExplorerClient
 import lila.core.config.CollName
@@ -8,6 +9,7 @@ import lila.core.config.CollName
 @Module
 final class Env(
     db: lila.db.Db,
+    appConfig: Configuration,
     ws: StandaloneWSClient
 )(using Executor):
 
@@ -27,6 +29,12 @@ final class Env(
   lazy val analysisExecutor: Executor =
     scala.concurrent.ExecutionContext.fromExecutor(analysisService)
 
-  private lazy val openingExplorer = OpeningExplorerClient(ws)
+  private val configuredExplorerBase =
+    appConfig
+      .getOptional[String]("explorer.internal_endpoint")
+      .orElse(appConfig.getOptional[String]("explorer.endpoint"))
+      .map(_.trim)
+      .filter(_.nonEmpty)
+  private lazy val openingExplorer = OpeningExplorerClient(ws, explorerBaseConfig = configuredExplorerBase)
   lazy val api: LlmApi =
     LlmApi(openingExplorer, geminiClient, openAiClient, commentaryCache, llmConfig, providerConfig, Some(ccaHistoryRepo))(using analysisExecutor)

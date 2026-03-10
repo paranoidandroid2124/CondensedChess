@@ -40,6 +40,7 @@ final class Env(
   lazy val api = new SecurityApi(userEnv.repo, sessionStore, authenticator, pwnedApi)
 
   lazy val loginToken = new LoginToken(settings.loginTokenSecret)
+  lazy val emailChangeToken = new EmailChangeToken(settings.emailChangeSecret)
   lazy val passwordResetToken = new PasswordResetToken(settings.passwordResetSecret)
 
   lazy val firewall = new Firewall(firewallColl, settings, system.scheduler)

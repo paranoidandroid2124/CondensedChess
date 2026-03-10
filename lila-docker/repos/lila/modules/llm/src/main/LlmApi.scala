@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -75,13 +75,29 @@ final class LlmApi(
   private val polishFallbackCount = new AtomicLong(0L)
   private val polishCacheHitCount = new AtomicLong(0L)
   private val softRepairAppliedCount = new AtomicLong(0L)
+  private val softRepairMaterialCount = new AtomicLong(0L)
   private val polishReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val polishEstimatedCostMicros = new AtomicLong(0L)
+  private val bookmakerCompareObservedCount = new AtomicLong(0L)
+  private val bookmakerCompareConsistentCount = new AtomicLong(0L)
+  private val fullGameCompareObservedCount = new AtomicLong(0L)
+  private val fullGameCompareConsistentCount = new AtomicLong(0L)
+  private val activeThesisAgreementTotal = new AtomicLong(0L)
+  private val activeThesisAgreementHit = new AtomicLong(0L)
   private val activeNoteSelectedCount = new AtomicLong(0L)
   private val activeNoteAttemptCount = new AtomicLong(0L)
   private val activeNoteAttachedCount = new AtomicLong(0L)
   private val activeNoteOmittedCount = new AtomicLong(0L)
+  private val activeDossierEligibleCount = new AtomicLong(0L)
+  private val activeDossierAttachedCount = new AtomicLong(0L)
+  private val activeDossierCompareObservedCount = new AtomicLong(0L)
+  private val activeDossierCompareHitCount = new AtomicLong(0L)
+  private val activeDossierRouteObservedCount = new AtomicLong(0L)
+  private val activeDossierRouteHitCount = new AtomicLong(0L)
+  private val activeDossierReferenceFailureCount = new AtomicLong(0L)
   private val activeNoteFailureReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val opsSampleCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
+  private val commentaryOpsBoard = new CommentaryOpsBoard()
 
   private case class PolishDecision(
       commentary: String,
@@ -229,6 +245,180 @@ final class LlmApi(
   private def incActiveNoteReason(reason: String): Unit =
     activeNoteFailureReasonCount.getOrElseUpdate(reason, new AtomicLong(0L)).incrementAndGet()
 
+  private def shouldLogOpsSample(kind: String): Boolean =
+    val count = opsSampleCount.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
+    count <= 5 || count % 50 == 0
+
+  private def logOpsSample(kind: String, fields: (String, String)*): Unit =
+    lila.mon.llm.commentary.sample(kind).increment()
+    if shouldLogOpsSample(kind) then
+      commentaryOpsBoard.recordSample(kind = kind, fields = fields.toMap)
+      val rendered =
+        fields
+          .map { case (k, v) =>
+            val safe = Option(v).getOrElse("").replaceAll("""[\r\n\t]+""", " ").trim
+            s"$k=${if safe.nonEmpty then safe else "-"}"
+          }
+          .mkString(" ")
+      logger.warn(s"llm.ops.sample kind=$kind $rendered")
+
+  private def recordComparisonObservation(
+      path: String,
+      digest: Option[DecisionComparisonDigest],
+      whyAbsent: List[String],
+      authorEvidence: List[AuthorEvidenceSummary],
+      probeRequests: List[lila.llm.model.ProbeRequest],
+      strategyPack: Option[StrategyPack]
+  ): Unit =
+    CommentaryOpsSignals
+      .decisionComparisonConsistency(
+        digest = digest,
+        whyAbsent = whyAbsent,
+        authorEvidence = authorEvidence,
+        probeRequests = probeRequests,
+        strategyPack = strategyPack
+      )
+      .foreach { obs =>
+        val (total, hit) =
+          path match
+            case "bookmaker" => (bookmakerCompareObservedCount, bookmakerCompareConsistentCount)
+            case _           => (fullGameCompareObservedCount, fullGameCompareConsistentCount)
+        total.incrementAndGet()
+        if obs.consistent then hit.incrementAndGet()
+        lila.mon.llm.commentary.compare(path, obs.consistent).increment()
+        updateCommentaryOpsGauges()
+        if !obs.consistent then
+          logOpsSample(
+            kind = s"compare_inconsistent.$path",
+            "reasons" -> obs.reasons.mkString(","),
+            "chosen" -> digest.flatMap(_.chosenMove).getOrElse(""),
+            "best" -> digest.flatMap(_.engineBestMove).getOrElse(""),
+            "deferred" -> digest.flatMap(_.deferredMove).getOrElse(""),
+            "source" -> digest.flatMap(_.deferredSource).getOrElse("")
+          )
+      }
+
+  private def traceBookmakerFallbackResponse(
+      response: CommentResponse,
+      phase: String,
+      ply: Int,
+      lastMove: Option[String],
+      cacheHit: Boolean,
+      openingRefPresent: Boolean,
+      incomingProbeCount: Int
+  ): Unit =
+    val sourceMode = Option(response.sourceMode).map(_.trim).filter(_.nonEmpty).getOrElse("rule")
+    val shouldTrace =
+      sourceMode == "rule_circuit_open" || sourceMode.startsWith("fallback_rule")
+    if shouldTrace then
+      val reasons =
+        response.polishMeta
+          .map(_.validationReasons.map(_.trim).filter(_.nonEmpty).distinct)
+          .getOrElse(Nil)
+      val provider = response.polishMeta.map(_.provider).getOrElse("")
+      val model = response.polishMeta.flatMap(_.model).orElse(response.model).getOrElse("")
+      val sampleKind =
+        sourceMode match
+          case "fallback_rule_invalid" => "bookmaker_fallback.invalid"
+          case "fallback_rule_empty"   => "bookmaker_fallback.empty"
+          case "rule_circuit_open"     => "bookmaker_fallback.circuit_open"
+          case other                   => s"bookmaker_fallback.${other.replaceAll("""[^a-zA-Z0-9]+""", "_")}"
+      val fields = Seq(
+        "sourceMode" -> sourceMode,
+        "reasons" -> reasons.mkString(","),
+        "phase" -> phase,
+        "ply" -> ply.toString,
+        "lastMove" -> lastMove.getOrElse(""),
+        "provider" -> provider,
+        "model" -> model,
+        "cacheHit" -> cacheHit.toString,
+        "openingRef" -> openingRefPresent.toString,
+        "probeCount" -> incomingProbeCount.toString
+      )
+      logOpsSample(kind = sampleKind, fields = fields*)
+      val rendered =
+        fields
+          .map { case (k, v) =>
+            val safe = Option(v).getOrElse("").replaceAll("""[\r\n\t]+""", " ").trim
+            s"$k=${if safe.nonEmpty then safe else "-"}"
+          }
+          .mkString(" ")
+      logger.warn(s"llm.bookmaker.fallback $rendered")
+
+  private def recordActiveThesisAgreement(
+      moment: GameNarrativeMoment,
+      note: String
+  ): Unit =
+    val observation =
+      CommentaryOpsSignals.activeThesisAgreement(
+        baseNarrative = moment.narrative,
+        activeNote = note,
+        digest = moment.signalDigest
+      )
+    activeThesisAgreementTotal.incrementAndGet()
+    if observation.agreed then activeThesisAgreementHit.incrementAndGet()
+    lila.mon.llm.commentary.thesisAgreement("active", observation.agreed).increment()
+    updateCommentaryOpsGauges()
+    if !observation.agreed then
+      logOpsSample(
+        kind = "thesis_disagreement.active",
+        "momentType" -> moment.momentType,
+        "labels" -> observation.dominantLabels.take(4).mkString(" | "),
+        "sourceMode" -> moment.activeStrategicSourceMode.getOrElse("")
+      )
+
+  private def recordActiveDossierOutcome(
+      dossier: Option[ActiveBranchDossier],
+      note: Option[String],
+      reasons: List[String],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef]
+  ): Unit =
+    dossier.foreach { value =>
+      activeDossierEligibleCount.incrementAndGet()
+      if note.exists(_.trim.nonEmpty) then activeDossierAttachedCount.incrementAndGet()
+      activeDossierCompareObservedCount.incrementAndGet()
+      val normalizedNote = note.map(_.toLowerCase).getOrElse("")
+      val compareHit =
+        List(
+          Some(value.chosenBranchLabel),
+          value.engineBranchLabel,
+          value.deferredBranchLabel
+        ).flatten.exists { label =>
+          val tokens = label.toLowerCase.split("""[^a-z0-9]+""").filter(_.length > 3)
+          tokens.nonEmpty && tokens.exists(normalizedNote.contains)
+        }
+      if compareHit then activeDossierCompareHitCount.incrementAndGet()
+
+      val routeObserved = value.routeCue.nonEmpty || routeRefs.nonEmpty || moveRefs.nonEmpty
+      val routeHit =
+        routeObserved && (
+          value.routeCue.exists(cue => normalizedNote.contains(cue.routeId.toLowerCase)) ||
+            routeRefs.map(_.routeId.toLowerCase).exists(normalizedNote.contains) ||
+            moveRefs.map(_.label.toLowerCase).exists(normalizedNote.contains)
+        )
+      if routeObserved then
+        activeDossierRouteObservedCount.incrementAndGet()
+        if routeHit then activeDossierRouteHitCount.incrementAndGet()
+        else activeDossierReferenceFailureCount.incrementAndGet()
+
+      updateCommentaryOpsGauges()
+
+      val failureTags =
+        reasons.map(_.trim).filter(_.nonEmpty).distinct
+      if failureTags.nonEmpty || !compareHit || (routeObserved && !routeHit) then
+        logOpsSample(
+          kind = "active_dossier.sample",
+          "lens" -> value.dominantLens,
+          "chosen" -> value.chosenBranchLabel,
+          "deferred" -> value.deferredBranchLabel.getOrElse(""),
+          "route" -> value.routeCue.map(_.routeId).getOrElse(""),
+          "move" -> value.moveCue.map(_.label).getOrElse(""),
+          "reasons" -> failureTags.mkString(","),
+          "note" -> note.getOrElse("").take(320)
+        )
+    }
+
   private def recordPolishMetrics(
       sourceMode: String,
       latencyMs: Long,
@@ -251,6 +441,7 @@ final class LlmApi(
       polishFallbackWindow = pushBoundedWindow(polishFallbackWindow, fallback, PolishWindowSize)
     }
     maybeOpenPolishCircuit(System.currentTimeMillis())
+    updateCommentaryOpsGauges()
 
   private def recordLatencyMetrics(totalLatencyMs: Long, structureEvalLatencyMs: Option[Long]): Unit =
     latencyWindowLock.synchronized {
@@ -265,6 +456,7 @@ final class LlmApi(
     if attached then activeNoteAttachedCount.incrementAndGet()
     else activeNoteOmittedCount.incrementAndGet()
     reasons.map(_.trim).filter(_.nonEmpty).distinct.foreach(incActiveNoteReason)
+    updateCommentaryOpsGauges()
     if attempt > 0 && attempt % 100 == 0 then maybeLogActiveNoteMetrics()
 
   private def maybeLogActiveNoteMetrics(): Unit =
@@ -272,15 +464,156 @@ final class LlmApi(
     val attempts = activeNoteAttemptCount.get()
     val attached = activeNoteAttachedCount.get()
     val omitted = activeNoteOmittedCount.get()
+    val thesisAgreementRate =
+      if activeThesisAgreementTotal.get() == 0 then 0.0
+      else activeThesisAgreementHit.get().toDouble / activeThesisAgreementTotal.get().toDouble
     val attachRate =
       if attempts == 0 then 0.0
       else attached.toDouble / attempts.toDouble
+    val dossierAttachRate =
+      if activeDossierEligibleCount.get() == 0 then 0.0
+      else activeDossierAttachedCount.get().toDouble / activeDossierEligibleCount.get().toDouble
+    val dossierCompareRate =
+      if activeDossierCompareObservedCount.get() == 0 then 0.0
+      else activeDossierCompareHitCount.get().toDouble / activeDossierCompareObservedCount.get().toDouble
+    val dossierRouteRate =
+      if activeDossierRouteObservedCount.get() == 0 then 0.0
+      else activeDossierRouteHitCount.get().toDouble / activeDossierRouteObservedCount.get().toDouble
     val reasonDist = activeNoteFailureReasonCount.toList.map { case (k, v) => k -> v.get() }.toMap
     logger.info(
       s"active_note.metrics active_note_selected_count=$selected " +
         s"active_note_attempt_count=$attempts active_note_attached_count=$attached active_note_omitted_count=$omitted " +
-        f"attach_rate=$attachRate%.3f active_note_failure_reason_count=$reasonDist"
+        f"attach_rate=$attachRate%.3f thesis_agreement_rate=$thesisAgreementRate%.3f " +
+        f"dossier_attach_rate=$dossierAttachRate%.3f dossier_compare_rate=$dossierCompareRate%.3f dossier_route_ref_rate=$dossierRouteRate%.3f " +
+        s"active_note_failure_reason_count=$reasonDist"
     )
+
+  def commentaryOpsSnapshot(limit: Int = 20): CommentaryOpsBoard.Snapshot =
+    val requests = bookmakerRequests.get()
+    val attempts = polishAttemptCount.get()
+    val accepted = polishAcceptedCount.get()
+    val fallbackRate =
+      if attempts == 0 then 0.0
+      else polishFallbackCount.get().toDouble / attempts.toDouble
+    val softRepairAnyRate =
+      if accepted == 0 then 0.0
+      else softRepairAppliedCount.get().toDouble / accepted.toDouble
+    val softRepairMaterialRate =
+      if accepted == 0 then 0.0
+      else softRepairMaterialCount.get().toDouble / accepted.toDouble
+    val bookmakerCompareRate =
+      if bookmakerCompareObservedCount.get() == 0 then 1.0
+      else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+    val fullGameCompareRate =
+      if fullGameCompareObservedCount.get() == 0 then 1.0
+      else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
+    val avgCostUsd =
+      if attempts == 0 then 0.0
+      else polishEstimatedCostMicros.get().toDouble / attempts.toDouble / 1000000.0
+    val thesisAgreementRate =
+      if activeThesisAgreementTotal.get() == 0 then 1.0
+      else activeThesisAgreementHit.get().toDouble / activeThesisAgreementTotal.get().toDouble
+    val activeAttempts = activeNoteAttemptCount.get()
+    val attachRate =
+      if activeAttempts == 0 then 0.0
+      else activeNoteAttachedCount.get().toDouble / activeAttempts.toDouble
+    val dossierAttachRate =
+      if activeDossierEligibleCount.get() == 0 then 0.0
+      else activeDossierAttachedCount.get().toDouble / activeDossierEligibleCount.get().toDouble
+    val dossierCompareRate =
+      if activeDossierCompareObservedCount.get() == 0 then 1.0
+      else activeDossierCompareHitCount.get().toDouble / activeDossierCompareObservedCount.get().toDouble
+    val dossierRouteRate =
+      if activeDossierRouteObservedCount.get() == 0 then 1.0
+      else activeDossierRouteHitCount.get().toDouble / activeDossierRouteObservedCount.get().toDouble
+    val dossierReferenceFailureRate =
+      if activeDossierRouteObservedCount.get() == 0 then 0.0
+      else activeDossierReferenceFailureCount.get().toDouble / activeDossierRouteObservedCount.get().toDouble
+
+    CommentaryOpsBoard.Snapshot(
+      generatedAtMs = System.currentTimeMillis(),
+      bookmaker = CommentaryOpsBoard.BookmakerMetrics(
+        requests = requests,
+        polishAttempts = attempts,
+        polishAccepted = accepted,
+        polishFallbackRate = fallbackRate,
+        softRepairAnyRate = softRepairAnyRate,
+        softRepairMaterialRate = softRepairMaterialRate,
+        compareObserved = bookmakerCompareObservedCount.get(),
+        compareConsistencyRate = bookmakerCompareRate,
+        avgCostUsd = avgCostUsd
+      ),
+      fullgame = CommentaryOpsBoard.FullGameMetrics(
+        compareObserved = fullGameCompareObservedCount.get(),
+        compareConsistencyRate = fullGameCompareRate
+      ),
+      active = CommentaryOpsBoard.ActiveMetrics(
+        selectedMoments = activeNoteSelectedCount.get(),
+        attempts = activeAttempts,
+        attached = activeNoteAttachedCount.get(),
+        omitted = activeNoteOmittedCount.get(),
+        attachRate = attachRate,
+        thesisAgreementRate = thesisAgreementRate,
+        dossierAttachRate = dossierAttachRate,
+        dossierCompareRate = dossierCompareRate,
+        dossierRouteRefRate = dossierRouteRate,
+        dossierReferenceFailureRate = dossierReferenceFailureRate,
+        omitReasons = activeNoteFailureReasonCount.view.mapValues(_.get()).toMap
+      ),
+      recentSamples = commentaryOpsBoard.recentSamples(limit)
+    )
+
+  private def updateCommentaryOpsGauges(): Unit =
+    val attempts = polishAttemptCount.get()
+    val accepted = polishAcceptedCount.get()
+    val bookmakerFallbackRate =
+      if attempts == 0 then 0.0
+      else polishFallbackCount.get().toDouble / attempts.toDouble
+    val bookmakerSoftRepairMaterialRate =
+      if accepted == 0 then 0.0
+      else softRepairMaterialCount.get().toDouble / accepted.toDouble
+    val bookmakerCompareRate =
+      if bookmakerCompareObservedCount.get() == 0 then 1.0
+      else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+    val fullGameCompareRate =
+      if fullGameCompareObservedCount.get() == 0 then 1.0
+      else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
+    val activeThesisRate =
+      if activeThesisAgreementTotal.get() == 0 then 1.0
+      else activeThesisAgreementHit.get().toDouble / activeThesisAgreementTotal.get().toDouble
+    val activeAttempts = activeNoteAttemptCount.get()
+    val activeAttachRate =
+      if activeAttempts == 0 then 0.0
+      else activeNoteAttachedCount.get().toDouble / activeAttempts.toDouble
+    val activeDossierAttachRate =
+      if activeDossierEligibleCount.get() == 0 then 0.0
+      else activeDossierAttachedCount.get().toDouble / activeDossierEligibleCount.get().toDouble
+    val activeDossierCompareRate =
+      if activeDossierCompareObservedCount.get() == 0 then 1.0
+      else activeDossierCompareHitCount.get().toDouble / activeDossierCompareObservedCount.get().toDouble
+    val activeDossierRouteRate =
+      if activeDossierRouteObservedCount.get() == 0 then 1.0
+      else activeDossierRouteHitCount.get().toDouble / activeDossierRouteObservedCount.get().toDouble
+    val activeDossierReferenceFailureRate =
+      if activeDossierRouteObservedCount.get() == 0 then 0.0
+      else activeDossierReferenceFailureCount.get().toDouble / activeDossierRouteObservedCount.get().toDouble
+    val avgCostUsd =
+      if attempts == 0 then 0.0
+      else polishEstimatedCostMicros.get().toDouble / attempts.toDouble / 1000000.0
+    val latencyP95 = polishLatencyP95Ms
+
+    lila.mon.llm.commentary.metric("polish_fallback_rate", "bookmaker").update(bookmakerFallbackRate)
+    lila.mon.llm.commentary.metric("soft_repair_material_rate", "bookmaker").update(bookmakerSoftRepairMaterialRate)
+    lila.mon.llm.commentary.metric("compare_consistency_rate", "bookmaker").update(bookmakerCompareRate)
+    lila.mon.llm.commentary.metric("compare_consistency_rate", "fullgame").update(fullGameCompareRate)
+    lila.mon.llm.commentary.metric("thesis_agreement_rate", "active").update(activeThesisRate)
+    lila.mon.llm.commentary.metric("attach_rate", "active").update(activeAttachRate)
+    lila.mon.llm.commentary.metric("dossier_attach_rate", "active").update(activeDossierAttachRate)
+    lila.mon.llm.commentary.metric("dossier_compare_rate", "active").update(activeDossierCompareRate)
+    lila.mon.llm.commentary.metric("dossier_route_ref_rate", "active").update(activeDossierRouteRate)
+    lila.mon.llm.commentary.metric("dossier_reference_failure_rate", "active").update(activeDossierReferenceFailureRate)
+    lila.mon.llm.commentary.metric("avg_cost_usd", "bookmaker").update(avgCostUsd)
+    lila.mon.llm.commentary.metric("polish_latency_p95_ms", "bookmaker").update(latencyP95)
 
   private def latencySnapshot: (Int, Double, Double, Int, Double, Double) =
     latencyWindowLock.synchronized {
@@ -342,6 +675,18 @@ final class LlmApi(
       val softRepairRate =
         if polishAccepted == 0 then 0.0
         else softRepairAppliedCount.get().toDouble / polishAccepted.toDouble
+      val softRepairMaterialRate =
+        if polishAccepted == 0 then 0.0
+        else softRepairMaterialCount.get().toDouble / polishAccepted.toDouble
+      val bookmakerCompareRate =
+        if bookmakerCompareObservedCount.get() == 0 then 1.0
+        else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+      val fullGameCompareRate =
+        if fullGameCompareObservedCount.get() == 0 then 1.0
+        else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
+      val activeThesisAgreementRateValue =
+        if activeThesisAgreementTotal.get() == 0 then 1.0
+        else activeThesisAgreementHit.get().toDouble / activeThesisAgreementTotal.get().toDouble
       val avgCostUsd =
         if polishAttempts == 0 then 0.0
         else polishEstimatedCostMicros.get().toDouble / polishAttempts.toDouble / 1000000.0
@@ -400,8 +745,12 @@ final class LlmApi(
           f"endgame_high_conf_rate=$endgameHighConfRate%.3f " +
           f"polish_acceptance_ratio=$polishAcceptRate%.3f " +
           f"polish_soft_repair_rate=$softRepairRate%.3f " +
+          f"polish_soft_repair_material_rate=$softRepairMaterialRate%.3f " +
           f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
           f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
+          f"bookmaker_compare_consistency_rate=$bookmakerCompareRate%.3f " +
+          f"fullgame_compare_consistency_rate=$fullGameCompareRate%.3f " +
+          f"active_thesis_agreement_rate=$activeThesisAgreementRateValue%.3f " +
           f"plan_recall_at3=$planRecallAt3%.3f " +
           f"plan_recall_at3_legacy=$planRecallAt3Legacy%.3f " +
           f"plan_recall_at3_hypothesis_first=$planRecallAt3HypothesisFirst%.3f " +
@@ -595,8 +944,8 @@ final class LlmApi(
   ): Int =
     // Structured polish prompts can become long once anchors (MV/MK/EV/VB) are embedded.
     // Keep a higher floor/ceiling to reduce wrapper truncation and empty-polish fallbacks.
-    val minCap = if asyncTier then 420 else 320
-    val maxCap = if asyncTier then 720 else 560
+    val minCap = if asyncTier then 640 else 480
+    val maxCap = if asyncTier then 1200 else 840
     val proseWords = wordCount(prose)
     val anchorCount = refs.toList.flatMap(_.variations).flatMap(_.moves).size
     val estimated = (proseWords.toDouble * 2.4 + anchorCount.toDouble * 5.0 + 96.0).toInt
@@ -806,7 +1155,9 @@ final class LlmApi(
       reasons: List[String],
       strategyCoverage: Option[StrategyCoverageMetaV1],
       softRepairApplied: Boolean = false,
-      softRepairActions: List[String] = Nil
+      softRepairActions: List[String] = Nil,
+      softRepairMaterialApplied: Boolean = false,
+      softRepairMaterialActions: List[String] = Nil
   )
 
   private case class ActiveStrategicNoteDecision(
@@ -867,7 +1218,16 @@ final class LlmApi(
         )
     if repaired.applied then
       softRepairAppliedCount.incrementAndGet()
+      lila.mon.llm.commentary.repair("bookmaker", "any").increment()
       logger.debug(s"llm.polish.soft_repair applied=true actions=${repaired.actions.mkString(",")}")
+    if repaired.materialApplied then
+      softRepairMaterialCount.incrementAndGet()
+      lila.mon.llm.commentary.repair("bookmaker", "material").increment()
+      logOpsSample(
+        kind = "material_repair.bookmaker",
+        "actions" -> repaired.materialActions.mkString(","),
+        "lens" -> bookmakerSlots.map(_.lens.toString).getOrElse("")
+      )
     val proseValidation = validatePolishedCommentary(repaired.text, originalProse, allowedSans, slotMode = bookmakerSlots.isDefined)
     val strategyValidation = evaluateStrategyCoverage(repaired.text, strategyPack, planTier, llmLevel)
     val reasons = (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ extraReasons).distinct
@@ -877,7 +1237,9 @@ final class LlmApi(
       reasons = reasons,
       strategyCoverage = strategyValidation.meta,
       softRepairApplied = repaired.applied,
-      softRepairActions = repaired.actions
+      softRepairActions = repaired.actions,
+      softRepairMaterialApplied = repaired.materialApplied,
+      softRepairMaterialActions = repaired.materialActions
     )
 
   private def sentenceCount(text: String): Int =
@@ -896,6 +1258,7 @@ final class LlmApi(
 
   private def validateActiveStrategicNote(
       candidateText: String,
+      dossier: Option[ActiveBranchDossier],
       strategyPack: Option[StrategyPack],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef]
@@ -929,15 +1292,57 @@ final class LlmApi(
             "active_move_label_missing"
           )
         ).flatten
-    val reasons = (baseReasons ++ sentenceReasons ++ strategyReasons ++ referenceReasons).distinct
+    val dossierReasons =
+      if trimmed.isEmpty then Nil
+      else
+        dossier.toList.flatMap { value =>
+          val normalized = trimmed.toLowerCase
+          val compareRefs = List(Some(value.chosenBranchLabel), value.engineBranchLabel, value.deferredBranchLabel).flatten
+          val comparePresent =
+            compareRefs.exists { label =>
+              val norm = label.trim.toLowerCase
+              norm.nonEmpty && normalizeComparisonLabel(norm).exists(normalized.contains)
+            }
+          val routePresent =
+            value.routeCue.exists(cue => normalized.contains(cue.routeId.toLowerCase))
+          val movePresent =
+            value.moveCue.exists(cue => normalized.contains(cue.label.trim.toLowerCase))
+          val dossierPresence = comparePresent || routePresent || movePresent
+          List(
+            Option.when(!dossierPresence)("active_branch_dossier_presence"),
+            Option.when(!comparePresent)("active_compare_missing"),
+            Option.when(value.deferredBranchLabel.exists(_.trim.nonEmpty) && !containsComparablePhrase(normalized, value.deferredBranchLabel.get))(
+              "active_deferred_branch_missing"
+            ),
+            Option.when(value.opponentResource.exists(_.trim.nonEmpty) && !containsComparablePhrase(normalized, value.opponentResource.get))(
+              "active_opponent_resource_missing"
+            )
+          ).flatten
+        }
+    val reasons = (baseReasons ++ sentenceReasons ++ strategyReasons ++ referenceReasons ++ dossierReasons).distinct
     ActiveStrategicNoteValidation(
       isValid = reasons.isEmpty,
       text = trimmed,
       reasons = reasons
     )
 
+  private def normalizeComparisonLabel(raw: String): List[String] =
+    raw
+      .split("""[^a-z0-9]+""")
+      .toList
+      .map(_.trim)
+      .filter(token => token.length > 3)
+      .distinct
+
+  private def containsComparablePhrase(normalizedText: String, phrase: String): Boolean =
+    val normalizedPhrase = Option(phrase).map(_.trim.toLowerCase).getOrElse("")
+    normalizedPhrase.nonEmpty &&
+      (normalizedText.contains(normalizedPhrase) ||
+        normalizeComparisonLabel(normalizedPhrase).exists(normalizedText.contains))
+
   private def maybeGenerateActiveStrategicNote(
       moment: GameNarrativeMoment,
+      dossier: Option[ActiveBranchDossier],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
       allowLlmPolish: Boolean,
@@ -966,7 +1371,7 @@ final class LlmApi(
       val phase = phaseFromPly(moment.ply)
       val momentType = Option(moment.momentType).map(_.trim).filter(_.nonEmpty).getOrElse("Strategic Moment")
       val concepts = moment.concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
-      val maxTokens = Some(if asyncTier then 320 else 260)
+      val maxTokens = Some(if asyncTier then 560 else 420)
 
       providerConfig.provider match
         case "openai" if openAiClient.isEnabled =>
@@ -979,6 +1384,7 @@ final class LlmApi(
                 concepts = concepts,
                 fen = moment.fen,
                 strategyPack = moment.strategyPack,
+                dossier = dossier,
                 routeRefs = routeRefs,
                 moveRefs = moveRefs,
                 lang = normalizeLang(lang),
@@ -994,6 +1400,7 @@ final class LlmApi(
                 concepts = concepts,
                 fen = moment.fen,
                 strategyPack = moment.strategyPack,
+                dossier = dossier,
                 routeRefs = routeRefs,
                 moveRefs = moveRefs,
                 lang = normalizeLang(lang),
@@ -1005,6 +1412,7 @@ final class LlmApi(
             case Some(primary) =>
               val primaryValidation = validateActiveStrategicNote(
                 candidateText = primary.commentary,
+                dossier = dossier,
                 strategyPack = moment.strategyPack,
                 routeRefs = routeRefs,
                 moveRefs = moveRefs
@@ -1029,6 +1437,7 @@ final class LlmApi(
                       concepts = concepts,
                       fen = moment.fen,
                       strategyPack = moment.strategyPack,
+                      dossier = dossier,
                       routeRefs = routeRefs,
                       moveRefs = moveRefs,
                       lang = normalizeLang(lang),
@@ -1046,6 +1455,7 @@ final class LlmApi(
                       concepts = concepts,
                       fen = moment.fen,
                       strategyPack = moment.strategyPack,
+                      dossier = dossier,
                       routeRefs = routeRefs,
                       moveRefs = moveRefs,
                       lang = normalizeLang(lang),
@@ -1057,6 +1467,7 @@ final class LlmApi(
                   case Some(repaired) =>
                     val repairedValidation = validateActiveStrategicNote(
                       candidateText = repaired.commentary,
+                      dossier = dossier,
                       strategyPack = moment.strategyPack,
                       routeRefs = routeRefs,
                       moveRefs = moveRefs
@@ -1098,6 +1509,7 @@ final class LlmApi(
               concepts = concepts,
               fen = moment.fen,
               strategyPack = moment.strategyPack,
+              dossier = dossier,
               routeRefs = routeRefs,
               moveRefs = moveRefs
             )
@@ -1105,6 +1517,7 @@ final class LlmApi(
               case Some(primary) =>
                 val primaryValidation = validateActiveStrategicNote(
                   candidateText = primary,
+                  dossier = dossier,
                   strategyPack = moment.strategyPack,
                   routeRefs = routeRefs,
                   moveRefs = moveRefs
@@ -1128,6 +1541,7 @@ final class LlmApi(
                       concepts = concepts,
                       fen = moment.fen,
                       strategyPack = moment.strategyPack,
+                      dossier = dossier,
                       routeRefs = routeRefs,
                       moveRefs = moveRefs
                     )
@@ -1135,6 +1549,7 @@ final class LlmApi(
                       case Some(repaired) =>
                         val repairedValidation = validateActiveStrategicNote(
                           candidateText = repaired,
+                          dossier = dossier,
                           strategyPack = moment.strategyPack,
                           routeRefs = routeRefs,
                           moveRefs = moveRefs
@@ -1249,7 +1664,7 @@ final class LlmApi(
     val editable = segmentation.editableSegments
     if editable.isEmpty then Future.successful(None)
     else
-      val segmentCap = adaptiveOutputTokenCap(prose, refs = None, asyncTier = asyncTier).min(if asyncTier then 360 else 280).max(128)
+      val segmentCap = adaptiveOutputTokenCap(prose, refs = None, asyncTier = asyncTier).min(if asyncTier then 520 else 420).max(192)
       val maxSegments = if asyncTier then 6 else 4
       val candidateEditable =
         editable
@@ -2033,16 +2448,32 @@ final class LlmApi(
           normalizedLlmLevel == LlmLevel.Active
 
       basePolishFut.flatMap { basePolished =>
-        if shouldRunActiveNotes then
-          attachActiveStrategicNotes(
-            response = basePolished,
-            allowLlmPolish = allowLlmPolish,
-            lang = lang,
-            asyncTier = asyncTier,
-            planTier = normalizedPlanTier,
-            llmLevel = normalizedLlmLevel
-          )
-        else Future.successful(basePolished)
+        val finalResponseFut =
+          if shouldRunActiveNotes then
+            attachActiveStrategicNotes(
+              response = basePolished,
+              allowLlmPolish = allowLlmPolish,
+              lang = lang,
+              asyncTier = asyncTier,
+              planTier = normalizedPlanTier,
+              llmLevel = normalizedLlmLevel
+            )
+          else Future.successful(basePolished)
+
+        finalResponseFut.map { finalResponse =>
+          finalResponse.moments.foreach { moment =>
+            recordComparisonObservation(
+              path = "fullgame",
+              digest = moment.signalDigest.flatMap(_.decisionComparison),
+              whyAbsent = moment.whyAbsentFromTopMultiPV,
+              authorEvidence = moment.authorEvidence,
+              probeRequests = moment.probeRequests,
+              strategyPack = moment.strategyPack
+            )
+            moment.activeStrategicNote.foreach(note => recordActiveThesisAgreement(moment, note))
+          }
+          finalResponse
+        }
       }
 
   private def attachActiveStrategicNotes(
@@ -2060,8 +2491,10 @@ final class LlmApi(
       if selectedByPly.contains(moment.ply) then
         val routeRefs = buildActiveStrategicRouteRefs(moment)
         val moveRefs = buildActiveStrategicMoveRefs(moment)
+        val dossier = ActiveBranchDossierBuilder.build(moment, routeRefs, moveRefs)
         maybeGenerateActiveStrategicNote(
           moment = moment,
+          dossier = dossier,
           routeRefs = routeRefs,
           moveRefs = moveRefs,
           allowLlmPolish = allowLlmPolish,
@@ -2072,12 +2505,20 @@ final class LlmApi(
         ).map { decision =>
           val isAttached = decision.note.exists(_.trim.nonEmpty)
           recordActiveNoteOutcome(attached = isAttached, reasons = decision.reasons)
+          recordActiveDossierOutcome(
+            dossier = dossier,
+            note = decision.note,
+            reasons = decision.reasons,
+            routeRefs = routeRefs,
+            moveRefs = moveRefs
+          )
           moment.copy(
             strategicBranch = true,
             activeStrategicNote = decision.note,
             activeStrategicSourceMode = decision.sourceMode.orElse(Some("omitted")),
             activeStrategicRoutes = routeRefs,
-            activeStrategicMoves = moveRefs
+            activeStrategicMoves = moveRefs,
+            activeBranchDossier = dossier
           )
         }
       else
@@ -2087,7 +2528,8 @@ final class LlmApi(
             activeStrategicNote = None,
             activeStrategicSourceMode = None,
             activeStrategicRoutes = Nil,
-            activeStrategicMoves = Nil
+            activeStrategicMoves = Nil,
+            activeBranchDossier = None
           )
         )
     }.map(polishedMoments => response.copy(moments = polishedMoments))
@@ -2234,6 +2676,7 @@ final class LlmApi(
     val requestStartNs = System.nanoTime()
     val normalizedPlanTier = normalizePlanTier(planTier)
     val effectiveLevel = effectiveLlmLevel(normalizedPlanTier, llmLevel, allowLlmPolish)
+    val resolvedPly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
     val incomingProbes = probeResults.getOrElse(Nil)
     val cacheCtx =
       llmCacheContext(
@@ -2249,6 +2692,15 @@ final class LlmApi(
       case Some(cached) =>
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
+        traceBookmakerFallbackResponse(
+          response = cached,
+          phase = phase,
+          ply = resolvedPly,
+          lastMove = lastMove,
+          cacheHit = true,
+          openingRefPresent = openingData.isDefined,
+          incomingProbeCount = incomingProbes.size
+        )
         recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
         maybeLogBookmakerMetrics()
         Future.successful(Some(BookmakerResult(response = cached, cacheHit = true)))
@@ -2460,6 +2912,23 @@ final class LlmApi(
                 llmLevel = llmLevel,
                 strategyPack = strategyPack,
                 signalDigest = strategyPack.flatMap(_.signalDigest)
+              )
+              recordComparisonObservation(
+                path = "bookmaker",
+                digest = response.signalDigest.flatMap(_.decisionComparison),
+                whyAbsent = response.whyAbsentFromTopMultiPV,
+                authorEvidence = response.authorEvidence,
+                probeRequests = response.probeRequests,
+                strategyPack = response.strategyPack
+              )
+              traceBookmakerFallbackResponse(
+                response = response,
+                phase = phase,
+                ply = effectivePly,
+                lastMove = lastMove,
+                cacheHit = decision.cacheHit,
+                openingRefPresent = openingRef.isDefined,
+                incomingProbeCount = probeResults.getOrElse(Nil).size
               )
               if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
               commentaryCache.put(

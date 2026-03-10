@@ -5,7 +5,9 @@ import lila.ui.Page
 import scala.annotation.unused
 
 object privacy:
-  def apply()(using @unused ctx: Context): Page =
+  private def emailLink(address: String) = a(href := s"mailto:$address")(address)
+
+  def apply(contactEmail: Option[String])(using @unused ctx: Context): Page =
     Page("Privacy Policy - Chesstory")
       .css("legal")
       .wrap: _ =>
@@ -14,136 +16,132 @@ object privacy:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Privacy Policy"),
-                p(cls := "legal-meta")("Effective Date: February 1, 2026 • Last Updated: February 5, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 10, 2026")
               ),
 
               st.section(cls := "legal-section")(
-                h2("1. Introduction"),
+                h2("1. Overview"),
                 p(
-                  "Chesstory (\"we\", \"us\", or \"our\") is committed to protecting your privacy. ",
-                  "This Privacy Policy explains how we collect, use, disclose, and safeguard your information ",
-                  "when you use our chess analysis service."
+                  "This Privacy Policy explains how Chesstory collects, uses, and handles personal information."
                 ),
                 p(
-                  "Please read this policy carefully. By using Chesstory, you consent to the practices described herein."
+                  "Chesstory is currently operated as a personal beta project by an individual developer based in the Republic of Korea."
                 )
               ),
 
               st.section(cls := "legal-section")(
                 h2("2. Information We Collect"),
-                h3("2.1 Information You Provide"),
                 ul(
-                  li(strong("Account Information: "), "Email address used for authentication via Magic Link."),
-                  li(strong("Chess Data: "), "Games you import (PGN files), positions you analyze, and studies you create."),
-                  li(strong("Preferences: "), "Display settings, theme choices, and board configurations.")
-                ),
-                h3("2.2 Information Collected Automatically"),
-                ul(
-                  li(strong("Usage Data: "), "Pages visited, features used, and time spent on the service."),
-                  li(strong("Device Information: "), "Browser type, operating system, and device identifiers."),
-                  li(strong("Log Data: "), "IP address, access times, and referring URLs.")
+                  li(strong("Account data: "), "email address, username, and password hash or other authentication-related records needed to run your account"),
+                  li(strong("Chess content: "), "games, PGNs, studies, positions, and analysis inputs you submit or save"),
+                  li(strong("Support communications: "), "messages you send through email or the contact page"),
+                  li(strong("Technical and security data: "), "IP address, browser and device information, request logs, and abuse-prevention signals"),
+                  li(strong("Public chess data: "), "if you request imports or opponent analysis, Chesstory may fetch public game data from third-party chess platforms")
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("3. How We Use Your Information"),
-                p("We use the collected information to:"),
+                h2("3. How We Use Information"),
                 ul(
-                  li("Provide and maintain the Chesstory service"),
-                  li("Authenticate your identity and secure your account"),
-                  li("Generate AI-powered chess analysis and insights"),
-                  li("Improve our algorithms and user experience"),
-                  li("Respond to your requests and provide customer support"),
-                  li("Send service-related communications (e.g., Magic Link emails)")
+                  li("Provide, maintain, and secure the Service"),
+                  li("Authenticate accounts and send account-related emails such as verification and password reset messages"),
+                  li("Generate analysis, commentary, and product features you request"),
+                  li("Prevent abuse, fraud, and unauthorized access"),
+                  li("Respond to support, privacy, and account requests"),
+                  li("Improve reliability and product quality")
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("4. Data Storage and Security"),
-                p(
-                  "Your data is stored on secure servers. We implement industry-standard security measures ",
-                  "including encryption in transit (TLS) and at rest. However, no method of transmission over ",
-                  "the Internet is 100% secure."
-                ),
-                p(
-                  strong("Data Retention: "),
-                  "We retain your data for as long as your account is active. You may request deletion of your ",
-                  "account and associated data at any time."
+                h2("4. Sharing and Service Providers"),
+                p("We do not sell or rent your personal information."),
+                p("We may share limited information with service providers when reasonably necessary to operate Chesstory, including:"),
+                ul(
+                  li("Hosting and infrastructure providers"),
+                  li("Email delivery providers"),
+                  li("AI or model providers when needed to generate analysis features"),
+                  li("Anti-abuse or captcha providers when needed to protect the Service"),
+                  li("Authorities or counterparties when required by law or reasonably necessary to protect rights, safety, or the Service")
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("5. Data Sharing"),
-                p("We do ", strong("not"), " sell, trade, or rent your personal information to third parties."),
-                p("We may share data only in the following circumstances:"),
+                h2("5. Cookies and Similar Technologies"),
+                p("Chesstory uses mainly essential cookies and similar local storage needed to run the Service."),
                 ul(
-                  li(strong("Service Providers: "), "Third-party services that help us operate (e.g., email delivery, hosting)."),
-                  li(strong("Legal Requirements: "), "When required by law or to protect our rights."),
-                  li(strong("Business Transfers: "), "In connection with a merger, acquisition, or sale of assets.")
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("6. Your Rights"),
-                p("Depending on your jurisdiction, you may have the right to:"),
-                ul(
-                  li("Access the personal data we hold about you"),
-                  li("Request correction of inaccurate data"),
-                  li("Request deletion of your data"),
-                  li("Object to or restrict certain processing"),
-                  li("Data portability (receive your data in a structured format)")
+                  li(strong("Session and sign-in cookies: "), "keep you signed in and protect your account session"),
+                  li(strong("Security cookies or tokens: "), "support email confirmation, password reset, and related account security flows"),
+                  li(strong("Preference storage: "), "remember interface settings such as accessibility or display preferences"),
+                  li(strong("Anti-abuse tools: "), "if captcha or similar protection is enabled, those providers may collect device or browser signals under their own policies")
                 ),
                 p(
-                  "To exercise these rights, please contact us at ",
-                  a(href := "mailto:privacy@chesstory.com")("privacy@chesstory.com"),
-                  "."
+                  "Chesstory does not currently use advertising cookies or cross-site tracking cookies."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("7. Cookies"),
+                h2("6. Retention, Closure, and Deletion"),
                 p(
-                  "We use essential cookies for authentication and session management. ",
-                  "We do not use tracking or advertising cookies."
+                  "We keep account and service data for as long as needed to operate the Service, secure accounts, and handle legitimate support and operational needs."
+                ),
+                p(
+                  "Closing your account disables access, but deletion is handled through a separate request process. ",
+                  "If you request erasure, the request is reviewed and processed manually. ",
+                  "Some backups, logs, or security records may remain for a limited period before they age out or are overwritten."
+                ),
+                p(
+                  "We may retain limited records where reasonably necessary for security, fraud prevention, or legal compliance."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("8. Children's Privacy"),
+                h2("7. International Processing"),
                 p(
-                  "Chesstory is not intended for children under 13. We do not knowingly collect personal ",
-                  "information from children under 13. If you believe we have collected such information, ",
-                  "please contact us immediately."
+                  "Chesstory is operated from the Republic of Korea, and some service providers may process data in other countries. ",
+                  "By using the Service, you understand that data may be processed outside your home jurisdiction."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("9. International Data Transfers"),
+                h2("8. Children"),
                 p(
-                  "Your data may be transferred to and processed in countries other than your own. ",
-                  "We ensure appropriate safeguards are in place for such transfers."
+                  "Chesstory is not intended for users under 14 years old. ",
+                  "If you believe a child under 14 has provided personal information to Chesstory, contact us so we can review and respond."
+                )
+              ),
+
+              st.section(cls := "legal-section")(
+                h2("9. Your Choices and Requests"),
+                p("You may have rights to request access, correction, or deletion of your information, depending on applicable law."),
+                p(
+                  "You can also manage some account information directly inside the Service, including email and password settings when available."
+                ),
+                contactEmail.fold[Frag](
+                  p(
+                    "For privacy or account requests, please use the ",
+                    a(href := routes.Main.contact.url)("Contact page"),
+                    "."
+                  )
+                )(email =>
+                  p(
+                    "For privacy or account requests, contact ",
+                    emailLink(email),
+                    ". Please include your Chesstory username, account email address, and a short description of your request."
+                  )
                 )
               ),
 
               st.section(cls := "legal-section")(
                 h2("10. Changes to This Policy"),
                 p(
-                  "We may update this Privacy Policy from time to time. We will notify you of significant ",
-                  "changes by posting the new policy on this page and updating the \"Last Updated\" date."
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("11. Contact Us"),
-                p("If you have questions about this Privacy Policy, please contact us:"),
-                ul(
-                  li("Email: ", a(href := "mailto:privacy@chesstory.com")("privacy@chesstory.com")),
-                  li("Support: ", a(href := routes.Main.contact.url)("Contact Page"))
+                  "We may update this Privacy Policy from time to time. We will post the updated version on this page and update the Last Updated date."
                 )
               ),
 
               footer(cls := "legal-footer")(
                 a(href := routes.Main.terms.url, cls := "legal-link")("Terms of Service"),
+                span(" • "),
+                a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 span(" • "),
                 a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")
               )

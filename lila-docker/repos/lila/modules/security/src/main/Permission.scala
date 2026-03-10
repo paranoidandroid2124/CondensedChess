@@ -73,6 +73,15 @@ object Permission:
       Feed,
       BotEditor
     ),
+    "Ops" -> List(
+      OpsMemberRead,
+      OpsMemberWrite,
+      OpsMemberRoleGrant,
+      OpsMemberAdvanced,
+      OpsViewer,
+      OpsManager,
+      OpsAdmin
+    ),
     "Dev" -> List(
       Diagnostics,
       Cli,

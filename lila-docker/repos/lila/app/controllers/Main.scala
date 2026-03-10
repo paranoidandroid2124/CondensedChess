@@ -1,5 +1,6 @@
 package controllers
 import play.api.mvc.*
+import play.api.libs.json.Json
 
 import lila.app.*
 import lila.web.{ StaticContent, WebForms }
@@ -18,6 +19,9 @@ final class Main(
       .map(_.trim)
       .filter(_.nonEmpty)
 
+  private def publicContactEmail: Option[String] =
+    Option(env.net.email.value).map(_.trim).filter(_.nonEmpty)
+
   def landing = Open:
     Ok.page(views.pages.landing()
       .flag(_.noHeader)
@@ -33,10 +37,10 @@ final class Main(
     )
 
   def privacy = Open:
-    Ok.page(views.pages.privacy())
+    Ok.page(views.pages.privacy(publicContactEmail))
 
   def terms = Open:
-    Ok.page(views.pages.terms())
+    Ok.page(views.pages.terms(publicContactEmail))
 
   def source = Open:
     Ok.page(views.pages.openSource())
@@ -70,7 +74,7 @@ final class Main(
       StaticContent.manifest(env.net)
 
   def contact = Open:
-    Ok("Contact")
+    Ok.page(views.pages.contact(publicContactEmail))
 
   def faq = Open:
     Ok("FAQ")
@@ -89,6 +93,11 @@ final class Main(
         .fold(NotFound("No metrics found")): data =>
           Ok(data)
     else NotFound("Invalid prometheus key")
+
+  def commentaryOps(key: String, limit: Int) = Anon:
+    if key == env.web.config.prometheusKey
+    then Ok(Json.toJson(env.llm.api.commentaryOpsSnapshot(limit.max(1).min(50))))
+    else NotFound("Invalid commentary ops key")
 
 
   def devAsset(@scala.annotation.unused v: String, path: String, file: String) = assetsC.at(path, file)

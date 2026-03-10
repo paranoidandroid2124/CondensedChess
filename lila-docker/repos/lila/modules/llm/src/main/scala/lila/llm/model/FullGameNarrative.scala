@@ -46,7 +46,8 @@ case class MomentNarrative(
   activeStrategicNote: Option[String] = None,
   activeStrategicSourceMode: Option[String] = None,
   activeStrategicRoutes: List[lila.llm.ActiveStrategicRouteRef] = Nil,
-  activeStrategicMoves: List[lila.llm.ActiveStrategicMoveRef] = Nil
+  activeStrategicMoves: List[lila.llm.ActiveStrategicMoveRef] = Nil,
+  activeBranchDossier: Option[lila.llm.ActiveBranchDossier] = None
 )
 object MomentNarrative {
   implicit val writes: OWrites[MomentNarrative] = Json.writes[MomentNarrative]

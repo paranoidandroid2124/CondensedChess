@@ -111,6 +111,9 @@ $label-width: 5ch;
 }
 
 .analyse.analyse--review-shell {
+  ---review-shell-gap: 24px;
+  ---review-shell-panel-width: clamp(28rem, 32vw, 35rem);
+
   grid-template-rows: auto auto auto;
   grid-template-areas:
     'board'
@@ -122,7 +125,11 @@ $label-width: 5ch;
     'uchat';
 
   @include mq-at-least-col2 {
-    grid-template-columns: min(var(---col2-uniboard-width), 560px) 24px minmax(420px, 1fr);
+    justify-content: center;
+    grid-template-columns:
+      var(---review-shell-panel-width)
+      var(---review-shell-gap)
+      var(---review-shell-panel-width);
     grid-template-rows: auto auto $chat-height;
     grid-template-areas:
       'board . tools'
@@ -140,7 +147,11 @@ $label-width: 5ch;
   }
 
   @include mq-at-least-col3 {
-    grid-template-columns: min(var(---col3-uniboard-width), 560px) 24px minmax(460px, 1fr);
+    justify-content: center;
+    grid-template-columns:
+      var(---review-shell-panel-width)
+      var(---review-shell-gap)
+      var(---review-shell-panel-width);
     grid-template-rows: auto auto auto $chat-height;
     grid-template-areas:
       'board . tools'
@@ -161,20 +172,56 @@ $label-width: 5ch;
 
   .analyse__tools {
     min-width: 0;
-    max-width: none;
+    width: 100%;
+    max-width: var(---review-shell-panel-width);
+  }
+
+  .analyse__board-wrap,
+  .analyse__controls,
+  .analyse__underboard {
+    width: 100%;
+    max-width: var(---review-shell-panel-width);
   }
 }
 
 .analyse-review {
+  --review-bg: #f7efe2;
+  --review-surface: #fffcf6;
+  --review-surface-soft: #fbf4ea;
+  --review-surface-raised: #fff8ef;
+  --review-border: #c8b39d;
+  --review-border-strong: #af8d71;
+  --review-text: #1f2930;
+  --review-text-muted: #56636e;
+  --review-text-subtle: #66727c;
+  --review-accent: #8f431c;
+  --review-accent-soft: #f1ddcf;
+  --review-neutral-chip-bg: #ece1d4;
+  --review-neutral-chip-border: #ccb7a1;
+  --review-neutral-chip-text: #32414d;
+  --review-info-text: #244b70;
+  --review-info-bg: #dbe8f6;
+  --review-info-border: #9db8d1;
+  --review-warning-text: #6c4a05;
+  --review-warning-bg: #f4e4c1;
+  --review-warning-border: #d0b37b;
+  --review-success-text: #2f5b1f;
+  --review-success-bg: #deead5;
+  --review-success-border: #9fbe87;
+  --review-danger-text: #8c2031;
+  --review-danger-bg: #f4d8dd;
+  --review-danger-border: #cf8f9a;
+
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-height: 100%;
   padding: 1rem;
-  background: linear-gradient(180deg, rgba($c-bg-zebra, 0.75), rgba($c-bg-low, 0.98));
-  border: 1px solid $c-border;
+  color: var(--review-text);
+  background: linear-gradient(180deg, var(--review-surface-raised), var(--review-bg));
+  border: 1px solid var(--review-border);
   border-radius: $box-radius-size;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 18px 36px rgba(67, 44, 21, 0.12);
 
   &__tabs,
   &__subtabs,
@@ -191,10 +238,10 @@ $label-width: 5ch;
   &__filter {
     flex: 0 0 auto;
     padding: 0.6rem 0.9rem;
-    border: 1px solid rgba($c-border, 0.9);
+    border: 1px solid var(--review-border);
     border-radius: 999px;
-    background: rgba($c-bg-box, 0.9);
-    color: $c-font;
+    background: var(--review-surface-raised);
+    color: var(--review-text-muted);
     font-weight: 600;
     transition: 150ms ease;
     display: inline-flex;
@@ -202,19 +249,20 @@ $label-width: 5ch;
     gap: 0.45rem;
 
     &:hover {
-      border-color: $c-primary;
-      color: $c-primary;
+      border-color: var(--review-border-strong);
+      color: var(--review-accent);
+      background: var(--review-accent-soft);
     }
 
     &.active {
-      border-color: $c-primary;
-      background: rgba($c-primary, 0.1);
-      color: $c-primary;
+      border-color: var(--review-border-strong);
+      background: var(--review-accent-soft);
+      color: var(--review-accent);
     }
   }
 
   &__body {
-    min-height: 0;
+    min-height: clamp(24rem, 48vh, 34rem);
   }
 
   &__tabs,
@@ -234,8 +282,8 @@ $label-width: 5ch;
     height: 1.5rem;
     padding: 0 0.45rem;
     border-radius: 999px;
-    background: rgba($c-primary, 0.1);
-    color: $c-primary;
+    background: var(--review-accent-soft);
+    color: var(--review-accent);
     font-size: 0.75rem;
     font-weight: 700;
 
@@ -250,8 +298,8 @@ $label-width: 5ch;
   &__empty,
   &__panel,
   &__section-head {
-    background: rgba($c-bg-box, 0.92);
-    border: 1px solid rgba($c-border, 0.85);
+    background: var(--review-surface);
+    border: 1px solid #d7c4ae;
     border-radius: $box-radius-size;
     padding: 1rem;
   }
@@ -274,15 +322,16 @@ $label-width: 5ch;
     gap: 0.2rem;
     padding: 0.7rem 0.8rem;
     border-radius: 0.9rem;
-    background: rgba($c-primary, 0.06);
-    border: 1px solid rgba($c-primary, 0.12);
+    background: #f3e4d8;
+    border: 1px solid #d6b69f;
 
     strong {
       font-size: 1.05rem;
+      color: var(--review-text);
     }
 
     span {
-      color: $c-font-dim;
+      color: var(--review-text-muted);
       font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -293,7 +342,7 @@ $label-width: 5ch;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.75rem;
-    color: $c-font-dim;
+    color: var(--review-text-muted);
   }
 
   &__overview,
@@ -323,11 +372,12 @@ $label-width: 5ch;
 
     strong {
       font-size: 1rem;
+      color: var(--review-text);
     }
 
     p {
       margin: 0;
-      color: $c-font-dim;
+      color: var(--review-text-muted);
       line-height: 1.45;
       text-align: left;
     }
@@ -338,7 +388,19 @@ $label-width: 5ch;
 
     &.disabled {
       cursor: default;
-      opacity: 0.65;
+      opacity: 1;
+      border-color: #ddd1c5;
+      background: #fbf6ee;
+
+      .analyse-review__card-icon {
+        background: #eee3d8;
+        color: #7a8894;
+      }
+
+      strong,
+      p {
+        color: var(--review-text-muted);
+      }
     }
   }
 
@@ -349,8 +411,8 @@ $label-width: 5ch;
     width: 2rem;
     height: 2rem;
     border-radius: 999px;
-    background: rgba($c-primary, 0.1);
-    color: $c-primary;
+    background: var(--review-accent-soft);
+    color: var(--review-accent);
   }
 
   &__filters {
@@ -372,7 +434,7 @@ $label-width: 5ch;
 
     p {
       margin: 0;
-      color: $c-font-dim;
+      color: var(--review-text-muted);
       line-height: 1.45;
     }
   }
@@ -405,8 +467,294 @@ $label-width: 5ch;
     box-shadow: 0 0 0 1px rgba($c-primary, 0.2);
   }
 
+  h2,
+  h3,
+  strong {
+    color: var(--review-text);
+  }
+
+  // Contrast-safe review shell overrides for narrative and DNA surfaces
+  // that otherwise inherit colors from dark-theme contexts.
+  .narrative-moment,
+  .narrative-variation,
+  .narrative-branch-dossier,
+  .narrative-decision-compare,
+  .narrative-evidence-card {
+    color: var(--review-text);
+    background: var(--review-surface-soft);
+    border-color: var(--review-border);
+  }
+
   .narrative-review {
     margin: 0;
+    color: var(--review-text);
+    background: #f4e6d8;
+    border-color: var(--review-border);
+  }
+
+  .narrative-review-summary,
+  .narrative-prose,
+  .narrative-branch-dossier__value,
+  .narrative-branch-dossier__detail-value,
+  .narrative-decision-compare__headline,
+  .narrative-decision-compare__secondary,
+  .narrative-signal-row-value,
+  .narrative-evidence-question,
+  .narrative-evidence-why,
+  .narrative-evidence-branch span,
+  .narrative-move,
+  .dna-section-title,
+  .dna-bar-label,
+  .dna-cell-interval,
+  .dna-cell-cause,
+  .dna-empty p {
+    color: var(--review-text);
+  }
+
+  .narrative-review-metric {
+    background: var(--review-neutral-chip-bg);
+    border-color: var(--review-neutral-chip-border);
+    color: var(--review-neutral-chip-text);
+    opacity: 1;
+
+    &.blunder {
+      background: var(--review-danger-bg);
+      border-color: var(--review-danger-border);
+      color: var(--review-danger-text);
+    }
+
+    &.missed {
+      background: var(--review-warning-bg);
+      border-color: var(--review-warning-border);
+      color: var(--review-warning-text);
+    }
+  }
+
+  .narrative-review-track,
+  .dna-bar-track,
+  .timeline-track {
+    background: #eadfce;
+    border-color: var(--review-border);
+  }
+
+  .narrative-review-marker,
+  .timeline-marker {
+    background: var(--review-surface);
+    border-color: var(--review-accent);
+  }
+
+  .narrative-themes,
+  .narrative-concepts {
+    margin-bottom: 0;
+  }
+
+  .narrative-theme,
+  .narrative-concept,
+  .narrative-badge.type {
+    background: var(--review-info-bg);
+    border-color: var(--review-info-border);
+    color: var(--review-info-text);
+    opacity: 1;
+  }
+
+  .narrative-side {
+    opacity: 1;
+
+    &.white {
+      color: var(--review-text-muted);
+    }
+
+    &.black {
+      color: var(--review-text-subtle);
+    }
+  }
+
+  .narrative-badge.salience {
+    &.high {
+      background: var(--review-info-bg);
+      border-color: var(--review-info-border);
+      color: var(--review-info-text);
+    }
+
+    &.low {
+      background: #edf0f2;
+      border-color: #cbd2d9;
+      color: var(--review-text-muted);
+      opacity: 1;
+      font-weight: 600;
+    }
+  }
+
+  .narrative-badge.branch {
+    background: var(--review-success-bg);
+    border-color: var(--review-success-border);
+    color: var(--review-success-text);
+  }
+
+  .narrative-active-plan-box,
+  .narrative-strategic-note-box {
+    background: #edf4e6;
+    border-color: #aec692;
+  }
+
+  .narrative-signal-box {
+    background: #eef4fb;
+    border-color: #b7cadf;
+  }
+
+  .narrative-evidence-box {
+    background: #faf2df;
+    border-color: #d9c089;
+  }
+
+  .narrative-branch-dossier {
+    background: #fff8ef;
+  }
+
+  .narrative-decision-compare {
+    background: #f5f1ea;
+    border-color: #c4d4e3;
+
+    &[open] {
+      background: #fbf7f1;
+    }
+  }
+
+  .narrative-strategic-note-title,
+  .narrative-branch-dossier__title,
+  .narrative-signal-chip.preserved,
+  .narrative-evidence-status--resolved,
+  .narrative-plan-theme-text {
+    color: var(--review-success-text);
+  }
+
+  .narrative-signal-title,
+  .narrative-branch-dossier__gap,
+  .narrative-decision-compare__gap,
+  .narrative-variation-score {
+    color: var(--review-info-text);
+  }
+
+  .narrative-evidence-title,
+  .narrative-collapse-value.cause,
+  .narrative-signal-chip.latent,
+  .narrative-evidence-status--pending,
+  .narrative-evidence-status--question_only {
+    color: var(--review-warning-text);
+  }
+
+  .narrative-collapse-title {
+    color: var(--review-danger-text);
+  }
+
+  .narrative-decision-compare__kicker,
+  .narrative-decision-compare__detail-label,
+  .narrative-signal-label,
+  .narrative-signal-row-label,
+  .narrative-branch-dossier__label,
+  .narrative-branch-dossier__detail-label,
+  .narrative-plan-label,
+  .narrative-plan-detail,
+  .narrative-collapse-label,
+  .narrative-variation-tags,
+  .narrative-variation-moves .narrative-move-number,
+  .narrative-evidence-meta,
+  .dna-stat-label,
+  .dna-bar-count,
+  .dna-collapse-table th,
+  .dna-cell-recov,
+  .dna-cell-prevent,
+  .dna-empty-hint,
+  .dna-recent-empty,
+  .timeline-labels {
+    color: var(--review-text-muted);
+    opacity: 1;
+  }
+
+  .narrative-decision-compare__move {
+    background: var(--review-neutral-chip-bg);
+    color: var(--review-neutral-chip-text);
+  }
+
+  .narrative-decision-compare__move--engine,
+  .narrative-signal-chip {
+    background: var(--review-info-bg);
+    border-color: var(--review-info-border);
+    color: var(--review-info-text);
+  }
+
+  .narrative-decision-compare__move--deferred {
+    background: var(--review-warning-bg);
+    border-color: var(--review-warning-border);
+    color: var(--review-warning-text);
+  }
+
+  .narrative-signal-chip.latent {
+    background: var(--review-warning-bg);
+    border-color: var(--review-warning-border);
+    color: var(--review-warning-text);
+  }
+
+  .narrative-signal-chip.preserved {
+    background: var(--review-success-bg);
+    border-color: var(--review-success-border);
+    color: var(--review-success-text);
+  }
+
+  .narrative-decision-compare__move-label {
+    color: var(--review-text-muted);
+    opacity: 1;
+  }
+
+  .narrative-evidence-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    background: var(--review-surface);
+    opacity: 1;
+  }
+
+  .narrative-collapse-card {
+    background: #fbebe9;
+    border-color: #dfb2aa;
+  }
+
+  .narrative-collapse-value.patch-line {
+    color: var(--review-accent);
+  }
+
+  .dna-stat-card {
+    color: var(--review-text);
+    background: var(--review-accent-soft);
+    border-color: #d6b69f;
+  }
+
+  .dna-stat-value {
+    color: var(--review-accent);
+  }
+
+  .dna-collapse-table {
+    th {
+      background: #f6ede1;
+      border-bottom-color: #d7c4ae;
+    }
+
+    td {
+      color: var(--review-text);
+      border-bottom-color: #e2d4c4;
+    }
+
+    tr:hover td {
+      background: #f4e6d8;
+    }
+  }
+
+  .dna-show-more {
+    color: var(--review-accent);
+    border-radius: 999px;
+    background: var(--review-accent-soft);
   }
 
   .copyables {
@@ -715,4 +1063,8 @@ $label-width: 5ch;
 
 .analyse__tools--review {
   min-height: 0;
+  align-self: start;
+  min-height: clamp(34rem, 72vh, 48rem);
+  max-height: calc(100vh - 9rem);
+  overflow: auto;
 }

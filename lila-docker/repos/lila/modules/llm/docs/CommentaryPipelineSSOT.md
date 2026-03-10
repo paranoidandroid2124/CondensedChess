@@ -47,6 +47,7 @@ Covered runtime paths:
 
 Related runtime-contract doc:
 - `modules/llm/docs/BookmakerProseContract.md`
+- `modules/llm/docs/CommentaryOpsMetrics.md`
 
 Validation artifacts for thesis-driven Bookmaker prose:
 - golden snapshots:
@@ -69,6 +70,20 @@ Validation artifacts for thesis-driven Bookmaker prose:
     - `claim_like_first_paragraph=6/6`
     - `paragraph_budget_2_4=6/6`
     - `placeholder_leakage=6/6`
+
+Internal-only live ops metrics:
+- surfaced through the existing Prometheus scrape path
+- not user-facing UI
+- operator-only surfaces:
+  - Prometheus scrape: `/prometheus-metrics/<internal-key>`
+  - sampled drilldown JSON: `/internal/commentary-ops/<internal-key>`
+- current runtime tracks:
+  - soft repair `any` vs `material`
+  - decision comparison consistency for `bookmaker` and `fullgame`
+  - Active thesis agreement
+  - sampled internal-only failure-class logs with no raw user text
+  - response-level Bookmaker fallback trace samples for
+    `fallback_rule_invalid`, `fallback_rule_empty`, and `rule_circuit_open`
 
 ## Runtime Path Map
 
@@ -147,6 +162,27 @@ Key references:
 Important caveat:
 - Bookmaker does not use the `NarrativeGenerator.describeHierarchical` fallback.
   It relies on `BookStyleRenderer.render` directly.
+- Frontend runtime is now explicitly on-demand:
+  - position changes still refresh Bookmaker context and surface cached entries
+    automatically
+  - fresh `/api/llm/bookmaker-position` requests are started only from the
+    explicit Bookmaker request button, not on every move change
+  - stale in-flight Bookmaker/opening requests are aborted on context change,
+    and obviously unsafe raw fallback text is blocked behind a retry state
+    rather than surfaced directly
+- Persistence shape is now two-tiered:
+  - general analysis restores Bookmaker entries for the current browser tab
+    from session storage keyed by page scope + node path
+  - study chapters persist exact Bookmaker panel snapshots in local browser
+    storage keyed by `study/chapter/commentPath`, and also persist AI
+    commentary + inserted PV lines on the server via `bookmaker-sync`
+  - if a study snapshot is absent locally, frontend falls back to the saved
+    `Chesstory AI` external node comment and reconstructs a minimal saved-study
+    Bookmaker surface from the current study tree
+- Premium Bookmaker requests now use a dedicated burst limiter path with a
+  longer queue timeout than full-game premium analysis, so interactive
+  single-move commentary is less likely to die waiting behind the shared
+  sequencer.
 
 ### State continuity and cache
 
@@ -371,6 +407,17 @@ Key references:
     `soft_repair_material_rate`: claim-only opening-clause restoration is
     treated as cosmetic, while paragraph/evidence/placeholder fixes remain
     material.
+ - `2026-03-10` output-budget update:
+   - Bookmaker / full-game / Active no longer rely on the old
+     `OPENAI_MAX_OUTPUT_TOKENS=256` budget in practice.
+   - Runtime output caps were raised to reduce truncation-driven invalid polish:
+     - Bookmaker adaptive polish cap now targets `480-840` tokens on sync and
+       `640-1200` on async.
+     - full-game segment polish cap now allows up to `420` sync / `520` async.
+     - Active strategic notes now request `420` sync / `560` async output
+       tokens.
+   - The environment fallback default `OPENAI_MAX_OUTPUT_TOKENS` was raised to
+     `640` for paths that do not supply a per-call override.
 - Verification:
   - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryPayloadNormalizer.scala`
   - `modules/llm/src/main/LlmApi.scala`
@@ -445,6 +492,10 @@ Key references:
     frontend path is `Overview / Moments / Repair / Patterns`, while
     `Moves / Reference` keep the raw move tree, explorer, board settings, and
     PGN/FEN import as secondary surfaces.
+  - `OpeningExplorerClient` now prefers configured
+    `explorer.internal_endpoint` / `explorer.endpoint` values before falling
+    back to env/default upstreams, so commentary explorer lookups no longer
+    depend on a single hard-coded runtime endpoint.
   - `AnalyseCtrl` owns explicit review UI state
     (`primaryTab`, `referenceTab`, `momentFilter`,
     `selectedMomentPly`, `selectedCollapseId`) and only the free-analysis
@@ -798,6 +849,89 @@ Key references:
 - `data-llm-*` root attributes may still be consumed by CSS or analytics outside
   the audited `ui/analyse/src` surface. No visible rendering path was found in
   the audited tree.
+
+## 2026-03-09 Update
+
+- `chosen / engine best / deferred / why / evidence` comparison semantics are
+  now normalized through a shared backend carrier rather than being inferred
+  separately by Bookmaker prose, full-game signal rows, and Active prompt
+  shaping.
+- `DecisionComparisonBuilder` now feeds
+  `NarrativeSignalDigest.decisionComparison`, `StrategyPack` prompt/evidence,
+  and `ActiveStrategicPrompt`.
+- frontend comparison consumption now uses the normalized digest in both
+  Bookmaker and full-game shells; full-game also synthesizes a fallback
+  comparison from `topEngineMove` when the normalized digest is absent, so
+  ad hoc `why not top line` / `Why Not?` cards are no longer a separate
+  primary comparison surface.
+- current frontend rendering keeps the same normalized semantics but now splits
+  density by surface:
+  - Bookmaker renders a compact compare strip above prose
+  - full-game renders an expandable compare card inside the signal shell
+  - both remain UI-owned and do not parse LLM prose for comparison structure
+- current interaction layer also treats comparison and evidence key moves as
+  structured UI chips rather than prose fragments:
+  - Bookmaker compare moves and authoring-evidence branch moves reuse existing
+    ref-backed preview / move-chip interaction
+  - full-game compare moves and evidence branch keys reuse the existing
+    preview-only `data-board` hover surface derived from moment variations
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/analysis/DecisionComparisonBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/NarrativeEvidenceHooks.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
+- `modules/llm/src/main/scala/lila/llm/models.scala`
+- `ui/analyse/src/decisionComparison.ts`
+- `ui/analyse/src/bookmaker/responsePayload.ts`
+- `ui/analyse/src/bookmaker.ts`
+- `ui/analyse/src/narrative/narrativeView.ts`
+
+## 2026-03-09 Active Dossier Update
+
+- Active premium notes are no longer treated as a raw `strategyPack` dump with
+  extra prose. The runtime now deterministically synthesizes an
+  `ActiveBranchDossier` from existing shipped signals:
+  - `StrategicThesis`
+  - `DecisionComparisonDigest`
+  - `StructurePlanArc`
+  - `StrategyPack`
+  - `NarrativeSignalDigest`
+  - authoring / probe evidence
+  - route refs / move refs
+- The dossier is attached only on the existing `full-game + Pro + Active` path.
+  Bookmaker remains unchanged.
+- Active prompt construction now prefers an explicit dossier block containing:
+  - chosen branch
+  - engine / deferred branch
+  - why chosen / why deferred
+  - opponent resource
+  - route cue
+  - move cue
+  - evidence cue
+  - continuation / practical risk
+- Active validation and ops now measure dossier-aware behavior rather than only
+  sentence count + strategy coverage:
+  - branch dossier presence
+  - compare presence
+  - deferred branch hits when present
+  - opponent resource hits when present
+  - route / move reference citation hits
+- Frontend full-game premium rendering now keeps the existing `Strategic Note`
+  prose box but adds a compact secondary `Branch Dossier` summary under it.
+  This surface is UI-owned and uses structured payload, not LLM prose parsing.
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveBranchDossierBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
+- `modules/llm/src/main/LlmApi.scala`
+- `modules/llm/src/main/scala/lila/llm/models.scala`
+- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `ui/analyse/src/narrative/narrativeCtrl.ts`
+- `ui/analyse/src/narrative/narrativeView.ts`
+- `ui/analyse/css/_narrative.scss`
 
 ## Reference Files
 

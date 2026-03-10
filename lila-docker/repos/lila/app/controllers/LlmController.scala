@@ -60,6 +60,14 @@ final class LlmController(
       duration = 1.minute
     )
 
+  private val premiumBookmakerBurstLimiter =
+    env.memo.mongoRateLimitApi[String](
+      name = "llm.request.premium.user.burst.bookmaker",
+      credits = 60,
+      duration = 1.minute,
+      queueTimeout = 40.seconds
+    )
+
   private val betaPremiumForAllLoggedIn =
     sys.env
       .get("CHESSTORY_BETA_PREMIUM_ALL")
@@ -294,6 +302,14 @@ final class LlmController(
       limitedMsg = "Too many requests. Please slow down."
     )(op)
 
+  private def withPremiumBookmakerBurstQuota(key: String, msg: String)(op: => Fu[Result]): Fu[Result] =
+    withHardQuota(
+      limiter = premiumBookmakerBurstLimiter,
+      key = key,
+      msg = msg,
+      limitedMsg = "Too many commentary requests. Please wait a moment and try again."
+    )(op)
+
   private def withPremiumSoftLlmQuota(
       limiter: lila.memo.MongoRateLimit[String],
       key: String,
@@ -337,7 +353,7 @@ final class LlmController(
 
   private def withPerMoveQuota(op: Boolean => Fu[Result])(using ctx: Context): Fu[Result] =
     if hasPremiumExperience then
-      withPremiumBurstQuota(userRequesterKey, "llm.move.premium.burst"):
+      withPremiumBookmakerBurstQuota(userRequesterKey, "llm.move.premium.burst"):
         withPremiumSoftLlmQuota(
           limiter = premiumPerMoveRollingLimiter,
           key = userRequesterKey,

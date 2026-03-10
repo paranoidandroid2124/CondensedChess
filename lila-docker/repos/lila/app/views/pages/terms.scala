@@ -5,7 +5,9 @@ import lila.ui.Page
 import scala.annotation.unused
 
 object terms:
-  def apply()(using @unused ctx: Context): Page =
+  private def emailLink(address: String) = a(href := s"mailto:$address")(address)
+
+  def apply(contactEmail: Option[String])(using @unused ctx: Context): Page =
     Page("Terms of Service - Chesstory")
       .css("legal")
       .wrap: _ =>
@@ -14,174 +16,145 @@ object terms:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Terms of Service"),
-                p(cls := "legal-meta")("Effective Date: February 1, 2026 • Last Updated: February 19, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 10, 2026")
               ),
 
               st.section(cls := "legal-section")(
-                h2("1. Agreement to Terms"),
+                h2("1. About These Terms"),
                 p(
-                  "By accessing or using Chesstory (the \"Service\"), you agree to be bound by these Terms of Service. ",
-                  "If you do not agree to these terms, please do not use the Service."
+                  "These Terms of Service govern your use of Chesstory (the \"Service\"). ",
+                  "By accessing or using the Service, you agree to these Terms. ",
+                  "If you do not agree, do not use Chesstory."
                 ),
                 p(
-                  "These terms constitute a legally binding agreement between you and Chesstory regarding your use of the Service."
+                  "Chesstory is currently operated as a personal beta project by an individual developer based in the Republic of Korea."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("2. Description of Service"),
+                h2("2. Eligibility and Beta Status"),
                 p(
-                  "Chesstory is an AI-powered chess analysis platform that provides:"
+                  "You must be at least 14 years old to use Chesstory. ",
+                  "If you are under the age of majority where you live, use the Service only with permission from a parent or legal guardian."
                 ),
-                ul(
-                  li("Deep position and game analysis using artificial intelligence"),
-                  li("Narrative-style explanations of chess concepts and moves"),
-                  li("Study creation and management tools"),
-                  li("PGN import and export capabilities")
+                p(
+                  "Chesstory is offered as a beta service. Features may change, be interrupted, or be removed without notice. ",
+                  "The Service is currently offered free of charge. If paid plans are introduced later, the applicable pricing and billing terms will be shown before purchase."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("3. User Accounts"),
-                h3("3.1 Registration"),
+                h2("3. Accounts and Security"),
                 p(
-                  "To access certain features, you must create an account using a valid email address. ",
-                  "You are responsible for maintaining the confidentiality of your account."
+                  "Some features require an account. You must provide a working email address and keep your account information reasonably accurate."
                 ),
-                h3("3.2 Account Security"),
                 p(
-                  "You agree to notify us immediately of any unauthorized use of your account. ",
-                  "We use Magic Link authentication for enhanced security."
+                  "You are responsible for activity that occurs under your account and for keeping your sign-in methods secure. ",
+                  "Chesstory may use passwords, email confirmation links, password reset emails, and email login links as part of account security."
                 )
               ),
 
               st.section(cls := "legal-section")(
                 h2("4. Acceptable Use"),
-                p("You agree ", strong("not"), " to:"),
+                p("You agree not to:"),
                 ul(
-                  li("Use the Service for any unlawful purpose"),
-                  li("Attempt to overload, disrupt, or damage our servers or infrastructure"),
-                  li("Scrape, crawl, or use automated tools to access the Service without permission"),
-                  li("Attempt to access non-public systems, data, or admin surfaces without authorization"),
-                  li("Impersonate others or provide false information"),
-                  li("Share your account credentials with others")
+                  li("Use the Service for unlawful, abusive, or fraudulent purposes"),
+                  li("Interfere with or attempt to damage the Service, its infrastructure, or other users"),
+                  li("Bypass security features or attempt to access non-public systems or data"),
+                  li("Use unauthorized scraping, crawling, or automated access against the Service"),
+                  li("Impersonate another person or misrepresent your identity"),
+                  li("Share your account access with others in a way that undermines account security")
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("5. Intellectual Property"),
-                h3("5.1 Open Source Components"),
+                h2("5. Your Content and Service Content"),
+                p(
+                  "You retain ownership of PGNs, studies, chess inputs, and other content you submit to Chesstory. ",
+                  "You grant Chesstory a limited license to host, process, and display that content as needed to operate the Service for you."
+                ),
                 p(
                   "Chesstory includes open-source software licensed under GNU AGPL v3 and other licenses listed in our ",
                   a(href := routes.Main.source.url)("Open Source Notice"),
-                  " and COPYING file. Your rights to use, copy, modify, and redistribute those components are governed by their respective licenses."
-                ),
-                p(
-                  "Nothing in these Terms limits rights granted by applicable open-source licenses."
-                ),
-                h3("5.2 Chesstory-Specific Content"),
-                p(
-                  "Chesstory trademarks, brand assets, and third-party materials with separate license restrictions remain subject to those terms."
-                ),
-                h3("5.3 Your Content"),
-                p(
-                  "You retain ownership of the chess games and analysis you create. By using the Service, you grant us a license to store, process, and display your content to provide the Service."
+                  ". Chesstory branding, site design, and non-user content remain protected by applicable intellectual property laws and licenses."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("6. AI-Generated Content"),
+                h2("6. Analysis, AI Output, and Third-Party Data"),
                 p(
-                  "Chesstory uses artificial intelligence to generate analysis and commentary. While we strive for accuracy:"
+                  "Chesstory uses software and, in some cases, AI-assisted systems to generate analysis, commentary, and recommendations. ",
+                  "Those outputs are provided for educational and informational purposes only."
                 ),
                 ul(
-                  li("AI-generated content is for informational and educational purposes only"),
-                  li("We do not guarantee the accuracy or completeness of AI analysis"),
-                  li("AI insights should not be the sole basis for competitive or financial decisions")
+                  li("Analysis may be incomplete, inaccurate, or unavailable"),
+                  li("You are responsible for how you use any chess recommendations or commentary"),
+                  li("Some features may fetch public chess data from third-party platforms at your request"),
+                  li("Chesstory is not affiliated with or endorsed by Lichess, Chess.com, or other third-party platforms unless explicitly stated")
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("7. Limitation of Liability"),
+                h2("7. Suspension, Closure, and Termination"),
                 p(
-                  "TO THE MAXIMUM EXTENT PERMITTED BY LAW, CHESSTORY SHALL NOT BE LIABLE FOR ANY INDIRECT, ",
-                  "INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE SERVICE."
+                  "We may suspend, limit, or terminate access to Chesstory if we reasonably believe it is necessary for security, abuse prevention, legal compliance, or protection of the Service and its users."
                 ),
                 p(
-                  "Our total liability for any claims relating to the Service shall not exceed the amount you paid ",
-                  "to us (if any) in the twelve months preceding the claim."
+                  "You may close your account through the Service. Account closure disables access. ",
+                  "If you want data erasure, use the privacy request channel described in our ",
+                  a(href := routes.Main.privacy.url)("Privacy Policy"),
+                  ". Deletion requests are reviewed and handled manually."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("8. Disclaimer of Warranties"),
+                h2("8. Disclaimers and Limitation of Liability"),
                 p(
-                  "THE SERVICE IS PROVIDED \"AS IS\" AND \"AS AVAILABLE\" WITHOUT WARRANTIES OF ANY KIND, ",
-                  "EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, ",
-                  "FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT."
+                  "THE SERVICE IS PROVIDED \"AS IS\" AND \"AS AVAILABLE\". TO THE MAXIMUM EXTENT PERMITTED BY LAW, ",
+                  "CHESSTORY DISCLAIMS WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ",
+                  "AND UNINTERRUPTED AVAILABILITY."
                 ),
                 p(
-                  "We do not warrant that the Service will be uninterrupted, error-free, or secure."
+                  "TO THE MAXIMUM EXTENT PERMITTED BY LAW, CHESSTORY WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, ",
+                  "OR PUNITIVE DAMAGES. TOTAL LIABILITY FOR ANY CLAIM RELATING TO THE SERVICE IS LIMITED TO THE AMOUNT YOU PAID TO CHESSTORY ",
+                  "IN THE 12 MONTHS BEFORE THE CLAIM, WHICH DURING A FREE BETA WILL USUALLY BE ZERO."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("9. Indemnification"),
+                h2("9. Changes to These Terms"),
                 p(
-                  "You agree to indemnify and hold harmless Chesstory, its officers, directors, employees, and agents ",
-                  "from any claims, damages, or expenses arising from your use of the Service or violation of these Terms."
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("10. Termination"),
-                p(
-                  "We may suspend or terminate your access to the Service at any time, with or without cause. ",
-                  "You may also terminate your account at any time by contacting us."
+                  "We may update these Terms from time to time. We will post the updated version on this page and update the Last Updated date."
                 ),
                 p(
-                  "Upon termination, your right to use the Service will immediately cease. Provisions that by their ",
-                  "nature should survive termination (e.g., limitations of liability) will continue to apply."
+                  "If we make a material change that adds charges or materially expands how personal data is used, we will provide notice before that change applies to you."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("11. Changes to Terms"),
+                h2("10. Governing Law and Contact"),
                 p(
-                  "We reserve the right to modify these Terms at any time. We will notify you of significant changes ",
-                  "by posting the updated terms on this page. Continued use of the Service after changes constitutes ",
-                  "acceptance of the new Terms."
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("12. Governing Law"),
-                p(
-                  "These Terms shall be governed by and construed in accordance with applicable laws, without regard ",
-                  "to conflict of law principles. Any disputes arising from these Terms shall be resolved in the ",
-                  "appropriate courts."
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("13. Severability"),
-                p(
-                  "If any provision of these Terms is found to be unenforceable, the remaining provisions will continue ",
-                  "in full force and effect."
-                )
-              ),
-
-              st.section(cls := "legal-section")(
-                h2("14. Contact"),
-                p("For questions about these Terms of Service, please contact us:"),
-                ul(
-                  li("Email: ", a(href := "mailto:legal@chesstory.com")("legal@chesstory.com")),
-                  li("Support: ", a(href := routes.Main.contact.url)("Contact Page"))
+                  "These Terms are governed by the laws of the Republic of Korea, without regard to conflict of law rules."
+                ),
+                contactEmail.fold[Frag](
+                  p(
+                    "For questions about these Terms, please use the ",
+                    a(href := routes.Main.contact.url)("Contact page"),
+                    "."
+                  )
+                )(email =>
+                  p(
+                    "For questions about these Terms, contact ",
+                    emailLink(email),
+                    "."
+                  )
                 )
               ),
 
               footer(cls := "legal-footer")(
                 a(href := routes.Main.privacy.url, cls := "legal-link")("Privacy Policy"),
+                span(" • "),
+                a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 span(" • "),
                 a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")
               )

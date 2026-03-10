@@ -10,13 +10,14 @@ export async function fetchOpeningReferenceViaProxy(
   analysisFen: string,
   ply: number,
   useExplorerProxy: boolean,
+  signal?: AbortSignal,
 ): Promise<OpeningReferencePayload | null> {
   if (!useExplorerProxy) return null;
   if (ply < 1 || ply > 30) return null;
   if (openingPhase(ply) !== 'opening') return null;
 
   try {
-    const explorerRes = await fetch(`/api/llm/opening/masters?fen=${encodeURIComponent(analysisFen)}`);
+    const explorerRes = await fetch(`/api/llm/opening/masters?fen=${encodeURIComponent(analysisFen)}`, { signal });
     if (!explorerRes.ok) return null;
 
     const raw = (await explorerRes.json()) as any;
@@ -35,7 +36,7 @@ export async function fetchOpeningReferenceViaProxy(
         let pgn = g.pgn || null;
         if (!pgn && g.id) {
           try {
-            const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`);
+            const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`, { signal });
             if (pgnRes.ok) pgn = await pgnRes.text();
           } catch {}
         }
@@ -60,6 +61,7 @@ export async function fetchOpeningReferenceViaProxy(
       sampleGames,
     };
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     console.warn('Bookmaker: failed to fetch opening reference via proxy', e);
     return null;
   }

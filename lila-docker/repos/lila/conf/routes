@@ -9,6 +9,8 @@ GET   /account/profile                 controllers.Account.profile
 POST  /account/profile                 controllers.Account.profileApply
 GET   /account/passwd                  controllers.Account.passwd
 POST  /account/passwd                  controllers.Account.passwdApply
+POST  /account/email                   controllers.Account.emailApply
+GET   /account/email-confirm/:token    controllers.Account.emailConfirm(token)
 GET   /account/username                controllers.Account.username
 POST  /account/username                controllers.Account.usernameApply
 GET   /account/close                   controllers.Account.close
@@ -35,6 +37,23 @@ GET   /auth/password-reset/:token      controllers.Auth.passwordResetToken(token
 POST  /auth/password-reset/:token      controllers.Auth.passwordResetTokenApply(token)
 GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token)
+
+# Member Ops
+GET   /ops/members                     controllers.Ops.members
+GET   /ops/members/:id                 controllers.Ops.member(id: UserStr, advanced: Boolean ?= false)
+GET   /ops/members/:id/audit           controllers.Ops.audit(id: UserStr, page: Int ?= 1)
+GET   /ops/members/:id/plan-ledger     controllers.Ops.planLedger(id: UserStr)
+POST  /ops/members/:id/status          controllers.Ops.updateStatus(id: UserStr)
+POST  /ops/members/:id/email           controllers.Ops.updateEmail(id: UserStr)
+POST  /ops/members/:id/password-reset  controllers.Ops.sendPasswordReset(id: UserStr)
+POST  /ops/members/:id/sessions/revoke controllers.Ops.revokeAllSessions(id: UserStr)
+POST  /ops/members/:id/sessions/:sid/revoke controllers.Ops.revokeSession(id: UserStr, sid: String)
+POST  /ops/members/:id/two-factor/clear controllers.Ops.clearTwoFactor(id: UserStr)
+POST  /ops/members/:id/plan            controllers.Ops.updatePlan(id: UserStr)
+POST  /ops/members/:id/roles           controllers.Ops.updateRoles(id: UserStr)
+POST  /ops/members/:id/permissions     controllers.Ops.updatePermissions(id: UserStr)
+GET   /ops/api/members/search          controllers.Ops.apiSearch
+GET   /ops/api/members/:id/audit       controllers.Ops.apiAudit(id: UserStr, page: Int ?= 1)
 
 # Analysis and Study
 GET   /analysis                        controllers.UserAnalysis.index
@@ -124,6 +143,7 @@ GET   /manifest.json                   controllers.Main.manifest
 GET   /robots.txt                      controllers.Main.robots
 GET   /healthz                         controllers.Main.healthz
 GET   /prometheus-metrics/:key         controllers.Main.prometheusMetrics(key)
+GET   /internal/commentary-ops/:key    controllers.Main.commentaryOps(key, limit: Int ?= 20)
 
 GET   /contact                         controllers.Main.contact
 GET   /privacy                         controllers.Main.privacy

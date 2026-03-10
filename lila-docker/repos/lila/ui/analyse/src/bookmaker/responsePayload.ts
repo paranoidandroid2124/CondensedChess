@@ -65,11 +65,14 @@ export type StrategyCoverageMetaV1 = {
   focusHits: number;
 };
 
+import type { DecisionComparisonDigestLike } from '../decisionComparison';
+
 export type NarrativeSignalDigest = {
   opening?: string;
   strategicStack?: string[];
   latentPlan?: string;
   latentReason?: string;
+  decisionComparison?: DecisionComparisonDigest;
   practicalVerdict?: string;
   practicalFactors?: string[];
   compensation?: string;
@@ -93,6 +96,8 @@ export type NarrativeSignalDigest = {
   opponentPlan?: string;
   preservedSignals?: string[];
 };
+
+export type DecisionComparisonDigest = DecisionComparisonDigestLike;
 
 type MaybeResponse = {
   html?: unknown;

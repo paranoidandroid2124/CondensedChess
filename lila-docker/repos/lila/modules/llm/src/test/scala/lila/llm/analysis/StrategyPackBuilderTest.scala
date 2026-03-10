@@ -3,7 +3,7 @@ package lila.llm.analysis
 import chess.{ Color, Square, Knight }
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, EvidenceBranch, PlanHypothesis, PlanViability, QuestionEvidence }
-import lila.llm.model.strategic.{ PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag }
+import lila.llm.model.strategic.{ CounterfactualMatch, EngineEvidence, PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag, PvMove, VariationLine }
 import munit.FunSuite
 
 class StrategyPackBuilderTest extends FunSuite:
@@ -471,4 +471,61 @@ class StrategyPackBuilderTest extends FunSuite:
 
     assert(pack.longTermFocus.exists(_.toLowerCase.startsWith("dominant thesis:")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("dominant_thesis:")), clue(pack.evidence))
+  }
+
+  test("build carries decision comparison into digest focus and evidence") {
+    val best =
+      VariationLine(
+        moves = List("g2g4", "a7a6", "h4h5"),
+        scoreCp = 28,
+        parsedMoves = List(
+          PvMove("g2g4", "g4", "g2", "g4", "P", false, None, false),
+          PvMove("a7a6", "...a6", "a7", "a6", "p", false, None, false),
+          PvMove("h4h5", "h5", "h4", "h5", "P", false, None, false)
+        )
+      )
+    val userLine =
+      VariationLine(
+        moves = List("h2h4", "a7a6"),
+        scoreCp = 0,
+        parsedMoves = List(
+          PvMove("h2h4", "h4", "h2", "h4", "P", false, None, false),
+          PvMove("a7a6", "...a6", "a7", "a6", "p", false, None, false)
+        )
+      )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(),
+        ctx(
+          mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)),
+          whyAbsent = List("""the immediate "g4" push loses 220 cp""")
+        ).copy(
+          playedMove = Some("h2h4"),
+          playedSan = Some("h4"),
+          engineEvidence = Some(EngineEvidence(depth = 20, variations = List(best))),
+          counterfactual = Some(
+            CounterfactualMatch(
+              userMove = "h4",
+              bestMove = "g4",
+              cpLoss = 220,
+              missedMotifs = Nil,
+              userMoveMotifs = Nil,
+              severity = "Mistake",
+              userLine = userLine
+            )
+          )
+        )
+      )
+      .getOrElse(fail("pack missing"))
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    val comparison = digest.decisionComparison.getOrElse(fail("missing comparison digest"))
+    assertEquals(comparison.chosenMove, Some("h4"))
+    assertEquals(comparison.engineBestMove, Some("g4"))
+    assertEquals(comparison.deferredMove, Some("g4"))
+    assert(pack.longTermFocus.exists(_.contains("engine best: g4")), clue(pack.longTermFocus))
+    assert(pack.longTermFocus.exists(_.contains("deferred branch: g4")), clue(pack.longTermFocus))
+    assert(pack.evidence.exists(_.startsWith("decision_compare:engine_best:g4")), clue(pack.evidence))
+    assert(pack.evidence.exists(_.startsWith("decision_compare:deferred:g4")), clue(pack.evidence))
   }

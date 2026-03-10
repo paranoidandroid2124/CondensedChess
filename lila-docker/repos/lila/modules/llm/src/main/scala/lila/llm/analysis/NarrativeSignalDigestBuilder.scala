@@ -20,6 +20,7 @@ object NarrativeSignalDigestBuilder:
       (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
         .flatMap(normalized)
         .headOption
+    val decisionComparison = DecisionComparisonBuilder.digest(ctx)
 
     val practical = ctx.semantic.flatMap(_.practicalAssessment)
     val compensationInfo = ctx.semantic.flatMap(_.compensation)
@@ -98,6 +99,7 @@ object NarrativeSignalDigestBuilder:
         strategicStack = strategicStack,
         latentPlan = latentPlan,
         latentReason = latentReason,
+        decisionComparison = decisionComparison,
         authoringEvidence = authoringEvidence,
         practicalVerdict = practicalVerdict,
         practicalFactors = practicalFactors,

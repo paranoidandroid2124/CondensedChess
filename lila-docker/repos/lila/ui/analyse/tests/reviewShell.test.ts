@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hl } from 'lib/view';
 import { reviewView, type ReviewViewNodes } from '../src/review/view';
-import type { GameNarrativeResponse } from '../src/narrative/narrativeCtrl';
+import type { DefeatDnaReport, GameNarrativeResponse } from '../src/narrative/narrativeCtrl';
 
 const reviewNodes: ReviewViewNodes = {
   moveListNode: hl('div', 'move list'),
@@ -50,6 +50,23 @@ describe('review shell', () => {
     assert.match(text, /See Patterns/);
   });
 
+  test('overview disables repair action when no collapse is available', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'overview',
+        narrativeData: sampleNarrative({
+          themes: ['Space Advantage'],
+          moments: [sampleMoment({ ply: 14, narrative: 'Quiet squeeze', momentType: 'Plan' })],
+        }),
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Repair unavailable/);
+    assert.match(text, /This game has no causal collapse window yet/);
+  });
+
   test('moments filters the list for collapse-only review', () => {
     const vnode = reviewView(
       makeCtrl({
@@ -75,6 +92,33 @@ describe('review shell', () => {
     assert.doesNotMatch(text, /Quiet improvement/);
   });
 
+  test('moments renders badges and nested collapse cards', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'moments',
+        narrativeData: sampleNarrative({
+          moments: [
+            sampleMoment({
+              ply: 22,
+              narrative: 'White misses the forcing continuation.',
+              moveClassification: 'Brilliant',
+              momentType: 'Critical',
+              strategicSalience: 'High',
+              collapse: sampleCollapse('22-27'),
+            }),
+          ],
+        }),
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Brilliant/);
+    assert.match(text, /High/);
+    assert.match(text, /Causal Collapse Analyzer/);
+    assert.match(text, /Tactical Oversight/);
+  });
+
   test('repair shows empty state when no collapse exists', () => {
     const vnode = reviewView(
       makeCtrl({
@@ -97,6 +141,22 @@ describe('review shell', () => {
 
     assert.match(text, /Patterns unlock after more analysis/);
     assert.match(text, /Defeat DNA becomes active/);
+  });
+
+  test('patterns renders the dna dashboard when data exists', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'patterns',
+        dnaData: sampleDnaReport(),
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Account-level profile built from 4 analyzed games/);
+    assert.match(text, /Root Cause Distribution/);
+    assert.match(text, /Recent Collapses/);
+    assert.match(text, /Games Analyzed/);
   });
 
   test('reference shows explorer and position summaries above the active panel', () => {
@@ -124,6 +184,7 @@ function makeCtrl({
   selectedMomentPly = null,
   selectedCollapseId = null,
   narrativeData = null,
+  dnaData = null,
 }: {
   primaryTab?: 'overview' | 'moments' | 'repair' | 'patterns' | 'moves' | 'reference';
   referenceTab?: 'explorer' | 'board' | 'import';
@@ -131,6 +192,7 @@ function makeCtrl({
   selectedMomentPly?: number | null;
   selectedCollapseId?: string | null;
   narrativeData?: GameNarrativeResponse | null;
+  dnaData?: DefeatDnaReport | null;
 }) {
   const root = {
     jumpToMain() {},
@@ -154,7 +216,7 @@ function makeCtrl({
     loginHref: () => '/login',
     dnaLoading: () => false,
     dnaError: () => null,
-    dnaData: () => null,
+    dnaData: () => dnaData,
     pvBoard: () => null,
     patchReplay: () => null,
     patchOpen() {},
@@ -240,6 +302,28 @@ function sampleCollapse(interval: string) {
     earliestPreventablePly: parseInt(interval.split('-')[0]!, 10),
     patchLineUci: [],
     recoverabilityPlies: 3,
+  };
+}
+
+function sampleDnaReport(): DefeatDnaReport {
+  return {
+    userId: 'u1',
+    totalGamesAnalyzed: 4,
+    rootCauseDistribution: {
+      'Tactical Miss': 2,
+      'Plan Deviation': 1,
+    },
+    avgRecoverabilityPlies: 3.5,
+    mostCommonPatchLines: ['e4 e5 Nf3'],
+    recentCollapses: [
+      {
+        interval: '22-27',
+        rootCause: 'Tactical Miss',
+        earliestPreventablePly: 22,
+        patchLineUci: [],
+        recoverabilityPlies: 3,
+      },
+    ],
   };
 }
 

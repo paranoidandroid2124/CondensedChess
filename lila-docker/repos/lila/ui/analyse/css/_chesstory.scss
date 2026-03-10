@@ -178,6 +178,8 @@
   }
 
   &__board-wrap {
+    align-self: start;
+    width: 100%;
     border-radius: 24px;
     background: linear-gradient(160deg, #fcf5ea 0%, #f1e3ce 100%);
     overflow: hidden;
@@ -203,6 +205,9 @@
   }
 
   &__board {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 1 / 1;
     border-radius: 18px;
     border: 3px solid #26333b;
     background: linear-gradient(145deg, #293741 0%, #1a242b 100%);
@@ -272,6 +277,7 @@
   }
 
   &__tools {
+    align-self: start;
     border-radius: 22px;
     background: linear-gradient(180deg, var(--atlas-surface) 0%, #ffffff 100%);
     overflow: hidden;

@@ -272,11 +272,16 @@ object auth:
         )
       )
 
-  def magicLink(error: Option[String] = None)(using ctx: Context): Page =
+  def magicLink(error: Option[String] = None, accountOnly: Boolean = true)(using ctx: Context): Page =
     authPage("Magic Link - Chesstory"):
+      val subtitle =
+        if accountOnly then
+          "Enter the email on your existing account and we'll send a secure magic link."
+        else
+          "Enter your email and we'll send a secure magic link."
       frag(
         h1(cls := "auth-title")("Passwordless login"),
-        p(cls := "auth-subtitle")("Enter your email and we'll send a secure magic link."),
+        p(cls := "auth-subtitle")(subtitle),
         flashLine(none, error),
         form(cls := "auth-form", method := "post", action := routes.Auth.magicLinkApply.url)(
           div(cls := "form-group")(
@@ -306,7 +311,7 @@ object auth:
         div(cls := "auth-icon auth-success-icon")("✓"),
         h1(cls := "auth-title")("Check your email"),
         p(cls := "auth-message")(
-          "We've sent a magic link to your email address.",
+          "If an account exists for that email address, we've sent a magic link.",
           br,
           "Click the link to log in."
         ),

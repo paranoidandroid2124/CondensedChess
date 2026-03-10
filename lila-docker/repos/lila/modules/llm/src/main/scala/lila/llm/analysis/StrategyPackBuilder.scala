@@ -66,6 +66,11 @@ object StrategyPackBuilder:
           digest.deploymentPurpose.map(v => s"deployment purpose: $v"),
           digest.prophylaxisPlan.map(v => s"prophylaxis: $v"),
           digest.decision.map(v => s"decision: $v"),
+          digest.decisionComparison.flatMap(_.engineBestMove).map(v => s"engine best: $v"),
+          digest.decisionComparison.flatMap(_.deferredMove).map { v =>
+            val label = if digest.decisionComparison.exists(_.practicalAlternative) then "deferred practical" else "deferred"
+            s"$label: $v"
+          },
           digest.opponentPlan.map(v => s"opponent plan: $v")
         ).flatten
       }
@@ -246,6 +251,15 @@ object StrategyPackBuilder:
     ctx.whyAbsentFromTopMultiPV.take(2).foreach { reason =>
       push(s"engine-line gap: $reason", 1.45)
     }
+    NarrativeSignalDigestBuilder.build(ctx)
+      .flatMap(_.decisionComparison)
+      .foreach { comparison =>
+        comparison.engineBestMove.foreach(move => push(s"engine best: $move", 1.72))
+        comparison.deferredMove.foreach { move =>
+          val prefix = if comparison.practicalAlternative then "practical alternative" else "deferred branch"
+          push(s"$prefix: $move", 1.68)
+        }
+      }
 
     scored.toList
       .sortBy { case (text, weight) => (-weight, text) }
@@ -266,6 +280,18 @@ object StrategyPackBuilder:
           Some(s"structure_arc:${arc.structureLabel}:${arc.planLabel}"),
           Some(s"deployment:${arc.primaryDeployment.piece}:${arc.primaryDeployment.routeSquares.mkString("-")}:${arc.primaryDeployment.purpose}"),
           Some(s"deployment_contribution:${arc.moveContribution}")
+        ).flatten
+        }
+    val comparisonEvidence =
+      DecisionComparisonBuilder.build(ctx).toList.flatMap { comparison =>
+        List(
+          comparison.engineBestMove.map(move => s"decision_compare:engine_best:$move"),
+          comparison.deferredMove.map { move =>
+            val prefix = if comparison.practicalAlternative then "practical" else "deferred"
+            s"decision_compare:${prefix}:$move"
+          },
+          comparison.deferredReason.map(reason => s"decision_compare:why:$reason"),
+          comparison.evidence.map(ev => s"decision_compare:evidence:$ev")
         ).flatten
       }
     val authoringEvidence =
@@ -291,6 +317,7 @@ object StrategyPackBuilder:
         ctx.whyAbsentFromTopMultiPV ++
         routeEvidence ++
         structureEvidence ++
+        comparisonEvidence ++
         dominantThesis.toList.map(v => s"dominant_thesis:$v") ++
         authoringEvidence ++
         AuthoringEvidenceSummaryBuilder.headline(ctx).toList.map(v => s"authoring_headline:$v")

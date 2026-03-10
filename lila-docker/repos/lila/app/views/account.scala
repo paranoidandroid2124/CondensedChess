@@ -1,6 +1,7 @@
 package views
 
 import lila.app.UiEnv.{ *, given }
+import lila.core.user.UserDelete
 import lila.pref.{ PieceSet, PieceSet3d, Pref, Theme, Theme3d }
 import scala.annotation.unused
 
@@ -25,9 +26,10 @@ object account:
               div(cls := "account-title")("Settings"),
               st.nav(cls := "account-nav")(
                 a(href := routes.Account.profile.url, cls := (if activeTab == "profile" then "active" else ""))("Profile"),
+                a(href := routes.Account.passwd.url, cls := (if activeTab == "security" then "active" else ""))("Security"),
                 a(href := routes.Pref.form("display").url, cls := (if activeTab == "preferences" then "active" else ""))("Preferences"),
                 a(href := routes.Account.close.url, cls := (if activeTab == "close" then "active" else ""))("Close Account"),
-                a(href := routes.Account.delete.url, cls := (if activeTab == "delete" then "active" else ""))("Delete All Data (GDPR)")
+                a(href := routes.Account.delete.url, cls := (if activeTab == "delete" then "active" else ""))("Data Deletion")
               )
             ),
             div(cls := "account-content")(
@@ -67,10 +69,105 @@ object account:
           div(cls := "form-group")(
             label("Email Address"),
             input(tpe := "email", value := user.email.map(_.value) | "", disabled := true),
-            p(cls := "help")("Email is used for Magic Link login and cannot be changed.")
+            p(cls := "help")("Email, password, and login options are managed in Security settings.")
           ),
           div(cls := "form-actions")(
             button(tpe := "submit", cls := "btn-primary")("Save Changes")
+          )
+        )
+      )
+
+  private def fieldError(form: play.api.data.Form[?], key: String) =
+    form(key).error.map: e =>
+      span(cls := "field-error")(e.message)
+
+  def security(
+      user: User,
+      hasPassword: Boolean,
+      emailForm: play.api.data.Form[?],
+      passwordForm: play.api.data.Form[?]
+  )(using ctx: Context) =
+    settingsPage("Security Settings", "security"):
+      val passwordTitle = if hasPassword then "Change Password" else "Set Password"
+      val passwordSubmit = if hasPassword then "Update Password" else "Set Password"
+      frag(
+        h2("Security Settings"),
+        p(cls := "desc")("Manage your email address, password, and login methods."),
+        hr,
+        flashMessages,
+        div(cls := "account-form")(
+          h3("Email Address"),
+          p(cls := "help")("Current login email"),
+          input(tpe := "email", value := user.email.map(_.value) | "", disabled := true),
+          hr,
+          h3("Change Email"),
+          emailForm.globalError.map: e =>
+            div(cls := "form-error")(e.message)
+          ,
+          postForm(action := routes.Account.emailApply, cls := "account-form")(
+            div(cls := "form-group")(
+              label(attr("for") := "email")("New Email Address"),
+              input(
+                id := "email",
+                name := "email",
+                tpe := "email",
+                value := emailForm("email").value | "",
+                placeholder := "new@email.com",
+                autocomplete := "email",
+                required := true
+              ),
+              fieldError(emailForm, "email"),
+              p(cls := "help")("We will send a confirmation link to the new address before changing your login email.")
+            ),
+            div(cls := "form-actions")(
+              button(tpe := "submit", cls := "btn-primary")("Send Confirmation")
+            )
+          ),
+          hr,
+          h3(passwordTitle),
+          passwordForm.globalError.map: e =>
+            div(cls := "form-error")(e.message)
+          ,
+          postForm(action := routes.Account.passwdApply, cls := "account-form")(
+            if hasPassword then
+              div(cls := "form-group")(
+                label(attr("for") := "currentPassword")("Current Password"),
+                input(
+                  id := "currentPassword",
+                  name := "currentPassword",
+                  tpe := "password",
+                  autocomplete := "current-password",
+                  required := true
+                ),
+                fieldError(passwordForm, "currentPassword")
+              )
+            else
+              p(cls := "help")("This account does not have a password yet. Set one now to enable password login."),
+            div(cls := "form-group")(
+              label(attr("for") := "newPassword")("New Password"),
+              input(
+                id := "newPassword",
+                name := "newPassword",
+                tpe := "password",
+                autocomplete := "new-password",
+                required := true
+              ),
+              fieldError(passwordForm, "newPassword")
+            ),
+            div(cls := "form-group")(
+              label(attr("for") := "confirmPassword")("Confirm New Password"),
+              input(
+                id := "confirmPassword",
+                name := "confirmPassword",
+                tpe := "password",
+                autocomplete := "new-password",
+                required := true
+              ),
+              fieldError(passwordForm, "confirmPassword")
+            ),
+            div(cls := "form-actions")(
+              button(tpe := "submit", cls := "btn-primary")(passwordSubmit)
+            )
           )
         )
       )
@@ -135,30 +232,51 @@ object account:
     settingsPage("Close Account", "close"):
       frag(
         h2(cls := "danger")("Close Account"),
-        p("Closing your account will disable your ability to log in and hide your profile."),
+        p("Closing your account disables sign-in and hides your profile."),
         div(cls := "warning-box")(
           strong("Warning: "),
-          "You can re-enable your account later by logging in again within 30 days. After that, it might be permanently deactivated."
+          "You can reopen the account later by requesting a new email login link from the same address. This page does not erase your stored analysis data."
         ),
         postForm(action := routes.Account.closeConfirm, cls := "mt-2")(
           button(tpe := "submit", cls := "btn-danger")("I understand, close my account")
         )
       )
 
-  def delete(@unused user: User)(using ctx: Context) =
-    settingsPage("Permanent Data Deletion", "delete"):
+  def delete(
+      @unused user: User,
+      pendingRequest: Option[UserDelete],
+      form: play.api.data.Form[String]
+  )(using ctx: Context) =
+    settingsPage("Data Deletion Request", "delete"):
       frag(
-        h2(cls := "danger")("Permanent Data Deletion (GDPR)"),
-        p("This action will permanently delete your account and all associated data from our servers."),
+        h2(cls := "danger")("Permanent Data Deletion Request"),
+        p("Permanent erasure is processed manually in the current production rollout. Submitting this form will immediately close your account and queue a deletion request for operator review."),
+        pendingRequest.map: request =>
+          div(cls := "warning-box")(
+            strong("Request already pending: "),
+            s"A deletion request was already recorded on ${request.requested}."
+          )
+        ,
         div(cls := "danger-box")(
           strong("CRITICAL WARNING: "),
-          "This action cannot be undone. All your analysis, studies, and account history will be wiped forever."
+          "Some records may remain until the request is processed, including operational logs and backups retained for security or recovery windows."
         ),
+        form.globalError.map: e =>
+          div(cls := "form-error")(e.message)
+        ,
         postForm(action := routes.Account.deleteConfirm, cls := "mt-2")(
           div(cls := "form-group")(
             label(attr("for") := "confirm")("Type \"DELETE\" to confirm:"),
-            input(id := "confirm", name := "confirm", tpe := "text", required := true, pattern := "DELETE")
+            input(
+              id := "confirm",
+              name := "confirm",
+              tpe := "text",
+              value := form("confirm").value | "",
+              required := true,
+              pattern := "DELETE"
+            ),
+            fieldError(form, "confirm")
           ),
-          button(tpe := "submit", cls := "btn-danger")("Permanently delete everything")
+          button(tpe := "submit", cls := "btn-danger")("Submit deletion request")
         )
       )

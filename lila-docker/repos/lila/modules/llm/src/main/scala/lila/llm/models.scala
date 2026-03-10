@@ -145,6 +145,7 @@ case class NarrativeSignalDigest(
     strategicStack: List[String] = Nil,
     latentPlan: Option[String] = None,
     latentReason: Option[String] = None,
+    decisionComparison: Option[DecisionComparisonDigest] = None,
     authoringEvidence: Option[String] = None,
     practicalVerdict: Option[String] = None,
     practicalFactors: List[String] = Nil,
@@ -171,6 +172,22 @@ case class NarrativeSignalDigest(
 )
 object NarrativeSignalDigest:
   given Writes[NarrativeSignalDigest] = Json.writes[NarrativeSignalDigest]
+
+case class DecisionComparisonDigest(
+    chosenMove: Option[String] = None,
+    engineBestMove: Option[String] = None,
+    engineBestScoreCp: Option[Int] = None,
+    engineBestPv: List[String] = Nil,
+    cpLossVsChosen: Option[Int] = None,
+    deferredMove: Option[String] = None,
+    deferredReason: Option[String] = None,
+    deferredSource: Option[String] = None,
+    evidence: Option[String] = None,
+    practicalAlternative: Boolean = false,
+    chosenMatchesBest: Boolean = false
+)
+object DecisionComparisonDigest:
+  given Writes[DecisionComparisonDigest] = Json.writes[DecisionComparisonDigest]
 
 case class StrategyPack(
     schema: String = "chesstory.strategyPack.v1",
@@ -203,6 +220,43 @@ case class ActiveStrategicMoveRef(
 )
 object ActiveStrategicMoveRef:
   given Writes[ActiveStrategicMoveRef] = Json.writes[ActiveStrategicMoveRef]
+
+case class ActiveBranchRouteCue(
+    routeId: String,
+    piece: String,
+    route: List[String],
+    purpose: String,
+    confidence: Double
+)
+object ActiveBranchRouteCue:
+  given Writes[ActiveBranchRouteCue] = Json.writes[ActiveBranchRouteCue]
+
+case class ActiveBranchMoveCue(
+    label: String,
+    uci: String,
+    san: Option[String] = None,
+    source: String
+)
+object ActiveBranchMoveCue:
+  given Writes[ActiveBranchMoveCue] = Json.writes[ActiveBranchMoveCue]
+
+case class ActiveBranchDossier(
+    dominantLens: String,
+    chosenBranchLabel: String,
+    engineBranchLabel: Option[String] = None,
+    deferredBranchLabel: Option[String] = None,
+    whyChosen: Option[String] = None,
+    whyDeferred: Option[String] = None,
+    opponentResource: Option[String] = None,
+    routeCue: Option[ActiveBranchRouteCue] = None,
+    moveCue: Option[ActiveBranchMoveCue] = None,
+    evidenceCue: Option[String] = None,
+    continuationFocus: Option[String] = None,
+    practicalRisk: Option[String] = None,
+    comparisonGapCp: Option[Int] = None
+)
+object ActiveBranchDossier:
+  given Writes[ActiveBranchDossier] = Json.writes[ActiveBranchDossier]
 
 case class AuthorQuestionSummary(
     id: String,

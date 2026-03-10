@@ -3,6 +3,7 @@ package controllers
 import play.api.data.*
 import play.api.data.Forms.*
 import play.api.libs.json.*
+import play.api.i18n.Lang
 import play.api.mvc.*
 import play.api.Mode
 
@@ -10,6 +11,7 @@ import lila.app.*
 import lila.core.email.EmailAddress
 import lila.core.id.SessionId
 import lila.core.security.ClearPassword
+import lila.core.user.UserEnabled
 import lila.security.{ EmailConfirm, IsPwned }
 
 final class Auth(env: Env) extends LilaController(env):
@@ -47,6 +49,8 @@ final class Auth(env: Env) extends LilaController(env):
     env.mode == Mode.Prod && env.config.getOptional[Boolean]("security.hcaptcha.enabled").getOrElse(false)
   private val signupCaptchaSiteKey =
     env.config.getOptional[String]("security.hcaptcha.public.sitekey").filter(_.nonEmpty)
+  private val magicLinkAutoCreateEnabled =
+    env.config.getOptional[Boolean]("auth.magicLink.autoCreate").getOrElse(false)
 
   private def mobileUserOk(u: UserModel, sessionId: SessionId): Fu[Result] =
     fuccess:
@@ -76,6 +80,18 @@ final class Auth(env: Env) extends LilaController(env):
 
   private def signupPage(form: Form[?])(using Context) =
     views.auth.signup(form, signupCaptchaEnabled, signupCaptchaSiteKey)
+
+  private def sendMagicLink(email: EmailAddress)(using Context): Fu[Result] =
+    val token = env.security.loginToken.generate(email, 15.minutes)
+    val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
+    env.mailer.automaticEmail.magicLinkLogin(email, url)
+
+    val mockEmail = env.config.getOptional[Boolean]("mailer.primary.mock").getOrElse(false)
+    val exposeMockLink = mockEmail && env.mode != Mode.Prod
+
+    if exposeMockLink then
+      Ok.page(views.auth.magicLinkDev(url))
+    else Redirect(routes.Auth.magicLinkSent).toFuccess
 
   def authenticateUser(
       u: UserModel,
@@ -214,24 +230,27 @@ final class Auth(env: Env) extends LilaController(env):
   )
 
   def magicLink = Open:
-    Ok.page(views.auth.magicLink())
+    Ok.page(views.auth.magicLink(accountOnly = !magicLinkAutoCreateEnabled))
 
   def magicLinkApply = OpenBody:
     bindForm(magicLinkForm)(
-      _ => Ok.page(views.auth.magicLink(Some("Invalid email address"))),
+      _ => Ok.page(views.auth.magicLink(Some("Invalid email address"), accountOnly = !magicLinkAutoCreateEnabled)),
       emailStr =>
         val email = EmailAddress(emailStr)
-        limit.magicLink(EmailAddress(email.normalize.value).value, Ok.page(views.auth.magicLink(Some("Too many login emails, try again later")))):
-          val token = env.security.loginToken.generate(email, 15.minutes)
-          val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
-          env.mailer.automaticEmail.magicLinkLogin(email, url)
-
-          val mockEmail = env.config.getOptional[Boolean]("mailer.primary.mock").getOrElse(false)
-          val exposeMockLink = mockEmail && env.mode != Mode.Prod
-
-          if exposeMockLink then
-            Ok.page(views.auth.magicLinkDev(url))
-          else Redirect(routes.Auth.magicLinkSent).toFuccess
+        val normalized = EmailAddress(email.normalize.value)
+        limit.magicLink(
+          normalized.value,
+          Ok.page(views.auth.magicLink(Some("Too many login emails, try again later"), accountOnly = !magicLinkAutoCreateEnabled))
+        ):
+          if magicLinkAutoCreateEnabled then
+            sendMagicLink(normalized)
+          else
+            env.user.repo.byEmail(normalized).flatMap:
+              case Some(user) =>
+                env.user.deleteRequestRepo.isPending(user.id).flatMap:
+                  case true  => Redirect(routes.Auth.magicLinkSent).toFuccess
+                  case false => sendMagicLink(normalized)
+              case None    => Redirect(routes.Auth.magicLinkSent).toFuccess
     )
 
   def magicLinkSent = Open:
@@ -284,10 +303,31 @@ final class Auth(env: Env) extends LilaController(env):
 
   def loginWithToken(token: String) = Open:
     env.security.loginToken.read(token).fold(Ok.page(views.auth.loginError("Invalid or expired login link. Please request a new one."))): email =>
-      env.user.repo.upsertEmailUser(email).flatMap: user =>
+      val normalized = EmailAddress(email.normalize.value)
+      val loginExistingUser = (user: UserModel) =>
         val enableF = if user.enabled.no then env.user.repo.enable(user.id) else funit
+        val activeUser = if user.enabled.yes then user else user.copy(enabled = UserEnabled(true))
+        val welcomeF =
+          if user.enabled.no then env.mailer.automaticEmail.welcomeEmail(activeUser, normalized)(using Lang.defaultLang)
+          else funit
         given Context = ctx
-        (enableF >> authenticateUser(user, remember = true)).map:
+        (enableF >> welcomeF >> authenticateUser(activeUser, remember = true)).map:
           _.discardingCookies(EmailConfirm.cookie.clear)
+
+      env.user.repo.byEmail(normalized).flatMap:
+        case Some(user) =>
+          env.user.deleteRequestRepo.isPending(user.id).flatMap:
+            case true =>
+              Ok.page(
+                views.auth.loginError("This account has a pending deletion request and cannot be reopened online.")
+              )
+            case false =>
+              loginExistingUser(user)
+        case None if magicLinkAutoCreateEnabled =>
+          env.user.repo.upsertEmailUser(normalized).flatMap(loginExistingUser)
+        case None =>
+          Ok.page(
+            views.auth.loginError("No account exists for this email. Create an account first.")
+          )
 
   def loginWithTokenPost(token: String) = loginWithToken(token)

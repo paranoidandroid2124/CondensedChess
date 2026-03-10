@@ -15,16 +15,17 @@ final class ExplorerProxy(
 
   private val logger = lila.log("explorer.proxy")
   private val allowedDbs = Set("masters", "lichess", "player")
+  private def configured(path: String): Option[String] =
+    env.config.getOptional[String](path).map(_.trim).filter(_.nonEmpty)
   private val explorerBase =
-    sys.env
-      .get("EXPLORER_API_BASE")
-      .map(_.trim)
-      .filter(_.nonEmpty)
+    configured("explorer.internal_endpoint")
+      .orElse(configured("explorer.endpoint"))
+      .orElse(sys.env.get("EXPLORER_API_BASE").map(_.trim).filter(_.nonEmpty))
       .getOrElse("https://explorer.lichess.org")
       .stripSuffix("/")
   private val explorerToken =
-    sys.env
-      .get("LICHESS_EXPLORER_TOKEN")
+    configured("explorer.api_token")
+      .orElse(sys.env.get("LICHESS_EXPLORER_TOKEN"))
       .orElse(sys.env.get("LICHESS_API_TOKEN"))
       .map(_.trim)
       .filter(_.nonEmpty)

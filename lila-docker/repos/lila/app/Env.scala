@@ -64,7 +64,15 @@ final class Env(
   
   val llm: lila.llm.Env = new lila.llm.Env(
     db = mongo.mainDb,
+    appConfig = config,
     ws = summon[StandaloneWSClient]
+  )
+  val ops: lila.ops.Env = new lila.ops.Env(
+    db = mongo.mainDb,
+    userEnv = user,
+    securityEnv = security,
+    mailerEnv = mailer,
+    baseUrl = baseUrl
   )
   val web: lila.web.Env = wire[lila.web.Env]
   val api: lila.api.Env = wire[lila.api.Env]

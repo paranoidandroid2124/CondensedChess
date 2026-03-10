@@ -110,6 +110,12 @@ db.user4.createIndex({ 'count.game': -1 });
 db.user4.createIndex({ title: 1 }, { partialFilterExpression: { title: { $exists: 1 } } });
 db.user4.createIndex({ email: 1 }, { unique: true, partialFilterExpression: { email: { $exists: 1 } } });
 db.user4.createIndex({ roles: 1 }, { partialFilterExpression: { roles: { $exists: 1 } } });
+db.user4.createIndex({ enabled: 1, seenAt: -1 });
+db.user4.createIndex(
+  { tier: 1, expiresAt: 1, seenAt: -1 },
+  { partialFilterExpression: { tier: { $exists: 1 } } },
+);
+db.user4.createIndex({ createdAt: -1, enabled: 1 });
 db.user4.createIndex({ prevEmail: 1 }, { sparse: 1 });
 db.user4.createIndex(
   { 'delete.requested': 1 },
@@ -189,6 +195,13 @@ db.modlog.createIndex({ user: 1, date: -1 });
 db.modlog.createIndex({ date: -1 });
 db.modlog.createIndex({ mod: 1, date: -1 }, { partialFilterExpression: { human: true } });
 db.modlog.createIndex({ index: 1, details: 1 }, { partialFilterExpression: { index: 'team' } });
+db.ops_member_audit.createIndex({ target: 1, at: -1 });
+db.ops_member_audit.createIndex({ actor: 1, at: -1 });
+db.user_plan_ledger.createIndex({ user: 1, at: -1 });
+db.user_plan_ledger.createIndex(
+  { newExpiresAt: 1 },
+  { partialFilterExpression: { newExpiresAt: { $exists: true } } },
+);
 db.chat_timeout.createIndex({ expiresAt: -1 }, { partialFilterExpression: { expiresAt: { $exists: 1 } } });
 db.chat_timeout.createIndex(
   { chat: 1, expiresAt: -1 },

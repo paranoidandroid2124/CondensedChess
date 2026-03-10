@@ -31,7 +31,7 @@ OPENAI_MODEL_PRO_SYNC=gpt-5.2
 OPENAI_MODEL_PRO_FALLBACK=gpt-5-mini
 OPENAI_MODEL_PRO_ASYNC=gpt-5.2
 OPENAI_PROMPT_CACHE_KEY_PREFIX=bookmaker:polish:v1
-OPENAI_MAX_OUTPUT_TOKENS=256
+OPENAI_MAX_OUTPUT_TOKENS=640
 
 # Optional Gemini fallback
 GEMINI_API_KEY=
@@ -89,7 +89,7 @@ Manual one-shot execution:
 ```
 
 Logs are written under `lila-docker/logs/ops/`.
-`ops_auto_deploy.ps1` automatically loads both `.env` and `settings.env` before running `docker compose`.
+The `lila` runtime service reads `settings.env` directly via Docker Compose `env_file`, and `ops_auto_deploy.ps1` also loads both `.env` and `settings.env` before running `docker compose`.
 
 To remove the scheduled task:
 

@@ -23,6 +23,7 @@ Meaning:
 UI-owned structure:
 
 - `Strategic Signals`
+- `Decision Compare`
 - `Piece Deployment`
 - `Evidence Probes`
 - `Authoring Evidence`
@@ -76,6 +77,11 @@ The body should prioritize:
 - the most decision-relevant concrete line, tension, or practical note
 
 Secondary evidence should stay in UI-owned blocks when available.
+
+Decision comparison details should also stay in UI-owned surfaces when
+available. The commentary body should not expand into a full best-vs-deferred
+comparison card when the same information is already present in a dedicated
+visible block.
 
 For structure-led positions, the commentary body should keep only:
 

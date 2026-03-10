@@ -11,6 +11,7 @@ final class MongoRateLimit[K](
     name: String,
     credits: Int,
     duration: FiniteDuration,
+    queueTimeout: FiniteDuration,
     keyToString: K => String,
     coll: Coll,
     enforce: Boolean,
@@ -27,7 +28,7 @@ final class MongoRateLimit[K](
   private val sequencer = AsyncActorSequencers[K](
     maxSize = Max(credits),
     expiration = 1.minute,
-    timeout = 10.seconds,
+    timeout = queueTimeout,
     name = s"$name.sequencer",
     lila.log.asyncActorMonitor.highCardinality
   )
@@ -103,12 +104,14 @@ final class MongoRateLimitApi(db: lila.db.Db, config: MemoConfig):
       name: String,
       credits: Int,
       duration: FiniteDuration,
+      queueTimeout: FiniteDuration = 10.seconds,
       keyToString: K => String = (k: K) => k.toString,
       enforce: Boolean = true,
       log: Boolean = true
   )(using Executor, FutureAfter) = new MongoRateLimit[K](
     credits = credits,
     duration = duration,
+    queueTimeout = queueTimeout,
     name = name,
     keyToString = keyToString,
     coll = coll,

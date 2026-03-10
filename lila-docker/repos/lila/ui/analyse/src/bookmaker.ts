@@ -1,4 +1,3 @@
-import { debounce } from 'lib/async';
 import { storedBooleanPropWithEffect } from 'lib/storage';
 import type AnalyseCtrl from './ctrl';
 import { treePath } from 'lib/tree';
@@ -7,8 +6,18 @@ import { initBookmakerHandlers, setBookmakerRefs } from './bookmaker/interaction
 import { createProbeOrchestrator } from './bookmaker/probeOrchestrator';
 import { clearBookmakerPanel, renderBookmakerPanel, restoreBookmakerPanel, syncBookmakerEvalDisplay } from './bookmaker/rendering';
 import { buildBookmakerRequest, deriveAfterVariations, toBaselineCp, toEvalData } from './bookmaker/requestPayload';
-import { blockedHtmlFromErrorResponse } from './bookmaker/blockingState';
+import { blockedHtmlFromErrorResponse, bookmakerIdleHtml, bookmakerRetryHtml } from './bookmaker/blockingState';
+import {
+    listStudyBookmakerSnapshots,
+    persistSessionBookmakerSnapshot,
+    persistStudyBookmakerSnapshot,
+    readSessionBookmakerSnapshot,
+    readStudyBookmakerSnapshot,
+    type StoredBookmakerEntry,
+    type StudyBookmakerRef,
+} from './bookmaker/studyPersistence';
 import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
+import { buildDecisionComparisonSurface } from './decisionComparison';
 import {
     type BookmakerRefsV1,
     type NarrativeSignalDigest,
@@ -41,23 +50,16 @@ import type {
 
 export type BookmakerNarrative = (nodes: Tree.Node[]) => void;
 
-type BookmakerCacheEntry = {
-    html: string;
-    refs: BookmakerRefsV1 | null;
-    polishMeta: PolishMetaV1 | null;
-    sourceMode: string | null;
-    model: string | null;
-    cacheHit: boolean | null;
-    mainPlansCount: number;
-    latentPlansCount: number;
-    holdReasonsCount: number;
-};
+type TriggerBookmakerRequest = (opts?: { force?: boolean }) => void;
+
+type BookmakerCacheEntry = StoredBookmakerEntry;
 
 let requestsBlocked = false;
 let blockedHtml: string | null = null;
 let lastRequestedFen: string | null = null;
 let lastShownHtml = '';
 let activeProbeSession = 0;
+let bookmakerRequestTrigger: TriggerBookmakerRequest | null = null;
 
 type LoadingStage = 'position' | 'lines' | 'compose' | 'polish';
 
@@ -141,6 +143,15 @@ function humanizeToken(raw: string): string {
         .join(' ');
 }
 
+function normalizeSanToken(raw: string | undefined | null): string {
+    return (raw || '')
+        .trim()
+        .replace(/^[\(\[\{'"“”‘’]+/, '')
+        .replace(/[\)\]\}'"“”‘’]+$/, '')
+        .replace(/[!?]+$/g, '')
+        .trim();
+}
+
 function formatEvidenceStatus(status: string): string {
     switch (status.trim().toLowerCase()) {
         case 'resolved':
@@ -173,8 +184,290 @@ function formatDeploymentSummary(signalDigest: NarrativeSignalDigest): string | 
     return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
 }
 
+function currentStudyBookmakerRef(ctrl?: AnalyseCtrl): StudyBookmakerRef | null {
+    const study = ctrl?.opts?.study as { id?: string; chapterId?: string } | undefined;
+    if (!study?.id || !study?.chapterId) return null;
+    return { studyId: study.id, chapterId: study.chapterId };
+}
+
+function currentBookmakerSessionScope(): string {
+    return `${location.pathname}${location.search}`;
+}
+
+function findSavedStudyAiComment(node: Tree.Node | undefined): string | null {
+    if (!node?.comments?.length) return null;
+    const comment = node.comments.find(entry => {
+        const author = entry?.by;
+        return !!author && typeof author === 'object' && 'name' in author && (author as { name?: string }).name === 'Chesstory AI';
+    });
+    const text = typeof comment?.text === 'string' ? comment.text.trim() : '';
+    return text || null;
+}
+
+function markerForPly(ply: number): string {
+    const moveNo = Math.floor((ply + 1) / 2);
+    return ply % 2 === 1 ? `${moveNo}.` : `${moveNo}...`;
+}
+
+function buildSavedStudyRefs(ctrl: AnalyseCtrl | undefined, originPath: string, commentPath: string): BookmakerRefsV1 | null {
+    if (!ctrl) return null;
+    const originNode = ctrl.tree.nodeAtPath(originPath);
+    if (!originNode) return null;
+    const relative = commentPath.slice(originPath.length);
+    const chosenChildId = relative ? treePath.head(relative) : null;
+    const candidateChildren = originNode.children
+        .filter(child => !child.comp)
+        .filter(child => !chosenChildId || child.id !== chosenChildId)
+        .slice(0, 3);
+    if (!candidateChildren.length) return null;
+
+    const variations = candidateChildren
+        .map((child, lineIdx) => {
+            const moves: BookmakerRefsV1['variations'][number]['moves'] = [];
+            let current: Tree.Node | undefined = child;
+            while (current && moves.length < 12) {
+                const san = typeof current.san === 'string' ? current.san.trim() : '';
+                const uci = typeof current.uci === 'string' ? current.uci.trim() : '';
+                const fenAfter = typeof current.fen === 'string' ? current.fen : '';
+                if (!san || !uci || !fenAfter) break;
+                moves.push({
+                    refId: `study:${commentPath}:${lineIdx}:${moves.length}`,
+                    san,
+                    uci,
+                    fenAfter,
+                    ply: current.ply,
+                    moveNo: Math.floor((current.ply + 1) / 2),
+                    marker: markerForPly(current.ply),
+                });
+                current = current.children.find(next => !next.comp && !next.forceVariation);
+            }
+            return moves.length
+                ? {
+                      lineId: `study:${commentPath}:${lineIdx}`,
+                      scoreCp: 0,
+                      mate: null,
+                      depth: 0,
+                      moves,
+                  }
+                : null;
+        })
+        .filter(Boolean) as BookmakerRefsV1['variations'];
+
+    if (!variations.length) return null;
+    return {
+        schema: 'chesstory.refs.v1',
+        startFen: originNode.fen,
+        startPly: originNode.ply + 1,
+        variations,
+    };
+}
+
+function renderSavedStudyFallbackHtml(commentary: string, refs: BookmakerRefsV1 | null): string {
+    const paragraphs = commentary
+        .replace(/\r\n/g, '\n')
+        .split(/\n\n+/)
+        .map(chunk => chunk.trim())
+        .filter(Boolean)
+        .map(chunk => `<p>${escapeHtml(chunk).replace(/\n/g, '<br/>')}</p>`)
+        .join('');
+
+    const alternatives =
+        refs && refs.variations.length
+            ? `
+      <div class="alternatives">
+        <h3>Saved Alternatives</h3>
+        ${refs.variations
+            .map(variation => {
+                const moves = variation.moves
+                    .map(
+                        move => `
+              <span class="pv-move-no">${escapeHtml(move.marker || markerForPly(move.ply))}</span>
+              <span
+                class="pv-san move-chip move-chip--interactive"
+                data-ref-id="${escapeHtml(move.refId)}"
+                data-uci="${escapeHtml(move.uci)}"
+                data-board="${escapeHtml(`${move.fenAfter}|${move.uci}`)}"
+                tabindex="0"
+                role="button"
+                aria-label="Preview move ${escapeHtml(move.san)}"
+              >${escapeHtml(move.san)}</span>
+            `,
+                    )
+                    .join(' ');
+                return `
+          <div class="variation-item variation-item--saved">
+            <div class="pv-line">${moves}</div>
+          </div>
+        `;
+            })
+            .join('')}
+      </div>
+    `
+            : '';
+
+    return `
+      <div class="bookmaker-content bookmaker-content--saved">
+        <div class="bookmaker-toolbar">
+          <span class="bookmaker-saved-pill">Saved in study</span>
+        </div>
+        <div class="bookmaker-pv-preview"></div>
+        <div class="commentary">${paragraphs}</div>
+        ${alternatives}
+      </div>
+    `;
+}
+
+function studyNodeLabel(ctrl: AnalyseCtrl | undefined, path: string): string {
+    if (!ctrl) return path || 'Root';
+    const node = ctrl.tree.nodeAtPath(path);
+    if (!node || !path) return 'Initial position';
+    const san = typeof node.san === 'string' ? node.san.trim() : '';
+    if (!san) return 'Initial position';
+    return `${markerForPly(node.ply)} ${san}`;
+}
+
+function summarizeCommentary(text: string | null | undefined): string {
+    const normalized = (text || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return 'Saved commentary';
+    if (normalized.length <= 140) return normalized;
+    return `${normalized.slice(0, 137).trimEnd()}...`;
+}
+
+function renderStudyReadingSurface(ctrl: AnalyseCtrl | undefined, ref: StudyBookmakerRef, currentPath: string): string | null {
+    const snapshots = listStudyBookmakerSnapshots(ref)
+        .filter(snapshot => snapshot.commentPath !== currentPath)
+        .slice(0, 8);
+    if (!snapshots.length) return null;
+
+    const items = snapshots
+        .map(snapshot => {
+            const label = studyNodeLabel(ctrl, snapshot.commentPath);
+            const excerpt = summarizeCommentary(snapshot.commentary);
+            return `
+              <button
+                type="button"
+                class="bookmaker-study-reading__item"
+                data-bookmaker-study-path="${escapeHtml(snapshot.commentPath)}"
+              >
+                <span class="bookmaker-study-reading__label">${escapeHtml(label)}</span>
+                <span class="bookmaker-study-reading__excerpt">${escapeHtml(excerpt)}</span>
+              </button>
+            `;
+        })
+        .join('');
+
+    return `
+      <div class="bookmaker-study-reading">
+        <div class="bookmaker-study-reading__title">Saved study commentary</div>
+        <div class="bookmaker-study-reading__list">${items}</div>
+      </div>
+    `;
+}
+
+type BookmakerMoveRef = {
+    refId: string;
+    san: string;
+    uci: string;
+    fenAfter: string;
+};
+
+type BookmakerRefIndex = {
+    firstBySan: Map<string, BookmakerMoveRef>;
+    anyBySan: Map<string, BookmakerMoveRef>;
+};
+
+function buildBookmakerRefIndex(refs: BookmakerRefsV1 | null): BookmakerRefIndex {
+    const firstBySan = new Map<string, BookmakerMoveRef>();
+    const anyBySan = new Map<string, BookmakerMoveRef>();
+    if (!refs) return { firstBySan, anyBySan };
+
+    refs.variations.forEach(variation => {
+        variation.moves.forEach((move, idx) => {
+            const normalized = normalizeSanToken(move.san);
+            if (!normalized) return;
+            const ref: BookmakerMoveRef = {
+                refId: move.refId,
+                san: move.san,
+                uci: move.uci,
+                fenAfter: move.fenAfter,
+            };
+            if (idx === 0 && !firstBySan.has(normalized)) firstBySan.set(normalized, ref);
+            if (!anyBySan.has(normalized)) anyBySan.set(normalized, ref);
+        });
+    });
+
+    return { firstBySan, anyBySan };
+}
+
+function renderBookmakerMoveChip(
+    label: string,
+    move: string | null | undefined,
+    refIndex: Map<string, BookmakerMoveRef>,
+    tone: 'chosen' | 'engine' | 'deferred',
+): string | null {
+    const normalized = normalizeSanToken(move);
+    const raw = move?.trim() || normalized;
+    if (!normalized || !raw) return null;
+    const ref = refIndex.get(normalized);
+    const attrs = ref
+        ? ` data-ref-id="${escapeHtml(ref.refId)}" data-uci="${escapeHtml(ref.uci)}" data-san="${escapeHtml(ref.san)}" tabindex="0"`
+        : '';
+    const interactiveClass = ref ? ' move-chip move-chip--interactive' : '';
+
+    return `
+      <span class="bookmaker-decision-compare__move bookmaker-decision-compare__move--${tone}">
+        <span class="bookmaker-decision-compare__move-label">${escapeHtml(label)}</span>
+        <span class="bookmaker-decision-compare__move-chip${interactiveClass}"${attrs}>${escapeHtml(raw)}</span>
+      </span>
+    `;
+}
+
+function renderDecisionCompareStrip(
+    comparison: NarrativeSignalDigest['decisionComparison'],
+    holdReason: string | null,
+    refIndex: BookmakerRefIndex,
+): string | null {
+    const surface = buildDecisionComparisonSurface(comparison, {
+        includeEngineLine: false,
+        includeEvidence: false,
+    });
+    const chosen = comparison?.chosenMove?.trim() || '';
+    const best = comparison?.engineBestMove?.trim() || '';
+    const deferred = comparison?.deferredMove?.trim() || '';
+    const secondary = surface.secondary || holdReason;
+
+    const moveBits = [
+        renderBookmakerMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
+        !surface.chosenMatchesBest ? renderBookmakerMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
+        deferred ? renderBookmakerMoveChip(comparison?.practicalAlternative ? 'Practical' : 'Deferred', deferred, refIndex.firstBySan, 'deferred') : null,
+    ].filter(Boolean);
+
+    if (!moveBits.length && !secondary) return null;
+
+    const classes = [
+        'bookmaker-decision-compare',
+        surface.chosenMatchesBest ? 'bookmaker-decision-compare--match' : '',
+        !surface.headline ? 'bookmaker-decision-compare--fallback' : '',
+    ]
+        .filter(Boolean)
+        .join(' ');
+    const kicker = !surface.headline ? 'Alternative context' : 'Decision compare';
+
+    return `
+      <div class="${classes}">
+        <div class="bookmaker-decision-compare__topline">
+          <span class="bookmaker-decision-compare__kicker">${escapeHtml(kicker)}</span>
+          ${surface.gap ? `<span class="bookmaker-decision-compare__gap">${escapeHtml(surface.gap)}</span>` : ''}
+        </div>
+        ${moveBits.length ? `<div class="bookmaker-decision-compare__moves">${moveBits.join('')}</div>` : ''}
+        ${secondary ? `<div class="bookmaker-decision-compare__secondary">${escapeHtml(secondary)}</div>` : ''}
+      </div>
+    `;
+}
+
 function decorateBookmakerHtml(
     html: string,
+    refs: BookmakerRefsV1 | null,
     signalDigest: NarrativeSignalDigest | null,
     mainPlans: Array<{ planName?: string; score?: number }>,
     latentPlans: Array<{ planName?: string; viabilityScore?: number }>,
@@ -189,6 +482,8 @@ function decorateBookmakerHtml(
     const alignmentReasons = (signalDigest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
     const practicalFactors = (signalDigest?.practicalFactors || []).filter(Boolean).slice(0, 2);
     const compensationVectors = (signalDigest?.compensationVectors || []).filter(Boolean).slice(0, 3);
+    const decisionComparison = signalDigest?.decisionComparison;
+    const refIndex = buildBookmakerRefIndex(refs);
     const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
     const planText = mainPlans
         .slice(0, 2)
@@ -215,6 +510,8 @@ function decorateBookmakerHtml(
     if (latentText) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Latent:</strong> ${latentText}</div>`);
     if (signalDigest?.opening) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Opening:</strong> ${escapeHtml(signalDigest.opening)}</div>`);
     if (signalDigest?.decision) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Decision:</strong> ${escapeHtml(signalDigest.decision)}</div>`);
+    const decisionStrip = renderDecisionCompareStrip(decisionComparison, holdReasons[0]?.trim() || null, refIndex);
+    if (decisionStrip) rows.push(decisionStrip);
     if (signalDigest?.strategicFlow)
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Flow:</strong> ${escapeHtml(signalDigest.strategicFlow)}</div>`);
     if (signalDigest?.opponentPlan)
@@ -253,9 +550,6 @@ function decorateBookmakerHtml(
         ].filter(Boolean);
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Compensation:</strong> ${escapeHtml(compensationDetails.join(' · '))}</div>`);
     }
-    if (holdReasons.length)
-        rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Why not top line:</strong> ${escapeHtml(holdReasons.slice(0, 2).join('; '))}</div>`);
-
     probeRequests
         .slice(0, 2)
         .forEach((probe, idx) => {
@@ -316,9 +610,14 @@ function decorateBookmakerHtml(
                     formatEvidenceScore(branch.evalCp, branch.mate),
                     typeof branch.depth === 'number' ? `d${branch.depth}` : '',
                 ].filter(Boolean);
+                const normalizedKeyMove = normalizeSanToken(branch.keyMove);
+                const moveRef = refIndex.anyBySan.get(normalizedKeyMove);
+                const branchMove = moveRef
+                    ? `<span class="bookmaker-authoring-summary__branch-move move-chip move-chip--interactive" data-ref-id="${escapeHtml(moveRef.refId)}" data-uci="${escapeHtml(moveRef.uci)}" data-san="${escapeHtml(moveRef.san)}" tabindex="0">${escapeHtml(branch.keyMove)}</span>`
+                    : `<code>${escapeHtml(branch.keyMove)}</code>`;
                 return `
                   <div class="bookmaker-authoring-summary__branch">
-                    <code>${escapeHtml(branch.keyMove)}</code>
+                    ${branchMove}
                     <span>${escapeHtml(details.join(' · '))}</span>
                   </div>
                 `;
@@ -400,6 +699,10 @@ const bookmakerEvalDisplay = storedBooleanPropWithEffect('analyse.bookmaker.show
     syncBookmakerEvalDisplay(value);
 });
 
+export function requestBookmakerCurrent(opts?: { force?: boolean }): void {
+    bookmakerRequestTrigger?.(opts);
+}
+
 export function bookmakerToggleBox(ctrl?: AnalyseCtrl) {
     initBookmakerHandlers(() => bookmakerEvalDisplay(!bookmakerEvalDisplay()));
 
@@ -424,6 +727,20 @@ export function bookmakerToggleBox(ctrl?: AnalyseCtrl) {
 
     syncBookmakerEvalDisplay(bookmakerEvalDisplay());
     bookmakerRestore(ctrl);
+
+    const body = document.body;
+    if (!body.dataset.bookmakerRequestInit) {
+        body.dataset.bookmakerRequestInit = '1';
+        $(body).on('click.bookmaker-request', '[data-bookmaker-request]', function (this: HTMLElement, e) {
+            e.preventDefault();
+            requestBookmakerCurrent({ force: this.dataset.bookmakerForce === '1' });
+        });
+        $(body).on('click.bookmaker-study-nav', '[data-bookmaker-study-path]', function (this: HTMLElement, e) {
+            e.preventDefault();
+            const path = this.dataset.bookmakerStudyPath;
+            if (path && ctrl?.userJumpIfCan) ctrl.userJumpIfCan(path);
+        });
+    }
 }
 
 export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrative {
@@ -433,6 +750,27 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
     const bookmakerEndpoint = '/api/llm/bookmaker-position';
     let loadingTicker: number | null = null;
+    let activeOpeningFetchController: AbortController | null = null;
+    let activeInitialFetchController: AbortController | null = null;
+    let activeRefinedFetchController: AbortController | null = null;
+    let activeRequestKey: string | null = null;
+
+    type CurrentBookmakerContext = {
+        nodes: Tree.Node[];
+        node: Tree.Node;
+        fen: string;
+        playedMove: string | null;
+        analysisFen: string;
+        analysisCeval: any;
+        commentPath: string;
+        originPath: string;
+        stateKey: string;
+        requestToken: PlanStateToken | null;
+        requestEndgameToken: EndgameStateToken | null;
+        cacheKey: string;
+    };
+
+    let currentContext: CurrentBookmakerContext | null = null;
 
     const canonicalize = (value: unknown): string => {
         if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
@@ -538,6 +876,80 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         root.setAttribute('data-llm-hold-reasons-count', String(holdReasonsCount));
     };
 
+    const resetMetaOnRoot = () => {
+        applyMetaToRoot(null, null, null, null);
+        applyStrategicMetaToRoot(0, 0, 0);
+    };
+
+    const applyCachedEntry = (entry: BookmakerCacheEntry) => {
+        setBookmakerRefs(entry.refs);
+        show(entry.html);
+        applyMetaToRoot(entry.sourceMode, entry.model, entry.cacheHit, entry.polishMeta);
+        applyStrategicMetaToRoot(entry.mainPlansCount, entry.latentPlansCount, entry.holdReasonsCount);
+    };
+
+    const restoreStudySnapshotForContext = (context: CurrentBookmakerContext): boolean => {
+        const ref = currentStudyBookmakerRef(ctrl);
+        if (!ref) return false;
+        const snapshot = readStudyBookmakerSnapshot(ref, context.commentPath);
+        if (!snapshot?.entry?.html) return false;
+        cache.set(context.cacheKey, snapshot.entry);
+        applyCachedEntry(snapshot.entry);
+        return true;
+    };
+
+    const restoreSessionSnapshotForContext = (context: CurrentBookmakerContext): boolean => {
+        const snapshot = readSessionBookmakerSnapshot(currentBookmakerSessionScope(), context.commentPath);
+        if (!snapshot?.entry?.html) return false;
+        cache.set(context.cacheKey, snapshot.entry);
+        applyCachedEntry(snapshot.entry);
+        return true;
+    };
+
+    const restoreStudyFallbackForContext = (context: CurrentBookmakerContext): boolean => {
+        const ref = currentStudyBookmakerRef(ctrl);
+        if (!ref) return false;
+        const commentary = findSavedStudyAiComment(context.node);
+        if (!commentary) return false;
+        const refs = buildSavedStudyRefs(ctrl, context.originPath, context.commentPath);
+        const entry: BookmakerCacheEntry = {
+            html: renderSavedStudyFallbackHtml(commentary, refs),
+            refs,
+            polishMeta: null,
+            sourceMode: 'study_saved',
+            model: null,
+            cacheHit: true,
+            mainPlansCount: 0,
+            latentPlansCount: 0,
+            holdReasonsCount: 0,
+        };
+        cache.set(context.cacheKey, entry);
+        persistStudyBookmakerSnapshot(ref, context.commentPath, context.originPath, commentary, entry);
+        applyCachedEntry(entry);
+        return true;
+    };
+
+    const persistBookmakerSnapshot = (
+        context: CurrentBookmakerContext,
+        commentary: string | null,
+        entry: BookmakerCacheEntry,
+    ) => {
+        persistSessionBookmakerSnapshot(currentBookmakerSessionScope(), context.commentPath, commentary, entry);
+        const studyRef = currentStudyBookmakerRef(ctrl);
+        if (studyRef)
+            persistStudyBookmakerSnapshot(studyRef, context.commentPath, context.originPath, commentary, entry);
+    };
+
+    const abortNetwork = () => {
+        activeOpeningFetchController?.abort();
+        activeInitialFetchController?.abort();
+        activeRefinedFetchController?.abort();
+        activeOpeningFetchController = null;
+        activeInitialFetchController = null;
+        activeRefinedFetchController = null;
+        activeRequestKey = null;
+    };
+
     const stopLoadingTicker = () => {
         if (loadingTicker !== null) {
             window.clearInterval(loadingTicker);
@@ -587,317 +999,428 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     const loginHref = () =>
         `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
 
-    return debounce(
-        async (nodes: Tree.Node[]) => {
-            const node = nodes[nodes.length - 1];
-            if (!node?.fen) {
-                setBookmakerRefs(null);
-                return show('');
-            }
+    const suspiciousFallback = (text: string): boolean =>
+        /under strict evidence mode|probe evidence pending|theme:|subplan:|\{seed\}|PlayableByPV/i.test(text);
 
-            const fen = node.fen;
-            const prevNode = nodes.length >= 2 ? nodes[nodes.length - 2] : undefined;
-            const playedMove = typeof node.uci === 'string' && prevNode?.fen ? node.uci : null;
-            const analysisFen = playedMove ? prevNode!.fen : fen;
-            const analysisCeval = playedMove ? prevNode?.ceval : node.ceval;
-            const commentPath = ctrl?.path ?? '';
-            const originPath = playedMove ? treePath.init(commentPath) : commentPath;
-            const stateKey = stateKeyOf(originPath, analysisFen);
-            const syncStudy = (commentary: string, lines: any[]) => {
-                if (!commentary) return;
-                const payload = { commentPath, originPath, commentary, variations: lines };
-                rememberBookmakerStudySync(payload);
-                if (ctrl?.canWriteStudy()) ctrl.syncBookmaker(payload);
-            };
+    const showIdle = () => {
+        setBookmakerRefs(null);
+        resetMetaOnRoot();
+        const ref = currentStudyBookmakerRef(ctrl);
+        const readingSurface =
+            ref && currentContext ? renderStudyReadingSurface(ctrl, ref, currentContext.commentPath) : null;
+        show(`${bookmakerIdleHtml()}${readingSurface || ''}`);
+    };
 
-            if (requestsBlocked) {
-                if (blockedHtml) show(blockedHtml);
-                setBookmakerRefs(null);
-                return;
-            }
-            const requestToken = planStateByPath.get(stateKey) ?? null;
-            const requestEndgameToken = endgameStateByPath.get(stateKey) ?? null;
-            const cacheKey = cacheKeyOf(fen, originPath, requestToken, requestEndgameToken);
-            const cached = cache.get(cacheKey);
+    const showRetry = (message?: string) => {
+        setBookmakerRefs(null);
+        resetMetaOnRoot();
+        show(bookmakerRetryHtml(message));
+    };
+
+    const syncStudy = (commentPath: string, originPath: string, commentary: string, lines: any[]) => {
+        if (!commentary) return;
+        const payload = { commentPath, originPath, commentary, variations: lines };
+        rememberBookmakerStudySync(payload);
+        if (ctrl?.canWriteStudy()) ctrl.syncBookmaker(payload);
+    };
+
+    const runCurrentRequest = async (opts?: { force?: boolean }) => {
+        const context = currentContext;
+        if (!context) return;
+        const force = !!opts?.force;
+        if (requestsBlocked) {
+            if (blockedHtml) show(blockedHtml);
+            setBookmakerRefs(null);
+            return;
+        }
+
+        if (force) cache.delete(context.cacheKey);
+        else {
+            const cached = cache.get(context.cacheKey);
             if (cached) {
-                setBookmakerRefs(cached.refs);
-                show(cached.html);
-                applyMetaToRoot(cached.sourceMode, cached.model, cached.cacheHit, cached.polishMeta);
-                applyStrategicMetaToRoot(cached.mainPlansCount, cached.latentPlansCount, cached.holdReasonsCount);
+                applyCachedEntry(cached);
+                return;
+            }
+            if (restoreStudySnapshotForContext(context)) return;
+            if (restoreSessionSnapshotForContext(context)) return;
+            if (restoreStudyFallbackForContext(context)) return;
+            if (activeRequestKey === context.cacheKey) return;
+        }
+
+        abortNetwork();
+        activeProbeSession++;
+        probes.stop();
+        const probeSession = activeProbeSession;
+        const requestKey = context.cacheKey;
+        activeRequestKey = requestKey;
+        lastRequestedFen = context.fen;
+        const isCurrentSession = () =>
+            probeSession === activeProbeSession && lastRequestedFen === context.fen && activeRequestKey === requestKey;
+
+        try {
+            setLoadingStage('position', isCurrentSession);
+
+            const targetDepth = 20;
+            const targetMultiPv = 5;
+            const analysisTimeoutMs = 15000;
+
+            let analysisEval: any = context.analysisCeval;
+            let variations = probes.evalToVariations(analysisEval, targetMultiPv);
+            if ((!variations || variations.length < targetMultiPv) && ctrl) {
+                setLoadingStage('lines', isCurrentSession);
+                analysisEval = await probes.runPositionEval(
+                    context.analysisFen,
+                    targetDepth,
+                    analysisTimeoutMs,
+                    targetMultiPv,
+                    probeSession,
+                );
+                if (!isCurrentSession()) {
+                    stopLoadingTicker();
+                    return;
+                }
+                variations = probes.evalToVariations(analysisEval, targetMultiPv);
+            }
+
+            if (
+                context.playedMove &&
+                variations &&
+                !variations.some(v => Array.isArray(v.moves) && v.moves[0] === context.playedMove) &&
+                ctrl
+            ) {
+                setLoadingStage('lines', isCurrentSession);
+                const playedEv = await probes.runProbeEval(context.analysisFen, context.playedMove, targetDepth, 5000, 1, probeSession);
+                if (!isCurrentSession()) {
+                    stopLoadingTicker();
+                    return;
+                }
+                if (playedEv) {
+                    const replyPv = Array.isArray(playedEv.pvs) ? playedEv.pvs[0]?.moves : null;
+                    const playedVar = {
+                        moves: [context.playedMove, ...(Array.isArray(replyPv) ? replyPv.slice(0, 28) : [])],
+                        scoreCp: typeof playedEv.cp === 'number' ? playedEv.cp : 0,
+                        mate: typeof playedEv.mate === 'number' ? playedEv.mate : null,
+                        depth: typeof playedEv.depth === 'number' ? playedEv.depth : targetDepth,
+                    };
+                    variations = [...variations, playedVar].slice(0, targetMultiPv + 1);
+                }
+            }
+
+            const afterFen = context.playedMove ? context.fen : null;
+            let afterVariations = afterFen ? probes.evalToVariations(context.playedMove ? context.node.ceval : null, 1) : null;
+            afterVariations = deriveAfterVariations(afterFen, afterVariations, context.playedMove, variations);
+            const evalData = toEvalData(variations);
+
+            const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
+            const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
+            setLoadingStage('compose', isCurrentSession);
+            activeOpeningFetchController = new AbortController();
+            const openingData = await fetchOpeningReferenceViaProxy(
+                context.analysisFen,
+                context.node.ply,
+                useExplorerProxy,
+                activeOpeningFetchController.signal,
+            );
+            activeOpeningFetchController = null;
+            if (!isCurrentSession()) {
+                stopLoadingTicker();
+                return;
+            }
+            const initialPayload = buildBookmakerRequest({
+                fen: context.analysisFen,
+                lastMove: context.playedMove || null,
+                variations,
+                probeResults: null,
+                openingData,
+                afterFen,
+                afterVariations,
+                phase: phaseOf(context.node.ply),
+                ply: context.node.ply,
+                planStateToken: context.requestToken,
+                endgameStateToken: context.requestEndgameToken,
+            });
+
+            setLoadingStage('polish', isCurrentSession);
+            activeInitialFetchController = new AbortController();
+            const res = await fetch(bookmakerEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(initialPayload),
+                signal: activeInitialFetchController.signal,
+            });
+            activeInitialFetchController = null;
+
+            if (!isCurrentSession()) {
+                stopLoadingTicker();
+                return;
+            }
+            stopLoadingTicker();
+
+            if (!res.ok) {
+                const blocked = await blockedHtmlFromErrorResponse(res, loginHref());
+                if (!blocked) {
+                    activeRequestKey = null;
+                    return showRetry();
+                }
+                blockedHtml = blocked;
+                requestsBlocked = true;
+                setBookmakerRefs(null);
+                show(blockedHtml);
+                activeRequestKey = null;
                 return;
             }
 
-            activeProbeSession++;
-            probes.stop();
-            const probeSession = activeProbeSession;
-            const isCurrentSession = () => probeSession === activeProbeSession && lastRequestedFen === fen;
+            const data = await res.json();
+            const emittedToken = planStateTokenFromResponse(data);
+            const emittedEndgameToken = endgameStateTokenFromResponse(data);
+            if (emittedToken) planStateByPath.set(context.stateKey, emittedToken);
+            else planStateByPath.delete(context.stateKey);
+            if (emittedEndgameToken) endgameStateByPath.set(context.stateKey, emittedEndgameToken);
+            else endgameStateByPath.delete(context.stateKey);
+            const html = htmlFromResponse(data);
+            const sourceMode = sourceModeFromResponse(data);
+            const model = modelFromResponse(data);
+            const cacheHit = cacheHitFromResponse(data);
+            const refs = refsFromResponse(data);
+            const polishMeta = polishMetaFromResponse(data);
+            const commentary = commentaryFromResponse(data);
+            if ((sourceMode?.startsWith('fallback_rule') || sourceMode === 'rule_circuit_open') && suspiciousFallback(commentary)) {
+                activeRequestKey = null;
+                return showRetry('Commentary timed out before polish completed. Retry for a clean explanation.');
+            }
+            const signalDigest = signalDigestFromResponse(data);
+            const mainStrategicPlans = mainStrategicPlansFromResponse(data);
+            const latentPlans = latentPlansFromResponse(data);
+            const holdReasons = whyAbsentFromTopMultiPVFromResponse(data);
+            const probeRequests = probeRequestsFromResponse(data);
+            const authorQuestions = authorQuestionsFromResponse(data);
+            const authorEvidence = authorEvidenceFromResponse(data);
+            const decoratedHtml = decorateBookmakerHtml(
+                html,
+                refs,
+                signalDigest,
+                mainStrategicPlans,
+                latentPlans,
+                holdReasons,
+                probeRequests,
+                authorQuestions,
+                authorEvidence,
+            );
+            const shouldStream = sourceMode === 'llm_polished' && commentary.length > 0;
 
-            lastRequestedFen = fen;
-            try {
-                setLoadingStage('position', isCurrentSession);
-
-                const targetDepth = 20;
-                const targetMultiPv = 5;
-                const analysisTimeoutMs = 15000;
-
-                let analysisEval: any = analysisCeval;
-                let variations = probes.evalToVariations(analysisEval, targetMultiPv);
-                if ((!variations || variations.length < targetMultiPv) && ctrl) {
-                    setLoadingStage('lines', isCurrentSession);
-                    analysisEval = await probes.runPositionEval(analysisFen, targetDepth, analysisTimeoutMs, targetMultiPv, probeSession);
-                    if (!isCurrentSession()) {
-                        stopLoadingTicker();
-                        return;
-                    }
-                    variations = probes.evalToVariations(analysisEval, targetMultiPv);
-                }
-
-                if (playedMove && variations && !variations.some(v => Array.isArray(v.moves) && v.moves[0] === playedMove) && ctrl) {
-                    setLoadingStage('lines', isCurrentSession);
-                    const playedEv = await probes.runProbeEval(analysisFen, playedMove, targetDepth, 5000, 1, probeSession);
-                    if (!isCurrentSession()) {
-                        stopLoadingTicker();
-                        return;
-                    }
-                    if (playedEv) {
-                        const replyPv = Array.isArray(playedEv.pvs) ? playedEv.pvs[0]?.moves : null;
-                        const playedVar = {
-                            moves: [playedMove, ...(Array.isArray(replyPv) ? replyPv.slice(0, 28) : [])],
-                            scoreCp: typeof playedEv.cp === 'number' ? playedEv.cp : 0,
-                            mate: typeof playedEv.mate === 'number' ? playedEv.mate : null,
-                            depth: typeof playedEv.depth === 'number' ? playedEv.depth : targetDepth,
-                        };
-                        variations = [...variations, playedVar].slice(0, targetMultiPv + 1);
-                    }
-                }
-
-                const afterFen = playedMove ? fen : null;
-                let afterVariations = afterFen ? probes.evalToVariations(playedMove ? node.ceval : null, 1) : null;
-                afterVariations = deriveAfterVariations(afterFen, afterVariations, playedMove, variations);
-                const evalData = toEvalData(variations);
-
-                const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
-                const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
-                setLoadingStage('compose', isCurrentSession);
-                const openingData = await fetchOpeningReferenceViaProxy(analysisFen, node.ply, useExplorerProxy);
+            if (shouldStream) {
+                await streamReveal(commentary, isCurrentSession);
                 if (!isCurrentSession()) {
                     stopLoadingTicker();
                     return;
                 }
-                const initialPayload = buildBookmakerRequest({
-                    fen: analysisFen,
-                    lastMove: playedMove || null,
-                    variations,
-                    probeResults: null,
-                    openingData,
-                    afterFen,
-                    afterVariations,
-                    phase: phaseOf(node.ply),
-                    ply: node.ply,
-                    planStateToken: requestToken,
-                    endgameStateToken: requestEndgameToken,
-                });
+            }
 
-                setLoadingStage('polish', isCurrentSession);
-                const res = await fetch(bookmakerEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(initialPayload),
-                });
+            const initialEntry: BookmakerCacheEntry = {
+                html: decoratedHtml,
+                refs,
+                polishMeta,
+                sourceMode,
+                model,
+                cacheHit,
+                mainPlansCount: mainStrategicPlans.length,
+                latentPlansCount: latentPlans.length,
+                holdReasonsCount: holdReasons.length,
+            };
+            cache.set(context.cacheKey, initialEntry);
+            persistBookmakerSnapshot(context, commentary, initialEntry);
+            applyCachedEntry(initialEntry);
 
-                if (!isCurrentSession()) {
-                    stopLoadingTicker();
-                    return;
-                }
-                stopLoadingTicker();
+            const vLines = variationLinesFromResponse(data, variations);
+            syncStudy(context.commentPath, context.originPath, commentary, vLines);
 
-                if (res.ok) {
-                    const data = await res.json();
-                    const emittedToken = planStateTokenFromResponse(data);
-                    const emittedEndgameToken = endgameStateTokenFromResponse(data);
-                    if (emittedToken) planStateByPath.set(stateKey, emittedToken);
-                    else planStateByPath.delete(stateKey);
-                    if (emittedEndgameToken) endgameStateByPath.set(stateKey, emittedEndgameToken);
-                    else endgameStateByPath.delete(stateKey);
-                    const html = htmlFromResponse(data);
-                    const sourceMode = sourceModeFromResponse(data);
-                    const model = modelFromResponse(data);
-                    const cacheHit = cacheHitFromResponse(data);
-                    const refs = refsFromResponse(data);
-                    const polishMeta = polishMetaFromResponse(data);
-                    const commentary = commentaryFromResponse(data);
-                    const signalDigest = signalDigestFromResponse(data);
-                    const mainStrategicPlans = mainStrategicPlansFromResponse(data);
-                    const latentPlans = latentPlansFromResponse(data);
-                    const holdReasons = whyAbsentFromTopMultiPVFromResponse(data);
-                    const probeRequests = probeRequestsFromResponse(data);
-                    const authorQuestions = authorQuestionsFromResponse(data);
-                    const authorEvidence = authorEvidenceFromResponse(data);
-                    const decoratedHtml = decorateBookmakerHtml(
-                        html,
-                        signalDigest,
-                        mainStrategicPlans,
-                        latentPlans,
-                        holdReasons,
-                        probeRequests,
-                        authorQuestions,
-                        authorEvidence,
-                    );
-                    const shouldStream = sourceMode === 'llm_polished' && commentary.length > 0;
+            const baselineCp = toBaselineCp(variations, evalData);
 
-                    if (shouldStream) {
-                        await streamReveal(commentary, isCurrentSession);
-                        if (!isCurrentSession()) {
-                            stopLoadingTicker();
+            if (probeRequests.length && ctrl) {
+                void (async () => {
+                    const probeResults = await probes.runProbes(probeRequests, baselineCp, probeSession);
+                    if (!isCurrentSession()) return;
+                    if (!probeResults.length) return;
+
+                    try {
+                        const refinedToken = planStateByPath.get(context.stateKey) ?? context.requestToken;
+                        const refinedEndgameToken = endgameStateByPath.get(context.stateKey) ?? context.requestEndgameToken;
+                        const refinedCacheKey = cacheKeyOf(context.fen, context.originPath, refinedToken, refinedEndgameToken);
+                        const refinedPayload = buildBookmakerRequest({
+                            fen: context.analysisFen,
+                            lastMove: context.playedMove || null,
+                            variations,
+                            probeResults,
+                            openingData,
+                            afterFen,
+                            afterVariations,
+                            phase: phaseOf(context.node.ply),
+                            ply: context.node.ply,
+                            planStateToken: refinedToken,
+                            endgameStateToken: refinedEndgameToken,
+                        });
+                        activeRefinedFetchController = new AbortController();
+                        const refinedRes = await fetch(bookmakerEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(refinedPayload),
+                            signal: activeRefinedFetchController.signal,
+                        });
+                        activeRefinedFetchController = null;
+
+                        if (!isCurrentSession() || !refinedRes.ok) return;
+
+                        const refined = await refinedRes.json();
+                        const emittedRefinedToken = planStateTokenFromResponse(refined);
+                        const emittedRefinedEndgameToken = endgameStateTokenFromResponse(refined);
+                        if (emittedRefinedToken) planStateByPath.set(context.stateKey, emittedRefinedToken);
+                        else planStateByPath.delete(context.stateKey);
+                        if (emittedRefinedEndgameToken) endgameStateByPath.set(context.stateKey, emittedRefinedEndgameToken);
+                        else endgameStateByPath.delete(context.stateKey);
+                        const refinedHtml = htmlFromResponse(refined, html);
+                        const refinedSourceMode = sourceModeFromResponse(refined);
+                        const refinedModel = modelFromResponse(refined);
+                        const refinedCacheHit = cacheHitFromResponse(refined);
+                        const refinedRefs = refsFromResponse(refined);
+                        const refinedPolishMeta = polishMetaFromResponse(refined);
+                        const refinedCommentary = commentaryFromResponse(refined, commentary);
+                        if (
+                            (refinedSourceMode?.startsWith('fallback_rule') || refinedSourceMode === 'rule_circuit_open') &&
+                            suspiciousFallback(refinedCommentary)
+                        ) {
+                            activeRequestKey = null;
                             return;
                         }
+                        const refinedSignalDigest = signalDigestFromResponse(refined);
+                        const refinedMainPlans = mainStrategicPlansFromResponse(refined);
+                        const refinedLatentPlans = latentPlansFromResponse(refined);
+                        const refinedHoldReasons = whyAbsentFromTopMultiPVFromResponse(refined);
+                        const refinedProbeRequests = probeRequests.length ? probeRequests : probeRequestsFromResponse(refined);
+                        const refinedAuthorQuestionsRaw = authorQuestionsFromResponse(refined);
+                        const refinedAuthorEvidenceRaw = authorEvidenceFromResponse(refined);
+                        const refinedAuthorQuestions = refinedAuthorQuestionsRaw.length ? refinedAuthorQuestionsRaw : authorQuestions;
+                        const refinedAuthorEvidence = refinedAuthorEvidenceRaw.length ? refinedAuthorEvidenceRaw : authorEvidence;
+                        const decoratedRefinedHtml = decorateBookmakerHtml(
+                            refinedHtml,
+                            refinedRefs,
+                            refinedSignalDigest,
+                            refinedMainPlans,
+                            refinedLatentPlans,
+                            refinedHoldReasons,
+                            refinedProbeRequests,
+                            refinedAuthorQuestions,
+                            refinedAuthorEvidence,
+                        );
+                        const refinedEntry: BookmakerCacheEntry = {
+                            html: decoratedRefinedHtml,
+                            refs: refinedRefs,
+                            polishMeta: refinedPolishMeta,
+                            sourceMode: refinedSourceMode,
+                            model: refinedModel,
+                            cacheHit: refinedCacheHit,
+                            mainPlansCount: refinedMainPlans.length,
+                            latentPlansCount: refinedLatentPlans.length,
+                            holdReasonsCount: refinedHoldReasons.length,
+                        };
+                        cache.set(refinedCacheKey, refinedEntry);
+                        persistBookmakerSnapshot(context, refinedCommentary, refinedEntry);
+                        if (currentContext?.cacheKey === refinedCacheKey && isCurrentSession()) {
+                            applyCachedEntry(refinedEntry);
+                        }
+
+                        const refinedLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));
+                        syncStudy(context.commentPath, context.originPath, refinedCommentary, refinedLines);
+                    } catch (err) {
+                        if (!(err instanceof DOMException && err.name === 'AbortError') && isCurrentSession()) {
+                            showRetry('The refined follow-up could not finish. The first draft remains available.');
+                        }
                     }
-
-                    const initialEntry: BookmakerCacheEntry = {
-                        html: decoratedHtml,
-                        refs,
-                        polishMeta,
-                        sourceMode,
-                        model,
-                        cacheHit,
-                        mainPlansCount: mainStrategicPlans.length,
-                        latentPlansCount: latentPlans.length,
-                        holdReasonsCount: holdReasons.length,
-                    };
-                    cache.set(cacheKey, initialEntry);
-                    setBookmakerRefs(refs);
-                    show(decoratedHtml);
-                    applyMetaToRoot(sourceMode, model, cacheHit, polishMeta);
-                    applyStrategicMetaToRoot(mainStrategicPlans.length, latentPlans.length, holdReasons.length);
-
-                    const vLines = variationLinesFromResponse(data, variations);
-                    syncStudy(commentary, vLines);
-
-                    const baselineCp = toBaselineCp(variations, evalData);
-
-                    if (probeRequests.length && ctrl) {
-                        void (async () => {
-                            const probeResults = await probes.runProbes(probeRequests, baselineCp, probeSession);
-                            if (!isCurrentSession()) return;
-                            if (!probeResults.length) return;
-
-                            try {
-                                const refinedToken = planStateByPath.get(stateKey) ?? requestToken;
-                                const refinedEndgameToken = endgameStateByPath.get(stateKey) ?? requestEndgameToken;
-                                const refinedCacheKey = cacheKeyOf(
-                                    fen,
-                                    originPath,
-                                    refinedToken,
-                                    refinedEndgameToken,
-                                );
-                                const refinedPayload = buildBookmakerRequest({
-                                    fen: analysisFen,
-                                    lastMove: playedMove || null,
-                                    variations,
-                                    probeResults,
-                                    openingData,
-                                    afterFen,
-                                    afterVariations,
-                                    phase: phaseOf(node.ply),
-                                    ply: node.ply,
-                                    planStateToken: refinedToken,
-                                    endgameStateToken: refinedEndgameToken,
-                                });
-                                const refinedRes = await fetch(bookmakerEndpoint, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(refinedPayload),
-                                });
-
-                                if (!isCurrentSession()) return;
-
-                                if (refinedRes.ok) {
-                                    const refined = await refinedRes.json();
-                                    const emittedRefinedToken = planStateTokenFromResponse(refined);
-                                    const emittedRefinedEndgameToken = endgameStateTokenFromResponse(refined);
-                                    if (emittedRefinedToken) planStateByPath.set(stateKey, emittedRefinedToken);
-                                    else planStateByPath.delete(stateKey);
-                                    if (emittedRefinedEndgameToken) endgameStateByPath.set(stateKey, emittedRefinedEndgameToken);
-                                    else endgameStateByPath.delete(stateKey);
-                                    const refinedHtml = htmlFromResponse(refined, html);
-                                    const refinedSourceMode = sourceModeFromResponse(refined);
-                                    const refinedModel = modelFromResponse(refined);
-                                    const refinedCacheHit = cacheHitFromResponse(refined);
-                                    const refinedRefs = refsFromResponse(refined);
-                                    const refinedPolishMeta = polishMetaFromResponse(refined);
-                                    const refinedSignalDigest = signalDigestFromResponse(refined);
-                                    const refinedMainPlans = mainStrategicPlansFromResponse(refined);
-                                    const refinedLatentPlans = latentPlansFromResponse(refined);
-                                    const refinedHoldReasons = whyAbsentFromTopMultiPVFromResponse(refined);
-                                    const refinedProbeRequests = probeRequests.length
-                                        ? probeRequests
-                                        : probeRequestsFromResponse(refined);
-                                    const refinedAuthorQuestionsRaw = authorQuestionsFromResponse(refined);
-                                    const refinedAuthorEvidenceRaw = authorEvidenceFromResponse(refined);
-                                    const refinedAuthorQuestions = refinedAuthorQuestionsRaw.length
-                                        ? refinedAuthorQuestionsRaw
-                                        : authorQuestions;
-                                    const refinedAuthorEvidence = refinedAuthorEvidenceRaw.length
-                                        ? refinedAuthorEvidenceRaw
-                                        : authorEvidence;
-                                    const decoratedRefinedHtml = decorateBookmakerHtml(
-                                        refinedHtml,
-                                        refinedSignalDigest,
-                                        refinedMainPlans,
-                                        refinedLatentPlans,
-                                        refinedHoldReasons,
-                                        refinedProbeRequests,
-                                        refinedAuthorQuestions,
-                                        refinedAuthorEvidence,
-                                    );
-                                    const refinedEntry: BookmakerCacheEntry = {
-                                        html: decoratedRefinedHtml,
-                                        refs: refinedRefs,
-                                        polishMeta: refinedPolishMeta,
-                                        sourceMode: refinedSourceMode,
-                                        model: refinedModel,
-                                        cacheHit: refinedCacheHit,
-                                        mainPlansCount: refinedMainPlans.length,
-                                        latentPlansCount: refinedLatentPlans.length,
-                                        holdReasonsCount: refinedHoldReasons.length,
-                                    };
-                                    cache.set(refinedCacheKey, refinedEntry);
-                                    setBookmakerRefs(refinedRefs);
-                                    show(decoratedRefinedHtml);
-                                    applyMetaToRoot(refinedSourceMode, refinedModel, refinedCacheHit, refinedPolishMeta);
-                                    applyStrategicMetaToRoot(
-                                        refinedMainPlans.length,
-                                        refinedLatentPlans.length,
-                                        refinedHoldReasons.length,
-                                    );
-
-                                    const commentary = commentaryFromResponse(refined, commentaryFromResponse(data));
-                                    const vLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));
-                                    syncStudy(commentary, vLines);
-                                }
-                            } catch {}
-                        })();
-                    }
-                } else {
-                    const blocked = await blockedHtmlFromErrorResponse(res, loginHref());
-                    if (!blocked) {
-                        setBookmakerRefs(null);
-                        return show('');
-                    }
-                    blockedHtml = blocked;
-                    requestsBlocked = true;
-                    setBookmakerRefs(null);
-                    show(blockedHtml);
-                }
-            } catch {
-                stopLoadingTicker();
-                setBookmakerRefs(null);
-                show('');
+                })();
             }
-        },
-        500,
-        true,
-    );
+            activeRequestKey = null;
+        } catch (err) {
+            stopLoadingTicker();
+            activeRequestKey = null;
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            showRetry();
+        }
+    };
+
+    bookmakerRequestTrigger = runCurrentRequest;
+
+    return (nodes: Tree.Node[]) => {
+        const node = nodes[nodes.length - 1];
+        if (!node?.fen) {
+            currentContext = null;
+            bookmakerRequestTrigger = runCurrentRequest;
+            abortNetwork();
+            activeProbeSession++;
+            probes.stop();
+            stopLoadingTicker();
+            lastRequestedFen = null;
+            setBookmakerRefs(null);
+            resetMetaOnRoot();
+            return show('');
+        }
+
+        const fen = node.fen;
+        const prevNode = nodes.length >= 2 ? nodes[nodes.length - 2] : undefined;
+        const playedMove = typeof node.uci === 'string' && prevNode?.fen ? node.uci : null;
+        const analysisFen = playedMove ? prevNode!.fen : fen;
+        const analysisCeval = playedMove ? prevNode?.ceval : node.ceval;
+        const commentPath = ctrl?.path ?? '';
+        const originPath = playedMove ? treePath.init(commentPath) : commentPath;
+        const stateKey = stateKeyOf(originPath, analysisFen);
+        const requestToken = planStateByPath.get(stateKey) ?? null;
+        const requestEndgameToken = endgameStateByPath.get(stateKey) ?? null;
+        const cacheKey = cacheKeyOf(fen, originPath, requestToken, requestEndgameToken);
+        const nextContext: CurrentBookmakerContext = {
+            nodes,
+            node,
+            fen,
+            playedMove,
+            analysisFen,
+            analysisCeval,
+            commentPath,
+            originPath,
+            stateKey,
+            requestToken,
+            requestEndgameToken,
+            cacheKey,
+        };
+        const sameContext =
+            currentContext?.cacheKey === nextContext.cacheKey && currentContext?.commentPath === nextContext.commentPath;
+        currentContext = nextContext;
+        bookmakerRequestTrigger = runCurrentRequest;
+
+        if (!sameContext) {
+            abortNetwork();
+            activeProbeSession++;
+            probes.stop();
+            stopLoadingTicker();
+            lastRequestedFen = null;
+        }
+
+        if (requestsBlocked) {
+            resetMetaOnRoot();
+            setBookmakerRefs(null);
+            if (blockedHtml) show(blockedHtml);
+            return;
+        }
+
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            applyCachedEntry(cached);
+            return;
+        }
+
+        if (restoreStudySnapshotForContext(nextContext)) return;
+        if (restoreSessionSnapshotForContext(nextContext)) return;
+        if (restoreStudyFallbackForContext(nextContext)) return;
+
+        if (activeRequestKey === cacheKey) return;
+        showIdle();
+    };
 }
 
 export function bookmakerClear() {

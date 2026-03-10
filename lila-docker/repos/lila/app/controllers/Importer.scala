@@ -39,6 +39,23 @@ final class Importer(
   private val recentGameTarget = 40
   private val chessComArchiveScanLimit = 8
   private val utcDateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC)
+  private def configured(path: String): Option[String] =
+    env.config.getOptional[String](path).map(_.trim).filter(_.nonEmpty)
+  private val lichessImportApiBase =
+    configured("external.import.lichess.api_base")
+      .orElse(sys.env.get("LICHESS_IMPORT_API_BASE").map(_.trim).filter(_.nonEmpty))
+      .getOrElse("https://lichess.org")
+      .stripSuffix("/")
+  private val lichessWebBase =
+    configured("external.import.lichess.web_base")
+      .orElse(sys.env.get("LICHESS_WEB_BASE").map(_.trim).filter(_.nonEmpty))
+      .getOrElse("https://lichess.org")
+      .stripSuffix("/")
+  private val chessComApiBase =
+    configured("external.import.chesscom.api_base")
+      .orElse(sys.env.get("CHESSCOM_API_BASE").map(_.trim).filter(_.nonEmpty))
+      .getOrElse("https://api.chess.com")
+      .stripSuffix("/")
 
   def importGame = Open:
     def queryParam(name: String): Option[String] =
@@ -117,7 +134,7 @@ final class Importer(
       Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
 
   private def fetchRecentLichessGames(username: String): Fu[List[GameCard]] =
-    val url = s"https://lichess.org/api/games/user/$username?max=$recentGameTarget&pgnInJson=true"
+    val url = s"$lichessImportApiBase/api/games/user/$username?max=$recentGameTarget&pgnInJson=true"
     ws.url(url)
       .withHttpHeaders("Accept" -> "application/x-ndjson")
       .withRequestTimeout(requestTimeout)
@@ -155,7 +172,7 @@ final class Importer(
           case _             => "1/2-1/2"
         val playedAt = formatEpochMs((js \ "lastMoveAt").asOpt[Long].orElse((js \ "createdAt").asOpt[Long]))
         val speed = (js \ "speed").asOpt[String].orElse((js \ "perf").asOpt[String]).getOrElse("-")
-        val sourceUrl = Some(s"https://lichess.org/$gameId")
+        val sourceUrl = Some(s"$lichessWebBase/$gameId")
         GameCard(
           provider = "lichess",
           gameId = gameId,
@@ -178,7 +195,7 @@ final class Importer(
       .getOrElse(side.capitalize)
 
   private def fetchRecentChessComGames(username: String): Fu[List[GameCard]] =
-    val archivesUrl = s"https://api.chess.com/pub/player/${username.toLowerCase}/games/archives"
+    val archivesUrl = s"$chessComApiBase/pub/player/${username.toLowerCase}/games/archives"
     ws.url(archivesUrl)
       .withRequestTimeout(requestTimeout)
       .get()

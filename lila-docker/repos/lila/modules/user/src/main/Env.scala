@@ -18,6 +18,8 @@ final class Env(
 
   val lightUserApi: LightUserApi = wire[LightUserApi]
 
+  lazy val deleteRequestRepo = new DeleteRequestRepo(db(CollName("user_delete_request")))
+
   export lightUserApi.{
     async as lightUser,
     sync as lightUserSync,

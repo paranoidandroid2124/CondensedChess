@@ -15,19 +15,21 @@ import lila.llm.PgnAnalysisHelper
  * P3: Client for Lichess Opening Explorer API (Masters Database).
  * Provides historical context and representative games for the narrative.
  */
-final class OpeningExplorerClient(ws: StandaloneWSClient)(using ec: ExecutionContext):
+final class OpeningExplorerClient(
+    ws: StandaloneWSClient,
+    explorerBaseConfig: Option[String] = None,
+    explorerTokenConfig: Option[String] = None
+)(using ec: ExecutionContext):
   private val explorerBase =
-    sys.env
-      .get("EXPLORER_API_BASE")
-      .map(_.trim)
-      .filter(_.nonEmpty)
+    explorerBaseConfig
+      .orElse(sys.env.get("EXPLORER_API_BASE").map(_.trim).filter(_.nonEmpty))
       .getOrElse("https://explorer.lichess.org")
       .stripSuffix("/")
   private val mastersUrl = s"$explorerBase/masters"
   private val mastersPgnUrl = s"$explorerBase/master/pgn"
   private val authHeaders =
-    sys.env
-      .get("LICHESS_EXPLORER_TOKEN")
+    explorerTokenConfig
+      .orElse(sys.env.get("LICHESS_EXPLORER_TOKEN"))
       .orElse(sys.env.get("LICHESS_API_TOKEN"))
       .map(_.trim)
       .filter(_.nonEmpty)

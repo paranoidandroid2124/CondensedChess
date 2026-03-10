@@ -1,8 +1,13 @@
 import { initMiniBoards } from 'lib/view/miniBoard';
+import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import { mountBookmakerPreview, setBookmakerPreviewOrientation } from './interactionHandlers';
 
 const bookmakerTextSelector = '.analyse__bookmaker-text';
 const bookmakerPanelSelector = '.analyse__bookmaker';
+
+function scheduleBoardResize(): void {
+  requestAnimationFrame(() => requestAnimationFrame(dispatchChessgroundResize));
+}
 
 function hydrateBookmakerPanel($text: Cash, html: string, orientation: Color, showEval: boolean): void {
   setBookmakerPreviewOrientation(orientation);
@@ -27,10 +32,12 @@ export function renderBookmakerPanel(html: string, orientation: Color, showEval:
   $(bookmakerPanelSelector).toggleClass('empty', !html);
   const $text = $(bookmakerTextSelector);
   hydrateBookmakerPanel($text, html, orientation, showEval);
+  scheduleBoardResize();
 }
 
 export function clearBookmakerPanel(): void {
   $(bookmakerPanelSelector).toggleClass('empty', true);
+  scheduleBoardResize();
 }
 
 export function restoreBookmakerPanel(lastShownHtml: string, orientation: Color, showEval: boolean): void {
@@ -39,4 +46,5 @@ export function restoreBookmakerPanel(lastShownHtml: string, orientation: Color,
   if ($text.html() || !lastShownHtml) return;
   $(bookmakerPanelSelector).toggleClass('empty', !lastShownHtml);
   hydrateBookmakerPanel($text, lastShownHtml, orientation, showEval);
+  scheduleBoardResize();
 }

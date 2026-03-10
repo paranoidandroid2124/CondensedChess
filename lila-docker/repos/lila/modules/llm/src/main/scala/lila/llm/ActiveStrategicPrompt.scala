@@ -35,11 +35,13 @@ object ActiveStrategicPrompt:
       fen: String,
       concepts: List[String],
       strategyPack: Option[StrategyPack],
+      dossier: Option[ActiveBranchDossier] = None,
       routeRefs: List[ActiveStrategicRouteRef] = Nil,
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): String =
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
     val conceptLine = if conceptStr.isEmpty then "none" else conceptStr.mkString(", ")
+    val dossierBlock = activeDossierBlock(dossier)
     val packBlock = strategyPackBlock(strategyPack)
     val routeRefSection = routeRefBlock(routeRefs)
     val moveRefSection = moveRefBlock(moveRefs)
@@ -52,6 +54,9 @@ object ActiveStrategicPrompt:
        |Moment Type: $momentType
        |FEN: $fen
        |Concepts: $conceptLine
+       |
+       |## ACTIVE DOSSIER
+       |$dossierBlock
        |
        |## STRATEGY PACK
        |$packBlock
@@ -76,6 +81,7 @@ object ActiveStrategicPrompt:
       fen: String,
       concepts: List[String],
       strategyPack: Option[StrategyPack],
+      dossier: Option[ActiveBranchDossier] = None,
       routeRefs: List[ActiveStrategicRouteRef] = Nil,
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): String =
@@ -83,6 +89,7 @@ object ActiveStrategicPrompt:
     val reasonLine = if reasons.isEmpty then "format_or_content_violation" else reasons.mkString(", ")
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
     val conceptLine = if conceptStr.isEmpty then "none" else conceptStr.mkString(", ")
+    val dossierBlock = activeDossierBlock(dossier)
     val packBlock = strategyPackBlock(strategyPack)
     val routeRefSection = routeRefBlock(routeRefs)
     val moveRefSection = moveRefBlock(moveRefs)
@@ -101,6 +108,9 @@ object ActiveStrategicPrompt:
        |Moment Type: $momentType
        |FEN: $fen
        |Concepts: $conceptLine
+       |
+       |## ACTIVE DOSSIER
+       |$dossierBlock
        |
        |## STRATEGY PACK
        |$packBlock
@@ -174,6 +184,13 @@ object ActiveStrategicPrompt:
                 digest.deploymentPurpose.map(v => s"- deployment purpose: $v"),
                 digest.deploymentContribution.map(v => s"- move contribution: $v"),
                 digest.deploymentConfidence.map(v => s"- deployment confidence: ${"%.2f".format(v)}"),
+                digest.decisionComparison.flatMap(_.chosenMove).map(v => s"- chosen move: $v"),
+                digest.decisionComparison.flatMap(_.engineBestMove).map(v => s"- engine best: $v"),
+                digest.decisionComparison.flatMap(_.cpLossVsChosen).map(v => s"- cp loss vs chosen: ${v}cp"),
+                digest.decisionComparison.flatMap(_.deferredMove).map(v => s"- deferred move: $v"),
+                digest.decisionComparison.flatMap(_.deferredReason).map(v => s"- deferred reason: $v"),
+                digest.decisionComparison.flatMap(_.evidence).map(v => s"- deferred evidence: $v"),
+                Option.when(digest.decisionComparison.exists(_.practicalAlternative))("- practical alternative: true"),
                 digest.prophylaxisPlan.map(v => s"- prophylaxis plan: $v"),
                 digest.prophylaxisThreat.map(v => s"- prophylaxis target: $v"),
                 digest.counterplayScoreDrop.map(v => s"- counterplay drop: ${v}cp"),
@@ -207,6 +224,31 @@ object ActiveStrategicPrompt:
            |$focusBlock
            |$evidenceBlock
            |$digestBlock""".stripMargin
+
+  private def activeDossierBlock(dossier: Option[ActiveBranchDossier]): String =
+    dossier match
+      case None => "none"
+      case Some(value) =>
+        List(
+          Some(s"- dominant lens: ${value.dominantLens}"),
+          Some(s"- chosen branch: ${value.chosenBranchLabel}"),
+          value.engineBranchLabel.map(v => s"- engine branch: $v"),
+          value.deferredBranchLabel.map(v => s"- deferred branch: $v"),
+          value.whyChosen.map(v => s"- why chosen: $v"),
+          value.whyDeferred.map(v => s"- why deferred: $v"),
+          value.opponentResource.map(v => s"- opponent resource: $v"),
+          value.routeCue.map { cue =>
+            s"- route cue: ${cue.routeId} ${cue.piece}${cue.route.mkString("-")} | purpose: ${cue.purpose} | confidence: ${"%.2f".format(cue.confidence)}"
+          },
+          value.moveCue.map { cue =>
+            val san = cue.san.map(_.trim).filter(_.nonEmpty).getOrElse("n/a")
+            s"- move cue: ${cue.label} ${cue.uci} | san: $san | source: ${cue.source}"
+          },
+          value.evidenceCue.map(v => s"- evidence cue: $v"),
+          value.continuationFocus.map(v => s"- continuation focus: $v"),
+          value.practicalRisk.map(v => s"- practical risk: $v"),
+          value.comparisonGapCp.map(v => s"- comparison gap: ${v}cp")
+        ).flatten.mkString("\n")
 
   private def routeRefBlock(routeRefs: List[ActiveStrategicRouteRef]): String =
     val lines =

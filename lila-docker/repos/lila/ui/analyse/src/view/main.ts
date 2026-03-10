@@ -17,6 +17,10 @@ let resizeCache: {
   columns: number;
   main: HTMLElement | null;
   board: HTMLElement | null;
+  tools: HTMLElement | null;
+  side: HTMLElement | null;
+  controls: HTMLElement | null;
+  underboard: HTMLElement | null;
   observer: ResizeObserver | null;
   raf: number | null;
   boardRectSig: string;
@@ -91,6 +95,10 @@ function resizeHandler(ctrl: AnalyseCtrl) {
     columns: displayColumns(),
     main: null,
     board: null,
+    tools: null,
+    side: null,
+    controls: null,
+    underboard: null,
     observer: null,
     raf: null,
     boardRectSig: '',
@@ -104,11 +112,19 @@ function bindLayoutObserver(ctrl: AnalyseCtrl): void {
   resizeCache.observer?.disconnect();
   resizeCache.main = main;
   resizeCache.board = main.querySelector('.analyse__board') as HTMLElement | null;
+  resizeCache.tools = main.querySelector('.analyse__tools') as HTMLElement | null;
+  resizeCache.side = main.querySelector('.analyse__side') as HTMLElement | null;
+  resizeCache.controls = main.querySelector('.analyse__controls') as HTMLElement | null;
+  resizeCache.underboard = main.querySelector('.analyse__underboard') as HTMLElement | null;
   resizeCache.boardRectSig = '';
 
   resizeCache.observer = new ResizeObserver(() => scheduleBoardSync(ctrl));
   resizeCache.observer.observe(main);
   if (resizeCache.board) resizeCache.observer.observe(resizeCache.board);
+  if (resizeCache.tools) resizeCache.observer.observe(resizeCache.tools);
+  if (resizeCache.side) resizeCache.observer.observe(resizeCache.side);
+  if (resizeCache.controls) resizeCache.observer.observe(resizeCache.controls);
+  if (resizeCache.underboard) resizeCache.observer.observe(resizeCache.underboard);
 
   scheduleBoardSync(ctrl);
 }
@@ -116,8 +132,10 @@ function bindLayoutObserver(ctrl: AnalyseCtrl): void {
 function scheduleBoardSync(ctrl: AnalyseCtrl): void {
   if (resizeCache.raf !== null) cancelAnimationFrame(resizeCache.raf);
   resizeCache.raf = requestAnimationFrame(() => {
-    resizeCache.raf = null;
-    syncBoard(ctrl);
+    requestAnimationFrame(() => {
+      resizeCache.raf = null;
+      syncBoard(ctrl);
+    });
   });
 }
 

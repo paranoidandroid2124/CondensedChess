@@ -73,6 +73,26 @@ The Chesstory team"""
           htmlBody = standardEmail(body).some
         )
 
+  def emailChangeConfirm(user: User, email: EmailAddress, url: String): Funit =
+    mailer.canSend.so:
+      val body =
+        s"""Hello ${user.username.value},
+           |
+           |Confirm your new Chesstory email address by opening this link:
+           |$url
+           |
+           |If you did not request this change, you can ignore this email.
+           |
+           |$regards
+           |""".stripMargin
+      mailer.sendOrSkip:
+        Mailer.Message(
+          to = email,
+          subject = "Confirm your new Chesstory email",
+          text = Mailer.txt.addServiceNote(body),
+          htmlBody = standardEmail(body).some
+        )
+
   def passwordReset(user: User, email: EmailAddress, url: String): Funit =
     mailer.canSend.so:
       val body =

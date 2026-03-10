@@ -601,14 +601,11 @@ object CoreCommentaryCloseoutQaRunner:
 
   private def activeRepairReasons(note: String, ctx: NarrativeContext, pack: StrategyPack): List[String] =
     val reasons = scala.collection.mutable.ListBuffer.empty[String]
-    val claim = StrategicThesisBuilder.build(ctx).map(_.claim).getOrElse("")
-    if !mentionsDominantThesis(
-        note,
-        claim,
-        StructurePlanArcBuilder.build(ctx),
-        pack.signalDigest,
-        ctx.openingData.flatMap(ref => OpeningPrecedentBranching.representative(ctx, Some(ref), requireFocus = true))
-      )
+    if !CommentaryOpsSignals.activeThesisAgreement(
+        baseNarrative = BookStyleRenderer.renderValidatedOutline(BookStyleRenderer.validatedOutline(ctx), ctx),
+        activeNote = note,
+        digest = pack.signalDigest
+      ).agreed
     then reasons += "dominant_thesis_not_preserved"
     val sentenceCount = note.split("""(?<=[.!?])\s+""").count(_.trim.nonEmpty)
     if sentenceCount < 2 || sentenceCount > 4 then reasons += "sentence_budget"

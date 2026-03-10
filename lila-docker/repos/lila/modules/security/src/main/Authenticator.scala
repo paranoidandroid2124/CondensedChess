@@ -80,6 +80,9 @@ final class Authenticator(
   def setPassword(id: UserId, p: ClearPassword): Funit =
     userRepo.coll.update.one($id(id), $set(F.bpass -> passEnc(p))).void
 
+  def hasPassword(id: UserId): Fu[Boolean] =
+    userRepo.coll.exists($doc("_id" -> id, F.bpass.$exists(true)))
+
   private def authWithBenefits(auth: AuthData)(p: ClearPassword): Boolean =
     compare(auth, p)
 

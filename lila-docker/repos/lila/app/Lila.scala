@@ -81,6 +81,7 @@ final class LilaComponents(
 
   val env: lila.app.Env =
     lila.log("boot").info(s"Start loading lila modules")
+    ProductionConfigValidator.validate(configuration, environment.mode)
     val c = lila.common.Chronometer.sync(wire[lila.app.Env])
     lila.log("boot").info(s"Loaded lila modules in ${c.showDuration}")
     c.result
@@ -122,6 +123,7 @@ final class LilaComponents(
   lazy val explorerProxy: ExplorerProxy = wire[ExplorerProxy]
   lazy val importer: Importer = wire[Importer]
   lazy val main: Main = wire[Main]
+  lazy val ops: Ops = wire[Ops]
   lazy val pref: Pref = wire[Pref]
   lazy val study: Study = wire[Study]
   lazy val user: User = wire[User]

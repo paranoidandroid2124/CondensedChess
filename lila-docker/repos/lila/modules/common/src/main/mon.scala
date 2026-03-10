@@ -700,6 +700,19 @@ object mon:
     val games = future("recap.build.games.time")
     val puzzles = future("recap.build.puzzles.time")
 
+  object llm:
+    object commentary:
+      def repair(path: String, scope: "any" | "material") =
+        counter("llm.commentary.repair").withTags(tags("path" -> path, "scope" -> scope))
+      def compare(path: String, consistent: Boolean) =
+        counter("llm.commentary.compare").withTags(tags("path" -> path, "consistent" -> consistent))
+      def thesisAgreement(path: String, agreed: Boolean) =
+        counter("llm.commentary.thesisAgreement").withTags(tags("path" -> path, "agreed" -> agreed))
+      def sample(kind: String) =
+        counter("llm.commentary.sample").withTag("kind", kind)
+      def metric(name: String, path: String) =
+        gauge("llm.commentary.metric").withTags(tags("name" -> name, "path" -> path))
+
   object jvm:
     def threads() =
       val perState = gauge("jvm.threads.group")

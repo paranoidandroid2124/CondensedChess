@@ -110,6 +110,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       concepts: List[String],
       fen: String,
       strategyPack: Option[StrategyPack],
+      dossier: Option[ActiveBranchDossier] = None,
       routeRefs: List[ActiveStrategicRouteRef] = Nil,
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): Future[Option[String]] =
@@ -123,6 +124,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         fen = fen,
         concepts = concepts,
         strategyPack = strategyPack,
+        dossier = dossier,
         routeRefs = routeRefs,
         moveRefs = moveRefs
       )
@@ -144,6 +146,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       concepts: List[String],
       fen: String,
       strategyPack: Option[StrategyPack],
+      dossier: Option[ActiveBranchDossier] = None,
       routeRefs: List[ActiveStrategicRouteRef] = Nil,
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): Future[Option[String]] =
@@ -159,6 +162,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         fen = fen,
         concepts = concepts,
         strategyPack = strategyPack,
+        dossier = dossier,
         routeRefs = routeRefs,
         moveRefs = moveRefs
       )

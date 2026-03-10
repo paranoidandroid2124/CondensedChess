@@ -1,8 +1,6 @@
 package lila.llm.analysis
 
 import lila.llm.model.*
-import lila.llm.model.authoring.QuestionEvidence
-import lila.llm.model.strategic.VariationLine
 
 private[analysis] enum StrategicLens:
   case Compensation
@@ -53,7 +51,7 @@ private[analysis] object StrategicThesisBuilder:
             claim = claim,
             support = support.take(2),
             tension = opponentOrAbsenceTension(ctx),
-            evidenceHook = chooseEvidenceHook(ctx)
+            evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
         )
     }
@@ -81,7 +79,7 @@ private[analysis] object StrategicThesisBuilder:
             claim = claim,
             support = support.take(2),
             tension = opponentPlanTension(ctx),
-            evidenceHook = chooseEvidenceHook(ctx)
+            evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
         )
     }
@@ -140,7 +138,7 @@ private[analysis] object StrategicThesisBuilder:
           claim = claim,
           support = support.take(2),
           tension = tension,
-          evidenceHook = chooseEvidenceHook(ctx)
+          evidenceHook = NarrativeEvidenceHooks.build(ctx)
         )
       )
 
@@ -173,7 +171,7 @@ private[analysis] object StrategicThesisBuilder:
             claim = claim,
             support = support.take(2),
             tension = opponentOrAbsenceTension(ctx),
-            evidenceHook = chooseEvidenceHook(ctx)
+            evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
         )
     }
@@ -200,7 +198,7 @@ private[analysis] object StrategicThesisBuilder:
             claim = claim,
             support = support.take(2),
             tension = opponentOrAbsenceTension(ctx),
-            evidenceHook = chooseEvidenceHook(ctx)
+            evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
         )
     }
@@ -231,7 +229,7 @@ private[analysis] object StrategicThesisBuilder:
             claim = claim,
             support = support.take(2),
             tension = opponentOrAbsenceTension(ctx),
-            evidenceHook = chooseEvidenceHook(ctx)
+            evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
         )
     }
@@ -254,37 +252,6 @@ private[analysis] object StrategicThesisBuilder:
   private def opponentPlanTension(ctx: NarrativeContext): Option[String] =
     ctx.opponentPlan.map(_.name).map(normalizeText).filter(_.nonEmpty).map { plan =>
       s"The main counterplay still revolves around $plan."
-    }
-
-  private def chooseEvidenceHook(ctx: NarrativeContext): Option[String] =
-    authorEvidenceHook(ctx.authorEvidence)
-      .orElse(probeRequestHook(ctx.probeRequests))
-      .orElse(topVariationHook(ctx))
-      .map(UserFacingSignalSanitizer.sanitize)
-
-  private def authorEvidenceHook(evidence: List[QuestionEvidence]): Option[String] =
-    evidence.flatMap(_.branches).headOption.map { branch =>
-      val key = normalizeText(branch.keyMove)
-      val line = normalizeText(branch.line)
-      val cp = branch.evalCp.map(cp => s" (${formatCp(cp)})").getOrElse("")
-      if key.nonEmpty && line.nonEmpty then s"Probe evidence starts with $key: $line$cp."
-      else if line.nonEmpty then s"Probe evidence follows $line$cp."
-      else s"Probe evidence starts with $key$cp."
-    }
-
-  private def probeRequestHook(requests: List[ProbeRequest]): Option[String] =
-    requests.headOption.flatMap { req =>
-      val plan = req.planName.map(normalizeText).filter(_.nonEmpty)
-      val objective = req.objective.map(normalizeText).filter(_.nonEmpty)
-      val moves = req.moves.take(2).map(m => NarrativeUtils.uciToSanOrFormat(req.fen, m)).filter(_.trim.nonEmpty)
-      val moveText = Option.when(moves.nonEmpty)(s" through ${joinNatural(moves)}").getOrElse("")
-      (plan orElse objective).map(label => s"Further probe work still targets $label$moveText.")
-    }
-
-  private def topVariationHook(ctx: NarrativeContext): Option[String] =
-    ctx.engineEvidence.flatMap(_.best).flatMap { line =>
-      val preview = variationPreview(ctx.fen, line, limit = 3)
-      preview.map(text => s"The engine line begins $text.")
     }
 
   private def buildDecisionDeltaSupport(delta: PVDelta): Option[String] =
@@ -313,18 +280,6 @@ private[analysis] object StrategicThesisBuilder:
         s"Theory is already thinning out here, with only about $sampleCount games left in sample."
       case _ =>
         "The opening reference is already giving way to independent strategic play."
-
-  private def variationLeadSan(fen: String, line: VariationLine): Option[String] =
-    line.ourMove.map(_.san).map(normalizeText).filter(_.nonEmpty)
-      .orElse {
-        line.moves.headOption.map(m => NarrativeUtils.uciToSanOrFormat(fen, m)).map(normalizeText).filter(_.nonEmpty)
-      }
-
-  private def variationPreview(fen: String, line: VariationLine, limit: Int): Option[String] =
-    val tokens =
-      if line.parsedMoves.nonEmpty then line.parsedMoves.take(limit).map(_.san.trim).filter(_.nonEmpty)
-      else NarrativeUtils.uciListToSan(fen, line.moves.take(limit)).map(_.trim).filter(_.nonEmpty)
-    Option.when(tokens.nonEmpty)(tokens.mkString(" "))
 
   private def topVectors(returnVector: Map[String, Double]): List[String] =
     returnVector.toList
@@ -372,7 +327,3 @@ private[analysis] object StrategicThesisBuilder:
       .map(_.replace(" -> ", "; then ").replace("->", "; then "))
       .map(_.stripPrefix("The idea is ").stripPrefix("the idea is ").trim)
       .filter(_.nonEmpty)
-
-  private def formatCp(cp: Int): String =
-    if cp > 0 then f"+${cp.toDouble / 100}%.2f"
-    else f"${cp.toDouble / 100}%.2f"

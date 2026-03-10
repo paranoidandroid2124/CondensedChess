@@ -70,6 +70,23 @@ enum Permission(val key: String, val alsoGrants: List[Permission], val name: Str
   case PuzzleCurator extends Permission("PUZZLE_CURATOR", "Classify puzzles")
   case OpeningWiki extends Permission("OPENING_WIKI", "Opening wiki")
   case Beta extends Permission("BETA", "Beta features")
+  case OpsMemberRead extends Permission("OPS_MEMBER_READ", "Read member ops console")
+  case OpsMemberWrite extends Permission("OPS_MEMBER_WRITE", List(OpsMemberRead), "Write member ops console")
+  case OpsMemberRoleGrant
+      extends Permission(
+        "OPS_MEMBER_ROLE_GRANT",
+        List(OpsMemberWrite),
+        "Grant curated member ops roles"
+      )
+  case OpsMemberAdvanced
+      extends Permission(
+        "OPS_MEMBER_ADVANCED",
+        List(OpsMemberRoleGrant),
+        "Advanced member ops permissions"
+      )
+  case OpsViewer extends Permission("OPS_VIEWER", List(OpsMemberRead), "Ops viewer")
+  case OpsManager extends Permission("OPS_MANAGER", List(OpsViewer, OpsMemberWrite), "Ops manager")
+  case OpsAdmin extends Permission("OPS_ADMIN", List(OpsManager, OpsMemberRoleGrant), "Ops admin")
   case UserSearch extends Permission("USER_SEARCH", "Mod user search")
   case ManageTeam extends Permission("MANAGE_TEAM", "Manage teams")
   case ManageTournament extends Permission("MANAGE_TOURNAMENT", "Manage tournaments")
@@ -251,7 +268,9 @@ enum Permission(val key: String, val alsoGrants: List[Permission], val name: Str
           PayPal,
           Cli,
           Settings,
-          TitleRequest
+          TitleRequest,
+          OpsAdmin,
+          OpsMemberAdvanced
         ),
         "Super Admin"
       )
