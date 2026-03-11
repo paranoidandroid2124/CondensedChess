@@ -30,6 +30,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       chess960PositionNum: Option[Int] = None,
       withForecast: Boolean = false,
       inlinePgn: Option[String] = None,
+      importHistory: Option[JsObject] = None,
       narrative: Option[Frag] = None
   )(using ctx: Context): Page =
     Page("Analysis")
@@ -46,7 +47,8 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
               "data" -> data,
               "bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
             )
-            .add("inlinePgn", inlinePgn) ++
+            .add("inlinePgn", inlinePgn)
+            .add("importHistory", importHistory) ++
             explorerAndCevalConfig
         )
       .graph(

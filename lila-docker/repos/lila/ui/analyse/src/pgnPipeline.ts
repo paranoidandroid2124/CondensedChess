@@ -33,7 +33,13 @@ export const submitPgnToImportPipeline = (rawPgn: string): boolean => {
     pgn64.name = 'pgn64';
     pgn64.value = encodePgn64(normalized);
 
+    const sourceType = document.createElement('input');
+    sourceType.type = 'hidden';
+    sourceType.name = 'sourceType';
+    sourceType.value = 'manual';
+
     form.appendChild(pgn64);
+    form.appendChild(sourceType);
     document.body.appendChild(form);
     form.submit();
     return true;

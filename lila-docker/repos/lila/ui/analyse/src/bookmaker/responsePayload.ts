@@ -99,6 +99,29 @@ export type NarrativeSignalDigest = {
 
 export type DecisionComparisonDigest = DecisionComparisonDigestLike;
 
+export type BookmakerLedgerLineV1 = {
+  title: string;
+  sanMoves: string[];
+  scoreCp?: number | null;
+  mate?: number | null;
+  note?: string | null;
+  source: 'probe' | 'decision_compare' | 'variation' | 'authoring';
+};
+
+export type BookmakerStrategicLedgerV1 = {
+  schema: 'chesstory.bookmaker.ledger.v1';
+  motifKey: string;
+  motifLabel: string;
+  stageKey: string;
+  stageLabel: string;
+  carryOver: boolean;
+  stageReason?: string | null;
+  prerequisites: string[];
+  conversionTrigger?: string | null;
+  primaryLine?: BookmakerLedgerLineV1 | null;
+  resourceLine?: BookmakerLedgerLineV1 | null;
+};
+
 type MaybeResponse = {
   html?: unknown;
   commentary?: unknown;
@@ -115,6 +138,7 @@ type MaybeResponse = {
   model?: unknown;
   cacheHit?: unknown;
   signalDigest?: unknown;
+  bookmakerLedger?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
   ratelimit?: {
@@ -191,6 +215,56 @@ export function cacheHitFromResponse(data: MaybeResponse): boolean | null {
 
 export function signalDigestFromResponse(data: MaybeResponse): NarrativeSignalDigest | null {
   return isRecord(data?.signalDigest) ? (data.signalDigest as NarrativeSignalDigest) : null;
+}
+
+function ledgerLineFromUnknown(raw: unknown): BookmakerLedgerLineV1 | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.title !== 'string' || typeof raw.source !== 'string' || !Array.isArray(raw.sanMoves)) return null;
+  const sanMoves = raw.sanMoves.filter((value): value is string => typeof value === 'string');
+  if (sanMoves.length !== raw.sanMoves.length) return null;
+  if (!['probe', 'decision_compare', 'variation', 'authoring'].includes(raw.source)) return null;
+  return {
+    title: raw.title,
+    sanMoves,
+    scoreCp: typeof raw.scoreCp === 'number' ? raw.scoreCp : null,
+    mate: typeof raw.mate === 'number' ? raw.mate : null,
+    note: typeof raw.note === 'string' ? raw.note : null,
+    source: raw.source as BookmakerLedgerLineV1['source'],
+  };
+}
+
+export function bookmakerLedgerFromResponse(data: MaybeResponse): BookmakerStrategicLedgerV1 | null {
+  const raw = data?.bookmakerLedger;
+  if (!isRecord(raw)) return null;
+  if (raw.schema !== 'chesstory.bookmaker.ledger.v1') return null;
+  if (
+    typeof raw.motifKey !== 'string' ||
+    typeof raw.motifLabel !== 'string' ||
+    typeof raw.stageKey !== 'string' ||
+    typeof raw.stageLabel !== 'string' ||
+    typeof raw.carryOver !== 'boolean' ||
+    !Array.isArray(raw.prerequisites)
+  )
+    return null;
+  const prerequisites = raw.prerequisites.filter((value): value is string => typeof value === 'string');
+  if (prerequisites.length !== raw.prerequisites.length) return null;
+  const primaryLine = ledgerLineFromUnknown(raw.primaryLine);
+  const resourceLine = ledgerLineFromUnknown(raw.resourceLine);
+  if (raw.primaryLine != null && !primaryLine) return null;
+  if (raw.resourceLine != null && !resourceLine) return null;
+  return {
+    schema: 'chesstory.bookmaker.ledger.v1',
+    motifKey: raw.motifKey,
+    motifLabel: raw.motifLabel,
+    stageKey: raw.stageKey,
+    stageLabel: raw.stageLabel,
+    carryOver: raw.carryOver,
+    stageReason: typeof raw.stageReason === 'string' ? raw.stageReason : null,
+    prerequisites,
+    conversionTrigger: typeof raw.conversionTrigger === 'string' ? raw.conversionTrigger : null,
+    primaryLine,
+    resourceLine,
+  };
 }
 
 export function refsFromResponse(data: MaybeResponse): BookmakerRefsV1 | null {

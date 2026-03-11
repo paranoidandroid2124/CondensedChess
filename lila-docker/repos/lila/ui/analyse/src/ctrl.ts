@@ -48,6 +48,7 @@ import { displayColumns } from 'lib/device';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import * as Prefs from 'lib/prefs';
 import {
+  applyBoardLabelMode,
   boardLabelModeFromCoords,
   boardLabelModeToCoords,
   type BoardLabelMode,
@@ -964,10 +965,7 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!boardLabelModes.has(mode)) return;
     this.boardLabelModeProp(mode);
     this.syncWorkspacePrefs();
-    this.chessground?.set({
-      coordinates: this.boardCoords() !== Prefs.Coords.Hidden,
-      coordinatesOnSquares: this.boardCoords() === Prefs.Coords.All,
-    });
+    applyBoardLabelMode(this.chessground, mode);
     requestAnimationFrame(dispatchChessgroundResize);
     this.redraw();
   };

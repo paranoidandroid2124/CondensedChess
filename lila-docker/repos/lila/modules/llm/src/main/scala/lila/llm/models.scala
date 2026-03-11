@@ -173,6 +173,33 @@ case class NarrativeSignalDigest(
 object NarrativeSignalDigest:
   given Writes[NarrativeSignalDigest] = Json.writes[NarrativeSignalDigest]
 
+case class BookmakerLedgerLineV1(
+    title: String,
+    sanMoves: List[String] = Nil,
+    scoreCp: Option[Int] = None,
+    mate: Option[Int] = None,
+    note: Option[String] = None,
+    source: String
+)
+object BookmakerLedgerLineV1:
+  given Writes[BookmakerLedgerLineV1] = Json.writes[BookmakerLedgerLineV1]
+
+case class BookmakerStrategicLedgerV1(
+    schema: String = "chesstory.bookmaker.ledger.v1",
+    motifKey: String,
+    motifLabel: String,
+    stageKey: String,
+    stageLabel: String,
+    carryOver: Boolean,
+    stageReason: Option[String] = None,
+    prerequisites: List[String] = Nil,
+    conversionTrigger: Option[String] = None,
+    primaryLine: Option[BookmakerLedgerLineV1] = None,
+    resourceLine: Option[BookmakerLedgerLineV1] = None
+)
+object BookmakerStrategicLedgerV1:
+  given Writes[BookmakerStrategicLedgerV1] = Json.writes[BookmakerStrategicLedgerV1]
+
 case class DecisionComparisonDigest(
     chosenMove: Option[String] = None,
     engineBestMove: Option[String] = None,
@@ -319,7 +346,8 @@ case class CommentResponse(
   planTier: String = PlanTier.Basic,
   llmLevel: String = LlmLevel.Polish,
   strategyPack: Option[StrategyPack] = None,
-  signalDigest: Option[NarrativeSignalDigest] = None
+  signalDigest: Option[NarrativeSignalDigest] = None,
+  bookmakerLedger: Option[BookmakerStrategicLedgerV1] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

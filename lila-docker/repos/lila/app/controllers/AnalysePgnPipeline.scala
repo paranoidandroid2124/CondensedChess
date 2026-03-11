@@ -39,7 +39,8 @@ object AnalysePgnPipeline:
   def page(
       variant: chess.variant.Variant = chess.variant.Standard,
       fen: Option[chess.format.Fen.Full] = None,
-      inlinePgn: Option[String] = None
+      inlinePgn: Option[String] = None,
+      importHistory: Option[JsObject] = None
   )(using ctx: Context): Page =
     val payload = buildPayload(variant = variant, fen = fen, inlinePgn = inlinePgn)
-    views.analyse.ui.userAnalysis(payload.data, payload.pov, inlinePgn = payload.inlinePgn)
+    views.analyse.ui.userAnalysis(payload.data, payload.pov, inlinePgn = payload.inlinePgn, importHistory = importHistory)

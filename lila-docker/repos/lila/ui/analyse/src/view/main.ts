@@ -10,6 +10,7 @@ import { view as keyboardView } from '../keyboard';
 import { bookmakerToggleBox } from '../bookmaker';
 
 import { viewContext, renderBoard, renderMain, renderTools, renderUnderboard } from './components';
+import { boardRectSig } from './boardRect';
 import { displayColumns } from 'lib/device';
 import { renderControls } from './controls';
 
@@ -149,7 +150,7 @@ function syncBoard(ctrl: AnalyseCtrl): void {
   resizeCache.observer?.observe(board);
 
   const rect = board.getBoundingClientRect();
-  const sig = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+  const sig = boardRectSig(rect);
   if (sig === resizeCache.boardRectSig) return;
 
   resizeCache.boardRectSig = sig;

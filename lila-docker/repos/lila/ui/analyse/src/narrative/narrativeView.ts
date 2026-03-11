@@ -4,18 +4,31 @@ import { hl, bind, dataIcon, onInsert } from 'lib/view';
 import * as licon from 'lib/licon';
 import { renderEval } from 'lib/ceval/util';
 import { type BoardPreview, renderBoardPreview } from 'lib/view/boardPreview';
+import { initMiniBoards } from 'lib/view/miniBoard';
 import { makeBoardFen, parseFen } from 'chessops/fen';
 import { setupPosition } from 'chessops/variant';
 import { lichessRules } from 'chessops/compat';
 import { makeSanAndPlay } from 'chessops/san';
 import { parseUci } from 'chessops/util';
 import type { DrawShape } from '@lichess-org/chessground/draw';
+import { plyToTurn } from 'lib/game/chess';
 import {
     buildDecisionComparisonSurface,
     type DecisionComparisonDigestLike,
 } from '../decisionComparison';
 
 type VariationLine = { moves: string[]; scoreCp: number; mate?: number | null; depth?: number; tags?: string[] };
+type RenderedMoveLine = {
+    nodes: Array<VNode | string>;
+    preview?: {
+        board: string;
+        state: string;
+        plies: number;
+    };
+};
+
+const NARRATIVE_INTRO_ANCHOR_ID = 'narrative-anchor-intro';
+const NARRATIVE_CONCLUSION_ANCHOR_ID = 'narrative-anchor-conclusion';
 
 export type CollapseAnalysis = {
     interval: string;
@@ -286,6 +299,91 @@ function formatEvidenceStatus(status: string): string {
     }
 }
 
+function narrativeMomentAnchorId(moment: GameNarrativeMoment, index: number): string {
+    const raw = moment.momentId?.trim() || `${moment.ply}-${index}`;
+    const normalized = raw
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return `narrative-anchor-${normalized || `moment-${index}`}`;
+}
+
+function moveRefLabel(ply: number, side?: 'white' | 'black', moveNumber?: number): string {
+    const turn = moveNumber ?? plyToTurn(Math.max(1, ply));
+    const resolvedSide = side || (ply % 2 === 1 ? 'white' : 'black');
+    return `${turn}${resolvedSide === 'white' ? '.' : '...'}`;
+}
+
+function moveLabel(ply: number, side?: 'white' | 'black', moveNumber?: number): string {
+    return `Move ${moveRefLabel(ply, side, moveNumber)}`;
+}
+
+function moveSpanLabel(startPly: number, endPly = startPly): string {
+    if (startPly === endPly) return moveLabel(startPly);
+    return `Moves ${moveRefLabel(startPly)} to ${moveRefLabel(endPly)}`;
+}
+
+function collapseIntervalLabel(interval: string): string {
+    const parts = interval.split('-').map(part => parseInt(part, 10)).filter(Number.isFinite);
+    const start = parts[0];
+    const end = parts[1] ?? start;
+    if (!start) return interval;
+    return moveSpanLabel(start, end);
+}
+
+function outlineSummary(bits: Array<string | null | undefined>, limit = 2): string | null {
+    const seen = new Set<string>();
+    const summary = bits
+        .map(bit => bit?.trim())
+        .filter((bit): bit is string => !!bit)
+        .filter(bit => {
+            const key = bit.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .slice(0, limit);
+    return summary.length ? summary.join(' · ') : null;
+}
+
+function narrativeMomentOutlineCopy(moment: GameNarrativeMoment) {
+    const classification = moment.moveClassification ? humanizeToken(moment.moveClassification) : null;
+    const momentType = moment.momentType ? humanizeToken(moment.momentType) : null;
+    const title = classification || momentType || 'Key Moment';
+    const detail = outlineSummary(
+        [
+            momentType && momentType !== title ? momentType : null,
+            ...((moment.concepts || []).slice(0, 2)),
+            moment.transitionType ? humanizeToken(moment.transitionType) : null,
+        ],
+        3,
+    );
+    return {
+        eyebrow: moveLabel(moment.ply, moment.side, moment.moveNumber),
+        title,
+        detail,
+    };
+}
+
+function isCriticalMoment(moment: GameNarrativeMoment): boolean {
+    const classification = (moment.moveClassification || '').trim().toLowerCase();
+    return !!moment.collapse || ['blunder', 'mistake', 'missed win', 'critical'].includes(classification);
+}
+
+function scrollToNarrativeAnchor(anchorId: string): void {
+    const el = document.getElementById(anchorId);
+    if (!el) return;
+    window.requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
+function jumpToNarrativePly(ctrl: NarrativeCtrl, ply: number, anchorId?: string): void {
+    ctrl.root.jumpToMain(ply);
+    ctrl.root.redraw();
+    if (anchorId) scrollToNarrativeAnchor(anchorId);
+}
+
 function formatEvidenceScore(evalCp?: number | null, mate?: number | null): string {
     if (typeof mate === 'number') return `mate ${mate}`;
     if (typeof evalCp === 'number') return `${evalCp >= 0 ? '+' : ''}${evalCp}cp`;
@@ -412,11 +510,8 @@ export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrative
         segments.push(
             hl('div.timeline-segment', {
                 style: { left: `${leftPct}%`, width: `${widthPct}%`, background: color },
-                attrs: { title: `${c.rootCause} (ply ${c.interval})` },
-                hook: bind('click', () => {
-                    ctrl.root.jumpToMain(start);
-                    ctrl.root.redraw();
-                }),
+                attrs: { title: `${c.rootCause} (${collapseIntervalLabel(c.interval)})` },
+                hook: bind('click', () => jumpToNarrativePly(ctrl, start)),
             }),
         );
 
@@ -425,11 +520,8 @@ export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrative
         markers.push(
             hl('div.timeline-marker', {
                 style: { left: `${preventPct}%` },
-                attrs: { title: `Preventable at ply ${c.earliestPreventablePly}` },
-                hook: bind('click', () => {
-                    ctrl.root.jumpToMain(c.earliestPreventablePly);
-                    ctrl.root.redraw();
-                }),
+                attrs: { title: `Preventable at ${moveLabel(c.earliestPreventablePly)}` },
+                hook: bind('click', () => jumpToNarrativePly(ctrl, c.earliestPreventablePly)),
             }),
         );
     }
@@ -437,8 +529,8 @@ export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrative
     return hl('div.collapse-timeline', [
         hl('div.timeline-track', [...segments, ...markers]),
         hl('div.timeline-labels', [
-            hl('span', '1'),
-            hl('span', String(totalPlies)),
+            hl('span', moveRefLabel(1)),
+            hl('span', moveRefLabel(totalPlies)),
         ]),
     ]);
 }
@@ -484,7 +576,7 @@ function defeatDnaStatCards(report: DefeatDnaReport): VNode {
         ]),
         hl('div.dna-stat-card', [
             hl('div.dna-stat-value', report.avgRecoverabilityPlies.toFixed(1)),
-            hl('div.dna-stat-label', 'Avg Recovery (plies)'),
+            hl('div.dna-stat-label', 'Avg Recovery (steps)'),
         ]),
         hl('div.dna-stat-card', [
             hl('div.dna-stat-value', String(Object.keys(report.rootCauseDistribution).length)),
@@ -538,12 +630,12 @@ function defeatDnaRecentTable(ctrl: NarrativeCtrl): VNode {
             ])),
             hl('tbody', visible.map(c =>
                 hl('tr', [
-                    hl('td.dna-cell-interval', `Ply ${c.interval}`),
+                    hl('td.dna-cell-interval', collapseIntervalLabel(c.interval)),
                     hl('td.dna-cell-cause', {
                         style: { color: CAUSE_COLORS[c.rootCause] || DEFAULT_CAUSE_COLOR }
                     }, c.rootCause),
-                    hl('td.dna-cell-recov', `${c.recoverabilityPlies}p`),
-                    hl('td.dna-cell-prevent', `Ply ${c.earliestPreventablePly}`),
+                    hl('td.dna-cell-recov', `${c.recoverabilityPlies} steps`),
+                    hl('td.dna-cell-prevent', moveLabel(c.earliestPreventablePly)),
                 ])
             )),
         ]),
@@ -560,14 +652,24 @@ function defeatDnaRecentTable(ctrl: NarrativeCtrl): VNode {
 
 function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode {
     return hl('div.narrative-doc', {
-        hook: onInsert((el: HTMLElement) => bindPreviewHover(ctrl, el)),
+        hook: {
+            insert: vnode => {
+                const el = vnode.elm as HTMLElement;
+                bindPreviewHover(ctrl, el);
+                initMiniBoards(el);
+            },
+            postpatch: (_, vnode) => {
+                initMiniBoards(vnode.elm as HTMLElement);
+            },
+        },
     }, [
         hl('div.narrative-preview', [
             ctrl.pvBoard()
                 ? renderBoardPreview(ctrl.pvBoard() as BoardPreview, ctrl.root.getOrientation())
                 : hl('div.narrative-preview-empty', 'Hover a move to preview'),
         ]),
-        narrativeReviewView(doc),
+        narrativeReviewView(doc, ctrl),
+        narrativeOutlineView(ctrl, doc),
         doc.sourceMode || doc.model || doc.planTier || doc.llmLevel
             ? hl('div.narrative-review-metrics', [
                 doc.sourceMode ? hl('span.narrative-review-metric', `Source: ${doc.sourceMode}`) : null,
@@ -576,16 +678,81 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
                 doc.llmLevel ? hl('span.narrative-review-metric', `Level: ${doc.llmLevel}`) : null,
             ])
             : null,
-        hl('div.narrative-intro', [
+        hl('section.narrative-intro', {
+            attrs: { id: NARRATIVE_INTRO_ANCHOR_ID },
+        }, [
             hl('div.narrative-themes', doc.themes?.length ? doc.themes.map(t => hl('span.narrative-theme', t)) : null),
             hl('pre.narrative-prose', doc.intro),
         ]),
-        ...(doc.moments || []).map(m => narrativeMomentView(ctrl, m)),
-        hl('div.narrative-conclusion', [hl('pre.narrative-prose', doc.conclusion)]),
+        ...(doc.moments || []).map((moment, index) => narrativeMomentView(ctrl, moment, {
+            anchorId: narrativeMomentAnchorId(moment, index),
+        })),
+        hl('section.narrative-conclusion', {
+            attrs: { id: NARRATIVE_CONCLUSION_ANCHOR_ID },
+        }, [hl('pre.narrative-prose', doc.conclusion)]),
     ]);
 }
 
-export function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
+function narrativeOutlineView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode | null {
+    const moments = doc.moments || [];
+    if (!moments.length) return null;
+
+    const items = [
+        hl('button.narrative-outline-item.section', {
+            attrs: {
+                type: 'button',
+                title: 'Jump to introduction',
+                'aria-label': 'Jump to introduction',
+            },
+            hook: bind('click', () => scrollToNarrativeAnchor(NARRATIVE_INTRO_ANCHOR_ID)),
+        }, [
+            hl('span.narrative-outline-item-eyebrow', 'Overview'),
+            hl('strong.narrative-outline-item-title', 'Opening frame'),
+            doc.themes?.length
+                ? hl('span.narrative-outline-item-detail', doc.themes.slice(0, 3).join(' · '))
+                : hl('span.narrative-outline-item-detail', 'Themes and starting ideas'),
+        ]),
+        ...moments.map((moment, index) => {
+            const anchorId = narrativeMomentAnchorId(moment, index);
+            const copy = narrativeMomentOutlineCopy(moment);
+            return hl(`button.narrative-outline-item${isCriticalMoment(moment) ? '.critical' : ''}`, {
+                key: `outline-${anchorId}`,
+                attrs: {
+                    type: 'button',
+                    title: `Jump to ${copy.eyebrow}`,
+                    'aria-label': `Jump to ${copy.eyebrow}`,
+                },
+                hook: bind('click', () => jumpToNarrativePly(ctrl, moment.ply, anchorId)),
+            }, [
+                hl('span.narrative-outline-item-eyebrow', copy.eyebrow),
+                hl('strong.narrative-outline-item-title', copy.title),
+                copy.detail ? hl('span.narrative-outline-item-detail', copy.detail) : null,
+            ]);
+        }),
+        hl('button.narrative-outline-item.section', {
+            attrs: {
+                type: 'button',
+                title: 'Jump to conclusion',
+                'aria-label': 'Jump to conclusion',
+            },
+            hook: bind('click', () => scrollToNarrativeAnchor(NARRATIVE_CONCLUSION_ANCHOR_ID)),
+        }, [
+            hl('span.narrative-outline-item-eyebrow', 'Wrap-up'),
+            hl('strong.narrative-outline-item-title', 'Final takeaway'),
+            hl('span.narrative-outline-item-detail', 'Closing evaluation and practical summary'),
+        ]),
+    ];
+
+    return hl('section.narrative-outline', [
+        hl('div.narrative-outline-header', [
+            hl('h3.narrative-outline-title', 'Story Outline'),
+            hl('span.narrative-outline-count', `${moments.length} key moment${moments.length === 1 ? '' : 's'}`),
+        ]),
+        hl('div.narrative-outline-list', items),
+    ]);
+}
+
+export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: NarrativeCtrl): VNode | null {
     const review = doc.review;
     if (!review) return null;
 
@@ -593,14 +760,16 @@ export function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
     const evalCoveredPlies = Math.max(0, review.evalCoveredPlies || 0);
     const evalCoveragePct = Math.max(0, Math.min(100, review.evalCoveragePct || 0));
     const selectedMoments = Math.max(0, review.selectedMoments || 0);
+    const totalMoves = Math.max(1, Math.ceil(totalPlies / 2));
     const selectedMomentPlies = (review.selectedMomentPlies || [])
         .map(p => Math.trunc(p))
         .filter(p => p > 0 && (totalPlies <= 0 || p <= totalPlies));
+    const momentsByPly = new Map((doc.moments || []).map((moment, index) => [moment.ply, { moment, anchorId: narrativeMomentAnchorId(moment, index) }]));
 
     const summary =
         totalPlies > 0
-            ? `PGN span ${totalPlies} plies. Engine eval coverage ${evalCoveredPlies}/${totalPlies} (${evalCoveragePct}%).`
-            : `Engine eval coverage ${evalCoveredPlies} plies.`;
+            ? `Game span ${totalMoves} moves. Engine coverage ${evalCoveragePct}% across ${evalCoveredPlies} evaluated positions.`
+            : `Engine eval coverage ${evalCoveragePct}%.`;
 
     return hl('section.narrative-review', [
         hl('div.narrative-review-summary', summary),
@@ -615,11 +784,38 @@ export function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
                 ...selectedMomentPlies.map((ply, idx) => {
                     const ratio = totalPlies <= 1 ? 0 : (ply - 1) / (totalPlies - 1);
                     const left = Math.max(0, Math.min(100, Math.round(ratio * 1000) / 10));
-                    return hl('span.narrative-review-marker', {
-                        key: `moment-${ply}-${idx}`,
-                        attrs: { style: `left:${left}%;`, title: `Ply ${ply}` },
-                    });
+                    const target = momentsByPly.get(ply);
+                    const moment = target?.moment;
+                    const label = moment ? moveLabel(moment.ply, moment.side, moment.moveNumber) : moveLabel(ply);
+                    const titleParts = outlineSummary([
+                        label,
+                        moment?.moveClassification ? humanizeToken(moment.moveClassification) : null,
+                        moment?.concepts?.[0],
+                    ], 3) || label;
+                    return ctrl
+                        ? hl(`button.narrative-review-marker${moment && isCriticalMoment(moment) ? '.critical' : ''}`, {
+                            key: `moment-${ply}-${idx}`,
+                            attrs: {
+                                type: 'button',
+                                style: `left:${left}%;`,
+                                title: titleParts,
+                                'aria-label': titleParts,
+                            },
+                            hook: bind('click', () => jumpToNarrativePly(ctrl, ply, target?.anchorId)),
+                        })
+                        : hl(`span.narrative-review-marker${moment && isCriticalMoment(moment) ? '.critical' : ''}`, {
+                            key: `moment-${ply}-${idx}`,
+                            attrs: {
+                                style: `left:${left}%;`,
+                                title: titleParts,
+                                'aria-label': titleParts,
+                            },
+                        });
                 }),
+                hl('div.narrative-review-labels', [
+                    hl('span', moveRefLabel(1)),
+                    hl('span', moveRefLabel(totalPlies)),
+                ]),
             ])
             : null,
     ]);
@@ -628,9 +824,9 @@ export function narrativeReviewView(doc: GameNarrativeResponse): VNode | null {
 export function narrativeMomentView(
     ctrl: NarrativeCtrl,
     moment: GameNarrativeMoment,
-    opts: { selected?: boolean; onSelect?: () => void } = {},
+    opts: { selected?: boolean; onSelect?: () => void; anchorId?: string } = {},
 ): VNode {
-    const title = `Ply ${moment.ply}`;
+    const title = moveLabel(moment.ply, moment.side, moment.moveNumber);
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
     const hasStrategicBlock =
         !!moment.activeStrategicNote ||
@@ -639,7 +835,7 @@ export function narrativeMomentView(
         !!moment.activeStrategicRoutes?.length;
 
     return hl('section.narrative-moment', {
-        attrs: { 'data-ply': moment.ply },
+        attrs: opts.anchorId ? { 'data-ply': moment.ply, id: opts.anchorId } : { 'data-ply': moment.ply },
         class: { active: !!opts.selected },
         hook: opts.onSelect
             ? bind('click', e => {
@@ -654,8 +850,7 @@ export function narrativeMomentView(
                         'click',
                         () => {
                             opts.onSelect?.();
-                            ctrl.root.jumpToMain(moment.ply);
-                            ctrl.root.redraw();
+                            jumpToNarrativePly(ctrl, moment.ply, opts.anchorId);
                         },
                         undefined,
                     ),
@@ -676,6 +871,7 @@ export function narrativeMomentView(
         moment.collapse ? narrativeCollapseCardView(ctrl, moment, {
             selected: !!opts.selected,
             onSelect: opts.onSelect,
+            anchorId: opts.anchorId,
         }) : null,
         variations.length
             ? hl('div.narrative-variations', [
@@ -1340,7 +1536,7 @@ function narrativeActivePlanView(plan: ActivePlanRef): VNode {
 export function narrativeCollapseCardView(
     ctrl: NarrativeCtrl,
     moment: GameNarrativeMoment,
-    opts: { selected?: boolean; onSelect?: () => void } = {},
+    opts: { selected?: boolean; onSelect?: () => void; anchorId?: string } = {},
 ): VNode | null {
     const collapse = moment.collapse;
     if (!collapse) return null;
@@ -1361,7 +1557,7 @@ export function narrativeCollapseCardView(
         hl('div.narrative-collapse-body', [
             hl('div.narrative-collapse-row', [
                 hl('span.narrative-collapse-label', 'Collapse Interval:'),
-                hl('span.narrative-collapse-value', `Ply ${collapse.interval}`)
+                hl('span.narrative-collapse-value', collapseIntervalLabel(collapse.interval))
             ]),
             hl('div.narrative-collapse-row', [
                 hl('span.narrative-collapse-label', 'Root Cause:'),
@@ -1372,14 +1568,13 @@ export function narrativeCollapseCardView(
                 hl('button.button.button-empty.narrative-jump', {
                     hook: bind('click', () => {
                         opts.onSelect?.();
-                        ctrl.root.jumpToMain(collapse.earliestPreventablePly);
-                        ctrl.root.redraw();
+                        jumpToNarrativePly(ctrl, collapse.earliestPreventablePly, opts.anchorId);
                     })
-                }, `Ply ${collapse.earliestPreventablePly}`)
+                }, moveLabel(collapse.earliestPreventablePly))
             ]),
             hl('div.narrative-collapse-row', [
                 hl('span.narrative-collapse-label', 'Recoverability Window:'),
-                hl('span.narrative-collapse-value', `${collapse.recoverabilityPlies} plies`)
+                hl('span.narrative-collapse-value', `${collapse.recoverabilityPlies} steps`)
             ]),
             patchReplayPanel(ctrl, moment),
         ])
@@ -1405,7 +1600,7 @@ function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNo
             hl('span.narrative-collapse-label', 'Patch Line:'),
             hl('button.button.button-empty.patch-replay-open-btn', {
                 hook: bind('click', () => ctrl.patchOpen(collapseId))
-            }, `▶ Replay ${patchMoves.length} moves`),
+            }, `▶ Replay ${patchMoves.length} steps`),
         ]);
     }
 
@@ -1472,10 +1667,9 @@ function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNo
         ]),
         hl('button.button.button-empty.patch-jump-btn', {
             hook: bind('click', () => {
-                ctrl.root.jumpToMain(ply);
-                ctrl.root.redraw();
+                jumpToNarrativePly(ctrl, ply);
             })
-        }, `↗ Jump to Ply ${ply}`),
+        }, `↗ Jump to ${moveLabel(ply)}`),
     ]);
 }
 
@@ -1488,26 +1682,60 @@ function narrativeVariationView(ctrl: NarrativeCtrl, fen: string, line: Variatio
     const label = String.fromCharCode('A'.charCodeAt(0) + (index % 26));
     const score = typeof line.mate === 'number' ? `#${line.mate}` : renderEval(line.scoreCp);
     const tags = Array.isArray(line.tags) && line.tags.length ? line.tags : null;
+    const moveLine = renderMovesSurface(ctrl, fen, line.moves);
+    const preview = moveLine.preview;
 
-    return hl('div.narrative-variation', [
-        hl('div.narrative-variation-meta', [
-            hl('span.narrative-variation-label', label),
-            hl('span.narrative-variation-score', score),
-            tags ? hl('span.narrative-variation-tags', tags.join(', ')) : null,
+    return hl('div.narrative-variation', preview ? { attrs: { 'data-board': preview.board } } : undefined, [
+        preview
+            ? hl('div.narrative-variation-board-wrap', [
+                hl('div.narrative-variation-board-copy', [
+                    hl('span.narrative-variation-board-label', `PV ${label}`),
+                    hl('span.narrative-variation-board-meta', `${preview.plies}-step line`),
+                ]),
+                hl('div.narrative-variation-board-shell', {
+                    attrs: {
+                        'data-board': preview.board,
+                        tabindex: '0',
+                        role: 'button',
+                        'aria-label': `Preview variation ${label}`,
+                        title: `Preview variation ${label}`,
+                    },
+                }, [
+                    hl('div.mini-board.mini-board--init.narrative-variation-board', {
+                        attrs: {
+                            'data-state': preview.state,
+                            'data-board': preview.board,
+                        },
+                    }),
+                ]),
+            ])
+            : null,
+        hl('div.narrative-variation-main', [
+            hl('div.narrative-variation-meta', [
+                hl('span.narrative-variation-label', label),
+                hl('span.narrative-variation-score', score),
+                tags ? hl('span.narrative-variation-tags', tags.join(', ')) : null,
+            ]),
+            hl('div.narrative-variation-moves', moveLine.nodes),
         ]),
-        hl('div.narrative-variation-moves', renderMoves(ctrl, fen, line.moves)),
     ]);
 }
 
 function renderMoves(ctrl: NarrativeCtrl, fen: string, moves: string[]): Array<VNode | string> {
+    return renderMovesSurface(ctrl, fen, moves).nodes;
+}
+
+function renderMovesSurface(ctrl: NarrativeCtrl, fen: string, moves: string[]): RenderedMoveLine {
     const setup = parseFen(fen);
-    if (!setup.isOk) return ['(invalid FEN)'];
+    if (!setup.isOk) return { nodes: ['(invalid FEN)'] };
 
     const pos = setupPosition(lichessRules(ctrl.root.data.game.variant.key), setup.value);
-    if (!pos.isOk) return ['(invalid position)'];
+    if (!pos.isOk) return { nodes: ['(invalid position)'] };
 
     const vnodes: Array<VNode | string> = [];
     let key = makeBoardFen(pos.value.board);
+    let lastBoard: string | undefined;
+    let lastUci: string | undefined;
 
     for (let i = 0; i < moves.length; i++) {
         let text: string | undefined;
@@ -1523,13 +1751,25 @@ function renderMoves(ctrl: NarrativeCtrl, fen: string, moves: string[]): Array<V
         const afterFen = makeBoardFen(pos.value.board);
         if (san === '--') break;
         key += '|' + uci;
+        lastBoard = afterFen;
+        lastUci = uci;
 
         vnodes.push(
             hl('span.narrative-move', { key, attrs: { 'data-board': `${afterFen}|${uci}` } }, san),
         );
     }
 
-    return vnodes;
+    return {
+        nodes: vnodes,
+        preview:
+            lastBoard && lastUci
+                ? {
+                    board: `${lastBoard}|${lastUci}`,
+                    state: `${lastBoard},${ctrl.root.getOrientation()},${lastUci}`,
+                    plies: moves.length,
+                }
+                : undefined,
+    };
 }
 
 function routePreviewFromDataset(el: HTMLElement): BoardPreview | null {
@@ -1570,8 +1810,8 @@ function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
     if (anyRoot._chesstoryNarrativeBound) return;
     anyRoot._chesstoryNarrativeBound = true;
 
-    root.addEventListener('mouseover', (e: MouseEvent) => {
-        const routeEl = (e.target as HTMLElement | null)?.closest?.('[data-route][data-route-fen]') as HTMLElement | null;
+    const updatePreview = (target: HTMLElement | null) => {
+        const routeEl = target?.closest?.('[data-route][data-route-fen]') as HTMLElement | null;
         if (routeEl) {
             const routePreview = routePreviewFromDataset(routeEl);
             if (routePreview) {
@@ -1582,23 +1822,43 @@ function bindPreviewHover(ctrl: NarrativeCtrl, root: HTMLElement): void {
                     shapes: routeSquares ? routeShapesFromSquares(routeSquares) : [],
                 });
                 ctrl.root.redraw();
-                return;
+                return true;
             }
         }
 
-        const el = (e.target as HTMLElement | null)?.closest?.('[data-board]') as HTMLElement | null;
+        const el = target?.closest?.('[data-board]') as HTMLElement | null;
         const board = el?.dataset?.board;
-        if (!board || !board.includes('|')) return;
+        if (!board || !board.includes('|')) return false;
         const [fen, uci] = board.split('|');
-        if (!fen || !uci) return;
+        if (!fen || !uci) return false;
         ctrl.root.setNarrativeRouteOverlay(null);
         ctrl.pvBoard({ fen, uci });
         ctrl.root.redraw();
-    });
+        return true;
+    };
 
-    root.addEventListener('mouseleave', () => {
+    const clearPreview = () => {
         ctrl.root.setNarrativeRouteOverlay(null);
         ctrl.pvBoard(null);
         ctrl.root.redraw();
+    };
+
+    root.addEventListener('mouseover', (e: MouseEvent) => {
+        updatePreview(e.target as HTMLElement | null);
+    });
+
+    root.addEventListener('focusin', (e: FocusEvent) => {
+        updatePreview(e.target as HTMLElement | null);
+    });
+
+    root.addEventListener('focusout', () => {
+        setTimeout(() => {
+            if (root.contains(document.activeElement)) return;
+            clearPreview();
+        }, 0);
+    });
+
+    root.addEventListener('mouseleave', () => {
+        clearPreview();
     });
 }

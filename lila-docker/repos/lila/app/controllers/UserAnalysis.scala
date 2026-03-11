@@ -1,7 +1,9 @@
 package controllers
 
-import play.api.mvc.*
 import lila.app.*
+import lila.analyse.ImportHistory
+import play.api.libs.json.{ JsObject, Json }
+import play.api.mvc.*
 
 final class UserAnalysis(
     env: Env
@@ -9,7 +11,7 @@ final class UserAnalysis(
     with lila.web.TheftPrevention:
 
   def index = Open:
-    Ok.page(AnalysePgnPipeline.page())
+    renderPage()
 
   def parseArg(arg: String) = Open:
     val (key, fenStr) = arg.indexOf('/') match
@@ -23,14 +25,76 @@ final class UserAnalysis(
       .filter(_.trim.nonEmpty)
       .map(chess.format.Fen.Full.clean)
 
-    Ok.page(AnalysePgnPipeline.page(variant = variant, fen = fen))
+    renderPage(variant = variant, fen = fen)
 
   def pgn(pgnString: String) = Open:
     val decodedPgn = lila.common.String.decodeUriPath(pgnString).getOrElse(pgnString)
     AnalysePgnPipeline.normalizedInlinePgn(decodedPgn).fold[Fu[Result]](
       BadRequest("Empty PGN payload.").toFuccess
     ): inlinePgn =>
-      Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
+      renderPage(inlinePgn = Some(inlinePgn))
+
+  def imported(id: String) = Auth { ctx ?=> me ?=>
+    env.analyse.importHistory.openAnalysis(id, me.userId).flatMap:
+      case Some(entry) => renderPage(inlinePgn = Some(entry.normalizedPgn), currentImportId = entry._id.some)
+      case None        => notFound
+  }
 
   def embed = Anon:
     Ok("Analysis Board Embed").toFuccess
+
+  private def renderPage(
+      variant: chess.variant.Variant = chess.variant.Standard,
+      fen: Option[chess.format.Fen.Full] = None,
+      inlinePgn: Option[String] = None,
+      currentImportId: Option[String] = None
+  )(using ctx: Context): Fu[Result] =
+    importHistoryJson(currentImportId).flatMap: history =>
+      Ok.page(AnalysePgnPipeline.page(variant = variant, fen = fen, inlinePgn = inlinePgn, importHistory = history))
+
+  private def importHistoryJson(currentImportId: Option[String])(using ctx: Context): Fu[Option[JsObject]] =
+    ctx.me.fold(fuccess(none[JsObject])): me =>
+      env.analyse.importHistory.recentSummary(me.userId).map: summary =>
+        val accounts = summary.accounts.map: account =>
+          Json.obj(
+            "provider" -> account.provider,
+            "providerLabel" -> providerLabel(account.provider),
+            "username" -> account.username,
+            "href" -> accountUrl(account),
+            "analysisCount" -> account.analysisCount,
+            "activityAt" -> account.activityAt.toString,
+            "lastAnalysedAt" -> account.lastAnalysedAt.map(_.toString)
+          )
+        val analyses = summary.analyses.map: entry =>
+          Json.obj(
+            "id" -> entry._id,
+            "title" -> entry.title,
+            "provider" -> entry.provider,
+            "providerLabel" -> entry.provider.map(providerLabel),
+            "username" -> entry.username,
+            "href" -> routes.UserAnalysis.imported(entry._id).url,
+            "openedAt" -> entry.lastOpenedAt.toString,
+            "sourceType" -> entry.sourceType,
+            "result" -> entry.result,
+            "speed" -> entry.speed,
+            "playedAtLabel" -> entry.playedAtLabel,
+            "white" -> entry.white,
+            "black" -> entry.black,
+            "variant" -> entry.variant,
+            "opening" -> entry.opening
+          )
+        Json.obj(
+          "currentAnalysisId" -> currentImportId,
+          "recentAccounts" -> accounts,
+          "recentAnalyses" -> analyses
+        ).some
+
+  private def accountUrl(account: ImportHistory.Account) =
+    account.provider match
+      case ImportHistory.providerChessCom => routes.Importer.importFromChessCom(account.username).url
+      case _                              => routes.Importer.importFromLichess(account.username).url
+
+  private def providerLabel(provider: String) =
+    provider match
+      case ImportHistory.providerChessCom => "Chess.com"
+      case _                              => "Lichess"

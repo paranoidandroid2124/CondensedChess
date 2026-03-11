@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ ActiveBranchDossierBuilder, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveNoteIndependenceGuard, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicBranchSelector, StrategyPackBuilder }
 import lila.llm.model.{ FullGameNarrative, OpeningReference }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -1258,6 +1258,7 @@ final class LlmApi(
 
   private def validateActiveStrategicNote(
       candidateText: String,
+      baseNarrative: String,
       dossier: Option[ActiveBranchDossier],
       strategyPack: Option[StrategyPack],
       routeRefs: List[ActiveStrategicRouteRef],
@@ -1276,6 +1277,9 @@ final class LlmApi(
       else
         val count = sentenceCount(trimmed)
         Option.when(count < 2 || count > 4)("active_note_sentence_count").toList
+    val independenceReasons =
+      if trimmed.isEmpty then Nil
+      else ActiveNoteIndependenceGuard.reasons(trimmed, baseNarrative)
     val strategyReasons =
       if trimmed.isEmpty then Nil
       else evaluateStrategyCoverage(trimmed, strategyPack, PlanTier.Pro, LlmLevel.Active).reasons
@@ -1319,7 +1323,7 @@ final class LlmApi(
             )
           ).flatten
         }
-    val reasons = (baseReasons ++ sentenceReasons ++ strategyReasons ++ referenceReasons ++ dossierReasons).distinct
+    val reasons = (baseReasons ++ sentenceReasons ++ independenceReasons ++ strategyReasons ++ referenceReasons ++ dossierReasons).distinct
     ActiveStrategicNoteValidation(
       isValid = reasons.isEmpty,
       text = trimmed,
@@ -1412,6 +1416,7 @@ final class LlmApi(
             case Some(primary) =>
               val primaryValidation = validateActiveStrategicNote(
                 candidateText = primary.commentary,
+                baseNarrative = moment.narrative,
                 dossier = dossier,
                 strategyPack = moment.strategyPack,
                 routeRefs = routeRefs,
@@ -1467,6 +1472,7 @@ final class LlmApi(
                   case Some(repaired) =>
                     val repairedValidation = validateActiveStrategicNote(
                       candidateText = repaired.commentary,
+                      baseNarrative = moment.narrative,
                       dossier = dossier,
                       strategyPack = moment.strategyPack,
                       routeRefs = routeRefs,
@@ -1517,6 +1523,7 @@ final class LlmApi(
               case Some(primary) =>
                 val primaryValidation = validateActiveStrategicNote(
                   candidateText = primary,
+                  baseNarrative = moment.narrative,
                   dossier = dossier,
                   strategyPack = moment.strategyPack,
                   routeRefs = routeRefs,
@@ -1549,6 +1556,7 @@ final class LlmApi(
                       case Some(repaired) =>
                         val repairedValidation = validateActiveStrategicNote(
                           candidateText = repaired,
+                          baseNarrative = moment.narrative,
                           dossier = dossier,
                           strategyPack = moment.strategyPack,
                           routeRefs = routeRefs,
@@ -2866,6 +2874,14 @@ final class LlmApi(
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val strategyPack = StrategyPackBuilder.build(dataWithContinuity, ctx)
+            val bookmakerLedger = BookmakerStrategicLedgerBuilder.build(
+              ctx = ctx,
+              strategyPack = strategyPack,
+              refs = refs,
+              probeResults = probeResults.getOrElse(Nil),
+              planStateToken = prevStateToken,
+              endgameStateToken = prevEndgameStateToken
+            )
             val bookmakerSlots = BookmakerPolishSlotsBuilder.build(ctx, outline, refs)
             val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
             val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
@@ -2911,7 +2927,8 @@ final class LlmApi(
                 planTier = planTier,
                 llmLevel = llmLevel,
                 strategyPack = strategyPack,
-                signalDigest = strategyPack.flatMap(_.signalDigest)
+                signalDigest = strategyPack.flatMap(_.signalDigest),
+                bookmakerLedger = bookmakerLedger
               )
               recordComparisonObservation(
                 path = "bookmaker",

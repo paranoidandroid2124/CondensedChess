@@ -17,7 +17,7 @@ object ActiveBranchDossierBuilder:
     val deferredBranch = deferredBranchLabel(digest, comparison)
     val routeCue = selectRouteCue(digest, routeRefs)
     val moveCue = selectMoveCue(comparison, moveRefs)
-    val whyChosen = whyChosenText(moment, digest, routeCue, dominantLens)
+    val whyChosen = whyChosenText(digest, routeCue)
     val whyDeferred = whyDeferredText(digest, comparison)
     val opponentResource = opponentResourceText(digest, whyDeferred)
     val evidenceCue = evidenceText(moment, comparison)
@@ -118,7 +118,9 @@ object ActiveBranchDossierBuilder:
       case _ =>
         chosenMove
           .map(move => s"chosen branch -> $move")
-          .getOrElse(firstSentenceLabel(moment.narrative))
+          .orElse(digest.flatMap(_.decision).flatMap(normalized).map(reason => s"strategic branch -> $reason"))
+          .orElse(digest.flatMap(_.structuralCue).flatMap(normalized).map(reason => s"strategic branch -> $reason"))
+          .getOrElse("strategic branch")
 
   private def engineBranchLabel(
       digest: Option[NarrativeSignalDigest],
@@ -150,18 +152,14 @@ object ActiveBranchDossierBuilder:
     }
 
   private def whyChosenText(
-      moment: GameNarrativeMoment,
       digest: Option[NarrativeSignalDigest],
-      routeCue: Option[ActiveBranchRouteCue],
-      dominantLens: String
+      routeCue: Option[ActiveBranchRouteCue]
   ): Option[String] =
     val fromDigest =
       digest.flatMap(_.deploymentContribution).flatMap(normalized)
         .orElse(digest.flatMap(_.decision).flatMap(normalized))
         .orElse(routeCue.flatMap(cue => normalized(s"${cue.piece} ${cue.route.mkString("-")} for ${cue.purpose}")))
-    fromDigest.orElse {
-      Option.when(dominantLens == "tactical")(firstSentenceLabel(moment.narrative))
-    }.map(UserFacingSignalSanitizer.sanitize)
+    fromDigest.map(UserFacingSignalSanitizer.sanitize)
 
   private def whyDeferredText(
       digest: Option[NarrativeSignalDigest],
@@ -198,8 +196,6 @@ object ActiveBranchDossierBuilder:
               case (Some(move), None)       => Some(move)
               case (None, Some(text))       => Some(text)
               case _                        => None
-          }.orElse {
-            normalized(summary.question)
           }
         }
       }
@@ -275,19 +271,6 @@ object ActiveBranchDossierBuilder:
         source = ref.source
       )
     }
-
-  private def firstSentenceLabel(text: String): String =
-    UserFacingSignalSanitizer
-      .sanitize(
-        Option(text)
-          .getOrElse("")
-          .split("""(?<=[.!?])\s+""")
-          .map(_.trim)
-          .find(_.nonEmpty)
-          .getOrElse("strategic branch")
-      )
-      .stripSuffix(".")
-      .take(100)
 
   private def isTactical(text: String): Boolean =
     List("blunder", "mistake", "missedwin", "missed win", "inaccuracy", "mate", "tactic").exists(text.contains)

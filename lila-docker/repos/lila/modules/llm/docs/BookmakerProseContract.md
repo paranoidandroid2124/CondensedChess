@@ -23,9 +23,18 @@ Meaning:
 UI-owned structure:
 
 - `Strategic Signals`
+- `Bookmaker ledger` rows inside `Strategic Signals`:
+  - `Motif`
+  - `Stage`
+  - `Carry-over`
+  - `Prereqs`
+  - `Conversion`
 - `Decision Compare`
 - `Piece Deployment`
 - `Evidence Probes`
+- `Bookmaker ledger` rows inside `Evidence Probes`:
+  - `Plan line`
+  - `Counter-resource`
 - `Authoring Evidence`
 - `Alternative Options`
 - eval toggle, preview board, move chips, and variation controls
@@ -36,6 +45,21 @@ LLM-owned structure:
 - paragraph boundaries
 - sentence flow inside paragraphs
 - connective tissue between facts already present in the draft
+
+Boundary rule:
+
+- `bookmakerLedger` is computed from raw `NarrativeContext`, refs, probe /
+  decision evidence, and continuity tokens.
+- `bookmakerLedger` is optional and evidence-gated. If motif/stage support is
+  too weak, the response may omit it and the UI must stay on the legacy
+  surface.
+- Ledger computation may reuse normalized backend carriers such as
+  `StrategicThesis`, `NarrativeSignalDigest`, and `DecisionComparisonDigest`,
+  but must not mine free-form prose fields back into motif/stage rows.
+- It is not derived from the outline, validated outline, slots, or polished
+  prose.
+- The prose path must therefore not be used as a carrier for ledger-only
+  information.
 
 ## Output Contract
 
@@ -48,6 +72,10 @@ The polished Bookmaker body must satisfy all of the following:
 - Do not collapse a multi-paragraph draft into one wall of text.
 - If branch labels such as `a)`, `b)`, or `c)` already exist in the draft, preserve them exactly.
 - Do not invent new list structures.
+- Do not restate ledger rows as prose bullets or mini-cards.
+- Do not turn `Motif`, `Stage`, `Carry-over`, `Prereqs`, `Conversion`,
+  `Plan line`, or `Counter-resource` into repeated body scaffolding.
+- The body may mention at most one exact concrete line.
 
 ## Paragraph Budget
 
@@ -82,6 +110,14 @@ Decision comparison details should also stay in UI-owned surfaces when
 available. The commentary body should not expand into a full best-vs-deferred
 comparison card when the same information is already present in a dedicated
 visible block.
+
+Ledger duplication rule:
+
+- If `bookmakerLedger` already exposes the dominant motif, stage, carry-over,
+  prerequisites, conversion trigger, or a concrete line, the body should
+  prefer causal explanation over repeating that structured payload verbatim.
+- The body may still refer to the same strategic idea, but should not enumerate
+  the ledger fields one by one.
 
 For structure-led positions, the commentary body should keep only:
 

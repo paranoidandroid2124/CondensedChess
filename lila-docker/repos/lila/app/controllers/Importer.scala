@@ -1,6 +1,7 @@
 package controllers
 
 import lila.app.*
+import lila.analyse.ImportHistory
 import play.api.libs.json.*
 import play.api.libs.ws.StandaloneWSClient
 import play.api.libs.ws.DefaultBodyReadables.*
@@ -62,7 +63,7 @@ final class Importer(
       req.queryString.get(name).flatMap(_.headOption).map(_.trim).filter(_.nonEmpty)
     val provider = queryParam("provider").map(_.toLowerCase).filter(providerValues).getOrElse("lichess")
     val username = queryParam("username").getOrElse("")
-    Ok.page(views.importer.index(provider = provider, username = username))
+    Ok.async(importIndexPage(provider = provider, username = username))
 
   // Handles two cases:
   // 1) provider + username => redirect to fetched game list
@@ -75,7 +76,7 @@ final class Importer(
 
     first("pgn64").flatMap(decodePgn64) match
       case Some(pgn) =>
-        renderAnalysisWithInlinePgn(pgn)
+        renderAnalysisWithInlinePgn(pgn, submittedAnalysisSource(first))
       case None =>
         val provider = first("provider").map(_.toLowerCase)
         val username = first("username")
@@ -83,55 +84,120 @@ final class Importer(
           case (Some("lichess"), Some(user)) => Redirect(routes.Importer.importFromLichess(user)).toFuccess
           case (Some("chesscom"), Some(user)) => Redirect(routes.Importer.importFromChessCom(user)).toFuccess
           case _ =>
-            BadRequest.page(
-              views.importer.index(
-                error = Some("Please choose provider and enter a valid username.")
-              )
-            )
+            BadRequest.async(importIndexPage(error = Some("Please choose provider and enter a valid username.")))
 
   def apiSendGame = Open:
     Redirect(routes.Importer.importGame).toFuccess
 
   def importFromLichess(username: String) = Open:
     normalizedUsername(username).fold[Fu[Result]](
-      BadRequest.page(views.importer.index(error = Some("Invalid Lichess username.")))
+      BadRequest.async(importIndexPage(error = Some("Invalid Lichess username.")))
     ) { normalized =>
-      fetchRecentLichessGames(normalized).flatMap { games =>
-        Ok.page(
-          views.importer.gameList(
-            provider = "lichess",
-            username = normalized,
-            games = games,
-            notice = Option.when(games.isEmpty)("No public games found for this Lichess user.")
-          )
+      for
+        _ <- recordAccountSearch(ImportHistory.providerLichess, normalized)
+        games <- fetchRecentLichessGames(normalized)
+        page <- gameListPage(
+          provider = ImportHistory.providerLichess,
+          username = normalized,
+          games = games,
+          notice = Option.when(games.isEmpty)("No public games found for this Lichess user.")
         )
-      }
+        res <- Ok.page(page)
+      yield res
     }
 
   def importFromChessCom(username: String) = Open:
     normalizedUsername(username).fold[Fu[Result]](
-      BadRequest.page(views.importer.index(error = Some("Invalid Chess.com username.")))
+      BadRequest.async(importIndexPage(error = Some("Invalid Chess.com username.")))
     ) { normalized =>
-      fetchRecentChessComGames(normalized).flatMap { games =>
-        Ok.page(
-          views.importer.gameList(
-            provider = "chesscom",
-            username = normalized,
-            games = games,
-            notice = Option.when(games.isEmpty)("No public games found for this Chess.com user.")
-          )
+      for
+        _ <- recordAccountSearch(ImportHistory.providerChessCom, normalized)
+        games <- fetchRecentChessComGames(normalized)
+        page <- gameListPage(
+          provider = ImportHistory.providerChessCom,
+          username = normalized,
+          games = games,
+          notice = Option.when(games.isEmpty)("No public games found for this Chess.com user.")
         )
-      }
+        res <- Ok.page(page)
+      yield res
     }
 
   private def normalizedUsername(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty).flatMap(usernamePattern.findFirstIn)
 
-  private def renderAnalysisWithInlinePgn(rawPgn: String)(using Context): Fu[Result] =
+  private def renderAnalysisWithInlinePgn(
+      rawPgn: String,
+      source: ImportHistory.AnalysisSource
+  )(using ctx: Context): Fu[Result] =
     AnalysePgnPipeline.normalizedInlinePgn(rawPgn).fold[Fu[Result]](
       BadRequest("Empty PGN payload from upstream provider").toFuccess
     ): inlinePgn =>
-      Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
+      ctx.me.fold[Fu[Result]](
+        Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
+      ): me =>
+        env.analyse.importHistory
+          .recordAnalysis(me.userId, inlinePgn, source)
+          .map: entry =>
+            Redirect(routes.UserAnalysis.imported(entry._id))
+          .recoverWith { case NonFatal(err) =>
+            logger.warn(s"import analysis history save failed err=${err.getMessage}")
+            Ok.page(AnalysePgnPipeline.page(inlinePgn = Some(inlinePgn)))
+          }
+
+  private def submittedAnalysisSource(
+      first: String => Option[String]
+  ): ImportHistory.AnalysisSource =
+    ImportHistory.AnalysisSource(
+      sourceType = first("sourceType").getOrElse(ImportHistory.sourceManual),
+      provider = first("sourceProvider").orElse(first("provider")),
+      username = first("sourceUsername").orElse(first("username")),
+      externalGameId = first("sourceGameId"),
+      sourceUrl = first("sourceUrl"),
+      white = first("sourceWhite"),
+      black = first("sourceBlack"),
+      result = first("sourceResult"),
+      speed = first("sourceSpeed"),
+      playedAtLabel = first("sourcePlayedAt")
+    )
+
+  private def importIndexPage(
+      error: Option[String] = None,
+      provider: String = "lichess",
+      username: String = ""
+  )(using ctx: Context): Fu[lila.ui.Page] =
+    importPageSummary.map: summary =>
+      views.importer.index(
+        error = error,
+        provider = provider,
+        username = username,
+        recentAccounts = summary.accounts,
+        recentAnalyses = summary.analyses
+      )
+
+  private def gameListPage(
+      provider: String,
+      username: String,
+      games: List[GameCard],
+      notice: Option[String]
+  )(using ctx: Context): Fu[lila.ui.Page] =
+    importPageSummary.map: summary =>
+      views.importer.gameList(
+        provider = provider,
+        username = username,
+        games = games,
+        notice = notice,
+        recentAccounts = summary.accounts,
+        recentAnalyses = summary.analyses
+      )
+
+  private def importPageSummary(using ctx: Context): Fu[ImportHistory.RecentSummary] =
+    ctx.me.fold(fuccess(ImportHistory.RecentSummary.empty)): me =>
+      env.analyse.importHistory.recentSummary(me.userId)
+
+  private def recordAccountSearch(provider: String, username: String)(using ctx: Context): Funit =
+    ctx.me.fold(funit): me =>
+      env.analyse.importHistory.recordAccountSearch(me.userId, provider, username)
 
   private def fetchRecentLichessGames(username: String): Fu[List[GameCard]] =
     val url = s"$lichessImportApiBase/api/games/user/$username?max=$recentGameTarget&pgnInJson=true"

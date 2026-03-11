@@ -382,6 +382,7 @@ function renderReference(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
       hl('p', referenceHint(ctrl.reviewReferenceTab())),
     ]),
     renderReferenceSummary(ctrl),
+    renderReferenceActions(ctrl),
     hl(
       'div.analyse-review__subtabs',
       {
@@ -437,6 +438,28 @@ function renderReferenceSummary(ctrl: AnalyseCtrl): VNode {
       'current position',
     ),
     compactStat(`${sideToMove} • ${ply}`, explorerDb === 'masters' ? 'masters db' : 'online db'),
+  ]);
+}
+
+function renderReferenceActions(ctrl: AnalyseCtrl): VNode {
+  const activeReference = referenceTabs.find(({ tab }) => tab === ctrl.reviewReferenceTab())?.label ?? 'Reference';
+  return hl('div.analyse-review__reference-actions', [
+    hl(
+      'button.analyse-review__reference-action.analyse-review__reference-action--primary',
+      {
+        attrs: { type: 'button' },
+        hook: bind('click', () => ctrl.setReviewPrimaryTab('overview')),
+      },
+      'Back to Overview',
+    ),
+    hl(
+      'button.analyse-review__reference-action',
+      {
+        attrs: { type: 'button' },
+        hook: bind('click', () => ctrl.setReviewPrimaryTab('moves')),
+      },
+      `Close ${activeReference}`,
+    ),
   ]);
 }
 

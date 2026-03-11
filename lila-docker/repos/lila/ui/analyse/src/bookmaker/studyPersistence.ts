@@ -1,4 +1,11 @@
-import type { BookmakerRefsV1, PolishMetaV1 } from './responsePayload';
+import type { BookmakerRefsV1, BookmakerStrategicLedgerV1, PolishMetaV1 } from './responsePayload';
+import type { EndgameStateToken, PlanStateToken } from './types';
+
+export type StoredBookmakerTokenContext = {
+  stateKey: string;
+  analysisFen: string;
+  originPath: string;
+};
 
 export type StoredBookmakerEntry = {
   html: string;
@@ -10,6 +17,10 @@ export type StoredBookmakerEntry = {
   mainPlansCount: number;
   latentPlansCount: number;
   holdReasonsCount: number;
+  bookmakerLedger?: BookmakerStrategicLedgerV1 | null;
+  planStateToken?: PlanStateToken | null;
+  endgameStateToken?: EndgameStateToken | null;
+  tokenContext?: StoredBookmakerTokenContext | null;
 };
 
 export type StudyBookmakerSnapshot = {

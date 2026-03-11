@@ -933,6 +933,92 @@ Verification:
 - `ui/analyse/src/narrative/narrativeView.ts`
 - `ui/analyse/css/_narrative.scss`
 
+## 2026-03-10 Active Independence Update
+
+- Active strategic notes no longer receive the prior moment prose as a primary
+  generation block. `ActiveStrategicPrompt.buildPrompt` now starts from moment
+  context + structured evidence (`Active Dossier`, `Strategy Pack`, route refs,
+  move refs) and explicitly asks for an independent strategic thesis instead of
+  preserving the prior wording.
+- Repair prompts still receive the prior note, but only as a contradiction
+  guard. The prompt now explicitly tells the model not to mirror its wording or
+  sentence structure.
+- `ActiveBranchDossierBuilder` no longer backfills dossier cues from prior prose
+  when structured evidence is absent:
+  - `chosenBranchLabel` no longer falls back to the first sentence of
+    `moment.narrative`
+  - `whyChosen` no longer falls back to tactical narrative prose
+  - `evidenceCue` no longer falls back to `authorEvidence.summary.question`
+- Active validation now includes an independence guard:
+  - `ActiveNoteIndependenceGuard` rejects direct reuse of long normalized prior
+    phrases or long shared sentence openings
+  - `LlmApi.validateActiveStrategicNote` applies this guard against the prior
+    `moment.narrative` before accepting an Active note
+- Resulting behavior: Active notes are still grounded by shipped strategic
+  signals, but they are now intended to synthesize a fresh long-term strategic
+  idea from those signals instead of paraphrasing the base narrative.
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveBranchDossierBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveNoteIndependenceGuard.scala`
+- `modules/llm/src/main/LlmApi.scala`
+- `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveBranchDossierBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveNoteIndependenceGuardTest.scala`
+
+## 2026-03-11 Bookmaker Ledger Update
+
+- Bookmaker now emits a compact `bookmakerLedger` in parallel to prose and
+  `signalDigest`.
+- This ledger is intentionally outside the
+  `thesis -> outline -> validator -> prose` compression path.
+- The ledger builder is evidence-gated:
+  - it may return `None`
+  - weak fallback motif/stage rows are not rendered by default
+- Builder input is structured runtime state and normalized backend carriers:
+  - `NarrativeContext`
+  - `StrategyPack`
+  - `StrategicThesisBuilder` output
+  - `NarrativeSignalDigestBuilder` output
+  - `DecisionComparisonBuilder` output
+  - Bookmaker refs / variation previews
+  - probe results
+  - continuity tokens
+- It does not read outline slots, validated outline, polished prose, or parse
+  free-form `whyAbsent` / prompt text back into ledger fields.
+- Builder output is compact and fixed-shape:
+  - dominant motif
+  - stage / carry-over / stage reason
+  - prerequisites / conversion trigger
+  - `primaryLine` / `resourceLine`
+- Frontend consumption stays inside existing Bookmaker surfaces only:
+  - `Strategic Signals` gets `Motif`, `Stage`, `Carry-over`, `Prereqs`,
+    `Conversion`
+  - `Evidence Probes` gets `Plan line`, `Counter-resource`
+- Session/study snapshot payloads now persist:
+  - `bookmakerLedger`
+  - `planStateToken`
+  - `endgameStateToken`
+- token restore context (`stateKey`, `analysisFen`, `originPath`)
+- Restore rehydrates those tokens only when the stored token context matches
+  the current Bookmaker analysis state, so stale study snapshots do not inject
+  continuity state into a different board context.
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/models.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
+- `modules/llm/src/main/LlmApi.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilderTest.scala`
+- `ui/analyse/src/bookmaker/responsePayload.ts`
+- `ui/analyse/src/bookmaker/ledgerSurface.ts`
+- `ui/analyse/src/bookmaker/surfaceShared.ts`
+- `ui/analyse/src/bookmaker/stateContinuity.ts`
+- `ui/analyse/src/bookmaker/studyPersistence.ts`
+- `ui/analyse/src/bookmaker.ts`
+- `ui/analyse/tests/bookmakerLedgerSurface.test.ts`
+- `ui/analyse/tests/bookmakerPersistence.test.ts`
+
 ## Reference Files
 
 Primary files used in this audit:

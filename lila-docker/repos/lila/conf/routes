@@ -91,6 +91,7 @@ POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/bookmaker-sync controllers.Study.b
 
 # User Analysis
 # GET   /analysis/help                   controllers.UserAnalysis.help
+GET   /analysis/import/:id             controllers.UserAnalysis.imported(id: String)
 GET   /analysis/pgn/*pgn               controllers.UserAnalysis.pgn(pgn)
 GET   /analysis/*something             controllers.UserAnalysis.parseArg(something)
 GET   /embed/analysis                  controllers.UserAnalysis.embed

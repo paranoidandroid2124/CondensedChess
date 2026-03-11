@@ -175,6 +175,28 @@ describe('review shell', () => {
     assert.match(text, /Black to move/);
     assert.match(text, /Board View/);
   });
+
+  test('reference shows shared back and close affordances for each panel', () => {
+    const cases = [
+      ['explorer', /Close Explorer/],
+      ['board', /Close Board View/],
+      ['import', /Close Import/],
+    ] as const;
+
+    for (const [referenceTab, closeLabel] of cases) {
+      const vnode = reviewView(
+        makeCtrl({
+          primaryTab: 'reference',
+          referenceTab,
+        }),
+        reviewNodes,
+      );
+      const text = collectText(vnode);
+
+      assert.match(text, /Back to Overview/);
+      assert.match(text, closeLabel);
+    }
+  });
 });
 
 function makeCtrl({
@@ -223,6 +245,14 @@ function makeCtrl({
     patchClose() {},
     patchStep() {},
     patchToggle() {},
+    showAllCollapses: (() => {
+      let expanded = false;
+      return (next?: boolean) => {
+        if (next === undefined) return expanded;
+        expanded = next;
+        return expanded;
+      };
+    })(),
   };
 
   return {

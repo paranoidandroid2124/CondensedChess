@@ -59,6 +59,40 @@ export interface AnalysePref {
   moveEvent: MoveEvent;
 }
 
+export interface ImportHistoryAccount {
+  provider: string;
+  providerLabel: string;
+  username: string;
+  href: string;
+  analysisCount: number;
+  activityAt: string;
+  lastAnalysedAt?: string;
+}
+
+export interface ImportHistoryAnalysis {
+  id: string;
+  title: string;
+  provider?: string;
+  providerLabel?: string;
+  username?: string;
+  href: string;
+  openedAt: string;
+  sourceType: string;
+  result?: string;
+  speed?: string;
+  playedAtLabel?: string;
+  white?: string;
+  black?: string;
+  variant?: string;
+  opening?: string;
+}
+
+export interface ImportHistoryView {
+  currentAnalysisId?: string;
+  recentAccounts: ImportHistoryAccount[];
+  recentAnalyses: ImportHistoryAnalysis[];
+}
+
 export interface ServerEvalData {
   ch: string;
   analysis?: Analysis;
@@ -148,6 +182,7 @@ export interface AnalyseOpts {
   };
   bookmaker?: boolean;
   inlinePgn?: string;
+  importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;
   embed?: boolean;
   socketUrl?: string;

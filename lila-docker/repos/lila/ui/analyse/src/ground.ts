@@ -5,6 +5,7 @@ import { storage } from 'lib/storage';
 import type AnalyseCtrl from './ctrl';
 import * as Prefs from 'lib/prefs';
 import { Chessground as makeChessground } from '@lichess-org/chessground';
+import { boardCoordsToViewConfig } from './boardWorkspace';
 
 export const render = (ctrl: AnalyseCtrl): VNode =>
   h('div.cg-wrap.cgv' + ctrl.cgVersion.js, {
@@ -22,7 +23,7 @@ export function promote(ground: CgApi, key: Key, role: Role) {
 export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
   const d = ctrl.data,
     pref = d.pref,
-    coords = ctrl.boardCoords(),
+    labelConfig = boardCoordsToViewConfig(ctrl.boardCoords()),
     opts = ctrl.makeCgOpts();
   const config = {
     turnColor: opts.turnColor,
@@ -30,8 +31,8 @@ export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
     check: opts.check,
     lastMove: opts.lastMove,
     orientation: ctrl.bottomColor(),
-    coordinates: coords !== Prefs.Coords.Hidden,
-    coordinatesOnSquares: coords === Prefs.Coords.All,
+    coordinates: labelConfig.coordinates,
+    coordinatesOnSquares: labelConfig.coordinatesOnSquares,
     addPieceZIndex: pref.is3d,
     addDimensionsCssVarsTo: document.body,
     touchIgnoreRadius: 0,

@@ -16,6 +16,10 @@ describe('review shell contrast palette', () => {
       ['eyebrow and secondary copy', reviewVars.get('--review-text-muted'), reviewVars.get('--review-surface'), 4.5],
       ['moment and variation prose', reviewVars.get('--review-text'), reviewVars.get('--review-surface-soft'), 4.5],
       ['summary labels', reviewVars.get('--review-text-muted'), summaryCardBg, 4.5],
+      ['board workspace headings', reviewVars.get('--review-text-subtle'), reviewVars.get('--review-surface'), 4.5],
+      ['board workspace card copy', reviewVars.get('--review-text'), reviewVars.get('--review-surface-soft'), 4.5],
+      ['board workspace secondary copy', reviewVars.get('--review-text-muted'), reviewVars.get('--review-surface-soft'), 4.5],
+      ['board workspace inactive choices', reviewVars.get('--review-text-subtle'), reviewVars.get('--review-surface-raised'), 4.5],
       ['neutral metrics', reviewVars.get('--review-neutral-chip-text'), reviewVars.get('--review-neutral-chip-bg'), 4.5],
       ['info chips', reviewVars.get('--review-info-text'), reviewVars.get('--review-info-bg'), 4.5],
       ['warning chips', reviewVars.get('--review-warning-text'), reviewVars.get('--review-warning-bg'), 4.5],
@@ -46,6 +50,8 @@ describe('review shell contrast palette', () => {
       '.dna-stat-card',
       '.dna-collapse-table',
       '.dna-show-more',
+      '.action-menu__workspace-choice',
+      '.action-menu__workspace-pill',
     ];
 
     for (const selector of selectors) {
@@ -57,6 +63,11 @@ describe('review shell contrast palette', () => {
     assert.match(analyseFreeScss, /--review-warning-bg:/);
     assert.match(analyseFreeScss, /--review-success-bg:/);
     assert.match(analyseFreeScss, /--review-danger-bg:/);
+    assert.match(analyseFreeScss, /&__reference-action\s*\{/);
+    assert.match(
+      analyseFreeScss,
+      /&__panel--board[\s\S]*?&\.action-menu\s*\{[\s\S]*?color:\s*var\(--review-text\);[\s\S]*?span\s*\{[\s\S]*?color:\s*inherit;/,
+    );
   });
 });
 

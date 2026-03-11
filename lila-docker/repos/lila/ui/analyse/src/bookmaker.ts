@@ -19,11 +19,13 @@ import {
 import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
 import { buildDecisionComparisonSurface } from './decisionComparison';
 import {
+    type BookmakerStrategicLedgerV1,
     type BookmakerRefsV1,
     type NarrativeSignalDigest,
     type PolishMetaV1,
     authorEvidenceFromResponse,
     authorQuestionsFromResponse,
+    bookmakerLedgerFromResponse,
     cacheHitFromResponse,
     commentaryFromResponse,
     endgameStateTokenFromResponse,
@@ -40,6 +42,13 @@ import {
     variationLinesFromResponse,
     whyAbsentFromTopMultiPVFromResponse,
 } from './bookmaker/responsePayload';
+import {
+    bookmakerLedgerRootAttrs,
+    renderBookmakerLedgerProbeRows,
+    renderBookmakerLedgerSignalRows,
+} from './bookmaker/ledgerSurface';
+import { escapeHtml, normalizeSanToken, renderInteractiveSanChip } from './bookmaker/surfaceShared';
+import { restoreStoredBookmakerTokens } from './bookmaker/stateContinuity';
 import type {
     AuthorEvidenceSummary,
     AuthorQuestionSummary,
@@ -100,15 +109,6 @@ const loadingStageMessages: Record<LoadingStage, string[]> = {
     ],
 };
 
-function escapeHtml(raw: string): string {
-    return raw
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 function renderLoadingHud(stage: LoadingStage, message: string, streamPreview?: string): string {
     const step = loadingStageOrder[stage];
     const title = loadingStageTitle[stage];
@@ -141,15 +141,6 @@ function humanizeToken(raw: string): string {
     return splitWords(raw.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
         .map(word => (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
         .join(' ');
-}
-
-function normalizeSanToken(raw: string | undefined | null): string {
-    return (raw || '')
-        .trim()
-        .replace(/^[\(\[\{'"“”‘’]+/, '')
-        .replace(/[\)\]\}'"“”‘’]+$/, '')
-        .replace(/[!?]+$/g, '')
-        .trim();
 }
 
 function formatEvidenceStatus(status: string): string {
@@ -409,15 +400,16 @@ function renderBookmakerMoveChip(
     const raw = move?.trim() || normalized;
     if (!normalized || !raw) return null;
     const ref = refIndex.get(normalized);
-    const attrs = ref
-        ? ` data-ref-id="${escapeHtml(ref.refId)}" data-uci="${escapeHtml(ref.uci)}" data-san="${escapeHtml(ref.san)}" tabindex="0"`
-        : '';
-    const interactiveClass = ref ? ' move-chip move-chip--interactive' : '';
+    const chip = renderInteractiveSanChip(raw, ref || null, {
+        interactiveClasses: 'bookmaker-decision-compare__move-chip move-chip move-chip--interactive',
+        fallbackTag: 'span',
+        fallbackClasses: 'bookmaker-decision-compare__move-chip',
+    });
 
     return `
       <span class="bookmaker-decision-compare__move bookmaker-decision-compare__move--${tone}">
         <span class="bookmaker-decision-compare__move-label">${escapeHtml(label)}</span>
-        <span class="bookmaker-decision-compare__move-chip${interactiveClass}"${attrs}>${escapeHtml(raw)}</span>
+        ${chip}
       </span>
     `;
 }
@@ -468,6 +460,7 @@ function renderDecisionCompareStrip(
 function decorateBookmakerHtml(
     html: string,
     refs: BookmakerRefsV1 | null,
+    ledger: BookmakerStrategicLedgerV1 | null,
     signalDigest: NarrativeSignalDigest | null,
     mainPlans: Array<{ planName?: string; score?: number }>,
     latentPlans: Array<{ planName?: string; viabilityScore?: number }>,
@@ -484,6 +477,7 @@ function decorateBookmakerHtml(
     const compensationVectors = (signalDigest?.compensationVectors || []).filter(Boolean).slice(0, 3);
     const decisionComparison = signalDigest?.decisionComparison;
     const refIndex = buildBookmakerRefIndex(refs);
+    const resolveLedgerRef = (san: string) => refIndex.anyBySan.get(normalizeSanToken(san)) || null;
     const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
     const planText = mainPlans
         .slice(0, 2)
@@ -509,6 +503,7 @@ function decorateBookmakerHtml(
     if (planText) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Main plans:</strong> ${planText}</div>`);
     if (latentText) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Latent:</strong> ${latentText}</div>`);
     if (signalDigest?.opening) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Opening:</strong> ${escapeHtml(signalDigest.opening)}</div>`);
+    rows.push(...renderBookmakerLedgerSignalRows(ledger));
     if (signalDigest?.decision) rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Decision:</strong> ${escapeHtml(signalDigest.decision)}</div>`);
     const decisionStrip = renderDecisionCompareStrip(decisionComparison, holdReasons[0]?.trim() || null, refIndex);
     if (decisionStrip) rows.push(decisionStrip);
@@ -550,6 +545,7 @@ function decorateBookmakerHtml(
         ].filter(Boolean);
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Compensation:</strong> ${escapeHtml(compensationDetails.join(' · '))}</div>`);
     }
+    probeRows.push(...renderBookmakerLedgerProbeRows(ledger, resolveLedgerRef));
     probeRequests
         .slice(0, 2)
         .forEach((probe, idx) => {
@@ -811,6 +807,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         model: string | null,
         cacheHit: boolean | null,
         polishMeta: PolishMetaV1 | null,
+        bookmakerLedger: BookmakerStrategicLedgerV1 | null,
     ) => {
         const root = document.querySelector('.analyse__bookmaker-text');
         if (!root) return;
@@ -866,6 +863,12 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             root.removeAttribute('data-llm-strategy-route');
             root.removeAttribute('data-llm-strategy-focus');
         }
+        const ledgerAttrs = bookmakerLedgerRootAttrs(bookmakerLedger);
+        ['data-llm-motif', 'data-llm-stage', 'data-llm-carry-over'].forEach(attr => {
+            const value = ledgerAttrs[attr];
+            if (typeof value === 'string') root.setAttribute(attr, value);
+            else root.removeAttribute(attr);
+        });
     };
 
     const applyStrategicMetaToRoot = (mainPlansCount: number, latentPlansCount: number, holdReasonsCount: number) => {
@@ -877,15 +880,42 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     };
 
     const resetMetaOnRoot = () => {
-        applyMetaToRoot(null, null, null, null);
+        applyMetaToRoot(null, null, null, null, null);
         applyStrategicMetaToRoot(0, 0, 0);
     };
 
     const applyCachedEntry = (entry: BookmakerCacheEntry) => {
         setBookmakerRefs(entry.refs);
         show(entry.html);
-        applyMetaToRoot(entry.sourceMode, entry.model, entry.cacheHit, entry.polishMeta);
+        applyMetaToRoot(entry.sourceMode, entry.model, entry.cacheHit, entry.polishMeta, entry.bookmakerLedger || null);
         applyStrategicMetaToRoot(entry.mainPlansCount, entry.latentPlansCount, entry.holdReasonsCount);
+    };
+
+    const entryTokenContext = (context: CurrentBookmakerContext) => ({
+        stateKey: context.stateKey,
+        analysisFen: context.analysisFen,
+        originPath: context.originPath,
+    });
+
+    const restoreStoredEntryForContext = (context: CurrentBookmakerContext, entry: BookmakerCacheEntry) => {
+        const restored = restoreStoredBookmakerTokens(entry, entryTokenContext(context), planStateByPath, endgameStateByPath);
+        const restoredCacheKey = cacheKeyOf(
+            context.fen,
+            context.originPath,
+            restored.planStateToken,
+            restored.endgameStateToken,
+        );
+        cache.set(context.cacheKey, entry);
+        if (restoredCacheKey !== context.cacheKey) cache.set(restoredCacheKey, entry);
+        if (currentContext?.commentPath === context.commentPath) {
+            currentContext = {
+                ...context,
+                requestToken: restored.planStateToken,
+                requestEndgameToken: restored.endgameStateToken,
+                cacheKey: restoredCacheKey,
+            };
+        }
+        applyCachedEntry(entry);
     };
 
     const restoreStudySnapshotForContext = (context: CurrentBookmakerContext): boolean => {
@@ -893,16 +923,14 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         if (!ref) return false;
         const snapshot = readStudyBookmakerSnapshot(ref, context.commentPath);
         if (!snapshot?.entry?.html) return false;
-        cache.set(context.cacheKey, snapshot.entry);
-        applyCachedEntry(snapshot.entry);
+        restoreStoredEntryForContext(context, snapshot.entry);
         return true;
     };
 
     const restoreSessionSnapshotForContext = (context: CurrentBookmakerContext): boolean => {
         const snapshot = readSessionBookmakerSnapshot(currentBookmakerSessionScope(), context.commentPath);
         if (!snapshot?.entry?.html) return false;
-        cache.set(context.cacheKey, snapshot.entry);
-        applyCachedEntry(snapshot.entry);
+        restoreStoredEntryForContext(context, snapshot.entry);
         return true;
     };
 
@@ -922,6 +950,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             mainPlansCount: 0,
             latentPlansCount: 0,
             holdReasonsCount: 0,
+            bookmakerLedger: null,
+            planStateToken: null,
+            endgameStateToken: null,
+            tokenContext: entryTokenContext(context),
         };
         cache.set(context.cacheKey, entry);
         persistStudyBookmakerSnapshot(ref, context.commentPath, context.originPath, commentary, entry);
@@ -1183,6 +1215,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             const cacheHit = cacheHitFromResponse(data);
             const refs = refsFromResponse(data);
             const polishMeta = polishMetaFromResponse(data);
+            const bookmakerLedger = bookmakerLedgerFromResponse(data);
             const commentary = commentaryFromResponse(data);
             if ((sourceMode?.startsWith('fallback_rule') || sourceMode === 'rule_circuit_open') && suspiciousFallback(commentary)) {
                 activeRequestKey = null;
@@ -1198,6 +1231,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             const decoratedHtml = decorateBookmakerHtml(
                 html,
                 refs,
+                bookmakerLedger,
                 signalDigest,
                 mainStrategicPlans,
                 latentPlans,
@@ -1226,6 +1260,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 mainPlansCount: mainStrategicPlans.length,
                 latentPlansCount: latentPlans.length,
                 holdReasonsCount: holdReasons.length,
+                bookmakerLedger,
+                planStateToken: emittedToken,
+                endgameStateToken: emittedEndgameToken,
+                tokenContext: entryTokenContext(context),
             };
             cache.set(context.cacheKey, initialEntry);
             persistBookmakerSnapshot(context, commentary, initialEntry);
@@ -1283,6 +1321,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         const refinedCacheHit = cacheHitFromResponse(refined);
                         const refinedRefs = refsFromResponse(refined);
                         const refinedPolishMeta = polishMetaFromResponse(refined);
+                        const refinedBookmakerLedger = bookmakerLedgerFromResponse(refined);
                         const refinedCommentary = commentaryFromResponse(refined, commentary);
                         if (
                             (refinedSourceMode?.startsWith('fallback_rule') || refinedSourceMode === 'rule_circuit_open') &&
@@ -1303,6 +1342,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         const decoratedRefinedHtml = decorateBookmakerHtml(
                             refinedHtml,
                             refinedRefs,
+                            refinedBookmakerLedger,
                             refinedSignalDigest,
                             refinedMainPlans,
                             refinedLatentPlans,
@@ -1321,6 +1361,10 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                             mainPlansCount: refinedMainPlans.length,
                             latentPlansCount: refinedLatentPlans.length,
                             holdReasonsCount: refinedHoldReasons.length,
+                            bookmakerLedger: refinedBookmakerLedger,
+                            planStateToken: emittedRefinedToken,
+                            endgameStateToken: emittedRefinedEndgameToken,
+                            tokenContext: entryTokenContext(context),
                         };
                         cache.set(refinedCacheKey, refinedEntry);
                         persistBookmakerSnapshot(context, refinedCommentary, refinedEntry);

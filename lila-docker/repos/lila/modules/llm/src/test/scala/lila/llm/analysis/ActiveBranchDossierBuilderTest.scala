@@ -9,7 +9,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
   private def moment(
       momentType: String = "SustainedPressure",
       moveClassification: Option[String] = None,
-      digest: Option[NarrativeSignalDigest] = None,
+      signalDigestOpt: Option[NarrativeSignalDigest],
       strategyPack: Option[StrategyPack] = None,
       authorEvidence: List[AuthorEvidenceSummary] = Nil,
       topEngineMove: Option[EngineAlternative] = None,
@@ -38,7 +38,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       topEngineMove = topEngineMove,
       collapse = None,
       strategyPack = strategyPack,
-      signalDigest = digest,
+      signalDigest = signalDigestOpt,
       authorEvidence = authorEvidence
     )
 
@@ -81,7 +81,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       )
     )
 
-    val dossier = ActiveBranchDossierBuilder.build(moment(digest = Some(digest)), routeRefs, moveRefs)
+    val dossier = ActiveBranchDossierBuilder.build(moment(signalDigestOpt = Some(digest)), routeRefs, moveRefs)
       .getOrElse(fail("missing dossier"))
 
     assertEquals(dossier.dominantLens, "structure")
@@ -110,7 +110,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       moment(
         momentType = "Blunder",
         moveClassification = Some("Blunder"),
-        digest = Some(digest),
+        signalDigestOpt = Some(digest),
         narrative = "Qe2 is the mistake. It misses the c-file pressure."
       ),
       routeRefs,
@@ -151,7 +151,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
     )
 
     val dossier = ActiveBranchDossierBuilder.build(
-      moment(digest = Some(digest), authorEvidence = evidence),
+      moment(signalDigestOpt = Some(digest), authorEvidence = evidence),
       routeRefs,
       moveRefs
     ).getOrElse(fail("missing dossier"))
@@ -174,8 +174,60 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       )
     )
 
-    val dossier = ActiveBranchDossierBuilder.build(moment(digest = Some(digest)), routeRefs, moveRefs)
+    val dossier = ActiveBranchDossierBuilder.build(moment(signalDigestOpt = Some(digest)), routeRefs, moveRefs)
       .getOrElse(fail("missing dossier"))
 
     assertEquals(dossier.opponentResource, Some("queenside counterplay"))
+  }
+
+  test("build does not fall back to authoring question text for evidence cue") {
+    val digest = NarrativeSignalDigest(
+      decisionComparison = Some(
+        DecisionComparisonDigest(
+          chosenMove = Some("Nf3"),
+          engineBestMove = Some("Nc3"),
+          deferredMove = Some("Nc3")
+        )
+      )
+    )
+    val evidence = List(
+      AuthorEvidenceSummary(
+        questionId = "q1",
+        questionKind = "LatentPlan",
+        question = "Can White still force queenside pressure?",
+        status = "question_only"
+      )
+    )
+
+    val dossier = ActiveBranchDossierBuilder.build(
+      moment(signalDigestOpt = Some(digest), authorEvidence = evidence),
+      routeRefs,
+      moveRefs
+    ).getOrElse(fail("missing dossier"))
+
+    assertEquals(dossier.evidenceCue, None)
+  }
+
+  test("build avoids narrative sentence fallback when structured choice is absent") {
+    val digest = NarrativeSignalDigest(
+      decisionComparison = Some(
+        DecisionComparisonDigest(
+          engineBestMove = Some("Rb1"),
+          deferredMove = Some("a4"),
+          deferredReason = Some("it keeps the queenside tension alive")
+        )
+      )
+    )
+
+    val dossier = ActiveBranchDossierBuilder.build(
+      moment(
+        signalDigestOpt = Some(digest),
+        narrative = "This narrative sentence should not become the branch label."
+      ),
+      routeRefs,
+      moveRefs
+    ).getOrElse(fail("missing dossier"))
+
+    assert(!clue(dossier.chosenBranchLabel).contains("This narrative sentence should not become the branch label"))
+    assert(clue(dossier.chosenBranchLabel).contains("queenside tension"))
   }

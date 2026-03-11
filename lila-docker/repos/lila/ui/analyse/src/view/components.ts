@@ -25,7 +25,7 @@ import renderClocks from './clocks';
 import * as control from '../control';
 import * as chessground from '../ground';
 import type AnalyseCtrl from '../ctrl';
-import type { ConcealOf } from '../interfaces';
+import type { ConcealOf, ImportHistoryAccount, ImportHistoryAnalysis, ImportHistoryView } from '../interfaces';
 import * as pgnExport from '../pgnExport';
 import { spinnerVdom as spinner, stepwiseScroll } from 'lib/view';
 import * as Prefs from 'lib/prefs';
@@ -315,6 +315,7 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
   const recentDrafts = ctrl
     .recentImportDrafts()
     .filter(draft => draft !== pgnInspection.normalized && draft !== currentInspection.normalized);
+  const serverHistory = ctrl.opts.importHistory;
   return hl('div.copyables.copyables--workspace', [
     hl('div.analyse-review__summary-grid.copyables__summary', [
       compactSummaryCard(pgnInspection.headline, 'import status'),
@@ -436,6 +437,7 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
       ]),
       renderImportPreview(currentInspection, pgnInspection),
       recentDrafts.length ? renderRecentImportDrafts(ctrl, recentDrafts) : null,
+      serverHistory ? renderServerImportHistory(serverHistory) : null,
     ]),
   ]);
 }
@@ -608,6 +610,172 @@ function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
       }),
     ),
   ]);
+}
+
+function renderServerImportHistory(history: ImportHistoryView): VNode | undefined {
+  const hasAnalyses = !!history.recentAnalyses?.length;
+  const hasAccounts = !!history.recentAccounts?.length;
+  if (!hasAnalyses && !hasAccounts) return renderEmptySavedHistory();
+  const blocks: VNode[] = [];
+  if (hasAnalyses) {
+    blocks.push(
+      hl('div.copyables__recent', [
+        hl('div.copyables__recent-head', [
+          hl('strong', 'Recent analyses'),
+          hl('span', 'Server-saved imports you can reopen from any signed-in device.'),
+        ]),
+        hl(
+          'div.copyables__recent-list',
+          history.recentAnalyses.map((entry, index) =>
+            renderSavedAnalysisEntry(entry, history.currentAnalysisId === entry.id, index === 0),
+          ),
+        ),
+      ]),
+    );
+  }
+  if (hasAccounts) {
+    blocks.push(
+      hl('div.copyables__recent', [
+        hl('div.copyables__recent-head', [
+          hl('strong', 'Recent accounts'),
+          hl('span', 'Jump back into Lichess or Chess.com imports without retyping usernames.'),
+        ]),
+        hl(
+          'div.copyables__recent-list',
+          history.recentAccounts.map((entry, index) => renderSavedAccountEntry(entry, index === 0)),
+        ),
+      ]),
+    );
+  }
+  return blocks.length ? hl('div.copyables__history-stack', blocks) : undefined;
+}
+
+function renderEmptySavedHistory(): VNode {
+  return hl('div.copyables__recent.copyables__recent--empty', [
+    hl('div.copyables__recent-head', [
+      hl('strong', 'No saved imports yet'),
+      hl('span', 'Analyze a PGN or imported game once, and it will stay here for quick reopen on any signed-in device.'),
+    ]),
+    hl('div.copyables__empty-actions', [
+      hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open import'),
+      hl('span.copyables__recent-link-note', 'or paste a PGN below to start a reusable history.'),
+    ]),
+  ]);
+}
+
+function renderSavedAnalysisEntry(entry: ImportHistoryAnalysis, current: boolean, priority: boolean): VNode {
+  const supportLine = analysisSupportLine(entry);
+  return hl(
+    'a.copyables__recent-item',
+    {
+      key: entry.id,
+      attrs: { href: entry.href },
+      class: { 'is-current': current, 'is-priority': priority },
+    },
+    [
+      hl('div.copyables__recent-kicker', [
+        entry.providerLabel
+          ? renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', `copyables__badge--${providerTone(entry.provider)}`)
+          : null,
+        renderHistoryBadge(
+          sourceTypeLabel(entry.sourceType),
+          `copyables__badge--${sourceTypeTone(entry.sourceType)}`,
+        ),
+        current
+          ? renderHistoryBadge('Current', 'copyables__badge--current')
+          : priority
+            ? renderHistoryBadge('Latest', 'copyables__badge--priority')
+            : null,
+      ]),
+      hl('div.copyables__recent-body', [
+        hl('div.copyables__recent-title-row', [
+          hl('strong', current ? `${entry.title} (Current)` : entry.title),
+          hl('span.copyables__recent-cta', current ? 'On board' : priority ? 'Resume latest' : 'Resume'),
+        ]),
+        hl('span.copyables__recent-subline', analysisMetaLine(entry)),
+        supportLine ? hl('span.copyables__recent-foot', supportLine) : null,
+        hl('span.copyables__meta', `${current ? 'Opened and active' : 'Opened'} ${formatImportTimestamp(entry.openedAt)}`),
+      ]),
+    ],
+  );
+}
+
+function renderSavedAccountEntry(entry: ImportHistoryAccount, priority: boolean): VNode {
+  return hl(
+    'a.copyables__recent-item',
+    {
+      key: `${entry.provider}:${entry.username}`,
+      attrs: { href: entry.href },
+      class: { 'is-priority': priority },
+    },
+    [
+      hl('div.copyables__recent-kicker', [
+        renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', `copyables__badge--${providerTone(entry.provider)}`),
+        priority ? renderHistoryBadge('Latest', 'copyables__badge--priority') : null,
+        entry.lastAnalysedAt ? renderHistoryBadge('Analysed', 'copyables__badge--activity') : null,
+      ]),
+      hl('div.copyables__recent-body', [
+        hl('div.copyables__recent-title-row', [
+          hl('strong', `@${entry.username}`),
+          hl('span.copyables__recent-cta', priority ? 'Open latest' : 'Open'),
+        ]),
+        hl('span.copyables__recent-subline', `${entry.analysisCount} saved analyses`),
+        hl(
+          'span.copyables__recent-foot',
+          priority
+            ? 'Fastest way back to your most recently imported account list.'
+            : 'Reopen this account list without retyping the username.',
+        ),
+        hl('span.copyables__meta', `Active ${formatImportTimestamp(entry.activityAt)}`),
+      ]),
+    ],
+  );
+}
+
+function analysisMetaLine(entry: ImportHistoryAnalysis): string {
+  const line = [
+    entry.username ? `@${entry.username}` : undefined,
+    entry.playedAtLabel && entry.playedAtLabel !== '-' ? entry.playedAtLabel : undefined,
+    entry.result,
+    entry.speed && entry.speed !== '-' ? entry.speed : undefined,
+  ]
+    .filter(Boolean)
+    .join(' • ');
+  return line || 'Saved PGN snapshot ready to reopen.';
+}
+
+function analysisSupportLine(entry: ImportHistoryAnalysis): string | undefined {
+  const line = [
+    entry.opening,
+    entry.variant && entry.variant !== entry.opening ? entry.variant : undefined,
+    entry.sourceType === 'manual' ? 'Manual PGN import' : 'Imported game snapshot',
+  ]
+    .filter(Boolean)
+    .join(' • ');
+  return line || undefined;
+}
+
+function formatImportTimestamp(value: string | undefined): string {
+  if (!value) return 'recently';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function renderHistoryBadge(label: string, ...classes: string[]): VNode {
+  const suffix = classes.filter(Boolean).map(cls => `.${cls}`).join('');
+  return hl(`span.copyables__badge${suffix}`, label);
+}
+
+function providerTone(provider: string | undefined): string {
+  return provider === 'chesscom' ? 'chesscom' : 'lichess';
+}
+
+function sourceTypeLabel(sourceType: string): string {
+  return sourceType === 'manual' ? 'Manual PGN' : 'Imported game';
+}
+
+function sourceTypeTone(sourceType: string): string {
+  return sourceType === 'manual' ? 'manual' : 'imported';
 }
 
 export function renderResult(ctrl: AnalyseCtrl): VNode[] {

@@ -121,6 +121,8 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("Kingside expansion"))
     assert(prompt.contains("d2-f1-e3"))
     assert(prompt.contains("Dark-square control"))
+    assert(!prompt.contains("White stabilizes and prepares kingside play."))
+    assert(!prompt.contains("## BASE MOMENT NARRATIVE"))
     assert(prompt.contains("Signal Digest"))
     assert(prompt.contains("Ruy Lopez"))
     assert(prompt.contains("conversion requires precision"))
@@ -140,6 +142,7 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("route_1"))
     assert(prompt.contains("Engine preference"))
     assert(prompt.contains("cite exact routeId and/or move label"))
+    assert(prompt.contains("independent strategic branch note"))
   }
 
   test("buildRepairPrompt carries rejected note and repair reasons") {
@@ -158,6 +161,8 @@ class ActiveStrategicPromptTest extends FunSuite:
     )
 
     assert(prompt.contains("Play better somehow."))
+    assert(prompt.contains("## PRIOR NOTE TO AVOID PARAPHRASING"))
+    assert(prompt.contains("Do not mirror its wording"))
     assert(prompt.contains("active_note_sentence_count"))
     assert(prompt.contains("strategy_coverage_low"))
     assert(prompt.contains("## ACTIVE DOSSIER"))

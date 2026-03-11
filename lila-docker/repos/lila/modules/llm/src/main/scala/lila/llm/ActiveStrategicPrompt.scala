@@ -12,17 +12,18 @@ object ActiveStrategicPrompt:
       |
       |## HARD RULES
       |1. Return exactly one concise note in 2-4 sentences.
-      |2. Preserve the dominant strategic thesis from the base narrative or strategy pack instead of switching to a different lens.
-      |   Mention at least one concrete strategic plan.
-      |3. When available in context, prefer citing at least one concrete piece route
+      |2. Derive an independent strategic thesis from the structured evidence rather than mirroring prior prose.
+      |   Mention at least one concrete strategic plan or long-term reroute that is grounded in the provided evidence.
+      |3. Do not recycle long phrases, sentence openings, or generic framing from any prior note.
+      |4. When available in context, prefer citing at least one concrete piece route
       |   (example style: Nd2-f1-e3) or one explicit long-term focus.
       |   If both a structure signal and a route are present, connect them explicitly:
       |   explain that the structure calls for that deployment.
-      |4. Do not invent facts, moves, evaluations, or lines that are not provided.
-      |5. Do not contradict provided evaluation intent or side-to-move context.
-      |6. No markdown headers, no bullet lists, no metadata.
-      |7. If `Route References` are provided, cite at least one exact `routeId` in the prose.
-      |8. If `Move References` are provided, cite at least one exact `move label` in the prose.
+      |5. Do not invent facts, moves, evaluations, or lines that are not provided.
+      |6. Do not contradict provided evaluation intent or side-to-move context.
+      |7. No markdown headers, no bullet lists, no metadata.
+      |8. If `Route References` are provided, cite at least one exact `routeId` in the prose.
+      |9. If `Move References` are provided, cite at least one exact `move label` in the prose.
       |
       |## OUTPUT FORMAT
       |Return JSON with one field only:
@@ -39,6 +40,7 @@ object ActiveStrategicPrompt:
       routeRefs: List[ActiveStrategicRouteRef] = Nil,
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): String =
+    val _ = baseNarrative
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
     val conceptLine = if conceptStr.isEmpty then "none" else conceptStr.mkString(", ")
     val dossierBlock = activeDossierBlock(dossier)
@@ -46,10 +48,7 @@ object ActiveStrategicPrompt:
     val routeRefSection = routeRefBlock(routeRefs)
     val moveRefSection = moveRefBlock(moveRefs)
 
-    s"""## BASE MOMENT NARRATIVE
-       |$baseNarrative
-       |
-       |## MOMENT CONTEXT
+    s"""## MOMENT CONTEXT
        |Phase: $phase
        |Moment Type: $momentType
        |FEN: $fen
@@ -70,7 +69,7 @@ object ActiveStrategicPrompt:
        |
        |When references are available, cite exact routeId and/or move label in your prose.
        |
-       |Write one strategic branch note now.""".stripMargin
+       |Write one independent strategic branch note now.""".stripMargin
 
   def buildRepairPrompt(
       baseNarrative: String,
@@ -94,8 +93,10 @@ object ActiveStrategicPrompt:
     val routeRefSection = routeRefBlock(routeRefs)
     val moveRefSection = moveRefBlock(moveRefs)
 
-    s"""## BASE MOMENT NARRATIVE
+    s"""## PRIOR NOTE TO AVOID PARAPHRASING
        |$baseNarrative
+       |
+       |Use the prior note only as a contradiction guard. Do not mirror its wording or sentence structure.
        |
        |## REJECTED NOTE
        |$rejectedNote
@@ -124,7 +125,7 @@ object ActiveStrategicPrompt:
        |
        |Repair output must cite exact routeId and/or move label when available.
        |
-       |Rewrite into one valid strategic note (2-4 sentences), factual and concrete.""".stripMargin
+       |Rewrite into one valid independent strategic note (2-4 sentences), factual and concrete.""".stripMargin
 
   private def strategyPackBlock(strategyPack: Option[StrategyPack]): String =
     strategyPack match
