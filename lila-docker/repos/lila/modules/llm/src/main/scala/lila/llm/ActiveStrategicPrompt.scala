@@ -1,33 +1,155 @@
 package lila.llm
 
+import lila.llm.analysis.ActiveStrategicCoachingBriefBuilder
+
 object ActiveStrategicPrompt:
 
+  private final case class OpeningLens(
+      label: String,
+      instruction: String
+  )
+
   val systemPrompt: String =
-    """You are a grandmaster-level strategic coach writing a separate strategic note
-      |for one critical branch moment in a full PGN review.
+    """You are a grandmaster-level strategic coach writing a short forward-looking
+      |note for one critical branch moment in a full PGN review.
       |
       |## GOAL
-      |- Produce a short, human-readable strategic note that explains long-term plans
-      |  and piece deployment choices for both sides when relevant.
+      |- Produce a compact strategic coaching note that tells the reader what plan
+      |  should be carried forward next, why that dominant idea matters now, and
+      |  what reply or trigger should be watched.
       |
       |## HARD RULES
-      |1. Return exactly one concise note in 2-4 sentences.
-      |2. Derive an independent strategic thesis from the structured evidence rather than mirroring prior prose.
-      |   Mention at least one concrete strategic plan or long-term reroute that is grounded in the provided evidence.
+      |1. Return exactly one compact note in 2-3 sentences, usually about 50-90 words.
+      |2. Frame the note as forward-looking strategic coaching, not as a recap of the current position.
+      |   The note must include at least one next plan, follow-up action, or long-term deployment.
       |3. Do not recycle long phrases, sentence openings, or generic framing from any prior note.
-      |4. When available in context, prefer citing at least one concrete piece route
-      |   (example style: Nd2-f1-e3) or one explicit long-term focus.
-      |   If both a structure signal and a route are present, connect them explicitly:
-      |   explain that the structure calls for that deployment.
-      |5. Do not invent facts, moves, evaluations, or lines that are not provided.
-      |6. Do not contradict provided evaluation intent or side-to-move context.
-      |7. No markdown headers, no bullet lists, no metadata.
-      |8. If `Route References` are provided, cite at least one exact `routeId` in the prose.
-      |9. If `Move References` are provided, cite at least one exact `move label` in the prose.
+      |4. Keep the note narrow: emphasize one dominant strategic idea, plus at most
+      |   one supporting execution hint or long-term objective.
+      |5. When available in context, explain why this is the right moment for that plan:
+      |   structure, timing, practical trigger, or opponent counterplay are all valid.
+      |6. If a campaign role is provided, explain this moment as one role in the longer plan
+      |   without surfacing raw stage labels.
+      |7. Do not invent facts, moves, evaluations, or lines that are not provided.
+      |8. Do not contradict provided evaluation intent or side-to-move context.
+      |9. No markdown headers, no bullet lists, no metadata.
+      |10. Never expose internal handles or raw metadata in the prose:
+      |   route ids (such as route_1), literal move labels, source tags, or raw UCI strings.
+      |   Translate them into player-facing move names, square paths, or plan language.
+      |11. Vary sentence openings. Prefer opening from the situation, timing,
+      |    practical problem, or likely consequence, then let the plan follow.
+      |    Avoid defaulting to stock leads such as
+      |    "This position is", "This moment is", or "Treat this as" when a more
+      |    concrete opener is available.
+      |12. Prefer declarative, timing-first, counterplay-first, or consequence-first
+      |    openings over bare imperative verbs. Do not default to leads such as
+      |    "Start", "Push", "Kick off", "Launch", "Drive", "Prepare", or
+      |    "Organize" as the very first word unless the moment is an immediate emergency.
+      |13. Explain the reason before the prescription when possible: the note should
+      |    usually read as why-now first, then what plan follows from it.
+      |14. Fold the opponent's best reply or the failure trigger into a dependent
+      |    clause when possible, rather than adding a separate warning sentence.
+      |15. If piece deployment matters, describe the target square or purpose
+      |    ("toward e3", "onto the d-file", "to reinforce dark squares") instead
+      |    of spelling out a raw square-by-square route unless that exact path is
+      |    absolutely necessary. Route wording must not become the thesis sentence.
+      |16. Use a measured coaching tone. Mild hedge words such as "can", "often",
+      |    "usually", "tends to", or "should" are welcome when they keep the note
+      |    grounded and less mechanical.
       |
       |## OUTPUT FORMAT
       |Return JSON with one field only:
       |{ "commentary": "<strategic note>" }""".stripMargin
+
+  private def optionalLine(label: String, value: Option[String]): Option[String] =
+    value.map(_.trim).filter(_.nonEmpty).map(v => s"$label: $v")
+
+  private def section(title: String, body: String): Option[String] =
+    Option(body)
+      .map(_.trim)
+      .filter(value => value.nonEmpty && value != "none" && value != "- none")
+      .map(value => s"## $title\n$value")
+
+  private def openingLens(
+      brief: ActiveStrategicCoachingBriefBuilder.Brief,
+      phase: String,
+      momentType: String,
+      fen: String
+  ): Option[OpeningLens] =
+    val candidates =
+      List(
+        brief.whyNow.map(_ =>
+          OpeningLens(
+            label = "timing-first",
+            instruction =
+              "Open with the timing or structural reason that makes the plan urgent, then let the recommendation follow from that reason."
+          )
+        ),
+        Option.when(brief.opponentReply.isDefined)(
+          OpeningLens(
+            label = "problem-first",
+            instruction =
+              "Open with the practical problem or opponent resource that has to be managed, then pivot into the plan."
+          )
+        ),
+        Option.when(brief.keyTrigger.isDefined)(
+          OpeningLens(
+            label = "consequence-first",
+            instruction =
+              "Open with the likely consequence or drift risk that matters most, then explain the plan that addresses it."
+          )
+        ),
+        brief.executionHint.map(_ =>
+          OpeningLens(
+            label = "target-purpose-first",
+            instruction =
+              "If piece redeployment matters, open with the target square or strategic purpose in natural language rather than a raw route string."
+          )
+        ),
+        brief.campaignRole.map(_ =>
+          OpeningLens(
+            label = "campaign-role-first",
+            instruction =
+              "Open with this moment's role in the longer campaign, in natural language rather than with an imperative push command."
+          )
+        ),
+        brief.primaryIdea.map(_ =>
+          OpeningLens(
+            label = "idea-first",
+            instruction =
+              "Open with the dominant strategic idea itself, but phrase it as a concrete objective or pressure shift rather than a bare command."
+          )
+        )
+      ).flatten
+
+    Option.when(candidates.nonEmpty) {
+      val seed =
+        List(
+          phase.trim.toLowerCase,
+          momentType.trim.toLowerCase,
+          Option(fen).map(_.trim).getOrElse(""),
+          brief.campaignRole.getOrElse(""),
+          brief.primaryIdea.getOrElse(""),
+          brief.whyNow.getOrElse(""),
+          brief.opponentReply.getOrElse(""),
+          brief.executionHint.getOrElse(""),
+          brief.longTermObjective.getOrElse(""),
+          brief.keyTrigger.getOrElse("")
+        ).mkString("|")
+      val idx = Math.floorMod(seed.hashCode, candidates.size)
+      candidates(idx)
+    }
+
+  private def openingLensBlock(
+      brief: ActiveStrategicCoachingBriefBuilder.Brief,
+      phase: String,
+      momentType: String,
+      fen: String
+  ): Option[String] =
+    openingLens(brief, phase, momentType, fen).map { lens =>
+      s"""- Preferred opening lens: ${lens.label}
+         |- First-sentence guidance: ${lens.instruction}
+         |- Opening-shape guardrail: avoid bare imperative leads like "Start", "Push", "Kick off", "Launch", "Drive", "Prepare", or "Organize" unless the moment is a direct tactical emergency.""".stripMargin
+    }.flatMap(body => section("OPENING LENS", body))
 
   def buildPrompt(
       baseNarrative: String,
@@ -42,34 +164,30 @@ object ActiveStrategicPrompt:
   ): String =
     val _ = baseNarrative
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
-    val conceptLine = if conceptStr.isEmpty then "none" else conceptStr.mkString(", ")
-    val dossierBlock = activeDossierBlock(dossier)
-    val packBlock = strategyPackBlock(strategyPack)
-    val routeRefSection = routeRefBlock(routeRefs)
-    val moveRefSection = moveRefBlock(moveRefs)
+    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
+    val coachingBriefBlock =
+      coachingBrief.nonEmptySections
+        .map { case (label, value) => s"- $label: $value" }
+        .mkString("\n")
+    val contextLines =
+      List(
+        Some("## MOMENT CONTEXT"),
+        Some(s"Phase: $phase"),
+        Some(s"Moment Type: $momentType"),
+        optionalLine("FEN", Option(fen).map(_.trim).filter(_.nonEmpty)),
+        Option.when(conceptStr.nonEmpty)(s"Concepts: ${conceptStr.mkString(", ")}")
+      ).flatten.mkString("\n")
+    val sections =
+      List(
+        Some(contextLines),
+        section("COACHING BRIEF", coachingBriefBlock),
+        openingLensBlock(coachingBrief, phase, momentType, fen),
+        Some(
+          "Write one independent strategic coaching note now. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, open from the situation, timing, practical problem, or likely consequence when possible, and let the plan follow from that reason."
+        )
+      ).flatten
 
-    s"""## MOMENT CONTEXT
-       |Phase: $phase
-       |Moment Type: $momentType
-       |FEN: $fen
-       |Concepts: $conceptLine
-       |
-       |## ACTIVE DOSSIER
-       |$dossierBlock
-       |
-       |## STRATEGY PACK
-       |$packBlock
-       |
-       |## REFERENCE CATALOG
-       |Route References:
-       |$routeRefSection
-       |
-       |Move References:
-       |$moveRefSection
-       |
-       |When references are available, cite exact routeId and/or move label in your prose.
-       |
-       |Write one independent strategic branch note now.""".stripMargin
+    sections.mkString("\n\n")
 
   def buildRepairPrompt(
       baseNarrative: String,
@@ -87,188 +205,33 @@ object ActiveStrategicPrompt:
     val reasons = failureReasons.map(_.trim).filter(_.nonEmpty).distinct
     val reasonLine = if reasons.isEmpty then "format_or_content_violation" else reasons.mkString(", ")
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
-    val conceptLine = if conceptStr.isEmpty then "none" else conceptStr.mkString(", ")
-    val dossierBlock = activeDossierBlock(dossier)
-    val packBlock = strategyPackBlock(strategyPack)
-    val routeRefSection = routeRefBlock(routeRefs)
-    val moveRefSection = moveRefBlock(moveRefs)
+    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
+    val coachingBriefBlock =
+      coachingBrief.nonEmptySections
+        .map { case (label, value) => s"- $label: $value" }
+        .mkString("\n")
+    val contextLines =
+      List(
+        Some("## MOMENT CONTEXT"),
+        Some(s"Phase: $phase"),
+        Some(s"Moment Type: $momentType"),
+        optionalLine("FEN", Option(fen).map(_.trim).filter(_.nonEmpty)),
+        Option.when(conceptStr.nonEmpty)(s"Concepts: ${conceptStr.mkString(", ")}")
+      ).flatten.mkString("\n")
+    val sections =
+      List(
+        Some(s"""## PRIOR NOTE TO AVOID PARAPHRASING
+                |$baseNarrative
+                |
+                |Use the prior note only as a contradiction guard. Do not mirror its wording or sentence structure.""".stripMargin),
+        Some(s"## REJECTED NOTE\n$rejectedNote"),
+        Some(s"## REPAIR REASONS\n$reasonLine"),
+        Some(contextLines),
+        section("COACHING BRIEF", coachingBriefBlock),
+        openingLensBlock(coachingBrief, phase, momentType, fen),
+        Some(
+          "Rewrite into one valid strategic coaching note (2-3 sentences), grounded, compact, and concrete. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, follow the preferred opening lens when it is provided, and explain why before the plan when possible."
+        )
+      ).flatten
 
-    s"""## PRIOR NOTE TO AVOID PARAPHRASING
-       |$baseNarrative
-       |
-       |Use the prior note only as a contradiction guard. Do not mirror its wording or sentence structure.
-       |
-       |## REJECTED NOTE
-       |$rejectedNote
-       |
-       |## REPAIR REASONS
-       |$reasonLine
-       |
-       |## MOMENT CONTEXT
-       |Phase: $phase
-       |Moment Type: $momentType
-       |FEN: $fen
-       |Concepts: $conceptLine
-       |
-       |## ACTIVE DOSSIER
-       |$dossierBlock
-       |
-       |## STRATEGY PACK
-       |$packBlock
-       |
-       |## REFERENCE CATALOG
-       |Route References:
-       |$routeRefSection
-       |
-       |Move References:
-       |$moveRefSection
-       |
-       |Repair output must cite exact routeId and/or move label when available.
-       |
-       |Rewrite into one valid independent strategic note (2-4 sentences), factual and concrete.""".stripMargin
-
-  private def strategyPackBlock(strategyPack: Option[StrategyPack]): String =
-    strategyPack match
-      case None => "none"
-      case Some(pack) =>
-        val side = Option(pack.sideToMove).map(_.trim).filter(_.nonEmpty).getOrElse("unknown")
-        val plans =
-          pack.plans
-            .map { p =>
-              val priorities =
-                p.priorities.map(_.trim).filter(_.nonEmpty).take(3) match
-                  case Nil  => ""
-                  case list => s" | priorities: ${list.mkString("; ")}"
-              val risks =
-                p.riskTriggers.map(_.trim).filter(_.nonEmpty).take(3) match
-                  case Nil  => ""
-                  case list => s" | risk triggers: ${list.mkString("; ")}"
-              s"- ${p.side} ${p.horizon} plan: ${p.planName}$priorities$risks"
-            }
-        val routes =
-          pack.pieceRoutes.map { r =>
-            val route = r.route.map(_.trim).filter(_.nonEmpty).mkString("-")
-            val evidence =
-              r.evidence.map(_.trim).filter(_.nonEmpty).take(3) match
-                case Nil  => ""
-                case list => s" | evidence: ${list.mkString(", ")}"
-            s"- ${r.side} ${r.piece} route: $route | purpose: ${r.purpose} | confidence: ${"%.2f".format(r.confidence)}$evidence"
-          }
-        val focus =
-          pack.longTermFocus.map(_.trim).filter(_.nonEmpty).map(f => s"- $f")
-        val evidence =
-          pack.evidence.map(_.trim).filter(_.nonEmpty).take(4).map(e => s"- $e")
-        val signalDigest =
-          pack.signalDigest
-            .map { digest =>
-              List(
-                digest.opening.map(v => s"- opening: $v"),
-                Option.when(digest.strategicStack.nonEmpty)(s"- strategic stack: ${digest.strategicStack.mkString("; ")}"),
-                digest.latentPlan.map(v => s"- latent plan: $v"),
-                digest.latentReason.map(v => s"- latent reason: $v"),
-                digest.practicalVerdict.map(v => s"- practical verdict: $v"),
-                Option.when(digest.practicalFactors.nonEmpty)(s"- practical factors: ${digest.practicalFactors.mkString("; ")}"),
-                digest.compensation.map(v => s"- compensation: $v"),
-                Option.when(digest.compensationVectors.nonEmpty)(s"- compensation vectors: ${digest.compensationVectors.mkString("; ")}"),
-                digest.investedMaterial.map(v => s"- invested material: ${v}cp"),
-                digest.structuralCue.map(v => s"- structure: $v"),
-                digest.structureProfile.map(v => s"- structure profile: $v"),
-                digest.centerState.map(v => s"- center state: $v"),
-                digest.alignmentBand.map(v => s"- alignment band: $v"),
-                Option.when(digest.alignmentReasons.nonEmpty)(s"- alignment reasons: ${digest.alignmentReasons.mkString("; ")}"),
-                digest.deploymentPiece.map { piece =>
-                  val route =
-                    if digest.deploymentRoute.nonEmpty then digest.deploymentRoute.mkString("-")
-                    else "n/a"
-                  s"- structure deployment: $piece $route"
-                },
-                digest.deploymentPurpose.map(v => s"- deployment purpose: $v"),
-                digest.deploymentContribution.map(v => s"- move contribution: $v"),
-                digest.deploymentConfidence.map(v => s"- deployment confidence: ${"%.2f".format(v)}"),
-                digest.decisionComparison.flatMap(_.chosenMove).map(v => s"- chosen move: $v"),
-                digest.decisionComparison.flatMap(_.engineBestMove).map(v => s"- engine best: $v"),
-                digest.decisionComparison.flatMap(_.cpLossVsChosen).map(v => s"- cp loss vs chosen: ${v}cp"),
-                digest.decisionComparison.flatMap(_.deferredMove).map(v => s"- deferred move: $v"),
-                digest.decisionComparison.flatMap(_.deferredReason).map(v => s"- deferred reason: $v"),
-                digest.decisionComparison.flatMap(_.evidence).map(v => s"- deferred evidence: $v"),
-                Option.when(digest.decisionComparison.exists(_.practicalAlternative))("- practical alternative: true"),
-                digest.prophylaxisPlan.map(v => s"- prophylaxis plan: $v"),
-                digest.prophylaxisThreat.map(v => s"- prophylaxis target: $v"),
-                digest.counterplayScoreDrop.map(v => s"- counterplay drop: ${v}cp"),
-                digest.decision.map(v => s"- decision: $v"),
-                digest.strategicFlow.map(v => s"- strategic flow: $v"),
-                digest.opponentPlan.map(v => s"- opponent plan: $v"),
-                Option.when(digest.preservedSignals.nonEmpty)(s"- preserved signals: ${digest.preservedSignals.mkString(", ")}")
-              ).flatten
-            }
-            .getOrElse(Nil)
-
-        val planBlock =
-          if plans.isEmpty then "Plans:\n- none"
-          else s"Plans:\n${plans.mkString("\n")}"
-        val routeBlock =
-          if routes.isEmpty then "Piece Routes:\n- none"
-          else s"Piece Routes:\n${routes.mkString("\n")}"
-        val focusBlock =
-          if focus.isEmpty then "Long-Term Focus:\n- none"
-          else s"Long-Term Focus:\n${focus.mkString("\n")}"
-        val evidenceBlock =
-          if evidence.isEmpty then "Evidence:\n- none"
-          else s"Evidence:\n${evidence.mkString("\n")}"
-        val digestBlock =
-          if signalDigest.isEmpty then "Signal Digest:\n- none"
-          else s"Signal Digest:\n${signalDigest.mkString("\n")}"
-
-        s"""Side to move: $side
-           |$planBlock
-           |$routeBlock
-           |$focusBlock
-           |$evidenceBlock
-           |$digestBlock""".stripMargin
-
-  private def activeDossierBlock(dossier: Option[ActiveBranchDossier]): String =
-    dossier match
-      case None => "none"
-      case Some(value) =>
-        List(
-          Some(s"- dominant lens: ${value.dominantLens}"),
-          Some(s"- chosen branch: ${value.chosenBranchLabel}"),
-          value.engineBranchLabel.map(v => s"- engine branch: $v"),
-          value.deferredBranchLabel.map(v => s"- deferred branch: $v"),
-          value.whyChosen.map(v => s"- why chosen: $v"),
-          value.whyDeferred.map(v => s"- why deferred: $v"),
-          value.opponentResource.map(v => s"- opponent resource: $v"),
-          value.routeCue.map { cue =>
-            s"- route cue: ${cue.routeId} ${cue.piece}${cue.route.mkString("-")} | purpose: ${cue.purpose} | confidence: ${"%.2f".format(cue.confidence)}"
-          },
-          value.moveCue.map { cue =>
-            val san = cue.san.map(_.trim).filter(_.nonEmpty).getOrElse("n/a")
-            s"- move cue: ${cue.label} ${cue.uci} | san: $san | source: ${cue.source}"
-          },
-          value.evidenceCue.map(v => s"- evidence cue: $v"),
-          value.continuationFocus.map(v => s"- continuation focus: $v"),
-          value.practicalRisk.map(v => s"- practical risk: $v"),
-          value.comparisonGapCp.map(v => s"- comparison gap: ${v}cp")
-        ).flatten.mkString("\n")
-
-  private def routeRefBlock(routeRefs: List[ActiveStrategicRouteRef]): String =
-    val lines =
-      routeRefs
-        .map { r =>
-          val routePath = r.route.map(_.trim).filter(_.nonEmpty).mkString("-")
-          s"- ${r.routeId}: ${r.piece}${routePath} | purpose: ${r.purpose} | confidence: ${"%.2f".format(r.confidence)}"
-        }
-        .take(4)
-    if lines.isEmpty then "- none"
-    else lines.mkString("\n")
-
-  private def moveRefBlock(moveRefs: List[ActiveStrategicMoveRef]): String =
-    val lines =
-      moveRefs
-        .map { m =>
-          val san = m.san.map(_.trim).filter(_.nonEmpty).getOrElse("n/a")
-          s"- ${m.label}: ${m.uci} | san: $san | source: ${m.source}"
-        }
-        .take(4)
-    if lines.isEmpty then "- none"
-    else lines.mkString("\n")
+    sections.mkString("\n\n")

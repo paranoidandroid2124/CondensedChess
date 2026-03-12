@@ -18,7 +18,9 @@ case class PieceActivity(
     isTrapped: Boolean, // No safe moves
     isBadBishop: Boolean, // Blocked by own pawns
     keyRoutes: List[Square], // Path to relevant area (e.g. Qh5 -> h7)
-    coordinationLinks: List[Square] // Squares defended/attacked in tandem with friendly pieces
+    coordinationLinks: List[Square], // Squares defended/attacked in tandem with friendly pieces
+    directionalTargets: List[Square] = Nil, // Empty strategic squares worth working toward, but not yet route-quality
+    concreteTargets: List[Square] = Nil // Enemy-occupied tactical or exchange squares, not redeployment routes
 )
 
 case class WeakComplex(

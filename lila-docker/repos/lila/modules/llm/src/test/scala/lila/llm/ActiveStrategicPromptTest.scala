@@ -26,31 +26,52 @@ class ActiveStrategicPromptTest extends FunSuite:
         evidence = List("piece_activity")
       )
     ),
-    longTermFocus = List("dominant thesis: The French Chain calls for a knight reroute toward e3.", "Dark-square control"),
-    evidence = List("dominant_thesis:The French Chain calls for a knight reroute toward e3.", "top_multipv"),
+    directionalTargets = List(
+      StrategyDirectionalTarget(
+        targetId = "target_white_n_d2_g4",
+        ownerSide = "white",
+        piece = "N",
+        from = "d2",
+        targetSquare = "g4",
+        readiness = DirectionalTargetReadiness.Build,
+        strategicReasons = List("supports kingside expansion"),
+        prerequisites = List("prepare the supporting squares first")
+      )
+    ),
+    strategicIdeas = List(
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.SpaceGainOrRestriction,
+        group = StrategicIdeaGroup.StructuralChange,
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e3", "g4"),
+        focusZone = Some("kingside"),
+        beneficiaryPieces = List("N"),
+        confidence = 0.89
+      ),
+      StrategyIdeaSignal(
+        ideaId = "idea_2",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.CounterplaySuppression,
+        group = StrategicIdeaGroup.InteractionAndTransformation,
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("c5"),
+        confidence = 0.80
+      )
+    ),
+    longTermFocus = List("Dark-square control"),
+    evidence = List("dominant_thesis:The French Chain calls for a knight reroute toward e3."),
     signalDigest = Some(
       NarrativeSignalDigest(
-        opening = Some("Ruy Lopez"),
         practicalVerdict = Some("conversion requires precision"),
-        structureProfile = Some("French Chain"),
-        alignmentBand = Some("Playable"),
-        deploymentPiece = Some("N"),
-        deploymentRoute = List("d2", "f1", "e3"),
-        deploymentPurpose = Some("kingside clamp"),
-        deploymentContribution = Some("This move starts that route immediately."),
-        deploymentConfidence = Some(0.81),
+        structuralCue = Some("French Chain structure with a semi-open center; plan fit playable"),
+        dominantIdeaKind = Some(StrategicIdeaKind.SpaceGainOrRestriction),
+        dominantIdeaGroup = Some(StrategicIdeaGroup.StructuralChange),
+        dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+        dominantIdeaFocus = Some("e3, g4"),
         decision = Some("Resolves back-rank pressure before expanding"),
-        decisionComparison = Some(
-          DecisionComparisonDigest(
-            chosenMove = Some("Nf1"),
-            engineBestMove = Some("g4"),
-            cpLossVsChosen = Some(34),
-            deferredMove = Some("g4"),
-            deferredReason = Some("it keeps the kingside initiative without conceding the center"),
-            evidence = Some("The engine line begins g4 ...Nh5 h4.")
-          )
-        ),
-        preservedSignals = List("opening", "practical", "decision")
+        opponentPlan = Some("Black still wants ...c5 counterplay.")
       )
     )
   )
@@ -99,13 +120,15 @@ class ActiveStrategicPromptTest extends FunSuite:
         source = "top_engine_move"
       )
     ),
-    evidenceCue = Some("The engine line begins g4 ...Nh5 h4."),
     continuationFocus = Some("White still wants to clamp the kingside dark squares."),
     practicalRisk = Some("If White drifts, the queenside counterplay revives."),
-    comparisonGapCp = Some(34)
+    threadLabel = Some("Whole-Board Play"),
+    threadStage = Some("Switch"),
+    threadSummary = Some("White fixes one sector before switching pressure across the board."),
+    threadOpponentCounterplan = Some("Black still wants ...c5 counterplay.")
   )
 
-  test("buildPrompt includes strategy pack plans routes and focus") {
+  test("buildPrompt renders a coaching brief instead of raw strategy dumps") {
     val prompt = ActiveStrategicPrompt.buildPrompt(
       baseNarrative = "White stabilizes and prepares kingside play.",
       phase = "middlegame",
@@ -118,38 +141,40 @@ class ActiveStrategicPromptTest extends FunSuite:
       moveRefs = sampleMoveRefs
     )
 
-    assert(prompt.contains("Kingside expansion"))
-    assert(prompt.contains("d2-f1-e3"))
-    assert(prompt.contains("Dark-square control"))
+    assert(prompt.contains("## MOMENT CONTEXT"))
+    assert(prompt.contains("## COACHING BRIEF"))
+    assert(prompt.contains("## OPENING LENS"))
+    assert(prompt.contains("Preferred opening lens"))
+    assert(prompt.contains("Primary idea"))
+    assert(prompt.contains("Why now"))
+    assert(prompt.contains("Opponent reply to watch"))
+    assert(prompt.contains("Execution hint"))
+    assert(prompt.contains("Long-term objective"))
+    assert(prompt.contains("Key trigger or failure mode"))
+    assert(prompt.contains("space gain or restriction around e3, g4"))
+    assert(prompt.contains("knight toward e3"))
+    assert(prompt.contains("work toward making g4 available"))
+    assert(!prompt.contains("d2-f1-e3"))
+    assert(prompt.contains("the game is pivoting toward a new sector or target"))
     assert(!prompt.contains("White stabilizes and prepares kingside play."))
-    assert(!prompt.contains("## BASE MOMENT NARRATIVE"))
-    assert(prompt.contains("Signal Digest"))
-    assert(prompt.contains("Ruy Lopez"))
-    assert(prompt.contains("conversion requires precision"))
-    assert(prompt.contains("dominant thesis"))
-    assert(prompt.contains("structure deployment: N d2-f1-e3"))
-    assert(prompt.contains("deployment purpose: kingside clamp"))
-    assert(prompt.contains("chosen move: Nf1"))
-    assert(prompt.contains("engine best: g4"))
-    assert(prompt.contains("cp loss vs chosen: 34cp"))
-    assert(prompt.contains("deferred move: g4"))
-    assert(prompt.contains("deferred reason: it keeps the kingside initiative without conceding the center"))
-    assert(prompt.contains("deferred evidence: The engine line begins g4 ...Nh5 h4."))
-    assert(prompt.contains("## ACTIVE DOSSIER"))
-    assert(prompt.contains("French Chain -> kingside clamp"))
-    assert(prompt.contains("route cue: route_1 Nd2-f1-e3"))
-    assert(prompt.contains("move cue: Engine preference d2f1"))
-    assert(prompt.contains("route_1"))
-    assert(prompt.contains("Engine preference"))
-    assert(prompt.contains("cite exact routeId and/or move label"))
-    assert(prompt.contains("independent strategic branch note"))
+    assert(!prompt.contains("## ACTIVE DOSSIER"))
+    assert(!prompt.contains("## CAMPAIGN THREAD"))
+    assert(!prompt.contains("## STRATEGY PACK"))
+    assert(!prompt.contains("## REFERENCE CATALOG"))
+    assert(!prompt.contains("route_1"))
+    assert(!prompt.contains("Engine preference"))
+    assert(!prompt.contains("d2f1"))
+    assert(!prompt.contains("thread stage: Switch"))
+    assert(!prompt.contains("Signal Digest"))
+    assert(prompt.contains("avoid bare imperative leads"))
+    assert(prompt.contains("dominant idea as the thesis"))
   }
 
-  test("buildRepairPrompt carries rejected note and repair reasons") {
+  test("buildRepairPrompt keeps coaching brief and player-facing repair instructions") {
     val prompt = ActiveStrategicPrompt.buildRepairPrompt(
       baseNarrative = "Black must neutralize pressure on e6.",
       rejectedNote = "Play better somehow.",
-      failureReasons = List("active_note_sentence_count", "strategy_coverage_low"),
+      failureReasons = List("forward_plan_missing", "strategy_coverage_low"),
       phase = "middlegame",
       momentType = "SustainedPressure",
       fen = "r1bq1rk1/pp3ppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R1BQ1RK1 b - - 0 10",
@@ -160,15 +185,42 @@ class ActiveStrategicPromptTest extends FunSuite:
       moveRefs = sampleMoveRefs
     )
 
-    assert(prompt.contains("Play better somehow."))
     assert(prompt.contains("## PRIOR NOTE TO AVOID PARAPHRASING"))
-    assert(prompt.contains("Do not mirror its wording"))
-    assert(prompt.contains("active_note_sentence_count"))
+    assert(prompt.contains("## REJECTED NOTE"))
+    assert(prompt.contains("## REPAIR REASONS"))
+    assert(prompt.contains("forward_plan_missing"))
     assert(prompt.contains("strategy_coverage_low"))
-    assert(prompt.contains("## ACTIVE DOSSIER"))
-    assert(prompt.contains("deferred g4 -> keeps the kingside initiative"))
-    assert(prompt.contains("Signal Digest"))
-    assert(prompt.contains("route_1"))
-    assert(prompt.contains("Engine preference"))
-    assert(prompt.contains("Repair output must cite exact routeId and/or move label"))
+    assert(prompt.contains("## COACHING BRIEF"))
+    assert(prompt.contains("## OPENING LENS"))
+    assert(prompt.contains("Preferred opening lens"))
+    assert(prompt.contains("Do not mirror its wording or sentence structure"))
+    assert(prompt.contains("dominant idea as the thesis"))
+    assert(prompt.contains("mention at most one of the execution hint or the long-term objective"))
+    assert(!prompt.contains("route_1"))
+    assert(!prompt.contains("Engine preference"))
+    assert(!prompt.contains("d2f1"))
+    assert(!prompt.contains("d2-f1-e3"))
+    assert(!prompt.contains("## ACTIVE DOSSIER"))
+  }
+
+  test("buildPrompt omits empty optional context sections") {
+    val prompt = ActiveStrategicPrompt.buildPrompt(
+      baseNarrative = "White improves coordination.",
+      phase = "middlegame",
+      momentType = "Strategic Moment",
+      fen = "",
+      concepts = Nil,
+      strategyPack = None,
+      dossier = None,
+      routeRefs = Nil,
+      moveRefs = Nil
+    )
+
+    assert(prompt.contains("## MOMENT CONTEXT"))
+    assert(prompt.contains("Phase: middlegame"))
+    assert(prompt.contains("Moment Type: Strategic Moment"))
+    assert(!prompt.contains("FEN:"))
+    assert(!prompt.contains("Concepts:"))
+    assert(!prompt.contains("## COACHING BRIEF"))
+    assert(!prompt.contains("## OPENING LENS"))
   }

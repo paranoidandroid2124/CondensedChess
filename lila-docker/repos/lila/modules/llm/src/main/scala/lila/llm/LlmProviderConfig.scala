@@ -2,6 +2,7 @@ package lila.llm
 
 case class LlmProviderConfig(
     provider: String,
+    providerActiveNote: String,
     promptVersion: String,
     polishGateThreshold: Double,
     premiumOnly: Boolean,
@@ -10,6 +11,8 @@ case class LlmProviderConfig(
   def isOpenAi: Boolean = provider == "openai"
   def isGemini: Boolean = provider == "gemini"
   def isNone: Boolean = provider == "none"
+  def activeNoteProviderResolved: String = providerActiveNote
+  def isActiveNoteNone: Boolean = activeNoteProviderResolved == "none"
 
 object LlmProviderConfig:
 
@@ -41,6 +44,13 @@ object LlmProviderConfig:
 
     LlmProviderConfig(
       provider = normalizeProvider(sys.env.getOrElse("LLM_PROVIDER", "openai")),
+      providerActiveNote =
+        normalizeProvider(
+          sys.env
+            .get("LLM_PROVIDER_ACTIVE_NOTE")
+            .filter(_.trim.nonEmpty)
+            .getOrElse(sys.env.getOrElse("LLM_PROVIDER", "openai"))
+        ),
       promptVersion = sys.env.getOrElse("LLM_PROMPT_VERSION", "v1"),
       polishGateThreshold = threshold,
       premiumOnly = boolEnv("LLM_POLISH_PREMIUM_ONLY", default = true),

@@ -984,7 +984,7 @@ object ProbeDetector:
       case SubplanId.StaticWeaknessFixation | SubplanId.BackwardPawnTargeting =>
         legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
       case SubplanId.SimplificationWindow | SubplanId.DefenderTrade | SubplanId.QueenTradeShield |
-          SubplanId.SimplificationConversion | SubplanId.InvasionTransition =>
+          SubplanId.SimplificationConversion | SubplanId.InvasionTransition | SubplanId.OppositeBishopsConversion =>
         legalMoves.filter(mv => mv.captures || mv.piece.role == Rook)
       case SubplanId.PasserConversion =>
         legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)

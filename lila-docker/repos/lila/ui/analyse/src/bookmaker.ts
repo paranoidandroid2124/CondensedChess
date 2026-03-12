@@ -165,10 +165,10 @@ function formatEvidenceScore(evalCp?: number | null, mate?: number | null): stri
 function formatDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
     if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
     const route = (signalDigest.deploymentRoute || []).filter(Boolean);
-    const confidence = typeof signalDigest.deploymentConfidence === 'number' ? signalDigest.deploymentConfidence : null;
-    const exact = !!confidence && confidence >= 0.78 && route.length >= 3;
+    const surfaceMode = signalDigest.deploymentSurfaceMode || 'hidden';
+    if (surfaceMode === 'hidden') return null;
     const destination = route[route.length - 1] || '';
-    const lead = exact
+    const lead = surfaceMode === 'exact'
         ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
         : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
     const contribution = signalDigest.deploymentContribution?.trim();

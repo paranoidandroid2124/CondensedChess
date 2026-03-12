@@ -88,6 +88,7 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
     assert(clue(dossier.chosenBranchLabel).contains("Carlsbad"))
     assertEquals(dossier.deferredBranchLabel, Some("deferred a4 -> it fixes the queenside before Black is fully ready"))
     assertEquals(dossier.routeCue.map(_.routeId), Some("route_1"))
+    assertEquals(dossier.routeCue.map(_.ownerSide), Some("white"))
     assertEquals(dossier.moveCue.map(_.label), Some("Engine preference"))
     assertEquals(dossier.evidenceCue, Some("The engine line begins a4 ...a6 b4."))
   }
@@ -230,4 +231,47 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
 
     assert(!clue(dossier.chosenBranchLabel).contains("This narrative sentence should not become the branch label"))
     assert(clue(dossier.chosenBranchLabel).contains("queenside tension"))
+  }
+
+  test("build carries campaign thread cues into the dossier") {
+    val digest = NarrativeSignalDigest(
+      structureProfile = Some("Carlsbad"),
+      deploymentPurpose = Some("queenside pressure"),
+      decision = Some("White is switching toward the kingside attack")
+    )
+    val threadRef =
+      ActiveStrategicThreadRef(
+        threadId = "thread_1",
+        themeKey = "whole_board_play",
+        themeLabel = "Whole-Board Play",
+        stageKey = "switch",
+        stageLabel = "Switch"
+      )
+    val thread =
+      ActiveStrategicThread(
+        threadId = "thread_1",
+        side = "white",
+        themeKey = "whole_board_play",
+        themeLabel = "Whole-Board Play",
+        summary = "White fixes one sector before switching pressure across the board.",
+        seedPly = 18,
+        lastPly = 30,
+        representativePlies = List(18, 24, 30),
+        opponentCounterplan = Some("...c5 counterplay"),
+        continuityScore = 0.81
+      )
+
+    val dossier = ActiveBranchDossierBuilder.build(
+      moment(signalDigestOpt = Some(digest)),
+      routeRefs,
+      moveRefs,
+      threadRef = Some(threadRef),
+      thread = Some(thread)
+    ).getOrElse(fail("missing dossier"))
+
+    assertEquals(dossier.threadLabel, Some("Whole-Board Play"))
+    assertEquals(dossier.threadStage, Some("Switch"))
+    assertEquals(dossier.threadSummary, Some("White fixes one sector before switching pressure across the board."))
+    assertEquals(dossier.threadOpponentCounterplan, Some("...c5 counterplay"))
+    assert(clue(dossier.chosenBranchLabel).contains("Whole-Board Play"))
   }

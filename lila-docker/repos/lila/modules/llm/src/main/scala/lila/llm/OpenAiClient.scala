@@ -37,6 +37,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     logger.info(
       s"OpenAI polish enabled: sync=${config.modelSync}, async=${config.modelAsync}, fallback=${config.modelFallback}, " +
         s"pro_sync=${config.modelProSync}, pro_async=${config.modelProAsync}, pro_fallback=${config.modelProFallback}, " +
+        s"active_sync=${config.modelActiveSync}, active_async=${config.modelActiveAsync}, active_fallback=${config.modelActiveFallback}, " +
+        s"active_reasoning=${config.reasoningEffortActive}, " +
         s"max_output_tokens=${config.maxOutputTokens}"
     )
   else logger.info("OpenAI polish disabled (no API key)")
@@ -44,15 +46,44 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   private case class ModelRoute(
       primary: String,
       fallback: Option[String],
-      serviceTier: Option[String]
+      serviceTier: Option[String],
+      reasoningEffort: Option[String]
   )
+
+  final case class RouteSummary(
+      primary: String,
+      fallback: Option[String],
+      serviceTier: Option[String],
+      reasoningEffort: Option[String]
+  )
+
+  private val PromptFamilyPolish = "polish"
+  private val PromptFamilyActiveNote = "active_note"
 
   def isEnabled: Boolean = config.enabled
   def syncModelName(planTier: String = PlanTier.Basic, llmLevel: String = LlmLevel.Polish): String =
-    selectModelRoute(asyncTier = false, planTier = planTier, llmLevel = llmLevel).primary
+    selectModelRoute(asyncTier = false, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish).primary
 
   def asyncModelName(planTier: String = PlanTier.Basic, llmLevel: String = LlmLevel.Polish): String =
-    selectModelRoute(asyncTier = true, planTier = planTier, llmLevel = llmLevel).primary
+    selectModelRoute(asyncTier = true, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish).primary
+
+  def activeNoteSyncModelName(planTier: String = PlanTier.Pro, llmLevel: String = LlmLevel.Active): String =
+    selectModelRoute(asyncTier = false, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote).primary
+
+  def activeNoteAsyncModelName(planTier: String = PlanTier.Pro, llmLevel: String = LlmLevel.Active): String =
+    selectModelRoute(asyncTier = true, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote).primary
+
+  def activeNoteFallbackModelName(asyncTier: Boolean, planTier: String = PlanTier.Pro, llmLevel: String = LlmLevel.Active): Option[String] =
+    selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote).fallback
+
+  def activeNoteReasoningEffort(asyncTier: Boolean, planTier: String = PlanTier.Pro, llmLevel: String = LlmLevel.Active): Option[String] =
+    selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote).reasoningEffort
+
+  def activeNoteRouteSummary(asyncTier: Boolean, planTier: String = PlanTier.Pro, llmLevel: String = LlmLevel.Active): RouteSummary =
+    toRouteSummary(selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote))
+
+  def standardRouteSummary(asyncTier: Boolean, planTier: String = PlanTier.Basic, llmLevel: String = LlmLevel.Polish): RouteSummary =
+    toRouteSummary(selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish))
 
   private def clean(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
@@ -60,7 +91,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   private def selectModelRoute(
       asyncTier: Boolean,
       planTier: String,
-      llmLevel: String
+      llmLevel: String,
+      promptFamily: String
   ): ModelRoute =
     val normalizedTier = PlanTier.normalize(planTier)
     val normalizedLevel = LlmLevel.normalize(llmLevel)
@@ -73,15 +105,37 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       if asyncTier then clean(config.modelProAsync)
       else clean(config.modelProSync)
     val proFallback = clean(config.modelProFallback).orElse(defaultFallback)
-    val chosenPrimary = if wantsPro then proPrimary.orElse(defaultPrimary) else defaultPrimary
+    val activePrimary =
+      if asyncTier then clean(config.modelActiveAsync)
+      else clean(config.modelActiveSync)
+    val activeFallback = clean(config.modelActiveFallback)
+      .orElse(if wantsPro then proFallback else defaultFallback)
+    val chosenPrimary =
+      if promptFamily == PromptFamilyActiveNote then
+        activePrimary
+          .orElse(if wantsPro then proPrimary else defaultPrimary)
+      else if wantsPro then proPrimary.orElse(defaultPrimary)
+      else defaultPrimary
     val primary = chosenPrimary.getOrElse("gpt-4o-mini")
     val fallback =
-      if wantsPro then proFallback.filter(_ != primary)
+      if promptFamily == PromptFamilyActiveNote then activeFallback.filter(_ != primary)
+      else if wantsPro then proFallback.filter(_ != primary)
       else defaultFallback.filter(_ != primary)
     ModelRoute(
       primary = primary,
       fallback = fallback,
-      serviceTier = Option.when(asyncTier)("flex")
+      serviceTier = Option.when(asyncTier)("flex"),
+      reasoningEffort =
+        if promptFamily == PromptFamilyActiveNote then activeReasoningEffortForModel(primary)
+        else defaultReasoningEffortForModel(primary)
+    )
+
+  private def toRouteSummary(route: ModelRoute): RouteSummary =
+    RouteSummary(
+      primary = route.primary,
+      fallback = route.fallback,
+      serviceTier = route.serviceTier,
+      reasoningEffort = route.reasoningEffort
     )
 
   def polishSync(
@@ -376,7 +430,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
-      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish)
       callModel(
         prose = prose,
         phase = phase,
@@ -390,6 +445,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         momentType = momentType,
         model = route.primary,
         serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens,
         bookmakerSlots = bookmakerSlots
@@ -411,6 +467,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 momentType = momentType,
                 model = fb,
                 serviceTier = route.serviceTier,
+                reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens,
                 bookmakerSlots = bookmakerSlots
@@ -437,7 +494,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
-      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish)
       callRepairModel(
         originalProse = originalProse,
         rejectedPolish = rejectedPolish,
@@ -449,6 +507,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         allowedSans = allowedSans,
         model = route.primary,
         serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens,
         bookmakerSlots = bookmakerSlots
@@ -468,6 +527,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 allowedSans = allowedSans,
                 model = fb,
                 serviceTier = route.serviceTier,
+                reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens,
                 bookmakerSlots = bookmakerSlots
@@ -494,7 +554,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || baseNarrative.isBlank then Future.successful(None)
     else
-      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote)
       callActiveStrategicNoteModel(
         baseNarrative = baseNarrative,
         phase = phase,
@@ -507,6 +568,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         moveRefs = moveRefs,
         model = route.primary,
         serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens
       ).flatMap {
@@ -526,6 +588,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 moveRefs = moveRefs,
                 model = fb,
                 serviceTier = route.serviceTier,
+                reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens
               )
@@ -552,7 +615,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || baseNarrative.isBlank || rejectedNote.isBlank then Future.successful(None)
     else
-      val route = selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel)
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote)
       callRepairActiveStrategicNoteModel(
         baseNarrative = baseNarrative,
         rejectedNote = rejectedNote,
@@ -567,6 +631,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         moveRefs = moveRefs,
         model = route.primary,
         serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens
       ).flatMap {
@@ -588,6 +653,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 moveRefs = moveRefs,
                 model = fb,
                 serviceTier = route.serviceTier,
+                reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens
               )
@@ -607,6 +673,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       momentType: Option[String],
       model: String,
       serviceTier: Option[String],
+      reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
       bookmakerSlots: Option[BookmakerPolishSlots]
@@ -629,6 +696,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       userPrompt = userPrompt,
       model = model,
       serviceTier = serviceTier,
+      reasoningEffort = reasoningEffort,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -645,6 +713,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       moveRefs: List[ActiveStrategicMoveRef],
       model: String,
       serviceTier: Option[String],
+      reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
@@ -663,6 +732,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       userPrompt = userPrompt,
       model = model,
       serviceTier = serviceTier,
+      reasoningEffort = reasoningEffort,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
       systemPrompt = ActiveStrategicPrompt.systemPrompt
@@ -682,6 +752,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       moveRefs: List[ActiveStrategicMoveRef],
       model: String,
       serviceTier: Option[String],
+      reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
@@ -702,6 +773,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       userPrompt = userPrompt,
       model = model,
       serviceTier = serviceTier,
+      reasoningEffort = reasoningEffort,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
       systemPrompt = ActiveStrategicPrompt.systemPrompt
@@ -718,6 +790,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       allowedSans: List[String],
       model: String,
       serviceTier: Option[String],
+      reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
       bookmakerSlots: Option[BookmakerPolishSlots]
@@ -737,6 +810,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       userPrompt = repairPrompt,
       model = model,
       serviceTier = serviceTier,
+      reasoningEffort = reasoningEffort,
       lang = lang,
       maxOutputTokens = maxOutputTokens
     )
@@ -745,6 +819,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       userPrompt: String,
       model: String,
       serviceTier: Option[String],
+      reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
       systemPrompt: String = PolishPrompt.systemPrompt
@@ -782,8 +857,10 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       if supportsExplicitTemperature(model) then baseBody + ("temperature" -> JsNumber(config.temperature))
       else baseBody
 
+    val resolvedReasoningEffort = reasoningEffort.orElse(defaultReasoningEffortForModel(model))
     val withReasoningEffort =
-      if isGpt5Model(model) then withTemperature + ("reasoning_effort" -> JsString("minimal"))
+      if isGpt5Model(model) then
+        resolvedReasoningEffort.fold(withTemperature)(effort => withTemperature + ("reasoning_effort" -> JsString(effort)))
       else withTemperature
 
     val body = serviceTier.fold(withReasoningEffort)(tier => withReasoningEffort + ("service_tier" -> JsString(tier)))
@@ -816,6 +893,19 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
 
   private def isGpt5Model(model: String): Boolean =
     Option(model).getOrElse("").trim.toLowerCase.startsWith("gpt-5")
+
+  private def isModernGpt5Model(model: String): Boolean =
+    val normalized = Option(model).getOrElse("").trim.toLowerCase
+    normalized.startsWith("gpt-5.2") || normalized.startsWith("gpt-5.4")
+
+  private def defaultReasoningEffortForModel(model: String): Option[String] =
+    if isModernGpt5Model(model) then Some("none")
+    else if isGpt5Model(model) then Some("minimal")
+    else None
+
+  private def activeReasoningEffortForModel(model: String): Option[String] =
+    if isModernGpt5Model(model) then Some(config.reasoningEffortActive)
+    else defaultReasoningEffortForModel(model)
 
   private def parsePolishResponse(body: String, requestedModel: String): Option[OpenAiPolishResult] =
     try
@@ -947,6 +1037,9 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
 
   private val pricingByPrefix: List[(String, ModelPricing)] = List(
     "gpt-4o-mini" -> ModelPricing(inputPerM = 0.150, cachedInputPerM = 0.075, outputPerM = 0.600),
+    "gpt-5-mini" -> ModelPricing(inputPerM = 0.250, cachedInputPerM = 0.025, outputPerM = 2.000),
+    "gpt-5.2" -> ModelPricing(inputPerM = 1.750, cachedInputPerM = 0.175, outputPerM = 14.000),
+    "gpt-5.4" -> ModelPricing(inputPerM = 20.000, cachedInputPerM = 5.000, outputPerM = 80.000),
     "gpt-5-nano" -> ModelPricing(inputPerM = 0.050, cachedInputPerM = 0.005, outputPerM = 0.400)
   )
 

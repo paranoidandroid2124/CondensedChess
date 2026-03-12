@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
-import chess.{ Color, Square, Knight }
+import chess.{ Bishop, Color, Knight, Queen, Square }
+import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, EvidenceBranch, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.llm.model.strategic.{ CounterfactualMatch, EngineEvidence, PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag, PvMove, VariationLine }
@@ -69,11 +70,13 @@ class StrategyPackBuilderTest extends FunSuite:
     )
 
   def data(
+      fen: String = testFen,
       pieceActivity: List[PieceActivity] = Nil,
-      positionalFeatures: List[PositionalTag] = Nil
+      positionalFeatures: List[PositionalTag] = Nil,
+      isWhiteToMove: Boolean = true
   ): ExtendedAnalysisData =
     ExtendedAnalysisData(
-      fen = testFen,
+      fen = fen,
       nature = PositionNature(NatureType.Dynamic, 0.6, 0.4, "dynamic test"),
       motifs = Nil,
       plans = Nil,
@@ -91,7 +94,7 @@ class StrategyPackBuilderTest extends FunSuite:
       prevMove = None,
       ply = 21,
       evalCp = 30,
-      isWhiteToMove = true
+      isWhiteToMove = isWhiteToMove
     )
 
   test("build expands mover plans beyond single-plan cap while keeping opponent plan") {
@@ -123,14 +126,14 @@ class StrategyPackBuilderTest extends FunSuite:
       mobilityScore = 0.42,
       isTrapped = false,
       isBadBishop = false,
-      keyRoutes = List(Square.E5, Square.D7),
-      coordinationLinks = List(Square.E5, Square.G5)
+      keyRoutes = List(Square.G5, Square.E4),
+      coordinationLinks = List(Square.E4, Square.G5)
     )
     val pack = StrategyPackBuilder
       .build(
         data(
           pieceActivity = List(pa),
-          positionalFeatures = List(PositionalTag.Outpost(Square.D7, Color.White))
+          positionalFeatures = List(PositionalTag.Outpost(Square.E4, Color.White))
         ),
         ctx(mainPlans = List(hypothesis("Kingside Expansion", 0.8, 1)))
       )
@@ -148,8 +151,8 @@ class StrategyPackBuilderTest extends FunSuite:
       mobilityScore = 0.42,
       isTrapped = false,
       isBadBishop = false,
-      keyRoutes = List(Square.E5, Square.D7),
-      coordinationLinks = List(Square.E5)
+      keyRoutes = List(Square.G5, Square.E4),
+      coordinationLinks = List(Square.E4)
     )
     val blackRoute = PieceActivity(
       piece = Knight,
@@ -181,8 +184,8 @@ class StrategyPackBuilderTest extends FunSuite:
       mobilityScore = 0.35,
       isTrapped = false,
       isBadBishop = false,
-      keyRoutes = List(Square.E5, Square.G7),
-      coordinationLinks = List(Square.E5)
+      keyRoutes = List(Square.G5, Square.E4),
+      coordinationLinks = List(Square.E4)
     )
     val continuity = PlanContinuity(
       planName = "Kingside Expansion",
@@ -209,6 +212,126 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.contains("route")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("route:")), clue(pack.evidence))
     assert(pack.evidence.exists(_.contains("line rejected")), clue(pack.evidence))
+  }
+
+  test("build reclassifies enemy-occupied bishop target into move-ref instead of route") {
+    val fen = "4k3/8/8/8/8/4p3/8/2B1K3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Bishop,
+      square = Square.C1,
+      mobilityScore = 0.18,
+      isTrapped = false,
+      isBadBishop = true,
+      keyRoutes = Nil,
+      coordinationLinks = Nil,
+      concreteTargets = List(Square.E3)
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Bishop Relief", 0.76, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    assertEquals(pack.pieceRoutes, Nil)
+    assertEquals(pack.pieceMoveRefs.map(_.target), List("e3"))
+  }
+
+  test("unsafe knight reroute degrades to toward-only surface") {
+    val fen = "4k3/8/8/8/3p1p2/8/3N4/4K3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Knight,
+      square = Square.D2,
+      mobilityScore = 0.12,
+      isTrapped = false,
+      isBadBishop = false,
+      keyRoutes = List(Square.F1, Square.E3),
+      coordinationLinks = List(Square.E3)
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    val route = pack.pieceRoutes.headOption.getOrElse(fail("route missing"))
+    assertEquals(route.surfaceMode, lila.llm.RouteSurfaceMode.Toward)
+    assert(route.tacticalSafety < 0.82, clue(route))
+  }
+
+  test("build emits directional target for empty but not-ready strategic square") {
+    val fen = "4k3/8/8/8/8/8/2N5/4K3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Knight,
+      square = Square.C2,
+      mobilityScore = 0.22,
+      isTrapped = false,
+      isBadBishop = false,
+      keyRoutes = Nil,
+      coordinationLinks = List(Square.E3),
+      directionalTargets = List(Square.E4)
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Clamp the center", 0.80, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    val target = pack.directionalTargets.headOption.getOrElse(fail("directional target missing"))
+    assertEquals(target.targetSquare, "e4")
+    assertEquals(target.readiness, DirectionalTargetReadiness.Premature)
+    assert(target.strategicReasons.nonEmpty, clue(target))
+  }
+
+  test("build never emits directional target for enemy-occupied square") {
+    val fen = "4k3/8/8/8/8/4p3/2N5/4K3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Knight,
+      square = Square.C2,
+      mobilityScore = 0.22,
+      isTrapped = false,
+      isBadBishop = false,
+      keyRoutes = Nil,
+      coordinationLinks = List(Square.E3),
+      directionalTargets = List(Square.E3)
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Clamp the center", 0.80, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    assertEquals(pack.directionalTargets, Nil)
+  }
+
+  test("queen multi-hop redeployment stays toward-only even when fit is high") {
+    val fen = "4k3/8/8/8/8/8/8/3QK3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Queen,
+      square = Square.D1,
+      mobilityScore = 0.10,
+      isTrapped = false,
+      isBadBishop = false,
+      keyRoutes = List(Square.D3, Square.C4, Square.C5),
+      coordinationLinks = List(Square.C5)
+    )
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Centralization", 0.88, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    val route = pack.pieceRoutes.headOption.getOrElse(fail("route missing"))
+    assertEquals(route.surfaceMode, lila.llm.RouteSurfaceMode.Toward)
   }
 
   test("build emits rich structure practical and prophylaxis digest details") {

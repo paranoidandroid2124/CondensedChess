@@ -1,20 +1,33 @@
 package lila.llm.analysis
 
 import _root_.chess.{ Board, Color, File, Role, Square }
+import _root_.chess.format.Fen
+import lila.llm.RouteSurfaceMode
 import lila.llm.model.*
 import lila.llm.model.strategic.{ PieceActivity, PositionalTag }
 
 private[analysis] final case class PieceDeploymentCue(
+    ownerSide: String,
     piece: String,
     from: String,
     route: List[String],
     destination: String,
     purpose: String,
-    confidence: Double,
+    strategicFit: Double,
+    tacticalSafety: Double,
+    surfaceConfidence: Double,
+    surfaceMode: String,
     source: String
 ):
   def routeSquares: List[String] = (from :: route).distinct.take(4)
   def lastSquare: Option[String] = routeSquares.lastOption
+  def confidence: Double = surfaceConfidence
+
+private[analysis] final case class RouteSafetyAssessment(
+    tacticalSafety: Double,
+    hasEnemyOccupied: Boolean,
+    transitSquaresEmpty: Boolean
+)
 
 private[analysis] final case class StructurePlanArc(
     structureLabel: String,
@@ -32,15 +45,17 @@ private[analysis] final case class StructurePlanArc(
 
 private[analysis] object StructurePlanArcBuilder:
 
-  val ProseConfidenceCutoff = 0.62
-  val SecondaryConfidenceCutoff = 0.72
-  val ExactRouteCutoff = 0.78
+  val ProseConfidenceCutoff = 0.55
+  val SecondaryConfidenceCutoff = 0.55
+  val ExactRouteCutoff = 0.82
 
   def build(ctx: NarrativeContext): Option[StructurePlanArc] =
     val semantic = ctx.semantic
     val structure = semantic.flatMap(_.structureProfile)
     val alignment = semantic.flatMap(_.planAlignment)
     val pieceActivity = semantic.toList.flatMap(_.pieceActivity)
+    val boardOpt = Fen.read(_root_.chess.variant.Standard, Fen.Full(ctx.fen)).map(_.board)
+    val ownerSide = sideNameFromFen(ctx.fen)
     val structureLabel =
       structure.flatMap(sp => normalized(sp.primary).filterNot(_.equalsIgnoreCase("Unknown")))
         .orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
@@ -49,9 +64,9 @@ private[analysis] object StructurePlanArcBuilder:
     for
       structureName <- structureLabel
       plan <- planLabel
-      primary <- selectDeployments(pieceActivity, plan, structureName, alignment.map(_.band)).headOption
+      primary <- selectDeployments(pieceActivity, boardOpt, ownerSide, plan, structureName, alignment.map(_.band)).headOption
     yield
-      val deployments = selectDeployments(pieceActivity, plan, structureName, alignment.map(_.band))
+      val deployments = selectDeployments(pieceActivity, boardOpt, ownerSide, plan, structureName, alignment.map(_.band))
       val alignmentBand = alignment.map(_.band).flatMap(normalized)
       val alignmentReasons = alignment.toList.flatMap(_.reasonCodes).flatMap(humanizeAlignmentReason).distinct.take(3)
       StructurePlanArc(
@@ -61,7 +76,7 @@ private[analysis] object StructurePlanArcBuilder:
         alignmentBand = alignmentBand,
         alignmentReasons = alignmentReasons,
         primaryDeployment = primary,
-        secondaryDeployment = deployments.drop(1).find(_.confidence >= SecondaryConfidenceCutoff),
+        secondaryDeployment = deployments.drop(1).find(_.surfaceConfidence >= SecondaryConfidenceCutoff),
         moveContribution = moveContribution(ctx, primary, plan),
         prophylaxisSupport = prophylaxisSupport(ctx),
         practicalCoda = practicalCoda(ctx),
@@ -69,13 +84,16 @@ private[analysis] object StructurePlanArcBuilder:
       )
 
   def proseEligible(arc: StructurePlanArc): Boolean =
-    alignmentSupportsProse(arc.alignmentBand) && arc.primaryDeployment.confidence >= ProseConfidenceCutoff
+    alignmentSupportsProse(arc.alignmentBand) && arc.primaryDeployment.surfaceConfidence >= ProseConfidenceCutoff &&
+      arc.primaryDeployment.surfaceMode != RouteSurfaceMode.Hidden
 
   def visibleDeployment(arc: StructurePlanArc): Option[PieceDeploymentCue] =
-    Option.when(arc.primaryDeployment.confidence >= ProseConfidenceCutoff)(arc.primaryDeployment)
+    Option.when(arc.primaryDeployment.surfaceConfidence >= ProseConfidenceCutoff && arc.primaryDeployment.surfaceMode != RouteSurfaceMode.Hidden)(
+      arc.primaryDeployment
+    )
 
   def useExactRoute(cue: PieceDeploymentCue): Boolean =
-    cue.confidence >= ExactRouteCutoff && cue.routeSquares.size >= 3
+    cue.surfaceMode == RouteSurfaceMode.Exact
 
   def claimText(arc: StructurePlanArc): String =
     val centerFragment =
@@ -114,42 +132,28 @@ private[analysis] object StructurePlanArcBuilder:
         .filter(_.color == routeColor)
         .flatMap { piece =>
           val route = activity.keyRoutes.map(_.key).distinct.take(3)
-          Option.when(route.nonEmpty) {
-            val destinationSquare = route.lastOption.getOrElse(activity.square.key)
-            val destination =
-              fileDestination(
-                pieceToken(piece.role),
-                destinationSquare,
-                derivedStrategicPurpose(
-                  role = piece.role,
-                  activity = activity,
-                  destination = destinationSquare,
-                  boardOpt = boardOpt,
-                  routeColor = routeColor,
-                  positionalFeatures = positionalFeatures,
-                  planLabels = planLabels,
-                  structureHint = structureHint
-                )
-              ).getOrElse(destinationSquare)
-            PieceDeploymentCue(
+          Option.when(route.nonEmpty)(
+            buildPieceDeploymentCue(
+              ownerSide = sideName(routeColor),
               piece = pieceToken(piece.role),
               from = activity.square.key,
               route = route,
-              destination = destination,
               purpose = derivedStrategicPurpose(
                 role = piece.role,
                 activity = activity,
-                destination = destinationSquare,
+                destination = route.lastOption.getOrElse(activity.square.key),
                 boardOpt = boardOpt,
                 routeColor = routeColor,
                 positionalFeatures = positionalFeatures,
                 planLabels = planLabels,
                 structureHint = structureHint
               ),
-              confidence = strategicConfidence(activity, alignmentBand, planLabels.headOption.getOrElse("")),
+              strategicFit = strategicRouteFit(activity, alignmentBand, planLabels.headOption.getOrElse("")),
+              boardOpt = boardOpt,
+              ownerColor = Some(routeColor),
               source = "piece_activity"
             )
-          }
+          ).flatten
         }
 
   def evidenceFromStrategicActivity(activity: PieceActivity, destination: String): List[String] =
@@ -165,18 +169,22 @@ private[analysis] object StructurePlanArcBuilder:
 
   private def selectDeployments(
       pieceActivity: List[PieceActivityInfo],
+      boardOpt: Option[Board],
+      ownerSide: String,
       planLabel: String,
       structureLabel: String,
       alignmentBand: Option[String]
   ): List[PieceDeploymentCue] =
     pieceActivity
-      .flatMap(buildCue(_, planLabel, structureLabel, alignmentBand))
-      .sortBy(cue => (-cue.confidence, routeLead(cue), cue.piece))
+      .flatMap(buildCue(_, boardOpt, ownerSide, planLabel, structureLabel, alignmentBand))
+      .sortBy(cue => (-cue.surfaceConfidence, routeLead(cue), cue.piece))
       .distinctBy(cue => s"${cue.piece}|${cue.from}|${cue.destination}")
       .take(3)
 
   private def buildCue(
       activity: PieceActivityInfo,
+      boardOpt: Option[Board],
+      ownerSide: String,
       planLabel: String,
       structureLabel: String,
       alignmentBand: Option[String]
@@ -188,20 +196,50 @@ private[analysis] object StructurePlanArcBuilder:
       p <- piece
       start <- from
       route <- Option.when(squares.nonEmpty)(squares)
-    yield
-      val destinationSquare = route.lastOption.getOrElse(start)
-      val purpose = deriveSemanticPurpose(p, route, planLabel, structureLabel, activity)
-      val destination =
-        fileDestination(p, destinationSquare, purpose).getOrElse(destinationSquare)
-      PieceDeploymentCue(
+      cue <- buildPieceDeploymentCue(
+        ownerSide = ownerSide,
         piece = p,
         from = start,
         route = route,
-        destination = destination,
-        purpose = purpose,
-        confidence = semanticConfidence(activity, alignmentBand, planLabel),
+        purpose = deriveSemanticPurpose(p, route, planLabel, structureLabel, activity),
+        strategicFit = semanticStrategicFit(activity, alignmentBand, planLabel),
+        boardOpt = boardOpt,
+        ownerColor = colorFromSide(ownerSide),
         source = "piece_activity"
       )
+    yield cue
+
+  private def buildPieceDeploymentCue(
+      ownerSide: String,
+      piece: String,
+      from: String,
+      route: List[String],
+      purpose: String,
+      strategicFit: Double,
+      boardOpt: Option[Board],
+      ownerColor: Option[Color],
+      source: String
+  ): Option[PieceDeploymentCue] =
+    val routeSquares = (from :: route).distinct.take(4)
+    val destinationSquare = route.lastOption.getOrElse(from)
+    val safetyAssessment = assessRouteSafety(boardOpt, ownerColor, routeSquares)
+    Option.when(!safetyAssessment.hasEnemyOccupied && route.nonEmpty) {
+      val destination = fileDestination(piece, destinationSquare, purpose).getOrElse(destinationSquare)
+      val surfaceConfidence = strategicFit.min(safetyAssessment.tacticalSafety)
+      PieceDeploymentCue(
+        ownerSide = ownerSide,
+        piece = piece,
+        from = from,
+        route = route,
+        destination = destination,
+        purpose = purpose,
+        strategicFit = strategicFit,
+        tacticalSafety = safetyAssessment.tacticalSafety,
+        surfaceConfidence = surfaceConfidence,
+        surfaceMode = surfaceModeFor(piece, purpose, routeSquares, surfaceConfidence, safetyAssessment),
+        source = source
+      )
+    }
 
   private def moveContribution(
       ctx: NarrativeContext,
@@ -258,12 +296,12 @@ private[analysis] object StructurePlanArcBuilder:
       .orElse(ctx.plans.top5.headOption.flatMap(p => normalized(p.name)))
       .orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
 
-  private def semanticConfidence(
+  private def semanticStrategicFit(
       activity: PieceActivityInfo,
       alignmentBand: Option[String],
       planLabel: String
   ): Double =
-    confidenceBase(
+    strategicFitBase(
       mobilityScore = activity.mobilityScore,
       isTrapped = activity.isTrapped,
       isBadBishop = activity.isBadBishop,
@@ -273,12 +311,12 @@ private[analysis] object StructurePlanArcBuilder:
       hasPlanLabel = normalized(planLabel).nonEmpty
     )
 
-  private def strategicConfidence(
+  private def strategicRouteFit(
       activity: PieceActivity,
       alignmentBand: Option[String],
       planLabel: String
   ): Double =
-    confidenceBase(
+    strategicFitBase(
       mobilityScore = activity.mobilityScore,
       isTrapped = activity.isTrapped,
       isBadBishop = activity.isBadBishop,
@@ -288,7 +326,7 @@ private[analysis] object StructurePlanArcBuilder:
       hasPlanLabel = normalized(planLabel).nonEmpty
     )
 
-  private def confidenceBase(
+  private def strategicFitBase(
       mobilityScore: Double,
       isTrapped: Boolean,
       isBadBishop: Boolean,
@@ -419,6 +457,74 @@ private[analysis] object StructurePlanArcBuilder:
       s"${destination.head}-file"
     }
 
+  private def assessRouteSafety(
+      boardOpt: Option[Board],
+      ownerColor: Option[Color],
+      routeSquares: List[String]
+  ): RouteSafetyAssessment =
+    (boardOpt, ownerColor) match
+      case (Some(board), Some(color)) =>
+        val nonOriginSquares = routeSquares.drop(1).flatMap(squareByKey)
+        if nonOriginSquares.isEmpty then RouteSafetyAssessment(tacticalSafety = 0.0, hasEnemyOccupied = false, transitSquaresEmpty = false)
+        else
+          val hasEnemyOccupied = nonOriginSquares.exists(sq => board.pieceAt(sq).exists(_.color != color))
+          val transitSquaresEmpty = nonOriginSquares.forall(sq => board.pieceAt(sq).isEmpty)
+          if hasEnemyOccupied then RouteSafetyAssessment(tacticalSafety = 0.0, hasEnemyOccupied = true, transitSquaresEmpty = transitSquaresEmpty)
+          else
+            val (unsafeCount, contestedCount) =
+              nonOriginSquares.foldLeft((0, 0)) { case ((unsafe, contested), sq) =>
+                if board.pieceAt(sq).exists(_.color == color) then (unsafe + 1, contested)
+                else
+                  val defenders = board.attackers(sq, color).count
+                  val attackers = board.attackers(sq, !color).count
+                  if attackers == 0 || defenders > attackers then (unsafe, contested)
+                  else if defenders == attackers && attackers > 0 then (unsafe, contested + 1)
+                  else (unsafe + 1, contested)
+              }
+            RouteSafetyAssessment(
+              tacticalSafety = (1.0 - (unsafeCount * 0.30) - (contestedCount * 0.12)).max(0.0).min(1.0),
+              hasEnemyOccupied = false,
+              transitSquaresEmpty = transitSquaresEmpty
+            )
+      case _ =>
+        RouteSafetyAssessment(tacticalSafety = 0.0, hasEnemyOccupied = false, transitSquaresEmpty = false)
+
+  private def surfaceModeFor(
+      piece: String,
+      purpose: String,
+      routeSquares: List[String],
+      surfaceConfidence: Double,
+      safetyAssessment: RouteSafetyAssessment
+  ): String =
+    if surfaceConfidence < ProseConfidenceCutoff then RouteSurfaceMode.Hidden
+    else if allowsExactSurface(piece, purpose, routeSquares, surfaceConfidence, safetyAssessment) then RouteSurfaceMode.Exact
+    else RouteSurfaceMode.Toward
+
+  private def allowsExactSurface(
+      piece: String,
+      purpose: String,
+      routeSquares: List[String],
+      surfaceConfidence: Double,
+      safetyAssessment: RouteSafetyAssessment
+  ): Boolean =
+    surfaceConfidence >= ExactRouteCutoff &&
+      safetyAssessment.tacticalSafety >= ExactRouteCutoff &&
+      safetyAssessment.transitSquaresEmpty &&
+      routeSquares.drop(1).nonEmpty &&
+      (piece match
+        case "N" => true
+        case "B" => routeSquares.size <= 3
+        case "R" => routeSquares.size <= 3 && allowsRookExactPurpose(purpose)
+        case "Q" => false
+        case _   => false
+      )
+
+  private def allowsRookExactPurpose(purpose: String): Boolean =
+    normalized(purpose).exists { value =>
+      val low = value.toLowerCase
+      low.contains("open-file") || low.contains("file") || low.contains("lift")
+    }
+
   private def alignmentSupportsProse(band: Option[String]): Boolean =
     band.flatMap(normalized).exists { value =>
       val low = value.toLowerCase
@@ -466,6 +572,29 @@ private[analysis] object StructurePlanArcBuilder:
       case _root_.chess.Rook   => "R"
       case _root_.chess.Queen  => "Q"
       case _root_.chess.King   => "K"
+
+  private def sideName(color: Color): String =
+    if color.white then "white" else "black"
+
+  private def colorFromSide(side: String): Option[Color] =
+    normalized(side).map(_.toLowerCase).collect {
+      case "white" => Color.White
+      case "black" => Color.Black
+    }
+
+  private def sideNameFromFen(fen: String): String =
+    colorFromFen(fen).map(sideName).getOrElse("white")
+
+  private def colorFromFen(fen: String): Option[Color] =
+    Option(fen)
+      .map(_.trim.split("\\s+").toList.lift(1).getOrElse(""))
+      .collect {
+        case "w" => Color.White
+        case "b" => Color.Black
+      }
+
+  private def squareByKey(key: String): Option[Square] =
+    Square.all.find(_.key == key)
 
   private def parseUci(uci: Option[String]): Option[(String, String)] =
     uci.flatMap(normalized).filter(_.length >= 4).map(move => move.take(2) -> move.drop(2).take(2))

@@ -3,6 +3,7 @@ package lila.llm
 case class GeminiConfig(
     apiKey: String,
     model: String,
+    modelActive: String,
     enabled: Boolean,
     temperature: Double,
     maxOutputTokens: Int,
@@ -14,9 +15,11 @@ object GeminiConfig:
 
   def fromEnv: GeminiConfig =
     val apiKey = sys.env.getOrElse("GEMINI_API_KEY", "")
+    val model = sys.env.getOrElse("GEMINI_MODEL", "gemini-2.0-flash")
     GeminiConfig(
       apiKey = apiKey,
-      model = sys.env.getOrElse("GEMINI_MODEL", "gemini-2.0-flash"),
+      model = model,
+      modelActive = sys.env.getOrElse("GEMINI_MODEL_ACTIVE", model),
       enabled = apiKey.nonEmpty,
       temperature = sys.env.getOrElse("GEMINI_TEMPERATURE", "0.4").toDoubleOption.getOrElse(0.4),
       maxOutputTokens = sys.env.getOrElse("GEMINI_MAX_TOKENS", "256").toIntOption.getOrElse(256),

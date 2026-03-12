@@ -166,8 +166,34 @@ class StructurePlanArcBuilderTest extends FunSuite:
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
     assert(arc.primaryDeployment.confidence >= StructurePlanArcBuilder.ExactRouteCutoff, clues(arc.primaryDeployment))
     assert(StructurePlanArcBuilder.useExactRoute(arc.primaryDeployment))
+    assertEquals(arc.primaryDeployment.surfaceMode, lila.llm.RouteSurfaceMode.Exact)
     assert(StructurePlanArcBuilder.claimText(arc).contains("French Chain"))
     assert(StructurePlanArcBuilder.claimText(arc).toLowerCase.contains("knight"))
+  }
+
+  test("queen deployment never surfaces as exact path") {
+    val ctx = baseContext(
+      playedMove = "d1d3",
+      playedSan = "Qd3",
+      mainPlan = "Whole-board pressure",
+      structure = StructureProfileInfo("Semi-Open Center", 0.82, Nil, "Semi-Open", List("SPACE")),
+      alignment = PlanAlignmentInfo(
+        score = 81,
+        band = "OnBook",
+        matchedPlanIds = List("whole_board_pressure"),
+        missingPlanIds = Nil,
+        reasonCodes = List("PA_MATCH"),
+        narrativeIntent = Some("centralize the queen before switching wings"),
+        narrativeRisk = Some("entry squares can be overextended")
+      ),
+      pieceActivity = List(
+        PieceActivityInfo("Queen", "d1", 0.12, false, false, List("d3", "c4", "c5"), List("c5"))
+      )
+    )
+
+    val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
+    assertEquals(arc.primaryDeployment.surfaceMode, lila.llm.RouteSurfaceMode.Toward)
+    assert(!StructurePlanArcBuilder.useExactRoute(arc.primaryDeployment))
   }
 
   test("off-plan structures keep deployment as caution rather than prose claim") {
@@ -194,4 +220,3 @@ class StructurePlanArcBuilderTest extends FunSuite:
     assert(!StructurePlanArcBuilder.proseEligible(arc))
     assert(StructurePlanArcBuilder.cautionSupportText(arc).toLowerCase.contains("still wants"))
   }
-

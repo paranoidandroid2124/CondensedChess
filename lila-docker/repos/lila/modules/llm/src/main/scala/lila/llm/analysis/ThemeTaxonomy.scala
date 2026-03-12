@@ -68,6 +68,7 @@ object ThemeTaxonomy:
     case SimplificationConversion extends SubplanId("simplification_conversion", ThemeL1.AdvantageTransformation)
     case PasserConversion extends SubplanId("passer_conversion", ThemeL1.AdvantageTransformation)
     case InvasionTransition extends SubplanId("invasion_transition", ThemeL1.AdvantageTransformation)
+    case OppositeBishopsConversion extends SubplanId("opposite_bishops_conversion", ThemeL1.AdvantageTransformation)
 
     case ForcingTacticalShot extends SubplanId("forcing_tactical_shot", ThemeL1.ImmediateTacticalGain)
     case DefenderOverload extends SubplanId("defender_overload", ThemeL1.ImmediateTacticalGain)
@@ -239,6 +240,12 @@ object ThemeTaxonomy:
         horizon = "medium",
         aliases = List("invasion", "transition")
       ),
+      SubplanId.OppositeBishopsConversion -> SubplanSpec(
+        requiredSignals = List("replyPvs", "futureSnapshot", "keyMotifs"),
+        objective = "convert an opposite-colored bishops ending through color-complex penetration or passer transition",
+        horizon = "long",
+        aliases = List("opposite bishops conversion", "opposite-colored bishops conversion")
+      ),
       SubplanId.ForcingTacticalShot -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta", "keyMotifs"),
         objective = "execute forcing tactical line with concrete gain",
@@ -396,6 +403,7 @@ object ThemeTaxonomy:
         "simplification_conversion" -> SubplanId.SimplificationConversion,
         "passer_conversion" -> SubplanId.PasserConversion,
         "invasion_transition" -> SubplanId.InvasionTransition,
+        "opposite_bishops_conversion" -> SubplanId.OppositeBishopsConversion,
         "forcing_tactical_shot" -> SubplanId.ForcingTacticalShot,
         "defender_overload" -> SubplanId.DefenderOverload,
         "clearance_break" -> SubplanId.ClearanceBreak,
@@ -413,6 +421,8 @@ object ThemeTaxonomy:
         "conversion" -> SubplanId.SimplificationConversion,
         "passer" -> SubplanId.PasserConversion,
         "invasion" -> SubplanId.InvasionTransition,
+        "opposite bishops" -> SubplanId.OppositeBishopsConversion,
+        "opposite colored bishops" -> SubplanId.OppositeBishopsConversion,
         "forcing" -> SubplanId.ForcingTacticalShot,
         "overload" -> SubplanId.DefenderOverload,
         "clearance" -> SubplanId.ClearanceBreak

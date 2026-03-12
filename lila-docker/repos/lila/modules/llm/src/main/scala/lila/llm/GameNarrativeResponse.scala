@@ -14,12 +14,13 @@ case class GameNarrativeResponse(
     sourceMode: String = "rule",
     model: Option[String] = None,
     planTier: String = PlanTier.Basic,
-    llmLevel: String = LlmLevel.Polish
+    llmLevel: String = LlmLevel.Polish,
+    strategicThreads: List[ActiveStrategicThread] = Nil
 )
 
 object GameNarrativeResponse:
 
-  val schemaV2 = "chesstory.gameNarrative.v2"
+  val schemaV6 = "chesstory.gameNarrative.v6"
 
   def fromNarrative(
       narrative: FullGameNarrative,
@@ -30,7 +31,7 @@ object GameNarrativeResponse:
       llmLevel: String = LlmLevel.Polish
   ): GameNarrativeResponse =
     GameNarrativeResponse(
-      schema = schemaV2,
+      schema = schemaV6,
       intro = narrative.gameIntro,
       moments = narrative.keyMomentNarratives.map(GameNarrativeMoment.fromMoment),
       conclusion = narrative.conclusion,
@@ -39,7 +40,8 @@ object GameNarrativeResponse:
       sourceMode = sourceMode,
       model = model,
       planTier = PlanTier.normalize(planTier),
-      llmLevel = LlmLevel.normalize(llmLevel)
+      llmLevel = LlmLevel.normalize(llmLevel),
+      strategicThreads = narrative.strategicThreads
     )
 
   given Writes[GameNarrativeResponse] = Json.writes[GameNarrativeResponse]
@@ -53,6 +55,9 @@ case class GameNarrativeMoment(
     momentType: String,
     fen: String,
     narrative: String,
+    selectionKind: String = "key",
+    selectionLabel: Option[String] = Some("Key Moment"),
+    selectionReason: Option[String] = None,
     concepts: List[String],
     variations: List[VariationLine],
     cpBefore: Int,
@@ -77,9 +82,12 @@ case class GameNarrativeMoment(
     strategicBranch: Boolean = false,
     activeStrategicNote: Option[String] = None,
     activeStrategicSourceMode: Option[String] = None,
+    activeStrategicIdeas: List[ActiveStrategicIdeaRef] = Nil,
     activeStrategicRoutes: List[ActiveStrategicRouteRef] = Nil,
     activeStrategicMoves: List[ActiveStrategicMoveRef] = Nil,
-    activeBranchDossier: Option[ActiveBranchDossier] = None
+    activeDirectionalTargets: List[StrategyDirectionalTarget] = Nil,
+    activeBranchDossier: Option[ActiveBranchDossier] = None,
+    strategicThread: Option[ActiveStrategicThreadRef] = None
 )
 
 object GameNarrativeMoment:
@@ -96,6 +104,9 @@ object GameNarrativeMoment:
       momentType = moment.momentType,
       fen = moment.analysisData.fen,
       narrative = moment.narrative,
+      selectionKind = moment.selectionKind,
+      selectionLabel = moment.selectionLabel,
+      selectionReason = moment.selectionReason,
       concepts = moment.analysisData.conceptSummary,
       variations = moment.analysisData.alternatives,
       cpBefore = moment.cpBefore.getOrElse(0),
@@ -120,9 +131,12 @@ object GameNarrativeMoment:
       strategicBranch = moment.strategicBranch,
       activeStrategicNote = moment.activeStrategicNote,
       activeStrategicSourceMode = moment.activeStrategicSourceMode,
+      activeStrategicIdeas = moment.activeStrategicIdeas,
       activeStrategicRoutes = moment.activeStrategicRoutes,
       activeStrategicMoves = moment.activeStrategicMoves,
-      activeBranchDossier = moment.activeBranchDossier
+      activeDirectionalTargets = moment.activeDirectionalTargets,
+      activeBranchDossier = moment.activeBranchDossier,
+      strategicThread = moment.strategicThread
     )
 
   given Writes[GameNarrativeMoment] = Json.writes[GameNarrativeMoment]
@@ -135,6 +149,11 @@ case class GameNarrativeReview(
     evalCoveragePct: Int,
     selectedMoments: Int,
     selectedMomentPlies: List[Int],
+    internalMomentCount: Int,
+    visibleMomentCount: Int,
+    polishedMomentCount: Int,
+    visibleStrategicMomentCount: Int,
+    visibleBridgeMomentCount: Int,
     blundersCount: Int,
     missedWinsCount: Int,
     brilliantMovesCount: Int,

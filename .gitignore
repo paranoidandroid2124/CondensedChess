@@ -2,3 +2,12 @@
 /lila-docker/logs/
 /lila-docker/repos/lila/error.txt
 /lila-docker/repos/lila/0)
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativeCorpusReport.latest.json
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativeCorpusReport.latest.md
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.evals.json
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.json
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.md
+/lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.pgn
+/lila-docker/repos/lila/modules/llm/docs/active_narrative_runs/
+/tools/stockfish/
+/tmp_analyse_check*.png

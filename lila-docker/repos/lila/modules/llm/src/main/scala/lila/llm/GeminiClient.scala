@@ -17,8 +17,6 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
   private val logger = lila.log("gemini")
 
 
-  private val generateEndpoint =
-    s"https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent"
   private val cacheCreateEndpoint =
     "https://generativelanguage.googleapis.com/v1beta/cachedContents"
 
@@ -30,7 +28,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
   @volatile private var cacheCreating = false
 
   if config.enabled then
-    logger.info(s"Gemini polish enabled: model=${config.model}, temp=${config.temperature}")
+    logger.info(s"Gemini polish enabled: model=${config.model}, active_model=${config.modelActive}, temp=${config.temperature}")
   else
     logger.info("Gemini polish disabled (no API key)")
 
@@ -131,7 +129,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       callWithSystemPrompt(
         userPrompt = prompt,
         systemPrompt = ActiveStrategicPrompt.systemPrompt,
-        allowContextCache = false
+        allowContextCache = false,
+        model = config.modelActive
       ).recover { case e: Throwable =>
         logger.warn(s"Gemini active note failed, omitting note: ${e.getMessage}")
         None
@@ -169,7 +168,8 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       callWithSystemPrompt(
         userPrompt = prompt,
         systemPrompt = ActiveStrategicPrompt.systemPrompt,
-        allowContextCache = false
+        allowContextCache = false,
+        model = config.modelActive
       ).recover { case e: Throwable =>
         logger.warn(s"Gemini active note repair failed, omitting note: ${e.getMessage}")
         None
@@ -178,6 +178,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
 
   def isEnabled: Boolean = config.enabled
   def modelName: String = config.model
+  def activeModelName: String = config.modelActive
 
 
   private def ensureCachedContent(): Future[Option[String]] =
@@ -238,10 +239,11 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
   private def callWithSystemPrompt(
       userPrompt: String,
       systemPrompt: String = PolishPrompt.systemPrompt,
-      allowContextCache: Boolean = true
+      allowContextCache: Boolean = true,
+      model: String = config.model
   ): Future[Option[String]] =
     val cacheFut =
-      if allowContextCache && systemPrompt == PolishPrompt.systemPrompt then ensureCachedContent()
+      if allowContextCache && systemPrompt == PolishPrompt.systemPrompt && model == config.model then ensureCachedContent()
       else Future.successful(None)
 
     cacheFut.flatMap { cachedNameOpt =>
@@ -273,7 +275,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
             "generationConfig" -> generationConfig
           )
 
-      ws.url(s"$generateEndpoint?key=${config.apiKey}")
+      ws.url(s"${generateEndpoint(model)}?key=${config.apiKey}")
         .withRequestTimeout(config.requestTimeoutSeconds.seconds)
         .post(body)
         .map { response =>
@@ -288,6 +290,9 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
               None
         }
     }
+
+  private def generateEndpoint(model: String): String =
+    s"https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent"
 
 
   private def extractText(body: String): Option[String] =

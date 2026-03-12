@@ -128,17 +128,165 @@ case class StrategySidePlan(
 object StrategySidePlan:
   given Writes[StrategySidePlan] = Json.writes[StrategySidePlan]
 
+object RouteSurfaceMode:
+  val Exact = "exact"
+  val Toward = "toward"
+  val Hidden = "hidden"
+
+object StrategicIdeaKind:
+  val PawnBreak = "pawn_break"
+  val SpaceGainOrRestriction = "space_gain_or_restriction"
+  val TargetFixing = "target_fixing"
+  val LineOccupation = "line_occupation"
+  val OutpostCreationOrOccupation = "outpost_creation_or_occupation"
+  val MinorPieceImbalanceExploitation = "minor_piece_imbalance_exploitation"
+  val Prophylaxis = "prophylaxis"
+  val KingAttackBuildUp = "king_attack_build_up"
+  val FavorableTradeOrTransformation = "favorable_trade_or_transformation"
+  val CounterplaySuppression = "counterplay_suppression"
+
+  val all = List(
+    PawnBreak,
+    SpaceGainOrRestriction,
+    TargetFixing,
+    LineOccupation,
+    OutpostCreationOrOccupation,
+    MinorPieceImbalanceExploitation,
+    Prophylaxis,
+    KingAttackBuildUp,
+    FavorableTradeOrTransformation,
+    CounterplaySuppression
+  )
+
+object StrategicIdeaGroup:
+  val StructuralChange = "structural_change"
+  val PieceAndLineManagement = "piece_and_line_management"
+  val InteractionAndTransformation = "interaction_and_transformation"
+
+  val all = List(
+    StructuralChange,
+    PieceAndLineManagement,
+    InteractionAndTransformation
+  )
+
+object StrategicIdeaReadiness:
+  val Ready = "ready"
+  val Build = "build"
+  val Premature = "premature"
+  val Blocked = "blocked"
+
+object DirectionalTargetReadiness:
+  val Build = "build"
+  val Premature = "premature"
+  val Blocked = "blocked"
+  val Contested = "contested"
+
 case class StrategyPieceRoute(
-    side: String,
+    ownerSide: String,
     piece: String,
     from: String,
     route: List[String],
     purpose: String,
-    confidence: Double,
+    strategicFit: Double,
+    tacticalSafety: Double,
+    surfaceConfidence: Double,
+    surfaceMode: String,
+    evidence: List[String] = Nil
+):
+  def side: String = ownerSide
+  def confidence: Double = surfaceConfidence
+object StrategyPieceRoute:
+  def apply(
+      side: String,
+      piece: String,
+      from: String,
+      route: List[String],
+      purpose: String,
+      confidence: Double,
+      evidence: List[String]
+  ): StrategyPieceRoute =
+    new StrategyPieceRoute(
+      ownerSide = side,
+      piece = piece,
+      from = from,
+      route = route,
+      purpose = purpose,
+      strategicFit = confidence,
+      tacticalSafety = confidence,
+      surfaceConfidence = confidence,
+      surfaceMode =
+        if confidence >= 0.82 then RouteSurfaceMode.Exact
+        else if confidence >= 0.55 then RouteSurfaceMode.Toward
+        else RouteSurfaceMode.Hidden,
+      evidence = evidence
+    )
+
+  def apply(
+      side: String,
+      piece: String,
+      from: String,
+      route: List[String],
+      purpose: String,
+      confidence: Double
+  ): StrategyPieceRoute =
+    apply(side, piece, from, route, purpose, confidence, Nil)
+
+  given Writes[StrategyPieceRoute] = Json.writes[StrategyPieceRoute]
+
+case class StrategyPieceMoveRef(
+    ownerSide: String,
+    piece: String,
+    from: String,
+    target: String,
+    idea: String,
+    tacticalTheme: Option[String] = None,
     evidence: List[String] = Nil
 )
-object StrategyPieceRoute:
-  given Writes[StrategyPieceRoute] = Json.writes[StrategyPieceRoute]
+object StrategyPieceMoveRef:
+  given Writes[StrategyPieceMoveRef] = Json.writes[StrategyPieceMoveRef]
+
+case class StrategyDirectionalTarget(
+    targetId: String,
+    ownerSide: String,
+    piece: String,
+    from: String,
+    targetSquare: String,
+    readiness: String,
+    strategicReasons: List[String] = Nil,
+    prerequisites: List[String] = Nil,
+    evidence: List[String] = Nil
+)
+object StrategyDirectionalTarget:
+  given Writes[StrategyDirectionalTarget] = Json.writes[StrategyDirectionalTarget]
+
+case class StrategyIdeaSignal(
+    ideaId: String,
+    ownerSide: String,
+    kind: String,
+    group: String,
+    readiness: String,
+    focusSquares: List[String] = Nil,
+    focusFiles: List[String] = Nil,
+    focusDiagonals: List[String] = Nil,
+    focusZone: Option[String] = None,
+    beneficiaryPieces: List[String] = Nil,
+    confidence: Double,
+    evidenceRefs: List[String] = Nil
+)
+object StrategyIdeaSignal:
+  given Writes[StrategyIdeaSignal] = Json.writes[StrategyIdeaSignal]
+
+case class ActiveStrategicIdeaRef(
+    ideaId: String,
+    ownerSide: String,
+    kind: String,
+    group: String,
+    readiness: String,
+    focusSummary: String,
+    confidence: Double
+)
+object ActiveStrategicIdeaRef:
+  given Writes[ActiveStrategicIdeaRef] = Json.writes[ActiveStrategicIdeaRef]
 
 case class NarrativeSignalDigest(
     opening: Option[String] = None,
@@ -157,19 +305,31 @@ case class NarrativeSignalDigest(
     centerState: Option[String] = None,
     alignmentBand: Option[String] = None,
     alignmentReasons: List[String] = Nil,
+    deploymentOwnerSide: Option[String] = None,
     deploymentPiece: Option[String] = None,
     deploymentRoute: List[String] = Nil,
     deploymentPurpose: Option[String] = None,
     deploymentContribution: Option[String] = None,
-    deploymentConfidence: Option[Double] = None,
+    deploymentStrategicFit: Option[Double] = None,
+    deploymentTacticalSafety: Option[Double] = None,
+    deploymentSurfaceConfidence: Option[Double] = None,
+    deploymentSurfaceMode: Option[String] = None,
     prophylaxisPlan: Option[String] = None,
     prophylaxisThreat: Option[String] = None,
     counterplayScoreDrop: Option[Int] = None,
+    dominantIdeaKind: Option[String] = None,
+    dominantIdeaGroup: Option[String] = None,
+    dominantIdeaReadiness: Option[String] = None,
+    dominantIdeaFocus: Option[String] = None,
+    secondaryIdeaKind: Option[String] = None,
+    secondaryIdeaGroup: Option[String] = None,
+    secondaryIdeaFocus: Option[String] = None,
     decision: Option[String] = None,
     strategicFlow: Option[String] = None,
     opponentPlan: Option[String] = None,
     preservedSignals: List[String] = Nil
-)
+):
+  def deploymentConfidence: Option[Double] = deploymentSurfaceConfidence
 object NarrativeSignalDigest:
   given Writes[NarrativeSignalDigest] = Json.writes[NarrativeSignalDigest]
 
@@ -217,10 +377,13 @@ object DecisionComparisonDigest:
   given Writes[DecisionComparisonDigest] = Json.writes[DecisionComparisonDigest]
 
 case class StrategyPack(
-    schema: String = "chesstory.strategyPack.v1",
+    schema: String = "chesstory.strategyPack.v2",
     sideToMove: String,
     plans: List[StrategySidePlan] = Nil,
     pieceRoutes: List[StrategyPieceRoute] = Nil,
+    pieceMoveRefs: List[StrategyPieceMoveRef] = Nil,
+    directionalTargets: List[StrategyDirectionalTarget] = Nil,
+    strategicIdeas: List[StrategyIdeaSignal] = Nil,
     longTermFocus: List[String] = Nil,
     evidence: List[String] = Nil,
     signalDigest: Option[NarrativeSignalDigest] = None
@@ -230,12 +393,39 @@ object StrategyPack:
 
 case class ActiveStrategicRouteRef(
     routeId: String,
+    ownerSide: String,
     piece: String,
     route: List[String],
     purpose: String,
-    confidence: Double
-)
+    strategicFit: Double,
+    tacticalSafety: Double,
+    surfaceConfidence: Double,
+    surfaceMode: String
+):
+  def confidence: Double = surfaceConfidence
 object ActiveStrategicRouteRef:
+  def apply(
+      routeId: String,
+      piece: String,
+      route: List[String],
+      purpose: String,
+      confidence: Double
+  ): ActiveStrategicRouteRef =
+    new ActiveStrategicRouteRef(
+      routeId = routeId,
+      ownerSide = "white",
+      piece = piece,
+      route = route,
+      purpose = purpose,
+      strategicFit = confidence,
+      tacticalSafety = confidence,
+      surfaceConfidence = confidence,
+      surfaceMode =
+        if confidence >= 0.82 then RouteSurfaceMode.Exact
+        else if confidence >= 0.55 then RouteSurfaceMode.Toward
+        else RouteSurfaceMode.Hidden
+    )
+
   given Writes[ActiveStrategicRouteRef] = Json.writes[ActiveStrategicRouteRef]
 
 case class ActiveStrategicMoveRef(
@@ -250,12 +440,39 @@ object ActiveStrategicMoveRef:
 
 case class ActiveBranchRouteCue(
     routeId: String,
+    ownerSide: String,
     piece: String,
     route: List[String],
     purpose: String,
-    confidence: Double
-)
+    strategicFit: Double,
+    tacticalSafety: Double,
+    surfaceConfidence: Double,
+    surfaceMode: String
+):
+  def confidence: Double = surfaceConfidence
 object ActiveBranchRouteCue:
+  def apply(
+      routeId: String,
+      piece: String,
+      route: List[String],
+      purpose: String,
+      confidence: Double
+  ): ActiveBranchRouteCue =
+    new ActiveBranchRouteCue(
+      routeId = routeId,
+      ownerSide = "white",
+      piece = piece,
+      route = route,
+      purpose = purpose,
+      strategicFit = confidence,
+      tacticalSafety = confidence,
+      surfaceConfidence = confidence,
+      surfaceMode =
+        if confidence >= 0.82 then RouteSurfaceMode.Exact
+        else if confidence >= 0.55 then RouteSurfaceMode.Toward
+        else RouteSurfaceMode.Hidden
+    )
+
   given Writes[ActiveBranchRouteCue] = Json.writes[ActiveBranchRouteCue]
 
 case class ActiveBranchMoveCue(
@@ -280,10 +497,39 @@ case class ActiveBranchDossier(
     evidenceCue: Option[String] = None,
     continuationFocus: Option[String] = None,
     practicalRisk: Option[String] = None,
-    comparisonGapCp: Option[Int] = None
+    comparisonGapCp: Option[Int] = None,
+    threadLabel: Option[String] = None,
+    threadStage: Option[String] = None,
+    threadSummary: Option[String] = None,
+    threadOpponentCounterplan: Option[String] = None
 )
 object ActiveBranchDossier:
   given Writes[ActiveBranchDossier] = Json.writes[ActiveBranchDossier]
+
+case class ActiveStrategicThread(
+    threadId: String,
+    side: String,
+    themeKey: String,
+    themeLabel: String,
+    summary: String,
+    seedPly: Int,
+    lastPly: Int,
+    representativePlies: List[Int] = Nil,
+    opponentCounterplan: Option[String] = None,
+    continuityScore: Double
+)
+object ActiveStrategicThread:
+  given Writes[ActiveStrategicThread] = Json.writes[ActiveStrategicThread]
+
+case class ActiveStrategicThreadRef(
+    threadId: String,
+    themeKey: String,
+    themeLabel: String,
+    stageKey: String,
+    stageLabel: String
+)
+object ActiveStrategicThreadRef:
+  given Writes[ActiveStrategicThreadRef] = Json.writes[ActiveStrategicThreadRef]
 
 case class AuthorQuestionSummary(
     id: String,

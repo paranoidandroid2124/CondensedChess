@@ -332,7 +332,8 @@ case class PieceActivityInfo(
   isTrapped: Boolean,
   isBadBishop: Boolean,
   keyRoutes: List[String],      // ["e4", "d5"]
-  coordinationLinks: List[String]
+  coordinationLinks: List[String],
+  directionalTargets: List[String] = Nil
 )
 
 

@@ -38,22 +38,49 @@ object CommentaryOpsBoard:
       attempts: Long,
       attached: Long,
       omitted: Long,
+      primaryAccepted: Long,
+      repairAttempts: Long,
+      repairRecovered: Long,
       attachRate: Double,
       thesisAgreementRate: Double,
       dossierAttachRate: Double,
       dossierCompareRate: Double,
       dossierRouteRefRate: Double,
       dossierReferenceFailureRate: Double,
-      omitReasons: Map[String, Long]
+      provider: Option[String],
+      configuredModel: Option[String],
+      fallbackModel: Option[String],
+      reasoningEffort: Option[String],
+      observedModelDistribution: Map[String, Long],
+      omitReasons: Map[String, Long],
+      warningReasons: Map[String, Long],
+      routeRedeployCount: Long,
+      routeMoveRefCount: Long,
+      routeHiddenSafetyCount: Long,
+      routeTowardOnlyCount: Long,
+      routeExactSurfaceCount: Long,
+      routeOpponentHiddenCount: Long
   )
   object ActiveMetrics:
     given Writes[ActiveMetrics] = Json.writes[ActiveMetrics]
+
+  final case class PromptUsageMetrics(
+      attempts: Long,
+      cacheHits: Long,
+      promptTokens: Long,
+      cachedTokens: Long,
+      completionTokens: Long,
+      estimatedCostUsd: Double
+  )
+  object PromptUsageMetrics:
+    given Writes[PromptUsageMetrics] = Json.writes[PromptUsageMetrics]
 
   final case class Snapshot(
       generatedAtMs: Long,
       bookmaker: BookmakerMetrics,
       fullgame: FullGameMetrics,
       active: ActiveMetrics,
+      promptUsage: Map[String, PromptUsageMetrics],
       recentSamples: List[Sample]
   )
   object Snapshot:

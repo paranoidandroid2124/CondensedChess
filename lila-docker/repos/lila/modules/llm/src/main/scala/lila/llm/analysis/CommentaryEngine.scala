@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.llm.{ LlmConfig, LlmLevel, NarrativeSignalDigest }
+import lila.llm.{ GameNarrativeMoment, LlmConfig, LlmLevel, NarrativeSignalDigest }
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
 import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
@@ -429,69 +429,9 @@ object CommentaryEngine:
   ): List[ExtendedAnalysisData] = {
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
        case scala.util.Right(plyDataList) =>
-         val moveEvals = plyDataList.map { p =>
-           val vars = evals.getOrElse(p.ply, Nil)
-           val bestV = vars.headOption
-           lila.llm.MoveEval(
-             ply = p.ply,
-             cp = bestV.map(_.scoreCp).getOrElse(0),
-             mate = bestV.flatMap(_.mate),
-             variations = vars
-           )
-         }
-
-         val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
-         val keyPlies: Set[Int] = keyMoments.map(_.ply).toSet ++ extraPlies
-
-         // Track both Full Data, Plan Sequence Tracker, and previous Analysis Data
-         val (results, _, _) =
-           plyDataList
-             .filter(p => keyPlies.contains(p.ply)) // Only analyze key plies
-             .sortBy(_.ply)
-              .foldLeft(
-                (List.empty[ExtendedAnalysisData], PlanStateTracker.empty, Option.empty[lila.llm.model.strategic.EndgamePatternState])
-              ) { case ((acc, planTracker, prevEgState), p) =>
-                  val playedUci = p.playedUci
-                  val vars = evals.getOrElse(p.ply, Nil)
-                  val ply = p.ply
-
-                  if (vars.nonEmpty) {
-                    // Determine the side to move for this ply (FEN has the currently moving side)
-                    val isWhiteTurn = p.fen.contains(" w ")
-                    val movingColor = if (isWhiteTurn) _root_.chess.Color.White else _root_.chess.Color.Black
-
-                    val analysis = assessExtended(
-                      fen = p.fen,
-                      variations = vars,
-                      playedMove = Some(playedUci),
-                      opening = None,
-                      phase = None,
-                      ply = ply,
-                      prevMove = Some(playedUci),
-                      prevPlanContinuity = planTracker.getContinuity(movingColor),
-                      prevEndgameState = prevEgState
-                    )
-
-                    analysis match {
-                      case Some(data) => 
-                        // Update Tracker with the plans found in this ply
-                        val nextTracker = planTracker.update(
-                          movingColor = movingColor,
-                          ply = ply,
-                          primaryPlan = data.plans.headOption,
-                          secondaryPlan = data.plans.lift(1),
-                          sequence = data.planSequence
-                        )
-                        val nextEgState = lila.llm.model.strategic.EndgamePatternState.evolve(prevEgState, data.endgameFeatures, ply)
-                        (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker, nextEgState)
-                      case None => 
-                        (acc, planTracker, prevEgState)
-                    }
-                  } else {
-                    (acc, planTracker, prevEgState)
-                  }
-         }
-         results
+         val moveEvals = buildMoveEvals(plyDataList, evals)
+         val keyPlies: Set[Int] = GameNarrativeOrchestrator.selectKeyMoments(moveEvals).map(_.ply).toSet ++ extraPlies
+         analyzeSelectedPlies(plyDataList, evals, keyPlies)
        case scala.util.Left(_) => 
          Nil
      }
@@ -508,161 +448,345 @@ object CommentaryEngine:
      val metadata = providedMetadata.getOrElse(extractMetadata(pgn))
      
      lila.llm.PgnAnalysisHelper.extractPlyData(pgn) match {
-       case scala.util.Right(plyDataList) =>
-          val moveEvals = plyDataList.map { p =>
-             val vars = evals.getOrElse(p.ply, Nil)
-             val bestV = vars.headOption
-             lila.llm.MoveEval(
-               ply = p.ply,
-               cp = bestV.map(_.scoreCp).getOrElse(0),
-               mate = bestV.flatMap(_.mate),
-               variations = vars
+        case scala.util.Right(plyDataList) =>
+           val moveEvals = buildMoveEvals(plyDataList, evals)
+           val moveEvalsByPly = moveEvals.map(ev => ev.ply -> ev).toMap
+           val anchorMoments = selectAnchorMoments(moveEvals, plyDataList, openingRefsByFen)
+           val anchorPlies = anchorMoments.map(_.ply).toSet
+
+           val preliminaryData = analyzeSelectedPlies(plyDataList, evals, anchorPlies)
+           val preliminaryDataByPly = preliminaryData.map(d => d.ply -> d).toMap
+           val preliminaryMoments =
+             buildPreviewResponseMoments(anchorMoments, preliminaryDataByPly, moveEvals, openingRefsByFen)
+           val rankedThreads = StrategicBranchSelector.rankThreads(preliminaryMoments).take(3)
+           val candidatePlan =
+             ActiveBridgeMomentPlanner.planCandidatePlies(
+               rankedThreads = rankedThreads,
+               anchorPlies = anchorPlies,
+               totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
              )
-           }
-          val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
-          val keyMomentPlies = keyMoments.map(_.ply).toSet
-          val openingMoments = detectOpeningEventMoments(plyDataList, openingRefsByFen)
-          val extraOpeningMoments = openingMoments.filterNot(m => keyMomentPlies.contains(m.ply))
-          val extraOpeningPlies = extraOpeningMoments.map(_.ply).toSet
+           val candidateMoments =
+             candidatePlan.values.flatten.toSet.toList.sorted.map(ply => bridgeCandidateMoment(ply, moveEvalsByPly))
 
-          val allMoments = (keyMoments ++ extraOpeningMoments)
-            .sortBy(_.ply)
-            .distinctBy(_.ply)
-          
-          // Analyze only key moment plies
-          val keyMomentsWithData = analyzeGame(pgn, evals, extraPlies = extraOpeningPlies)
-          val dataByPly = keyMomentsWithData.map(d => d.ply -> d).toMap
-          val (momentNarratives, _, _, _, _) = allMoments.foldLeft(
-            (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
-          ) {
-            case ((acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed), moment) =>
-              dataByPly.get(moment.ply) match {
-                case Some(data) =>
-                  // Build NarrativeContext with A9 budget and prevRef
-                  val ctx = NarrativeContextBuilder.build(
-                    data, 
-                    data.toContext, 
-                    prevAnalysis,
-                    Nil,  // probeResults
-                    openingRefsByFen.get(data.fen),
-                    prevRef,
-                    budget,
-                    renderMode = NarrativeRenderMode.FullGame
-                  )
-                  val (fullText, focusedOutline) = renderHybridMomentNarrative(ctx, moment)
-                  
-                  val (classification, narrativeEvent) = moment.momentType match {
-                    case "Blunder" => (Some("Blunder"), "AdvantageSwing")
-                    case "MissedWin" => (Some("MissedWin"), "AdvantageSwing")
-                    case "Equalization" => (None, "Equalization")
-                    case "SustainedPressure" => (None, "SustainedPressure")
-                    case "TensionPeak" => (None, "TensionPeak")
-                    case "MateFound" | "MateLost" | "MateShift" => (None, "MatePivot")
-                    case other => (None, other)
-                  }
+           val internalMoments =
+             if rankedThreads.isEmpty || candidateMoments.isEmpty then anchorMoments
+             else
+               val enrichedData =
+                 analyzeSelectedPlies(
+                   plyDataList,
+                   evals,
+                   anchorPlies ++ candidateMoments.map(_.ply)
+                 )
+               val enrichedDataByPly = enrichedData.map(d => d.ply -> d).toMap
+               val enrichedPreview =
+                 buildPreviewResponseMoments(
+                   (anchorMoments ++ candidateMoments).sortBy(_.ply).distinctBy(_.ply),
+                   enrichedDataByPly,
+                   moveEvals,
+                   openingRefsByFen
+                 )
+               val selectedBridges =
+                 ActiveBridgeMomentPlanner.selectBridges(
+                   rankedThreads = rankedThreads,
+                   enrichedMoments = enrichedPreview,
+                   anchorPlies = anchorPlies
+                 )
+               if selectedBridges.isEmpty then anchorMoments
+               else
+                 (anchorMoments ++ selectedBridges.map(plan => bridgeMomentFromPlan(plan, moveEvalsByPly)))
+                   .sortBy(_.ply)
+                   .distinctBy(_.ply)
 
-                  val collapseData = if (moment.momentType == "Blunder" || moment.momentType == "SustainedPressure") {
-                    CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
-                  } else None
-                  val strategyPack = StrategyPackBuilder.build(data, ctx)
-                  val signalDigest = buildMomentSignalDigest(ctx, focusedOutline)
-                  val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
-                  val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
-                  val evidenceEligible =
-                    evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
-                      FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
-                  val surfacedEvidence =
-                    FullGameEvidenceSurfacePolicy.payload(
-                      eligible = evidenceEligible,
-                      probeRequests = ctx.probeRequests,
-                      authorQuestions = authorQuestions,
-                      authorEvidence = authorEvidence
-                    )
+           val finalPlies = internalMoments.map(_.ply).toSet
+           val finalData =
+             if finalPlies == anchorPlies then preliminaryData
+             else analyzeSelectedPlies(plyDataList, evals, finalPlies)
+           val dataByPly = finalData.map(d => d.ply -> d).toMap
+           val internalMomentNarratives =
+             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen)
+           val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameNarrativeMoment.fromMoment))
+           val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
+           val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
+           val momentNarratives =
+             internalMomentNarratives
+               .filter(moment => visibleMomentPlies.contains(moment.ply))
+               .sortBy(_.ply)
+               .map { moment =>
+                 moment.copy(
+                   strategicBranch = activeNotePlies.contains(moment.ply),
+                   strategicThread = projection.threadRefsByPly.get(moment.ply)
+                 )
+               }
 
-                  val momentNarrative = MomentNarrative(
-                    ply = moment.ply,
-                    momentType = narrativeEvent,
-                    narrative = fullText,
-                    analysisData = data,
-                    moveClassification = classification,
-                    cpBefore = Some(moment.cpBefore),
-                    cpAfter = Some(moment.cpAfter),
-                    mateBefore = moment.mateBefore,
-                    mateAfter = moment.mateAfter,
-                    wpaSwing = moment.wpaSwing,
-                    transitionType = data.planSequence.map(_.transitionType.toString),
-                    transitionConfidence = None,
-                    activePlan = data.planSequence.flatMap(seq => 
-                      seq.primaryPlanName.map(name => lila.llm.ActivePlanRef(
-                        themeL1 = name,
-                        subplanId = seq.primaryPlanId,
-                        phase = Some("Execution"), 
-                        commitmentScore = Some(seq.momentum)
-                      ))
-                    ),
-                    topEngineMove = data.alternatives.headOption.map { alt => 
-                      lila.llm.EngineAlternative(
-                        uci = alt.moves.headOption.getOrElse(""),
-                        san = None, 
-                        cpAfterAlt = Some(alt.scoreCp),
-                        cpLossVsPlayed = Some(cpLossForSideToMove(data.fen, alt.scoreCp, moment.cpAfter)),
-                        pv = alt.moves
-                      )
-                    },
-                    collapse = collapseData,
-                    strategyPack = strategyPack,
-                    signalDigest = signalDigest,
-                    probeRequests = surfacedEvidence.probeRequests,
-                    authorQuestions = surfacedEvidence.authorQuestions,
-                    authorEvidence = surfacedEvidence.authorEvidence,
-                    mainStrategicPlans = ctx.mainStrategicPlans.take(3),
-                    latentPlans = ctx.latentPlans.take(2),
-                    whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
-                  )
-                  
-                  // Update budget from ctx.updatedBudget for next iteration
-                  val nextRef = ctx.openingData.orElse(prevRef)
-                  val nextEvidenceCount =
-                    evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
-                  (acc :+ momentNarrative, Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
-                case None => (acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed)
-              }
-          }
-           
-          
-          val totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
-          val blundersCount = allMoments.count(_.momentType == "Blunder")
-          val missedWinsCount = allMoments.count(_.momentType == "MissedWin")
+           val totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
+           val blundersCount =
+             momentNarratives.count(moment =>
+               moment.momentType == "AdvantageSwing" && moment.moveClassification.contains("Blunder")
+             )
+           val missedWinsCount =
+             momentNarratives.count(moment =>
+               moment.momentType == "AdvantageSwing" && moment.moveClassification.contains("MissedWin")
+             )
 
-          val gameIntro = lila.llm.analysis.NarrativeLexicon.gameIntro(
-            metadata.white, metadata.black, metadata.event, metadata.date, metadata.result,
-            totalPlies = totalPlies,
-            keyMomentsCount = allMoments.size
-          )
-          
-          val planThemes = keyMomentsWithData.flatMap(_.plans.map(_.plan.name)).distinct
-          val allThemes = if (planThemes.nonEmpty) planThemes.take(3) 
-                          else keyMomentsWithData.flatMap(_.conceptSummary).distinct.take(3)
-           
-          val conclusion = lila.llm.analysis.NarrativeLexicon.gameConclusion(
-            winner = if (metadata.result.startsWith("1-0")) Some(metadata.white) 
-                     else if (metadata.result.startsWith("0-1")) Some(metadata.black) 
-                     else None,
-            themes = allThemes,
-            blunders = blundersCount,
-            missedWins = missedWinsCount
-          )
-          
-          FullGameNarrative(gameIntro, momentNarratives, conclusion, allThemes)
+           val gameIntro = lila.llm.analysis.NarrativeLexicon.gameIntro(
+             metadata.white, metadata.black, metadata.event, metadata.date, metadata.result,
+             totalPlies = totalPlies,
+             keyMomentsCount = momentNarratives.size
+           )
+
+           val visibleData = momentNarratives.flatMap(moment => dataByPly.get(moment.ply))
+           val planThemes = visibleData.flatMap(_.plans.map(_.plan.name)).distinct
+           val allThemes = if (planThemes.nonEmpty) planThemes.take(3)
+                           else visibleData.flatMap(_.conceptSummary).distinct.take(3)
+
+           val conclusion = lila.llm.analysis.NarrativeLexicon.gameConclusion(
+             winner = if (metadata.result.startsWith("1-0")) Some(metadata.white)
+                      else if (metadata.result.startsWith("0-1")) Some(metadata.black)
+                      else None,
+             themes = allThemes,
+             blunders = blundersCount,
+             missedWins = missedWinsCount
+           )
+
+           FullGameNarrative(
+             gameIntro = gameIntro,
+             keyMomentNarratives = momentNarratives,
+             conclusion = conclusion,
+             overallThemes = allThemes,
+             internalMomentCount = internalMomentNarratives.size,
+             strategicThreads = projection.threads
+           )
        case scala.util.Left(err) =>
           FullGameNarrative(
             gameIntro = "Analysis Failed",
             keyMomentNarratives = Nil,
             conclusion = s"Could not parse game: $err",
-            overallThemes = Nil
-          )
+            overallThemes = Nil,
+            internalMomentCount = 0,
+            strategicThreads = Nil
+         )
       }
   }
+
+  private def buildMoveEvals(
+      plyDataList: List[lila.llm.PgnAnalysisHelper.PlyData],
+      evals: Map[Int, List[VariationLine]]
+  ): List[lila.llm.MoveEval] =
+    plyDataList.map { p =>
+      val vars = evals.getOrElse(p.ply, Nil)
+      val bestV = vars.headOption
+      lila.llm.MoveEval(
+        ply = p.ply,
+        cp = bestV.map(_.scoreCp).getOrElse(0),
+        mate = bestV.flatMap(_.mate),
+        variations = vars
+      )
+    }
+
+  private def selectAnchorMoments(
+      moveEvals: List[lila.llm.MoveEval],
+      plyDataList: List[lila.llm.PgnAnalysisHelper.PlyData],
+      openingRefsByFen: Map[String, OpeningReference]
+  ): List[KeyMoment] =
+    val keyMoments = GameNarrativeOrchestrator.selectKeyMoments(moveEvals)
+    val keyPlies = keyMoments.map(_.ply).toSet
+    val openingMoments = detectOpeningEventMoments(plyDataList, openingRefsByFen)
+    (keyMoments ++ openingMoments.filterNot(m => keyPlies.contains(m.ply)))
+      .sortBy(_.ply)
+      .distinctBy(_.ply)
+
+  private def analyzeSelectedPlies(
+      plyDataList: List[lila.llm.PgnAnalysisHelper.PlyData],
+      evals: Map[Int, List[VariationLine]],
+      selectedPlies: Set[Int]
+  ): List[ExtendedAnalysisData] =
+    val (results, _, _) =
+      plyDataList
+        .filter(p => selectedPlies.contains(p.ply))
+        .sortBy(_.ply)
+        .foldLeft(
+          (List.empty[ExtendedAnalysisData], PlanStateTracker.empty, Option.empty[lila.llm.model.strategic.EndgamePatternState])
+        ) { case ((acc, planTracker, prevEgState), p) =>
+            val playedUci = p.playedUci
+            val vars = evals.getOrElse(p.ply, Nil)
+            val ply = p.ply
+
+            if vars.nonEmpty then
+              val isWhiteTurn = p.fen.contains(" w ")
+              val movingColor = if isWhiteTurn then _root_.chess.Color.White else _root_.chess.Color.Black
+
+              val analysis = assessExtended(
+                fen = p.fen,
+                variations = vars,
+                playedMove = Some(playedUci),
+                opening = None,
+                phase = None,
+                ply = ply,
+                prevMove = Some(playedUci),
+                prevPlanContinuity = planTracker.getContinuity(movingColor),
+                prevEndgameState = prevEgState
+              )
+
+              analysis match
+                case Some(data) =>
+                  val nextTracker = planTracker.update(
+                    movingColor = movingColor,
+                    ply = ply,
+                    primaryPlan = data.plans.headOption,
+                    secondaryPlan = data.plans.lift(1),
+                    sequence = data.planSequence
+                  )
+                  val nextEgState =
+                    lila.llm.model.strategic.EndgamePatternState.evolve(prevEgState, data.endgameFeatures, ply)
+                  (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker, nextEgState)
+                case None =>
+                  (acc, planTracker, prevEgState)
+            else
+              (acc, planTracker, prevEgState)
+        }
+    results
+
+  private def buildPreviewResponseMoments(
+      moments: List[KeyMoment],
+      dataByPly: Map[Int, ExtendedAnalysisData],
+      moveEvals: List[lila.llm.MoveEval],
+      openingRefsByFen: Map[String, OpeningReference]
+  ): List[GameNarrativeMoment] =
+    buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen)
+      .map(GameNarrativeMoment.fromMoment)
+
+  private def buildMomentNarratives(
+      moments: List[KeyMoment],
+      dataByPly: Map[Int, ExtendedAnalysisData],
+      moveEvals: List[lila.llm.MoveEval],
+      openingRefsByFen: Map[String, OpeningReference]
+  ): List[MomentNarrative] =
+    moments
+      .sortBy(_.ply)
+      .foldLeft(
+        (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
+      ) {
+        case ((acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed), moment) =>
+          dataByPly.get(moment.ply) match
+            case Some(data) =>
+              val ctx = NarrativeContextBuilder.build(
+                data,
+                data.toContext,
+                prevAnalysis,
+                Nil,
+                openingRefsByFen.get(data.fen),
+                prevRef,
+                budget,
+                renderMode = NarrativeRenderMode.FullGame
+              )
+              val (fullText, focusedOutline) = renderHybridMomentNarrative(ctx, moment)
+
+              val (classification, narrativeEvent) = moment.momentType match
+                case "Blunder"                            => (Some("Blunder"), "AdvantageSwing")
+                case "MissedWin"                          => (Some("MissedWin"), "AdvantageSwing")
+                case "Equalization"                       => (None, "Equalization")
+                case "SustainedPressure"                  => (None, "SustainedPressure")
+                case "TensionPeak"                        => (None, "TensionPeak")
+                case "MateFound" | "MateLost" | "MateShift" => (None, "MatePivot")
+                case other                                => (None, other)
+
+              val collapseData =
+                if moment.momentType == "Blunder" || moment.momentType == "SustainedPressure" then
+                  CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
+                else None
+              val strategyPack = StrategyPackBuilder.build(data, ctx)
+              val signalDigest = buildMomentSignalDigest(ctx, focusedOutline, strategyPack)
+              val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
+              val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
+              val evidenceEligible =
+                evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
+                  FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
+              val surfacedEvidence =
+                FullGameEvidenceSurfacePolicy.payload(
+                  eligible = evidenceEligible,
+                  probeRequests = ctx.probeRequests,
+                  authorQuestions = authorQuestions,
+                  authorEvidence = authorEvidence
+                )
+
+              val momentNarrative = MomentNarrative(
+                ply = moment.ply,
+                momentType = narrativeEvent,
+                narrative = fullText,
+                analysisData = data,
+                selectionKind = moment.selectionKind,
+                selectionLabel = moment.selectionLabel,
+                selectionReason = moment.selectionReason,
+                moveClassification = classification,
+                cpBefore = Some(moment.cpBefore),
+                cpAfter = Some(moment.cpAfter),
+                mateBefore = moment.mateBefore,
+                mateAfter = moment.mateAfter,
+                wpaSwing = moment.wpaSwing,
+                transitionType = data.planSequence.map(_.transitionType.toString),
+                transitionConfidence = None,
+                activePlan = data.planSequence.flatMap(seq =>
+                  seq.primaryPlanName.map(name => lila.llm.ActivePlanRef(
+                    themeL1 = name,
+                    subplanId = seq.primaryPlanId,
+                    phase = Some("Execution"),
+                    commitmentScore = Some(seq.momentum)
+                  ))
+                ),
+                topEngineMove = data.alternatives.headOption.map { alt =>
+                  lila.llm.EngineAlternative(
+                    uci = alt.moves.headOption.getOrElse(""),
+                    san = None,
+                    cpAfterAlt = Some(alt.scoreCp),
+                    cpLossVsPlayed = Some(cpLossForSideToMove(data.fen, alt.scoreCp, moment.cpAfter)),
+                    pv = alt.moves
+                  )
+                },
+                collapse = collapseData,
+                strategyPack = strategyPack,
+                signalDigest = signalDigest,
+                probeRequests = surfacedEvidence.probeRequests,
+                authorQuestions = surfacedEvidence.authorQuestions,
+                authorEvidence = surfacedEvidence.authorEvidence,
+                mainStrategicPlans = ctx.mainStrategicPlans.take(3),
+                latentPlans = ctx.latentPlans.take(2),
+                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
+              )
+
+              val nextRef = ctx.openingData.orElse(prevRef)
+              val nextEvidenceCount =
+                evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
+              (acc :+ momentNarrative, Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
+            case None =>
+              (acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed)
+      }._1
+
+  private def bridgeCandidateMoment(
+      ply: Int,
+      moveEvalsByPly: Map[Int, lila.llm.MoveEval]
+  ): KeyMoment =
+    val current = moveEvalsByPly.get(ply)
+    val previous = moveEvalsByPly.get(ply - 1)
+    KeyMoment(
+      ply = ply,
+      momentType = "StrategicBridge",
+      score = current.map(_.cp).getOrElse(0),
+      description = "Campaign bridge",
+      cpBefore = previous.map(_.cp).getOrElse(current.map(_.cp).getOrElse(0)),
+      cpAfter = current.map(_.cp).getOrElse(0),
+      mateBefore = previous.flatMap(_.mate),
+      mateAfter = current.flatMap(_.mate),
+      selectionKind = "thread_bridge",
+      selectionLabel = Some("Campaign Bridge")
+    )
+
+  private def bridgeMomentFromPlan(
+      plan: ActiveBridgeMomentPlanner.PlannedBridge,
+      moveEvalsByPly: Map[Int, lila.llm.MoveEval]
+  ): KeyMoment =
+    bridgeCandidateMoment(plan.ply, moveEvalsByPly).copy(
+      selectionReason = Some(plan.reason)
+    )
 
   private def renderHybridMomentNarrative(
     ctx: NarrativeContext,
@@ -866,12 +990,41 @@ object CommentaryEngine:
 
   private def buildMomentSignalDigest(
     ctx: NarrativeContext,
-    focusedOutline: NarrativeOutline
+    focusedOutline: NarrativeOutline,
+    strategyPack: Option[lila.llm.StrategyPack]
   ): Option[NarrativeSignalDigest] =
-    NarrativeSignalDigestBuilder.build(
-      ctx,
-      preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline))
-    )
+    val base =
+      NarrativeSignalDigestBuilder.build(
+        ctx,
+        preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline))
+      )
+    (base, strategyPack.flatMap(_.signalDigest)) match
+      case (Some(digest), Some(packDigest)) =>
+        Some(
+          digest.copy(
+            dominantIdeaKind = packDigest.dominantIdeaKind,
+            dominantIdeaGroup = packDigest.dominantIdeaGroup,
+            dominantIdeaReadiness = packDigest.dominantIdeaReadiness,
+            dominantIdeaFocus = packDigest.dominantIdeaFocus,
+            secondaryIdeaKind = packDigest.secondaryIdeaKind,
+            secondaryIdeaGroup = packDigest.secondaryIdeaGroup,
+            secondaryIdeaFocus = packDigest.secondaryIdeaFocus
+          )
+        )
+      case (None, Some(packDigest)) if packDigest.dominantIdeaKind.isDefined =>
+        Some(
+          NarrativeSignalDigest(
+            dominantIdeaKind = packDigest.dominantIdeaKind,
+            dominantIdeaGroup = packDigest.dominantIdeaGroup,
+            dominantIdeaReadiness = packDigest.dominantIdeaReadiness,
+            dominantIdeaFocus = packDigest.dominantIdeaFocus,
+            secondaryIdeaKind = packDigest.secondaryIdeaKind,
+            secondaryIdeaGroup = packDigest.secondaryIdeaGroup,
+            secondaryIdeaFocus = packDigest.secondaryIdeaFocus
+          )
+        )
+      case _ =>
+        base
 
   private def isGenericWrapupParagraph(p: String): Boolean =
     val low = Option(p).getOrElse("").trim.toLowerCase
@@ -960,7 +1113,9 @@ object CommentaryEngine:
           ply = plyData.ply,
           momentType = momentType,
           score = 0,
-          description = "Opening reference"
+          description = "Opening reference",
+          selectionKind = "opening",
+          selectionLabel = Some("Opening Event")
         )
 
         budget = ev match {

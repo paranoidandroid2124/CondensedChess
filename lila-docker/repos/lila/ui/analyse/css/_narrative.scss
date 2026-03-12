@@ -319,6 +319,51 @@
   background: rgba(#6a9c3c, 0.08);
 }
 
+.narrative-strategic-note-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+}
+
+.narrative-strategic-surface {
+  margin-top: 0.5rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(#4c7330, 0.16);
+  background: rgba(#fff, 0.55);
+
+  &--idea {
+    border-color: rgba(#91631f, 0.24);
+    background: rgba(#f0c66b, 0.12);
+  }
+
+  &--execution {
+    border-color: rgba(#2f5f9f, 0.22);
+    background: rgba(#3c7ebb, 0.08);
+  }
+
+  &--objective {
+    border-color: rgba(#5f7f52, 0.22);
+    background: rgba(#8cad73, 0.10);
+  }
+}
+
+.narrative-strategic-surface__label {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.72;
+}
+
+.narrative-strategic-surface__body {
+  margin-top: 0.28rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
 .narrative-strategic-note-title {
   margin: 0 0 0.35rem 0;
   font-size: 0.78em;
@@ -326,6 +371,56 @@
   text-transform: uppercase;
   color: #4c7330;
   opacity: 0.9;
+}
+
+.narrative-thread-summary {
+  margin-top: 0.55rem;
+  padding: 0.48rem 0.6rem;
+  border: 1px solid rgba(#245382, 0.20);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: rgba(#3c7ebb, 0.07);
+}
+
+.narrative-thread-summary__eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.18rem;
+  font-size: 0.68em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #245382;
+}
+
+.narrative-thread-summary__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.45rem;
+  align-items: baseline;
+  font-size: 0.84em;
+}
+
+.narrative-thread-summary__title {
+  color: #173858;
+}
+
+.narrative-thread-summary__copy {
+  color: $c-font;
+}
+
+.narrative-thread-summary__meta {
+  color: $c-font-dim;
+}
+
+.narrative-selection-reason {
+  margin-top: 0.4rem;
+  padding: 0.36rem 0.52rem;
+  border-radius: 6px;
+  border: 1px dashed rgba(#7a5c1f, 0.24);
+  background: rgba(#c99a2a, 0.07);
+  color: #6f5114;
+  font-size: 0.8em;
+  line-height: 1.35;
 }
 
 .narrative-branch-dossier {
@@ -759,6 +854,18 @@
     background: rgba(#3c7ebb, 0.12);
     color: #245382;
   }
+
+  &--idea {
+    border-color: rgba(#91631f, 0.3);
+    background: rgba(#f0c66b, 0.16);
+    color: #714a12;
+  }
+
+  &--objective {
+    border-color: rgba(#5f7f52, 0.3);
+    background: rgba(#8cad73, 0.16);
+    color: #365028;
+  }
 }
 
 .narrative-active-plan-theme {
@@ -908,6 +1015,24 @@
     border-color: rgba(#6a9c3c, 0.5);
     background: rgba(#6a9c3c, 0.14);
     color: #4c7330;
+  }
+
+  &.theme {
+    border-color: rgba(#245382, 0.34);
+    background: rgba(#3c7ebb, 0.10);
+    color: #245382;
+  }
+
+  &.stage {
+    border-color: rgba(#7a5c1f, 0.34);
+    background: rgba(#c99a2a, 0.12);
+    color: #7a5c1f;
+  }
+
+  &.selection {
+    border-color: rgba(#7a5c1f, 0.34);
+    background: rgba(#c99a2a, 0.16);
+    color: #7a5c1f;
   }
 }
 

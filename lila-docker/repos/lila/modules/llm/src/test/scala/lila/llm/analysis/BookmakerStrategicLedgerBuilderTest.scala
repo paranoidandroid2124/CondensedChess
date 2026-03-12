@@ -73,6 +73,22 @@ class BookmakerStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(ledger.conversionTrigger, Some("Mating Attack"))
   }
 
+  test("selects opposite_bishops_conversion when conversion signals and plan family align") {
+    val ledger = build(BookmakerProseGoldenFixtures.oppositeBishopsConversion.ctx)
+    assertEquals(ledger.motifKey, "opposite_bishops_conversion")
+    assertEquals(ledger.stageKey, "convert")
+  }
+
+  test("does not upgrade opposite-color bishops without a conversion plan") {
+    val ctx =
+      BookmakerProseGoldenFixtures.oppositeBishopsConversion.ctx.copy(
+        mainStrategicPlans = Nil,
+        planContinuity = None
+      )
+    val ledger = build(ctx, refs = Some(sampleRefs(ctx.fen)))
+    assertEquals(ledger.motifKey, "color_complex")
+  }
+
   test("prefers probe-backed primary lines and caps them at four SAN moves") {
     val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val probe =

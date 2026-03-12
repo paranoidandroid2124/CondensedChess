@@ -21,6 +21,9 @@ case class MomentNarrative(
   momentType: String,          // "Blunder", "MissedWin", "TensionPeak", etc.
   narrative: String,           // The generated Book-Style narrative text
   analysisData: ExtendedAnalysisData,
+  selectionKind: String = "key",
+  selectionLabel: Option[String] = Some("Key Moment"),
+  selectionReason: Option[String] = None,
   
   // UX Specific Metadata fields passed to Frontend
   moveClassification: Option[String] = None,
@@ -45,9 +48,12 @@ case class MomentNarrative(
   strategicBranch: Boolean = false,
   activeStrategicNote: Option[String] = None,
   activeStrategicSourceMode: Option[String] = None,
+  activeStrategicIdeas: List[lila.llm.ActiveStrategicIdeaRef] = Nil,
   activeStrategicRoutes: List[lila.llm.ActiveStrategicRouteRef] = Nil,
   activeStrategicMoves: List[lila.llm.ActiveStrategicMoveRef] = Nil,
-  activeBranchDossier: Option[lila.llm.ActiveBranchDossier] = None
+  activeDirectionalTargets: List[lila.llm.StrategyDirectionalTarget] = Nil,
+  activeBranchDossier: Option[lila.llm.ActiveBranchDossier] = None,
+  strategicThread: Option[lila.llm.ActiveStrategicThreadRef] = None
 )
 object MomentNarrative {
   implicit val writes: OWrites[MomentNarrative] = Json.writes[MomentNarrative]
@@ -57,7 +63,9 @@ case class FullGameNarrative(
   gameIntro: String,           // e.g. "In this Ruy Lopez encounter..."
   keyMomentNarratives: List[MomentNarrative],
   conclusion: String,          // e.g. "White capitalized on the blunder..."
-  overallThemes: List[String]  // e.g. ["King hunt", "Exchange sacrifice"]
+  overallThemes: List[String], // e.g. ["King hunt", "Exchange sacrifice"]
+  internalMomentCount: Int = 0,
+  strategicThreads: List[lila.llm.ActiveStrategicThread] = Nil
 )
 object FullGameNarrative {
   implicit val writes: OWrites[FullGameNarrative] = Json.writes[FullGameNarrative]

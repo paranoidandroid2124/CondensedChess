@@ -73,6 +73,11 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
 }
 
 class ActivityAnalyzerImpl extends ActivityAnalyzer {
+
+  private final case class RouteTargetBuckets(
+      redeploymentTargets: List[Square],
+      concreteTargets: List[Square]
+  )
   
   def analyze(board: Board, color: Color): List[PieceActivity] = {
     // Correct API: board.byColor(color) returns Bitboard, .squares returns List[Square]
@@ -92,13 +97,31 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
         // 2. No legal squares to move
         // 3. Either under attack OR not on home square (truly stuck, not just undeveloped)
         val isTrapped = piece.role != Pawn && mobility == 0 && (!isOnHomeRank || isUnderAttack)
+        val targetBuckets = candidateTargets(
+          board = board,
+          piece = piece,
+          from = square,
+          isBadBishop = isBadBishop,
+          isTrapped = isTrapped
+        )
         val keyRoutes = suggestKeyRoute(
           board = board,
           piece = piece,
           from = square,
           currentMobility = mobility,
           isBadBishop = isBadBishop,
-          isTrapped = isTrapped
+          isTrapped = isTrapped,
+          targets = targetBuckets.redeploymentTargets
+        )
+        val directionalTargets = suggestDirectionalTargets(
+          board = board,
+          piece = piece,
+          from = square,
+          currentMobility = mobility,
+          isBadBishop = isBadBishop,
+          isTrapped = isTrapped,
+          targets = targetBuckets.redeploymentTargets,
+          chosenRouteDestination = keyRoutes.lastOption
         )
         val coordinationLinks = detectCoordinationLinks(board, piece, square)
         
@@ -109,7 +132,9 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
           isTrapped = isTrapped,
           isBadBishop = isBadBishop,
           keyRoutes = keyRoutes,
-          coordinationLinks = coordinationLinks
+          coordinationLinks = coordinationLinks,
+          directionalTargets = directionalTargets,
+          concreteTargets = targetBuckets.concreteTargets.take(2)
         )
       }
     }
@@ -201,7 +226,8 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       from: Square,
       currentMobility: Int,
       isBadBishop: Boolean,
-      isTrapped: Boolean
+      isTrapped: Boolean,
+      targets: List[Square]
   ): List[Square] = {
     piece.role match {
       case Pawn | King => Nil
@@ -217,14 +243,13 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
               case _      => 6
             })
         if (!shouldAnalyze) return Nil
-        val targets = candidateTargets(board, piece, from, isBadBishop, isTrapped)
         val best =
           targets
             .flatMap { target =>
               shortestRoute(role, from, target, board, piece.color, maxDepth = if (role == Knight) 4 else 3)
                 .map { route =>
                   val mobilityGain = projectedMobility(board, piece, target) - currentMobility
-                  val score = routeScore(
+                  val strategicFit = strategicFitScore(
                     board = board,
                     role = role,
                     color = piece.color,
@@ -234,6 +259,8 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
                     isBadBishop = isBadBishop,
                     isTrapped = isTrapped
                   )
+                  val tacticalSafety = routeTacticalSafety(board, piece.color, route.drop(1))
+                  val score = routeScore(strategicFit = strategicFit, tacticalSafety = tacticalSafety, routeLength = route.size)
                   route -> score
                 }
             }
@@ -241,11 +268,61 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
             .headOption
 
         best
-          .filter(_._2 >= 0.30)
+          .filter(_._2 >= 0.34)
           .map(_._1.drop(1).take(3))
           .getOrElse(Nil)
     }
   }
+
+  private def suggestDirectionalTargets(
+      board: Board,
+      piece: chess.Piece,
+      from: Square,
+      currentMobility: Int,
+      isBadBishop: Boolean,
+      isTrapped: Boolean,
+      targets: List[Square],
+      chosenRouteDestination: Option[Square]
+  ): List[Square] =
+    piece.role match
+      case Pawn | King => Nil
+      case role =>
+        val maxDepth = if role == Knight then 4 else 3
+        targets
+          .filterNot(chosenRouteDestination.contains)
+          .flatMap { target =>
+            val preference = targetPreference(board, role, piece.color, target, isBadBishop, isTrapped)
+            val routeEval =
+              shortestRoute(role, from, target, board, piece.color, maxDepth = maxDepth).map { route =>
+                val mobilityGain = projectedMobility(board, piece, target) - currentMobility
+                val strategicFit = strategicFitScore(
+                  board = board,
+                  role = role,
+                  color = piece.color,
+                  target = target,
+                  route = route,
+                  mobilityGain = mobilityGain,
+                  isBadBishop = isBadBishop,
+                  isTrapped = isTrapped
+                )
+                val tacticalSafety = routeTacticalSafety(board, piece.color, route.drop(1))
+                val score = routeScore(strategicFit = strategicFit, tacticalSafety = tacticalSafety, routeLength = route.size)
+                (route, tacticalSafety, score)
+              }
+            val shouldKeep =
+              routeEval match
+                case None                        => preference >= 0.24
+                case Some((route, safety, score)) =>
+                  preference >= 0.24 &&
+                    (score < 0.34 || safety < 0.68 || route.size > (if role == Knight then 3 else 2))
+            Option.when(shouldKeep) {
+              val readinessBias = routeEval.map(_._3).getOrElse(0.0)
+              target -> (preference - readinessBias)
+            }
+          }
+          .sortBy { case (_, score) => -score }
+          .map(_._1)
+          .take(2)
 
   private def candidateTargets(
       board: Board,
@@ -253,19 +330,31 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       from: Square,
       isBadBishop: Boolean,
       isTrapped: Boolean
-  ): List[Square] = {
+  ): RouteTargetBuckets = {
     val color = piece.color
     val role = piece.role
-    val candidates = Square.all
-      .filter(sq => sq != from && board.pieceAt(sq).forall(_.color != color))
+    val redeploymentTargets = Square.all
+      .filter(sq => sq != from && board.pieceAt(sq).isEmpty)
       .map { sq =>
         sq -> targetPreference(board, role, color, sq, isBadBishop, isTrapped)
       }
-      .filter(_._2 > 0.10)
+      .filter(_._2 > 0.12)
       .sortBy { case (_, score) => -score }
       .map(_._1)
       .take(18)
-    candidates
+    val concreteTargets = Square.all
+      .filter(sq => sq != from && board.pieceAt(sq).exists(_.color != color))
+      .map { sq =>
+        sq -> concreteTargetPreference(board, role, color, sq, isBadBishop, isTrapped)
+      }
+      .filter(_._2 > 0.18)
+      .sortBy { case (_, score) => -score }
+      .map(_._1)
+      .take(4)
+    RouteTargetBuckets(
+      redeploymentTargets = redeploymentTargets,
+      concreteTargets = concreteTargets
+    )
   }
 
   private def targetPreference(
@@ -284,14 +373,46 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     val rookBonus =
       if (role == Rook && (isOpenFile(board, sq.file) || isSemiOpenFileFor(board, sq.file, color))) 0.30
       else 0.0
+    val rookLiftBonus =
+      if (role == Rook && isThirdRankLiftSquare(sq, color)) 0.24
+      else 0.0
     val bishopBonus =
       if (role == Bishop && isBadBishop) 0.14
       else 0.0
     val queenBonus =
-      if (role == Queen && Set(Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank)) 0.12
+      if (role == Queen && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank)) 0.06
       else 0.0
     val trappedBonus = if (isTrapped) 0.18 else 0.0
-    centerBonus + knightBonus + rookBonus + bishopBonus + queenBonus + trappedBonus
+    centerBonus + knightBonus + rookBonus + rookLiftBonus + bishopBonus + queenBonus + trappedBonus
+  }
+
+  private def concreteTargetPreference(
+      board: Board,
+      role: Role,
+      color: Color,
+      sq: Square,
+      isBadBishop: Boolean,
+      isTrapped: Boolean
+  ): Double = {
+    val victimBonus =
+      board.roleAt(sq) match {
+        case Some(Queen)  => 0.24
+        case Some(Rook)   => 0.20
+        case Some(Bishop) => 0.16
+        case Some(Knight) => 0.16
+        case Some(Pawn)   => 0.10
+        case _            => 0.0
+      }
+    val centerContact =
+      if (Set(File.C, File.D, File.E, File.F).contains(sq.file) && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank))
+        0.16
+      else 0.0
+    val rookFileContact =
+      if (role == Rook && (isOpenFile(board, sq.file) || isSemiOpenFileFor(board, sq.file, color))) 0.18
+      else 0.0
+    val bishopReliefContact = if (role == Bishop && isBadBishop) 0.12 else 0.0
+    val trappedBonus = if (isTrapped) 0.12 else 0.0
+    centerContact + victimBonus + rookFileContact + bishopReliefContact + trappedBonus
   }
 
   private def shortestRoute(
@@ -311,7 +432,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       val depth = path.size - 1
       if (depth < maxDepth) {
         val nextSquares = pseudoMoves(role, curr, board.occupied).squares.filter { sq =>
-          board.pieceAt(sq).forall(_.color != color)
+          sq == to || board.pieceAt(sq).isEmpty
         }
         nextSquares.foreach { sq =>
           val nextPath = path :+ sq
@@ -353,6 +474,13 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
   }
 
   private def routeScore(
+      strategicFit: Double,
+      tacticalSafety: Double,
+      routeLength: Int
+  ): Double =
+    strategicFit + ((tacticalSafety - 0.55) * 0.45) - ((routeLength - 1).max(0) * 0.01)
+
+  private def strategicFitScore(
       board: Board,
       role: Role,
       color: Color,
@@ -377,6 +505,29 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     centerBonus + outpostBonus + rookFileBonus + bishopReliefBonus + trappedBonus + gainBonus - lengthPenalty
   }
 
+  private def routeTacticalSafety(
+      board: Board,
+      color: Color,
+      routeSquares: List[Square]
+  ): Double = {
+    if (routeSquares.isEmpty) 1.0
+    else if (routeSquares.exists(sq => board.pieceAt(sq).exists(_.color != color))) 0.0
+    else {
+      val (unsafeCount, contestedCount) =
+        routeSquares.foldLeft((0, 0)) { case ((unsafe, contested), sq) =>
+          if (board.pieceAt(sq).exists(_.color == color)) (unsafe + 1, contested)
+          else {
+            val defenders = board.attackers(sq, color).count
+            val attackers = board.attackers(sq, !color).count
+            if (attackers == 0 || defenders > attackers) (unsafe, contested)
+            else if (defenders == attackers && attackers > 0) (unsafe, contested + 1)
+            else (unsafe + 1, contested)
+          }
+        }
+      (1.0 - (unsafeCount * 0.30) - (contestedCount * 0.12)).max(0.0).min(1.0)
+    }
+  }
+
   private def isOutpostSquare(board: Board, sq: Square, color: Color): Boolean = {
     val supportedByPawn = board.attackers(sq, color).intersects(board.byPiece(color, Pawn))
     val attackedByEnemyPawn = board.attackers(sq, !color).intersects(board.byPiece(!color, Pawn))
@@ -392,6 +543,9 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     val theirs = board.pawns & board.byColor(!color) & mask
     ours.isEmpty && theirs.nonEmpty
   }
+
+  private def isThirdRankLiftSquare(sq: Square, color: Color): Boolean =
+    (color.white && sq.rank == Rank.Third) || (!color.white && sq.rank == Rank.Sixth)
 
   private def checkBadBishop(board: Board, piece: chess.Piece, square: chess.Square): Boolean = {
     if (piece.role != Bishop) return false

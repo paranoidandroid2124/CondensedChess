@@ -88,6 +88,7 @@ object PlyCommentaryAudit:
         else GeminiConfig(
           apiKey = "",
           model = "disabled",
+          modelActive = "disabled",
           enabled = false,
           temperature = 0.4,
           maxOutputTokens = 256,
@@ -120,6 +121,7 @@ object PlyCommentaryAudit:
         if allowLlm then LlmProviderConfig.fromEnv
         else LlmProviderConfig(
           provider = "none",
+          providerActiveNote = "none",
           promptVersion = "v1",
           polishGateThreshold = 0.90,
           premiumOnly = true,

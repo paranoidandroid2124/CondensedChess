@@ -7,19 +7,21 @@ object ActiveBranchDossierBuilder:
   def build(
       moment: GameNarrativeMoment,
       routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef]
+      moveRefs: List[ActiveStrategicMoveRef],
+      threadRef: Option[ActiveStrategicThreadRef] = None,
+      thread: Option[ActiveStrategicThread] = None
   ): Option[ActiveBranchDossier] =
     val digest = moment.signalDigest
     val comparison = digest.flatMap(_.decisionComparison)
     val dominantLens = lensFor(moment, digest)
-    val chosenBranch = chosenBranchLabel(moment, digest, comparison, dominantLens)
+    val chosenBranch = chosenBranchLabel(moment, digest, comparison, dominantLens, threadRef)
     val engineBranch = engineBranchLabel(digest, comparison)
     val deferredBranch = deferredBranchLabel(digest, comparison)
     val routeCue = selectRouteCue(digest, routeRefs)
     val moveCue = selectMoveCue(comparison, moveRefs)
     val whyChosen = whyChosenText(digest, routeCue)
     val whyDeferred = whyDeferredText(digest, comparison)
-    val opponentResource = opponentResourceText(digest, whyDeferred)
+    val opponentResource = opponentResourceText(digest, whyDeferred, thread)
     val evidenceCue = evidenceText(moment, comparison)
     val continuationFocus = continuationFocusText(moment.strategyPack)
     val practicalRisk = practicalRiskText(digest)
@@ -48,7 +50,11 @@ object ActiveBranchDossierBuilder:
         evidenceCue = evidenceCue,
         continuationFocus = continuationFocus,
         practicalRisk = practicalRisk,
-        comparisonGapCp = gapCp
+        comparisonGapCp = gapCp,
+        threadLabel = threadRef.map(_.themeLabel),
+        threadStage = threadRef.map(_.stageLabel),
+        threadSummary = thread.map(_.summary),
+        threadOpponentCounterplan = thread.flatMap(_.opponentCounterplan)
       )
     )
 
@@ -70,9 +76,11 @@ object ActiveBranchDossierBuilder:
       moment: GameNarrativeMoment,
       digest: Option[NarrativeSignalDigest],
       comparison: Option[DecisionComparisonDigest],
-      dominantLens: String
+      dominantLens: String,
+      threadRef: Option[ActiveStrategicThreadRef]
   ): String =
     val chosenMove = comparison.flatMap(_.chosenMove).flatMap(normalized)
+    val threadLabel = threadRef.flatMap(ref => normalized(ref.themeLabel))
     dominantLens match
       case "tactical" =>
         val head =
@@ -82,14 +90,17 @@ object ActiveBranchDossierBuilder:
         val movePart = chosenMove.map(move => s" via $move").getOrElse("")
         s"$head$movePart"
       case "structure" =>
-        val structure = digest.flatMap(_.structureProfile).flatMap(normalized).getOrElse("structural branch")
+        val structure =
+          threadLabel
+            .orElse(digest.flatMap(_.structureProfile).flatMap(normalized))
+            .getOrElse("structural branch")
         val plan =
           digest.flatMap(_.deploymentPurpose).flatMap(normalized)
             .orElse(digest.flatMap(_.structuralCue).flatMap(normalized))
             .getOrElse("long-term deployment")
         s"$structure -> $plan"
       case "opening" =>
-        val opening = digest.flatMap(_.opening).flatMap(normalized).getOrElse("opening branch")
+        val opening = threadLabel.orElse(digest.flatMap(_.opening).flatMap(normalized)).getOrElse("opening branch")
         val branch =
           digest.flatMap(_.decisionComparison).flatMap(_.deferredReason).flatMap(normalized)
             .orElse(digest.flatMap(_.latentPlan).flatMap(normalized))
@@ -98,15 +109,15 @@ object ActiveBranchDossierBuilder:
         s"$opening -> $branch"
       case "compensation" =>
         val plan = digest.flatMap(_.compensation).flatMap(normalized).getOrElse("compensation plan")
-        s"compensation -> $plan"
+        s"${threadLabel.getOrElse("compensation")} -> $plan"
       case "prophylaxis" =>
         val target =
           digest.flatMap(_.prophylaxisPlan).flatMap(normalized)
             .orElse(digest.flatMap(_.prophylaxisThreat).flatMap(normalized))
             .getOrElse("counterplay control")
-        s"prophylaxis -> $target"
+        s"${threadLabel.getOrElse("prophylaxis")} -> $target"
       case "decision" =>
-        val movePart = chosenMove.getOrElse("the chosen move")
+        val movePart = threadLabel.getOrElse(chosenMove.getOrElse("the chosen move"))
         val reason =
           digest.flatMap(_.decision).flatMap(normalized)
             .orElse(digest.flatMap(_.decisionComparison).flatMap(_.deferredReason).flatMap(normalized))
@@ -114,10 +125,11 @@ object ActiveBranchDossierBuilder:
         s"$movePart -> $reason"
       case "practical" =>
         val verdict = digest.flatMap(_.practicalVerdict).flatMap(normalized).getOrElse("practical branch")
-        s"practical branch -> $verdict"
+        s"${threadLabel.getOrElse("practical branch")} -> $verdict"
       case _ =>
-        chosenMove
-          .map(move => s"chosen branch -> $move")
+        threadLabel
+          .map(label => s"$label -> ${digest.flatMap(_.decision).flatMap(normalized).getOrElse("ongoing plan")}")
+          .orElse(chosenMove.map(move => s"chosen branch -> $move"))
           .orElse(digest.flatMap(_.decision).flatMap(normalized).map(reason => s"strategic branch -> $reason"))
           .orElse(digest.flatMap(_.structuralCue).flatMap(normalized).map(reason => s"strategic branch -> $reason"))
           .getOrElse("strategic branch")
@@ -158,7 +170,7 @@ object ActiveBranchDossierBuilder:
     val fromDigest =
       digest.flatMap(_.deploymentContribution).flatMap(normalized)
         .orElse(digest.flatMap(_.decision).flatMap(normalized))
-        .orElse(routeCue.flatMap(cue => normalized(s"${cue.piece} ${cue.route.mkString("-")} for ${cue.purpose}")))
+        .orElse(routeCue.flatMap(cue => normalized(routeCueSummary(cue))))
     fromDigest.map(UserFacingSignalSanitizer.sanitize)
 
   private def whyDeferredText(
@@ -171,10 +183,12 @@ object ActiveBranchDossierBuilder:
 
   private def opponentResourceText(
       digest: Option[NarrativeSignalDigest],
-      whyDeferred: Option[String]
+      whyDeferred: Option[String],
+      thread: Option[ActiveStrategicThread]
   ): Option[String] =
     digest.flatMap(_.opponentPlan).flatMap(normalized)
       .orElse(digest.flatMap(_.prophylaxisThreat).flatMap(normalized))
+      .orElse(thread.flatMap(_.opponentCounterplan).flatMap(normalized))
       .orElse {
         whyDeferred.filter(text => normalize(text).contains("counterplay") || normalize(text).contains("initiative"))
       }
@@ -230,6 +244,7 @@ object ActiveBranchDossierBuilder:
   ): Option[ActiveBranchRouteCue] =
     val digestRoute = digest.map(_.deploymentRoute.map(normalize).filter(_.nonEmpty))
     val digestPurpose = digest.flatMap(_.deploymentPurpose).flatMap(normalized)
+    val digestOwnerSide = digest.flatMap(_.deploymentOwnerSide).flatMap(normalized)
     routeRefs
       .sortBy { route =>
         val routeSquares = route.route.map(normalize).filter(_.nonEmpty)
@@ -242,16 +257,21 @@ object ActiveBranchDossierBuilder:
         val purposeMatch =
           Option.when(digestPurpose.exists(purpose => normalize(route.purpose).contains(purpose) || purpose.contains(normalize(route.purpose))))(0)
             .getOrElse(1)
-        (routeMatch, purposeMatch, -(route.confidence * 1000).round.toInt)
+        val ownerMatch = Option.when(digestOwnerSide.contains(normalize(route.ownerSide)))(0).getOrElse(1)
+        (routeMatch, purposeMatch, ownerMatch, -(route.surfaceConfidence * 1000).round.toInt)
       }
       .headOption
       .map { route =>
         ActiveBranchRouteCue(
           routeId = route.routeId,
+          ownerSide = route.ownerSide,
           piece = route.piece,
           route = route.route,
           purpose = UserFacingSignalSanitizer.sanitize(route.purpose),
-          confidence = route.confidence
+          strategicFit = route.strategicFit,
+          tacticalSafety = route.tacticalSafety,
+          surfaceConfidence = route.surfaceConfidence,
+          surfaceMode = route.surfaceMode
         )
       }
 
@@ -286,3 +306,9 @@ object ActiveBranchDossierBuilder:
 
   private def formatCp(cp: Int): String =
     if cp > 0 then f"+${cp.toDouble / 100}%.2f" else f"${cp.toDouble / 100}%.2f"
+
+  private def routeCueSummary(cue: ActiveBranchRouteCue): String =
+    val lead =
+      if cue.surfaceMode == RouteSurfaceMode.Exact then s"via ${cue.route.mkString("-")}"
+      else s"toward ${cue.route.lastOption.getOrElse("the target square")}"
+    s"${cue.ownerSide} ${cue.piece} $lead for ${cue.purpose}"

@@ -11,7 +11,10 @@ case class KeyMoment(
     cpAfter: Int = 0,
     mateBefore: Option[Int] = None,
     mateAfter: Option[Int] = None,
-    wpaSwing: Option[Double] = None
+    wpaSwing: Option[Double] = None,
+    selectionKind: String = "key",
+    selectionLabel: Option[String] = Some("Key Moment"),
+    selectionReason: Option[String] = None
 )
 
 object GameNarrativeOrchestrator {

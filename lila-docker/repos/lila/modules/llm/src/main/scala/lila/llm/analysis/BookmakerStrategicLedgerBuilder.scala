@@ -10,7 +10,9 @@ object BookmakerStrategicLedgerBuilder:
   private final case class MotifDef(
       key: String,
       label: String,
-      markers: List[String]
+      markers: List[String],
+      allowedThemes: Set[ThemeTaxonomy.ThemeL1] = Set.empty,
+      preferredSubplans: Set[ThemeTaxonomy.SubplanId] = Set.empty
   )
 
   private final case class MotifChoice(
@@ -22,6 +24,11 @@ object BookmakerStrategicLedgerBuilder:
       key: String,
       label: String,
       reason: Option[String]
+  )
+
+  private final case class PlanProfile(
+      themes: Set[ThemeTaxonomy.ThemeL1],
+      subplans: Set[ThemeTaxonomy.SubplanId]
   )
 
   private final case class LineCandidate(
@@ -52,37 +59,79 @@ object BookmakerStrategicLedgerBuilder:
     MotifDef(
       key = "rook_pawn_march",
       label = "Rook-pawn march",
-      markers = List("rook pawn march", "h pawn lever", "rook lift", "kingside clamp")
+      markers = List("rook pawn march", "h pawn lever", "rook lift", "kingside clamp"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.FlankInfrastructure),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.RookPawnMarch,
+        ThemeTaxonomy.SubplanId.HookCreation,
+        ThemeTaxonomy.SubplanId.RookLiftScaffold
+      )
     ),
     MotifDef(
       key = "entrenched_piece",
       label = "Entrenched piece",
-      markers = List("entrenched piece", "entrenched", "french chain", "fixed knight")
+      markers = List("entrenched piece", "entrenched", "french chain", "fixed knight"),
+      allowedThemes = Set(
+        ThemeTaxonomy.ThemeL1.PieceRedeployment,
+        ThemeTaxonomy.ThemeL1.WeaknessFixation
+      ),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.OutpostEntrenchment,
+        ThemeTaxonomy.SubplanId.WorstPieceImprovement
+      )
     ),
     MotifDef(
       key = "minority_attack",
       label = "Minority attack",
-      markers = List("minority attack", "carlsbad")
+      markers = List("minority attack", "carlsbad"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.WeaknessFixation),
+      preferredSubplans = Set(ThemeTaxonomy.SubplanId.MinorityAttackFixation)
     ),
     MotifDef(
       key = "outpost_reinforcement",
       label = "Outpost reinforcement",
-      markers = List("outpost reinforcement", "outpost", "strong square", "anchor square")
+      markers = List("outpost reinforcement", "outpost", "strong square", "anchor square"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.PieceRedeployment),
+      preferredSubplans = Set(ThemeTaxonomy.SubplanId.OutpostEntrenchment)
     ),
     MotifDef(
       key = "color_complex",
       label = "Color complex",
-      markers = List("color complex", "colour complex", "color complex weakness")
+      markers = List("color complex", "colour complex", "color complex weakness"),
+      allowedThemes = Set(
+        ThemeTaxonomy.ThemeL1.SpaceClamp,
+        ThemeTaxonomy.ThemeL1.WeaknessFixation
+      ),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.FlankClamp,
+        ThemeTaxonomy.SubplanId.StaticWeaknessFixation
+      )
     ),
     MotifDef(
-      key = "whole_board_play",
-      label = "Whole-board play",
-      markers = List("whole board play", "switch flanks", "both wings", "board wide")
+      key = "opposite_bishops_conversion",
+      label = "Opposite bishops conversion",
+      markers = List(
+        "opposite color bishops",
+        "opposite colored bishops draw",
+        "good bishop rook pawn conversion"
+      ),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.AdvantageTransformation),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.OppositeBishopsConversion,
+        ThemeTaxonomy.SubplanId.SimplificationConversion,
+        ThemeTaxonomy.SubplanId.PasserConversion,
+        ThemeTaxonomy.SubplanId.InvasionTransition
+      )
     ),
     MotifDef(
       key = "active_passive_exchange",
       label = "Active-passive exchange",
-      markers = List("active passive exchange", "exchange active pieces", "leave passive pieces")
+      markers = List("active passive exchange", "exchange active pieces", "leave passive pieces"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.FavorableExchange),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.SimplificationWindow,
+        ThemeTaxonomy.SubplanId.DefenderTrade
+      )
     ),
     MotifDef(
       key = "compensation_attack",
@@ -92,12 +141,20 @@ object BookmakerStrategicLedgerBuilder:
     MotifDef(
       key = "counterplay_restraint",
       label = "Counterplay restraint",
-      markers = List("counterplay restraint", "counterplay cut", "prophylaxis", "deny break")
+      markers = List("counterplay restraint", "counterplay cut", "prophylaxis", "deny break"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.RestrictionProphylaxis),
+      preferredSubplans = Set(
+        ThemeTaxonomy.SubplanId.ProphylaxisRestraint,
+        ThemeTaxonomy.SubplanId.BreakPrevention,
+        ThemeTaxonomy.SubplanId.KeySquareDenial
+      )
     ),
     MotifDef(
       key = "opening_branch",
       label = "Opening branch",
-      markers = List("opening branch", "opening theory", "theory")
+      markers = List("opening branch", "opening theory", "theory"),
+      allowedThemes = Set(ThemeTaxonomy.ThemeL1.OpeningPrinciples),
+      preferredSubplans = Set(ThemeTaxonomy.SubplanId.OpeningDevelopment)
     )
   )
 
@@ -114,9 +171,10 @@ object BookmakerStrategicLedgerBuilder:
     val decision = digest.flatMap(_.decisionComparison).orElse(DecisionComparisonBuilder.digest(ctx))
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
     val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
+    val planProfile = collectPlanProfile(ctx)
     val prerequisites = collectPrerequisites(ctx).take(2)
     val conversionTrigger = collectConversionTrigger(ctx, endgameStateToken)
-    val motif = pickMotif(ctx, thesis, digest)
+    val motif = pickMotif(ctx, thesis, digest, planProfile, endgameStateToken, conversionTrigger)
     val primaryLine = choosePrimaryLine(ctx, decision, motif.map(_.motif.key), refs, probeResults)
     val resourceLine = chooseResourceLine(ctx, decision, refs, probeResults)
     val stage = classifyStage(
@@ -170,17 +228,28 @@ object BookmakerStrategicLedgerBuilder:
   private def pickMotif(
       ctx: NarrativeContext,
       thesis: Option[StrategicThesis],
-      digest: Option[NarrativeSignalDigest]
+      digest: Option[NarrativeSignalDigest],
+      planProfile: PlanProfile,
+      endgameStateToken: Option[EndgamePatternState],
+      conversionTrigger: Option[String]
   ): Option[MotifChoice] =
-    val tokens = collectStructuredTokens(ctx, digest)
+    val endgamePattern = currentEndgamePattern(ctx, endgameStateToken)
+    val conversionReady =
+      conversionTrigger.nonEmpty ||
+        ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) ||
+        endgamePattern.exists(isConversionEndgamePattern)
+    val oppositePlanReady =
+      hasOppositeBishopsConversionPlan(planProfile) && conversionReady
+    val tokens = collectStructuredTokens(ctx, digest, endgamePattern)
     val scores = scala.collection.mutable.Map.empty[String, Double].withDefaultValue(0.0)
 
     Motifs.foreach { motif =>
-      motif.markers.foreach { marker =>
-        val normalizedMarker = normalize(marker)
-        if tokens.exists(token => token.contains(normalizedMarker)) then
-          scores.update(motif.key, scores(motif.key) + 1.0)
-      }
+      if motifEligible(motif, ctx, oppositePlanReady) then
+        motif.markers.foreach { marker =>
+          val normalizedMarker = normalize(marker)
+          if tokens.exists(token => token.contains(normalizedMarker)) then
+            scores.update(motif.key, scores(motif.key) + 1.0)
+        }
     }
 
     thesis.foreach {
@@ -199,6 +268,14 @@ object BookmakerStrategicLedgerBuilder:
       scores.update("counterplay_restraint", scores("counterplay_restraint") + 3.0)
     if ctx.openingData.flatMap(_.name).exists(_.trim.nonEmpty) || ctx.openingEvent.isDefined then
       scores.update("opening_branch", scores("opening_branch") + 2.0)
+    if oppositePlanReady && hasOppositeBishopsSignal(ctx) then
+      scores.update("opposite_bishops_conversion", scores("opposite_bishops_conversion") + 3.0)
+
+    Motifs.foreach { motif =>
+      planAlignmentScore(motif, planProfile).foreach { bonus =>
+        scores.update(motif.key, scores(motif.key) + bonus)
+      }
+    }
 
     scores.toList
       .sortBy { case (key, score) => (-score, key) }
@@ -211,7 +288,8 @@ object BookmakerStrategicLedgerBuilder:
 
   private def collectStructuredTokens(
       ctx: NarrativeContext,
-      digest: Option[NarrativeSignalDigest]
+      digest: Option[NarrativeSignalDigest],
+      endgamePattern: Option[String]
   ): Set[String] =
     (
       ctx.mainStrategicPlans.flatMap(plan => List(plan.planId, plan.themeL1)) ++
@@ -222,10 +300,15 @@ object BookmakerStrategicLedgerBuilder:
             semantic.structureProfile.toList.flatMap(profile =>
               List(profile.primary, profile.centerState) ++ profile.evidenceCodes
             ) ++
+            semantic.endgameFeatures.toList.flatMap(endgame =>
+              List(endgame.primaryPattern, endgame.transition, Option(endgame.theoreticalOutcomeHint))
+                .flatten
+            ) ++
             semantic.planAlignment.toList.flatMap(alignment =>
               alignment.matchedPlanIds ++ alignment.missingPlanIds ++ alignment.reasonCodes
             )
         } ++
+        endgamePattern.toList ++
         digest.toList.flatMap(d =>
           List(
             d.structureProfile,
@@ -235,6 +318,75 @@ object BookmakerStrategicLedgerBuilder:
           ).flatten
         )
     ).flatMap(normalizedToken).toSet
+
+  private def collectPlanProfile(ctx: NarrativeContext): PlanProfile =
+    val themes =
+      (
+        ctx.mainStrategicPlans.flatMap { hypothesis =>
+          val theme = ThemeTaxonomy.ThemeResolver.fromHypothesis(hypothesis)
+          Option.when(theme != ThemeTaxonomy.ThemeL1.Unknown)(theme)
+        } ++
+          ctx.planContinuity.toList.flatMap(_.planId).flatMap { raw =>
+            val theme = ThemeTaxonomy.ThemeResolver.fromPlanId(raw)
+            Option.when(theme != ThemeTaxonomy.ThemeL1.Unknown)(theme)
+          }
+      ).toSet
+
+    val subplans =
+      (
+        ctx.mainStrategicPlans.flatMap(ThemeTaxonomy.ThemeResolver.subplanFromHypothesis) ++
+          ctx.planContinuity.toList.flatMap(_.planId).flatMap(ThemeTaxonomy.ThemeResolver.subplanFromPlanId)
+      ).toSet
+
+    PlanProfile(themes = themes, subplans = subplans)
+
+  private def motifEligible(
+      motif: MotifDef,
+      ctx: NarrativeContext,
+      oppositePlanReady: Boolean
+  ): Boolean =
+    motif.key match
+      case "opposite_bishops_conversion" =>
+        hasOppositeBishopsSignal(ctx) && oppositePlanReady
+      case _ => true
+
+  private def planAlignmentScore(
+      motif: MotifDef,
+      planProfile: PlanProfile
+  ): Option[Double] =
+    val subplanBonus =
+      Option.when(motif.preferredSubplans.intersect(planProfile.subplans).nonEmpty)(2.2)
+    val themeBonus =
+      Option.when(motif.allowedThemes.intersect(planProfile.themes).nonEmpty)(1.1)
+    subplanBonus.orElse(themeBonus)
+
+  private def hasOppositeBishopsSignal(ctx: NarrativeContext): Boolean =
+    ctx.semantic.exists(_.positionalFeatures.exists(_.tagType == "OppositeColorBishops"))
+
+  private def hasOppositeBishopsConversionPlan(planProfile: PlanProfile): Boolean =
+    planProfile.subplans.contains(ThemeTaxonomy.SubplanId.OppositeBishopsConversion) ||
+      (
+        planProfile.themes.contains(ThemeTaxonomy.ThemeL1.AdvantageTransformation) &&
+          planProfile.subplans.exists(subplan =>
+            Set(
+              ThemeTaxonomy.SubplanId.SimplificationConversion,
+              ThemeTaxonomy.SubplanId.PasserConversion,
+              ThemeTaxonomy.SubplanId.InvasionTransition
+            ).contains(subplan)
+          )
+      )
+
+  private def currentEndgamePattern(
+      ctx: NarrativeContext,
+      endgameStateToken: Option[EndgamePatternState]
+  ): Option[String] =
+    endgameStateToken.flatMap(_.activePattern).filter(_.trim.nonEmpty)
+      .orElse(ctx.semantic.flatMap(_.endgameFeatures).flatMap(_.primaryPattern).filter(_.trim.nonEmpty))
+
+  private def isConversionEndgamePattern(raw: String): Boolean =
+    val low = normalize(raw)
+    low.contains("good bishop rook pawn conversion") ||
+      low.contains("opposite colored bishops draw")
 
   private def classifyStage(
       ctx: NarrativeContext,

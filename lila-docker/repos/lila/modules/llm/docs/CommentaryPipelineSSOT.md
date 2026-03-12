@@ -302,9 +302,11 @@ Key references:
     `structure -> long plan -> primary deployment -> current move contribution`
     arc.
   - `NarrativeSignalDigest` now carries optional deployment fields
-    (`deploymentPiece`, `deploymentRoute`, `deploymentPurpose`,
-    `deploymentContribution`, `deploymentConfidence`), and Bookmaker renders a
-    lightweight `Piece Deployment` row inside `Strategic Signals`.
+    (`deploymentOwnerSide`, `deploymentPiece`, `deploymentRoute`,
+    `deploymentPurpose`, `deploymentContribution`, `deploymentStrategicFit`,
+    `deploymentTacticalSafety`, `deploymentSurfaceConfidence`,
+    `deploymentSurfaceMode`), and Bookmaker renders a lightweight
+    `Piece Deployment` row inside `Strategic Signals`.
   - Active mode reuses the same deployment cue through `StrategyPackBuilder`,
     `longTermFocus`, `evidence`, and `ActiveStrategicPrompt`.
   - This does not introduce a new producer; it deterministically joins already
@@ -331,6 +333,35 @@ Key references:
   - user-facing placeholder scrubbing is now centralized in
     `UserFacingSignalSanitizer` and reused by Bookmaker slot sanitation,
     strategy-pack authoring evidence summaries, and thesis evidence hooks.
+- `2026-03-12` route reliability remediation:
+  - `StrategyPieceRoute` now represents redeployment only.
+  - enemy-occupied non-origin route squares are reclassified into
+    `StrategyPieceMoveRef`, not surfaced as route destinations.
+  - `PieceActivity` now carries separate `keyRoutes` and `concreteTargets`.
+  - route carriers preserve `ownerSide` and split the old scalar into:
+    - `strategicFit`
+    - `tacticalSafety`
+    - `surfaceConfidence`
+    - `surfaceMode`
+  - `surfaceMode` drives all user-facing route surfacing:
+    - `< 0.55` => hidden
+    - otherwise => `toward`
+    - `exact` requires high fit, high safety, empty transit squares, and
+      piece-policy approval
+  - exact-path guardrails are now piece-specific:
+    - knight: allowed
+    - bishop: short routes only
+    - rook: short file/lift routes only
+    - queen: never exact in v1
+  - fallback active-note chips now hide opponent-owned routes from the default
+    chip row and emit raw `a-b-c` paths only for `surfaceMode = exact`
+  - active-note ops telemetry now tracks:
+    - `route_redeploy_count`
+    - `route_move_ref_count`
+    - `route_hidden_safety_count`
+    - `route_toward_only_count`
+    - `route_exact_surface_count`
+    - `route_opponent_hidden_count`
 - Verification:
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala:90`
   - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala:91`
@@ -338,6 +369,9 @@ Key references:
   - `modules/llm/src/main/Env.scala:32`
   - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala:1`
   - `modules/llm/src/main/scala/lila/llm/analysis/AuthoringEvidenceSummaryBuilder.scala:7`
+  - `modules/llm/src/main/scala/lila/llm/analysis/strategic/StrategicAnalyzers.scala:1`
+  - `modules/llm/src/main/scala/lila/llm/models.scala:131`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryOpsBoard.scala:36`
   - `ui/analyse/src/narrative/narrativeView.ts:448`
   - `ui/analyse/src/bookmaker.ts:130`
   - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala:8`
@@ -992,6 +1026,12 @@ Verification:
   - stage / carry-over / stage reason
   - prerequisites / conversion trigger
   - `primaryLine` / `resourceLine`
+- Dominant motif precedence is now intentionally concrete-first:
+  - `whole_board_play` is no longer a Bookmaker dominant motif
+  - cross-board coordination remains a `Flow` / stage-reason concern
+  - `opposite_bishops_conversion` is allowed only when opposite-colored bishops
+    evidence aligns with an advantage-transformation plan family and a real
+    conversion state
 - Frontend consumption stays inside existing Bookmaker surfaces only:
   - `Strategic Signals` gets `Motif`, `Stage`, `Carry-over`, `Prereqs`,
     `Conversion`
@@ -1018,6 +1058,318 @@ Verification:
 - `ui/analyse/src/bookmaker.ts`
 - `ui/analyse/tests/bookmakerLedgerSurface.test.ts`
 - `ui/analyse/tests/bookmakerPersistence.test.ts`
+
+## 2026-03-11 Active Full-PGN Narrative (Current)
+
+- Current external contract:
+  - `GameNarrativeResponse.schema = chesstory.gameNarrative.v5`
+  - top-level `strategicThreads`
+  - per-moment `strategicThread`
+  - public `review` count fields:
+    - `internalMomentCount`
+    - `visibleMomentCount`
+    - `polishedMomentCount`
+    - `visibleStrategicMomentCount`
+    - `visibleBridgeMomentCount`
+- Historical note:
+  - `v3` introduced explicit cross-moment campaign metadata
+  - `v4` introduced bridge-aware widening
+  - both are intermediate steps only; `v5` is the current sparse-response API
+- Thread detection is deterministic and runs after full-game rule/polish
+  assembly, not inside the low-level analyzers:
+  - `ActiveThemeSurfaceBuilder` promotes shipped signals into a user-facing
+    theme surface
+  - `ActiveStrategicThreadBuilder` groups moments by side + theme + continuity
+  - `StrategicBranchSelector.buildSelection` is now the canonical visible
+    projection step
+- Canonical thread themes currently surfaced by Active:
+  - `whole_board_play`
+  - `opposite_bishops_conversion`
+  - `active_passive_exchange`
+  - `rook_lift_attack`
+  - `minority_attack`
+  - `outpost_entrenchment`
+  - `rook_pawn_march`
+  - `invasion_transition`
+  - `prophylactic_restriction`
+  - `compensation_attack`
+- Full-game pipeline is now explicitly two-layer:
+  - internal coverage = anchor moments + opening events + bridge widening result
+  - visible narrative = sparse projection only
+  - hidden/internal moment arrays are not exposed through the public API
+- Internal widening still uses the bridge-aware two-pass flow:
+  - `anchor moment -> preliminary thread ranking -> candidate bridge analysis ->
+    selected bridge re-analysis`
+  - only top `3` strategic threads are widened
+  - planner candidate window = `seedPly - 4 .. lastPly + 4`
+  - candidate cap = `14` per thread, `36` total
+- Visible sparse projection is fixed:
+  - top `3` threads only
+  - up to `3` representative moments per thread
+  - bridge moments are visible only when they occupy a representative stage slot
+  - non-thread filler priority = `Blunder` -> `MissedWin` -> `MatePivot` ->
+    `OpeningBranchPoint / OpeningOutOfBook / OpeningTheoryEnds / OpeningNovelty`
+  - `OpeningIntro` is not used as a visible filler slot
+  - visible cap = `12`
+- Surface metadata:
+  - opening-derived moments use `selectionKind = opening`,
+    `selectionLabel = Opening Event`
+  - bridge-derived moments use `momentType = StrategicBridge`,
+    `selectionKind = thread_bridge`, `selectionLabel = Campaign Bridge`
+  - `selectionReason` explains why a visible bridge was projected
+- Polish and Active-note coverage are narrower than visible coverage:
+  - intro/conclusion remain separate polish targets
+  - moment polish cap = `10`
+  - polish priority = visible thread representatives -> visible blunder/missed
+    win/mate pivots -> visible opening branch events
+  - visible strategic representatives keep `strategicThread`
+  - Active note subset keeps `strategicBranch = true`
+  - hidden/internal moments never receive Active notes
+  - Active note cap remains `8`
+- Thread metadata is still attached even when Active note generation is gated
+  off, so rule-path/fullgame rendering can surface campaign structure without
+  requiring `Pro + Active`.
+- Active note is now treated as a forward-looking strategic coaching layer,
+  not as a structured-evidence recap:
+  - carrier/model stays the same (`activeStrategicNote: String`) but the
+    prompt contract is now `next plan + why now + opponent reply/trigger`
+  - the prompt is built from a shared `coaching brief` derived from
+    `strategyPack + dossier + route/move refs`
+  - raw `Campaign Thread`, `Strategy Pack`, `Dossier`, and reference dumps are
+    not sent to the model anymore; only the compressed coaching brief is
+    serialized
+  - generated notes must stay short (`2-3` sentences, usually `50-90` words)
+    and explicitly describe a follow-up plan rather than merely restating the
+    current position
+  - active-note prompt now also carries a deterministic `opening lens`
+    (`timing-first`, `problem-first`, `consequence-first`,
+    `target-purpose-first`, `campaign-role-first`, or `plan-first`) derived from the same coaching
+    brief plus moment context, so the model is pushed away from repeating the
+    same bare imperative opener on every note
+  - active-note prose shaping is now explicitly closer to human strategy-book
+    explanation patterns:
+    - first sentence should usually open from situation/timing/problem/
+      consequence rather than a bare command
+    - the note should prefer `why now -> plan` ordering when the position
+      offers a clear rationale
+    - opponent replies/triggers should be folded into dependent clauses when
+      natural, rather than isolated warning sentences
+    - route language in the prompt is lowered from raw square chains to target
+      square / purpose phrasing (`knight toward e3 for kingside clamp`) unless
+      some other path chooses to surface exact deployment text
+    - mild hedge / measured coaching language is preferred over hard imperative
+      prose
+- Benchmark/tooling path diverges from product runtime only at the polish
+  circuit breaker:
+- `analyzeFullGameLocal(... disablePolishCircuit = true)` is benchmark-only
+  - runtime product path still honors `rule_circuit_open`
+- Prompt/runtime shaping updates in the current working tree:
+  - `PolishPrompt` now emits stable `REQUEST -> CONTEXT -> DRAFT/SLOTS` ordering
+    so provider-side prefix caching has a larger shared prefix without removing
+    any factual context fields
+  - `PolishPrompt` and `ActiveStrategicPrompt` now omit empty/default context
+    rows such as blank `FEN`, `Opening: unknown`, empty `Concepts`, and default
+    salience rows, rather than serializing placeholder values
+  - `ActiveStrategicPrompt` no longer repeats thread label/stage/summary fields
+    inside both `CAMPAIGN THREAD` and `ACTIVE DOSSIER`; thread metadata lives in
+    `CAMPAIGN THREAD`, while dossier keeps branch-specific cues
+  - `ActiveStrategicPrompt` now slims `Strategy Pack` prompt surface without
+    changing the shipped carrier/model:
+    - `Signal Digest` no longer serializes `preservedSignals`
+    - structural/deployment summaries take precedence over lower-level raw
+      support rows when both exist
+    - `DecisionComparison` prompt rows are limited to chosen/engine-best/
+      deferred move + deferred reason
+    - `Evidence` is capped to the first rendered line instead of dumping the
+      full list
+  - Active-note validation is now coaching-contract based:
+    - hard fails are limited to empty/unparsed/truncated/leaked output,
+      prior-phrase reuse, `strategy_coverage_low`, and the new
+      `forward_plan_missing`
+    - sentence-count, semantic route/move reference misses, and dossier
+      compare/deferred/opponent gaps are warnings only
+    - route/move reference checks accept semantic mentions such as SAN/UCI,
+      ordered route squares, or piece+square cues rather than exact labels only
+    - prompt + validator share the same `ActiveStrategicCoachingBriefBuilder`
+      coverage helper so forward-looking coverage is checked against the same
+      normalized brief that shaped the prompt
+    - active-note repair runs only when hard-fail reasons are present
+  - Active-note prompt shaping now naturalizes internal metadata before it ever
+    reaches the model:
+    - stage labels such as `Seed/Build/Switch/Convert` are rendered as
+      human-role descriptions instead of title-case tags
+    - route references are rendered as player-facing route summaries
+      (`white knight toward e3 for kingside clamp`, or an exact chain only when
+      the route already cleared the `exact` surface gate) rather than `route_1`
+    - move references are rendered as player-facing move descriptions
+      (`engine-preferred move Nf1 (d2-f1)`) rather than literal move labels or
+      raw UCI
+    - prompt instructions explicitly ban exposing internal ids / labels / UCI
+      and push shorter notes with more varied, concrete sentence openings
+  - Active-note provider/model routing is split from fullgame polish routing:
+    - global polish/segment path still follows `LLM_PROVIDER` and the standard
+      `OPENAI_MODEL_*` / `GEMINI_MODEL` settings
+    - Active note path resolves `LLM_PROVIDER_ACTIVE_NOTE` first and falls back
+      to the global provider if unset
+    - OpenAI active-note-only envs:
+      `OPENAI_MODEL_ACTIVE_SYNC`, `OPENAI_MODEL_ACTIVE_ASYNC`,
+      `OPENAI_MODEL_ACTIVE_FALLBACK`, `OPENAI_REASONING_EFFORT_ACTIVE`
+    - Gemini active-note-only env:
+      `GEMINI_MODEL_ACTIVE`
+    - default OpenAI active-note route is `gpt-5.2` with
+      `reasoning_effort = none`; global/base polish can still remain on
+      `gpt-5-mini`
+    - `OpenAiClient` now treats `gpt-5.2*` / `gpt-5.4*` as modern GPT-5 routes
+      and never sends legacy `reasoning_effort = minimal` to them
+  - segment polish is now narrower:
+    - intro/conclusion moments do not enter the segment path
+    - prose must be at least `80` words
+    - segmenter must expose at least `2` editable segments
+    - max rewritten segments = `4` async / `2` sync
+  - internal-only commentary ops snapshot now exposes per-family prompt-usage
+    aggregates (`promptUsage`) across polish / repair / segment / active-note
+    calls, including attempts, cached hits, prompt tokens, completion tokens,
+    and estimated cost
+  - active-note ops telemetry additionally exposes:
+    - `provider`
+    - `configuredModel`
+    - `fallbackModel`
+    - `reasoningEffort`
+    - `observedModelDistribution`
+    - `primaryAccepted`
+    - `repairAttempts`
+    - `repairRecovered`
+    - `warningReasons`
+    - `route_redeploy_count`
+    - `route_move_ref_count`
+    - `route_hidden_safety_count`
+    - `route_toward_only_count`
+    - `route_exact_surface_count`
+    - `route_opponent_hidden_count`
+  - full-response cache keying now includes the resolved Active-note route
+    fingerprint (`provider/model/fallback/effort`) so changing the
+    active-note-only provider/model does not reuse stale cached fullgame
+    responses
+- Frontend consumes only the sparse public response:
+  - no hidden/internal debug panel
+  - thread summaries, theme/stage badges, and `Campaign Bridge` badges render
+    from visible moments only
+  - review surfaces summarize internal-vs-visible-vs-polished counts
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveThemeSurfaceBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicThreadBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveBridgeMomentPlanner.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategicBranchSelector.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveBranchDossierBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
+- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `modules/llm/src/main/scala/lila/llm/models.scala`
+- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+- `modules/llm/src/main/LlmApi.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveThemeSurfaceBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicThreadBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveBridgeMomentPlannerTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategicBranchSelectorTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveBranchDossierBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala`
+- `modules/llm/src/test/scala/lila/llm/tools/ActiveNarrativeCorpusRunner.scala`
+- `modules/llm/src/test/scala/lila/llm/tools/ActiveNarrativeCorpusSupport.scala`
+- `modules/llm/src/test/scala/lila/llm/tools/ActiveNarrativeCorpusToolsTest.scala`
+- `ui/analyse/src/narrative/narrativeCtrl.ts`
+- `ui/analyse/src/narrative/narrativeView.ts`
+- `ui/analyse/css/_narrative.scss`
+- `ui/analyse/tests/narrativeView.test.ts`
+
+## 2026-03-12 Active Idea-Centered Note Redesign
+
+- Public contract bump:
+  - `StrategyPack.schema = chesstory.strategyPack.v2`
+  - `GameNarrativeResponse.schema = chesstory.gameNarrative.v6`
+- Active note is now explicitly idea-led rather than route-led.
+- New backend/public carriers now ride alongside the existing route/move refs:
+  - `StrategyDirectionalTarget`
+  - `StrategyIdeaSignal`
+  - `ActiveStrategicIdeaRef`
+- `StrategyPack` now preserves three distinct execution buckets without relaxing
+  route hardening:
+  - `pieceRoutes`: currently realistic redeployment only
+  - `directionalTargets`: empty strategic squares worth working toward, but not
+    yet route-quality
+  - `pieceMoveRefs`: capture / exchange / tactical entry squares only
+- Directional targets are derived only from empty squares; enemy-occupied
+  squares remain excluded and stay in move-ref/tactical handling.
+- A new deterministic `StrategicIdeaSelector` now runs on top of the built
+  `StrategyPack` before Active-note shaping:
+  - precedence: explicit plan/digest/prophylaxis/structure cues ->
+    directional targets -> routes -> move refs / counterplay cues
+  - emits exactly one dominant idea and at most one secondary idea
+  - secondary idea is allowed only within the documented score window and from
+    a different `StrategicIdeaGroup`
+- `NarrativeSignalDigest` now carries summary-only idea fields:
+  - `dominantIdeaKind`, `dominantIdeaGroup`, `dominantIdeaReadiness`,
+    `dominantIdeaFocus`
+  - `secondaryIdeaKind`, `secondaryIdeaGroup`, `secondaryIdeaFocus`
+- Full-game moment payload now also carries Active-note-specific structured
+  surfaces:
+  - `activeStrategicIdeas`
+  - `activeDirectionalTargets`
+  - existing `activeStrategicRoutes` and `activeStrategicMoves` remain present
+- `ActiveStrategicCoachingBriefBuilder` contract is now:
+  - `campaignRole`
+  - `primaryIdea`
+  - `whyNow`
+  - `opponentReply`
+  - `executionHint`
+  - `longTermObjective`
+  - `keyTrigger`
+- Prompt/validation behavior changed accordingly:
+  - Active prompt centers the dominant idea and allows at most one support from
+    `executionHint` or `longTermObjective`
+  - route wording is explicitly supporting evidence, not the thesis sentence
+  - validator no longer expects generic route/move mention by default
+  - hard requirements are now:
+    - grounded dominant idea
+    - forward plan
+    - opponent resource or failure trigger
+- Frontend Active-note UI no longer uses a single fallback chip row as the main
+  explanation surface. It now renders three explicit UI-owned surfaces:
+  - `Idea`
+  - `Execution`
+  - `Objective`
+- Rendering rules:
+  - exact routes keep raw path preview
+  - `toward` execution cues do not expose raw path payload
+  - directional targets do not reuse route-chip styling
+  - move refs stay out of the default user-facing chip row in this stream
+- Minimal non-Active support added elsewhere:
+  - Bookmaker / digest payload types accept the new idea summary fields
+  - no new Bookmaker prose contract was introduced in this stream
+
+Verification:
+- `modules/llm/docs/ActiveNoteIdeaRedesignPlan_20260312.md`
+- `modules/llm/docs/ActiveNoteIdeaRedesignPrompt_20260312.md`
+- `modules/llm/src/main/scala/lila/llm/models.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/strategic/StrategicAnalyzers.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicNoteValidator.scala`
+- `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+- `modules/llm/src/main/LlmApi.scala`
+- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+- `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala`
+- `ui/analyse/src/narrative/narrativeCtrl.ts`
+- `ui/analyse/src/narrative/narrativeView.ts`
+- `ui/analyse/src/bookmaker/responsePayload.ts`
+- `ui/analyse/css/_narrative.scss`
+- `ui/analyse/tests/narrativeView.test.ts`
 
 ## Reference Files
 

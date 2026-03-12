@@ -53,14 +53,25 @@ export interface NarrativeSignalDigest {
     centerState?: string;
     alignmentBand?: string;
     alignmentReasons?: string[];
+    deploymentOwnerSide?: string;
     deploymentPiece?: string;
     deploymentRoute?: string[];
     deploymentPurpose?: string;
     deploymentContribution?: string;
-    deploymentConfidence?: number;
+    deploymentStrategicFit?: number;
+    deploymentTacticalSafety?: number;
+    deploymentSurfaceConfidence?: number;
+    deploymentSurfaceMode?: 'exact' | 'toward' | 'hidden';
     prophylaxisPlan?: string;
     prophylaxisThreat?: string;
     counterplayScoreDrop?: number;
+    dominantIdeaKind?: StrategicIdeaKind;
+    dominantIdeaGroup?: StrategicIdeaGroup;
+    dominantIdeaReadiness?: 'ready' | 'build' | 'premature' | 'blocked';
+    dominantIdeaFocus?: string;
+    secondaryIdeaKind?: StrategicIdeaKind;
+    secondaryIdeaGroup?: StrategicIdeaGroup;
+    secondaryIdeaFocus?: string;
     decision?: string;
     strategicFlow?: string;
     opponentPlan?: string;
@@ -94,6 +105,9 @@ export interface GameNarrativeMoment {
     momentType: string;
     fen: string;
     narrative: string;
+    selectionKind?: 'key' | 'opening' | 'thread_bridge' | string;
+    selectionLabel?: string;
+    selectionReason?: string;
     concepts: string[];
     variations: VariationLine[];
     cpBefore?: number;
@@ -117,9 +131,12 @@ export interface GameNarrativeMoment {
     strategicBranch?: boolean;
     activeStrategicNote?: string;
     activeStrategicSourceMode?: string;
+    activeStrategicIdeas?: ActiveStrategicIdeaRef[];
     activeStrategicRoutes?: ActiveStrategicRouteRef[];
     activeStrategicMoves?: ActiveStrategicMoveRef[];
+    activeDirectionalTargets?: StrategyDirectionalTarget[];
     activeBranchDossier?: ActiveBranchDossier;
+    strategicThread?: ActiveStrategicThreadRef;
 }
 
 export interface ProbeRequest {
@@ -170,11 +187,54 @@ export interface AuthorEvidenceSummary {
     linkedPlans?: string[];
 }
 
+export type StrategicIdeaKind =
+    | 'pawn_break'
+    | 'space_gain_or_restriction'
+    | 'target_fixing'
+    | 'line_occupation'
+    | 'outpost_creation_or_occupation'
+    | 'minor_piece_imbalance_exploitation'
+    | 'prophylaxis'
+    | 'king_attack_build_up'
+    | 'favorable_trade_or_transformation'
+    | 'counterplay_suppression';
+
+export type StrategicIdeaGroup =
+    | 'structural_change'
+    | 'piece_and_line_management'
+    | 'interaction_and_transformation';
+
 export interface ActiveStrategicRouteRef {
     routeId: string;
+    ownerSide: string;
     piece: string;
     route: string[];
     purpose: string;
+    strategicFit: number;
+    tacticalSafety: number;
+    surfaceConfidence: number;
+    surfaceMode: 'exact' | 'toward' | 'hidden';
+}
+
+export interface StrategyDirectionalTarget {
+    targetId: string;
+    ownerSide: string;
+    piece: string;
+    from: string;
+    targetSquare: string;
+    readiness: 'build' | 'premature' | 'blocked' | 'contested';
+    strategicReasons?: string[];
+    prerequisites?: string[];
+    evidence?: string[];
+}
+
+export interface ActiveStrategicIdeaRef {
+    ideaId: string;
+    ownerSide: string;
+    kind: StrategicIdeaKind | string;
+    group: StrategicIdeaGroup | string;
+    readiness: 'ready' | 'build' | 'premature' | 'blocked';
+    focusSummary: string;
     confidence: number;
 }
 
@@ -188,10 +248,14 @@ export interface ActiveStrategicMoveRef {
 
 export interface ActiveBranchRouteCue {
     routeId: string;
+    ownerSide: string;
     piece: string;
     route: string[];
     purpose: string;
-    confidence: number;
+    strategicFit: number;
+    tacticalSafety: number;
+    surfaceConfidence: number;
+    surfaceMode: 'exact' | 'toward' | 'hidden';
 }
 
 export interface ActiveBranchMoveCue {
@@ -215,6 +279,31 @@ export interface ActiveBranchDossier {
     continuationFocus?: string;
     practicalRisk?: string;
     comparisonGapCp?: number;
+    threadLabel?: string;
+    threadStage?: string;
+    threadSummary?: string;
+    threadOpponentCounterplan?: string;
+}
+
+export interface ActiveStrategicThreadRef {
+    threadId: string;
+    themeKey: string;
+    themeLabel: string;
+    stageKey: string;
+    stageLabel: string;
+}
+
+export interface ActiveStrategicThread {
+    threadId: string;
+    side: 'white' | 'black' | string;
+    themeKey: string;
+    themeLabel: string;
+    summary: string;
+    seedPly: number;
+    lastPly: number;
+    representativePlies: number[];
+    opponentCounterplan?: string;
+    continuityScore: number;
 }
 
 export interface GameNarrativeReview {
@@ -225,6 +314,11 @@ export interface GameNarrativeReview {
     evalCoveragePct: number;
     selectedMoments: number;
     selectedMomentPlies: number[];
+    internalMomentCount?: number;
+    visibleMomentCount?: number;
+    polishedMomentCount?: number;
+    visibleStrategicMomentCount?: number;
+    visibleBridgeMomentCount?: number;
     blundersCount?: number;
     missedWinsCount?: number;
     brilliantMovesCount?: number;
@@ -242,6 +336,7 @@ export interface GameNarrativeResponse {
     model?: string | null;
     planTier?: string;
     llmLevel?: string;
+    strategicThreads?: ActiveStrategicThread[];
     ccaEnabled?: boolean;
 }
 

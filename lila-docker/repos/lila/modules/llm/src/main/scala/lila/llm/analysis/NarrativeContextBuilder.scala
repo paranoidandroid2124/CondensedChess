@@ -2082,7 +2082,8 @@ object NarrativeContextBuilder:
       isTrapped = pa.isTrapped,
       isBadBishop = pa.isBadBishop,
       keyRoutes = pa.keyRoutes.map(_.key),
-      coordinationLinks = pa.coordinationLinks.map(_.key)
+      coordinationLinks = pa.coordinationLinks.map(_.key),
+      directionalTargets = pa.directionalTargets.map(_.key)
     )
   }
 

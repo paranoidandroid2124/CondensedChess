@@ -76,14 +76,25 @@ export type NarrativeSignalDigest = {
     centerState?: string;
     alignmentBand?: string;
     alignmentReasons?: string[];
+    deploymentOwnerSide?: string;
     deploymentPiece?: string;
     deploymentRoute?: string[];
     deploymentPurpose?: string;
     deploymentContribution?: string;
-    deploymentConfidence?: number;
+    deploymentStrategicFit?: number;
+    deploymentTacticalSafety?: number;
+    deploymentSurfaceConfidence?: number;
+    deploymentSurfaceMode?: 'exact' | 'toward' | 'hidden';
     prophylaxisPlan?: string;
     prophylaxisThreat?: string;
     counterplayScoreDrop?: number;
+    dominantIdeaKind?: StrategicIdeaKind;
+    dominantIdeaGroup?: StrategicIdeaGroup;
+    dominantIdeaReadiness?: 'ready' | 'build' | 'premature' | 'blocked';
+    dominantIdeaFocus?: string;
+    secondaryIdeaKind?: StrategicIdeaKind;
+    secondaryIdeaGroup?: StrategicIdeaGroup;
+    secondaryIdeaFocus?: string;
     decision?: string;
     strategicFlow?: string;
     opponentPlan?: string;
@@ -91,6 +102,23 @@ export type NarrativeSignalDigest = {
 };
 
 export type DecisionComparisonDigest = DecisionComparisonDigestLike;
+
+export type StrategicIdeaKind =
+    | 'pawn_break'
+    | 'space_gain_or_restriction'
+    | 'target_fixing'
+    | 'line_occupation'
+    | 'outpost_creation_or_occupation'
+    | 'minor_piece_imbalance_exploitation'
+    | 'prophylaxis'
+    | 'king_attack_build_up'
+    | 'favorable_trade_or_transformation'
+    | 'counterplay_suppression';
+
+export type StrategicIdeaGroup =
+    | 'structural_change'
+    | 'piece_and_line_management'
+    | 'interaction_and_transformation';
 
 export type EngineAlternative = {
     uci: string;
@@ -102,9 +130,35 @@ export type EngineAlternative = {
 
 export type ActiveStrategicRouteRef = {
     routeId: string;
+    ownerSide: string;
     piece: string;
     route: string[];
     purpose: string;
+    strategicFit: number;
+    tacticalSafety: number;
+    surfaceConfidence: number;
+    surfaceMode: 'exact' | 'toward' | 'hidden';
+};
+
+export type StrategyDirectionalTarget = {
+    targetId: string;
+    ownerSide: string;
+    piece: string;
+    from: string;
+    targetSquare: string;
+    readiness: 'build' | 'premature' | 'blocked' | 'contested';
+    strategicReasons?: string[];
+    prerequisites?: string[];
+    evidence?: string[];
+};
+
+export type ActiveStrategicIdeaRef = {
+    ideaId: string;
+    ownerSide: string;
+    kind: StrategicIdeaKind | string;
+    group: StrategicIdeaGroup | string;
+    readiness: 'ready' | 'build' | 'premature' | 'blocked';
+    focusSummary: string;
     confidence: number;
 };
 
@@ -118,10 +172,14 @@ export type ActiveStrategicMoveRef = {
 
 export type ActiveBranchRouteCue = {
     routeId: string;
+    ownerSide: string;
     piece: string;
     route: string[];
     purpose: string;
-    confidence: number;
+    strategicFit: number;
+    tacticalSafety: number;
+    surfaceConfidence: number;
+    surfaceMode: 'exact' | 'toward' | 'hidden';
 };
 
 export type ActiveBranchMoveCue = {
@@ -145,6 +203,31 @@ export type ActiveBranchDossier = {
     continuationFocus?: string;
     practicalRisk?: string;
     comparisonGapCp?: number;
+    threadLabel?: string;
+    threadStage?: string;
+    threadSummary?: string;
+    threadOpponentCounterplan?: string;
+};
+
+export type ActiveStrategicThreadRef = {
+    threadId: string;
+    themeKey: string;
+    themeLabel: string;
+    stageKey: string;
+    stageLabel: string;
+};
+
+export type ActiveStrategicThread = {
+    threadId: string;
+    side: 'white' | 'black' | string;
+    themeKey: string;
+    themeLabel: string;
+    summary: string;
+    seedPly: number;
+    lastPly: number;
+    representativePlies: number[];
+    opponentCounterplan?: string;
+    continuityScore: number;
 };
 
 export type ProbeRequest = {
@@ -204,6 +287,9 @@ type GameNarrativeMoment = {
     momentType: string;
     fen: string;
     narrative: string;
+    selectionKind?: 'key' | 'opening' | 'thread_bridge' | string;
+    selectionLabel?: string;
+    selectionReason?: string;
     concepts: string[];
     variations: VariationLine[];
     cpBefore?: number;
@@ -227,9 +313,12 @@ type GameNarrativeMoment = {
     strategicBranch?: boolean;
     activeStrategicNote?: string;
     activeStrategicSourceMode?: string;
+    activeStrategicIdeas?: ActiveStrategicIdeaRef[];
     activeStrategicRoutes?: ActiveStrategicRouteRef[];
     activeStrategicMoves?: ActiveStrategicMoveRef[];
+    activeDirectionalTargets?: StrategyDirectionalTarget[];
     activeBranchDossier?: ActiveBranchDossier;
+    strategicThread?: ActiveStrategicThreadRef;
 };
 type GameNarrativeReview = {
     schemaVersion?: number;
@@ -239,6 +328,11 @@ type GameNarrativeReview = {
     evalCoveragePct: number;
     selectedMoments: number;
     selectedMomentPlies: number[];
+    internalMomentCount?: number;
+    visibleMomentCount?: number;
+    polishedMomentCount?: number;
+    visibleStrategicMomentCount?: number;
+    visibleBridgeMomentCount?: number;
     blundersCount?: number;
     missedWinsCount?: number;
     brilliantMovesCount?: number;
@@ -255,6 +349,7 @@ type GameNarrativeResponse = {
     model?: string | null;
     planTier?: string;
     llmLevel?: string;
+    strategicThreads?: ActiveStrategicThread[];
 };
 
 const reviewCardInteractiveSelector = [
@@ -349,9 +444,14 @@ function outlineSummary(bits: Array<string | null | undefined>, limit = 2): stri
 function narrativeMomentOutlineCopy(moment: GameNarrativeMoment) {
     const classification = moment.moveClassification ? humanizeToken(moment.moveClassification) : null;
     const momentType = moment.momentType ? humanizeToken(moment.momentType) : null;
-    const title = classification || momentType || 'Key Moment';
+    const selectionTitle =
+        moment.selectionKind === 'thread_bridge'
+            ? moment.selectionLabel || 'Campaign Bridge'
+            : null;
+    const title = classification || selectionTitle || momentType || 'Key Moment';
     const detail = outlineSummary(
         [
+            selectionTitle && selectionTitle !== title ? selectionTitle : null,
             momentType && momentType !== title ? momentType : null,
             ...((moment.concepts || []).slice(0, 2)),
             moment.transitionType ? humanizeToken(moment.transitionType) : null,
@@ -393,14 +493,38 @@ function formatEvidenceScore(evalCp?: number | null, mate?: number | null): stri
 function formatNarrativeDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
     if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
     const route = (signalDigest.deploymentRoute || []).filter(Boolean);
-    const confidence = typeof signalDigest.deploymentConfidence === 'number' ? signalDigest.deploymentConfidence : null;
-    const exact = !!confidence && confidence >= 0.78 && route.length >= 3;
+    const surfaceMode = signalDigest.deploymentSurfaceMode || 'hidden';
+    if (surfaceMode === 'hidden') return null;
     const destination = route[route.length - 1] || '';
-    const lead = exact
+    const lead = surfaceMode === 'exact'
         ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
         : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
     const contribution = signalDigest.deploymentContribution?.trim();
     return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
+}
+
+function routeSurfaceText(route: { piece: string; route: string[]; surfaceMode: 'exact' | 'toward' | 'hidden' }): string {
+    const squares = (route.route || []).filter(Boolean);
+    const destination = squares[squares.length - 1] || 'the target square';
+    return route.surfaceMode === 'exact' ? `${route.piece} ${squares.join('-')}` : `${route.piece} toward ${destination}`;
+}
+
+function humanizeIdeaKind(kind: string): string {
+    return humanizeToken(kind.replace(/_/g, ' '));
+}
+
+function ideaSurfaceText(idea: ActiveStrategicIdeaRef): string {
+    const focus = (idea.focusSummary || '').trim();
+    const readiness = idea.readiness === 'ready' ? '' : humanizeToken(idea.readiness);
+    return [humanizeIdeaKind(idea.kind), focus, readiness].filter(Boolean).join(' · ');
+}
+
+function objectiveSurfaceText(target: StrategyDirectionalTarget): string {
+    return `work toward making ${target.targetSquare} available`;
+}
+
+function routeOwnerLabel(side: string): string {
+    return side === 'black' ? 'Black' : 'White';
 }
 
 function eventTargetElement(target: EventTarget | null): Element | null {
@@ -651,6 +775,13 @@ function defeatDnaRecentTable(ctrl: NarrativeCtrl): VNode {
 // ── Story View ────────────────────────────────────────────────────────
 
 function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode {
+    const threadSummaries = new Map<number, ActiveStrategicThread>();
+    (doc.strategicThreads || []).forEach(thread => {
+        const firstRepresentative = (thread.representativePlies || []).find(Boolean);
+        if (typeof firstRepresentative === 'number' && !threadSummaries.has(firstRepresentative)) {
+            threadSummaries.set(firstRepresentative, thread);
+        }
+    });
     return hl('div.narrative-doc', {
         hook: {
             insert: vnode => {
@@ -686,6 +817,7 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
         ]),
         ...(doc.moments || []).map((moment, index) => narrativeMomentView(ctrl, moment, {
             anchorId: narrativeMomentAnchorId(moment, index),
+            threadSummary: threadSummaries.get(moment.ply),
         })),
         hl('section.narrative-conclusion', {
             attrs: { id: NARRATIVE_CONCLUSION_ANCHOR_ID },
@@ -760,6 +892,11 @@ export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: Narrative
     const evalCoveredPlies = Math.max(0, review.evalCoveredPlies || 0);
     const evalCoveragePct = Math.max(0, Math.min(100, review.evalCoveragePct || 0));
     const selectedMoments = Math.max(0, review.selectedMoments || 0);
+    const internalMomentCount = Math.max(0, review.internalMomentCount || 0);
+    const visibleMomentCount = Math.max(0, review.visibleMomentCount || selectedMoments);
+    const polishedMomentCount = Math.max(0, review.polishedMomentCount || 0);
+    const visibleStrategicMomentCount = Math.max(0, review.visibleStrategicMomentCount || 0);
+    const visibleBridgeMomentCount = Math.max(0, review.visibleBridgeMomentCount || 0);
     const totalMoves = Math.max(1, Math.ceil(totalPlies / 2));
     const selectedMomentPlies = (review.selectedMomentPlies || [])
         .map(p => Math.trunc(p))
@@ -777,6 +914,15 @@ export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: Narrative
             review.blundersCount !== undefined ? hl('span.narrative-review-metric.blunder', `Blunders: ${review.blundersCount}`) : null,
             review.missedWinsCount !== undefined ? hl('span.narrative-review-metric.missed', `Missed Wins: ${review.missedWinsCount}`) : null,
             hl('span.narrative-review-metric', `Selected moments: ${selectedMoments}`),
+            internalMomentCount > 0 ? hl('span.narrative-review-metric', `Internal coverage: ${internalMomentCount}`) : null,
+            review.visibleMomentCount !== undefined ? hl('span.narrative-review-metric', `Visible moments: ${visibleMomentCount}`) : null,
+            review.polishedMomentCount !== undefined ? hl('span.narrative-review-metric', `Polish targets: ${polishedMomentCount}`) : null,
+            review.visibleStrategicMomentCount !== undefined
+                ? hl('span.narrative-review-metric', `Strategic reps: ${visibleStrategicMomentCount}`)
+                : null,
+            review.visibleBridgeMomentCount !== undefined
+                ? hl('span.narrative-review-metric', `Visible bridges: ${visibleBridgeMomentCount}`)
+                : null,
         ]),
         totalPlies > 0
             ? hl('div.narrative-review-timeline', [
@@ -824,15 +970,19 @@ export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: Narrative
 export function narrativeMomentView(
     ctrl: NarrativeCtrl,
     moment: GameNarrativeMoment,
-    opts: { selected?: boolean; onSelect?: () => void; anchorId?: string } = {},
+    opts: { selected?: boolean; onSelect?: () => void; anchorId?: string; threadSummary?: ActiveStrategicThread } = {},
 ): VNode {
     const title = moveLabel(moment.ply, moment.side, moment.moveNumber);
     const variations = (moment.variations || []).filter(v => Array.isArray(v.moves) && v.moves.length);
     const hasStrategicBlock =
+        !!opts.threadSummary ||
         !!moment.activeStrategicNote ||
         !!moment.activeBranchDossier ||
+        !!moment.activeStrategicIdeas?.length ||
         !!moment.activeStrategicMoves?.length ||
-        !!moment.activeStrategicRoutes?.length;
+        !!moment.activeStrategicRoutes?.length ||
+        !!moment.activeDirectionalTargets?.length ||
+        !!moment.strategicThread;
 
     return hl('section.narrative-moment', {
         attrs: opts.anchorId ? { 'data-ply': moment.ply, id: opts.anchorId } : { 'data-ply': moment.ply },
@@ -857,12 +1007,19 @@ export function narrativeMomentView(
                 }, title),
                 moment.side ? hl(`span.narrative-side.${moment.side}`, moment.side) : null,
                 moment.moveClassification ? narrativeBadgeView(moment.moveClassification, 'classification') : null,
+                moment.selectionKind === 'thread_bridge' && moment.selectionLabel
+                    ? narrativeBadgeView(moment.selectionLabel, 'selection')
+                    : null,
                 moment.momentType ? narrativeBadgeView(moment.momentType, 'type') : null,
                 moment.strategicSalience ? narrativeBadgeView(moment.strategicSalience, 'salience') : null,
                 moment.strategicBranch ? narrativeBadgeView('Strategic Branch', 'branch') : null,
             ]),
             moment.concepts?.length ? hl('div.narrative-concepts', moment.concepts.map(c => hl('span.narrative-concept', c))) : null,
         ]),
+        opts.threadSummary ? narrativeThreadSummaryView(opts.threadSummary) : null,
+        moment.selectionKind === 'thread_bridge' && moment.selectionReason
+            ? hl('div.narrative-selection-reason', moment.selectionReason)
+            : null,
         narrativeProseView(ctrl, moment, moment.narrative, 'moment'),
         narrativeSignalSummaryView(ctrl, moment),
         narrativeEvidenceSummaryView(ctrl, moment),
@@ -1243,42 +1400,89 @@ function narrativeEvidenceMoveChip(keyMove: string, moveRefs: Map<string, string
 function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
     const note = moment.activeStrategicNote;
     const dossier = moment.activeBranchDossier;
+    const threadLabel = dossier?.threadLabel || moment.strategicThread?.themeLabel;
+    const threadStage = dossier?.threadStage || moment.strategicThread?.stageLabel;
     const strategicMoves = (moment.activeStrategicMoves || []).filter(m => typeof m.uci === 'string' && m.uci.length >= 4);
-    const strategicRoutes = (moment.activeStrategicRoutes || []).filter(r => Array.isArray(r.route) && r.route.length >= 2);
-    const showFallbackMoves = strategicMoves.length && !dossier?.moveCue;
-    const showFallbackRoutes = strategicRoutes.length && !dossier?.routeCue;
+    const strategicIdeas = (moment.activeStrategicIdeas || []).filter(
+        idea => typeof idea.kind === 'string' && typeof idea.focusSummary === 'string' && idea.focusSummary.length,
+    );
+    const strategicRoutes = (moment.activeStrategicRoutes || []).filter(
+        r => Array.isArray(r.route) && r.route.length >= 2 && r.surfaceMode !== 'hidden',
+    );
+    const objectiveTargets = (moment.activeDirectionalTargets || []).filter(
+        target => target.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side),
+    );
+    const fallbackRoutes = strategicRoutes.filter(route => route.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side));
+    const executionRoute =
+        dossier?.routeCue && dossier.routeCue.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side)
+            ? dossier.routeCue
+            : fallbackRoutes[0];
 
     return hl('div.narrative-strategic-note-box', [
-        hl('h3.narrative-strategic-note-title', 'Strategic Note'),
+        hl('div.narrative-strategic-note-head', [
+            hl('h3.narrative-strategic-note-title', 'Strategic Note'),
+            threadLabel ? narrativeBadgeView(threadLabel, 'theme') : null,
+            threadStage ? narrativeBadgeView(threadStage, 'stage') : null,
+        ]),
         note ? narrativeProseView(ctrl, moment, note, 'note') : null,
+        strategicIdeas.length ? narrativeStrategicIdeasSurface(strategicIdeas) : null,
+        executionRoute ? narrativeStrategicExecutionSurface(moment, executionRoute) : null,
+        objectiveTargets.length ? narrativeStrategicObjectiveSurface(objectiveTargets) : null,
         dossier ? narrativeBranchDossierView(moment, strategicMoves) : null,
-        showFallbackMoves ? hl('div.narrative-strategic-moves', [
-            hl('span.narrative-strategic-label', 'Mini-board moves:'),
-            hl('div.narrative-strategic-move-list', strategicMoves.map((move, idx) => {
-                const uci = move.uci.toLowerCase();
-                const afterFen = move.fenAfter || '';
-                const preview = afterFen && uci.length >= 4 ? `${afterFen}|${uci}` : null;
-                return hl('span.narrative-strategic-chip', {
-                    key: `${move.source}:${uci}:${idx}`,
-                    attrs: preview ? { 'data-board': preview, title: move.label } : { title: move.label },
-                }, move.san || uci);
-            })),
-        ]) : null,
-        showFallbackRoutes ? hl('div.narrative-strategic-routes', [
-            hl('span.narrative-strategic-label', 'Reroute paths:'),
-            hl('div.narrative-strategic-route-list', strategicRoutes.map(route => {
-                const routeText = route.route.join('-');
-                const title = `${route.piece} ${route.purpose}`;
-                return hl('span.narrative-strategic-chip.route', {
-                    key: route.routeId,
-                    attrs: {
-                        'data-route': routeText,
-                        'data-route-fen': moment.fen,
-                        title,
-                    },
-                }, `${route.piece}${routeText} (${Math.round(route.confidence * 100)}%)`);
-            })),
-        ]) : null,
+    ]);
+}
+
+function narrativeStrategicIdeasSurface(ideas: ActiveStrategicIdeaRef[]): VNode {
+    return hl('div.narrative-strategic-surface.narrative-strategic-surface--idea', [
+        hl('div.narrative-strategic-surface__label', 'Idea'),
+        hl('div.narrative-strategic-surface__body', ideas.map((idea, idx) =>
+            hl('span.narrative-strategic-chip.narrative-strategic-chip--idea', {
+                key: idea.ideaId,
+                attrs: {
+                    title: `${idx === 0 ? 'Dominant' : 'Secondary'} · ${humanizeToken(idea.group)}`,
+                },
+            }, `${idx === 0 ? 'Dominant' : 'Secondary'}: ${ideaSurfaceText(idea)}`),
+        )),
+    ]);
+}
+
+function narrativeStrategicExecutionSurface(
+    moment: GameNarrativeMoment,
+    route: ActiveStrategicRouteRef | ActiveBranchRouteCue,
+): VNode {
+    const routeText = route.route.join('-');
+    const attrs =
+        route.surfaceMode === 'exact'
+            ? {
+                'data-route': routeText,
+                'data-route-fen': moment.fen,
+                title: route.purpose,
+            }
+            : { title: route.purpose };
+    return hl('div.narrative-strategic-surface.narrative-strategic-surface--execution', [
+        hl('div.narrative-strategic-surface__label', 'Execution'),
+        hl('div.narrative-strategic-surface__body', [
+            hl(`span.narrative-strategic-chip${route.surfaceMode === 'exact' ? '.route' : ''}.narrative-strategic-chip--execution`, {
+                attrs,
+            }, routeSurfaceText(route)),
+        ]),
+    ]);
+}
+
+function narrativeStrategicObjectiveSurface(targets: StrategyDirectionalTarget[]): VNode {
+    return hl('div.narrative-strategic-surface.narrative-strategic-surface--objective', [
+        hl('div.narrative-strategic-surface__label', 'Objective'),
+        hl('div.narrative-strategic-surface__body', targets.map(target =>
+            hl('span.narrative-strategic-chip.narrative-strategic-chip--objective', {
+                key: target.targetId,
+                attrs: {
+                    title: [
+                        ...((target.strategicReasons || []).slice(0, 2)),
+                        ...((target.prerequisites || []).slice(0, 2)),
+                    ].join(' · '),
+                },
+            }, `${objectiveSurfaceText(target)} · ${humanizeToken(target.readiness)}`),
+        )),
     ]);
 }
 
@@ -1298,6 +1502,8 @@ function narrativeBranchDossierView(
     const detailRows: Array<[string, string | VNode]> = [
         dossier.whyDeferred ? ['Why deferred', dossier.whyDeferred] : null,
         dossier.opponentResource ? ['Opponent resource', dossier.opponentResource] : null,
+        dossier.threadSummary ? ['Thread', dossier.threadSummary] : null,
+        dossier.threadOpponentCounterplan ? ['Thread counterplan', dossier.threadOpponentCounterplan] : null,
         dossier.evidenceCue ? ['Evidence', dossier.evidenceCue] : null,
         dossier.continuationFocus ? ['Continuation', dossier.continuationFocus] : null,
         dossier.practicalRisk ? ['Practical risk', dossier.practicalRisk] : null,
@@ -1318,6 +1524,12 @@ function narrativeBranchDossierView(
             ? hl('div.narrative-branch-dossier__row', [
                 hl('span.narrative-branch-dossier__label', 'Deferred'),
                 hl('span.narrative-branch-dossier__value', dossier.deferredBranchLabel),
+            ])
+            : null,
+        dossier.threadLabel
+            ? hl('div.narrative-branch-dossier__row', [
+                hl('span.narrative-branch-dossier__label', 'Thread'),
+                hl('span.narrative-branch-dossier__value', dossier.threadStage ? `${dossier.threadLabel} (${dossier.threadStage})` : dossier.threadLabel),
             ])
             : null,
         routeCue
@@ -1368,13 +1580,18 @@ function narrativeBranchDossierView(
 
 function narrativeBranchRouteChip(moment: GameNarrativeMoment, cue: ActiveBranchRouteCue): VNode {
     const routeText = cue.route.join('-');
-    return hl('span.narrative-strategic-chip.route.narrative-branch-dossier__chip', {
-        attrs: {
-            'data-route': routeText,
-            'data-route-fen': moment.fen,
-            title: `${cue.routeId} · ${cue.purpose}`,
-        },
-    }, `${cue.routeId} ${cue.piece}${routeText}`);
+    const text = `${routeOwnerLabel(cue.ownerSide)} ${routeSurfaceText(cue)}`;
+    const attrs =
+        cue.surfaceMode === 'exact'
+            ? {
+                  'data-route': routeText,
+                  'data-route-fen': moment.fen,
+                  title: `${cue.routeId} · ${cue.purpose}`,
+              }
+            : { title: `${cue.routeId} · ${cue.purpose}` };
+    return hl(`span.narrative-strategic-chip${cue.surfaceMode === 'exact' ? '.route' : ''}.narrative-branch-dossier__chip`, {
+        attrs,
+    }, text);
 }
 
 function narrativeBranchMoveChip(
@@ -1673,7 +1890,22 @@ function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNo
     ]);
 }
 
-function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience' | 'branch'): VNode {
+function narrativeThreadSummaryView(thread: ActiveStrategicThread): VNode {
+    const meta = [
+        thread.opponentCounterplan ? `Counterplan: ${thread.opponentCounterplan}` : '',
+        Number.isFinite(thread.continuityScore) ? `Continuity ${Math.round(thread.continuityScore * 100)}%` : '',
+    ].filter(Boolean).join(' · ');
+    return hl('div.narrative-thread-summary', [
+        hl('span.narrative-thread-summary__eyebrow', 'Campaign Thread'),
+        hl('div.narrative-thread-summary__body', [
+            hl('strong.narrative-thread-summary__title', thread.themeLabel),
+            hl('span.narrative-thread-summary__copy', thread.summary),
+            meta ? hl('span.narrative-thread-summary__meta', meta) : null,
+        ]),
+    ]);
+}
+
+function narrativeBadgeView(text: string, kind: 'classification' | 'type' | 'salience' | 'branch' | 'theme' | 'stage' | 'selection'): VNode {
     const cls = text.toLowerCase().replace(/\s+/g, '-');
     return hl(`span.narrative-badge.${kind}.${cls}`, text);
 }

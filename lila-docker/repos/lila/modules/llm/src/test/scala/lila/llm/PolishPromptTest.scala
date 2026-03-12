@@ -19,6 +19,7 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("do not emit UI section titles"))
     assert(prompt.contains("2-4 short paragraphs"))
     assert(prompt.contains("Context Mode: Isolated Move"))
+    assert(prompt.indexOf("## CONTEXT") < prompt.indexOf("## DRAFT COMMENTARY"))
     assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
   }
 
@@ -44,5 +45,30 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("do not emit UI section titles"))
     assert(prompt.contains("Repair REJECTED_POLISH into a strict-valid final commentary."))
     assert(prompt.contains("2-4 short paragraphs"))
+    assert(prompt.indexOf("## CONTEXT") < prompt.indexOf("## ORIGINAL_DRAFT"))
     assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
+  }
+
+  test("buildPolishPrompt omits empty optional context fields") {
+    val prompt = PolishPrompt.buildPolishPrompt(
+      prose = "White keeps the position under control.",
+      phase = "opening",
+      evalDelta = None,
+      concepts = Nil,
+      fen = "",
+      openingName = None,
+      nature = None,
+      tension = None,
+      salience = None,
+      momentType = Some("Game Intro")
+    )
+
+    assert(prompt.contains("Phase: opening | Eval Δ: N/A"))
+    assert(prompt.contains("Context Mode: Key Moment (Game Intro) - Part of Full Game Review"))
+    assert(!prompt.contains("Opening:"))
+    assert(!prompt.contains("Concepts:"))
+    assert(!prompt.contains("FEN:"))
+    assert(!prompt.contains("Salience:"))
+    assert(!prompt.contains("Nature:"))
+    assert(!prompt.contains("Tension:"))
   }

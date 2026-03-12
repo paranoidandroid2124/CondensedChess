@@ -2,6 +2,7 @@ package lila.llm.analysis
 
 import lila.llm.model.*
 import lila.llm.model.authoring.*
+import lila.llm.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
 
 object BookmakerProseGoldenFixtures:
 
@@ -62,7 +63,8 @@ object BookmakerProseGoldenFixtures:
       name: String,
       score: Double = 0.84,
       theme: String = "unknown",
-      evidence: List[String] = Nil
+      evidence: List[String] = Nil,
+      subplan: Option[String] = None
   ): PlanHypothesis =
     PlanHypothesis(
       planId = id,
@@ -74,7 +76,8 @@ object BookmakerProseGoldenFixtures:
       failureModes = Nil,
       viability = PlanViability(score = score, label = "high", risk = "slow burn"),
       evidenceSources = evidence,
-      themeL1 = theme
+      themeL1 = theme,
+      subplanId = subplan
     )
 
   val rookPawnMarch: Fixture =
@@ -385,6 +388,79 @@ object BookmakerProseGoldenFixtures:
           )
         ),
         whyAbsentFromTopMultiPV = List("""the sharper "e4" push gives Black tactical counterplay for little gain""")
+      )
+    )
+
+  val oppositeBishopsConversion: Fixture =
+    Fixture(
+      id = "opposite_bishops_conversion",
+      title = "Opposite Bishops Conversion",
+      motif = "opposite-coloured bishops conversion",
+      expectedLens = StrategicLens.Structure,
+      ctx = baseContext(
+        fen = "8/5pk1/3b2p1/3P4/5P2/6P1/5BK1/8 w - - 0 45",
+        playedMove = "g2f3",
+        playedSan = "Bf3",
+        primaryPlan = "Opposite Bishops Conversion",
+        phaseLabel = "Endgame"
+      ).copy(
+        ply = 90,
+        phase = PhaseContext("Endgame", "Opposite-colored bishops with a conversion window"),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = List(
+              PositionalTagInfo("OppositeColorBishops", None, None, "Both"),
+              PositionalTagInfo("ColorComplexWeakness", None, None, "Black", Some("dark squares: f6,h6"))
+            ),
+            compensation = None,
+            endgameFeatures = Some(
+              EndgameInfo(
+                hasOpposition = false,
+                isZugzwang = false,
+                keySquaresControlled = List("f6", "g7"),
+                theoreticalOutcomeHint = "Win",
+                confidence = 0.88,
+                primaryPattern = Some("OppositeColoredBishopsDraw"),
+                transition = Some("dark-square invasion")
+              )
+            ),
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = List("Opposite-color bishops", "dark square bind"),
+            planAlignment = Some(
+              PlanAlignmentInfo(
+                score = 82,
+                band = "Playable",
+                matchedPlanIds = List("opposite_bishops_conversion"),
+                missingPlanIds = Nil,
+                reasonCodes = List("TRANSFORMATION", "ENTRY_SQUARES"),
+                narrativeIntent = Some("convert the opposite-colored bishops ending by penetrating on the dark squares"),
+                narrativeRisk = Some("the drawing shell survives if the entry squares stay blocked")
+              )
+            )
+          )
+        ),
+        mainStrategicPlans = List(
+          plan(
+            id = "opposite_bishops_conversion",
+            name = "Opposite Bishops Conversion",
+            theme = "advantage_transformation",
+            evidence = List("subplan:opposite_bishops_conversion", "different color complexes"),
+            subplan = Some("opposite_bishops_conversion")
+          )
+        ),
+        planContinuity = Some(
+          PlanContinuity(
+            planName = "Opposite Bishops Conversion",
+            planId = Some("opposite_bishops_conversion"),
+            consecutivePlies = 3,
+            startingPly = 86,
+            phase = PlanLifecyclePhase.Fruition,
+            commitmentScore = 0.83
+          )
+        )
       )
     )
 
