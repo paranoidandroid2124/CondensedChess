@@ -49,6 +49,23 @@ class PolishPromptTest extends FunSuite:
     assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
   }
 
+  test("buildSegmentRepairPrompt keeps lock-anchor instructions narrow") {
+    val prompt = PolishPrompt.buildSegmentRepairPrompt(
+      originalSegment = "White improves [[LK_001]] before [[LK_002]].",
+      rejectedPolish = "White improves the pieces quickly.",
+      phase = "middlegame",
+      evalDelta = Some(12),
+      concepts = List("coordination"),
+      fen = "2r2rk1/pp3ppp/2n1pn2/2pp4/3P4/2P1PN2/PP1NBPPP/R1BQ1RK1 w - - 0 10",
+      openingName = Some("Catalan")
+    )
+
+    assert(prompt.contains("Repair REJECTED_POLISH into a strict-valid commentary segment."))
+    assert(prompt.contains("Lock anchors like [[LK_001]] must be preserved exactly"))
+    assert(prompt.contains("## ORIGINAL_SEGMENT"))
+    assert(prompt.contains("## REJECTED_POLISH"))
+  }
+
   test("buildPolishPrompt omits empty optional context fields") {
     val prompt = PolishPrompt.buildPolishPrompt(
       prose = "White keeps the position under control.",

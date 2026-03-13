@@ -76,17 +76,15 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
     )
 
     val ctx = baseContext(probeRequests = List(request), authorQuestions = List(question), authorEvidence = Nil)
-    val summaries = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
-    val summary = summaries.headOption.getOrElse(fail("missing author evidence summary"))
+    val surface = AuthoringEvidenceSummaryBuilder.build(ctx)
+    val summary = surface.evidence.headOption.getOrElse(fail("missing author evidence summary"))
 
     assertEquals(summary.status, "pending")
     assertEquals(summary.pendingProbeIds, List("probe_latent_1"))
     assertEquals(summary.pendingProbeCount, 1)
     assertEquals(summary.linkedPlans, List("Kingside Bind", "kingside_bind"))
-    assertEquals(
-      AuthoringEvidenceSummaryBuilder.headline(ctx),
-      Some("latent plan evidence is pending across 1 probe")
-    )
+    assertEquals(surface.questions.map(_.id), List("latent_1"))
+    assertEquals(surface.headline, Some("latent plan evidence is pending across 1 probe"))
   }
 
   test("game narrative moment preserves authoring payload for API transport") {

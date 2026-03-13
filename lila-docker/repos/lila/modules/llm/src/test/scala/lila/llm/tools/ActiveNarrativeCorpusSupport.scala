@@ -506,6 +506,11 @@ object ActiveNarrativeCorpusSupport:
     List(
       "fullgame compare observed" -> snapshot.fullgame.compareObserved.toString,
       "fullgame compare consistency" -> f"${snapshot.fullgame.compareConsistencyRate * 100.0}%.1f%%",
+      "fullgame repair attempts" -> snapshot.fullgame.repairAttempts.toString,
+      "fullgame repair bypassed" -> snapshot.fullgame.repairBypassed.toString,
+      "fullgame soft repair applied" -> snapshot.fullgame.softRepairApplied.toString,
+      "fullgame merged retry skipped" -> snapshot.fullgame.mergedRetrySkipped.toString,
+      "fullgame invalid reasons" -> renderLongMap(snapshot.fullgame.invalidReasonCounts),
       "active selected moments" -> snapshot.active.selectedMoments.toString,
       "active attempts" -> snapshot.active.attempts.toString,
       "active attached" -> snapshot.active.attached.toString,

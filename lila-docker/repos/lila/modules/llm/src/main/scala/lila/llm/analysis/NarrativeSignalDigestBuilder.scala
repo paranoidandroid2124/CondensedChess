@@ -10,6 +10,13 @@ object NarrativeSignalDigestBuilder:
       ctx: NarrativeContext,
       preservedSignalsOverride: Option[List[String]] = None
   ): Option[NarrativeSignalDigest] =
+    buildWithAuthoringEvidence(ctx, preservedSignalsOverride, AuthoringEvidenceSummaryBuilder.headline(ctx))
+
+  def buildWithAuthoringEvidence(
+      ctx: NarrativeContext,
+      preservedSignalsOverride: Option[List[String]],
+      authoringEvidence: Option[String]
+  ): Option[NarrativeSignalDigest] =
     val opening =
       ctx.openingData.flatMap(_.name).flatMap(normalized)
         .orElse(ctx.openingEvent.map(_.toString.replace('_', ' ')).flatMap(normalized))
@@ -27,7 +34,6 @@ object NarrativeSignalDigestBuilder:
     val prevented = ctx.semantic.flatMap(_.preventedPlans.headOption)
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)
-    val authoringEvidence = AuthoringEvidenceSummaryBuilder.headline(ctx)
     val structureArc = StructurePlanArcBuilder.build(ctx)
 
     val practicalVerdict = practical.flatMap(pa => normalized(pa.verdict))

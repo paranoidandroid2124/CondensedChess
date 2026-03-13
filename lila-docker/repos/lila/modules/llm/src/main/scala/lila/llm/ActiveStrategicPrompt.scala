@@ -55,6 +55,13 @@ object ActiveStrategicPrompt:
       |16. Use a measured coaching tone. Mild hedge words such as "can", "often",
       |    "usually", "tends to", or "should" are welcome when they keep the note
       |    grounded and less mechanical.
+      |17. If the context shows an immediate tactical or material gain, surface
+      |    that concrete fact in the first sentence before widening back out to
+      |    the strategic plan.
+      |18. Do not talk about an already occupied friendly square as if it still
+      |    needs to be newly occupied. When the relevant piece is already there,
+      |    describe holding, anchoring, or maintaining that post unless the brief
+      |    explicitly makes square control the point.
       |
       |## OUTPUT FORMAT
       |Return JSON with one field only:
@@ -75,69 +82,78 @@ object ActiveStrategicPrompt:
       momentType: String,
       fen: String
   ): Option[OpeningLens] =
-    val candidates =
-      List(
-        brief.whyNow.map(_ =>
-          OpeningLens(
-            label = "timing-first",
-            instruction =
-              "Open with the timing or structural reason that makes the plan urgent, then let the recommendation follow from that reason."
-          )
-        ),
-        Option.when(brief.opponentReply.isDefined)(
-          OpeningLens(
-            label = "problem-first",
-            instruction =
-              "Open with the practical problem or opponent resource that has to be managed, then pivot into the plan."
-          )
-        ),
-        Option.when(brief.keyTrigger.isDefined)(
-          OpeningLens(
-            label = "consequence-first",
-            instruction =
-              "Open with the likely consequence or drift risk that matters most, then explain the plan that addresses it."
-          )
-        ),
-        brief.executionHint.map(_ =>
-          OpeningLens(
-            label = "target-purpose-first",
-            instruction =
-              "If piece redeployment matters, open with the target square or strategic purpose in natural language rather than a raw route string."
-          )
-        ),
-        brief.campaignRole.map(_ =>
-          OpeningLens(
-            label = "campaign-role-first",
-            instruction =
-              "Open with this moment's role in the longer campaign, in natural language rather than with an imperative push command."
-          )
-        ),
-        brief.primaryIdea.map(_ =>
-          OpeningLens(
-            label = "idea-first",
-            instruction =
-              "Open with the dominant strategic idea itself, but phrase it as a concrete objective or pressure shift rather than a bare command."
-          )
+    if brief.whyNow.exists(hasImmediateTacticalCue) then
+      Some(
+        OpeningLens(
+          label = "tactical-first",
+          instruction =
+            "Open with the immediate tactical or material gain that is already available, then explain how the broader strategic plan grows out of that concrete point."
         )
-      ).flatten
-
-    Option.when(candidates.nonEmpty) {
-      val seed =
+      )
+    else
+      val candidates =
         List(
-          phase.trim.toLowerCase,
-          momentType.trim.toLowerCase,
-          Option(fen).map(_.trim).getOrElse(""),
-          brief.campaignRole.getOrElse(""),
-          brief.primaryIdea.getOrElse(""),
-          brief.whyNow.getOrElse(""),
-          brief.opponentReply.getOrElse(""),
-          brief.executionHint.getOrElse(""),
-          brief.longTermObjective.getOrElse(""),
-          brief.keyTrigger.getOrElse("")
-        ).mkString("|")
-      val idx = Math.floorMod(seed.hashCode, candidates.size)
-      candidates(idx)
-    }
+          brief.whyNow.map(_ =>
+            OpeningLens(
+              label = "timing-first",
+              instruction =
+                "Open with the timing or structural reason that makes the plan urgent, then let the recommendation follow from that reason."
+            )
+          ),
+          Option.when(brief.opponentReply.isDefined)(
+            OpeningLens(
+              label = "problem-first",
+              instruction =
+                "Open with the practical problem or opponent resource that has to be managed, then pivot into the plan."
+            )
+          ),
+          Option.when(brief.keyTrigger.isDefined)(
+            OpeningLens(
+              label = "consequence-first",
+              instruction =
+                "Open with the likely consequence or drift risk that matters most, then explain the plan that addresses it."
+            )
+          ),
+          brief.executionHint.map(_ =>
+            OpeningLens(
+              label = "target-purpose-first",
+              instruction =
+                "If piece redeployment matters, open with the target square or strategic purpose in natural language rather than a raw route string."
+            )
+          ),
+          brief.campaignRole.map(_ =>
+            OpeningLens(
+              label = "campaign-role-first",
+              instruction =
+                "Open with this moment's role in the longer campaign, in natural language rather than with an imperative push command."
+            )
+          ),
+          brief.primaryIdea.map(_ =>
+            OpeningLens(
+              label = "idea-first",
+              instruction =
+                "Open with the dominant strategic idea itself, but phrase it as a concrete objective or pressure shift rather than a bare command."
+            )
+          )
+        ).flatten
+
+      Option.when(candidates.nonEmpty) {
+        val seed =
+          List(
+            phase.trim.toLowerCase,
+            momentType.trim.toLowerCase,
+            Option(fen).map(_.trim).getOrElse(""),
+            brief.campaignRole.getOrElse(""),
+            brief.primaryIdea.getOrElse(""),
+            brief.whyNow.getOrElse(""),
+            brief.opponentReply.getOrElse(""),
+            brief.executionHint.getOrElse(""),
+            brief.longTermObjective.getOrElse(""),
+            brief.keyTrigger.getOrElse("")
+          ).mkString("|")
+        val idx = Math.floorMod(seed.hashCode, candidates.size)
+        candidates(idx)
+      }
 
   private def openingLensBlock(
       brief: ActiveStrategicCoachingBriefBuilder.Brief,
@@ -164,7 +180,7 @@ object ActiveStrategicPrompt:
   ): String =
     val _ = baseNarrative
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
-    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
+    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs, Some(fen))
     val coachingBriefBlock =
       coachingBrief.nonEmptySections
         .map { case (label, value) => s"- $label: $value" }
@@ -183,7 +199,7 @@ object ActiveStrategicPrompt:
         section("COACHING BRIEF", coachingBriefBlock),
         openingLensBlock(coachingBrief, phase, momentType, fen),
         Some(
-          "Write one independent strategic coaching note now. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, open from the situation, timing, practical problem, or likely consequence when possible, and let the plan follow from that reason."
+          "Write one independent strategic coaching note now. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, surface any immediate tactical or material gain in the first sentence when it is present, do not describe an already occupied friendly square as if it still needs to be newly occupied, open from the situation, timing, practical problem, or likely consequence when possible, and let the plan follow from that reason."
         )
       ).flatten
 
@@ -205,7 +221,7 @@ object ActiveStrategicPrompt:
     val reasons = failureReasons.map(_.trim).filter(_.nonEmpty).distinct
     val reasonLine = if reasons.isEmpty then "format_or_content_violation" else reasons.mkString(", ")
     val conceptStr = concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
-    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
+    val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs, Some(fen))
     val coachingBriefBlock =
       coachingBrief.nonEmptySections
         .map { case (label, value) => s"- $label: $value" }
@@ -230,8 +246,12 @@ object ActiveStrategicPrompt:
         section("COACHING BRIEF", coachingBriefBlock),
         openingLensBlock(coachingBrief, phase, momentType, fen),
         Some(
-          "Rewrite into one valid strategic coaching note (2-3 sentences), grounded, compact, and concrete. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, follow the preferred opening lens when it is provided, and explain why before the plan when possible."
+          "Rewrite into one valid strategic coaching note (2-3 sentences), grounded, compact, and concrete. Center the dominant idea as the thesis, keep route/objective language as supporting evidence only, mention at most one of the execution hint or the long-term objective, surface any immediate tactical or material gain in the first sentence when it is present, do not describe an already occupied friendly square as if it still needs to be newly occupied, follow the preferred opening lens when it is provided, and explain why before the plan when possible."
         )
       ).flatten
 
     sections.mkString("\n\n")
+
+  private def hasImmediateTacticalCue(text: String): Boolean =
+    val normalized = Option(text).getOrElse("").trim.toLowerCase
+    normalized.contains("immediately wins") || normalized.contains("forces the issue immediately")

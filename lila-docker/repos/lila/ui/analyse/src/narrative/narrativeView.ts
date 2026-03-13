@@ -14,8 +14,15 @@ import type { DrawShape } from '@lichess-org/chessground/draw';
 import { plyToTurn } from 'lib/game/chess';
 import {
     buildDecisionComparisonSurface,
-    type DecisionComparisonDigestLike,
 } from '../decisionComparison';
+import {
+    formatDeploymentSummary,
+    formatEvidenceScore,
+    formatEvidenceStatus,
+    humanizeToken,
+} from '../chesstory/signalFormatting';
+import type { DecisionComparisonDigest, NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
+export type { DecisionComparisonDigest, NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
 
 type VariationLine = { moves: string[]; scoreCp: number; mate?: number | null; depth?: number; tags?: string[] };
 type RenderedMoveLine = {
@@ -58,67 +65,6 @@ export type LatentPlanSummary = {
     viabilityScore: number;
     whyAbsentFromTopMultiPv: string;
 };
-
-export type NarrativeSignalDigest = {
-    opening?: string;
-    strategicStack?: string[];
-    latentPlan?: string;
-    latentReason?: string;
-    decisionComparison?: DecisionComparisonDigest;
-    authoringEvidence?: string;
-    practicalVerdict?: string;
-    practicalFactors?: string[];
-    compensation?: string;
-    compensationVectors?: string[];
-    investedMaterial?: number;
-    structuralCue?: string;
-    structureProfile?: string;
-    centerState?: string;
-    alignmentBand?: string;
-    alignmentReasons?: string[];
-    deploymentOwnerSide?: string;
-    deploymentPiece?: string;
-    deploymentRoute?: string[];
-    deploymentPurpose?: string;
-    deploymentContribution?: string;
-    deploymentStrategicFit?: number;
-    deploymentTacticalSafety?: number;
-    deploymentSurfaceConfidence?: number;
-    deploymentSurfaceMode?: 'exact' | 'toward' | 'hidden';
-    prophylaxisPlan?: string;
-    prophylaxisThreat?: string;
-    counterplayScoreDrop?: number;
-    dominantIdeaKind?: StrategicIdeaKind;
-    dominantIdeaGroup?: StrategicIdeaGroup;
-    dominantIdeaReadiness?: 'ready' | 'build' | 'premature' | 'blocked';
-    dominantIdeaFocus?: string;
-    secondaryIdeaKind?: StrategicIdeaKind;
-    secondaryIdeaGroup?: StrategicIdeaGroup;
-    secondaryIdeaFocus?: string;
-    decision?: string;
-    strategicFlow?: string;
-    opponentPlan?: string;
-    preservedSignals?: string[];
-};
-
-export type DecisionComparisonDigest = DecisionComparisonDigestLike;
-
-export type StrategicIdeaKind =
-    | 'pawn_break'
-    | 'space_gain_or_restriction'
-    | 'target_fixing'
-    | 'line_occupation'
-    | 'outpost_creation_or_occupation'
-    | 'minor_piece_imbalance_exploitation'
-    | 'prophylaxis'
-    | 'king_attack_build_up'
-    | 'favorable_trade_or_transformation'
-    | 'counterplay_suppression';
-
-export type StrategicIdeaGroup =
-    | 'structural_change'
-    | 'piece_and_line_management'
-    | 'interaction_and_transformation';
 
 export type EngineAlternative = {
     uci: string;
@@ -368,32 +314,6 @@ const reviewCardInteractiveSelector = [
     '[contenteditable="true"]',
 ].join(',');
 
-function splitWords(text: string): string[] {
-    return text
-        .split(/\s+/)
-        .map(t => t.trim())
-        .filter(Boolean);
-}
-
-function humanizeToken(raw: string): string {
-    return splitWords(raw.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
-        .map(word => (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
-        .join(' ');
-}
-
-function formatEvidenceStatus(status: string): string {
-    switch (status.trim().toLowerCase()) {
-        case 'resolved':
-            return 'Resolved';
-        case 'pending':
-            return 'Pending';
-        case 'question_only':
-            return 'Heuristic';
-        default:
-            return humanizeToken(status);
-    }
-}
-
 function narrativeMomentAnchorId(moment: GameNarrativeMoment, index: number): string {
     const raw = moment.momentId?.trim() || `${moment.ply}-${index}`;
     const normalized = raw
@@ -482,25 +402,6 @@ function jumpToNarrativePly(ctrl: NarrativeCtrl, ply: number, anchorId?: string)
     ctrl.root.jumpToMain(ply);
     ctrl.root.redraw();
     if (anchorId) scrollToNarrativeAnchor(anchorId);
-}
-
-function formatEvidenceScore(evalCp?: number | null, mate?: number | null): string {
-    if (typeof mate === 'number') return `mate ${mate}`;
-    if (typeof evalCp === 'number') return `${evalCp >= 0 ? '+' : ''}${evalCp}cp`;
-    return '';
-}
-
-function formatNarrativeDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
-    if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
-    const route = (signalDigest.deploymentRoute || []).filter(Boolean);
-    const surfaceMode = signalDigest.deploymentSurfaceMode || 'hidden';
-    if (surfaceMode === 'hidden') return null;
-    const destination = route[route.length - 1] || '';
-    const lead = surfaceMode === 'exact'
-        ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
-        : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
-    const contribution = signalDigest.deploymentContribution?.trim();
-    return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
 }
 
 function routeSurfaceText(route: { piece: string; route: string[]; surfaceMode: 'exact' | 'toward' | 'hidden' }): string {
@@ -1055,7 +956,7 @@ function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMo
     const alignmentReasons = (digest?.alignmentReasons || []).filter(Boolean).slice(0, 3);
     const practicalFactors = (digest?.practicalFactors || []).filter(Boolean).slice(0, 2);
     const compensationVectors = (digest?.compensationVectors || []).filter(Boolean).slice(0, 3);
-    const deploymentSummary = digest ? formatNarrativeDeploymentSummary(digest) : null;
+    const deploymentSummary = digest ? formatDeploymentSummary(digest) : null;
     const decisionSurface = buildDecisionComparisonSurface(decisionComparison, {
         includeEngineLine: true,
         includeEvidence: true,

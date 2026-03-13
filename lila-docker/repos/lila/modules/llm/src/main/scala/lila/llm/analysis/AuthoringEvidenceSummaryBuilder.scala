@@ -4,6 +4,12 @@ import lila.llm.{ AuthorEvidenceSummary, AuthorQuestionSummary, EvidenceBranchSu
 import lila.llm.model.NarrativeContext
 import lila.llm.model.authoring.AuthorQuestion
 
+final case class AuthoringEvidenceSurface(
+    questions: List[AuthorQuestionSummary],
+    evidence: List[AuthorEvidenceSummary],
+    headline: Option[String]
+)
+
 object AuthoringEvidenceSummaryBuilder:
 
   private val MaxQuestions = 3
@@ -11,13 +17,7 @@ object AuthoringEvidenceSummaryBuilder:
   private val MaxPurposes = 4
   private val MaxLinkedPlans = 3
 
-  def summarizeQuestions(ctx: NarrativeContext): List[AuthorQuestionSummary] =
-    ctx.authorQuestions
-      .sortBy(_.priority)
-      .take(MaxQuestions)
-      .map(summarizeQuestion)
-
-  def summarizeEvidence(ctx: NarrativeContext): List[AuthorEvidenceSummary] =
+  def build(ctx: NarrativeContext): AuthoringEvidenceSurface =
     val selectedQuestions = ctx.authorQuestions.sortBy(_.priority).take(MaxQuestions)
     val evidenceByQuestion = ctx.authorEvidence.groupBy(_.questionId)
     val requestsByQuestion =
@@ -28,72 +28,88 @@ object AuthoringEvidenceSummaryBuilder:
         .mapValues(_.map(_._2))
         .toMap
 
-    selectedQuestions.map { q =>
-      val evidence = evidenceByQuestion.getOrElse(q.id, Nil)
-      val requests = requestsByQuestion.getOrElse(q.id, Nil)
-      val branches =
-        evidence
-          .flatMap(_.branches)
-          .sortBy(branch => (-branch.depth.getOrElse(0), -branch.evalCp.getOrElse(Int.MinValue), branch.keyMove))
-          .take(MaxBranches)
-          .map { branch =>
-            EvidenceBranchSummary(
-              keyMove = UserFacingSignalSanitizer.sanitize(branch.keyMove),
-              line = UserFacingSignalSanitizer.sanitize(branch.line),
-              evalCp = branch.evalCp,
-              mate = branch.mate,
-              depth = branch.depth,
-              sourceId = branch.sourceId
-            )
-          }
-      val purposes =
-        (evidence.map(_.purpose) ++ requests.flatMap(_.purpose))
-          .map(_.trim)
-          .filter(_.nonEmpty)
-          .distinct
-          .take(MaxPurposes)
-      val linkedPlans =
-        (requests.flatMap(_.planName) ++ requests.flatMap(_.seedId) ++ q.latentPlan.toList.map(_.seedId))
-          .map(_.trim)
-          .filter(_.nonEmpty)
-          .distinct
-          .take(MaxLinkedPlans)
-      val status =
-        if branches.nonEmpty then "resolved"
-        else if requests.nonEmpty then "pending"
-        else "question_only"
-
-      AuthorEvidenceSummary(
-        questionId = q.id,
-        questionKind = q.kind.toString,
-        question = UserFacingSignalSanitizer.sanitize(q.question),
-        why = q.why.map(UserFacingSignalSanitizer.sanitize),
-        status = status,
-        purposes = purposes,
-        branchCount = evidence.flatMap(_.branches).size,
-        branches = branches,
-        pendingProbeIds = requests.map(_.id).distinct.take(3),
-        pendingProbeCount = requests.size,
-        probeObjectives =
-          requests
-            .flatMap(_.objective)
+    val questions = selectedQuestions.map(summarizeQuestion)
+    val evidence =
+      selectedQuestions.map { q =>
+        val evidence = evidenceByQuestion.getOrElse(q.id, Nil)
+        val requests = requestsByQuestion.getOrElse(q.id, Nil)
+        val branches =
+          evidence
+            .flatMap(_.branches)
+            .sortBy(branch => (-branch.depth.getOrElse(0), -branch.evalCp.getOrElse(Int.MinValue), branch.keyMove))
+            .take(MaxBranches)
+            .map { branch =>
+              EvidenceBranchSummary(
+                keyMove = UserFacingSignalSanitizer.sanitize(branch.keyMove),
+                line = UserFacingSignalSanitizer.sanitize(branch.line),
+                evalCp = branch.evalCp,
+                mate = branch.mate,
+                depth = branch.depth,
+                sourceId = branch.sourceId
+              )
+            }
+        val purposes =
+          (evidence.map(_.purpose) ++ requests.flatMap(_.purpose))
             .map(_.trim)
             .filter(_.nonEmpty)
             .distinct
-            .take(3),
-        linkedPlans = linkedPlans
-      )
-    }.filter(summary =>
-      summary.question.trim.nonEmpty &&
-        (
-          summary.branchCount > 0 ||
-            summary.pendingProbeCount > 0 ||
-            summary.why.exists(_.trim.nonEmpty)
+            .take(MaxPurposes)
+        val linkedPlans =
+          (requests.flatMap(_.planName) ++ requests.flatMap(_.seedId) ++ q.latentPlan.toList.map(_.seedId))
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .distinct
+            .take(MaxLinkedPlans)
+        val status =
+          if branches.nonEmpty then "resolved"
+          else if requests.nonEmpty then "pending"
+          else "question_only"
+
+        AuthorEvidenceSummary(
+          questionId = q.id,
+          questionKind = q.kind.toString,
+          question = UserFacingSignalSanitizer.sanitize(q.question),
+          why = q.why.map(UserFacingSignalSanitizer.sanitize),
+          status = status,
+          purposes = purposes,
+          branchCount = evidence.flatMap(_.branches).size,
+          branches = branches,
+          pendingProbeIds = requests.map(_.id).distinct.take(3),
+          pendingProbeCount = requests.size,
+          probeObjectives =
+            requests
+              .flatMap(_.objective)
+              .map(_.trim)
+              .filter(_.nonEmpty)
+              .distinct
+              .take(3),
+          linkedPlans = linkedPlans
         )
+      }.filter(summary =>
+        summary.question.trim.nonEmpty &&
+          (
+            summary.branchCount > 0 ||
+              summary.pendingProbeCount > 0 ||
+              summary.why.exists(_.trim.nonEmpty)
+          )
+      )
+
+    AuthoringEvidenceSurface(
+      questions = questions,
+      evidence = evidence,
+      headline = headlineFromEvidence(evidence)
     )
 
+  def summarizeQuestions(ctx: NarrativeContext): List[AuthorQuestionSummary] =
+    build(ctx).questions
+
+  def summarizeEvidence(ctx: NarrativeContext): List[AuthorEvidenceSummary] =
+    build(ctx).evidence
+
   def headline(ctx: NarrativeContext): Option[String] =
-    val summaries = summarizeEvidence(ctx)
+    build(ctx).headline
+
+  private def headlineFromEvidence(summaries: List[AuthorEvidenceSummary]): Option[String] =
     val resolved = summaries.count(_.status == "resolved")
     val pending = summaries.count(_.status == "pending")
     val latentEvidence = summaries.find(_.questionKind == "LatentPlan")

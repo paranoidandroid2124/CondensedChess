@@ -195,13 +195,14 @@ object NarrativeOutlineBuilder:
       val evidenceLine =
         val sourceText = summarizeStrategicEvidence(ctx, plans)
         val slot = primarySlots
-        if sourceText.nonEmpty then s"Evidence: ${slot.evidence} Signals: $sourceText."
+        if sourceText.nonEmpty then s"Evidence: ${slot.evidence} Current support centers on $sourceText."
         else if tacticalOverride then s"Evidence: ${slot.evidence} Forcing tactical signals currently dominate continuation quality."
         else s"Evidence: ${slot.evidence} Structural and probe support remains limited."
 
       val holdLine =
         val slot = primarySlots
-        if holdReasons.nonEmpty then s"Refutation/Hold: ${slot.hold} ${holdReasons.take(2).mkString("; ")}."
+        if holdReasons.nonEmpty then
+          s"Refutation/Hold: ${slot.hold} In practice the plan has to wait if ${holdReasons.take(2).mkString(" or ")}."
         else if tacticalOverride then s"Refutation/Hold: ${slot.hold} Strategic claims are held until forcing lines are resolved."
         else s"Refutation/Hold: ${slot.hold} No strong refutation signal was found for the leading route."
 
@@ -254,19 +255,15 @@ object NarrativeOutlineBuilder:
     val sourceTokens =
       plans
         .flatMap(_.evidenceSources)
-        .map(normalizeEvidenceSource)
+        .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
         .filter(_.nonEmpty)
     val probePurposes =
       ctx.authorEvidence
         .map(_.purpose)
-        .map(_.trim)
+        .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
         .filter(_.nonEmpty)
-        .filter(p =>
-          p.contains("plan") || p.contains("refutation") || p.contains("NullMove") || p.contains("theme")
-        )
         .distinct
         .take(2)
-        .map(p => s"probe:$p")
     (sourceTokens ++ probePurposes).distinct.take(4).mkString(", ")
 
   private val SubplanNarrativeSlots: Map[String, ThemeSlots] = Map(
@@ -315,11 +312,20 @@ object NarrativeOutlineBuilder:
       .map { case (sp, spec) =>
         val route = sp.id.replace("_", " ")
         val required =
-          if spec.requiredSignals.nonEmpty then spec.requiredSignals.mkString(", ")
+          if spec.requiredSignals.nonEmpty then
+            spec.requiredSignals
+              .map {
+                case "replyPvs"       => "best-reply probe lines"
+                case "l1Delta"        => "stable structural change"
+                case "futureSnapshot" => "future-position snapshots"
+                case "keyMotifs"      => "supporting tactical motifs"
+                case other            => other.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase
+              }
+              .mkString(" and ")
           else "probe contract"
         ThemeSlots(
           idea = s"${route.capitalize} route: ${spec.objective}.",
-          evidence = s"Evidence should satisfy $required signals over a ${spec.horizon} horizon.",
+          evidence = s"Evidence should show $required over a ${spec.horizon}-term horizon.",
           hold = "If required signals are missing or refuted, this route remains conditional."
         )
       }
@@ -341,17 +347,17 @@ object NarrativeOutlineBuilder:
       primary: Option[PlanHypothesis]
   ): List[String] =
     val primaryFailures =
-      primary.toList.flatMap(_.failureModes).map(_.trim).filter(_.nonEmpty)
+      primary.toList.flatMap(_.failureModes).map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty)
     val primaryRefutation =
-      primary.flatMap(_.refutation).toList.map(_.trim).filter(_.nonEmpty)
+      primary.flatMap(_.refutation).toList.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty)
     val globalReasons =
       (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-        .map(_.trim)
+        .map(FullGameDraftNormalizer.humanizeConstraint)
         .filter(_.nonEmpty)
     (primaryFailures ++ primaryRefutation ++ globalReasons).distinct
 
   private def renderPreconditions(plan: PlanHypothesis): Option[String] =
-    val items = plan.preconditions.map(_.trim).filter(_.nonEmpty).take(2)
+    val items = plan.preconditions.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty).take(2)
     Option.when(items.nonEmpty)(items.mkString("; "))
 
   private def strategicPlanNames(ctx: NarrativeContext): List[String] =
@@ -373,14 +379,6 @@ object NarrativeOutlineBuilder:
         case _                              => None
       }
       .getOrElse(default)
-
-  private def normalizeEvidenceSource(raw: String): String =
-    val low = raw.trim.toLowerCase
-    if low.startsWith("structural_state:") then s"structural:${low.stripPrefix("structural_state:")}"
-    else if low.startsWith("latent_seed:") then s"seed:${low.stripPrefix("latent_seed:")}"
-    else if low.startsWith("proposal:") then low
-    else if low.startsWith("support:") then low
-    else low
 
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
@@ -1181,7 +1179,14 @@ object NarrativeOutlineBuilder:
     question.latentPlan.map { lp =>
       val narrativeLatent =
         ctx.latentPlans.find(_.seedId == lp.seedId)
-      rec.use(s"latentPlan[${lp.seedId}]", lp.narrative.template, "Conditional plan")
+      val renderedLatentPlan =
+        FullGameDraftNormalizer.renderLatentPlanText(
+          template = lp.narrative.template,
+          fen = ctx.fen,
+          seedId = lp.seedId,
+          fallbackPlanName = narrativeLatent.map(_.planName)
+        )
+      rec.use(s"latentPlan[${lp.seedId}]", renderedLatentPlan, "Conditional plan")
 
       val hasViability = ctx.authorEvidence.exists { ev =>
         ev.questionId == question.id &&
@@ -1207,7 +1212,7 @@ object NarrativeOutlineBuilder:
 
       OutlineBeat(
         kind = OutlineBeatKind.ConditionalPlan,
-        text = lp.narrative.template,
+        text = renderedLatentPlan,
         conceptIds = List(lp.seedId),
         anchors = lp.candidateMoves.take(2).map(_.toString),
         questionIds = List(question.id),

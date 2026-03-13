@@ -223,7 +223,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[BookmakerPolishSlots] = None,
+      segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -239,7 +240,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots
+      bookmakerSlots = bookmakerSlots,
+      segmentMode = segmentMode
     )
 
   def repairAsync(
@@ -255,7 +257,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[BookmakerPolishSlots] = None,
+      segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
       originalProse = originalProse,
@@ -271,7 +274,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel = llmLevel,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots
+      bookmakerSlots = bookmakerSlots,
+      segmentMode = segmentMode
     )
 
   def activeStrategicNoteSync(
@@ -490,7 +494,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel: String,
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[BookmakerPolishSlots],
+      segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
@@ -510,7 +515,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens,
-        bookmakerSlots = bookmakerSlots
+        bookmakerSlots = bookmakerSlots,
+        segmentMode = segmentMode
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
@@ -530,7 +536,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens,
-                bookmakerSlots = bookmakerSlots
+                bookmakerSlots = bookmakerSlots,
+                segmentMode = segmentMode
               )
             case None =>
               Future.successful(None)
@@ -793,19 +800,32 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[BookmakerPolishSlots],
+      segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
-    val repairPrompt = PolishPrompt.buildRepairPrompt(
-      originalProse = originalProse,
-      rejectedPolish = rejectedPolish,
-      phase = phase,
-      evalDelta = evalDelta,
-      concepts = concepts,
-      fen = fen,
-      openingName = openingName,
-      allowedSans = allowedSans,
-      bookmakerSlots = bookmakerSlots
-    )
+    val repairPrompt =
+      if segmentMode then
+        PolishPrompt.buildSegmentRepairPrompt(
+          originalSegment = originalProse,
+          rejectedPolish = rejectedPolish,
+          phase = phase,
+          evalDelta = evalDelta,
+          concepts = concepts,
+          fen = fen,
+          openingName = openingName
+        )
+      else
+        PolishPrompt.buildRepairPrompt(
+          originalProse = originalProse,
+          rejectedPolish = rejectedPolish,
+          phase = phase,
+          evalDelta = evalDelta,
+          concepts = concepts,
+          fen = fen,
+          openingName = openingName,
+          allowedSans = allowedSans,
+          bookmakerSlots = bookmakerSlots
+        )
     callModelWithPrompt(
       userPrompt = repairPrompt,
       model = model,

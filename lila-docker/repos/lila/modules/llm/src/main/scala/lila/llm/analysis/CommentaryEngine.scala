@@ -695,9 +695,8 @@ object CommentaryEngine:
                   CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
                 else None
               val strategyPack = StrategyPackBuilder.build(data, ctx)
-              val signalDigest = buildMomentSignalDigest(ctx, focusedOutline, strategyPack)
-              val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
-              val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
+              val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
+              val signalDigest = buildMomentSignalDigest(ctx, focusedOutline, strategyPack, authoringSurface.headline)
               val evidenceEligible =
                 evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
                   FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
@@ -705,8 +704,8 @@ object CommentaryEngine:
                 FullGameEvidenceSurfacePolicy.payload(
                   eligible = evidenceEligible,
                   probeRequests = ctx.probeRequests,
-                  authorQuestions = authorQuestions,
-                  authorEvidence = authorEvidence
+                  authorQuestions = authoringSurface.questions,
+                  authorEvidence = authoringSurface.evidence
                 )
 
               val momentNarrative = MomentNarrative(
@@ -820,22 +819,156 @@ object CommentaryEngine:
     val validatedOutline = BookStyleRenderer.validatedOutline(ctx)
     val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty)
 
-    val bookBody = BookStyleRenderer.renderValidatedOutline(validatedOutline, ctx).trim
-    val focusedBody = BookStyleRenderer.renderValidatedOutline(focusedOutline, ctx).trim
+    val bookBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(validatedOutline, ctx)).trim
+    val focusedBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(focusedOutline, ctx)).trim
     val fallback = lila.llm.NarrativeGenerator.describeHierarchical(ctx).trim
     val body0 = if bookBody.nonEmpty then bookBody else fallback
-    val body =
+    val bodyBase =
       if focusedBody.nonEmpty then focusedBody
       else focusMomentBody(body0, keepParagraphs = if criticalBranch.nonEmpty then 3 else 4)
-    val preface = List(lead, bridge).map(_.trim).filter(_.nonEmpty).mkString(" ")
-
-    val parts = List(preface, criticalBranch.getOrElse(""), body).map(_.trim).filter(_.nonEmpty)
     val rendered =
-      if parts.nonEmpty then parts.mkString("\n\n")
-      else if body.nonEmpty then body
-      else preface
+      assembleHybridNarrativeDraft(
+        lead = lead,
+        bridge = bridge,
+        criticalBranch = criticalBranch,
+        body = bodyBase,
+        primaryPlan = plan
+      )
     (rendered, focusedOutline)
   }
+
+  private[llm] def assembleHybridNarrativeDraft(
+      lead: String,
+      bridge: String,
+      criticalBranch: Option[String],
+      body: String,
+      primaryPlan: Option[String]
+  ): String =
+    val trimmedBody = trimHybridBodyRepetition(body, primaryPlan)
+    val includeLead = trimmedBody.nonEmpty && !bodyAlreadyFramesMoment(trimmedBody)
+    val includeBridge = trimmedBody.nonEmpty && !bodyAlreadyCarriesPrimaryThesis(trimmedBody, primaryPlan)
+    val preface =
+      List(
+        Option.when(includeLead)(lead).getOrElse(""),
+        Option.when(includeBridge)(bridge).getOrElse("")
+      ).map(_.trim).filter(_.nonEmpty).mkString(" ")
+    val parts = List(preface, criticalBranch.getOrElse(""), trimmedBody).map(_.trim).filter(_.nonEmpty)
+    val renderedRaw =
+      if parts.nonEmpty then parts.mkString("\n\n")
+      else if trimmedBody.nonEmpty then trimmedBody
+      else preface
+    FullGameDraftNormalizer.normalize(renderedRaw)
+
+  private[llm] def trimHybridBodyRepetition(
+      body: String,
+      primaryPlan: Option[String]
+  ): String =
+    val sentences = splitNarrativeSentences(body)
+    val kept = scala.collection.mutable.ListBuffer.empty[String]
+    val seenFingerprints = scala.collection.mutable.Set.empty[String]
+    var keptPlanThesis = false
+
+    sentences.foreach { sentence =>
+      val trimmed = sentence.trim
+      if trimmed.nonEmpty then
+        val fingerprint = normalizeNarrativeFingerprint(trimmed)
+        val thesisSentence = isPlanThesisSentence(trimmed, primaryPlan)
+        val dropAsDuplicate = fingerprint.nonEmpty && seenFingerprints.contains(fingerprint)
+        val dropAsMeta =
+          isLowValueHybridMetaSentence(trimmed) ||
+            (keptPlanThesis && isGenericPhaseRestatement(trimmed)) ||
+            (keptPlanThesis && thesisSentence)
+        if !dropAsDuplicate && !dropAsMeta then
+          kept += trimmed
+          if fingerprint.nonEmpty then seenFingerprints += fingerprint
+          if thesisSentence then keptPlanThesis = true
+    }
+
+    val deduped = kept.mkString(" ").trim
+    if deduped.nonEmpty then deduped else body.trim
+
+  private def splitNarrativeSentences(text: String): List[String] =
+    Option(text)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(_.split("(?<=[.!?])\\s+").toList)
+      .getOrElse(Nil)
+
+  private def normalizeNarrativeFingerprint(text: String): String =
+    Option(text)
+      .getOrElse("")
+      .replace("**", "")
+      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .toLowerCase
+
+  private def bodyAlreadyFramesMoment(body: String): Boolean =
+    val low = normalizeNarrativeFingerprint(body)
+    low.startsWith("this opening block") ||
+      low.startsWith("this middlegame block") ||
+      low.startsWith("this endgame block") ||
+      low.startsWith("around ply") ||
+      low.startsWith("in the opening block") ||
+      low.startsWith("in the middlegame block") ||
+      low.startsWith("in the endgame block")
+
+  private def bodyAlreadyCarriesPrimaryThesis(
+      body: String,
+      primaryPlan: Option[String]
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(body)
+    val planMentioned =
+      primaryPlan.exists { plan =>
+        val normalizedPlan = normalizeNarrativeFingerprint(plan)
+        normalizedPlan.nonEmpty && low.contains(normalizedPlan)
+      }
+    planMentioned && (
+      low.contains("strategically this phase rewards a coherent plan around") ||
+        low.contains("key theme") ||
+        low.contains("the strategic stack still favors") ||
+        low.contains("the opponent s main counterplan is")
+    )
+
+  private def isPlanThesisSentence(
+      sentence: String,
+      primaryPlan: Option[String]
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    val planMentioned =
+      primaryPlan.exists { plan =>
+        val normalizedPlan = normalizeNarrativeFingerprint(plan)
+        normalizedPlan.nonEmpty && low.contains(normalizedPlan)
+      }
+    planMentioned && (
+      low.contains("strategically this phase rewards a coherent plan around") ||
+        low.contains("key theme") ||
+        low.contains("the strategic stack still favors") ||
+        low.contains("the leading route is") ||
+        low.contains("the backup strategic stack is")
+    )
+
+  private def isGenericPhaseRestatement(sentence: String): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    low.startsWith("this opening phase rewards") ||
+      low.startsWith("this middlegame phase rewards") ||
+      low.startsWith("this endgame phase rewards") ||
+      low.startsWith("piece coordination and king safety both matter") ||
+      low.startsWith("the middlegame has fully started") ||
+      low.startsWith("the game enters a phase of technical consolidation")
+
+  private def isLowValueHybridMetaSentence(sentence: String): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    low.startsWith("the strategic stack still favors") ||
+      low.startsWith("the leading route is") ||
+      low.startsWith("the backup strategic stack is") ||
+      low.startsWith("the main signals are") ||
+      low.startsWith("evidence must show") ||
+      low.startsWith("initial board read") ||
+      low.startsWith("clearest read is that") ||
+      low.startsWith("validation evidence specifically") ||
+      low.startsWith("another key pillar is that") ||
+      low.startsWith("in practical terms the split should appear")
 
   private[analysis] def focusMomentOutline(
     outline: NarrativeOutline,
@@ -991,12 +1124,14 @@ object CommentaryEngine:
   private def buildMomentSignalDigest(
     ctx: NarrativeContext,
     focusedOutline: NarrativeOutline,
-    strategyPack: Option[lila.llm.StrategyPack]
+    strategyPack: Option[lila.llm.StrategyPack],
+    authoringEvidence: Option[String]
   ): Option[NarrativeSignalDigest] =
     val base =
-      NarrativeSignalDigestBuilder.build(
+      NarrativeSignalDigestBuilder.buildWithAuthoringEvidence(
         ctx,
-        preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline))
+        preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline)),
+        authoringEvidence = authoringEvidence
       )
     (base, strategyPack.flatMap(_.signalDigest)) match
       case (Some(digest), Some(packDigest)) =>

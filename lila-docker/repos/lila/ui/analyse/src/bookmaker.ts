@@ -8,6 +8,7 @@ import { clearBookmakerPanel, renderBookmakerPanel, restoreBookmakerPanel, syncB
 import { buildBookmakerRequest, deriveAfterVariations, toBaselineCp, toEvalData } from './bookmaker/requestPayload';
 import { blockedHtmlFromErrorResponse, bookmakerIdleHtml, bookmakerRetryHtml } from './bookmaker/blockingState';
 import {
+    buildStoredBookmakerEntry,
     listStudyBookmakerSnapshots,
     persistSessionBookmakerSnapshot,
     persistStudyBookmakerSnapshot,
@@ -19,28 +20,19 @@ import {
 import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
 import { buildDecisionComparisonSurface } from './decisionComparison';
 import {
+    formatDeploymentSummary,
+    formatEvidenceScore,
+    formatEvidenceStatus,
+    humanizeToken,
+} from './chesstory/signalFormatting';
+import {
+    decodeBookmakerResponse,
+    type DecodedBookmakerResponse,
     type BookmakerStrategicLedgerV1,
     type BookmakerRefsV1,
     type NarrativeSignalDigest,
     type PolishMetaV1,
-    authorEvidenceFromResponse,
-    authorQuestionsFromResponse,
-    bookmakerLedgerFromResponse,
-    cacheHitFromResponse,
-    commentaryFromResponse,
-    endgameStateTokenFromResponse,
-    htmlFromResponse,
-    latentPlansFromResponse,
-    mainStrategicPlansFromResponse,
-    modelFromResponse,
-    planStateTokenFromResponse,
-    polishMetaFromResponse,
-    probeRequestsFromResponse,
-    refsFromResponse,
-    signalDigestFromResponse,
-    sourceModeFromResponse,
     variationLinesFromResponse,
-    whyAbsentFromTopMultiPVFromResponse,
 } from './bookmaker/responsePayload';
 import {
     bookmakerLedgerRootAttrs,
@@ -135,44 +127,6 @@ function splitWords(text: string): string[] {
         .split(/\s+/)
         .map(t => t.trim())
         .filter(Boolean);
-}
-
-function humanizeToken(raw: string): string {
-    return splitWords(raw.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
-        .map(word => (word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
-        .join(' ');
-}
-
-function formatEvidenceStatus(status: string): string {
-    switch (status.trim().toLowerCase()) {
-        case 'resolved':
-            return 'Resolved';
-        case 'pending':
-            return 'Pending';
-        case 'question_only':
-            return 'Heuristic';
-        default:
-            return humanizeToken(status);
-    }
-}
-
-function formatEvidenceScore(evalCp?: number | null, mate?: number | null): string {
-    if (typeof mate === 'number') return `mate ${mate}`;
-    if (typeof evalCp === 'number') return `${evalCp >= 0 ? '+' : ''}${evalCp}cp`;
-    return '';
-}
-
-function formatDeploymentSummary(signalDigest: NarrativeSignalDigest): string | null {
-    if (!signalDigest.deploymentPiece || !signalDigest.deploymentPurpose) return null;
-    const route = (signalDigest.deploymentRoute || []).filter(Boolean);
-    const surfaceMode = signalDigest.deploymentSurfaceMode || 'hidden';
-    if (surfaceMode === 'hidden') return null;
-    const destination = route[route.length - 1] || '';
-    const lead = surfaceMode === 'exact'
-        ? `${signalDigest.deploymentPiece} via ${route.join('-')}`
-        : `${signalDigest.deploymentPiece} toward ${destination || 'the target square'}`;
-    const contribution = signalDigest.deploymentContribution?.trim();
-    return [lead, `for ${signalDigest.deploymentPurpose}`, contribution].filter(Boolean).join(' · ');
 }
 
 function currentStudyBookmakerRef(ctrl?: AnalyseCtrl): StudyBookmakerRef | null {
@@ -685,6 +639,21 @@ function decorateBookmakerHtml(
       </div>
       ${html}
     `;
+}
+
+function decorateDecodedBookmakerHtml(decoded: DecodedBookmakerResponse): string {
+    return decorateBookmakerHtml(
+        decoded.html,
+        decoded.refs,
+        decoded.bookmakerLedger,
+        decoded.signalDigest,
+        decoded.mainStrategicPlans,
+        decoded.latentPlans,
+        decoded.holdReasons,
+        decoded.probeRequests,
+        decoded.authorQuestions,
+        decoded.authorEvidence,
+    );
 }
 
 export function flushBookmakerStudySync(ctrl: AnalyseCtrl): void {
@@ -1203,44 +1172,24 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             }
 
             const data = await res.json();
-            const emittedToken = planStateTokenFromResponse(data);
-            const emittedEndgameToken = endgameStateTokenFromResponse(data);
+            const decoded = decodeBookmakerResponse(data);
+            const emittedToken = decoded.planStateToken;
+            const emittedEndgameToken = decoded.endgameStateToken;
             if (emittedToken) planStateByPath.set(context.stateKey, emittedToken);
             else planStateByPath.delete(context.stateKey);
             if (emittedEndgameToken) endgameStateByPath.set(context.stateKey, emittedEndgameToken);
             else endgameStateByPath.delete(context.stateKey);
-            const html = htmlFromResponse(data);
-            const sourceMode = sourceModeFromResponse(data);
-            const model = modelFromResponse(data);
-            const cacheHit = cacheHitFromResponse(data);
-            const refs = refsFromResponse(data);
-            const polishMeta = polishMetaFromResponse(data);
-            const bookmakerLedger = bookmakerLedgerFromResponse(data);
-            const commentary = commentaryFromResponse(data);
-            if ((sourceMode?.startsWith('fallback_rule') || sourceMode === 'rule_circuit_open') && suspiciousFallback(commentary)) {
+            const html = decoded.html;
+            const commentary = decoded.commentary;
+            if (
+                (decoded.sourceMode?.startsWith('fallback_rule') || decoded.sourceMode === 'rule_circuit_open') &&
+                suspiciousFallback(commentary)
+            ) {
                 activeRequestKey = null;
                 return showRetry('Commentary timed out before polish completed. Retry for a clean explanation.');
             }
-            const signalDigest = signalDigestFromResponse(data);
-            const mainStrategicPlans = mainStrategicPlansFromResponse(data);
-            const latentPlans = latentPlansFromResponse(data);
-            const holdReasons = whyAbsentFromTopMultiPVFromResponse(data);
-            const probeRequests = probeRequestsFromResponse(data);
-            const authorQuestions = authorQuestionsFromResponse(data);
-            const authorEvidence = authorEvidenceFromResponse(data);
-            const decoratedHtml = decorateBookmakerHtml(
-                html,
-                refs,
-                bookmakerLedger,
-                signalDigest,
-                mainStrategicPlans,
-                latentPlans,
-                holdReasons,
-                probeRequests,
-                authorQuestions,
-                authorEvidence,
-            );
-            const shouldStream = sourceMode === 'llm_polished' && commentary.length > 0;
+            const decoratedHtml = decorateDecodedBookmakerHtml(decoded);
+            const shouldStream = decoded.sourceMode === 'llm_polished' && commentary.length > 0;
 
             if (shouldStream) {
                 await streamReveal(commentary, isCurrentSession);
@@ -1250,21 +1199,11 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 }
             }
 
-            const initialEntry: BookmakerCacheEntry = {
-                html: decoratedHtml,
-                refs,
-                polishMeta,
-                sourceMode,
-                model,
-                cacheHit,
-                mainPlansCount: mainStrategicPlans.length,
-                latentPlansCount: latentPlans.length,
-                holdReasonsCount: holdReasons.length,
-                bookmakerLedger,
-                planStateToken: emittedToken,
-                endgameStateToken: emittedEndgameToken,
-                tokenContext: entryTokenContext(context),
-            };
+            const initialEntry: BookmakerCacheEntry = buildStoredBookmakerEntry(
+                decoded,
+                decoratedHtml,
+                entryTokenContext(context),
+            );
             cache.set(context.cacheKey, initialEntry);
             persistBookmakerSnapshot(context, commentary, initialEntry);
             applyCachedEntry(initialEntry);
@@ -1274,9 +1213,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
 
             const baselineCp = toBaselineCp(variations, evalData);
 
-            if (probeRequests.length && ctrl) {
+            if (decoded.probeRequests.length && ctrl) {
                 void (async () => {
-                    const probeResults = await probes.runProbes(probeRequests, baselineCp, probeSession);
+                    const probeResults = await probes.runProbes(decoded.probeRequests, baselineCp, probeSession);
                     if (!isCurrentSession()) return;
                     if (!probeResults.length) return;
 
@@ -1309,63 +1248,34 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                         if (!isCurrentSession() || !refinedRes.ok) return;
 
                         const refined = await refinedRes.json();
-                        const emittedRefinedToken = planStateTokenFromResponse(refined);
-                        const emittedRefinedEndgameToken = endgameStateTokenFromResponse(refined);
+                        const decodedRefined = decodeBookmakerResponse(refined, {
+                            html,
+                            commentary,
+                            probeRequests: decoded.probeRequests,
+                            authorQuestions: decoded.authorQuestions,
+                            authorEvidence: decoded.authorEvidence,
+                        });
+                        const emittedRefinedToken = decodedRefined.planStateToken;
+                        const emittedRefinedEndgameToken = decodedRefined.endgameStateToken;
                         if (emittedRefinedToken) planStateByPath.set(context.stateKey, emittedRefinedToken);
                         else planStateByPath.delete(context.stateKey);
                         if (emittedRefinedEndgameToken) endgameStateByPath.set(context.stateKey, emittedRefinedEndgameToken);
                         else endgameStateByPath.delete(context.stateKey);
-                        const refinedHtml = htmlFromResponse(refined, html);
-                        const refinedSourceMode = sourceModeFromResponse(refined);
-                        const refinedModel = modelFromResponse(refined);
-                        const refinedCacheHit = cacheHitFromResponse(refined);
-                        const refinedRefs = refsFromResponse(refined);
-                        const refinedPolishMeta = polishMetaFromResponse(refined);
-                        const refinedBookmakerLedger = bookmakerLedgerFromResponse(refined);
-                        const refinedCommentary = commentaryFromResponse(refined, commentary);
+                        const refinedCommentary = decodedRefined.commentary;
                         if (
-                            (refinedSourceMode?.startsWith('fallback_rule') || refinedSourceMode === 'rule_circuit_open') &&
+                            (decodedRefined.sourceMode?.startsWith('fallback_rule') ||
+                                decodedRefined.sourceMode === 'rule_circuit_open') &&
                             suspiciousFallback(refinedCommentary)
                         ) {
                             activeRequestKey = null;
                             return;
                         }
-                        const refinedSignalDigest = signalDigestFromResponse(refined);
-                        const refinedMainPlans = mainStrategicPlansFromResponse(refined);
-                        const refinedLatentPlans = latentPlansFromResponse(refined);
-                        const refinedHoldReasons = whyAbsentFromTopMultiPVFromResponse(refined);
-                        const refinedProbeRequests = probeRequests.length ? probeRequests : probeRequestsFromResponse(refined);
-                        const refinedAuthorQuestionsRaw = authorQuestionsFromResponse(refined);
-                        const refinedAuthorEvidenceRaw = authorEvidenceFromResponse(refined);
-                        const refinedAuthorQuestions = refinedAuthorQuestionsRaw.length ? refinedAuthorQuestionsRaw : authorQuestions;
-                        const refinedAuthorEvidence = refinedAuthorEvidenceRaw.length ? refinedAuthorEvidenceRaw : authorEvidence;
-                        const decoratedRefinedHtml = decorateBookmakerHtml(
-                            refinedHtml,
-                            refinedRefs,
-                            refinedBookmakerLedger,
-                            refinedSignalDigest,
-                            refinedMainPlans,
-                            refinedLatentPlans,
-                            refinedHoldReasons,
-                            refinedProbeRequests,
-                            refinedAuthorQuestions,
-                            refinedAuthorEvidence,
+                        const decoratedRefinedHtml = decorateDecodedBookmakerHtml(decodedRefined);
+                        const refinedEntry: BookmakerCacheEntry = buildStoredBookmakerEntry(
+                            decodedRefined,
+                            decoratedRefinedHtml,
+                            entryTokenContext(context),
                         );
-                        const refinedEntry: BookmakerCacheEntry = {
-                            html: decoratedRefinedHtml,
-                            refs: refinedRefs,
-                            polishMeta: refinedPolishMeta,
-                            sourceMode: refinedSourceMode,
-                            model: refinedModel,
-                            cacheHit: refinedCacheHit,
-                            mainPlansCount: refinedMainPlans.length,
-                            latentPlansCount: refinedLatentPlans.length,
-                            holdReasonsCount: refinedHoldReasons.length,
-                            bookmakerLedger: refinedBookmakerLedger,
-                            planStateToken: emittedRefinedToken,
-                            endgameStateToken: emittedRefinedEndgameToken,
-                            tokenContext: entryTokenContext(context),
-                        };
                         cache.set(refinedCacheKey, refinedEntry);
                         persistBookmakerSnapshot(context, refinedCommentary, refinedEntry);
                         if (currentContext?.cacheKey === refinedCacheKey && isCurrentSession()) {

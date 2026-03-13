@@ -5,7 +5,8 @@ import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type { BoardPreview } from 'lib/view/boardPreview';
-import type { DecisionComparisonDigestLike } from '../decisionComparison';
+import type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
+export type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
 
 interface VariationLine {
     moves: string[];
@@ -35,50 +36,6 @@ export interface LatentPlanSummary {
     viabilityScore: number;
     whyAbsentFromTopMultiPv: string;
 }
-
-export interface NarrativeSignalDigest {
-    opening?: string;
-    strategicStack?: string[];
-    latentPlan?: string;
-    latentReason?: string;
-    decisionComparison?: DecisionComparisonDigest;
-    authoringEvidence?: string;
-    practicalVerdict?: string;
-    practicalFactors?: string[];
-    compensation?: string;
-    compensationVectors?: string[];
-    investedMaterial?: number;
-    structuralCue?: string;
-    structureProfile?: string;
-    centerState?: string;
-    alignmentBand?: string;
-    alignmentReasons?: string[];
-    deploymentOwnerSide?: string;
-    deploymentPiece?: string;
-    deploymentRoute?: string[];
-    deploymentPurpose?: string;
-    deploymentContribution?: string;
-    deploymentStrategicFit?: number;
-    deploymentTacticalSafety?: number;
-    deploymentSurfaceConfidence?: number;
-    deploymentSurfaceMode?: 'exact' | 'toward' | 'hidden';
-    prophylaxisPlan?: string;
-    prophylaxisThreat?: string;
-    counterplayScoreDrop?: number;
-    dominantIdeaKind?: StrategicIdeaKind;
-    dominantIdeaGroup?: StrategicIdeaGroup;
-    dominantIdeaReadiness?: 'ready' | 'build' | 'premature' | 'blocked';
-    dominantIdeaFocus?: string;
-    secondaryIdeaKind?: StrategicIdeaKind;
-    secondaryIdeaGroup?: StrategicIdeaGroup;
-    secondaryIdeaFocus?: string;
-    decision?: string;
-    strategicFlow?: string;
-    opponentPlan?: string;
-    preservedSignals?: string[];
-}
-
-export type DecisionComparisonDigest = DecisionComparisonDigestLike;
 
 export interface EngineAlternative {
     uci: string;
@@ -186,23 +143,6 @@ export interface AuthorEvidenceSummary {
     probeObjectives?: string[];
     linkedPlans?: string[];
 }
-
-export type StrategicIdeaKind =
-    | 'pawn_break'
-    | 'space_gain_or_restriction'
-    | 'target_fixing'
-    | 'line_occupation'
-    | 'outpost_creation_or_occupation'
-    | 'minor_piece_imbalance_exploitation'
-    | 'prophylaxis'
-    | 'king_attack_build_up'
-    | 'favorable_trade_or_transformation'
-    | 'counterplay_suppression';
-
-export type StrategicIdeaGroup =
-    | 'structural_change'
-    | 'piece_and_line_management'
-    | 'interaction_and_transformation';
 
 export interface ActiveStrategicRouteRef {
     routeId: string;

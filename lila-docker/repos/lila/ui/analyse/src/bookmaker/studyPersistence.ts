@@ -1,4 +1,9 @@
-import type { BookmakerRefsV1, BookmakerStrategicLedgerV1, PolishMetaV1 } from './responsePayload';
+import type {
+  BookmakerRefsV1,
+  BookmakerStrategicLedgerV1,
+  DecodedBookmakerResponse,
+  PolishMetaV1,
+} from './responsePayload';
 import type { EndgameStateToken, PlanStateToken } from './types';
 
 export type StoredBookmakerTokenContext = {
@@ -43,6 +48,43 @@ const storagePrefix = 'chesstory.bookmaker.study.v1';
 const storageIndexKey = `${storagePrefix}.index`;
 const maxSnapshots = 300;
 const sessionPrefix = 'chesstory.bookmaker.session.v1';
+
+type StoredBookmakerEntrySource = Pick<
+  DecodedBookmakerResponse,
+  | 'refs'
+  | 'polishMeta'
+  | 'sourceMode'
+  | 'model'
+  | 'cacheHit'
+  | 'mainStrategicPlans'
+  | 'latentPlans'
+  | 'holdReasons'
+  | 'bookmakerLedger'
+  | 'planStateToken'
+  | 'endgameStateToken'
+>;
+
+export function buildStoredBookmakerEntry(
+  decoded: StoredBookmakerEntrySource,
+  html: string,
+  tokenContext: StoredBookmakerTokenContext,
+): StoredBookmakerEntry {
+  return {
+    html,
+    refs: decoded.refs,
+    polishMeta: decoded.polishMeta,
+    sourceMode: decoded.sourceMode,
+    model: decoded.model,
+    cacheHit: decoded.cacheHit,
+    mainPlansCount: decoded.mainStrategicPlans.length,
+    latentPlansCount: decoded.latentPlans.length,
+    holdReasonsCount: decoded.holdReasons.length,
+    bookmakerLedger: decoded.bookmakerLedger,
+    planStateToken: decoded.planStateToken,
+    endgameStateToken: decoded.endgameStateToken,
+    tokenContext,
+  };
+}
 
 function hasStorage(): boolean {
   return typeof window !== 'undefined' && !!window.localStorage;

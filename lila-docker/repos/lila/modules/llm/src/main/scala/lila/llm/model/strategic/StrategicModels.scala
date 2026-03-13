@@ -8,7 +8,11 @@ case class PreventedPlan(
     breakNeutralized: Option[String], // e.g. "f5"
     mobilityDelta: Int, // Change in opponent's safe mobility
     counterplayScoreDrop: Int, // Drop in opponent's positional eval
-    preventedThreatType: Option[String] = None // NEW: "Check", "Fork", "Mate", "Material"
+    preventedThreatType: Option[String] = None, // "Check", "Fork", "Mate", "Material"
+    deniedResourceClass: Option[String] = None, // "break" | "entry_square" | "forcing_threat" | "piece_activity"
+    deniedEntryScope: Option[String] = None, // "single_square" | "file" | "sector"
+    breakNeutralizationStrength: Option[Int] = None, // 0-100
+    defensiveSufficiency: Option[Int] = None // 0-100
 )
 
 case class PieceActivity(

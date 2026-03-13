@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
-import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, FullGameDraftNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder }
 import lila.llm.model.OpeningReference
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -84,6 +84,11 @@ final class LlmApi(
   private val bookmakerCompareConsistentCount = new AtomicLong(0L)
   private val fullGameCompareObservedCount = new AtomicLong(0L)
   private val fullGameCompareConsistentCount = new AtomicLong(0L)
+  private val fullGameSegmentRepairAttemptCount = new AtomicLong(0L)
+  private val fullGameSegmentRepairBypassedCount = new AtomicLong(0L)
+  private val fullGameSegmentSoftRepairAppliedCount = new AtomicLong(0L)
+  private val fullGameMergedRetrySkippedCount = new AtomicLong(0L)
+  private val fullGameInvalidReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val activeThesisAgreementTotal = new AtomicLong(0L)
   private val activeThesisAgreementHit = new AtomicLong(0L)
   private val activeNoteSelectedCount = new AtomicLong(0L)
@@ -273,6 +278,9 @@ final class LlmApi(
   private def incActiveNoteReason(reason: String): Unit =
     activeNoteFailureReasonCount.getOrElseUpdate(reason, new AtomicLong(0L)).incrementAndGet()
 
+  private def incFullGameInvalidReason(stage: String, reason: String): Unit =
+    fullGameInvalidReasonCount.getOrElseUpdate(s"$stage:$reason", new AtomicLong(0L)).incrementAndGet()
+
   private def shouldLogOpsSample(kind: String): Boolean =
     val count = opsSampleCount.getOrElseUpdate(kind, new AtomicLong(0L)).incrementAndGet()
     count <= 5 || count % 50 == 0
@@ -289,6 +297,61 @@ final class LlmApi(
           }
           .mkString(" ")
       logger.warn(s"llm.ops.sample kind=$kind $rendered")
+
+  private def recordFullGameInvalid(
+      stage: String,
+      phase: String,
+      model: Option[String],
+      reasons: List[String]
+  ): Unit =
+    val normalized = reasons.map(_.trim).filter(_.nonEmpty).distinct
+    normalized.foreach(reason => incFullGameInvalidReason(stage, reason))
+    if normalized.nonEmpty then
+      logOpsSample(
+        kind = "fullgame_polish.invalid",
+        "stage" -> stage,
+        "phase" -> phase,
+        "model" -> model.getOrElse(""),
+        "reasons" -> normalized.mkString(",")
+      )
+
+  private def recordFullGameRepairAttempt(): Unit =
+    fullGameSegmentRepairAttemptCount.incrementAndGet()
+
+  private def recordFullGameRepairBypass(
+      phase: String,
+      reasons: List[String]
+  ): Unit =
+    fullGameSegmentRepairBypassedCount.incrementAndGet()
+    logOpsSample(
+      kind = "fullgame_segment_repair_bypassed",
+      "phase" -> phase,
+      "reasons" -> reasons.map(_.trim).filter(_.nonEmpty).distinct.mkString(",")
+    )
+
+  private def recordFullGameSoftRepair(
+      phase: String,
+      actions: List[String],
+      reasons: List[String]
+  ): Unit =
+    fullGameSegmentSoftRepairAppliedCount.incrementAndGet()
+    logOpsSample(
+      kind = "fullgame_segment_soft_repair",
+      "phase" -> phase,
+      "actions" -> actions.mkString(","),
+      "remainingReasons" -> reasons.map(_.trim).filter(_.nonEmpty).distinct.mkString(",")
+    )
+
+  private def recordFullGameMergedRetrySkipped(
+      phase: String,
+      reasons: List[String]
+  ): Unit =
+    fullGameMergedRetrySkippedCount.incrementAndGet()
+    logOpsSample(
+      kind = "fullgame_segment_retry_skipped",
+      "phase" -> phase,
+      "reasons" -> reasons.map(_.trim).filter(_.nonEmpty).distinct.mkString(",")
+    )
 
   private def recordComparisonObservation(
       path: String,
@@ -633,7 +696,12 @@ final class LlmApi(
       ),
       fullgame = CommentaryOpsBoard.FullGameMetrics(
         compareObserved = fullGameCompareObservedCount.get(),
-        compareConsistencyRate = fullGameCompareRate
+        compareConsistencyRate = fullGameCompareRate,
+        repairAttempts = fullGameSegmentRepairAttemptCount.get(),
+        repairBypassed = fullGameSegmentRepairBypassedCount.get(),
+        softRepairApplied = fullGameSegmentSoftRepairAppliedCount.get(),
+        mergedRetrySkipped = fullGameMergedRetrySkippedCount.get(),
+        invalidReasonCounts = fullGameInvalidReasonCount.view.mapValues(_.get()).toMap
       ),
       active = CommentaryOpsBoard.ActiveMetrics(
         selectedMoments = activeNoteSelectedCount.get(),
@@ -934,7 +1002,13 @@ final class LlmApi(
         "the practical burden",
         "the practical immediate future",
         "the practical medium-horizon task",
-        "practically, this should influence"
+        "practically, this should influence",
+        "the leading route is",
+        "the backup strategic stack is",
+        "the main signals are",
+        "under the current evidence threshold",
+        "no strong refutation signal was found",
+        "strategic claims are held until"
       )
       val repeatedMarkerCount = markers.map(m => lower.sliding(m.length).count(_ == m)).sum
       val shortSentencePenalty =
@@ -948,6 +1022,51 @@ final class LlmApi(
 
   private def wordCount(text: String): Int =
     Option(text).getOrElse("").split("\\s+").count(_.nonEmpty)
+
+  private def fullGameLeakReasons(text: String): List[String] =
+    val placeholderReasons =
+      Option.when(FullGameDraftNormalizer.placeholderHits(text).nonEmpty)("placeholder_leak_detected").toList
+    val metaReasons =
+      Option.when(FullGameDraftNormalizer.metaLeakHits(text).nonEmpty)("meta_label_leak_detected").toList
+    (placeholderReasons ++ metaReasons).distinct
+
+  private def excerptForOps(text: String, maxChars: Int = 220): String =
+    val cleaned = Option(text).getOrElse("").replaceAll("""\s+""", " ").trim
+    if cleaned.length <= maxChars then cleaned
+    else cleaned.take(maxChars - 1).trim + "…"
+
+  private def recordFullGameInvalidPair(
+      stage: String,
+      phase: String,
+      model: Option[String],
+      original: String,
+      candidate: String,
+      reasons: List[String]
+  ): Unit =
+    val normalized = reasons.map(_.trim).filter(_.nonEmpty).distinct
+    val pairRelevant =
+      normalized.contains("length_ratio_out_of_bounds") ||
+        normalized.contains("placeholder_leak_detected") ||
+        normalized.contains("meta_label_leak_detected")
+    if pairRelevant then
+      val originalWords = wordCount(original)
+      val candidateWords = wordCount(candidate)
+      val ratio =
+        if originalWords <= 0 then 0.0
+        else candidateWords.toDouble / originalWords.toDouble
+      logOpsSample(
+        kind = "fullgame_polish.invalid_pair",
+        "stage" -> stage,
+        "phase" -> phase,
+        "model" -> model.getOrElse(""),
+        "reasons" -> normalized.mkString(","),
+        "hits" -> FullGameDraftNormalizer.leakHits(candidate).mkString(","),
+        "originalWords" -> originalWords.toString,
+        "candidateWords" -> candidateWords.toString,
+        "ratio" -> f"$ratio%.2f",
+        "original" -> excerptForOps(original),
+        "candidate" -> excerptForOps(candidate)
+      )
 
   private def lengthRatioReasonable(polished: String, original: String): Boolean =
     val originalWords = wordCount(original)
@@ -1015,6 +1134,19 @@ final class LlmApi(
   private def trimmedOption(value: Option[String]): Option[String] =
     value.flatMap(trimmedOption)
 
+  private def resolvedOpenAiActiveNoteRouteMeta(
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String
+  ): ActiveNoteRouteMeta =
+    val route = openAiClient.activeNoteRouteSummary(asyncTier, planTier, llmLevel)
+    ActiveNoteRouteMeta(
+      provider = "openai",
+      configuredModel = trimmedOption(route.primary),
+      fallbackModel = trimmedOption(route.fallback),
+      reasoningEffort = trimmedOption(route.reasoningEffort)
+    )
+
   private def resolvedActiveNoteRouteMeta(
       asyncTier: Boolean,
       planTier: String,
@@ -1022,18 +1154,13 @@ final class LlmApi(
   ): ActiveNoteRouteMeta =
     providerConfig.activeNoteProviderResolved match
       case "openai" =>
-        val route = openAiClient.activeNoteRouteSummary(asyncTier, planTier, llmLevel)
-        ActiveNoteRouteMeta(
-          provider = "openai",
-          configuredModel = trimmedOption(route.primary),
-          fallbackModel = trimmedOption(route.fallback),
-          reasoningEffort = trimmedOption(route.reasoningEffort)
-        )
+        resolvedOpenAiActiveNoteRouteMeta(asyncTier, planTier, llmLevel)
       case "gemini" =>
+        val openAiFallback = Option.when(openAiClient.isEnabled)(resolvedOpenAiActiveNoteRouteMeta(asyncTier, planTier, llmLevel))
         ActiveNoteRouteMeta(
           provider = "gemini",
           configuredModel = trimmedOption(geminiClient.activeModelName),
-          fallbackModel = None,
+          fallbackModel = openAiFallback.flatMap(_.configuredModel),
           reasoningEffort = None
         )
       case other =>
@@ -1392,7 +1519,10 @@ final class LlmApi(
       )
     val proseValidation = validatePolishedCommentary(repaired.text, originalProse, allowedSans, slotMode = bookmakerSlots.isDefined)
     val strategyValidation = evaluateStrategyCoverage(repaired.text, strategyPack, planTier, llmLevel)
-    val reasons = (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ extraReasons).distinct
+    val userFacingReasons =
+      Option.when(bookmakerSlots.isEmpty)(fullGameLeakReasons(repaired.text)).getOrElse(Nil)
+    val reasons =
+      (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ userFacingReasons ++ extraReasons).distinct
     CandidateValidation(
       isValid = reasons.isEmpty,
       decodedText = repaired.text,
@@ -1465,191 +1595,284 @@ final class LlmApi(
       val maxTokens = Some(if asyncTier then 560 else 420)
       val activePolishFamily = "active_note_polish"
       val activeRepairFamily = "active_note_repair"
-      def observedModelsForOpenAi(results: OpenAiPolishResult*): List[String] =
-        (routeMeta.configuredModel.toList ++ results.toList.flatMap(result => trimmedOption(result.model))).distinct
+      val openAiFallbackRouteMeta =
+        Option.when(routeMeta.provider != "openai" && openAiClient.isEnabled)(
+          resolvedOpenAiActiveNoteRouteMeta(asyncTier, normalizedPlanTier, normalizedLlmLevel)
+        )
 
-      providerConfig.activeNoteProviderResolved match
-        case "openai" if openAiClient.isEnabled =>
-          val op =
-            if asyncTier then
-              openAiClient.activeStrategicNoteAsync(
-                baseNarrative = moment.narrative,
-                phase = phase,
-                momentType = momentType,
-                concepts = concepts,
-                fen = moment.fen,
-                strategyPack = moment.strategyPack,
-                dossier = dossier,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs,
-                lang = normalizeLang(lang),
-                maxOutputTokens = maxTokens,
-                planTier = normalizedPlanTier,
-                llmLevel = normalizedLlmLevel
+      def observedModelsForOpenAi(
+          meta: ActiveNoteRouteMeta,
+          leadingModels: List[String],
+          results: OpenAiPolishResult*
+      ): List[String] =
+        (leadingModels ++ meta.configuredModel.toList ++ results.toList.flatMap(result => trimmedOption(result.model))).distinct
+
+      def enrichActiveNoteDecision(
+          decision: ActiveStrategicNoteDecision,
+          leadingHardReasons: List[String],
+          leadingWarningReasons: List[String],
+          leadingObservedModels: List[String],
+          leadingRepairAttempted: Boolean
+      ): ActiveStrategicNoteDecision =
+        decision.copy(
+          hardReasons =
+            if decision.note.nonEmpty then decision.hardReasons
+            else (leadingHardReasons ++ decision.hardReasons).distinct,
+          warningReasons = (leadingWarningReasons ++ decision.warningReasons).distinct,
+          observedModels = (leadingObservedModels ++ decision.observedModels).distinct,
+          repairAttempted = leadingRepairAttempted || decision.repairAttempted
+        )
+
+      def runOpenAiActiveStrategicNote(
+          meta: ActiveNoteRouteMeta,
+          leadingHardReasons: List[String],
+          leadingWarningReasons: List[String],
+          leadingObservedModels: List[String],
+          leadingRepairAttempted: Boolean
+      ): Future[ActiveStrategicNoteDecision] =
+        val op =
+          if asyncTier then
+            openAiClient.activeStrategicNoteAsync(
+              baseNarrative = moment.narrative,
+              phase = phase,
+              momentType = momentType,
+              concepts = concepts,
+              fen = moment.fen,
+              strategyPack = moment.strategyPack,
+              dossier = dossier,
+              routeRefs = routeRefs,
+              moveRefs = moveRefs,
+              lang = normalizeLang(lang),
+              maxOutputTokens = maxTokens,
+              planTier = normalizedPlanTier,
+              llmLevel = normalizedLlmLevel
+            )
+          else
+            openAiClient.activeStrategicNoteSync(
+              baseNarrative = moment.narrative,
+              phase = phase,
+              momentType = momentType,
+              concepts = concepts,
+              fen = moment.fen,
+              strategyPack = moment.strategyPack,
+              dossier = dossier,
+              routeRefs = routeRefs,
+              moveRefs = moveRefs,
+              lang = normalizeLang(lang),
+              maxOutputTokens = maxTokens,
+              planTier = normalizedPlanTier,
+              llmLevel = normalizedLlmLevel
+            )
+
+        def wrap(decision: ActiveStrategicNoteDecision): ActiveStrategicNoteDecision =
+          enrichActiveNoteDecision(
+            decision = decision,
+            leadingHardReasons = leadingHardReasons,
+            leadingWarningReasons = leadingWarningReasons,
+            leadingObservedModels = leadingObservedModels,
+            leadingRepairAttempted = leadingRepairAttempted
+          )
+
+        op.flatMap {
+          case Some(primary) =>
+            val primaryValidation = validateActiveStrategicNote(
+              candidateText = primary.commentary,
+              baseNarrative = moment.narrative,
+              dossier = dossier,
+              strategyPack = moment.strategyPack,
+              routeRefs = routeRefs,
+              moveRefs = moveRefs
+            )
+            if primaryValidation.isAccepted then
+              Future.successful(
+                wrap(
+                  ActiveStrategicNoteDecision(
+                    note = Some(primaryValidation.text),
+                    sourceMode = Some("llm_polished"),
+                    hardReasons = Nil,
+                    warningReasons = primaryValidation.warningReasons,
+                    provider = Some(meta.provider),
+                    configuredModel = meta.configuredModel,
+                    fallbackModel = meta.fallbackModel,
+                    reasoningEffort = meta.reasoningEffort,
+                    observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
+                    primaryAccepted = true,
+                    promptUsages = List(activePolishFamily -> primary)
+                  )
+                )
+              )
+            else if !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
+              Future.successful(
+                wrap(
+                  ActiveStrategicNoteDecision(
+                    note = Some(primaryValidation.text),
+                    sourceMode = Some("llm_polished"),
+                    hardReasons = Nil,
+                    warningReasons = primaryValidation.warningReasons,
+                    provider = Some(meta.provider),
+                    configuredModel = meta.configuredModel,
+                    fallbackModel = meta.fallbackModel,
+                    reasoningEffort = meta.reasoningEffort,
+                    observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
+                    primaryAccepted = true,
+                    promptUsages = List(activePolishFamily -> primary)
+                  )
+                )
               )
             else
-              openAiClient.activeStrategicNoteSync(
-                baseNarrative = moment.narrative,
-                phase = phase,
-                momentType = momentType,
-                concepts = concepts,
-                fen = moment.fen,
-                strategyPack = moment.strategyPack,
-                dossier = dossier,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs,
-                lang = normalizeLang(lang),
-                maxOutputTokens = maxTokens,
-                planTier = normalizedPlanTier,
-                llmLevel = normalizedLlmLevel
-              )
-          op.flatMap {
-            case Some(primary) =>
-              val primaryValidation = validateActiveStrategicNote(
-                candidateText = primary.commentary,
-                baseNarrative = moment.narrative,
-                dossier = dossier,
-                strategyPack = moment.strategyPack,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs
-              )
-              if primaryValidation.isAccepted then
-                Future.successful(
-                  ActiveStrategicNoteDecision(
-                    note = Some(primaryValidation.text),
-                    sourceMode = Some("llm_polished"),
-                    hardReasons = Nil,
-                    warningReasons = primaryValidation.warningReasons,
-                    provider = Some(routeMeta.provider),
-                    configuredModel = routeMeta.configuredModel,
-                    fallbackModel = routeMeta.fallbackModel,
-                    reasoningEffort = routeMeta.reasoningEffort,
-                    observedModels = observedModelsForOpenAi(primary),
-                    primaryAccepted = true,
-                    promptUsages = List(activePolishFamily -> primary)
+              val repairOp =
+                if asyncTier then
+                  openAiClient.repairActiveStrategicNoteAsync(
+                    baseNarrative = moment.narrative,
+                    rejectedNote = primary.commentary,
+                    failureReasons = primaryValidation.hardReasons,
+                    phase = phase,
+                    momentType = momentType,
+                    concepts = concepts,
+                    fen = moment.fen,
+                    strategyPack = moment.strategyPack,
+                    dossier = dossier,
+                    routeRefs = routeRefs,
+                    moveRefs = moveRefs,
+                    lang = normalizeLang(lang),
+                    maxOutputTokens = maxTokens,
+                    planTier = normalizedPlanTier,
+                    llmLevel = normalizedLlmLevel
                   )
-                )
-              else if !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
-                Future.successful(
-                  ActiveStrategicNoteDecision(
-                    note = Some(primaryValidation.text),
-                    sourceMode = Some("llm_polished"),
-                    hardReasons = Nil,
-                    warningReasons = primaryValidation.warningReasons,
-                    provider = Some(routeMeta.provider),
-                    configuredModel = routeMeta.configuredModel,
-                    fallbackModel = routeMeta.fallbackModel,
-                    reasoningEffort = routeMeta.reasoningEffort,
-                    observedModels = observedModelsForOpenAi(primary),
-                    primaryAccepted = true,
-                    promptUsages = List(activePolishFamily -> primary)
+                else
+                  openAiClient.repairActiveStrategicNoteSync(
+                    baseNarrative = moment.narrative,
+                    rejectedNote = primary.commentary,
+                    failureReasons = primaryValidation.hardReasons,
+                    phase = phase,
+                    momentType = momentType,
+                    concepts = concepts,
+                    fen = moment.fen,
+                    strategyPack = moment.strategyPack,
+                    dossier = dossier,
+                    routeRefs = routeRefs,
+                    moveRefs = moveRefs,
+                    lang = normalizeLang(lang),
+                    maxOutputTokens = maxTokens,
+                    planTier = normalizedPlanTier,
+                    llmLevel = normalizedLlmLevel
                   )
-                )
-              else
-                val repairOp =
-                  if asyncTier then
-                    openAiClient.repairActiveStrategicNoteAsync(
-                      baseNarrative = moment.narrative,
-                      rejectedNote = primary.commentary,
-                      failureReasons = primaryValidation.hardReasons,
-                      phase = phase,
-                      momentType = momentType,
-                      concepts = concepts,
-                      fen = moment.fen,
-                      strategyPack = moment.strategyPack,
-                      dossier = dossier,
-                      routeRefs = routeRefs,
-                      moveRefs = moveRefs,
-                      lang = normalizeLang(lang),
-                      maxOutputTokens = maxTokens,
-                      planTier = normalizedPlanTier,
-                      llmLevel = normalizedLlmLevel
-                    )
-                  else
-                    openAiClient.repairActiveStrategicNoteSync(
-                      baseNarrative = moment.narrative,
-                      rejectedNote = primary.commentary,
-                      failureReasons = primaryValidation.hardReasons,
-                      phase = phase,
-                      momentType = momentType,
-                      concepts = concepts,
-                      fen = moment.fen,
-                      strategyPack = moment.strategyPack,
-                      dossier = dossier,
-                      routeRefs = routeRefs,
-                      moveRefs = moveRefs,
-                      lang = normalizeLang(lang),
-                      maxOutputTokens = maxTokens,
-                      planTier = normalizedPlanTier,
-                      llmLevel = normalizedLlmLevel
-                    )
-                repairOp.map {
-                  case Some(repaired) =>
-                    val repairedValidation = validateActiveStrategicNote(
-                      candidateText = repaired.commentary,
-                      baseNarrative = moment.narrative,
-                      dossier = dossier,
-                      strategyPack = moment.strategyPack,
-                      routeRefs = routeRefs,
-                      moveRefs = moveRefs
-                    )
-                    if repairedValidation.isAccepted then
+              repairOp.map {
+                case Some(repaired) =>
+                  val repairedValidation = validateActiveStrategicNote(
+                    candidateText = repaired.commentary,
+                    baseNarrative = moment.narrative,
+                    dossier = dossier,
+                    strategyPack = moment.strategyPack,
+                    routeRefs = routeRefs,
+                    moveRefs = moveRefs
+                  )
+                  if repairedValidation.isAccepted then
+                    wrap(
                       ActiveStrategicNoteDecision(
                         note = Some(repairedValidation.text),
                         sourceMode = Some("llm_polished"),
                         hardReasons = Nil,
                         warningReasons = repairedValidation.warningReasons,
-                        provider = Some(routeMeta.provider),
-                        configuredModel = routeMeta.configuredModel,
-                        fallbackModel = routeMeta.fallbackModel,
-                        reasoningEffort = routeMeta.reasoningEffort,
-                        observedModels = observedModelsForOpenAi(primary, repaired),
+                        provider = Some(meta.provider),
+                        configuredModel = meta.configuredModel,
+                        fallbackModel = meta.fallbackModel,
+                        reasoningEffort = meta.reasoningEffort,
+                        observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
                         repairAttempted = true,
                         repairRecovered = true,
                         promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
                       )
-                    else
+                    )
+                  else
+                    wrap(
                       ActiveStrategicNoteDecision(
                         note = None,
                         sourceMode = Some("omitted"),
                         hardReasons = repairedValidation.hardReasons.distinct,
                         warningReasons = repairedValidation.warningReasons,
-                        provider = Some(routeMeta.provider),
-                        configuredModel = routeMeta.configuredModel,
-                        fallbackModel = routeMeta.fallbackModel,
-                        reasoningEffort = routeMeta.reasoningEffort,
-                        observedModels = observedModelsForOpenAi(primary, repaired),
+                        provider = Some(meta.provider),
+                        configuredModel = meta.configuredModel,
+                        fallbackModel = meta.fallbackModel,
+                        reasoningEffort = meta.reasoningEffort,
+                        observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
                         repairAttempted = true,
                         promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
                       )
-                  case None =>
+                    )
+                case None =>
+                  wrap(
                     ActiveStrategicNoteDecision(
                       note = None,
                       sourceMode = Some("omitted"),
                       hardReasons = (primaryValidation.hardReasons :+ "active_note_repair_empty").distinct,
                       warningReasons = primaryValidation.warningReasons,
-                      provider = Some(routeMeta.provider),
-                      configuredModel = routeMeta.configuredModel,
-                      fallbackModel = routeMeta.fallbackModel,
-                      reasoningEffort = routeMeta.reasoningEffort,
-                      observedModels = observedModelsForOpenAi(primary),
+                      provider = Some(meta.provider),
+                      configuredModel = meta.configuredModel,
+                      fallbackModel = meta.fallbackModel,
+                      reasoningEffort = meta.reasoningEffort,
+                      observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
                       repairAttempted = true,
                       promptUsages = List(activePolishFamily -> primary)
                     )
-                }
-            case None =>
-              Future.successful(
+                  )
+              }
+          case None =>
+            Future.successful(
+              wrap(
                 ActiveStrategicNoteDecision(
                   note = None,
                   sourceMode = Some("omitted"),
                   hardReasons = List("empty_polish"),
-                  provider = Some(routeMeta.provider),
-                  configuredModel = routeMeta.configuredModel,
-                  fallbackModel = routeMeta.fallbackModel,
-                  reasoningEffort = routeMeta.reasoningEffort
+                  provider = Some(meta.provider),
+                  configuredModel = meta.configuredModel,
+                  fallbackModel = meta.fallbackModel,
+                  reasoningEffort = meta.reasoningEffort,
+                  observedModels = leadingObservedModels
                 )
               )
-          }
+            )
+        }
+
+      def fallbackToOpenAiFromGemini(
+          hardReasons: List[String],
+          warningReasons: List[String],
+          repairAttempted: Boolean
+      ): Future[ActiveStrategicNoteDecision] =
+        openAiFallbackRouteMeta match
+          case Some(openAiMeta) =>
+            runOpenAiActiveStrategicNote(
+              meta = openAiMeta,
+              leadingHardReasons = hardReasons,
+              leadingWarningReasons = warningReasons,
+              leadingObservedModels = routeMeta.configuredModel.toList,
+              leadingRepairAttempted = repairAttempted
+            )
+          case None =>
+            Future.successful(
+              ActiveStrategicNoteDecision(
+                note = None,
+                sourceMode = Some("omitted"),
+                hardReasons = hardReasons.distinct,
+                warningReasons = warningReasons.distinct,
+                provider = Some(routeMeta.provider),
+                configuredModel = routeMeta.configuredModel,
+                fallbackModel = routeMeta.fallbackModel,
+                reasoningEffort = routeMeta.reasoningEffort,
+                observedModels = routeMeta.configuredModel.toList,
+                repairAttempted = repairAttempted
+              )
+            )
+
+      providerConfig.activeNoteProviderResolved match
+        case "openai" if openAiClient.isEnabled =>
+          runOpenAiActiveStrategicNote(
+            meta = routeMeta,
+            leadingHardReasons = Nil,
+            leadingWarningReasons = Nil,
+            leadingObservedModels = Nil,
+            leadingRepairAttempted = false
+          )
         case "gemini" if geminiClient.isEnabled =>
           geminiClient
             .activeStrategicNote(
@@ -1718,7 +1941,7 @@ final class LlmApi(
                       routeRefs = routeRefs,
                       moveRefs = moveRefs
                     )
-                    .map {
+                    .flatMap {
                       case Some(repaired) =>
                         val repairedValidation = validateActiveStrategicNote(
                           candidateText = repaired,
@@ -1729,59 +1952,47 @@ final class LlmApi(
                           moveRefs = moveRefs
                         )
                         if repairedValidation.isAccepted then
-                          ActiveStrategicNoteDecision(
-                            note = Some(repairedValidation.text),
-                            sourceMode = Some("llm_polished"),
-                            hardReasons = Nil,
-                            warningReasons = repairedValidation.warningReasons,
-                            provider = Some(routeMeta.provider),
-                            configuredModel = routeMeta.configuredModel,
-                            fallbackModel = routeMeta.fallbackModel,
-                            reasoningEffort = routeMeta.reasoningEffort,
-                            observedModels = routeMeta.configuredModel.toList,
-                            repairAttempted = true,
-                            repairRecovered = true
+                          Future.successful(
+                            ActiveStrategicNoteDecision(
+                              note = Some(repairedValidation.text),
+                              sourceMode = Some("llm_polished"),
+                              hardReasons = Nil,
+                              warningReasons = repairedValidation.warningReasons,
+                              provider = Some(routeMeta.provider),
+                              configuredModel = routeMeta.configuredModel,
+                              fallbackModel = routeMeta.fallbackModel,
+                              reasoningEffort = routeMeta.reasoningEffort,
+                              observedModels = routeMeta.configuredModel.toList,
+                              repairAttempted = true,
+                              repairRecovered = true
+                            )
                           )
                         else
-                          ActiveStrategicNoteDecision(
-                            note = None,
-                            sourceMode = Some("omitted"),
+                          fallbackToOpenAiFromGemini(
                             hardReasons = repairedValidation.hardReasons.distinct,
                             warningReasons = repairedValidation.warningReasons,
-                            provider = Some(routeMeta.provider),
-                            configuredModel = routeMeta.configuredModel,
-                            fallbackModel = routeMeta.fallbackModel,
-                            reasoningEffort = routeMeta.reasoningEffort,
-                            observedModels = routeMeta.configuredModel.toList,
                             repairAttempted = true
                           )
                       case None =>
-                        ActiveStrategicNoteDecision(
-                          note = None,
-                          sourceMode = Some("omitted"),
+                        fallbackToOpenAiFromGemini(
                           hardReasons = (primaryValidation.hardReasons :+ "active_note_repair_empty").distinct,
                           warningReasons = primaryValidation.warningReasons,
-                          provider = Some(routeMeta.provider),
-                          configuredModel = routeMeta.configuredModel,
-                          fallbackModel = routeMeta.fallbackModel,
-                          reasoningEffort = routeMeta.reasoningEffort,
-                          observedModels = routeMeta.configuredModel.toList,
                           repairAttempted = true
                         )
                     }
               case None =>
-                Future.successful(
-                  ActiveStrategicNoteDecision(
-                    note = None,
-                    sourceMode = Some("omitted"),
-                    hardReasons = List("empty_polish"),
-                    provider = Some(routeMeta.provider),
-                    configuredModel = routeMeta.configuredModel,
-                    fallbackModel = routeMeta.fallbackModel,
-                    reasoningEffort = routeMeta.reasoningEffort
-                  )
+                fallbackToOpenAiFromGemini(
+                  hardReasons = List("empty_polish"),
+                  warningReasons = Nil,
+                  repairAttempted = false
                 )
             }
+        case "gemini" =>
+          fallbackToOpenAiFromGemini(
+            hardReasons = List("provider_unavailable"),
+            warningReasons = Nil,
+            repairAttempted = false
+          )
         case _ =>
           Future.successful(
             ActiveStrategicNoteDecision(
@@ -1868,29 +2079,37 @@ final class LlmApi(
   ): Future[Option[PolishDecision]] =
     val segmentation = PolishSegmenter.segment(prose)
     val editable = segmentation.editableSegments
-    if editable.size < 2 then Future.successful(None)
+    if editable.isEmpty then Future.successful(None)
     else
       val segmentCap = adaptiveOutputTokenCap(prose, refs = None, asyncTier = asyncTier).min(if asyncTier then 520 else 420).max(192)
-      val maxSegments = if asyncTier then 4 else 2
+      val maxSegments = if asyncTier then 2 else 1
       val segmentPolishFamily = "segment_polish"
       val segmentRepairFamily = "segment_repair"
       val candidateEditable =
         editable
+          .filter(seg => FullGameSegmentEligibility.isEligible(seg.text))
           .sortBy(s => -wordCount(s.text))
           .take(maxSegments)
-      if candidateEditable.size < 2 then Future.successful(None)
+      if candidateEditable.isEmpty then Future.successful(None)
       else
         final case class SegmentRewrite(
             id: String,
+            original: String,
             commentary: String,
             attempts: List[(String, OpenAiPolishResult)]
+        )
+
+        final case class SegmentValidation(
+            decodedText: String,
+            text: Option[String],
+            reasons: List[String]
         )
 
         def validateSegmentCandidate(
             candidate: OpenAiPolishResult,
             originalSegment: String,
             masked: PolishSegmenter.MaskedSegment
-        ): Option[String] =
+        ): SegmentValidation =
           val lockReasons =
             if masked.hasLocks then PolishSegmenter.validateLocks(candidate.commentary, masked.expectedOrder)
             else Nil
@@ -1898,8 +2117,13 @@ final class LlmApi(
             if masked.hasLocks then PolishSegmenter.unmask(candidate.commentary, masked.tokenById)
             else candidate.commentary
           val proseValidation = validatePolishedCommentary(unmasked, originalSegment, Nil)
-          val reasons = (lockReasons ++ proseValidation.reasons ++ candidate.parseWarnings).distinct
-          if reasons.isEmpty then Some(unmasked) else None
+          val leakReasons = fullGameLeakReasons(unmasked)
+          val reasons = (lockReasons ++ proseValidation.reasons ++ leakReasons ++ candidate.parseWarnings).distinct
+          SegmentValidation(
+            decodedText = unmasked,
+            text = Option.when(reasons.isEmpty)(unmasked),
+            reasons = reasons
+          )
 
         def polishSegment(seg: PolishSegmenter.Segment): Future[Option[SegmentRewrite]] =
           val masked = PolishSegmenter.maskStructuralTokens(seg.text)
@@ -1951,7 +2175,8 @@ final class LlmApi(
                 lang = lang,
                 maxOutputTokens = Some(segmentCap),
                 planTier = planTier,
-                llmLevel = llmLevel
+                llmLevel = llmLevel,
+                segmentMode = true
               )
             else
               openAiClient.repairSync(
@@ -1966,7 +2191,8 @@ final class LlmApi(
                 lang = lang,
                 maxOutputTokens = Some(segmentCap),
                 planTier = planTier,
-                llmLevel = llmLevel
+                llmLevel = llmLevel,
+                segmentMode = true
               )
 
           def acceptedRewrite(
@@ -1974,27 +2200,66 @@ final class LlmApi(
               attempts: List[(String, OpenAiPolishResult)]
           ): Option[SegmentRewrite] =
             validateSegmentCandidate(attempt, seg.text, masked)
-              .map(rewritten => SegmentRewrite(seg.id, rewritten, attempts))
+              .text
+              .map(rewritten => SegmentRewrite(seg.id, seg.text, rewritten, attempts))
 
           def fallbackToOriginal(attempts: List[(String, OpenAiPolishResult)]): Option[SegmentRewrite] =
-            Some(SegmentRewrite(seg.id, seg.text, attempts))
+            Some(SegmentRewrite(seg.id, seg.text, seg.text, attempts))
 
           callPolish(modelInput).flatMap {
             case Some(primary) =>
               val primaryAttempts = List(segmentPolishFamily -> primary)
-              acceptedRewrite(primary, primaryAttempts) match
-                case Some(rewritten) =>
-                  Future.successful(Some(rewritten))
+              val primaryValidation = validateSegmentCandidate(primary, seg.text, masked)
+              primaryValidation.text match
+                case Some(_) =>
+                  Future.successful(acceptedRewrite(primary, primaryAttempts))
                 case None =>
-                  callRepair(modelInput, primary.commentary).map {
-                    case Some(repaired) =>
-                      val attempts = primaryAttempts :+ (segmentRepairFamily -> repaired)
-                      acceptedRewrite(repaired, attempts)
-                        .orElse(fallbackToOriginal(attempts))
-                    case None =>
-                      // Prefer structural safety over aggressive rewrite: keep original segment.
-                      fallbackToOriginal(primaryAttempts)
-                  }
+                  recordFullGameInvalid(
+                    stage = "segment_primary",
+                    phase = phase,
+                    model = Some(primary.model),
+                    reasons = primaryValidation.reasons
+                  )
+                  recordFullGameInvalidPair(
+                    stage = "segment_primary",
+                    phase = phase,
+                    model = Some(primary.model),
+                    original = seg.text,
+                    candidate = primaryValidation.decodedText,
+                    reasons = primaryValidation.reasons
+                  )
+                  if !FullGamePolishRepairPolicy.shouldAttemptSegmentRepair(primaryValidation.reasons) then
+                    recordFullGameRepairBypass(phase = phase, reasons = primaryValidation.reasons)
+                    Future.successful(fallbackToOriginal(primaryAttempts))
+                  else
+                    recordFullGameRepairAttempt()
+                    callRepair(modelInput, primary.commentary).map {
+                      case Some(repaired) =>
+                        val attempts = primaryAttempts :+ (segmentRepairFamily -> repaired)
+                        val repairedValidation = validateSegmentCandidate(repaired, seg.text, masked)
+                        repairedValidation.text
+                          .flatMap(_ => acceptedRewrite(repaired, attempts))
+                          .orElse {
+                            recordFullGameInvalid(
+                              stage = "segment_repair",
+                              phase = phase,
+                              model = Some(repaired.model),
+                              reasons = repairedValidation.reasons
+                            )
+                            recordFullGameInvalidPair(
+                              stage = "segment_repair",
+                              phase = phase,
+                              model = Some(repaired.model),
+                              original = seg.text,
+                              candidate = repairedValidation.decodedText,
+                              reasons = repairedValidation.reasons
+                            )
+                            fallbackToOriginal(attempts)
+                          }
+                      case None =>
+                        // Prefer structural safety over aggressive rewrite: keep original segment.
+                        fallbackToOriginal(primaryAttempts)
+                    }
             case None => Future.successful(None)
           }
 
@@ -2011,11 +2276,99 @@ final class LlmApi(
             val merged = segmentation.merge(rewrites)
             val mergedValidation = validatePolishedCommentary(merged, prose, allowedSans)
             val strategyValidation = evaluateStrategyCoverage(merged, strategyPack, planTier, llmLevel)
-            val mergedReasons = (mergedValidation.reasons ++ strategyValidation.reasons).distinct
+            val mergedLeakReasons = fullGameLeakReasons(merged)
+            val mergedReasons = (mergedValidation.reasons ++ strategyValidation.reasons ++ mergedLeakReasons).distinct
             val attempts = successes.flatMap(_.attempts).toList
             if mergedReasons.nonEmpty then
-              recordPromptUsageAttempts(attempts)
-              None
+              val softRepair =
+                FullGameSegmentSoftRepair.repairMerged(
+                  segmentation = segmentation,
+                  rewrites =
+                    successes.toList.map(rewrite =>
+                      FullGameSegmentSoftRepair.Rewrite(
+                        id = rewrite.id,
+                        rewritten = rewrite.commentary,
+                        original = rewrite.original
+                      )
+                    ),
+                  originalProse = prose,
+                  allowedSans = allowedSans
+                )
+              val repairedText = softRepair.text
+              val repairedValidation = validatePolishedCommentary(repairedText, prose, allowedSans)
+              val repairedStrategyValidation = evaluateStrategyCoverage(repairedText, strategyPack, planTier, llmLevel)
+              val repairedLeakReasons = fullGameLeakReasons(repairedText)
+              val repairedReasons =
+                (repairedValidation.reasons ++ repairedStrategyValidation.reasons ++ repairedLeakReasons).distinct
+              val observedReasons =
+                if softRepair.applied then repairedReasons else mergedReasons
+
+              recordFullGameInvalid(
+                stage = "segment_merged",
+                phase = phase,
+                model = attempts.lastOption.map(_._2.model),
+                reasons = observedReasons
+              )
+              recordFullGameInvalidPair(
+                stage = "segment_merged",
+                phase = phase,
+                model = attempts.lastOption.map(_._2.model),
+                original = prose,
+                candidate = if softRepair.applied then repairedText else merged,
+                reasons = observedReasons
+              )
+
+              if softRepair.applied then
+                recordFullGameSoftRepair(
+                  phase = phase,
+                  actions = softRepair.actions,
+                  reasons = observedReasons
+                )
+
+              if repairedReasons.isEmpty then
+                Some(
+                  PolishDecision(
+                    commentary = repairedText,
+                    sourceMode = "llm_polished",
+                    model = attempts.lastOption.map(_._2.model),
+                    cacheHit = attempts.exists(_._2.promptCacheHit),
+                    meta = Some(
+                      buildPolishMetaOpenAi(
+                        model = attempts.lastOption.map(_._2.model),
+                        sourceMode = "llm_polished",
+                        phase = phase,
+                        validationReasons = Nil,
+                        attempts = attempts,
+                        strategyCoverage = repairedStrategyValidation.meta
+                      )
+                    ),
+                    promptUsages = attempts
+                  )
+                )
+              else if !FullGamePolishRepairPolicy.shouldRetryWholeProseAfterMergedFailure(observedReasons, softRepair.applied) then
+                recordFullGameMergedRetrySkipped(phase = phase, reasons = observedReasons)
+                Some(
+                  PolishDecision(
+                    commentary = prose,
+                    sourceMode = "fallback_rule_invalid",
+                    model = None,
+                    cacheHit = false,
+                    meta = Some(
+                      buildPolishMetaOpenAi(
+                        model = attempts.lastOption.map(_._2.model),
+                        sourceMode = "fallback_rule_invalid",
+                        phase = phase,
+                        validationReasons = observedReasons,
+                        attempts = attempts,
+                        strategyCoverage = repairedStrategyValidation.meta
+                      )
+                    ),
+                    promptUsages = attempts
+                  )
+                )
+              else
+                recordPromptUsageAttempts(attempts)
+                None
             else
               Some(
                 PolishDecision(
@@ -2080,7 +2433,7 @@ final class LlmApi(
           meta = None
         )
       )
-    else if shouldSkipPolish(prose) then
+    else if momentType.isEmpty && shouldSkipPolish(prose) then
       Future.successful(
         PolishDecision(
           commentary = prose,
@@ -2242,6 +2595,15 @@ final class LlmApi(
                       model = Some(polished.model),
                       reasons = firstValidation.reasons.distinct
                     )
+                    if bookmakerSlots.isEmpty then
+                      recordFullGameInvalidPair(
+                        stage = "fullgame_primary",
+                        phase = phase,
+                        model = Some(polished.model),
+                        original = validationSeed,
+                        candidate = firstValidation.decodedText,
+                        reasons = firstValidation.reasons.distinct
+                      )
                     val repairFut =
                       if asyncTier then
                         openAiClient.repairAsync(
@@ -2318,6 +2680,15 @@ final class LlmApi(
                             model = Some(repaired.model),
                             reasons = reasons
                           )
+                          if bookmakerSlots.isEmpty then
+                            recordFullGameInvalidPair(
+                              stage = "fullgame_repair",
+                              phase = phase,
+                              model = Some(repaired.model),
+                              original = validationSeed,
+                              candidate = repairedValidation.decodedText,
+                              reasons = reasons
+                            )
                           withRecordedPolishMetrics(
                             requestStartNs,
                             PolishDecision(
@@ -2447,6 +2818,15 @@ final class LlmApi(
                     model = Some(geminiClient.modelName),
                     reasons = primaryReasons
                   )
+                  if bookmakerSlots.isEmpty then
+                    recordFullGameInvalidPair(
+                      stage = "fullgame_primary",
+                      phase = phase,
+                      model = Some(geminiClient.modelName),
+                      original = validationSeed,
+                      candidate = validation.decodedText,
+                      reasons = primaryReasons
+                    )
                   geminiClient
                     .repair(
                       originalProse = validationSeed,
@@ -2500,6 +2880,15 @@ final class LlmApi(
                             model = Some(geminiClient.modelName),
                             reasons = reasons
                           )
+                          if bookmakerSlots.isEmpty then
+                            recordFullGameInvalidPair(
+                              stage = "fullgame_repair",
+                              phase = phase,
+                              model = Some(geminiClient.modelName),
+                              original = validationSeed,
+                              candidate = repairedValidation.decodedText,
+                              reasons = reasons
+                            )
                           withRecordedPolishMetrics(
                             requestStartNs,
                             PolishDecision(
@@ -3209,8 +3598,7 @@ final class LlmApi(
               endgameStateToken = prevEndgameStateToken
             )
             val bookmakerSlots = BookmakerPolishSlotsBuilder.build(ctx, outline, refs)
-            val authorQuestions = AuthoringEvidenceSummaryBuilder.summarizeQuestions(ctx)
-            val authorEvidence = AuthoringEvidenceSummaryBuilder.summarizeEvidence(ctx)
+            val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = bookmakerSlots.map(_.validationSeedText).filter(_.nonEmpty).getOrElse(prose)
 
@@ -3239,8 +3627,8 @@ final class LlmApi(
                 concepts = baseConcepts,
                 variations = dataWithContinuity.alternatives,
                 probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
-                authorQuestions = authorQuestions,
-                authorEvidence = authorEvidence,
+                authorQuestions = authoringSurface.questions,
+                authorEvidence = authoringSurface.evidence,
                 mainStrategicPlans = ctx.mainStrategicPlans,
                 latentPlans = ctx.latentPlans,
                 whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,

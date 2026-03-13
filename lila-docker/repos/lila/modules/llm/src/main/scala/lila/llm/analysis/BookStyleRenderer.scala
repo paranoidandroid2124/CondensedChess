@@ -116,11 +116,20 @@ object BookStyleRenderer:
     val template = beat.conceptIds.headOption.flatMap { seedId =>
       ctx.authorQuestions
         .find(_.latentPlan.exists(_.seedId == seedId))
-        .flatMap(_.latentPlan.map(_.narrative.template))
+        .flatMap(_.latentPlan.map { lp =>
+          FullGameDraftNormalizer.renderLatentPlanText(
+            template = lp.narrative.template,
+            fen = ctx.fen,
+            seedId = lp.seedId,
+            fallbackPlanName = ctx.latentPlans.find(_.seedId == lp.seedId).map(_.planName)
+          )
+        })
     }.getOrElse("A strategic idea worth considering if given time.")
 
-    if hasRefutation then s"$template But the opponent can neutralize this with accurate play."
-    else template
+    val narrative =
+      if hasRefutation then s"$template But the opponent can neutralize this with accurate play."
+      else template
+    FullGameDraftNormalizer.normalize(narrative)
 
   private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
     ctx.counterfactual.map { cf =>
@@ -161,34 +170,44 @@ object BookStyleRenderer:
   private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
     val strategicSummary =
       if ctx.mainStrategicPlans.nonEmpty then
+        def joinPhrases(items: List[String], conjunction: String): String =
+          items.filter(_.nonEmpty) match
+            case Nil           => ""
+            case one :: Nil    => one
+            case a :: b :: Nil => s"$a $conjunction $b"
+            case many          => s"${many.init.mkString(", ")}, $conjunction ${many.last}"
+
         val topPlans = ctx.mainStrategicPlans.take(3)
         val lead = topPlans.head
         val slots = ThemeNarrativeSlots.forTheme(themeIdOfHypothesis(lead))
         val ranked = topPlans.map(p => s"${p.rank}. ${p.planName} (${f"${p.score}%.2f"})").mkString("; ")
         val preconditions =
-          lead.preconditions.map(_.trim).filter(_.nonEmpty).take(2)
-        val sources =
+          lead.preconditions.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty).take(2)
+        val sourcePhrases =
           topPlans
             .flatMap(_.evidenceSources)
-            .map(_.trim)
-            .filter(_.nonEmpty)
+            .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
             .distinct
             .take(3)
-            .mkString(", ")
         val failures =
           (lead.failureModes ++ lead.refutation.toList ++ ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-            .map(_.trim)
+            .map(FullGameDraftNormalizer.humanizeConstraint)
             .filter(_.nonEmpty)
             .distinct
+            .take(2)
+        val rankedText =
+          if topPlans.size > 1 then s" Related candidates still cluster around $ranked." else ""
         val preconditionText =
-          if preconditions.nonEmpty then s" Preconditions: ${preconditions.mkString("; ")}." else ""
+          if preconditions.nonEmpty then s" This works best when ${joinPhrases(preconditions, "and")}." else ""
         val evidenceText =
-          if sources.nonEmpty then s"${slots.evidence} Signals: $sources."
-          else s"${slots.evidence} Probe + structural evidence is still limited."
+          if sourcePhrases.nonEmpty then
+            s" ${slots.evidence} Current support centers on ${joinPhrases(sourcePhrases, "and")}."
+          else s" ${slots.evidence} Concrete support is still limited."
         val holdText =
-          if failures.nonEmpty then s"${slots.hold} ${failures.take(2).mkString("; ")}."
-          else s"${slots.hold} No explicit refutation was detected."
-        s"Idea: ${slots.idea} Primary route is ${lead.planName}. Ranked stack: $ranked.$preconditionText Evidence: $evidenceText Refutation/Hold: $holdText"
+          if failures.nonEmpty then
+            s" ${slots.hold} In practice the plan has to wait if ${joinPhrases(failures, "or")}."
+          else s" ${slots.hold}"
+        s"${slots.idea} The leading route is ${lead.planName}.$rankedText$preconditionText$evidenceText$holdText"
       else ""
 
     val practicalSummary =

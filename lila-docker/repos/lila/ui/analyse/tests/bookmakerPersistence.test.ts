@@ -2,6 +2,7 @@ import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import {
+  buildStoredBookmakerEntry,
   persistSessionBookmakerSnapshot,
   readSessionBookmakerSnapshot,
   type StoredBookmakerEntry,
@@ -144,5 +145,53 @@ describe('bookmaker session persistence', () => {
     assert.equal(restored.endgameStateToken, null);
     assert.equal(planStateByPath.has('state-key'), false);
     assert.equal(endgameStateByPath.has('state-key'), false);
+  });
+
+  test('buildStoredBookmakerEntry derives cache metadata from decoded response shape', () => {
+    const entry = buildStoredBookmakerEntry(
+      {
+        refs: null,
+        polishMeta: null,
+        sourceMode: 'llm_polished',
+        model: 'gpt-5-mini',
+        cacheHit: false,
+        mainStrategicPlans: [{
+          planId: 'p1',
+          planName: 'Clamp the kingside',
+          rank: 1,
+          score: 0.91,
+          preconditions: ['Keep the center closed'],
+          executionSteps: ['Bring the knight toward e3'],
+          failureModes: ['...c5 opens the center'],
+          viability: {
+            score: 0.91,
+            label: 'credible',
+            risk: 'medium',
+          },
+        }],
+        latentPlans: [{ seedId: 'l1', planName: 'Queenside expansion', viabilityScore: 0.62, whyAbsentFromTopMultiPv: 'too slow' }],
+        holdReasons: ['Engine keeps the center closed first'],
+        bookmakerLedger: null,
+        planStateToken: null,
+        endgameStateToken: null,
+      },
+      '<div>cached</div>',
+      {
+        stateKey: 'state-key',
+        analysisFen: 'fen-1',
+        originPath: 'path-a',
+      },
+    );
+
+    assert.equal(entry.mainPlansCount, 1);
+    assert.equal(entry.latentPlansCount, 1);
+    assert.equal(entry.holdReasonsCount, 1);
+    assert.equal(entry.sourceMode, 'llm_polished');
+    assert.equal(entry.model, 'gpt-5-mini');
+    assert.deepEqual(entry.tokenContext, {
+      stateKey: 'state-key',
+      analysisFen: 'fen-1',
+      originPath: 'path-a',
+    });
   });
 });

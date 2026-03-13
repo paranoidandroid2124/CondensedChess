@@ -330,6 +330,51 @@ object PolishPrompt:
            |## REJECTED_POLISH
            |$rejectedPolish""".stripMargin
 
+  def buildSegmentRepairPrompt(
+      originalSegment: String,
+      rejectedPolish: String,
+      phase: String,
+      evalDelta: Option[Int],
+      concepts: List[String],
+      fen: String,
+      openingName: Option[String] = None
+  ): String =
+    val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
+    val contextBlock =
+      contextLines(
+        phase = phase,
+        deltaStr = deltaStr,
+        concepts = concepts,
+        fen = fen,
+        openingName = openingName,
+        nature = None,
+        tension = None,
+        salience = None,
+        momentTypeStr = "Segment Repair"
+      )
+    s"""## REQUEST
+       |Repair REJECTED_POLISH into a strict-valid commentary segment.
+       |
+       |## CONTEXT
+       |$contextBlock
+       |
+       |You are repairing a single editable segment from a longer commentary.
+       |Lock anchors like [[LK_001]] must be preserved exactly, in order, without duplication.
+       |Do not add or remove chess move tokens, move numbers, eval tokens, or branch labels.
+       |If unsure, keep the original wording around the lock anchors and only smooth obvious prose artifacts.
+       |
+       |## STRICT SEGMENT RULES
+       |- Edit prose only; do not invent new evidence.
+       |- Preserve every [[LK_*]] token exactly as written and in the same order.
+       |- Keep the segment concise and natural.
+       |- If the rejected version damaged structure, restore the original segment structure first.
+       |
+       |## ORIGINAL_SEGMENT
+       |$originalSegment
+       |
+       |## REJECTED_POLISH
+       |$rejectedPolish""".stripMargin
+
   /** Estimate token count for the system prompt (for cost analysis). */
   val estimatedSystemTokens: Int = 1500
 

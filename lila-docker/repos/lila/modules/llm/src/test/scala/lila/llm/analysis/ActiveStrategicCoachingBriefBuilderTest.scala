@@ -6,6 +6,9 @@ import lila.llm.*
 
 class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
+  private val tacticalFen = "r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11"
+  private val tacticalFenAfter = "r2qk2r/1b1nbppp/pp1Qpn2/8/2P5/BPN2NP1/P3PPBP/R2R2K1 b kq - 0 11"
+
   private val strategyPack = Some(
     StrategyPack(
       sideToMove = "white",
@@ -132,4 +135,66 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
     assert(coverage.hasGroundedSignal)
     assert(!coverage.hasForwardPlan)
+  }
+
+  test("build prioritizes immediate tactical gain in why-now when available") {
+    val brief =
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = strategyPack,
+        dossier = dossier,
+        routeRefs = routeRefs,
+        moveRefs =
+          List(
+            ActiveStrategicMoveRef(
+              label = "Engine preference",
+              source = "top_engine_move",
+              uci = "d4d6",
+              san = Some("Qxd6"),
+              fenAfter = Some(tacticalFenAfter)
+            )
+          ),
+        currentFen = Some(tacticalFen)
+      )
+
+    assertEquals(brief.whyNow, Some("Qxd6 immediately wins a pawn."))
+  }
+
+  test("build rewrites occupied-square focus language without banning control globally") {
+    val focusedDossier =
+      Some(
+        ActiveBranchDossier(
+          dominantLens = "structure",
+          chosenBranchLabel = "queenside bind",
+          whyChosen = Some("Focus on c3."),
+          opponentResource = Some("Black still hopes for ...b5.")
+        )
+      )
+
+    val brief =
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = strategyPack,
+        dossier = focusedDossier,
+        routeRefs = routeRefs,
+        moveRefs = Nil,
+        currentFen = Some(tacticalFen)
+      )
+
+    assertEquals(brief.whyNow, Some("Keep the knight anchored on c3."))
+    assertEquals(
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = strategyPack,
+        dossier =
+          Some(
+            ActiveBranchDossier(
+              dominantLens = "structure",
+              chosenBranchLabel = "queenside bind",
+              whyChosen = Some("Control of c3 keeps the queenside sealed.")
+            )
+          ),
+        routeRefs = routeRefs,
+        moveRefs = Nil,
+        currentFen = Some(tacticalFen)
+      ).whyNow,
+      Some("Control of c3 keeps the queenside sealed.")
+    )
   }

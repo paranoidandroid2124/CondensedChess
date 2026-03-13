@@ -28,7 +28,12 @@ object CommentaryOpsBoard:
 
   final case class FullGameMetrics(
       compareObserved: Long,
-      compareConsistencyRate: Double
+      compareConsistencyRate: Double,
+      repairAttempts: Long,
+      repairBypassed: Long,
+      softRepairApplied: Long,
+      mergedRetrySkipped: Long,
+      invalidReasonCounts: Map[String, Long]
   )
   object FullGameMetrics:
     given Writes[FullGameMetrics] = Json.writes[FullGameMetrics]

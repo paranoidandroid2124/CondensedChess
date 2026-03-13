@@ -6,6 +6,9 @@ import lila.llm.model.authoring.*
 
 class CommentaryEngineFocusSelectionTest extends FunSuite:
 
+  private def countOccurrences(text: String, needle: String): Int =
+    text.sliding(needle.length).count(_ == needle)
+
   test("focusMomentOutline keeps essential beats and highest-priority late beats") {
     val outline = NarrativeOutline(
       List(
@@ -116,4 +119,44 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     val mainMove = focused.beats.find(_.kind == OutlineBeatKind.MainMove).getOrElse(fail("missing main-move beat"))
     assert(mainMove.text.contains("rook belongs on the b-file"))
     assert(!focused.beats.exists(_.text == "The position remains dynamically balanced."))
+  }
+
+  test("trimHybridBodyRepetition drops redundant strategic stack meta") {
+    val body =
+      "This middlegame block near ply 28 is defined by cumulative pressure and move-order accuracy. " +
+        "Strategically, this phase rewards a coherent plan around PawnStorm Kingside. " +
+        "Key theme: **PawnStorm Kingside**. " +
+        "The strategic stack still favors PawnStorm Kingside first, with Attacking fixed Pawn as the backup route. " +
+        "The leading route is PawnStorm Kingside. " +
+        "The backup strategic stack is 1. PawnStorm Kingside (0.81); 2. Attacking fixed Pawn (0.77). " +
+        "The main signals are pawnstorm kingside, plan first, flank infrastructure, rook pawn march."
+
+    val trimmed = CommentaryEngine.trimHybridBodyRepetition(body, Some("PawnStorm Kingside"))
+
+    assertEquals(countOccurrences(trimmed, "Strategically, this phase rewards a coherent plan around PawnStorm Kingside."), 1)
+    assert(trimmed.contains("PawnStorm Kingside"))
+    assert(!trimmed.contains("The strategic stack still favors"))
+    assert(!trimmed.contains("The leading route is"))
+    assert(!trimmed.contains("The backup strategic stack is"))
+    assert(!trimmed.contains("The main signals are"))
+  }
+
+  test("assembleHybridNarrativeDraft suppresses duplicate preface when body already frames the moment") {
+    val rendered =
+      CommentaryEngine.assembleHybridNarrativeDraft(
+        lead = "This middlegame block near ply 28 is defined by cumulative pressure and move-order accuracy.",
+        bridge = "Strategically, this phase rewards a coherent plan around PawnStorm Kingside.",
+        criticalBranch = Some("Critical branch: Compared with **Nf6**, **Qe6** holds roughly a 0.5-pawn edge."),
+        body =
+          "This middlegame block near ply 28 is defined by cumulative pressure and move-order accuracy. " +
+            "Strategically, this phase rewards a coherent plan around PawnStorm Kingside. " +
+            "Key theme: **PawnStorm Kingside**. " +
+            "The strategic stack still favors PawnStorm Kingside first, with Attacking fixed Pawn as the backup route.",
+        primaryPlan = Some("PawnStorm Kingside")
+      )
+
+    assertEquals(countOccurrences(rendered, "This middlegame block near ply 28 is defined by cumulative pressure and move-order accuracy."), 1)
+    assertEquals(countOccurrences(rendered, "Strategically, this phase rewards a coherent plan around PawnStorm Kingside."), 1)
+    assert(rendered.contains("Critical branch: Compared with **Nf6**, **Qe6** holds roughly a 0.5-pawn edge."))
+    assert(!rendered.contains("The strategic stack still favors"))
   }

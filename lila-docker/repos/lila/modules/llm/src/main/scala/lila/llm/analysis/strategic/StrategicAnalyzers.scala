@@ -59,17 +59,51 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
          val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(fen, color, threat)
          
          val finalPlanId = explicitPlanId.orElse(causalThreatOpt.map(_.concept)).getOrElse("Tactical Threat")
+         val deniedResourceClass = inferDeniedResourceClass(finalPlanId)
                        
          PreventedPlan(
            planId = finalPlanId, 
            deniedSquares = Nil,
-           breakNeutralized = None,
+           breakNeutralized =
+             Option.when(deniedResourceClass.contains("break"))(extractBreakFile(finalPlanId)).filter(_ != "unknown"),
            mobilityDelta = 0,
-           counterplayScoreDrop = scoreDiff
+           counterplayScoreDrop = scoreDiff,
+           preventedThreatType = inferThreatType(causalThreatOpt.map(_.concept)),
+           deniedResourceClass = deniedResourceClass,
+           deniedEntryScope = Some(if scoreDiff >= 120 then "sector" else "single_square"),
+           breakNeutralizationStrength =
+             Option.when(deniedResourceClass.contains("break"))(math.min(100, scoreDiff)),
+           defensiveSufficiency = Some(if scoreDiff >= 120 then 90 else if scoreDiff >= 80 then 75 else 60)
          )
        } else null
     }.toList.filter(_ != null) 
   }
+
+  private def inferDeniedResourceClass(planId: String): Option[String] =
+    Option(planId)
+      .map(_.trim.toLowerCase)
+      .filter(_.nonEmpty)
+      .flatMap { normalized =>
+        if normalized.contains("break") then Some("break")
+        else if normalized.contains("entry") || normalized.contains("invasion") then Some("entry_square")
+        else if normalized.contains("check") || normalized.contains("mate") || normalized.contains("fork") ||
+            normalized.contains("threat")
+        then Some("forcing_threat")
+        else Some("piece_activity")
+      }
+
+  private def inferThreatType(concept: Option[String]): Option[String] =
+    concept.flatMap { raw =>
+      val normalized = raw.trim.toLowerCase
+      if normalized.contains("mate") || normalized.contains("check") then Some("Mate")
+      else if normalized.contains("fork") then Some("Fork")
+      else if normalized.contains("material") then Some("Material")
+      else if normalized.contains("promotion") || normalized.contains("break") then Some("Break")
+      else None
+    }
+
+  private def extractBreakFile(planId: String): String =
+    "(?i)\\b([a-h])\\b".r.findFirstMatchIn(planId).map(_.group(1).toLowerCase).getOrElse("unknown")
 }
 
 class ActivityAnalyzerImpl extends ActivityAnalyzer {

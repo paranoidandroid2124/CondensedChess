@@ -4,6 +4,9 @@ import munit.FunSuite
 
 class ActiveStrategicPromptTest extends FunSuite:
 
+  private val tacticalFen = "r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11"
+  private val tacticalFenAfter = "r2qk2r/1b1nbppp/pp1Qpn2/8/2P5/BPN2NP1/P3PPBP/R2R2K1 b kq - 0 11"
+
   private val samplePack = StrategyPack(
     sideToMove = "white",
     plans = List(
@@ -223,4 +226,32 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(!prompt.contains("Concepts:"))
     assert(!prompt.contains("## COACHING BRIEF"))
     assert(!prompt.contains("## OPENING LENS"))
+  }
+
+  test("buildPrompt surfaces tactical-first guidance when immediate material gain exists") {
+    val prompt = ActiveStrategicPrompt.buildPrompt(
+      baseNarrative = "White keeps the bind together.",
+      phase = "middlegame",
+      momentType = "Strategic Moment",
+      fen = tacticalFen,
+      concepts = List("space", "bind"),
+      strategyPack = Some(samplePack),
+      dossier = Some(sampleDossier),
+      routeRefs = sampleRouteRefs,
+      moveRefs =
+        List(
+          ActiveStrategicMoveRef(
+            label = "Engine preference",
+            source = "top_engine_move",
+            uci = "d4d6",
+            san = Some("Qxd6"),
+            fenAfter = Some(tacticalFenAfter)
+          )
+        )
+    )
+
+    assert(prompt.contains("Preferred opening lens: tactical-first"))
+    assert(prompt.contains("Qxd6 immediately wins a pawn."))
+    assert(prompt.contains("surface any immediate tactical or material gain in the first sentence"))
+    assert(prompt.contains("already occupied friendly square"))
   }

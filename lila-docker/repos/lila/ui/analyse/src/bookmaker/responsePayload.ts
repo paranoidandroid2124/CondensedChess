@@ -65,67 +65,13 @@ export type StrategyCoverageMetaV1 = {
   focusHits: number;
 };
 
-import type { DecisionComparisonDigestLike } from '../decisionComparison';
-
-export type StrategicIdeaKind =
-  | 'pawn_break'
-  | 'space_gain_or_restriction'
-  | 'target_fixing'
-  | 'line_occupation'
-  | 'outpost_creation_or_occupation'
-  | 'minor_piece_imbalance_exploitation'
-  | 'prophylaxis'
-  | 'king_attack_build_up'
-  | 'favorable_trade_or_transformation'
-  | 'counterplay_suppression';
-
-export type StrategicIdeaGroup =
-  | 'structural_change'
-  | 'piece_and_line_management'
-  | 'interaction_and_transformation';
-
-export type NarrativeSignalDigest = {
-  opening?: string;
-  strategicStack?: string[];
-  latentPlan?: string;
-  latentReason?: string;
-  decisionComparison?: DecisionComparisonDigest;
-  practicalVerdict?: string;
-  practicalFactors?: string[];
-  compensation?: string;
-  compensationVectors?: string[];
-  investedMaterial?: number;
-  structuralCue?: string;
-  structureProfile?: string;
-  centerState?: string;
-  alignmentBand?: string;
-  alignmentReasons?: string[];
-  deploymentOwnerSide?: string;
-  deploymentPiece?: string;
-  deploymentRoute?: string[];
-  deploymentPurpose?: string;
-  deploymentContribution?: string;
-  deploymentStrategicFit?: number;
-  deploymentTacticalSafety?: number;
-  deploymentSurfaceConfidence?: number;
-  deploymentSurfaceMode?: 'exact' | 'toward' | 'hidden';
-  prophylaxisPlan?: string;
-  prophylaxisThreat?: string;
-  counterplayScoreDrop?: number;
-  dominantIdeaKind?: StrategicIdeaKind;
-  dominantIdeaGroup?: StrategicIdeaGroup;
-  dominantIdeaReadiness?: 'ready' | 'build' | 'premature' | 'blocked';
-  dominantIdeaFocus?: string;
-  secondaryIdeaKind?: StrategicIdeaKind;
-  secondaryIdeaGroup?: StrategicIdeaGroup;
-  secondaryIdeaFocus?: string;
-  decision?: string;
-  strategicFlow?: string;
-  opponentPlan?: string;
-  preservedSignals?: string[];
-};
-
-export type DecisionComparisonDigest = DecisionComparisonDigestLike;
+import type { NarrativeSignalDigest } from '../chesstory/signalTypes';
+export type {
+  DecisionComparisonDigest,
+  NarrativeSignalDigest,
+  StrategicIdeaGroup,
+  StrategicIdeaKind,
+} from '../chesstory/signalTypes';
 
 export type BookmakerLedgerLineV1 = {
   title: string;
@@ -150,7 +96,35 @@ export type BookmakerStrategicLedgerV1 = {
   resourceLine?: BookmakerLedgerLineV1 | null;
 };
 
-type MaybeResponse = {
+export type DecodedBookmakerResponse = {
+  html: string;
+  commentary: string;
+  sourceMode: string | null;
+  model: string | null;
+  cacheHit: boolean | null;
+  refs: BookmakerRefsV1 | null;
+  polishMeta: PolishMetaV1 | null;
+  bookmakerLedger: BookmakerStrategicLedgerV1 | null;
+  signalDigest: NarrativeSignalDigest | null;
+  mainStrategicPlans: PlanHypothesis[];
+  latentPlans: LatentPlanNarrative[];
+  holdReasons: string[];
+  probeRequests: ProbeRequest[];
+  authorQuestions: AuthorQuestionSummary[];
+  authorEvidence: AuthorEvidenceSummary[];
+  planStateToken: PlanStateToken | null;
+  endgameStateToken: EndgameStateToken | null;
+};
+
+type DecodeBookmakerResponseFallbacks = {
+  html?: string;
+  commentary?: string;
+  probeRequests?: ProbeRequest[];
+  authorQuestions?: AuthorQuestionSummary[];
+  authorEvidence?: AuthorEvidenceSummary[];
+};
+
+export type MaybeResponse = {
   html?: unknown;
   commentary?: unknown;
   variations?: unknown;
@@ -243,6 +217,35 @@ export function cacheHitFromResponse(data: MaybeResponse): boolean | null {
 
 export function signalDigestFromResponse(data: MaybeResponse): NarrativeSignalDigest | null {
   return isRecord(data?.signalDigest) ? (data.signalDigest as NarrativeSignalDigest) : null;
+}
+
+function fallbackList<T>(primary: T[], fallback?: T[]): T[] {
+  return primary.length ? primary : fallback || [];
+}
+
+export function decodeBookmakerResponse(
+  data: MaybeResponse,
+  fallbacks: DecodeBookmakerResponseFallbacks = {},
+): DecodedBookmakerResponse {
+  return {
+    html: htmlFromResponse(data, fallbacks.html || ''),
+    commentary: commentaryFromResponse(data, fallbacks.commentary || ''),
+    sourceMode: sourceModeFromResponse(data),
+    model: modelFromResponse(data),
+    cacheHit: cacheHitFromResponse(data),
+    refs: refsFromResponse(data),
+    polishMeta: polishMetaFromResponse(data),
+    bookmakerLedger: bookmakerLedgerFromResponse(data),
+    signalDigest: signalDigestFromResponse(data),
+    mainStrategicPlans: mainStrategicPlansFromResponse(data),
+    latentPlans: latentPlansFromResponse(data),
+    holdReasons: whyAbsentFromTopMultiPVFromResponse(data),
+    probeRequests: fallbackList(probeRequestsFromResponse(data), fallbacks.probeRequests),
+    authorQuestions: fallbackList(authorQuestionsFromResponse(data), fallbacks.authorQuestions),
+    authorEvidence: fallbackList(authorEvidenceFromResponse(data), fallbacks.authorEvidence),
+    planStateToken: planStateTokenFromResponse(data),
+    endgameStateToken: endgameStateTokenFromResponse(data),
+  };
 }
 
 function ledgerLineFromUnknown(raw: unknown): BookmakerLedgerLineV1 | null {

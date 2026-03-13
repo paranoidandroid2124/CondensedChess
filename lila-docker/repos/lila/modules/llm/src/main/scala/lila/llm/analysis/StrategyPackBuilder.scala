@@ -27,6 +27,7 @@ object StrategyPackBuilder:
     val plans = buildPlans(ctx, sideToMoveColor)
     val boardOpt =
       Fen.read(_root_.chess.variant.Standard, Fen.Full(data.fen)).map(_.board)
+    val semanticContext = StrategicIdeaSemanticContext.from(data, ctx, boardOpt)
     val routes = buildRoutes(data, boardOpt, sideToMoveColor, plans, structureArc)
     val moveRefs = buildMoveRefs(data, boardOpt, sideToMoveColor, plans)
     val directionalTargets = buildDirectionalTargets(data, boardOpt, sideToMoveColor, plans)
@@ -45,7 +46,9 @@ object StrategyPackBuilder:
         longTermFocus = longTermFocus,
         evidence = evidence,
         signalDigest = signalDigest
-      ))
+      ),
+        semanticContext
+      )
     )
 
   def promptHints(pack: StrategyPack): List[String] =

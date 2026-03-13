@@ -266,8 +266,9 @@ Key references:
   - Bookmaker prose structure is now explicitly fixed as an `L2.5 hybrid`
     contract: UI owns summary sections/cards, while the LLM only rewrites the
     commentary body as paragraph-structured prose.
-  - `PolishPrompt.systemPrompt`, `buildPolishPrompt`, and `buildRepairPrompt`
-    now instruct polish/repair models not to emit UI section headers, to
+  - `PolishPrompt.systemPrompt`, `buildPolishPrompt`, `buildRepairPrompt`, and
+    segment-only `buildSegmentRepairPrompt` now instruct polish/repair models
+    not to emit UI section headers, to
     preserve paragraph boundaries, and to target `2-4` short paragraphs in
     isolated-move / Bookmaker mode.
   - To reduce prompt cost, the full contract lives in documentation and the
@@ -378,6 +379,45 @@ Key references:
   - `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala:5`
   - `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala:205`
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala:144`
+- `2026-03-12` Bookmaker frontend cleanup-only update:
+  - the Bookmaker initial-response and refined-response paths no longer decode the
+    same payload fields independently inside `bookmaker.ts`; both now go through a
+    shared `decodeBookmakerResponse` helper.
+  - stored Bookmaker cache entries are now materialized through one
+    `buildStoredBookmakerEntry` helper instead of duplicating count/metadata
+    assembly at each fetch stage.
+  - the Bookmaker frontend `NarrativeSignalDigest` adapter now preserves
+    `authoringEvidence`, matching the backend wire shape.
+  - no Active-note or full-game runtime contract changed in this cleanup.
+- Verification:
+  - `ui/analyse/src/bookmaker/responsePayload.ts`
+  - `ui/analyse/src/bookmaker/studyPersistence.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/tests/bookmakerResponsePayload.test.ts`
+  - `ui/analyse/tests/bookmakerPersistence.test.ts`
+- `2026-03-12` cleanup-only follow-up:
+  - the old strategic-idea keyword classifier is no longer shipped from
+    `src/main`; it now lives under `src/test` as a comparison helper for
+    selector regression tests only.
+  - frontend Chesstory signal shape and text-format helpers now live in shared
+    modules so Bookmaker and full-game narrative no longer maintain parallel
+    `NarrativeSignalDigest` / `StrategicIdea*` definitions or duplicate token /
+    evidence / deployment formatting logic.
+  - authoring evidence payload assembly now has a single `build(ctx)` bundle,
+    and the full-game path reuses that bundle plus its headline instead of
+    recomputing question/evidence/headline slices independently.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/AuthoringEvidenceSummaryBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/LegacyStrategicIdeaTextClassifier.scala`
+  - `ui/analyse/src/chesstory/signalTypes.ts`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/src/bookmaker/responsePayload.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeCtrl.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
 - `2026-03-08` working-tree update:
   - Bookmaker prose is now thesis-driven before LLM polish. The deterministic
     draft no longer treats rich helper signals as a flat parallel list when a
@@ -1216,20 +1256,60 @@ Verification:
       `OPENAI_MODEL_ACTIVE_FALLBACK`, `OPENAI_REASONING_EFFORT_ACTIVE`
     - Gemini active-note-only env:
       `GEMINI_MODEL_ACTIVE`
-    - default OpenAI active-note route is `gpt-5.2` with
+    - code default OpenAI active-note route remains `gpt-5.2` with
       `reasoning_effort = none`; global/base polish can still remain on
       `gpt-5-mini`
+    - current compose/runtime default in `lila-docker/settings.env` is:
+      - global polish / Bookmaker on OpenAI `gpt-5-mini`
+      - Active note on Gemini `gemini-3-flash-preview`
+      - Gemini active-note path remains uncached in runtime, because
+        `GeminiClient.activeStrategicNote` calls `callWithSystemPrompt` with
+        `allowContextCache = false`
+      - when Active note primary provider is Gemini and OpenAI is enabled,
+        `LlmApi` now retries the note through the OpenAI active-note route on
+        Gemini empty / invalid / repair-failed outcomes; telemetry exposes the
+        OpenAI primary model as the configured fallback model for that Gemini
+        route
     - `OpenAiClient` now treats `gpt-5.2*` / `gpt-5.4*` as modern GPT-5 routes
       and never sends legacy `reasoning_effort = minimal` to them
   - segment polish is now narrower:
     - intro/conclusion moments do not enter the segment path
     - prose must be at least `80` words
-    - segmenter must expose at least `2` editable segments
-    - max rewritten segments = `4` async / `2` sync
+    - the segment attempt exits immediately if no editable segment survives
+      structural-token masking
+    - candidate editable segments now also need enough prose on their own:
+      - at least `12` total words
+      - at least `8` prose words
+      - lock-bearing segments need at least `10` prose words
+      - lock-dense segments (`protectedTokenCount / totalWords > 0.28`) are
+        skipped before segment polish
+    - max rewritten segments = `2` async / `1` sync
+    - segment repair is now reason-aware: structural failures such as missing
+      lock anchors, wrapper leakage, truncation, or length-ratio damage bypass
+      the LLM repair pass and fall straight back to the original segment
+    - the common `san_order_violation + count_budget_exceeded` pair is now also
+      treated as low-yield for segment repair, so the runtime keeps the original
+      segment instead of paying for a repair that historically fails the same
+      structural checks again
+    - merged segment output now gets a deterministic soft-repair pass before
+      whole-prose fallback: invalid rewrites are greedily reverted when that
+      restores SAN / marker validity without discarding the entire segment path
+    - merged structural failures can now skip the old whole-prose retry path;
+      the runtime keeps the original prose instead of paying for a low-yield
+      second rewrite attempt
   - internal-only commentary ops snapshot now exposes per-family prompt-usage
     aggregates (`promptUsage`) across polish / repair / segment / active-note
     calls, including attempts, cached hits, prompt tokens, completion tokens,
     and estimated cost
+  - full-game ops telemetry additionally exposes:
+    - `repairAttempts`
+    - `repairBypassed`
+    - `softRepairApplied`
+    - `mergedRetrySkipped`
+    - `invalidReasonCounts`
+    - sampled failure classes:
+      `fullgame_polish.invalid`, `fullgame_segment_repair_bypassed`,
+      `fullgame_segment_soft_repair`, `fullgame_segment_retry_skipped`
   - active-note ops telemetry additionally exposes:
     - `provider`
     - `configuredModel`
@@ -1323,12 +1403,21 @@ Verification:
   - `executionHint`
   - `longTermObjective`
   - `keyTrigger`
-- Prompt/validation behavior changed accordingly:
-  - Active prompt centers the dominant idea and allows at most one support from
-    `executionHint` or `longTermObjective`
-  - route wording is explicitly supporting evidence, not the thesis sentence
-  - validator no longer expects generic route/move mention by default
-  - hard requirements are now:
+  - Prompt/validation behavior changed accordingly:
+    - Active prompt centers the dominant idea and allows at most one support from
+      `executionHint` or `longTermObjective`
+    - when shipped move evidence shows an immediate tactical or material gain,
+      the coaching brief now promotes that fact into `whyNow`, and the active
+      prompt explicitly asks for that concrete gain to appear in the first
+      sentence before the note widens back out to the strategic plan
+    - occupied friendly squares are no longer naively rephrased as if they still
+      need to be newly occupied; the coaching-brief layer only rewrites
+      obviously occupancy-shaped prompts such as `focus on c3` into
+      `keep the knight anchored on c3`, while genuine square-control language is
+      preserved
+    - route wording is explicitly supporting evidence, not the thesis sentence
+    - validator no longer expects generic route/move mention by default
+    - hard requirements are now:
     - grounded dominant idea
     - forward plan
     - opponent resource or failure trigger
@@ -1370,6 +1459,151 @@ Verification:
 - `ui/analyse/src/bookmaker/responsePayload.ts`
 - `ui/analyse/css/_narrative.scss`
 - `ui/analyse/tests/narrativeView.test.ts`
+
+## 2026-03-12 Typed Semantic Strategic Idea Selector Overhaul
+
+- No public schema bump in this step. `StrategyPack v2` and `GameNarrativeResponse v6`
+  remain current.
+- Active-note idea selection now has an explicit typed source registry:
+  - `authoritative`: board state, `PositionFeatures`, `StrategicStateFeatures`,
+    `PositionalTag`, `PieceActivity`, `WeakComplex`, `PreventedPlan`,
+    `ThreatAnalysis`, `PawnPlayAnalysis`, `EndgameFeature`, motifs, and route /
+    directional-target structural facts
+  - `derived typed`: `PositionClassification`, `StructureProfile`,
+    `PlanAlignment.reasonCodes`, and the compact `PawnPlayTable`
+  - `prose-only` and non-authoritative: digest strings, `planName`,
+    `longTermFocus`, `route.purpose`, directional-target reasons /
+    prerequisites, and structure narrative intent / risk text
+- `StrategicIdeaSelector` no longer classifies ideas from `planName`, digest prose,
+  `longTermFocus`, `route.purpose`, or directional-target reasons/prerequisites.
+- `StrategicIdeaSemanticContext` now bridges `IntegratedContext.classification`,
+  `pawnAnalysis`, `opponentPawnAnalysis`, `threatsToUs`, `threatsToThem`,
+  `structureProfile`, `planAlignment.reasonCodes`, and motifs directly into
+  selector input, instead of relying on downstream prose summaries.
+- The selector now emits an idea only when typed evidence exists; the generic
+  fallback to `space_gain_or_restriction` is removed.
+- Runtime route semantics remain unchanged:
+  - hidden routes stay hidden
+  - unsafe routes are not revived by idea selection
+  - directional targets remain separate from routes and keep their existing
+    readiness semantics
+- Coverage of the 10 idea kinds is now typed:
+  - `pawn_break` from pawn-break readiness / tension / file-opening consequences,
+    with direct `PawnPlayAnalysis.advanceOrCapture`, `counterBreak`, and
+    `tensionSquares` bridges
+  - `space_gain_or_restriction` from space tags, clamp state, and mobility
+    restriction, plus locked-center / space-race derived typed support
+  - `target_fixing` from weak-square / color-complex / fixation signals and
+    `WeakComplex` backfill
+  - `line_occupation` from open-file / doubled-rook / route line-access signals
+  - `outpost_creation_or_occupation` from outpost / strong-knight / entrenched
+    piece signals
+  - `minor_piece_imbalance_exploitation` from bishop-pair / bad-bishop /
+    good-bishop / piece-count imbalance signals
+  - `prophylaxis` from structured prevented-plan evidence plus `ThreatAnalysis`
+    defensive/prophylaxis signals
+  - `king_attack_build_up` from king-pressure / mate-net / hook / attack-lane
+    signals plus typed motif bridges (`RookLift`, `Battery`, `PieceLift`,
+    `Check`) and `threatsToThem`
+  - `favorable_trade_or_transformation` from removing-the-defender,
+    classification simplify/convert windows, plan-alignment transformation
+    reason codes, and winning-transition signals
+  - `counterplay_suppression` from denied-break / counterplay-drop suppression
+    signals, `opponentPawnAnalysis.counterBreak`, and `ThreatAnalysis`
+- The old keyword selector path still exists only as the test-only helper
+  `LegacyStrategicIdeaTextClassifier` under `modules/llm/src/test`. It is not
+  used in runtime ranking.
+- `PreventedPlan` received additive internal-only density fields
+  (`deniedResourceClass`, `deniedEntryScope`, `breakNeutralizationStrength`,
+  `defensiveSufficiency`) so selector logic can separate prophylaxis from
+  counterplay suppression without widening the public Active-note surface.
+- Gold semantic regression for idea extraction now has a dedicated FEN-grounded
+  fixture bank:
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaFenFixtures.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorFenFixtureTest.scala`
+- That fixture bank does not inject typed idea evidence. It runs the real
+  `FEN -> CommentaryEngine.assessExtended -> NarrativeContextBuilder ->
+  StrategicIdeaSemanticContext -> StrategyPackBuilder -> StrategicIdeaSelector`
+  path and asserts:
+  - FEN legality and material parity
+  - producer-level board/structure checks such as French `...f6` break seeds,
+    bishop-pin prophylaxis, queenside clamp watches, IQP simplification bridges,
+    and Hedgehog / Maroczy break-denial geometry
+  - gold dominant-idea labels after fixture re-audit, where the gold label is
+    the board-grounded strategic theme and not an earlier prose intention
+  - prose-noise invariance, so misleading `planName` / digest / focus text does
+    not change the dominant typed idea
+- `2026-03-13` working-tree update:
+  - full-game conditional-plan text no longer reuses raw latent templates with
+    `{us}` / `{them}` / `{seed}` placeholders. Full-game draft rendering now
+    interpolates side labels and seed text before prose assembly.
+  - `renderHybridMomentNarrative` now passes the validated outline through a
+    full-game draft normalization step before LLM polish:
+    - user-facing sanitizer is applied to the draft
+    - `Idea:` / `Primary route is` / `Ranked stack:` / `Signals:` /
+      `Refutation/Hold:` meta labels are proseified before the draft reaches
+      the full-game polish prompt
+    - latent-plan `seedId` placeholders are no longer direct-translation leaks:
+      known seed/subplan ids are humanized through taxonomy aliases before they
+      reach prose (for example `PawnStorm_Kingside` now renders as
+      `a kingside pawn storm`)
+    - wrap-up preconditions and hold clauses are emitted as natural sentences
+      rather than raw `Preconditions:` / `Signals:` / `Refutation/Hold:`
+      fragments
+    - raw evidence labels such as `theme:...`, `subplan:...`, and `seed:...`
+      are translated into prose-only support clauses before the draft is
+      normalized
+  - full-game hybrid assembly now removes low-value repetition before polish:
+    - duplicate preface/body thesis restatements are suppressed
+    - low-value strategic-stack sentences such as `The strategic stack still
+      favors ...`, `The leading route is ...`, and `The main signals are ...`
+      are dropped from the hybrid body when they repeat the already-shipped
+      dominant plan thesis
+  - full-game invalid-pair telemetry now records:
+    - stage (`segment_primary`, `segment_repair`, `segment_merged`,
+      `fullgame_primary`, `fullgame_repair`)
+    - sampled `original` / `candidate` excerpts
+    - original/candidate word counts
+    - length ratio
+    - normalized leak hits
+  - placeholder leak detection for full-game prose is now narrower:
+    - natural prose like `Key theme:` is no longer treated as a raw
+      placeholder leak
+    - only actual raw label tokens such as `theme:piece_redeployment`,
+      `subplan:...`, `support:...`, `proposal:...`, `seed:...`, or bracketed
+      `[subplan:...]` patterns count as placeholder leaks
+  - local 10-game rerun after fixing the probe env loading bug confirmed:
+    - full-game polish is active again (`llm_polished=10/10`)
+    - earlier `segment_merged:placeholder_leak_detected` samples were false
+      positives caused by `Key theme:` matching the old broad `theme:` detector
+    - after narrowing leak detection and adding hybrid dedup, full-game invalid
+      reasons on the 10-game rerun were reduced to structural failures only:
+      `segment_primary:length_ratio_out_of_bounds`,
+      `segment_primary:count_budget_exceeded`, and
+      `segment_primary:san_order_violation`
+    - hidden segment fallback is still nonzero on that rerun, so the current
+      full-game path is improved but does not yet meet a strict
+      `segment original fallback = 0` target
+
+Verification:
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSourceRegistry.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSemanticContext.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+- `modules/llm/src/main/scala/lila/llm/model/strategic/StrategicModels.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/strategic/StrategicAnalyzers.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/LegacyStrategicIdeaTextClassifier.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+- `modules/llm/src/test/scala/lila/llm/ActiveStrategicPromptTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaFenFixtures.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorFenFixtureTest.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/FullGameDraftNormalizer.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/FullGameDraftNormalizerTest.scala`
+- `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
 
 ## Reference Files
 

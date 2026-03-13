@@ -238,7 +238,12 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
           fullgame =
             CommentaryOpsBoard.FullGameMetrics(
               compareObserved = 2L,
-              compareConsistencyRate = 1.0
+              compareConsistencyRate = 1.0,
+              repairAttempts = 4L,
+              repairBypassed = 1L,
+              softRepairApplied = 2L,
+              mergedRetrySkipped = 1L,
+              invalidReasonCounts = Map("segment_primary:anchor_missing" -> 2L)
             ),
           active =
             CommentaryOpsBoard.ActiveMetrics(

@@ -1,5 +1,9 @@
 package lila.llm.analysis
 
+import _root_.chess.{ Bishop, Board, Color, Knight, Pawn, Queen, Rook, Square }
+import _root_.chess.format.Fen
+import _root_.chess.variant.Standard
+
 import lila.llm.*
 
 private[llm] object ActiveStrategicCoachingBriefBuilder:
@@ -50,47 +54,65 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       strategyPack: Option[StrategyPack],
       dossier: Option[ActiveBranchDossier],
       routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef]
+      moveRefs: List[ActiveStrategicMoveRef],
+      currentFen: Option[String] = None
   ): Brief =
     val digest = strategyPack.flatMap(_.signalDigest)
     val dominantIdea = strategyPack.toList.flatMap(_.strategicIdeas).headOption
-    val primaryIdea = dominantIdea.map(primaryIdeaLabel)
+    val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove)).getOrElse("white")
+    val currentBoard = currentFen.flatMap(parseBoard)
+    val tacticalReality = immediateTacticalReality(currentBoard, preferredSide, moveRefs)
+    val primaryIdea =
+      dominantIdea.map(primaryIdeaLabel).flatMap(value => contextualizeSignal(Some(value), currentBoard, preferredSide))
     val whyNow =
-      dedupe(
-        pickFirst(
-          dossier.flatMap(_.whyChosen),
-          digest.flatMap(_.decision),
-          digest.flatMap(_.structuralCue),
-          digest.flatMap(_.dominantIdeaFocus).map(focus => s"The position is already pointing toward $focus."),
-          digest.flatMap(_.practicalVerdict),
-          dossier.flatMap(_.evidenceCue)
+      contextualizeSignal(
+        dedupe(
+          pickFirst(
+            tacticalReality,
+            dossier.flatMap(_.whyChosen),
+            digest.flatMap(_.decision),
+            digest.flatMap(_.structuralCue),
+            digest.flatMap(_.dominantIdeaFocus).map(focus => s"The position is already pointing toward $focus."),
+            digest.flatMap(_.practicalVerdict),
+            dossier.flatMap(_.evidenceCue)
+          ),
+          primaryIdea
         ),
-        primaryIdea
+        currentBoard,
+        preferredSide
       )
     val opponentReply =
-      pickFirst(
-        dossier.flatMap(_.opponentResource),
-        digest.flatMap(_.opponentPlan),
-        digest.flatMap(_.prophylaxisThreat),
-        dossier.flatMap(_.threadOpponentCounterplan)
+      contextualizeSignal(
+        pickFirst(
+          dossier.flatMap(_.opponentResource),
+          digest.flatMap(_.opponentPlan),
+          digest.flatMap(_.prophylaxisThreat),
+          dossier.flatMap(_.threadOpponentCounterplan)
+        ),
+        currentBoard,
+        preferredSide
       )
     val executionHint = selectExecutionHint(strategyPack, dossier, routeRefs, dominantIdea)
     val longTermObjective = selectLongTermObjective(strategyPack, dominantIdea, executionHint)
     val keyTrigger =
-      dedupe(
-        pickFirst(
-          dossier.flatMap(_.practicalRisk),
-          dossier.flatMap(_.whyDeferred),
-          digest.flatMap(_.latentReason),
-          digest.flatMap(_.counterplayScoreDrop).map(cp => s"If the plan drifts, the counterplay can rise by about ${cp}cp."),
-          strategyPack.flatMap(_.pieceMoveRefs.headOption.map(moveRefSummary)),
-          moveRefs.headOption.flatMap(_.san.map(san => s"The follow-up still depends on getting ${san.trim} into the right structure."))
+      contextualizeSignal(
+        dedupe(
+          pickFirst(
+            dossier.flatMap(_.practicalRisk),
+            dossier.flatMap(_.whyDeferred),
+            digest.flatMap(_.latentReason),
+            digest.flatMap(_.counterplayScoreDrop).map(cp => s"If the plan drifts, the counterplay can rise by about ${cp}cp."),
+            strategyPack.flatMap(_.pieceMoveRefs.headOption.map(moveRefSummary)),
+            moveRefs.headOption.flatMap(_.san.map(san => s"The follow-up still depends on getting ${san.trim} into the right structure."))
+          ),
+          primaryIdea,
+          whyNow,
+          opponentReply,
+          executionHint,
+          longTermObjective
         ),
-        primaryIdea,
-        whyNow,
-        opponentReply,
-        executionHint,
-        longTermObjective
+        currentBoard,
+        preferredSide
       )
     Brief(
       campaignRole = dossier.flatMap(_.threadStage).flatMap(stageRoleDescription),
@@ -145,6 +167,11 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     raw.flatMap { value =>
       val sanitized = UserFacingSignalSanitizer.sanitize(naturalizeLabel(value))
       Option(sanitized).map(_.trim).filter(_.nonEmpty)
+    }
+
+  private def contextualizeSignal(raw: Option[String], board: Option[Board], side: String): Option[String] =
+    raw.flatMap { value =>
+      cleanSignal(Some(rewriteOccupiedSquareLanguage(value, board, side)))
     }
 
   private def signalMentioned(normalizedText: String, textTokens: Set[String], signal: String): Boolean =
@@ -277,3 +304,106 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
   private def extractLastSquare(text: String): Option[String] =
     """\b([a-h][1-8])\b""".r.findAllMatchIn(Option(text).getOrElse("").toLowerCase).map(_.group(1)).toList.lastOption
+
+  private def parseBoard(fen: String): Option[Board] =
+    Fen.read(Standard, Fen.Full(fen)).map(_.board)
+
+  private def materialScore(board: Board, color: Color): Int =
+    board.byPiece(color, Pawn).count +
+      board.byPiece(color, Knight).count * 3 +
+      board.byPiece(color, Bishop).count * 3 +
+      board.byPiece(color, Rook).count * 5 +
+      board.byPiece(color, Queen).count * 9
+
+  private def sideColor(side: String): Color =
+    if side == "white" then Color.White else Color.Black
+
+  private def immediateTacticalReality(
+      currentBoard: Option[Board],
+      side: String,
+      moveRefs: List[ActiveStrategicMoveRef]
+  ): Option[String] =
+    currentBoard.flatMap { before =>
+      val activeColor = sideColor(side)
+      val currentEdge = materialScore(before, activeColor) - materialScore(before, !activeColor)
+
+      moveRefs
+        .flatMap { ref =>
+          val san = ref.san.map(_.trim).filter(_.nonEmpty)
+          val afterEdge =
+            ref.fenAfter.flatMap(parseBoard).map(after =>
+              materialScore(after, activeColor) - materialScore(after, !activeColor)
+            )
+          val gain = afterEdge.map(_ - currentEdge).getOrElse(0)
+          san.flatMap { move =>
+            if gain > 0 then
+              Some(
+                (
+                  20 + gain,
+                  s"$move immediately wins ${materialGainLabel(gain)}${if isForcingSan(move) then " while forcing the issue" else ""}."
+                )
+              )
+            else if isForcingSan(move) then Some(10 -> s"$move forces the issue immediately.")
+            else None
+          }
+        }
+        .sortBy { case (priority, _) => -priority }
+        .headOption
+        .map(_._2)
+    }
+
+  private def materialGainLabel(gain: Int): String =
+    if gain >= 9 then "a queen"
+    else if gain >= 5 then "a rook"
+    else if gain >= 3 then "a piece"
+    else if gain >= 1 then "a pawn"
+    else "material"
+
+  private def isForcingSan(san: String): Boolean =
+    val trimmed = Option(san).map(_.trim).getOrElse("")
+    trimmed.contains("+") || trimmed.contains("#")
+
+  private def rewriteOccupiedSquareLanguage(
+      text: String,
+      board: Option[Board],
+      side: String
+  ): String =
+    board.fold(text) { currentBoard =>
+      val color = sideColor(side)
+
+      def occupantLabel(squareKey: String): Option[String] =
+        Square.all
+          .find(_.key == squareKey)
+          .flatMap(currentBoard.pieceAt)
+          .filter(_.color == color)
+          .map(piece => pieceName(roleToken(piece.role)))
+
+      def preserveCapitalization(original: String, replacement: String): String =
+        if original.headOption.exists(_.isUpper) then replacement.take(1).toUpperCase + replacement.drop(1)
+        else replacement
+
+      val focus = """(?i)\bfocus on ([a-h][1-8])\b""".r
+      val pointing = """(?i)\bpointing toward ([a-h][1-8])\b""".r
+
+      val step1 =
+        focus.replaceAllIn(text, m =>
+          occupantLabel(m.group(1).toLowerCase)
+            .map(piece => preserveCapitalization(m.matched, s"keep the $piece anchored on ${m.group(1).toLowerCase}"))
+            .getOrElse(m.matched)
+        )
+
+      pointing.replaceAllIn(step1, m =>
+        occupantLabel(m.group(1).toLowerCase)
+          .map(piece => preserveCapitalization(m.matched, s"the $piece already anchored on ${m.group(1).toLowerCase}"))
+          .getOrElse(m.matched)
+      )
+    }
+
+  private def roleToken(role: _root_.chess.Role): String =
+    role match
+      case Knight => "N"
+      case Bishop => "B"
+      case Rook   => "R"
+      case Queen  => "Q"
+      case Pawn   => "P"
+      case _      => "K"

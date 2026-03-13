@@ -15,22 +15,20 @@ private[analysis] object UserFacingSignalSanitizer:
   )
   private val rawLabelRegex = """\b(?:subplan|theme|support|seed|proposal):([a-z0-9_]+)\b""".r
   private val bracketedSubplanRegex = """\s*\[subplan:[^\]]+\]""".r
-  private val placeholderPatterns: List[String] = List(
+  private val placeholderLiteralPatterns: List[String] = List(
     "probe needed for validation",
     "under strict evidence mode",
     "supported by engine coupled continuation",
     "supported by engine-coupled continuation",
     "probe evidence pending",
     "probe contract passed but support signal is insufficient",
-    "[subplan:",
-    "subplan:",
-    "theme:",
-    "support:",
-    "seed:",
-    "proposal:",
     "{them}",
     "{us}",
     "{seed}"
+  )
+  private val placeholderRegexes: List[(String, String)] = List(
+    "subplan" -> """(?i)\[subplan:[^\]]+\]""",
+    "raw_label" -> """(?i)\b(?:subplan|theme|support|seed|proposal):[a-z0-9_]+\b"""
   )
 
   def sanitize(raw: String): String =
@@ -47,8 +45,15 @@ private[analysis] object UserFacingSignalSanitizer:
     )
 
   def placeholderHits(raw: String): List[String] =
-    val low = Option(raw).getOrElse("").toLowerCase
-    placeholderPatterns.filter(low.contains)
+    val source = Option(raw).getOrElse("")
+    val low = source.toLowerCase
+    val literalHits = placeholderLiteralPatterns.filter(low.contains)
+    val regexHits =
+      placeholderRegexes.flatMap { case (label, pattern) =>
+        val regex = pattern.r
+        regex.findFirstMatchIn(source).map(_ => label)
+      }
+    (literalHits ++ regexHits).distinct
 
   private def humanizeLabel(raw: String): String =
     Option(raw).getOrElse("").replace('_', ' ').trim
