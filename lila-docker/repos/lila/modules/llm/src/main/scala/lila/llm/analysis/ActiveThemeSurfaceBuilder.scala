@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.{ GameNarrativeMoment, StrategyPack, StrategyPieceRoute }
+import lila.llm.{ GameChronicleMoment, StrategyPack, StrategyPieceRoute }
 
 object ActiveThemeSurfaceBuilder:
 
@@ -19,7 +19,7 @@ object ActiveThemeSurfaceBuilder:
   )
 
   private case class Signals(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       subplanId: Option[String],
       planKey: Option[String],
       planLabel: Option[String],
@@ -46,7 +46,7 @@ object ActiveThemeSurfaceBuilder:
   private val OppositeBishopTerms =
     List("opposite bishops", "opposite-colored bishops", "opposite coloured bishops")
 
-  def build(moment: GameNarrativeMoment): Option[ThemeSurface] =
+  def build(moment: GameChronicleMoment): Option[ThemeSurface] =
     val signals = collectSignals(moment)
     List(
       pickOppositeBishopsConversion(signals),
@@ -160,7 +160,7 @@ object ActiveThemeSurfaceBuilder:
       zones = signals.zones
     )
 
-  private def collectSignals(moment: GameNarrativeMoment): Signals =
+  private def collectSignals(moment: GameChronicleMoment): Signals =
     val digest = moment.signalDigest
     val pack = moment.strategyPack
     val routes = pack.toList.flatMap(_.pieceRoutes)
@@ -201,7 +201,7 @@ object ActiveThemeSurfaceBuilder:
           digest.flatMap(_.counterplayScoreDrop).exists(_ > 0)
     )
 
-  private def buildCorpus(moment: GameNarrativeMoment, pack: Option[StrategyPack]): String =
+  private def buildCorpus(moment: GameChronicleMoment, pack: Option[StrategyPack]): String =
     normalize(
       List(
         Some(moment.momentType),

@@ -350,7 +350,10 @@ object PlanProposalEngine:
       if ctx.tacticalThreatToUs then 0.18
       else if ctx.strategicThreatToUs then 0.1
       else 0.0
-    (base - pressurePenalty).max(0.25).min(0.9)
+    val adjusted = base - pressurePenalty
+    if seed.id == "PawnStorm_Kingside" then
+      (adjusted * 0.42 - 0.12).max(0.12).min(0.38)
+    else adjusted.max(0.25).min(0.9)
 
   private def mergeDuplicates(items: List[PlanHypothesis]): List[PlanHypothesis] =
     items

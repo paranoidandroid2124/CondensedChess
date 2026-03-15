@@ -53,7 +53,7 @@ export interface CollapseAnalysis {
     recoverabilityPlies: number;
 }
 
-export interface GameNarrativeMoment {
+export interface GameChronicleMoment {
     momentId?: string;
     ply: number;
     moveNumber?: number;
@@ -246,7 +246,7 @@ export interface ActiveStrategicThread {
     continuityScore: number;
 }
 
-export interface GameNarrativeReview {
+export interface GameChronicleReview {
     schemaVersion?: number;
     reviewPerspective?: string;
     totalPlies: number;
@@ -265,13 +265,13 @@ export interface GameNarrativeReview {
     momentTypeCounts?: Record<string, number>;
 }
 
-export interface GameNarrativeResponse {
+export interface GameChronicleResponse {
     schema: string;
     intro: string;
-    moments: GameNarrativeMoment[];
+    moments: GameChronicleMoment[];
     conclusion: string;
     themes: string[];
-    review?: GameNarrativeReview;
+    review?: GameChronicleReview;
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
@@ -280,17 +280,17 @@ export interface GameNarrativeResponse {
     ccaEnabled?: boolean;
 }
 
-interface AsyncNarrativeSubmitResponse {
+interface AsyncGameChronicleSubmitResponse {
     jobId: string;
     status: string;
 }
 
-interface AsyncNarrativeStatusResponse {
+interface AsyncGameChronicleStatusResponse {
     jobId: string;
     status: string;
     createdAtMs?: number;
     updatedAtMs?: number;
-    result?: GameNarrativeResponse | null;
+    result?: GameChronicleResponse | null;
     error?: string | null;
     ccaEnabled?: boolean;
 }
@@ -330,7 +330,7 @@ function formatSeconds(totalSeconds: number): string {
 export class NarrativeCtrl {
     enabled: Prop<boolean>;
     loading: Prop<boolean> = prop(false);
-    data: Prop<GameNarrativeResponse | null> = prop(null);
+    data: Prop<GameChronicleResponse | null> = prop(null);
     error: Prop<string | null> = prop(null);
     needsLogin: Prop<boolean> = prop(false);
     loadingDetail: Prop<string | null> = prop(null);
@@ -428,7 +428,7 @@ export class NarrativeCtrl {
         }
     };
 
-    private publishCollapseOverlay = (response: GameNarrativeResponse | null): void => {
+    private publishCollapseOverlay = (response: GameChronicleResponse | null): void => {
         const collapses = (response?.moments || [])
             .flatMap(m => (m.collapse
                 ? [{
@@ -473,7 +473,7 @@ export class NarrativeCtrl {
             });
 
             if (submitRes.ok) {
-                const submit = (await submitRes.json()) as AsyncNarrativeSubmitResponse;
+            const submit = (await submitRes.json()) as AsyncGameChronicleSubmitResponse;
                 await this.pollAsyncNarrative(submit.jobId);
             } else if (submitRes.status === 404 || submitRes.status === 405 || submitRes.status === 501) {
                 await this.fetchNarrativeSyncFallback(payload);
@@ -515,7 +515,7 @@ export class NarrativeCtrl {
 
         if (res.ok) {
             const data = await res.json();
-            const response = data as GameNarrativeResponse;
+            const response = data as GameChronicleResponse;
             this.data(response);
             this.publishCollapseOverlay(response);
             this.root.refreshReviewShellState();
@@ -557,7 +557,7 @@ export class NarrativeCtrl {
                 return;
             }
 
-            const status = (await res.json()) as AsyncNarrativeStatusResponse;
+                const status = (await res.json()) as AsyncGameChronicleStatusResponse;
             const state = (status.status || '').toLowerCase();
             if (state === 'completed') {
                 if (status.result) {

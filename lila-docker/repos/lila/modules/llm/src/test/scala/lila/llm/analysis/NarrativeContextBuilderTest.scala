@@ -6,6 +6,7 @@ import chess.format.{Fen, Uci}
 import chess.variant.Standard
 import chess.File
 import lila.llm.model._
+import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.llm.model.strategic.*
 import lila.llm.analysis.L3._
 
@@ -103,6 +104,63 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(narrativeCtx.pawnPlay.breakImpact, "High")  // 250 >= 200
     assertEquals(narrativeCtx.pawnPlay.tensionPolicy, "Maintain")
     assertEquals(narrativeCtx.pawnPlay.primaryDriver, "break_ready")
+  }
+
+  test("buildStrategicPlanExperiments summarizes supportive probe evidence without re-parsing prose") {
+    val evaluated = List(
+      PlanEvidenceEvaluator.EvaluatedPlan(
+        hypothesis =
+          PlanHypothesis(
+            planId = "deny_break",
+            planName = "Deny ...d5",
+            rank = 1,
+            score = 0.78,
+            preconditions = Nil,
+            executionSteps = Nil,
+            failureModes = Nil,
+            viability = PlanViability(0.71, "high", "counter-break survives")
+          ),
+        status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
+        reason = "validated by purpose-aligned probe evidence",
+        supportProbeIds = List("probe_1"),
+        themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+        subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+      )
+    )
+
+    val probeResults = List(
+      ProbeResult(
+        id = "probe_1",
+        evalCp = 42,
+        bestReplyPv = List("d7d5", "e4d5"),
+        replyPvs = Some(List(List("d7d5", "e4d5"))),
+        deltaVsBaseline = 12,
+        keyMotifs = List("counterplay_denied"),
+        futureSnapshot = Some(
+          FutureSnapshot(
+            resolvedThreatKinds = List("Counterplay"),
+            newThreatKinds = Nil,
+            targetsDelta = TargetsDelta(Nil, Nil, List("d5"), Nil),
+            planBlockersRemoved = List("counter_break_d5"),
+            planPrereqsMet = List("break_prevention_ready")
+          )
+        )
+      )
+    )
+
+    val experiments =
+      NarrativeContextBuilder.buildStrategicPlanExperiments(
+        evaluated = evaluated,
+        validatedProbeResults = probeResults
+      )
+
+    assertEquals(experiments.size, 1)
+    assertEquals(experiments.head.evidenceTier, "evidence_backed")
+    assertEquals(experiments.head.supportProbeCount, 1)
+    assert(experiments.head.bestReplyStable)
+    assert(experiments.head.futureSnapshotAligned)
+    assert(experiments.head.counterBreakNeutralized)
+    assert(experiments.head.experimentConfidence > 0.8)
   }
 
   // ============================================================

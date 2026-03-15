@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
-import lila.llm.{ ActivePlanRef, GameNarrativeMoment, NarrativeSignalDigest, StrategyPack, StrategyPieceRoute, StrategySidePlan }
+import lila.llm.{ ActivePlanRef, GameChronicleMoment, NarrativeSignalDigest, StrategyPack, StrategyPieceRoute, StrategySidePlan }
 
 class StrategicBranchSelectorTest extends FunSuite:
 
@@ -14,8 +14,8 @@ class StrategicBranchSelectorTest extends FunSuite:
       selectionLabel: Option[String] = Some("Key Moment"),
       wpaSwing: Option[Double] = None,
       strategyPack: Option[StrategyPack] = None
-  ): GameNarrativeMoment =
-    GameNarrativeMoment(
+  ): GameChronicleMoment =
+    GameChronicleMoment(
       momentId = s"ply_$ply",
       ply = ply,
       moveNumber = (ply + 1) / 2,
@@ -50,7 +50,7 @@ class StrategicBranchSelectorTest extends FunSuite:
       transitionType: Option[String] = None,
       decision: String = "keep building the same minority attack",
       selectionKind: String = "key"
-  ): GameNarrativeMoment =
+  ): GameChronicleMoment =
     moment(
       ply = ply,
       momentType = if selectionKind == "thread_bridge" then "StrategicBridge" else "SustainedPressure",

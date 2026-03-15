@@ -15,7 +15,7 @@ object GeminiConfig:
 
   def fromEnv: GeminiConfig =
     val apiKey = sys.env.getOrElse("GEMINI_API_KEY", "")
-    val model = sys.env.getOrElse("GEMINI_MODEL", "gemini-2.0-flash")
+    val model = sys.env.getOrElse("GEMINI_MODEL", "gemini-3-flash-preview")
     GeminiConfig(
       apiKey = apiKey,
       model = model,

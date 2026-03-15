@@ -12,8 +12,8 @@ class ActiveStrategicThreadBuilderTest extends FunSuite:
       strategyPack: Option[StrategyPack] = None,
       signalDigest: Option[NarrativeSignalDigest] = None,
       transitionType: Option[String] = None
-  ): GameNarrativeMoment =
-    GameNarrativeMoment(
+  ): GameChronicleMoment =
+    GameChronicleMoment(
       momentId = s"ply_$ply",
       ply = ply,
       moveNumber = (ply + 1) / 2,
@@ -39,7 +39,7 @@ class ActiveStrategicThreadBuilderTest extends FunSuite:
       signalDigest = signalDigest
     )
 
-  private def minorityMoment(ply: Int, structure: String, side: String = "white"): GameNarrativeMoment =
+  private def minorityMoment(ply: Int, structure: String, side: String = "white"): GameChronicleMoment =
     moment(
       ply = ply,
       side = side,

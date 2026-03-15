@@ -615,7 +615,7 @@ case class AsyncGameAnalysisStatusResponse(
     status: String,
     createdAtMs: Long,
     updatedAtMs: Long,
-    result: Option[GameNarrativeResponse] = None,
+    result: Option[GameChronicleResponse] = None,
     error: Option[String] = None
 )
 object AsyncGameAnalysisStatusResponse:

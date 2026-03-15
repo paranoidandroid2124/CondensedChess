@@ -3,7 +3,7 @@ import type { LooseVNode, LooseVNodes, VNode } from 'lib/view';
 import { bind, hl, icon } from 'lib/view';
 import type AnalyseCtrl from '../ctrl';
 import type { NarrativeMomentFilter, ReviewPrimaryTab, ReviewReferenceTab } from './state';
-import type { GameNarrativeMoment } from '../narrative/narrativeCtrl';
+import type { GameChronicleMoment } from '../narrative/narrativeCtrl';
 import { isOpening } from '../explorer/interfaces';
 import {
   collapseTimelineView,
@@ -92,15 +92,15 @@ export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
 }
 
 export function filterNarrativeMoments(
-  moments: readonly GameNarrativeMoment[],
+  moments: readonly GameChronicleMoment[],
   filter: NarrativeMomentFilter,
-): GameNarrativeMoment[] {
+): GameChronicleMoment[] {
   if (filter === 'all') return moments.slice();
   if (filter === 'collapses') return moments.filter(moment => !!moment.collapse);
   return moments.filter(isCriticalMoment);
 }
 
-function isCriticalMoment(moment: GameNarrativeMoment): boolean {
+function isCriticalMoment(moment: GameChronicleMoment): boolean {
   if (moment.collapse) return true;
   const haystack = [moment.moveClassification, moment.momentType, moment.strategicSalience]
     .filter(Boolean)
@@ -131,19 +131,19 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
   const data = narrative?.data();
   const stats = reviewOverviewStats(ctrl);
 
-  if (!narrative) return hl('div.analyse-review__empty', 'Narrative review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
 
   if (!data) {
     return hl('div.analyse-review__overview', [
       hl('section.analyse-review__hero', [
         hl('span.analyse-review__eyebrow', 'Post-game review'),
-        hl('h2', 'Run Deep Full Analysis'),
+        hl('h2', 'Run Game Chronicle'),
         hl(
           'p',
-          'Generate a structured review with turning points, repair windows, and pattern tracking before you drop into raw moves.',
+          'Generate a Game Chronicle with turning points, repair windows, and pattern tracking before you drop into raw moves.',
         ),
         narrative.loading()
-          ? hl('div.loader', narrative.loadingDetail() || 'Deep analysis in progress...')
+          ? hl('div.loader', narrative.loadingDetail() || 'Game Chronicle in progress...')
           : narrative.error()
             ? hl('div.analyse-review__status.is-error', [
                 hl('div', narrative.error()),
@@ -156,7 +156,7 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
                     void ctrl.openNarrative();
                   }),
                 },
-                'Run Deep Full Analysis',
+                'Run Game Chronicle',
               ),
       ]),
       hl('div.analyse-review__overview-cards', [
@@ -226,7 +226,7 @@ function renderMoments(ctrl: AnalyseCtrl): VNode {
   const narrative = ctrl.narrative;
   const data = narrative?.data();
 
-  if (!narrative) return hl('div.analyse-review__empty', 'Narrative review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
   if (!data) return renderMissingNarrative(ctrl, 'Run deep analysis to unlock the moment-by-moment review.');
 
   const filtered = filterNarrativeMoments(data.moments || [], ctrl.reviewMomentFilter());
@@ -276,7 +276,7 @@ function renderRepair(ctrl: AnalyseCtrl): VNode {
   const narrative = ctrl.narrative;
   const data = narrative?.data();
 
-  if (!narrative) return hl('div.analyse-review__empty', 'Narrative review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
   if (!data) return renderMissingNarrative(ctrl, 'Run deep analysis to unlock collapse diagnosis and repair lines.');
 
   const collapseMoments = data.moments.filter(moment => !!moment.collapse);
@@ -325,7 +325,7 @@ function renderRepair(ctrl: AnalyseCtrl): VNode {
 
 function renderPatterns(ctrl: AnalyseCtrl): VNode {
   const narrative = ctrl.narrative;
-  if (!narrative) return hl('div.analyse-review__empty', 'Narrative review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
 
   if (!narrative.dnaLoading() && !narrative.dnaError() && !narrative.dnaData()) {
     return hl('div.analyse-review__empty', [
@@ -486,7 +486,7 @@ function renderMissingNarrative(ctrl: AnalyseCtrl, message: string): VNode {
     hl('strong', 'Deep analysis not started'),
     hl('p', message),
     narrative?.loading()
-      ? hl('div.loader', narrative.loadingDetail() || 'Deep analysis in progress...')
+        ? hl('div.loader', narrative.loadingDetail() || 'Game Chronicle in progress...')
       : hl(
           'button.button',
           {
@@ -494,7 +494,7 @@ function renderMissingNarrative(ctrl: AnalyseCtrl, message: string): VNode {
               void ctrl.openNarrative();
             }),
           },
-          'Run Deep Full Analysis',
+        'Run Game Chronicle',
         ),
   ]);
 }

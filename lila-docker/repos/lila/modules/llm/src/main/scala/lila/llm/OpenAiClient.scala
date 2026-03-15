@@ -116,7 +116,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
           .orElse(if wantsPro then proPrimary else defaultPrimary)
       else if wantsPro then proPrimary.orElse(defaultPrimary)
       else defaultPrimary
-    val primary = chosenPrimary.getOrElse("gpt-4o-mini")
+    val primary = chosenPrimary.getOrElse("gpt-5-mini")
     val fallback =
       if promptFamily == PromptFamilyActiveNote then activeFallback.filter(_ != primary)
       else if wantsPro then proFallback.filter(_ != primary)

@@ -437,7 +437,7 @@ final class LlmApi(
       logger.warn(s"llm.bookmaker.fallback $rendered")
 
   private def recordActiveThesisAgreement(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       note: String
   ): Unit =
     val observation =
@@ -1557,7 +1557,7 @@ final class LlmApi(
     )
 
   private def maybeGenerateActiveStrategicNote(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       dossier: Option[ActiveBranchDossier],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
@@ -2967,7 +2967,7 @@ final class LlmApi(
     else "endgame"
 
   private def selectFullGamePolishTargetPlies(
-      moments: List[GameNarrativeMoment]
+      moments: List[GameChronicleMoment]
   ): Set[Int] =
     val strategicRepresentatives = moments.filter(_.strategicThread.isDefined)
     val tacticalPivots =
@@ -2990,15 +2990,15 @@ final class LlmApi(
       .map(_.ply)
       .toSet
 
-  private def maybePolishGameNarrative(
-      response: GameNarrativeResponse,
+  private def maybePolishGameChronicle(
+      response: GameChronicleResponse,
       allowLlmPolish: Boolean,
       lang: String,
       asyncTier: Boolean,
       planTier: String,
       llmLevel: String,
       disablePolishCircuit: Boolean
-  ): Future[GameNarrativeResponse] =
+  ): Future[GameChronicleResponse] =
     if !isLlmPolishEnabledForRequest(allowLlmPolish) || providerConfig.isNone then
       Future.successful(response.copy(sourceMode = "rule", model = None))
     else
@@ -3133,13 +3133,13 @@ final class LlmApi(
       }
 
   private def attachActiveStrategicNotes(
-      response: GameNarrativeResponse,
+      response: GameChronicleResponse,
       allowLlmPolish: Boolean,
       lang: String,
       asyncTier: Boolean,
       planTier: String,
       llmLevel: String
-  ): Future[GameNarrativeResponse] =
+  ): Future[GameChronicleResponse] =
     val selectedByPly = response.moments.filter(_.strategicBranch).map(_.ply).toSet
     val threadsById = response.strategicThreads.map(thread => thread.threadId -> thread).toMap
     activeNoteSelectedCount.addAndGet(selectedByPly.size.toLong)
@@ -3215,7 +3215,7 @@ final class LlmApi(
         )
     }.map(polishedMoments => response.copy(moments = polishedMoments))
 
-  private def buildActiveStrategicIdeaRefs(moment: GameNarrativeMoment): List[ActiveStrategicIdeaRef] =
+  private def buildActiveStrategicIdeaRefs(moment: GameChronicleMoment): List[ActiveStrategicIdeaRef] =
     moment.strategyPack.toList
       .flatMap(_.strategicIdeas)
       .sortBy(idea => (-idea.confidence, idea.kind))
@@ -3232,7 +3232,7 @@ final class LlmApi(
         )
       }
 
-  private def buildActiveStrategicRouteRefs(moment: GameNarrativeMoment): List[ActiveStrategicRouteRef] =
+  private def buildActiveStrategicRouteRefs(moment: GameChronicleMoment): List[ActiveStrategicRouteRef] =
     val routeRegex = "^[a-h][1-8]$".r
     val pack = moment.strategyPack.toList
     val routes = pack.flatMap(_.pieceRoutes)
@@ -3270,7 +3270,7 @@ final class LlmApi(
       .take(3)
 
   private def buildActiveDirectionalTargets(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       ideaRefs: List[ActiveStrategicIdeaRef]
   ): List[StrategyDirectionalTarget] =
     val preferredSide = ideaRefs.headOption.map(_.ownerSide).getOrElse(moment.side)
@@ -3280,7 +3280,7 @@ final class LlmApi(
       .sortBy(target => (target.readiness, target.targetSquare))
       .take(2)
 
-  private def buildActiveStrategicMoveRefs(moment: GameNarrativeMoment): List[ActiveStrategicMoveRef] =
+  private def buildActiveStrategicMoveRefs(moment: GameChronicleMoment): List[ActiveStrategicMoveRef] =
     val fromEngine =
       moment.topEngineMove.toList
         .map(_.uci.trim.toLowerCase)
@@ -3676,7 +3676,7 @@ final class LlmApi(
       }
 
 
-  def analyzeFullGameLocal(
+  def analyzeGameChronicleLocal(
       pgn: String,
       evals: List[MoveEval],
       style: String = "book",
@@ -3687,7 +3687,7 @@ final class LlmApi(
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish,
       disablePolishCircuit: Boolean = false
-  ): Future[Option[GameNarrativeResponse]] =
+  ): Future[Option[GameChronicleResponse]] =
     val normalizedPlanTier = normalizePlanTier(planTier)
     val styleHint = Option(style).map(_.trim.toLowerCase).getOrElse("book")
     val focusHints = focusOn.map(_.trim.toLowerCase)
@@ -3702,7 +3702,7 @@ final class LlmApi(
     val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
     fetchOpeningRefsForPgn(pgn)
       .map { openingRefsByFen =>
-        CommentaryEngine.generateFullGameNarrative(
+        CommentaryEngine.generateGameArc(
           pgn = pgn,
           evals = evalMap,
           openingRefsByFen = openingRefsByFen,
@@ -3710,23 +3710,23 @@ final class LlmApi(
         )
       }
       .recover { case NonFatal(e) =>
-        logger.warn(s"Opening reference fetch failed for full game analysis: ${e.getMessage}")
-        CommentaryEngine.generateFullGameNarrative(
+        logger.warn(s"Opening reference fetch failed for Game Chronicle: ${e.getMessage}")
+        CommentaryEngine.generateGameArc(
           pgn = pgn,
           evals = evalMap,
           llmLevel = effectiveLevel
         )
       }
       .flatMap { narrative =>
-        val base = GameNarrativeResponse.fromNarrative(
-          narrative = narrative,
+        val base = GameChronicleResponse.fromGameArc(
+          arc = narrative,
           review = None,
           sourceMode = "rule",
           model = None,
           planTier = normalizedPlanTier,
           llmLevel = effectiveLevel
         )
-        maybePolishGameNarrative(
+        maybePolishGameChronicle(
           response = base,
           allowLlmPolish = allowLlmPolish,
           lang = normalizeLang(lang),
@@ -3737,7 +3737,7 @@ final class LlmApi(
         ).map { finalResponse =>
           finalResponse.copy(
             review = Some(
-              buildGameReview(
+              buildGameChronicleReview(
                 response = finalResponse,
                 pgn = pgn,
                 evals = evals,
@@ -3748,7 +3748,7 @@ final class LlmApi(
         }
       }
 
-  def submitGameAnalysisAsync(
+  def submitGameChronicleAsync(
       req: FullAnalysisRequest,
       allowLlmPolish: Boolean,
       lang: String,
@@ -3770,7 +3770,7 @@ final class LlmApi(
     updateAsyncJob(jobId): current =>
       current.copy(status = "running", updatedAtMs = System.currentTimeMillis())
 
-    analyzeFullGameLocal(
+    analyzeGameChronicleLocal(
       pgn = req.pgn,
       evals = req.evals,
       style = req.options.style,
@@ -3794,7 +3794,7 @@ final class LlmApi(
           current.copy(
             status = "failed",
             updatedAtMs = System.currentTimeMillis(),
-            error = Some("Narrative Analysis unavailable")
+            error = Some("Game Chronicle unavailable")
           )
     }.recover { case NonFatal(e) =>
       updateAsyncJob(jobId): current =>
@@ -3806,7 +3806,7 @@ final class LlmApi(
     }
     AsyncGameAnalysisSubmitResponse(jobId = jobId, status = "running")
 
-  def getGameAnalysisAsyncStatus(jobId: String): Option[AsyncGameAnalysisStatusResponse] =
+  def getGameChronicleAsyncStatus(jobId: String): Option[AsyncGameAnalysisStatusResponse] =
     cleanupAsyncJobs()
     asyncJobs.get(jobId)
 
@@ -3831,7 +3831,7 @@ final class LlmApi(
         .foreach { case (jobId, _) => asyncJobs.remove(jobId) }
 
   /** Stash CCA results from a completed game analysis for the Defeat DNA aggregation. */
-  def stashCcaResults(userId: String, response: GameNarrativeResponse): Funit =
+  def stashCcaResults(userId: String, response: GameChronicleResponse): Funit =
     ccaHistoryRepo.fold(funit) { repo =>
       val newCollapses = response.moments.flatMap(_.collapse)
       if newCollapses.nonEmpty then repo.insert(userId, newCollapses)
@@ -3868,12 +3868,12 @@ final class LlmApi(
         }
         .map(_.collect { case (fen, Some(ref)) => fen -> ref }.toMap)
 
-  private def buildGameReview(
-      response: GameNarrativeResponse,
+  private def buildGameChronicleReview(
+      response: GameChronicleResponse,
       pgn: String,
       evals: List[MoveEval],
       internalMomentCount: Int
-  ): GameNarrativeReview =
+  ): GameChronicleReview =
     val totalPliesFromPgn = PgnAnalysisHelper.extractPlyData(pgn).toOption.map(_.size).getOrElse(0)
     val evalPlies = evals.map(_.ply).filter(_ > 0).distinct
     val inferredTotalPlies =
@@ -3889,7 +3889,7 @@ final class LlmApi(
     val visibleMomentCount = selectedMomentPlies.size
     val polishedMomentCount = selectFullGamePolishTargetPlies(response.moments).size
 
-    GameNarrativeReview(
+    GameChronicleReview(
       schemaVersion = 5,
       reviewPerspective = "both",
       totalPlies = inferredTotalPlies,

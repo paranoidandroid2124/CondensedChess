@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.llm.{ GameNarrativeMoment, LlmConfig, LlmLevel, NarrativeSignalDigest }
+import lila.llm.{ GameChronicleMoment, LlmConfig, LlmLevel, NarrativeSignalDigest }
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
 import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
@@ -437,13 +437,13 @@ object CommentaryEngine:
      }
   }
 
-  def generateFullGameNarrative(
+  def generateGameArc(
       pgn: String,
       evals: Map[Int, List[VariationLine]],
       providedMetadata: Option[GameMetadata] = None,
       openingRefsByFen: Map[String, OpeningReference] = Map.empty,
       @unused llmLevel: String = LlmLevel.Polish
-  ): FullGameNarrative = {
+  ): GameArc = {
      
      val metadata = providedMetadata.getOrElse(extractMetadata(pgn))
      
@@ -504,7 +504,7 @@ object CommentaryEngine:
            val dataByPly = finalData.map(d => d.ply -> d).toMap
            val internalMomentNarratives =
              buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen)
-           val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameNarrativeMoment.fromMoment))
+           val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameChronicleMoment.fromArcMoment))
            val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
            val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
            val momentNarratives =
@@ -548,7 +548,7 @@ object CommentaryEngine:
              missedWins = missedWinsCount
            )
 
-           FullGameNarrative(
+           GameArc(
              gameIntro = gameIntro,
              keyMomentNarratives = momentNarratives,
              conclusion = conclusion,
@@ -557,7 +557,7 @@ object CommentaryEngine:
              strategicThreads = projection.threads
            )
        case scala.util.Left(err) =>
-          FullGameNarrative(
+          GameArc(
             gameIntro = "Analysis Failed",
             keyMomentNarratives = Nil,
             conclusion = s"Could not parse game: $err",
@@ -651,20 +651,20 @@ object CommentaryEngine:
       dataByPly: Map[Int, ExtendedAnalysisData],
       moveEvals: List[lila.llm.MoveEval],
       openingRefsByFen: Map[String, OpeningReference]
-  ): List[GameNarrativeMoment] =
+  ): List[GameChronicleMoment] =
     buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen)
-      .map(GameNarrativeMoment.fromMoment)
+      .map(GameChronicleMoment.fromArcMoment)
 
   private def buildMomentNarratives(
       moments: List[KeyMoment],
       dataByPly: Map[Int, ExtendedAnalysisData],
       moveEvals: List[lila.llm.MoveEval],
       openingRefsByFen: Map[String, OpeningReference]
-  ): List[MomentNarrative] =
+  ): List[GameArcMoment] =
     moments
       .sortBy(_.ply)
       .foldLeft(
-        (List.empty[MomentNarrative], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
+        (List.empty[GameArcMoment], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
       ) {
         case ((acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed), moment) =>
           dataByPly.get(moment.ply) match
@@ -708,7 +708,7 @@ object CommentaryEngine:
                   authorEvidence = authoringSurface.evidence
                 )
 
-              val momentNarrative = MomentNarrative(
+              val momentNarrative = GameArcMoment(
                 ply = moment.ply,
                 momentType = narrativeEvent,
                 narrative = fullText,

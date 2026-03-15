@@ -24,9 +24,9 @@ object OpenAiConfig:
 
   def fromEnv: OpenAiConfig =
     val apiKey = sys.env.getOrElse("OPENAI_API_KEY", "").trim
-    val proSync = sys.env.getOrElse("OPENAI_MODEL_PRO_SYNC", "gpt-5.2")
+    val proSync = sys.env.getOrElse("OPENAI_MODEL_PRO_SYNC", "gemini-3-flash-preview")
     val proFallback = sys.env.getOrElse("OPENAI_MODEL_PRO_FALLBACK", "gpt-5-mini")
-    val proAsync = sys.env.getOrElse("OPENAI_MODEL_PRO_ASYNC", "gpt-5.2")
+    val proAsync = sys.env.getOrElse("OPENAI_MODEL_PRO_ASYNC", "gemini-3-flash-preview")
     val activeReasoning =
       sys.env
         .get("OPENAI_REASONING_EFFORT_ACTIVE")
@@ -43,7 +43,7 @@ object OpenAiConfig:
       apiKey = apiKey,
       endpoint = sys.env.getOrElse("OPENAI_CHAT_COMPLETIONS_ENDPOINT", "https://api.openai.com/v1/chat/completions"),
       modelSync = sys.env.getOrElse("OPENAI_MODEL_SYNC", "gpt-5-mini"),
-      modelFallback = sys.env.getOrElse("OPENAI_MODEL_FALLBACK", "gpt-4.1-mini"),
+      modelFallback = sys.env.getOrElse("OPENAI_MODEL_FALLBACK", "gpt-5-mini"),
       modelAsync = sys.env.getOrElse("OPENAI_MODEL_ASYNC", "gpt-5-mini"),
       modelProSync = proSync,
       modelProFallback = proFallback,

@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.{ ActiveStrategicThread, ActiveStrategicThreadRef, GameNarrativeMoment }
+import lila.llm.{ ActiveStrategicThread, ActiveStrategicThreadRef, GameChronicleMoment }
 
 object StrategicBranchSelector:
 
@@ -16,19 +16,19 @@ object StrategicBranchSelector:
   private val MaxActiveNotes = 8
 
   final case class StrategicBranchSelection(
-      selectedMoments: List[GameNarrativeMoment],
-      activeNoteMoments: List[GameNarrativeMoment],
+      selectedMoments: List[GameChronicleMoment],
+      activeNoteMoments: List[GameChronicleMoment],
       threads: List[ActiveStrategicThread],
       threadRefsByPly: Map[Int, ActiveStrategicThreadRef]
   )
 
-  def select(moments: List[GameNarrativeMoment]): List[GameNarrativeMoment] =
+  def select(moments: List[GameChronicleMoment]): List[GameChronicleMoment] =
     buildSelection(moments).selectedMoments
 
-  def rankThreads(moments: List[GameNarrativeMoment]): List[ActiveStrategicThreadBuilder.BuiltThread] =
+  def rankThreads(moments: List[GameChronicleMoment]): List[ActiveStrategicThreadBuilder.BuiltThread] =
     sortThreads(ActiveStrategicThreadBuilder.build(moments).builtThreads)
 
-  def buildSelection(moments: List[GameNarrativeMoment]): StrategicBranchSelection =
+  def buildSelection(moments: List[GameChronicleMoment]): StrategicBranchSelection =
     val threadResult = ActiveStrategicThreadBuilder.build(moments)
     val rankedThreads = sortThreads(threadResult.builtThreads).take(MaxThreads)
     val rankedThreadIds = rankedThreads.map(_.thread.threadId).toSet
@@ -67,9 +67,9 @@ object StrategicBranchSelector:
       )
 
   private def selectCoreNonThreadEvents(
-      moments: List[GameNarrativeMoment],
+      moments: List[GameChronicleMoment],
       threadedPlies: Set[Int]
-  ): List[GameNarrativeMoment] =
+  ): List[GameChronicleMoment] =
     moments
       .filterNot(moment =>
         threadedPlies.contains(moment.ply) ||
@@ -80,23 +80,23 @@ object StrategicBranchSelector:
       .sortBy { case ((priority, tiebreak), moment) => (priority, tiebreak, moment.ply) }
       .map(_._2)
 
-  private def coreEventPriority(moment: GameNarrativeMoment): Option[(Int, Int)] =
+  private def coreEventPriority(moment: GameChronicleMoment): Option[(Int, Int)] =
     if isBlunder(moment) then Some(1 -> moment.ply)
     else if isMissedWin(moment) then Some(2 -> moment.ply)
     else if isMatePivot(moment) then Some(3 -> moment.ply)
     else if isOpeningBranchEvent(moment) then Some(4 -> moment.ply)
     else None
 
-  private def isBlunder(moment: GameNarrativeMoment): Boolean =
+  private def isBlunder(moment: GameChronicleMoment): Boolean =
     moment.momentType == "AdvantageSwing" && moment.moveClassification.exists(_.equalsIgnoreCase("Blunder"))
 
-  private def isMissedWin(moment: GameNarrativeMoment): Boolean =
+  private def isMissedWin(moment: GameChronicleMoment): Boolean =
     moment.momentType == "AdvantageSwing" && moment.moveClassification.exists(_.equalsIgnoreCase("MissedWin"))
 
-  private def isMatePivot(moment: GameNarrativeMoment): Boolean =
+  private def isMatePivot(moment: GameChronicleMoment): Boolean =
     moment.momentType == "MatePivot"
 
-  private def isOpeningBranchEvent(moment: GameNarrativeMoment): Boolean =
+  private def isOpeningBranchEvent(moment: GameChronicleMoment): Boolean =
     OpeningEventMomentTypes.contains(moment.momentType)
 
   private def threadScore(thread: ActiveStrategicThreadBuilder.BuiltThread): Double =
@@ -117,7 +117,7 @@ object StrategicBranchSelector:
   ): List[ActiveStrategicThreadBuilder.BuiltThread] =
     threads.sortBy(thread => (-threadScore(thread), thread.thread.seedPly))
 
-  private def selectRepresentatives(thread: ActiveStrategicThreadBuilder.BuiltThread): List[GameNarrativeMoment] =
+  private def selectRepresentatives(thread: ActiveStrategicThreadBuilder.BuiltThread): List[GameChronicleMoment] =
     val seed = thread.moments.find(_.stage == ActiveStrategicThreadBuilder.ThreadStage.Seed).map(_.moment)
     val build =
       thread.moments.find(_.stage == ActiveStrategicThreadBuilder.ThreadStage.Build).map(_.moment)

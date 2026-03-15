@@ -16,7 +16,7 @@ object GameMetadata {
   implicit val writes: OWrites[GameMetadata] = Json.writes[GameMetadata]
 }
 
-case class MomentNarrative(
+case class GameArcMoment(
   ply: Int,
   momentType: String,          // "Blunder", "MissedWin", "TensionPeak", etc.
   narrative: String,           // The generated Book-Style narrative text
@@ -55,18 +55,18 @@ case class MomentNarrative(
   activeBranchDossier: Option[lila.llm.ActiveBranchDossier] = None,
   strategicThread: Option[lila.llm.ActiveStrategicThreadRef] = None
 )
-object MomentNarrative {
-  implicit val writes: OWrites[MomentNarrative] = Json.writes[MomentNarrative]
+object GameArcMoment {
+  implicit val writes: OWrites[GameArcMoment] = Json.writes[GameArcMoment]
 }
 
-case class FullGameNarrative(
+case class GameArc(
   gameIntro: String,           // e.g. "In this Ruy Lopez encounter..."
-  keyMomentNarratives: List[MomentNarrative],
+  keyMomentNarratives: List[GameArcMoment],
   conclusion: String,          // e.g. "White capitalized on the blunder..."
   overallThemes: List[String], // e.g. ["King hunt", "Exchange sacrifice"]
   internalMomentCount: Int = 0,
   strategicThreads: List[lila.llm.ActiveStrategicThread] = Nil
 )
-object FullGameNarrative {
-  implicit val writes: OWrites[FullGameNarrative] = Json.writes[FullGameNarrative]
+object GameArc {
+  implicit val writes: OWrites[GameArc] = Json.writes[GameArc]
 }

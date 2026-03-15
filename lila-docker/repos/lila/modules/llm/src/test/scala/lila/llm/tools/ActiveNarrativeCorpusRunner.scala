@@ -50,7 +50,7 @@ object ActiveNarrativeCorpusRunner:
   )
 
   final case class AnalysisArtifacts(
-      response: GameNarrativeResponse,
+      response: GameChronicleResponse,
       latencyMs: Long,
       openingExplorerAdvisories: Int
   )
@@ -184,7 +184,7 @@ object ActiveNarrativeCorpusRunner:
 
   private def buildSuccessReport(
       entry: CorpusEntry,
-      response: GameNarrativeResponse,
+      response: GameChronicleResponse,
       latencyMs: Long,
       provider: String,
       openingExplorerAdvisories: Int,
@@ -301,7 +301,7 @@ object ActiveNarrativeCorpusRunner:
 
   private def writeResponseSnapshot(
       entry: CorpusEntry,
-      response: GameNarrativeResponse,
+      response: GameChronicleResponse,
       rawResponseDir: Path
   ): Future[String] =
     val out = rawResponseDir.resolve(s"${entry.gameKey}.json")
@@ -438,7 +438,7 @@ object ActiveNarrativeCorpusRunner:
       for
         advisories <- advisoryProbe.countForPgn(entry.game.pgn)
         startedAt = System.nanoTime()
-        responseOpt <- api.analyzeFullGameLocal(
+        responseOpt <- api.analyzeGameChronicleLocal(
           pgn = entry.game.pgn,
           evals = evals,
           style = config.style,

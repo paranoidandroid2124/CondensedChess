@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.GameNarrativeMoment
+import lila.llm.GameChronicleMoment
 import ActiveStrategicThreadBuilder.{ BuiltThread, ThreadMoment, ThreadStage }
 
 object ActiveBridgeMomentPlanner:
@@ -43,7 +43,7 @@ object ActiveBridgeMomentPlanner:
 
   def selectBridges(
       rankedThreads: List[BuiltThread],
-      enrichedMoments: List[GameNarrativeMoment],
+      enrichedMoments: List[GameChronicleMoment],
       anchorPlies: Set[Int]
   ): List[PlannedBridge] =
     val enrichedThreads = ActiveStrategicThreadBuilder.build(enrichedMoments).builtThreads

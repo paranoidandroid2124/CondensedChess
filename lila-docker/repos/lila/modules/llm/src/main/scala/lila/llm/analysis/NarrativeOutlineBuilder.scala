@@ -174,6 +174,8 @@ object NarrativeOutlineBuilder:
       val preconditionsText = plans.headOption.flatMap(renderPreconditions)
       val holdReasons =
         collectHoldReasons(ctx, plans.headOption)
+      val includeNamedRoute =
+        plans.headOption.forall(plan => !routeNameRestatesPrimarySubplan(plan))
 
       val ideaLine =
         if tacticalOverride then
@@ -187,7 +189,8 @@ object NarrativeOutlineBuilder:
             case Some(p) =>
               val slots = slotsForPlan(p)
               val precondClause = preconditionsText.map(t => s" Preconditions: $t.").getOrElse("")
-              s"Idea: ${slots.idea} Primary route is ${p.planName}. Ranked stack: $ranked.$precondClause"
+              val routeClause = Option.when(includeNamedRoute)(s" Primary route is ${p.planName}.").getOrElse("")
+              s"Idea: ${slots.idea}$routeClause Ranked stack: $ranked.$precondClause"
             case None =>
               if ranked.nonEmpty then s"Idea: Main strategic promotion is pending; latent stack is $ranked."
               else "Idea: No plan is promotable yet; strategic intent remains conditional."
@@ -252,15 +255,26 @@ object NarrativeOutlineBuilder:
       ctx: NarrativeContext,
       plans: List[PlanHypothesis]
   ): String =
+    val redundantKeys = primaryStrategicKeys(ctx, plans)
     val sourceTokens =
       plans
         .flatMap(_.evidenceSources)
-        .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
+        .flatMap { source =>
+          val semanticKeys = evidenceSemanticKeys(source)
+          FullGameDraftNormalizer
+            .humanizeEvidenceSource(source)
+            .filter(_ => !(semanticKeys.nonEmpty && semanticKeys.subsetOf(redundantKeys)))
+        }
         .filter(_.nonEmpty)
     val probePurposes =
       ctx.authorEvidence
         .map(_.purpose)
-        .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
+        .flatMap { purpose =>
+          val semanticKeys = evidenceSemanticKeys(purpose)
+          FullGameDraftNormalizer
+            .humanizeEvidenceSource(purpose)
+            .filter(_ => !(semanticKeys.nonEmpty && semanticKeys.subsetOf(redundantKeys)))
+        }
         .filter(_.nonEmpty)
         .distinct
         .take(2)
@@ -341,6 +355,54 @@ object NarrativeOutlineBuilder:
       .flatMap(SubplanId.fromId)
       .map(_.id)
       .orElse(ThemeResolver.subplanFromHypothesis(plan).map(_.id))
+
+  private def routeNameRestatesPrimarySubplan(plan: PlanHypothesis): Boolean =
+    val primarySubplan = subplanIdOfHypothesis(plan).flatMap(SubplanId.fromId)
+    primarySubplan.exists { subplan =>
+      ThemeResolver.subplanFromPlanName(plan.planName).contains(subplan) ||
+      ThemeResolver.subplanFromPlanId(plan.planId).contains(subplan)
+    }
+
+  private def primaryStrategicKeys(
+      ctx: NarrativeContext,
+      plans: List[PlanHypothesis]
+  ): Set[String] =
+    val planKeys =
+      plans.headOption.toList.flatMap { plan =>
+        val theme = ThemeResolver.fromHypothesis(plan)
+        val subplan = ThemeResolver.subplanFromHypothesis(plan)
+        val directKeys =
+          plan.evidenceSources.flatMap(evidenceSemanticKeys) ++
+            evidenceSemanticKeys(plan.planName) ++
+            evidenceSemanticKeys(plan.planId)
+        directKeys ++
+          Option.when(theme != ThemeL1.Unknown)(s"theme:${theme.id}") ++
+          subplan.map(sp => s"subplan:${sp.id}")
+      }
+    val latentKeys =
+      ctx.latentPlans.headOption.toList.flatMap { latent =>
+        evidenceSemanticKeys(latent.planName) ++
+          evidenceSemanticKeys(latent.seedId) ++
+          evidenceSemanticKeys(s"latent_seed:${latent.seedId}")
+      }
+    (planKeys ++ latentKeys).toSet
+
+  private def evidenceSemanticKeys(raw: String): Set[String] =
+    val themeKeys =
+      List(
+        ThemeResolver.fromEvidenceSource(raw),
+        ThemeResolver.fromPlanName(raw),
+        ThemeResolver.fromPlanId(raw),
+        ThemeResolver.fromSeedId(raw)
+      ).filter(_ != ThemeL1.Unknown).map(theme => s"theme:${theme.id}")
+    val subplanKeys =
+      List(
+        ThemeResolver.subplanFromEvidenceSource(raw),
+        ThemeResolver.subplanFromPlanName(raw),
+        ThemeResolver.subplanFromPlanId(raw),
+        ThemeResolver.subplanFromSeedId(raw)
+      ).flatten.map(subplan => s"subplan:${subplan.id}")
+    (themeKeys ++ subplanKeys).toSet
 
   private def collectHoldReasons(
       ctx: NarrativeContext,

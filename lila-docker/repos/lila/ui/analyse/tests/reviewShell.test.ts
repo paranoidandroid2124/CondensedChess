@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hl } from 'lib/view';
 import { reviewView, type ReviewViewNodes } from '../src/review/view';
-import type { DefeatDnaReport, GameNarrativeResponse } from '../src/narrative/narrativeCtrl';
+import type { DefeatDnaReport, GameChronicleResponse } from '../src/narrative/narrativeCtrl';
 
 const reviewNodes: ReviewViewNodes = {
   moveListNode: hl('div', 'move list'),
@@ -16,7 +16,7 @@ describe('review shell', () => {
     const vnode = reviewView(makeCtrl({ primaryTab: 'overview' }), reviewNodes);
     const text = collectText(vnode);
 
-    assert.match(text, /Run Deep Full Analysis/);
+    assert.match(text, /Run Game Chronicle/);
     assert.match(text, /Post-game review/);
   });
 
@@ -213,7 +213,7 @@ function makeCtrl({
   momentFilter?: 'all' | 'critical' | 'collapses';
   selectedMomentPly?: number | null;
   selectedCollapseId?: string | null;
-  narrativeData?: GameNarrativeResponse | null;
+  narrativeData?: GameChronicleResponse | null;
   dnaData?: DefeatDnaReport | null;
 }) {
   const root = {
@@ -302,7 +302,7 @@ function sampleNarrative({
     selectedMoments: 1,
     selectedMomentPlies: [12],
   },
-}: Partial<GameNarrativeResponse>): GameNarrativeResponse {
+}: Partial<GameChronicleResponse>): GameChronicleResponse {
   return {
     schema: 'v1',
     intro,

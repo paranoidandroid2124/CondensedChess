@@ -152,10 +152,10 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
       id: 'narrative',
       label: 'Insights',
       summary: ctrl.narrative.loading()
-        ? 'Deep analysis is running'
+        ? 'Game Chronicle is running'
         : ctrl.narrative.data()
-          ? 'Resume full-game narrative insights'
-          : 'Run deep full-game analysis',
+          ? 'Resume Game Chronicle insights'
+          : 'Run Game Chronicle',
       icon: licon.BubbleSpeech,
       active: ctrl.activeControlBarTool() === 'narrative',
       busy: ctrl.narrative.loading(),
@@ -184,7 +184,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
       hl(
         'span',
         activeTool
-          ? 'Jump between openings, deep commentary, and board controls without leaving the move list.'
+          ? 'Jump between openings, Game Chronicle, and board controls without leaving the move list.'
           : 'Keep the move list anchored and open the tool you need beside it.',
       ),
     ]),
@@ -419,7 +419,7 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
               void ctrl.openNarrative();
             }),
           },
-          [icon(licon.Book as any), ' Deep Analyze Full Game'],
+                [icon(licon.Book as any), ' Run Game Chronicle'],
         ),
       ]),
       renderInlineStatus(

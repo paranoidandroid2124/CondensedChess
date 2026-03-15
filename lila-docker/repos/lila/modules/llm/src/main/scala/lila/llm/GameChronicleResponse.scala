@@ -1,16 +1,16 @@
 package lila.llm
 
 import play.api.libs.json.*
-import lila.llm.model.{ FullGameNarrative, MomentNarrative }
+import lila.llm.model.{ GameArc, GameArcMoment }
 import lila.llm.model.strategic.VariationLine
 
-case class GameNarrativeResponse(
+case class GameChronicleResponse(
     schema: String,
     intro: String,
-    moments: List[GameNarrativeMoment],
+    moments: List[GameChronicleMoment],
     conclusion: String,
     themes: List[String],
-    review: Option[GameNarrativeReview] = None,
+    review: Option[GameChronicleReview] = None,
     sourceMode: String = "rule",
     model: Option[String] = None,
     planTier: String = PlanTier.Basic,
@@ -18,35 +18,35 @@ case class GameNarrativeResponse(
     strategicThreads: List[ActiveStrategicThread] = Nil
 )
 
-object GameNarrativeResponse:
+object GameChronicleResponse:
 
   val schemaV6 = "chesstory.gameNarrative.v6"
 
-  def fromNarrative(
-      narrative: FullGameNarrative,
-      review: Option[GameNarrativeReview] = None,
+  def fromGameArc(
+      arc: GameArc,
+      review: Option[GameChronicleReview] = None,
       sourceMode: String = "rule",
       model: Option[String] = None,
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish
-  ): GameNarrativeResponse =
-    GameNarrativeResponse(
+  ): GameChronicleResponse =
+    GameChronicleResponse(
       schema = schemaV6,
-      intro = narrative.gameIntro,
-      moments = narrative.keyMomentNarratives.map(GameNarrativeMoment.fromMoment),
-      conclusion = narrative.conclusion,
-      themes = narrative.overallThemes,
+      intro = arc.gameIntro,
+      moments = arc.keyMomentNarratives.map(GameChronicleMoment.fromArcMoment),
+      conclusion = arc.conclusion,
+      themes = arc.overallThemes,
       review = review,
       sourceMode = sourceMode,
       model = model,
       planTier = PlanTier.normalize(planTier),
       llmLevel = LlmLevel.normalize(llmLevel),
-      strategicThreads = narrative.strategicThreads
+      strategicThreads = arc.strategicThreads
     )
 
-  given Writes[GameNarrativeResponse] = Json.writes[GameNarrativeResponse]
+  given Writes[GameChronicleResponse] = Json.writes[GameChronicleResponse]
 
-case class GameNarrativeMoment(
+case class GameChronicleMoment(
     momentId: String,
     ply: Int,
     moveNumber: Int,
@@ -90,12 +90,12 @@ case class GameNarrativeMoment(
     strategicThread: Option[ActiveStrategicThreadRef] = None
 )
 
-object GameNarrativeMoment:
+object GameChronicleMoment:
 
-  def fromMoment(moment: MomentNarrative): GameNarrativeMoment =
+  def fromArcMoment(moment: GameArcMoment): GameChronicleMoment =
     val moveNum = (moment.ply + 1) / 2
     val side = if (moment.ply % 2 == 1) "white" else "black"
-    GameNarrativeMoment(
+    GameChronicleMoment(
       momentId = s"ply_${moment.ply}_${moment.momentType.toLowerCase}",
       ply = moment.ply,
       moveNumber = moveNum,
@@ -139,9 +139,9 @@ object GameNarrativeMoment:
       strategicThread = moment.strategicThread
     )
 
-  given Writes[GameNarrativeMoment] = Json.writes[GameNarrativeMoment]
+  given Writes[GameChronicleMoment] = Json.writes[GameChronicleMoment]
 
-case class GameNarrativeReview(
+case class GameChronicleReview(
     schemaVersion: Int,
     reviewPerspective: String,
     totalPlies: Int,
@@ -162,8 +162,8 @@ case class GameNarrativeReview(
     momentTypeCounts: Map[String, Int]
 )
 
-object GameNarrativeReview:
-  given Writes[GameNarrativeReview] = Json.writes[GameNarrativeReview]
+object GameChronicleReview:
+  given Writes[GameChronicleReview] = Json.writes[GameChronicleReview]
 
 case class ActivePlanRef(
     themeL1: String,

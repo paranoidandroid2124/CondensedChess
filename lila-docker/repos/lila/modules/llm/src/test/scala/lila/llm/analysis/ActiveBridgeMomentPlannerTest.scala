@@ -13,8 +13,8 @@ class ActiveBridgeMomentPlannerTest extends FunSuite:
       structure: String = "Carlsbad",
       transitionType: Option[String] = None,
       decision: String = "keep building the same attack"
-  ): GameNarrativeMoment =
-    GameNarrativeMoment(
+  ): GameChronicleMoment =
+    GameChronicleMoment(
       momentId = s"ply_$ply",
       ply = ply,
       moveNumber = (ply + 1) / 2,
@@ -59,7 +59,7 @@ class ActiveBridgeMomentPlannerTest extends FunSuite:
   private def conversionMoment(
       ply: Int,
       structure: String = "Carlsbad"
-  ): GameNarrativeMoment =
+  ): GameChronicleMoment =
     moment(
       ply = ply,
       subplanId = "invasion_transition",

@@ -44,6 +44,7 @@ case class NarrativeContext(
   probeRequests: List[ProbeRequest] = Nil,
   mainStrategicPlans: List[PlanHypothesis] = Nil,
   latentPlans: List[LatentPlanNarrative] = Nil,
+  strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
   whyAbsentFromTopMultiPV: List[String] = Nil,
   absentReasonSource: String = "none",
 
@@ -84,6 +85,20 @@ case class NarrativeContext(
   deltaAfterMove: Boolean = false,
   strategicSalience: lila.llm.model.strategic.StrategicSalience = lila.llm.model.strategic.StrategicSalience.High,
   renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame
+)
+
+case class StrategicPlanExperiment(
+  planId: String,
+  themeL1: String = "unknown",
+  subplanId: Option[String] = None,
+  evidenceTier: String = "deferred",
+  supportProbeCount: Int = 0,
+  refuteProbeCount: Int = 0,
+  bestReplyStable: Boolean = false,
+  futureSnapshotAligned: Boolean = false,
+  counterBreakNeutralized: Boolean = false,
+  moveOrderSensitive: Boolean = false,
+  experimentConfidence: Double = 0.0
 )
 
 

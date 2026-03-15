@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.{ ActiveStrategicThread, ActiveStrategicThreadRef, GameNarrativeMoment }
+import lila.llm.{ ActiveStrategicThread, ActiveStrategicThreadRef, GameChronicleMoment }
 import ActiveThemeSurfaceBuilder.ThemeSurface
 
 object ActiveStrategicThreadBuilder:
@@ -14,7 +14,7 @@ object ActiveStrategicThreadBuilder:
     case Convert extends ThreadStage("convert", "Convert")
 
   final case class ThreadMoment(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       theme: ThemeSurface,
       stage: ThreadStage
   )
@@ -30,14 +30,14 @@ object ActiveStrategicThreadBuilder:
       threadRefsByPly: Map[Int, ActiveStrategicThreadRef]
   )
 
-  private case class Candidate(moment: GameNarrativeMoment, theme: ThemeSurface)
+  private case class Candidate(moment: GameChronicleMoment, theme: ThemeSurface)
   private case class RawThread(id: Int, candidates: Vector[Candidate]):
     def side: String = candidates.head.moment.side
     def themeKey: String = candidates.head.theme.themeKey
     def last: Candidate = candidates.last
     def append(candidate: Candidate): RawThread = copy(candidates = candidates :+ candidate)
 
-  def build(moments: List[GameNarrativeMoment]): Result =
+  def build(moments: List[GameChronicleMoment]): Result =
     val candidates =
       moments.sortBy(_.ply).flatMap { moment =>
         ActiveThemeSurfaceBuilder
@@ -230,7 +230,7 @@ object ActiveStrategicThreadBuilder:
       case Some(plan) if !normalize(base).contains(normalize(plan)) => s"$base Core plan: $plan."
       case _                                                        => base
 
-  private def buildStageCorpus(moment: GameNarrativeMoment): String =
+  private def buildStageCorpus(moment: GameChronicleMoment): String =
     normalize(
       List(
         Some(moment.momentType),

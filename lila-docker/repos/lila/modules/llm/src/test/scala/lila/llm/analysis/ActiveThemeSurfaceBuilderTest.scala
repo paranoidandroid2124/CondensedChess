@@ -11,8 +11,8 @@ class ActiveThemeSurfaceBuilderTest extends FunSuite:
       strategyPack: Option[StrategyPack] = None,
       signalDigest: Option[NarrativeSignalDigest] = None,
       authorEvidence: List[AuthorEvidenceSummary] = Nil
-  ): GameNarrativeMoment =
-    GameNarrativeMoment(
+  ): GameChronicleMoment =
+    GameChronicleMoment(
       momentId = s"ply_$ply",
       ply = ply,
       moveNumber = (ply + 1) / 2,

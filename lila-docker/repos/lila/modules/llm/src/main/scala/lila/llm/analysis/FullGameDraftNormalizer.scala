@@ -40,8 +40,9 @@ private[llm] object FullGameDraftNormalizer:
         .map(plan => s"If $them is slow, $us can work toward $plan.")
         .getOrElse(s"If $them is slow, a long-term plan becomes available for $us.")
     val base = Option(template).map(_.trim).filter(_.nonEmpty).getOrElse(fallback)
+    val dedupedBase = collapseRedundantSeedPlaceholder(base, seedId, seedReadable)
     normalize(
-      base
+      dedupedBase
         .replace("{us}", us)
         .replace("{them}", them)
         .replace("{seed}", Option.when(seedReadable.nonEmpty)(seedReadable).getOrElse("the key setup move"))
@@ -124,6 +125,41 @@ private[llm] object FullGameDraftNormalizer:
       .replaceAll("""\.\s*\.""", ". ")
       .replaceAll("""\s{2,}""", " ")
       .replaceAll("""(?i)\bThe leading route is\s+The leading route is\b""", "The leading route is")
+      .trim
+
+  private def collapseRedundantSeedPlaceholder(
+      template: String,
+      seedId: String,
+      seedReadable: String
+  ): String =
+    val rawTemplate = Option(template).getOrElse("")
+    if !rawTemplate.contains("{seed}") then rawTemplate
+    else
+      val normalizedTemplate = semanticText(rawTemplate)
+      val normalizedSeed = semanticText(seedReadable)
+      val redundantSeed =
+        ThemeResolver.subplanFromSeedId(seedId).exists {
+          case SubplanId.RookPawnMarch        => normalizedTemplate.contains("pawn storm")
+          case SubplanId.CentralBreakTiming   => normalizedTemplate.contains("central break")
+          case SubplanId.HookCreation         => normalizedTemplate.contains("hook")
+          case SubplanId.RookLiftScaffold     => normalizedTemplate.contains("rook lift")
+          case SubplanId.OutpostEntrenchment  => normalizedTemplate.contains("outpost")
+          case _                              => normalizedSeed.nonEmpty && normalizedTemplate.contains(normalizedSeed)
+        } || (normalizedSeed.nonEmpty && normalizedTemplate.contains(normalizedSeed))
+
+      if redundantSeed then
+        rawTemplate
+          .replaceAll("""\s+with\s+\{seed\}""", "")
+          .replaceAll("""\s*\(\{seed\}\)""", "")
+      else rawTemplate
+
+  private def semanticText(raw: String): String =
+    Option(raw)
+      .getOrElse("")
+      .toLowerCase
+      .replaceAll("""\b(a|an|the)\b""", " ")
+      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
+      .replaceAll("""\s+""", " ")
       .trim
 
   private def renderSeedPhrase(seedId: String): String =

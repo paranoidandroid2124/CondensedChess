@@ -5,7 +5,7 @@ import lila.llm.*
 object ActiveBranchDossierBuilder:
 
   def build(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
       threadRef: Option[ActiveStrategicThreadRef] = None,
@@ -58,7 +58,7 @@ object ActiveBranchDossierBuilder:
       )
     )
 
-  private def lensFor(moment: GameNarrativeMoment, digest: Option[NarrativeSignalDigest]): String =
+  private def lensFor(moment: GameChronicleMoment, digest: Option[NarrativeSignalDigest]): String =
     val momentType = normalize(moment.momentType)
     val classification = normalize(moment.moveClassification.getOrElse(""))
     if isTactical(momentType) || isTactical(classification) then "tactical"
@@ -73,7 +73,7 @@ object ActiveBranchDossierBuilder:
     else "strategic"
 
   private def chosenBranchLabel(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       digest: Option[NarrativeSignalDigest],
       comparison: Option[DecisionComparisonDigest],
       dominantLens: String,
@@ -195,7 +195,7 @@ object ActiveBranchDossierBuilder:
       .map(UserFacingSignalSanitizer.sanitize)
 
   private def evidenceText(
-      moment: GameNarrativeMoment,
+      moment: GameChronicleMoment,
       comparison: Option[DecisionComparisonDigest]
   ): Option[String] =
     comparison.flatMap(_.evidence).flatMap(normalized)

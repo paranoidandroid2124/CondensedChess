@@ -224,7 +224,7 @@ export type AuthorEvidenceSummary = {
     linkedPlans?: string[];
 };
 
-type GameNarrativeMoment = {
+type GameChronicleMoment = {
     momentId?: string;
     ply: number;
     moveNumber?: number;
@@ -266,7 +266,7 @@ type GameNarrativeMoment = {
     activeBranchDossier?: ActiveBranchDossier;
     strategicThread?: ActiveStrategicThreadRef;
 };
-type GameNarrativeReview = {
+type GameChronicleReview = {
     schemaVersion?: number;
     reviewPerspective?: string;
     totalPlies: number;
@@ -284,13 +284,13 @@ type GameNarrativeReview = {
     brilliantMovesCount?: number;
     momentTypeCounts?: Record<string, number>;
 };
-type GameNarrativeResponse = {
+type GameChronicleResponse = {
     schema: string;
     intro: string;
-    moments: GameNarrativeMoment[];
+    moments: GameChronicleMoment[];
     conclusion: string;
     themes: string[];
-    review?: GameNarrativeReview;
+    review?: GameChronicleReview;
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
@@ -314,7 +314,7 @@ const reviewCardInteractiveSelector = [
     '[contenteditable="true"]',
 ].join(',');
 
-function narrativeMomentAnchorId(moment: GameNarrativeMoment, index: number): string {
+function narrativeMomentAnchorId(moment: GameChronicleMoment, index: number): string {
     const raw = moment.momentId?.trim() || `${moment.ply}-${index}`;
     const normalized = raw
         .toLowerCase()
@@ -361,7 +361,7 @@ function outlineSummary(bits: Array<string | null | undefined>, limit = 2): stri
     return summary.length ? summary.join(' · ') : null;
 }
 
-function narrativeMomentOutlineCopy(moment: GameNarrativeMoment) {
+function narrativeMomentOutlineCopy(moment: GameChronicleMoment) {
     const classification = moment.moveClassification ? humanizeToken(moment.moveClassification) : null;
     const momentType = moment.momentType ? humanizeToken(moment.momentType) : null;
     const selectionTitle =
@@ -385,7 +385,7 @@ function narrativeMomentOutlineCopy(moment: GameNarrativeMoment) {
     };
 }
 
-function isCriticalMoment(moment: GameNarrativeMoment): boolean {
+function isCriticalMoment(moment: GameChronicleMoment): boolean {
     const classification = (moment.moveClassification || '').trim().toLowerCase();
     return !!moment.collapse || ['blunder', 'mistake', 'missed win', 'critical'].includes(classification);
 }
@@ -478,17 +478,17 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
             : activeTab === 'collapse' && ccaEnabled
                 ? collapseTabView(ctrl)
                 : hl('div.narrative-content', [
-                    ctrl.loading() ? hl('div.loader', ctrl.loadingDetail() || 'Deep full analysis in progress...') :
+                    ctrl.loading() ? hl('div.loader', ctrl.loadingDetail() || 'Game Chronicle in progress...') :
                         ctrl.error() ? hl('div.error', [
                             hl('div', ctrl.error()),
                             ctrl.needsLogin() ? hl('a.button', { attrs: { href: ctrl.loginHref() } }, 'Sign in') : null
                         ]) : ctrl.data() ? narrativeDocView(ctrl, ctrl.data()!) : hl('div.narrative-empty', 'No narrative generated yet.'),
                 ]),
         !ctrl.loading() && !ctrl.data() && hl('div.actions', [
-            hl('div.narrative-disclosure', 'Full Analysis runs a deeper on-device WASM scan and may take longer on large PGNs.'),
+            hl('div.narrative-disclosure', 'Game Chronicle runs a deeper on-device WASM scan and may take longer on large PGNs.'),
             hl('button.button.action', {
                 hook: bind('click', ctrl.fetchNarrative, ctrl.root.redraw)
-            }, 'Run Deep Full Analysis')
+            }, 'Run Game Chronicle')
         ])
     ]);
 }
@@ -512,7 +512,7 @@ export function collapseTabView(ctrl: NarrativeCtrl, activeCollapseId?: string |
     ]);
 }
 
-export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameNarrativeMoment[]): VNode {
+export function collapseTimelineView(ctrl: NarrativeCtrl, moments: GameChronicleMoment[]): VNode {
     const totalPlies = ctrl.root.mainline.length > 0
         ? ctrl.root.mainline[ctrl.root.mainline.length - 1].ply
         : 1;
@@ -675,7 +675,7 @@ function defeatDnaRecentTable(ctrl: NarrativeCtrl): VNode {
 
 // ── Story View ────────────────────────────────────────────────────────
 
-function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode {
+function narrativeDocView(ctrl: NarrativeCtrl, doc: GameChronicleResponse): VNode {
     const threadSummaries = new Map<number, ActiveStrategicThread>();
     (doc.strategicThreads || []).forEach(thread => {
         const firstRepresentative = (thread.representativePlies || []).find(Boolean);
@@ -726,7 +726,7 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNod
     ]);
 }
 
-function narrativeOutlineView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): VNode | null {
+function narrativeOutlineView(ctrl: NarrativeCtrl, doc: GameChronicleResponse): VNode | null {
     const moments = doc.moments || [];
     if (!moments.length) return null;
 
@@ -785,7 +785,7 @@ function narrativeOutlineView(ctrl: NarrativeCtrl, doc: GameNarrativeResponse): 
     ]);
 }
 
-export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: NarrativeCtrl): VNode | null {
+export function narrativeReviewView(doc: GameChronicleResponse, ctrl?: NarrativeCtrl): VNode | null {
     const review = doc.review;
     if (!review) return null;
 
@@ -870,7 +870,7 @@ export function narrativeReviewView(doc: GameNarrativeResponse, ctrl?: Narrative
 
 export function narrativeMomentView(
     ctrl: NarrativeCtrl,
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     opts: { selected?: boolean; onSelect?: () => void; anchorId?: string; threadSummary?: ActiveStrategicThread } = {},
 ): VNode {
     const title = moveLabel(moment.ply, moment.side, moment.moveNumber);
@@ -940,7 +940,7 @@ export function narrativeMomentView(
     ]);
 }
 
-function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
+function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode | null {
     const digest = moment.signalDigest;
     const canonicalDecisionComparison = digest?.decisionComparison;
     const fallbackDecisionComparison = !canonicalDecisionComparison
@@ -1061,7 +1061,7 @@ function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMo
 }
 
 function narrativeFallbackDecisionComparison(
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
 ): DecisionComparisonDigest | undefined {
     const alt = moment.topEngineMove;
     if (!alt) return undefined;
@@ -1182,7 +1182,7 @@ function narrativeSignalGroupView(title: string, rows: [string, string][]): VNod
     ]);
 }
 
-function narrativeEvidenceSummaryView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode | null {
+function narrativeEvidenceSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode | null {
     const probeRequests = (moment.probeRequests || []).slice(0, 1);
     const authorEvidence = (moment.authorEvidence || []).slice(0, 2);
     const authorQuestions = (moment.authorQuestions || []).slice(0, 2);
@@ -1298,7 +1298,7 @@ function narrativeEvidenceMoveChip(keyMove: string, moveRefs: Map<string, string
     }, keyMove);
 }
 
-function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
+function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode {
     const note = moment.activeStrategicNote;
     const dossier = moment.activeBranchDossier;
     const threadLabel = dossier?.threadLabel || moment.strategicThread?.themeLabel;
@@ -1348,7 +1348,7 @@ function narrativeStrategicIdeasSurface(ideas: ActiveStrategicIdeaRef[]): VNode 
 }
 
 function narrativeStrategicExecutionSurface(
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     route: ActiveStrategicRouteRef | ActiveBranchRouteCue,
 ): VNode {
     const routeText = route.route.join('-');
@@ -1388,7 +1388,7 @@ function narrativeStrategicObjectiveSurface(targets: StrategyDirectionalTarget[]
 }
 
 function narrativeBranchDossierView(
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     strategicMoves: ActiveStrategicMoveRef[],
 ): VNode {
     const dossier = moment.activeBranchDossier!;
@@ -1479,7 +1479,7 @@ function narrativeBranchDossierView(
         ]);
 }
 
-function narrativeBranchRouteChip(moment: GameNarrativeMoment, cue: ActiveBranchRouteCue): VNode {
+function narrativeBranchRouteChip(moment: GameChronicleMoment, cue: ActiveBranchRouteCue): VNode {
     const routeText = cue.route.join('-');
     const text = `${routeOwnerLabel(cue.ownerSide)} ${routeSurfaceText(cue)}`;
     const attrs =
@@ -1510,7 +1510,7 @@ function narrativeBranchMoveChip(
 
 function narrativeProseView(
     ctrl: NarrativeCtrl,
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     prose: string,
     scope: 'moment' | 'note',
 ): VNode {
@@ -1531,7 +1531,7 @@ function narrativeProseView(
     return hl('pre.narrative-prose', nodes);
 }
 
-function buildInlineMoveRefMap(moment: GameNarrativeMoment, variantKey: string): Map<string, string> {
+function buildInlineMoveRefMap(moment: GameChronicleMoment, variantKey: string): Map<string, string> {
     const refs = new Map<string, string>();
 
     const addRef = (sanRaw: string | undefined, boardPayload: string | null): void => {
@@ -1583,7 +1583,7 @@ function normalizeSanToken(raw: string | undefined): string {
 function renderInlineToken(
     token: string,
     idx: number,
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     moveRefs: Map<string, string>,
     scope: 'moment' | 'note',
 ): Array<VNode | string> {
@@ -1653,7 +1653,7 @@ function narrativeActivePlanView(plan: ActivePlanRef): VNode {
 
 export function narrativeCollapseCardView(
     ctrl: NarrativeCtrl,
-    moment: GameNarrativeMoment,
+    moment: GameChronicleMoment,
     opts: { selected?: boolean; onSelect?: () => void; anchorId?: string } = {},
 ): VNode | null {
     const collapse = moment.collapse;
@@ -1699,7 +1699,7 @@ export function narrativeCollapseCardView(
     ]);
 }
 
-function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameNarrativeMoment): VNode {
+function patchReplayPanel(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode {
     const collapse = moment.collapse!;
     const collapseId = collapse.interval;
     const patchMoves = collapse.patchLineUci || [];

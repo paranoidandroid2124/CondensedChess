@@ -127,6 +127,11 @@ object NarrativeContextBuilder:
 
     val mainStrategicPlans = strategicPartition.mainPlans.take(3)
     val latentPlans = strategicPartition.latentPlans.take(2)
+    val strategicPlanExperiments =
+      buildStrategicPlanExperiments(
+        evaluated = strategicPartition.evaluated,
+        validatedProbeResults = probeValidation.validResults
+      )
 
     val (absentReasons, absentReasonSource) =
       val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
@@ -224,6 +229,7 @@ object NarrativeContextBuilder:
       probeRequests = probeRequests,
       mainStrategicPlans = mainStrategicPlans,
       latentPlans = latentPlans,
+      strategicPlanExperiments = strategicPlanExperiments,
       whyAbsentFromTopMultiPV = absentReasons,
       absentReasonSource = absentReasonSource,
       meta = meta,
@@ -243,6 +249,65 @@ object NarrativeContextBuilder:
       renderMode = renderMode
     )
   }
+
+  private[llm] def buildStrategicPlanExperiments(
+      evaluated: List[PlanEvidenceEvaluator.EvaluatedPlan],
+      validatedProbeResults: List[ProbeResult]
+  ): List[StrategicPlanExperiment] =
+    val resultsById = validatedProbeResults.groupBy(_.id).view.mapValues(_.head).toMap
+    evaluated.map { plan =>
+      val supportResults = plan.supportProbeIds.flatMap(resultsById.get).distinctBy(_.id)
+      val refuteResults = plan.refuteProbeIds.flatMap(resultsById.get).distinctBy(_.id)
+      val bestReplyStable =
+        supportResults.nonEmpty &&
+          refuteResults.isEmpty &&
+          supportResults.exists(hasReplyCoverage) &&
+          supportResults.forall(_.l1Delta.flatMap(_.collapseReason).forall(_.trim.isEmpty))
+      val futureSnapshotAligned =
+        supportResults.exists(result => result.futureSnapshot.exists(isPositiveFutureSnapshot)) &&
+          refuteResults.isEmpty
+      val counterBreakNeutralized =
+        supportResults.exists(result =>
+          result.futureSnapshot.exists(snapshot =>
+            snapshot.planBlockersRemoved.exists(mentionsCounterBreak) ||
+              snapshot.planPrereqsMet.exists(mentionsCounterBreak) ||
+              snapshot.resolvedThreatKinds.exists(mentionsCounterplay)
+          ) ||
+            result.keyMotifs.exists(motif => mentionsCounterBreak(motif) || mentionsCounterplay(motif))
+        )
+      val moveOrderSensitive =
+        plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled ||
+          (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
+          refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
+          (
+            supportResults.nonEmpty &&
+              supportResults.exists(hasReplyCoverage) &&
+              !bestReplyStable &&
+              !futureSnapshotAligned
+          )
+      StrategicPlanExperiment(
+        planId = plan.hypothesis.planId,
+        themeL1 = plan.themeL1,
+        subplanId = plan.subplanId,
+        evidenceTier = evidenceTierOf(plan.status),
+        supportProbeCount = supportResults.size,
+        refuteProbeCount = refuteResults.size,
+        bestReplyStable = bestReplyStable,
+        futureSnapshotAligned = futureSnapshotAligned,
+        counterBreakNeutralized = counterBreakNeutralized,
+        moveOrderSensitive = moveOrderSensitive,
+        experimentConfidence =
+          experimentConfidence(
+            tier = plan.status,
+            supportCount = supportResults.size,
+            refuteCount = refuteResults.size,
+            bestReplyStable = bestReplyStable,
+            futureSnapshotAligned = futureSnapshotAligned,
+            counterBreakNeutralized = counterBreakNeutralized,
+            moveOrderSensitive = moveOrderSensitive
+          )
+      )
+    }
 
   /**
    * A9 Event Detection: Detect opening-related events for narrative.
@@ -285,6 +350,62 @@ object NarrativeContextBuilder:
       prevRef = prevRef
     )
   }
+
+  private def evidenceTierOf(status: PlanEvidenceEvaluator.PlanEvidenceStatus): String =
+    status match
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => "evidence_backed"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => "pv_coupled"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => "deferred"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                => "refuted"
+
+  private def hasReplyCoverage(result: ProbeResult): Boolean =
+    result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))
+
+  private def isPositiveFutureSnapshot(snapshot: FutureSnapshot): Boolean =
+    snapshot.planPrereqsMet.nonEmpty ||
+      snapshot.planBlockersRemoved.nonEmpty ||
+      snapshot.targetsDelta.strategicAdded.nonEmpty ||
+      snapshot.resolvedThreatKinds.nonEmpty
+
+  private def mentionsCounterBreak(raw: String): Boolean =
+    val normalized = normalizeExperimentToken(raw)
+    normalized.contains("counter_break") ||
+      normalized.contains("break_prevention") ||
+      normalized.contains("deny_break") ||
+      normalized.contains("break_denial")
+
+  private def mentionsCounterplay(raw: String): Boolean =
+    normalizeExperimentToken(raw).contains("counterplay")
+
+  private def normalizeExperimentToken(raw: String): String =
+    Option(raw)
+      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_"))
+      .getOrElse("")
+
+  private def experimentConfidence(
+      tier: PlanEvidenceEvaluator.PlanEvidenceStatus,
+      supportCount: Int,
+      refuteCount: Int,
+      bestReplyStable: Boolean,
+      futureSnapshotAligned: Boolean,
+      counterBreakNeutralized: Boolean,
+      moveOrderSensitive: Boolean
+  ): Double =
+    val base =
+      tier match
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => 0.82
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => 0.62
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => 0.38
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                => 0.10
+    val supportBonus = math.min(0.08, supportCount * 0.03)
+    val refutePenalty = math.min(0.18, refuteCount * 0.08)
+    val stabilityBonus = if bestReplyStable then 0.05 else 0.0
+    val futureBonus = if futureSnapshotAligned then 0.04 else 0.0
+    val counterBreakBonus = if counterBreakNeutralized then 0.05 else 0.0
+    val sensitivityPenalty = if moveOrderSensitive then 0.08 else 0.0
+    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus - refutePenalty - sensitivityPenalty)
+      .max(0.0)
+      .min(0.98)
 
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)

@@ -4,7 +4,7 @@ import _root_.chess.{ Bishop, Board, Color, File, Knight, Pawn, Queen, Rank, Rol
 
 import lila.llm.analysis.L3.{ ThreatAnalysis, ThreatKind }
 import lila.llm.*
-import lila.llm.model.{ Motif, PlanId, PlanMatch }
+import lila.llm.model.{ Motif, PlanId, PlanMatch, StrategicPlanExperiment }
 import lila.llm.model.strategic.{ PositionalTag, PreventedPlan, TheoreticalOutcomeHint, WeakComplex }
 import lila.llm.model.structure.{ CenterState, StructureId }
 
@@ -37,8 +37,22 @@ private[llm] object StrategicIdeaSelector:
       focusZone: Option[String] = None,
       beneficiaryPieces: List[String] = Nil,
       score: Double,
-      evidenceRefs: List[String] = Nil
+      evidenceRefs: List[String] = Nil,
+      evidenceCount: Int = 0,
+      sourceCount: Int = 0
   )
+
+  private final case class FamilyCandidate(
+      family: String,
+      score: Double,
+      members: List[Candidate]
+  )
+
+  private object StrategicIdeaFamily:
+    val ForcingOrTacticalNow = "forcing_or_tactical_now"
+    val SlowStructural = "slow_structural"
+    val PreventionOrSuppression = "prevention_or_suppression"
+    val ConversionOrTransformation = "conversion_or_transformation"
 
   def enrich(pack: StrategyPack): StrategyPack =
     enrich(pack, StrategicIdeaSemanticContext.empty(pack.sideToMove))
@@ -64,28 +78,54 @@ private[llm] object StrategicIdeaSelector:
     val evidence = collectTypedEvidence(pack, semantic)
     if evidence.isEmpty then Nil
     else
-      val merged = mergeEvidence(evidence)
-      val dominant = merged.head
-      val secondary =
-        merged.drop(1).find(candidate =>
-          candidate.group != dominant.group &&
-            math.abs(dominant.score - candidate.score) <= 0.12
-        )
-      List(Some(dominant), secondary).flatten.zipWithIndex.map { case (candidate, idx) =>
-        StrategyIdeaSignal(
-          ideaId = s"idea_${idx + 1}",
-          ownerSide = candidate.ownerSide,
-          kind = candidate.kind,
-          group = candidate.group,
-          readiness = candidate.readiness,
-          focusSquares = candidate.focusSquares,
-          focusFiles = candidate.focusFiles,
-          focusDiagonals = candidate.focusDiagonals,
-          focusZone = candidate.focusZone,
-          beneficiaryPieces = candidate.beneficiaryPieces.distinct,
-          confidence = candidate.score.min(0.98),
-          evidenceRefs = candidate.evidenceRefs.distinct.take(6)
-        )
+      val merged = mergeEvidence(evidence, semantic)
+      val familyRanking = rankFamilies(merged, semantic)
+      val selectedFamilies = selectFamilies(familyRanking)
+      val resolved = stageCandidates(merged, selectedFamilies, semantic)
+      selectedFamilies.headOption.toList.flatMap { dominantFamily =>
+        val dominantCandidates = resolved.filter(candidate => familyForKind(candidate.kind) == dominantFamily)
+        val dominantCandidate =
+          if dominantFamily == StrategicIdeaFamily.SlowStructural then
+            preferredSlowStructuralKind(dominantCandidates, semantic)
+              .flatMap(kind => dominantCandidates.find(_.kind == kind))
+              .orElse(dominantCandidates.headOption)
+          else dominantCandidates.headOption
+        dominantCandidate.toList.flatMap { dominant =>
+          val secondary =
+            selectedFamilies
+              .drop(1)
+              .headOption
+              .flatMap(family =>
+                resolved
+                  .filter(candidate => familyForKind(candidate.kind) == family)
+                  .find(candidate =>
+                    candidate.group != dominant.group &&
+                      math.abs(dominant.score - candidate.score) <= 0.12
+                  )
+              )
+              .orElse(
+                dominantCandidates.drop(1).find(candidate =>
+                  candidate.group != dominant.group &&
+                    math.abs(dominant.score - candidate.score) <= 0.12
+                )
+              )
+          List(Some(dominant), secondary).flatten.zipWithIndex.map { case (candidate, idx) =>
+            StrategyIdeaSignal(
+              ideaId = s"idea_${idx + 1}",
+              ownerSide = candidate.ownerSide,
+              kind = candidate.kind,
+              group = candidate.group,
+              readiness = candidate.readiness,
+              focusSquares = candidate.focusSquares,
+              focusFiles = candidate.focusFiles,
+              focusDiagonals = candidate.focusDiagonals,
+              focusZone = candidate.focusZone,
+              beneficiaryPieces = candidate.beneficiaryPieces.distinct,
+              confidence = candidate.score.min(0.98),
+              evidenceRefs = candidate.evidenceRefs.distinct.take(6)
+            )
+          }
+        }
       }
 
   def humanizedKind(kind: String): String =
@@ -624,7 +664,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.LineOccupation,
             readiness = StrategicIdeaReadiness.Ready,
             source = "open_file_control",
-            confidence = 0.82,
+            confidence = 0.80,
             focusFiles = List(fileToken(file)),
             beneficiaryPieces = List("R", "Q"),
             factIds = List(s"open_file_${fileToken(file)}")
@@ -639,7 +679,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.LineOccupation,
             readiness = StrategicIdeaReadiness.Ready,
             source = "doubled_rooks",
-            confidence = 0.78,
+            confidence = 0.74,
             focusFiles = List(fileToken(file)),
             beneficiaryPieces = List("R"),
             factIds = List(s"doubled_rooks_${fileToken(file)}")
@@ -654,7 +694,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.LineOccupation,
             readiness = StrategicIdeaReadiness.Build,
             source = "connected_rooks",
-            confidence = 0.70,
+            confidence = 0.64,
             beneficiaryPieces = List("R"),
             factIds = List("connected_rooks")
           )
@@ -668,7 +708,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.LineOccupation,
             readiness = StrategicIdeaReadiness.Ready,
             source = "rook_on_seventh",
-            confidence = 0.76,
+            confidence = 0.72,
             focusZone = Some("back rank"),
             beneficiaryPieces = List("R"),
             factIds = List("rook_on_seventh")
@@ -693,8 +733,8 @@ private[llm] object StrategicIdeaSelector:
               readiness = StrategicIdeaReadiness.Ready,
               source = "occupied_line_control",
               confidence =
-                (if piece == "R" then 0.84 else 0.78) +
-                  (if open then 0.04 else if semiOpen then 0.02 else 0.0) +
+                (if piece == "R" then 0.78 else 0.72) +
+                  (if open then 0.03 else if semiOpen then 0.01 else 0.0) +
                   (if seventh then 0.02 else 0.0),
               focusSquares = List(square.key),
               focusFiles = Option.when(open || semiOpen)(List(fileToken(square.file))).getOrElse(Nil),
@@ -724,7 +764,15 @@ private[llm] object StrategicIdeaSelector:
                 kind = StrategicIdeaKind.LineOccupation,
                 readiness = ideaReadinessFromRoute(route.surfaceMode),
                 source = "route_line_access",
-                confidence = 0.70 + route.surfaceConfidence * 0.12,
+                confidence =
+                  (
+                    route.surfaceMode match
+                      case RouteSurfaceMode.Exact  => 0.60
+                      case RouteSurfaceMode.Toward => 0.48
+                      case _                       => 0.44
+                  ) +
+                    route.surfaceConfidence * 0.08 +
+                    Option.when(route.piece == "R" && focusFiles.nonEmpty)(0.02).getOrElse(0.0),
                 focusSquares = List(endpoint.key),
                 focusFiles = focusFiles,
                 focusZone = focusZone,
@@ -746,7 +794,10 @@ private[llm] object StrategicIdeaSelector:
                 kind = StrategicIdeaKind.LineOccupation,
                 readiness = ideaReadinessFromDirectionalTarget(target.readiness),
                 source = "directional_line_access",
-                confidence = 0.66 + readinessBonus(target.readiness),
+                confidence =
+                  0.46 +
+                    readinessBonus(target.readiness) * 0.6 +
+                    Option.when(target.piece == "R" && focusFiles.nonEmpty)(0.02).getOrElse(0.0),
                 focusSquares = List(endpoint.key),
                 focusFiles = focusFiles,
                 focusZone = focusZone,
@@ -777,7 +828,7 @@ private[llm] object StrategicIdeaSelector:
               kind = StrategicIdeaKind.LineOccupation,
               readiness = StrategicIdeaReadiness.Build,
               source = "line_control_features",
-              confidence = 0.66,
+              confidence = 0.56,
               beneficiaryPieces = List("R", "Q"),
               factIds = List("line_control_features")
             )
@@ -793,7 +844,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.LineOccupation,
             readiness = StrategicIdeaReadiness.Build,
             source = "plan_match_line_occupation",
-            confidence = 0.80 + math.min(0.06, plan.score * 0.08),
+            confidence = 0.72 + math.min(0.04, plan.score * 0.06),
             beneficiaryPieces = List("R", "Q"),
             factIds = List("plan_match_line_occupation", s"plan_${plan.plan.id.toString.toLowerCase}")
           )
@@ -807,6 +858,10 @@ private[llm] object StrategicIdeaSelector:
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicIdeaEvidence] =
+    val taggedOutpostSquares = taggedOutpostSquaresFor(side, semantic)
+    val occupiedStrongKnightSquares = occupiedStrongKnightSquaresFor(side, semantic)
+    val stableExperiment = hasStableKindExperiment(semantic, StrategicIdeaKind.OutpostCreationOrOccupation)
+
     val tagEvidence =
       semantic.positionalFeatures.collect {
         case PositionalTag.Outpost(square, color) if matchesSide(color, side) =>
@@ -825,12 +880,13 @@ private[llm] object StrategicIdeaSelector:
     val strongKnightEvidence =
       semantic.positionalFeatures.collect {
         case PositionalTag.StrongKnight(square, color) if matchesSide(color, side) =>
+          val occupiedAnchor = occupiedStrongKnightSquares.contains(square.key)
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.OutpostCreationOrOccupation,
-            readiness = StrategicIdeaReadiness.Ready,
+            readiness = if occupiedAnchor then StrategicIdeaReadiness.Ready else StrategicIdeaReadiness.Build,
             source = "strong_knight",
-            confidence = 0.80,
+            confidence = if occupiedAnchor then 0.76 else 0.68,
             focusSquares = List(square.key),
             beneficiaryPieces = List("N"),
             factIds = List(s"strong_knight_${square.key}")
@@ -839,7 +895,10 @@ private[llm] object StrategicIdeaSelector:
 
     val entrenchedSupport =
       semantic.strategicState
-        .filter(entrenchedPiecesFor(side, _) > 0)
+        .filter(state =>
+          entrenchedPiecesFor(side, state) > 0 &&
+            (taggedOutpostSquares.nonEmpty || occupiedStrongKnightSquares.nonEmpty || stableExperiment)
+        )
         .map { state =>
           evidence(
             ownerSide = side,
@@ -857,36 +916,41 @@ private[llm] object StrategicIdeaSelector:
       pack.pieceRoutes
         .filter(route => route.ownerSide == side && route.surfaceMode != RouteSurfaceMode.Hidden && isMinorPiece(route.piece))
         .flatMap { route =>
-          route.route.lastOption.flatMap(squareFromKey).filter(isOutpostSquareFor(side, _, semantic)).map { endpoint =>
+          route.route.lastOption
+            .flatMap(squareFromKey)
+            .filter(endpoint => taggedOutpostSquares.contains(endpoint.key))
+            .map { endpoint =>
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.OutpostCreationOrOccupation,
               readiness = ideaReadinessFromRoute(route.surfaceMode),
               source = "route_outpost_access",
-              confidence = 0.64 + route.surfaceConfidence * 0.08,
+              confidence = 0.60 + route.surfaceConfidence * 0.08,
               focusSquares = List(endpoint.key),
               beneficiaryPieces = List(route.piece),
               factIds = List("route_outpost_access", s"route_surface_${route.surfaceMode.toLowerCase}")
             )
-          }
+            }
         }
 
     val directionalEvidence =
       pack.directionalTargets
         .filter(target => target.ownerSide == side && isMinorPiece(target.piece))
         .flatMap { target =>
-          squareFromKey(target.targetSquare).filter(isOutpostSquareFor(side, _, semantic)).map { endpoint =>
+          squareFromKey(target.targetSquare)
+            .filter(endpoint => taggedOutpostSquares.contains(endpoint.key))
+            .map { endpoint =>
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.OutpostCreationOrOccupation,
               readiness = ideaReadinessFromDirectionalTarget(target.readiness),
               source = "directional_outpost_access",
-              confidence = 0.66 + readinessBonus(target.readiness),
+              confidence = 0.60 + readinessBonus(target.readiness),
               focusSquares = List(endpoint.key),
               beneficiaryPieces = List(target.piece),
               factIds = List("directional_outpost_access")
             )
-          }
+            }
         }
 
     tagEvidence ++ strongKnightEvidence ++ entrenchedSupport ++ routeEvidence ++ directionalEvidence
@@ -1096,10 +1160,28 @@ private[llm] object StrategicIdeaSelector:
         }
       }
 
+    val realAnchorPresent =
+      preventedEvidence.nonEmpty ||
+        threatBridge.nonEmpty ||
+        counterBreakWatch.nonEmpty ||
+        hasStableKindExperiment(semantic, StrategicIdeaKind.Prophylaxis)
+
+    val planSupportPresent =
+      topPlansFor(side, semantic).exists(plan =>
+        plan.plan.id == PlanId.Prophylaxis || plan.plan.id == PlanId.DefensiveConsolidation
+      )
+
+    val boardPatternPresent =
+      hasBishopPinWatch(side, semantic) || hasQueensideClampWatch(side, semantic)
+
+    val typedAnchorPresent =
+      realAnchorPresent || (planSupportPresent && boardPatternPresent)
+
     val planBridge =
       topPlansFor(side, semantic).flatMap { plan =>
         Option.when(
-          plan.plan.id == PlanId.Prophylaxis || plan.plan.id == PlanId.DefensiveConsolidation
+          typedAnchorPresent &&
+            (plan.plan.id == PlanId.Prophylaxis || plan.plan.id == PlanId.DefensiveConsolidation)
         ) {
           evidence(
             ownerSide = side,
@@ -1116,7 +1198,7 @@ private[llm] object StrategicIdeaSelector:
       }
 
     val bishopPinWatch =
-      Option.when(hasBishopPinWatch(side, semantic)) {
+      Option.when(typedAnchorPresent && hasBishopPinWatch(side, semantic)) {
         evidence(
           ownerSide = side,
           kind = StrategicIdeaKind.Prophylaxis,
@@ -1130,7 +1212,7 @@ private[llm] object StrategicIdeaSelector:
       }.toList
 
     val queensideClampWatch =
-      Option.when(hasQueensideClampWatch(side, semantic)) {
+      Option.when(typedAnchorPresent && hasQueensideClampWatch(side, semantic)) {
         evidence(
           ownerSide = side,
           kind = StrategicIdeaKind.Prophylaxis,
@@ -1456,9 +1538,9 @@ private[llm] object StrategicIdeaSelector:
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.FavorableTradeOrTransformation,
-              readiness = if evalEdge >= 120 then StrategicIdeaReadiness.Ready else StrategicIdeaReadiness.Build,
+              readiness = if evalEdge >= 160 then StrategicIdeaReadiness.Ready else StrategicIdeaReadiness.Build,
               source = "classification_transformation_window",
-              confidence = 0.76 + Option.when(classification.taskMode.isConvertMode)(0.04).getOrElse(0.0),
+              confidence = 0.62 + Option.when(classification.taskMode.isConvertMode)(0.02).getOrElse(0.0),
               factIds = List("classification_transformation_window") ++ facts
             )
           }
@@ -1477,7 +1559,7 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
             readiness = StrategicIdeaReadiness.Build,
             source = "exchange_availability_bridge",
-            confidence = 0.90,
+            confidence = 0.64,
             factIds =
               List(
                 Some("exchange_availability_bridge"),
@@ -1499,7 +1581,7 @@ private[llm] object StrategicIdeaSelector:
                 if winningEndgameTransition.nonEmpty || removingTheDefender.nonEmpty then StrategicIdeaReadiness.Ready
                 else StrategicIdeaReadiness.Build,
               source = "capture_exchange_transformation",
-              confidence = 0.70 + moveRefSupportBonus(side, ref, semantic),
+              confidence = 0.62 + moveRefSupportBonus(side, ref, semantic),
               focusSquares = List(ref.target),
               beneficiaryPieces = List(ref.piece),
               factIds = List("capture_or_exchange") ++ ref.evidence.filter(_.startsWith("target_"))
@@ -1528,23 +1610,50 @@ private[llm] object StrategicIdeaSelector:
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
             readiness = StrategicIdeaReadiness.Build,
             source = "plan_match_transformation",
-            confidence = 0.74 + math.min(0.06, plan.score * 0.08),
+            confidence = 0.68 + math.min(0.04, plan.score * 0.06),
             factIds = List("plan_match_transformation", s"plan_${plan.plan.id.toString.toLowerCase}")
           )
         }
       }
 
     val iqpSimplification =
-      Option.when(structureIs(semantic, StructureId.IQPBlack) && side == "white") {
-        evidence(
-          ownerSide = side,
-          kind = StrategicIdeaKind.FavorableTradeOrTransformation,
-          readiness = StrategicIdeaReadiness.Build,
-          source = "iqp_simplification_profile",
-          confidence = 0.92,
-          factIds = List("structure_iqp_black", "iqp_simplification_profile")
-        )
-      }.toList
+      semantic.classification.toList.flatMap { classification =>
+        val exchangeMoveRefs =
+          pack.pieceMoveRefs.filter(ref =>
+            ref.ownerSide == side && ref.tacticalTheme.contains("capture_or_exchange")
+          )
+        val exchangePlanSupport =
+          topPlansFor(side, semantic).exists(plan =>
+            plan.plan.id == PlanId.Exchange ||
+              plan.plan.id == PlanId.Simplification ||
+              plan.plan.id == PlanId.QueenTrade
+          )
+        Option.when(
+          structureIs(semantic, StructureId.IQPBlack) &&
+            side == "white" &&
+            (
+              classification.simplifyBias.exchangeAvailable ||
+                classification.simplifyBias.shouldSimplify ||
+                exchangeMoveRefs.nonEmpty ||
+                exchangePlanSupport
+            )
+        ) {
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = "iqp_simplification_profile",
+            confidence =
+              if exchangeMoveRefs.nonEmpty || exchangePlanSupport then 0.78
+              else 0.64,
+            focusSquares = exchangeMoveRefs.map(_.target).distinct.take(3),
+            factIds =
+              List("structure_iqp_black", "iqp_simplification_profile") ++
+                Option.when(exchangeMoveRefs.nonEmpty)("capture_or_exchange").toList ++
+                Option.when(exchangePlanSupport)("iqp_trade_down_plan").toList
+          )
+        }
+      }
 
     removingTheDefender ++ winningEndgameTransition ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification
 
@@ -1701,39 +1810,426 @@ private[llm] object StrategicIdeaSelector:
 
     preventedEvidence ++ counterBreakBridge ++ threatBridge ++ structureBridge ++ planBridge
 
-  private def mergeEvidence(evidence: List[StrategicIdeaEvidence]): List[Candidate] =
+  private def mergeEvidence(
+      evidence: List[StrategicIdeaEvidence],
+      semantic: StrategicIdeaSemanticContext
+  ): List[Candidate] =
     evidence
       .groupBy(_.signature)
       .values
-      .map { grouped =>
+      .flatMap { grouped =>
         val best = grouped.maxBy(_.confidence)
         val stackCap =
           best.kind match
             case StrategicIdeaKind.TargetFixing                   => 0.10
-            case StrategicIdeaKind.FavorableTradeOrTransformation => 0.12
+            case StrategicIdeaKind.FavorableTradeOrTransformation => 0.08
+            case StrategicIdeaKind.LineOccupation                 => 0.08
             case _                                                => 0.18
         val stackIncrement =
           best.kind match
             case StrategicIdeaKind.TargetFixing                   => 0.03
-            case StrategicIdeaKind.FavorableTradeOrTransformation => 0.04
+            case StrategicIdeaKind.FavorableTradeOrTransformation => 0.03
+            case StrategicIdeaKind.LineOccupation                 => 0.02
             case _                                                => 0.05
-        val score = (best.confidence + math.min(stackCap, (grouped.size - 1) * stackIncrement)).min(0.98)
-        Candidate(
-          ownerSide = best.ownerSide,
-          kind = best.kind,
-          group = best.group,
-          readiness = mergeReadiness(grouped.map(_.readiness)),
-          focusSquares = grouped.flatMap(_.focusSquares).distinct.take(4),
-          focusFiles = grouped.flatMap(_.focusFiles).distinct.take(2),
-          focusDiagonals = grouped.flatMap(_.focusDiagonals).distinct.take(2),
-          focusZone = mostCommon(grouped.flatMap(_.focusZone)),
-          beneficiaryPieces = grouped.flatMap(_.beneficiaryPieces).distinct.take(4),
-          score = score,
-          evidenceRefs = (grouped.map(ev => s"source:${ev.source}") ++ grouped.flatMap(_.factIds)).distinct.take(6)
-        )
+        val baseScore = (best.confidence + math.min(stackCap, (grouped.size - 1) * stackIncrement)).min(0.98)
+        val matchingExperiments =
+          semantic.strategicPlanExperiments.filter(experimentAppliesToKind(_, best.kind))
+        val blocked =
+          matchingExperiments.exists(experimentBlocksKind(best.kind, _))
+        val experimentDelta =
+          matchingExperiments.map(experimentModifier(best.kind, _)).sum.max(-0.36).min(0.28)
+        val tacticalCompetitionPenalty =
+          slowIdeaTacticalCompetitionPenalty(best.kind, semantic.strategicPlanExperiments)
+        val score = (baseScore + experimentDelta + tacticalCompetitionPenalty).max(0.0).min(0.98)
+        Option.when(!blocked) {
+          Candidate(
+            ownerSide = best.ownerSide,
+            kind = best.kind,
+            group = best.group,
+            readiness = mergeReadiness(grouped.map(_.readiness)),
+            focusSquares = grouped.flatMap(_.focusSquares).distinct.take(4),
+            focusFiles = grouped.flatMap(_.focusFiles).distinct.take(2),
+            focusDiagonals = grouped.flatMap(_.focusDiagonals).distinct.take(2),
+            focusZone = mostCommon(grouped.flatMap(_.focusZone)),
+            beneficiaryPieces = grouped.flatMap(_.beneficiaryPieces).distinct.take(4),
+            score = score,
+            evidenceRefs =
+              (
+                grouped.map(ev => s"source:${ev.source}") ++
+                  grouped.flatMap(_.factIds) ++
+                  matchingExperiments.flatMap(experimentEvidenceRefs)
+              ).distinct.take(8),
+            evidenceCount = grouped.size,
+            sourceCount = grouped.map(_.source).distinct.size
+          )
+        }
       }
       .toList
       .sortBy(candidate => (-candidate.score, candidate.kind))
+
+  private def selectFamilies(
+      rankedFamilies: List[FamilyCandidate]
+  ): List[String] =
+    rankedFamilies.headOption.toList.flatMap { dominant =>
+      val secondary =
+        rankedFamilies.drop(1).find(candidate =>
+          math.abs(dominant.score - candidate.score) <= 0.08
+        )
+      List(Some(dominant.family), secondary.map(_.family)).flatten.distinct
+    }
+
+  private def rankFamilies(
+      candidates: List[Candidate],
+      semantic: StrategicIdeaSemanticContext
+  ): List[FamilyCandidate] =
+    candidates
+      .groupBy(candidate => familyForKind(candidate.kind))
+      .flatMap { case (family, members) =>
+        members.headOption.map { _ =>
+          val previewScores = members.map(candidate => candidate -> previewKindAdjustment(candidate, semantic)).toMap
+          val bestPreview = members.map(candidate => candidate.score + previewScores(candidate)).max
+          val supportBonus = math.min(0.04, (members.map(_.kind).distinct.size - 1) * 0.02)
+          FamilyCandidate(
+            family = family,
+            score = (bestPreview + supportBonus + familyStageAdjustment(family, members, semantic)).min(0.98),
+            members = members.sortBy(candidate => (-(candidate.score + previewScores(candidate)), candidate.kind))
+          )
+        }
+      }
+      .toList
+      .sortBy(candidate => (-candidate.score, candidate.family))
+
+  private def stageCandidates(
+      candidates: List[Candidate],
+      selectedFamilies: List[String],
+      semantic: StrategicIdeaSemanticContext
+  ): List[Candidate] =
+    candidates
+      .filter(candidate => selectedFamilies.contains(familyForKind(candidate.kind)))
+      .groupBy(candidate => familyForKind(candidate.kind))
+      .values
+      .flatMap { familyMembers =>
+        val preferredKind =
+          familyMembers.headOption.flatMap(candidate =>
+            if familyForKind(candidate.kind) == StrategicIdeaFamily.SlowStructural then
+              preferredSlowStructuralKind(familyMembers, semantic)
+            else None
+          )
+        familyMembers.map { candidate =>
+          val structuralWinnerBoost =
+            Option.when(preferredKind.contains(candidate.kind))(0.18).getOrElse(0.0)
+          val stageDelta =
+            previewKindAdjustment(candidate, semantic) +
+              familyContextAdjustment(candidate, familyMembers, semantic) +
+              structuralWinnerBoost
+          candidate.copy(score = (candidate.score + stageDelta).max(0.0).min(0.98))
+        }
+      }
+      .toList
+      .sortBy(candidate => (-candidate.score, candidate.kind))
+
+  private def familyStageAdjustment(
+      family: String,
+      members: List[Candidate],
+      semantic: StrategicIdeaSemanticContext
+  ): Double =
+    family match
+      case StrategicIdeaFamily.PreventionOrSuppression =>
+        if hasPreventionOrSuppressionAnchor(semantic.sideToMove, semantic) ||
+            members.exists(candidate => candidate.kind == StrategicIdeaKind.CounterplaySuppression)
+        then 0.04
+        else -0.24
+      case StrategicIdeaFamily.ConversionOrTransformation =>
+        if members.exists(candidate => hasStrongConversionAnchor(candidate, semantic)) ||
+            hasStructuredIqpConversionWindow(members, semantic)
+        then 0.18
+        else if members.forall(isWeakConversionWindowOnly(_, semantic)) then -0.12
+        else 0.0
+      case StrategicIdeaFamily.ForcingOrTacticalNow =>
+        if members.exists(candidate =>
+            candidate.kind == StrategicIdeaKind.PawnBreak &&
+              hasConcretePawnBreakAnchor(candidate)
+          )
+        then 0.18
+        else if semantic.strategicPlanExperiments.exists(experiment =>
+            experiment.themeL1 == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain.id &&
+              experiment.evidenceTier != "refuted"
+          )
+        then 0.04
+        else 0.0
+      case _ =>
+        0.0
+
+  private def previewKindAdjustment(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Double =
+    candidate.kind match
+      case StrategicIdeaKind.SpaceGainOrRestriction =>
+        if hasBroadSpaceAnchor(candidate, semantic) then 0.08 else 0.0
+      case StrategicIdeaKind.TargetFixing =>
+        if hasStrongTargetFixingAnchor(candidate, semantic) then 0.08
+        else if isGenericTargetFixing(candidate, semantic) then -0.10
+        else 0.0
+      case StrategicIdeaKind.LineOccupation =>
+        if hasStrongLineAnchor(candidate) then 0.10
+        else if hasRouteLineAnchor(candidate) then 0.06
+        else 0.0
+      case StrategicIdeaKind.OutpostCreationOrOccupation =>
+        if hasStableOutpostAnchor(candidate, semantic) then 0.08 else -0.16
+      case StrategicIdeaKind.MinorPieceImbalanceExploitation =>
+        if hasStrongMinorPieceAnchor(candidate, semantic) then 0.06 else 0.0
+      case StrategicIdeaKind.Prophylaxis =>
+        if hasSupportedProphylaxisContext(candidate.ownerSide, semantic) then 0.03 else -0.22
+      case StrategicIdeaKind.FavorableTradeOrTransformation =>
+        if hasStrongConversionAnchor(candidate, semantic) then 0.08
+        else if isWeakConversionWindowOnly(candidate, semantic) then -0.12
+        else 0.0
+      case StrategicIdeaKind.CounterplaySuppression =>
+        if hasPreventionOrSuppressionAnchor(candidate.ownerSide, semantic) then 0.03 else 0.0
+      case _ =>
+        0.0
+
+  private def familyContextAdjustment(
+      candidate: Candidate,
+      familyMembers: List[Candidate],
+      semantic: StrategicIdeaSemanticContext
+  ): Double =
+    candidate.kind match
+      case StrategicIdeaKind.SpaceGainOrRestriction =>
+        val genericFixationPenalty =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.TargetFixing &&
+                isGenericTargetFixing(other, semantic)
+            )
+          then 0.04
+          else 0.0
+        val concreteStructuralPenalty =
+          if !hasBroadSpaceAnchor(candidate, semantic) &&
+              familyMembers.exists(other =>
+                (other.kind == StrategicIdeaKind.OutpostCreationOrOccupation &&
+                  hasStableOutpostAnchor(other, semantic)) ||
+                  (other.kind == StrategicIdeaKind.LineOccupation &&
+                    (hasStrongLineAnchor(other) || hasRouteLineAnchor(other)))
+              )
+          then -0.08
+          else 0.0
+        genericFixationPenalty + concreteStructuralPenalty
+      case StrategicIdeaKind.TargetFixing =>
+        val structuralCompetitionPenalty =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.SpaceGainOrRestriction &&
+                hasBroadSpaceAnchor(other, semantic)
+            )
+          then 0.06
+          else 0.0
+        val lineCompetitionPenalty =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.LineOccupation &&
+                (hasStrongLineAnchor(other) || hasRouteLineAnchor(other))
+            )
+          then 0.04
+          else 0.0
+        -(structuralCompetitionPenalty + lineCompetitionPenalty)
+      case StrategicIdeaKind.LineOccupation =>
+        val genericCompetitionBonus =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.OutpostCreationOrOccupation &&
+                !hasStableOutpostAnchor(other, semantic)
+            ) ||
+              familyMembers.exists(other =>
+                other.kind == StrategicIdeaKind.TargetFixing &&
+                  isGenericTargetFixing(other, semantic)
+              )
+          then 0.04
+          else 0.0
+        val broadSpacePenalty =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.SpaceGainOrRestriction &&
+                hasBroadSpaceAnchor(other, semantic)
+            )
+          then -0.03
+          else 0.0
+        genericCompetitionBonus + broadSpacePenalty
+      case StrategicIdeaKind.OutpostCreationOrOccupation =>
+        val minorPiecePenalty =
+          if familyMembers.exists(other =>
+              other.kind == StrategicIdeaKind.MinorPieceImbalanceExploitation &&
+                hasStrongMinorPieceAnchor(other, semantic)
+            ) &&
+              !hasStableOutpostAnchor(candidate, semantic)
+          then -0.06
+          else 0.0
+        val concreteAnchorBonus =
+          if hasStableOutpostAnchor(candidate, semantic) &&
+              familyMembers.exists(other =>
+                other.kind == StrategicIdeaKind.SpaceGainOrRestriction &&
+                  !hasBroadSpaceAnchor(other, semantic)
+              )
+          then 0.04
+          else 0.0
+        minorPiecePenalty + concreteAnchorBonus
+      case StrategicIdeaKind.MinorPieceImbalanceExploitation =>
+        if familyMembers.exists(other =>
+            other.kind == StrategicIdeaKind.OutpostCreationOrOccupation &&
+              !hasStableOutpostAnchor(other, semantic)
+          )
+        then 0.05
+        else 0.0
+      case _ =>
+        0.0
+
+  private def experimentAppliesToKind(
+      experiment: StrategicPlanExperiment,
+      kind: String
+  ): Boolean =
+    val matchedKinds =
+      experiment.subplanId
+        .flatMap(ThemeTaxonomy.SubplanId.fromId)
+        .map {
+          case ThemeTaxonomy.SubplanId.BreakPrevention | ThemeTaxonomy.SubplanId.KeySquareDenial =>
+            if experiment.counterBreakNeutralized then Set(StrategicIdeaKind.CounterplaySuppression, StrategicIdeaKind.Prophylaxis)
+            else Set(StrategicIdeaKind.Prophylaxis)
+          case ThemeTaxonomy.SubplanId.ProphylaxisRestraint =>
+            Set(StrategicIdeaKind.Prophylaxis)
+          case ThemeTaxonomy.SubplanId.OutpostEntrenchment =>
+            Set(StrategicIdeaKind.OutpostCreationOrOccupation)
+          case ThemeTaxonomy.SubplanId.WorstPieceImprovement =>
+            Set(StrategicIdeaKind.MinorPieceImbalanceExploitation, StrategicIdeaKind.LineOccupation)
+          case ThemeTaxonomy.SubplanId.RookFileTransfer =>
+            Set(StrategicIdeaKind.LineOccupation)
+          case ThemeTaxonomy.SubplanId.FlankClamp | ThemeTaxonomy.SubplanId.CentralSpaceBind |
+              ThemeTaxonomy.SubplanId.MobilitySuppression =>
+            Set(StrategicIdeaKind.SpaceGainOrRestriction)
+          case ThemeTaxonomy.SubplanId.StaticWeaknessFixation | ThemeTaxonomy.SubplanId.MinorityAttackFixation |
+              ThemeTaxonomy.SubplanId.BackwardPawnTargeting =>
+            Set(StrategicIdeaKind.TargetFixing)
+          case ThemeTaxonomy.SubplanId.CentralBreakTiming | ThemeTaxonomy.SubplanId.WingBreakTiming |
+              ThemeTaxonomy.SubplanId.TensionMaintenance =>
+            Set(StrategicIdeaKind.PawnBreak)
+          case ThemeTaxonomy.SubplanId.SimplificationWindow | ThemeTaxonomy.SubplanId.DefenderTrade |
+              ThemeTaxonomy.SubplanId.QueenTradeShield | ThemeTaxonomy.SubplanId.SimplificationConversion |
+              ThemeTaxonomy.SubplanId.PasserConversion | ThemeTaxonomy.SubplanId.InvasionTransition |
+              ThemeTaxonomy.SubplanId.OppositeBishopsConversion =>
+            Set(StrategicIdeaKind.FavorableTradeOrTransformation)
+          case ThemeTaxonomy.SubplanId.RookPawnMarch | ThemeTaxonomy.SubplanId.HookCreation |
+              ThemeTaxonomy.SubplanId.RookLiftScaffold =>
+            Set(StrategicIdeaKind.KingAttackBuildUp)
+          case ThemeTaxonomy.SubplanId.OpeningDevelopment |
+              ThemeTaxonomy.SubplanId.ForcingTacticalShot | ThemeTaxonomy.SubplanId.DefenderOverload |
+              ThemeTaxonomy.SubplanId.ClearanceBreak =>
+            Set.empty[String]
+        }
+        .getOrElse(experimentThemeKinds(experiment.themeL1))
+    matchedKinds.contains(kind)
+
+  private def experimentThemeKinds(themeL1: String): Set[String] =
+    ThemeTaxonomy.ThemeL1
+      .fromId(themeL1)
+      .map {
+        case ThemeTaxonomy.ThemeL1.RestrictionProphylaxis =>
+          Set(StrategicIdeaKind.Prophylaxis)
+        case ThemeTaxonomy.ThemeL1.PieceRedeployment =>
+          Set(StrategicIdeaKind.LineOccupation)
+        case ThemeTaxonomy.ThemeL1.SpaceClamp =>
+          Set(StrategicIdeaKind.SpaceGainOrRestriction)
+        case ThemeTaxonomy.ThemeL1.WeaknessFixation =>
+          Set(StrategicIdeaKind.TargetFixing)
+        case ThemeTaxonomy.ThemeL1.PawnBreakPreparation =>
+          Set(StrategicIdeaKind.PawnBreak)
+        case ThemeTaxonomy.ThemeL1.FavorableExchange | ThemeTaxonomy.ThemeL1.AdvantageTransformation =>
+          Set(StrategicIdeaKind.FavorableTradeOrTransformation)
+        case ThemeTaxonomy.ThemeL1.FlankInfrastructure =>
+          Set(StrategicIdeaKind.KingAttackBuildUp)
+        case ThemeTaxonomy.ThemeL1.ImmediateTacticalGain =>
+          Set.empty[String]
+        case _ =>
+          Set.empty[String]
+      }
+      .getOrElse(Set.empty)
+
+  private def experimentBlocksKind(
+      kind: String,
+      experiment: StrategicPlanExperiment
+  ): Boolean =
+    experiment.evidenceTier == "refuted" ||
+      (
+        isCounterBreakCriticalKind(kind) &&
+          (experiment.supportProbeCount > 0 || experiment.refuteProbeCount > 0) &&
+          !experiment.counterBreakNeutralized &&
+          experiment.refuteProbeCount > 0
+      )
+
+  private def experimentModifier(
+      kind: String,
+      experiment: StrategicPlanExperiment
+  ): Double =
+    val tierModifier =
+      experiment.evidenceTier match
+        case "evidence_backed" => 0.22
+        case "pv_coupled"      => 0.10
+        case "deferred"        => -0.10
+        case "refuted"         => -0.30
+        case _                 => 0.0
+    val bestReplyModifier =
+      if experiment.bestReplyStable then 0.12
+      else if experiment.supportProbeCount + experiment.refuteProbeCount > 0 then -0.12
+      else 0.0
+    val futureModifier = if experiment.futureSnapshotAligned then 0.08 else 0.0
+    val counterBreakModifier =
+      if isCounterBreakCriticalKind(kind) then
+        if experiment.counterBreakNeutralized then 0.16
+        else if experiment.supportProbeCount + experiment.refuteProbeCount > 0 then -0.14
+        else 0.0
+      else 0.0
+    val moveOrderModifier =
+      if experiment.moveOrderSensitive then
+        if isSlowStrategicKind(kind) then -0.14 else -0.08
+      else 0.0
+    val supportBalance =
+      math.min(0.06, experiment.supportProbeCount * 0.02) -
+        math.min(0.10, experiment.refuteProbeCount * 0.05)
+    val confidenceNudge = (experiment.experimentConfidence - 0.5) * 0.06
+    tierModifier + bestReplyModifier + futureModifier + counterBreakModifier + moveOrderModifier + supportBalance + confidenceNudge
+
+  private def slowIdeaTacticalCompetitionPenalty(
+      kind: String,
+      experiments: List[StrategicPlanExperiment]
+  ): Double =
+    if !isSlowStrategicKind(kind) then 0.0
+    else
+      experiments
+        .filter(_.themeL1 == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain.id)
+        .map { experiment =>
+          experiment.evidenceTier match
+            case "evidence_backed" => -0.16
+            case "pv_coupled"      => -0.08
+            case _                 => 0.0
+        }
+        .sum
+        .max(-0.16)
+
+  private def experimentEvidenceRefs(experiment: StrategicPlanExperiment): List[String] =
+    List(
+      Some(s"experiment:${experiment.themeL1}"),
+      experiment.subplanId.map(id => s"experiment_subplan:$id"),
+      Some(s"experiment_tier:${experiment.evidenceTier}")
+    ).flatten
+
+  private def isSlowStrategicKind(kind: String): Boolean =
+    kind match
+      case StrategicIdeaKind.SpaceGainOrRestriction | StrategicIdeaKind.TargetFixing |
+          StrategicIdeaKind.LineOccupation | StrategicIdeaKind.OutpostCreationOrOccupation |
+          StrategicIdeaKind.MinorPieceImbalanceExploitation =>
+        true
+      case _ => false
+
+  private def isCounterBreakCriticalKind(kind: String): Boolean =
+    kind match
+      case StrategicIdeaKind.Prophylaxis | StrategicIdeaKind.CounterplaySuppression |
+          StrategicIdeaKind.KingAttackBuildUp | StrategicIdeaKind.PawnBreak =>
+        true
+      case _ => false
 
   private def enrichDigest(
       digest: Option[NarrativeSignalDigest],
@@ -1992,16 +2488,42 @@ private[llm] object StrategicIdeaSelector:
       }
     }
 
-  private def isOutpostSquareFor(
+  private def taggedOutpostSquaresFor(
       side: String,
-      square: Square,
       semantic: StrategicIdeaSemanticContext
+  ): Set[String] =
+    semantic.positionalFeatures.collect {
+      case PositionalTag.Outpost(square, color) if matchesSide(color, side) => square.key
+    }.toSet
+
+  private def occupiedStrongKnightSquaresFor(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Set[String] =
+    semantic.positionalFeatures.collect {
+      case PositionalTag.StrongKnight(square, color)
+          if matchesSide(color, side) &&
+            semantic.board.exists(board =>
+              hasPiece(board, sideColor(side), square, Knight) || hasPiece(board, sideColor(side), square, Bishop)
+            ) =>
+        square.key
+    }.toSet
+
+  private def hasStableKindExperiment(
+      semantic: StrategicIdeaSemanticContext,
+      kind: String
   ): Boolean =
-    semantic.positionalFeatures.exists {
-      case PositionalTag.Outpost(tagSquare, color)      => tagSquare == square && matchesSide(color, side)
-      case PositionalTag.StrongKnight(tagSquare, color) => tagSquare == square && matchesSide(color, side)
-      case _                                            => false
-    } || semantic.board.exists(board => isOutpostSquare(board, square, sideColor(side)))
+    semantic.strategicPlanExperiments.exists { experiment =>
+      experimentAppliesToKind(experiment, kind) &&
+        experiment.evidenceTier != "refuted" &&
+        !experiment.moveOrderSensitive &&
+        (
+          experiment.bestReplyStable ||
+            experiment.futureSnapshotAligned ||
+            experiment.counterBreakNeutralized ||
+            experiment.supportProbeCount > 0
+        )
+    }
 
   private def isNearEnemyKing(
       side: String,
@@ -2019,6 +2541,302 @@ private[llm] object StrategicIdeaSelector:
         StrategicIdeaGroup.PieceAndLineManagement
       case _ =>
         StrategicIdeaGroup.InteractionAndTransformation
+
+  private def familyForKind(kind: String): String =
+    kind match
+      case StrategicIdeaKind.PawnBreak | StrategicIdeaKind.KingAttackBuildUp =>
+        StrategicIdeaFamily.ForcingOrTacticalNow
+      case StrategicIdeaKind.SpaceGainOrRestriction | StrategicIdeaKind.TargetFixing |
+          StrategicIdeaKind.LineOccupation | StrategicIdeaKind.OutpostCreationOrOccupation |
+          StrategicIdeaKind.MinorPieceImbalanceExploitation =>
+        StrategicIdeaFamily.SlowStructural
+      case StrategicIdeaKind.Prophylaxis | StrategicIdeaKind.CounterplaySuppression =>
+        StrategicIdeaFamily.PreventionOrSuppression
+      case StrategicIdeaKind.FavorableTradeOrTransformation =>
+        StrategicIdeaFamily.ConversionOrTransformation
+      case _ =>
+        StrategicIdeaFamily.ForcingOrTacticalNow
+
+  private def candidateHasSource(candidate: Candidate, source: String): Boolean =
+    candidate.evidenceRefs.contains(s"source:$source")
+
+  private def candidateHasAnySource(candidate: Candidate, sources: Set[String]): Boolean =
+    sources.exists(candidateHasSource(candidate, _))
+
+  private def candidateHasAnyFact(candidate: Candidate, predicate: String => Boolean): Boolean =
+    candidate.evidenceRefs.exists(predicate)
+
+  private def hasBroadSpaceAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "space_advantage_tag",
+        "color_complex_clamp",
+        "locked_center_bind",
+        "maroczy_bind_profile",
+        "iqp_space_bridge",
+        "iqp_central_presence",
+        "plan_match_space_advantage"
+      )
+    ) ||
+      structureIs(semantic, StructureId.MaroczyBind) ||
+      structureIs(semantic, StructureId.IQPWhite)
+
+  private def hasProfileSpaceAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "maroczy_bind_profile",
+        "iqp_space_bridge",
+        "iqp_central_presence"
+      )
+    ) ||
+      structureIs(semantic, StructureId.MaroczyBind) ||
+      structureIs(semantic, StructureId.IQPWhite)
+
+  private def isGenericTargetFixing(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    !hasStrongTargetFixingAnchor(candidate, semantic)
+
+  private def hasStrongTargetFixingAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "minority_attack_fixation",
+        "carlsbad_fixation_profile"
+      )
+    ) ||
+      structureIs(semantic, StructureId.Carlsbad)
+
+  private def hasStrongLineAnchor(candidate: Candidate): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "open_file_control",
+        "occupied_line_control",
+        "doubled_rooks",
+        "rook_on_seventh",
+        "plan_match_line_occupation"
+      )
+    ) ||
+      (candidate.sourceCount >= 2 && candidate.score >= 0.80)
+
+  private def hasConcreteLineOccupationAnchor(candidate: Candidate): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "open_file_control",
+        "occupied_line_control",
+        "doubled_rooks",
+        "rook_on_seventh"
+      )
+    )
+
+  private def hasRouteLineAnchor(candidate: Candidate): Boolean =
+    candidateHasAnySource(candidate, Set("route_line_access", "directional_line_access", "line_control_features")) &&
+      candidateHasAnyFact(candidate, fact =>
+        fact.startsWith("open_file_") ||
+          fact.startsWith("semi_open_file_") ||
+          fact == "seventh_rank_entry" ||
+          fact == "line_control_features"
+      )
+
+  private def hasStrongMinorPieceAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasAnySource(candidate, Set("strong_knight_vs_bad_bishop", "french_minor_piece_profile")) ||
+      (
+        structureIs(semantic, StructureId.FrenchAdvanceChain) &&
+          candidateHasAnySource(candidate, Set("enemy_bad_bishop", "good_bishop", "bishop_pair_advantage"))
+      )
+
+  private def hasStableOutpostAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasSource(candidate, "outpost_tag") ||
+      candidate.focusSquares.exists(square =>
+        occupiedStrongKnightSquaresFor(candidate.ownerSide, semantic).contains(square)
+      ) ||
+      (
+        hasStableKindExperiment(semantic, StrategicIdeaKind.OutpostCreationOrOccupation) &&
+          candidateHasAnySource(candidate, Set("strong_knight", "entrenched_piece_state", "route_outpost_access"))
+      )
+
+  private def hasRealProphylaxisAnchor(
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.preventedPlans.exists(isPreventiveWithoutCounterplaySuppression) ||
+      semantic.threatsToUs.exists(isThreatDrivenProphylaxis) ||
+      hasStableKindExperiment(semantic, StrategicIdeaKind.Prophylaxis)
+
+  private def hasSupportedProphylaxisContext(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    hasRealProphylaxisAnchor(semantic) ||
+      (
+        topPlansFor(side, semantic).exists(plan =>
+          plan.plan.id == PlanId.Prophylaxis || plan.plan.id == PlanId.DefensiveConsolidation
+        ) &&
+          (hasBishopPinWatch(side, semantic) || hasQueensideClampWatch(side, semantic))
+      )
+
+  private def hasPreventionOrSuppressionAnchor(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.preventedPlans.exists(plan =>
+      isPreventiveWithoutCounterplaySuppression(plan) || isCounterplaySuppression(plan)
+    ) ||
+      semantic.threatsToUs.exists(threats =>
+        isThreatDrivenProphylaxis(threats) ||
+          isThreatDrivenCounterplaySuppression(threats, semantic.opponentPawnAnalysis, semantic.preventedPlans)
+      ) ||
+      hasSupportedProphylaxisContext(side, semantic) ||
+      hasStableKindExperiment(semantic, StrategicIdeaKind.Prophylaxis) ||
+      hasStableKindExperiment(semantic, StrategicIdeaKind.CounterplaySuppression)
+
+  private def hasStrongConversionAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "removing_the_defender",
+        "winning_endgame_transition",
+        "exchange_availability_bridge",
+        "iqp_simplification_profile"
+      )
+    ) ||
+      (
+        candidateHasSource(candidate, "capture_exchange_transformation") &&
+          candidateHasAnySource(
+            candidate,
+            Set(
+              "removing_the_defender",
+              "winning_endgame_transition",
+              "exchange_availability_bridge",
+              "iqp_simplification_profile"
+            )
+          )
+      ) ||
+      (
+        candidateHasSource(candidate, "plan_match_transformation") &&
+          candidateHasAnySource(
+            candidate,
+            Set(
+              "removing_the_defender",
+              "winning_endgame_transition",
+              "exchange_availability_bridge",
+              "iqp_simplification_profile"
+            )
+          )
+      ) ||
+      (
+        structureIs(semantic, StructureId.IQPBlack) &&
+          candidateHasSource(candidate, "classification_transformation_window") &&
+          candidateHasAnySource(candidate, Set("exchange_availability_bridge", "iqp_simplification_profile"))
+      ) ||
+      (
+        hasStableKindExperiment(semantic, StrategicIdeaKind.FavorableTradeOrTransformation) &&
+          candidateHasAnySource(
+            candidate,
+            Set(
+              "removing_the_defender",
+              "winning_endgame_transition",
+              "exchange_availability_bridge",
+              "iqp_simplification_profile",
+              "plan_match_transformation"
+            )
+          )
+      )
+
+  private def isWeakConversionWindowOnly(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    (
+      candidateHasSource(candidate, "classification_transformation_window") ||
+        candidateHasSource(candidate, "capture_exchange_transformation")
+    ) &&
+      !hasStrongConversionAnchor(candidate, semantic)
+
+  private def hasStructuredIqpConversionWindow(
+      members: List[Candidate],
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    structureIs(semantic, StructureId.IQPBlack) &&
+      semantic.sideToMove == "white" &&
+      members.exists(candidate =>
+        candidate.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
+          (
+            candidateHasSource(candidate, "iqp_simplification_profile") ||
+              candidateHasSource(candidate, "exchange_availability_bridge") ||
+              candidateHasSource(candidate, "capture_exchange_transformation") ||
+              candidateHasSource(candidate, "classification_transformation_window")
+          )
+      )
+
+  private def hasConcretePawnBreakAnchor(candidate: Candidate): Boolean =
+    candidateHasAnySource(
+      candidate,
+      Set(
+        "pawn_analysis_break_ready",
+        "pawn_analysis_tension",
+        "pawn_play_break_ready",
+        "french_counterbreak_profile",
+        "french_f6_break_seed"
+      )
+    )
+
+  private def preferredSlowStructuralKind(
+      familyMembers: List[Candidate],
+      semantic: StrategicIdeaSemanticContext
+  ): Option[String] =
+    val byKind = familyMembers.map(candidate => candidate.kind -> candidate).toMap
+    val space = byKind.get(StrategicIdeaKind.SpaceGainOrRestriction)
+    val outpost = byKind.get(StrategicIdeaKind.OutpostCreationOrOccupation)
+    val minor = byKind.get(StrategicIdeaKind.MinorPieceImbalanceExploitation)
+    val target = byKind.get(StrategicIdeaKind.TargetFixing)
+    val line = byKind.get(StrategicIdeaKind.LineOccupation)
+    val strongMinor = minor.filter(candidate => hasStrongMinorPieceAnchor(candidate, semantic))
+    val strongTarget = target.filter(candidate => hasStrongTargetFixingAnchor(candidate, semantic))
+    val concreteLine = line.filter(candidate => hasConcreteLineOccupationAnchor(candidate))
+
+    if space.exists(hasProfileSpaceAnchor(_, semantic)) then Some(StrategicIdeaKind.SpaceGainOrRestriction)
+    else if outpost.exists(hasStableOutpostAnchor(_, semantic)) &&
+        !strongMinor.exists(candidate => candidate.score >= outpost.map(_.score).getOrElse(0.0) - 0.02)
+    then Some(StrategicIdeaKind.OutpostCreationOrOccupation)
+    else if strongMinor.nonEmpty then Some(StrategicIdeaKind.MinorPieceImbalanceExploitation)
+    else if concreteLine.nonEmpty &&
+        target.exists(candidate =>
+          candidateHasSource(candidate, "plan_match_target_fixing") &&
+            !structureIs(semantic, StructureId.Carlsbad)
+        )
+    then Some(StrategicIdeaKind.LineOccupation)
+    else if strongTarget.nonEmpty then Some(StrategicIdeaKind.TargetFixing)
+    else if line.exists(candidate =>
+        hasStrongLineAnchor(candidate) ||
+          hasRouteLineAnchor(candidate) ||
+          target.exists(isGenericTargetFixing(_, semantic))
+      )
+    then Some(StrategicIdeaKind.LineOccupation)
+    else if space.exists(hasBroadSpaceAnchor(_, semantic)) then Some(StrategicIdeaKind.SpaceGainOrRestriction)
+    else familyMembers.sortBy(candidate => (-candidate.score, candidate.kind)).headOption.map(_.kind)
 
   private def hasAlignmentReason(semantic: StrategicIdeaSemanticContext, code: String): Boolean =
     semantic.planAlignmentReasonCodes.contains(code)
@@ -2281,11 +3099,6 @@ private[llm] object StrategicIdeaSelector:
 
   private def isSeventhRankFor(side: String, square: Square): Boolean =
     if side == "white" then square.rank == Rank.Seventh else square.rank == Rank.Second
-
-  private def isOutpostSquare(board: Board, square: Square, color: Color): Boolean =
-    val supportedByPawn = board.attackers(square, color).intersects(board.byPiece(color, Pawn))
-    val attackedByEnemyPawn = board.attackers(square, !color).intersects(board.byPiece(!color, Pawn))
-    supportedByPawn && !attackedByEnemyPawn
 
   private def isOpenFile(board: Board, file: File): Boolean =
     (board.pawns & _root_.chess.Bitboard.file(file)).isEmpty

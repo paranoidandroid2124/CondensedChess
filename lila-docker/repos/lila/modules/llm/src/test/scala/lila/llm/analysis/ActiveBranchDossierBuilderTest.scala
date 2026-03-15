@@ -14,8 +14,8 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       authorEvidence: List[AuthorEvidenceSummary] = Nil,
       topEngineMove: Option[EngineAlternative] = None,
       narrative: String = "This structure calls for queenside pressure and a rook lift."
-  ): GameNarrativeMoment =
-    GameNarrativeMoment(
+  ): GameChronicleMoment =
+    GameChronicleMoment(
       momentId = "ply_24_test",
       ply = 24,
       moveNumber = 12,

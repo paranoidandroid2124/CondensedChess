@@ -15,8 +15,8 @@ final class LlmController(
 ) extends LilaController(env):
 
   // Tier quota policy:
-  // - anonymous: full PGN 1/day per IP
-  // - free user: full PGN 1/day + move analysis 100/day
+  // - anonymous: Game Chronicle 1/day per IP
+  // - free user: Game Chronicle 1/day + move analysis 100/day
   // - premium user: no daily hard cap, but rolling 30-day fair use and burst guard
   private val anonFullGameDailyLimiter =
     env.memo.mongoRateLimitApi[String](
@@ -74,7 +74,7 @@ final class LlmController(
       .map(v => Set("1", "true", "yes", "on").contains(v.trim.toLowerCase))
       .getOrElse(true)
 
-  /** Full game narrative analysis. */
+  /** Game Chronicle analysis. */
   def analyzeGameLocal = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     ctx.body.body.validate[FullAnalysisRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
@@ -82,7 +82,7 @@ final class LlmController(
         withFullGameQuota:
           allowLlmPolish =>
             api
-              .analyzeFullGameLocal(
+              .analyzeGameChronicleLocal(
                 pgn = analysisReq.pgn,
                 evals = analysisReq.evals,
                 style = analysisReq.options.style,
@@ -100,17 +100,17 @@ final class LlmController(
                   uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
                   val wrapper = Json.toJson(response).as[JsObject] ++ Json.obj("ccaEnabled" -> isCcaEnabled)
                   Ok(wrapper)
-                case None           => ServiceUnavailable("Narrative Analysis unavailable")
+                case None           => ServiceUnavailable("Game Chronicle unavailable")
     )
 
-  /** Full game narrative analysis (async queue). */
+  /** Game Chronicle analysis (async queue). */
   def analyzeGameAsync = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     ctx.body.body.validate[FullAnalysisRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
       analysisReq =>
         withFullGameQuota:
           allowLlmPolish =>
-            val submit = api.submitGameAnalysisAsync(
+            val submit = api.submitGameChronicleAsync(
               req = analysisReq,
               allowLlmPolish = allowLlmPolish,
               lang = requestLang,
@@ -120,13 +120,13 @@ final class LlmController(
             Created(Json.toJson(submit)).toFuccess
     )
 
-  /** Poll status for async full-game analysis. */
+  /** Poll status for async Game Chronicle analysis. */
   def analyzeGameAsyncStatus(jobId: String) = Open:
     val id = jobId.trim
     if id.isEmpty then BadRequest(Json.obj("error" -> "missing_job_id")).toFuccess
     else
       (
-        api.getGameAnalysisAsyncStatus(id) match
+        api.getGameChronicleAsyncStatus(id) match
           case Some(status) =>
             val base = Json.toJson(status).as[JsObject]
             val isCcaEnabled = ctx.me.map(_.userId.value)

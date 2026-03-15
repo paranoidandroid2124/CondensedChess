@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.{ AuthorEvidenceSummary, AuthorQuestionSummary, GameNarrativeMoment }
+import lila.llm.{ AuthorEvidenceSummary, AuthorQuestionSummary, GameChronicleMoment }
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import munit.FunSuite
@@ -88,7 +88,7 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
   }
 
   test("game narrative moment preserves authoring payload for API transport") {
-    val moment = MomentNarrative(
+    val moment = GameArcMoment(
       ply = 24,
       momentType = "TensionPeak",
       narrative = "White keeps the bind.",
@@ -123,7 +123,7 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
       )
     )
 
-    val apiMoment = GameNarrativeMoment.fromMoment(moment)
+    val apiMoment = GameChronicleMoment.fromArcMoment(moment)
 
     assertEquals(apiMoment.probeRequests.map(_.id), List("probe_latent_1"))
     assertEquals(apiMoment.authorQuestions.map(_.id), List("latent_1"))

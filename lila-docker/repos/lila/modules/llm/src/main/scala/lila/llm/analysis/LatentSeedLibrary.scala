@@ -26,14 +26,14 @@ object LatentSeedLibrary:
         mapsToPlan = Some(PlanId.PawnStorm),
         candidateMoves = List(
           MovePattern.PawnAdvance(File.G),
-          MovePattern.PawnAdvance(File.H),
-          MovePattern.PawnAdvance(File.F)
+          MovePattern.PawnAdvance(File.H)
         ),
         preconditions = List(
-          WeightedPrecondition(Precondition.KingPosition(SideRef.Them, Flank.Kingside), required = true, weight = 2.0),
-          WeightedPrecondition(Precondition.CenterStateIs(CenterState.Locked), required = false, weight = 1.3),
-          WeightedPrecondition(Precondition.SpaceAdvantage(Flank.Kingside, min = 1), required = false, weight = 1.0),
-          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 2.0)
+          WeightedPrecondition(Precondition.KingPosition(SideRef.Them, Flank.Kingside), required = true, weight = 2.2),
+          WeightedPrecondition(Precondition.CenterStateIs(CenterState.Locked), required = true, weight = 1.8),
+          WeightedPrecondition(Precondition.SpaceAdvantage(Flank.Kingside, min = 2), required = true, weight = 1.6),
+          WeightedPrecondition(Precondition.PawnStructureIs(StructureType.FianchettoShell), required = false, weight = 0.8),
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 90), required = true, weight = 2.2)
         ),
         typicalCounters = List(
           CounterPattern.PawnPushBlock(File.H),
@@ -41,13 +41,13 @@ object LatentSeedLibrary:
         ),
         evidencePolicy = EvidencePolicy(
           useTempoInjection = true,
-          freeTempoVerify = Some(FreeTempoVerify(minBranches = 2, maxBranches = 4, seedMustAppearWithinPlies = 1)),
-          immediateViability = Some(ImmediateViability(maxMoverLossCp = 70)),
+          freeTempoVerify = Some(FreeTempoVerify(minBranches = 3, maxBranches = 4, seedMustAppearWithinPlies = 1)),
+          immediateViability = Some(ImmediateViability(maxMoverLossCp = 45)),
           refutationCheck = Some(RefutationCheck(counters = List(CounterPattern.PawnPushBlock(File.H), CounterPattern.CentralStrike)))
         ),
         narrative = NarrativeTemplate(
           template =
-            "If {them} is slow and does not challenge the position, {us} can start a kingside pawn storm with {seed}, aiming to open lines against the king."
+            "If {them} is slow and the center stays locked, {us} can begin a kingside expansion, aiming to open lines against the king."
         )
       ),
       LatentSeed(
@@ -308,4 +308,3 @@ object LatentSeedLibrary:
 
   def byId(id: String): Option[LatentSeed] =
     all.find(_.id == id)
-

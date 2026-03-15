@@ -356,8 +356,8 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
         strategicBranch: Boolean,
         activeNote: Option[String],
         dossier: Option[ActiveBranchDossier]
-    ): GameNarrativeMoment =
-      GameNarrativeMoment(
+    ): GameChronicleMoment =
+      GameChronicleMoment(
         momentId = s"ply_$ply",
         ply = ply,
         moveNumber = (ply + 1) / 2,
@@ -400,8 +400,8 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
       )
 
     private val threadedResponse =
-      GameNarrativeResponse(
-        schema = GameNarrativeResponse.schemaV6,
+      GameChronicleResponse(
+        schema = GameChronicleResponse.schemaV6,
         intro = "Fixture threaded intro.",
         moments = List(
           moment(
@@ -452,8 +452,8 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
       )
 
     private val plainResponse =
-      GameNarrativeResponse(
-        schema = GameNarrativeResponse.schemaV6,
+      GameChronicleResponse(
+        schema = GameChronicleResponse.schemaV6,
         intro = "Fixture plain intro.",
         moments =
           List(

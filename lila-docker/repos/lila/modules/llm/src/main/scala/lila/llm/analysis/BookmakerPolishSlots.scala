@@ -222,7 +222,7 @@ object BookmakerProseContract:
   private def normalizeWords(text: String): List[String] =
     Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").split("\\s+").toList.filter(_.nonEmpty)
 
-  private def significantClaimTokenOverlap(a: String, b: String): Int =
+  def significantClaimTokenOverlap(a: String, b: String): Int =
     val as = normalizeWords(a).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
     val bs = normalizeWords(b).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
     (as intersect bs).size
@@ -273,12 +273,19 @@ object BookmakerSoftRepair:
     if slots.tension.nonEmpty || slots.evidenceHook.nonEmpty then
       val p3 = deterministic.lift(2)
       if p3.nonEmpty then
+        val currentText = paragraphs.mkString(" ")
+        val alreadyCovered = BookmakerProseContract.significantClaimTokenOverlap(currentText, p3.get) >= 3
         if paragraphs.size < 3 then
-          paragraphs = paragraphs :+ p3.get
-          actions += "evidence_append"
+          if !alreadyCovered then
+            paragraphs = paragraphs :+ p3.get
+            actions += "evidence_append"
         else if BookmakerSlotSanitizer.placeholderHits(paragraphs(2)).nonEmpty then
           paragraphs = paragraphs.updated(2, p3.get)
           actions += "evidence_restore"
+        else if !alreadyCovered && BookmakerProseContract.significantClaimTokenOverlap(paragraphs.lift(2).getOrElse(""), p3.get) < 2 then
+          // If paragraph 3 exists but doesn't cover the evidence and the whole text doesn't either, we might need a restore,
+          // but for now, we prioritize not duplicating if the LLM integrated it elsewhere.
+          ()
 
     if slots.coda.isEmpty && paragraphs.size == 4 && deterministic.size < 4 then
       paragraphs = paragraphs.take(3)

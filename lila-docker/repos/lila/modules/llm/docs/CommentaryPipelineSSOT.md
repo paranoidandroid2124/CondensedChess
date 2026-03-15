@@ -1,4 +1,4 @@
-# Commentary Pipeline Consumption SSoT
+﻿# Commentary Pipeline Consumption SSoT
 
 This file is the single source of truth for the March 6, 2026 audit of the
 Chesstory commentary-analysis pipeline, with emphasis on helper-module signal
@@ -15,7 +15,7 @@ Use this document as the default reference for questions of the form:
 - which helper modules are fully/partially/under-utilized?
 - where does a signal get dropped?
 - which runtime path consumes a signal?
-- how do full-game and Bookmaker paths differ?
+- how do Game Arc and Bookmaker paths differ?
 
 Re-audit only if files in the covered runtime paths change after this snapshot,
 or if a request explicitly asks for a fresh audit.
@@ -37,7 +37,7 @@ Covered module families:
 - `authoring`
 
 Covered runtime paths:
-- full-game path
+- Game Arc path
 - single-position Bookmaker path
 - carrier/model layers
 - outline / renderer layers
@@ -87,7 +87,7 @@ Internal-only live ops metrics:
 
 ## Runtime Path Map
 
-### Full-game path
+### Game Arc path
 
 Entry chain:
 - `app/controllers/LlmController.scala`
@@ -96,12 +96,12 @@ Entry chain:
 
 Primary path:
 1. `LlmController.analyzeGameLocal`
-2. `LlmApi.analyzeFullGameLocal`
-3. `CommentaryEngine.generateFullGameNarrative`
+2. `LlmApi.analyzeGameChronicleLocal`
+3. `CommentaryEngine.generateGameArc`
 4. `NarrativeContextBuilder.build`
 5. `BookStyleRenderer.render`
 6. `CommentaryEngine.renderHybridMomentNarrative`
-7. `GameNarrativeResponse.fromNarrative`
+7. `GameChronicleResponse.fromGameArc`
 8. `ui/analyse/src/narrative/*`
 
 Key references:
@@ -111,16 +111,16 @@ Key references:
 - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:672`
 - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:675`
 - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:790`
-- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala:47`
+- `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala:47`
 - `ui/analyse/src/narrative/narrativeCtrl.ts:40`
 
 Important caveat:
 - Historical audit note:
-  - before remediation, full-game path truncated rendered prose to the first
+  - before remediation, Game Arc path truncated rendered prose to the first
     `3-4` paragraphs via `focusMomentBody`, which caused systematic late-beat
     loss.
 - Current working-tree state:
-  - full-game path now builds a validated outline first and preserves beats by
+  - Game Arc path now builds a validated outline first and preserves beats by
     `focusPriority` / `fullGameEssential` before rendering the focused body.
 
 ### Bookmaker path
@@ -234,7 +234,7 @@ Key references:
   - `opening`, `strategic stack`, and `structural cue` are also injected into
     early prose, and `practical / compensation` are partially lifted into the
     `MainMove` beat.
-  - `LatentPlan` no longer dies outright on the full-game path when probe
+  - `LatentPlan` no longer dies outright on the Game Arc path when probe
     evidence is absent; a heuristic path now survives validation with lowered
     confidence.
   - `StrategyPack` is now generated on the polish path as well, and both
@@ -285,7 +285,7 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala:48`
   - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:549`
   - `modules/llm/src/main/LlmApi.scala:2362`
-  - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala:47`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala:47`
   - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala:1`
   - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala:343`
   - `modules/llm/src/main/scala/lila/llm/models.scala:110`
@@ -400,11 +400,11 @@ Key references:
     `src/main`; it now lives under `src/test` as a comparison helper for
     selector regression tests only.
   - frontend Chesstory signal shape and text-format helpers now live in shared
-    modules so Bookmaker and full-game narrative no longer maintain parallel
+    modules so Bookmaker and Game Chronicle no longer maintain parallel
     `NarrativeSignalDigest` / `StrategicIdea*` definitions or duplicate token /
     evidence / deployment formatting logic.
   - authoring evidence payload assembly now has a single `build(ctx)` bundle,
-    and the full-game path reuses that bundle plus its headline instead of
+    and the Game Arc path reuses that bundle plus its headline instead of
     recomputing question/evidence/headline slices independently.
 - Verification:
   - `modules/llm/src/main/scala/lila/llm/analysis/AuthoringEvidenceSummaryBuilder.scala`
@@ -654,7 +654,7 @@ Key references:
     - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:540`
   - Structured response models still do not expose these fields:
     - `modules/llm/src/main/scala/lila/llm/models.scala:174`
-    - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala:47`
+    - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala:47`
 - User-facing impact:
   - "Why this move?", "what was the opponent trying to do?", and "why was the
     alternative rejected?" now show up in final prose much more reliably.
@@ -671,12 +671,12 @@ Key references:
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala:34`
   - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeSignalConsumptionTest.scala:92`
 
-### 2. Strategic distribution / latent-plan / opening / practical wrap-up on full-game path
+### 2. Strategic distribution / latent-plan / opening / practical wrap-up on Game Arc path
 
 - Verdict: `Underutilized`
 - Why this is a problem:
   - These beats reach the outline, but late paragraphs are clipped on the
-    full-game path, so final narrative under-consumes them.
+    Game Arc path, so final narrative under-consumes them.
 - Producer:
   - beat order:
     - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala:121`
@@ -697,7 +697,7 @@ Key references:
   - Bookmaker keeps rendered body:
     - `modules/llm/src/main/LlmApi.scala:2350`
 - User-facing impact:
-  - full-game narrative frequently loses opening theory, strategic stack,
+  - Game Chronicle frequently loses opening theory, strategic stack,
     practical verdict, and compensation specificity.
 - Fix difficulty / expected return:
   - Difficulty: low to medium
@@ -714,7 +714,7 @@ Key references:
     `mainStrategicPlans`, `latentPlans`, and `whyAbsentFromTopMultiPV`, but
     the frontend still does not render the authoring/evidence summaries as a
     dedicated visible block.
-  - Full-game path passes `probeResults = Nil`, weakening latent-plan and
+  - Game Arc path passes `probeResults = Nil`, weakening latent-plan and
     author-evidence consumption.
 - Producer:
   - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:348`
@@ -725,8 +725,8 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala:41`
   - `modules/llm/src/main/LlmApi.scala:2391`
   - `modules/llm/src/main/scala/lila/llm/analysis/AuthoringEvidenceSummaryBuilder.scala:1`
-  - `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala:18`
-  - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala:43`
+  - `modules/llm/src/main/scala/lila/llm/model/GameArc.scala:18`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala:43`
   - `modules/llm/src/main/scala/lila/llm/models.scala:199`
   - `app/controllers/LlmController.scala:182`
 - Real consumption / non-consumption:
@@ -809,7 +809,7 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala:18`
   - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:566`
 - Carrier / API:
-  - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala:69`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala:69`
   - `app/controllers/LlmController.scala:191`
 - Real consumption / non-consumption:
   - Bookmaker build gate:
@@ -867,7 +867,7 @@ Key references:
   - UI leaves most of their value unused
 - Minimum edit sites:
   - `app/controllers/LlmController.scala`
-  - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
   - `ui/analyse/src/bookmaker.ts`
   - `ui/analyse/src/narrative/narrativeCtrl.ts`
 - Test method:
@@ -894,7 +894,7 @@ Key references:
     narrative fields
 - Minimum edit sites:
   - `modules/llm/src/main/scala/lila/llm/models.scala`
-  - `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
   - `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
 - Test method:
@@ -1001,8 +1001,8 @@ Verification:
 - `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
 - `modules/llm/src/main/LlmApi.scala`
 - `modules/llm/src/main/scala/lila/llm/models.scala`
-- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
-- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/model/GameArc.scala`
 - `ui/analyse/src/narrative/narrativeCtrl.ts`
 - `ui/analyse/src/narrative/narrativeView.ts`
 - `ui/analyse/css/_narrative.scss`
@@ -1102,7 +1102,7 @@ Verification:
 ## 2026-03-11 Active Full-PGN Narrative (Current)
 
 - Current external contract:
-  - `GameNarrativeResponse.schema = chesstory.gameNarrative.v5`
+  - `GameChronicleResponse.schema = chesstory.gameNarrative.v5`
   - top-level `strategicThreads`
   - per-moment `strategicThread`
   - public `review` count fields:
@@ -1201,7 +1201,7 @@ Verification:
       prose
 - Benchmark/tooling path diverges from product runtime only at the polish
   circuit breaker:
-- `analyzeFullGameLocal(... disablePolishCircuit = true)` is benchmark-only
+- `analyzeGameChronicleLocal(... disablePolishCircuit = true)` is benchmark-only
   - runtime product path still honors `rule_circuit_open`
 - Prompt/runtime shaping updates in the current working tree:
   - `PolishPrompt` now emits stable `REQUEST -> CONTEXT -> DRAFT/SLOTS` ordering
@@ -1343,9 +1343,9 @@ Verification:
 - `modules/llm/src/main/scala/lila/llm/analysis/StrategicBranchSelector.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/ActiveBranchDossierBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
-- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `modules/llm/src/main/scala/lila/llm/model/GameArc.scala`
 - `modules/llm/src/main/scala/lila/llm/models.scala`
-- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
 - `modules/llm/src/main/LlmApi.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/ActiveThemeSurfaceBuilderTest.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicThreadBuilderTest.scala`
@@ -1365,7 +1365,7 @@ Verification:
 
 - Public contract bump:
   - `StrategyPack.schema = chesstory.strategyPack.v2`
-  - `GameNarrativeResponse.schema = chesstory.gameNarrative.v6`
+  - `GameChronicleResponse.schema = chesstory.gameNarrative.v6`
 - Active note is now explicitly idea-led rather than route-led.
 - New backend/public carriers now ride alongside the existing route/move refs:
   - `StrategyDirectionalTarget`
@@ -1447,8 +1447,8 @@ Verification:
 - `modules/llm/src/main/scala/lila/llm/ActiveStrategicPrompt.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
 - `modules/llm/src/main/LlmApi.scala`
-- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
-- `modules/llm/src/main/scala/lila/llm/model/FullGameNarrative.scala`
+- `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/model/GameArc.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorTest.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
@@ -1462,7 +1462,7 @@ Verification:
 
 ## 2026-03-12 Typed Semantic Strategic Idea Selector Overhaul
 
-- No public schema bump in this step. `StrategyPack v2` and `GameNarrativeResponse v6`
+- No public schema bump in this step. `StrategyPack v2` and `GameChronicleResponse v6`
   remain current.
 - Active-note idea selection now has an explicit typed source registry:
   - `authoritative`: board state, `PositionFeatures`, `StrategicStateFeatures`,
@@ -1480,8 +1480,40 @@ Verification:
   `pawnAnalysis`, `opponentPawnAnalysis`, `threatsToUs`, `threatsToThem`,
   `structureProfile`, `planAlignment.reasonCodes`, and motifs directly into
   selector input, instead of relying on downstream prose summaries.
+- `NarrativeContextBuilder` now also bridges compact plan / probe experiment
+  summaries into `StrategicIdeaSemanticContext` from existing
+  `PlanEvidenceEvaluator.partition(...).evaluated` output. This is not a new
+  analyzer layer; it reuses existing plan evidence statuses and probe outcomes
+  so the selector can score ideas with:
+  - probe-backed viability
+  - best-reply stability
+  - future-snapshot alignment
+  - counter-break neutralization
+  - move-order sensitivity
 - The selector now emits an idea only when typed evidence exists; the generic
   fallback to `space_gain_or_restriction` is removed.
+- `StrategicIdeaSelector` is now a staged typed-evidence resolver:
+  - Stage 1 chooses a thesis family first:
+    `forcing_or_tactical_now`, `slow_structural`,
+    `prevention_or_suppression`, or `conversion_or_transformation`
+  - Stage 2 resolves the final unchanged 10-kind `StrategicIdeaKind` only
+    inside the selected family/families
+- Bridged plan / probe experiment summaries still modulate ranking, but
+  `pv_coupled` move-order-sensitive experiments no longer blanket-block all
+  slow strategic kinds. They now penalize / shape family and kind resolution
+  instead of erasing legitimate structural theses by default.
+- Follow-up retuning also made two pre-existing overdominant buckets more
+  conservative:
+  - `favorable_trade_or_transformation` now needs stronger structural /
+    conversion backing before it outranks other strategic themes; the
+    `IQPBlack` trade-down bridge now comes from existing typed move-ref / plan
+    evidence instead of weak prose classification
+  - `line_occupation` route / directional line-access bridges now score more
+    conservatively, so weak multi-route accumulation does not overwhelm space /
+    outpost / fixing signals by default
+  - `target_fixing` no longer wins broad structural cases as easily; concrete
+    line / outpost / space families can outrank plan-led fixation unless real
+    fixation anchors are present
 - Runtime route semantics remain unchanged:
   - hidden routes stay hidden
   - unsafe routes are not revived by idea selection
@@ -1497,11 +1529,14 @@ Verification:
     `WeakComplex` backfill
   - `line_occupation` from open-file / doubled-rook / route line-access signals
   - `outpost_creation_or_occupation` from outpost / strong-knight / entrenched
-    piece signals
+    piece signals, with route / directional bridges limited to tagged anchored
+    outpost squares rather than generic forward-square geometry
   - `minor_piece_imbalance_exploitation` from bishop-pair / bad-bishop /
     good-bishop / piece-count imbalance signals
   - `prophylaxis` from structured prevented-plan evidence plus `ThreatAnalysis`
-    defensive/prophylaxis signals
+    defensive/prophylaxis signals; board-pattern cues such as bishop-pin /
+    clamp watches now require real typed support (threat / prevented-plan /
+    supported prophylaxis plan context) instead of standing alone
   - `king_attack_build_up` from king-pressure / mate-net / hook / attack-lane
     signals plus typed motif bridges (`RookLift`, `Battery`, `PieceLift`,
     `Check`) and `threatsToThem`
@@ -1553,6 +1588,11 @@ Verification:
     - raw evidence labels such as `theme:...`, `subplan:...`, and `seed:...`
       are translated into prose-only support clauses before the draft is
       normalized
+    - `PawnStorm_Kingside` latent seeding is now intentionally weak: it
+      requires a locked center, a real kingside space edge, and a quiet
+      tactical state before surfacing, and wrap-up prose now suppresses
+      same-meaning `planName` / `seed` / evidence restatements for the same
+      theme/subplan
   - full-game hybrid assembly now removes low-value repetition before polish:
     - duplicate preface/body thesis restatements are suppressed
     - low-value strategic-stack sentences such as `The strategic stack still
@@ -1582,7 +1622,7 @@ Verification:
       `segment_primary:count_budget_exceeded`, and
       `segment_primary:san_order_violation`
     - hidden segment fallback is still nonzero on that rerun, so the current
-      full-game path is improved but does not yet meet a strict
+      Game Arc path is improved but does not yet meet a strict
       `segment original fallback = 0` target
 
 Verification:
@@ -1620,7 +1660,7 @@ Primary files used in this audit:
 - `modules/llm/src/main/scala/lila/llm/model/ExtendedAnalysisData.scala`
 - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala`
 - `modules/llm/src/main/scala/lila/llm/models.scala`
-- `modules/llm/src/main/scala/lila/llm/GameNarrativeResponse.scala`
+- `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
 - `modules/llm/src/main/scala/lila/llm/CommentaryCache.scala`
 - `modules/llm/src/main/scala/lila/llm/model/strategic/EndgamePatternState.scala`
 - `ui/analyse/src/bookmaker.ts`

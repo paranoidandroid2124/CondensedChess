@@ -4,7 +4,7 @@ import _root_.chess.Board
 import _root_.chess.format.Fen
 
 import lila.llm.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis }
-import lila.llm.model.{ ExtendedAnalysisData, Motif, NarrativeContext, PawnPlayTable, PlanMatch }
+import lila.llm.model.{ ExtendedAnalysisData, Motif, NarrativeContext, PawnPlayTable, PlanMatch, StrategicPlanExperiment }
 import lila.llm.model.structure.StructureProfile
 import lila.llm.model.strategic.{ EndgameFeature, PieceActivity, PositionalTag, PreventedPlan, WeakComplex }
 
@@ -25,6 +25,7 @@ private[llm] final case class StrategicIdeaSemanticContext(
     structureProfile: Option[StructureProfile] = None,
     planAlignmentReasonCodes: List[String] = Nil,
     plans: List[PlanMatch] = Nil,
+    strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
     motifs: List[Motif] = Nil,
     phase: String = "middlegame",
     positionFeatures: Option[PositionFeatures] = None,
@@ -62,6 +63,7 @@ private[llm] object StrategicIdeaSemanticContext:
       structureProfile = integrated.structureProfile,
       planAlignmentReasonCodes = integrated.planAlignment.toList.flatMap(_.reasonCodes).distinct,
       plans = data.plans,
+      strategicPlanExperiments = ctx.strategicPlanExperiments,
       motifs = data.motifs,
       phase = data.phase,
       positionFeatures = integrated.features.orElse(PositionAnalyzer.extractFeatures(data.fen, data.ply.max(1))),

@@ -109,7 +109,11 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
     }
 
   private def kindSummary(ideas: List[StrategyIdeaSignal]): String =
-    ideas.map(idea => s"${idea.kind}:${idea.confidence}").mkString(", ")
+    ideas
+      .map(idea =>
+        s"${idea.kind}:${idea.confidence}[${idea.evidenceRefs.mkString("|")}]"
+      )
+      .mkString(", ")
 
   private def hasPiece(board: Board, color: Color, square: _root_.chess.Square, role: _root_.chess.Role): Boolean =
     board.pieceAt(square).exists(piece => piece.color == color && piece.role == role)
@@ -211,12 +215,22 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
       semantic.preventedPlans.map(plan =>
         s"${plan.planId}(break=${plan.breakNeutralized.getOrElse("-")}, denied=${plan.deniedSquares.map(_.key).mkString("[", ",", "]")}, drop=${plan.counterplayScoreDrop})"
       ).mkString("[", ", ", "]")
+    val experiments =
+      semantic.strategicPlanExperiments
+        .map(experiment =>
+          s"${experiment.themeL1}/${experiment.subplanId.getOrElse("-")}:" +
+            s"${experiment.evidenceTier},stable=${experiment.bestReplyStable}," +
+            s"future=${experiment.futureSnapshotAligned},neutralized=${experiment.counterBreakNeutralized}," +
+            s"moveOrder=${experiment.moveOrderSensitive},support=${experiment.supportProbeCount}," +
+            s"refute=${experiment.refuteProbeCount}"
+        )
+        .mkString("[", ", ", "]")
     val routes =
       evaluated.pack.pieceRoutes.map(route => s"${route.piece}:${route.surfaceMode}:${route.route.mkString("->")}").mkString("[", ", ", "]")
     val targets =
       evaluated.pack.directionalTargets.map(target => s"${target.piece}:${target.targetSquare}:${target.readiness}").mkString("[", ", ", "]")
     s"profile=$profile; pawnAnalysis=$pawnAnalysis; threatsToUs=$threatsToUs; threatsToThem=$threatsToThem; " +
-      s"classification=$classification; prevented=$prevented; routes=$routes; targets=$targets; ideas=${kindSummary(evaluated.actualIdeas)}"
+      s"classification=$classification; prevented=$prevented; experiments=$experiments; routes=$routes; targets=$targets; ideas=${kindSummary(evaluated.actualIdeas)}"
 
   private def checkProducerSignal(evaluated: EvaluatedFixture, check: ProducerCheck): Boolean =
     val semantic = evaluated.semantic
@@ -333,22 +347,56 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
 
   test("FEN fixture bank stays legal, balanced, and complete") {
     val fixtures = StrategicIdeaFenFixtures.all
-    assertEquals(fixtures.size, 18)
+    assertEquals(StrategicIdeaFenFixtures.canonical.size, 35)
+    assertEquals(StrategicIdeaFenFixtures.stockfishBalancedSupplemental.size, 74)
+    assertEquals(fixtures.size, 104)
     assertEquals(fixtures.map(_.id).distinct.size, fixtures.size)
-    assertEquals(fixtures.count(_.id.startsWith("K")), 10)
-    assertEquals(fixtures.count(_.id.startsWith("B")), 8)
+    assertEquals(fixtures.count(_.id.startsWith("K")), 77)
+    assertEquals(fixtures.count(_.id.startsWith("B")), 27)
 
     evaluatedFixtures.foreach { evaluated =>
-      assertEquals(
-        materialValueDiff(evaluated.board),
-        0,
-        clue(
-          s"${evaluated.fixture.id} ${evaluated.fixture.label} material mismatch: " +
-            s"W=${materialSummary(evaluated.board, Color.White)} " +
-            s"B=${materialSummary(evaluated.board, Color.Black)}"
+      if (evaluated.fixture.requireMaterialParity) {
+        assertEquals(
+          materialValueDiff(evaluated.board),
+          0,
+          clue(
+            s"${evaluated.fixture.id} ${evaluated.fixture.label} material mismatch: " +
+              s"W=${materialSummary(evaluated.board, Color.White)} " +
+              s"B=${materialSummary(evaluated.board, Color.Black)}"
+          )
         )
-      )
+      }
     }
+  }
+
+  test("supplemental fixture bank keeps material parity and stockfish balance metadata") {
+    val failures =
+      StrategicIdeaFenFixtures.stockfishBalancedSupplemental.flatMap { fixture =>
+        val evaluated = evaluatedById(fixture.id)
+
+        List(
+          Option.when(fixture.stockfishScoreCp.isEmpty) {
+            s"${fixture.id} missing recorded Stockfish cp"
+          },
+          Option.when(fixture.stockfishMaxAbsCp.isEmpty) {
+            s"${fixture.id} missing recorded Stockfish max abs cp"
+          },
+          Option.when(fixture.requireMaterialParity && materialValueDiff(evaluated.board) != 0) {
+            s"${fixture.id} material mismatch: W=${materialSummary(evaluated.board, Color.White)} " +
+              s"B=${materialSummary(evaluated.board, Color.Black)}"
+          },
+          for
+            score <- fixture.stockfishScoreCp
+            maxCp <- fixture.stockfishMaxAbsCp
+            if math.abs(score) > maxCp
+          yield s"${fixture.id} recorded score outside allowed window: cp=$score max=$maxCp seed=${fixture.sourceSeedId.getOrElse("-")}"
+        ).flatten
+      }
+
+    assert(
+      failures.isEmpty,
+      clue(failures.mkString("\n"))
+    )
   }
 
   StrategicIdeaFenFixtures.all.foreach { fixture =>

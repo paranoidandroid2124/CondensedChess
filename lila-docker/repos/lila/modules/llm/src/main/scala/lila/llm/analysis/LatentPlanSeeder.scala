@@ -128,7 +128,15 @@ object LatentPlanSeeder:
 
     val weightSum = seed.preconditions.collect { case p if isSatisfied(p.condition) => p.weight }.sum
     val base = weightSum + 0.3
-    Option.when(base >= MinScoreToEmit)(base)
+    val adjusted =
+      if seed.id == "PawnStorm_Kingside" then
+        val flankSpaceEdge = spaceScore(pos.board, us, Flank.Kingside) - spaceScore(pos.board, them, Flank.Kingside)
+        val centerLocked = featuresOpt.exists(f => centerStateOf(f.centralSpace) == CenterState.Locked)
+        val shellBonus = Option.when(hasFianchettoShell(pos.board, them))(0.35).getOrElse(0.0)
+        val structureBonus = Option.when(centerLocked && flankSpaceEdge >= 2)(0.2).getOrElse(0.0)
+        (base * 0.35) + shellBonus + structureBonus
+      else base
+    Option.when(adjusted >= MinScoreToEmit)(adjusted)
 
   private def flankOfKing(board: Board, color: Color): Flank =
     board.kingPosOf(color) match

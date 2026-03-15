@@ -53,7 +53,7 @@ import {
   boardLabelModeToCoords,
   type BoardLabelMode,
 } from './boardWorkspace';
-import { make as makeNarrative, type GameNarrativeMoment, type NarrativeCtrl } from './narrative/narrativeCtrl';
+import { make as makeNarrative, type GameChronicleMoment, type NarrativeCtrl } from './narrative/narrativeCtrl';
 import {
   initialReviewState,
   reduceReviewState,
@@ -1184,18 +1184,18 @@ export default class AnalyseCtrl implements CevalHandler {
     return next;
   }
 
-  private reviewMoments(filter: NarrativeMomentFilter = this.reviewMomentFilter()): GameNarrativeMoment[] {
+  private reviewMoments(filter: NarrativeMomentFilter = this.reviewMomentFilter()): GameChronicleMoment[] {
     const moments = this.narrative?.data()?.moments || [];
     if (filter === 'all') return moments.slice();
     if (filter === 'collapses') return moments.filter(moment => !!moment.collapse);
     return moments.filter(this.isCriticalReviewMoment);
   }
 
-  private reviewCollapseMoments(): GameNarrativeMoment[] {
+  private reviewCollapseMoments(): GameChronicleMoment[] {
     return (this.narrative?.data()?.moments || []).filter(moment => !!moment.collapse);
   }
 
-  private isCriticalReviewMoment(moment: GameNarrativeMoment): boolean {
+  private isCriticalReviewMoment(moment: GameChronicleMoment): boolean {
     if (moment.collapse) return true;
     const haystack = [moment.moveClassification, moment.momentType, moment.strategicSalience]
       .filter(Boolean)
@@ -1204,11 +1204,11 @@ export default class AnalyseCtrl implements CevalHandler {
     return ['critical', 'turning', 'blunder', 'mistake', 'missed', 'swing'].some(token => haystack.includes(token));
   }
 
-  private findReviewMomentByPly(ply: Ply): GameNarrativeMoment | undefined {
+  private findReviewMomentByPly(ply: Ply): GameChronicleMoment | undefined {
     return (this.narrative?.data()?.moments || []).find(moment => moment.ply === ply);
   }
 
-  private findReviewMomentByCollapseId(collapseId: string): GameNarrativeMoment | undefined {
+  private findReviewMomentByCollapseId(collapseId: string): GameChronicleMoment | undefined {
     return (this.narrative?.data()?.moments || []).find(moment => moment.collapse?.interval === collapseId);
   }
 
@@ -1250,7 +1250,7 @@ export default class AnalyseCtrl implements CevalHandler {
     }
   }
 
-  private reviewCollapseContainsPly(moment: GameNarrativeMoment, ply: Ply): boolean {
+  private reviewCollapseContainsPly(moment: GameChronicleMoment, ply: Ply): boolean {
     const collapse = moment.collapse;
     if (!collapse) return false;
     const [startRaw, endRaw] = collapse.interval.split('-').map(Number);
