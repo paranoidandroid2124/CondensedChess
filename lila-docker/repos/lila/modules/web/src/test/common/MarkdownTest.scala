@@ -35,7 +35,7 @@ class MarkdownTest extends munit.FunSuite:
   val gamePgn = PgnStr("e2 e4")
   val gameUrl = s"http://l.org/$gameId"
   val chapterPgn = PgnStr("Nf3 Nf6 d4")
-  val chapterUrl = s"http://l.org/study/$studyId/$chapterId"
+  val chapterUrl = s"http://l.org/notebook/$studyId/$chapterId"
   val pgns =
     Map(gameId.value -> LpvEmbed.PublicPgn(gamePgn), chapterId.value -> LpvEmbed.PublicPgn(chapterPgn))
   val expander = MarkdownRender.PgnSourceExpand(domain, pgns.get)

@@ -73,6 +73,15 @@ class BookmakerStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(ledger.conversionTrigger, Some("Mating Attack"))
   }
 
+  test("compensation ledger stays aligned with surfaced execution and objective") {
+    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+    val ledger = build(fixture.ctx, strategyPack = fixture.strategyPack)
+    val surface = StrategyPackSurface.from(fixture.strategyPack)
+    assertEquals(ledger.motifKey, "compensation_attack")
+    assert(surface.executionText.exists(_.toLowerCase.contains("queen toward h5")))
+    assert(surface.objectiveText.exists(_.toLowerCase.contains("h7")))
+  }
+
   test("selects opposite_bishops_conversion when conversion signals and plan family align") {
     val ledger = build(BookmakerProseGoldenFixtures.oppositeBishopsConversion.ctx)
     assertEquals(ledger.motifKey, "opposite_bishops_conversion")

@@ -45,23 +45,32 @@ object StrategicBranchSelector:
       selectCoreNonThreadEvents(moments, threadedPlies)
         .filterNot(moment => visibleThreadPlies.contains(moment.ply))
         .take((MaxVisibleMoments - visibleThreadMoments.size).max(0))
+    val visibleFallbackMoments =
+      Option.when(visibleThreadMoments.isEmpty && visibleCoreEvents.isEmpty) {
+        selectStrategicFallbackMoments(moments, threadedPlies).take(MaxVisibleMoments)
+      }.getOrElse(Nil)
     val visibleMoments =
-      (visibleThreadMoments ++ visibleCoreEvents)
+      (visibleThreadMoments ++ visibleCoreEvents ++ visibleFallbackMoments)
         .distinctBy(_.ply)
         .sortBy(_.ply)
         .take(MaxVisibleMoments)
+    val activeNoteFallbackMoments =
+      selectActiveNoteFallbackMoments(moments, visibleThreadPlies).take(
+        (MaxActiveNotes - visibleThreadMoments.size).max(0)
+      )
 
     if rankedThreads.isEmpty then
       StrategicBranchSelection(
         selectedMoments = visibleMoments,
-        activeNoteMoments = Nil,
+        activeNoteMoments = activeNoteFallbackMoments.take(MaxActiveNotes),
         threads = Nil,
         threadRefsByPly = Map.empty
       )
     else
       StrategicBranchSelection(
         selectedMoments = visibleMoments,
-        activeNoteMoments = visibleThreadMoments.take(MaxActiveNotes),
+        activeNoteMoments =
+          (visibleThreadMoments ++ activeNoteFallbackMoments).distinctBy(_.ply).take(MaxActiveNotes),
         threads = rankedThreads.map(_.thread),
         threadRefsByPly = threadRefsByPly
       )
@@ -98,6 +107,106 @@ object StrategicBranchSelector:
 
   private def isOpeningBranchEvent(moment: GameChronicleMoment): Boolean =
     OpeningEventMomentTypes.contains(moment.momentType)
+
+  private def selectStrategicFallbackMoments(
+      moments: List[GameChronicleMoment],
+      threadedPlies: Set[Int]
+  ): List[GameChronicleMoment] =
+    moments
+      .filterNot(moment =>
+        threadedPlies.contains(moment.ply) ||
+          moment.selectionKind == "thread_bridge" ||
+          moment.momentType == "OpeningIntro"
+      )
+      .flatMap(moment => strategicFallbackScore(moment).map(score => score -> moment))
+      .sortBy { case ((priority, secondary, tiebreak), moment) =>
+        (priority, secondary, tiebreak, moment.ply)
+      }
+      .map(_._2)
+
+  private def strategicFallbackScore(moment: GameChronicleMoment): Option[(Int, Int, Int)] =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    val hasStrategicCarrier = strategicCarrierPresent(moment, surface)
+
+    Option.when(hasStrategicCarrier) {
+      val priority =
+        if surface.quietCompensationPosition then 0
+        else if surface.durableCompensationPosition then 1
+        else if surface.compensationPosition then 2
+        else if surface.dominantIdeaText.nonEmpty || surface.executionText.nonEmpty then 3
+        else if surface.focusText.nonEmpty then 4
+        else 5
+      val secondary =
+        if moment.selectionKind == "key" then 0
+        else if moment.selectionKind == "opening" then 1
+        else 2
+      val tiebreak =
+        moment.strategicSalience match
+          case Some(level) if level.equalsIgnoreCase("High")   => 0
+          case Some(level) if level.equalsIgnoreCase("Medium") => 1
+          case _                                               => 2
+      (priority, secondary, tiebreak)
+    }
+
+  private def selectActiveNoteFallbackMoments(
+      moments: List[GameChronicleMoment],
+      visibleThreadPlies: Set[Int]
+  ): List[GameChronicleMoment] =
+    moments
+      .filterNot(moment => visibleThreadPlies.contains(moment.ply))
+      .filterNot(moment => moment.selectionKind == "thread_bridge" || moment.momentType == "OpeningIntro")
+      .flatMap(moment => activeNoteFallbackScore(moment).map(score => score -> moment))
+      .sortBy { case ((priority, secondary, salience, tiebreak), moment) =>
+        (priority, secondary, salience, tiebreak, moment.ply)
+      }
+      .map(_._2)
+
+  private def activeNoteFallbackScore(moment: GameChronicleMoment): Option[(Int, Int, Int, Int)] =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    Option.when(strategicCarrierPresent(moment, surface)) {
+      val priority =
+        if surface.quietCompensationPosition then 0
+        else if surface.durableCompensationPosition then 1
+        else if surface.compensationPosition then 2
+        else if moment.selectionKind == "key" && surface.dominantIdeaText.nonEmpty then 3
+        else if moment.selectionKind == "key" then 4
+        else 5
+      val secondary =
+        if surface.quietCompensationPosition then 0
+        else if moment.signalDigest.exists(_.compensation.exists(_.trim.nonEmpty)) then 1
+        else if surface.executionText.nonEmpty || surface.objectiveText.nonEmpty then 1
+        else 2
+      val salience =
+        moment.strategicSalience match
+          case Some(level) if level.equalsIgnoreCase("High")   => 0
+          case Some(level) if level.equalsIgnoreCase("Medium") => 1
+          case _                                               => 2
+      val tiebreak =
+        if moment.strategicThread.isDefined then 0
+        else if moment.selectionKind == "opening" then 1
+        else 2
+      (priority, secondary, salience, tiebreak)
+    }
+
+  private def strategicCarrierPresent(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    surface.dominantIdeaText.nonEmpty ||
+      surface.executionText.nonEmpty ||
+      surface.objectiveText.nonEmpty ||
+      surface.focusText.nonEmpty ||
+      surface.compensationPosition ||
+      moment.activePlan.isDefined ||
+      moment.strategyPack.exists(pack =>
+        pack.strategicIdeas.nonEmpty || pack.longTermFocus.nonEmpty || pack.pieceRoutes.nonEmpty
+      ) ||
+      moment.signalDigest.exists(digest =>
+        digest.dominantIdeaKind.isDefined ||
+          digest.compensation.exists(_.trim.nonEmpty) ||
+          digest.compensationVectors.exists(_.trim.nonEmpty) ||
+          digest.opponentPlan.exists(_.trim.nonEmpty)
+      )
 
   private def threadScore(thread: ActiveStrategicThreadBuilder.BuiltThread): Double =
     val moments = thread.moments

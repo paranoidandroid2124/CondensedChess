@@ -40,6 +40,7 @@ case class GameArcMoment(
   strategyPack: Option[lila.llm.StrategyPack] = None,
   signalDigest: Option[lila.llm.NarrativeSignalDigest] = None,
   probeRequests: List[lila.llm.model.ProbeRequest] = Nil,
+  probeRefinementRequests: List[lila.llm.model.ProbeRequest] = Nil,
   authorQuestions: List[lila.llm.AuthorQuestionSummary] = Nil,
   authorEvidence: List[lila.llm.AuthorEvidenceSummary] = Nil,
   mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,

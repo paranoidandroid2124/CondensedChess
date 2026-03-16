@@ -329,6 +329,56 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(narrativeCtx.phase.transitionTrigger.get.contains("Middlegame"), "Should mention from-phase")
   }
 
+  test("after-move compensation is suppressed when a recapture-like capture restores parity") {
+    val beforeFen = "3r3k/2pq3p/1p3pr1/p1p1p2Q/P1P1PB2/3P1P2/2P3P1/R4R1K b - - 0 30"
+    val afterFen = "3r3k/2pq3p/1p3pr1/p1p4Q/P1P1Pp2/3P1P2/2P3P1/R4R1K w - - 0 31"
+
+    val currentData = minimalData().copy(
+      fen = beforeFen,
+      prevMove = Some("e5f4"),
+      ply = 60,
+      evalCp = -49,
+      isWhiteToMove = false,
+      phase = "middlegame"
+    )
+    val afterData = minimalData().copy(
+      fen = afterFen,
+      compensation = Some(
+        Compensation(
+          investedMaterial = 300,
+          returnVector = Map(
+            "Initiative" -> 0.6,
+            "Line Pressure" -> 0.6,
+            "Delayed Recovery" -> 0.4
+          ),
+          expiryPly = None,
+          conversionPlan = "return vector through initiative and line pressure"
+        )
+      ),
+      prevMove = None,
+      ply = 60,
+      evalCp = -49,
+      isWhiteToMove = true,
+      phase = "middlegame"
+    )
+    val ctx = IntegratedContext(evalCp = -49, isWhiteToMove = false)
+
+    val narrativeCtx =
+      NarrativeContextBuilder.build(
+        data = currentData,
+        ctx = ctx,
+        afterAnalysis = Some(afterData),
+        renderMode = NarrativeRenderMode.Bookmaker
+      )
+
+    assertEquals(narrativeCtx.semantic.flatMap(_.afterCompensation), None)
+
+    val digest = NarrativeSignalDigestBuilder.build(narrativeCtx)
+    assertEquals(digest.flatMap(_.compensation), None)
+    assertEquals(digest.map(_.compensationVectors).getOrElse(Nil), Nil)
+    assertEquals(digest.flatMap(_.investedMaterial), None)
+  }
+
   // ============================================================
   // TOCONTEXT TESTS
   // ============================================================

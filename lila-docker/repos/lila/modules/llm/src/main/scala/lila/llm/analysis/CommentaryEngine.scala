@@ -442,6 +442,7 @@ object CommentaryEngine:
       evals: Map[Int, List[VariationLine]],
       providedMetadata: Option[GameMetadata] = None,
       openingRefsByFen: Map[String, OpeningReference] = Map.empty,
+      probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty,
       @unused llmLevel: String = LlmLevel.Polish
   ): GameArc = {
      
@@ -503,7 +504,7 @@ object CommentaryEngine:
              else analyzeSelectedPlies(plyDataList, evals, finalPlies)
            val dataByPly = finalData.map(d => d.ply -> d).toMap
            val internalMomentNarratives =
-             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen)
+             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen, probeResultsByPly)
            val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameChronicleMoment.fromArcMoment))
            val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
            val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
@@ -659,27 +660,48 @@ object CommentaryEngine:
       moments: List[KeyMoment],
       dataByPly: Map[Int, ExtendedAnalysisData],
       moveEvals: List[lila.llm.MoveEval],
-      openingRefsByFen: Map[String, OpeningReference]
+      openingRefsByFen: Map[String, OpeningReference],
+      probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty
   ): List[GameArcMoment] =
-    moments
-      .sortBy(_.ply)
-      .foldLeft(
-        (List.empty[GameArcMoment], Option.empty[ExtendedAnalysisData], OpeningEventBudget(), Option.empty[OpeningReference], 0)
-      ) {
+    val draftedMoments =
+      moments
+        .sortBy(_.ply)
+        .foldLeft(
+          (
+            List.empty[(GameArcMoment, Option[FullGameEvidenceSurfacePolicy.InternalProbeCandidate])],
+            Option.empty[ExtendedAnalysisData],
+            OpeningEventBudget(),
+            Option.empty[OpeningReference],
+            0
+          )
+        ) {
         case ((acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed), moment) =>
           dataByPly.get(moment.ply) match
             case Some(data) =>
+              val momentProbeResults = probeResultsByPly.getOrElse(moment.ply, Nil)
               val ctx = NarrativeContextBuilder.build(
                 data,
                 data.toContext,
                 prevAnalysis,
-                Nil,
+                momentProbeResults,
                 openingRefsByFen.get(data.fen),
                 prevRef,
                 budget,
                 renderMode = NarrativeRenderMode.FullGame
               )
-              val (fullText, focusedOutline) = renderHybridMomentNarrative(ctx, moment)
+              val strategyPack = StrategyPackBuilder.build(data, ctx)
+              val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
+              val preparedNarrative = buildHybridNarrativeParts(ctx, moment)
+              val signalDigest =
+                buildMomentSignalDigest(ctx, preparedNarrative.focusedOutline, strategyPack, authoringSurface.headline)
+              val (fullText, focusedOutline) =
+                renderHybridMomentNarrative(
+                  ctx,
+                  moment,
+                  strategyPack = strategyPack,
+                  signalDigest = signalDigest,
+                  prepared = Some(preparedNarrative)
+                )
 
               val (classification, narrativeEvent) = moment.momentType match
                 case "Blunder"                            => (Some("Blunder"), "AdvantageSwing")
@@ -694,12 +716,18 @@ object CommentaryEngine:
                 if moment.momentType == "Blunder" || moment.momentType == "SustainedPressure" then
                   CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
                 else None
-              val strategyPack = StrategyPackBuilder.build(data, ctx)
-              val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
-              val signalDigest = buildMomentSignalDigest(ctx, focusedOutline, strategyPack, authoringSurface.headline)
               val evidenceEligible =
                 evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
                   FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
+              val internalProbeCandidate =
+                FullGameEvidenceSurfacePolicy.internalCandidate(
+                  momentType = moment.momentType,
+                  selectionKind = moment.selectionKind,
+                  strategicSalienceHigh = data.strategicSalience == StrategicSalience.High,
+                  ctx = ctx,
+                  outline = focusedOutline,
+                  strategyPack = strategyPack
+                )
               val surfacedEvidence =
                 FullGameEvidenceSurfacePolicy.payload(
                   eligible = evidenceEligible,
@@ -745,6 +773,7 @@ object CommentaryEngine:
                 strategyPack = strategyPack,
                 signalDigest = signalDigest,
                 probeRequests = surfacedEvidence.probeRequests,
+                probeRefinementRequests = Nil,
                 authorQuestions = surfacedEvidence.authorQuestions,
                 authorEvidence = surfacedEvidence.authorEvidence,
                 mainStrategicPlans = ctx.mainStrategicPlans.take(3),
@@ -755,10 +784,21 @@ object CommentaryEngine:
               val nextRef = ctx.openingData.orElse(prevRef)
               val nextEvidenceCount =
                 evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
-              (acc :+ momentNarrative, Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
+              (acc :+ (momentNarrative -> internalProbeCandidate), Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
             case None =>
               (acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed)
       }._1
+
+    val internalProbePlies =
+      FullGameEvidenceSurfacePolicy
+        .selectInternalProbeMoments(draftedMoments.flatMap(_._2))
+        .toSet
+
+    draftedMoments.map { case (moment, candidateOpt) =>
+      val probeRefinementRequests =
+        candidateOpt.filter(candidate => internalProbePlies.contains(candidate.ply)).map(_.probeRequests).getOrElse(Nil)
+      moment.copy(probeRefinementRequests = probeRefinementRequests)
+    }
 
   private def bridgeCandidateMoment(
       ply: Int,
@@ -787,10 +827,23 @@ object CommentaryEngine:
       selectionReason = Some(plan.reason)
     )
 
-  private def renderHybridMomentNarrative(
+  private[llm] case class HybridNarrativeParts(
+      lead: String,
+      defaultBridge: String,
+      criticalBranch: Option[String],
+      body: String,
+      primaryPlan: Option[String],
+      focusedOutline: NarrativeOutline,
+      phase: String,
+      tacticalPressure: Boolean,
+      cpWhite: Option[Int],
+      bead: Int
+  )
+
+  private[llm] def buildHybridNarrativeParts(
     ctx: NarrativeContext,
     moment: KeyMoment
-  ): (String, NarrativeOutline) = {
+  ): HybridNarrativeParts = {
     val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
     val phase = ctx.phase.current
     val plan = topStrategicPlanName(ctx)
@@ -826,15 +879,77 @@ object CommentaryEngine:
     val bodyBase =
       if focusedBody.nonEmpty then focusedBody
       else focusMomentBody(body0, keepParagraphs = if criticalBranch.nonEmpty then 3 else 4)
+    HybridNarrativeParts(
+      lead = lead,
+      defaultBridge = bridge,
+      criticalBranch = criticalBranch,
+      body = bodyBase,
+      primaryPlan = plan,
+      focusedOutline = focusedOutline,
+      phase = phase,
+      tacticalPressure = tacticalPressure,
+      cpWhite = cpWhite,
+      bead = bead
+    )
+  }
+
+  private[llm] def buildHybridNarrativeBridge(
+      ctx: NarrativeContext,
+      parts: HybridNarrativeParts,
+      strategyPack: Option[lila.llm.StrategyPack] = None,
+      signalDigest: Option[NarrativeSignalDigest] = None
+  ): String =
+    val surface = StrategyPackSurface.from(strategyPack)
+    val digest = signalDigest.orElse(strategyPack.flatMap(_.signalDigest))
+    val executionObjectiveSentence =
+      (surface.executionText, surface.objectiveText) match
+        case (Some(execution), Some(objective)) =>
+          Some(s"The execution still runs through $execution, with the long-term objective of $objective.")
+        case (Some(execution), None) =>
+          Some(s"The execution still runs through $execution.")
+        case (None, Some(objective)) =>
+          Some(s"The long-term objective is $objective.")
+        case _ =>
+          None
+    val strategySentences =
+      List(
+        Option.when(surface.ownerMismatch)(
+          surface.campaignOwnerText.map(side => s"$side is the side steering the campaign here.").getOrElse("")
+        ).filter(_.nonEmpty),
+        if surface.compensationPosition then
+          StrategyPackSurface.compensationPersistenceText(surface)
+            .map(reason => s"The compensation only works if ${reason.trim.stripSuffix(".")}.")
+            .orElse(
+              digest.flatMap(_.compensation)
+                .map(comp => s"The compensation only works if ${comp.trim.stripSuffix(".")}." )
+            )
+            .orElse(surface.dominantIdeaText.map(idea => s"The compensation has to cash out through $idea."))
+        else surface.dominantIdeaText.map(idea => s"The dominant idea is $idea."),
+        executionObjectiveSentence,
+        digest.flatMap(_.opponentPlan).map(plan => s"The opponent is still aiming at ${plan.trim.stripSuffix(".")}.")
+      ).flatten.filter(_.nonEmpty).take(3)
+
+    if strategySentences.nonEmpty then strategySentences.mkString(" ")
+    else parts.defaultBridge
+
+  private[llm] def renderHybridMomentNarrative(
+    ctx: NarrativeContext,
+    moment: KeyMoment,
+    strategyPack: Option[lila.llm.StrategyPack] = None,
+    signalDigest: Option[NarrativeSignalDigest] = None,
+    prepared: Option[HybridNarrativeParts] = None
+  ): (String, NarrativeOutline) = {
+    val parts = prepared.getOrElse(buildHybridNarrativeParts(ctx, moment))
+    val bridge = buildHybridNarrativeBridge(ctx, parts, strategyPack, signalDigest)
     val rendered =
       assembleHybridNarrativeDraft(
-        lead = lead,
+        lead = parts.lead,
         bridge = bridge,
-        criticalBranch = criticalBranch,
-        body = bodyBase,
-        primaryPlan = plan
+        criticalBranch = parts.criticalBranch,
+        body = parts.body,
+        primaryPlan = parts.primaryPlan
       )
-    (rendered, focusedOutline)
+    (rendered, parts.focusedOutline)
   }
 
   private[llm] def assembleHybridNarrativeDraft(

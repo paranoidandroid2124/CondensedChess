@@ -105,8 +105,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
     assertEquals(brief.primaryIdea, Some("space gain or restriction around e3, g4"))
     assertEquals(brief.whyNow, Some("This move starts the knight reroute demanded by the structure."))
     assertEquals(brief.opponentReply, Some("Black still hopes for ...c5 counterplay."))
-    assertEquals(brief.executionHint, Some("knight toward e3 for kingside clamp"))
-    assertEquals(brief.longTermObjective, Some("work toward making g4 available for the knight"))
+    assertEquals(brief.executionHint, Some("knight toward e3 to reinforce the kingside clamp"))
+    assertEquals(brief.longTermObjective, Some("making g4 available for the knight (build)"))
     assertEquals(brief.keyTrigger, Some("If White drifts, the queenside counterplay revives."))
   }
 
@@ -197,4 +197,278 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       ).whyNow,
       Some("Control of c3 keeps the queenside sealed.")
     )
+  }
+
+  test("build surfaces campaign owner and compensation objective when owner mismatches side to move") {
+    val compensationPack =
+      Some(
+        strategyPack.get.copy(
+          sideToMove = "black",
+          strategicIdeas = List(
+            strategyPack.get.strategicIdeas.head.copy(
+              ownerSide = "white",
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              group = StrategicIdeaGroup.InteractionAndTransformation
+            )
+          ),
+          longTermFocus = List("keep the initiative rather than recovering material"),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("initiative against the king"),
+              investedMaterial = Some(160),
+              dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+              dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("g7, h7")
+            )
+          )
+        )
+      )
+
+    val brief = ActiveStrategicCoachingBriefBuilder.build(compensationPack, dossier, routeRefs, Nil)
+
+    assertEquals(brief.campaignRole, Some("White's campaign: the plan is being consolidated move by move"))
+    assert(brief.primaryIdea.exists(_.startsWith("White: ")))
+    assert(brief.whyNow.exists(_.toLowerCase.contains("do not rush to recover the material")))
+    assert(
+      brief.longTermObjective.exists(text =>
+        text.toLowerCase.contains("recovering the material") ||
+          text.toLowerCase.contains("compensation") ||
+          text.toLowerCase.contains("initiative") ||
+          text.toLowerCase.contains("making g4 available")
+      )
+    )
+  }
+
+  test("deterministic note stays acceptable for compensation owner-mismatch cases") {
+    val compensationPack =
+      Some(
+        strategyPack.get.copy(
+          sideToMove = "black",
+          strategicIdeas = List(
+            strategyPack.get.strategicIdeas.head.copy(
+              ownerSide = "white",
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              group = StrategicIdeaGroup.InteractionAndTransformation
+            )
+          ),
+          longTermFocus = List("keep the initiative rather than recovering material"),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("initiative against the king"),
+              investedMaterial = Some(160),
+              dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+              dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("g7, h7"),
+              opponentPlan = Some("Black still hopes for ...c5 counterplay.")
+            )
+          )
+        )
+      )
+
+    val note =
+      ActiveStrategicCoachingBriefBuilder.buildDeterministicNote(
+        strategyPack = compensationPack,
+        dossier = dossier,
+        routeRefs = routeRefs,
+        moveRefs = Nil
+      )
+
+    assert(note.nonEmpty)
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText = note.get,
+        baseNarrative = "Black to move, but White still owns the initiative.",
+        dossier = dossier,
+        strategyPack = compensationPack,
+        routeRefs = routeRefs,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted)
+    assert(note.exists(_.contains("White")))
+    assert(
+      note.exists(text =>
+        text.toLowerCase.contains("initiative") ||
+          text.toLowerCase.contains("compensation") ||
+          text.toLowerCase.contains("recover the material")
+      )
+    )
+  }
+
+  test("quiet compensation note uses normalized dominant idea and execution instead of raw kingside clamp wording") {
+    val quietCompensationPack =
+      Some(
+        StrategyPack(
+          sideToMove = "black",
+          pieceRoutes = List(
+            StrategyPieceRoute(
+              ownerSide = "black",
+              piece = "R",
+              from = "a8",
+              route = List("a8", "d8", "d3"),
+              purpose = "kingside clamp",
+              strategicFit = 0.82,
+              tacticalSafety = 0.77,
+              surfaceConfidence = 0.79,
+              surfaceMode = RouteSurfaceMode.Toward
+            )
+          ),
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "black",
+              piece = "Q",
+              from = "d8",
+              target = "b6",
+              idea = "fix the queenside targets"
+            )
+          ),
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_b2",
+              ownerSide = "black",
+              piece = "R",
+              from = "d8",
+              targetSquare = "b2",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("backward pawn")
+            )
+          ),
+          strategicIdeas = List(
+            StrategyIdeaSignal(
+              ideaId = "idea_benko_line",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.LineOccupation,
+              group = "slow_structural",
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("b2", "c4", "d4"),
+              focusFiles = List("b", "c", "d"),
+              focusZone = Some("queenside"),
+              beneficiaryPieces = List("R", "Q"),
+              confidence = 0.86
+            ),
+            StrategyIdeaSignal(
+              ideaId = "idea_benko_targets",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.TargetFixing,
+              group = "slow_structural",
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("b2", "a6"),
+              focusFiles = List("a", "b"),
+              focusZone = Some("queenside"),
+              beneficiaryPieces = List("R"),
+              confidence = 0.79
+            )
+          ),
+          longTermFocus = List("fix the queenside targets before recovering the pawn"),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("return vector through line pressure and delayed recovery"),
+              compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+              investedMaterial = Some(100),
+              dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+              dominantIdeaGroup = Some("slow_structural"),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("b2, c4, d4")
+            )
+          )
+        )
+      )
+
+    val brief = ActiveStrategicCoachingBriefBuilder.build(quietCompensationPack, None, Nil, Nil)
+
+    assertEquals(brief.primaryIdea, Some("fixed queenside targets"))
+    assert(brief.executionHint.exists(_.toLowerCase.contains("queenside targets")), clue(brief.executionHint))
+    assert(!brief.executionHint.exists(_.toLowerCase.contains("kingside clamp")), clue(brief.executionHint))
+    assert(
+      brief.longTermObjective.exists(text =>
+        text.toLowerCase.contains("queenside targets") || text.toLowerCase.contains("queenside files")
+      ),
+      clue(brief.longTermObjective)
+    )
+  }
+
+  test("attack-led compensation note keeps raw initiative wording when subtype normalization is inactive") {
+    val brief =
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = BookmakerProseGoldenFixtures.exchangeSacrifice.strategyPack,
+        dossier = None,
+        routeRefs = Nil,
+        moveRefs = Nil
+      )
+
+    assert(
+      brief.primaryIdea.exists { text =>
+        val lowered = text.toLowerCase
+        lowered.contains("king-attack") || lowered.contains("king attack")
+      }
+    )
+    assert(
+      brief.whyNow.exists(text =>
+        text.toLowerCase.contains("initiative alive") || text.toLowerCase.contains("initiative")
+      ),
+      clue(brief.whyNow)
+    )
+    assert(!brief.whyNow.exists(_.toLowerCase.contains("open-line pressure")), clue(brief.whyNow))
+  }
+
+  test("deterministic note normalizes raw route and move-ref phrasing") {
+    val roughPack =
+      Some(
+        strategyPack.get.copy(
+          pieceRoutes = List(
+            StrategyPieceRoute(
+              side = "black",
+              piece = "Black R",
+              from = "b8",
+              route = List("b8", "b7"),
+              purpose = "kingside clamp",
+              confidence = 0.82
+            )
+          ),
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "black",
+              piece = "B",
+              from = "f1",
+              target = "c4",
+              idea = "contest the pawn on c4"
+            )
+          ),
+          strategicIdeas = List(
+            strategyPack.get.strategicIdeas.head.copy(
+              ownerSide = "black",
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              group = StrategicIdeaGroup.InteractionAndTransformation
+            )
+          ),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("initiative against the king"),
+              investedMaterial = Some(120),
+              dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+              dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("g7, h7")
+            )
+          )
+        )
+      )
+
+    val note =
+      ActiveStrategicCoachingBriefBuilder.buildDeterministicNote(
+        strategyPack = roughPack,
+        dossier = None,
+        routeRefs = Nil,
+        moveRefs = Nil
+      )
+
+    assert(note.nonEmpty)
+    assert(note.exists(text => !text.contains("Black R toward")))
+    assert(note.exists(text => !text.contains("for contest")))
+    assert(note.exists(text => !text.contains("for keep")))
+    assert(note.exists(text => !text.contains("working toward working toward")))
+    assert(note.exists(text => text.contains("to contest") || text.contains("to keep the pressure fixed there")))
   }

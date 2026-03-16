@@ -440,7 +440,8 @@ case class SemanticSection(
   preventedPlans: List[PreventedPlanInfo],
   conceptSummary: List[String],  // High-level concepts from ConceptLabeler
   structureProfile: Option[StructureProfileInfo] = None,
-  planAlignment: Option[PlanAlignmentInfo] = None
+  planAlignment: Option[PlanAlignmentInfo] = None,
+  afterCompensation: Option[CompensationInfo] = None
 )
 
 

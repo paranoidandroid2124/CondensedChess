@@ -147,11 +147,11 @@ object HTTPRequest:
   private def isGameExport(req: RequestHeader) =
     "^/@/[\\w-]{2,30}/download$".r.matches(req.path) ||
       "^/(api/games/user|games/export)/[\\w-]{2,30}($|/.+)".r.matches(req.path)
-  private def isStudyExport(req: RequestHeader) = "^/study/by/[\\w-]{2,30}/export.pgn$".r.matches(req.path)
+  private def isNotebookExport(req: RequestHeader) = "^/notebook/by/[\\w-]{2,30}/export.pgn$".r.matches(req.path)
   private def isAccount(req: RequestHeader) = req.path.startsWith("/account")
 
   def isClosedLoginPath(req: RequestHeader) =
-    isAppeal(req) || isStudyExport(req) || isGameExport(req) || isAccount(req)
+    isAppeal(req) || isNotebookExport(req) || isGameExport(req) || isAccount(req)
 
   def clientName(req: RequestHeader) =
     // lichobile sends XHR headers

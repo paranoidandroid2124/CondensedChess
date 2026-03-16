@@ -141,7 +141,7 @@ object NarrativeContextBuilder:
     // Phase A: Semantic section from ExtendedAnalysisData
     val semantic =
       if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty then None
-      else buildSemanticSection(data)
+      else buildSemanticSection(data, afterAnalysis)
 
     // B-axis: Meta signals (Step 1-3)
     // Only populate meta if we have meaningful source data
@@ -2118,9 +2118,22 @@ object NarrativeContextBuilder:
    * Builds SemanticSection from ExtendedAnalysisData semantic fields.
    * Returns None if no meaningful semantic data exists.
    */
-  private def buildSemanticSection(data: ExtendedAnalysisData): Option[SemanticSection] = {
+  private def buildSemanticSection(
+      data: ExtendedAnalysisData,
+      afterAnalysis: Option[ExtendedAnalysisData]
+  ): Option[SemanticSection] = {
     val isPawnEndgame = data.phase == "endgame" && 
       data.toContext.features.exists(f => (f.materialPhase.whiteMaterial + f.materialPhase.blackMaterial) <= 6)
+    val currentCompensation =
+      data.compensation.filter(comp => keepSemanticCompensation(data, comp)).map(convertCompensation)
+    val afterCompensation =
+      data.prevMove.flatMap { playedMove =>
+        afterAnalysis
+          .flatMap(_.compensation)
+          .filter(comp => keepSemanticCompensation(afterAnalysis.getOrElse(data), comp))
+          .filterNot(comp => CompensationRecaptureGate.suppressAfterCompensation(data.fen, playedMove, comp.investedMaterial))
+          .map(convertCompensation)
+      }
     
     val filteredPositional = if (isPawnEndgame) {
       data.positionalFeatures.filterNot {
@@ -2132,7 +2145,8 @@ object NarrativeContextBuilder:
     val hasWeaknesses = data.structuralWeaknesses.nonEmpty
     val hasActivity = data.pieceActivity.nonEmpty
     val hasPositional = filteredPositional.nonEmpty
-    val hasCompensation = data.compensation.isDefined
+    val hasCompensation = currentCompensation.isDefined
+    val hasAfterCompensation = afterCompensation.isDefined
     val hasEndgame = data.endgameFeatures.isDefined
     val hasPractical = data.practicalAssessment.isDefined
     val hasPrevented = data.preventedPlans.nonEmpty
@@ -2140,21 +2154,44 @@ object NarrativeContextBuilder:
     val hasStructureProfile = data.structureProfile.isDefined
     val hasPlanAlignment = data.planAlignment.isDefined
 
-    if (!hasWeaknesses && !hasActivity && !hasPositional && !hasCompensation && 
+    if (!hasWeaknesses && !hasActivity && !hasPositional && !hasCompensation && !hasAfterCompensation &&
         !hasEndgame && !hasPractical && !hasPrevented && !hasConcepts && !hasStructureProfile && !hasPlanAlignment) None
     else Some(SemanticSection(
       structuralWeaknesses = data.structuralWeaknesses.map(convertWeakComplex),
       pieceActivity = data.pieceActivity.map(convertPieceActivity),
       positionalFeatures = filteredPositional.map(convertPositionalTag),
-      compensation = data.compensation.map(convertCompensation),
+      compensation = currentCompensation,
       endgameFeatures = data.endgameFeatures.map(convertEndgame(_, data)),
       practicalAssessment = data.practicalAssessment.map(convertPractical),
       preventedPlans = data.preventedPlans.map(convertPreventedPlan),
       conceptSummary = data.conceptSummary,
       structureProfile = data.structureProfile.map(convertStructureProfile),
-      planAlignment = data.planAlignment.map(convertPlanAlignment)
+      planAlignment = data.planAlignment.map(convertPlanAlignment),
+      afterCompensation = afterCompensation
     ))
   }
+
+  private def keepSemanticCompensation(
+      data: ExtendedAnalysisData,
+      compensation: Compensation
+  ): Boolean = {
+    val normalizedVectors =
+      compensation.returnVector.keys.map(normalizeCompensationLabel).filter(_.nonEmpty).toSet
+    val thinReturnVectorOnly =
+      data.phase != "opening" &&
+        normalizedVectors.nonEmpty &&
+        normalizedVectors.subsetOf(Set("return_vector"))
+    val lateTechnicalEndgame =
+      data.phase == "endgame" &&
+        compensation.investedMaterial >= 500 &&
+        normalizedVectors.intersect(Set("initiative", "line_pressure", "delayed_recovery")).isEmpty
+    !thinReturnVectorOnly && !lateTechnicalEndgame
+  }
+
+  private def normalizeCompensationLabel(raw: String): String =
+    Option(raw)
+      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_"))
+      .getOrElse("")
 
   private def convertStructureProfile(sp: lila.llm.model.structure.StructureProfile): StructureProfileInfo =
     StructureProfileInfo(

@@ -1,11 +1,11 @@
 package lila.llm.analysis
 
-import chess.{ Color, Square }
+import chess.{ Bishop, Board, Color, Queen, Square }
 import chess.format.Fen
 import chess.variant.Standard
 import lila.llm.*
-import lila.llm.model.StrategicPlanExperiment
-import lila.llm.model.strategic.PositionalTag
+import lila.llm.model.{ Motif, Plan, PlanMatch, StrategicPlanExperiment }
+import lila.llm.model.strategic.{ PositionalTag, PreventedPlan }
 import munit.FunSuite
 
 class StrategicIdeaSelectorTest extends FunSuite:
@@ -50,6 +50,55 @@ class StrategicIdeaSelectorTest extends FunSuite:
           opponentPlan = Some("misleading counterplay text")
         )
       )
+    )
+
+  private def boardFromFen(fen: String): Board =
+    Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(fail(s"invalid FEN: $fen"))
+
+  private def planMatch(plan: Plan, score: Double): PlanMatch =
+    PlanMatch(plan = plan, score = score, evidence = Nil)
+
+  private def compensationFeatures(
+      fen: String,
+      materialDiff: Int,
+      whiteDevelopmentLag: Int,
+      blackDevelopmentLag: Int,
+      whiteAttackersCount: Int = 0,
+      blackAttackersCount: Int = 0,
+      blackKingRingAttacked: Int = 0,
+      blackKingExposedFiles: Int = 0,
+      blackCastledSide: String = "none",
+      whiteSemiOpenFiles: Int,
+      openFilesCount: Int,
+      spaceDiff: Int,
+      phase: String = "opening"
+  ): PositionFeatures =
+    PositionFeatures.empty.copy(
+      fen = fen,
+      sideToMove = "white",
+      activity = PositionFeatures.empty.activity.copy(
+        whiteDevelopmentLag = whiteDevelopmentLag,
+        blackDevelopmentLag = blackDevelopmentLag
+      ),
+      kingSafety = PositionFeatures.empty.kingSafety.copy(
+        whiteCastledSide = "short",
+        blackCastledSide = blackCastledSide,
+        whiteAttackersCount = whiteAttackersCount,
+        blackAttackersCount = blackAttackersCount,
+        blackKingRingAttacked = blackKingRingAttacked,
+        blackKingExposedFiles = blackKingExposedFiles
+      ),
+      materialPhase = PositionFeatures.empty.materialPhase.copy(
+        whiteMaterial = 37,
+        blackMaterial = 37 - materialDiff,
+        materialDiff = materialDiff,
+        phase = phase
+      ),
+      lineControl = PositionFeatures.empty.lineControl.copy(
+        openFilesCount = openFilesCount,
+        whiteSemiOpenFiles = whiteSemiOpenFiles
+      ),
+      centralSpace = PositionFeatures.empty.centralSpace.copy(spaceDiff = spaceDiff)
     )
 
   test("typed selector beats legacy keyword fallback on text-only ambiguity") {
@@ -153,4 +202,241 @@ class StrategicIdeaSelectorTest extends FunSuite:
       selectFromFen("r1bqr1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12")
 
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.FavorableTradeOrTransformation))
+  }
+
+  test("compensation development lead promotes king-attack build-up over broad space") {
+    val fen = "r4rk1/ppp2ppp/2n5/3p4/3P4/2NB1Q2/PPP2PPP/R1B2RK1 w - - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        board = Some(boardFromFen(fen)),
+        positionalFeatures = List(PositionalTag.SpaceAdvantage(Color.White)),
+        plans = List(
+          planMatch(Plan.OpeningDevelopment(Color.White), 0.82),
+          planMatch(Plan.KingsideAttack(Color.White), 0.79),
+          planMatch(Plan.SpaceAdvantage(Color.White), 0.77)
+        ),
+        motifs = List(
+          Motif.Battery(
+            front = Bishop,
+            back = Queen,
+            axis = Motif.BatteryAxis.Diagonal,
+            color = Color.White,
+            plyIndex = 0,
+            move = None,
+            frontSq = Some(Square.D3),
+            backSq = Some(Square.F3)
+          )
+        ),
+        positionFeatures = Some(
+          compensationFeatures(
+            fen = fen,
+            materialDiff = -2,
+            whiteDevelopmentLag = 0,
+            blackDevelopmentLag = 3,
+            whiteAttackersCount = 2,
+            blackKingRingAttacked = 2,
+            blackKingExposedFiles = 1,
+            whiteSemiOpenFiles = 1,
+            openFilesCount = 1,
+            spaceDiff = 2
+          )
+        ),
+        phase = "opening"
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "B",
+            from = "d3",
+            route = List("h7"),
+            purpose = "keep the king under pressure",
+            strategicFit = 0.86,
+            tacticalSafety = 0.76,
+            surfaceConfidence = 0.86,
+            surfaceMode = RouteSurfaceMode.Exact
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.KingAttackBuildUp))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:compensation_development_lead")))
+  }
+
+  test("compensation open lines keep line occupation ahead of generic space") {
+    val fen = "r4rk1/2p2ppp/p1n5/1p1p4/3P4/5N2/PPQ2PPP/2R2RK1 w - - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        board = Some(boardFromFen(fen)),
+        positionalFeatures = List(PositionalTag.SpaceAdvantage(Color.White)),
+        plans = List(
+          planMatch(Plan.OpeningDevelopment(Color.White), 0.80),
+          planMatch(Plan.FileControl(Color.White, "c-file"), 0.78),
+          planMatch(Plan.PieceActivation(Color.White), 0.75)
+        ),
+        positionFeatures = Some(
+          compensationFeatures(
+            fen = fen,
+            materialDiff = -1,
+            whiteDevelopmentLag = 0,
+            blackDevelopmentLag = 2,
+            blackCastledSide = "short",
+            whiteSemiOpenFiles = 1,
+            openFilesCount = 1,
+            spaceDiff = 2
+          )
+        ),
+        phase = "opening"
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "R",
+            from = "c1",
+            route = List("c7"),
+            purpose = "occupy the c-file before recovering material",
+            strategicFit = 0.84,
+            tacticalSafety = 0.80,
+            surfaceConfidence = 0.84,
+            surfaceMode = RouteSurfaceMode.Exact
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.LineOccupation))
+    assert(ideas.headOption.exists(_.evidenceRefs.exists(ref =>
+      ref == "source:compensation_open_lines" || ref == "source:delayed_recovery_window"
+    )))
+  }
+
+  test("compensation target fixation keeps Open Catalan pressure target-led") {
+    val ideas =
+      selectFromFen(
+        "1rbqk2r/1pp1bppp/p3pn2/n7/P1pP4/4P1P1/1P1N1PBP/RNBQ1RK1 w k - 3 10",
+        phase = "opening"
+      )
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.TargetFixing))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:compensation_target_fixation")))
+  }
+
+  test("quiet compensation line pressure stays ahead of attack family when king window is weak") {
+    val fen = "r1b2rk1/1pp2ppp/p1n5/3p4/1P1P4/2P2N2/P1Q2PPP/2R2RK1 w - - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        board = Some(boardFromFen(fen)),
+        plans = List(
+          planMatch(Plan.KingsideAttack(Color.White), 0.79),
+          planMatch(Plan.FileControl(Color.White, "c-file"), 0.81),
+          planMatch(Plan.PieceActivation(Color.White), 0.74)
+        ),
+        positionFeatures = Some(
+          compensationFeatures(
+            fen = fen,
+            materialDiff = -1,
+            whiteDevelopmentLag = 0,
+            blackDevelopmentLag = 1,
+            blackCastledSide = "short",
+            whiteSemiOpenFiles = 1,
+            openFilesCount = 1,
+            spaceDiff = 1,
+            phase = "middlegame"
+          )
+        ),
+        phase = "middlegame"
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "R",
+            from = "c1",
+            route = List("c1", "c5"),
+            purpose = "occupy the c-file before recovering material",
+            strategicFit = 0.82,
+            tacticalSafety = 0.79,
+            surfaceConfidence = 0.83,
+            surfaceMode = RouteSurfaceMode.Exact
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.LineOccupation))
+    assert(ideas.headOption.forall(_.kind != StrategicIdeaKind.KingAttackBuildUp))
+  }
+
+  test("compensation counterplay denial produces suppression carrier instead of drifting to attack") {
+    val fen = "r2q1rk1/1p2bppp/p1n1pn2/2pp4/3P4/1PN1PN2/PBQ2PPP/2RR2K1 w - - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        board = Some(boardFromFen(fen)),
+        preventedPlans = List(
+          PreventedPlan(
+            planId = "DenyB5",
+            deniedSquares = List(Square.B5, Square.C4),
+            breakNeutralized = Some("b5"),
+            mobilityDelta = -2,
+            counterplayScoreDrop = 140,
+            deniedResourceClass = Some("break")
+          )
+        ),
+        plans = List(
+          planMatch(Plan.Prophylaxis(Color.White, "b5 break"), 0.80),
+          planMatch(Plan.FileControl(Color.White, "b-file"), 0.78)
+        ),
+        positionFeatures = Some(
+          compensationFeatures(
+            fen = fen,
+            materialDiff = -1,
+            whiteDevelopmentLag = 0,
+            blackDevelopmentLag = 1,
+            blackCastledSide = "short",
+            whiteSemiOpenFiles = 1,
+            openFilesCount = 1,
+            spaceDiff = 1,
+            phase = "middlegame"
+          )
+        ),
+        phase = "middlegame"
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "R",
+            from = "d1",
+            route = List("d1", "b1", "b5"),
+            purpose = "queenside pressure",
+            strategicFit = 0.80,
+            tacticalSafety = 0.76,
+            surfaceConfidence = 0.80,
+            surfaceMode = RouteSurfaceMode.Toward
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assert(ideas.exists(signal => signal.kind == StrategicIdeaKind.CounterplaySuppression))
+    assert(ideas.exists(_.evidenceRefs.contains("source:compensation_counterplay_denial")))
+    assert(ideas.headOption.forall(_.kind != StrategicIdeaKind.KingAttackBuildUp))
   }

@@ -12,6 +12,13 @@ import chess.format.pgn.{ Parser, PgnStr }
  */
 object PgnAnalysisHelper:
 
+  case class ReplayDiagnostics(
+      parsedMoves: Int,
+      replayedMoves: Int,
+      failure: Option[String]
+  ):
+    def complete: Boolean = failure.forall(_.trim.isEmpty) && parsedMoves == replayedMoves
+
   /**
    * Data for a single ply in the game.
    */
@@ -23,11 +30,19 @@ object PgnAnalysisHelper:
       color: Color        // Who played this move
   )
 
+  case class ExtractionReport(
+      plyData: List[PlyData],
+      diagnostics: ReplayDiagnostics
+  )
+
   /**
    * Parses a PGN and extracts per-ply data.
    * Returns a list of PlyData for each move in the game.
    */
   def extractPlyData(pgn: String): Either[String, List[PlyData]] =
+    inspectPlyData(pgn).map(_.plyData)
+
+  def inspectPlyData(pgn: String): Either[String, ExtractionReport] =
     Parser.mainline(PgnStr(pgn)) match
       case Left(err) => Left(s"PGN parse error: $err")
       case Right(parsed) =>
@@ -52,7 +67,28 @@ object PgnAnalysisHelper:
           )
         }
         
-        Right(plyDataList)
+        Right(
+          ExtractionReport(
+            plyData = plyDataList,
+            diagnostics =
+              ReplayDiagnostics(
+                parsedMoves = parsed.moves.size,
+                replayedMoves = result.replay.chronoMoves.size,
+                failure = result.failure.map(_.toString)
+              )
+          )
+        )
+
+  def extractPlyDataStrict(pgn: String): Either[String, List[PlyData]] =
+    inspectPlyData(pgn).flatMap { report =>
+      if report.diagnostics.complete then Right(report.plyData)
+      else
+        val failureText =
+          report.diagnostics.failure.map(_.trim).filter(_.nonEmpty).map(msg => s": $msg").getOrElse("")
+        Left(
+          s"PGN replay truncated after ${report.diagnostics.replayedMoves}/${report.diagnostics.parsedMoves} plies$failureText"
+        )
+    }
 
   /**
    * Builds a divergence note for a specific ply by comparing:

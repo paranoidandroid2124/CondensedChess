@@ -24,13 +24,13 @@ object support:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Support Chesstory"),
-                p(cls := "legal-meta")("Free analysis for everyone. Optional support keeps the project sustainable.")
+                p(cls := "legal-meta")("Core analysis stays open. Deeper commentary paths still follow current usage limits.")
               ),
               st.section(cls := "legal-section")(
                 h2("Why Support"),
                 p(
-                  "Chesstory keeps core analysis and rule-based commentary freely available. ",
-                  "If this helps your study workflow, you can support hosting, maintenance, and future improvements."
+                  "Chesstory keeps the board and review workflow available without a public paid subscription. ",
+                  "If this helps your study workflow, support goes toward hosting, maintenance, and keeping the free tier sustainable while deeper review features stay online."
                 )
               ),
               st.section(cls := "legal-section")(
@@ -50,8 +50,14 @@ object support:
                   )
               ),
               st.section(cls := "legal-section")(
-                h2("Policy"),
-                p("All chess analysis features remain available without a paid subscription.")
+                h2("Current Access Policy"),
+                p("Support helps sustain the service, but access still follows the product's current login, quota, and fair-use controls."),
+                ul(
+                  li("Anonymous full-game review is currently limited to 1 Game Chronicle request per day per IP."),
+                  li("Signed-in free access is currently limited to 1 full-game review per day and 100 Bookmaker move requests per day."),
+                  li("Additional burst or fair-use controls may apply on higher-access beta tiers."),
+                  li("Support does not bypass safety, abuse-prevention, or quota controls.")
+                )
               ),
               footer(cls := "legal-footer")(
                 a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")

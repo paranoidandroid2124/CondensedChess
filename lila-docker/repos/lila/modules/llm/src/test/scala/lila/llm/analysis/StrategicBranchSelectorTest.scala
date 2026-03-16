@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
-import lila.llm.{ ActivePlanRef, GameChronicleMoment, NarrativeSignalDigest, StrategyPack, StrategyPieceRoute, StrategySidePlan }
+import lila.llm.{ ActivePlanRef, GameChronicleMoment, NarrativeSignalDigest, StrategyIdeaSignal, StrategyPack, StrategyPieceRoute, StrategySidePlan }
 
 class StrategicBranchSelectorTest extends FunSuite:
 
@@ -167,4 +167,168 @@ class StrategicBranchSelectorTest extends FunSuite:
     assertEquals(selection.threads, Nil)
     assertEquals(selection.activeNoteMoments, Nil)
     assertEquals(selection.selectedMoments.map(_.ply), List(14, 18, 22))
+  }
+
+  test("selector keeps strategic fallback moments visible when no threads or core events exist") {
+    def fallbackMoment(ply: Int, ideaKind: String, focus: String) =
+      moment(
+        ply = ply,
+        momentType = "SustainedPressure",
+        strategyPack = Some(
+          StrategyPack(
+            sideToMove = "black",
+            strategicIdeas = List(
+              StrategyIdeaSignal(
+                ideaId = s"idea_$ply",
+                ownerSide = "black",
+                kind = ideaKind,
+                group = "slow_structural",
+                readiness = "building",
+                focusSquares = Nil,
+                focusFiles = Nil,
+                focusDiagonals = Nil,
+                focusZone = Some("queenside"),
+                beneficiaryPieces = List("R"),
+                confidence = 0.74
+              )
+            ),
+            longTermFocus = List(focus)
+          )
+        )
+      ).copy(
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            dominantIdeaKind = Some(ideaKind),
+            dominantIdeaFocus = Some("queenside pressure")
+          )
+        )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(
+          fallbackMoment(11, "line_occupation", "line pressure on the queenside"),
+          fallbackMoment(19, "target_fixing", "fix the a-file and b-file targets"),
+          fallbackMoment(27, "favorable_trade_or_transformation", "convert pressure into a lasting queenside bind")
+        )
+      )
+
+    assertEquals(selection.threads, Nil)
+    assertEquals(selection.activeNoteMoments.map(_.ply), List(11, 19, 27))
+    assertEquals(selection.selectedMoments.map(_.ply), List(11, 19, 27))
+  }
+
+  test("selector fills spare active-note slots with visible strategic key moments outside thread representatives") {
+    val threadedSeed = threadedMoment(11, decision = "seed the kingside campaign")
+    val threadedBuild = threadedMoment(19, decision = "build the same route")
+    val threadedConvert = threadedMoment(29, transitionType = Some("NaturalShift"), decision = "convert the thread")
+    val visibleStrategicKey =
+      moment(
+        ply = 25,
+        momentType = "TensionPeak",
+        strategyPack = Some(
+          StrategyPack(
+            sideToMove = "white",
+            strategicIdeas = List(
+              StrategyIdeaSignal(
+                ideaId = "idea_25",
+                ownerSide = "white",
+                kind = "line_occupation",
+                group = "slow_structural",
+                readiness = "ready",
+                focusSquares = List("d5", "d7"),
+                beneficiaryPieces = List("R"),
+                confidence = 0.86
+              )
+            ),
+            pieceRoutes = List(StrategyPieceRoute("white", "R", "d1", List("d1", "d5"), "open file occupation", 0.84)),
+            longTermFocus = List("line pressure on d5")
+          )
+        )
+      ).copy(
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            dominantIdeaKind = Some("line_occupation"),
+            dominantIdeaFocus = Some("d5, d7"),
+            compensation = Some("return vector through initiative and line pressure")
+          )
+        )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(List(threadedSeed, threadedBuild, visibleStrategicKey, threadedConvert))
+
+    assert(selection.activeNoteMoments.map(_.ply).contains(25))
+  }
+
+  test("selector prioritizes quiet durable compensation over attack-led compensation in fallback notes") {
+    val quietCompensation =
+      moment(
+        ply = 21,
+        momentType = "SustainedPressure",
+        strategyPack = Some(
+          StrategyPack(
+            sideToMove = "black",
+            strategicIdeas = List(
+              StrategyIdeaSignal(
+                ideaId = "idea_quiet_comp",
+                ownerSide = "black",
+                kind = "target_fixing",
+                group = "slow_structural",
+                readiness = "building",
+                focusSquares = List("b2"),
+                focusFiles = List("b"),
+                focusZone = Some("queenside"),
+                beneficiaryPieces = List("R"),
+                confidence = 0.83
+              )
+            ),
+            pieceRoutes = List(StrategyPieceRoute("black", "R", "a8", List("a8", "b8", "b4"), "queenside pressure", 0.81)),
+            longTermFocus = List("fix the queenside targets before recovering the pawn"),
+            signalDigest = Some(
+              NarrativeSignalDigest(
+                compensation = Some("return vector through line pressure and delayed recovery"),
+                compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)"),
+                investedMaterial = Some(100)
+              )
+            )
+          )
+        )
+      )
+    val attackShell =
+      moment(
+        ply = 23,
+        momentType = "TensionPeak",
+        strategyPack = Some(
+          StrategyPack(
+            sideToMove = "white",
+            strategicIdeas = List(
+              StrategyIdeaSignal(
+                ideaId = "idea_attack_comp",
+                ownerSide = "white",
+                kind = "king_attack_build_up",
+                group = "interaction_and_transformation",
+                readiness = "building",
+                focusSquares = List("g7"),
+                focusZone = Some("kingside"),
+                beneficiaryPieces = List("Q", "R"),
+                confidence = 0.86
+              )
+            ),
+            longTermFocus = List("keep the initiative alive on the kingside"),
+            signalDigest = Some(
+              NarrativeSignalDigest(
+                compensation = Some("return vector through initiative"),
+                compensationVectors = List("Initiative (0.7)"),
+                investedMaterial = Some(100)
+              )
+            )
+          )
+        )
+      )
+
+    val selection = StrategicBranchSelector.buildSelection(List(attackShell, quietCompensation))
+
+    assertEquals(selection.activeNoteMoments.headOption.map(_.ply), Some(21))
+    assert(selection.activeNoteMoments.map(_.ply).contains(23))
   }

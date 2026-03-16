@@ -48,6 +48,14 @@ private[llm] object StrategicIdeaSelector:
       members: List[Candidate]
   )
 
+  private final case class DerivedCompensationCarrier(
+      summary: Option[String],
+      vectors: List[String],
+      investedMaterial: Option[Int]
+  ):
+    def hasSignal: Boolean =
+      summary.exists(_.nonEmpty) || vectors.nonEmpty || investedMaterial.exists(_ > 0)
+
   private object StrategicIdeaFamily:
     val ForcingOrTacticalNow = "forcing_or_tactical_now"
     val SlowStructural = "slow_structural"
@@ -61,8 +69,8 @@ private[llm] object StrategicIdeaSelector:
     val ideas = select(pack, semantic)
     if ideas.isEmpty then pack
     else
-      val enrichedDigest = enrichDigest(pack.signalDigest, ideas)
-      val enrichedFocus = enrichLongTermFocus(pack.longTermFocus, ideas, pack.directionalTargets)
+      val enrichedDigest = enrichDigest(pack, pack.signalDigest, ideas, semantic)
+      val enrichedFocus = enrichLongTermFocus(pack.longTermFocus, ideas, pack.directionalTargets, enrichedDigest)
       val enrichedEvidence = enrichEvidence(pack.evidence, ideas, pack.directionalTargets)
       pack.copy(
         strategicIdeas = ideas,
@@ -309,7 +317,11 @@ private[llm] object StrategicIdeaSelector:
       }
 
     val frenchCounterBreak =
-      Option.when(structureIs(semantic, StructureId.FrenchAdvanceChain) && side == "black") {
+      Option.when(
+        structureIs(semantic, StructureId.FrenchAdvanceChain) &&
+          side == "black" &&
+          semantic.phase != "endgame"
+      ) {
         evidence(
           ownerSide = side,
           kind = StrategicIdeaKind.PawnBreak,
@@ -326,6 +338,7 @@ private[llm] object StrategicIdeaSelector:
       Option.when(
         structureIs(semantic, StructureId.FrenchAdvanceChain) &&
           side == "black" &&
+          semantic.phase != "endgame" &&
           semantic.board.exists(board =>
             pawnAt(board, Color.Black, Square.F7) &&
               pawnAt(board, Color.Black, Square.E6) &&
@@ -629,6 +642,49 @@ private[llm] object StrategicIdeaSelector:
           }
         }
 
+    val compensationTargetFixation =
+      semantic.positionFeatures
+        .flatMap { features =>
+          val structuralTargetSquares =
+            semantic.structuralWeaknesses
+              .filter(weakness => !matchesSide(weakness.color, side))
+              .flatMap(_.squares.map(_.key))
+              .distinct
+          val allTargetSquares = (enemyWeakSquares.toList ++ structuralTargetSquares).distinct
+          val queensideTargetCount =
+            allTargetSquares.count(square =>
+              square.headOption.exists(file => file == 'a' || file == 'b' || file == 'c')
+            )
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              allTargetSquares.nonEmpty &&
+              hasCompensationTargetPlanSupport(side, semantic) &&
+              (
+                directionalFixation.nonEmpty ||
+                  weakComplexEvidence.nonEmpty ||
+                  hasCompensationLineAccess(side, pack, semantic)
+              )
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.TargetFixing,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_target_fixation",
+              confidence =
+                0.78 +
+                  math.min(0.06, allTargetSquares.size * 0.02) +
+                  Option.when(queensideTargetCount > 0)(0.04).getOrElse(0.0),
+              focusSquares = allTargetSquares.take(3),
+              focusZone = Option.when(queensideTargetCount > 0)("queenside"),
+              factIds =
+                List("compensation_target_fixation", "material_deficit_compensation") ++
+                  Option.when(queensideTargetCount > 0)("queenside_target_fixation_from_gambit").toList
+            )
+          }
+        }
+        .toList
+
     val carlsbadFixation =
       Option.when(
         structureIs(semantic, StructureId.Carlsbad) &&
@@ -649,7 +705,8 @@ private[llm] object StrategicIdeaSelector:
         )
       }.toList
 
-    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ weakComplexEvidence ++ planBridge ++ directionalFixation ++ carlsbadFixation
+    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ weakComplexEvidence ++
+      planBridge ++ directionalFixation ++ compensationTargetFixation ++ carlsbadFixation
 
   private def collectLineOccupationEvidence(
       side: String,
@@ -836,6 +893,56 @@ private[llm] object StrategicIdeaSelector:
         }
         .toList
 
+    val compensationOpenLines =
+      semantic.positionFeatures
+        .flatMap { features =>
+          val lineCount = semiOpenFilesFor(side, features) + openFilesCount(features)
+          val developmentLead = developmentLeadFor(side, features)
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              lineCount > 0 &&
+              hasCompensationLinePlanSupport(side, semantic) &&
+              hasCompensationLineAccess(side, pack, semantic)
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.LineOccupation,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_open_lines",
+              confidence = 0.70 + math.min(0.08, lineCount * 0.02) + Option.when(developmentLead >= 2)(0.04).getOrElse(0.0),
+              beneficiaryPieces = List("R", "Q"),
+              factIds =
+                List("compensation_open_lines", "material_deficit_compensation") ++
+                  Option.when(developmentLead >= 2)("development_lead_compensation").toList
+            )
+          }
+        }
+        .toList
+
+    val delayedRecoveryWindow =
+      semantic.positionFeatures
+        .flatMap { features =>
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              developmentLeadFor(side, features) >= 2 &&
+              hasDelayedRecoveryCompensationPlan(side, semantic) &&
+              hasCompensationLineAccess(side, pack, semantic)
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.LineOccupation,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "delayed_recovery_window",
+              confidence = 0.74,
+              beneficiaryPieces = List("R", "Q"),
+              factIds = List("delayed_material_recovery", "development_lead_compensation", "material_deficit_compensation")
+            )
+          }
+        }
+        .toList
+
     val planBridge =
       topPlansFor(side, semantic).flatMap { plan =>
         Option.when(plan.plan.id == PlanId.FileControl || plan.plan.id == PlanId.RookActivation) {
@@ -851,7 +958,7 @@ private[llm] object StrategicIdeaSelector:
         }
       }
 
-    openFileEvidence ++ doubledRooks ++ connectedRooks ++ rookOnSeventh ++ occupiedLineEvidence ++ routeEvidence ++ directionalEvidence ++ featureSupport ++ planBridge
+    openFileEvidence ++ doubledRooks ++ connectedRooks ++ rookOnSeventh ++ occupiedLineEvidence ++ routeEvidence ++ directionalEvidence ++ featureSupport ++ compensationOpenLines ++ delayedRecoveryWindow ++ planBridge
 
   private def collectOutpostEvidence(
       side: String,
@@ -1174,8 +1281,11 @@ private[llm] object StrategicIdeaSelector:
     val boardPatternPresent =
       hasBishopPinWatch(side, semantic) || hasQueensideClampWatch(side, semantic)
 
+    val compensationContextPresent =
+      semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(side, features))
+
     val typedAnchorPresent =
-      realAnchorPresent || (planSupportPresent && boardPatternPresent)
+      realAnchorPresent || (!compensationContextPresent && planSupportPresent && boardPatternPresent)
 
     val planBridge =
       topPlansFor(side, semantic).flatMap { plan =>
@@ -1436,6 +1546,101 @@ private[llm] object StrategicIdeaSelector:
           }
         }
 
+    val compensationDevelopmentLead =
+      semantic.positionFeatures
+        .flatMap { features =>
+          val developmentLead = developmentLeadFor(side, features)
+          val enemyWindow =
+            enemyKingCastledSideFor(side, features) == "none" ||
+              enemyKingExposedFilesFor(side, features) > 0
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              developmentLead >= 2 &&
+              enemyWindow &&
+              hasCompensationAttackPlanSupport(side, semantic)
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_development_lead",
+              confidence = 0.76 + math.min(0.06, developmentLead * 0.02),
+              focusZone = enemyKingZone,
+              factIds = List("material_deficit_compensation", "development_lead_compensation")
+            )
+          }
+        }
+        .toList
+
+    val compensationKingWindow =
+      semantic.positionFeatures
+        .flatMap { features =>
+          val attackers = attackersCountFor(side, features)
+          val ring = enemyKingRingAttackedFor(side, features)
+          val exposed = enemyKingExposedFilesFor(side, features)
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              hasCompensationAttackPlanSupport(side, semantic) &&
+              (
+                enemyKingCastledSideFor(side, features) == "none" ||
+                  exposed > 0
+              ) &&
+              (
+                attackers >= 2 ||
+                  ring >= 2 ||
+                  hasAttackLaneTowardEnemyKing(side, pack, semantic)
+              )
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_king_window",
+              confidence = 0.74 + math.min(0.06, ring * 0.02) + Option.when(exposed > 0)(0.03).getOrElse(0.0),
+              focusZone = enemyKingZone.orElse(Some("center")),
+              factIds =
+                List("material_deficit_compensation", "uncastled_or_unsettled_king_window") ++
+                  Option.when(exposed > 0)("king_exposed_files").toList
+            )
+          }
+        }
+        .toList
+
+    val compensationDiagonalBattery =
+      semantic.positionFeatures
+        .flatMap { features =>
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              hasDiagonalBatteryCompensation(side, semantic) &&
+              (
+                developmentLeadFor(side, features) >= 1 ||
+                  hasCompensationAttackPlanSupport(side, semantic)
+              ) &&
+              (
+                enemyKingCastledSideFor(side, features) == "none" ||
+                  enemyKingExposedFilesFor(side, features) > 0 ||
+                  enemyKingRingAttackedFor(side, features) >= 1
+              )
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_diagonal_battery",
+              confidence = 0.74 + Option.when(bishopPairFor(side, features))(0.04).getOrElse(0.0),
+              focusZone = enemyKingZone,
+              beneficiaryPieces = List("B", "Q"),
+              factIds =
+                List("compensation_diagonal_battery", "material_deficit_compensation") ++
+                  Option.when(bishopPairFor(side, features))("bishop_pair_compensation").toList
+            )
+          }
+        }
+        .toList
+
     val planBridge =
       topPlansFor(side, semantic).flatMap { plan =>
         Option.when(plan.plan.id == PlanId.KingsideAttack || plan.plan.id == PlanId.PawnStorm) {
@@ -1483,7 +1688,7 @@ private[llm] object StrategicIdeaSelector:
         )
       }.toList
 
-    mateNet ++ stuckCenter ++ weakBackRank ++ kingRingPressure ++ flankPawns ++ attackingThreats ++ motifPressure ++ routePressure ++ directionalPressure ++ planBridge ++ oppositeSideStorm ++ fianchettoAssault
+    mateNet ++ stuckCenter ++ weakBackRank ++ kingRingPressure ++ flankPawns ++ attackingThreats ++ motifPressure ++ routePressure ++ directionalPressure ++ compensationDevelopmentLead ++ compensationKingWindow ++ compensationDiagonalBattery ++ planBridge ++ oppositeSideStorm ++ fianchettoAssault
 
   private def collectFavorableTradeEvidence(
       side: String,
@@ -1808,7 +2013,42 @@ private[llm] object StrategicIdeaSelector:
         }
       }
 
-    preventedEvidence ++ counterBreakBridge ++ threatBridge ++ structureBridge ++ planBridge
+    val compensationCounterplayDenial =
+      semantic.positionFeatures
+        .flatMap { features =>
+          val neutralizedBreak = semantic.preventedPlans.flatMap(_.breakNeutralized.toList).flatMap(normalizeFileToken).distinct
+          val deniedSquares = semantic.preventedPlans.flatMap(_.deniedSquares.map(_.key)).distinct.take(3)
+          val passiveDefender =
+            semantic.preventedPlans.exists(plan =>
+              isCounterplaySuppression(plan) || isPreventiveWithoutCounterplaySuppression(plan)
+            ) ||
+              semantic.opponentPawnAnalysis.exists(analysis =>
+                analysis.counterBreak && semantic.preventedPlans.exists(preventsCounterBreak(_, analysis))
+              )
+          Option.when(
+            hasCompensationMaterialDeficitFor(side, features) &&
+              isCompensationEligiblePhase(semantic) &&
+              passiveDefender &&
+              (neutralizedBreak.nonEmpty || deniedSquares.nonEmpty)
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.CounterplaySuppression,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "compensation_counterplay_denial",
+              confidence = 0.78,
+              focusSquares = deniedSquares,
+              focusFiles = neutralizedBreak,
+              focusZone = neutralizedBreak.headOption.flatMap(zoneFromFileToken),
+              factIds =
+                List("material_deficit_compensation", "compensation_counterplay_denial") ++
+                  Option.when(neutralizedBreak.nonEmpty)("break_neutralized").toList
+            )
+          }
+        }
+        .toList
+
+    preventedEvidence ++ counterBreakBridge ++ threatBridge ++ structureBridge ++ planBridge ++ compensationCounterplayDenial
 
   private def mergeEvidence(
       evidence: List[StrategicIdeaEvidence],
@@ -1951,6 +2191,11 @@ private[llm] object StrategicIdeaSelector:
               hasConcretePawnBreakAnchor(candidate)
           )
         then 0.18
+        else if members.exists(candidate =>
+            candidate.kind == StrategicIdeaKind.KingAttackBuildUp &&
+              hasCompensationAttackAnchor(candidate, semantic)
+          )
+        then 0.14
         else if semantic.strategicPlanExperiments.exists(experiment =>
             experiment.themeL1 == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain.id &&
               experiment.evidenceTier != "refuted"
@@ -1968,11 +2213,13 @@ private[llm] object StrategicIdeaSelector:
       case StrategicIdeaKind.SpaceGainOrRestriction =>
         if hasBroadSpaceAnchor(candidate, semantic) then 0.08 else 0.0
       case StrategicIdeaKind.TargetFixing =>
-        if hasStrongTargetFixingAnchor(candidate, semantic) then 0.08
+        if hasCompensationTargetFixingAnchor(candidate, semantic) then 0.12
+        else if hasStrongTargetFixingAnchor(candidate, semantic) then 0.08
         else if isGenericTargetFixing(candidate, semantic) then -0.10
         else 0.0
       case StrategicIdeaKind.LineOccupation =>
         if hasStrongLineAnchor(candidate) then 0.10
+        else if hasCompensationLineAnchor(candidate, semantic) then 0.12
         else if hasRouteLineAnchor(candidate) then 0.06
         else 0.0
       case StrategicIdeaKind.OutpostCreationOrOccupation =>
@@ -1986,7 +2233,13 @@ private[llm] object StrategicIdeaSelector:
         else if isWeakConversionWindowOnly(candidate, semantic) then -0.12
         else 0.0
       case StrategicIdeaKind.CounterplaySuppression =>
-        if hasPreventionOrSuppressionAnchor(candidate.ownerSide, semantic) then 0.03 else 0.0
+        if hasCompensationSuppressionAnchor(candidate, semantic) then 0.10
+        else if hasPreventionOrSuppressionAnchor(candidate.ownerSide, semantic) then 0.03
+        else 0.0
+      case StrategicIdeaKind.KingAttackBuildUp =>
+        if hasCompensationAttackAnchor(candidate, semantic) then
+          if hasWeakKingWindowCompensationContext(candidate.ownerSide, semantic) then 0.04 else 0.12
+        else 0.0
       case _ =>
         0.0
 
@@ -2026,7 +2279,7 @@ private[llm] object StrategicIdeaSelector:
         val lineCompetitionPenalty =
           if familyMembers.exists(other =>
               other.kind == StrategicIdeaKind.LineOccupation &&
-                (hasStrongLineAnchor(other) || hasRouteLineAnchor(other))
+                (hasStrongLineAnchor(other) || hasCompensationLineAnchor(other, semantic) || hasRouteLineAnchor(other))
             )
           then 0.04
           else 0.0
@@ -2050,7 +2303,15 @@ private[llm] object StrategicIdeaSelector:
             )
           then -0.03
           else 0.0
-        genericCompetitionBonus + broadSpacePenalty
+        val compensationBonus =
+          if hasCompensationLineAnchor(candidate, semantic) &&
+              familyMembers.exists(other =>
+                other.kind == StrategicIdeaKind.SpaceGainOrRestriction &&
+                  hasBroadSpaceAnchor(other, semantic)
+              )
+          then 0.06
+          else 0.0
+        genericCompetitionBonus + broadSpacePenalty + compensationBonus
       case StrategicIdeaKind.OutpostCreationOrOccupation =>
         val minorPiecePenalty =
           if familyMembers.exists(other =>
@@ -2076,6 +2337,21 @@ private[llm] object StrategicIdeaSelector:
           )
         then 0.05
         else 0.0
+      case StrategicIdeaKind.KingAttackBuildUp =>
+        val quietCompensationCompetition =
+          if hasCompensationAttackAnchor(candidate, semantic) &&
+              hasWeakKingWindowCompensationContext(candidate.ownerSide, semantic) &&
+              familyMembers.exists(other =>
+                (other.kind == StrategicIdeaKind.LineOccupation &&
+                  hasCompensationLineAnchor(other, semantic)) ||
+                  (other.kind == StrategicIdeaKind.TargetFixing &&
+                    hasCompensationTargetFixingAnchor(other, semantic)) ||
+                  (other.kind == StrategicIdeaKind.CounterplaySuppression &&
+                    hasCompensationSuppressionAnchor(other, semantic))
+              )
+          then -0.10
+          else 0.0
+        quietCompensationCompetition
       case _ =>
         0.0
 
@@ -2232,14 +2508,23 @@ private[llm] object StrategicIdeaSelector:
       case _ => false
 
   private def enrichDigest(
+      pack: StrategyPack,
       digest: Option[NarrativeSignalDigest],
-      ideas: List[StrategyIdeaSignal]
+      ideas: List[StrategyIdeaSignal],
+      semantic: StrategicIdeaSemanticContext
   ): Option[NarrativeSignalDigest] =
     val base = digest.getOrElse(NarrativeSignalDigest())
     val dominant = ideas.headOption
     val secondary = ideas.drop(1).headOption
-    Option.when(dominant.isDefined || digest.isDefined)(
+    val compensationCarrier =
+      Option.when(!hasCompensationDigest(base))(deriveCompensationCarrier(pack, ideas, semantic)).flatten
+    Option.when(dominant.isDefined || digest.isDefined || compensationCarrier.exists(_.hasSignal))(
       base.copy(
+        compensation = base.compensation.orElse(compensationCarrier.flatMap(_.summary)),
+        compensationVectors =
+          if base.compensationVectors.nonEmpty then base.compensationVectors
+          else compensationCarrier.map(_.vectors).getOrElse(Nil),
+        investedMaterial = base.investedMaterial.orElse(compensationCarrier.flatMap(_.investedMaterial)),
         dominantIdeaKind = dominant.map(_.kind),
         dominantIdeaGroup = dominant.map(_.group),
         dominantIdeaReadiness = dominant.map(_.readiness),
@@ -2253,8 +2538,16 @@ private[llm] object StrategicIdeaSelector:
   private def enrichLongTermFocus(
       current: List[String],
       ideas: List[StrategyIdeaSignal],
-      targets: List[StrategyDirectionalTarget]
+      targets: List[StrategyDirectionalTarget],
+      digest: Option[NarrativeSignalDigest]
   ): List[String] =
+    val compensationLine =
+      digest.flatMap(_.compensation).map { summary =>
+        val vectors = digest.toList.flatMap(_.compensationVectors).take(2)
+        val vectorTail =
+          Option.when(vectors.nonEmpty)(s", backed by ${vectors.mkString(" and ")}").getOrElse("")
+        s"compensation carrier: $summary$vectorTail"
+      }
     val ideaLines =
       ideas.zipWithIndex.map { case (idea, idx) =>
         val prefix = if idx == 0 then "dominant idea" else "secondary idea"
@@ -2262,7 +2555,170 @@ private[llm] object StrategicIdeaSelector:
       }
     val targetLines =
       targets.take(2).map(target => s"objective: work toward making ${target.targetSquare} available for the ${pieceName(target.piece)}")
-    (ideaLines ++ targetLines ++ current).map(_.trim).filter(_.nonEmpty).distinct.take(6)
+    (compensationLine.toList ++ ideaLines ++ targetLines ++ current).map(_.trim).filter(_.nonEmpty).distinct.take(6)
+
+  private def deriveCompensationCarrier(
+      pack: StrategyPack,
+      ideas: List[StrategyIdeaSignal],
+      semantic: StrategicIdeaSemanticContext
+  ): Option[DerivedCompensationCarrier] =
+    val owner = ideas.headOption.map(_.ownerSide).getOrElse(pack.sideToMove)
+    semantic.positionFeatures
+      .filter(features => hasCompensationMaterialDeficitFor(owner, features))
+      .flatMap { features =>
+        val ideaRefs = ideas.flatMap(_.evidenceRefs).toSet
+        val ownRoutes = pack.pieceRoutes.filter(_.ownerSide == owner)
+        val ownTargets = pack.directionalTargets.filter(_.ownerSide == owner)
+        val developmentLead = developmentLeadFor(owner, features)
+        val openLineCount = semiOpenFilesFor(owner, features) + openFilesCount(features)
+        val lineAccessCarrier =
+          ownRoutes.exists(routePurposeContainsLinePressure) ||
+            ownTargets.exists(targetCarriesLinePressure)
+        val contestedLineTargets =
+          ownTargets.count(target =>
+            target.readiness == DirectionalTargetReadiness.Contested && targetCarriesLinePressure(target)
+          )
+        val attackWindow =
+          attackersCountFor(owner, features) +
+            enemyKingRingAttackedFor(owner, features) +
+            enemyKingExposedFilesFor(owner, features)
+        val transformationCarrier =
+          ideas.exists(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation) &&
+            (
+              ideaRefs.contains("source:exchange_availability_bridge") ||
+                ideaRefs.contains("source:iqp_simplification_profile") ||
+                ideaRefs.contains("source:plan_match_transformation") ||
+                ideaRefs.contains("exchange_availability_bridge") ||
+                ideaRefs.contains("iqp_simplification_profile") ||
+                ideaRefs.contains("capture_or_exchange")
+            )
+        val establishedPressureCarrier =
+          (
+            ideas.exists(_.kind == StrategicIdeaKind.LineOccupation) ||
+              ideas.exists(_.kind == StrategicIdeaKind.TargetFixing)
+          ) &&
+            (
+              openLineCount > 0 ||
+                lineAccessCarrier ||
+              contestedLineTargets > 0
+            )
+        val compensationDigestPhaseEligible =
+          isCompensationEligiblePhase(semantic) ||
+            semantic.afterCompensation.isDefined ||
+            transformationCarrier ||
+            establishedPressureCarrier
+        Option.when(compensationDigestPhaseEligible) {
+        val initiativeCarrier =
+          ideaRefs.contains("source:compensation_king_window") ||
+            ideaRefs.contains("source:compensation_development_lead") ||
+            ideaRefs.contains("source:compensation_diagonal_battery") ||
+            (
+              establishedPressureCarrier &&
+                (
+                  attackWindow >= 1 ||
+                    ideaRefs.contains("source:occupied_line_control") ||
+                    ideaRefs.contains("source:directional_line_access") ||
+                    contestedLineTargets > 0
+                )
+            ) ||
+            (
+              ideas.exists(_.kind == StrategicIdeaKind.KingAttackBuildUp) &&
+                (attackWindow >= 2 || developmentLead >= 2)
+            )
+        val linePressureCarrier =
+          ideaRefs.contains("source:compensation_open_lines") ||
+            ideaRefs.contains("source:compensation_target_fixation") ||
+            establishedPressureCarrier ||
+            (
+              ideas.exists(_.kind == StrategicIdeaKind.LineOccupation) &&
+                (
+                  openLineCount > 0 ||
+                    lineAccessCarrier
+                )
+            )
+        val delayedRecoveryCarrier =
+          ideaRefs.contains("source:delayed_recovery_window") ||
+            (transformationCarrier && (developmentLead >= 1 || lineAccessCarrier)) ||
+            (linePressureCarrier && (developmentLead >= 2 || establishedPressureCarrier))
+        val returnVectorCarrier =
+          transformationCarrier ||
+            ideaRefs.contains("source:compensation_target_fixation") ||
+            (linePressureCarrier && (openLineCount > 0 || lineAccessCarrier))
+
+        val summaryTerms =
+          if transformationCarrier then
+            List(
+              Option.when(delayedRecoveryCarrier)("delayed recovery"),
+              Option.when(linePressureCarrier)("line pressure"),
+              Option.when(initiativeCarrier)("initiative")
+            ).flatten
+          else
+            List(
+              Option.when(initiativeCarrier)("initiative"),
+              Option.when(linePressureCarrier)("line pressure"),
+              Option.when(delayedRecoveryCarrier)("delayed recovery")
+            ).flatten
+        val investedMaterial = Some(math.abs(materialEdgeFor(owner, features)) * 100).filter(_ > 0)
+        val thinReturnVectorOnly =
+          returnVectorCarrier &&
+            summaryTerms.isEmpty &&
+            !semantic.phase.equalsIgnoreCase("opening")
+        val lateTechnicalEndgameCompensation =
+          semantic.phase.equalsIgnoreCase("endgame") &&
+            investedMaterial.exists(_ >= 500) &&
+            !initiativeCarrier &&
+            !linePressureCarrier &&
+            !delayedRecoveryCarrier
+
+        val summary =
+          summaryTerms.distinct.take(2) match
+            case Nil =>
+              Option.when(returnVectorCarrier)("return vector")
+            case terms if returnVectorCarrier =>
+              Some(s"return vector through ${joinLowerTerms(terms)}")
+            case terms =>
+              Some(joinLowerTerms(terms))
+
+        val vectors =
+          List(
+            Option.when(initiativeCarrier)(
+              formatCompensationVector(
+                "Initiative",
+                0.40 +
+                  (math.min(2, attackWindow) * 0.10) +
+                  Option.when(developmentLead >= 2)(0.10).getOrElse(0.0)
+              )
+            ),
+            Option.when(linePressureCarrier)(
+              formatCompensationVector(
+                "Line Pressure",
+                0.40 +
+                  math.min(0.20, openLineCount * 0.10) +
+                  Option.when(ownRoutes.exists(routePurposeContainsLinePressure))(0.10).getOrElse(0.0)
+              )
+            ),
+            Option.when(delayedRecoveryCarrier)(
+              formatCompensationVector(
+                "Delayed Recovery",
+                0.40 +
+                  Option.when(developmentLead >= 2)(0.10).getOrElse(0.0) +
+                  Option.when(transformationCarrier)(0.10).getOrElse(0.0)
+              )
+            ),
+            Option.when(returnVectorCarrier)(
+              formatCompensationVector(
+                "Return Vector",
+                0.40 +
+                  Option.when(transformationCarrier)(0.10).getOrElse(0.0) +
+                  Option.when(linePressureCarrier || initiativeCarrier)(0.10).getOrElse(0.0)
+                )
+            )
+          ).flatten.distinct
+
+        val carrier = DerivedCompensationCarrier(summary, vectors, investedMaterial)
+        Option.when(carrier.hasSignal && !thinReturnVectorOnly && !lateTechnicalEndgameCompensation)(carrier)
+        }.flatten
+      }
 
   private def enrichEvidence(
       current: List[String],
@@ -2614,7 +3070,8 @@ private[llm] object StrategicIdeaSelector:
       candidate,
       Set(
         "minority_attack_fixation",
-        "carlsbad_fixation_profile"
+        "carlsbad_fixation_profile",
+        "compensation_target_fixation"
       )
     ) ||
       structureIs(semantic, StructureId.Carlsbad)
@@ -2642,6 +3099,20 @@ private[llm] object StrategicIdeaSelector:
         "rook_on_seventh"
       )
     )
+
+  private def hasCompensationLineAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(candidate.ownerSide, features)) &&
+      candidateHasAnySource(candidate, Set("compensation_open_lines", "delayed_recovery_window"))
+
+  private def hasCompensationTargetFixingAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(candidate.ownerSide, features)) &&
+      candidateHasSource(candidate, "compensation_target_fixation")
 
   private def hasRouteLineAnchor(candidate: Candidate): Boolean =
     candidateHasAnySource(candidate, Set("route_line_access", "directional_line_access", "line_control_features")) &&
@@ -2688,6 +3159,7 @@ private[llm] object StrategicIdeaSelector:
   ): Boolean =
     hasRealProphylaxisAnchor(semantic) ||
       (
+        !semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(side, features)) &&
         topPlansFor(side, semantic).exists(plan =>
           plan.plan.id == PlanId.Prophylaxis || plan.plan.id == PlanId.DefensiveConsolidation
         ) &&
@@ -2708,6 +3180,36 @@ private[llm] object StrategicIdeaSelector:
       hasSupportedProphylaxisContext(side, semantic) ||
       hasStableKindExperiment(semantic, StrategicIdeaKind.Prophylaxis) ||
       hasStableKindExperiment(semantic, StrategicIdeaKind.CounterplaySuppression)
+
+  private def hasCompensationAttackAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(candidate.ownerSide, features)) &&
+      candidateHasAnySource(
+        candidate,
+        Set("compensation_development_lead", "compensation_king_window", "compensation_diagonal_battery")
+      )
+
+  private def hasCompensationSuppressionAnchor(
+      candidate: Candidate,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(candidate.ownerSide, features)) &&
+      candidateHasSource(candidate, "compensation_counterplay_denial")
+
+  private def hasWeakKingWindowCompensationContext(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.positionFeatures.exists { features =>
+      hasCompensationMaterialDeficitFor(side, features) &&
+      isCompensationEligiblePhase(semantic) &&
+      enemyKingCastledSideFor(side, features) != "none" &&
+      enemyKingExposedFilesFor(side, features) == 0 &&
+      enemyKingRingAttackedFor(side, features) < 2 &&
+      attackersCountFor(side, features) < 2
+    }
 
   private def hasStrongConversionAnchor(
       candidate: Candidate,
@@ -2831,6 +3333,7 @@ private[llm] object StrategicIdeaSelector:
     else if strongTarget.nonEmpty then Some(StrategicIdeaKind.TargetFixing)
     else if line.exists(candidate =>
         hasStrongLineAnchor(candidate) ||
+          hasCompensationLineAnchor(candidate, semantic) ||
           hasRouteLineAnchor(candidate) ||
           target.exists(isGenericTargetFixing(_, semantic))
       )
@@ -2992,6 +3495,34 @@ private[llm] object StrategicIdeaSelector:
   private def withFocusSuffix(focus: String): String =
     Option(focus).map(_.trim).filter(_.nonEmpty).map(v => s" around $v").getOrElse("")
 
+  private def routePurposeContainsLinePressure(route: StrategyPieceRoute): Boolean =
+    val low = Option(route.purpose).getOrElse("").trim.toLowerCase
+    low.contains("open-file occupation") ||
+      low.contains("line access") ||
+      low.contains("file") ||
+      low.contains("clamp")
+
+  private def hasCompensationDigest(digest: NarrativeSignalDigest): Boolean =
+    digest.compensation.exists(_.trim.nonEmpty) ||
+      digest.compensationVectors.exists(_.trim.nonEmpty) ||
+      digest.investedMaterial.exists(_ > 0)
+
+  private def targetCarriesLinePressure(target: StrategyDirectionalTarget): Boolean =
+    target.strategicReasons.exists { reason =>
+      val low = Option(reason).getOrElse("").trim.toLowerCase
+      low.contains("line access") || low.contains("file")
+    }
+
+  private def joinLowerTerms(values: List[String]): String =
+    values.map(_.trim).filter(_.nonEmpty).distinct match
+      case Nil          => ""
+      case head :: Nil  => head
+      case a :: b :: Nil => s"$a and $b"
+      case many         => s"${many.dropRight(1).mkString(", ")}, and ${many.last}"
+
+  private def formatCompensationVector(label: String, score: Double): String =
+    s"$label (${f"${score.max(0.3).min(0.9)}%.1f"})"
+
   private def pieceName(code: String): String =
     code match
       case "N" => "knight"
@@ -3049,11 +3580,24 @@ private[llm] object StrategicIdeaSelector:
   private def materialEdgeFor(side: String, features: PositionFeatures): Int =
     if side == "white" then features.materialPhase.materialDiff else -features.materialPhase.materialDiff
 
+  private def hasCompensationMaterialDeficitFor(side: String, features: PositionFeatures): Boolean =
+    val edge = materialEdgeFor(side, features)
+    edge <= -1 && edge >= -3
+
   private def spaceDiffFor(side: String, features: PositionFeatures): Int =
     if side == "white" then features.centralSpace.spaceDiff else -features.centralSpace.spaceDiff
 
   private def lowMobilityPiecesFor(side: String, features: PositionFeatures): Int =
     if side == "white" then features.activity.whiteLowMobilityPieces else features.activity.blackLowMobilityPieces
+
+  private def developmentLagFor(side: String, features: PositionFeatures): Int =
+    if side == "white" then features.activity.whiteDevelopmentLag else features.activity.blackDevelopmentLag
+
+  private def enemyDevelopmentLagFor(side: String, features: PositionFeatures): Int =
+    if side == "white" then features.activity.blackDevelopmentLag else features.activity.whiteDevelopmentLag
+
+  private def developmentLeadFor(side: String, features: PositionFeatures): Int =
+    (enemyDevelopmentLagFor(side, features) - developmentLagFor(side, features)).max(0)
 
   private def openFilesCount(features: PositionFeatures): Int = features.lineControl.openFilesCount
 
@@ -3068,6 +3612,9 @@ private[llm] object StrategicIdeaSelector:
 
   private def enemyKingExposedFilesFor(side: String, features: PositionFeatures): Int =
     if side == "white" then features.kingSafety.blackKingExposedFiles else features.kingSafety.whiteKingExposedFiles
+
+  private def enemyKingCastledSideFor(side: String, features: PositionFeatures): String =
+    if side == "white" then features.kingSafety.blackCastledSide else features.kingSafety.whiteCastledSide
 
   private def colorComplexClampFor(side: String, state: StrategicStateFeatures): Boolean =
     if side == "white" then state.whiteColorComplexClamp else state.blackColorComplexClamp
@@ -3089,6 +3636,112 @@ private[llm] object StrategicIdeaSelector:
       semantic.pieceActivity.exists(activity =>
         activity.isBadBishop && board.colorAt(activity.square).exists(color => matchesSide(color, side))
       )
+    }
+
+  private def isCompensationEligiblePhase(semantic: StrategicIdeaSemanticContext): Boolean =
+    semantic.phase == "opening" || semantic.phase == "middlegame"
+
+  private def hasConversionPlanPressure(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    topPlansFor(side, semantic).take(2).exists(plan =>
+      plan.plan.id == PlanId.Simplification ||
+        plan.plan.id == PlanId.Exchange ||
+        plan.plan.id == PlanId.QueenTrade
+    )
+
+  private def hasCompensationAttackPlanSupport(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    !hasConversionPlanPressure(side, semantic) &&
+      topPlansFor(side, semantic).take(4).exists(plan =>
+        plan.plan.id == PlanId.OpeningDevelopment ||
+          plan.plan.id == PlanId.PieceActivation ||
+          plan.plan.id == PlanId.KingsideAttack ||
+          plan.plan.id == PlanId.PawnStorm ||
+          plan.plan.id == PlanId.FileControl
+      )
+
+  private def hasCompensationLinePlanSupport(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    !hasConversionPlanPressure(side, semantic) &&
+      topPlansFor(side, semantic).take(4).exists(plan =>
+        plan.plan.id == PlanId.OpeningDevelopment ||
+          plan.plan.id == PlanId.PieceActivation ||
+          plan.plan.id == PlanId.RookActivation ||
+          plan.plan.id == PlanId.FileControl ||
+        plan.plan.id == PlanId.WeakPawnAttack
+      )
+
+  private def hasCompensationTargetPlanSupport(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    !hasConversionPlanPressure(side, semantic) &&
+      topPlansFor(side, semantic).take(4).exists(plan =>
+        plan.plan.id == PlanId.WeakPawnAttack ||
+          plan.plan.id == PlanId.FileControl ||
+          plan.plan.id == PlanId.Blockade ||
+          plan.plan.id == PlanId.MinorityAttack
+      )
+
+  private def hasDelayedRecoveryCompensationPlan(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    hasCompensationLinePlanSupport(side, semantic) &&
+      topPlansFor(side, semantic).take(3).exists(plan =>
+        plan.plan.id == PlanId.OpeningDevelopment ||
+          plan.plan.id == PlanId.PieceActivation ||
+          plan.plan.id == PlanId.RookActivation ||
+          plan.plan.id == PlanId.FileControl
+      )
+
+  private def hasAttackLaneTowardEnemyKing(
+      side: String,
+      pack: StrategyPack,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    pack.pieceRoutes.exists(route =>
+      route.ownerSide == side &&
+        route.surfaceMode != RouteSurfaceMode.Hidden &&
+        route.route.lastOption.flatMap(squareFromKey).exists(isNearEnemyKing(side, _, semantic))
+    ) ||
+      pack.directionalTargets.exists(target =>
+        target.ownerSide == side &&
+          squareFromKey(target.targetSquare).exists(isNearEnemyKing(side, _, semantic))
+      )
+
+  private def hasCompensationLineAccess(
+      side: String,
+      pack: StrategyPack,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    pack.pieceRoutes.exists(route =>
+      route.ownerSide == side &&
+        route.surfaceMode != RouteSurfaceMode.Hidden &&
+        isMajorPiece(route.piece) &&
+        route.route.lastOption.flatMap(squareFromKey).flatMap(endpoint => lineAccessFacts(side, endpoint, semantic)).nonEmpty
+    ) ||
+      pack.directionalTargets.exists(target =>
+        target.ownerSide == side &&
+          isMajorPiece(target.piece) &&
+          squareFromKey(target.targetSquare).flatMap(endpoint => lineAccessFacts(side, endpoint, semantic)).nonEmpty
+      )
+
+  private def hasDiagonalBatteryCompensation(
+      side: String,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.motifs.exists {
+      case Motif.Battery(_, _, axis, color, _, _, _, _)
+          if matchesSide(color, side) && axis == Motif.BatteryAxis.Diagonal =>
+        true
+      case _ => false
     }
 
   private def isMajorPiece(piece: String): Boolean =

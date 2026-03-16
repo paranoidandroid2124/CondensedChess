@@ -93,6 +93,24 @@ export interface ImportHistoryView {
   recentAnalyses: ImportHistoryAnalysis[];
 }
 
+export interface StudyChapterSummary {
+  id: string;
+  name: string;
+  url?: string;
+}
+
+export interface StudyView {
+  id: string;
+  chapterId: string;
+  name: string;
+  chapterName: string;
+  canWrite: boolean;
+  chapters: StudyChapterSummary[];
+  url?: string;
+  visibility?: string;
+  notebookDossier?: unknown;
+}
+
 export interface ServerEvalData {
   ch: string;
   analysis?: Analysis;
@@ -171,7 +189,7 @@ export interface AnalyseOpts {
   hunter: boolean;
   explorer: ExplorerOpts;
   socketSend: AnalyseSocketSend;
-  study?: any;
+  study?: StudyView;
   tagTypes?: string;
   relay?: any;
   $side?: Cash;

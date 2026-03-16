@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
 
@@ -159,4 +160,110 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     assertEquals(countOccurrences(rendered, "Strategically, this phase rewards a coherent plan around PawnStorm Kingside."), 1)
     assert(rendered.contains("Critical branch: Compared with **Nf6**, **Qe6** holds roughly a 0.5-pawn edge."))
     assert(!rendered.contains("The strategic stack still favors"))
+  }
+
+  test("strategy-aware hybrid bridge reflects compensation owner and execution focus") {
+    val ctx = BookmakerProseGoldenFixtures.exchangeSacrifice.ctx
+    val moment =
+      KeyMoment(
+        ply = ctx.ply,
+        momentType = "SustainedPressure",
+        score = 0,
+        description = "Compensation bridge"
+      )
+    val parts = CommentaryEngine.buildHybridNarrativeParts(ctx, moment)
+    val strategyPack = BookmakerProseGoldenFixtures.exchangeSacrifice.strategyPack
+    val digest = strategyPack.flatMap(_.signalDigest)
+
+    val bridge = CommentaryEngine.buildHybridNarrativeBridge(ctx, parts, strategyPack, digest)
+
+    assert(bridge.contains("White"))
+    assert(bridge.toLowerCase.contains("compensation"))
+    assert(bridge.toLowerCase.contains("execution still runs through"))
+    assert(bridge.toLowerCase.contains("long-term objective"))
+  }
+
+  test("strategy-aware hybrid bridge uses normalized quiet compensation language across surfaces") {
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val moment =
+      KeyMoment(
+        ply = ctx.ply,
+        momentType = "StrategicBridge",
+        score = 0,
+        description = "Quiet compensation bridge"
+      )
+    val parts = CommentaryEngine.buildHybridNarrativeParts(ctx, moment)
+    val strategyPack =
+      Some(
+        StrategyPack(
+          sideToMove = "black",
+          pieceRoutes = List(
+            StrategyPieceRoute(
+              ownerSide = "black",
+              piece = "R",
+              from = "a8",
+              route = List("a8", "d8", "d3"),
+              purpose = "kingside clamp",
+              strategicFit = 0.82,
+              tacticalSafety = 0.77,
+              surfaceConfidence = 0.79,
+              surfaceMode = RouteSurfaceMode.Toward
+            )
+          ),
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "black",
+              piece = "Q",
+              from = "d8",
+              target = "b6",
+              idea = "fix the queenside targets"
+            )
+          ),
+          strategicIdeas = List(
+            StrategyIdeaSignal(
+              ideaId = "idea_benko_line",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.LineOccupation,
+              group = "slow_structural",
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("b2", "c4", "d4"),
+              focusFiles = List("b", "c", "d"),
+              focusZone = Some("queenside"),
+              beneficiaryPieces = List("R", "Q"),
+              confidence = 0.86
+            ),
+            StrategyIdeaSignal(
+              ideaId = "idea_benko_targets",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.TargetFixing,
+              group = "slow_structural",
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("b2", "a6"),
+              focusFiles = List("a", "b"),
+              focusZone = Some("queenside"),
+              beneficiaryPieces = List("R"),
+              confidence = 0.79
+            )
+          ),
+          longTermFocus = List("fix the queenside targets before recovering the pawn"),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("return vector through line pressure and delayed recovery"),
+              compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+              investedMaterial = Some(100),
+              dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+              dominantIdeaGroup = Some("slow_structural"),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("b2, c4, d4")
+            )
+          )
+        )
+      )
+    val digest = strategyPack.flatMap(_.signalDigest)
+
+    val bridge = CommentaryEngine.buildHybridNarrativeBridge(ctx, parts, strategyPack, digest)
+
+    assert(bridge.toLowerCase.contains("fixed queenside targets"), clue(bridge))
+    assert(bridge.toLowerCase.contains("queenside"), clue(bridge))
+    assert(!bridge.toLowerCase.contains("kingside clamp"), clue(bridge))
   }

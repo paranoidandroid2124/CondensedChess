@@ -625,10 +625,19 @@ case class AnalysisOptions(style: String, focusOn: List[String])
 object AnalysisOptions:
   given Reads[AnalysisOptions] = Json.reads[AnalysisOptions]
 
+case class ProbeResultsByPlyEntry(
+    ply: Int,
+    results: List[lila.llm.model.ProbeResult]
+)
+object ProbeResultsByPlyEntry:
+  given Reads[ProbeResultsByPlyEntry] = Json.reads[ProbeResultsByPlyEntry]
+  given Writes[ProbeResultsByPlyEntry] = Json.writes[ProbeResultsByPlyEntry]
+
 case class FullAnalysisRequest(
     pgn: String,
     evals: List[MoveEval],
-    options: AnalysisOptions
+    options: AnalysisOptions,
+    probeResultsByPly: Option[List[ProbeResultsByPlyEntry]] = None
 )
 object FullAnalysisRequest:
   given Reads[FullAnalysisRequest] = Json.reads[FullAnalysisRequest]

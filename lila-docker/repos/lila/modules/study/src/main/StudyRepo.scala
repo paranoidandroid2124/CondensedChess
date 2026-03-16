@@ -136,6 +136,20 @@ final class StudyRepo(private[study] val coll: AsyncColl)(using
             "settings" -> s.settings.some,
             "visibility" -> s.visibility.some,
             "description" -> s.description,
+            "notebookDossier" -> s.notebookDossier,
+            "updatedAt" -> nowInstant.some
+          )
+        )
+    .void
+
+  def setNotebookDossier(studyId: StudyId, dossier: Option[String]): Funit =
+    import toBSONValueOption.given
+    coll:
+      _.update
+        .one(
+          $id(studyId),
+          $setsAndUnsets(
+            "notebookDossier" -> dossier,
             "updatedAt" -> nowInstant.some
           )
         )

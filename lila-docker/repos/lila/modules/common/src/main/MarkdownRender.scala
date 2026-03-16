@@ -217,7 +217,7 @@ object MarkdownRender:
       val quotedDomain = java.util.regex.Pattern.quote(expander.domain.value)
       PgnRegexes(
         s"""^(?:https?://)?$quotedDomain/(?:embed/)?(?:game/)?(\\w{8})(?:(?:/(white|black))|\\w{4}|)(?:#(\\d+))?$$""".r,
-        s"""^(?:https?://)?$quotedDomain/study/(?:embed/)?(?:\\w{8}/)?(\\w{8})(?:#(last|\\d+))?$$""".r
+        s"""^(?:https?://)?$quotedDomain/notebook/(?:embed/)?(?:\\w{8}/)?(\\w{8})(?:#(last|\\d+))?$$""".r
       )
 
     private def renderLink(node: Link, context: NodeRendererContext, html: HtmlWriter): Unit =

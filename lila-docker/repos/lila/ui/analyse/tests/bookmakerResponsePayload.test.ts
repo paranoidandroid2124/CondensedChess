@@ -70,4 +70,54 @@ describe('bookmaker response payload', () => {
     assert.equal(decoded.authorEvidence.length, 1);
     assert.equal(decoded.signalDigest?.authoringEvidence, 'Question remains open.');
   });
+
+  test('decodeBookmakerResponse preserves optional strategyPack payload', () => {
+    const decoded = decodeBookmakerResponse({
+      strategyPack: {
+        schema: 'chesstory.strategyPack.v2',
+        sideToMove: 'black',
+        strategicIdeas: [
+          {
+            ideaId: 'idea_1',
+            ownerSide: 'white',
+            kind: 'king_attack_build_up',
+            group: 'tactical_forcing',
+            readiness: 'build',
+            focusSquares: ['g7', 'h7'],
+            confidence: 0.91,
+          },
+        ],
+        pieceRoutes: [
+          {
+            ownerSide: 'white',
+            piece: 'Q',
+            from: 'd1',
+            route: ['d1', 'g4', 'h5'],
+            purpose: 'mate threats',
+            strategicFit: 0.9,
+            tacticalSafety: 0.72,
+            surfaceConfidence: 0.84,
+            surfaceMode: 'toward',
+          },
+        ],
+        pieceMoveRefs: [],
+        directionalTargets: [
+          {
+            targetId: 'target_1',
+            ownerSide: 'white',
+            piece: 'Q',
+            from: 'd1',
+            targetSquare: 'h7',
+            readiness: 'build',
+          },
+        ],
+        longTermFocus: ['keep the initiative rather than recovering material'],
+      },
+    });
+
+    assert.equal(decoded.strategyPack?.sideToMove, 'black');
+    assert.equal(decoded.strategyPack?.strategicIdeas[0]?.ownerSide, 'white');
+    assert.equal(decoded.strategyPack?.pieceRoutes[0]?.route[2], 'h5');
+    assert.equal(decoded.strategyPack?.directionalTargets[0]?.targetSquare, 'h7');
+  });
 });

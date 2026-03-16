@@ -14,6 +14,19 @@ final class LlmController(
     env: Env
 ) extends LilaController(env):
 
+  private val GameArcRefineHeader = "X-Chesstory-GameArc-Refine"
+
+  private def normalizeProbeResultsByPly(
+      entries: Option[List[lila.llm.ProbeResultsByPlyEntry]]
+  ): Map[Int, List[lila.llm.model.ProbeResult]] =
+    entries
+      .getOrElse(Nil)
+      .collect {
+        case entry if entry.ply > 0 && entry.results.nonEmpty =>
+          entry.ply -> entry.results.take(1)
+      }
+      .groupMapReduce(_._1)(_._2)(_ ++ _)
+
   // Tier quota policy:
   // - anonymous: Game Chronicle 1/day per IP
   // - free user: Game Chronicle 1/day + move analysis 100/day
@@ -79,28 +92,39 @@ final class LlmController(
     ctx.body.body.validate[FullAnalysisRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
       analysisReq =>
-        withFullGameQuota:
-          allowLlmPolish =>
-            api
-              .analyzeGameChronicleLocal(
-                pgn = analysisReq.pgn,
-                evals = analysisReq.evals,
-                style = analysisReq.options.style,
-                focusOn = analysisReq.options.focusOn,
-                allowLlmPolish = allowLlmPolish,
-                asyncTier = false,
-                lang = requestLang,
-                planTier = resolvedPlanTier,
-                llmLevel = resolvedGameAnalysisLlmLevel
-              )
-              .map:
-                case Some(response) =>
-                  val uidOpt = ctx.me.map(_.userId.value)
-                  val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
-                  uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
-                  val wrapper = Json.toJson(response).as[JsObject] ++ Json.obj("ccaEnabled" -> isCcaEnabled)
-                  Ok(wrapper)
-                case None           => ServiceUnavailable("Game Chronicle unavailable")
+        val suppliedProbeResults =
+          analysisReq.probeResultsByPly.exists(_.exists(_.results.nonEmpty))
+        val isProbeRefinement =
+          suppliedProbeResults && ctx.req.headers.get(GameArcRefineHeader).contains("1")
+
+        def runGameChronicle(allowLlmPolish: Boolean) =
+          api
+            .analyzeGameChronicleLocal(
+              pgn = analysisReq.pgn,
+              evals = analysisReq.evals,
+              style = analysisReq.options.style,
+              focusOn = analysisReq.options.focusOn,
+              allowLlmPolish = allowLlmPolish,
+              asyncTier = false,
+              lang = requestLang,
+              planTier = resolvedPlanTier,
+              llmLevel = resolvedGameAnalysisLlmLevel,
+              probeResultsByPly = normalizeProbeResultsByPly(analysisReq.probeResultsByPly)
+            )
+            .map:
+              case Some(response) =>
+                val uidOpt = ctx.me.map(_.userId.value)
+                val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
+                uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
+                val wrapper = Json.toJson(response).as[JsObject] ++ Json.obj("ccaEnabled" -> isCcaEnabled)
+                Ok(wrapper)
+              case None           => ServiceUnavailable("Game Chronicle unavailable")
+
+        if isProbeRefinement then runGameChronicle(allowLlmPolish = true)
+        else
+          withFullGameQuota:
+            allowLlmPolish =>
+              runGameChronicle(allowLlmPolish)
     )
 
   /** Game Chronicle analysis (async queue). */

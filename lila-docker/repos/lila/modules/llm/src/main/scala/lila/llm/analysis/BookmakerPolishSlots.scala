@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.{ BookmakerRefsV1, VariationRefV1 }
+import lila.llm.StrategyPack
 import lila.llm.model.*
 import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 
@@ -41,9 +42,11 @@ object BookmakerPolishSlotsBuilder:
   def build(
       ctx: NarrativeContext,
       outline: NarrativeOutline,
-      refs: Option[BookmakerRefsV1]
+      refs: Option[BookmakerRefsV1],
+      strategyPack: Option[StrategyPack] = None
   ): Option[BookmakerPolishSlots] =
-    val thesis = StrategicThesisBuilder.build(ctx)
+    val surface = StrategyPackSurface.from(strategyPack)
+    val thesis = StrategicThesisBuilder.build(ctx, strategyPack)
     val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).filter(_.nonEmpty)
     val mainMoveBeat = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).filter(_.nonEmpty)
     val decisionBeat = outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint).map(_.text).filter(_.nonEmpty)
@@ -53,7 +56,7 @@ object BookmakerPolishSlotsBuilder:
       splitSentences(mainMoveBeat.getOrElse(""))
         .map(BookmakerSlotSanitizer.sanitizeUserText)
         .filter(_.nonEmpty)
-    val annotationOverride = annotationClaimOverride(ctx, mainMoveSentences)
+    val annotationOverride = annotationClaimOverride(ctx, mainMoveSentences, surface)
     val claimCore =
       annotationOverride.map(_._1)
         .orElse(thesis.map(_.claim))
@@ -116,13 +119,36 @@ object BookmakerPolishSlotsBuilder:
 
   private def annotationClaimOverride(
       ctx: NarrativeContext,
-      mainMoveSentences: List[String]
+      mainMoveSentences: List[String],
+      surface: StrategyPackSurface.Snapshot
   ): Option[(String, List[String])] =
-    Option.when(CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx) && mainMoveSentences.nonEmpty) {
+    Option.when(
+      CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx) &&
+        mainMoveSentences.nonEmpty &&
+        !shouldPreserveStrategicThesis(surface, mainMoveSentences.head)
+    ) {
       val claim = mainMoveSentences.head
       val support = mainMoveSentences.drop(1)
       (claim, support)
     }
+
+  private def shouldPreserveStrategicThesis(
+      surface: StrategyPackSurface.Snapshot,
+      candidateClaim: String
+  ): Boolean =
+    hasStrategicClaimSurface(surface) ||
+      startsWithGenericDecisionScaffold(candidateClaim)
+
+  private def hasStrategicClaimSurface(surface: StrategyPackSurface.Snapshot): Boolean =
+    surface.dominantIdeaText.nonEmpty ||
+      surface.executionText.nonEmpty ||
+      surface.objectiveText.nonEmpty ||
+      surface.compensationPosition ||
+      surface.investedMaterial.exists(_ > 0)
+
+  private def startsWithGenericDecisionScaffold(text: String): Boolean =
+    val low = Option(text).getOrElse("").trim.toLowerCase
+    low.startsWith("the whole decision turns on") || low.startsWith("the key decision is to choose")
 
   private def splitSentences(text: String): List[String] =
     Option(text)

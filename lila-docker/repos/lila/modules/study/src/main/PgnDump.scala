@@ -73,7 +73,7 @@ final class PgnDump(
           List(
             Tag("StudyName", study.name),
             Tag("ChapterName", chapter.name),
-            Tag("ChapterURL", s"${net.baseUrl}/study/${study.id}/${chapter.id}"),
+            Tag("ChapterURL", s"${net.baseUrl}/notebook/${study.id}/${chapter.id}"),
             Tag(_.Annotator, s"${net.baseUrl}/@/${ownerName(study)}")
           )
         ) ::: chapter.root.fen.isInitial.not.so(

@@ -249,8 +249,46 @@ type GameChronicleMoment = {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    strategyPack?: {
+        schema: string;
+        sideToMove: string;
+        strategicIdeas: Array<{
+            ideaId: string;
+            ownerSide: string;
+            kind: StrategicIdeaKind | string;
+            group: StrategicIdeaGroup | string;
+            readiness: string;
+            focusSquares?: string[];
+            focusFiles?: string[];
+            focusDiagonals?: string[];
+            focusZone?: string | null;
+            beneficiaryPieces?: string[];
+            confidence: number;
+        }>;
+        pieceRoutes: Array<{
+            ownerSide: string;
+            piece: string;
+            from: string;
+            route: string[];
+            purpose: string;
+            strategicFit: number;
+            tacticalSafety: number;
+            surfaceConfidence: number;
+            surfaceMode: string;
+        }>;
+        pieceMoveRefs: Array<{
+            ownerSide: string;
+            piece: string;
+            from: string;
+            target: string;
+            idea: string;
+        }>;
+        directionalTargets: StrategyDirectionalTarget[];
+        longTermFocus: string[];
+    };
     signalDigest?: NarrativeSignalDigest;
     probeRequests?: ProbeRequest[];
+    probeRefinementRequests?: ProbeRequest[];
     authorQuestions?: AuthorQuestionSummary[];
     authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
@@ -411,7 +449,13 @@ function routeSurfaceText(route: { piece: string; route: string[]; surfaceMode: 
 }
 
 function humanizeIdeaKind(kind: string): string {
-    return humanizeToken(kind.replace(/_/g, ' '));
+    return kind
+        .replace(/[_-]+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }
 
 function ideaSurfaceText(idea: ActiveStrategicIdeaRef): string {
@@ -426,6 +470,105 @@ function objectiveSurfaceText(target: StrategyDirectionalTarget): string {
 
 function routeOwnerLabel(side: string): string {
     return side === 'black' ? 'Black' : 'White';
+}
+
+type NarrativeStrategySurface = {
+    dominantIdea: ActiveStrategicIdeaRef | null;
+    secondaryIdea: ActiveStrategicIdeaRef | null;
+    campaignOwner: string | null;
+    ownerMismatch: boolean;
+    executionRoute: ActiveStrategicRouteRef | ActiveBranchRouteCue | null;
+    objectiveTargets: StrategyDirectionalTarget[];
+    focus: string | null;
+};
+
+function strategyIdeaFromPack(moment: GameChronicleMoment, index: number): ActiveStrategicIdeaRef | null {
+    const idea = moment.strategyPack?.strategicIdeas?.[index];
+    if (!idea) return null;
+    const focusSummary = [
+        ...(idea.focusSquares || []),
+        ...(idea.focusFiles || []),
+        ...(idea.focusDiagonals || []),
+        idea.focusZone || '',
+    ]
+        .filter(Boolean)
+        .join(', ');
+    return {
+        ideaId: idea.ideaId,
+        ownerSide: idea.ownerSide,
+        kind: idea.kind,
+        group: idea.group,
+        readiness: idea.readiness as ActiveStrategicIdeaRef['readiness'],
+        focusSummary,
+        confidence: idea.confidence,
+    };
+}
+
+function strategyExecutionFromPack(
+    moment: GameChronicleMoment,
+    owner: string | null,
+): ActiveStrategicRouteRef | null {
+    const route =
+        moment.strategyPack?.pieceRoutes?.find(value => value.surfaceMode !== 'hidden' && (!owner || value.ownerSide === owner)) ||
+        moment.strategyPack?.pieceRoutes?.find(value => value.surfaceMode !== 'hidden');
+    if (route) {
+        return {
+            routeId: `${route.piece.toLowerCase()}-${route.route.join('-')}`,
+            ownerSide: route.ownerSide,
+            piece: route.piece,
+            route: route.route,
+            purpose: route.purpose,
+            strategicFit: 0,
+            tacticalSafety: 0,
+            surfaceConfidence: 0,
+            surfaceMode: (route.surfaceMode as 'exact' | 'toward' | 'hidden') || 'toward',
+        };
+    }
+    const moveRef =
+        moment.strategyPack?.pieceMoveRefs?.find(value => !owner || value.ownerSide === owner) ||
+        moment.strategyPack?.pieceMoveRefs?.[0];
+    if (!moveRef) return null;
+    return {
+        routeId: `${moveRef.piece.toLowerCase()}-${moveRef.from}-${moveRef.target}`,
+        ownerSide: moveRef.ownerSide,
+        piece: moveRef.piece,
+        route: [moveRef.from, moveRef.target],
+        purpose: moveRef.idea,
+        strategicFit: 0,
+        tacticalSafety: 0,
+        surfaceConfidence: 0,
+        surfaceMode: 'toward' as const,
+    };
+}
+
+function narrativeStrategySurface(moment: GameChronicleMoment): NarrativeStrategySurface {
+    const dominantIdea = moment.activeStrategicIdeas?.[0] || strategyIdeaFromPack(moment, 0);
+    const secondaryIdea = moment.activeStrategicIdeas?.[1] || strategyIdeaFromPack(moment, 1);
+    const campaignOwner = dominantIdea?.ownerSide || moment.strategyPack?.sideToMove || null;
+    const ownerMismatch = !!campaignOwner && !!moment.side && campaignOwner !== moment.side;
+    const executionRoute =
+        (moment.activeBranchDossier?.routeCue && (!campaignOwner || moment.activeBranchDossier.routeCue.ownerSide === campaignOwner)
+            ? moment.activeBranchDossier.routeCue
+            : null) ||
+        moment.activeStrategicRoutes?.find(route => route.surfaceMode !== 'hidden' && (!campaignOwner || route.ownerSide === campaignOwner)) ||
+        moment.activeStrategicRoutes?.find(route => route.surfaceMode !== 'hidden') ||
+        strategyExecutionFromPack(moment, campaignOwner);
+    const objectiveTargets =
+        (moment.activeDirectionalTargets || []).filter(target => !campaignOwner || target.ownerSide === campaignOwner) ||
+        [];
+    const fallbackTargets =
+        objectiveTargets.length
+            ? objectiveTargets
+            : (moment.strategyPack?.directionalTargets || []).filter(target => !campaignOwner || target.ownerSide === campaignOwner);
+    return {
+        dominantIdea,
+        secondaryIdea,
+        campaignOwner,
+        ownerMismatch,
+        executionRoute,
+        objectiveTargets: fallbackTargets,
+        focus: moment.strategyPack?.longTermFocus?.find(Boolean)?.trim() || null,
+    };
 }
 
 function eventTargetElement(target: EventTarget | null): Element | null {
@@ -942,6 +1085,7 @@ export function narrativeMomentView(
 
 function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode | null {
     const digest = moment.signalDigest;
+    const strategySurface = narrativeStrategySurface(moment);
     const canonicalDecisionComparison = digest?.decisionComparison;
     const fallbackDecisionComparison = !canonicalDecisionComparison
         ? narrativeFallbackDecisionComparison(moment)
@@ -997,6 +1141,16 @@ function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMo
         typeof digest?.investedMaterial === 'number' ? ['Investment', `${digest.investedMaterial}cp`] : null,
         compensationVectors.length ? ['Return', compensationVectors.join('; ')] : null,
     ].filter(Boolean) as [string, string][];
+    const strategyRows = [
+        strategySurface.dominantIdea ? ['Idea', `Dominant ${ideaSurfaceText(strategySurface.dominantIdea)}`] : null,
+        strategySurface.secondaryIdea ? ['Idea', `Secondary ${ideaSurfaceText(strategySurface.secondaryIdea)}`] : null,
+        strategySurface.ownerMismatch && strategySurface.campaignOwner
+            ? ['Campaign', `${routeOwnerLabel(strategySurface.campaignOwner)} campaign`]
+            : null,
+        strategySurface.executionRoute ? ['Execution', routeSurfaceText(strategySurface.executionRoute)] : null,
+        strategySurface.objectiveTargets.length ? ['Objective', objectiveSurfaceText(strategySurface.objectiveTargets[0])] : null,
+        strategySurface.focus ? ['Focus', strategySurface.focus] : null,
+    ].filter(Boolean) as [string, string][];
 
     if (
         !mainPlans.length &&
@@ -1008,6 +1162,7 @@ function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMo
         !decisionSurface.evidence &&
         !signalRows.length &&
         !structureRows.length &&
+        !strategyRows.length &&
         !prophylaxisRows.length &&
         !practicalRows.length &&
         !compensationRows.length &&
@@ -1045,6 +1200,7 @@ function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMo
                 ]),
             ))
             : null,
+        strategyRows.length ? narrativeSignalGroupView('Strategy', strategyRows) : null,
         structureRows.length ? narrativeSignalGroupView('Structure', structureRows) : null,
         prophylaxisRows.length ? narrativeSignalGroupView('Prophylaxis', prophylaxisRows) : null,
         practicalRows.length ? narrativeSignalGroupView('Practical Task', practicalRows) : null,
@@ -1301,34 +1457,36 @@ function narrativeEvidenceMoveChip(keyMove: string, moveRefs: Map<string, string
 function narrativeStrategicNoteView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode {
     const note = moment.activeStrategicNote;
     const dossier = moment.activeBranchDossier;
+    const strategySurface = narrativeStrategySurface(moment);
     const threadLabel = dossier?.threadLabel || moment.strategicThread?.themeLabel;
     const threadStage = dossier?.threadStage || moment.strategicThread?.stageLabel;
     const strategicMoves = (moment.activeStrategicMoves || []).filter(m => typeof m.uci === 'string' && m.uci.length >= 4);
-    const strategicIdeas = (moment.activeStrategicIdeas || []).filter(
-        idea => typeof idea.kind === 'string' && typeof idea.focusSummary === 'string' && idea.focusSummary.length,
-    );
-    const strategicRoutes = (moment.activeStrategicRoutes || []).filter(
-        r => Array.isArray(r.route) && r.route.length >= 2 && r.surfaceMode !== 'hidden',
-    );
-    const objectiveTargets = (moment.activeDirectionalTargets || []).filter(
-        target => target.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side),
-    );
-    const fallbackRoutes = strategicRoutes.filter(route => route.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side));
-    const executionRoute =
-        dossier?.routeCue && dossier.routeCue.ownerSide === (strategicIdeas[0]?.ownerSide || moment.side)
-            ? dossier.routeCue
-            : fallbackRoutes[0];
+    const strategicIdeas = [strategySurface.dominantIdea, strategySurface.secondaryIdea].filter(Boolean) as ActiveStrategicIdeaRef[];
+    const objectiveTargets = strategySurface.objectiveTargets;
+    const executionRoute = strategySurface.executionRoute;
 
     return hl('div.narrative-strategic-note-box', [
         hl('div.narrative-strategic-note-head', [
             hl('h3.narrative-strategic-note-title', 'Strategic Note'),
             threadLabel ? narrativeBadgeView(threadLabel, 'theme') : null,
             threadStage ? narrativeBadgeView(threadStage, 'stage') : null,
+            strategySurface.ownerMismatch && strategySurface.campaignOwner
+                ? narrativeBadgeView(`${routeOwnerLabel(strategySurface.campaignOwner)} Campaign`, 'selection')
+                : null,
         ]),
         note ? narrativeProseView(ctrl, moment, note, 'note') : null,
         strategicIdeas.length ? narrativeStrategicIdeasSurface(strategicIdeas) : null,
         executionRoute ? narrativeStrategicExecutionSurface(moment, executionRoute) : null,
-        objectiveTargets.length ? narrativeStrategicObjectiveSurface(objectiveTargets) : null,
+        objectiveTargets.length
+            ? narrativeStrategicObjectiveSurface(objectiveTargets)
+            : strategySurface.focus
+                ? hl('div.narrative-strategic-surface.narrative-strategic-surface--objective', [
+                    hl('div.narrative-strategic-surface__label', 'Objective'),
+                    hl('div.narrative-strategic-surface__body', [
+                        hl('span.narrative-strategic-chip.narrative-strategic-chip--objective', strategySurface.focus),
+                    ]),
+                ])
+                : null,
         dossier ? narrativeBranchDossierView(moment, strategicMoves) : null,
     ]);
 }
@@ -1352,7 +1510,7 @@ function narrativeStrategicExecutionSurface(
     route: ActiveStrategicRouteRef | ActiveBranchRouteCue,
 ): VNode {
     const routeText = route.route.join('-');
-    const attrs =
+    const attrs: Record<string, string> =
         route.surfaceMode === 'exact'
             ? {
                 'data-route': routeText,
@@ -1482,7 +1640,7 @@ function narrativeBranchDossierView(
 function narrativeBranchRouteChip(moment: GameChronicleMoment, cue: ActiveBranchRouteCue): VNode {
     const routeText = cue.route.join('-');
     const text = `${routeOwnerLabel(cue.ownerSide)} ${routeSurfaceText(cue)}`;
-    const attrs =
+    const attrs: Record<string, string> =
         cue.surfaceMode === 'exact'
             ? {
                   'data-route': routeText,

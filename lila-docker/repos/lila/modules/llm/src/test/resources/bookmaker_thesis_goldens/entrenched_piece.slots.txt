@@ -1,7 +1,7 @@
 lens=Structure
-claim=12... Nf1: In the French Chain structure, with a closed center, the long plan is Punish the Entrenched Knight, and the knight belongs on g4.
-supportPrimary=The knight wants d2-f1-e3-g4 because that is where restriction play gains force.
-supportSecondary=This move starts that route immediately.
+claim=12... Nf1: The move reorganizes the pieces around French Chain and its closed center, aiming at Punish the Entrenched Knight.
+supportPrimary=It follows the structure's logic of reroute the knight toward e3 and g4 to squeeze the e5 knight.
+supportSecondary=In this structure the knight still wants g4, so the move needs extra justification.
 tension=That still leaves Black gets c5 counterplay if the queenside opens first.
 evidenceHook=
 coda=

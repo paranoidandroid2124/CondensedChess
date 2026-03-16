@@ -4,7 +4,6 @@ import controllers.Importer.GameCard
 import lila.analyse.ImportHistory
 import lila.app.UiEnv.*
 import lila.ui.Page
-import scala.annotation.unused
 
 object importer:
 
@@ -14,7 +13,8 @@ object importer:
       username: String = "",
       recentAccounts: List[ImportHistory.Account] = Nil,
       recentAnalyses: List[ImportHistory.Analysis] = Nil
-  )(using @unused ctx: Context): Page =
+  )(using ctx: Context): Page =
+    val pageError = error.orElse(ctx.flash("error"))
     Page("Import Games - Chesstory")
       .css("auth")
       .wrap: _ =>
@@ -26,8 +26,10 @@ object importer:
             div(cls := "auth-container")(
               div(cls := "auth-card")(
                 h1(cls := "auth-title")("Import Recent Games"),
-                p(cls := "auth-subtitle")("Load recent public games from Lichess or Chess.com."),
-                error.map(msg => div(cls := "auth-error")(msg)),
+                p(cls := "auth-subtitle")(
+                  "Load recent public games from Lichess or Chess.com, then open them in the analysis shell for on-demand move insight or full-game review."
+                ),
+                pageError.map(msg => div(cls := "auth-error")(msg)),
                 form(cls := "auth-form", method := "post", action := routes.Importer.sendGame.url)(
                   div(cls := "form-group")(
                     label(`for` := "import-provider")("Provider"),
@@ -68,7 +70,8 @@ object importer:
       notice: Option[String] = None,
       recentAccounts: List[ImportHistory.Account] = Nil,
       recentAnalyses: List[ImportHistory.Analysis] = Nil
-  )(using @unused ctx: Context): Page =
+  )(using ctx: Context): Page =
+    val pageError = ctx.flash("error")
     Page("Imported Games - Chesstory")
       .css("auth")
       .wrap: _ =>
@@ -80,8 +83,37 @@ object importer:
             div(cls := "auth-container")(
               div(cls := "auth-card")(
                 h1(cls := "auth-title")(s"${providerLabel(provider)}: @$username"),
-                p(cls := "auth-subtitle")("Choose a game and click Analyze."),
+                p(cls := "auth-subtitle")(
+                  "Choose a game to open it in analysis. From there you can explain one move on demand or run Game Chronicle on the full PGN."
+                ),
+                pageError.map(msg => div(cls := "auth-error")(msg)),
                 notice.map(msg => div(cls := "auth-error")(msg)),
+                games.nonEmpty.option(
+                  div(cls := "auth-history__section")(
+                    div(cls := "auth-history__section-head")(
+                      strong("Turn This Account Into A Notebook"),
+                      span("Create a saved notebook from the recent public game sample. The same account can be read as your own repair surface or as opponent prep.")
+                    ),
+                    form(cls := "auth-form", method := "post", action := routes.Study.createAccountNotebook.url)(
+                      input(tpe := "hidden", name := "provider", value := provider),
+                      input(tpe := "hidden", name := "username", value := username),
+                      input(tpe := "hidden", name := "kind", value := "my_account_intelligence_lite"),
+                      button(cls := "auth-submit", tpe := "submit")(
+                        "Build My Account Notebook",
+                        span(cls := "arrow")(" ->")
+                      )
+                    ),
+                    form(cls := "auth-form", method := "post", action := routes.Study.createAccountNotebook.url)(
+                      input(tpe := "hidden", name := "provider", value := provider),
+                      input(tpe := "hidden", name := "username", value := username),
+                      input(tpe := "hidden", name := "kind", value := "opponent_prep"),
+                      button(cls := "auth-submit", tpe := "submit")(
+                        "Build Opponent Prep",
+                        span(cls := "arrow")(" ->")
+                      )
+                    )
+                  )
+                ),
                 games.nonEmpty.option(
                   div(
                     games.map(renderGameCard(_, username))*
@@ -145,7 +177,7 @@ object importer:
           input(tpe := "hidden", name := "sourceSpeed", value := game.speed),
           input(tpe := "hidden", name := "sourcePlayedAt", value := game.playedAt),
           game.sourceUrl.map(url => input(tpe := "hidden", name := "sourceUrl", value := url)),
-          button(tpe := "submit", cls := "auth-import-card__action")("Analyze")
+          button(tpe := "submit", cls := "auth-import-card__action")("Open in Analysis")
         ),
         game.sourceUrl.map(url =>
           a(href := url, target := "_blank", rel := "noopener noreferrer", cls := "auth-import-card__source")("Source")
@@ -163,7 +195,8 @@ object importer:
           span(cls := "auth-empty-state__eyebrow")(if ctx.isAuth then "Saved imports" else "Cross-device history"),
           strong(if ctx.isAuth then "No saved analyses yet" else "Sign in to keep import history"),
           p(
-            if ctx.isAuth then "Analyze a PGN or imported game once, and it will appear here for fast reopen."
+            if ctx.isAuth then
+              "Open a PGN or imported game once, and it will appear here for fast reopen in the same analysis shell."
             else "Guest sessions only keep local drafts. Sign in to save recent accounts and imported games across devices."
           )
         )
@@ -174,7 +207,7 @@ object importer:
           div(cls := "auth-history__section")(
             div(cls := "auth-history__section-head")(
               strong("Recent analyses"),
-              span("Resume imported games from the exact PGN snapshot you saved.")
+              span("Resume imported games from the exact PGN snapshot you saved, then continue with move insight or full-game review.")
             ),
             div(cls := "auth-history__list")(
               recentAnalyses.zipWithIndex.map { case (entry, index) =>

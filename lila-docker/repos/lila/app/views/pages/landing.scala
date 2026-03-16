@@ -12,7 +12,7 @@ object landing:
     val lichessImportUrl = s"${routes.Importer.importGame.url}?provider=lichess"
     val chessComImportUrl = s"${routes.Importer.importGame.url}?provider=chesscom"
 
-    Page("Chesstory — AI Chess Commentary")
+    Page("Chesstory - AI Chess Commentary")
       .css("landing")
       .wrap: _ =>
         frag(
@@ -50,27 +50,28 @@ object landing:
               st.section(id := "top", cls := "hero-section landing-section")(
                 div(cls := "landing-container hero-grid")(
                   div(cls := "hero-copy")(
-                    p(cls := "eyebrow")("Narrative-first chess intelligence"),
+                    p(cls := "eyebrow")("Two review modes, one board"),
                     h1(
-                      "Understand the game,",
+                      "Explain the move,",
                       br,
-                      span("not just the eval bar.")
+                      span("or review the whole game.")
                     ),
                     p(cls := "hero-summary")(
-                      "Chesstory turns your PGN into clear, book-quality commentary that explains ideas, plans, and turning points in plain language."
+                      "Chesstory already has two real analysis paths: Bookmaker for on-demand move commentary, and Game Chronicle for full-game review with moments, repair windows, and pattern tracking."
                     ),
                     ul(cls := "hero-points")(
-                      li("Plan-by-plan commentary instead of isolated move blurbs."),
-                      li("Readable quickly on both mobile and large desktop screens."),
-                      li("Structured output for players, coaches, and study groups.")
+                      li("Ask for commentary on the current move only when you want it."),
+                      li("Run a deeper review when you need turning points, repair windows, and patterns."),
+                      li("Keep the result in your study flow with imports, saved history, and study sync.")
                     ),
-                    div(cls := "hero-audience", aria.label := "Audience fit")(
-                      span("Players"),
-                      span("Coaches"),
-                      span("Creators")
+                    div(cls := "hero-modes", aria.label := "Product surfaces")(
+                      span("Bookmaker"),
+                      span("Game Chronicle"),
+                      span("Repair"),
+                      span("Study Memory")
                     ),
                     div(cls := "hero-cta")(
-                      a(href := "#sample-commentary", cls := "btn-primary")("See Sample Commentary"),
+                      a(href := "#sample-commentary", cls := "btn-primary")("See Product Sample"),
                       a(href := routes.UserAnalysis.index.url, cls := "btn-secondary")("Start Analysis")
                     ),
                     div(cls := "hero-imports")(
@@ -80,83 +81,155 @@ object landing:
                         a(href := chessComImportUrl, cls := "btn-secondary import-provider")("Chess.com")
                       ),
                       p(cls := "import-note")("Independent workflow. Not affiliated with either platform.")
+                    ),
+                    p(cls := "hero-disclosure")(
+                      "Bookmaker stays on demand. Game Chronicle runs deeper and can take longer on large PGNs."
                     )
                   ),
                   div(
                     cls := "hero-visual",
                     attr("role") := "complementary",
-                    aria.label := "Sample commentary preview"
+                    aria.label := "Product surface preview"
                   )(
-                    div(cls := "hero-board", aria.hidden := "true"),
-                    div(cls := "sample-note")(
-                      p(cls := "move")("19. Nf3"),
-                      p(
-                        "White consolidates development before forcing tactical play. The move keeps central tension while preparing a kingside initiative."
+                    st.article(cls := "hero-surface hero-surface--move")(
+                      div(cls := "hero-surface-head")(
+                        span(cls := "hero-surface-kicker")("Bookmaker"),
+                        span(cls := "hero-surface-meta")("On-demand move insight")
+                      ),
+                      h3(cls := "hero-surface-title")("19. Nf3"),
+                      p(cls := "hero-surface-copy")(
+                        "The move matters less as a forcing shot than as a way to keep the center flexible while White finishes the kingside setup."
+                      ),
+                      p(cls := "hero-surface-copy")(
+                        "That matters because the knight improves coordination without releasing Black's counterplay too early."
+                      ),
+                      div(cls := "sample-chip-row")(
+                        span("Explain this move"),
+                        span("Interactive refs"),
+                        span("Saved in study")
                       )
                     ),
-                    div(cls := "sample-note")(
-                      p(cls := "move")("... d5"),
-                      p(
-                        "Black chooses dynamic counterplay. Structurally risky, but it opens practical chances if White mishandles the transition."
+                    st.article(cls := "hero-surface hero-surface--review")(
+                      div(cls := "hero-surface-head")(
+                        span(cls := "hero-surface-kicker")("Game Chronicle"),
+                        span(cls := "hero-surface-meta")("Full-game review")
+                      ),
+                      div(cls := "hero-review-stack")(
+                        div(cls := "hero-review-item")(
+                          strong("Overview"),
+                          span("3 selected moments, 1 repair window")
+                        ),
+                        div(cls := "hero-review-item")(
+                          strong("Repair"),
+                          span("22-27 Tactical Oversight")
+                        ),
+                        div(cls := "hero-review-item")(
+                          strong("Patterns"),
+                          span("Builds a long-term profile after more deep reviews")
+                        )
                       )
                     ),
-                    div(cls := "sample-note")(
-                      p(cls := "move")("20. Bb5+"),
-                      p(
-                        "A forcing check that accelerates the position. From here, precision matters more than raw aggression."
-                      )
-                    ),
-                    div(cls := "demo-meta")(
-                      span("Demo line: Ruy Lopez structure"),
+                    div(cls := "hero-visual-footer")(
+                      span("Live sample: imported PGN to review shell"),
                       a(href := sampleAnalysisUrl, cls := "demo-link")("Open full sample")
                     )
                   )
                 )
               ),
+              st.section(id := "proof", cls := "proof-section landing-section")(
+                div(cls := "landing-container proof-grid")(
+                  st.article(cls := "proof-card")(
+                    strong(cls := "proof-value")("On demand"),
+                    p(cls := "proof-label")("Bookmaker"),
+                    p(cls := "proof-copy")(
+                      "Move commentary starts only when requested, instead of firing on every board change."
+                    )
+                  ),
+                  st.article(cls := "proof-card")(
+                    strong(cls := "proof-value")("Full review"),
+                    p(cls := "proof-label")("Game Chronicle"),
+                    p(cls := "proof-copy")(
+                      "The deeper review shell already exposes overview, moments, repair, patterns, moves, and reference."
+                    )
+                  ),
+                  st.article(cls := "proof-card")(
+                    strong(cls := "proof-value")("Repair"),
+                    p(cls := "proof-label")("Collapse and patch replay"),
+                    p(cls := "proof-copy")(
+                      "Critical games can surface the collapse interval, earliest preventable ply, and replayable patch line."
+                    )
+                  ),
+                  st.article(cls := "proof-card")(
+                    strong(cls := "proof-value")("Study-ready"),
+                    p(cls := "proof-label")("Memory and sync"),
+                    p(cls := "proof-copy")(
+                      "Saved commentary can restore from session state, study snapshots, and recent imported analysis history."
+                    )
+                  )
+                )
+              ),
               st.section(id := "sample-commentary", cls := "sample-section landing-section")(
-                div(cls := "landing-container section-grid")(
+                div(cls := "landing-container sample-grid")(
                   div(cls := "section-heading")(
-                    p(cls := "section-kicker")("Sample commentary"),
-                    h2("A concrete example before you commit"),
+                    p(cls := "section-kicker")("Product sample"),
+                    h2("See prompt-shaped output before you commit"),
                     p(
-                      "Explore how Chesstory blends tactical facts with strategic narrative. The output is designed to read like a strong coach note, not a machine dump."
+                      "These samples are not copied outputs, but they now follow the same prompt contracts that shape the shipped product."
                     ),
                     div(cls := "sample-actions")(
                       a(href := sampleAnalysisUrl, cls := "btn-secondary sample-open")("Open Interactive Sample")
                     )
                   ),
-                  div(cls := "timeline-card")(
-                    st.article(cls := "timeline-item")(
-                      p(cls := "timeline-ply")("Move 13"),
-                      p(cls := "timeline-tag")("Opening transition"),
-                      p(cls := "timeline-text")(
-                        "Both sides complete development, but White's bishop pair now has long-term pressure on dark squares."
+                  div(cls := "sample-panel-grid")(
+                    st.article(cls := "sample-mode-card sample-mode-card--move")(
+                      p(cls := "sample-kicker")("Quick Move Insight"),
+                      h3(cls := "sample-mode-title")("Bookmaker: explain the current move"),
+                      p(cls := "sample-mode-copy")(
+                        "The move matters less as an immediate threat than as a way to hold the center together while White finishes the kingside setup."
+                      ),
+                      p(cls := "sample-mode-copy")(
+                        "That matters because the knight improves coordination without handing Black an early queenside release. The sharper alternative stays secondary because forcing the break now would give counterplay before the attack is ready."
+                      ),
+                      div(cls := "sample-chip-row")(
+                        span("One move"),
+                        span("On demand"),
+                        span("Interactive")
                       )
                     ),
-                    st.article(cls := "timeline-item")(
-                      p(cls := "timeline-ply")("Move 19"),
-                      p(cls := "timeline-tag")("Plan consolidation"),
-                      p(cls := "timeline-text")(
-                        "Nf3 keeps the center flexible and improves coordination. The position favors patient buildup over immediate liquidation."
-                      )
-                    ),
-                    st.article(cls := "timeline-item")(
-                      p(cls := "timeline-ply")("Move 26"),
-                      p(cls := "timeline-tag")("Technical conversion"),
-                      p(cls := "timeline-text")(
-                        "After simplification, the game enters a technical phase where pawn structure and king activity decide conversion speed."
+                    st.article(cls := "sample-mode-card sample-mode-card--review")(
+                      p(cls := "sample-kicker")("Full Game Review"),
+                      h3(cls := "sample-mode-title")("Game Chronicle: review the whole game"),
+                      p(cls := "sample-mode-copy")(
+                        "Because Black's queenside counterplay is about to become the only active resource, this is the moment to finish White's regrouping rather than simplify too early."
+                      ),
+                      p(cls := "sample-mode-copy")(
+                        "The review note stays forward-looking: carry the knight toward the kingside, keep the center closed while the attack is still maturing, and be ready to switch plans if ...c5 lands under better conditions."
+                      ),
+                      div(cls := "sample-mini-list")(
+                        div(cls := "sample-mini-item")(
+                          strong("Moments"),
+                          span("Move 24 is surfaced as the turning point because it releases Black's clean queenside break and changes who owns the easier plan.")
+                        ),
+                        div(cls := "sample-mini-item")(
+                          strong("Repair"),
+                          span("The review marks the 22-27 collapse window, points to the earliest preventable choice, and then shows a patch replay line.")
+                        ),
+                        div(cls := "sample-mini-item")(
+                          strong("Patterns"),
+                          span("Across enough deep reviews, similar collapses can be grouped into recurring causes such as tactical oversight or drift against counterplay.")
+                        )
                       )
                     )
                   ),
                   div(cls := "sample-summary-card")(
-                    p(cls := "sample-label")("What this gives you"),
+                    p(cls := "sample-label")("What this sample proves"),
                     ul(
-                      li("Move-by-move explanation anchored to plans"),
-                      li("Clear transitions: opening, middlegame, endgame"),
-                      li("Readable language for review and sharing")
+                      li("Bookmaker prose is claim-first and cause-driven, while the rest of the detail stays in structured UI blocks."),
+                      li("Game Chronicle notes are why-now-first and forward-looking, instead of paraphrasing the current board."),
+                      li("The review shell still carries moments, repair, patterns, imports, saved analyses, and study reuse around that prose.")
                     ),
                     p(cls := "sample-footnote")(
-                      "Best used after your own game review, opening prep sessions, or coach feedback loops."
+                      "The interactive sample opens the same analysis shell used for imported games and PGN review."
                     )
                   )
                 )
@@ -164,32 +237,44 @@ object landing:
               st.section(id := "features", cls := "features-section landing-section")(
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
-                    p(cls := "section-kicker")("Why Chesstory"),
-                    h2("Built for players who want understanding")
+                    p(cls := "section-kicker")("What is already real"),
+                    h2("Four product surfaces the landing should speak about directly")
                   ),
                   div(cls := "feature-grid")(
                     st.article(cls := "feature-card")(
-                      h3("Narrative-first analysis"),
-                      p("Get prose that explains intent and consequences, not only move rankings."),
+                      p(cls := "feature-kicker")("Surface 01"),
+                      h3("Quick Move Insight"),
+                      p("Bookmaker explains a single decision without forcing a full-game report."),
                       ul(
-                        li("Connects tactical motifs to strategic plans"),
-                        li("Highlights why alternatives were less practical")
+                        li("Runs only when requested for the current move"),
+                        li("Can restore saved snapshots and study commentary")
                       )
                     ),
                     st.article(cls := "feature-card")(
-                      h3("Plan-level reasoning"),
-                      p("Track the strategic thread across moves so transitions make sense at a glance."),
+                      p(cls := "feature-kicker")("Surface 02"),
+                      h3("Full Game Review"),
+                      p("Game Chronicle builds a narrative-first review shell around the whole PGN."),
                       ul(
-                        li("Keeps narrative continuity across game phases"),
-                        li("Frames critical moments around practical choices")
+                        li("Overview, moments, repair, patterns, moves, and reference"),
+                        li("Async review path with local full-analysis fallback")
                       )
                     ),
                     st.article(cls := "feature-card")(
-                      h3("Study-ready output"),
-                      p("Store, revisit, and share commentary as a durable learning asset."),
+                      p(cls := "feature-kicker")("Surface 03"),
+                      h3("Repair Windows"),
+                      p("Critical games can surface where the game first broke and how to replay the patch line."),
                       ul(
-                        li("Easy to revisit during spaced repetition"),
-                        li("Readable enough to share with teammates or students")
+                        li("Collapse interval plus earliest preventable ply"),
+                        li("Patch replay compares improved and original continuations")
+                      )
+                    ),
+                    st.article(cls := "feature-card")(
+                      p(cls := "feature-kicker")("Surface 04"),
+                      h3("Study Memory"),
+                      p("The analysis shell is already wired for reuse instead of one-off output."),
+                      ul(
+                        li("PGN, FEN, Lichess, and Chess.com entry points"),
+                        li("Saved imports, study sync, and reopenable analysis history")
                       )
                     )
                   )
@@ -199,68 +284,80 @@ object landing:
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
                     p(cls := "section-kicker")("How it works"),
-                    h2("From PGN to practical insight in three steps")
+                    h2("The actual product flow is import, choose a path, then save the result")
                   ),
                   ol(cls := "workflow-grid")(
                     li(cls := "workflow-step")(
                       span(cls := "step-index")("01"),
-                      h3("Import PGN"),
-                      p("Paste or upload your game and prepare the position context."),
+                      h3("Import or jump"),
+                      p("Paste PGN, open an imported game, or jump into a FEN from the current board state."),
                       p(cls := "step-output")("Output: clean move timeline with board context")
                     ),
-                    li(cls := "workflow-step")(
-                      span(cls := "step-index")("02"),
-                      h3("Generate Commentary"),
-                      p("Chesstory analyzes moves and produces coherent, structured narrative."),
-                      p(cls := "step-output")("Output: phase-aware explanation and plan flow")
+                    li(cls := "workflow-step workflow-step--branch")(
+                      span(cls := "step-index")("02A"),
+                      h3("Explain this move"),
+                      p("Use Bookmaker when one decision needs context, not a full report."),
+                      p(cls := "step-output")("Output: move commentary, refs, and saved snapshot")
+                    ),
+                    li(cls := "workflow-step workflow-step--branch")(
+                      span(cls := "step-index")("02B"),
+                      h3("Run Game Chronicle"),
+                      p("Use the deeper review when you need moments, repair windows, and long-term patterns."),
+                      p(cls := "step-output")("Output: overview, moments, repair, patterns")
                     ),
                     li(cls := "workflow-step")(
                       span(cls := "step-index")("03"),
                       h3("Save and Revisit"),
-                      p("Keep commentary in your study flow and return when preparing openings or review sessions."),
-                      p(cls := "step-output")("Output: reusable notes for prep and coaching")
+                      p("Resume imported games, reopen saved analyses, or push commentary into study chapters."),
+                      p(cls := "step-output")("Output: reusable study trail")
                     )
                   )
                 )
               ),
-              st.section(id := "quality", cls := "quality-section landing-section")(
+              st.section(id := "trust", cls := "quality-section landing-section")(
                 div(cls := "landing-container quality-grid")(
                   div(cls := "section-heading")(
-                    p(cls := "section-kicker")("Quality proof"),
-                    h2("Designed for signal over noise"),
-                    p("Every commentary run emphasizes clarity, structure, and actionable interpretation.")
+                    p(cls := "section-kicker")("Reality check"),
+                    h2("What the product really does today"),
+                    p(
+                      "The strongest story is already in the shipped analysis shell, so this landing now reflects real behavior instead of placeholder promise."
+                    )
                   ),
                   div(cls := "quality-card")(
-                    p(cls := "quality-label")("Scorecard format (example)"),
+                    p(cls := "quality-label")("Current product surfaces"),
                     div(cls := "quality-metrics")(
                       div(cls := "metric-row")(
-                        span("Anchor coverage"),
-                        strong(cls := "metric-value")("5/5 referenced moves")
+                        span("Move insight"),
+                        strong(cls := "metric-value")("Bookmaker on demand")
                       ),
                       div(cls := "metric-row")(
-                        span("Phase continuity"),
-                        strong(cls := "metric-value")("Opening -> Middlegame -> Conversion")
+                        span("Full review"),
+                        strong(cls := "metric-value")("Async Game Chronicle")
                       ),
                       div(cls := "metric-row")(
-                        span("Actionability"),
-                        strong(cls := "metric-value")("3 concrete plan takeaways")
+                        span("Study flow"),
+                        strong(cls := "metric-value")("Imports, reopen, study sync")
                       )
                     ),
                     ul(
-                      li("Narrative output keeps tactical facts grounded in board reality."),
-                      li("Sectioned flow improves quick review on both desktop and mobile."),
-                      li("Language stays concise enough for repeat study cycles.")
+                      li("Move commentary is interactive, with hover previews and move references."),
+                      li("Full-game review keeps moments, repair, patterns, raw moves, and reference tools in one shell."),
+                      li("Deep review and move commentary follow login and plan-based usage rules."),
+                      li("Large PGNs can take longer because Game Chronicle runs a deeper scan before generating review text.")
                     ),
                     div(cls := "quality-pills")(
-                      span("Move anchors"),
-                      span("Phase transitions"),
-                      span("Plan continuity"),
-                      span("Practical tone")
+                      span("Moments"),
+                      span("Repair"),
+                      span("Patterns"),
+                      span("Reference")
                     ),
                     p(cls := "quality-note")(
-                      "Numbers above illustrate how commentary quality is reviewed on a real sample before publishing."
+                      "Use the sample to see the real analysis shell first, then start with your own PGN or imported game."
                     ),
-                    a(href := routes.UserAnalysis.index.url, cls := "btn-primary final-cta")("Start Analysis")
+                    div(cls := "quality-actions")(
+                      a(href := sampleAnalysisUrl, cls := "btn-secondary final-cta")("Open Sample"),
+                      a(href := routes.UserAnalysis.index.url, cls := "btn-primary final-cta")("Start Analysis")
+                    )
                   )
                 )
               )

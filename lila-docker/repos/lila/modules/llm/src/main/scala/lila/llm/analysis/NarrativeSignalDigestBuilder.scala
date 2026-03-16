@@ -6,6 +6,17 @@ import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 
 object NarrativeSignalDigestBuilder:
 
+  private def effectiveCompensationInfo(ctx: NarrativeContext) =
+    ctx.semantic.flatMap(_.compensation).orElse(
+      ctx.semantic
+        .flatMap(_.afterCompensation)
+        .filterNot(comp =>
+          ctx.playedMove.exists(move =>
+            CompensationRecaptureGate.suppressAfterCompensation(ctx.fen, move, comp.investedMaterial)
+          )
+        )
+    )
+
   def build(
       ctx: NarrativeContext,
       preservedSignalsOverride: Option[List[String]] = None
@@ -30,7 +41,7 @@ object NarrativeSignalDigestBuilder:
     val decisionComparison = DecisionComparisonBuilder.digest(ctx)
 
     val practical = ctx.semantic.flatMap(_.practicalAssessment)
-    val compensationInfo = ctx.semantic.flatMap(_.compensation)
+    val compensationInfo = effectiveCompensationInfo(ctx)
     val prevented = ctx.semantic.flatMap(_.preventedPlans.headOption)
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)
@@ -140,7 +151,7 @@ object NarrativeSignalDigestBuilder:
       ctx: NarrativeContext,
       outline: NarrativeOutline
   ): List[String] =
-    val hasPractical = ctx.semantic.flatMap(_.practicalAssessment).isDefined || ctx.semantic.flatMap(_.compensation).isDefined
+    val hasPractical = ctx.semantic.flatMap(_.practicalAssessment).isDefined || effectiveCompensationInfo(ctx).isDefined
     val hasStructure = ctx.semantic.flatMap(_.planAlignment).isDefined || ctx.semantic.flatMap(_.preventedPlans.headOption).isDefined
     outline.beats.flatMap { beat =>
       beat.kind match

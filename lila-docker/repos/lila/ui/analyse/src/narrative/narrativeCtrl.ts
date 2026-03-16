@@ -5,6 +5,14 @@ import { storedBooleanProp } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type { BoardPreview } from 'lib/view/boardPreview';
+import { createProbeOrchestrator } from '../bookmaker/probeOrchestrator';
+import {
+    buildProbeResultsByPlyEntries,
+    collectGameArcProbeMomentBundles,
+    countSurfacedEvidenceMoments,
+    validateProbeResultAgainstRequest,
+    type ProbeResultsByPlyEntry,
+} from './probePlanning';
 import type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
 export type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
 
@@ -53,6 +61,55 @@ export interface CollapseAnalysis {
     recoverabilityPlies: number;
 }
 
+export interface StrategyPieceRouteSummary {
+    ownerSide: string;
+    piece: string;
+    from: string;
+    route: string[];
+    purpose: string;
+    strategicFit: number;
+    tacticalSafety: number;
+    surfaceConfidence: number;
+    surfaceMode: 'exact' | 'toward' | 'hidden' | string;
+    evidence?: string[];
+}
+
+export interface StrategyPieceMoveRefSummary {
+    ownerSide: string;
+    piece: string;
+    from: string;
+    target: string;
+    idea: string;
+    tacticalTheme?: string | null;
+    evidence?: string[];
+}
+
+export interface StrategyIdeaSignalSummary {
+    ideaId: string;
+    ownerSide: string;
+    kind: StrategicIdeaKind | string;
+    group: StrategicIdeaGroup | string;
+    readiness: 'ready' | 'build' | 'premature' | 'blocked' | string;
+    focusSquares?: string[];
+    focusFiles?: string[];
+    focusDiagonals?: string[];
+    focusZone?: string | null;
+    beneficiaryPieces?: string[];
+    confidence: number;
+    evidenceRefs?: string[];
+}
+
+export interface StrategyPackSummary {
+    schema: string;
+    sideToMove: string;
+    strategicIdeas: StrategyIdeaSignalSummary[];
+    pieceRoutes: StrategyPieceRouteSummary[];
+    pieceMoveRefs: StrategyPieceMoveRefSummary[];
+    directionalTargets: StrategyDirectionalTarget[];
+    longTermFocus: string[];
+    signalDigest?: NarrativeSignalDigest | null;
+}
+
 export interface GameChronicleMoment {
     momentId?: string;
     ply: number;
@@ -78,8 +135,10 @@ export interface GameChronicleMoment {
     activePlan?: ActivePlanRef;
     topEngineMove?: EngineAlternative;
     collapse?: CollapseAnalysis;
+    strategyPack?: StrategyPackSummary;
     signalDigest?: NarrativeSignalDigest;
     probeRequests?: ProbeRequest[];
+    probeRefinementRequests?: ProbeRequest[];
     authorQuestions?: AuthorQuestionSummary[];
     authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
@@ -107,8 +166,16 @@ export interface ProbeRequest {
     multiPv?: number;
     planId?: string;
     planName?: string;
+    planScore?: number;
+    baselineEvalCp?: number;
+    baselineMove?: string;
+    baselineMate?: number | null;
+    baselineDepth?: number;
     objective?: string;
+    seedId?: string;
     requiredSignals?: string[];
+    horizon?: 'short' | 'medium' | 'long' | string;
+    maxCpLoss?: number;
 }
 
 export interface AuthorQuestionSummary {
@@ -295,6 +362,16 @@ interface AsyncGameChronicleStatusResponse {
     ccaEnabled?: boolean;
 }
 
+type FullAnalysisRequestPayload = {
+    pgn: string;
+    evals: any[];
+    options: {
+        style: string;
+        focusOn: string[];
+    };
+    probeResultsByPly?: ProbeResultsByPlyEntry[] | null;
+};
+
 export interface DefeatDnaReport {
     userId: string;
     totalGamesAnalyzed: number;
@@ -312,6 +389,7 @@ const AUTO_EVAL_MAX_PLY_SCAN = 120;
 const ASYNC_NARRATIVE_POLL_INTERVAL_MS = 1200;
 const ASYNC_NARRATIVE_POLL_TIMEOUT_MS = 180000;
 const COLLAPSE_OVERLAY_GLOBAL_KEY = '__chesstoryCollapseOverlays';
+const GAME_ARC_REFINE_HEADER = 'X-Chesstory-GameArc-Refine';
 
 function magicLinkHref(): string {
     return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -342,9 +420,13 @@ export class NarrativeCtrl {
     dnaError: Prop<string | null> = prop(null);
     showAllCollapses: Prop<boolean> = prop(false);
     patchReplay: Prop<{ collapseId: string; step: number; mode: 'original' | 'patch' } | null> = prop(null);
+    private narrativeProbeSession = 0;
+    private activeRefineController: AbortController | null = null;
+    private readonly narrativeProbes: ReturnType<typeof createProbeOrchestrator>;
 
     constructor(readonly root: AnalyseCtrl) {
         this.enabled = storedBooleanProp('analyse.narrative.enabled', false);
+        this.narrativeProbes = createProbeOrchestrator(root, session => session === this.narrativeProbeSession);
     }
 
     loginHref = () => magicLinkHref();
@@ -441,7 +523,125 @@ export class NarrativeCtrl {
         pubsub.emit('analysis.collapse.update', collapses);
     };
 
+    private cancelNarrativeRefinement = (): void => {
+        this.activeRefineController?.abort();
+        this.activeRefineController = null;
+        this.narrativeProbeSession++;
+        this.narrativeProbes.stop();
+    };
+
+    private applyNarrativeResponse = (response: GameChronicleResponse): void => {
+        this.data(response);
+        this.publishCollapseOverlay(response);
+        this.root.refreshReviewShellState();
+    };
+
+    private fetchRefinedNarrativeResponse = async (
+        payload: FullAnalysisRequestPayload,
+        probeResultsByPly: ProbeResultsByPlyEntry[],
+        fallbackResponse: GameChronicleResponse,
+        isCurrentSession: () => boolean,
+    ): Promise<GameChronicleResponse> => {
+        try {
+            this.loadingDetail('Probe refinement: rebuilding Game Chronicle...');
+            this.root.redraw();
+            this.activeRefineController = new AbortController();
+            const res = await fetch('/api/llm/game-analysis-local', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [GAME_ARC_REFINE_HEADER]: '1',
+                },
+                body: JSON.stringify({
+                    ...payload,
+                    probeResultsByPly,
+                }),
+                signal: this.activeRefineController.signal,
+            });
+            this.activeRefineController = null;
+            if (!isCurrentSession()) return fallbackResponse;
+            if (!res.ok) {
+                console.warn(`[gamearc.probes] refinement_request_failed status=${res.status}`);
+                return fallbackResponse;
+            }
+
+            const refined = (await res.json()) as GameChronicleResponse;
+            if (typeof fallbackResponse.ccaEnabled === 'boolean' && typeof refined.ccaEnabled !== 'boolean') {
+                refined.ccaEnabled = fallbackResponse.ccaEnabled;
+            }
+            return refined;
+        } catch (err) {
+            if (!(err instanceof DOMException && err.name === 'AbortError') && isCurrentSession()) {
+                console.warn('[gamearc.probes] refinement_request_error', err);
+            }
+            return fallbackResponse;
+        } finally {
+            this.activeRefineController = null;
+        }
+    };
+
+    private refineNarrativeWithProbes = async (
+        payload: FullAnalysisRequestPayload,
+        response: GameChronicleResponse,
+    ): Promise<GameChronicleResponse> => {
+        const probeBundles = collectGameArcProbeMomentBundles(response);
+        if (!probeBundles.length) return response;
+
+        const requestsBeforeDedupe = (response.moments || []).reduce((sum, moment) => {
+            const internalCount = Array.isArray(moment.probeRefinementRequests) ? moment.probeRefinementRequests.length : 0;
+            const surfacedCount = Array.isArray(moment.probeRequests) ? moment.probeRequests.length : 0;
+            return sum + (internalCount || surfacedCount);
+        }, 0);
+        const requestsAfterDedupe = probeBundles.reduce((sum, bundle) => sum + bundle.requests.length, 0);
+
+        this.narrativeProbeSession++;
+        this.narrativeProbes.stop();
+        const probeSession = this.narrativeProbeSession;
+        const isCurrentSession = () => probeSession === this.narrativeProbeSession;
+
+        this.loadingDetail(
+            `Probe refinement: validating ${probeBundles.length} selected moment${probeBundles.length === 1 ? '' : 's'}...`,
+        );
+        this.root.redraw();
+
+        let successCount = 0;
+        let timeoutCount = 0;
+        let contractDropCount = 0;
+        const probeResultsByPly: ProbeResultsByPlyEntry[] = [];
+
+        for (const bundle of probeBundles) {
+            if (!isCurrentSession()) return response;
+            const rawResults = await this.narrativeProbes.runProbes(bundle.requests, bundle.baselineCp, probeSession);
+            if (!isCurrentSession()) return response;
+
+            timeoutCount += Math.max(0, bundle.requests.length - rawResults.length);
+            const validResults = rawResults.filter(result => {
+                const request = bundle.requests.find(candidate => candidate.id === result.id);
+                return request ? validateProbeResultAgainstRequest(request, result) : false;
+            });
+            contractDropCount += Math.max(0, rawResults.length - validResults.length);
+            successCount += validResults.length;
+
+            if (validResults.length) {
+                probeResultsByPly.push({
+                    ply: bundle.ply,
+                    results: validResults,
+                });
+            }
+        }
+
+        const sanitizedProbeResults = buildProbeResultsByPlyEntries(probeResultsByPly);
+        console.info(
+            `[gamearc.probes] selected_moments=${probeBundles.length} requests_before=${requestsBeforeDedupe} requests_after=${requestsAfterDedupe} success=${successCount} timeout=${timeoutCount} contract_drop=${contractDropCount} probe_backed_rerender_moments=${sanitizedProbeResults.length} surfaced_evidence_moments=${countSurfacedEvidenceMoments(response)}`,
+        );
+
+        if (!sanitizedProbeResults.length) return response;
+
+        return this.fetchRefinedNarrativeResponse(payload, sanitizedProbeResults, response, isCurrentSession);
+    };
+
     fetchNarrative = async () => {
+        this.cancelNarrativeRefinement();
         this.loading(true);
         this.error(null);
         this.needsLogin(false);
@@ -460,10 +660,11 @@ export class NarrativeCtrl {
             this.loadingDetail('Submitting async deep analysis job...');
             this.root.redraw();
 
-            const payload = {
+            const payload: FullAnalysisRequestPayload = {
                 pgn: pgn,
                 evals,
-                options: { style: 'book', focusOn: ['mistakes', 'turning_points'] }
+                options: { style: 'book', focusOn: ['mistakes', 'turning_points'] },
+                probeResultsByPly: null,
             };
 
             const submitRes = await fetch('/api/llm/game-analysis-async', {
@@ -474,20 +675,20 @@ export class NarrativeCtrl {
 
             if (submitRes.ok) {
             const submit = (await submitRes.json()) as AsyncGameChronicleSubmitResponse;
-                await this.pollAsyncNarrative(submit.jobId);
+                await this.pollAsyncNarrative(submit.jobId, payload);
             } else if (submitRes.status === 404 || submitRes.status === 405 || submitRes.status === 501) {
                 await this.fetchNarrativeSyncFallback(payload);
             } else if (submitRes.status === 401) {
                 this.needsLogin(true);
-                this.error('Login required to use AI commentary.');
+                this.error('Sign in to run Game Chronicle.');
             } else if (submitRes.status === 429) {
                 try {
                     const data = await submitRes.json();
                     const seconds = data?.ratelimit?.seconds;
-                    if (typeof seconds === 'number') this.error(`LLM quota exceeded. Try again in ${formatSeconds(seconds)}.`);
-                    else this.error('LLM quota exceeded.');
+                    if (typeof seconds === 'number') this.error(`Game Chronicle quota reached. Try again in ${formatSeconds(seconds)}.`);
+                    else this.error('Game Chronicle quota reached.');
                 } catch {
-                    this.error('LLM quota exceeded.');
+                    this.error('Game Chronicle quota reached.');
                 }
             } else {
                 const txt = await submitRes.text();
@@ -503,7 +704,7 @@ export class NarrativeCtrl {
         }
     };
 
-    private fetchNarrativeSyncFallback = async (payload: unknown): Promise<void> => {
+    private fetchNarrativeSyncFallback = async (payload: FullAnalysisRequestPayload): Promise<void> => {
         this.loadingDetail('Async endpoint unavailable. Falling back to local full analysis...');
         this.root.redraw();
 
@@ -516,15 +717,14 @@ export class NarrativeCtrl {
         if (res.ok) {
             const data = await res.json();
             const response = data as GameChronicleResponse;
-            this.data(response);
-            this.publishCollapseOverlay(response);
-            this.root.refreshReviewShellState();
+            const finalResponse = await this.refineNarrativeWithProbes(payload, response);
+            this.applyNarrativeResponse(finalResponse);
             return;
         }
 
         if (res.status === 401) {
             this.needsLogin(true);
-            this.error('Login required to use AI commentary.');
+            this.error('Sign in to run Game Chronicle.');
             return;
         }
 
@@ -532,10 +732,10 @@ export class NarrativeCtrl {
             try {
                 const data = await res.json();
                 const seconds = data?.ratelimit?.seconds;
-                if (typeof seconds === 'number') this.error(`LLM quota exceeded. Try again in ${formatSeconds(seconds)}.`);
-                else this.error('LLM quota exceeded.');
+                if (typeof seconds === 'number') this.error(`Game Chronicle quota reached. Try again in ${formatSeconds(seconds)}.`);
+                else this.error('Game Chronicle quota reached.');
             } catch {
-                this.error('LLM quota exceeded.');
+                this.error('Game Chronicle quota reached.');
             }
             return;
         }
@@ -544,7 +744,7 @@ export class NarrativeCtrl {
         this.error('Error fetching narrative: ' + res.status + ' ' + txt);
     };
 
-    private pollAsyncNarrative = async (jobId: string): Promise<void> => {
+    private pollAsyncNarrative = async (jobId: string, payload: FullAnalysisRequestPayload): Promise<void> => {
         const startedAt = Date.now();
         while (Date.now() - startedAt < ASYNC_NARRATIVE_POLL_TIMEOUT_MS) {
             this.loadingDetail('Deep analysis in progress...');
@@ -565,9 +765,8 @@ export class NarrativeCtrl {
                     if (typeof status.ccaEnabled === 'boolean') {
                         status.result.ccaEnabled = status.ccaEnabled;
                     }
-                    this.data(status.result);
-                    this.publishCollapseOverlay(status.result);
-                    this.root.refreshReviewShellState();
+                    const finalResponse = await this.refineNarrativeWithProbes(payload, status.result);
+                    this.applyNarrativeResponse(finalResponse);
                 }
                 else this.error('Async analysis completed without result.');
                 return;

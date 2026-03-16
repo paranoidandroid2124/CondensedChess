@@ -227,3 +227,26 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
     assert(result.warningReasons.contains("active_note_sentence_count"))
     assert(!ActiveStrategicNoteValidator.shouldRepair(result))
   }
+
+  test("owner mismatch without campaign owner mention is a hard fail") {
+    val mismatchedPack =
+      strategyPack.map(_.copy(
+        sideToMove = "black",
+        strategicIdeas = strategyPack.get.strategicIdeas.map(_.copy(ownerSide = "white"))
+      ))
+
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "Because the space gain and restriction plan around e3 and g4 is ready, the position should keep building that kingside clamp before ...c5 returns.",
+        baseNarrative = "Black to move, but White still owns the campaign.",
+        dossier = dossier,
+        strategyPack = mismatchedPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs,
+        strategyReasons = Nil
+      )
+
+    assert(result.hardReasons.contains("campaign_owner_missing"))
+    assert(ActiveStrategicNoteValidator.shouldRepair(result))
+  }

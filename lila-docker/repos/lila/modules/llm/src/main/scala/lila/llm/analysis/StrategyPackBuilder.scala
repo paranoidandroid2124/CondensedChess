@@ -35,21 +35,21 @@ object StrategyPackBuilder:
     val evidence = buildEvidence(ctx, routes, moveRefs, structureArc)
     val signalDigest = NarrativeSignalDigestBuilder.build(ctx)
 
-    Option.when(plans.nonEmpty || routes.nonEmpty || moveRefs.nonEmpty || directionalTargets.nonEmpty || longTermFocus.nonEmpty)(
-      StrategicIdeaSelector.enrich(
+    Option.when(plans.nonEmpty || routes.nonEmpty || moveRefs.nonEmpty || directionalTargets.nonEmpty || longTermFocus.nonEmpty) {
+      val basePack =
         StrategyPack(
-        sideToMove = sideToMove,
-        plans = plans,
-        pieceRoutes = routes,
-        pieceMoveRefs = moveRefs,
-        directionalTargets = directionalTargets,
-        longTermFocus = longTermFocus,
-        evidence = evidence,
-        signalDigest = signalDigest
-      ),
-        semanticContext
-      )
-    )
+          sideToMove = sideToMove,
+          plans = plans,
+          pieceRoutes = routes,
+          pieceMoveRefs = moveRefs,
+          directionalTargets = directionalTargets,
+          longTermFocus = longTermFocus,
+          evidence = evidence,
+          signalDigest = signalDigest
+        )
+      val enrichedPack = StrategicIdeaSelector.enrich(basePack, semanticContext)
+      refreshDominantThesis(ctx, enrichedPack)
+    }
 
   def promptHints(pack: StrategyPack): List[String] =
     val planHints = pack.plans.take(2).map { p =>
@@ -473,6 +473,41 @@ object StrategyPackBuilder:
         authoringEvidence ++
         AuthoringEvidenceSummaryBuilder.headline(ctx).toList.map(v => s"authoring_headline:$v")
     ).map(_.trim).filter(_.nonEmpty).distinct.take(MaxEvidence)
+
+  private def refreshDominantThesis(
+      ctx: NarrativeContext,
+      pack: StrategyPack
+  ): StrategyPack =
+    val surface = StrategyPackSurface.from(Some(pack))
+    val normalizedFocusLead = surface.normalizedLongTermFocusText.map(_.trim).filter(_.nonEmpty)
+    StrategicThesisBuilder
+      .build(ctx, Some(pack))
+      .map(_.claim.trim)
+      .filter(_.nonEmpty)
+      .map { thesis =>
+        val refreshedFocus =
+          (
+            normalizedFocusLead.toList ++
+              List(s"dominant thesis: $thesis") ++
+              pack.longTermFocus.filterNot { focus =>
+                val lowered = focus.trim.toLowerCase
+                lowered.startsWith("dominant thesis:") ||
+                normalizedFocusLead.exists(_.equalsIgnoreCase(focus.trim))
+              }
+          )
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .distinct
+            .take(MaxFocus)
+        val refreshedEvidence =
+          (s"dominant_thesis:$thesis" :: pack.evidence.filterNot(_.trim.toLowerCase.startsWith("dominant_thesis:")))
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .distinct
+            .take(MaxEvidence)
+        pack.copy(longTermFocus = refreshedFocus, evidence = refreshedEvidence)
+      }
+      .getOrElse(pack)
 
   private def sideName(color: Color): String =
     if color.white then "white" else "black"

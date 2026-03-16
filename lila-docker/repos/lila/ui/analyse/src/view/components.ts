@@ -36,6 +36,13 @@ import serverSideUnderboard from '../serverSideUnderboard';
 import pgnImport, { renderPgnError } from '../pgnImport';
 import { normalizeInlinePgn } from '../pgnPipeline';
 import { storage } from 'lib/storage';
+import {
+  notebookDossierOverviewKindLabel,
+  notebookDossierProductLabel,
+  parseNotebookDossier,
+  type NotebookSectionV1,
+  type SectionCardV1,
+} from '../notebookDossier';
 
 export interface ViewContext {
   ctrl: AnalyseCtrl;
@@ -92,6 +99,7 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'analyse-hunter': ctrl.opts.hunter,
         'analyse--bookmaker': !!ctrl.opts.bookmaker,
         'analyse--review-shell': ctrl.isReviewShell(),
+        'analyse--notebook': ctrl.isStudy(),
       },
     },
     [renderSidebar(ctrl), ...kids],
@@ -117,13 +125,14 @@ function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
             busy: !!tool.busy,
           },
         },
-        [icon(tool.icon as any), hl('span.label', tool.label)],
+        [renderWorkspaceToolIcon(ctrl, tool), hl('span.label', tool.label)],
       ),
     ),
   );
 }
 
 type WorkspaceToolId = 'opening-explorer' | 'narrative' | 'action-menu';
+type NotebookGlyphKind = 'notebook' | 'bookmark' | 'page' | 'section';
 
 type WorkspaceTool = {
   id: WorkspaceToolId;
@@ -134,6 +143,86 @@ type WorkspaceTool = {
   busy?: boolean;
   open: () => void;
 };
+
+function notebookGlyphNodes(kind: NotebookGlyphKind): VNode[] {
+  switch (kind) {
+    case 'bookmark':
+      return [
+        hl('path', { attrs: { d: 'M10 6.5h12a2 2 0 0 1 2 2v17l-8-4.8-8 4.8v-17a2 2 0 0 1 2-2Z' } }),
+        hl('path', { attrs: { d: 'M12 11h8' } }),
+        hl('path', { attrs: { d: 'M12 14.5h8' } }),
+      ];
+    case 'page':
+      return [
+        hl('path', { attrs: { d: 'M11 5.5h8.5L25 11v14.5a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2v-18a2 2 0 0 1 2-2Z' } }),
+        hl('path', { attrs: { d: 'M19.5 5.5V11H25' } }),
+        hl('path', { attrs: { d: 'M12.5 15h9' } }),
+        hl('path', { attrs: { d: 'M12.5 18.5h9' } }),
+        hl('path', { attrs: { d: 'M12.5 22h6.5' } }),
+      ];
+    case 'section':
+      return [
+        hl('path', { attrs: { d: 'M8 9.5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-14Z' } }),
+        hl('path', { attrs: { d: 'M10.5 7.5v-2a2 2 0 0 1 2-2H21l3 3' } }),
+        hl('path', { attrs: { d: 'M13 15h7' } }),
+        hl('path', { attrs: { d: 'M13 18.5h7' } }),
+        hl('path', { attrs: { d: 'M13 22h4.5' } }),
+      ];
+    default:
+      return [
+        hl('path', { attrs: { d: 'M8.5 7.5a2 2 0 0 1 2-2h10.5a3 3 0 0 1 3 3v15.5a2 2 0 0 1-2 2H11a2.5 2.5 0 0 1-2.5-2.5V7.5Z' } }),
+        hl('path', { attrs: { d: 'M12 5.5v21' } }),
+        hl('path', { attrs: { d: 'M15 11.5h6' } }),
+        hl('path', { attrs: { d: 'M15 15h6' } }),
+        hl('path', { attrs: { d: 'M15 18.5h4.5' } }),
+        hl('path', { attrs: { d: 'M12 23.5c.7-1 1.7-1.5 3-1.5h9' } }),
+      ];
+  }
+}
+
+function renderNotebookGlyph(kind: NotebookGlyphKind, extraClass?: string): VNode {
+  return hl(
+    'span.notebook-glyph',
+    {
+      class: {
+        [`notebook-glyph--${kind}`]: true,
+        [extraClass || '']: !!extraClass,
+      },
+    },
+    [
+      hl(
+        'svg',
+        {
+          attrs: {
+            viewBox: '0 0 32 32',
+            fill: 'none',
+            stroke: 'currentColor',
+            'stroke-width': '1.7',
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'aria-hidden': 'true',
+          },
+        },
+        notebookGlyphNodes(kind),
+      ),
+    ],
+  );
+}
+
+function notebookGlyphForTool(tool: WorkspaceTool): NotebookGlyphKind {
+  switch (tool.id) {
+    case 'opening-explorer':
+      return 'bookmark';
+    case 'narrative':
+      return 'page';
+    default:
+      return 'section';
+  }
+}
+
+function renderWorkspaceToolIcon(ctrl: AnalyseCtrl, tool: WorkspaceTool): VNode {
+  return ctrl.isStudy() ? renderNotebookGlyph(notebookGlyphForTool(tool), 'analyse__workspace-glyph') : icon(tool.icon as any);
+}
 
 function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
   const tools: WorkspaceTool[] = [
@@ -207,7 +296,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
             },
           },
           [
-            hl('span.analyse__workspace-card-icon', [icon(tool.icon as any)]),
+            hl('span.analyse__workspace-card-icon', [renderWorkspaceToolIcon(ctrl, tool)]),
             hl('span.analyse__workspace-card-copy', [
               hl('strong', tool.label),
               hl('span', tool.summary),
@@ -325,6 +414,7 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
       ),
       compactSummaryCard(fenInspection.headline, 'fen jump'),
     ]),
+    ctrl.isStudy() ? renderStudyWorkspacePanel(ctrl) : renderStudyLaunchPanel(ctrl),
     hl('div.copyables__panel', [
       hl('div.pair', [
         hl('label.name', 'FEN'),
@@ -438,6 +528,287 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
       renderImportPreview(currentInspection, pgnInspection),
       recentDrafts.length ? renderRecentImportDrafts(ctrl, recentDrafts) : null,
       serverHistory ? renderServerImportHistory(serverHistory) : null,
+    ]),
+  ]);
+}
+
+function renderNotebookPanelCover(title: string, subtitle: string, detail: string): VNode {
+  return hl('div.copyables__study-cover', [
+    hl('div.copyables__study-cover-spine'),
+    hl('div.copyables__study-cover-pages', [
+      hl('span.copyables__study-cover-page'),
+      hl('span.copyables__study-cover-page.copyables__study-cover-page--mid'),
+      hl('span.copyables__study-cover-page.copyables__study-cover-page--inner'),
+    ]),
+    hl('div.copyables__study-cover-face', [
+      hl('div.copyables__study-cover-seal', [renderNotebookGlyph('notebook', 'copyables__study-cover-glyph')]),
+      hl('span.copyables__study-cover-eyebrow', 'Chess notebook'),
+      hl('strong.copyables__study-cover-title', title),
+      hl('span.copyables__study-cover-subtitle', subtitle),
+      hl('span.copyables__study-cover-detail', detail),
+    ]),
+  ]);
+}
+
+function renderDossierEvidenceLine(
+  evidence: { strength: string; supportingGames: number; totalSampledGames: number },
+  extra?: string,
+): VNode {
+  const parts = [`${evidence.supportingGames}/${evidence.totalSampledGames} games`, evidence.strength];
+  if (extra) parts.push(extra);
+  return hl('span.copyables__study-dossier-meta', parts.join(' • '));
+}
+
+function renderDossierTag(label: string): VNode {
+  return hl('span.copyables__study-dossier-tag', label);
+}
+
+function renderDossierCard(card: SectionCardV1): VNode {
+  switch (card.cardKind) {
+    case 'opening_map':
+      return hl('article.copyables__study-card.copyables__study-card--opening', [
+        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence)]),
+        hl('span.copyables__study-card-kicker', `${card.openingFamily} • ${card.side}`),
+        hl('p.copyables__study-card-copy', card.story),
+        hl('div.copyables__study-dossier-tags', card.structureLabels.map(renderDossierTag)),
+      ]);
+    case 'anchor_position':
+      return hl('article.copyables__study-card.copyables__study-card--anchor', [
+        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence, `ply ${card.moveContext.ply}`)]),
+        hl('span.copyables__study-card-kicker', card.claim),
+        hl('p.copyables__study-card-copy', card.explanation),
+        hl('div.copyables__study-card-block', [
+          hl('span.copyables__study-card-label', 'Question'),
+          hl('p', card.questionPrompt),
+        ]),
+        hl('div.copyables__study-card-block', [
+          hl('span.copyables__study-card-label', 'Recommended plan'),
+          hl('strong', card.recommendedPlan.label),
+          hl('p', card.recommendedPlan.summary),
+          card.recommendedPlan.candidateMoves?.length
+            ? hl(
+                'div.copyables__study-dossier-tags',
+                card.recommendedPlan.candidateMoves.map(move => renderDossierTag(move.san || move.uci || move.note || 'candidate')),
+              )
+            : null,
+        ]),
+        card.antiPattern
+          ? hl('div.copyables__study-card-block', [
+              hl('span.copyables__study-card-label', 'Avoid'),
+              hl('strong', card.antiPattern.label),
+              hl('p', card.antiPattern.summary),
+            ])
+          : null,
+        card.strategicTags.length ? hl('div.copyables__study-dossier-tags', card.strategicTags.map(renderDossierTag)) : null,
+      ]);
+    case 'exemplar_game':
+      return hl('article.copyables__study-card.copyables__study-card--example', [
+        hl('div.copyables__study-card-head', [
+          hl('strong', card.title),
+          hl('span.copyables__study-dossier-meta', `${card.game.white} vs ${card.game.black} • ${card.game.result}`),
+        ]),
+        hl('span.copyables__study-card-kicker', card.whyItMatters),
+        hl('p.copyables__study-card-copy', card.narrative),
+        hl('div.copyables__study-card-block', [
+          hl('span.copyables__study-card-label', 'Takeaway'),
+          hl('p', card.takeaway),
+        ]),
+      ]);
+    case 'action_item':
+      return hl('article.copyables__study-card.copyables__study-card--action', [
+        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
+        hl('p.copyables__study-card-copy', card.instruction),
+        hl('div.copyables__study-card-block', [
+          hl('span.copyables__study-card-label', 'Success marker'),
+          hl('p', card.successMarker),
+        ]),
+      ]);
+    case 'checklist':
+      return hl('article.copyables__study-card.copyables__study-card--checklist', [
+        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
+        hl(
+          'div.copyables__study-checklist',
+          card.items.map(item =>
+            hl('div.copyables__study-checklist-item', [
+              hl('span.copyables__study-checklist-priority', item.priority),
+              hl('div', [hl('strong', item.label), item.reason ? hl('span', item.reason) : null]),
+            ]),
+          ),
+        ),
+      ]);
+  }
+}
+
+function renderDossierSection(section: NotebookSectionV1): VNode {
+  return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
+    hl('div.copyables__study-section-head', [
+      hl('div', [hl('strong', section.title), hl('span', section.summary)]),
+      hl('span.copyables__study-dossier-meta', `${section.kind.replace(/_/g, ' ')} • ${section.status}`),
+    ]),
+    section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
+    hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
+  ]);
+}
+
+function renderNotebookDossierSurface(raw: unknown): VNode | null {
+  const dossier = parseNotebookDossier(raw);
+  if (!dossier) return null;
+
+  return hl('div.copyables__study-dossier', [
+    hl('div.copyables__study-dossier-head', [
+      hl('div.copyables__study-dossier-copy', [
+        hl('span.copyables__study-eyebrow', notebookDossierProductLabel(dossier.productKind)),
+        hl('strong', dossier.headline),
+        hl('span.copyables__study-subline', dossier.summary),
+      ]),
+      hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
+        compactSummaryCard(`${dossier.source.sampledGameCount}`, 'sampled games'),
+        compactSummaryCard(`${dossier.sections.length}`, 'sections'),
+        compactSummaryCard(dossier.status, 'status'),
+      ]),
+    ]),
+    hl(
+      'div.copyables__study-overview-grid',
+      dossier.overview.cards.map(card =>
+        hl('article.copyables__study-overview-card', [
+          hl('span.copyables__study-card-label', notebookDossierOverviewKindLabel(card.kind)),
+          hl('strong', card.headline),
+          hl('p', card.summary),
+          renderDossierEvidenceLine(card.evidence),
+          card.tags?.length ? hl('div.copyables__study-dossier-tags', card.tags.map(renderDossierTag)) : null,
+        ]),
+      ),
+    ),
+    hl('div.copyables__study-sections', dossier.sections.map(renderDossierSection)),
+  ]);
+}
+
+function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
+  const study = ctrl.studyData();
+  if (!study) return null;
+
+  const visibility = study.visibility || 'public';
+  const currentUrl = ctrl.studyUrl();
+  const actionMessage = ctrl.studyActionMessageText();
+  const syncTone = ctrl.studyWriteError ? 'error' : ctrl.isStudyWriting() ? 'info' : 'success';
+  const syncMessage = actionMessage || ctrl.studyStatusText();
+
+  return hl('section.copyables__study.copyables__study--current', [
+    hl('div.copyables__study-head', [
+      renderNotebookPanelCover(
+        study.name,
+        study.chapterName,
+        `${study.chapters.length} ${study.chapters.length === 1 ? 'section' : 'sections'}`,
+      ),
+      hl('div.copyables__study-copy', [
+        hl('span.copyables__study-eyebrow', 'Notebook'),
+        hl('strong', study.name),
+        hl(
+          'span.copyables__study-subline',
+          `${study.chapterName}${study.chapters.length > 1 ? ` • ${study.chapters.length} sections` : ''}`,
+        ),
+      ]),
+      hl('div.copyables__study-actions', [
+        currentUrl
+          ? hl(
+              'a.button.button-thin.copyables__study-button',
+              { attrs: { href: currentUrl } },
+              [renderNotebookGlyph('page', 'copyables__study-button-glyph'), ' Open notebook'],
+            )
+          : null,
+        hl(
+          'button.button.button-thin.copyables__study-button',
+          {
+            attrs: { type: 'button' },
+            hook: bind('click', () => {
+              void ctrl.copyStudyShareLink();
+            }),
+          },
+          [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), ' Copy notebook link'],
+        ),
+      ]),
+    ]),
+    hl('div.analyse-review__summary-grid.copyables__study-summary', [
+      compactSummaryCard(study.canWrite ? 'Editable' : 'Read only', 'access'),
+      compactSummaryCard(visibility, 'visibility'),
+      compactSummaryCard(`${study.chapters.length}`, 'sections'),
+      compactSummaryCard(ctrl.isStudyWriting() ? 'Saving' : 'Ready', 'sync'),
+    ]),
+    renderStudyStatusCard(syncMessage, actionMessage ? ctrl.studyActionToneValue() : syncTone),
+    hl('div.copyables__study-pills', [
+      studyFeaturePill('page', `${study.chapterName} open`),
+      studyFeaturePill('section', 'Use the section navigator above'),
+      studyFeaturePill('bookmark', 'Share the exact section link'),
+    ]),
+    renderNotebookDossierSurface(study.notebookDossier),
+  ]);
+}
+
+function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
+  const busy = ctrl.studyCreateBusy();
+  const needsAuth = ctrl.studyNeedsAuth();
+  const transferCount = ctrl.studyTransferCountValue();
+  const narrativeReady = ctrl.hasNarrativeStudyBrief();
+  const error = ctrl.studyCreateErrorText();
+
+  return hl('section.copyables__study.copyables__study--launch', [
+    hl('div.copyables__study-head', [
+      renderNotebookPanelCover(
+        'Untitled notebook',
+        'First section from analysis',
+        narrativeReady ? 'Chronicle preface ready' : 'Add commentary as you go',
+      ),
+      hl('div.copyables__study-copy', [
+        hl('span.copyables__study-eyebrow', 'Research notebook'),
+        hl('strong', 'Turn this analysis into a notebook'),
+        hl(
+          'span.copyables__study-subline',
+          'Create a section-based research notebook, keep annotating key moves, and share the result like a chess book in progress.',
+        ),
+      ]),
+      hl('div.copyables__study-actions', [
+        needsAuth
+          ? hl(
+              'a.button.copyables__study-button',
+              { attrs: { href: ctrl.studyLoginHref() } },
+              [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), ' Sign in to create'],
+            )
+          : hl(
+              'button.button.copyables__study-button',
+              {
+                attrs: busy ? { type: 'button', disabled: true } : { type: 'button' },
+                hook: busy
+                  ? undefined
+                  : bind('click', () => {
+                    void ctrl.createStudyFromCurrentAnalysis();
+                  }),
+              },
+              [
+                renderNotebookGlyph('notebook', 'copyables__study-button-glyph'),
+                busy ? ' Creating notebook...' : ' Create notebook from analysis',
+              ],
+            ),
+      ]),
+    ]),
+    hl('div.analyse-review__summary-grid.copyables__study-summary', [
+      compactSummaryCard('PGN + move tree', 'base'),
+      compactSummaryCard('Bookmaker carry-over', 'saved lines'),
+      compactSummaryCard(narrativeReady ? 'Chronicle brief included' : 'Chronicle optional', 'section intro'),
+    ]),
+    renderStudyStatusCard(
+      busy
+        ? transferCount > 0
+          ? `Creating the new notebook and moving ${transferCount} saved explanation${transferCount === 1 ? '' : 's'}.`
+          : 'Creating the new notebook shell from the current PGN.'
+        : 'Bookmaker explanations that already exist in this shell will be carried into the new notebook when possible.',
+      busy ? 'info' : 'success',
+    ),
+    error ? renderStudyStatusCard(error, 'error') : null,
+    hl('div.copyables__study-pills', [
+      studyFeaturePill('page', 'Move-by-move notes'),
+      studyFeaturePill('section', 'Branches stay explorable'),
+      studyFeaturePill('bookmark', 'Shareable section URL'),
+      narrativeReady ? studyFeaturePill('notebook', 'Game Chronicle preface') : null,
     ]),
   ]);
 }
@@ -558,6 +929,20 @@ function renderInlineStatus(headline: string, message: string, error = false): V
 
 function compactSummaryCard(value: string, label: string): VNode {
   return hl('div.analyse-review__summary-card', [hl('strong', value), hl('span', label)]);
+}
+
+function renderStudyStatusCard(
+  message: string,
+  tone: 'info' | 'success' | 'error',
+): VNode {
+  return hl(`div.copyables__study-status.copyables__study-status--${tone}`, [
+    hl('strong', tone === 'error' ? 'Notebook issue' : tone === 'info' ? 'Notebook in progress' : 'Notebook ready'),
+    hl('span', message),
+  ]);
+}
+
+function studyFeaturePill(kind: NotebookGlyphKind, label: string): VNode | null {
+  return label ? hl('span.copyables__study-pill', [renderNotebookGlyph(kind, 'copyables__study-pill-glyph'), hl('span', label)]) : null;
 }
 
 function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInspection): VNode {

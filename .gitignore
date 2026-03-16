@@ -9,5 +9,12 @@
 /lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.md
 /lila-docker/repos/lila/modules/llm/docs/ActiveNarrativePlayerCorpus_*.pgn
 /lila-docker/repos/lila/modules/llm/docs/active_narrative_runs/
+/lila-docker/repos/lila/modules/llm/docs/RealPgnNarrativeEvalCorpus_*.json
+/lila-docker/repos/lila/modules/llm/docs/RealPgnNarrativeEvalReport.latest.json
+/lila-docker/repos/lila/modules/llm/docs/RealPgnNarrativeEvalReport.latest.md
+/lila-docker/repos/lila/modules/llm/docs/RealPgnNarrativeEvalReport.latest.json.pre_*.bak
+/lila-docker/repos/lila/modules/llm/docs/RealPgnNarrativeEvalReport.latest.md.pre_*.bak
+/lila-docker/repos/lila/modules/llm/docs/real_pgn_eval/
 /tools/stockfish/
 /tmp_analyse_check*.png
+/tmp_*

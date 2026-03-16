@@ -1,6 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
 
@@ -41,6 +42,184 @@ class StrategicThesisBuilderTest extends FunSuite:
       .filter(_.nonEmpty)
       .toList
 
+  private def surfaceDrivenPack(
+      compensation: Option[String] = None,
+      compensationVectors: List[String] = Nil,
+      investedMaterial: Option[Int] = None
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_attack_g7",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("g7"),
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.91
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "c3",
+          route = List("c3", "g3"),
+          purpose = "rook lift",
+          strategicFit = 0.88,
+          tacticalSafety = 0.74,
+          surfaceConfidence = 0.82,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_g7",
+          ownerSide = "white",
+          piece = "Q",
+          from = "d1",
+          targetSquare = "g7",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("mating net")
+        )
+      ),
+      longTermFocus = List("keep pressure on g7"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = compensation,
+          compensationVectors = compensationVectors,
+          investedMaterial = investedMaterial,
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("g7")
+        )
+      )
+    )
+
+  private def quietCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_bfile_fixation",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.TargetFixing,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("b2", "b3"),
+          focusFiles = List("b"),
+          focusZone = Some("queenside"),
+          beneficiaryPieces = List("R"),
+          confidence = 0.88
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "black",
+          piece = "R",
+          from = "a8",
+          route = List("a8", "b8", "b4"),
+          purpose = "queenside pressure",
+          strategicFit = 0.84,
+          tacticalSafety = 0.78,
+          surfaceConfidence = 0.80,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      longTermFocus = List("fix the queenside targets before recovering the pawn"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.TargetFixing),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("b2, b3")
+        )
+      )
+    )
+
+  private def benkoLikeCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_benko_line",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("b2", "c4", "d4"),
+          focusFiles = List("b", "c", "d"),
+          focusZone = Some("queenside"),
+          beneficiaryPieces = List("R", "Q"),
+          confidence = 0.86
+        ),
+        StrategyIdeaSignal(
+          ideaId = "idea_benko_targets",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.TargetFixing,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("b2", "a6"),
+          focusFiles = List("a", "b"),
+          focusZone = Some("queenside"),
+          beneficiaryPieces = List("R"),
+          confidence = 0.79
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "black",
+          piece = "R",
+          from = "a8",
+          route = List("a8", "d8", "d3"),
+          purpose = "kingside clamp",
+          strategicFit = 0.82,
+          tacticalSafety = 0.77,
+          surfaceConfidence = 0.79,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "black",
+          piece = "Q",
+          from = "d8",
+          target = "b6",
+          idea = "fix the queenside targets"
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_b2",
+          ownerSide = "black",
+          piece = "R",
+          from = "d8",
+          targetSquare = "b2",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("backward pawn")
+        )
+      ),
+      longTermFocus = List("fix the queenside targets before recovering the pawn"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("b2, c4, d4")
+        )
+      )
+    )
+
   test("compensation lens drives bookmaker prose for long-term investment motif") {
     val ctx = baseContext.copy(
       semantic = Some(
@@ -74,16 +253,144 @@ class StrategicThesisBuilderTest extends FunSuite:
 
     val thesis = StrategicThesisBuilder.build(ctx).getOrElse(fail("missing compensation thesis"))
     assertEquals(thesis.lens, StrategicLens.Compensation)
-    assert(thesis.claim.contains("120cp investment"))
+    assert(thesis.claim.contains("120cp compensation investment"))
     assert(thesis.claim.toLowerCase.contains("attack on king"))
 
     val prose = BookStyleRenderer.render(ctx)
     val paras = paragraphs(prose)
     assertEquals(paras.size, 3)
-    assert(paras.head.toLowerCase.contains("120cp investment"))
+    assert(paras.head.toLowerCase.contains("120cp compensation investment"))
     assert(paras(1).contains("Mating Attack"))
     assert(paras(1).toLowerCase.contains("initiative"))
     assert(paras(2).contains("Probe evidence"))
+  }
+
+  test("strategy-pack compensation fallback survives without semantic compensation") {
+    val thesis =
+      StrategicThesisBuilder
+        .build(baseContext, Some(surfaceDrivenPack(compensation = Some("initiative against the king"), investedMaterial = Some(180))))
+        .getOrElse(fail("missing compensation thesis from strategy pack"))
+
+    assertEquals(thesis.lens, StrategicLens.Compensation)
+    assert(thesis.claim.contains("180cp compensation investment"))
+    assert(thesis.claim.toLowerCase.contains("compensation"))
+    assert(thesis.claim.toLowerCase.contains("g7") || thesis.claim.toLowerCase.contains("dominant thesis"))
+    assert(
+      thesis.claim.toLowerCase.contains("initiative against the king") ||
+        thesis.support.exists(text => {
+          val low = text.toLowerCase
+          low.contains("initiative") || low.contains("cash out") || low.contains("return vector")
+        })
+    )
+    assert(thesis.support.headOption.exists(text => {
+      val low = text.toLowerCase
+      low.contains("initiative") || low.contains("cash out") || low.contains("return vector") || low.contains("delayed recovery")
+    }))
+  }
+
+  test("strategy-pack compensation vectors drive thesis wording without semantic compensation") {
+    val thesis =
+      StrategicThesisBuilder
+        .build(
+          baseContext,
+          Some(
+            surfaceDrivenPack(
+              compensationVectors = List("Initiative (0.7)", "Line Pressure (0.6)", "Delayed Recovery (0.5)"),
+              investedMaterial = Some(200)
+            )
+          )
+        )
+        .getOrElse(fail("missing compensation thesis from digest vectors"))
+
+    assertEquals(thesis.lens, StrategicLens.Compensation)
+    assert(thesis.claim.contains("200cp compensation investment"))
+    assert(
+      thesis.claim.toLowerCase.contains("initiative") ||
+        thesis.claim.toLowerCase.contains("line pressure"),
+      clue(thesis.claim)
+    )
+    assert(thesis.claim.toLowerCase.contains("g7") || thesis.claim.toLowerCase.contains("dominant thesis"))
+    assert(
+      thesis.support.exists(text => {
+        val low = text.toLowerCase
+        low.contains("line pressure") ||
+          low.contains("dragged back to the king") ||
+          low.contains("defenders keep getting dragged back")
+      }),
+      clue(thesis.support)
+    )
+    assert(
+      thesis.support.exists(text =>
+        text.toLowerCase.contains("delayed recovery") ||
+          text.toLowerCase.contains("return vector") ||
+          text.toLowerCase.contains("durable") ||
+          text.toLowerCase.contains("before recovering the material") ||
+          text.toLowerCase.contains("keep the compensation alive")
+      ),
+      clue(thesis.support)
+    )
+  }
+
+  test("quiet positional compensation keeps subtype-specific file pressure language") {
+    val thesis =
+      StrategicThesisBuilder
+        .build(baseContext, Some(quietCompensationPack))
+        .getOrElse(fail("missing quiet compensation thesis"))
+
+    assertEquals(thesis.lens, StrategicLens.Compensation)
+    assert(thesis.claim.toLowerCase.contains("fixed queenside targets") || thesis.claim.toLowerCase.contains("queenside file pressure"))
+    assert(!thesis.claim.toLowerCase.contains("attack on king"))
+    assert(thesis.support.exists(text => text.toLowerCase.contains("file pressure") || text.toLowerCase.contains("open-line pressure")), clue(thesis.support))
+    assert(thesis.support.exists(text => text.toLowerCase.contains("invested") || text.toLowerCase.contains("targets")), clue(thesis.support))
+  }
+
+  test("Benko-like compensation stays queenside and target-led despite central support squares") {
+    val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
+    assertEquals(surface.compensationSubtype.map(_.pressureTheater), Some("queenside"))
+    assertEquals(surface.compensationSubtype.map(_.pressureMode), Some("target_fixing"))
+    assert(surface.normalizationActive)
+    assert(surface.normalizationConfidence >= 6)
+    assertEquals(surface.dominantIdeaText, Some("fixed queenside targets"))
+    assert(surface.executionText.exists(_.toLowerCase.contains("queenside targets")), clue(surface.executionText))
+    assert(!surface.executionText.exists(_.toLowerCase.contains("kingside clamp")), clue(surface.executionText))
+    assert(
+      surface.focusText.exists(text =>
+        text.toLowerCase.contains("queenside targets") || text.toLowerCase.contains("queenside files")
+      ),
+      clue(surface.focusText)
+    )
+
+    val thesis =
+      StrategicThesisBuilder
+        .build(baseContext, Some(benkoLikeCompensationPack))
+        .getOrElse(fail("missing Benko-like compensation thesis"))
+
+    assert(thesis.claim.toLowerCase.contains("fixed queenside targets"), clue(thesis.claim))
+    assert(!thesis.claim.toLowerCase.contains("kingside clamp"), clue(thesis.claim))
+    assert(
+      thesis.support.exists(text =>
+        text.toLowerCase.contains("queenside targets") || text.toLowerCase.contains("queenside file pressure")
+      ),
+      clue(thesis.support)
+    )
+  }
+
+  test("attack-led compensation keeps raw kingside attack wording when normalization confidence is low") {
+    val surface = StrategyPackSurface.from(BookmakerProseGoldenFixtures.exchangeSacrifice.strategyPack)
+
+    assert(!surface.normalizationActive, clue(surface.displayNormalization))
+    assert(
+      surface.dominantIdeaText.exists(text =>
+        text.toLowerCase.contains("king-attack") || text.toLowerCase.contains("king attack")
+      ),
+      clue(surface.dominantIdeaText)
+    )
+    assert(
+      surface.executionText.exists(text =>
+        text.toLowerCase.contains("h5") || text.toLowerCase.contains("mate threats")
+      ),
+      clue(surface.executionText)
+    )
   }
 
   test("prophylaxis lens leads when counterplay denial is the key point") {
@@ -306,6 +613,87 @@ class StrategicThesisBuilderTest extends FunSuite:
     assert(paras(1).toLowerCase.contains("resolving back-rank mate"))
     assert(paras(2).contains("Probe evidence"))
     assert(paras(2).toLowerCase.contains("immediate"))
+  }
+
+  test("decision lens uses strategy-pack thesis before generic route scaffolding when available") {
+    val ctx = baseContext.copy(
+      decision = Some(
+        DecisionRationale(
+          focalPoint = Some(TargetSquare("g7")),
+          logicSummary = "contest the c-file -> switch the rook to g3 -> pressure g7",
+          delta = PVDelta(
+            resolvedThreats = List("back-rank mate"),
+            newOpportunities = List("g7"),
+            planAdvancements = List("Met: rook lift"),
+            concessions = List("queenside simplification")
+          ),
+          confidence = ConfidenceLevel.Probe
+        )
+      ),
+      whyAbsentFromTopMultiPV = List("the immediate 'Qh5' thrust lets Black trade queens and kill the attack"),
+      authorEvidence = List(
+        QuestionEvidence(
+          questionId = "q-open-file",
+          purpose = "latent_plan_refutation",
+          branches = List(
+            EvidenceBranch("...Rc8", "Rc8 Rc3 Rg6", Some(42), None, Some(23), Some("probe-open-file"))
+          )
+        )
+      )
+    )
+
+    val thesis =
+      StrategicThesisBuilder
+        .build(ctx, Some(surfaceDrivenPack()))
+        .getOrElse(fail("missing strategy-pack-backed decision thesis"))
+
+    assertEquals(thesis.lens, StrategicLens.Decision)
+    assert(!thesis.claim.contains("The key decision is to choose"))
+    assert(thesis.claim.toLowerCase.contains("dominant thesis"))
+    assert(thesis.claim.toLowerCase.contains("g7"))
+    assert(thesis.claim.toLowerCase.contains("execution"))
+    assert(thesis.support.exists(_.toLowerCase.contains("the objective is")))
+    assert(thesis.support.exists(_.toLowerCase.contains("stays secondary because")))
+    assert(!thesis.support.exists(_.toLowerCase.contains("the whole decision turns on")))
+  }
+
+  test("compensation-flavored decision surface avoids whole-decision fallback and uses compensation lexicon") {
+    val ctx = baseContext.copy(
+      decision = Some(
+        DecisionRationale(
+          focalPoint = Some(TargetSquare("g7")),
+          logicSummary = "switch the rook and keep the attack alive",
+          delta = PVDelta(
+            resolvedThreats = List("trade into a worse ending"),
+            newOpportunities = List("g7"),
+            planAdvancements = List("Met: line pressure"),
+            concessions = Nil
+          ),
+          confidence = ConfidenceLevel.Probe
+        )
+      ),
+      whyAbsentFromTopMultiPV = List("the direct recapture kills the attack"),
+      authorEvidence = List(
+        QuestionEvidence(
+          questionId = "q-comp-surface",
+          purpose = "latent_plan_refutation",
+          branches = List(EvidenceBranch("...Qe7", "Qe7 h5 Rh6", Some(68), None, Some(21), Some("probe-comp-surface")))
+        )
+      )
+    )
+
+    val thesis =
+      StrategicThesisBuilder
+        .build(ctx, Some(surfaceDrivenPack(compensation = Some("initiative against the king"), investedMaterial = Some(180))))
+        .getOrElse(fail("missing compensation-flavored decision thesis"))
+
+    val claimLow = thesis.claim.toLowerCase
+    assert(!claimLow.contains("the whole decision turns on"))
+    assert(claimLow.contains("compensation") || claimLow.contains("initiative"))
+    assert(thesis.support.exists(text => {
+      val low = text.toLowerCase
+      low.contains("cash out") || low.contains("compensation") || low.contains("initiative")
+    }))
   }
 
   test("practical lens foregrounds workload drivers over tiny eval edges") {

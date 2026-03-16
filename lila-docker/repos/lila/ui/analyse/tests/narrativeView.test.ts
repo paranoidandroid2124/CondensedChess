@@ -1,8 +1,86 @@
-import { describe, test } from 'node:test';
+import { after, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { narrativeMomentView, shouldIgnoreReviewCardClick } from '../src/narrative/narrativeView';
 import type { VNode } from 'snabbdom';
+
+type NarrativeViewModule = typeof import('../src/narrative/narrativeView');
+
+let narrativeViewModulePromise: Promise<NarrativeViewModule> | null = null;
+
+async function loadNarrativeViewModule(): Promise<NarrativeViewModule> {
+  if (!narrativeViewModulePromise) {
+    const dom = new JSDOM('', { url: 'https://example.test/analyse' });
+    const requestAnimationFrame =
+      dom.window.requestAnimationFrame ||
+      ((callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0));
+    const cancelAnimationFrame =
+      dom.window.cancelAnimationFrame ||
+      ((handle: number) => clearTimeout(handle));
+    Object.defineProperty(dom.window, 'requestAnimationFrame', {
+      value: requestAnimationFrame.bind(dom.window),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(dom.window, 'cancelAnimationFrame', {
+      value: cancelAnimationFrame.bind(dom.window),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: dom.window,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'document', {
+      value: dom.window.document,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      value: dom.window.navigator,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'HTMLElement', {
+      value: dom.window.HTMLElement,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'Node', {
+      value: dom.window.Node,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: dom.window.localStorage,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      value: dom.window.requestAnimationFrame.bind(dom.window),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      value: dom.window.cancelAnimationFrame.bind(dom.window),
+      configurable: true,
+      writable: true,
+    });
+    narrativeViewModulePromise = import('../src/narrative/narrativeView');
+  }
+  return narrativeViewModulePromise;
+}
+
+after(() => {
+  delete (globalThis as typeof globalThis & { window?: Window }).window;
+  delete (globalThis as typeof globalThis & { document?: Document }).document;
+  delete (globalThis as typeof globalThis & { navigator?: Navigator }).navigator;
+  delete (globalThis as typeof globalThis & { HTMLElement?: typeof HTMLElement }).HTMLElement;
+  delete (globalThis as typeof globalThis & { Node?: typeof Node }).Node;
+  delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+  delete (globalThis as typeof globalThis & { requestAnimationFrame?: typeof requestAnimationFrame }).requestAnimationFrame;
+  delete (globalThis as typeof globalThis & { cancelAnimationFrame?: typeof cancelAnimationFrame }).cancelAnimationFrame;
+});
 
 function collectText(node: VNode | string | undefined): string {
   if (!node) return '';
@@ -28,7 +106,8 @@ function collectRoutePayloads(node: VNode | string | undefined, acc: string[] = 
 }
 
 describe('narrative review card click guard', () => {
-  test('ignores interactive descendants inside a review card', () => {
+  test('ignores interactive descendants inside a review card', async () => {
+    const { shouldIgnoreReviewCardClick } = await loadNarrativeViewModule();
     const dom = new JSDOM(`
       <section class="narrative-moment">
         <button class="patch-replay-open-btn">Replay</button>
@@ -43,7 +122,8 @@ describe('narrative review card click guard', () => {
     assert.equal(shouldIgnoreReviewCardClick(doc.querySelector('[data-route]')), true);
   });
 
-  test('allows plain card content to select the moment', () => {
+  test('allows plain card content to select the moment', async () => {
+    const { shouldIgnoreReviewCardClick } = await loadNarrativeViewModule();
     const dom = new JSDOM(`
       <section class="narrative-moment">
         <div class="narrative-body">
@@ -56,7 +136,8 @@ describe('narrative review card click guard', () => {
     assert.equal(shouldIgnoreReviewCardClick(doc.querySelector('.plain-copy')), false);
   });
 
-  test('renders campaign thread summary and theme/stage badges for active notes', () => {
+  test('renders campaign thread summary and theme/stage badges for active notes', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
         data: {
@@ -126,7 +207,8 @@ describe('narrative review card click guard', () => {
     assert.match(text, /fills switch stage of Whole-Board Play/);
   });
 
-  test('fallback route chips hide opponent routes and suppress raw paths for toward-only surfaces', () => {
+  test('fallback route chips hide opponent routes and suppress raw paths for toward-only surfaces', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
         data: {
@@ -183,7 +265,8 @@ describe('narrative review card click guard', () => {
     assert.deepEqual(routePayloads, []);
   });
 
-  test('active note shows Idea, Execution, and Objective as distinct surfaces', () => {
+  test('active note shows Idea, Execution, and Objective as distinct surfaces', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
         data: {
@@ -253,13 +336,14 @@ describe('narrative review card click guard', () => {
     assert.match(text, /Idea/);
     assert.match(text, /Execution/);
     assert.match(text, /Objective/);
-    assert.match(text, /Dominant: Space Gain OR Restriction · e3, g4 · Build/);
+    assert.match(text, /Dominant: Space Gain Or Restriction · e3, g4 · Build/);
     assert.match(text, /N toward e3/);
     assert.match(text, /work toward making g4 available · Build/);
     assert.deepEqual(routePayloads, []);
   });
 
-  test('exact execution route keeps raw path preview while objective stays out of route chips', () => {
+  test('exact execution route keeps raw path preview while objective stays out of route chips', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
         data: {
@@ -324,7 +408,8 @@ describe('narrative review card click guard', () => {
     assert.match(text, /work toward making b5 available · Contested/);
   });
 
-  test('branch dossier keeps owner label and hides raw path for toward-only cues', () => {
+  test('branch dossier keeps owner label and hides raw path for toward-only cues', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
         data: {
@@ -370,5 +455,148 @@ describe('narrative review card click guard', () => {
 
     assert.match(text, /Black Q toward c5/);
     assert.deepEqual(routePayloads, []);
+  });
+
+  test('signal box surfaces idea, campaign, execution, objective, and focus from strategyPack', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
+    const ctrl: any = {
+      root: {
+        data: {
+          game: {
+            variant: { key: 'standard' },
+          },
+        },
+      },
+    };
+
+    const moment: any = {
+      ply: 24,
+      moveNumber: 12,
+      side: 'black',
+      momentType: 'SustainedPressure',
+      fen: '4k3/8/8/8/8/8/3Q4/4K3 b - - 0 1',
+      narrative: 'White keeps the compensation rolling.',
+      concepts: [],
+      variations: [],
+      strategyPack: {
+        schema: 'chesstory.strategyPack.v2',
+        sideToMove: 'black',
+        strategicIdeas: [
+          {
+            ideaId: 'idea_1',
+            ownerSide: 'white',
+            kind: 'king_attack_build_up',
+            group: 'tactical_forcing',
+            readiness: 'build',
+            focusSquares: ['g7', 'h7'],
+            confidence: 0.92,
+          },
+        ],
+        pieceRoutes: [
+          {
+            ownerSide: 'white',
+            piece: 'Q',
+            from: 'd1',
+            route: ['d1', 'g4', 'h5'],
+            purpose: 'mate threats',
+            strategicFit: 0.9,
+            tacticalSafety: 0.74,
+            surfaceConfidence: 0.84,
+            surfaceMode: 'toward',
+          },
+        ],
+        pieceMoveRefs: [],
+        directionalTargets: [
+          {
+            targetId: 'target_1',
+            ownerSide: 'white',
+            piece: 'Q',
+            from: 'd1',
+            targetSquare: 'h7',
+            readiness: 'build',
+          },
+        ],
+        longTermFocus: ['keep the initiative rather than recovering material'],
+      },
+      signalDigest: {
+        compensation: 'initiative against the king',
+        investedMaterial: 180,
+        dominantIdeaKind: 'king_attack_build_up',
+        dominantIdeaFocus: 'g7, h7',
+      },
+    };
+
+    const vnode = narrativeMomentView(ctrl, moment);
+    const text = collectText(vnode);
+
+    assert.match(text, /Dominant King Attack Build Up · g7, h7 · Build/);
+    assert.match(text, /White campaign/);
+    assert.match(text, /Q toward h5/);
+    assert.match(text, /work toward making h7 available/);
+    assert.match(text, /keep the initiative rather than recovering material/);
+  });
+
+  test('strategic note falls back to strategyPack and badges owner mismatch', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
+    const ctrl: any = {
+      root: {
+        data: {
+          game: {
+            variant: { key: 'standard' },
+          },
+        },
+      },
+    };
+
+    const moment: any = {
+      ply: 24,
+      moveNumber: 12,
+      side: 'black',
+      momentType: 'SustainedPressure',
+      fen: '4k3/8/8/8/8/8/3Q4/4K3 b - - 0 1',
+      narrative: 'White keeps the compensation rolling.',
+      concepts: [],
+      variations: [],
+      activeStrategicNote: 'White should keep the initiative rather than rushing to recover the pawn.',
+      strategyPack: {
+        schema: 'chesstory.strategyPack.v2',
+        sideToMove: 'black',
+        strategicIdeas: [
+          {
+            ideaId: 'idea_1',
+            ownerSide: 'white',
+            kind: 'king_attack_build_up',
+            group: 'tactical_forcing',
+            readiness: 'build',
+            focusSquares: ['g7', 'h7'],
+            confidence: 0.92,
+          },
+        ],
+        pieceRoutes: [
+          {
+            ownerSide: 'white',
+            piece: 'Q',
+            from: 'd1',
+            route: ['d1', 'g4', 'h5'],
+            purpose: 'mate threats',
+            strategicFit: 0.9,
+            tacticalSafety: 0.74,
+            surfaceConfidence: 0.84,
+            surfaceMode: 'toward',
+          },
+        ],
+        pieceMoveRefs: [],
+        directionalTargets: [],
+        longTermFocus: ['keep the initiative rather than recovering material'],
+      },
+    };
+
+    const vnode = narrativeMomentView(ctrl, moment);
+    const text = collectText(vnode);
+
+    assert.match(text, /White Campaign/);
+    assert.match(text, /Dominant: King Attack Build Up · g7, h7 · Build/);
+    assert.match(text, /Q toward h5/);
+    assert.match(text, /keep the initiative rather than recovering material/);
   });
 });

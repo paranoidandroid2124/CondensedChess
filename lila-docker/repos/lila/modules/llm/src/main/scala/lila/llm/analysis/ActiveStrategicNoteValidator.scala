@@ -29,6 +29,7 @@ private[llm] object ActiveStrategicNoteValidator:
     val comparison = strategyPack.flatMap(_.signalDigest).flatMap(_.decisionComparison)
     val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
     val coachingCoverage = ActiveStrategicCoachingBriefBuilder.evaluateCoverage(trimmed, coachingBrief)
+    val surface = StrategyPackSurface.from(strategyPack)
 
     val baseHardReasons =
       List(
@@ -55,7 +56,8 @@ private[llm] object ActiveStrategicNoteValidator:
       List(
         Option.when(trimmed.nonEmpty && !coachingCoverage.hasDominantIdea)("dominant_idea_missing"),
         Option.when(trimmed.nonEmpty && !coachingCoverage.hasForwardPlan)("forward_plan_missing"),
-        Option.when(trimmed.nonEmpty && !coachingCoverage.hasOpponentOrTrigger)("opponent_or_trigger_missing")
+        Option.when(trimmed.nonEmpty && !coachingCoverage.hasOpponentOrTrigger)("opponent_or_trigger_missing"),
+        Option.when(trimmed.nonEmpty && surface.ownerMismatch && !coachingCoverage.hasCampaignOwner)("campaign_owner_missing")
       ).flatten
 
     val strategyWarnings =

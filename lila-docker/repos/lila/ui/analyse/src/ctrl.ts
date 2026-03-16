@@ -2,7 +2,7 @@ import { playable, playedTurns, fenToEpd, readDests, readDrops, writeDests, vali
 import * as keyboard from './keyboard';
 import { treeReconstruct, plyColor } from './util';
 import { plural } from './view/util';
-import type { AnalyseOpts, AnalyseData, ServerEvalData, JustCaptured } from './interfaces';
+import type { AnalyseOpts, AnalyseData, ServerEvalData, JustCaptured, StudyView } from './interfaces';
 import type { Api as ChessgroundApi } from '@lichess-org/chessground/api';
 import { Autoplay, type AutoplayDelay } from './autoplay';
 import { makeTree, treePath, treeOps, type TreeWrapper } from 'lib/tree';
@@ -36,9 +36,11 @@ import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
 import pgnImport from './pgnImport';
+import * as pgnExport from './pgnExport';
 import { emptyPgnError, normalizeInlinePgn, submitPgnToImportPipeline } from './pgnPipeline';
 import ForecastCtrl from './forecast/forecastCtrl';
 import * as studyApi from './studyApi';
+import { listSessionBookmakerSnapshots, type StudyBookmakerSnapshot } from './bookmaker/studyPersistence';
 
 import type { PgnError } from 'chessops/pgn';
 
@@ -53,7 +55,12 @@ import {
   boardLabelModeToCoords,
   type BoardLabelMode,
 } from './boardWorkspace';
-import { make as makeNarrative, type GameChronicleMoment, type NarrativeCtrl } from './narrative/narrativeCtrl';
+import {
+  make as makeNarrative,
+  type GameChronicleMoment,
+  type GameChronicleResponse,
+  type NarrativeCtrl,
+} from './narrative/narrativeCtrl';
 import {
   initialReviewState,
   reduceReviewState,
@@ -78,6 +85,70 @@ const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
 const reviewReferenceTabs = new Set<ReviewReferenceTab>(['explorer', 'board', 'import']);
 const reviewMomentFilters = new Set<NarrativeMomentFilter>(['all', 'critical', 'collapses']);
 const boardLabelModes = new Set<BoardLabelMode>(['off', 'inside', 'rim', 'full']);
+
+function magicLinkHref(): string {
+  return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
+}
+
+function clipStudyNote(text: string | null | undefined, max: number): string {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 3).trimEnd()}...`;
+}
+
+function studyMomentLabel(moment: GameChronicleMoment): string {
+  const moveNumber = moment.moveNumber || Math.floor((moment.ply + 1) / 2);
+  const side = moment.side || (moment.ply % 2 === 0 ? 'black' : 'white');
+  return `${moveNumber}${side === 'black' ? '...' : '.'}`;
+}
+
+function buildStudyNarrativeNote(data: GameChronicleResponse | null | undefined): string | null {
+  if (!data) return null;
+  const lines: string[] = ['Game Chronicle notebook brief'];
+
+  if (data.themes?.length) lines.push(`Themes: ${data.themes.join(' | ')}`);
+
+  const intro = clipStudyNote(data.intro, 1200);
+  if (intro) {
+    lines.push('');
+    lines.push(intro);
+  }
+
+  const highlights = (data.moments || []).slice(0, 5).flatMap(moment => {
+    const narrative = clipStudyNote(moment.narrative, 220);
+    return narrative ? [`- ${studyMomentLabel(moment)} ${narrative}`] : [];
+  });
+
+  if (highlights.length) {
+    lines.push('');
+    lines.push('Highlighted moments');
+    lines.push(...highlights);
+  }
+
+  const conclusion = clipStudyNote(data.conclusion, 320);
+  if (conclusion) {
+    lines.push('');
+    lines.push(`Closing note: ${conclusion}`);
+  }
+
+  return lines.join('\n').trim();
+}
+
+function snapshotVariationsForStudy(snapshot: StudyBookmakerSnapshot): any[] {
+  return (snapshot.entry.refs?.variations || [])
+    .map(variation => {
+      const moves = variation.moves.map(move => move.uci).filter(Boolean);
+      if (!moves.length) return null;
+      return {
+        moves,
+        scoreCp: Number.isFinite(variation.scoreCp) ? variation.scoreCp : 0,
+        mate: typeof variation.mate === 'number' ? variation.mate : undefined,
+        depth: Number.isFinite(variation.depth) ? variation.depth : 0,
+      };
+    })
+    .filter(Boolean);
+}
 
 export default class AnalyseCtrl implements CevalHandler {
   data: AnalyseData;
@@ -147,6 +218,12 @@ export default class AnalyseCtrl implements CevalHandler {
   private studyWriteQueue: Array<() => Promise<void>> = [];
   private studyWriting = false;
   studyWriteError?: string;
+  private studyCreateLoading = false;
+  private studyCreateError: string | null = null;
+  private studyActionMessage: string | null = null;
+  private studyActionTone: 'info' | 'success' | 'error' = 'info';
+  private studyActionTimer?: number;
+  private studyTransferCount = 0;
 
   // other paths
   initialPath: Tree.Path;
@@ -249,6 +326,12 @@ export default class AnalyseCtrl implements CevalHandler {
     return { id: s.id, chapterId: s.chapterId };
   }
 
+  studyData(): StudyView | undefined {
+    return this.opts.study;
+  }
+
+  isStudy = (): boolean => !!this.studyData()?.id && !!this.studyData()?.chapterId;
+
   canWriteStudy(): boolean {
     const s = this.opts.study as { canWrite?: boolean } | undefined;
     return !!s?.canWrite;
@@ -333,6 +416,136 @@ export default class AnalyseCtrl implements CevalHandler {
   syncBookmaker(payload: studyApi.BookmakerSyncPayload): void {
     this.enqueueStudyWrite(ref => studyApi.bookmakerSync(ref, payload));
   }
+
+  studyLoginHref = (): string => magicLinkHref();
+
+  studyNeedsAuth = (): boolean => !myUserId();
+
+  studyUrl = (chapterId?: string): string | null => {
+    const study = this.studyData();
+    if (!study?.id || !study?.chapterId) return null;
+    if (!chapterId || chapterId === study.chapterId) return study.url || `/notebook/${study.id}/${study.chapterId}`;
+    return study.chapters.find(chapter => chapter.id === chapterId)?.url || `/notebook/${study.id}/${chapterId}`;
+  };
+
+  studyCreateBusy = (): boolean => this.studyCreateLoading;
+
+  studyCreateErrorText = (): string | null => this.studyCreateError;
+
+  studyTransferCountValue = (): number => this.studyTransferCount;
+
+  studyActionMessageText = (): string | null => this.studyActionMessage;
+
+  studyActionToneValue = (): 'info' | 'success' | 'error' => this.studyActionTone;
+
+  hasNarrativeStudyBrief = (): boolean => !!buildStudyNarrativeNote(this.narrative?.data());
+
+  studyStatusText = (): string => {
+    if (this.studyWriteError) return `Notebook sync paused: ${this.studyWriteError}`;
+    if (this.isStudyWriting()) return 'Saving notes and Bookmaker commentary to this section...';
+    return this.canWriteStudy()
+      ? 'Notes and Bookmaker commentary auto-save to this section.'
+      : 'Read-only notebook surface. You can still share the current section link.';
+  };
+
+  private setStudyActionMessage(message: string | null, tone: 'info' | 'success' | 'error' = 'info'): void {
+    if (this.studyActionTimer !== undefined) {
+      window.clearTimeout(this.studyActionTimer);
+      this.studyActionTimer = undefined;
+    }
+    this.studyActionMessage = message;
+    this.studyActionTone = tone;
+    if (message) {
+      this.studyActionTimer = window.setTimeout(() => {
+        this.studyActionMessage = null;
+        this.redraw();
+      }, 2200);
+    }
+    this.redraw();
+  }
+
+  copyStudyShareLink = async (): Promise<void> => {
+    const url = this.studyUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(new URL(url, location.origin).toString());
+      this.setStudyActionMessage('Notebook link copied.', 'success');
+    } catch (e) {
+      console.warn('Study link copy failed', e);
+      this.setStudyActionMessage('Copy failed. Open the notebook link directly instead.', 'error');
+    }
+  };
+
+  createStudyFromCurrentAnalysis = async (): Promise<void> => {
+    if (this.studyCreateLoading) return;
+    if (!myUserId()) {
+      location.assign(this.studyLoginHref());
+      return;
+    }
+
+    this.studyCreateLoading = true;
+    this.studyCreateError = null;
+    this.studyTransferCount = 0;
+    this.redraw();
+
+    const currentPgn = pgnExport.renderFullTxt(this);
+    const sessionScope = `${location.pathname}${location.search}`;
+    const snapshots = listSessionBookmakerSnapshots(sessionScope).filter(snapshot => !!snapshot.commentary?.trim());
+
+    try {
+      const created = await studyApi.createStudyFromAnalysis({
+        pgn: currentPgn,
+        orientation: this.getOrientation(),
+      });
+
+      const ref: studyApi.StudyRef = { id: created.id, chapterId: created.chapterId };
+      const narrativeNote = buildStudyNarrativeNote(this.narrative?.data());
+
+      if (narrativeNote) {
+        try {
+          await studyApi.setNodeComment(ref, '', narrativeNote);
+        } catch (e) {
+          console.warn('Study narrative note export failed', e);
+        }
+      }
+
+      if (snapshots.length) {
+        this.studyTransferCount = snapshots.length;
+        this.redraw();
+      }
+
+      for (const snapshot of snapshots) {
+        const commentary = snapshot.commentary?.trim();
+        if (!commentary) continue;
+        const originPath = snapshot.originPath || snapshot.entry.tokenContext?.originPath || treePath.init(snapshot.commentPath);
+        try {
+          await studyApi.bookmakerSync(ref, {
+            commentPath: snapshot.commentPath,
+            originPath,
+            commentary,
+            variations: snapshotVariationsForStudy(snapshot),
+          });
+        } catch (e) {
+          console.warn('Study bookmaker transfer failed', snapshot.commentPath, e);
+        }
+      }
+
+      location.assign(created.url);
+      return;
+    } catch (e) {
+      if (e instanceof studyApi.StudyApiError) {
+        if (e.status === 401) {
+          location.assign(this.studyLoginHref());
+          return;
+        }
+        this.studyCreateError = e.message || 'Notebook creation failed.';
+      } else this.studyCreateError = e instanceof Error ? e.message : 'Notebook creation failed.';
+    } finally {
+      this.studyCreateLoading = false;
+      this.studyTransferCount = 0;
+      this.redraw();
+    }
+  };
 
   initialize(data: AnalyseData, merge: boolean): void {
     this.data = data;

@@ -11,6 +11,7 @@ import play.api.mvc.*
 import lila.app.{ *, given }
 import lila.analyse.CondensedJsonView
 import lila.core.game.Pov
+import lila.study.AccountNotebookBuilder
 import lila.study.StudyForm
 import lila.llm.model.strategic.VariationLine
 import lila.tree.Branch
@@ -21,6 +22,13 @@ final class Study(
 ) extends LilaController(env):
 
   private val importPgnForm = Form(single("pgn" -> text))
+  private val createAccountNotebookForm = Form(
+    tuple(
+      "provider" -> nonEmptyText,
+      "username" -> nonEmptyText,
+      "kind" -> optional(nonEmptyText)
+    )
+  )
 
   private case class BookmakerSyncRequest(
       commentPath: String,
@@ -39,6 +47,19 @@ final class Study(
   private val maxPvLines = 8
   private val maxPvPlies = 40
   private val aiAuthor = "Chesstory AI"
+  private val notebookDossierSchemaV1 = "chesstory.notebook.dossier.v1"
+  private val maxNotebookDossierChars = 200000
+
+  private def importerBackCall(provider: String, username: String) =
+    if provider == "chesscom" then routes.Importer.importFromChessCom(username)
+    else routes.Importer.importFromLichess(username)
+
+  private def notebookName(username: String, kind: AccountNotebookBuilder.ProductKind): lila.core.study.data.StudyName =
+    lila.study.Study.toName(
+      kind match
+        case AccountNotebookBuilder.ProductKind.MyAccountIntelligenceLite => s"$username notebook"
+        case AccountNotebookBuilder.ProductKind.OpponentPrep              => s"$username prep notebook"
+    )
 
   private def branchFromUci(
       variant: chess.variant.Variant,
@@ -329,6 +350,24 @@ final class Study(
      )
   }
 
+  def setNotebookDossier(id: StudyId) = AuthBody(parse.json) { ctx ?=> me ?=>
+    ctx.body.body.asOpt[JsObject].fold(BadRequest("Invalid JSON").toFuccess): dossier =>
+      val serialized = Json.stringify(dossier)
+      if serialized.length > maxNotebookDossierChars then BadRequest("Notebook dossier is too large").toFuccess
+      else
+        (dossier \ "schema").asOpt[String] match
+          case Some(`notebookDossierSchemaV1`) =>
+            env.study.api.byId(id).flatMap:
+              case None => notFound
+              case Some(study) if !study.canContribute(me) => Forbidden("No permission").toFuccess
+              case Some(_) =>
+                env.study.api
+                  .setNotebookDossier(id, serialized.some)(lila.study.Who(me.userId))
+                  .inject(Ok(Json.obj("ok" -> true)))
+          case Some(_) => BadRequest("Invalid notebook dossier schema").toFuccess
+          case None => BadRequest("Missing notebook dossier schema").toFuccess
+  }
+
   def importPgn(id: StudyId, chapterId: StudyChapterId) = AuthBody { ctx ?=> me ?=>
     bindForm(importPgnForm)(
       _ => BadRequest("Invalid PGN").toFuccess,
@@ -378,10 +417,12 @@ final class Study(
                       "name" -> sc.study.name.value,
                       "chapterName" -> sc.chapter.name.value,
                       "canWrite" -> true,
+                      "visibility" -> sc.study.visibility.toString,
                       "chapters" -> Json.arr(
                         Json.obj(
                           "id" -> sc.chapter.id.value,
-                          "name" -> sc.chapter.name.value
+                          "name" -> sc.chapter.name.value,
+                          "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url
                         )
                       ),
                       "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url
@@ -391,9 +432,71 @@ final class Study(
               case _ =>
                 negotiate(
                   Redirect(routes.User.show(me.username)),
-                  BadRequest(jsonError("Study creation failed"))
+                  BadRequest(jsonError("Notebook creation failed"))
                 )
             }
+    )
+  }
+
+  def createAccountNotebook = AuthBody { ctx ?=> me ?=>
+    bindForm(createAccountNotebookForm)(
+      _ =>
+        negotiate(
+          Redirect(routes.Importer.importGame).flashing("error" -> "Invalid account notebook request."),
+          BadRequest(jsonError("invalid account notebook request"))
+        ),
+      data =>
+        val provider = data._1.trim.toLowerCase
+        val username = data._2.trim
+        val kindKey = data._3.getOrElse(AccountNotebookBuilder.ProductKind.MyAccountIntelligenceLite.key)
+        val back = importerBackCall(provider, username)
+        AccountNotebookBuilder.ProductKind.fromKey(kindKey).fold(
+          negotiate(
+            Redirect(back).flashing("error" -> "Invalid notebook kind."),
+            BadRequest(jsonError("invalid notebook kind"))
+          )
+        ) { kind =>
+          env.analyse.importHistory.recordAccountSearch(me.userId, provider, username) >>
+            env.study.accountNotebookBuilder.build(provider, username, kind).flatMap {
+              case Left(err) =>
+                negotiate(
+                  Redirect(back).flashing("error" -> err),
+                  BadRequest(jsonError(err))
+                )
+              case Right(built) =>
+                val importData = lila.study.StudyMaker.ImportGame(
+                  form = StudyForm.importGame.Data(
+                    pgnStr = Some(built.representativePgn),
+                    asStr = Some("study")
+                  ),
+                  name = Some(notebookName(username, kind))
+                )
+                env.study.api.importGame(importData, me, true).flatMap {
+                  case Some(sc) =>
+                    env.study.api
+                      .setNotebookDossier(sc.study.id, Some(Json.stringify(built.dossier)))(lila.study.Who(me.userId))
+                      .flatMap { _ =>
+                        negotiate(
+                          Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)),
+                          JsonOk(
+                            Json.obj(
+                              "id" -> sc.study.id.value,
+                              "chapterId" -> sc.chapter.id.value,
+                              "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url,
+                              "sampledGameCount" -> built.sampledGameCount,
+                              "warnings" -> built.warnings
+                            )
+                          )
+                        )
+                      }
+                  case None =>
+                    negotiate(
+                      Redirect(back).flashing("error" -> "Notebook creation failed."),
+                      BadRequest(jsonError("notebook creation failed"))
+                    )
+                }
+            }
+        }
     )
   }
 

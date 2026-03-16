@@ -21,7 +21,7 @@ export function bookmakerIdleHtml(): string {
   return renderBookmakerStateCard(
     'idle',
     'Bookmaker is on demand',
-    'Generate commentary for the current move only when you want it. This keeps requests cheaper and avoids queue pileups.',
+    'Explain the current move only when you want it. This keeps Bookmaker on demand, lowers request cost, and avoids queue pileups.',
     '<button type="button" class="button button-metal" data-bookmaker-request="1">Explain this move</button>',
   );
 }
@@ -42,15 +42,15 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const resetAt = resetAtFromResponse(data);
       return renderBookmakerStateCard(
         'quota',
-        'Request Blocked',
-        `This request was blocked by policy. Please review usage limits and retry. (${resetAt.slice(0, 10)})`,
+        'Bookmaker request blocked',
+        `This move request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
       return renderBookmakerStateCard(
         'quota',
-        'Request Blocked',
-        'This request was blocked by policy. Please retry shortly.',
+        'Bookmaker request blocked',
+        'This move request hit the current usage policy. Please retry later.',
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     }
@@ -60,7 +60,7 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
     return renderBookmakerStateCard(
       'auth',
       'Sign In Required',
-      'Sign in to continue using Bookmaker analysis.',
+      'Sign in to continue using Bookmaker move analysis.',
       `<a class="button" href="${loginHref}">Sign in</a>`,
     );
   }
@@ -71,11 +71,11 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const seconds = ratelimitSecondsFromResponse(data);
       const message =
         typeof seconds === 'number'
-          ? `LLM quota exceeded. Try again in ${seconds}s.`
-          : 'LLM quota exceeded. Please retry shortly.';
+          ? `Bookmaker quota reached. Try again in ${seconds}s.`
+          : 'Bookmaker quota reached. Please retry shortly.';
       return renderBookmakerStateCard('quota', 'Rate Limit Reached', message, '');
     } catch {
-      return renderBookmakerStateCard('quota', 'Rate Limit Reached', 'LLM quota exceeded. Please retry shortly.', '');
+      return renderBookmakerStateCard('quota', 'Rate Limit Reached', 'Bookmaker quota reached. Please retry shortly.', '');
     }
   }
 

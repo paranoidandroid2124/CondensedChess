@@ -32,7 +32,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       hasDominantIdea: Boolean,
       hasForwardPlan: Boolean,
       hasGroundedSignal: Boolean,
-      hasOpponentOrTrigger: Boolean
+      hasOpponentOrTrigger: Boolean,
+      hasCampaignOwner: Boolean
   )
 
   private val PieceNames = Map(
@@ -57,18 +58,27 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       moveRefs: List[ActiveStrategicMoveRef],
       currentFen: Option[String] = None
   ): Brief =
+    val surface = StrategyPackSurface.from(strategyPack)
     val digest = strategyPack.flatMap(_.signalDigest)
     val dominantIdea = strategyPack.toList.flatMap(_.strategicIdeas).headOption
     val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove)).getOrElse("white")
     val currentBoard = currentFen.flatMap(parseBoard)
     val tacticalReality = immediateTacticalReality(currentBoard, preferredSide, moveRefs)
     val primaryIdea =
-      dominantIdea.map(primaryIdeaLabel).flatMap(value => contextualizeSignal(Some(value), currentBoard, preferredSide))
+      surface.dominantIdeaText
+        .orElse(
+          dominantIdea
+        .map(primaryIdeaLabel)
+        )
+        .map(value => surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side => s"$side: $value").getOrElse(value))
+        .flatMap(value => contextualizeSignal(Some(value), currentBoard, preferredSide))
+    val compensationWhyNow = StrategyPackSurface.compensationWhyNowText(surface)
     val whyNow =
       contextualizeSignal(
         dedupe(
           pickFirst(
             tacticalReality,
+            compensationWhyNow,
             dossier.flatMap(_.whyChosen),
             digest.flatMap(_.decision),
             digest.flatMap(_.structuralCue),
@@ -92,8 +102,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         currentBoard,
         preferredSide
       )
-    val executionHint = selectExecutionHint(strategyPack, dossier, routeRefs, dominantIdea)
-    val longTermObjective = selectLongTermObjective(strategyPack, dominantIdea, executionHint)
+    val executionHint = selectExecutionHint(surface, strategyPack, dossier, routeRefs, dominantIdea)
+    val longTermObjective = selectLongTermObjective(surface, strategyPack, dominantIdea, executionHint)
     val keyTrigger =
       contextualizeSignal(
         dedupe(
@@ -115,7 +125,10 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         preferredSide
       )
     Brief(
-      campaignRole = dossier.flatMap(_.threadStage).flatMap(stageRoleDescription),
+      campaignRole =
+        surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side =>
+          (List(side + "'s campaign") ++ dossier.flatMap(_.threadStage).flatMap(stageRoleDescription).toList).mkString(": ")
+        ).orElse(dossier.flatMap(_.threadStage).flatMap(stageRoleDescription)),
       primaryIdea = primaryIdea,
       whyNow = whyNow,
       opponentReply = opponentReply,
@@ -136,6 +149,14 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         StrategicSignalMatcher.phraseMentioned(normalizedText, normalize(primary)) ||
           StrategicSignalMatcher.signalTokens(normalize(primary)).intersect(textTokens).size >= 2
       )
+    val campaignOwnerMentioned =
+      brief.campaignRole.exists(role =>
+        (normalize(role).contains("white") && normalizedText.contains("white")) ||
+          (normalize(role).contains("black") && normalizedText.contains("black"))
+      ) || brief.primaryIdea.exists(primary =>
+        (normalize(primary).contains("white") && normalizedText.contains("white")) ||
+          (normalize(primary).contains("black") && normalizedText.contains("black"))
+      )
 
     val forwardCue = ForwardCuePatterns.exists(_.findFirstIn(normalizedText).nonEmpty)
     val structuralSequenceCue =
@@ -151,8 +172,78 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         forwardCue ||
           ((dominantIdeaMentioned || executionCueMentioned || objectiveCue) && (structuralSequenceCue || executionCueMentioned || objectiveCue)),
       hasGroundedSignal = dominantIdeaMentioned,
-      hasOpponentOrTrigger = mentioned(brief.opponentReply) || mentioned(brief.keyTrigger)
+      hasOpponentOrTrigger = mentioned(brief.opponentReply) || mentioned(brief.keyTrigger),
+      hasCampaignOwner = campaignOwnerMentioned
     )
+
+  def buildDeterministicNote(
+      strategyPack: Option[StrategyPack],
+      dossier: Option[ActiveBranchDossier],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      currentFen: Option[String] = None
+  ): Option[String] =
+    renderDeterministicNote(build(strategyPack, dossier, routeRefs, moveRefs, currentFen))
+
+  def renderDeterministicNote(brief: Brief): Option[String] =
+    val roleSentence =
+      brief.campaignRole
+        .flatMap(cleanStringSignal)
+        .filter(role => role.toLowerCase.contains("'s campaign") || brief.whyNow.isEmpty)
+        .map(asSentence)
+
+    val planSentence =
+      for
+        primary <- brief.primaryIdea.flatMap(cleanStringSignal)
+      yield
+        val reasonSentence =
+          brief.whyNow
+            .flatMap(cleanStringSignal)
+            .map(asSentence)
+        val normalizedReason = reasonSentence.map(normalize).getOrElse("")
+        val executionTail =
+          brief.executionHint
+            .flatMap(cleanStringSignal)
+            .filterNot(ex => normalize(ex) == normalize(primary))
+            .filterNot(ex => normalizedReason.contains(normalize(ex)))
+            .map(ex => s" via $ex")
+            .getOrElse("")
+        val objectiveTail =
+          brief.longTermObjective
+            .flatMap(cleanStringSignal)
+            .filterNot(obj => normalize(obj) == normalize(primary))
+            .filterNot(obj => normalizedReason.contains(normalize(obj)))
+            .map(obj => s", working toward ${stripLeadingObjective(stripTrailingPunctuation(obj))}")
+            .getOrElse("")
+        val planFollowup =
+          asSentence(s"Keep $primary in the foreground$executionTail$objectiveTail")
+        reasonSentence.map(sentence => s"$sentence $planFollowup").getOrElse(planFollowup)
+
+    val cautionSentence =
+      (brief.opponentReply.flatMap(cleanStringSignal), brief.keyTrigger.flatMap(cleanStringSignal)) match
+        case (Some(reply), Some(trigger)) =>
+          Some(
+            asSentence(
+              s"${capitalizeSentenceStart(stripTrailingPunctuation(reply))}, so the plan cannot drift; ${lowercaseSentenceStart(stripTrailingPunctuation(trigger))}"
+            )
+          )
+        case (Some(reply), None) =>
+          Some(asSentence(s"${capitalizeSentenceStart(stripTrailingPunctuation(reply))}, so the plan cannot drift."))
+        case (None, Some(trigger)) =>
+          Some(asSentence(capitalizeSentenceStart(stripTrailingPunctuation(trigger))))
+        case _ =>
+          brief.longTermObjective
+            .flatMap(cleanStringSignal)
+            .map(obj => asSentence(s"The long-term objective is to ${stripTrailingPunctuation(obj)}."))
+
+    val sentences =
+      (roleSentence.toList ++ planSentence.toList ++ cautionSentence.toList)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .distinct
+        .take(3)
+
+    Option.when(sentences.nonEmpty)(sentences.mkString(" "))
 
   private def pickFirst(values: Option[String]*): Option[String] =
     values.iterator.flatMap(cleanSignal).toSeq.headOption
@@ -165,9 +256,13 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
   private def cleanSignal(raw: Option[String]): Option[String] =
     raw.flatMap { value =>
-      val sanitized = UserFacingSignalSanitizer.sanitize(naturalizeLabel(value))
+      val sanitized =
+        UserFacingSignalSanitizer.sanitize(normalizeExecutionLikeSignal(naturalizeLabel(value)))
       Option(sanitized).map(_.trim).filter(_.nonEmpty)
     }
+
+  private def cleanStringSignal(raw: String): Option[String] =
+    cleanSignal(Some(raw))
 
   private def contextualizeSignal(raw: Option[String], board: Option[Board], side: String): Option[String] =
     raw.flatMap { value =>
@@ -184,6 +279,24 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
 
+  private def stripTrailingPunctuation(text: String): String =
+    Option(text).getOrElse("").trim.stripSuffix(".").stripSuffix("!").stripSuffix("?").trim
+
+  private def capitalizeSentenceStart(text: String): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty then trimmed
+    else s"${trimmed.head.toUpper}${trimmed.tail}"
+
+  private def lowercaseSentenceStart(text: String): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty then trimmed
+    else s"${trimmed.head.toLower}${trimmed.tail}"
+
+  private def asSentence(text: String): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty then trimmed
+    else if ".!?".contains(trimmed.last) then trimmed else s"$trimmed."
+
   private def naturalizeLabel(raw: String): String =
     Option(raw)
       .map(_.trim)
@@ -196,7 +309,17 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       .getOrElse("")
 
   private def pieceName(code: String): String =
-    PieceNames.getOrElse(Option(code).map(_.trim.toUpperCase).getOrElse(""), "piece")
+    val normalized = Option(code).map(_.trim).getOrElse("")
+    val upper = normalized.toUpperCase
+    PieceNames.get(upper)
+      .orElse(
+        upper.split("\\s+").toList.reverse.collectFirst(Function.unlift(PieceNames.get))
+      )
+      .orElse {
+        val lowered = normalized.toLowerCase
+        List("pawn", "knight", "bishop", "rook", "queen", "king").find(lowered.contains)
+      }
+      .getOrElse("piece")
 
   private def primaryIdeaLabel(idea: StrategyIdeaSignal): String =
     val ideaLabel = StrategicIdeaSelector.humanizedKind(idea.kind)
@@ -204,6 +327,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     cleanSignal(Some(s"$ideaLabel around $focus")).getOrElse(ideaLabel)
 
   private def selectExecutionHint(
+      surface: StrategyPackSurface.Snapshot,
       strategyPack: Option[StrategyPack],
       dossier: Option[ActiveBranchDossier],
       routeRefs: List[ActiveStrategicRouteRef],
@@ -211,31 +335,43 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
   ): Option[String] =
     val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
     pickFirst(
+      surface.executionText,
       dossier.flatMap(_.routeCue).filter(cue => preferredSide.forall(_ == cue.ownerSide)).map(routeCueSummary),
       routeRefs.find(ref => preferredSide.forall(_ == ref.ownerSide)).map(routeRefSummary),
       strategyPack.flatMap(
         _.pieceRoutes.find(route =>
           route.surfaceMode != RouteSurfaceMode.Hidden && preferredSide.forall(_ == route.ownerSide)
         ).map(routeSummary)
+      ),
+      strategyPack.flatMap(
+        _.pieceMoveRefs.find(moveRef => preferredSide.forall(_ == moveRef.ownerSide)).map(moveRefSummary)
+      ),
+      strategyPack.flatMap(
+        _.directionalTargets.find(target => preferredSide.forall(_ == target.ownerSide)).flatMap(targetSummary)
       )
     )
 
   private def selectLongTermObjective(
+      surface: StrategyPackSurface.Snapshot,
       strategyPack: Option[StrategyPack],
       dominantIdea: Option[StrategyIdeaSignal],
       executionHint: Option[String]
   ): Option[String] =
     val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
     val executionDestination = extractLastSquare(executionHint.getOrElse(""))
-    strategyPack.toList
-      .flatMap(_.directionalTargets)
-      .find(target =>
-        preferredSide.forall(_ == target.ownerSide) &&
-          !executionDestination.contains(target.targetSquare)
-      )
-      .flatMap { target =>
-        cleanSignal(Some(s"work toward making ${target.targetSquare} available for the ${pieceName(target.piece)}"))
-      }
+    pickFirst(
+      surface.objectiveText,
+      strategyPack.toList
+        .flatMap(_.directionalTargets)
+        .find(target =>
+          preferredSide.forall(_ == target.ownerSide) &&
+            !executionDestination.contains(target.targetSquare)
+        )
+        .flatMap { target =>
+          cleanSignal(Some(s"work toward making ${target.targetSquare} available for the ${pieceName(target.piece)}"))
+        },
+      surface.focusText
+    )
 
   private def routeCueSummary(cue: ActiveBranchRouteCue): String =
     routeLabel(
@@ -265,7 +401,12 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     )
 
   private def moveRefSummary(moveRef: StrategyPieceMoveRef): String =
-    cleanSignal(Some(s"${pieceName(moveRef.piece)} contesting ${moveRef.target} for ${moveRef.idea}")).getOrElse(moveRef.idea)
+    cleanSignal(Some(s"${pieceName(moveRef.piece)} toward ${moveRef.target} ${purposeClause(moveRef.idea, moveRef.target)}"))
+      .orElse(cleanSignal(Some(moveRef.idea)))
+      .getOrElse(moveRef.idea)
+
+  private def targetSummary(target: StrategyDirectionalTarget): Option[String] =
+    cleanSignal(Some(s"work toward making ${target.targetSquare} available for the ${pieceName(target.piece)}"))
 
   private def routeLabel(
       ownerSide: Option[String],
@@ -287,7 +428,79 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           case None         => s"${pieceName(piece)} redeployment"
     val sidePrefix = cleanSignal(ownerSide).map(_ + " ").getOrElse("")
     val prefixedDeployment = s"$sidePrefix$deploymentText".trim
-    cleanSignal(purpose).map(text => s"$prefixedDeployment for $text").getOrElse(prefixedDeployment)
+    cleanSignal(purpose)
+      .map(text => s"$prefixedDeployment ${purposeClause(text, destination.orNull)}")
+      .getOrElse(prefixedDeployment)
+
+  private def purposeClause(raw: String, targetSquare: String | Null = null): String =
+    val cleaned = stripTrailingPunctuation(cleanSignal(Some(raw)).getOrElse(raw))
+    if cleaned.isEmpty then ""
+    else
+      val normalizedIdea = normalize(cleaned)
+      val target = Option(targetSquare).map(_.trim.toLowerCase).filter(_.matches("^[a-h][1-8]$"))
+      if normalizedIdea.startsWith("keep the ") then
+        target.filter(square => normalizedIdea.endsWith(square))
+          .map(_ => "to keep the pressure fixed there")
+          .getOrElse(s"to $cleaned")
+      else if normalizedIdea.startsWith("contest ") || normalizedIdea.startsWith("attack ") || normalizedIdea.startsWith("build ") ||
+        normalizedIdea.startsWith("prepare ") || normalizedIdea.startsWith("improve ") || normalizedIdea.startsWith("activate ") ||
+        normalizedIdea.startsWith("reroute ") || normalizedIdea.startsWith("stabilize ") || normalizedIdea.startsWith("consolidate ") ||
+        normalizedIdea.startsWith("pressure ") || normalizedIdea.startsWith("occupy ") then
+        s"to $cleaned"
+      else if normalizedIdea.contains("coordination improvement") then
+        "to improve coordination"
+      else if normalizedIdea.contains("plan activation lane") then
+        "to activate the plan"
+      else if normalizedIdea.contains("open file occupation") then
+        "to occupy the open file"
+      else if normalizedIdea.contains("semi-open file occupation") then
+        "to occupy the semi-open file"
+      else if normalizedIdea.contains("kingside pressure") then
+        "to increase kingside pressure"
+      else if normalizedIdea.contains("queenside pressure") then
+        "to increase queenside pressure"
+      else if normalizedIdea.contains("clamp") then
+        s"to reinforce ${withArticle(strippedLeadingArticle(cleaned))}"
+      else if normalizedIdea.contains("circuit") then
+        s"to improve ${withArticle(strippedLeadingArticle(cleaned))}"
+      else if normalizedIdea.contains("contest the ") then
+        target.filter(square => normalizedIdea.endsWith(square))
+          .map(_ => "to contest the target there")
+          .getOrElse(s"to $cleaned")
+      else s"to support ${strippedLeadingArticle(cleaned)}"
+
+  private def normalizeExecutionLikeSignal(text: String): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty then trimmed
+    else
+      val executionLike =
+        """(?i)^(?:(white|black)\s+)?([pnbrqk]|pawn|knight|bishop|rook|queen|king)\s+toward\s+([a-h][1-8])\s+for\s+(.+)$""".r
+      trimmed match
+        case executionLike(_, pieceToken, square, purpose) =>
+          UserFacingSignalSanitizer
+            .sanitize(s"${pieceName(pieceToken)} toward ${square.toLowerCase} ${purposeClause(purpose, square.toLowerCase)}")
+            .trim
+        case _ => trimmed
+
+  private def stripLeadingObjective(text: String): String =
+    text
+      .stripPrefix("keep the initiative alive while working toward ")
+      .stripPrefix("Keep the initiative alive while working toward ")
+      .stripPrefix("keep the initiative alive while ")
+      .stripPrefix("Keep the initiative alive while ")
+      .stripPrefix("work toward ")
+      .stripPrefix("Work toward ")
+      .stripPrefix("working toward ")
+      .stripPrefix("Working toward ")
+
+  private def strippedLeadingArticle(text: String): String =
+    text.replaceFirst("(?i)^(a|an|the)\\s+", "").trim
+
+  private def withArticle(text: String): String =
+    val trimmed = text.trim
+    if trimmed.isEmpty then trimmed
+    else if trimmed.matches("(?i)^(a|an|the)\\s+.*") then trimmed
+    else s"the $trimmed"
 
   def stageRoleDescription(rawStage: String): Option[String] =
     Option(rawStage)

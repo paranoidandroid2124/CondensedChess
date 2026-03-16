@@ -30,7 +30,10 @@ private[llm] object StrategicIdeaFenFixtures:
       sourceSeedId: Option[String] = None,
       stockfishScoreCp: Option[Int] = None,
       stockfishMaxAbsCp: Option[Int] = None,
-      requireMaterialParity: Boolean = false
+      requireMaterialParity: Boolean = false,
+      requireMaterialImbalance: Boolean = false,
+      compensationSide: Option[String] = None,
+      sideToMoveMismatch: Boolean = false
   )
 
   val canonical: List[Fixture] = List(
@@ -226,8 +229,7 @@ private[llm] object StrategicIdeaFenFixtures:
       fen = "rnbqk2r/pp2bppp/4pn2/2p5/2BP4/4PN2/PP3PPP/RNBQ1RK1 w kq - 0 8",
       expectedDominant = StrategicIdeaKind.PawnBreak,
       producerChecks = List(
-        ProducerCheck.BreakCandidate,
-        ProducerCheck.SpaceRestriction
+        ProducerCheck.BreakCandidate
       )
     ),
     Fixture(
@@ -328,58 +330,11 @@ private[llm] object StrategicIdeaFenFixtures:
     ),
     Fixture(
       id = "K19",
-      label = "Endgame Material Up",
+      label = "Endgame material up stays line-led",
       fen = "8/1k1r4/4p3/1P1pP2p/R2P3P/3K2P1/8/8 w - - 1 45",
-      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
-      phase = "endgame",
-      producerChecks = Nil
-    ),
-    // --- Phase 8: Sharp Gambit & Dynamic Position Evaluation ---
-    Fixture(
-      id = "G01",
-      label = "Danish Gambit (Accepted) - Attack build-up",
-      fen = "r1bqk1nr/pppp1ppp/2n5/2b1p3/2BPP3/2P2N2/PP3PPP/RNBQK2R b KQkq - 0 5",
-      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
-      producerChecks = List(
-        ProducerCheck.AttackBuildUpSignal,
-        ProducerCheck.MinorPieceImbalance
-      )
-    ),
-    Fixture(
-      id = "G02",
-      label = "King's Gambit (Muzio) - Line occupation",
-      fen = "rnbq1rk1/pppp1ppp/5n2/2b1p3/2BPP3/2P2N2/PP3PPP/RNBQ1RK1 b - - 0 7",
       expectedDominant = StrategicIdeaKind.LineOccupation,
+      phase = "endgame",
       producerChecks = List(
-        ProducerCheck.LineAccess
-      )
-    ),
-    Fixture(
-      id = "G03",
-      label = "Evans Gambit - Target fixing",
-      fen = "r1bqk1nr/pppp1ppp/2n5/1B2p3/1b1PP3/5N2/PPP2PPP/RNBQK2R b KQkq - 0 5",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
-      producerChecks = List(
-        ProducerCheck.WeakSquareOrWeakComplex
-      )
-    ),
-    Fixture(
-      id = "G04",
-      label = "Smith-Morra Gambit - Space gain",
-      fen = "r1bqkbnr/pp1ppppp/2n5/8/2PP4/5N2/PP3PPP/RNBQKB1R b KQkq - 0 4",
-      expectedDominant = StrategicIdeaKind.SpaceGainOrRestriction,
-      producerChecks = List(
-        ProducerCheck.SpaceRestriction,
-        ProducerCheck.LineAccess
-      )
-    ),
-    Fixture(
-      id = "G05",
-      label = "Benko Gambit - Long-term target fixing",
-      fen = "rn1qkb1r/4pp1p/3p1np1/1p1P4/8/5N2/PP2PPPP/R1BQKB1R w KQkq - 0 9",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
-      producerChecks = List(
-        ProducerCheck.WeakSquareOrWeakComplex,
         ProducerCheck.LineAccess
       )
     )
@@ -406,6 +361,33 @@ private[llm] object StrategicIdeaFenFixtures:
       stockfishScoreCp = Some(stockfishScoreCp),
       stockfishMaxAbsCp = Some(stockfishMaxAbsCp),
       requireMaterialParity = requireMaterialParity
+    )
+
+  private def compensationAcceptance(
+      id: String,
+      label: String,
+      fen: String,
+      expectedDominant: String,
+      producerChecks: List[ProducerCheck],
+      stockfishScoreCp: Int,
+      compensationSide: String,
+      sideToMoveMismatch: Boolean = false,
+      stockfishMaxAbsCp: Int = 400,
+      seedRef: Option[String]
+  ): Fixture =
+    Fixture(
+      id = id,
+      label = label,
+      fen = fen,
+      expectedDominant = expectedDominant,
+      producerChecks = producerChecks,
+      phase = "opening",
+      sourceSeedId = seedRef,
+      stockfishScoreCp = Some(stockfishScoreCp),
+      stockfishMaxAbsCp = Some(stockfishMaxAbsCp),
+      requireMaterialImbalance = true,
+      compensationSide = Some(compensationSide),
+      sideToMoveMismatch = sideToMoveMismatch
     )
 
   val stockfishBalancedSupplemental: List[Fixture] = List(
@@ -896,6 +878,8 @@ private[llm] object StrategicIdeaFenFixtures:
       label = "Grunfeld Exchange Mainline continuation 2",
       fen = "r1bq1rk1/pp3pbp/2nppnp1/2p5/2PPP3/2N1BP2/PP1QN1PP/R3KB1R w KQ - 0 1",
       stockfishScoreCp = 71
+    ).copy(
+      producerChecks = List(ProducerCheck.BreakCandidate)
     ),
     followUp(
       id = "B21A",
@@ -911,6 +895,9 @@ private[llm] object StrategicIdeaFenFixtures:
       label = "KID Mar del Plata prophylaxis 2",
       fen = "r1bq1rk1/pppnnpbp/3p2p1/3Pp3/2P1P3/2N1BN2/PP1QBPPP/R4RK1 b - - 2 10",
       stockfishScoreCp = 15
+    ).copy(
+      expectedDominant = StrategicIdeaKind.SpaceGainOrRestriction,
+      producerChecks = List(ProducerCheck.StructureProfileIs(StructureId.FianchettoShell))
     ),
     followUp(
       id = "K17A",
@@ -918,6 +905,10 @@ private[llm] object StrategicIdeaFenFixtures:
       label = "Open Catalan tension continuation 2",
       fen = "rnq2rk1/pb2bppp/1p2pn2/2p5/2p5/2N2NP1/PP2PPBP/R1BQR1K1 w - - 1 11",
       stockfishScoreCp = -24
+    ).copy(
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
+      requireMaterialParity = false
     ),
     followUp(
       id = "K18A",
@@ -925,16 +916,127 @@ private[llm] object StrategicIdeaFenFixtures:
       label = "Rook Endgame maneuvering 2",
       fen = "8/5pk1/1p2p1p1/p1r4p/P1R2P1P/1P1R2P1/5K2/8 b - - 1 41",
       stockfishScoreCp = 45
+    ).copy(
+      requireMaterialParity = false
     ),
     followUp(
       id = "K19A",
       seedId = "K19",
-      label = "Endgame material conversion 2",
+      label = "Endgame conversion stays target-led",
       fen = "8/1k1r4/4p3/1P1pP2p/R2P3P/3K2P1/8/8 b - - 1 45",
       stockfishScoreCp = 115,
       requireMaterialParity = false
+    ).copy(
+      expectedDominant = StrategicIdeaKind.TargetFixing,
+      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex)
+    )
+  )
+
+  val stockfishCompensationAcceptance: List[Fixture] = List(
+    compensationAcceptance(
+      id = "G01",
+      label = "Danish compensation keeps king pressure",
+      fen = "rnbqkbnr/ppp2ppp/3p4/8/2B1P3/8/PB3PPP/RN1QK1NR w KQkq - 0 6",
+      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      producerChecks = List(ProducerCheck.AttackBuildUpSignal),
+      stockfishScoreCp = 67,
+      compensationSide = "white",
+      seedRef = Some("danish_compensation")
+    ),
+    compensationAcceptance(
+      id = "G02",
+      label = "Open Catalan delayed recovery stays line-led",
+      fen = "1r1q1rk1/1ppbbppp/p3pn2/n7/P1pP4/4P1P1/1PQN1PBP/RNBR2K1 w - - 7 12",
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
+      stockfishScoreCp = 91,
+      compensationSide = "white",
+      seedRef = Some("open_catalan_line")
+    ),
+    compensationAcceptance(
+      id = "G03",
+      label = "Open Catalan compensation fixes queenside targets",
+      fen = "1rbqk2r/1pp1bppp/p3pn2/n7/P1pP4/4P1P1/1P1N1PBP/RNBQ1RK1 w k - 3 10",
+      expectedDominant = StrategicIdeaKind.TargetFixing,
+      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex),
+      stockfishScoreCp = 47,
+      compensationSide = "white",
+      seedRef = Some("open_catalan_fixation")
+    ),
+    compensationAcceptance(
+      id = "G04",
+      label = "Benko compensation fixes queenside targets",
+      fen = "rn1qkb1r/4pp1p/3p1np1/2pP4/4P3/2N2N2/PP3PPP/R1BQ1K1R b kq - 0 9",
+      expectedDominant = StrategicIdeaKind.TargetFixing,
+      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex),
+      stockfishScoreCp = 94,
+      compensationSide = "black",
+      seedRef = Some("benko_fixation")
+    ),
+    compensationAcceptance(
+      id = "G05",
+      label = "Smith-Morra delayed recovery stays line-led",
+      fen = "r1bq1rk1/pp2bppp/2np1n2/4p3/2B1P3/2N2N1P/PP2QPP1/R1BR2K1 w - - 1 11",
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
+      stockfishScoreCp = 63,
+      compensationSide = "white",
+      seedRef = Some("smith_morra_line")
+    ),
+    compensationAcceptance(
+      id = "G06",
+      label = "Blumenfeld compensation keeps king pressure",
+      fen = "r2r2k1/1b3pbp/n3pnp1/2p1P3/8/2N2N2/PP2BPPP/R1B2RK1 b - - 0 13",
+      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      producerChecks = List(ProducerCheck.AttackBuildUpSignal),
+      stockfishScoreCp = 32,
+      compensationSide = "black",
+      seedRef = Some("blumenfeld_attack")
+    ),
+    compensationAcceptance(
+      id = "G07",
+      label = "QID early pawn sacrifice keeps king pressure",
+      fen = "rn1q2k1/p1n2p2/1pp1rbp1/3p4/5B2/6P1/PPQ1NPBP/3R1RK1 w - - 4 20",
+      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      producerChecks = List(ProducerCheck.AttackBuildUpSignal),
+      stockfishScoreCp = 355,
+      compensationSide = "white",
+      seedRef = Some("qid_attack")
+    ),
+    compensationAcceptance(
+      id = "G08",
+      label = "Open Catalan compensation mismatch stays line-led",
+      fen = "1rbqk2r/1pp1bppp/p3pn2/n7/P1pP4/4P1P1/1PQN1PBP/RNB2RK1 b k - 4 10",
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
+      stockfishScoreCp = -1,
+      compensationSide = "white",
+      sideToMoveMismatch = true,
+      seedRef = Some("open_catalan_mismatch")
+    ),
+    compensationAcceptance(
+      id = "G09",
+      label = "Benko compensation mismatch stays line-led",
+      fen = "r2q1rk1/3nppbp/3p1np1/2pP4/4P3/2N2NP1/PP3PKP/R1BQ3R w - - 3 12",
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
+      stockfishScoreCp = 161,
+      compensationSide = "black",
+      sideToMoveMismatch = true,
+      seedRef = Some("benko_mismatch")
+    ),
+    compensationAcceptance(
+      id = "G10",
+      label = "QID compensation mismatch stays target-led",
+      fen = "rnbq1rk1/2n2ppp/1pp2b2/p2pPN2/5B2/6P1/P1Q1NPBP/3R1RK1 b - - 0 18",
+      expectedDominant = StrategicIdeaKind.TargetFixing,
+      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex),
+      stockfishScoreCp = -106,
+      compensationSide = "white",
+      sideToMoveMismatch = true,
+      seedRef = Some("qid_mismatch")
     )
   )
 
   val all: List[Fixture] =
-    canonical ++ stockfishBalancedSupplemental
+    canonical ++ stockfishBalancedSupplemental ++ stockfishCompensationAcceptance

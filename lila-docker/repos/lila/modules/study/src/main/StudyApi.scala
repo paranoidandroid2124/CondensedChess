@@ -740,6 +740,12 @@ final class StudyApi(
           for _ <- studyRepo.updateSomeFields(newStudy)
           yield ()
 
+  def setNotebookDossier(studyId: StudyId, dossier: Option[String])(who: Who): Funit =
+    sequenceStudy(studyId): study =>
+      Contribute(who.u, study):
+        (study.notebookDossier != dossier).so:
+          studyRepo.setNotebookDossier(study.id, dossier)
+
   def setTopics(studyId: StudyId, topicStrs: List[String])(who: Who) =
     sequenceStudy(studyId): study =>
       Contribute(who.u, study):

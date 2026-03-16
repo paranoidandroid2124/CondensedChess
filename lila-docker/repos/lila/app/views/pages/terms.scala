@@ -16,7 +16,7 @@ object terms:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Terms of Service"),
-                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 10, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 16, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -39,7 +39,8 @@ object terms:
                 ),
                 p(
                   "Chesstory is offered as a beta service. Features may change, be interrupted, or be removed without notice. ",
-                  "The Service is currently offered free of charge. If paid plans are introduced later, the applicable pricing and billing terms will be shown before purchase."
+                  "The Service is currently offered without a public paid subscription, but some features may still be gated by login, quotas, fair-use controls, or beta access tiers. ",
+                  "If public paid plans are introduced later, the applicable pricing and billing terms will be shown before purchase."
                 )
               ),
 
@@ -89,6 +90,7 @@ object terms:
                 ul(
                   li("Analysis may be incomplete, inaccurate, or unavailable"),
                   li("You are responsible for how you use any chess recommendations or commentary"),
+                  li("Some analysis or commentary features may require sign-in and may be subject to rate limits, daily quotas, fair-use controls, or plan/tier limits"),
                   li("Some features may fetch public chess data from third-party platforms at your request"),
                   li("Chesstory is not affiliated with or endorsed by Lichess, Chess.com, or other third-party platforms unless explicitly stated")
                 )

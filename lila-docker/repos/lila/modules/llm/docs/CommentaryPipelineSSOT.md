@@ -208,6 +208,330 @@ Key references:
 
 ## Post-audit updates
 
+- `2026-03-16` working-tree update:
+  - `StrategicIdeaSelector.enrich` now promotes typed compensation evidence
+    into `strategyPack.signalDigest` even when `ctx.semantic.compensation` is
+    absent. Carrier promotion now derives `compensation`,
+    `compensationVectors`, and `investedMaterial` from existing typed
+    compensation anchors such as `compensation_king_window`,
+    `compensation_open_lines`, `delayed_recovery_window`, and
+    `exchange_availability_bridge`, instead of leaving the Bookmaker payload
+    compensation-empty.
+  - `StrategyPackBuilder` now refreshes the `dominant thesis` after selector
+    enrichment, so `longTermFocus` / `evidence` stop carrying a stale
+    pre-enrichment thesis when the enriched pack upgrades the position into a
+    compensation lens.
+  - `StrategyPackSurface` now exposes digest-backed compensation vectors, and
+    `StrategicThesisBuilder` consumes those vectors on the compensation path.
+    This means selector-enriched carriers can directly drive Bookmaker claims
+    and supports such as `compensation investment`, `initiative`, `line
+    pressure`, `delayed recovery`, and `return vector` without depending on a
+    semantic `CompensationInfo`.
+  - Latest real-PGN rerun confirms the upstream carrier effect on the narrow
+    compensation subset: Bookmaker direct `compensation / initiative` mention
+    rose from `2/8` to `6/8`, while `BEN01` moment recall remains `0` and
+    `CAT02 ply 45` / `QID02 ply 52` still show missing raw compensation
+    carriers on the single-position path.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategyPackBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-16` working-tree update:
+  - Bookmaker deterministic thesis selection now lets `strategyPack` surface
+    compensation carry the prose path even when `ctx.semantic.compensation` is
+    absent, so single-position commentary no longer depends on semantic
+    `CompensationInfo` alone to mention compensation / initiative.
+  - The compensation lens now falls back to `signalDigest.compensation`,
+    invested-material metadata, dominant idea, and execution/objective carriers
+    before dropping into a generic decision thesis.
+  - When Bookmaker stays on the decision lens but a dominant strategic surface
+    exists, the first sentence now prefers `dominant thesis +
+    execution/objective` wording over the generic `The key decision is to
+    choose...` scaffold.
+  - Surface-backed decision support also stops defaulting to the bare
+    `The whole decision turns on...` sentence; it now prefers objective /
+    rationale support and only falls back to focal-square wording when needed.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:140`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:147`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:315`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:354`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala:146`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala:381`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:221`
+- `2026-03-16` working-tree update:
+  - Bookmaker tactical/annotation claim override no longer outranks a surfaced
+    strategic thesis when `strategyPack` already provides dominant idea,
+    execution, objective, or compensation carriers.
+  - This prevents tactical/critical main-move scaffolds from reintroducing
+    `The whole decision turns on...` as paragraph 1 when a stronger strategic
+    claim is already available.
+  - Compensation theses now prioritize explicit compensation lexicon in the
+    claim/support chain: `compensation investment`, `cash out`, `return
+    vector`, `initiative`, `delayed recovery`, or `line pressure` are emitted
+    ahead of generic execution/objective filler.
+  - Decision-surface fallback now only emits `The whole decision turns on...`
+    when no dominant idea, execution, objective, or compensation carrier is
+    available.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala:40`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala:119`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:147`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala:315`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:266`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:275`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:300`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala:320`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala:146`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala:430`
+- `2026-03-16` working-tree update:
+  - Bookmaker single-position runtime now preserves after-move compensation as
+    an internal semantic carrier (`afterCompensation`) instead of using
+    `afterAnalysis` only for delta/phase hints.
+  - `NarrativeSignalDigestBuilder` is now after-move aware: it prefers current
+    `compensation`, then `afterCompensation`, and only then falls back to typed
+    selector promotion. This keeps raw `signalDigest.compensation`,
+    `compensationVectors`, and `investedMaterial` alive when the compensation
+    only stabilizes after the played move.
+  - `afterCompensation` promotion is now guarded by a recapture-neutralization
+    check. If the played move is a parity-restoring capture that simply erases
+    the current material deficit, `NarrativeContextBuilder` drops the
+    after-move compensation carrier and `NarrativeSignalDigestBuilder` applies
+    the same gate before digest fallback. This prevents tactical recaptures
+    like `...exf4` after `Bxf4` from surfacing as long-term compensation.
+  - `NarrativeContextBuilder` now calibrates raw semantic compensation before
+    it becomes `compensation` / `afterCompensation`:
+    - non-opening positions with only a thin `return vector` carrier are
+      dropped
+    - late technical endgames with a large material edge but no
+      initiative / line-pressure / delayed-recovery carrier are dropped
+  - `StrategicIdeaSelector` typed fallback now stays dormant when the digest
+    already carries a compensation payload, and its remaining fallback widens
+    two narrow miss classes: IQP/exchange-backed transformation windows and
+    established line-pressure / fixed-target pressure with real line-access
+    carriers.
+  - Compensation digest calibration is now more conservative in two edge
+    cases:
+    - late technical endgames with a large material edge but no initiative /
+      line-pressure / delayed-recovery carrier no longer auto-promote a
+      compensation digest
+    - non-opening positions that only produce a thin `return vector` summary
+      without initiative / line-pressure / delayed-recovery support no longer
+      auto-tag compensation
+  - The regression target is the exact Bookmaker API path, not a prose-only
+    helper: `CAT02 ply 45` and `QID02 ply 52` now have direct tests that pass
+    `fen + afterFen + afterEval + afterVariations` and assert both raw digest
+    compensation carriers and visible `compensation` / `initiative` lexicon.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSemanticContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+  - `modules/llm/src/test/scala/lila/llm/BookmakerAfterCompensationCarrierTest.scala`
+- `2026-03-16` working-tree update:
+  - Active-note attachment on the full-game `Game Arc` path no longer depends
+    on `allowLlmPolish = true`.
+  - `analyzeGameChronicleLocal` now preserves the requested active-note level
+    (`requestedLevel = active`) for the downstream note-attachment path even
+    when base polish is downgraded to `effectiveLevel = polish`.
+  - `maybePolishGameChronicle` no longer exits early before active-note
+    attachment when LLM polish is disabled or the global provider is `none`;
+    it now skips base prose polish but still runs `attachActiveStrategicNotes`
+    for `Pro + Active` requests.
+  - `maybeGenerateActiveStrategicNote` now has a deterministic rule fallback
+    built from `ActiveStrategicCoachingBriefBuilder`, and that fallback is also
+    used whenever the LLM route is unavailable or returns an omitted note.
+  - The deterministic active-note path is now live in the real-PGN evaluation
+    runner: the latest rerun produced `75` attached notes overall, `31/33`
+    focus moments with active notes, and `18/18` compensation-tagged focus
+    moments with direct compensation / initiative wording. The two remaining
+    focus moments without active notes were not note-generation failures; they
+    stayed outside the `strategicBranch` selection set.
+- Verification:
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-16` working-tree update:
+  - `StrategicBranchSelector` active-note selection is no longer limited to
+    thread representatives.
+  - When spare active-note capacity remains, the selector now fills it from
+    visible strategic key moments with real strategy carriers, and in
+    no-thread positions it can fall back to strategic carrier moments instead
+    of emitting no active-note candidates at all.
+  - This is a selection-quality change only; it does not widen visible moments
+    indiscriminately and it does not alter the `Benko` recall contract beyond
+    making note-candidate selection less brittle once a moment is already
+    visible.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicBranchSelector.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicBranchSelectorTest.scala`
+- `2026-03-16` working-tree update:
+  - Deterministic Active-note prose now normalizes raw route / move-ref wording
+    more aggressively:
+    - raw owner-prefixed piece shorthands such as `Black R toward ...` are
+      rewritten into player-facing piece names
+    - awkward `for contest ...` / `for keep ...` purpose tails are rewritten
+      into `to contest ...` / `to keep the pressure fixed there`
+    - duplicated objective scaffolds such as
+      `working toward working toward ...` are removed before final note
+      assembly
+  - The real-PGN rerun now shows `32/33` focus moments with deterministic
+    `rule` notes present; the only remaining `missing` focus note is
+    `QID02 ply 38`, which is a non-compensation, non-`strategicBranch` focus
+    moment and therefore outside the attach contract.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-16` working-tree update:
+  - Real-PGN compensation calibration is now explicit and regression-tested in
+    the runner layer rather than left to ad hoc manual interpretation.
+  - The current calibration keeps early / dynamic compensation moments such as
+    `EVA01 ply 17`, but demotes late technical tails that only preserve a thin
+    static compensation story:
+    - `EVA02 ply 73`
+    - `EVA02 ply 75`
+    - `QID02 ply 38`
+  - After calibration, the latest real-PGN rerun keeps an `18`-moment
+    compensation-tagged focus subset across the `11`-game corpus, with
+    Bookmaker and deterministic Active-note both speaking in explicit
+    compensation / initiative language on those tagged focus moments.
+- Verification:
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalCalibrationTest.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-16` working-tree update:
+  - Probe prioritization is now strategy-aware on both the real-PGN eval path
+    and the local Game Arc refinement path.
+  - Probe planning no longer sorts by raw ply alone; it now prefers, in order:
+    - compensation + `strategicBranch`
+    - `strategicBranch` + strategic carrier
+    - key moments with strategic carrier
+    - remaining compensation moments
+    - remaining strategic-carrier moments
+  - Frontend `probePlanning.ts` and the real-PGN runner now share this
+    priority shape closely enough that runtime and evaluation probe usage stop
+    drifting apart.
+  - Latest real-PGN rerun summary after this priority change:
+    - `11` games
+    - `33` focus moments
+    - probe refinement used in `10` games
+    - probe requests `23 / 23 / 0` for
+      `candidate / executed / unsupported`
+- Verification:
+  - `ui/analyse/src/narrative/probePlanning.ts`
+  - `ui/analyse/tests/narrativeProbePlanning.test.ts`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-16` working-tree update:
+  - Long-term compensation is now decomposed internally instead of being treated
+    as a single attack-flavored carrier.
+  - `StrategyPackSurface` derives an internal-only `compensationSubtype` from
+    existing shipped carriers with four axes:
+    - `pressureTheater`: `kingside / queenside / center / mixed`
+    - `pressureMode`: `line_occupation / target_fixing / break_preparation /
+      defender_tied_down / counterplay_denial / conversion_window`
+    - `recoveryPolicy`: `immediate / delayed / intentionally_deferred`
+    - `stabilityClass`: `tactical_window / durable_pressure / transition_only`
+  - Public schema is unchanged. The subtype is consumed only by selector
+    weighting, moment ranking, probe priority, and deterministic phrasing.
+  - `StrategicIdeaSelector` is less attack-biased in quiet compensation:
+    - weak-king-window compensation no longer auto-promotes
+      `king_attack_build_up`
+    - `line_occupation`, `target_fixing`, and
+      `counterplay_suppression` now receive compensation-aware bridges when the
+      investment instead buys durable files, fixed targets, or passive-defense
+      tie-down
+    - a new typed suppression carrier (`compensation_counterplay_denial`) keeps
+      denied-break / passive-defender shells positional instead of drifting back
+      into attack
+  - `StrategicBranchSelector` and the real-PGN focus ranking now explicitly
+    favor quiet durable compensation. Moments with
+    `line_occupation / target_fixing / counterplay_denial` plus deferred or
+    durable compensation can outrank louder tactical tails when they are the
+    clearest explanation of the investment.
+  - Probe reuse changed only in planning/consumption, not in public contract:
+    - no new probe purpose or new public response field was added
+    - backend runner and frontend `probePlanning.ts` now prioritize
+      `durable_pressure` / quiet-compensation moments ahead of tactical tails
+    - probe-backed reasoning is now intended to answer whether compensation
+      remains durable (`delayed recovery`, `fixed targets`, `line pressure`,
+      `counterplay denial`) rather than only whether a forcing tactic exists
+  - Deterministic phrasing is now subtype-aware instead of always sounding like
+    a kingside initiative attack:
+    - Bookmaker compensation claims/supports prefer subtype text such as
+      `durable pressure`, `open-file control`, `fixed targets`,
+      `counterplay remains tied down`, or `access bought by the investment`
+    - Game Arc hybrid bridge prefers subtype persistence text before generic
+      compensation wording
+    - Active-note `why now` / `longTermObjective` now share the same display
+      gate, so quiet positional compensation uses subtype text only when the
+      shared normalization layer is active; attack-led samples fall back to raw
+      initiative wording instead of inheriting quiet `open-line pressure`
+      language
+  - A second pass adds subtype-aware display normalization inside
+    `StrategyPackSurface` without changing raw selector output:
+    - raw `dominantIdea`, route, move-ref, target, and `longTermFocus` carriers
+      remain intact
+    - `StrategyPackSurface` now keeps owner-prioritized
+      `allRoutes / allMoveRefs / allDirectionalTargets` in addition to top
+      route/move-ref/target so subtype derivation and display normalization are
+      not forced to overfit a single tactical-looking anchor
+    - an internal-only display layer now exposes normalized
+      `dominantIdea / execution / objective / longTermFocus /
+      compensation lead` when subtype confidence is high
+    - this display layer is the only place where quiet compensation is
+      re-labeled, so `Bookmaker`, `Game Arc`, and `Active Note` no longer
+      interpret subtype separately
+    - normalization is gated off for low-confidence, tactical-window, or
+      transition-only compensation, and also for immediate kingside attack
+      cases where the raw selector still clearly says `king_attack_build_up`
+    - quiet positional compensation can now override attack-flavored theater
+      only when there are real structural anchors (fixed-target move refs,
+      file-pressure routes, delayed recovery / return-vector carriers), so
+      subtype promotion is less likely to hallucinate a queenside story from a
+      purely tactical route
+    - Bookmaker compensation lead/support now only consumes subtype payoff and
+      persistence text when `normalizationActive` is true; otherwise it falls
+      back to raw compensation carriers instead of forcing quiet-pressure prose
+  - Latest strict real-PGN rerun after this subtype pass:
+    - `11` games, `33` focus moments
+    - probe requests `22 / 22 / 0` for `candidate / executed / unsupported`
+    - compensation-tagged focus moments: `22`
+    - subtype distribution:
+      - `center/target_fixing/intentionally_deferred/durable_pressure = 1`
+      - `queenside/target_fixing/intentionally_deferred/durable_pressure = 5`
+      - `kingside/line_occupation/intentionally_deferred/durable_pressure = 3`
+      - `center/line_occupation/immediate/durable_pressure = 4`
+      - `center/line_occupation/intentionally_deferred/durable_pressure = 5`
+      - `kingside/line_occupation/immediate/durable_pressure = 2`
+    - Benko no longer disappears from the evaluation corpus. Its later quiet
+      focus (`BEN01 ply 41`) now surfaces as
+      `queenside/target_fixing/intentionally_deferred/durable_pressure`, while
+      its earlier compensation focus (`BEN01 ply 23`) remains a calibration
+      case rather than collapsing into a generic missing/empty moment.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicBranchSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicIdeaSelectorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicBranchSelectorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalCalibrationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `ui/analyse/src/narrative/probePlanning.ts`
+  - `ui/analyse/tests/narrativeProbePlanning.test.ts`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
 - `2026-03-06` working-tree update:
   - `DecisionRationale / MetaSignals / StrategicFlow / OpponentPlan` is no
     longer dead on the primary prose path.
@@ -816,12 +1140,18 @@ Key references:
     - `modules/llm/src/main/LlmApi.scala:2363`
   - Controller hardcodes `Polish`:
     - `app/controllers/LlmController.scala:263`
-  - Bookmaker payload type has no `strategyPack`:
-    - `ui/analyse/src/bookmaker/responsePayload.ts:59`
-  - Game narrative UI type has no `strategyPack`:
-    - `ui/analyse/src/narrative/narrativeCtrl.ts:40`
+  - Bookmaker payload type now decodes a minimal `strategyPack` subset and feeds
+    it into the existing `Strategic Signals` block:
+    - `ui/analyse/src/bookmaker/responsePayload.ts`
+    - `ui/analyse/src/bookmaker.ts`
+  - Game narrative UI type now carries `strategyPack` and uses it in both the
+    moment signal shell and `Strategic Note` fallback surfaces:
+    - `ui/analyse/src/narrative/narrativeCtrl.ts`
+    - `ui/analyse/src/narrative/narrativeView.ts`
 - User-facing impact:
-  - `strategyPack` exists mostly as backend-internal or test-time material.
+  - `strategyPack` is no longer backend-only; the existing Bookmaker and Game
+    Arc shells now surface idea / campaign / execution / objective / focus from
+    the same carrier.
 - Fix difficulty / expected return:
   - Difficulty: low to medium
   - Return: medium
@@ -1150,6 +1480,10 @@ Verification:
   - non-thread filler priority = `Blunder` -> `MissedWin` -> `MatePivot` ->
     `OpeningBranchPoint / OpeningOutOfBook / OpeningTheoryEnds / OpeningNovelty`
   - `OpeningIntro` is not used as a visible filler slot
+  - if no canonical thread and no tactical/opening filler survives, the selector now
+    falls back to carrier-backed strategic key moments instead of returning an empty
+    visible list; this fallback only uses already-shipped `strategyPack/signalDigest`
+    surfaces (`dominantIdea`, execution/objective/focus, compensation carrier)
   - visible cap = `12`
 - Surface metadata:
   - opening-derived moments use `selectionKind = opening`,
@@ -1460,6 +1794,88 @@ Verification:
 - `ui/analyse/css/_narrative.scss`
 - `ui/analyse/tests/narrativeView.test.ts`
 
+## 2026-03-16 Bookmaker / Game Arc / Active Note Strategy Surface Wiring
+
+- No public schema bump in this step. `StrategyPack v2` and
+  `GameChronicleResponse v6` remain current.
+- Shared carrier change:
+  - `StrategyPack` is now consumed as a prose/surface carrier instead of a
+    summary-only byproduct.
+  - a local `StrategyPackSurface` extractor derives dominant idea,
+    campaign owner, owner mismatch, top route, top move-ref, directional
+    target, focus, and compensation context from the existing typed payload.
+- Bookmaker runtime:
+  - `LlmApi.computeBookmakerResponse` now builds `strategyPack` before
+    deterministic thesis slots and uses the slots as the default prose seed.
+  - `StrategicThesisBuilder` now accepts optional `strategyPack` input, so
+    compensation / prophylaxis / structure claims can surface campaign-owner,
+    execution, and objective text without creating a new taxonomy.
+  - `evaluateStrategyCoverage` is no longer the old one-axis lenient gate:
+    - general strategic prose now needs two of `plan / route / focus`, or
+      dominant-idea + focus grounding
+    - invested-material / compensation prose must mention compensation or
+      initiative plus a return vector / execution / objective
+    - owner-mismatch positions now fail with
+      `strategy_campaign_owner_missing` if the commentary never makes the
+      campaign owner explicit
+  - Bookmaker frontend keeps the existing `Strategic Signals` block but now
+    renders `Idea`, conditional `Campaign`, `Execution`, and `Objective`
+    directly from decoded `strategyPack`.
+- Game Arc runtime:
+  - `generateGameArc` / `buildMomentNarratives` now accept optional internal
+    `probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty`.
+  - full-game local refinement is now a frontend-assisted `2-pass` flow:
+    1. initial `Game Chronicle` response is generated without probe fanout
+    2. backend marks up to `3` internal probe candidates via
+       `GameArcMoment.probeRefinementRequests`
+    3. `ui/analyse/src/narrative/narrativeCtrl.ts` runs those requests through
+       the existing WASM `createProbeOrchestrator`
+    4. refined per-ply probe results are sent back through the existing local
+       endpoint with `X-Chesstory-GameArc-Refine: 1`
+    5. backend rerenders the same `Game Arc` with those per-ply probe results
+  - internal probe fanout and external evidence surface are now split:
+    - internal probe planning budget: `3` moments, `1` request per moment
+    - external evidence surface budget: unchanged
+      `FullGameEvidenceSurfacePolicy.MaxMoments = 2`
+  - probe planning still reuses existing typed carriers; no new analyzer stack
+    or response family was added.
+  - per-moment surfaced evidence remains `probeRequests` /
+    `authorQuestions` / `authorEvidence`, while the extra internal probe budget
+    now rides on the non-rendered `probeRefinementRequests` carrier.
+  - moment generation order is now:
+    1. `NarrativeContextBuilder.build`
+    2. `StrategyPackBuilder.build`
+    3. `AuthoringEvidenceSummaryBuilder.build`
+    4. `buildMomentSignalDigest`
+    5. final `renderHybridMomentNarrative`
+  - the hybrid bridge is now strategy-aware and can surface compensation,
+    dominant idea, campaign owner, execution, objective, and opponent-plan
+    hints before the focused body is assembled.
+  - Game Arc frontend keeps the existing `Strategic Signals` and
+    `Strategic Note` blocks but now uses `strategyPack` as a fallback for
+    idea / execution / objective / focus rows and owner-mismatch badges.
+- Active note runtime:
+  - `ActiveStrategicCoachingBriefBuilder` now reuses the same carrier to:
+    - mark owner mismatch in `campaignRole` / `primaryIdea`
+    - prefer compensation/initiative wording in `whyNow` and
+      `longTermObjective`
+    - fall back from routes to move refs and then directional targets when the
+      route surface is weak or absent
+  - `ActiveStrategicNoteValidator` coverage now hard-fails owner-mismatch notes
+    that never identify whose campaign is being described
+    (`campaign_owner_missing`).
+  - Verification targets for this stream:
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/FullGameEvidenceSurfacePolicyTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+  - `ui/analyse/tests/bookmakerResponsePayload.test.ts`
+  - `ui/analyse/tests/narrativeProbePlanning.test.ts`
+  - `ui/analyse/tests/narrativeView.test.ts`
+
 ## 2026-03-12 Typed Semantic Strategic Idea Selector Overhaul
 
 - No public schema bump in this step. `StrategyPack v2` and `GameChronicleResponse v6`
@@ -1523,10 +1939,22 @@ Verification:
   - `pawn_break` from pawn-break readiness / tension / file-opening consequences,
     with direct `PawnPlayAnalysis.advanceOrCapture`, `counterBreak`, and
     `tensionSquares` bridges
+    - `2026-03-16` working-tree update:
+      French counterbreak profile shortcuts no longer stay active in endgames by
+      default; the selector now gates the `FrenchAdvanceChain` counterbreak / `f6`
+      bridges behind non-endgame phase so material-up rook endings do not get
+      mislabeled as late pawn-break theses
   - `space_gain_or_restriction` from space tags, clamp state, and mobility
     restriction, plus locked-center / space-race derived typed support
   - `target_fixing` from weak-square / color-complex / fixation signals and
     `WeakComplex` backfill
+    - `2026-03-16` working-tree update:
+      compensation-heavy openings now also bridge into `target_fixing` through a
+      typed `compensation_target_fixation` source when all of the following hold:
+      material deficit for the acting side, non-conversion phase, real weak-square
+      or structural target evidence, and plan/line support such as
+      `WeakPawnAttack`, `FileControl`, `Blockade`, `MinorityAttack`, or existing
+      directional / line-access pressure
   - `line_occupation` from open-file / doubled-rook / route line-access signals
   - `outpost_creation_or_occupation` from outpost / strong-knight / entrenched
     piece signals, with route / directional bridges limited to tagged anchored
@@ -1537,14 +1965,48 @@ Verification:
     defensive/prophylaxis signals; board-pattern cues such as bishop-pin /
     clamp watches now require real typed support (threat / prevented-plan /
     supported prophylaxis plan context) instead of standing alone
+    - `2026-03-16` working-tree update:
+      the weaker plan+board-pattern fallback is now disabled in compensation
+      deficit contexts, so gambit / delayed-recovery positions do not get
+      promoted to prophylaxis from geometry alone
   - `king_attack_build_up` from king-pressure / mate-net / hook / attack-lane
     signals plus typed motif bridges (`RookLift`, `Battery`, `PieceLift`,
     `Check`) and `threatsToThem`
+    - `2026-03-16` working-tree update:
+      when the side to move is down limited material but keeps a real
+      initiative window, the selector now reuses existing typed carriers to
+      bridge compensation into this family:
+      `PositionFeatures.materialDiff`, development lag, king-castling state,
+      exposed files / king-ring pressure, motifs, and route/directional attack
+      lanes
+      - concrete bridges:
+        `compensation_development_lead`
+        `compensation_king_window`
+        `compensation_diagonal_battery`
+      - this is still a typed-evidence reuse of existing plan / feature / motif
+        outputs, not a new analyzer stack and not a new taxonomy kind
   - `favorable_trade_or_transformation` from removing-the-defender,
     classification simplify/convert windows, plan-alignment transformation
     reason codes, and winning-transition signals
   - `counterplay_suppression` from denied-break / counterplay-drop suppression
     signals, `opponentPawnAnalysis.counterBreak`, and `ThreatAnalysis`
+  - `2026-03-16` working-tree update:
+    `line_occupation` also now gets explicit compensation bridges when the side
+    to move is down material but is intentionally delaying recovery in favor of
+    open-line pressure:
+    - reused typed inputs:
+      `PositionFeatures.materialDiff`
+      development lag
+      line-control features
+      existing major-piece route / directional-target access
+      top plan matches such as `OpeningDevelopment`, `PieceActivation`,
+      `RookActivation`, and `FileControl`
+    - concrete bridges:
+      `compensation_open_lines`
+      `delayed_recovery_window`
+    - these bridges feed both Bookmaker and Game Arc through the existing
+      `StrategyPack -> StrategicIdeaSelector -> signalDigest/longTermFocus`
+      path; no prose-only classifier was added
 - The old keyword selector path still exists only as the test-only helper
   `LegacyStrategicIdeaTextClassifier` under `modules/llm/src/test`. It is not
   used in runtime ranking.
@@ -1568,6 +2030,24 @@ Verification:
     the board-grounded strategic theme and not an earlier prose intention
   - prose-noise invariance, so misleading `planName` / digest / focus text does
     not change the dominant typed idea
+  - `2026-03-16` working-tree update:
+    the bank is now split into:
+    - `canonical` seeds for core structural families
+    - `stockfishBalancedSupplemental` follow-ups for equal-material continuations
+    - `stockfishCompensationAcceptance` for real material-deficit compensation
+      positions
+    - the compensation acceptance layer records:
+      `stockfishScoreCp`
+      `stockfishMaxAbsCp`
+      `compensationSide`
+      `sideToMoveMismatch`
+      and explicit material-imbalance requirements
+    - this acceptance layer is where Open Catalan / QID / Benko / Blumenfeld /
+      Smith-Morra boundaries are now audited:
+      when compensation should stay `king_attack_build_up`
+      when it should stay `line_occupation`
+      when it should stay `target_fixing`
+      and when the evaluating side differs from the long-term compensation side
 - `2026-03-13` working-tree update:
   - full-game conditional-plan text no longer reuses raw latent templates with
     `{us}` / `{them}` / `{seed}` placeholders. Full-game draft rendering now

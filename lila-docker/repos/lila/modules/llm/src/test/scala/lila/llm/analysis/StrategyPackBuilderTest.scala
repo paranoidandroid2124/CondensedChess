@@ -97,6 +97,23 @@ class StrategyPackBuilderTest extends FunSuite:
       isWhiteToMove = isWhiteToMove
     )
 
+  def buildPackFromFen(
+      fen: String,
+      phase: String,
+      ply: Int
+  ): StrategyPack =
+    val data =
+      CommentaryEngine
+        .assessExtended(
+          fen = fen,
+          variations = List(VariationLine(Nil, 0, depth = 0)),
+          phase = Some(phase),
+          ply = ply
+        )
+        .getOrElse(fail(s"analysis missing for $fen"))
+    val ctx = NarrativeContextBuilder.build(data, data.toContext, None)
+    StrategyPackBuilder.build(data, ctx).getOrElse(fail(s"strategy pack missing for $fen"))
+
   test("build expands mover plans beyond single-plan cap while keeping opponent plan") {
     val mainPlans = List(
       hypothesis("Kingside Expansion", 0.86, 1),
@@ -651,4 +668,67 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.contains("deferred branch: g4")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("decision_compare:engine_best:g4")), clue(pack.evidence))
     assert(pack.evidence.exists(_.startsWith("decision_compare:deferred:g4")), clue(pack.evidence))
+  }
+
+  test("build promotes EVA01-style compensation carriers into digest and dominant thesis without semantic compensation") {
+    val pack =
+      buildPackFromFen(
+        fen = "r1bk2nr/ppp2ppp/1bn5/4p3/2B1P3/2P2N2/P4PPP/RNB2RK1 w - - 0 10",
+        phase = "middlegame",
+        ply = 19
+      )
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    assertEquals(digest.investedMaterial, Some(100))
+    assert(digest.compensation.exists(_.toLowerCase.contains("initiative")), clue(digest))
+    assert(digest.compensationVectors.exists(_.contains("Initiative")), clue(digest.compensationVectors))
+    assert(pack.longTermFocus.exists(_.toLowerCase.contains("dominant thesis: the point of the move is not an immediate score")), clue(pack.longTermFocus))
+  }
+
+  test("build promotes QID02-style line pressure carriers into digest and dominant thesis") {
+    val pack =
+      buildPackFromFen(
+        fen = "2r2rk1/p2qn1pp/1p1bp3/8/2pPQ2P/P1P1B1P1/1P2RPKN/R7 b - - 0 21",
+        phase = "middlegame",
+        ply = 42
+      )
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    assert(digest.investedMaterial.exists(_ > 0), clue(digest))
+    assert(
+      digest.compensation.exists(text =>
+        text.toLowerCase.contains("line pressure") || text.toLowerCase.contains("return vector")
+      ),
+      clue(digest)
+    )
+    assert(digest.compensationVectors.exists(_.contains("Line Pressure")), clue(digest.compensationVectors))
+    assert(pack.longTermFocus.exists(_.toLowerCase.contains("compensation")), clue(pack.longTermFocus))
+  }
+
+  test("build promotes CAT02-style delayed recovery carriers into digest and dominant thesis") {
+    val pack =
+      buildPackFromFen(
+        fen = "r3kb1r/2R2p1p/4p1p1/p2qP3/3p4/P4PP1/1P1Q2KP/R7 w kq - 0 23",
+        phase = "middlegame",
+        ply = 45
+      )
+
+    val digest = pack.signalDigest.getOrElse(fail("missing digest"))
+    assertEquals(digest.investedMaterial, Some(300))
+    assert(
+      digest.compensation.exists(text =>
+        text.toLowerCase.contains("delayed recovery") || text.toLowerCase.contains("return vector")
+      ),
+      clue(digest)
+    )
+    assert(
+      digest.compensationVectors.exists(text =>
+        text.contains("Delayed Recovery") || text.contains("Return Vector")
+      ),
+      clue(digest.compensationVectors)
+    )
+    assert(pack.longTermFocus.exists(_.toLowerCase.contains("compensation")), clue(pack.longTermFocus))
+    val surface = StrategyPackSurface.from(Some(pack))
+    assert(surface.normalizationActive, clue(surface.displayNormalization))
+    assert(pack.longTermFocus.headOption.exists(_.toLowerCase.contains("central files")), clue(pack.longTermFocus))
   }

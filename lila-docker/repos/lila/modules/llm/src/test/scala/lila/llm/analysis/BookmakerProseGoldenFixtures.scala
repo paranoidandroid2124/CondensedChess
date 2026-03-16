@@ -1,5 +1,6 @@
 package lila.llm.analysis
 
+import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
 import lila.llm.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
@@ -11,7 +12,8 @@ object BookmakerProseGoldenFixtures:
       title: String,
       motif: String,
       expectedLens: StrategicLens,
-      ctx: NarrativeContext
+      ctx: NarrativeContext,
+      strategyPack: Option[StrategyPack] = None
   )
 
   private def baseContext(
@@ -192,6 +194,60 @@ object BookmakerProseGoldenFixtures:
             purpose = "free_tempo_branches",
             branches = List(
               EvidenceBranch("...Qe7", "Qe7 h5 Rh6", Some(68), None, Some(21), Some("probe-exchange-sac"))
+            )
+          )
+        )
+      ),
+      strategyPack = Some(
+        StrategyPack(
+          sideToMove = "black",
+          strategicIdeas = List(
+            StrategyIdeaSignal(
+              ideaId = "idea_exchange_attack",
+              ownerSide = "white",
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              group = StrategicIdeaGroup.InteractionAndTransformation,
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("g7", "h7"),
+              focusZone = Some("kingside"),
+              beneficiaryPieces = List("Q", "B"),
+              confidence = 0.92
+            )
+          ),
+          pieceRoutes = List(
+            StrategyPieceRoute(
+              ownerSide = "white",
+              piece = "Q",
+              from = "d1",
+              route = List("d1", "g4", "h5"),
+              purpose = "mate threats against the king",
+              strategicFit = 0.9,
+              tacticalSafety = 0.74,
+              surfaceConfidence = 0.84,
+              surfaceMode = RouteSurfaceMode.Toward
+            )
+          ),
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_exchange_h7",
+              ownerSide = "white",
+              piece = "Q",
+              from = "d1",
+              targetSquare = "h7",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("dark-square bind", "mating net pressure")
+            )
+          ),
+          longTermFocus = List("keep the initiative rather than recovering the material"),
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("initiative against the king"),
+              investedMaterial = Some(180),
+              dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+              dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("g7, h7"),
+              compensationVectors = List("Attack on King", "Dark-Square Bind")
             )
           )
         )

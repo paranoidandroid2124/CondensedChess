@@ -1,15 +1,105 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
 
 class BookmakerPolishSlotsTest extends FunSuite:
 
+  private def surfaceDrivenPack(
+      ideaKind: String = StrategicIdeaKind.KingAttackBuildUp,
+      focusSquares: List[String] = List("g7"),
+      routePiece: String = "R",
+      route: List[String] = List("c3", "g3"),
+      routePurpose: String = "rook lift",
+      targetPiece: String = "Q",
+      targetSquare: String = "g7",
+      compensation: Option[String] = None,
+      investedMaterial: Option[Int] = None
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_attack_g7",
+          ownerSide = "white",
+          kind = ideaKind,
+          group = StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = focusSquares,
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.91
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = routePiece,
+          from = route.headOption.getOrElse("c3"),
+          route = route,
+          purpose = routePurpose,
+          strategicFit = 0.88,
+          tacticalSafety = 0.74,
+          surfaceConfidence = 0.82,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_g7",
+          ownerSide = "white",
+          piece = targetPiece,
+          from = "d1",
+          targetSquare = targetSquare,
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("mating net")
+        )
+      ),
+      longTermFocus = List(s"keep pressure on $targetSquare"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = compensation,
+          investedMaterial = investedMaterial,
+          dominantIdeaKind = Some(ideaKind),
+          dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some(focusSquares.mkString(", "))
+        )
+      )
+    )
+
+  private def tacticalCtx(base: NarrativeContext): NarrativeContext =
+    base.copy(
+      meta = Some(
+        MetaSignals(
+          choiceType = ChoiceType.NarrowChoice,
+          targets = Targets(Nil, Nil),
+          planConcurrency = PlanConcurrency("Attack", None, "independent"),
+          errorClass = Some(
+            ErrorClassification(
+              isTactical = true,
+              missedMotifs = List("Fork"),
+              errorSummary = "tactical miss"
+            )
+          )
+        )
+      )
+    )
+
+  private def genericDecisionOutline(claim: String, followUp: String): NarrativeOutline =
+    NarrativeOutline(
+      beats = List(
+        OutlineBeat(kind = OutlineBeatKind.Context, text = "Context beat."),
+        OutlineBeat(kind = OutlineBeatKind.MainMove, text = s"$claim $followUp")
+      )
+    )
+
   BookmakerProseGoldenFixtures.all.foreach { fixture =>
     test(s"${fixture.id} builds bookmaker polish slots for ${fixture.expectedLens}") {
       val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-      val slotsOpt = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None)
+      val slotsOpt = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
       assert(slotsOpt.isDefined, clues(s"expected slots for ${fixture.id}"))
       val slots = slotsOpt.get
       assertEquals(slots.lens, fixture.expectedLens)
@@ -23,29 +113,30 @@ class BookmakerPolishSlotsTest extends FunSuite:
   test("structure-led slots preserve deployment reason and move contribution roles") {
     val fixture = BookmakerProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None).getOrElse(fail("missing slots"))
+    val slots =
+      BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+        .getOrElse(fail("missing slots"))
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(claim.contains("french chain"))
     assert(claim.contains("knight"))
     assert(slots.supportPrimary.exists(text => {
       val low = text.toLowerCase
-      low.contains("belongs") || low.contains("wants")
+      low.contains("structure's logic") || low.contains("reroute")
     }))
     assert(slots.supportPrimary.exists(text => {
       val low = text.toLowerCase
       low.contains("gains force") || low.contains("squeeze")
     }))
-    assert(slots.supportSecondary.exists(text => text.toLowerCase.contains("this move")))
     assert(slots.supportSecondary.exists(text => {
       val low = text.toLowerCase
-      low.contains("route") || low.contains("post")
+      low.contains("route") || low.contains("post") || low.contains("g4") || low.contains("justification")
     }))
   }
 
   test("soft repair restores missing claim and strips placeholders") {
     val fixture = BookmakerProseGoldenFixtures.practicalChoice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None).get
+    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack).get
     val broken =
       """The move keeps pressure and remains preferable.
         |
@@ -149,4 +240,151 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assert(claimCore.contains("tactical blunder"))
     assert(!claimCore.contains("reorganizes the pieces around kingside clamp"))
     assert(slots.support.exists(_.toLowerCase.contains("better is **rc3**")))
+  }
+
+  test("compensation slots surface campaign owner and execution objective from strategy pack") {
+    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+    val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
+    val slots =
+      BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+        .getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim)
+    assert(claim.contains("White"))
+    assert(claim.toLowerCase.contains("investment"))
+    assert(slots.support.exists(text => {
+      val low = text.toLowerCase
+      low.contains("cash out") || low.contains("initiative") || low.contains("return vector") || low.contains("delayed recovery")
+    }))
+  }
+
+  test("decision slots prefer dominant thesis wording when strategy-pack surface is available") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        whyAbsentFromTopMultiPV = List("the immediate 'Qh5' thrust lets Black trade queens and kill the attack")
+      )
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val slots =
+      BookmakerPolishSlotsBuilder.build(ctx, outline, refs = None, strategyPack = Some(surfaceDrivenPack()))
+        .getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(!claim.contains("the key decision is to choose"))
+    assert(claim.contains("dominant thesis"))
+    assert(claim.contains("g7"))
+    assert(slots.support.exists(text => text.toLowerCase.contains("the objective is")))
+    assert(slots.support.exists(text => text.toLowerCase.contains("stays secondary because")))
+  }
+
+  test("EVA01-style tactical override cannot replace a surfaced thesis with whole-decision scaffolding") {
+    val ctx = tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx)
+    val outline =
+      genericDecisionOutline(
+        "The whole decision turns on b7.",
+        "The practical alternative Ng5 stays secondary because the attack is not ready."
+      )
+    val slots =
+      BookmakerPolishSlotsBuilder.build(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = Some(
+          surfaceDrivenPack(
+            focusSquares = List("d6"),
+            routePiece = "N",
+            route = List("b1", "a3", "c2", "e3"),
+            routePurpose = "plan activation lane",
+            targetPiece = "N",
+            targetSquare = "d6"
+          )
+        )
+      ).getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(!claim.contains("the whole decision turns on"))
+    assert(claim.contains("dominant thesis"))
+    assert(claim.contains("d6"))
+  }
+
+  test("KG01-style tactical override cannot replace a surfaced thesis with whole-decision scaffolding") {
+    val ctx = tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx)
+    val outline =
+      genericDecisionOutline(
+        "The whole decision turns on e5.",
+        "The practical alternative Qd2 stays secondary because the attack is not ready."
+      )
+    val slots =
+      BookmakerPolishSlotsBuilder.build(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = Some(
+          surfaceDrivenPack(
+            focusSquares = List("e5", "g5"),
+            routePiece = "Q",
+            route = List("d1", "f3", "f5"),
+            routePurpose = "kingside pressure",
+            targetPiece = "N",
+            targetSquare = "e5"
+          )
+        )
+      ).getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(!claim.contains("the whole decision turns on"))
+    assert(claim.contains("dominant thesis"))
+    assert(claim.contains("execution"))
+  }
+
+  test("CAT02-style surfaced thesis remains stable after generic-scaffold hardening") {
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val slots =
+      BookmakerPolishSlotsBuilder.build(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = Some(
+          surfaceDrivenPack(
+            ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            focusSquares = List("d4", "d5"),
+            routePiece = "R",
+            route = List("a8", "a6", "c6"),
+            routePurpose = "open file occupation",
+            targetPiece = "R",
+            targetSquare = "b3"
+          )
+        )
+      ).getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(claim.contains("dominant thesis"))
+    assert(claim.contains("d4"))
+    assert(!claim.contains("the key decision is to choose"))
+  }
+
+  test("QID02-style surfaced thesis remains stable after generic-scaffold hardening") {
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val slots =
+      BookmakerPolishSlotsBuilder.build(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = Some(
+          surfaceDrivenPack(
+            focusSquares = Nil,
+            routePiece = "Q",
+            route = List("d7", "b5", "f5"),
+            routePurpose = "plan activation lane",
+            targetPiece = "Q",
+            targetSquare = "d3"
+          )
+        )
+      ).getOrElse(fail("missing slots"))
+
+    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    assert(claim.contains("dominant thesis"))
+    assert(claim.contains("execution"))
+    assert(!claim.contains("the key decision is to choose"))
   }

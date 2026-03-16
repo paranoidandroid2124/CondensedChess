@@ -55,6 +55,8 @@ final class Env(
 
   private lazy val serverEvalRequester = wire[ServerEval.Requester]
 
+  lazy val accountNotebookBuilder = wire[AccountNotebookBuilder]
+
   private lazy val sequencer = wire[StudySequencer]
 
   lazy val serverEvalMerger = wire[ServerEval.Merger]

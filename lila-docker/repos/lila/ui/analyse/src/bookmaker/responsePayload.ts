@@ -65,7 +65,11 @@ export type StrategyCoverageMetaV1 = {
   focusHits: number;
 };
 
-import type { NarrativeSignalDigest } from '../chesstory/signalTypes';
+import type {
+  NarrativeSignalDigest,
+  StrategicIdeaGroup,
+  StrategicIdeaKind,
+} from '../chesstory/signalTypes';
 export type {
   DecisionComparisonDigest,
   NarrativeSignalDigest,
@@ -96,6 +100,67 @@ export type BookmakerStrategicLedgerV1 = {
   resourceLine?: BookmakerLedgerLineV1 | null;
 };
 
+export type StrategyPieceRouteV1 = {
+  ownerSide: string;
+  piece: string;
+  from: string;
+  route: string[];
+  purpose: string;
+  strategicFit: number;
+  tacticalSafety: number;
+  surfaceConfidence: number;
+  surfaceMode: string;
+  evidence?: string[];
+};
+
+export type StrategyPieceMoveRefV1 = {
+  ownerSide: string;
+  piece: string;
+  from: string;
+  target: string;
+  idea: string;
+  tacticalTheme?: string | null;
+  evidence?: string[];
+};
+
+export type StrategyDirectionalTargetV1 = {
+  targetId: string;
+  ownerSide: string;
+  piece: string;
+  from: string;
+  targetSquare: string;
+  readiness: string;
+  strategicReasons?: string[];
+  prerequisites?: string[];
+  evidence?: string[];
+};
+
+export type StrategyIdeaSignalV1 = {
+  ideaId: string;
+  ownerSide: string;
+  kind: StrategicIdeaKind | string;
+  group: StrategicIdeaGroup | string;
+  readiness: string;
+  focusSquares?: string[];
+  focusFiles?: string[];
+  focusDiagonals?: string[];
+  focusZone?: string | null;
+  beneficiaryPieces?: string[];
+  confidence: number;
+  evidenceRefs?: string[];
+};
+
+export type StrategyPackV1 = {
+  schema: string;
+  sideToMove: string;
+  strategicIdeas: StrategyIdeaSignalV1[];
+  pieceRoutes: StrategyPieceRouteV1[];
+  pieceMoveRefs: StrategyPieceMoveRefV1[];
+  directionalTargets: StrategyDirectionalTargetV1[];
+  longTermFocus: string[];
+  signalDigest?: NarrativeSignalDigest | null;
+};
+
 export type DecodedBookmakerResponse = {
   html: string;
   commentary: string;
@@ -105,6 +170,7 @@ export type DecodedBookmakerResponse = {
   refs: BookmakerRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
   bookmakerLedger: BookmakerStrategicLedgerV1 | null;
+  strategyPack: StrategyPackV1 | null;
   signalDigest: NarrativeSignalDigest | null;
   mainStrategicPlans: PlanHypothesis[];
   latentPlans: LatentPlanNarrative[];
@@ -141,6 +207,7 @@ export type MaybeResponse = {
   cacheHit?: unknown;
   signalDigest?: unknown;
   bookmakerLedger?: unknown;
+  strategyPack?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
   ratelimit?: {
@@ -219,6 +286,10 @@ export function signalDigestFromResponse(data: MaybeResponse): NarrativeSignalDi
   return isRecord(data?.signalDigest) ? (data.signalDigest as NarrativeSignalDigest) : null;
 }
 
+export function strategyPackFromResponse(data: MaybeResponse): StrategyPackV1 | null {
+  return isRecord(data?.strategyPack) ? (data.strategyPack as StrategyPackV1) : null;
+}
+
 function fallbackList<T>(primary: T[], fallback?: T[]): T[] {
   return primary.length ? primary : fallback || [];
 }
@@ -236,6 +307,7 @@ export function decodeBookmakerResponse(
     refs: refsFromResponse(data),
     polishMeta: polishMetaFromResponse(data),
     bookmakerLedger: bookmakerLedgerFromResponse(data),
+    strategyPack: strategyPackFromResponse(data),
     signalDigest: signalDigestFromResponse(data),
     mainStrategicPlans: mainStrategicPlansFromResponse(data),
     latentPlans: latentPlansFromResponse(data),

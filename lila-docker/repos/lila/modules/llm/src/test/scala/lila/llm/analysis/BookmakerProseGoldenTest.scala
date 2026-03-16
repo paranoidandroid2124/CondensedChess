@@ -18,7 +18,7 @@ class BookmakerProseGoldenTest extends FunSuite:
 
   private def renderSlots(fixture: BookmakerProseGoldenFixtures.Fixture): String =
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None).get
+    val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack).get
     List(
       s"lens=${slots.lens}",
       s"claim=${slots.claim}",

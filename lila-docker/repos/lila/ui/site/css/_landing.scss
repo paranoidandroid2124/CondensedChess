@@ -288,7 +288,7 @@ html {
   }
 }
 
-.hero-audience {
+.hero-modes {
   margin-top: 1rem;
   display: flex;
   flex-wrap: wrap;
@@ -351,6 +351,14 @@ html {
   max-width: 65ch;
 }
 
+.hero-disclosure {
+  margin: 0.95rem 0 0;
+  color: $landing-muted-light;
+  font-size: 0.9rem;
+  line-height: 1.48;
+  max-width: 64ch;
+}
+
 .btn-primary,
 .btn-secondary {
   display: inline-flex;
@@ -395,19 +403,82 @@ html {
   padding: clamp(1rem, 2vw, 1.35rem);
   box-shadow: 0 1.3rem 2.4rem rgba(24, 38, 63, 0.12);
   display: grid;
-  gap: 0.8rem;
+  gap: 1rem;
   animation: rise-in 0.75s ease-out;
 }
 
-.demo-meta {
+.hero-surface {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hero-surface-head,
+.hero-visual-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.hero-surface-kicker {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $landing-primary-strong;
+}
+
+.hero-surface-meta,
+.hero-visual-footer {
   font-size: 0.82rem;
   line-height: 1.4;
   color: $landing-muted-light;
+}
+
+.hero-surface-title {
+  margin: 0;
+  font-family: 'Merriweather', 'Georgia', serif;
+  font-size: clamp(1.25rem, 2.2vw, 1.5rem);
+  line-height: 1.22;
+}
+
+.hero-surface-copy {
+  margin: 0;
+  color: $landing-muted-light;
+  line-height: 1.56;
+  font-size: 0.96rem;
+}
+
+.hero-review-stack {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hero-review-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 0.85rem;
+  background: rgba(#fff, 0.72);
+  border: 1px solid rgba($landing-border-light, 0.78);
+
+  strong {
+    color: $landing-secondary;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  span {
+    color: $landing-muted-light;
+    font-size: 0.92rem;
+    line-height: 1.42;
+    text-align: right;
+  }
 }
 
 .demo-link {
@@ -451,6 +522,67 @@ html {
     line-height: 1.5;
     font-size: 0.95rem;
   }
+}
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(0.8rem, 2vw, 1.2rem);
+}
+
+.proof-card {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.proof-value {
+  color: $landing-secondary;
+  font-family: 'Merriweather', 'Georgia', serif;
+  font-size: clamp(1.12rem, 2vw, 1.36rem);
+  line-height: 1.2;
+}
+
+.proof-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: $landing-primary-strong;
+}
+
+.proof-copy {
+  margin: 0;
+  color: $landing-muted-light;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.sample-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: clamp(1rem, 3vw, 1.6rem);
+
+  .section-heading {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .sample-panel-grid {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .sample-summary-card {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+.sample-panel-grid {
+  display: grid;
+  gap: clamp(0.8rem, 2vw, 1rem);
 }
 
 .section-grid {
@@ -501,6 +633,82 @@ html {
   min-height: 2.6rem;
 }
 
+.sample-kicker,
+.feature-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $landing-primary-strong;
+}
+
+.sample-mode-title {
+  margin: 0.7rem 0 0;
+  font-family: 'Merriweather', 'Georgia', serif;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  line-height: 1.28;
+}
+
+.sample-mode-copy {
+  margin: 0.6rem 0 0;
+  color: $landing-muted-light;
+  line-height: 1.56;
+  font-size: 0.96rem;
+}
+
+.sample-chip-row {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.6rem;
+    padding: 0 0.62rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+    color: $landing-primary-strong;
+    background: rgba($landing-primary, 0.13);
+    border: 1px solid rgba($landing-primary, 0.24);
+  }
+}
+
+.sample-mini-list {
+  margin-top: 0.7rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.sample-mini-item {
+  padding: 0.78rem 0.82rem;
+  border-radius: 0.82rem;
+  background: rgba(#fff, 0.8);
+  border: 1px solid rgba($landing-border-light, 0.78);
+
+  strong {
+    display: block;
+    color: $landing-secondary;
+    font-size: 0.77rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  span {
+    display: block;
+    margin-top: 0.3rem;
+    color: $landing-muted-light;
+    line-height: 1.48;
+    font-size: 0.94rem;
+  }
+}
+
 .section-kicker {
   margin: 0 0 0.9rem;
   font-size: 0.81rem;
@@ -514,7 +722,10 @@ html {
 .sample-summary-card,
 .feature-card,
 .workflow-step,
-.quality-card {
+.quality-card,
+.proof-card,
+.sample-mode-card,
+.hero-surface {
   background: rgba($landing-surface-light, 0.78);
   border: 1px solid rgba($landing-border-light, 0.92);
   border-radius: 1.1rem;
@@ -607,7 +818,7 @@ html {
 
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(0.8rem, 2vw, 1.2rem);
 }
 
@@ -645,7 +856,7 @@ html {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(0.8rem, 2vw, 1.1rem);
 }
 
@@ -685,6 +896,11 @@ html {
     letter-spacing: 0.02em;
     color: $landing-primary-strong;
   }
+}
+
+.workflow-step--branch {
+  background:
+    linear-gradient(180deg, rgba($landing-primary, 0.08), rgba($landing-surface-light, 0.78));
 }
 
 .quality-grid {
@@ -763,6 +979,13 @@ html {
   padding: 0.78rem 0.85rem;
 }
 
+.quality-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
 .metric-row {
   display: flex;
   justify-content: space-between;
@@ -830,9 +1053,19 @@ html {
 
 @media (max-width: calc(#{$bp-desktop} - 1px)) {
   .hero-grid,
+  .sample-grid,
   .section-grid,
   .quality-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sample-grid {
+    .section-heading,
+    .sample-panel-grid,
+    .sample-summary-card {
+      grid-column: auto;
+      grid-row: auto;
+    }
   }
 
   .section-grid {
@@ -844,6 +1077,7 @@ html {
     }
   }
 
+  .proof-grid,
   .feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -897,7 +1131,9 @@ html {
     width: 100%;
   }
 
+  .sample-panel-grid,
   .feature-grid,
+  .proof-grid,
   .workflow-grid {
     grid-template-columns: 1fr;
   }
@@ -918,6 +1154,16 @@ html {
   .footer-links {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .quality-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quality-actions .btn-primary,
+  .quality-actions .btn-secondary {
+    width: 100%;
   }
 }
 
@@ -977,6 +1223,14 @@ html.dark .demo-meta,
 body.dark .demo-meta,
 html.pro .demo-meta,
 body.pro .demo-meta,
+html.dark .hero-surface-meta,
+body.dark .hero-surface-meta,
+html.pro .hero-surface-meta,
+body.pro .hero-surface-meta,
+html.dark .hero-visual-footer,
+body.dark .hero-visual-footer,
+html.pro .hero-visual-footer,
+body.pro .hero-visual-footer,
 html.dark .metric-row,
 body.dark .metric-row,
 html.pro .metric-row,
@@ -1003,10 +1257,30 @@ html.dark .section-kicker,
 body.dark .section-kicker,
 html.pro .section-kicker,
 body.pro .section-kicker,
+html.dark .hero-surface-kicker,
+body.dark .hero-surface-kicker,
+html.pro .hero-surface-kicker,
+body.pro .hero-surface-kicker,
+html.dark .proof-label,
+body.dark .proof-label,
+html.pro .proof-label,
+body.pro .proof-label,
+html.dark .sample-kicker,
+body.dark .sample-kicker,
+html.pro .sample-kicker,
+body.pro .sample-kicker,
+html.dark .feature-kicker,
+body.dark .feature-kicker,
+html.pro .feature-kicker,
+body.pro .feature-kicker,
 html.dark .import-label,
 body.dark .import-label,
 html.pro .import-label,
-body.pro .import-label {
+body.pro .import-label,
+html.dark .sample-summary-card .sample-label,
+body.dark .sample-summary-card .sample-label,
+html.pro .sample-summary-card .sample-label,
+body.pro .sample-summary-card .sample-label {
   color: $landing-primary-dark;
 }
 
@@ -1017,7 +1291,19 @@ body.pro .hero-copy h1 span,
 html.dark .timeline-ply,
 body.dark .timeline-ply,
 html.pro .timeline-ply,
-body.pro .timeline-ply {
+body.pro .timeline-ply,
+html.dark .proof-value,
+body.dark .proof-value,
+html.pro .proof-value,
+body.pro .proof-value,
+html.dark .hero-review-item strong,
+body.dark .hero-review-item strong,
+html.pro .hero-review-item strong,
+body.pro .hero-review-item strong,
+html.dark .sample-mini-item strong,
+body.dark .sample-mini-item strong,
+html.pro .sample-mini-item strong,
+body.pro .sample-mini-item strong {
   color: $landing-secondary-dark;
 }
 
@@ -1029,10 +1315,34 @@ html.dark .hero-points li,
 body.dark .hero-points li,
 html.pro .hero-points li,
 body.pro .hero-points li,
+html.dark .hero-disclosure,
+body.dark .hero-disclosure,
+html.pro .hero-disclosure,
+body.pro .hero-disclosure,
 html.dark .section-heading p,
 body.dark .section-heading p,
 html.pro .section-heading p,
 body.pro .section-heading p,
+html.dark .hero-surface-copy,
+body.dark .hero-surface-copy,
+html.pro .hero-surface-copy,
+body.pro .hero-surface-copy,
+html.dark .hero-review-item span,
+body.dark .hero-review-item span,
+html.pro .hero-review-item span,
+body.pro .hero-review-item span,
+html.dark .proof-copy,
+body.dark .proof-copy,
+html.pro .proof-copy,
+body.pro .proof-copy,
+html.dark .sample-mode-copy,
+body.dark .sample-mode-copy,
+html.pro .sample-mode-copy,
+body.pro .sample-mode-copy,
+html.dark .sample-mini-item span,
+body.dark .sample-mini-item span,
+html.pro .sample-mini-item span,
+body.pro .sample-mini-item span,
 html.dark .timeline-text,
 body.dark .timeline-text,
 html.pro .timeline-text,
@@ -1084,10 +1394,14 @@ html.dark .hero-points li::before,
 body.dark .hero-points li::before,
 html.pro .hero-points li::before,
 body.pro .hero-points li::before,
-html.dark .hero-audience span,
-body.dark .hero-audience span,
-html.pro .hero-audience span,
-body.pro .hero-audience span,
+html.dark .hero-modes span,
+body.dark .hero-modes span,
+html.pro .hero-modes span,
+body.pro .hero-modes span,
+html.dark .sample-chip-row span,
+body.dark .sample-chip-row span,
+html.pro .sample-chip-row span,
+body.pro .sample-chip-row span,
 html.dark .timeline-tag,
 body.dark .timeline-tag,
 html.pro .timeline-tag,
@@ -1103,10 +1417,14 @@ body.pro .quality-card .quality-label {
   color: $landing-primary-dark;
 }
 
-html.dark .hero-audience span,
-body.dark .hero-audience span,
-html.pro .hero-audience span,
-body.pro .hero-audience span,
+html.dark .hero-modes span,
+body.dark .hero-modes span,
+html.pro .hero-modes span,
+body.pro .hero-modes span,
+html.dark .sample-chip-row span,
+body.dark .sample-chip-row span,
+html.pro .sample-chip-row span,
+body.pro .sample-chip-row span,
 html.dark .timeline-tag,
 body.dark .timeline-tag,
 html.pro .timeline-tag,
@@ -1136,10 +1454,18 @@ html.dark .timeline-card,
 body.dark .timeline-card,
 html.pro .timeline-card,
 body.pro .timeline-card,
+html.dark .proof-card,
+body.dark .proof-card,
+html.pro .proof-card,
+body.pro .proof-card,
 html.dark .sample-summary-card,
 body.dark .sample-summary-card,
 html.pro .sample-summary-card,
 body.pro .sample-summary-card,
+html.dark .sample-mode-card,
+body.dark .sample-mode-card,
+html.pro .sample-mode-card,
+body.pro .sample-mode-card,
 html.dark .feature-card,
 body.dark .feature-card,
 html.pro .feature-card,
@@ -1156,6 +1482,10 @@ html.dark .hero-visual,
 body.dark .hero-visual,
 html.pro .hero-visual,
 body.pro .hero-visual,
+html.dark .hero-surface,
+body.dark .hero-surface,
+html.pro .hero-surface,
+body.pro .hero-surface,
 html.dark .sample-note,
 body.dark .sample-note,
 html.pro .sample-note,
@@ -1163,7 +1493,15 @@ body.pro .sample-note,
 html.dark .timeline-item,
 body.dark .timeline-item,
 html.pro .timeline-item,
-body.pro .timeline-item {
+body.pro .timeline-item,
+html.dark .hero-review-item,
+body.dark .hero-review-item,
+html.pro .hero-review-item,
+body.pro .hero-review-item,
+html.dark .sample-mini-item,
+body.dark .sample-mini-item,
+html.pro .sample-mini-item,
+body.pro .sample-mini-item {
   background: rgba($landing-surface-dark, 0.82);
   border-color: rgba($landing-border-dark, 0.92);
   box-shadow: 0 1rem 1.8rem rgba(0, 0, 0, 0.28);

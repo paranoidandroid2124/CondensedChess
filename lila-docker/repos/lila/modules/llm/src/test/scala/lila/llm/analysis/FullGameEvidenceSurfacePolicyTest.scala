@@ -121,3 +121,114 @@ class FullGameEvidenceSurfacePolicyTest extends FunSuite:
     )
     assert(!payload.nonEmpty)
   }
+
+  test("internal probe planner prioritizes high-salience and compensation moments before generic opening branches") {
+    val selected =
+      FullGameEvidenceSurfacePolicy.selectInternalProbeMoments(
+        List(
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 18,
+            selectionKind = "opening",
+            strategicSalienceHigh = false,
+            ownerMismatch = false,
+            compensation = false,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = true,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          ),
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 24,
+            selectionKind = "thread_bridge",
+            strategicSalienceHigh = false,
+            ownerMismatch = true,
+            compensation = true,
+            hasDeferredAlternative = true,
+            hasOpeningBranch = false,
+            hasStructureDeferred = true,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          ),
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 12,
+            selectionKind = "key",
+            strategicSalienceHigh = true,
+            ownerMismatch = false,
+            compensation = false,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = false,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          ),
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 36,
+            selectionKind = "key",
+            strategicSalienceHigh = false,
+            ownerMismatch = false,
+            compensation = false,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = false,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = true,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          )
+        )
+      )
+
+    assertEquals(selected, List(12, 24, 36))
+  }
+
+  test("internal probe planner respects selection-kind tie breaks at the same tier") {
+    val selected =
+      FullGameEvidenceSurfacePolicy.selectInternalProbeMoments(
+        List(
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 22,
+            selectionKind = "active-note-only",
+            strategicSalienceHigh = false,
+            ownerMismatch = false,
+            compensation = true,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = false,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          ),
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 20,
+            selectionKind = "thread_bridge",
+            strategicSalienceHigh = false,
+            ownerMismatch = false,
+            compensation = true,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = false,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          ),
+          FullGameEvidenceSurfacePolicy.InternalProbeCandidate(
+            ply = 18,
+            selectionKind = "key",
+            strategicSalienceHigh = false,
+            ownerMismatch = false,
+            compensation = true,
+            hasDeferredAlternative = false,
+            hasOpeningBranch = false,
+            hasStructureDeferred = false,
+            hasBlunderWhyNot = false,
+            hasEndgameContinuation = false,
+            probeRequests = List(baseContext.probeRequests.head)
+          )
+        )
+      )
+
+    assertEquals(selected, List(18, 20, 22))
+  }

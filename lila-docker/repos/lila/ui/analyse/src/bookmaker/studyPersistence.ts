@@ -236,6 +236,7 @@ function sessionKey(scope: string, commentPath: string): string {
 export function persistSessionBookmakerSnapshot(
   scope: string,
   commentPath: string,
+  originPath: string,
   commentary: string | null,
   entry: StoredBookmakerEntry,
 ): void {
@@ -247,6 +248,7 @@ export function persistSessionBookmakerSnapshot(
         schema: 'chesstory.bookmaker.session.v1',
         scope,
         commentPath,
+        originPath,
         savedAt: Date.now(),
         commentary,
         entry,
@@ -266,6 +268,7 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
       schema?: string;
       scope?: string;
       commentPath?: string;
+      originPath?: string;
       savedAt?: number;
       commentary?: string | null;
       entry?: StoredBookmakerEntry;
@@ -283,7 +286,7 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
       studyId: '',
       chapterId: '',
       commentPath,
-      originPath: '',
+      originPath: parsed.originPath || parsed.entry.tokenContext?.originPath || '',
       savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0,
       commentary: parsed.commentary,
       entry: parsed.entry,
@@ -291,4 +294,22 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
   } catch {
     return null;
   }
+}
+
+export function listSessionBookmakerSnapshots(scope: string): StudyBookmakerSnapshot[] {
+  if (typeof window === 'undefined' || !window.sessionStorage) return [];
+  const prefix = `${sessionPrefix}:${scope}:`;
+  const snapshots: StudyBookmakerSnapshot[] = [];
+
+  for (let i = 0; i < window.sessionStorage.length; i += 1) {
+    const key = window.sessionStorage.key(i);
+    if (!key || !key.startsWith(prefix)) continue;
+    const commentPath = key.slice(prefix.length);
+    if (!commentPath) continue;
+    const snapshot = readSessionBookmakerSnapshot(scope, commentPath);
+    if (snapshot) snapshots.push(snapshot);
+  }
+
+  snapshots.sort((a, b) => b.savedAt - a.savedAt);
+  return snapshots;
 }

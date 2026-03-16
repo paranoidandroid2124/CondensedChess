@@ -63,6 +63,13 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
     s"Q${board.byPiece(color, Queen).count} R${board.byPiece(color, Rook).count} " +
       s"B${board.byPiece(color, Bishop).count} N${board.byPiece(color, Knight).count} P${board.byPiece(color, Pawn).count}"
 
+  private def compensationSideHasMaterialDeficit(fixture: StrategicIdeaFenFixtures.Fixture, diff: Int): Boolean =
+    fixture.compensationSide.forall {
+      case "white" => diff < 0
+      case "black" => diff > 0
+      case _       => false
+    }
+
   private def misleadingPack(base: StrategyPack): StrategyPack =
     base.copy(
       plans = List(
@@ -276,6 +283,11 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
           case PositionalTag.RookOnSeventh(color)     => sameSide(color, side)
           case _                                      => false
         } ||
+          semantic.positionFeatures.exists(features =>
+            features.lineControl.openFilesCount > 0 ||
+              (if side == "white" then features.lineControl.whiteSemiOpenFiles else features.lineControl.blackSemiOpenFiles) > 0 ||
+              (if side == "white" then features.lineControl.whiteRookOn7th else features.lineControl.blackRookOn7th)
+          ) ||
           evaluated.pack.pieceRoutes.exists(route =>
             route.ownerSide == side &&
               route.surfaceMode != RouteSurfaceMode.Hidden &&
@@ -345,24 +357,47 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
           hasHedgehogBreakDenialGeometry(evaluated) ||
           hasMaroczyBreakDenialGeometry(evaluated)
 
-  test("FEN fixture bank stays legal, balanced, and complete") {
+  test("FEN fixture bank stays legal and complete") {
     val fixtures = StrategicIdeaFenFixtures.all
-    assertEquals(StrategicIdeaFenFixtures.canonical.size, 35)
+    assertEquals(StrategicIdeaFenFixtures.canonical.size, 30)
     assertEquals(StrategicIdeaFenFixtures.stockfishBalancedSupplemental.size, 74)
-    assertEquals(fixtures.size, 104)
+    assertEquals(StrategicIdeaFenFixtures.stockfishCompensationAcceptance.size, 10)
+    assertEquals(fixtures.size, 114)
     assertEquals(fixtures.map(_.id).distinct.size, fixtures.size)
     assertEquals(fixtures.count(_.id.startsWith("K")), 77)
     assertEquals(fixtures.count(_.id.startsWith("B")), 27)
+    assertEquals(fixtures.count(_.id.startsWith("G")), 10)
 
     evaluatedFixtures.foreach { evaluated =>
+      val diff = materialValueDiff(evaluated.board)
+
       if (evaluated.fixture.requireMaterialParity) {
         assertEquals(
-          materialValueDiff(evaluated.board),
+          diff,
           0,
           clue(
             s"${evaluated.fixture.id} ${evaluated.fixture.label} material mismatch: " +
               s"W=${materialSummary(evaluated.board, Color.White)} " +
               s"B=${materialSummary(evaluated.board, Color.Black)}"
+          )
+        )
+      }
+
+      if (evaluated.fixture.requireMaterialImbalance) {
+        assertNotEquals(
+          diff,
+          0,
+          clue(
+            s"${evaluated.fixture.id} ${evaluated.fixture.label} expected material imbalance: " +
+              s"W=${materialSummary(evaluated.board, Color.White)} " +
+              s"B=${materialSummary(evaluated.board, Color.Black)}"
+          )
+        )
+        assert(
+          compensationSideHasMaterialDeficit(evaluated.fixture, diff),
+          clue(
+            s"${evaluated.fixture.id} ${evaluated.fixture.label} compensation side mismatch: " +
+              s"diff=$diff side=${evaluated.fixture.compensationSide.getOrElse("-")}"
           )
         )
       }
@@ -384,6 +419,53 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
           Option.when(fixture.requireMaterialParity && materialValueDiff(evaluated.board) != 0) {
             s"${fixture.id} material mismatch: W=${materialSummary(evaluated.board, Color.White)} " +
               s"B=${materialSummary(evaluated.board, Color.Black)}"
+          },
+          for
+            score <- fixture.stockfishScoreCp
+            maxCp <- fixture.stockfishMaxAbsCp
+            if math.abs(score) > maxCp
+          yield s"${fixture.id} recorded score outside allowed window: cp=$score max=$maxCp seed=${fixture.sourceSeedId.getOrElse("-")}"
+        ).flatten
+      }
+
+    assert(
+      failures.isEmpty,
+      clue(failures.mkString("\n"))
+    )
+  }
+
+  test("compensation acceptance bank keeps material imbalance, stockfish balance, and side metadata") {
+    val failures =
+      StrategicIdeaFenFixtures.stockfishCompensationAcceptance.flatMap { fixture =>
+        val evaluated = evaluatedById(fixture.id)
+        val diff = materialValueDiff(evaluated.board)
+        val side = evaluated.semantic.sideToMove
+
+        List(
+          Option.when(fixture.stockfishScoreCp.isEmpty) {
+            s"${fixture.id} missing recorded Stockfish cp"
+          },
+          Option.when(fixture.stockfishMaxAbsCp.isEmpty) {
+            s"${fixture.id} missing recorded Stockfish max abs cp"
+          },
+          Option.when(!fixture.requireMaterialImbalance) {
+            s"${fixture.id} compensation bank fixture must require material imbalance"
+          },
+          Option.when(diff == 0) {
+            s"${fixture.id} expected material imbalance: W=${materialSummary(evaluated.board, Color.White)} " +
+              s"B=${materialSummary(evaluated.board, Color.Black)}"
+          },
+          Option.when(!compensationSideHasMaterialDeficit(fixture, diff)) {
+            s"${fixture.id} compensation side ${fixture.compensationSide.getOrElse("-")} does not match diff=$diff"
+          },
+          Option.when(fixture.compensationSide.isEmpty) {
+            s"${fixture.id} missing compensation side metadata"
+          },
+          Option.when(fixture.sideToMoveMismatch && fixture.compensationSide.contains(side)) {
+            s"${fixture.id} expected side-to-move mismatch but side=$side"
+          },
+          Option.when(!fixture.sideToMoveMismatch && fixture.compensationSide.exists(_ != side)) {
+            s"${fixture.id} expected evaluated side to match compensation side but side=$side comp=${fixture.compensationSide.getOrElse("-")}"
           },
           for
             score <- fixture.stockfishScoreCp
