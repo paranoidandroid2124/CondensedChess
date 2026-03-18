@@ -1,9 +1,10 @@
 # Chesstory Open Beta on GCP
 
-This repository now ships a repo-contained path for open-beta deployment:
+This repository ships a repo-contained path for open-beta deployment:
 
 - container build: [lila-docker/repos/lila/Dockerfile.openbeta](lila-docker/repos/lila/Dockerfile.openbeta)
 - production config: [lila-docker/repos/lila/conf/application.openbeta.conf](lila-docker/repos/lila/conf/application.openbeta.conf)
+- binding manifest: [lila-docker/repos/lila/conf/openbeta-bindings.json](lila-docker/repos/lila/conf/openbeta-bindings.json)
 - GitHub Actions workflow: [.github/workflows/gcp-openbeta.yml](.github/workflows/gcp-openbeta.yml)
 
 ## Deployment model
@@ -12,9 +13,9 @@ Use GitHub Actions to:
 
 1. build the app image
 2. push it to Artifact Registry
-3. deploy the new image to an existing Cloud Run service
+3. deploy the new image to an already-bootstrapped Cloud Run service
 
-The workflow intentionally keeps runtime secrets and service settings on Cloud Run / Secret Manager instead of duplicating them in GitHub Actions.
+The workflow now validates Cloud Run runtime bindings before the build starts. A deployment is expected to fail if the target service is missing or if its env/secret bindings are incomplete.
 
 ## GitHub Actions prerequisites
 
@@ -42,17 +43,26 @@ gcloud artifacts repositories create chesstory-openbeta \
   --location=asia-northeast3
 ```
 
-Then configure the GitHub Actions variables/secrets and run the `gcp-openbeta` workflow once with `workflow_dispatch`. The same workflow can create the first Cloud Run service revision and then keep updating it on later pushes.
+Create the Cloud Run service once before using the standard workflow. A simple bootstrap path is to deploy a temporary placeholder image:
 
-After the first image deploy, configure the service env vars and secret bindings with `gcloud run services update`.
+```bash
+gcloud run deploy chesstory-openbeta \
+  --region=asia-northeast3 \
+  --image=us-docker.pkg.dev/cloudrun/container/hello \
+  --allow-unauthenticated \
+  --port=8080
+```
 
-## Required runtime environment
+Then configure the runtime env vars and secret bindings with `gcloud run services update`. After the service exists and the bindings are complete, the `gcp-openbeta` workflow becomes the standard rollout path for later revisions.
 
-Required plain env vars:
+## Required always
+
+These bindings are mandatory for open-beta runtime and are validated before deploy.
 
 - `LILA_DOMAIN`
 - `LILA_BASE_URL`
 - `PUBLIC_CONTACT_EMAIL`
+- `ENABLE_RATE_LIMITING`
 - `MONGODB_URI`
 - `REDIS_URI`
 - `SMTP_HOST`
@@ -60,23 +70,53 @@ Required plain env vars:
 - `SMTP_TLS`
 - `SMTP_USER`
 - `SMTP_SENDER`
-- `HCAPTCHA_SITEKEY`
-- `ENABLE_RATE_LIMITING=true`
-- `CHESSTORY_BETA_PREMIUM_ALL=true` if you want beta users to receive premium-grade LLM behavior
-
-Required secret-backed env vars:
-
+- `SMTP_PASSWORD`
 - `PLAY_HTTP_SECRET_KEY`
 - `USER_PASSWORD_BPASS_SECRET`
 - `PASSWORD_RESET_SECRET`
 - `EMAIL_CONFIRM_SECRET`
 - `EMAIL_CHANGE_SECRET`
 - `LOGIN_TOKEN_SECRET`
-- `SMTP_PASSWORD`
+- `HCAPTCHA_SITEKEY`
 - `HCAPTCHA_SECRET`
+- `PROMETHEUS_KEY`
+- `EXPLORER_API_BASE`
+- `TABLEBASE_API_BASE`
+- `LICHESS_IMPORT_API_BASE`
+- `LICHESS_WEB_BASE`
+- `CHESSCOM_API_BASE`
+- `EXTERNAL_ENGINE_ENDPOINT`
 
-Recommended optional env vars:
+Notes:
 
+- `PROMETHEUS_KEY` is production-required, not optional.
+- explorer, tablebase, and import-provider bindings are intentional external integrations, but they must be explicit. Missing values must not fall back to `base.conf` defaults.
+
+## Required only in selected modes
+
+These bindings are only required when the related mode is enabled.
+
+- `ACCOUNT_INTEL_DISPATCH_BASE_URL`
+- `ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN`
+- `ACCOUNT_INTEL_WORKER_TOKEN`
+- `ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT`
+
+Rules:
+
+- if `ACCOUNT_INTEL_DISPATCH_BASE_URL` is set, the dispatch auth token set must be complete before deploy
+- if `ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT` is set, it becomes part of readiness and must point to a real remote service
+- if dispatch is not configured, local worker mode remains valid
+
+## Soft optional integrations
+
+These bindings are optional and do not block boot by themselves, but they are tracked in the binding manifest and shown in ops diagnostics.
+
+- `GIF_EXPORT_URL`
+- `LICHESS_EXPLORER_TOKEN`
+- `SUPPORT_PATREON_URL`
+- `SUPPORT_GITHUB_SPONSORS_URL`
+- `SUPPORT_BMC_URL`
+- `ENABLE_MONITORING`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL_SYNC`
 - `OPENAI_MODEL_FALLBACK`
@@ -88,43 +128,52 @@ Recommended optional env vars:
 - `OPENAI_MAX_OUTPUT_TOKENS`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL`
-- `SUPPORT_PATREON_URL`
-- `SUPPORT_GITHUB_SPONSORS_URL`
-- `SUPPORT_BMC_URL`
-- `PROMETHEUS_KEY`
-- `ENABLE_MONITORING`
-- `EXPLORER_API_BASE`
-- `TABLEBASE_API_BASE`
-- `LICHESS_IMPORT_API_BASE`
-- `LICHESS_WEB_BASE`
-- `CHESSCOM_API_BASE`
-- `EXTERNAL_ENGINE_ENDPOINT`
-- `ACCOUNT_INTEL_DISPATCH_BASE_URL`
-- `ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN`
-- `ACCOUNT_INTEL_WORKER_TOKEN`
-- `ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT`
+- `CHESSTORY_BETA_PREMIUM_ALL`
+
+Notes:
+
+- `LICHESS_EXPLORER_TOKEN` is optional. If omitted, the explorer proxy can still work against public upstream access when allowed.
+- `GIF_EXPORT_URL` is optional. If omitted, GIF export remains intentionally disabled instead of inheriting an upstream default.
+
+## Removed / dormant bindings
+
+These are intentionally dormant in open-beta and should not be configured on Cloud Run.
+
+- `PUSH_WEB_URL`
+- `PUSH_WEB_VAPID_PUBLIC_KEY`
+
+The frontend does not currently register the service worker in open-beta boot, so push bindings are dead configuration and are expected to stay empty.
 
 ## Example service update
 
-Non-secret env vars:
+Required always, plain env vars:
 
 ```bash
 gcloud run services update chesstory-openbeta \
   --region=asia-northeast3 \
-  --update-env-vars=LILA_DOMAIN=beta.chesstory.com,LILA_BASE_URL=https://beta.chesstory.com,PUBLIC_CONTACT_EMAIL=support@chesstory.com,MONGODB_URI='mongodb+srv://...',REDIS_URI='redis://...',ENABLE_RATE_LIMITING=true,SMTP_HOST=smtp.postmarkapp.com,SMTP_PORT=587,SMTP_TLS=true,SMTP_USER=postmark-server-token,SMTP_SENDER='Chesstory <noreply@beta.chesstory.com>',HCAPTCHA_SITEKEY=YOUR_SITE_KEY
+  --update-env-vars=LILA_DOMAIN=beta.chesstory.com,LILA_BASE_URL=https://beta.chesstory.com,PUBLIC_CONTACT_EMAIL=support@chesstory.com,ENABLE_RATE_LIMITING=true,MONGODB_URI='mongodb+srv://...',REDIS_URI='redis://...',SMTP_HOST=smtp.postmarkapp.com,SMTP_PORT=587,SMTP_TLS=true,SMTP_USER=postmark-server-token,SMTP_SENDER='Chesstory <noreply@beta.chesstory.com>',HCAPTCHA_SITEKEY=YOUR_SITE_KEY,EXPLORER_API_BASE=https://explorer.lichess.org,TABLEBASE_API_BASE=https://tablebase.lichess.ovh,LICHESS_IMPORT_API_BASE=https://lichess.org,LICHESS_WEB_BASE=https://lichess.org,CHESSCOM_API_BASE=https://api.chess.com,EXTERNAL_ENGINE_ENDPOINT=https://engine.chesstory.com
 ```
 
-Secret bindings:
+Required always, secret bindings:
 
 ```bash
 gcloud run services update chesstory-openbeta \
   --region=asia-northeast3 \
-  --set-secrets=PLAY_HTTP_SECRET_KEY=play-http-secret:latest,USER_PASSWORD_BPASS_SECRET=user-password-bpass-secret:latest,PASSWORD_RESET_SECRET=password-reset-secret:latest,EMAIL_CONFIRM_SECRET=email-confirm-secret:latest,EMAIL_CHANGE_SECRET=email-change-secret:latest,LOGIN_TOKEN_SECRET=login-token-secret:latest,SMTP_PASSWORD=smtp-password:latest,HCAPTCHA_SECRET=hcaptcha-secret:latest
+  --set-secrets=PLAY_HTTP_SECRET_KEY=play-http-secret:latest,USER_PASSWORD_BPASS_SECRET=user-password-bpass-secret:latest,PASSWORD_RESET_SECRET=password-reset-secret:latest,EMAIL_CONFIRM_SECRET=email-confirm-secret:latest,EMAIL_CHANGE_SECRET=email-change-secret:latest,LOGIN_TOKEN_SECRET=login-token-secret:latest,SMTP_PASSWORD=smtp-password:latest,HCAPTCHA_SECRET=hcaptcha-secret:latest,PROMETHEUS_KEY=prometheus-key:latest
+```
+
+Conditional Account Intel dispatch bindings:
+
+```bash
+gcloud run services update chesstory-openbeta \
+  --region=asia-northeast3 \
+  --update-env-vars=ACCOUNT_INTEL_DISPATCH_BASE_URL=https://worker.chesstory.com \
+  --set-secrets=ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN=account-intel-dispatch-token:latest,ACCOUNT_INTEL_WORKER_TOKEN=account-intel-worker-token:latest
 ```
 
 ## Open-beta product feedback path
 
-This repo now ships structured beta feedback capture and paid-plan waitlist hooks:
+This repo ships structured beta feedback capture and paid-plan waitlist hooks:
 
 - global form: [lila-docker/repos/lila/app/views/pages/betaFeedback.scala](lila-docker/repos/lila/app/views/pages/betaFeedback.scala)
 - backend storage/API: [lila-docker/repos/lila/modules/beta/src/main/BetaFeedbackApi.scala](lila-docker/repos/lila/modules/beta/src/main/BetaFeedbackApi.scala)
@@ -147,7 +196,7 @@ The stored signals are:
 
 ## Signup protections enforced in production
 
-Production boot now fails if any of these are missing or weak:
+Production boot fails if any of these are missing or weak:
 
 - `play.http.secret.key`
 - `user.password.bpass.secret`
@@ -156,5 +205,6 @@ Production boot now fails if any of these are missing or weak:
 - password-reset / email-confirm / email-change / login-token secrets
 - `auth.magicLink.autoCreate = false`
 - real SMTP configuration
+- empty push web bindings
 
 See [lila-docker/repos/lila/app/ProductionConfigValidator.scala](lila-docker/repos/lila/app/ProductionConfigValidator.scala).

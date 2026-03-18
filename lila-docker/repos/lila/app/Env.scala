@@ -21,6 +21,8 @@ final class Env(
     StandaloneWSClient,
     akka.stream.Materializer
 ):
+  object webHttp:
+    val client: StandaloneWSClient = summon[StandaloneWSClient]
   val net: NetConfig = lila.web.WebConfig.netConfig(config)
   export net.baseUrl
   val routeUrl: Call => Url = call => Url(s"${baseUrl}${call.url}")
@@ -30,6 +32,7 @@ final class Env(
   given RateLimit = net.rateLimit
   given NetDomain = net.domain
   val getFile: GetRelativeFile = GetRelativeFile(environment.getFile(_))
+  val openBetaBindings = wire[OpenBetaBindings]
 
   // Chesstory: Analysis-focused modules only
   // val i18n remove

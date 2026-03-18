@@ -39,7 +39,10 @@ GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token)
 
 # Member Ops
+GET   /ops                             controllers.Ops.landing
 GET   /ops/members                     controllers.Ops.members
+GET   /ops/metrics                     controllers.Ops.metrics
+GET   /ops/commentary                  controllers.Ops.commentary(limit: Int ?= 20)
 GET   /ops/members/:id                 controllers.Ops.member(id: UserStr, advanced: Boolean ?= false)
 GET   /ops/members/:id/audit           controllers.Ops.audit(id: UserStr, page: Int ?= 1)
 GET   /ops/members/:id/plan-ledger     controllers.Ops.planLedger(id: UserStr)
@@ -153,6 +156,7 @@ GET   /assets/*file                    controllers.ExternalAssets.at(path="publi
 GET   /manifest.json                   controllers.Main.manifest
 GET   /robots.txt                      controllers.Main.robots
 GET   /healthz                         controllers.Main.healthz
+GET   /livez                           controllers.Main.livez
 GET   /prometheus-metrics/:key         controllers.Main.prometheusMetrics(key)
 GET   /internal/commentary-ops/:key    controllers.Main.commentaryOps(key, limit: Int ?= 20)
 

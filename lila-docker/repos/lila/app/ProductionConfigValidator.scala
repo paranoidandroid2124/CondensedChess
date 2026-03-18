@@ -30,6 +30,8 @@ object ProductionConfigValidator:
 
       requireMailer(config, errors)
       requireSignupProtections(config, errors)
+      requireObservability(config, errors)
+      requireOpenBetaBindings(config, errors)
 
       val problems = errors.toList
       if problems.nonEmpty then
@@ -112,6 +114,48 @@ object ProductionConfigValidator:
     if config.getOptional[Boolean]("auth.magicLink.autoCreate").getOrElse(false) then
       errors += "auth.magicLink.autoCreate must be false in production."
 
+  private def requireObservability(
+      config: Configuration,
+      errors: ListBuffer[String]
+  ): Unit =
+    requireNonPlaceholder(
+      config,
+      "kamon.prometheus.lilaKey",
+      errors,
+      invalid = Set("???")
+    )
+
+    val influxEndpoint = config.getOptional[String]("api.influx_event.endpoint").map(_.trim).getOrElse("")
+    if influxEndpoint.toLowerCase.contains("lichess.ovh") then
+      errors += "api.influx_event.endpoint must not point to the upstream lichess telemetry host in production."
+
+  private def requireOpenBetaBindings(
+      config: Configuration,
+      errors: ListBuffer[String]
+  ): Unit =
+    configuredString(config, "game.gifUrl").foreach: gifUrl =>
+      if pointsToLocalhost(gifUrl) || gifUrl.toLowerCase.contains("gif.lichess.ovh") then
+        errors += "game.gifUrl must point to a Chesstory-controlled GIF export endpoint or remain empty in production."
+
+    val dispatchBase = configuredString(config, "accountIntel.dispatch.baseUrl")
+    dispatchBase.foreach: base =>
+      if pointsToLocalhost(base) then
+        errors += "accountIntel.dispatch.baseUrl must not point to localhost in production."
+      val hasBearer = configuredString(config, "accountIntel.dispatch.bearerToken").isDefined
+      val hasDispatchHeader = configuredString(config, "accountIntel.dispatch.authHeaderValue").isDefined
+      val hasWorkerHeader = configuredString(config, "accountIntel.worker.authHeaderValue").isDefined
+      if !hasBearer && !hasDispatchHeader && !hasWorkerHeader then
+        errors += "accountIntel.dispatch.baseUrl requires either accountIntel.dispatch.bearerToken or a non-empty worker auth header value in production."
+
+    configuredString(config, "accountIntel.selectiveEval.endpoint").foreach: endpoint =>
+      if pointsToLocalhost(endpoint) then
+        errors += "accountIntel.selectiveEval.endpoint must not point to localhost in production."
+
+    if configuredString(config, "push.web.url").isDefined then
+      errors += "push.web.url must remain empty in open-beta production."
+    if configuredString(config, "push.web.vapid_public_key").isDefined then
+      errors += "push.web.vapid_public_key must remain empty in open-beta production."
+
   private def requirePositiveInt(
       config: Configuration,
       path: String,
@@ -139,3 +183,10 @@ object ProductionConfigValidator:
     if value.isEmpty then errors += s"$path must be set in production."
     else if invalid.contains(value) then
       errors += s"$path must not use the placeholder value `$value` in production."
+
+  private def configuredString(config: Configuration, path: String): Option[String] =
+    config.getOptional[String](path).map(_.trim).filter(_.nonEmpty)
+
+  private def pointsToLocalhost(value: String): Boolean =
+    val normalized = value.trim.toLowerCase
+    normalized.contains("localhost") || normalized.contains("127.0.0.1")

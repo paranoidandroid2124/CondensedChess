@@ -1,8 +1,11 @@
 package controllers
 import play.api.mvc.*
 import play.api.libs.json.Json
+import scala.util.control.NonFatal
 
 import lila.app.*
+import lila.core.config.CollName
+import lila.db.dsl.*
 import lila.web.{ StaticContent, WebForms }
 
 /* Chesstory: Analysis-only main controller
@@ -85,8 +88,18 @@ final class Main(
   def contact = Open:
     Ok.page(views.pages.contact(publicContactEmail))
 
-  def healthz = Anon:
+  def livez = Anon:
     Ok("ok").toFuccess
+
+  def healthz = Anon:
+    healthChecks.map: checks =>
+      val ready = Main.isReady(checks)
+      (if ready then Ok else ServiceUnavailable)(
+        Json.obj(
+          "status" -> (if ready then "ready" else "unready"),
+          "checks" -> checks.map(_.json)
+        )
+      )
 
   def prometheusMetrics(key: String) = Anon:
     if key == env.web.config.prometheusKey
@@ -104,3 +117,105 @@ final class Main(
 
 
   def devAsset(@scala.annotation.unused v: String, path: String, file: String) = assetsC.at(path, file)
+
+  private def healthChecks =
+    val requiredInProd = env.mode.isProd
+    for
+      mongoReady <- mongoHealth
+      bindingStatuses <- env.openBetaBindings.snapshot
+    yield
+      List(
+        Main.HealthCheck(
+          name = "mongo",
+          ok = mongoReady,
+          required = true,
+          detail = if mongoReady then "query_ok" else "query_failed"
+        ),
+        Main.mailerCheck(env.config, env.mailer.mailer.canSend, required = requiredInProd),
+        Main.llmCheck(
+          openAiEnabled = env.llm.openAiClient.isEnabled,
+          geminiEnabled = env.llm.geminiClient.isEnabled,
+          required = requiredInProd
+        )
+      ) ++ bindingStatuses.flatMap(Main.bindingHealthCheck(_, requiredInProd))
+
+  private def mongoHealth =
+    env.mongo
+      .mainDb(CollName("announce"))
+      .find($empty)
+      .one[Bdoc]
+      .map(_ => true)
+      .recover { case NonFatal(_) => false }
+
+object Main:
+
+  final case class HealthCheck(
+      name: String,
+      ok: Boolean,
+      required: Boolean,
+      detail: String
+  ):
+    def json =
+      Json.obj(
+        "name" -> name,
+        "ok" -> ok,
+        "required" -> required,
+        "detail" -> detail
+      )
+
+  def isReady(checks: Iterable[HealthCheck]): Boolean =
+    checks.forall(check => !check.required || check.ok)
+
+  def mailerCheck(config: play.api.Configuration, canSend: Boolean, required: Boolean): HealthCheck =
+    val mock = config.getOptional[Boolean]("mailer.primary.mock").getOrElse(true)
+    val missing =
+      List(
+        "host" -> config.getOptional[String]("mailer.primary.host"),
+        "user" -> config.getOptional[String]("mailer.primary.user"),
+        "password" -> config.getOptional[String]("mailer.primary.password"),
+        "sender" -> config.getOptional[String]("mailer.primary.sender")
+      ).collect:
+        case (label, value) if value.forall(_.trim.isEmpty) => label
+    val ok = !mock && canSend && missing.isEmpty
+    val detail =
+      if mock then "mock_enabled"
+      else if !canSend then "disabled_by_live_setting"
+      else if missing.nonEmpty then s"missing:${missing.mkString(",")}"
+      else "configured"
+    HealthCheck("mailer", ok = ok, required = required, detail = detail)
+
+  def llmCheck(openAiEnabled: Boolean, geminiEnabled: Boolean, required: Boolean): HealthCheck =
+    val ok = openAiEnabled || geminiEnabled
+    val detail =
+      if openAiEnabled && geminiEnabled then "openai+gemini"
+      else if openAiEnabled then "openai"
+      else if geminiEnabled then "gemini"
+      else "disabled"
+    HealthCheck("llm", ok = ok, required = required, detail = detail)
+
+  def bindingHealthCheck(
+      status: OpenBetaBindingStatus,
+      requiredInProd: Boolean
+  ): Option[HealthCheck] =
+    Option.unless(status.spec.readinessClass == "none"):
+      HealthCheck(
+        name = healthCheckName(status.spec.env),
+        ok = status.readyOk,
+        required = requiredInProd && status.readinessRequired,
+        detail = status.detail
+      )
+
+  private def healthCheckName(env: String) =
+    env match
+      case "REDIS_URI" => "redis"
+      case "PROMETHEUS_KEY" => "metrics"
+      case "EXPLORER_API_BASE" => "explorer"
+      case "TABLEBASE_API_BASE" => "tablebase"
+      case "LICHESS_IMPORT_API_BASE" => "lichess_import_api"
+      case "LICHESS_WEB_BASE" => "lichess_web"
+      case "CHESSCOM_API_BASE" => "chesscom_api"
+      case "EXTERNAL_ENGINE_ENDPOINT" => "external_engine"
+      case "ACCOUNT_INTEL_DISPATCH_BASE_URL" => "accountintel_dispatch"
+      case "ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT" => "accountintel_selective_eval"
+      case "GIF_EXPORT_URL" => "gif_export"
+      case other => other.toLowerCase

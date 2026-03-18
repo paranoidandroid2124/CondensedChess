@@ -147,3 +147,46 @@ class OpsModelTest extends munit.FunSuite:
         Permission.OpsAdmin
       )
     )
+
+  test("metrics snapshot parses help type and samples into families"):
+    val scrape =
+      """# HELP jvm_memory_used_bytes Current used memory
+        |# TYPE jvm_memory_used_bytes gauge
+        |jvm_memory_used_bytes{area="heap"} 42
+        |process_cpu_usage 0.25
+        |""".stripMargin
+
+    val snapshot = OpsMetricsSnapshot.fromScrape(Some(scrape))
+
+    assertEquals(snapshot.sampleCount, 2)
+    assertEquals(snapshot.familyCount, 2)
+    assert(snapshot.hasData)
+    assert(snapshot.sections.exists(_.title == "JVM"))
+    val jvmFamily = snapshot.sections.flatMap(_.families).find(_.name == "jvm_memory_used_bytes").get
+    assertEquals(jvmFamily.metricType, OpsMetricType.Gauge)
+    assertEquals(jvmFamily.help, Some("Current used memory"))
+    assertEquals(jvmFamily.samples.head.labels.get("area"), Some("heap"))
+
+  test("metrics snapshot groups histogram buckets with their declared family"):
+    val scrape =
+      """# HELP http_request_duration_seconds Request latency
+        |# TYPE http_request_duration_seconds histogram
+        |http_request_duration_seconds_bucket{le="0.5"} 3
+        |http_request_duration_seconds_bucket{le="+Inf"} 5
+        |http_request_duration_seconds_sum 1.2
+        |http_request_duration_seconds_count 5
+        |""".stripMargin
+
+    val snapshot = OpsMetricsSnapshot.fromScrape(Some(scrape))
+    val family = snapshot.sections.flatMap(_.families).find(_.name == "http_request_duration_seconds").get
+
+    assertEquals(family.metricType, OpsMetricType.Histogram)
+    assertEquals(family.sampleCount, 4)
+
+  test("metrics snapshot treats reporter placeholder as no parsed data"):
+    val snapshot = OpsMetricsSnapshot.fromScrape(Some("# The kamon-prometheus module didn't receive any data just yet.\n"))
+
+    assertEquals(snapshot.sampleCount, 0)
+    assertEquals(snapshot.familyCount, 0)
+    assert(!snapshot.hasData)
+    assertEquals(snapshot.commentCount, 1)

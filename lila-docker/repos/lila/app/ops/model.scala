@@ -174,6 +174,215 @@ case class OpsMemberSearchPage(
   def prevPage: Int = (page - 1).max(1)
   def nextPage: Int = (page + 1).min(totalPages)
 
+enum OpsMetricType:
+  case Counter
+  case Gauge
+  case Histogram
+  case Summary
+  case Untyped
+  case Unknown
+
+  def label: String = this match
+    case Counter   => "Counter"
+    case Gauge     => "Gauge"
+    case Histogram => "Histogram"
+    case Summary   => "Summary"
+    case Untyped   => "Untyped"
+    case Unknown   => "Unknown"
+
+object OpsMetricType:
+  def fromPrometheus(value: String): OpsMetricType =
+    value.trim.toLowerCase match
+      case "counter"   => Counter
+      case "gauge"     => Gauge
+      case "histogram" => Histogram
+      case "summary"   => Summary
+      case "untyped"   => Untyped
+      case _           => Unknown
+
+case class OpsMetricSample(
+    name: String,
+    labels: Map[String, String],
+    value: String
+)
+
+case class OpsMetricFamily(
+    name: String,
+    metricType: OpsMetricType,
+    help: Option[String],
+    samples: List[OpsMetricSample]
+):
+  val sampleCount: Int = samples.size
+  val primaryValue: String = samples.headOption.fold("-")(_.value)
+  val labelVariants: Int = samples.count(_.labels.nonEmpty)
+
+case class OpsMetricSection(
+    key: String,
+    title: String,
+    families: List[OpsMetricFamily]
+):
+  val familyCount: Int = families.size
+  val sampleCount: Int = families.foldLeft(0)(_ + _.sampleCount)
+
+case class OpsMetricsSnapshot(
+    raw: Option[String],
+    lineCount: Int,
+    commentCount: Int,
+    parseErrorCount: Int,
+    sections: List[OpsMetricSection]
+):
+  val familyCount: Int = sections.foldLeft(0)(_ + _.familyCount)
+  val sampleCount: Int = sections.foldLeft(0)(_ + _.sampleCount)
+  val sectionCount: Int = sections.size
+  def hasData: Boolean = sampleCount > 0
+
+object OpsMetricsSnapshot:
+
+  private val samplePattern = "^([a-zA-Z_:][a-zA-Z0-9_:]*)(\\{.*\\})?\\s+([^\\s]+).*$".r
+
+  private val sectionTitles = Map(
+    "active" -> "Commentary / LLM",
+    "akka" -> "Akka",
+    "bookmaker" -> "Commentary / LLM",
+    "cache" -> "Cache",
+    "commentary" -> "Commentary / LLM",
+    "db" -> "Database",
+    "fullgame" -> "Commentary / LLM",
+    "gc" -> "Runtime",
+    "http" -> "HTTP",
+    "jvm" -> "JVM",
+    "llm" -> "Commentary / LLM",
+    "mongo" -> "Mongo",
+    "mongodb" -> "Mongo",
+    "netty" -> "Network",
+    "openbeta" -> "Open Beta",
+    "play" -> "HTTP",
+    "process" -> "Process",
+    "redis" -> "Redis",
+    "system" -> "System"
+  )
+
+  def fromScrape(raw: Option[String]): OpsMetricsSnapshot =
+    val data = raw.map(_.trim).filter(_.nonEmpty)
+    val lines = data.fold(List.empty[String])(_.linesIterator.toList)
+    val helps = scala.collection.mutable.Map.empty[String, String]
+    val types = scala.collection.mutable.Map.empty[String, OpsMetricType]
+    val parsedSamples = scala.collection.mutable.ListBuffer.empty[OpsMetricSample]
+    var commentCount = 0
+    var parseErrorCount = 0
+
+    lines.foreach: line =>
+      val trimmed = line.trim
+      if trimmed.nonEmpty then
+        if trimmed.startsWith("# HELP ") then
+          commentCount += 1
+          parseHelp(trimmed).foreach: (name, help) =>
+            helps.update(name, help)
+        else if trimmed.startsWith("# TYPE ") then
+          commentCount += 1
+          parseType(trimmed).foreach: (name, metricType) =>
+            types.update(name, metricType)
+        else if trimmed.startsWith("#") then commentCount += 1
+        else
+          parseSample(trimmed) match
+            case Some(sample) => parsedSamples += sample
+            case None         => parseErrorCount += 1
+
+    val declaredNames = (helps.keySet ++ types.keySet).toList.sortBy(name => (-name.length, name))
+    val groupedSamples =
+      parsedSamples.toList.groupBy(sample => familyName(sample.name, declaredNames)).view.mapValues(_.sortBy(_.name)).toMap
+    val familyNames = (declaredNames.toSet ++ groupedSamples.keySet).toList.sorted
+    val families =
+      familyNames.map: name =>
+        OpsMetricFamily(
+          name = name,
+          metricType = types.getOrElse(name, OpsMetricType.Unknown),
+          help = helps.get(name),
+          samples = groupedSamples.getOrElse(name, Nil)
+        )
+    val sections =
+      families
+        .groupBy(family => sectionKey(family.name))
+        .toList
+        .sortBy((key, _) => sectionTitle(key))
+        .map: (key, groupedFamilies) =>
+          OpsMetricSection(
+            key = key,
+            title = sectionTitle(key),
+            families = groupedFamilies.sortBy(_.name)
+          )
+
+    OpsMetricsSnapshot(
+      raw = data,
+      lineCount = lines.size,
+      commentCount = commentCount,
+      parseErrorCount = parseErrorCount,
+      sections = sections
+    )
+
+  private def parseHelp(line: String): Option[(String, String)] =
+    val rest = line.drop("# HELP ".length)
+    val separator = rest.indexOf(' ')
+    Option.when(separator > 0):
+      val name = rest.take(separator).trim
+      val help = rest.drop(separator + 1).trim
+      name -> help
+
+  private def parseType(line: String): Option[(String, OpsMetricType)] =
+    val rest = line.drop("# TYPE ".length)
+    val parts = rest.split("\\s+", 2).toList
+    parts match
+      case name :: metricType :: Nil => Some(name.trim -> OpsMetricType.fromPrometheus(metricType))
+      case _                         => None
+
+  private def parseSample(line: String): Option[OpsMetricSample] =
+    line match
+      case samplePattern(name, rawLabels, value) =>
+        Some(
+          OpsMetricSample(
+            name = name,
+            labels = parseLabels(Option(rawLabels)),
+            value = value
+          )
+        )
+      case _ => None
+
+  private def parseLabels(rawLabels: Option[String]): Map[String, String] =
+    rawLabels
+      .map(_.trim)
+      .filter(_.startsWith("{"))
+      .filter(_.endsWith("}"))
+      .map(_.drop(1).dropRight(1))
+      .fold(Map.empty[String, String]): raw =>
+        raw
+          .split(",")
+          .toList
+          .flatMap: part =>
+            val separator = part.indexOf('=')
+            Option.when(separator > 0):
+              val key = part.take(separator).trim
+              val value =
+                part
+                  .drop(separator + 1)
+                  .trim
+                  .stripPrefix("\"")
+                  .stripSuffix("\"")
+                  .replace("\\\"", "\"")
+                  .replace("\\\\", "\\")
+              key -> value
+          .toMap
+
+  private def familyName(metricName: String, declaredNames: List[String]): String =
+    declaredNames.find(declared => metricName == declared || metricName.startsWith(declared + "_")).getOrElse(metricName)
+
+  private def sectionKey(metricName: String): String =
+    metricName.takeWhile(_ != '_').toLowerCase match
+      case "" => "other"
+      case key => key
+
+  private def sectionTitle(key: String): String =
+    sectionTitles.getOrElse(key, key.split('-').toList.filter(_.nonEmpty).map(_.capitalize).mkString(" "))
+
 case class OpsMemberSnapshot(
     username: String,
     email: Option[String],

@@ -34,6 +34,58 @@ object RealPgnNarrativeEvalRunner:
   private val EngineEnvVars = List("STOCKFISH_BIN", "LLM_ACTIVE_CORPUS_ENGINE_PATH")
   private val MaxProbeMoments = 3
   private val MaxFocusMoments = 3
+  private val PositiveCompensationExemplars = Set(
+    "BEN01:23",
+    "BEN01:41",
+    "CAT01:37",
+    "CAT01:39",
+    "QID02:42",
+    "QID02:52"
+  )
+  private val BorderlineExpectations = Map(
+    "EVA01:17" -> true,
+    "EVA02:73" -> false,
+    "EVA02:75" -> false,
+    "QID02:38" -> false
+  )
+  private val CompensationLexicon =
+    List("compensation", "initiative", "line pressure", "delayed recovery", "return vector", "cash out")
+
+  private final case class NegativeGuardSpec(
+      id: String,
+      label: String,
+      family: String,
+      targetPly: Int,
+      pgn: String
+  )
+
+  private val NegativeGuards = List(
+    NegativeGuardSpec(
+      id = "TAT06",
+      label = "Abdusattorov vs Gukesh, Tata Steel 2026 Round 6",
+      family = "ruy_lopez_exchange",
+      targetPly = 60,
+      pgn =
+        """[Event "Tata Steel Chess 2026 | Masters"]
+          |[Site "Chess.com"]
+          |[Date "2026.01.23"]
+          |[Round "06"]
+          |[White "Abdusattorov, Nodirbek"]
+          |[Black "Gukesh D"]
+          |[Result "1-0"]
+          |[WhiteElo "2751"]
+          |[BlackElo "2754"]
+          |[TimeControl "40/7200:1800+30"]
+          |[Link "https://www.chess.com/events/2026-tata-steel-chess-masters/06/Abdusattorov_Nodirbek-Gukesh_D"]
+          |
+          |1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Bxc6 dxc6 7. d3 Nd7 8.
+          |Nc3 O-O 9. Be3 Re8 10. a4 a5 11. Kh1 Bd6 12. Ne2 Nf8 13. Ng3 c5 14. Nd2 Ne6 15.
+          |Nf5 Bf8 16. Nc4 f6 17. Qg4 Kh8 18. Qg3 b6 19. h4 g6 20. Nh6 Qd7 21. Ng4 Bg7 22.
+          |f3 Ba6 23. b3 Rad8 24. h5 gxh5 25. Nh6 Bxc4 26. bxc4 Bxh6 27. Bxh6 Rg8 28. Qh2
+          |Rg6 29. Qxh5 Nf4 30. Bxf4 exf4 31. g4 fxg3 32. Kg2 Qd4 33. Rae1 Kg7 34. e5 Rh6
+          |35. Qg4+ Rg6 36. Qf5 Rg5 37. Qxf6+ 1-0""".stripMargin
+    )
+  )
 
   final case class Config(
       corpusPath: Path,
@@ -80,8 +132,20 @@ object RealPgnNarrativeEvalRunner:
       secondaryIdea: Option[String],
       campaignOwner: Option[String],
       ownerMismatch: Boolean,
+      gameArcCompensationPosition: Boolean,
+      bookmakerCompensationPosition: Boolean,
       compensationPosition: Boolean,
+      gameArcCompensationSubtype: Option[String],
+      bookmakerCompensationSubtype: Option[String],
       compensationSubtype: Option[String],
+      gameArcPreparationCompensationSubtype: Option[String],
+      bookmakerPreparationCompensationSubtype: Option[String],
+      gameArcPayoffCompensationSubtype: Option[String],
+      bookmakerPayoffCompensationSubtype: Option[String],
+      gameArcDisplaySubtypeSource: String,
+      bookmakerDisplaySubtypeSource: String,
+      activeCompensationMention: Boolean,
+      bookmakerCompensationMention: Boolean,
       execution: Option[String],
       objective: Option[String],
       focus: Option[String],
@@ -140,6 +204,34 @@ object RealPgnNarrativeEvalRunner:
   object Summary:
     given Writes[Summary] = Json.writes[Summary]
 
+  final case class NegativeGuardResult(
+      id: String,
+      label: String,
+      targetPly: Int,
+      compensationPosition: Boolean,
+      bookmakerCompensationMention: Boolean,
+      passed: Boolean
+  )
+
+  object NegativeGuardResult:
+    given Writes[NegativeGuardResult] = Json.writes[NegativeGuardResult]
+
+  final case class SignoffSummary(
+      falsePositiveCount: Int,
+      falseNegativeCount: Int,
+      crossSurfaceAgreementRate: Double,
+      subtypeAgreementRate: Double,
+      payoffTheaterAgreementRate: Double,
+      pathVsPayoffDivergenceCount: Int,
+      displaySubtypeSourceDistribution: Map[String, Int],
+      negativeGuardPassCount: Int,
+      negativeGuardFailCount: Int,
+      negativeGuards: List[NegativeGuardResult]
+  )
+
+  object SignoffSummary:
+    given Writes[SignoffSummary] = Json.writes[SignoffSummary]
+
   final case class RunReport(
       version: Int = 1,
       generatedAt: String,
@@ -149,6 +241,7 @@ object RealPgnNarrativeEvalRunner:
       multiPv: Int,
       enginePath: String,
       summary: Summary,
+      signoff: SignoffSummary,
       games: List[GameReport]
   )
 
@@ -199,6 +292,7 @@ object RealPgnNarrativeEvalRunner:
     val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
     try
       val reports = corpus.games.map(runSingleGame(_, api, engine, config))
+      val negativeGuards = NegativeGuards.flatMap(runNegativeGuard(_, api, engine, config))
       val report =
         RunReport(
           generatedAt = Instant.now().toString,
@@ -208,6 +302,7 @@ object RealPgnNarrativeEvalRunner:
           multiPv = config.multiPv,
           enginePath = config.enginePath.toAbsolutePath.normalize.toString,
           summary = buildSummary(reports),
+          signoff = buildSignoff(reports, negativeGuards),
           games = reports
         )
       writeJson(config.jsonPath, Json.toJson(report))
@@ -354,6 +449,10 @@ object RealPgnNarrativeEvalRunner:
       bookmakerResultOpt.map { bookmakerResult =>
         val momentSurface = StrategyPackSurface.from(moment.strategyPack)
         val bookmakerSurface = StrategyPackSurface.from(bookmakerResult.response.strategyPack)
+        val activeNoteText = moment.activeStrategicNote.map(oneLine)
+        val bookmakerCommentary = oneLine(bookmakerResult.response.commentary)
+        val gameArcCompensationPosition = momentSurface.compensationPosition
+        val bookmakerCompensationPosition = bookmakerSurface.compensationPosition
         val compensationPosition = compensationEvalPosition(moment, momentSurface, bookmakerSurface, Some(pd.playedUci))
         val rawBookmakerPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.json")
         writeJson(rawBookmakerPath, Json.toJson(bookmakerResult.response))
@@ -367,20 +466,36 @@ object RealPgnNarrativeEvalRunner:
           secondaryIdea = momentSurface.secondaryIdeaText,
           campaignOwner = momentSurface.campaignOwnerText,
           ownerMismatch = momentSurface.ownerMismatch,
+          gameArcCompensationPosition = gameArcCompensationPosition,
+          bookmakerCompensationPosition = bookmakerCompensationPosition,
           compensationPosition = compensationPosition,
+          gameArcCompensationSubtype = StrategyPackSurface.compensationSubtypeLabel(momentSurface),
+          bookmakerCompensationSubtype = StrategyPackSurface.compensationSubtypeLabel(bookmakerSurface),
           compensationSubtype =
             Option.when(compensationPosition) {
               StrategyPackSurface.compensationSubtypeLabel(momentSurface)
                 .orElse(StrategyPackSurface.compensationSubtypeLabel(bookmakerSurface))
             }.flatten,
+          gameArcPreparationCompensationSubtype =
+            StrategyPackSurface.preparationCompensationSubtypeLabel(momentSurface),
+          bookmakerPreparationCompensationSubtype =
+            StrategyPackSurface.preparationCompensationSubtypeLabel(bookmakerSurface),
+          gameArcPayoffCompensationSubtype =
+            StrategyPackSurface.payoffCompensationSubtypeLabel(momentSurface),
+          bookmakerPayoffCompensationSubtype =
+            StrategyPackSurface.payoffCompensationSubtypeLabel(bookmakerSurface),
+          gameArcDisplaySubtypeSource = momentSurface.displaySubtypeSource,
+          bookmakerDisplaySubtypeSource = bookmakerSurface.displaySubtypeSource,
+          activeCompensationMention = activeNoteText.exists(mentionsCompensationLexicon),
+          bookmakerCompensationMention = mentionsCompensationLexicon(bookmakerCommentary),
           execution = momentSurface.executionText,
           objective = momentSurface.objectiveText,
           focus = momentSurface.focusText,
           gameArcNarrative = oneLine(moment.narrative),
-          bookmakerCommentary = oneLine(bookmakerResult.response.commentary),
+          bookmakerCommentary = bookmakerCommentary,
           bookmakerSourceMode = bookmakerResult.response.sourceMode,
           activeNoteStatus = moment.activeStrategicSourceMode.getOrElse("missing"),
-          activeNote = moment.activeStrategicNote.map(oneLine),
+          activeNote = activeNoteText,
           probeRequestCount = moment.probeRequests.size,
           probeRefinementRequestCount = moment.probeRefinementRequests.size
         )
@@ -394,6 +509,88 @@ object RealPgnNarrativeEvalRunner:
       playedMove: Option[String] = None
   ): Boolean =
     RealPgnNarrativeEvalCalibration.compensationEvalPosition(moment, gameArcSurface, bookmakerSurface, playedMove)
+
+  private def runNegativeGuard(
+      guard: NegativeGuardSpec,
+      api: LlmApi,
+      engine: LocalUciEngine,
+      config: Config
+  )(using Executor): Option[NegativeGuardResult] =
+    val game =
+      CorpusGame(
+        id = guard.id,
+        tier = "guard",
+        family = guard.family,
+        label = guard.label,
+        notes = List("negative guard"),
+        expectedThemes = Nil,
+        pgn = guard.pgn
+      )
+    val header = parseHeaders(game.pgn)
+    val plyData =
+      PgnAnalysisHelper.extractPlyDataStrict(game.pgn) match
+        case Right(value) => value
+        case Left(err)    => throw new IllegalArgumentException(s"${guard.id}: PGN validation failed: $err")
+
+    val afterMoveEvals = buildAfterMoveEvals(game.id, plyData, engine, config.depth, config.multiPv)
+    val initialResponse =
+      Await.result(
+        api.analyzeGameChronicleLocal(
+          pgn = game.pgn,
+          evals = afterMoveEvals,
+          style = "active",
+          focusOn = List("strategy", "long_plan", "piece_route"),
+          allowLlmPolish = false,
+          asyncTier = false,
+          lang = "en",
+          planTier = PlanTier.Pro,
+          llmLevel = LlmLevel.Active
+        ),
+        180.seconds
+      ).getOrElse(throw new IllegalStateException(s"${guard.id}: empty Game Chronicle response"))
+
+    val probeBundles = collectProbeMomentBundles(initialResponse, MaxProbeMoments)
+    val (probeResultsByPly, _, _) = executeSupportedProbeRequests(probeBundles, engine)
+    val refinedResponse =
+      if probeResultsByPly.isEmpty then initialResponse
+      else
+        Await.result(
+          api.analyzeGameChronicleLocal(
+            pgn = game.pgn,
+            evals = afterMoveEvals,
+            style = "active",
+            focusOn = List("strategy", "long_plan", "piece_route"),
+            allowLlmPolish = false,
+            asyncTier = false,
+            lang = "en",
+            planTier = PlanTier.Pro,
+            llmLevel = LlmLevel.Active,
+            probeResultsByPly = probeResultsByPly
+          ),
+          180.seconds
+        ).getOrElse(initialResponse)
+
+    refinedResponse.moments.find(_.ply == guard.targetPly).flatMap { moment =>
+      buildFocusMomentReport(
+        game = game,
+        header = header,
+        moment = moment,
+        plyData = plyData,
+        afterMoveEvals = afterMoveEvals,
+        api = api,
+        engine = engine,
+        config = config
+      ).map { report =>
+        NegativeGuardResult(
+          id = guard.id,
+          label = guard.label,
+          targetPly = guard.targetPly,
+          compensationPosition = report.compensationPosition,
+          bookmakerCompensationMention = report.bookmakerCompensationMention,
+          passed = !report.compensationPosition && !report.bookmakerCompensationMention
+        )
+      }
+    }
 
   private def lateTechnicalSpaceOnlyCompensation(
       moment: GameChronicleMoment,
@@ -740,6 +937,79 @@ object RealPgnNarrativeEvalRunner:
       compensationSubtypeCounts = compensationSubtypeCounts
     )
 
+  private def buildSignoff(
+      games: List[GameReport],
+      negativeGuards: List[NegativeGuardResult]
+  ): SignoffSummary =
+    val focusMoments = games.flatMap(_.focusMoments)
+    val compensationMoments = focusMoments.filter(_.compensationPosition)
+    val positiveFalseNegatives =
+      PositiveCompensationExemplars.count(key =>
+        !focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.compensationPosition)
+      )
+    val borderlineFalsePositives =
+      BorderlineExpectations.count { case (key, shouldKeep) =>
+        !shouldKeep &&
+          focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.compensationPosition)
+      }
+    val crossSurfaceAgreementRate =
+      ratio(
+        compensationMoments.count(moment =>
+          moment.gameArcCompensationPosition &&
+            moment.bookmakerCompensationPosition &&
+            moment.activeCompensationMention
+        ),
+        compensationMoments.size
+      )
+    val subtypeAgreementRate =
+      ratio(
+        compensationMoments.count(moment =>
+          moment.gameArcCompensationSubtype.nonEmpty &&
+            moment.gameArcCompensationSubtype == moment.bookmakerCompensationSubtype
+        ),
+        compensationMoments.size
+      )
+    val payoffTheaterAgreementRate =
+      ratio(
+        compensationMoments.count(moment =>
+          extractTheater(moment.gameArcPayoffCompensationSubtype)
+            .zip(extractTheater(moment.bookmakerPayoffCompensationSubtype))
+            .exists { case (gameArcTheater, bookmakerTheater) => gameArcTheater == bookmakerTheater }
+        ),
+        compensationMoments.size
+      )
+    val pathVsPayoffDivergenceCount =
+      compensationMoments.count(moment =>
+        (moment.gameArcPreparationCompensationSubtype, moment.gameArcPayoffCompensationSubtype) match
+          case (Some(path), Some(payoff)) if path != payoff => true
+          case _                                            => false
+      ) +
+        compensationMoments.count(moment =>
+          (moment.bookmakerPreparationCompensationSubtype, moment.bookmakerPayoffCompensationSubtype) match
+            case (Some(path), Some(payoff)) if path != payoff => true
+            case _                                            => false
+        )
+    val displaySubtypeSourceDistribution =
+      compensationMoments
+        .flatMap(moment => List(moment.gameArcDisplaySubtypeSource, moment.bookmakerDisplaySubtypeSource))
+        .groupBy(identity)
+        .view
+        .mapValues(_.size)
+        .toMap
+
+    SignoffSummary(
+      falsePositiveCount = borderlineFalsePositives + negativeGuards.count(!_.passed),
+      falseNegativeCount = positiveFalseNegatives,
+      crossSurfaceAgreementRate = crossSurfaceAgreementRate,
+      subtypeAgreementRate = subtypeAgreementRate,
+      payoffTheaterAgreementRate = payoffTheaterAgreementRate,
+      pathVsPayoffDivergenceCount = pathVsPayoffDivergenceCount,
+      displaySubtypeSourceDistribution = displaySubtypeSourceDistribution,
+      negativeGuardPassCount = negativeGuards.count(_.passed),
+      negativeGuardFailCount = negativeGuards.count(!_.passed),
+      negativeGuards = negativeGuards
+    )
+
   private def renderMarkdown(report: RunReport): String =
     val sb = new StringBuilder()
     sb.append(s"# ${report.corpusTitle}\n\n")
@@ -752,6 +1022,23 @@ object RealPgnNarrativeEvalRunner:
     sb.append(s"- Probe candidate / executed / unsupported: `${report.summary.totalProbeCandidateRequests}` / `${report.summary.totalProbeExecutedRequests}` / `${report.summary.totalProbeUnsupportedRequests}`\n")
     sb.append(s"- Active notes attached: `${report.summary.totalActiveNotes}`\n\n")
     sb.append(s"- Compensation subtype counts: ${renderMap(report.summary.compensationSubtypeCounts)}\n\n")
+    sb.append("## Signoff\n\n")
+    sb.append(s"- False positives: `${report.signoff.falsePositiveCount}`\n")
+    sb.append(s"- False negatives on positive exemplars: `${report.signoff.falseNegativeCount}`\n")
+    sb.append(f"- Cross-surface agreement rate: `${report.signoff.crossSurfaceAgreementRate * 100}%.1f%%`\n")
+    sb.append(f"- Subtype agreement rate: `${report.signoff.subtypeAgreementRate * 100}%.1f%%`\n")
+    sb.append(f"- Payoff-theater agreement rate: `${report.signoff.payoffTheaterAgreementRate * 100}%.1f%%`\n")
+    sb.append(s"- Path vs payoff divergence count: `${report.signoff.pathVsPayoffDivergenceCount}`\n")
+    sb.append(s"- Display subtype sources: ${renderMap(report.signoff.displaySubtypeSourceDistribution)}\n")
+    sb.append(s"- Negative guard pass / fail: `${report.signoff.negativeGuardPassCount}` / `${report.signoff.negativeGuardFailCount}`\n\n")
+    if report.signoff.negativeGuards.nonEmpty then
+      sb.append("### Negative Guards\n\n")
+      report.signoff.negativeGuards.foreach { guard =>
+        sb.append(
+          s"- `${guard.id}` ply `${guard.targetPly}` passed=`${guard.passed}` compensation=`${guard.compensationPosition}` rawBookmakerMention=`${guard.bookmakerCompensationMention}`\n"
+        )
+      }
+      sb.append("\n")
     sb.append("## Games\n\n")
     report.games.foreach { game =>
       val eventText = game.event.getOrElse("-")
@@ -787,6 +1074,9 @@ object RealPgnNarrativeEvalRunner:
     }
     sb.toString()
 
+  private def extractTheater(label: Option[String]): Option[String] =
+    label.flatMap(_.split("/").headOption).map(_.trim).filter(_.nonEmpty)
+
   private def renderList(values: List[String]): String =
     if values.isEmpty then "-"
     else values.map(_.trim).filter(_.nonEmpty).mkString(", ")
@@ -794,6 +1084,23 @@ object RealPgnNarrativeEvalRunner:
   private def renderMap(values: Map[String, Int]): String =
     if values.isEmpty then "-"
     else values.toList.sortBy { case (key, _) => key }.map { case (key, value) => s"`$key=$value`" }.mkString(", ")
+
+  private def mentionsCompensationLexicon(text: String): Boolean =
+    Option(text).map(_.toLowerCase).exists { lower =>
+      CompensationLexicon.exists(lower.contains)
+    }
+
+  private def gameIdForMoment(
+      games: List[GameReport],
+      moment: FocusMomentReport
+  ): String =
+    games.collectFirst { case game if game.focusMoments.contains(moment) => game.id }.getOrElse("unknown")
+
+  private def momentKey(gameId: String, moment: FocusMomentReport): String =
+    s"$gameId:${moment.ply}"
+
+  private def ratio(numerator: Int, denominator: Int): Double =
+    if denominator <= 0 then 1.0 else numerator.toDouble / denominator.toDouble
 
   private def readCorpus(path: Path): Either[String, Corpus] =
     try

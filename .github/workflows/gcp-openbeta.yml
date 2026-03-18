@@ -65,6 +65,21 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Validate Cloud Run service bootstrap and runtime bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          service_json="${RUNNER_TEMP}/cloud-run-service.json"
+          if ! gcloud run services describe "${CLOUD_RUN_SERVICE}" --region "${GCP_REGION}" --format=json > "${service_json}"; then
+            echo "Cloud Run service ${CLOUD_RUN_SERVICE} does not exist yet."
+            echo "Bootstrap the service manually first, then configure runtime env vars and secret bindings before rerunning this workflow."
+            exit 1
+          fi
+          python3 ./lila-docker/repos/lila/scripts/validate_openbeta_bindings.py \
+            --manifest ./lila-docker/repos/lila/conf/openbeta-bindings.json \
+            --service-json "${service_json}" \
+            --doc ./OPENBETA_GCP.md
+
       - name: Configure Docker auth for Artifact Registry
         shell: bash
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet

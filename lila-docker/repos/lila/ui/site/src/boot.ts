@@ -9,7 +9,6 @@ import {
 } from 'lib/view';
 import { text as xhrText } from 'lib/xhr';
 import powertip from './powertip';
-import serviceWorker from './serviceWorker';
 import { watchers } from 'lib/view/watchers';
 import { isIos, isWebkit, prefersLightThemeQuery } from 'lib/device';
 import { scrollToInnerSelector, requestIdleCallback } from 'lib';
@@ -61,8 +60,6 @@ export function boot() {
 
     if (site.debug) site.asset.loadEsm('bits.devMode');
     if (showDebug) site.asset.loadEsm('bits.diagnosticDialog');
-
-    serviceWorker();
 
     console.info('Chesstory is open source.');
 

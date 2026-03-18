@@ -21,6 +21,7 @@ import lila.ops.{
   OpsMemberAuditEntry,
   OpsMemberSearch,
   OpsMemberSummary,
+  OpsMetricsSnapshot,
   OpsPermissionPreview,
   OpsPlanState,
   OpsRoles
@@ -29,14 +30,26 @@ import lila.ops.{
 final class Ops(env: lila.app.Env) extends LilaController(env):
 
   private val zoneId = ZoneId.systemDefault
-  private val reasonField = nonEmptyText(minLength = 8, maxLength = 500)
+  private val trimmedText = text.transform[String](_.trim, identity)
+  private val optionalTrimmedText =
+    optional(text.transform[String](_.trim, identity)).transform[Option[String]](_.filter(_.nonEmpty), identity)
+  private val reasonField =
+    trimmedText
+      .verifying("Enter a reason.", _.nonEmpty)
+      .verifying("Reason must be at least 8 characters.", _.length >= 8)
+      .verifying("Reason must be 500 characters or fewer.", _.length <= 500)
 
   private case class StatusData(enabled: Boolean, reason: String)
   private case class EmailData(email: String, reason: String)
   private case class ReasonData(reason: String)
   private case class PlanData(tier: String, expiresAt: Option[String], reason: String)
   private case class ManagedRolesData(bundle: Option[String], toggles: List[String], reason: String)
-  private case class PermissionsData(permissions: List[String], reason: String, confirm: Boolean)
+  private case class PermissionsData(
+      permissions: List[String],
+      reason: String,
+      confirm: Boolean,
+      intent: String
+  )
 
   private val statusForm = Form(
     mapping("enabled" -> play.api.data.Forms.boolean, "reason" -> reasonField)(
@@ -44,21 +57,21 @@ final class Ops(env: lila.app.Env) extends LilaController(env):
     )(data => Some((data.enabled, data.reason)))
   )
   private val emailForm = Form(
-    mapping("email" -> nonEmptyText, "reason" -> reasonField)(
+    mapping("email" -> trimmedText.verifying("Enter an email address.", _.nonEmpty), "reason" -> reasonField)(
       EmailData.apply
     )(data => Some((data.email, data.reason)))
   )
   private val reasonForm = Form(single("reason" -> reasonField))
   private val planForm = Form(
     mapping(
-      "tier" -> nonEmptyText,
-      "expiresAt" -> optional(text),
+      "tier" -> trimmedText.verifying("Choose a tier.", _.nonEmpty),
+      "expiresAt" -> optionalTrimmedText,
       "reason" -> reasonField
     )(PlanData.apply)(data => Some((data.tier, data.expiresAt, data.reason)))
   )
   private val managedRolesForm = Form(
     mapping(
-      "bundle" -> optional(text),
+      "bundle" -> optionalTrimmedText,
       "toggles" -> list(text),
       "reason" -> reasonField
     )(ManagedRolesData.apply)(data => Some((data.bundle, data.toggles, data.reason)))
@@ -67,34 +80,60 @@ final class Ops(env: lila.app.Env) extends LilaController(env):
     mapping(
       "permissions" -> list(text),
       "reason" -> reasonField,
-      "confirm" -> default(play.api.data.Forms.boolean, false)
-    )(PermissionsData.apply)(data => Some((data.permissions, data.reason, data.confirm)))
+      "confirm" -> default(play.api.data.Forms.boolean, false),
+      "intent" -> default(trimmedText, "preview")
+    )(PermissionsData.apply)(data => Some((data.permissions, data.reason, data.confirm, data.intent)))
   )
 
+  def landing = Auth { ctx ?=> me ?=>
+    val capabilities = currentCapabilities
+    if capabilities.hasAnyAccess then Ok.page(views.ops.landing(capabilities))
+    else authorizationFailed
+  }
+
   def members = Secure(_.OpsMemberRead) { ctx ?=> _ ?=>
+    val capabilities = currentCapabilities
     env.ops.api.search(currentSearch).flatMap: page =>
-      Ok.page(views.ops.members(page, pageNo => membersUrl(page.search.copy(page = pageNo))))
+      val returnTo = membersUrl(page.search, keepPage = true)
+      Ok.page(
+        views.ops.members(
+          page,
+          pageNo => membersUrl(page.search.copy(page = pageNo), keepPage = true),
+          id => memberUrl(id, returnTo = returnTo.some),
+          capabilities
+        )
+      )
   }
 
   def member(id: UserStr, advanced: Boolean) = Secure(_.OpsMemberRead) { ctx ?=> me ?=>
-    if advanced && !isGranted(_.OpsMemberAdvanced) then authorizationFailed
-    else renderMemberPage(id.id, showAdvanced = advanced)
+    val capabilities = currentCapabilities
+    renderMemberPage(
+      id.id,
+      showAdvanced = advanced && capabilities.canUseAdvanced,
+      capabilities = capabilities,
+      notice =
+        Option.when(advanced && !capabilities.canUseAdvanced)(
+          "Raw permission editor requires Ops member advanced. The member detail page is shown instead."
+        )
+    )
   }
 
   def audit(id: UserStr, page: Int) = Secure(_.OpsMemberRead) { ctx ?=> _ ?=>
+    val capabilities = currentCapabilities
     env.ops.api.memberDetail(id.id).flatMap:
       case None => notFound
       case Some(detail) =>
         env.ops.api.auditPage(id.id, page).flatMap: auditPage =>
-          Ok.page(views.ops.audit(detail.member, auditPage))
+          Ok.page(views.ops.audit(detail.member, auditPage, currentReturnTo, capabilities))
   }
 
   def planLedger(id: UserStr) = Secure(_.OpsMemberRead) { ctx ?=> _ ?=>
+    val capabilities = currentCapabilities
     env.ops.api.memberDetail(id.id).flatMap:
       case None => notFound
       case Some(detail) =>
         env.ops.api.planLedger(id.id).flatMap: entries =>
-          Ok.page(views.ops.planLedger(detail.member, entries))
+          Ok.page(views.ops.planLedger(detail.member, entries, currentReturnTo, capabilities))
   }
 
   def apiSearch = Secure(_.OpsMemberRead) { ctx ?=> _ ?=>
@@ -124,146 +163,363 @@ final class Ops(env: lila.app.Env) extends LilaController(env):
       )
   }
 
+  def metrics = Secure(_.OpsViewer) { ctx ?=> _ ?=>
+    val capabilities = currentCapabilities
+    env.openBetaBindings.snapshot.flatMap: bindings =>
+      val metricsSnapshot = OpsMetricsSnapshot.fromScrape(lila.web.PrometheusReporter.latestScrapeData())
+      Ok.page(views.ops.metrics(metricsSnapshot, bindings, capabilities))
+  }
+
+  def commentary(limit: Int) = Secure(_.OpsViewer) { ctx ?=> _ ?=>
+    val capabilities = currentCapabilities
+    val normalizedLimit = limit.max(1).min(50)
+    val snapshot = env.llm.api.commentaryOpsSnapshot(normalizedLimit)
+    Ok.page(views.ops.commentary(snapshot, normalizedLimit, capabilities))
+  }
+
   def updateStatus(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(statusForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
-      data => handleMutation(env.ops.api.changeStatus(me.userId, id.id, data.enabled, data.reason), routes.Ops.member(id), "Status updated.")
+    val bound = statusForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(status = err),
+          showAdvanced = currentAdvanced
+        ),
+      data =>
+        handleMutation(
+          env.ops.api.changeStatus(me.userId, id.id, data.enabled, data.reason),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
+          "Status updated."
+        )
     )
   }
 
   def updateEmail(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(emailForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
+    val bound = emailForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(email = err),
+          showAdvanced = currentAdvanced
+        ),
       data =>
         if !EmailAddress.isValid(data.email) then
-          redirectError(routes.Ops.member(id), "Enter a valid email address.")
+          renderMemberFormError(
+            id.id,
+            forms = memberForms(email = bound.withError("email", "Enter a valid email address.")),
+            showAdvanced = currentAdvanced
+          )
         else
           handleMutation(
             env.ops.api.changeEmail(me.userId, id.id, EmailAddress(data.email), data.reason),
-            routes.Ops.member(id),
+            memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
             "Email updated."
           )
     )
   }
 
   def sendPasswordReset(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(reasonForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
-      reason => handleMutation(env.ops.api.sendPasswordReset(me.userId, id.id, reason), routes.Ops.member(id), "Password reset email sent.")
+    val bound = reasonForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(passwordReset = err),
+          showAdvanced = currentAdvanced
+        ),
+      reason =>
+        handleMutation(
+          env.ops.api.sendPasswordReset(me.userId, id.id, reason),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
+          "Password reset email sent."
+        )
     )
   }
 
   def revokeAllSessions(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(reasonForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
-      reason => handleMutation(env.ops.api.revokeAllSessions(me.userId, id.id, reason), routes.Ops.member(id), "All active sessions revoked.")
+    val bound = reasonForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(revokeAllSessions = err),
+          showAdvanced = currentAdvanced
+        ),
+      reason =>
+        handleMutation(
+          env.ops.api.revokeAllSessions(me.userId, id.id, reason),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
+          "All active sessions revoked."
+        )
     )
   }
 
   def revokeSession(id: UserStr, sid: String) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(reasonForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
+    val bound = reasonForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(revokeSession = err, revokeSessionSid = sid.some),
+          showAdvanced = currentAdvanced
+        ),
       reason =>
         handleMutation(
           env.ops.api.revokeSession(me.userId, id.id, SessionId(sid), reason),
-          routes.Ops.member(id),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
           "Session revoked."
         )
     )
   }
 
   def clearTwoFactor(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(reasonForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
-      reason => handleMutation(env.ops.api.clearTwoFactor(me.userId, id.id, reason), routes.Ops.member(id), "Two-factor removed.")
+    val bound = reasonForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(clearTwoFactor = err),
+          showAdvanced = currentAdvanced
+        ),
+      reason =>
+        handleMutation(
+          env.ops.api.clearTwoFactor(me.userId, id.id, reason),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
+          "Two-factor removed."
+        )
     )
   }
 
   def updatePlan(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
-    bindForm(planForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
+    val bound = planForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(plan = err),
+          showAdvanced = currentAdvanced
+        ),
       data =>
-        parseTier(data.tier).fold(redirectError(routes.Ops.member(id), "Choose a valid tier.")): tier =>
+        parseTier(data.tier).fold(
+          renderMemberFormError(
+            id.id,
+            forms = memberForms(plan = bound.withError("tier", "Choose a valid tier.")),
+            showAdvanced = currentAdvanced
+          )
+        ): tier =>
           val expiresAt = data.expiresAt.flatMap(parseDateTime)
-          if data.expiresAt.exists(_.trim.nonEmpty) && expiresAt.isEmpty then
-            redirectError(routes.Ops.member(id), "Enter a valid expiration date and time.")
+          if data.expiresAt.nonEmpty && expiresAt.isEmpty then
+            renderMemberFormError(
+              id.id,
+              forms = memberForms(plan = bound.withError("expiresAt", "Enter a valid expiration date and time.")),
+              showAdvanced = currentAdvanced
+            )
           else
             handleMutation(
               env.ops.api.updatePlan(me.userId, id.id, tier, expiresAt, data.reason),
-              routes.Ops.member(id),
+              memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
               "Plan updated."
             )
     )
   }
 
   def updateRoles(id: UserStr) = SecureBody(_.OpsMemberRoleGrant) { ctx ?=> me ?=>
-    bindForm(managedRolesForm)(
-      err => redirectError(routes.Ops.member(id), formError(err)),
+    val bound = managedRolesForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(managedRoles = err),
+          showAdvanced = currentAdvanced
+        ),
       data =>
         val bundle = data.bundle.flatMap(parseManagedBundle)
         val toggles = data.toggles.flatMap(parseManagedToggle)
         handleMutation(
           env.ops.api.updateManagedRoles(me.userId, id.id, bundle, toggles, data.reason),
-          routes.Ops.member(id),
+          memberUrl(id.id, advanced = currentAdvanced, returnTo = currentReturnTo),
           "Managed roles updated."
         )
     )
   }
 
   def updatePermissions(id: UserStr) = SecureBody(_.OpsMemberAdvanced) { ctx ?=> me ?=>
-    bindForm(permissionsForm)(
-      err => redirectError(routes.Ops.member(id, advanced = true), formError(err)),
+    val bound = permissionsForm.bindFromRequest()
+    bound.fold(
+      err =>
+        renderMemberFormError(
+          id.id,
+          forms = memberForms(permissions = err),
+          showAdvanced = true
+        ),
       data =>
         val selected = data.permissions.flatMap(parseKnownRole)
-        if !data.confirm then
-          env.ops.api.previewRawPermissions(id.id, selected).flatMap:
-            case Left(err) => redirectError(routes.Ops.member(id, advanced = true), err)
-            case Right(preview) =>
-              renderMemberPage(
-                id.id,
-                showAdvanced = true,
-                permissionPreview = preview.some,
-                selectedRawRoles = preview.afterRoles.toSet
-              )
-        else
-          handleMutation(
-            env.ops.api.updatePermissions(me.userId, id.id, selected, data.reason),
-            routes.Ops.member(id, advanced = true),
-            "Raw permissions updated."
+        val selectedSet = selected.toSet
+        def renderPermissionError(
+            form: Form[?],
+            preview: Option[OpsPermissionPreview] = None,
+            selectedRoles: Set[RoleDbKey] = selectedSet
+        ) =
+          renderMemberFormError(
+            id.id,
+            forms = memberForms(permissions = form),
+            showAdvanced = true,
+            permissionPreview = preview,
+            selectedRawRoles = selectedRoles
           )
+
+        data.intent match
+          case "preview" =>
+            env.ops.api.previewRawPermissions(id.id, selected).flatMap:
+              case Left(err)     => renderPermissionError(bound.withGlobalError(err))
+              case Right(preview) =>
+                renderMemberPage(
+                  id.id,
+                  showAdvanced = true,
+                  capabilities = currentCapabilities,
+                  permissionPreview = preview.some,
+                  selectedRawRoles = preview.afterRoles.toSet,
+                  forms = memberForms(permissions = bound),
+                  returnTo = currentReturnTo
+                )
+          case "apply" =>
+            env.ops.api.previewRawPermissions(id.id, selected).flatMap:
+              case Left(err) => renderPermissionError(bound.withGlobalError(err))
+              case Right(preview) =>
+                if !data.confirm then
+                  renderPermissionError(
+                    bound.withError("confirm", "Review the diff and confirm before applying raw permissions."),
+                    preview.some,
+                    preview.afterRoles.toSet
+                  )
+                else
+                  handleMutation(
+                    env.ops.api.updatePermissions(me.userId, id.id, selected, data.reason),
+                    memberUrl(id.id, advanced = true, returnTo = currentReturnTo),
+                    "Raw permissions updated."
+                  )
+          case _ =>
+            renderPermissionError(bound.withGlobalError("Choose preview or apply."))
     )
   }
 
   private def renderMemberPage(
       id: UserId,
       showAdvanced: Boolean,
+      capabilities: views.ops.OpsCapabilities,
       permissionPreview: Option[OpsPermissionPreview] = None,
-      selectedRawRoles: Set[RoleDbKey] = Set.empty
+      selectedRawRoles: Set[RoleDbKey] = Set.empty,
+      forms: views.ops.MemberForms = memberForms(),
+      returnTo: Option[String] = None,
+      isBadRequest: Boolean = false,
+      notice: Option[String] = None
   )(using ctx: Context, me: lila.core.user.Me): Fu[Result] =
     env.ops.api.memberDetail(id).flatMap:
       case None => notFound
       case Some(detail) =>
-        Ok.page(
+        val page =
           views.ops.member(
             detail = detail,
             showAdvanced = showAdvanced,
-            canUseAdvanced = isGranted(_.OpsMemberAdvanced),
+            capabilities = capabilities,
             permissionPreview = permissionPreview,
             selectedRawRoles =
               if selectedRawRoles.nonEmpty then selectedRawRoles
               else detail.member.roles.toSet,
-            permissionCategories = lila.security.Permission.categorized
+            permissionCategories = lila.security.Permission.categorized,
+            forms = forms,
+            returnTo = returnTo.orElse(currentReturnTo),
+            notice = notice
           )
-        )
+        if isBadRequest then BadRequest.page(page) else Ok.page(page)
 
   private def handleMutation(
       result: Fu[Either[String, Unit]],
-      redirectTo: play.api.mvc.Call,
+      redirectTo: String,
       successMessage: String
   ): Fu[Result] =
     result.map:
       case Right(_) => Redirect(redirectTo).flashing("success" -> successMessage)
       case Left(err) => Redirect(redirectTo).flashing("error" -> err)
+
+  private def renderMemberFormError(
+      id: UserId,
+      forms: views.ops.MemberForms,
+      showAdvanced: Boolean,
+      permissionPreview: Option[OpsPermissionPreview] = None,
+      selectedRawRoles: Set[RoleDbKey] = Set.empty
+  )(using ctx: Context, me: lila.core.user.Me): Fu[Result] =
+    renderMemberPage(
+      id = id,
+      showAdvanced = showAdvanced,
+      capabilities = currentCapabilities,
+      permissionPreview = permissionPreview,
+      selectedRawRoles = selectedRawRoles,
+      forms = forms,
+      returnTo = currentReturnTo,
+      isBadRequest = true
+    )
+
+  private def memberForms(
+      status: Form[?] = statusForm,
+      email: Form[?] = emailForm,
+      passwordReset: Form[?] = reasonForm,
+      revokeAllSessions: Form[?] = reasonForm,
+      revokeSession: Form[?] = reasonForm,
+      revokeSessionSid: Option[String] = None,
+      clearTwoFactor: Form[?] = reasonForm,
+      plan: Form[?] = planForm,
+      managedRoles: Form[?] = managedRolesForm,
+      permissions: Form[?] = permissionsForm
+  ): views.ops.MemberForms =
+    views.ops.MemberForms(
+      status = status,
+      email = email,
+      passwordReset = passwordReset,
+      revokeAllSessions = revokeAllSessions,
+      revokeSession = revokeSession,
+      revokeSessionSid = revokeSessionSid,
+      clearTwoFactor = clearTwoFactor,
+      plan = plan,
+      managedRoles = managedRoles,
+      permissions = permissions
+    )
+
+  private def currentAdvanced(using ctx: Context, me: lila.core.user.Me): Boolean =
+    ctx.req.getQueryString("advanced").contains("true") && isGranted(_.OpsMemberAdvanced)
+
+  private def currentReturnTo(using ctx: Context): Option[String] =
+    ctx.req.getQueryString("returnTo").flatMap(sanitizeReturnTo)
+
+  private def sanitizeReturnTo(raw: String): Option[String] =
+    val value = raw.trim
+    Option.when(
+      value.nonEmpty &&
+        value.startsWith(routes.Ops.members.url) &&
+        !value.startsWith("//") &&
+        !value.contains("://")
+    )(value)
+
+  private def memberUrl(id: UserId, advanced: Boolean = false, returnTo: Option[String] = None)(using ctx: Context): String =
+    withQuery(routes.Ops.member(id, advanced).url, "returnTo" -> returnTo)
+
+  private def currentCapabilities(using me: lila.core.user.Me): views.ops.OpsCapabilities =
+    views.ops.OpsCapabilities(
+      canReadMembers = isGranted(_.OpsMemberRead),
+      canWriteMembers = isGranted(_.OpsMemberWrite),
+      canGrantManagedRoles = isGranted(_.OpsMemberRoleGrant),
+      canUseAdvanced = isGranted(_.OpsMemberAdvanced),
+      canViewOpsViewer = isGranted(_.OpsViewer)
+    )
+
+  private def withQuery(base: String, params: (String, Option[String])*)(using ctx: Context): String =
+    val filtered = params.collect { case (key, Some(value)) => s"${encode(key)}=${encode(value)}" }
+    if filtered.isEmpty then base
+    else
+      val separator = if base.contains("?") then "&" else "?"
+      s"$base$separator${filtered.mkString("&")}"
 
   private def currentSearch(using ctx: Context): OpsMemberSearch =
     OpsMemberSearch(
