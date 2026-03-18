@@ -122,7 +122,8 @@ html.pro .auth-message {
 
 .auth-form input[type="email"],
 .auth-form input[type="text"],
-.auth-form input[type="password"] {
+.auth-form input[type="password"],
+.auth-form select {
     width: 100%;
     padding: 1rem 1.25rem;
     border: 1px solid #E2E8F0;
@@ -143,7 +144,8 @@ html.pro .auth-message {
 
 .auth-form input[type="email"]:focus,
 .auth-form input[type="text"]:focus,
-.auth-form input[type="password"]:focus {
+.auth-form input[type="password"]:focus,
+.auth-form select:focus {
     outline: none;
     border-color: $c-primary;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
@@ -152,15 +154,19 @@ html.pro .auth-message {
 body.dark .auth-form input[type="email"],
 body.dark .auth-form input[type="text"],
 body.dark .auth-form input[type="password"],
+body.dark .auth-form select,
 body.pro .auth-form input[type="email"],
 body.pro .auth-form input[type="text"],
 body.pro .auth-form input[type="password"],
+body.pro .auth-form select,
 html.dark .auth-form input[type="email"],
 html.dark .auth-form input[type="text"],
 html.dark .auth-form input[type="password"],
+html.dark .auth-form select,
 html.pro .auth-form input[type="email"],
 html.pro .auth-form input[type="text"],
-html.pro .auth-form input[type="password"] {
+html.pro .auth-form input[type="password"],
+html.pro .auth-form select {
     background: $c-bg;
     border-color: $c-border;
     color: $c-font;
@@ -184,15 +190,19 @@ html.pro .auth-form input[type="password"]::placeholder {
 body.dark .auth-form input[type="email"]:focus,
 body.dark .auth-form input[type="text"]:focus,
 body.dark .auth-form input[type="password"]:focus,
+body.dark .auth-form select:focus,
 body.pro .auth-form input[type="email"]:focus,
 body.pro .auth-form input[type="text"]:focus,
 body.pro .auth-form input[type="password"]:focus,
+body.pro .auth-form select:focus,
 html.dark .auth-form input[type="email"]:focus,
 html.dark .auth-form input[type="text"]:focus,
 html.dark .auth-form input[type="password"]:focus,
+html.dark .auth-form select:focus,
 html.pro .auth-form input[type="email"]:focus,
 html.pro .auth-form input[type="text"]:focus,
-html.pro .auth-form input[type="password"]:focus {
+html.pro .auth-form input[type="password"]:focus,
+html.pro .auth-form select:focus {
     border-color: $c-primary;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
@@ -406,6 +416,21 @@ html.pro .auth-url code {
     .auth-title {
         font-size: 1.5rem;
     }
+
+    .auth-page .landing-header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .auth-theme-switch {
+        padding: 0.2rem;
+    }
+
+    .auth-theme-switch__button {
+        min-width: 2.7rem;
+        padding: 0 0.6rem;
+        font-size: 0.78rem;
+    }
 }
 
 // Reuse landing header/footer styles
@@ -414,6 +439,7 @@ html.pro .auth-url code {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
 }
 
 .auth-page .landing-header .logo {
@@ -422,6 +448,68 @@ html.pro .auth-url code {
     letter-spacing: -0.5px;
     text-decoration: none;
     color: inherit;
+}
+
+.auth-theme-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    border: 1px solid #E2E8F0;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.auth-theme-switch__button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: #64748B;
+    min-height: 2rem;
+    min-width: 3.2rem;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.auth-theme-switch__button:hover {
+    color: #161A25;
+}
+
+.auth-theme-switch__button:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px rgba(59, 130, 246, 0.22),
+        0 0 0 4px rgba(59, 130, 246, 0.1);
+    color: #161A25;
+}
+
+.auth-theme-switch__button[aria-pressed='true'] {
+    color: #161A25;
+    background: rgba(59, 130, 246, 0.14);
+}
+
+.auth-theme-switch__button[aria-busy='true'] {
+    cursor: progress;
+    color: #161A25;
+    background: rgba(59, 130, 246, 0.14);
+}
+
+.auth-theme-switch__button[aria-busy='true']::after {
+    content: '';
+    display: inline-block;
+    width: 0.72rem;
+    height: 0.72rem;
+    margin-inline-start: 0.35rem;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    vertical-align: middle;
+    animation: site-theme-switch-spin 0.8s linear infinite;
 }
 
 .auth-page .landing-footer {
@@ -437,6 +525,54 @@ body.pro .auth-page .landing-footer,
 html.dark .auth-page .landing-footer,
 html.pro .auth-page .landing-footer {
     border-color: $c-border;
+}
+
+body.dark .auth-theme-switch,
+body.pro .auth-theme-switch,
+html.dark .auth-theme-switch,
+html.pro .auth-theme-switch {
+    border-color: $c-border;
+    background: rgba(15, 23, 34, 0.72);
+}
+
+body.dark .auth-theme-switch__button,
+body.pro .auth-theme-switch__button,
+html.dark .auth-theme-switch__button,
+html.pro .auth-theme-switch__button {
+    color: $c-shade;
+}
+
+body.dark .auth-theme-switch__button:hover,
+body.pro .auth-theme-switch__button:hover,
+html.dark .auth-theme-switch__button:hover,
+html.pro .auth-theme-switch__button:hover {
+    color: $c-font;
+}
+
+body.dark .auth-theme-switch__button:focus-visible,
+body.pro .auth-theme-switch__button:focus-visible,
+html.dark .auth-theme-switch__button:focus-visible,
+html.pro .auth-theme-switch__button:focus-visible {
+    box-shadow:
+        0 0 0 2px rgba(96, 165, 250, 0.28),
+        0 0 0 4px rgba(96, 165, 250, 0.12);
+    color: $c-font;
+}
+
+body.dark .auth-theme-switch__button[aria-pressed='true'],
+body.pro .auth-theme-switch__button[aria-pressed='true'],
+html.dark .auth-theme-switch__button[aria-pressed='true'],
+html.pro .auth-theme-switch__button[aria-pressed='true'] {
+    color: $c-font;
+    background: rgba(59, 130, 246, 0.24);
+}
+
+body.dark .auth-theme-switch__button[aria-busy='true'],
+body.pro .auth-theme-switch__button[aria-busy='true'],
+html.dark .auth-theme-switch__button[aria-busy='true'],
+html.pro .auth-theme-switch__button[aria-busy='true'] {
+    color: $c-font;
+    background: rgba(59, 130, 246, 0.24);
 }
 
 .auth-page .btn-text {
@@ -807,4 +943,1031 @@ html.dark .auth-import-card__action:hover,
 html.pro .auth-import-card__action:hover {
     background: $c-primary;
     color: #fff;
+}
+
+.auth-page--importer {
+    background:
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.14), transparent 26rem),
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.14), transparent 30rem),
+        #F5F4EF;
+}
+
+body.dark .auth-page--importer,
+body.pro .auth-page--importer,
+html.dark .auth-page--importer,
+html.pro .auth-page--importer {
+    background:
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 24rem),
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.14), transparent 28rem),
+        linear-gradient(180deg, #121722, #0d1016);
+}
+
+.auth-container--wide {
+    max-width: 1120px;
+    align-items: stretch;
+    padding: 1rem 2rem 3rem;
+}
+
+.auth-card--importer {
+    padding: 2rem;
+    border-radius: 28px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.98)),
+        #fff;
+    box-shadow: 0 18px 60px rgba(15, 23, 42, 0.1);
+}
+
+body.dark .auth-card--importer,
+body.pro .auth-card--importer,
+html.dark .auth-card--importer,
+html.pro .auth-card--importer {
+    background:
+        linear-gradient(180deg, rgba(28, 33, 46, 0.96), rgba(18, 23, 34, 0.98)),
+        $c-bg-low;
+}
+
+.importer-shell,
+.status-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.importer-hero {
+    overflow: hidden;
+    padding: 1.4rem 1.5rem;
+    border-radius: 22px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background:
+        linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(255, 255, 255, 0.94) 45%, rgba(59, 130, 246, 0.08)),
+        #fff;
+}
+
+.importer-hero__eyebrow {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #B45309;
+    margin-bottom: 0.65rem;
+}
+
+.importer-hero__title {
+    margin-bottom: 0.65rem;
+}
+
+.importer-hero__subtitle {
+    max-width: 58rem;
+    margin-bottom: 0;
+}
+
+.importer-summary-strip {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.importer-summary-chip,
+.status-meta-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.importer-summary-chip strong,
+.status-meta-card strong {
+    font-size: 0.98rem;
+    color: #161A25;
+}
+
+.importer-summary-chip span,
+.status-meta-card span {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #64748B;
+}
+
+.importer-grid,
+.status-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.importer-grid--results {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+}
+
+.importer-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.importer-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.2rem;
+    border-radius: 20px;
+    border: 1px solid #E2E8F0;
+    background: rgba(248, 249, 250, 0.92);
+    text-align: left;
+}
+
+.importer-panel__head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.importer-panel__title {
+    font-size: 1.02rem;
+    color: #161A25;
+}
+
+.importer-panel__copy {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: #64748B;
+}
+
+.importer-panel__hint {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.importer-panel__hint span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0 0.7rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.importer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.importer-form--compact {
+    gap: 0.5rem;
+}
+
+.importer-submit {
+    margin-top: 0.25rem;
+}
+
+.importer-submit--secondary {
+    background: rgba(15, 23, 42, 0.92);
+}
+
+.importer-timeline {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    margin: 0;
+    padding: 0;
+}
+
+.importer-timeline__item {
+    display: grid;
+    gap: 0.2rem;
+    padding-left: 1rem;
+    border-left: 2px solid rgba(59, 130, 246, 0.24);
+}
+
+.importer-timeline__item strong {
+    color: #161A25;
+    font-size: 0.92rem;
+}
+
+.importer-timeline__item span,
+.importer-mode-card__body,
+.importer-note-card span {
+    color: #64748B;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.importer-note-grid,
+.importer-mode-grid,
+.status-meta-grid,
+.status-warning-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.importer-note-card,
+.importer-mode-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.importer-note-card strong,
+.importer-mode-card__title {
+    color: #161A25;
+    font-size: 0.96rem;
+}
+
+.importer-mode-card {
+    text-align: left;
+}
+
+.importer-mode-card__eyebrow {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $c-primary;
+}
+
+.importer-results-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.auth-import-card {
+    height: 100%;
+    margin: 0;
+    gap: 0.9rem;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+
+.auth-import-card:hover {
+    border-color: rgba(59, 130, 246, 0.42);
+    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.12);
+    transform: translateY(-2px);
+}
+
+.status-progress {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.status-progress__step {
+    display: grid;
+    grid-template-columns: 2.3rem minmax(0, 1fr);
+    gap: 0.8rem;
+    align-items: start;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid #E2E8F0;
+    background: rgba(255, 255, 255, 0.76);
+}
+
+.status-progress__index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: #334155;
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.status-progress__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.status-progress__copy strong {
+    color: #161A25;
+    font-size: 0.92rem;
+}
+
+.status-progress__copy span {
+    color: #64748B;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.status-progress__step--done {
+    border-color: rgba(6, 182, 212, 0.24);
+    background: rgba(6, 182, 212, 0.08);
+}
+
+.status-progress__step--done .status-progress__index {
+    background: rgba(6, 182, 212, 0.18);
+    color: #0F766E;
+}
+
+.status-progress__step--active {
+    border-color: rgba(59, 130, 246, 0.28);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.status-progress__step--active .status-progress__index {
+    background: rgba(59, 130, 246, 0.18);
+    color: $c-primary;
+}
+
+.status-progress__step--failed {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.status-progress__step--failed .status-progress__index {
+    background: rgba(239, 68, 68, 0.18);
+    color: $c-bad;
+}
+
+.status-callout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.76);
+}
+
+.status-callout strong {
+    color: #161A25;
+    font-size: 0.92rem;
+}
+
+.status-callout span {
+    color: #64748B;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.status-callout--primary {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.22);
+}
+
+.status-callout--warning {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.26);
+}
+
+.status-callout--error {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.28);
+}
+
+.status-links {
+    margin-top: 0.2rem;
+}
+
+.status-links__primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 10px;
+    background: #161A25;
+    color: #fff !important;
+    text-decoration: none;
+}
+
+.status-links__primary:hover {
+    background: $c-primary;
+    text-decoration: none !important;
+}
+
+body.dark .importer-hero,
+body.pro .importer-hero,
+html.dark .importer-hero,
+html.pro .importer-hero,
+body.dark .importer-panel,
+body.pro .importer-panel,
+html.dark .importer-panel,
+html.pro .importer-panel,
+body.dark .importer-note-card,
+body.pro .importer-note-card,
+html.dark .importer-note-card,
+html.pro .importer-note-card,
+body.dark .importer-mode-card,
+body.pro .importer-mode-card,
+html.dark .importer-mode-card,
+html.pro .importer-mode-card,
+body.dark .importer-summary-chip,
+body.pro .importer-summary-chip,
+html.dark .importer-summary-chip,
+html.pro .importer-summary-chip,
+body.dark .status-meta-card,
+body.pro .status-meta-card,
+html.dark .status-meta-card,
+html.pro .status-meta-card,
+body.dark .status-progress__step,
+body.pro .status-progress__step,
+html.dark .status-progress__step,
+html.pro .status-progress__step,
+body.dark .status-callout,
+body.pro .status-callout,
+html.dark .status-callout,
+html.pro .status-callout {
+    border-color: $c-border;
+    background: rgba(22, 26, 37, 0.82);
+}
+
+body.dark .importer-panel__title,
+body.pro .importer-panel__title,
+html.dark .importer-panel__title,
+html.pro .importer-panel__title,
+body.dark .importer-summary-chip strong,
+body.pro .importer-summary-chip strong,
+html.dark .importer-summary-chip strong,
+html.pro .importer-summary-chip strong,
+body.dark .importer-timeline__item strong,
+body.pro .importer-timeline__item strong,
+html.dark .importer-timeline__item strong,
+html.pro .importer-timeline__item strong,
+body.dark .importer-note-card strong,
+body.pro .importer-note-card strong,
+html.dark .importer-note-card strong,
+html.pro .importer-note-card strong,
+body.dark .importer-mode-card__title,
+body.pro .importer-mode-card__title,
+html.dark .importer-mode-card__title,
+html.pro .importer-mode-card__title,
+body.dark .status-progress__copy strong,
+body.pro .status-progress__copy strong,
+html.dark .status-progress__copy strong,
+html.pro .status-progress__copy strong,
+body.dark .status-callout strong,
+body.pro .status-callout strong,
+html.dark .status-callout strong,
+html.pro .status-callout strong {
+    color: $c-font;
+}
+
+body.dark .importer-panel__copy,
+body.pro .importer-panel__copy,
+html.dark .importer-panel__copy,
+html.pro .importer-panel__copy,
+body.dark .importer-summary-chip span,
+body.pro .importer-summary-chip span,
+html.dark .importer-summary-chip span,
+html.pro .importer-summary-chip span,
+body.dark .importer-timeline__item span,
+body.pro .importer-timeline__item span,
+html.dark .importer-timeline__item span,
+html.pro .importer-timeline__item span,
+body.dark .importer-mode-card__body,
+body.pro .importer-mode-card__body,
+html.dark .importer-mode-card__body,
+html.pro .importer-mode-card__body,
+body.dark .importer-note-card span,
+body.pro .importer-note-card span,
+html.dark .importer-note-card span,
+html.pro .importer-note-card span,
+body.dark .status-progress__copy span,
+body.pro .status-progress__copy span,
+html.dark .status-progress__copy span,
+html.pro .status-progress__copy span,
+body.dark .status-callout span,
+body.pro .status-callout span,
+html.dark .status-callout span,
+html.pro .status-callout span,
+body.dark .status-meta-card span,
+body.pro .status-meta-card span,
+html.dark .status-meta-card span,
+html.pro .status-meta-card span {
+    color: $c-shade;
+}
+
+body.dark .importer-panel__hint span,
+body.pro .importer-panel__hint span,
+html.dark .importer-panel__hint span,
+html.pro .importer-panel__hint span,
+body.dark .status-progress__index,
+body.pro .status-progress__index,
+html.dark .status-progress__index,
+html.pro .status-progress__index {
+    background: rgba(255, 255, 255, 0.08);
+    color: $c-font;
+}
+
+@media (max-width: 960px) {
+    .auth-container--wide {
+        padding: 1rem 1rem 2rem;
+    }
+
+    .importer-grid,
+    .importer-grid--results,
+    .status-grid,
+    .importer-results-grid,
+    .importer-summary-strip {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auth-card--account-product {
+    padding: 2.4rem;
+}
+
+.importer-grid--product,
+.account-product-body,
+.account-product-overview-grid,
+.account-product-opening-grid,
+.account-product-note-grid,
+.account-product-recent-grid,
+.account-product-action-stack,
+.account-product-patterns,
+.account-product-evidence-grid,
+.account-product-exemplar-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.importer-grid--product,
+.account-product-body {
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+}
+
+.account-product-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.importer-hero--account-product {
+    padding: 1.4rem;
+}
+
+.account-product-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.account-product-hero-actions,
+.account-product-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.account-product-mode-switch,
+.account-product-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.account-product-mode-link,
+.account-product-side-link,
+.account-product-secondary-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4rem;
+    padding: 0 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.78);
+    color: #334155;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.account-product-mode-link.is-active,
+.account-product-side-link.is-active {
+    background: #161A25;
+    border-color: #161A25;
+    color: #fff;
+}
+
+.account-product-cta {
+    width: auto;
+    min-width: 12rem;
+}
+
+.account-product-main,
+.account-product-side,
+.account-product-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.account-product-overview-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-product-overview-card,
+.account-product-opening-card,
+.account-product-recent-card,
+.account-product-action-card,
+.account-product-anchor,
+.account-product-checklist,
+.account-product-exemplar-card,
+.account-product-history-item,
+.account-product-evidence-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.account-product-recent-card {
+    text-decoration: none;
+}
+
+.account-product-overview-kicker,
+.account-product-pattern-side,
+.account-product-checklist-priority {
+    font-size: 0.73rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $c-primary;
+}
+
+.account-product-opening-family,
+.account-product-pattern-structure {
+    color: #0F172A;
+    font-size: 0.94rem;
+    font-weight: 700;
+}
+
+.account-product-pattern {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.76);
+    padding: 0.9rem 1rem 1rem;
+}
+
+.account-product-pattern summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.account-product-pattern summary::-webkit-details-marker {
+    display: none;
+}
+
+.account-product-pattern-head,
+.account-product-pattern-body,
+.account-product-anchor-meta,
+.account-product-anchor-plan,
+.account-product-evidence-block,
+.account-product-history {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.account-product-pattern-head {
+    gap: 0.45rem;
+}
+
+.account-product-pattern-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    color: #64748B;
+    font-size: 0.86rem;
+}
+
+.account-product-pattern-summary,
+.account-product-action-card p,
+.account-product-anchor p,
+.account-product-opening-card p,
+.account-product-overview-card p,
+.account-product-exemplar-card p {
+    margin: 0;
+    color: #64748B;
+    line-height: 1.55;
+}
+
+.account-product-evidence-line {
+    color: #64748B;
+    font-size: 0.85rem;
+}
+
+.account-product-checklist-items {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.account-product-checklist-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.7rem;
+}
+
+.account-product-callout {
+    margin: 0;
+}
+
+.account-product-history-item {
+    gap: 0.85rem;
+}
+
+.account-product-history-copy,
+.account-product-utility-links,
+.account-product-compare-card,
+.account-product-compare-list,
+.account-product-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.account-product-history-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.account-product-history-compare {
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.86);
+    color: #161A25;
+    min-height: 2.1rem;
+    padding: 0 0.9rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.account-product-history-item.is-compared,
+.account-product-compare-card--now {
+    border-color: rgba(59, 130, 246, 0.28);
+    box-shadow: 0 12px 28px rgba(59, 130, 246, 0.08);
+}
+
+.account-product-utility-links {
+    gap: 0.75rem;
+}
+
+.account-product-copy__value {
+    width: 100%;
+    min-height: 2.4rem;
+    padding: 0 0.8rem;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.88);
+    color: #334155;
+    font-size: 0.86rem;
+}
+
+.account-product-copy .copy-me__button {
+    align-self: flex-start;
+}
+
+.account-product-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.account-product-compare-card {
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.account-product-compare-kicker {
+    font-size: 0.73rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $c-primary;
+}
+
+.account-product-compare-list {
+    margin: 0;
+    padding-left: 1rem;
+    color: #64748B;
+}
+
+.account-product-compare-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+
+.account-product-compare-list strong {
+    color: #161A25;
+}
+
+.js-account-intel-product.is-loading {
+    opacity: 0.88;
+    transition: opacity 0.18s ease;
+}
+
+.js-ai-state-source {
+    display: none;
+}
+
+body.dark .auth-card--account-product,
+body.pro .auth-card--account-product,
+html.dark .auth-card--account-product,
+html.pro .auth-card--account-product,
+body.dark .account-product-overview-card,
+body.pro .account-product-overview-card,
+html.dark .account-product-overview-card,
+html.pro .account-product-overview-card,
+body.dark .account-product-opening-card,
+body.pro .account-product-opening-card,
+html.dark .account-product-opening-card,
+html.pro .account-product-opening-card,
+body.dark .account-product-recent-card,
+body.pro .account-product-recent-card,
+html.dark .account-product-recent-card,
+html.pro .account-product-recent-card,
+body.dark .account-product-action-card,
+body.pro .account-product-action-card,
+html.dark .account-product-action-card,
+html.pro .account-product-action-card,
+body.dark .account-product-anchor,
+body.pro .account-product-anchor,
+html.dark .account-product-anchor,
+html.pro .account-product-anchor,
+body.dark .account-product-checklist,
+body.pro .account-product-checklist,
+html.dark .account-product-checklist,
+html.pro .account-product-checklist,
+body.dark .account-product-exemplar-card,
+body.pro .account-product-exemplar-card,
+html.dark .account-product-exemplar-card,
+html.pro .account-product-exemplar-card,
+body.dark .account-product-history-item,
+body.pro .account-product-history-item,
+html.dark .account-product-history-item,
+html.pro .account-product-history-item,
+body.dark .account-product-compare-card,
+body.pro .account-product-compare-card,
+html.dark .account-product-compare-card,
+html.pro .account-product-compare-card,
+body.dark .account-product-evidence-card,
+body.pro .account-product-evidence-card,
+html.dark .account-product-evidence-card,
+html.pro .account-product-evidence-card,
+body.dark .account-product-pattern,
+body.pro .account-product-pattern,
+html.dark .account-product-pattern,
+html.pro .account-product-pattern,
+body.dark .account-product-mode-link,
+body.pro .account-product-mode-link,
+html.dark .account-product-mode-link,
+html.pro .account-product-mode-link,
+body.dark .account-product-side-link,
+body.pro .account-product-side-link,
+html.dark .account-product-side-link,
+html.pro .account-product-side-link,
+body.dark .account-product-secondary-link,
+body.pro .account-product-secondary-link,
+html.dark .account-product-secondary-link,
+html.pro .account-product-secondary-link {
+    border-color: $c-border;
+    background: rgba(22, 26, 37, 0.82);
+}
+
+body.dark .account-product-mode-link,
+body.pro .account-product-mode-link,
+html.dark .account-product-mode-link,
+html.pro .account-product-mode-link,
+body.dark .account-product-side-link,
+body.pro .account-product-side-link,
+html.dark .account-product-side-link,
+html.pro .account-product-side-link,
+body.dark .account-product-secondary-link,
+body.pro .account-product-secondary-link,
+html.dark .account-product-secondary-link,
+html.pro .account-product-secondary-link,
+body.dark .account-product-overview-card p,
+body.pro .account-product-overview-card p,
+html.dark .account-product-overview-card p,
+html.pro .account-product-overview-card p,
+body.dark .account-product-opening-card p,
+body.pro .account-product-opening-card p,
+html.dark .account-product-opening-card p,
+html.pro .account-product-opening-card p,
+body.dark .account-product-pattern-summary,
+body.pro .account-product-pattern-summary,
+html.dark .account-product-pattern-summary,
+html.pro .account-product-pattern-summary,
+body.dark .account-product-copy__value,
+body.pro .account-product-copy__value,
+html.dark .account-product-copy__value,
+html.pro .account-product-copy__value,
+body.dark .account-product-action-card p,
+body.pro .account-product-action-card p,
+html.dark .account-product-action-card p,
+html.pro .account-product-action-card p,
+body.dark .account-product-anchor p,
+body.pro .account-product-anchor p,
+html.dark .account-product-anchor p,
+html.pro .account-product-anchor p,
+body.dark .account-product-exemplar-card p,
+body.pro .account-product-exemplar-card p,
+html.dark .account-product-exemplar-card p,
+html.pro .account-product-exemplar-card p,
+body.dark .account-product-evidence-line,
+body.pro .account-product-evidence-line,
+html.dark .account-product-evidence-line,
+html.pro .account-product-evidence-line,
+body.dark .account-product-pattern-meta,
+body.pro .account-product-pattern-meta,
+html.dark .account-product-pattern-meta,
+html.pro .account-product-pattern-meta {
+    color: $c-shade;
+}
+
+body.dark .account-product-overview-card strong,
+body.pro .account-product-overview-card strong,
+html.dark .account-product-overview-card strong,
+html.pro .account-product-overview-card strong,
+body.dark .account-product-opening-card strong,
+body.pro .account-product-opening-card strong,
+html.dark .account-product-opening-card strong,
+html.pro .account-product-opening-card strong,
+body.dark .account-product-opening-family,
+body.pro .account-product-opening-family,
+html.dark .account-product-opening-family,
+html.pro .account-product-opening-family,
+body.dark .account-product-pattern-structure,
+body.pro .account-product-pattern-structure,
+html.dark .account-product-pattern-structure,
+html.pro .account-product-pattern-structure,
+body.dark .account-product-recent-card strong,
+body.pro .account-product-recent-card strong,
+html.dark .account-product-recent-card strong,
+html.pro .account-product-recent-card strong,
+body.dark .account-product-action-card strong,
+body.pro .account-product-action-card strong,
+html.dark .account-product-action-card strong,
+html.pro .account-product-action-card strong,
+body.dark .account-product-anchor strong,
+body.pro .account-product-anchor strong,
+html.dark .account-product-anchor strong,
+html.pro .account-product-anchor strong,
+body.dark .account-product-exemplar-card strong,
+body.pro .account-product-exemplar-card strong,
+html.dark .account-product-exemplar-card strong,
+html.pro .account-product-exemplar-card strong,
+body.dark .account-product-history-item strong,
+body.pro .account-product-history-item strong,
+html.dark .account-product-history-item strong,
+html.pro .account-product-history-item strong,
+body.dark .account-product-compare-list strong,
+body.pro .account-product-compare-list strong,
+html.dark .account-product-compare-list strong,
+html.pro .account-product-compare-list strong {
+    color: $c-font;
+}
+
+body.dark .account-product-history-compare,
+body.pro .account-product-history-compare,
+html.dark .account-product-history-compare,
+html.pro .account-product-history-compare {
+    border-color: $c-border;
+    background: rgba(22, 26, 37, 0.82);
+    color: $c-font;
+}
+
+@media (max-width: 960px) {
+    .importer-grid--product,
+    .account-product-body,
+    .account-product-overview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .account-product-compare-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-card--account-product {
+        padding: 1.6rem;
+    }
 }

@@ -1,5 +1,6 @@
 import type { CevalEngine, Work } from 'lib/ceval';
 import type AnalyseCtrl from '../ctrl';
+import { preferenceLocalStorage } from 'lib/cookieConsent';
 import type { EvalVariation, ProbeRequest, ProbeResult, L1DeltaSnapshot, FutureSnapshot, TargetsDelta } from './types';
 
 type SessionActive = (session: number) => boolean;
@@ -111,7 +112,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     const runtimeFlag = g['__bookmakerCompatMotifFallback'];
     if (typeof runtimeFlag === 'boolean') return runtimeFlag;
     try {
-      const stored = globalThis.localStorage?.getItem('bookmaker.compatMotifFallback');
+      const stored = preferenceLocalStorage()?.getItem('bookmaker.compatMotifFallback');
       return stored === '1' || stored === 'true';
     } catch {
       return false;

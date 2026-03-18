@@ -93,6 +93,16 @@ CHESSTORY_BETA_PREMIUM_ALL=true
 docker compose run --rm -w /lila ui node ui/build.mjs
 ```
 
+## Open Beta Deployment
+
+Repo-contained open-beta deployment now targets GCP / Cloud Run instead of the old upstream-only deploy path.
+
+- Workflow: [../../../.github/workflows/gcp-openbeta.yml](../../../.github/workflows/gcp-openbeta.yml)
+- Runtime config: [conf/application.openbeta.conf](conf/application.openbeta.conf)
+- Bootstrap guide: [../../../OPENBETA_GCP.md](../../../OPENBETA_GCP.md)
+
+This path expects Mongo, Redis, SMTP, hCaptcha, and LLM provider secrets to be configured on the Cloud Run service. The GitHub workflow only builds and rolls forward the container image.
+
 ## Architecture
 
 Legacy architecture documents were removed during cleanup. Refer to current source under `modules/llm/src/main` and controller/routes for the live design.

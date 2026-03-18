@@ -7,6 +7,10 @@
   }
 
   .cs-burger {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
     position: absolute;
     top: 0;
     @include inline-start(0);
@@ -14,6 +18,11 @@
     height: $site-header-height;
     cursor: pointer;
     z-index: $z-topnav-111;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba($c-primary, 0.3);
+    }
 
     &__in {
       &,
@@ -123,6 +132,7 @@
     box-shadow: 2px 5px 7px hsla(0, 0, 0%, 0.5);
     border-radius: 0 3px 0 0;
     max-width: 80%;
+    visibility: hidden;
 
     @include mq-safari {
       min-height: 75vh; // safari has funny ideas about fixed parents bounding fixed children
@@ -213,6 +223,7 @@
     .cs-nav-toggle:checked ~ & {
       z-index: $z-topnav-111;
       transform: translateX(0);
+      visibility: visible;
       a {
         opacity: 1;
         transition: opacity 125ms ease-in-out 125ms;

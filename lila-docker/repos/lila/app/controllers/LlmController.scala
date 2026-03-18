@@ -3,7 +3,7 @@ package controllers
 import play.api.mvc._
 import play.api.libs.json._
 import lila.app.{ *, given }
-import lila.llm.{ LlmApi, FullAnalysisRequest, CommentRequest }
+import lila.llm.{ AsyncGameAnalysisDurability, CommentRequest, FullAnalysisRequest, GameAnalysisValidationError, LlmApi }
 import lila.analyse.ui.BookmakerRenderer
 import lila.llm.model.OpeningReference.given
 
@@ -15,6 +15,8 @@ final class LlmController(
 ) extends LilaController(env):
 
   private val GameArcRefineHeader = "X-Chesstory-GameArc-Refine"
+  private val GameArcRefineTokenHeader = "X-Chesstory-GameArc-Refine-Token"
+  private val AsyncStatusTokenHeader = "X-Chesstory-Async-Status-Token"
 
   private def normalizeProbeResultsByPly(
       entries: Option[List[lila.llm.ProbeResultsByPlyEntry]]
@@ -92,39 +94,61 @@ final class LlmController(
     ctx.body.body.validate[FullAnalysisRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
       analysisReq =>
-        val suppliedProbeResults =
-          analysisReq.probeResultsByPly.exists(_.exists(_.results.nonEmpty))
-        val isProbeRefinement =
-          suppliedProbeResults && ctx.req.headers.get(GameArcRefineHeader).contains("1")
+        validatedGameChronicleRequest(analysisReq).fold(
+          err => validationErrorResult(err).toFuccess,
+          validReq =>
+            val suppliedProbeResults =
+              validReq.probeResultsByPly.exists(_.exists(_.results.nonEmpty))
+            val wantsProbeRefinement =
+              suppliedProbeResults && ctx.req.headers.get(GameArcRefineHeader).contains("1")
+            val refinementToken =
+              ctx.req.headers.get(GameArcRefineTokenHeader).map(_.trim).filter(_.nonEmpty)
 
-        def runGameChronicle(allowLlmPolish: Boolean) =
-          api
-            .analyzeGameChronicleLocal(
-              pgn = analysisReq.pgn,
-              evals = analysisReq.evals,
-              style = analysisReq.options.style,
-              focusOn = analysisReq.options.focusOn,
-              allowLlmPolish = allowLlmPolish,
-              asyncTier = false,
-              lang = requestLang,
-              planTier = resolvedPlanTier,
-              llmLevel = resolvedGameAnalysisLlmLevel,
-              probeResultsByPly = normalizeProbeResultsByPly(analysisReq.probeResultsByPly)
-            )
-            .map:
-              case Some(response) =>
-                val uidOpt = ctx.me.map(_.userId.value)
-                val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
-                uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
-                val wrapper = Json.toJson(response).as[JsObject] ++ Json.obj("ccaEnabled" -> isCcaEnabled)
-                Ok(wrapper)
-              case None           => ServiceUnavailable("Game Chronicle unavailable")
+            def runGameChronicle(allowLlmPolish: Boolean) =
+              api
+                .analyzeGameChronicleLocal(
+                  pgn = validReq.pgn,
+                  evals = validReq.evals,
+                  style = validReq.options.style,
+                  focusOn = validReq.options.focusOn,
+                  allowLlmPolish = allowLlmPolish,
+                  asyncTier = false,
+                  lang = requestLang,
+                  planTier = resolvedPlanTier,
+                  llmLevel = resolvedGameAnalysisLlmLevel,
+                  probeResultsByPly = normalizeProbeResultsByPly(validReq.probeResultsByPly)
+                )
+                .map:
+                  case Some(response) =>
+                    val uidOpt = ctx.me.map(_.userId.value)
+                    uidOpt.foreach(uid => api.stashCcaResults(uid, response)) // fire-and-forget
+                    Ok(gameChronicleEnvelope(response, validReq.pgn))
+                  case None           => ServiceUnavailable("Game Chronicle unavailable")
 
-        if isProbeRefinement then runGameChronicle(allowLlmPolish = true)
-        else
-          withFullGameQuota:
-            allowLlmPolish =>
-              runGameChronicle(allowLlmPolish)
+            if suppliedProbeResults && !wantsProbeRefinement then
+              BadRequest(
+                Json.obj(
+                  "error" -> "invalid_probe_refinement",
+                  "msg" -> "Probe-backed Game Chronicle requests require a valid refinement token."
+                )
+              ).toFuccess
+            else if wantsProbeRefinement then
+              refinementToken match
+                case Some(token)
+                    if api.consumeGameChronicleRefinementToken(token, analysisRequesterKey, validReq.pgn) =>
+                  runGameChronicle(allowLlmPolish = true)
+                case _ =>
+                  Forbidden(
+                    Json.obj(
+                      "error" -> "invalid_refine_token",
+                      "msg" -> "Game Chronicle refinement token is missing, expired, or no longer valid."
+                    )
+                  ).toFuccess
+            else
+              withFullGameQuota:
+                allowLlmPolish =>
+                  runGameChronicle(allowLlmPolish)
+        )
     )
 
   /** Game Chronicle analysis (async queue). */
@@ -132,25 +156,41 @@ final class LlmController(
     ctx.body.body.validate[FullAnalysisRequest].fold(
       errors => BadRequest(JsError.toJson(errors)).toFuccess,
       analysisReq =>
-        withFullGameQuota:
-          allowLlmPolish =>
-            val submit = api.submitGameChronicleAsync(
-              req = analysisReq,
-              allowLlmPolish = allowLlmPolish,
-              lang = requestLang,
-              planTier = resolvedPlanTier,
-              llmLevel = resolvedGameAnalysisLlmLevel
-            )
-            Created(Json.toJson(submit)).toFuccess
+        validatedGameChronicleRequest(analysisReq).fold(
+          err => validationErrorResult(err).toFuccess,
+          validReq =>
+            if validReq.probeResultsByPly.exists(_.exists(_.results.nonEmpty)) then
+              BadRequest(
+                Json.obj(
+                  "error" -> "invalid_probe_refinement",
+                  "msg" -> "Async Game Chronicle submit does not accept probe results. Start the analysis first, then use the issued refinement token."
+                )
+              ).toFuccess
+            else
+              withFullGameQuota:
+                allowLlmPolish =>
+                  val submit = api.submitGameChronicleAsync(
+                    req = validReq,
+                    allowLlmPolish = allowLlmPolish,
+                    lang = requestLang,
+                    refineToken = api.issueGameChronicleRefinementToken(analysisRequesterKey, validReq.pgn),
+                    planTier = resolvedPlanTier,
+                    llmLevel = resolvedGameAnalysisLlmLevel
+                  )
+                  Created(Json.toJson(submit)).toFuccess
+        )
     )
 
   /** Poll status for async Game Chronicle analysis. */
   def analyzeGameAsyncStatus(jobId: String) = Open:
     val id = jobId.trim
+    val statusToken = ctx.req.headers.get(AsyncStatusTokenHeader).map(_.trim).filter(_.nonEmpty)
     if id.isEmpty then BadRequest(Json.obj("error" -> "missing_job_id")).toFuccess
+    else if statusToken.isEmpty then
+      BadRequest(Json.obj("error" -> "missing_status_token")).toFuccess
     else
       (
-        api.getGameChronicleAsyncStatus(id) match
+        api.getGameChronicleAsyncStatus(id, statusToken.get) match
           case Some(status) =>
             val base = Json.toJson(status).as[JsObject]
             val isCcaEnabled = ctx.me.map(_.userId.value)
@@ -162,7 +202,14 @@ final class LlmController(
               result <- status.result
             } api.stashCcaResults(uid, result)
             Ok(base ++ Json.obj("ccaEnabled" -> isCcaEnabled))
-          case None         => NotFound(Json.obj("error" -> "not_found"))
+          case None         =>
+            Gone(
+              Json.obj(
+                "error" -> "job_unavailable",
+                "durability" -> AsyncGameAnalysisDurability.EphemeralMemory,
+                "msg" -> "Async Game Chronicle jobs are stored in temporary memory only. Keep this tab open while the job runs and resubmit if it becomes unavailable."
+              )
+            )
       ).toFuccess
 
   /** Per-ply bookmaker commentary. */
@@ -277,6 +324,9 @@ final class LlmController(
   private def ipRequesterKey(using ctx: Context): String =
     s"ip:${ctx.ip.value}"
 
+  private def analysisRequesterKey(using ctx: Context): String =
+    ctx.me.fold(ipRequesterKey)(user => s"user:${user.userId.value}")
+
   private def isPremiumPlan(using ctx: Context): Boolean =
     ctx.me.exists(_.tier.isPremium)
 
@@ -307,6 +357,25 @@ final class LlmController(
       .map(_.takeWhile(ch => ch.isLetter || ch == '-'))
       .filter(_.nonEmpty)
       .getOrElse("en")
+
+  private def validatedGameChronicleRequest(
+      request: FullAnalysisRequest
+  ): Either[GameAnalysisValidationError, FullAnalysisRequest] =
+    FullAnalysisRequest.validateGameChronicle(request)
+
+  private def validationErrorResult(error: GameAnalysisValidationError): Result =
+    BadRequest(Json.obj("error" -> error.code, "msg" -> error.message))
+
+  private def gameChronicleEnvelope(
+      response: lila.llm.GameChronicleResponse,
+      pgn: String
+  )(using ctx: Context): JsObject =
+    val uidOpt = ctx.me.map(_.userId.value)
+    val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
+    Json.toJson(response).as[JsObject] ++ Json.obj(
+      "ccaEnabled" -> isCcaEnabled,
+      "refineToken" -> api.issueGameChronicleRefinementToken(analysisRequesterKey, pgn)
+    )
 
   private def withHardQuota(
       limiter: lila.memo.MongoRateLimit[String],

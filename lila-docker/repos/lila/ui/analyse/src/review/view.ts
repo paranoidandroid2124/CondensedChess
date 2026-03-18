@@ -442,7 +442,6 @@ function renderReferenceSummary(ctrl: AnalyseCtrl): VNode {
 }
 
 function renderReferenceActions(ctrl: AnalyseCtrl): VNode {
-  const activeReference = referenceTabs.find(({ tab }) => tab === ctrl.reviewReferenceTab())?.label ?? 'Reference';
   return hl('div.analyse-review__reference-actions', [
     hl(
       'button.analyse-review__reference-action.analyse-review__reference-action--primary',
@@ -458,7 +457,7 @@ function renderReferenceActions(ctrl: AnalyseCtrl): VNode {
         attrs: { type: 'button' },
         hook: bind('click', () => ctrl.setReviewPrimaryTab('moves')),
       },
-      `Close ${activeReference}`,
+      'Back to Moves',
     ),
   ]);
 }

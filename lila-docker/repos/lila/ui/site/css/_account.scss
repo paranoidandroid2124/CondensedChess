@@ -130,6 +130,13 @@ $c-bad: #EF4444;
         color: #64748B;
         margin-bottom: 1.5rem;
         font-size: 0.95rem;
+
+        body.dark &,
+        body.pro &,
+        html.dark &,
+        html.pro & {
+            color: #B9C5D3;
+        }
     }
 
     hr {
@@ -274,12 +281,30 @@ $c-bad: #EF4444;
     background: rgba(245, 158, 11, 0.05);
     border: 1px solid rgba(245, 158, 11, 0.2);
     color: #B45309;
+
+    body.dark &,
+    body.pro &,
+    html.dark &,
+    html.pro & {
+        background: rgba(245, 158, 11, 0.14);
+        border-color: rgba(245, 158, 11, 0.32);
+        color: #FCD34D;
+    }
 }
 
 .danger-box {
     background: rgba(239, 68, 68, 0.05);
     border: 1px solid rgba(239, 68, 68, 0.2);
     color: #B91C1C;
+
+    body.dark &,
+    body.pro &,
+    html.dark &,
+    html.pro & {
+        background: rgba(239, 68, 68, 0.14);
+        border-color: rgba(248, 113, 113, 0.3);
+        color: #FCA5A5;
+    }
 }
 
 .mt-2 {

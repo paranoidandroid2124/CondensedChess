@@ -47,7 +47,7 @@ Covered runtime paths:
 
 Related runtime-contract doc:
 - `modules/llm/docs/BookmakerProseContract.md`
-- `modules/llm/docs/CommentaryOpsMetrics.md`
+- internal commentary ops metrics notes are maintained outside the public repository
 
 Validation artifacts for thesis-driven Bookmaker prose:
 - golden snapshots:
@@ -62,7 +62,7 @@ Validation artifacts for thesis-driven Bookmaker prose:
   - `modules/llm/src/test/scala/lila/llm/tools/BookmakerProseGoldenDump.scala`
   - `modules/llm/src/test/scala/lila/llm/tools/BookmakerThesisQaRunner.scala`
 - latest QA report:
-  - `modules/llm/docs/BookmakerThesisQaReport.md`
+  - maintained outside the public repository
   - current live snapshot:
     - six thesis motif fixtures active
     - `polish_acceptance_ratio=1.000`
@@ -332,6 +332,128 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSemanticContext.scala`
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
   - `modules/llm/src/test/scala/lila/llm/BookmakerAfterCompensationCarrierTest.scala`
+- `2026-03-17` working-tree update:
+  - Compensation acceptance no longer lives as separate ad hoc rules in
+    `NarrativeContextBuilder`, `NarrativeSignalDigestBuilder`, selector-side
+    derived fallback, and prose consumers.
+  - A shared internal helper,
+    `modules/llm/src/main/scala/lila/llm/analysis/CompensationInterpretation.scala`,
+    now centralizes compensation interpretation for all three source classes:
+    - current semantic compensation
+    - after-move semantic compensation
+    - derived carrier compensation from digest / `StrategyPackSurface`
+  - The centralized decision emits an internal verdict instead of rewriting raw
+    `CompensationInfo`:
+    - `accepted`
+    - `rejectionReason`
+    - `recaptureNeutralized`
+    - `thinReturnVectorOnly`
+    - `lateTechnicalConversionTail`
+    - `durableStructuralPressure`
+    - `persistenceClass`
+  - The acceptance order is now fixed across the runtime path:
+    - `acceptance`
+    - `subtype`
+    - `display normalization`
+    - `prose`
+  - `current compensation` now shares the same rejection gate family as
+    `afterCompensation`; both are rejected by the same centralized logic when
+    they are:
+    - parity-restoring recaptures
+    - thin `return vector` stories with no durable carrier
+    - late technical conversion tails with no durable pressure
+  - `NarrativeContextBuilder` now only surfaces `semantic.compensation` /
+    `semantic.afterCompensation` when the shared interpretation layer accepts
+    them.
+  - `NarrativeSignalDigestBuilder` no longer runs its own independent
+    compensation acceptance logic; digest fallback now comes from the same
+    shared interpretation result.
+  - Selector-side derived compensation promotion is no longer calibrated
+    independently. `StrategicIdeaSelector` now accepts a derived compensation
+    carrier only when the shared interpretation layer accepts the derived
+    summary/vectors/invested-material combination.
+  - Direct prose bypasses were reduced:
+    - `NarrativeOutlineBuilder` compensation wrap-up text now consumes the
+      effective interpreted signal instead of reading raw semantic compensation
+      directly
+    - `StrategicThesisBuilder` compensation lens entry now prefers the shared
+      interpretation result, so `Bookmaker` no longer decides compensation from
+      raw semantic/digest carriers on its own
+    - `BookmakerStrategicLedgerBuilder` and `StructurePlanArcBuilder` also use
+      the shared semantic decision for compensation motifs / coda text
+  - The practical regression target is no longer only “tagging in the report”.
+    Real-PGN signoff now includes explicit negative-guard and agreement
+    metrics:
+    - false positive count
+    - false negative count on positive exemplars
+    - cross-surface agreement rate
+    - subtype agreement rate
+    - negative-guard pass/fail
+  - `TAT06 ply 60` is now a fixed negative guard. It must satisfy both:
+    - not compensation-tagged in the report
+    - no compensation lexicon in raw `Bookmaker` prose
+  - Latest strict real-PGN rerun after this centralization/signoff pass:
+    - `11` games
+    - `33` focus moments
+    - signoff `falsePositiveCount = 0`
+    - signoff `falseNegativeCount = 4`
+    - signoff `crossSurfaceAgreementRate = 0.9375`
+    - signoff `subtypeAgreementRate = 0.6875`
+    - negative guards `1 / 1` passing, with `TAT06 ply 60` kept out of both
+      report tagging and raw `Bookmaker` compensation wording
+  - Quiet-compensation `Active Note` wording now goes through the shared
+    `StrategyPackSurface.compensationWhyNowText(...)` templates and explicitly
+    uses compensation / line-pressure lexicon for durable non-attack cases, so
+    the signoff agreement metric is no longer held down by notes that had the
+    right subtype but only said `file pressure` or `investment` indirectly.
+  - `StrategyPackSurface` display subtype scoring is now explicitly split into:
+    - `preparation path` subtype, derived from route / move-ref / directional
+      anchors and used as the execution-side explanation
+    - `payoff theater` subtype, derived from fixed-target focus/objective/text
+      anchors and used as the intended dominant/focus truth when its confidence
+      is high enough
+  - The internal display layer now keeps:
+    - `preparationSubtype`
+    - `payoffSubtype`
+    - `selectedDisplaySubtype`
+    - `displaySubtypeSource`
+    - `pathConfidence`
+    - `payoffConfidence`
+  - Consumer contract remains:
+    - `dominantIdea` / `focus` / subtype label should follow the selected
+      display subtype
+    - `execution` may still mention the preparation path
+  - The current calibration result after the preparation/payoff split is:
+    - `falsePositiveCount = 0`
+    - `falseNegativeCount = 3`
+    - `crossSurfaceAgreementRate = 1.0`
+    - `subtypeAgreementRate = 0.7857142857142857`
+    - `negativeGuardPassCount = 1 / 1`
+  - Remaining real-PGN subtype mismatches are now concentrated in three path
+    alignment cases:
+    - `MOR01 ply 25`: `Game Arc = center/line_occupation`, `Bookmaker = queenside/target_fixing`
+    - `QID02 ply 42`: `Game Arc = kingside/target_fixing`, `Bookmaker = center/target_fixing`
+    - `CAT02 ply 33`: `Game Arc = queenside/target_fixing`, `Bookmaker = kingside/target_fixing`
+  - Interpretation: compensation existence and cross-surface compensation
+    agreement are effectively closed, but final subtype theater/mode alignment
+    still depends on how strongly the path scorer separates preparation lanes
+    from true payoff squares in those three cases.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/CompensationInterpretation.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSemanticContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationInterpretationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeContextBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalCalibrationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
 - `2026-03-16` working-tree update:
   - Active-note attachment on the full-game `Game Arc` path no longer depends
     on `allowLlmPolish = true`.
@@ -518,6 +640,45 @@ Key references:
       `queenside/target_fixing/intentionally_deferred/durable_pressure`, while
       its earlier compensation focus (`BEN01 ply 23`) remains a calibration
       case rather than collapsing into a generic missing/empty moment.
+- `2026-03-17` working-tree update:
+  - Display-subtype normalization is now less circular and less attack-biased
+    in route-less compensation shells:
+    - theater / mode voting no longer re-consumes `longTermFocus` text as a
+      structural anchor, so a previously generated `queenside file pressure`
+      string is less able to force the next normalization pass to stay on the
+      same flank
+    - delayed-recovery rescue now remains available for raw
+      `transition_only` / `conversion_window` shells when the same pack still
+      carries enough structural pressure anchors to justify a durable
+      compensation display subtype
+    - route-less positions with multiple directional targets now get a narrow
+      plurality override for `pressureTheater`, so the display layer can follow
+      the actual target cluster instead of overfitting a single tactical-looking
+      target
+    - weak `pressure on a fixed weakness` hints no longer count as a strong
+      target-fixing anchor by themselves; explicit `attacking fixed pawn` /
+      `static weakness fixation` cues still do
+  - Latest strict real-PGN rerun after this follow-up pass:
+    - signoff `falsePositiveCount = 0`
+    - signoff `falseNegativeCount = 3`
+    - signoff `crossSurfaceAgreementRate = 1.0`
+    - signoff `subtypeAgreementRate = 0.8125`
+    - negative guards `1 / 1` passing
+  - This lifted subtype agreement from `0.75` to `0.8125` without regressing
+    the negative guard or the cross-surface agreement rate.
+  - Remaining subtype mismatches after the pass are down to three real-PGN
+    cases:
+    - `KG01 ply 39`
+    - `QID02 ply 54`
+    - `CAT02 ply 43`
+  - These remaining mismatches are no longer generic compensation/no-compensation
+    disagreements. They are specifically:
+    - `kingside line occupation` vs `kingside target fixing`
+    - `center line occupation` vs `center target fixing`
+    - `center line occupation` vs `queenside line occupation`
+  - In other words, the remaining calibration work is now almost entirely
+    about final theater/mode alignment inside the shared display subtype layer,
+    not about missing compensation carriers or consumer-specific prose drift.
 - Verification:
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
   - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
@@ -532,6 +693,49 @@ Key references:
   - `ui/analyse/src/narrative/probePlanning.ts`
   - `ui/analyse/tests/narrativeProbePlanning.test.ts`
   - `modules/llm/docs/RealPgnNarrativeEvalReport.latest.md`
+- `2026-03-17` working-tree update:
+  - The shared display-normalization layer now carries a small amount of
+    internal-only late carrier context in `StrategyPackSurface.Snapshot`:
+    - `evidenceHints`
+    - `strategicStack`
+    - `latentPlan`
+    - `decisionEvidence`
+  - These are **not** reused as generic theater-voting text. They only add a
+    narrow `targetFixingAnchorStrength` bonus when fixed-target phrases survive
+    only in late bookkeeping carriers such as `Attacking fixed Pawn`,
+    `backward pawn`, or `weakness fixation`.
+  - `StrategyPackBuilder.buildLongTermFocus(...)` also now sees `pieceMoveRefs`
+    and can add a raw
+    `keep the fixed central targets under pressure before recovering material`
+    focus line when centered open-file occupation and repeated `target_pawn`
+    cues confirm that the compensation shell is about static targets instead of
+    generic line pressure.
+  - `StrategicThesisBuilder` now also distinguishes two late display-subtype
+    rescue paths:
+    - fixed-pawn **plan-carrier rescue** driven by `latentPlan` /
+      `decisionEvidence` mentions such as `Attacking fixed Pawn`
+    - repeated-`target_pawn` rescue for centered quiet-compensation shells even
+      when same-theater file routes are sparse
+  - A narrow line-occupation lock was retained for raw line-occupation shells
+    that only pick up late fixed-pawn hints without a matching fixed-pawn plan
+    carrier.
+  - Latest strict real-PGN rerun after this narrower late-carrier pass:
+    - signoff `falsePositiveCount = 0`
+    - signoff `falseNegativeCount = 3`
+    - signoff `crossSurfaceAgreementRate = 1.0`
+    - signoff `subtypeAgreementRate = 0.75`
+    - negative guards `1 / 1` passing
+  - This pass preserved the negative guard and the cross-surface compensation
+    agreement, but it still did **not** push subtype agreement beyond the prior
+    plateau. The remaining disagreement moved rather than disappeared.
+  - Current remaining real-PGN subtype mismatches are:
+    - `CAT01 ply 39`
+    - `MOR01 ply 19`
+    - `EVA01 ply 23`
+    - `CAT02 ply 33`
+  - In other words, the remaining calibration work is still concentrated in
+    the final shared display-subtype layer: specifically `target_fixing` vs
+    `line_occupation`, and central vs queenside theater resolution.
 - `2026-03-06` working-tree update:
   - `DecisionRationale / MetaSignals / StrategicFlow / OpponentPlan` is no
     longer dead on the primary prose path.
@@ -723,6 +927,18 @@ Key references:
   - the old strategic-idea keyword classifier is no longer shipped from
     `src/main`; it now lives under `src/test` as a comparison helper for
     selector regression tests only.
+ - `2026-03-18` compensation cleanup-only refactor:
+   - `StrategyPackSurface` remains the single consumer-facing facade for
+     compensation display data.
+   - display-subtype selection is now routed through one internal
+     `CompensationDisplaySubtypeResolver` helper, while normalized payoff prose
+     is routed through one internal `CompensationDisplayPhrasing` helper.
+   - the runtime contract, consumer accessors, real-PGN signoff targets, and
+     public JSON/report shape are intentionally unchanged in this pass.
+   - payoff-scoring now treats generic `decisionEvidence` as preparation-path
+     context rather than generic payoff text, and fixed-target objective
+     anchors are weighted ahead of that path noise in the display subtype
+     resolver.
   - frontend Chesstory signal shape and text-format helpers now live in shared
     modules so Bookmaker and Game Chronicle no longer maintain parallel
     `NarrativeSignalDigest` / `StrategicIdea*` definitions or duplicate token /
@@ -910,6 +1126,17 @@ Key references:
   - review-shell polish now persists tab / filter / selected review targets for
     the session and keeps the active tab or selected moment / collapse card in
     view while the board is navigated from the control bar.
+- `2026-03-18` working-tree update:
+  - `/analysis` frontend runtime now keeps its direct affordances aligned with
+    the actual handlers:
+    - under `Reference > Import`, the FEN workspace now binds `Enter` directly
+      to `changeFen`, so the visible helper copy is no longer misleading
+    - the keyboard-help modal is served again from `/analysis/help`, so `?`
+      no longer opens a dead route
+  - review-shell / notebook frontend consumption now includes explicit dark
+    theme styling for the `Review Shell` and notebook-style atlas surfaces,
+    instead of leaving those panels on the light parchment palette when the
+    outer shell is dark
 - Verification:
   - `ui/analyse/src/ctrl.ts:940`
   - `ui/analyse/src/ctrl.ts:952`
@@ -1590,9 +1817,11 @@ Verification:
       `OPENAI_MODEL_ACTIVE_FALLBACK`, `OPENAI_REASONING_EFFORT_ACTIVE`
     - Gemini active-note-only env:
       `GEMINI_MODEL_ACTIVE`
-    - code default OpenAI active-note route remains `gpt-5.2` with
-      `reasoning_effort = none`; global/base polish can still remain on
-      `gpt-5-mini`
+    - code defaults now align with the intended runtime split:
+      - global/base polish defaults to OpenAI `gpt-5-mini`
+      - `LLM_PROVIDER_ACTIVE_NOTE` defaults to `gemini`
+      - OpenAI active-note fallback defaults to `gpt-5-mini`
+      - `reasoning_effort = none` still applies on the OpenAI active-note path
     - current compose/runtime default in `lila-docker/settings.env` is:
       - global polish / Bookmaker on OpenAI `gpt-5-mini`
       - Active note on Gemini `gemini-3-flash-preview`
@@ -1770,8 +1999,7 @@ Verification:
   - no new Bookmaker prose contract was introduced in this stream
 
 Verification:
-- `modules/llm/docs/ActiveNoteIdeaRedesignPlan_20260312.md`
-- `modules/llm/docs/ActiveNoteIdeaRedesignPrompt_20260312.md`
+- private design notes retained outside the public repository
 - `modules/llm/src/main/scala/lila/llm/models.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/strategic/StrategicAnalyzers.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
@@ -2124,6 +2352,37 @@ Verification:
 - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/FullGameDraftNormalizerTest.scala`
 - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+- `2026-03-18` working-tree update:
+  - frontend probe-planning carriers now explicitly accept `strategyPack.signalDigest = null`
+    from `GameChronicleResponse` payloads. This matches the current runtime
+    contract instead of forcing `narrativeCtrl` callers to cast away a legal
+    server value before probe refinement can run.
+  - notebook dossier frontend validation now enforces the `productKind ->
+    subject.role` invariant through the shared product-role map rather than
+    duplicating branch-local literals, so the role contract remains aligned
+    with the product taxonomy used by notebook consumers.
+  - underboard PGN draft actions now pass a staged PGN override into
+    `narrativeCtrl.fetchNarrative(...)` instead of always exporting the current
+    board tree. This keeps the frontend Game Chronicle trigger truthful when
+    the user has pasted a draft but has not imported it yet.
+  - analysis direct entry with `?engine=` now strips only the transient engine
+    query from the current URL via `history.replaceState`, preserving the
+    active variant/FEN/import route instead of collapsing back to plain
+    `/analysis`.
+  - frontend labels that previously split between `Insights`,
+    `Narrative Analysis`, and `Game Chronicle` are now normalized on the
+    primary narrative surfaces to `Game Chronicle`, so the same LLM-backed
+    product is not advertised under conflicting names.
+- Verification:
+  - `ui/analyse/src/narrative/probePlanning.ts`
+  - `ui/analyse/src/notebookDossier.ts`
+  - `ui/analyse/src/view/components.ts`
+  - `ui/analyse/src/narrative/narrativeCtrl.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `ui/analyse/src/ctrl.ts`
+  - `ui/analyse/tests/narrativeProbePlanning.test.ts`
+  - `ui/analyse/tests/notebookDossier.test.ts`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
 
 ## Reference Files
 

@@ -519,7 +519,7 @@ object NarrativeOutlineBuilder:
     if thesis.lens != StrategicLens.Practical then
       ctx.semantic.flatMap(_.practicalAssessment).flatMap(buildBookmakerPracticalWrapSentence).foreach(parts += _)
     if thesis.lens != StrategicLens.Compensation then
-      ctx.semantic.flatMap(_.compensation).flatMap(buildBookmakerCompensationWrapSentence).foreach(parts += _)
+      effectiveCompensationSignal(ctx).flatMap(buildBookmakerCompensationWrapSentence).foreach(parts += _)
     Option.when(parts.nonEmpty) {
       OutlineBeat(
         kind = OutlineBeatKind.WrapUp,
@@ -543,10 +543,12 @@ object NarrativeOutlineBuilder:
           case _                            => ""
       Option.when(sentence.nonEmpty)(sentence)
 
-  private def buildBookmakerCompensationWrapSentence(comp: CompensationInfo): Option[String] =
-    val plan = Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty)
-    val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
-    if comp.investedMaterial <= 0 || (plan.isEmpty && vectors.isEmpty) then None
+  private def buildBookmakerCompensationWrapSentence(
+    signal: CompensationInterpretation.Signal
+  ): Option[String] =
+    val plan = signal.summary.map(_.trim).filter(_.nonEmpty)
+    val vectors = summarizeCompensationVectorLabels(signal.vectors, limit = 2)
+    if signal.investedMaterial.forall(_ <= 0) || (plan.isEmpty && vectors.isEmpty) then None
     else
       val vectorText = Option.when(vectors.nonEmpty)(s" through ${vectors.mkString(" and ")}").getOrElse("")
       val planText = plan.getOrElse("practical follow-up")
@@ -2227,8 +2229,8 @@ object NarrativeOutlineBuilder:
     ctx.semantic.flatMap(_.practicalAssessment).foreach { pa =>
       parts += buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)
     }
-    ctx.semantic.flatMap(_.compensation).foreach { comp =>
-      parts += buildCompensationWrapUpSentence(comp, bead)
+    effectiveCompensationSignal(ctx).foreach { signal =>
+      parts += buildCompensationWrapUpSentence(signal, bead)
     }
 
     buildWrapUpHypothesisDifference(ctx, bead ^ 0x5f356495, crossBeatState).foreach(parts += _)
@@ -2263,9 +2265,9 @@ object NarrativeOutlineBuilder:
               .getOrElse("")
           Some(s"$verdictText$driverText.")
       }.orElse {
-        ctx.semantic.flatMap(_.compensation).flatMap { comp =>
-          Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty).map { plan =>
-            val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
+        effectiveCompensationSignal(ctx).flatMap { signal =>
+          signal.summary.map(_.trim).filter(_.nonEmpty).map { plan =>
+            val vectors = summarizeCompensationVectorLabels(signal.vectors, limit = 2)
             val vectorText =
               Option.when(vectors.nonEmpty)(s", especially through ${vectors.mkString(" and ")}")
                 .getOrElse("")
@@ -2312,17 +2314,18 @@ object NarrativeOutlineBuilder:
       NarrativeLexicon.getPracticalVerdict(seed, pa.verdict, cpWhite, ply = ply)
 
   private def buildCompensationWrapUpSentence(
-    comp: CompensationInfo,
+    signal: CompensationInterpretation.Signal,
     bead: Int
   ): String =
-    val vectors = summarizeCompensationVectors(comp.returnVector, limit = 2)
-    val plan = Option(comp.conversionPlan).map(_.trim).filter(_.nonEmpty).getOrElse("practical play")
-    if comp.investedMaterial > 0 && vectors.nonEmpty then
-      s"If the ${comp.investedMaterial}cp investment is to work, it has to cash out through $plan, driven by ${vectors.mkString(" and ")}."
-    else if comp.investedMaterial > 0 then
-      s"If the ${comp.investedMaterial}cp investment is to work, it has to cash out through $plan."
-    else
-      NarrativeLexicon.getCompensationStatement(bead, comp.conversionPlan, "Sufficient")
+    val vectors = summarizeCompensationVectorLabels(signal.vectors, limit = 2)
+    val plan = signal.summary.map(_.trim).filter(_.nonEmpty).getOrElse("practical play")
+    signal.investedMaterial match
+      case Some(investment) if vectors.nonEmpty =>
+        s"If the ${investment}cp investment is to work, it has to cash out through $plan, driven by ${vectors.mkString(" and ")}."
+      case Some(investment) =>
+        s"If the ${investment}cp investment is to work, it has to cash out through $plan."
+      case None =>
+        NarrativeLexicon.getCompensationStatement(bead, plan, "Sufficient")
 
   private def summarizePracticalDrivers(
     biasFactors: List[PracticalBiasInfo],
@@ -2351,6 +2354,22 @@ object NarrativeOutlineBuilder:
       .flatMap { case (label, weight) =>
         Option(label).map(_.trim).filter(_.nonEmpty).map(l => s"$l (${f"$weight%.1f"})")
       }
+
+  private def summarizeCompensationVectorLabels(
+    vectors: List[String],
+    limit: Int
+  ): List[String] =
+    vectors
+      .map(_.replaceAll("\\([^)]*\\)", " "))
+      .map(_.replace('_', ' '))
+      .map(_.trim.toLowerCase.replaceAll("\\s+", " "))
+      .filter(_.nonEmpty)
+      .take(limit)
+
+  private def effectiveCompensationSignal(
+    ctx: NarrativeContext
+  ): Option[CompensationInterpretation.Signal] =
+    CompensationInterpretation.effectiveSemanticDecision(ctx).map(_.decision.signal)
 
   private def buildMainHypothesisNarrative(
     ctx: NarrativeContext,

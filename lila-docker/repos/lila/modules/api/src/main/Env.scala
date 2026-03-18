@@ -27,6 +27,4 @@ final class Env(
 
   export webConfig.apiToken
 
-  lazy val accountTermination = wire[AccountTermination]
-
   lazy val cli = wire[Cli]

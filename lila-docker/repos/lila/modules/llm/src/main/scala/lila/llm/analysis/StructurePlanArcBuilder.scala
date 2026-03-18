@@ -282,8 +282,8 @@ private[analysis] object StructurePlanArcBuilder:
     }
 
   private def compensationCoda(ctx: NarrativeContext): Option[String] =
-    ctx.semantic.flatMap(_.compensation).flatMap { comp =>
-      normalized(comp.conversionPlan).map { plan =>
+    CompensationInterpretation.effectiveSemanticDecision(ctx).flatMap { accepted =>
+      accepted.decision.signal.summary.flatMap(normalized).map { plan =>
         s"The long-term pay-off still depends on converting the position into ${plan.toLowerCase}."
       }
     }

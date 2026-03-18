@@ -10,6 +10,8 @@ import lila.llm.model.strategic.{ EndgameFeature, PieceActivity, PositionalTag, 
 
 private[llm] final case class StrategicIdeaSemanticContext(
     sideToMove: String,
+    fen: String = "",
+    playedMove: Option[String] = None,
     board: Option[Board] = None,
     pieceActivity: List[PieceActivity] = Nil,
     positionalFeatures: List[PositionalTag] = Nil,
@@ -30,6 +32,8 @@ private[llm] final case class StrategicIdeaSemanticContext(
     phase: String = "middlegame",
     positionFeatures: Option[PositionFeatures] = None,
     strategicState: Option[StrategicStateFeatures] = None,
+    currentCompensation: Option[CompensationInfo] = None,
+    effectiveCompensation: Option[CompensationInfo] = None,
     afterCompensation: Option[CompensationInfo] = None
 )
 
@@ -49,6 +53,8 @@ private[llm] object StrategicIdeaSemanticContext:
 
     StrategicIdeaSemanticContext(
       sideToMove = if data.isWhiteToMove then "white" else "black",
+      fen = data.fen,
+      playedMove = data.prevMove,
       board = board,
       pieceActivity = data.pieceActivity,
       positionalFeatures = data.positionalFeatures,
@@ -69,5 +75,7 @@ private[llm] object StrategicIdeaSemanticContext:
       phase = data.phase,
       positionFeatures = integrated.features.orElse(PositionAnalyzer.extractFeatures(data.fen, data.ply.max(1))),
       strategicState = PositionAnalyzer.extractStrategicState(data.fen),
+      currentCompensation = ctx.semantic.flatMap(_.compensation),
+      effectiveCompensation = CompensationInterpretation.effectiveSemanticDecision(ctx).map(_.compensation),
       afterCompensation = ctx.semantic.flatMap(_.afterCompensation)
     )

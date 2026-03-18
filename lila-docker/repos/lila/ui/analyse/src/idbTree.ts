@@ -1,4 +1,5 @@
 import type AnalyseCtrl from './ctrl';
+import { preferenceStorageAllowed } from 'lib/cookieConsent';
 import { objectStorage, type ObjectStorage } from 'lib/objectStorage';
 import * as treeOps from 'lib/tree/ops';
 
@@ -93,18 +94,23 @@ export class IdbTree {
   }
 
   clear = async (): Promise<void> => {
+    if (!preferenceStorageAllowed()) return site.reload();
     await this.collapseDb?.remove(this.id);
     if (!this.ctrl.synthetic) await this.moveDb?.put(this.id, { root: undefined });
     site.reload();
   };
 
   async saveMoves(force = false): Promise<IDBValidKey | undefined> {
+    if (!preferenceStorageAllowed()) return;
     if (this.ctrl.synthetic || !(this.dirty || force)) return;
     return this.moveDb?.put(this.id, { root: this.ctrl.tree.root });
   }
 
   async merge(): Promise<void> {
-    if (!('indexedDB' in window) || !window.indexedDB) return;
+    if (!preferenceStorageAllowed() || !('indexedDB' in window) || !window.indexedDB) {
+      this.collapseDefault();
+      return;
+    }
     try {
       if (!this.ctrl.synthetic) {
         this.moveDb ??= await objectStorage<MoveState>({ store: 'analyse-state', db: 'lichess' });
@@ -134,6 +140,7 @@ export class IdbTree {
   }
 
   private async saveCollapsed() {
+    if (!preferenceStorageAllowed()) return;
     return this.collapseDb?.put(this.id, this.getCollapsed());
   }
 

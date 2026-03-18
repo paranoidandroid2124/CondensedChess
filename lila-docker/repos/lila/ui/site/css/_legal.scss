@@ -201,6 +201,180 @@ html.pro .legal-footer {
     text-decoration: underline;
 }
 
+.legal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.legal-note {
+    color: $c-shade;
+    font-size: 0.95rem;
+}
+
+.beta-feedback-page {
+    .legal-form {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .legal-field {
+        display: grid;
+        gap: 0.45rem;
+    }
+
+    .legal-label,
+    .legal-field label {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .legal-field input,
+    .legal-field select,
+    .legal-field textarea {
+        width: 100%;
+        padding: 0.85rem 0.95rem;
+        border-radius: 12px;
+        border: 1px solid #d8dee8;
+        background: #fff;
+        color: #1f2937;
+    }
+
+    .legal-field textarea {
+        resize: vertical;
+        min-height: 8.5rem;
+    }
+
+    .legal-field input:focus-visible,
+    .legal-field select:focus-visible,
+    .legal-field textarea:focus-visible {
+        outline: none;
+        border-color: rgba($c-primary, 0.55);
+        box-shadow: 0 0 0 3px rgba($c-primary, 0.14);
+    }
+
+    .legal-field-error {
+        color: #b42318;
+        font-size: 0.92rem;
+    }
+
+    .legal-form-banner {
+        padding: 0.9rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        font-weight: 500;
+    }
+
+    .legal-form-banner--success {
+        background: #e8f6ea;
+        border: 1px solid #b4d7bb;
+        color: #1f5f33;
+    }
+
+    .legal-form-banner--error {
+        background: #fdecec;
+        border: 1px solid #e9b4b4;
+        color: #8f1d1d;
+    }
+
+    .legal-radio-grid {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .legal-radio-card {
+        display: grid;
+        gap: 0.4rem;
+        padding: 0.95rem 1rem;
+        border-radius: 14px;
+        border: 1px solid #d8dee8;
+        background: #f8fafc;
+        cursor: pointer;
+    }
+
+    .legal-radio-card input {
+        width: auto;
+        margin: 0;
+    }
+
+    .legal-check {
+        display: flex;
+        gap: 0.7rem;
+        align-items: center;
+    }
+
+    .legal-check input {
+        width: auto;
+    }
+
+    .legal-beta-pills {
+        display: flex;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+        margin-top: 1rem;
+    }
+
+    .legal-beta-pill {
+        padding: 0.4rem 0.7rem;
+        border-radius: 999px;
+        background: #eef2ff;
+        border: 1px solid #d9e0f5;
+        color: #334155;
+        font-size: 0.9rem;
+    }
+
+    .legal-beta-pill--accent {
+        background: #ecfdf3;
+        border-color: #bbf7d0;
+        color: #166534;
+    }
+}
+
+body.dark .beta-feedback-page,
+body.pro .beta-feedback-page,
+html.dark .beta-feedback-page,
+html.pro .beta-feedback-page {
+    .legal-label,
+    .legal-field label {
+        color: $c-font;
+    }
+
+    .legal-field input,
+    .legal-field select,
+    .legal-field textarea,
+    .legal-radio-card {
+        background: #121a25;
+        border-color: $c-border;
+        color: $c-font;
+    }
+
+    .legal-form-banner--success {
+        background: rgba(#166534, 0.18);
+        border-color: rgba(#86efac, 0.28);
+        color: #bbf7d0;
+    }
+
+    .legal-form-banner--error {
+        background: rgba(#991b1b, 0.2);
+        border-color: rgba(#fca5a5, 0.25);
+        color: #fecaca;
+    }
+
+    .legal-beta-pill {
+        background: #1b2433;
+        border-color: #324055;
+        color: $c-font;
+    }
+
+    .legal-beta-pill--accent {
+        background: rgba(#166534, 0.18);
+        border-color: rgba(#86efac, 0.28);
+        color: #bbf7d0;
+    }
+}
+
 // Responsive
 @media (max-width: 768px) {
     .legal-content {

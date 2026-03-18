@@ -12,13 +12,13 @@ import lila.core.user.User
 import lila.core.lilaism.Core.*
 import lila.core.id.SessionId
 import lila.core.net.{ ApiVersion, IpAddress, UserAgent }
-import lila.core.security.{ FingerHash, IsProxy }
+import lila.core.security.IsProxy
 import lila.db.dsl.{ *, given }
 import java.time.Instant
 import scala.concurrent.duration.*
 import reactivemongo.api.bson.Macros
 
-case class AuthInfo(userId: UserId, hasFp: Boolean)
+case class AuthInfo(userId: UserId)
 
 final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using executor: Executor):
 
@@ -33,11 +33,11 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
           _.flatMap: doc =>
             if doc.getAsOpt[Instant]("date").forall(_.isBefore(nowInstant.minusHours(12))) then
               coll.updateFieldUnchecked($id(id), "date", nowInstant)
-            doc.getAsOpt[UserId]("user").map { AuthInfo(_, doc.contains("fp")) }
+            doc.getAsOpt[UserId]("user").map(AuthInfo.apply)
 
   def authInfo(sessionId: SessionId) = authCache.get(sessionId)
 
-  private val authInfoProjection = $doc("user" -> true, "fp" -> true, "date" -> true, "_id" -> false)
+  private val authInfoProjection = $doc("user" -> true, "date" -> true, "_id" -> false)
   private def uncache(sessionId: SessionId) =
     blocking { blockingUncache(sessionId) }
   private def uncacheAllOf(userId: UserId): Funit =
@@ -55,7 +55,6 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
       req: RequestHeader,
       apiVersion: Option[ApiVersion],
       up: Boolean,
-      fp: Option[FingerPrint],
       proxy: IsProxy,
       pwned: Boolean
   ): Funit =
@@ -69,7 +68,6 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
           "date" -> nowInstant,
           "up" -> up,
           "api" -> apiVersion,
-          "fp" -> fp.flatMap(_.hash),
           "proxy" -> proxy.name,
           "pwned" -> pwned.option(true)
         )
@@ -117,17 +115,6 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
       .sort($doc("date" -> -1))
       .cursor[UserSession](ReadPref.sec)
 
-  def setFingerPrint(id: SessionId, fp: FingerPrint): Fu[FingerHash] =
-    fp.hash match
-      case None => Future.failed(Exception(s"Can't hash $id's fingerprint $fp"))
-      case Some(hash) =>
-        for
-          _ <- coll.updateField($id(id), "fp", hash)
-          _ = authInfo(id).map(_.foreach { i =>
-            authCache.put(id, Future.successful(i.copy(hasFp = true).some))
-          })
-        yield hash
-
   def chronoInfoByUser(user: User): Fu[List[Info]] =
     coll
       .find(
@@ -135,7 +122,7 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
           "user" -> user.id,
           "date".$gt(user.createdAt.atLeast(nowInstant.minusYears(1)))
         ),
-        $doc("_id" -> false, "ip" -> true, "ua" -> true, "fp" -> true, "date" -> true).some
+        $doc("_id" -> false, "ip" -> true, "ua" -> true, "date" -> true).some
       )
       .sort($sort.desc("date"))
       .cursor[Info]()
@@ -169,29 +156,6 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
         coll.delete.one($inIds(olds)).void
       } >> uncacheAllOf(userId)
 
-  def shareAnIpOrFp(u1: UserId, u2: UserId): Fu[Boolean] =
-    coll.aggregateExists(_.sec): framework =>
-      import framework.*
-      Match($doc("user".$in(List(u1, u2)))) -> List(
-        Limit(500),
-        Project(
-          $doc(
-            "_id" -> false,
-            "user" -> true,
-            "x" -> $arr("$ip", "$fp")
-          )
-        ),
-        UnwindField("x"),
-        GroupField("x")("users" -> AddFieldToSet("user")),
-        Match(
-          $doc(
-            "_id".$ne(BSONNull),
-            "users.1".$exists(true)
-          )
-        ),
-        Limit(1)
-      )
-
   def ips(user: User): Fu[Set[IpAddress]] =
     coll.distinctEasy[IpAddress, Set]("ip", $doc("user" -> user.id))
 
@@ -199,16 +163,8 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using exe
     coll.secondary.exists:
       $doc("ip" -> ip, "date" -> $gt(nowInstant.minusMinutes(since.toMinutes.toInt)))
 
-  private[security] def recentByPrintExists(fp: FingerPrint): Fu[Boolean] =
-    fp.hash match
-      case None => Future.successful(false)
-      case Some(hash) =>
-        coll.secondary.exists:
-          $doc("fp" -> hash, "date" -> $gt(nowInstant.minusDays(7)))
-
 object SessionStore:
-  case class Info(ip: IpAddress, ua: UserAgent, fp: Option[FingerHash], date: Instant):
+  case class Info(ip: IpAddress, ua: UserAgent, date: Instant):
     def datedIp = Dated(ip, date)
-    def datedFp = fp.map { Dated(_, date) }
     def datedUa = Dated(ua, date)
   given BSONDocumentReader[Info] = Macros.reader[Info]

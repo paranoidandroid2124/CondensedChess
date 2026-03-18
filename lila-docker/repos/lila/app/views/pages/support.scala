@@ -50,6 +50,34 @@ object support:
                   )
               ),
               st.section(cls := "legal-section")(
+                h2("Open Beta Feedback"),
+                p(
+                  "If you just used Strategic Puzzle, Game Chronicle, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
+                ),
+                div(cls := "legal-actions")(
+                  a(
+                    href := routes.BetaFeedback.formPage(
+                      surface = "general",
+                      feature = "support_page",
+                      entrypoint = "support_page",
+                      returnTo = routes.Main.support.url,
+                      notify = false
+                    ).url,
+                    cls := "button"
+                  )("Share beta feedback"),
+                  a(
+                    href := routes.BetaFeedback.formPage(
+                      surface = "general",
+                      feature = "paid_plan_waitlist",
+                      entrypoint = "support_waitlist",
+                      returnTo = routes.Main.support.url,
+                      notify = true
+                    ).url,
+                    cls := "button button-empty"
+                  )("Join paid-plan waitlist")
+                )
+              ),
+              st.section(cls := "legal-section")(
                 h2("Current Access Policy"),
                 p("Support helps sustain the service, but access still follows the product's current login, quota, and fair-use controls."),
                 ul(

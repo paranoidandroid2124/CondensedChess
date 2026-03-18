@@ -16,7 +16,7 @@ object privacy:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Privacy Policy"),
-                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 10, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 19, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -35,6 +35,7 @@ object privacy:
                   li(strong("Account data: "), "email address, username, and password hash or other authentication-related records needed to run your account"),
                   li(strong("Chess content: "), "games, PGNs, studies, positions, and analysis inputs you submit or save"),
                   li(strong("Support communications: "), "messages you send through email or the contact page"),
+                  li(strong("Beta feedback and waitlist data: "), "payment-intent answers, price-band preferences, optional product notes, and notification email addresses you submit through beta feedback prompts or forms"),
                   li(strong("Technical and security data: "), "IP address, browser and device information, request logs, and abuse-prevention signals"),
                   li(strong("Public chess data: "), "if you request imports or opponent analysis, Chesstory may fetch public game data from third-party chess platforms")
                 )
@@ -48,7 +49,8 @@ object privacy:
                   li("Generate analysis, commentary, and product features you request"),
                   li("Prevent abuse, fraud, and unauthorized access"),
                   li("Respond to support, privacy, and account requests"),
-                  li("Improve reliability and product quality")
+                  li("Improve reliability and product quality"),
+                  li("Measure open beta interest and contact people who explicitly ask to hear about possible paid plans")
                 )
               ),
 
@@ -67,15 +69,35 @@ object privacy:
 
               st.section(cls := "legal-section")(
                 h2("5. Cookies and Similar Technologies"),
-                p("Chesstory uses mainly essential cookies and similar local storage needed to run the Service."),
+                p("Chesstory uses cookies and similar browser storage to operate the Service and, if you allow it, to remember optional on-device preferences."),
+                h3("Essential storage"),
                 ul(
                   li(strong("Session and sign-in cookies: "), "keep you signed in and protect your account session"),
                   li(strong("Security cookies or tokens: "), "support email confirmation, password reset, and related account security flows"),
-                  li(strong("Preference storage: "), "remember interface settings such as accessibility or display preferences"),
-                  li(strong("Anti-abuse tools: "), "if captcha or similar protection is enabled, those providers may collect device or browser signals under their own policies")
+                  li(strong("Consent record cookie: "), "stores your Cookie Settings choice so we can remember it on later visits"),
+                  li(strong("Security and request handling signals: "), "support abuse prevention, account protection, and normal service delivery")
+                ),
+                h3("Optional preference storage"),
+                p("If you choose to allow preferences, Chesstory may store optional browser-side data such as:"),
+                ul(
+                  li(strong("Appearance settings: "), "theme and zoom preferences, especially for signed-out visitors"),
+                  li(strong("On-device analysis state: "), "panel choices, study commentary drafts, and local analysis snapshots saved in your browser"),
+                  li(strong("Performance caches: "), "browser-side IndexedDB or file storage used to cache engine assets or similar performance-related files"),
+                  li(strong("Troubleshooting logs: "), "browser-side diagnostic logs that help surface client-side errors")
                 ),
                 p(
-                  "Chesstory does not currently use advertising cookies or cross-site tracking cookies."
+                  "If you switch to Essential only, Chesstory stops using optional preference storage and performs best-effort cleanup of known preference cookies and browser-side storage on that device."
+                ),
+                h3("Advertising and tracking"),
+                p("Chesstory does not currently use advertising cookies or cross-site tracking cookies."),
+                p(
+                  "If anti-abuse providers such as captcha or challenge tools are enabled later, those providers may process device or browser signals under their own policies."
+                ),
+                div(cls := "legal-actions")(
+                  a(href := "#cookie-consent", cls := "button button-empty js-cookie-consent-open")("Manage Cookie Settings")
+                ),
+                p(cls := "legal-note")(
+                  "Cookie Settings control optional browser-side storage on your device. They do not delete account data stored on Chesstory's servers."
                 )
               ),
 
@@ -116,6 +138,11 @@ object privacy:
                 p(
                   "You can also manage some account information directly inside the Service, including email and password settings when available."
                 ),
+                p(
+                  "You can change optional browser storage choices at any time through ",
+                  a(href := "#cookie-consent", cls := "js-cookie-consent-open")("Cookie Settings"),
+                  "."
+                ),
                 contactEmail.fold[Frag](
                   p(
                     "For privacy or account requests, please use the ",
@@ -140,6 +167,8 @@ object privacy:
 
               footer(cls := "legal-footer")(
                 a(href := routes.Main.terms.url, cls := "legal-link")("Terms of Service"),
+                span(" • "),
+                a(href := "#cookie-consent", cls := "legal-link js-cookie-consent-open")("Cookie settings"),
                 span(" • "),
                 a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 span(" • "),

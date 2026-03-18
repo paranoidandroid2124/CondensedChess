@@ -5,6 +5,7 @@ import scala.util.control.NonFatal
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
+import com.roundeights.hasher.Algo
 import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, FullGameDraftNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface }
 import lila.llm.model.{ OpeningReference, ProbeResult }
 import lila.llm.model.structure.StructureId
@@ -59,10 +60,13 @@ final class LlmApi(
   private val ShadowWindowSize = 2000
   private val AsyncJobTtlMs = 24L * 60L * 60L * 1000L
   private val AsyncJobMaxSize = 256
+  private val RefinementGrantTtlMs = AsyncJobTtlMs
+  private val RefinementGrantMaxSize = 2048
   private val latencyWindowLock = new Object
   private var totalLatencyWindowMs = Vector.empty[Long]
   private var structureEvalLatencyWindowMs = Vector.empty[Long]
-  private val asyncJobs = scala.collection.concurrent.TrieMap.empty[String, AsyncGameAnalysisStatusResponse]
+  private val asyncJobs = scala.collection.concurrent.TrieMap.empty[String, AsyncGameAnalysisRecord]
+  private val refinementGrants = scala.collection.concurrent.TrieMap.empty[String, RefinementGrant]
   private val leakTokens = List("PA_MATCH", "PRECOND_MISS", "REQ_", "SUP_", "BLK_")
   private val PolishWindowSize = 200
   private val PolishCircuitCooldownMs = 10L * 60L * 1000L
@@ -139,6 +143,17 @@ final class LlmApi(
       cacheHit: Boolean,
       meta: Option[PolishMetaV1],
       promptUsages: List[(String, OpenAiPolishResult)] = Nil
+  )
+
+  private case class AsyncGameAnalysisRecord(
+      status: AsyncGameAnalysisStatusResponse,
+      statusToken: String
+  )
+
+  private case class RefinementGrant(
+      requesterKey: String,
+      pgnHash: String,
+      expiresAtMs: Long
   )
 
   private def incTransition(kind: String): Unit =
@@ -3884,19 +3899,26 @@ final class LlmApi(
       req: FullAnalysisRequest,
       allowLlmPolish: Boolean,
       lang: String,
+      refineToken: String,
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish
   ): AsyncGameAnalysisSubmitResponse =
     cleanupAsyncJobs()
     val jobId = UUID.randomUUID().toString.replace("-", "")
+    val statusToken = UUID.randomUUID().toString.replace("-", "")
     val now = System.currentTimeMillis()
+    val expiresAtMs = now + AsyncJobTtlMs
     asyncJobs.put(
       jobId,
-      AsyncGameAnalysisStatusResponse(
-        jobId = jobId,
-        status = "queued",
-        createdAtMs = now,
-        updatedAtMs = now
+      AsyncGameAnalysisRecord(
+        status = AsyncGameAnalysisStatusResponse(
+          jobId = jobId,
+          status = "queued",
+          createdAtMs = now,
+          updatedAtMs = now,
+          expiresAtMs = expiresAtMs
+        ),
+        statusToken = statusToken
       )
     )
     updateAsyncJob(jobId): current =>
@@ -3937,31 +3959,85 @@ final class LlmApi(
           error = Some(e.getMessage.take(240))
         )
     }
-    AsyncGameAnalysisSubmitResponse(jobId = jobId, status = "running")
+    AsyncGameAnalysisSubmitResponse(
+      jobId = jobId,
+      status = "running",
+      statusToken = statusToken,
+      refineToken = refineToken,
+      durability = AsyncGameAnalysisDurability.EphemeralMemory,
+      expiresAtMs = expiresAtMs
+    )
 
-  def getGameChronicleAsyncStatus(jobId: String): Option[AsyncGameAnalysisStatusResponse] =
+  def getGameChronicleAsyncStatus(
+      jobId: String,
+      statusToken: String
+  ): Option[AsyncGameAnalysisStatusResponse] =
     cleanupAsyncJobs()
-    asyncJobs.get(jobId)
+    asyncJobs.get(jobId).filter(_.statusToken == statusToken).map(_.status)
+
+  def issueGameChronicleRefinementToken(
+      requesterKey: String,
+      pgn: String
+  ): String =
+    cleanupRefinementGrants()
+    val token = UUID.randomUUID().toString.replace("-", "")
+    refinementGrants.put(
+      token,
+      RefinementGrant(
+        requesterKey = requesterKey,
+        pgnHash = hashNormalizedPgn(pgn),
+        expiresAtMs = System.currentTimeMillis() + RefinementGrantTtlMs
+      )
+    )
+    token
+
+  def consumeGameChronicleRefinementToken(
+      token: String,
+      requesterKey: String,
+      pgn: String
+  ): Boolean =
+    cleanupRefinementGrants()
+    refinementGrants.remove(token).exists { grant =>
+      grant.requesterKey == requesterKey &&
+      grant.pgnHash == hashNormalizedPgn(pgn) &&
+      grant.expiresAtMs >= System.currentTimeMillis()
+    }
 
   private def updateAsyncJob(
       jobId: String
   )(f: AsyncGameAnalysisStatusResponse => AsyncGameAnalysisStatusResponse): Unit =
-    asyncJobs.get(jobId).foreach { current =>
-      asyncJobs.update(jobId, f(current))
+    asyncJobs.get(jobId).foreach { record =>
+      asyncJobs.update(jobId, record.copy(status = f(record.status)))
     }
 
   private def cleanupAsyncJobs(): Unit =
     val now = System.currentTimeMillis()
-    asyncJobs.foreach { case (jobId, status) =>
-      if now - status.updatedAtMs > AsyncJobTtlMs then asyncJobs.remove(jobId)
+    asyncJobs.foreach { case (jobId, record) =>
+      if now - record.status.updatedAtMs > AsyncJobTtlMs then asyncJobs.remove(jobId)
     }
     val overflow = asyncJobs.size - AsyncJobMaxSize
     if overflow > 0 then
       asyncJobs
         .toList
-        .sortBy(_._2.updatedAtMs)
+        .sortBy(_._2.status.updatedAtMs)
         .take(overflow)
         .foreach { case (jobId, _) => asyncJobs.remove(jobId) }
+
+  private def cleanupRefinementGrants(): Unit =
+    val now = System.currentTimeMillis()
+    refinementGrants.foreach { case (token, grant) =>
+      if grant.expiresAtMs < now then refinementGrants.remove(token)
+    }
+    val overflow = refinementGrants.size - RefinementGrantMaxSize
+    if overflow > 0 then
+      refinementGrants
+        .toList
+        .sortBy(_._2.expiresAtMs)
+        .take(overflow)
+        .foreach { case (token, _) => refinementGrants.remove(token) }
+
+  private def hashNormalizedPgn(pgn: String): String =
+    Algo.sha256(Option(pgn).map(_.trim).getOrElse("")).hex
 
   private def normalizeProbeResultsByPly(
       entries: Option[List[ProbeResultsByPlyEntry]]

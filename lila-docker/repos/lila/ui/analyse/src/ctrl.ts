@@ -12,7 +12,8 @@ import type { CevalHandler, EvalMeta, CevalOpts } from 'lib/ceval';
 import { CevalCtrl, isEvalBetter, sanIrreversible } from 'lib/ceval';
 import { TreeView } from './treeView/treeView';
 import type { Prop, Toggle } from 'lib';
-import { defined, prop, toggle, debounce, throttle, requestIdleCallback, propWithEffect, myUserId, myUsername } from 'lib';
+import { defined, prop, toggle, throttle, requestIdleCallback, propWithEffect, myUserId, myUsername } from 'lib';
+import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { pubsub } from 'lib/pubsub';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import { lichessRules, scalachessCharPair } from 'chessops/compat';
@@ -85,6 +86,10 @@ const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
 const reviewReferenceTabs = new Set<ReviewReferenceTab>(['explorer', 'board', 'import']);
 const reviewMomentFilters = new Set<NarrativeMomentFilter>(['all', 'critical', 'collapses']);
 const boardLabelModes = new Set<BoardLabelMode>(['off', 'inside', 'rim', 'full']);
+
+interface AnalyseHistoryState {
+  analysePly: Ply;
+}
 
 function magicLinkHref(): string {
   return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -237,6 +242,7 @@ export default class AnalyseCtrl implements CevalHandler {
   cgConfig: any; // latest chessground config (useful for revert)
   pvUciQueue: Uci[] = [];
   private narrativeRouteOverlay: { fen: FEN; shapes: DrawShape[] } | null = null;
+  private restoringHistory = false;
 
   constructor(
     readonly opts: AnalyseOpts,
@@ -282,8 +288,10 @@ export default class AnalyseCtrl implements CevalHandler {
     if (location.hash === '#menu') requestIdleCallback(this.actionMenu.toggle, 500);
     this.startCeval();
     keyboard.bind(this);
+    this.installHistoryNavigation();
 
-    const urlEngine = new URLSearchParams(location.search).get('engine');
+    const url = new URL(window.location.href);
+    const urlEngine = url.searchParams.get('engine');
     if (urlEngine) {
       try {
         this.ceval.engines.select(urlEngine);
@@ -292,7 +300,8 @@ export default class AnalyseCtrl implements CevalHandler {
       } catch (e) {
         console.info(e);
       }
-      site.redirect('/analysis');
+      url.searchParams.delete('engine');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
 
     pubsub.on('jump', (ply: string) => {
@@ -578,8 +587,6 @@ export default class AnalyseCtrl implements CevalHandler {
       hashPly = loc.hash === '#last' ? this.tree.lastPly() : parseInt(loc.hash.slice(1)),
       startPly = hashPly >= 0 ? hashPly : this.opts.inlinePgn ? this.tree.lastPly() : undefined;
     if (defined(startPly)) {
-      // remove location hash - https://stackoverflow.com/questions/1397329/how-to-remove-the-hash-from-window-location-with-javascript-without-page-refresh/5298684#5298684
-      window.history.replaceState(null, '', loc.pathname + loc.search);
       this.requestInitialPly = startPly;
       const mainline = treeOps.mainlineNodeList(this.tree.root);
       return treeOps.takePathWhile(mainline, n => n.ply <= startPly);
@@ -720,14 +727,51 @@ export default class AnalyseCtrl implements CevalHandler {
     pubsub.emit('analysis.change', this.node.fen, this.path);
   });
 
-  private updateHref: () => void = debounce(() => {
-    if (!this.opts.study) window.history.replaceState(null, '', '#' + this.node.ply);
-  }, 750);
+  private installHistoryNavigation(): void {
+    if (this.opts.study) return;
+    this.syncHref('replace');
+    window.addEventListener('popstate', this.onHistoryPopState);
+  }
+
+  private hrefForPly(ply: Ply): string {
+    const base = `${window.location.pathname}${window.location.search}`;
+    return ply > this.tree.root.ply ? `${base}#${ply}` : base;
+  }
+
+  private syncHref(mode: 'replace' | 'push'): void {
+    if (this.opts.study || this.restoringHistory) return;
+    const url = this.hrefForPly(this.node.ply);
+    const state: AnalyseHistoryState = { analysePly: this.node.ply };
+    if (mode === 'push') {
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (current === url) window.history.replaceState(state, '', url);
+      else window.history.pushState(state, '', url);
+      return;
+    }
+    window.history.replaceState(state, '', url);
+  }
+
+  private onHistoryPopState = (event: PopStateEvent): void => {
+    if (this.opts.study) return;
+    const state = event.state as AnalyseHistoryState | null;
+    const ply = typeof state?.analysePly === 'number' ? state.analysePly : parseInt(window.location.hash.slice(1), 10);
+    const targetPath = this.mainlinePlyToPath(Number.isFinite(ply) && ply >= 0 ? ply : this.tree.root.ply);
+    if (targetPath === this.path) return;
+    this.restoringHistory = true;
+    try {
+      this.autoplay.stop();
+      this.withCg(cg => cg.selectSquare(null));
+      this.jump(targetPath);
+      this.redraw();
+    } finally {
+      this.restoringHistory = false;
+    }
+  };
 
   playedLastMoveMyself = () =>
     !!this.justPlayed && !!this.node.uci && this.node.uci.startsWith(this.justPlayed);
 
-  jump(path: Tree.Path): void {
+  jump(path: Tree.Path, historyMode: 'replace' | 'push' = 'replace'): void {
     const pathChanged = path !== this.path,
       isForwardStep = pathChanged && path.length === this.path.length + 2;
     if (this.path !== path)
@@ -742,7 +786,7 @@ export default class AnalyseCtrl implements CevalHandler {
     }
     this.justPlayed = this.justDropped = this.justCaptured = undefined;
     this.explorer.setNode();
-    this.updateHref();
+    this.syncHref(historyMode);
     this.promotion.cancel();
     pubsub.emit('ply', this.node.ply, this.tree.lastMainlineNode(this.path).ply === this.node.ply);
     this.showGround();
@@ -753,7 +797,7 @@ export default class AnalyseCtrl implements CevalHandler {
   userJump = (path: Tree.Path): void => {
     this.autoplay.stop();
     this.withCg(cg => cg.selectSquare(null));
-    this.jump(path);
+    this.jump(path, 'push');
   };
 
   canJumpTo = (_path: Tree.Path): boolean => true;
@@ -930,7 +974,7 @@ export default class AnalyseCtrl implements CevalHandler {
       return this.redraw();
     }
 
-    this.jump(newPath);
+    this.jump(newPath, 'push');
 
     this.redraw();
     const queuedUci = this.pvUciQueue.shift();
@@ -1582,14 +1626,14 @@ export default class AnalyseCtrl implements CevalHandler {
     this.narrative.toggle();
   };
 
-  openNarrative = async (): Promise<void> => {
+  openNarrative = async (pgnOverride?: string | null): Promise<void> => {
     if (!this.narrative) return;
     if (this.isReviewShell()) this.setReviewPrimaryTab('overview');
     else {
       this.actionMenu(false);
       this.explorer.disable();
     }
-    await this.narrative.openAndFetch();
+    await this.narrative.openAndFetch(pgnOverride);
   };
 
   withCg = <A>(f: (cg: ChessgroundApi) => A): A | undefined =>
@@ -1696,13 +1740,14 @@ export default class AnalyseCtrl implements CevalHandler {
   };
 
   private makeVariationOpacityProp(): Prop<number | false> {
-    let value = parseFloat(localStorage.getItem('analyse.variation-arrow-opacity') || '0');
+    const store = preferenceLocalStorage();
+    let value = parseFloat(store?.getItem('analyse.variation-arrow-opacity') || '0');
     if (isNaN(value) || value < -1 || value > 1) value = 0;
     return (v?: number | false) => {
       if (v === false) return value;
       if (v === undefined || isNaN(v)) return value > 0 ? value : false;
       value = Math.min(1, Math.max(-1, v));
-      localStorage.setItem('analyse.variation-arrow-opacity', value.toString());
+      store?.setItem('analyse.variation-arrow-opacity', value.toString());
       this.setAutoShapes();
       this.chessground.redrawAll();
       this.redraw();

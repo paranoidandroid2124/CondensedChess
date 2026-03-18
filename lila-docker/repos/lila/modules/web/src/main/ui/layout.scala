@@ -2,6 +2,7 @@ package lila.web
 package ui
 
 
+import lila.common.CookieConsent
 import lila.ui.*
 import ShellPrimitives.*
 
@@ -116,6 +117,30 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
       )
     )
 
+  private def themeChoice(currentBg: String) =
+    currentBg match
+      case "light"  => "light"
+      case "system" => "system"
+      case _        => "dark"
+
+  private def themeSwitch(using ctx: PageContext) =
+    val current = themeChoice(ctx.pref.currentBg)
+    val choices = List(
+      "light" -> "Light",
+      "dark" -> "Dark",
+      "system" -> "Auto"
+    )
+    div(cls := "site-theme-switch", role := "group", aria.label := "Theme")(
+      choices.map: (value, label) =>
+        button(
+          tpe := "button",
+          cls := "site-theme-switch__button js-theme-choice",
+          attr("data-theme-choice") := value,
+          attr("aria-pressed") := (value == current).toString,
+          title := s"Use ${if value == "system" then "device theme" else s"$label theme"}"
+        )(label)
+    )
+
   def scriptsPreload(keys: List[String]) =
     frag(cashTag, assetHelper.manifest.jsAndDeps("manifest" :: keys).map(jsTag))
 
@@ -181,9 +206,73 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
   }
 </style>"""
 
+  private def cookieConsentUi(using ctx: Context) =
+    val consent = CookieConsent.fromRequest(ctx.req)
+    div(
+      id := "cookie-consent",
+      cls := List(
+        "cookie-consent" -> true,
+        "cookie-consent--decided" -> consent.decided,
+        "cookie-consent--editing" -> !consent.decided
+      )
+    )(
+      button(
+        tpe := "button",
+        cls := "cookie-consent__manage js-cookie-consent-open",
+        aria.label := "Cookie settings"
+      )("Cookie settings"),
+      div(
+        cls := "cookie-consent__panel",
+        role := "dialog",
+        aria.label := "Cookie settings",
+        attr("aria-modal") := "true",
+        tabindex := -1
+      )(
+        div(cls := "cookie-consent__eyebrow")("Cookies & Storage"),
+        div(cls := "cookie-consent__head")(
+          h2("Choose what Chesstory stores on this device"),
+          button(
+            tpe := "button",
+            cls := "cookie-consent__close js-cookie-consent-close",
+            aria.label := "Close cookie settings"
+          )("Close")
+        ),
+        p(
+          "Essential cookies keep sign-in and security working. Optional preference storage remembers appearance choices and browser-side study or performance data."
+        ),
+        p(cls := "cookie-consent__note")(
+          "We do not currently use advertising cookies. Your consent choice is stored in an essential cookie so we remember it."
+        ),
+        div(cls := "cookie-consent__category")(
+          div(cls := "cookie-consent__copy")(
+            strong("Essential"),
+            span("Required for sign-in, security, and the consent record itself.")
+          ),
+          span(cls := "cookie-consent__status")("Always on")
+        ),
+        label(cls := "cookie-consent__category cookie-consent__category--toggle")(
+          div(cls := "cookie-consent__copy")(
+            strong("Preferences"),
+            span("Stores theme, zoom, study state, and performance caches in your browser.")
+          ),
+          input(
+            tpe := "checkbox",
+            cls := "js-cookie-consent-prefs",
+            if consent.preferencesAllowed then checked := true else emptyFrag
+          )
+        ),
+        div(cls := "cookie-consent__actions")(
+          button(tpe := "button", cls := "button button-metal js-cookie-consent-essential")("Essential only"),
+          button(tpe := "button", cls := "button button-empty js-cookie-consent-save")("Save choice"),
+          button(tpe := "button", cls := "button js-cookie-consent-accept")("Allow preferences")
+        )
+      )
+    )
+
   def bottomHtml(using ctx: Context) = frag(
     Option.when(netConfig.socketDomains.nonEmpty)(networkAlert),
-    spinnerMask
+    spinnerMask,
+    cookieConsentUi
   )
 
   def sitePreload(modules: EsmList)(using Context): Frag =
@@ -195,9 +284,9 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
 
     private val topnavToggle = spaceless:
       s"""
-<input type="checkbox" id="$navToggleId" class="$navToggleClass fullscreen-toggle" autocomplete="off" aria-label="Navigation">
+<input type="checkbox" id="$navToggleId" class="$navToggleClass fullscreen-toggle" autocomplete="off" aria-label="Navigation" tabindex="-1" aria-hidden="true">
 <label for="$navToggleId" class="fullscreen-mask"></label>
-<label for="$navToggleId" class="$burgerClass"><span class="$burgerInnerClass"></span></label>"""
+<button type="button" class="$burgerClass js-topnav-toggle" aria-controls="$navId" aria-expanded="false" aria-label="Open navigation"><span class="$burgerInnerClass"></span></button>"""
 
     private val siteNameFrag: Frag = frag(siteName)
 
@@ -221,6 +310,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
           ctx.blind.option(h2("Navigation"))
         ),
         div(cls := "site-buttons")(
+          themeSwitch(using ctx),
           (!isAppealUser).option(clinput),
           if isAppealUser then
             postForm(action := routes.Auth.logout):

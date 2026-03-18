@@ -47,5 +47,5 @@ trait RequestContext(using Executor):
       .restoreUser(req)
       .map:
         case Some(user) =>
-           LoginContext(Some(lila.api.Me(user)), needsFp = false, none)
+           LoginContext(Some(lila.api.Me(user)), none)
         case None => LoginContext.anon

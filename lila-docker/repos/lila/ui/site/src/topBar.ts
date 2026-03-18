@@ -11,6 +11,60 @@ export default function () {
     readShellSelectors();
   const top = document.getElementById(shellHeaderId);
   if (!top) return;
+  const navToggle = document.getElementById(shellNavToggleId) as HTMLInputElement | null;
+  const nav = document.getElementById(shellNavId);
+  const navButton = top.querySelector<HTMLButtonElement>('.js-topnav-toggle');
+  let lastNavFocus: HTMLElement | null = null;
+
+  const navFocusable = () =>
+    [navButton, ...Array.from(nav?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])].filter(
+      (element): element is HTMLElement =>
+        !!element && !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true',
+    );
+
+  const syncNavButton = (open: boolean) => {
+    navButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navButton?.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    nav?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (nav) (nav as HTMLElement & { inert?: boolean }).inert = !open;
+  };
+
+  const closeNav = (restoreFocus = true) => {
+    if (!navToggle?.checked) return;
+    navToggle.checked = false;
+    navToggle.dispatchEvent(new Event('change', { bubbles: true }));
+    if (restoreFocus) (lastNavFocus?.isConnected ? lastNavFocus : navButton)?.focus();
+  };
+
+  const focusFirstNavTarget = () => {
+    const [_, ...targets] = navFocusable();
+    (targets[0] || navButton)?.focus();
+  };
+
+  const handleNavKeydown = (event: KeyboardEvent) => {
+    if (!navToggle?.checked) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeNav();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusables = navFocusable();
+    if (!focusables.length) return;
+    const currentIndex = focusables.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = event.shiftKey
+      ? currentIndex <= 0
+        ? focusables.length - 1
+        : currentIndex - 1
+      : currentIndex === -1 || currentIndex >= focusables.length - 1
+        ? 0
+        : currentIndex + 1;
+    event.preventDefault();
+    focusables[nextIndex]?.focus();
+  };
+
+  syncNavButton(false);
+  document.addEventListener('keydown', handleNavKeydown);
 
 
 
@@ -26,14 +80,28 @@ export default function () {
 
   $(`#${shellNavToggleId}`).on('change', e => {
     const menuOpen = (e.target as HTMLInputElement).checked;
+    syncNavButton(menuOpen);
     if (menuOpen) {
+      lastNavFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       document.body.addEventListener('touchmove', blockBodyScroll, { passive: false });
       $(e.target).addClass('opened');
+      requestAnimationFrame(focusFirstNavTarget);
     } else {
       document.body.removeEventListener('touchmove', blockBodyScroll);
       setTimeout(() => $(e.target).removeClass('opened'), 200);
     }
     document.body.classList.toggle('masked', menuOpen);
+  });
+
+  navButton?.addEventListener('click', () => {
+    if (!navToggle) return;
+    navToggle.checked = !navToggle.checked;
+    navToggle.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  nav?.addEventListener('click', event => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('a[href]')) closeNav(false);
   });
 
   $(top).on('click', '.toggle', function (this: HTMLElement) {

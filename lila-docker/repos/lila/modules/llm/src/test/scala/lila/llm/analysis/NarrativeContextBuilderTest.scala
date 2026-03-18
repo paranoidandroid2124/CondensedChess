@@ -335,6 +335,18 @@ class NarrativeContextBuilderTest extends FunSuite {
 
     val currentData = minimalData().copy(
       fen = beforeFen,
+      compensation = Some(
+        Compensation(
+          investedMaterial = 300,
+          returnVector = Map(
+            "Initiative" -> 0.6,
+            "Line Pressure" -> 0.6,
+            "Delayed Recovery" -> 0.4
+          ),
+          expiryPly = None,
+          conversionPlan = "return vector through initiative and line pressure"
+        )
+      ),
       prevMove = Some("e5f4"),
       ply = 60,
       evalCp = -49,
@@ -371,6 +383,7 @@ class NarrativeContextBuilderTest extends FunSuite {
         renderMode = NarrativeRenderMode.Bookmaker
       )
 
+    assertEquals(narrativeCtx.semantic.flatMap(_.compensation), None)
     assertEquals(narrativeCtx.semantic.flatMap(_.afterCompensation), None)
 
     val digest = NarrativeSignalDigestBuilder.build(narrativeCtx)

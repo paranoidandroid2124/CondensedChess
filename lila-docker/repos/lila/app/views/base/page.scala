@@ -4,6 +4,7 @@ import scalalib.StringUtils.escapeHtmlRaw
 
 import lila.app.UiEnv.{ *, given }
 import lila.common.String.html.safeJsonValue
+import lila.common.CookieConsent
 import lila.ui.{ RenderedPage, PageFlags }
 import lila.web.ui.ShellPrimitives
 
@@ -34,10 +35,10 @@ object page:
   def apply(p: Page)(using ctx: lila.api.PageContext): RenderedPage =
     import ctx.pref
     val allModules: EsmList = p.modules ++
-      p.pageModule.fold(Nil)(module => esmPage(module.name)) ++
-      (if (ctx.needsFp) fingerprintTag else Nil)
+      p.pageModule.fold(Nil)(module => esmPage(module.name))
     val zenable = p.flags(PageFlags.zen)
     val playing = p.flags(PageFlags.playing)
+    val cookieConsent = CookieConsent.fromRequest(ctx.req)
     val pageFrag = frag(
       doctype,
       page.ui.htmlTag(
@@ -71,7 +72,7 @@ object page:
           ,
           noTranslate,
           p.openGraph.map(lila.web.ui.openGraph),
-          p.atomLinkTag | dailyNewsAtom,
+          p.atomLinkTag,
           (pref.bg == lila.pref.Pref.Bg.TRANSPARENT).option(pref.bgImgOrDefault).map { loc =>
             val url =
               if loc.startsWith("/assets/") then assetUrl(loc.drop(8))
@@ -108,6 +109,9 @@ object page:
           dataUser := ctx.userId,
           dataUsername := ctx.username,
           dataSoundSet := pref.currentSoundSet.toString,
+          attr("data-cookie-consent-decided") := (if cookieConsent.decided then "1" else "0"),
+          attr("data-cookie-consent-prefs") := (if cookieConsent.preferencesAllowed then "1" else "0"),
+          attr("data-cookie-consent-version") := CookieConsent.cookieVersion,
           attr("data-socket-domains") := netConfig.socketDomains.mkString(","),
           dataAssetUrl := netConfig.assetBaseUrl.value,
           dataAssetVersion := assetVersion,

@@ -66,7 +66,6 @@ class BrandingRenderTest extends FunSuite {
       override def embedJsUnsafe(code: String)(nonce: Option[lila.ui.Nonce]) = script(raw(code))
       override def preload(url: String, as: String, _crossOrigin: Boolean, tpe: Option[String]) = raw("") 
       override def iifeModule(path: String) = script(src := s"/assets/$path")
-      override def esmInit(_key: String, _name: String): Frag = raw("")
     }
 
     // Mock RequestHeader manually
@@ -140,7 +139,6 @@ class BrandingRenderTest extends FunSuite {
 
     implicit val pageCtx: PageContext = new PageContext {
        override val me = None 
-       val needsFp = false
        val impersonatedBy = None
        def teamNbRequests = 0
        def hasInquiry = false

@@ -596,7 +596,7 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
         hl('div.narrative-header', [
             hl('h2', [
                 hl('span.icon', { attrs: { ...dataIcon(licon.Book) } }),
-                'Narrative Analysis'
+                'Game Chronicle'
             ]),
             hl('button.button.button-empty.text', {
                 attrs: { 'aria-label': 'Close' },
@@ -630,7 +630,9 @@ export function narrativeView(ctrl: NarrativeCtrl): VNode | null {
         !ctrl.loading() && !ctrl.data() && hl('div.actions', [
             hl('div.narrative-disclosure', 'Game Chronicle runs a deeper on-device WASM scan and may take longer on large PGNs.'),
             hl('button.button.action', {
-                hook: bind('click', ctrl.fetchNarrative, ctrl.root.redraw)
+                hook: bind('click', () => {
+                    void ctrl.fetchNarrative();
+                }, ctrl.root.redraw)
             }, 'Run Game Chronicle')
         ])
     ]);
@@ -866,6 +868,54 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameChronicleResponse): VNod
         hl('section.narrative-conclusion', {
             attrs: { id: NARRATIVE_CONCLUSION_ANCHOR_ID },
         }, [hl('pre.narrative-prose', doc.conclusion)]),
+        narrativeBetaFeedbackView(ctrl),
+    ]);
+}
+
+function narrativeBetaFeedbackView(ctrl: NarrativeCtrl): VNode {
+    const submitted = ctrl.betaFeedbackSubmitted();
+    const loading = ctrl.betaFeedbackLoading();
+    const message = ctrl.betaFeedbackMessage();
+    return hl('section.narrative-feedback', [
+        hl('div.narrative-feedback__copy', [
+            hl('span.narrative-feedback__eyebrow', 'Open beta signal'),
+            hl('strong.narrative-feedback__title', 'Would you pay for deeper full-PGN analysis if this stayed useful?'),
+            hl(
+                'p.narrative-feedback__body',
+                submitted
+                    ? 'Your answer was stored for this open beta. If you want a launch email for paid plans later, join the waitlist below.'
+                    : 'We ask this after Game Chronicle finishes so pricing feedback comes after a real run, not before.',
+            ),
+        ]),
+        hl(
+            'div.narrative-feedback__actions',
+            submitted
+                ? [
+                    hl('span.narrative-feedback__saved', humanizeToken(submitted)),
+                    hl(
+                        'a.button.button-empty.narrative-feedback__waitlist',
+                        { attrs: { href: ctrl.betaFeedbackHref(true) } },
+                        'Join paid-plan waitlist',
+                    ),
+                ]
+                : ([
+                    ['would_pay', 'Would pay'],
+                    ['maybe', 'Maybe'],
+                    ['not_now', 'Not for now'],
+                ] as const).map(([value, label]) =>
+                    hl(
+                        'button.button.button-empty.narrative-feedback__choice',
+                        {
+                            attrs: { type: 'button', disabled: loading },
+                            hook: bind('click', () => {
+                                void ctrl.submitBetaFeedback(value);
+                            }, ctrl.root.redraw),
+                        },
+                        label,
+                    ),
+                ),
+        ),
+        message ? hl('p.narrative-feedback__message', message) : null,
     ]);
 }
 

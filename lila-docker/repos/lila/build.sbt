@@ -73,6 +73,9 @@ lazy val modules = Seq(
   // Analysis Core (Level 5-6)
   analyse,
   study,
+  accountintel,
+  strategicPuzzle,
+  beta,
   
   // Analysis Pipeline (Level 7)
   security,
@@ -167,12 +170,27 @@ lazy val study = module("study",
   tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 ).dependsOn(common % "test->test")
 
+lazy val accountintel = module("accountintel",
+  Seq(study, llm, memo, db, evalCache),
+  playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
+).dependsOn(common % "test->test")
+
+lazy val strategicPuzzle = module("strategicPuzzle",
+  Seq(db, memo),
+  tests.bundle
+)
+
+lazy val beta = module("beta",
+  Seq(db, user),
+  tests.bundle
+)
+
 // ============================================================
 // Analysis Pipeline Modules
 // ============================================================
 
 lazy val llm = module("llm",
-  Seq(db, memo),
+  Seq(db, memo, strategicPuzzle),
   playWs.bundle ++ tests.bundle
 )
 

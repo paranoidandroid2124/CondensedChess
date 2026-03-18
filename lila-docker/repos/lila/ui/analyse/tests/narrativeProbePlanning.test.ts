@@ -180,6 +180,33 @@ describe('Game Arc probe planning', () => {
     );
   });
 
+  test('tolerates null strategy-pack digests from Game Chronicle payloads', () => {
+    const bundles = collectGameArcProbeMomentBundles({
+      moments: [
+        {
+          ply: 22,
+          cpAfter: 31,
+          strategyPack: {
+            signalDigest: null,
+            longTermFocus: ['hold the bind before cashing out'],
+          },
+          probeRefinementRequests: [
+            {
+              id: 'probe-null-digest',
+              fen: 'fen-null-digest',
+              moves: ['c4c5'],
+              depth: 18,
+              purpose: 'latent_plan_refutation',
+            },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(bundles.length, 1);
+    assert.equal(bundles[0]?.requests[0]?.id, 'probe-null-digest');
+  });
+
   test('validateProbeResultAgainstRequest drops results that miss required signals', () => {
     const valid = validateProbeResultAgainstRequest(
       {

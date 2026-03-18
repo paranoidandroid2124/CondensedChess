@@ -116,6 +116,23 @@ $top-height: 3.2rem;
     border-top: $border;
   }
 
+  .pager {
+    display: grid;
+    justify-items: center;
+    gap: 0.7rem;
+    margin: 1.25rem auto 0;
+  }
+
+  .pager__status {
+    color: #cbbda5;
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
+  }
+
+  .pager__next {
+    min-width: 11.5rem;
+  }
+
   .nostudies {
     text-align: center;
     margin: 40px 0 80px;

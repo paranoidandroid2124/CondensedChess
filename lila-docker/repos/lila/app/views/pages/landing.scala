@@ -1,16 +1,41 @@
 package views.pages
 
+import lila.app.JournalContent
 import lila.app.UiEnv.{ *, given }
 import lila.ui.Page
 
 object landing:
 
-  def apply()(using ctx: Context): Page =
+  private def themeChoice(using ctx: Context) =
+    ctx.pref.currentBg match
+      case "light"  => "light"
+      case "system" => "system"
+      case _        => "dark"
+
+  private def themeSwitch(using ctx: Context) =
+    val current = themeChoice
+    div(cls := "landing-theme-switch", role := "group", aria.label := "Theme")(
+      List(
+        "light" -> "Light",
+        "dark" -> "Dark",
+        "system" -> "Auto"
+      ).map: (value, label) =>
+        button(
+          tpe := "button",
+          cls := "landing-theme-switch__button js-theme-choice",
+          attr("data-theme-choice") := value,
+          attr("aria-pressed") := (value == current).toString,
+          title := s"Use ${if value == "system" then "device theme" else s"$label theme"}"
+        )(label)
+    )
+
+  def apply(latestJournalPost: Option[JournalContent.Post])(using ctx: Context): Page =
     val samplePgn =
       "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 11. c4"
     val sampleAnalysisUrl = routes.UserAnalysis.pgn(samplePgn).url
     val lichessImportUrl = s"${routes.Importer.importGame.url}?provider=lichess"
     val chessComImportUrl = s"${routes.Importer.importGame.url}?provider=chesscom"
+    val accountIntelUrl = routes.AccountIntel.landing("", "").url
 
     Page("Chesstory - AI Chess Commentary")
       .css("landing")
@@ -28,10 +53,13 @@ object landing:
                 st.nav(cls := "section-nav", aria.label := "Landing sections")(
                   a(href := "#features", cls := "btn-text")("Features"),
                   a(href := "#sample-commentary", cls := "btn-text")("Sample"),
+                  a(href := accountIntelUrl, cls := "btn-text")("Account Intel"),
                   a(href := "#how-it-works", cls := "btn-text")("How it works"),
+                  a(href := routes.Main.journal.url, cls := "btn-text")("Journal"),
                   a(href := routes.Main.support.url, cls := "btn-text")("Support")
                 ),
                 div(cls := "auth-nav")(
+                  themeSwitch,
                   ctx.me match
                     case Some(me) =>
                       frag(
@@ -57,20 +85,23 @@ object landing:
                       span("or review the whole game.")
                     ),
                     p(cls := "hero-summary")(
-                      "Chesstory already has two real analysis paths: Bookmaker for on-demand move commentary, and Game Chronicle for full-game review with moments, repair windows, and pattern tracking."
+                      "Chesstory already has three real analysis surfaces: Bookmaker for on-demand move commentary, Game Chronicle for full-game review, and Account Intel for turning a public account into a reusable dossier."
                     ),
                     ul(cls := "hero-points")(
                       li("Ask for commentary on the current move only when you want it."),
                       li("Run a deeper review when you need turning points, repair windows, and patterns."),
+                      li("Open Account Intel when you want White/Black splits, recurring decisions, and opponent prep in one place."),
                       li("Keep the result in your study flow with imports, saved history, and study sync.")
                     ),
                     div(cls := "hero-modes", aria.label := "Product surfaces")(
                       span("Bookmaker"),
                       span("Game Chronicle"),
+                      span("Account Intel"),
                       span("Repair"),
                       span("Study Memory")
                     ),
                     div(cls := "hero-cta")(
+                      a(href := accountIntelUrl, cls := "btn-primary")("Open Account Intel"),
                       a(href := "#sample-commentary", cls := "btn-primary")("See Product Sample"),
                       a(href := routes.UserAnalysis.index.url, cls := "btn-secondary")("Start Analysis")
                     ),
@@ -84,6 +115,29 @@ object landing:
                     ),
                     p(cls := "hero-disclosure")(
                       "Bookmaker stays on demand. Game Chronicle runs deeper and can take longer on large PGNs."
+                    ),
+                    p(cls := "hero-disclosure hero-disclosure--feedback")(
+                      "Using a core surface now? ",
+                      a(
+                        href := routes.BetaFeedback.formPage(
+                          surface = "general",
+                          feature = "landing_page",
+                          entrypoint = "landing_page",
+                          returnTo = routes.Main.landing.url,
+                          notify = false
+                        ).url
+                      )("Share open beta feedback"),
+                      " or ",
+                      a(
+                        href := routes.BetaFeedback.formPage(
+                          surface = "general",
+                          feature = "paid_plan_waitlist",
+                          entrypoint = "landing_waitlist",
+                          returnTo = routes.Main.landing.url,
+                          notify = true
+                        ).url
+                      )("join the paid-plan waitlist"),
+                      "."
                     )
                   ),
                   div(
@@ -360,11 +414,59 @@ object landing:
                     )
                   )
                 )
+              ),
+              st.section(id := "journal", cls := "journal-preview-section landing-section")(
+                div(cls := "landing-container journal-preview-grid")(
+                  div(cls := "section-heading")(
+                    p(cls := "section-kicker")("From the journal"),
+                    h2("A place for product notes, updates, and the thinking behind Chesstory"),
+                    p(
+                      "We wanted a space inside the site for short posts about why the product exists, what changes, and what we are learning while building strategy-first analysis."
+                    )
+                  ),
+                  latestJournalPost.fold(
+                    st.article(cls := "journal-preview-card journal-preview-card--featured")(
+                      p(cls := "journal-preview-label")("Latest post"),
+                      h3("Journal posts will appear here"),
+                      p(cls := "journal-preview-summary")(
+                        "Once a markdown post is added on the server, this space can feature the latest note automatically."
+                      ),
+                      a(href := routes.Main.journal.url, cls := "btn-primary journal-preview-action")("Open Journal")
+                    )
+                  ): post =>
+                    st.article(cls := "journal-preview-card journal-preview-card--featured")(
+                      p(cls := "journal-preview-label")("Latest post"),
+                      h3(post.title),
+                      p(cls := "journal-preview-summary")(post.summary),
+                      div(cls := "journal-preview-meta")(
+                        span(post.publishedLabel),
+                        span(cls := "journal-preview-dot", aria.hidden := "true")("•"),
+                        span(post.readTime)
+                      ),
+                      div(cls := "journal-preview-tags")(
+                        post.tags.map(tag => span(tag))
+                      ),
+                      a(
+                        href := routes.Main.journalPost(post.slug).url,
+                        cls := "btn-primary journal-preview-action"
+                      )("Read Latest Post")
+                    ),
+                  st.article(cls := "journal-preview-card")(
+                    p(cls := "journal-preview-label")("What belongs there"),
+                    ul(cls := "journal-preview-list")(
+                      li("Founding notes that explain the problem we are trying to solve."),
+                      li("Shipping notes that make product changes easier to follow."),
+                      li("Working essays on plans, structures, and how strategy should be explained.")
+                    ),
+                    a(href := routes.Main.journal.url, cls := "btn-secondary journal-preview-action")("Open Journal")
+                  )
+                )
               )
             ),
             footer(cls := "landing-footer")(
               div(cls := "landing-container footer-links")(
                 span("© 2026 Chesstory"),
+                a(href := routes.Main.journal.url)("Journal"),
                 a(href := routes.Main.support.url)("Support"),
                 a(href := routes.Main.source.url)("Open Source"),
                 a(href := routes.Main.privacy.url)("Privacy"),

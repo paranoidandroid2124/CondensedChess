@@ -1,0 +1,110 @@
+name: gcp-openbeta
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git ref to deploy. Leave empty for the current ref.
+        required: false
+        type: string
+      service:
+        description: Override Cloud Run service name for this run.
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/gcp-openbeta.yml
+      - OPENBETA_GCP.md
+      - lila-docker/repos/lila/**
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-openbeta-${{ github.event.inputs.service || vars.CLOUD_RUN_SERVICE || 'chesstory-openbeta' }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+      CLOUD_RUN_SERVICE: ${{ github.event.inputs.service || vars.CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_IMAGE_NAME: ${{ vars.CLOUD_RUN_IMAGE_NAME || 'chesstory-openbeta' }}
+      CLOUD_RUN_FLAGS: ${{ vars.CLOUD_RUN_FLAGS }}
+    steps:
+      - name: Validate workflow configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GCP_PROJECT_ID}" || { echo "Missing repo variable GCP_PROJECT_ID"; exit 1; }
+          test -n "${GCP_REGION}" || { echo "Missing repo variable GCP_REGION"; exit 1; }
+          test -n "${GCP_ARTIFACT_REPOSITORY}" || { echo "Missing repo variable GCP_ARTIFACT_REPOSITORY"; exit 1; }
+          test -n "${CLOUD_RUN_SERVICE}" || { echo "Missing repo variable CLOUD_RUN_SERVICE"; exit 1; }
+          test -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" || { echo "Missing repo secret GCP_WORKLOAD_IDENTITY_PROVIDER"; exit 1; }
+          test -n "${{ secrets.GCP_SERVICE_ACCOUNT }}" || { echo "Missing repo secret GCP_SERVICE_ACCOUNT"; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || github.ref }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker auth for Artifact Registry
+        shell: bash
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image coordinates
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_uri="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/${CLOUD_RUN_IMAGE_NAME}:${GITHUB_SHA}"
+          echo "uri=${image_uri}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./lila-docker/repos/lila
+          file: ./lila-docker/repos/lila/Dockerfile.openbeta
+          push: true
+          tags: ${{ steps.image.outputs.uri }}
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ steps.image.outputs.uri }}
+          flags: >-
+            --allow-unauthenticated
+            --port=8080
+            --execution-environment=gen2
+            --quiet
+            ${{ env.CLOUD_RUN_FLAGS }}
+
+      - name: Show deployed URL
+        shell: bash
+        run: echo "Cloud Run URL: ${{ steps.deploy.outputs.url }}"

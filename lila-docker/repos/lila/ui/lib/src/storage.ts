@@ -1,9 +1,10 @@
 /* eslint no-restricted-syntax:"error" */ // no side effects allowed due to re-export by index.ts
 
 import { defined, notNull, type Prop, withEffect } from './common';
+import { preferenceLocalStorage, preferenceSessionStorage } from './cookieConsent';
 
-export const storage: ChesstoryStorageHelper = builder(window.localStorage);
-export const tempStorage: ChesstoryStorageHelper = builder(window.sessionStorage);
+export const storage: ChesstoryStorageHelper = builder(() => preferenceLocalStorage());
+export const tempStorage: ChesstoryStorageHelper = builder(() => preferenceSessionStorage());
 
 export interface StoredProp<V> extends Prop<V> {
   (replacement?: V): V;
@@ -83,7 +84,9 @@ export const storedJsonProp =
       storage.set(key, JSON.stringify(v));
       return v;
     }
-    const ret = JSON.parse(storage.get(key)!);
+    const raw = storage.get(key);
+    if (raw === null) return defaultValue();
+    const ret = JSON.parse(raw);
     return ret !== null ? ret : defaultValue();
   };
 
@@ -181,12 +184,12 @@ interface ChesstoryStorageEvent {
   value?: string;
 }
 
-function builder(storage: Storage): ChesstoryStorageHelper {
+function builder(storageGetter: () => Storage | null): ChesstoryStorageHelper {
   const api = {
-    get: (k: string): string | null => storage.getItem(k),
-    set: (k: string, v: string): void => storage.setItem(k, v),
+    get: (k: string): string | null => storageGetter()?.getItem(k) ?? null,
+    set: (k: string, v: string): void => storageGetter()?.setItem(k, v),
     fire: (k: string, v?: string) =>
-      storage.setItem(
+      storageGetter()?.setItem(
         k,
         JSON.stringify({
           sri: site.sri,
@@ -194,7 +197,7 @@ function builder(storage: Storage): ChesstoryStorageHelper {
           value: v,
         }),
       ),
-    remove: (k: string) => storage.removeItem(k),
+    remove: (k: string) => storageGetter()?.removeItem(k),
     make: (k: string, ttl?: number) => {
       const bdKey = ttl && `${k}--bd`;
       const remove = () => {
@@ -217,7 +220,8 @@ function builder(storage: Storage): ChesstoryStorageHelper {
         remove,
         listen: (f: (e: ChesstoryStorageEvent) => void) =>
           window.addEventListener('storage', e => {
-            if (e.key !== k || e.storageArea !== storage || e.newValue === null) return;
+            const storage = storageGetter();
+            if (!storage || e.key !== k || e.storageArea !== storage || e.newValue === null) return;
             let parsed: ChesstoryStorageEvent | null;
             try {
               parsed = JSON.parse(e.newValue);

@@ -174,25 +174,24 @@ object account:
 
   def pref(
       @unused user: User,
-      @unused form: play.api.data.Form[lila.pref.Pref],
-      @unused categSlug: String
+      @unused form: play.api.data.Form[lila.pref.Pref]
   )(using ctx: Context) =
     settingsPage("Preferences", "preferences"):
       val pref = ctx.pref
       frag(
         h2("Preferences"),
-        p(cls := "desc")("Appearance settings for Chesstory."),
+        p(cls := "desc")("Appearance and board settings for Chesstory."),
         hr,
         flashMessages,
         postForm(action := routes.Pref.formApply, cls := "account-form")(
           div(cls := "form-group")(
-            label(attr("for") := "bg")("Background"),
+            label(attr("for") := "bg")("Site theme"),
             select(id := "bg", name := "bg")(
               Pref.Bg.choices.map: (bg, labelText) =>
                 val v = Pref.Bg.asString.getOrElse(bg, "dark")
                 option(value := v, if v == pref.currentBg then selected := true else emptyFrag)(labelText)
             ),
-            p(cls := "help")("Controls the overall site background style.")
+            p(cls := "help")("Controls the overall site appearance, including light, dark, and device theme modes.")
           ),
           div(cls := "form-group")(
             label(attr("for") := "theme")("Board theme (2D)"),

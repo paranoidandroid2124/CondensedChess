@@ -11,10 +11,16 @@ import play.api.mvc.*
 import lila.app.{ *, given }
 import lila.analyse.CondensedJsonView
 import lila.core.game.Pov
-import lila.study.AccountNotebookBuilder
 import lila.study.StudyForm
 import lila.llm.model.strategic.VariationLine
 import lila.tree.Branch
+
+object Study:
+  private[controllers] def canonicalChapterRedirect(
+      requested: StudyChapterId,
+      actual: StudyChapterId
+  ): Option[StudyChapterId] =
+    Option.when(requested != actual)(actual)
 
 // Chesstory: Restored minimal Study pages (list + chapter view) without sockets.
 final class Study(
@@ -22,13 +28,6 @@ final class Study(
 ) extends LilaController(env):
 
   private val importPgnForm = Form(single("pgn" -> text))
-  private val createAccountNotebookForm = Form(
-    tuple(
-      "provider" -> nonEmptyText,
-      "username" -> nonEmptyText,
-      "kind" -> optional(nonEmptyText)
-    )
-  )
 
   private case class BookmakerSyncRequest(
       commentPath: String,
@@ -50,16 +49,8 @@ final class Study(
   private val notebookDossierSchemaV1 = "chesstory.notebook.dossier.v1"
   private val maxNotebookDossierChars = 200000
 
-  private def importerBackCall(provider: String, username: String) =
-    if provider == "chesscom" then routes.Importer.importFromChessCom(username)
-    else routes.Importer.importFromLichess(username)
-
-  private def notebookName(username: String, kind: AccountNotebookBuilder.ProductKind): lila.core.study.data.StudyName =
-    lila.study.Study.toName(
-      kind match
-        case AccountNotebookBuilder.ProductKind.MyAccountIntelligenceLite => s"$username notebook"
-        case AccountNotebookBuilder.ProductKind.OpponentPrep              => s"$username prep notebook"
-    )
+  private def mineLanding(page: Int = 1) =
+    routes.Study.mine(lila.study.Orders.default, page)
 
   private def branchFromUci(
       variant: chess.variant.Variant,
@@ -119,130 +110,163 @@ final class Study(
     if moves.isEmpty then funit
     else
       val variant = chapter.setup.variant
-      moves.foldLeft(fuccess((startPath, startFen))) { (acc, uciStr) =>
-        acc.flatMap { (path, fen) =>
-          branchFromUci(variant, fen, uciStr) match
-            case Left(_) => fuccess((path, fen))
-            case Right(branch) =>
-              env.study.api
-                .addNode(
-                  lila.study.AddNode(
-                    studyId = studyId,
-                    positionRef = lila.study.Position(chapter, path).ref,
-                    node = branch,
-                    opts = opts
+      moves
+        .foldLeft(fuccess((startPath, startFen))) { (acc, uciStr) =>
+          acc.flatMap { (path, fen) =>
+            branchFromUci(variant, fen, uciStr) match
+              case Left(_) => fuccess((path, fen))
+              case Right(branch) =>
+                env.study.api
+                  .addNode(
+                    lila.study.AddNode(
+                      studyId = studyId,
+                      positionRef = lila.study.Position(chapter, path).ref,
+                      node = branch,
+                      opts = opts
+                    )
                   )
-                )
-                .inject((path + branch.id, branch.fen))
+                  .inject((path + branch.id, branch.fen))
+          }
         }
-      }.inject(())
+        .inject(())
 
   def show(id: StudyId) = Open:
-    env.study.api.byIdWithChapter(id).flatMap:
-      _.fold(notFound): sc =>
-        if !sc.study.canView(ctx.me.map(_.userId)) then notFound
-        else Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)).toFuccess
+    env.study.api
+      .byIdWithChapter(id)
+      .flatMap:
+        _.fold(notFound): sc =>
+          if !sc.study.canView(ctx.me.map(_.userId)) then notFound
+          else Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)).toFuccess
 
   def chapter(id: StudyId, chapterId: StudyChapterId) = Open:
-    env.study.api.byIdWithChapterOrFallback(id, chapterId).flatMap:
-      _.fold(notFound): sc =>
-        if !sc.study.canView(ctx.me.map(_.userId)) then notFound
-        else
-          env.study.chapterRepo.idNames(sc.study.id).flatMap: chapters =>
-            val canWrite = ctx.me.exists(sc.study.canContribute)
-            val pov =
-              Pov(lila.core.game.Game.make(sc.chapter.setup.variant, sc.chapter.root.fen.some), sc.chapter.setup.orientation)
-            val data = CondensedJsonView(pov, sc.chapter.root, ctx.pref)
-            Ok.page(views.study.ui.chapter(data, sc.study, sc.chapter, canWrite, chapters))
+    env.study.api
+      .byIdWithChapterOrFallback(id, chapterId)
+      .flatMap:
+        _.fold(notFound): sc =>
+          if !sc.study.canView(ctx.me.map(_.userId)) then notFound
+          else if Study.canonicalChapterRedirect(chapterId, sc.chapter.id).nonEmpty then
+            Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)).toFuccess
+          else
+            env.study.chapterRepo
+              .idNames(sc.study.id)
+              .flatMap: chapters =>
+                val canWrite = ctx.me.exists(sc.study.canContribute)
+                val pov =
+                  Pov(
+                    lila.core.game.Game.make(sc.chapter.setup.variant, sc.chapter.root.fen.some),
+                    sc.chapter.setup.orientation
+                  )
+                val data = CondensedJsonView(pov, sc.chapter.root, ctx.pref)
+                Ok.page(views.study.ui.chapter(data, sc.study, sc.chapter, canWrite, chapters))
 
   def anaMove(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
-    ctx.body.body.asOpt[JsObject].fold(BadRequest("Invalid JSON").toFuccess): obj =>
-      env.study.api.byIdWithChapter(id, chapterId).flatMap:
-        _.fold(notFound): sc =>
-          if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-          else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
-          else
-            lila.study.AnaMove
-              .parse(obj)
-              .fold(BadRequest("Invalid move payload").toFuccess): req =>
-                val posNode = sc.chapter.root.nodeAt(req.path)
-                posNode.fold(BadRequest("Invalid path").toFuccess): parent =>
-                  val fixed = req.copy(variant = sc.chapter.setup.variant, fen = parent.fen, chapterId = chapterId.some)
-                  fixed.branch match
-                    case Left(err) => BadRequest(err.value).toFuccess
-                    case Right(branch) =>
-                      val opts = lila.study.MoveOpts.parse(obj)
-                      given lila.study.Who = lila.study.Who(me.userId)
-                      env.study.api
-                        .addNode(
-                          lila.study.AddNode(
-                            studyId = id,
-                            positionRef = lila.study.Position(sc.chapter, fixed.path).ref,
-                            node = branch,
-                            opts = opts
-                          )
-                        )
-                        .map: _ =>
-                          Ok(
-                            Json.obj(
-                              "ch" -> chapterId.value,
-                              "path" -> fixed.path.value,
-                              "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(branch)
+    ctx.body.body
+      .asOpt[JsObject]
+      .fold(BadRequest("Invalid JSON").toFuccess): obj =>
+        env.study.api
+          .byIdWithChapter(id, chapterId)
+          .flatMap:
+            _.fold(notFound): sc =>
+              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+              else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
+              else
+                lila.study.AnaMove
+                  .parse(obj)
+                  .fold(BadRequest("Invalid move payload").toFuccess): req =>
+                    val posNode = sc.chapter.root.nodeAt(req.path)
+                    posNode.fold(BadRequest("Invalid path").toFuccess): parent =>
+                      val fixed = req.copy(
+                        variant = sc.chapter.setup.variant,
+                        fen = parent.fen,
+                        chapterId = chapterId.some
+                      )
+                      fixed.branch match
+                        case Left(err) => BadRequest(err.value).toFuccess
+                        case Right(branch) =>
+                          val opts = lila.study.MoveOpts.parse(obj)
+                          given lila.study.Who = lila.study.Who(me.userId)
+                          env.study.api
+                            .addNode(
+                              lila.study.AddNode(
+                                studyId = id,
+                                positionRef = lila.study.Position(sc.chapter, fixed.path).ref,
+                                node = branch,
+                                opts = opts
+                              )
                             )
-                          )
+                            .map: _ =>
+                              Ok(
+                                Json.obj(
+                                  "ch" -> chapterId.value,
+                                  "path" -> fixed.path.value,
+                                  "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(branch)
+                                )
+                              )
   }
 
   def anaDrop(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
-    ctx.body.body.asOpt[JsObject].fold(BadRequest("Invalid JSON").toFuccess): obj =>
-      env.study.api.byIdWithChapter(id, chapterId).flatMap:
-        _.fold(notFound): sc =>
-          if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-          else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
-          else
-            lila.study.AnaDrop
-              .parse(obj)
-              .fold(BadRequest("Invalid drop payload").toFuccess): req =>
-                val posNode = sc.chapter.root.nodeAt(req.path)
-                posNode.fold(BadRequest("Invalid path").toFuccess): parent =>
-                  val fixed = req.copy(variant = sc.chapter.setup.variant, fen = parent.fen, chapterId = chapterId.some)
-                  fixed.branch match
-                    case Left(err) => BadRequest(err.value).toFuccess
-                    case Right(branch) =>
-                      val opts = lila.study.MoveOpts.parse(obj)
-                      given lila.study.Who = lila.study.Who(me.userId)
-                      env.study.api
-                        .addNode(
-                          lila.study.AddNode(
-                            studyId = id,
-                            positionRef = lila.study.Position(sc.chapter, fixed.path).ref,
-                            node = branch,
-                            opts = opts
-                          )
-                        )
-                        .map: _ =>
-                          Ok(
-                            Json.obj(
-                              "ch" -> chapterId.value,
-                              "path" -> fixed.path.value,
-                              "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(branch)
+    ctx.body.body
+      .asOpt[JsObject]
+      .fold(BadRequest("Invalid JSON").toFuccess): obj =>
+        env.study.api
+          .byIdWithChapter(id, chapterId)
+          .flatMap:
+            _.fold(notFound): sc =>
+              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+              else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
+              else
+                lila.study.AnaDrop
+                  .parse(obj)
+                  .fold(BadRequest("Invalid drop payload").toFuccess): req =>
+                    val posNode = sc.chapter.root.nodeAt(req.path)
+                    posNode.fold(BadRequest("Invalid path").toFuccess): parent =>
+                      val fixed = req.copy(
+                        variant = sc.chapter.setup.variant,
+                        fen = parent.fen,
+                        chapterId = chapterId.some
+                      )
+                      fixed.branch match
+                        case Left(err) => BadRequest(err.value).toFuccess
+                        case Right(branch) =>
+                          val opts = lila.study.MoveOpts.parse(obj)
+                          given lila.study.Who = lila.study.Who(me.userId)
+                          env.study.api
+                            .addNode(
+                              lila.study.AddNode(
+                                studyId = id,
+                                positionRef = lila.study.Position(sc.chapter, fixed.path).ref,
+                                node = branch,
+                                opts = opts
+                              )
                             )
-                          )
+                            .map: _ =>
+                              Ok(
+                                Json.obj(
+                                  "ch" -> chapterId.value,
+                                  "path" -> fixed.path.value,
+                                  "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(branch)
+                                )
+                              )
   }
 
   def deleteNode(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
-    ctx.body.body.asOpt[JsObject].flatMap(o => (o \ "path").asOpt[String]).fold(BadRequest("Missing path").toFuccess) {
-      pathStr =>
+    ctx.body.body
+      .asOpt[JsObject]
+      .flatMap(o => (o \ "path").asOpt[String])
+      .fold(BadRequest("Missing path").toFuccess) { pathStr =>
         val path = UciPath(pathStr)
         if path.isEmpty then BadRequest("Cannot delete root").toFuccess
         else
-          env.study.api.byIdWithChapter(id, chapterId).flatMap:
-            _.fold(notFound): sc =>
-              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-              else
-                env.study.api
-                  .deleteNodeAt(id, lila.study.Position(sc.chapter, path).ref)(lila.study.Who(me.userId))
-                  .inject(NoContent)
-    }
+          env.study.api
+            .byIdWithChapter(id, chapterId)
+            .flatMap:
+              _.fold(notFound): sc =>
+                if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+                else
+                  env.study.api
+                    .deleteNodeAt(id, lila.study.Position(sc.chapter, path).ref)(lila.study.Who(me.userId))
+                    .inject(NoContent)
+      }
   }
 
   def promoteNode(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
@@ -253,14 +277,16 @@ final class Study(
       val path = UciPath(p)
       if path.isEmpty then BadRequest("Invalid path").toFuccess
       else
-        env.study.api.byIdWithChapter(id, chapterId).flatMap:
-          _.fold(notFound): sc =>
-            if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-            else
-              given lila.study.Who = lila.study.Who(me.userId)
-              env.study.api
-                .promote(id, lila.study.Position(sc.chapter, path).ref, toMainline)
-                .inject(NoContent)
+        env.study.api
+          .byIdWithChapter(id, chapterId)
+          .flatMap:
+            _.fold(notFound): sc =>
+              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+              else
+                given lila.study.Who = lila.study.Who(me.userId)
+                env.study.api
+                  .promote(id, lila.study.Position(sc.chapter, path).ref, toMainline)
+                  .inject(NoContent)
   }
 
   def forceVariationNode(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
@@ -271,13 +297,17 @@ final class Study(
       val path = UciPath(p)
       if path.isEmpty then BadRequest("Invalid path").toFuccess
       else
-        env.study.api.byIdWithChapter(id, chapterId).flatMap:
-          _.fold(notFound): sc =>
-            if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-            else
-              env.study.api
-                .forceVariation(id, lila.study.Position(sc.chapter, path).ref, force)(lila.study.Who(me.userId))
-                .inject(NoContent)
+        env.study.api
+          .byIdWithChapter(id, chapterId)
+          .flatMap:
+            _.fold(notFound): sc =>
+              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+              else
+                env.study.api
+                  .forceVariation(id, lila.study.Position(sc.chapter, path).ref, force)(
+                    lila.study.Who(me.userId)
+                  )
+                  .inject(NoContent)
   }
 
   def setNodeComment(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
@@ -286,108 +316,132 @@ final class Study(
     val text = body.flatMap(o => (o \ "text").asOpt[String]).getOrElse("")
     pathStr.fold(BadRequest("Missing path").toFuccess): p =>
       val path = UciPath(p)
-      env.study.api.byIdWithChapter(id, chapterId).flatMap:
-        _.fold(notFound): sc =>
-          if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-          else
-            val comment = lila.tree.Node.Comment.sanitize(text)
-            env.study.api
-              .setComment(id, lila.study.Position(sc.chapter, path).ref, comment)(lila.study.Who(me.userId))
-              .flatMap: _ =>
-                env.study.chapterRepo.byIdAndStudy(chapterId, id).map:
-                  _.flatMap(_.root.nodeAt(path))
-                .map:
-                  case Some(node) =>
-                    Ok(
-                      Json.obj(
-                        "path" -> path.value,
-                        "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(node)
-                      )
-                    )
-                  case None => NotFound("Node not found")
+      env.study.api
+        .byIdWithChapter(id, chapterId)
+        .flatMap:
+          _.fold(notFound): sc =>
+            if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+            else
+              val comment = lila.tree.Node.Comment.sanitize(text)
+              env.study.api
+                .setComment(id, lila.study.Position(sc.chapter, path).ref, comment)(lila.study.Who(me.userId))
+                .flatMap: _ =>
+                  env.study.chapterRepo
+                    .byIdAndStudy(chapterId, id)
+                    .map:
+                      _.flatMap(_.root.nodeAt(path))
+                    .map:
+                      case Some(node) =>
+                        Ok(
+                          Json.obj(
+                            "path" -> path.value,
+                            "node" -> lila.tree.Node.defaultNodeJsonWriter.writes(node)
+                          )
+                        )
+                      case None => NotFound("Node not found")
   }
 
   def bookmakerSync(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
-    ctx.body.body.validate[BookmakerSyncRequest].fold(
-      errors => BadRequest(JsError.toJson(errors)).toFuccess,
-      req =>
-        env.study.api.byIdWithChapter(id, chapterId).flatMap:
-          _.fold(notFound): sc =>
-            if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-            else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
-            else
-              val originPath = UciPath(req.originPath)
-              val commentPath = UciPath(req.commentPath)
-              val originNodeOpt = sc.chapter.root.nodeAt(originPath)
-              val commentNodeOpt = sc.chapter.root.nodeAt(commentPath)
-              (originNodeOpt, commentNodeOpt) match
-                case (None, _) => BadRequest("Invalid origin path").toFuccess
-                case (_, None) => BadRequest("Invalid comment path").toFuccess
-                case (Some(originNode), Some(_)) =>
-                  val lines = req.maxLines.getOrElse(defaultPvLines).max(0).min(maxPvLines)
-                  val plies = req.maxPlies.getOrElse(defaultPvPlies).max(0).min(maxPvPlies)
-                  val pvMoves =
-                    req.variations
-                      .filter(_.moves.nonEmpty)
-                      .take(lines)
-                      .map(v => v.moves.take(plies))
+    ctx.body.body
+      .validate[BookmakerSyncRequest]
+      .fold(
+        errors => BadRequest(JsError.toJson(errors)).toFuccess,
+        req =>
+          env.study.api
+            .byIdWithChapter(id, chapterId)
+            .flatMap:
+              _.fold(notFound): sc =>
+                if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+                else if sc.chapter.isOverweight then BadRequest("Chapter is too big").toFuccess
+                else
+                  val originPath = UciPath(req.originPath)
+                  val commentPath = UciPath(req.commentPath)
+                  val originNodeOpt = sc.chapter.root.nodeAt(originPath)
+                  val commentNodeOpt = sc.chapter.root.nodeAt(commentPath)
+                  (originNodeOpt, commentNodeOpt) match
+                    case (None, _) => BadRequest("Invalid origin path").toFuccess
+                    case (_, None) => BadRequest("Invalid comment path").toFuccess
+                    case (Some(originNode), Some(_)) =>
+                      val lines = req.maxLines.getOrElse(defaultPvLines).max(0).min(maxPvLines)
+                      val plies = req.maxPlies.getOrElse(defaultPvPlies).max(0).min(maxPvPlies)
+                      val pvMoves =
+                        req.variations
+                          .filter(_.moves.nonEmpty)
+                          .take(lines)
+                          .map(v => v.moves.take(plies))
 
-                  val pvOpts = lila.study.MoveOpts(write = true, sticky = false, promoteToMainline = false)
-                  given lila.study.Who = lila.study.Who(me.userId)
+                      val pvOpts =
+                        lila.study.MoveOpts(write = true, sticky = false, promoteToMainline = false)
+                      given lila.study.Who = lila.study.Who(me.userId)
 
-                  val addAll = pvMoves.foldLeft(funit): (acc, moves) =>
-                    acc.flatMap(_ => insertPvLine(id, sc.chapter, originPath, originNode.fen, moves, pvOpts))
+                      val addAll = pvMoves.foldLeft(funit): (acc, moves) =>
+                        acc.flatMap(_ =>
+                          insertPvLine(id, sc.chapter, originPath, originNode.fen, moves, pvOpts)
+                        )
 
-                  val comment = lila.tree.Node.Comment.sanitize(req.commentary)
+                      val comment = lila.tree.Node.Comment.sanitize(req.commentary)
 
-                  addAll
-                    .flatMap(_ =>
-                      env.study.api.setExternalComment(id, lila.study.Position(sc.chapter, commentPath).ref, comment, aiAuthor)(
-                        summon[lila.study.Who]
-                      )
-                    )
-                    .inject(NoContent)
-     )
+                      addAll
+                        .flatMap(_ =>
+                          env.study.api.setExternalComment(
+                            id,
+                            lila.study.Position(sc.chapter, commentPath).ref,
+                            comment,
+                            aiAuthor
+                          )(
+                            summon[lila.study.Who]
+                          )
+                        )
+                        .inject(NoContent)
+      )
   }
 
   def setNotebookDossier(id: StudyId) = AuthBody(parse.json) { ctx ?=> me ?=>
-    ctx.body.body.asOpt[JsObject].fold(BadRequest("Invalid JSON").toFuccess): dossier =>
-      val serialized = Json.stringify(dossier)
-      if serialized.length > maxNotebookDossierChars then BadRequest("Notebook dossier is too large").toFuccess
-      else
-        (dossier \ "schema").asOpt[String] match
-          case Some(`notebookDossierSchemaV1`) =>
-            env.study.api.byId(id).flatMap:
-              case None => notFound
-              case Some(study) if !study.canContribute(me) => Forbidden("No permission").toFuccess
-              case Some(_) =>
-                env.study.api
-                  .setNotebookDossier(id, serialized.some)(lila.study.Who(me.userId))
-                  .inject(Ok(Json.obj("ok" -> true)))
-          case Some(_) => BadRequest("Invalid notebook dossier schema").toFuccess
-          case None => BadRequest("Missing notebook dossier schema").toFuccess
+    ctx.body.body
+      .asOpt[JsObject]
+      .fold(BadRequest("Invalid JSON").toFuccess): dossier =>
+        val serialized = Json.stringify(dossier)
+        if serialized.length > maxNotebookDossierChars then
+          BadRequest("Notebook dossier is too large").toFuccess
+        else
+          (dossier \ "schema").asOpt[String] match
+            case Some(`notebookDossierSchemaV1`) =>
+              env.study.api
+                .byId(id)
+                .flatMap:
+                  case None => notFound
+                  case Some(study) if !study.canContribute(me) => Forbidden("No permission").toFuccess
+                  case Some(_) =>
+                    env.study.api
+                      .setNotebookDossier(id, serialized.some)(lila.study.Who(me.userId))
+                      .inject(Ok(Json.obj("ok" -> true)))
+            case Some(_) => BadRequest("Invalid notebook dossier schema").toFuccess
+            case None => BadRequest("Missing notebook dossier schema").toFuccess
   }
 
   def importPgn(id: StudyId, chapterId: StudyChapterId) = AuthBody { ctx ?=> me ?=>
     bindForm(importPgnForm)(
       _ => BadRequest("Invalid PGN").toFuccess,
       pgnRaw =>
-        env.study.api.byIdWithChapter(id, chapterId).flatMap:
-          _.fold(notFound): sc =>
-            if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
-            else
-              val pgn = pgnRaw.trim
-              val parsed =
-                if pgn.isEmpty then Right(lila.tree.Root.default(sc.chapter.setup.variant) -> sc.chapter.setup.variant)
-                else lila.study.StudyPgnImport.result(PgnStr(pgn), Nil).map(res => res.root -> res.variant)
-              parsed match
-                case Left(err) => BadRequest(err.value).toFuccess
-                case Right((root, variant)) =>
-                  env.study.api
-                    .resetRoot(id, chapterId, root, variant)(lila.study.Who(me.userId))
-                    .flatMap:
-                      case Some(_) => NoContent.toFuccess
-                      case None => notFound
+        env.study.api
+          .byIdWithChapter(id, chapterId)
+          .flatMap:
+            _.fold(notFound): sc =>
+              if !sc.study.canContribute(me) then Forbidden("No permission").toFuccess
+              else
+                val pgn = pgnRaw.trim
+                val parsed =
+                  if pgn.isEmpty then
+                    Right(lila.tree.Root.default(sc.chapter.setup.variant) -> sc.chapter.setup.variant)
+                  else lila.study.StudyPgnImport.result(PgnStr(pgn), Nil).map(res => res.root -> res.variant)
+                parsed match
+                  case Left(err) => BadRequest(err.value).toFuccess
+                  case Right((root, variant)) =>
+                    env.study.api
+                      .resetRoot(id, chapterId, root, variant)(lila.study.Who(me.userId))
+                      .flatMap:
+                        case Some(_) => NoContent.toFuccess
+                        case None => notFound
     )
   }
 
@@ -395,14 +449,15 @@ final class Study(
     bindForm(StudyForm.importGame.form)(
       err =>
         negotiate(
-          Redirect(routes.User.show(me.username)),
+          Redirect(mineLanding()).flashing("error" -> "Invalid notebook request."),
           badJsonFormError(err)
         ),
       data =>
         data.gameId match
           case Some(_) =>
             negotiate(
-              Redirect(routes.User.show(me.username)).flashing("error" -> "Game import is disabled in this deployment."),
+              Redirect(mineLanding())
+                .flashing("error" -> "Game import is disabled in this deployment."),
               BadRequest(jsonError("game import disabled"))
             )
           case None =>
@@ -431,91 +486,40 @@ final class Study(
                 )
               case _ =>
                 negotiate(
-                  Redirect(routes.User.show(me.username)),
+                  Redirect(mineLanding()).flashing("error" -> "Notebook creation failed."),
                   BadRequest(jsonError("Notebook creation failed"))
                 )
             }
     )
   }
 
-  def createAccountNotebook = AuthBody { ctx ?=> me ?=>
-    bindForm(createAccountNotebookForm)(
-      _ =>
-        negotiate(
-          Redirect(routes.Importer.importGame).flashing("error" -> "Invalid account notebook request."),
-          BadRequest(jsonError("invalid account notebook request"))
-        ),
-      data =>
-        val provider = data._1.trim.toLowerCase
-        val username = data._2.trim
-        val kindKey = data._3.getOrElse(AccountNotebookBuilder.ProductKind.MyAccountIntelligenceLite.key)
-        val back = importerBackCall(provider, username)
-        AccountNotebookBuilder.ProductKind.fromKey(kindKey).fold(
-          negotiate(
-            Redirect(back).flashing("error" -> "Invalid notebook kind."),
-            BadRequest(jsonError("invalid notebook kind"))
-          )
-        ) { kind =>
-          env.analyse.importHistory.recordAccountSearch(me.userId, provider, username) >>
-            env.study.accountNotebookBuilder.build(provider, username, kind).flatMap {
-              case Left(err) =>
-                negotiate(
-                  Redirect(back).flashing("error" -> err),
-                  BadRequest(jsonError(err))
-                )
-              case Right(built) =>
-                val importData = lila.study.StudyMaker.ImportGame(
-                  form = StudyForm.importGame.Data(
-                    pgnStr = Some(built.representativePgn),
-                    asStr = Some("study")
-                  ),
-                  name = Some(notebookName(username, kind))
-                )
-                env.study.api.importGame(importData, me, true).flatMap {
-                  case Some(sc) =>
-                    env.study.api
-                      .setNotebookDossier(sc.study.id, Some(Json.stringify(built.dossier)))(lila.study.Who(me.userId))
-                      .flatMap { _ =>
-                        negotiate(
-                          Redirect(routes.Study.chapter(sc.study.id, sc.chapter.id)),
-                          JsonOk(
-                            Json.obj(
-                              "id" -> sc.study.id.value,
-                              "chapterId" -> sc.chapter.id.value,
-                              "url" -> routes.Study.chapter(sc.study.id, sc.chapter.id).url,
-                              "sampledGameCount" -> built.sampledGameCount,
-                              "warnings" -> built.warnings
-                            )
-                          )
-                        )
-                      }
-                  case None =>
-                    negotiate(
-                      Redirect(back).flashing("error" -> "Notebook creation failed."),
-                      BadRequest(jsonError("notebook creation failed"))
-                    )
-                }
-            }
-        }
-    )
+  def createAs = Auth { _ ?=> _ ?=>
+    Redirect(mineLanding()).toFuccess
   }
-
-  def createAs = create
 
   def delete(id: StudyId) = Auth { _ ?=> me ?=>
     env.study.api.byIdAndOwnerOrAdmin(id, me).flatMap {
-      case Some(study) => env.study.api.delete(study).inject(Redirect(routes.User.show(me.username)))
+      case Some(study) =>
+        env.study.api
+          .delete(study)
+          .inject(Redirect(mineLanding()).flashing("success" -> "Notebook deleted."))
       case _ => notFound
     }
   }
 
   def allDefault(page: Int = 1) = all(lila.study.Orders.default, page)
   def all(order: lila.core.study.StudyOrder, page: Int) = Open:
-    env.study.pager.all(order, page)(using ctx.me).flatMap: pag =>
-      Ok.page(views.study.ui.all(pag, order))
+    env.study.pager
+      .all(order, page)(using ctx.me)
+      .flatMap: pag =>
+        Ok.page(views.study.ui.all(pag, order))
   def byOwner(username: UserStr, order: lila.core.study.StudyOrder, page: Int) = Open:
-    Redirect(routes.UserAnalysis.index.url + s"?study=1&owner=${username.value}&order=$order&page=$page").toFuccess
+    Redirect(
+      routes.UserAnalysis.index.url + s"?study=1&owner=${username.value}&order=$order&page=$page"
+    ).toFuccess
   def mine(order: lila.core.study.StudyOrder, page: Int) = Auth { _ ?=> me ?=>
-    env.study.pager.mine(order, page).flatMap: pag =>
-      Ok.page(views.study.ui.mine(pag, order))
+    env.study.pager
+      .mine(order, page)
+      .flatMap: pag =>
+        Ok.page(views.study.ui.mine(pag, order))
   }

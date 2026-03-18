@@ -31,15 +31,9 @@ final class SecurityApi(
       req,
       apiVersion,
       up = true,
-      fp = Option.empty,
       proxy = lila.core.security.IsProxy.empty,
       pwned = pwned.yes
     ) >> Future.successful(sid)
-
-  def setFingerPrint(req: play.api.mvc.RequestHeader, fp: FingerPrint): Funit =
-    reqSessionId(req).fold(Future.unit) { sid =>
-      sessionStore.setFingerPrint(sid, fp).void
-    }
 
   object appeal:
     def saveAuthentication(userId: lila.core.userId.UserId)(using req: play.api.mvc.RequestHeader): Fu[SessionId] =
@@ -50,7 +44,6 @@ final class SecurityApi(
         req,
         apiVersion = Option.empty,
         up = true,
-        fp = Option.empty,
         proxy = lila.core.security.IsProxy.empty,
         pwned = false
       ) >> Future.successful(sid)

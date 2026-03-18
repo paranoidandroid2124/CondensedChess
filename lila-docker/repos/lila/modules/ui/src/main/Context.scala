@@ -36,7 +36,6 @@ object Context:
 /* data necessary to render the lichess website layout */
 trait PageContext extends Context:
   val me: Option[Me]
-  val needsFp: Boolean
   val impersonatedBy: Option[lila.core.userId.ModId]
   def teamNbRequests: Int
   def hasInquiry: Boolean

@@ -730,5 +730,14 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.toLowerCase.contains("compensation")), clue(pack.longTermFocus))
     val surface = StrategyPackSurface.from(Some(pack))
     assert(surface.normalizationActive, clue(surface.displayNormalization))
-    assert(pack.longTermFocus.headOption.exists(_.toLowerCase.contains("central files")), clue(pack.longTermFocus))
+    assert(
+      pack.longTermFocus.headOption.exists(text =>
+        text.toLowerCase.contains("central targets") || text.toLowerCase.contains("central files")
+      ),
+      clue(pack.longTermFocus)
+    )
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("center/target_fixing/intentionally_deferred/durable_pressure")
+    )
   }

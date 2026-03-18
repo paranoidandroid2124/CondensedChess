@@ -65,9 +65,12 @@ SUPPORT_BMC_URL=
 ```
 
 ### Deployment Automation
-Production auto-deploy scripts and scheduler wrappers are maintained outside the
-public repository. Use the documented Docker commands in this README for local
-development and manage deployment automation in your private ops repository.
+Open-beta deployment is now repo-contained via GCP / Cloud Run.
+
+- Workflow: [../.github/workflows/gcp-openbeta.yml](../.github/workflows/gcp-openbeta.yml)
+- Bootstrap guide: [../OPENBETA_GCP.md](../OPENBETA_GCP.md)
+
+Use this README for local Docker development. Use the GCP workflow and guide for open-beta deployment.
 
 ### Prod-Like Runtime (No `sbt run`)
 To run `lila` with Play stage binaries (Prod mode) instead of dev hot-reload:

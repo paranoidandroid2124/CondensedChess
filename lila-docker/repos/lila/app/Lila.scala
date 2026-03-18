@@ -114,17 +114,20 @@ final class LilaComponents(
   lazy val devAssetsController =
     given FileMimeTypes = fileMimeTypes
     wire[ExternalAssets]
-  
+
   // Core controllers only
   lazy val account: Account = wire[Account]
+  lazy val accountIntel: AccountIntel = wire[AccountIntel]
   lazy val analyse: Analyse = wire[Analyse]
   lazy val auth: Auth = wire[Auth]
+  lazy val betaFeedback: BetaFeedback = wire[BetaFeedback]
   lazy val editor: Editor = wire[Editor]
   lazy val explorerProxy: ExplorerProxy = wire[ExplorerProxy]
   lazy val importer: Importer = wire[Importer]
   lazy val main: Main = wire[Main]
   lazy val ops: Ops = wire[Ops]
   lazy val pref: Pref = wire[Pref]
+  lazy val strategicPuzzle: StrategicPuzzle = wire[StrategicPuzzle]
   lazy val study: Study = wire[Study]
   lazy val user: User = wire[User]
   lazy val userAnalysis: UserAnalysis = wire[UserAnalysis]

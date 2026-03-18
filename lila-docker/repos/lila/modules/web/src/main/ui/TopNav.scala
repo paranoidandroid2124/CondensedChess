@@ -24,8 +24,12 @@ case class TopNav(helpers: Helpers):
     st.nav(id := navId)(
       ul(cls := navMainClass)(
         item("/", "Home", ctx.req.path == "/"),
-        item("/support", "Support", isOn("/support") || isOn("/plan")),
+        item("/journal", "Journal", isOn("/journal")),
+        item("/analysis", "Analysis", isOn("/analysis")),
+        item("/strategic-puzzle", "Strategic Puzzles", isOn("/strategic-puzzle")),
         item("/notebook", "Notebook", isOn("/notebook")),
-        item("/analysis", "Analysis", isOn("/analysis"))
+        item("/import", "Import", isOn("/import")),
+        item("/account-intel", "Account Intel", isOn("/account-intel")),
+        item("/support", "Support", isOn("/support") || isOn("/plan"))
       )
     )

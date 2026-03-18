@@ -2604,7 +2604,7 @@ private[llm] object StrategicIdeaSelector:
             )
         val compensationDigestPhaseEligible =
           isCompensationEligiblePhase(semantic) ||
-            semantic.afterCompensation.isDefined ||
+            semantic.effectiveCompensation.isDefined ||
             transformationCarrier ||
             establishedPressureCarrier
         Option.when(compensationDigestPhaseEligible) {
@@ -2659,16 +2659,6 @@ private[llm] object StrategicIdeaSelector:
               Option.when(delayedRecoveryCarrier)("delayed recovery")
             ).flatten
         val investedMaterial = Some(math.abs(materialEdgeFor(owner, features)) * 100).filter(_ > 0)
-        val thinReturnVectorOnly =
-          returnVectorCarrier &&
-            summaryTerms.isEmpty &&
-            !semantic.phase.equalsIgnoreCase("opening")
-        val lateTechnicalEndgameCompensation =
-          semantic.phase.equalsIgnoreCase("endgame") &&
-            investedMaterial.exists(_ >= 500) &&
-            !initiativeCarrier &&
-            !linePressureCarrier &&
-            !delayedRecoveryCarrier
 
         val summary =
           summaryTerms.distinct.take(2) match
@@ -2716,7 +2706,16 @@ private[llm] object StrategicIdeaSelector:
           ).flatten.distinct
 
         val carrier = DerivedCompensationCarrier(summary, vectors, investedMaterial)
-        Option.when(carrier.hasSignal && !thinReturnVectorOnly && !lateTechnicalEndgameCompensation)(carrier)
+        val interpretation =
+          CompensationInterpretation.derivedDecision(
+            summary = carrier.summary,
+            vectors = carrier.vectors,
+            investedMaterial = carrier.investedMaterial,
+            phase = semantic.phase,
+            fenBefore = semantic.fen,
+            playedMove = semantic.playedMove
+          )
+        Option.when(carrier.hasSignal && interpretation.exists(_.accepted))(carrier)
         }.flatten
       }
 

@@ -2,6 +2,7 @@ package lila.ui
 
 import lila.ui.ScalatagsTemplate.*
 import lila.core.data.Url
+import scala.annotation.unused
 
 trait AssetHelper:
   def assetUrl(path: String): String = s"/assets/$path"
@@ -18,7 +19,6 @@ trait AssetHelper:
   def netBaseUrl: String = ""
   def embedJsUnsafe(code: String)(nonce: Option[Nonce]): Frag = 
     nonce.fold(script(raw(code)))(n => script(attr("nonce") := n.value, raw(code)))
-  def preload(url: String, as: String, _crossOrigin: Boolean, tpe: Option[String]): Frag =
+  def preload(url: String, as: String, @unused crossOrigin: Boolean, tpe: Option[String]): Frag =
     link(rel := "preload", href := url, attr("as") := as, tpe.map(t => attr("type") := t))
-  def esmInit(_key: String, _name: String): Frag = raw("")
   def iifeModule(path: String): Frag = script(src := assetUrl(path))

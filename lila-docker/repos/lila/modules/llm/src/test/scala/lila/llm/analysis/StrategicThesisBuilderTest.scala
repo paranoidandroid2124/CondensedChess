@@ -220,6 +220,534 @@ class StrategicThesisBuilderTest extends FunSuite:
       )
     )
 
+  private def targetDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_center_line",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("d4", "e4"),
+          focusFiles = List("d", "e"),
+          focusZone = Some("center"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.83
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "Q",
+          from = "d1",
+          route = List("d1", "d5"),
+          purpose = "file pressure",
+          strategicFit = 0.8,
+          tacticalSafety = 0.76,
+          surfaceConfidence = 0.79,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "B",
+          from = "e3",
+          target = "d4",
+          idea = "contest the pawn on d4",
+          evidence = List("target_pawn")
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_d4",
+          ownerSide = "white",
+          piece = "Q",
+          from = "d1",
+          targetSquare = "d4",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("weak pawn")
+        )
+      ),
+      longTermFocus = List("keep the fixed central targets under pressure before recovering material"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("d4, e4")
+        )
+      )
+    )
+
+  private def kingsideDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_center_line_support",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("d4", "e5"),
+          focusFiles = List("d", "e"),
+          focusZone = Some("center"),
+          beneficiaryPieces = List("R", "Q"),
+          confidence = 0.81
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "d1",
+          route = List("d1", "f1", "f5"),
+          purpose = "kingside clamp",
+          strategicFit = 0.82,
+          tacticalSafety = 0.75,
+          surfaceConfidence = 0.8,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      longTermFocus = List("keep the line pressure durable before recovering material"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through initiative and line pressure"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.5)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("d4, e5")
+        )
+      )
+    )
+
+  private def focusTargetDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_center_file_shell",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("d4", "e5"),
+          focusFiles = List("d", "e"),
+          focusZone = Some("center"),
+          beneficiaryPieces = List("R", "N"),
+          confidence = 0.81
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "black",
+          piece = "R",
+          from = "e8",
+          route = List("e8", "d8", "d4"),
+          purpose = "open-file occupation",
+          strategicFit = 0.82,
+          tacticalSafety = 0.76,
+          surfaceConfidence = 0.79,
+          surfaceMode = RouteSurfaceMode.Toward
+        ),
+        StrategyPieceRoute(
+          ownerSide = "black",
+          piece = "R",
+          from = "h8",
+          route = List("h8", "d8", "d3"),
+          purpose = "open-file occupation",
+          strategicFit = 0.8,
+          tacticalSafety = 0.75,
+          surfaceConfidence = 0.78,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "black",
+          piece = "N",
+          from = "f7",
+          target = "e5",
+          idea = "contest the pawn on e5",
+          evidence = List("target_pawn")
+        ),
+        StrategyPieceMoveRef(
+          ownerSide = "black",
+          piece = "N",
+          from = "f6",
+          target = "d4",
+          idea = "contest the pawn on d4",
+          evidence = List("target_pawn")
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_d4",
+          ownerSide = "black",
+          piece = "R",
+          from = "e8",
+          targetSquare = "d4",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("line access", "central foothold")
+        )
+      ),
+      longTermFocus = List("keep the central targets fixed before recovering material"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.6)", "Delayed Recovery (0.6)", "Fixed Targets (0.4)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("d4, e5")
+        )
+      )
+    )
+
+  private def transitionRescueDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_trade_then_pressure",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("e3", "e4"),
+          focusFiles = List("d", "e"),
+          focusZone = Some("center"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.79
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_d3",
+          ownerSide = "black",
+          piece = "Q",
+          from = "f5",
+          targetSquare = "d3",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("central foothold", "line access")
+        ),
+        StrategyDirectionalTarget(
+          targetId = "target_d6",
+          ownerSide = "black",
+          piece = "R",
+          from = "c8",
+          targetSquare = "d6",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("central foothold", "line access")
+        )
+      ),
+      longTermFocus = List("keep the transition under control while delaying recovery"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through delayed recovery"),
+          compensationVectors = List("Delayed Recovery (0.5)", "Return Vector (0.5)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.FavorableTradeOrTransformation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("e3, e4")
+        )
+      )
+    )
+
+  private def lateTargetRescueDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_queenside_attack_shell",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = "dynamic_attack",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("f6"),
+          focusFiles = List("f"),
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.83
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "a1",
+          route = List("a1", "a3", "d3"),
+          purpose = "kingside clamp",
+          strategicFit = 0.81,
+          tacticalSafety = 0.76,
+          surfaceConfidence = 0.78,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "N",
+          from = "c4",
+          target = "b3",
+          idea = "contest the pawn on b3",
+          evidence = List("target_pawn")
+        )
+      ),
+      longTermFocus = List("keeping the queenside files under pressure before cashing out"),
+      evidence = List("dominant_thesis: durable queenside file pressure"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          strategicStack = List("1. Attacking fixed Pawn (0.80)"),
+          latentPlan = Some("Attacking fixed Pawn"),
+          decisionComparison = Some(
+            DecisionComparisonDigest(
+              evidence = Some("Further probe work still targets Attacking fixed Pawn through b3 and f3.")
+            )
+          ),
+          compensation = Some("return vector through initiative and line pressure"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some("dynamic_attack"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("f6")
+        )
+      )
+    )
+
+  private def centeredLateTargetDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_center_attack_shell",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = "dynamic_attack",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("c4", "c1", "g8"),
+          focusFiles = List("c", "g"),
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.82
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "d1",
+          route = List("d1", "f1", "f3", "g3"),
+          purpose = "open-file occupation",
+          strategicFit = 0.82,
+          tacticalSafety = 0.77,
+          surfaceConfidence = 0.8,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "B",
+          from = "g2",
+          target = "d4",
+          idea = "contest the pawn on d4",
+          evidence = List("target_pawn")
+        ),
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "N",
+          from = "f3",
+          target = "e5",
+          idea = "contest the pawn on e5",
+          evidence = List("target_pawn")
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_d3",
+          ownerSide = "white",
+          piece = "R",
+          from = "f3",
+          targetSquare = "d3",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("line access", "central foothold")
+        ),
+        StrategyDirectionalTarget(
+          targetId = "target_e5",
+          ownerSide = "white",
+          piece = "N",
+          from = "f3",
+          targetSquare = "e5",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("line access", "central foothold")
+        )
+      ),
+      longTermFocus = List("keeping the queenside files under pressure before cashing out"),
+      evidence = List("dominant_thesis: durable queenside file pressure"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          strategicStack = List("1. Attacking fixed Pawn (0.78)"),
+          latentPlan = Some("Attacking fixed Pawn"),
+          decisionComparison = Some(
+            DecisionComparisonDigest(
+              evidence = Some("Further probe work still targets Attacking fixed Pawn through d4 and e5.")
+            )
+          ),
+          compensation = Some("return vector through initiative and line pressure"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some("dynamic_attack"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("c4, c1, g8")
+        )
+      )
+    )
+
+  private def rookAccessLineOccupationLockPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_line_pressure_shell",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = "slow_structural",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("f1", "c6", "d3", "d6"),
+          focusFiles = List("c", "d", "f"),
+          focusZone = Some("queenside"),
+          beneficiaryPieces = List("R", "B"),
+          confidence = 0.81
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "B",
+          from = "d4",
+          route = List("d4", "c5"),
+          purpose = "kingside pressure",
+          strategicFit = 0.8,
+          tacticalSafety = 0.76,
+          surfaceConfidence = 0.79,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "B",
+          from = "d4",
+          target = "c6",
+          idea = "contest the pawn on c6",
+          evidence = List("target_pawn")
+        ),
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "B",
+          from = "d4",
+          target = "d6",
+          idea = "contest the pawn on d6",
+          evidence = List("target_pawn")
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_c6",
+          ownerSide = "white",
+          piece = "R",
+          from = "d4",
+          targetSquare = "c6",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("supports attacking fixed pawn", "central foothold", "line access")
+        )
+      ),
+      longTermFocus = List("objective: work toward making c6 available for the rook"),
+      evidence = List("isolated pawn can be fixed", "backward pawn can be fixed"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          strategicStack = List("1. immediate tactical gain Counterplay (0.75)", "2. Attacking fixed Pawn (0.78)"),
+          latentPlan = Some("Rook-pawn march to gain flank space"),
+          decisionComparison = Some(
+            DecisionComparisonDigest(
+              evidence = Some("Further probe work still targets Rook-pawn march to gain flank space through Rg3.")
+            )
+          ),
+          compensation = Some("return vector through initiative and line pressure"),
+          compensationVectors = List("Initiative (0.6)", "Line Pressure (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+          dominantIdeaGroup = Some("slow_structural"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("f1, c6, d3, d6")
+        )
+      )
+    )
+
+  private def attackRecoveryDisplayNormalizationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_attack_shell",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = "dynamic_attack",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("f2", "f4", "e6"),
+          focusFiles = List("f", "g", "h"),
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.84
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_f3",
+          ownerSide = "white",
+          piece = "R",
+          from = "h3",
+          targetSquare = "f3",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("line access", "improves piece placement")
+        ),
+        StrategyDirectionalTarget(
+          targetId = "target_f2",
+          ownerSide = "white",
+          piece = "Q",
+          from = "g4",
+          targetSquare = "f2",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("supports immediate tactical gain counterplay", "pressure on a fixed weakness")
+        )
+      ),
+      longTermFocus = List("cash out only after the kingside pressure stays durable"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through initiative and line pressure"),
+          compensationVectors = List("Initiative (0.6)", "Line Pressure (0.6)", "Delayed Recovery (0.4)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some("dynamic_attack"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("f2, f4, e6")
+        )
+      )
+    )
+
   test("compensation lens drives bookmaker prose for long-term investment motif") {
     val ctx = baseContext.copy(
       semantic = Some(
@@ -331,6 +859,46 @@ class StrategicThesisBuilderTest extends FunSuite:
     )
   }
 
+  test("recapture-neutralized current compensation does not leak into bookmaker prose") {
+    val ctx = baseContext.copy(
+      fen = "3r3k/2pq3p/1p3pr1/p1p1p2Q/P1P1PB2/3P1P2/2P3P1/R4R1K b - - 0 30",
+      playedMove = Some("e5f4"),
+      playedSan = Some("exf4"),
+      summary = NarrativeSummary("Recapture", None, "NarrowChoice", "Maintain", "-0.49"),
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = Nil,
+          positionalFeatures = Nil,
+          compensation = Some(
+            CompensationInfo(
+              investedMaterial = 300,
+              returnVector = Map(
+                "Initiative" -> 0.6,
+                "Line Pressure" -> 0.6,
+                "Delayed Recovery" -> 0.4
+              ),
+              expiryPly = None,
+              conversionPlan = "return vector through initiative and line pressure"
+            )
+          ),
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans = Nil,
+          conceptSummary = Nil
+        )
+      )
+    )
+
+    val thesis = StrategicThesisBuilder.build(ctx)
+    assert(thesis.forall(_.lens != StrategicLens.Compensation), clue(thesis))
+
+    val prose = BookStyleRenderer.render(ctx).toLowerCase
+    assert(!prose.contains("compensation investment"), clue(prose))
+    assert(!prose.contains("the move keeps the compensation alive"), clue(prose))
+    assert(!prose.contains("cash out through"), clue(prose))
+  }
+
   test("quiet positional compensation keeps subtype-specific file pressure language") {
     val thesis =
       StrategicThesisBuilder
@@ -348,6 +916,10 @@ class StrategicThesisBuilderTest extends FunSuite:
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     assertEquals(surface.compensationSubtype.map(_.pressureTheater), Some("queenside"))
     assertEquals(surface.compensationSubtype.map(_.pressureMode), Some("target_fixing"))
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("queenside/target_fixing/intentionally_deferred/durable_pressure")
+    )
     assert(surface.normalizationActive)
     assert(surface.normalizationConfidence >= 6)
     assertEquals(surface.dominantIdeaText, Some("fixed queenside targets"))
@@ -372,6 +944,141 @@ class StrategicThesisBuilderTest extends FunSuite:
         text.toLowerCase.contains("queenside targets") || text.toLowerCase.contains("queenside file pressure")
       ),
       clue(thesis.support)
+    )
+  }
+
+  test("display subtype promotes target-fixing when fixed-target anchors dominate the raw line pressure shell") {
+    val surface = StrategyPackSurface.from(Some(targetDisplayNormalizationPack))
+
+    assertEquals(surface.compensationSubtype.map(_.pressureMode), Some("line_occupation"))
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("center/target_fixing/intentionally_deferred/durable_pressure")
+    )
+    assertEquals(surface.dominantIdeaText, Some("fixed central targets"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("fixed central targets")),
+      clue(surface.executionText)
+    )
+    assert(
+      StrategyPackSurface.compensationWhyNowText(surface).exists(_.toLowerCase.contains("fixed central targets")),
+      clue(StrategyPackSurface.compensationWhyNowText(surface))
+    )
+  }
+
+  test("display subtype promotes kingside theater when the pressure route lands on the flank") {
+    val surface = StrategyPackSurface.from(Some(kingsideDisplayNormalizationPack))
+
+    assertEquals(surface.compensationSubtype.map(_.pressureTheater), Some("center"))
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("kingside/line_occupation/intentionally_deferred/durable_pressure")
+    )
+    assertEquals(surface.dominantIdeaText, Some("durable line pressure"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("f5")),
+      clue(surface.executionText)
+    )
+    assert(
+      StrategyPackSurface.compensationWhyNowText(surface).exists(_.toLowerCase.contains("compensation")),
+      clue(StrategyPackSurface.compensationWhyNowText(surface))
+    )
+  }
+
+  test("display subtype prefers target-fixing when the deferred focus explicitly fixes central targets") {
+    val surface = StrategyPackSurface.from(Some(focusTargetDisplayNormalizationPack))
+
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("center/target_fixing/intentionally_deferred/durable_pressure")
+    )
+    assertEquals(surface.dominantIdeaText, Some("fixed central targets"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("fixed central targets")),
+      clue(surface.executionText)
+    )
+  }
+
+  test("late fixed-target plan evidence can rescue queenside target-fixing from a file-pressure shell") {
+    val surface = StrategyPackSurface.from(Some(lateTargetRescueDisplayNormalizationPack))
+
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("queenside/target_fixing/intentionally_deferred/durable_pressure")
+    )
+    assertEquals(surface.displaySubtypeSource, "payoff")
+    assertEquals(surface.dominantIdeaText, Some("fixed queenside targets"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("fixed queenside targets")),
+      clue(surface.executionText)
+    )
+  }
+
+  test("target-fixing theater follows fixed-target anchors instead of inherited queenside file shell text") {
+    val surface = StrategyPackSurface.from(Some(centeredLateTargetDisplayNormalizationPack))
+
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("center/target_fixing/intentionally_deferred/durable_pressure")
+    )
+    assert(surface.displaySubtypeSource != "raw_fallback", clue(surface.displaySubtypeSource))
+    assertEquals(surface.dominantIdeaText, Some("fixed central targets"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("fixed central targets")),
+      clue(surface.executionText)
+    )
+  }
+
+  test("rook-access line shells stay line-occupation despite late fixed-pawn hints") {
+    val surface = StrategyPackSurface.from(Some(rookAccessLineOccupationLockPack))
+
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("queenside/line_occupation/intentionally_deferred/durable_pressure")
+    )
+    assertEquals(surface.dominantIdeaText, Some("queenside file pressure"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("queenside files under pressure")),
+      clue(surface.executionText)
+    )
+  }
+
+  test("transition-only raw subtype is rescued into durable central line pressure when structural anchors persist") {
+    val surface = StrategyPackSurface.from(Some(transitionRescueDisplayNormalizationPack))
+
+    assertEquals(surface.compensationSubtype.map(_.pressureMode), Some("conversion_window"))
+    assertEquals(surface.compensationSubtype.map(_.stabilityClass), Some("transition_only"))
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("center/line_occupation/intentionally_deferred/durable_pressure")
+    )
+    assert(surface.normalizationActive, clue(surface.displayNormalization))
+    assertEquals(surface.dominantIdeaText, Some("central file pressure"))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("central files under pressure")),
+      clue(surface.executionText)
+    )
+  }
+
+  test("attack-led kingside shells can still adopt deferred display subtype when the investment is explicitly held") {
+    val surface = StrategyPackSurface.from(Some(attackRecoveryDisplayNormalizationPack))
+
+    assert(surface.compensationSubtype.nonEmpty, clue(surface.compensationSubtype))
+    assertEquals(
+      StrategyPackSurface.compensationSubtypeLabel(surface),
+      Some("kingside/line_occupation/intentionally_deferred/durable_pressure")
+    )
+    assert(surface.normalizationActive, clue(surface.displayNormalization))
+    assert(
+      surface.executionText.exists(_.toLowerCase.contains("f3")),
+      clue(surface.executionText)
+    )
+    assert(
+      StrategyPackSurface.compensationWhyNowText(surface).exists(text => {
+        val low = text.toLowerCase
+        low.contains("compensation investment") || low.contains("compensation only pays")
+      }),
+      clue(StrategyPackSurface.compensationWhyNowText(surface))
     )
   }
 

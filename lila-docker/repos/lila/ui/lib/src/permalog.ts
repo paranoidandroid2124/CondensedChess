@@ -1,4 +1,5 @@
 import { objectStorage, deleteObjectStorage, type ObjectStorage, type DbInfo } from './objectStorage';
+import { preferenceLocalStorage, preferenceStorageAllowed } from './cookieConsent';
 
 export interface PermaLog {
   (...args: any[]): Promise<number | void>;
@@ -13,12 +14,12 @@ export const log: PermaLog = makeLog(
     version: 3,
     upgrade: (_: any, store: IDBObjectStore) => store?.clear(), // blow it all away when we rev version
   },
-  parseInt(localStorage.getItem('log.window') || '100'),
+  parseInt(preferenceLocalStorage()?.getItem('log.window') || '100', 10),
 );
 
 export function makeLog(dbInfo: DbInfo, windowSize: number): PermaLog {
   let store: ObjectStorage<string, number>;
-  let resolveReady: () => void;
+  let resolveReady!: () => void;
   let lastKey = 0;
   let drift = 0.001;
 
@@ -28,16 +29,18 @@ export function makeLog(dbInfo: DbInfo, windowSize: number): PermaLog {
     return { [this.name]: this.message, stack: this.stack };
   };
 
-  objectStorage<string, number>(dbInfo)
-    .then(async s => {
-      store = s;
-      resolveReady();
-    })
-    .catch(e => {
-      console.error(e);
-      deleteObjectStorage(dbInfo);
-      resolveReady();
-    });
+  if (preferenceStorageAllowed()) {
+    objectStorage<string, number>(dbInfo)
+      .then(async s => {
+        store = s;
+        resolveReady();
+      })
+      .catch(e => {
+        console.error(e);
+        deleteObjectStorage(dbInfo);
+        resolveReady();
+      });
+  } else resolveReady();
 
   function stringify(val: any): string {
     return !val || typeof val === 'string' ? String(val) : JSON.stringify(val);
@@ -56,16 +59,18 @@ export function makeLog(dbInfo: DbInfo, windowSize: number): PermaLog {
       drift = 0.001;
       lastKey = nextKey;
     }
-    return ready.then(() => store?.put(nextKey, msg)).catch(console.error);
+    return ready.then(() => (preferenceStorageAllowed() ? store?.put(nextKey, msg) : undefined)).catch(console.error);
   };
 
   log.clear = async () => {
+    if (!preferenceStorageAllowed()) return;
     await ready;
     await store?.clear();
     lastKey = 0;
   };
 
   log.get = async (): Promise<string> => {
+    if (!preferenceStorageAllowed()) return '';
     await ready;
     if (!store) return '';
     try {

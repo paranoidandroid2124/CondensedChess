@@ -233,6 +233,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
     assert(
       brief.longTermObjective.exists(text =>
         text.toLowerCase.contains("recovering the material") ||
+          text.toLowerCase.contains("recovering material") ||
+          text.toLowerCase.contains("cashing out") ||
           text.toLowerCase.contains("compensation") ||
           text.toLowerCase.contains("initiative") ||
           text.toLowerCase.contains("making g4 available")
@@ -382,6 +384,13 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
     assertEquals(brief.primaryIdea, Some("fixed queenside targets"))
     assert(brief.executionHint.exists(_.toLowerCase.contains("queenside targets")), clue(brief.executionHint))
     assert(!brief.executionHint.exists(_.toLowerCase.contains("kingside clamp")), clue(brief.executionHint))
+    assert(
+      brief.whyNow.exists { text =>
+        val lowered = text.toLowerCase
+        lowered.contains("compensation") && lowered.contains("line pressure")
+      },
+      clue(brief.whyNow)
+    )
     assert(
       brief.longTermObjective.exists(text =>
         text.toLowerCase.contains("queenside targets") || text.toLowerCase.contains("queenside files")

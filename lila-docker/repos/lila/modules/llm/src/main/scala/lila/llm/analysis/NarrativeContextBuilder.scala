@@ -2125,14 +2125,16 @@ object NarrativeContextBuilder:
     val isPawnEndgame = data.phase == "endgame" && 
       data.toContext.features.exists(f => (f.materialPhase.whiteMaterial + f.materialPhase.blackMaterial) <= 6)
     val currentCompensation =
-      data.compensation.filter(comp => keepSemanticCompensation(data, comp)).map(convertCompensation)
+      CompensationInterpretation
+        .currentRawDecision(data)
+        .filter(_.decision.accepted)
+        .map(result => convertCompensation(result.compensation))
     val afterCompensation =
-      data.prevMove.flatMap { playedMove =>
-        afterAnalysis
-          .flatMap(_.compensation)
-          .filter(comp => keepSemanticCompensation(afterAnalysis.getOrElse(data), comp))
-          .filterNot(comp => CompensationRecaptureGate.suppressAfterCompensation(data.fen, playedMove, comp.investedMaterial))
-          .map(convertCompensation)
+      afterAnalysis.flatMap { next =>
+        CompensationInterpretation
+          .afterRawDecision(data, next)
+          .filter(_.decision.accepted)
+          .map(result => convertCompensation(result.compensation))
       }
     
     val filteredPositional = if (isPawnEndgame) {
@@ -2170,28 +2172,6 @@ object NarrativeContextBuilder:
       afterCompensation = afterCompensation
     ))
   }
-
-  private def keepSemanticCompensation(
-      data: ExtendedAnalysisData,
-      compensation: Compensation
-  ): Boolean = {
-    val normalizedVectors =
-      compensation.returnVector.keys.map(normalizeCompensationLabel).filter(_.nonEmpty).toSet
-    val thinReturnVectorOnly =
-      data.phase != "opening" &&
-        normalizedVectors.nonEmpty &&
-        normalizedVectors.subsetOf(Set("return_vector"))
-    val lateTechnicalEndgame =
-      data.phase == "endgame" &&
-        compensation.investedMaterial >= 500 &&
-        normalizedVectors.intersect(Set("initiative", "line_pressure", "delayed_recovery")).isEmpty
-    !thinReturnVectorOnly && !lateTechnicalEndgame
-  }
-
-  private def normalizeCompensationLabel(raw: String): String =
-    Option(raw)
-      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_"))
-      .getOrElse("")
 
   private def convertStructureProfile(sp: lila.llm.model.structure.StructureProfile): StructureProfileInfo =
     StructureProfileInfo(

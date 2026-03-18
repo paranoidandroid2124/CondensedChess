@@ -13,6 +13,8 @@ final class Main(
     assetsC: ExternalAssets
 ) extends LilaController(env):
 
+  private val journalContent = JournalContent(env.getFile, env.memo.markdown)
+
   private def supportLink(key: String): Option[String] =
     env.config
       .getOptional[String](key)
@@ -23,7 +25,7 @@ final class Main(
     Option(env.net.email.value).map(_.trim).filter(_.nonEmpty)
 
   def landing = Open:
-    Ok.page(views.pages.landing()
+    Ok.page(views.pages.landing(journalContent.latestPost)
       .flag(_.noHeader)
       .flag(_.fullScreen))
 
@@ -36,6 +38,9 @@ final class Main(
       )
     )
 
+  def plan = Open:
+    Redirect(routes.Main.support, MOVED_PERMANENTLY).toFuccess
+
   def privacy = Open:
     Ok.page(views.pages.privacy(publicContactEmail))
 
@@ -44,6 +49,17 @@ final class Main(
 
   def source = Open:
     Ok.page(views.pages.openSource())
+
+  def journal = Open:
+    Ok.page(views.pages.journal(journalContent.all, None))
+
+  def journalPost(slug: String) = Open:
+    journalContent.bySlug(slug) match
+      case Some(post) => Ok.page(views.pages.journal(journalContent.all, Some(post)))
+      case None       => NotFound.page(views.site.message.notFound(Some("Journal post not found.")))
+
+  def strategicPuzzleDemo = Open:
+    Ok.page(views.pages.strategicPuzzleDemo.apply)
 
   def toggleBlindMode = OpenBody:
     bindForm(WebForms.blind)(
@@ -55,13 +71,6 @@ final class Main(
 
   def handlerNotFound(msg: Option[String]) =
     fuccess(NotFound(msg.getOrElse("Not Found")))
-
-  // Captcha removed - not used in Chesstory
-  def captchaCheck(@scala.annotation.unused id: GameId) = Anon:
-    Ok(1) // Always valid (captcha disabled)
-
-  def webmasters = Open:
-    Ok("Webmasters")
 
   def robots = Anon:
     Ok:
@@ -75,12 +84,6 @@ final class Main(
 
   def contact = Open:
     Ok.page(views.pages.contact(publicContactEmail))
-
-  def faq = Open:
-    Ok("FAQ")
-
-  def instantChess = Open:
-    Redirect(routes.UserAnalysis.index)
 
   def healthz = Anon:
     Ok("ok").toFuccess

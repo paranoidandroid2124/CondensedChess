@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import ps from 'node:process';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { definedUnique, isEquivalent } from './algo.ts';
+import { definedUnique } from './algo.ts';
 import { updateManifest } from './manifest.ts';
 import { taskOk } from './task.ts';
 
@@ -47,10 +47,7 @@ export const env = new (class {
   private status: { [key in Context]?: number | false } = {};
 
   manifestOk(): boolean {
-    return (
-      isEquivalent(this.building, [...this.packages.values()]) &&
-      (['tsc', 'esbuild', 'sass'] as const).map(b => this.status[b]).every(x => x === 0)
-    );
+    return (['tsc', 'esbuild', 'sass'] as const).map(b => this.status[b]).every(x => x === 0);
   }
 
   *tasks<T extends 'sync' | 'hash' | 'bundle'>(
@@ -111,7 +108,7 @@ export const env = new (class {
         const doneMsg = `Done in ${c.green((Date.now() - this.startTime) / 1000 + '')}s`;
         this.log(doneMsg + (this.stdin ? `. Press ${c.grey('<space>')} to clean and rebuild` : ''));
       }
-      updateManifest();
+      updateManifest({}, true);
       this.startTime = undefined;
     }
     if (!this.watch && code) process.exit(code);

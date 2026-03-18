@@ -350,6 +350,10 @@ export interface GameChronicleResponse {
 interface AsyncGameChronicleSubmitResponse {
     jobId: string;
     status: string;
+    statusToken?: string;
+    refineToken?: string;
+    durability?: string;
+    expiresAtMs?: number;
 }
 
 interface AsyncGameChronicleStatusResponse {
@@ -357,9 +361,16 @@ interface AsyncGameChronicleStatusResponse {
     status: string;
     createdAtMs?: number;
     updatedAtMs?: number;
+    expiresAtMs?: number;
+    durability?: string;
     result?: GameChronicleResponse | null;
     error?: string | null;
+    msg?: string | null;
     ccaEnabled?: boolean;
+}
+
+interface GameChronicleEnvelope extends GameChronicleResponse {
+    refineToken?: string | null;
 }
 
 type FullAnalysisRequestPayload = {
@@ -390,6 +401,17 @@ const ASYNC_NARRATIVE_POLL_INTERVAL_MS = 1200;
 const ASYNC_NARRATIVE_POLL_TIMEOUT_MS = 180000;
 const COLLAPSE_OVERLAY_GLOBAL_KEY = '__chesstoryCollapseOverlays';
 const GAME_ARC_REFINE_HEADER = 'X-Chesstory-GameArc-Refine';
+const GAME_ARC_REFINE_TOKEN_HEADER = 'X-Chesstory-GameArc-Refine-Token';
+const ASYNC_STATUS_TOKEN_HEADER = 'X-Chesstory-Async-Status-Token';
+const ASYNC_DURABILITY_EPHEMERAL = 'ephemeral_memory';
+type BetaFeedbackChoice = 'would_pay' | 'maybe' | 'not_now';
+
+interface BetaFeedbackResponse {
+    ok: boolean;
+    waitlist?: string;
+    message?: string;
+    storedEmail?: string | null;
+}
 
 function magicLinkHref(): string {
     return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
@@ -418,6 +440,9 @@ export class NarrativeCtrl {
     dnaData: Prop<DefeatDnaReport | null> = prop(null);
     dnaLoading: Prop<boolean> = prop(false);
     dnaError: Prop<string | null> = prop(null);
+    betaFeedbackLoading: Prop<boolean> = prop(false);
+    betaFeedbackSubmitted: Prop<BetaFeedbackChoice | null> = prop(null);
+    betaFeedbackMessage: Prop<string | null> = prop(null);
     showAllCollapses: Prop<boolean> = prop(false);
     patchReplay: Prop<{ collapseId: string; step: number; mode: 'original' | 'patch' } | null> = prop(null);
     private narrativeProbeSession = 0;
@@ -430,6 +455,16 @@ export class NarrativeCtrl {
     }
 
     loginHref = () => magicLinkHref();
+    betaFeedbackHref = (notify = false) => {
+        const params = new URLSearchParams({
+            surface: 'game_chronicle',
+            feature: 'full_pgn_analysis',
+            entrypoint: 'game_chronicle_completion',
+            returnTo: `${location.pathname}${location.search}${location.hash}`,
+        });
+        if (notify) params.set('notify', 'true');
+        return `/beta-feedback?${params.toString()}`;
+    };
 
     toggle = () => {
         this.enabled(!this.enabled());
@@ -497,14 +532,46 @@ export class NarrativeCtrl {
         }
     };
 
-    openAndFetch = async () => {
+    submitBetaFeedback = async (willingness: BetaFeedbackChoice) => {
+        if (this.betaFeedbackLoading()) return;
+        this.betaFeedbackLoading(true);
+        this.betaFeedbackMessage(null);
+        this.root.redraw();
+        try {
+            const res = await fetch('/api/beta-feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    surface: 'game_chronicle',
+                    feature: 'full_pgn_analysis',
+                    entrypoint: 'game_chronicle_completion',
+                    willingness,
+                    notify: false,
+                }),
+            });
+            const data = (await res.json().catch(() => null)) as BetaFeedbackResponse | null;
+            if (!res.ok || !data?.ok) {
+                this.betaFeedbackMessage(data?.message || 'We could not save that beta response.');
+                return;
+            }
+            this.betaFeedbackSubmitted(willingness);
+            this.betaFeedbackMessage(data.message || 'Thanks. We saved your beta feedback.');
+        } catch {
+            this.betaFeedbackMessage('Network error while saving beta feedback.');
+        } finally {
+            this.betaFeedbackLoading(false);
+            this.root.redraw();
+        }
+    };
+
+    openAndFetch = async (pgnOverride?: string | null) => {
         if (!this.enabled()) this.enabled(true);
         if (this.loading()) {
             this.root.redraw();
             return;
         }
         try {
-            await this.fetchNarrative();
+            await this.fetchNarrative(pgnOverride);
         } finally {
             this.root.redraw();
         }
@@ -540,8 +607,10 @@ export class NarrativeCtrl {
         payload: FullAnalysisRequestPayload,
         probeResultsByPly: ProbeResultsByPlyEntry[],
         fallbackResponse: GameChronicleResponse,
+        refineToken: string | null | undefined,
         isCurrentSession: () => boolean,
     ): Promise<GameChronicleResponse> => {
+        if (!refineToken) return fallbackResponse;
         try {
             this.loadingDetail('Probe refinement: rebuilding Game Chronicle...');
             this.root.redraw();
@@ -551,6 +620,7 @@ export class NarrativeCtrl {
                 headers: {
                     'Content-Type': 'application/json',
                     [GAME_ARC_REFINE_HEADER]: '1',
+                    [GAME_ARC_REFINE_TOKEN_HEADER]: refineToken,
                 },
                 body: JSON.stringify({
                     ...payload,
@@ -583,6 +653,7 @@ export class NarrativeCtrl {
     private refineNarrativeWithProbes = async (
         payload: FullAnalysisRequestPayload,
         response: GameChronicleResponse,
+        refineToken?: string | null,
     ): Promise<GameChronicleResponse> => {
         const probeBundles = collectGameArcProbeMomentBundles(response);
         if (!probeBundles.length) return response;
@@ -637,27 +708,45 @@ export class NarrativeCtrl {
 
         if (!sanitizedProbeResults.length) return response;
 
-        return this.fetchRefinedNarrativeResponse(payload, sanitizedProbeResults, response, isCurrentSession);
+        return this.fetchRefinedNarrativeResponse(payload, sanitizedProbeResults, response, refineToken, isCurrentSession);
     };
 
-    fetchNarrative = async () => {
+    fetchNarrative = async (pgnOverride?: string | null) => {
         this.cancelNarrativeRefinement();
         this.loading(true);
         this.error(null);
         this.needsLogin(false);
+        this.betaFeedbackLoading(false);
+        this.betaFeedbackSubmitted(null);
+        this.betaFeedbackMessage(null);
         this.pvBoard(null);
         this.root.setNarrativeRouteOverlay(null);
         this.publishCollapseOverlay(null);
-        this.loadingDetail('Deep analysis prep: collecting PGN and existing eval...');
         this.root.redraw();
         try {
-            const pgn = pgnExport.renderFullTxt(this.root);
+            const currentPgn = pgnExport.renderFullTxt(this.root);
+            const stagedPgn = pgnOverride?.trim();
+            const pgn = stagedPgn && stagedPgn !== currentPgn ? stagedPgn : currentPgn;
+            const usesCurrentTree = pgn === currentPgn;
 
-            const evals = await extractMoveEvals(this.root, detail => {
-                this.loadingDetail(detail);
-                this.root.redraw();
-            });
-            this.loadingDetail('Submitting async deep analysis job...');
+            this.loadingDetail(
+                usesCurrentTree
+                    ? 'Deep analysis prep: collecting PGN and existing eval...'
+                    : 'Deep analysis prep: staging the imported PGN...',
+            );
+            this.root.redraw();
+
+            const evals = usesCurrentTree
+                ? await extractMoveEvals(this.root, detail => {
+                    this.loadingDetail(detail);
+                    this.root.redraw();
+                })
+                : [];
+            this.loadingDetail(
+                usesCurrentTree
+                    ? 'Submitting async deep analysis job. Keep this tab open until it completes...'
+                    : 'Submitting async deep analysis job for imported PGN. Keep this tab open until it completes...',
+            );
             this.root.redraw();
 
             const payload: FullAnalysisRequestPayload = {
@@ -674,8 +763,17 @@ export class NarrativeCtrl {
             });
 
             if (submitRes.ok) {
-            const submit = (await submitRes.json()) as AsyncGameChronicleSubmitResponse;
-                await this.pollAsyncNarrative(submit.jobId, payload);
+                const submit = (await submitRes.json()) as AsyncGameChronicleSubmitResponse;
+                await this.pollAsyncNarrative(
+                    submit.jobId,
+                    submit.statusToken || '',
+                    submit.refineToken || null,
+                    submit.durability || null,
+                    payload,
+                );
+            } else if (submitRes.status === 400) {
+                const data = await submitRes.json().catch(() => null as { msg?: string } | null);
+                this.error(data?.msg || 'Game Chronicle request is invalid.');
             } else if (submitRes.status === 404 || submitRes.status === 405 || submitRes.status === 501) {
                 await this.fetchNarrativeSyncFallback(payload);
             } else if (submitRes.status === 401) {
@@ -715,10 +813,15 @@ export class NarrativeCtrl {
         });
 
         if (res.ok) {
-            const data = await res.json();
-            const response = data as GameChronicleResponse;
-            const finalResponse = await this.refineNarrativeWithProbes(payload, response);
+            const data = (await res.json()) as GameChronicleEnvelope;
+            const finalResponse = await this.refineNarrativeWithProbes(payload, data, data.refineToken);
             this.applyNarrativeResponse(finalResponse);
+            return;
+        }
+
+        if (res.status === 400) {
+            const data = await res.json().catch(() => null as { msg?: string } | null);
+            this.error(data?.msg || 'Game Chronicle request is invalid.');
             return;
         }
 
@@ -744,20 +847,44 @@ export class NarrativeCtrl {
         this.error('Error fetching narrative: ' + res.status + ' ' + txt);
     };
 
-    private pollAsyncNarrative = async (jobId: string, payload: FullAnalysisRequestPayload): Promise<void> => {
+    private pollAsyncNarrative = async (
+        jobId: string,
+        statusToken: string,
+        refineToken: string | null,
+        durability: string | null,
+        payload: FullAnalysisRequestPayload,
+    ): Promise<void> => {
+        if (!statusToken) {
+            this.error('Async analysis token is missing. Please retry Game Chronicle.');
+            return;
+        }
         const startedAt = Date.now();
         while (Date.now() - startedAt < ASYNC_NARRATIVE_POLL_TIMEOUT_MS) {
             this.loadingDetail('Deep analysis in progress...');
             this.root.redraw();
 
-            const res = await fetch(`/api/llm/game-analysis-async/${encodeURIComponent(jobId)}`);
+            const res = await fetch(`/api/llm/game-analysis-async/${encodeURIComponent(jobId)}`, {
+                headers: {
+                    [ASYNC_STATUS_TOKEN_HEADER]: statusToken,
+                },
+            });
             if (!res.ok) {
+                if (res.status === 404 || res.status === 410) {
+                    const data = await res.json().catch(() => null as AsyncGameChronicleStatusResponse | null);
+                    const contractHint =
+                        data?.msg ||
+                        (durability === ASYNC_DURABILITY_EPHEMERAL
+                            ? 'Async Game Chronicle jobs are temporary. Keep this tab open while the job runs and retry if it becomes unavailable.'
+                            : 'Async analysis is no longer available. Please retry.');
+                    this.error(contractHint);
+                    return;
+                }
                 const txt = await res.text();
                 this.error('Async analysis polling failed: ' + res.status + ' ' + txt);
                 return;
             }
 
-                const status = (await res.json()) as AsyncGameChronicleStatusResponse;
+            const status = (await res.json()) as AsyncGameChronicleStatusResponse;
             const state = (status.status || '').toLowerCase();
             if (state === 'completed') {
                 if (status.result) {
@@ -765,7 +892,7 @@ export class NarrativeCtrl {
                     if (typeof status.ccaEnabled === 'boolean') {
                         status.result.ccaEnabled = status.ccaEnabled;
                     }
-                    const finalResponse = await this.refineNarrativeWithProbes(payload, status.result);
+                    const finalResponse = await this.refineNarrativeWithProbes(payload, status.result, refineToken);
                     this.applyNarrativeResponse(finalResponse);
                 }
                 else this.error('Async analysis completed without result.');

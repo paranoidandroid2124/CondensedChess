@@ -19,6 +19,8 @@ object ProductionConfigValidator:
       requirePublicContactEmail(config, errors)
 
       List(
+        "play.http.secret.key"         -> Set("CiebwjgIM9cHQ;I?Xk:sfqDJ;BhIe:jsL?r=?IPF[saf>s^r0]?0grUq4>q?5mP^"),
+        "user.password.bpass.secret"   -> Set("9qEYN0ThHer1KWLNekA76Q=="),
         "security.password_reset.secret" -> Set("???"),
         "security.email_confirm.secret"  -> Set("???"),
         "security.email_change.secret"   -> Set("???"),
@@ -27,7 +29,7 @@ object ProductionConfigValidator:
         requireNonPlaceholder(config, path, errors, invalid)
 
       requireMailer(config, errors)
-      requireCaptchaIfEnabled(config, errors)
+      requireSignupProtections(config, errors)
 
       val problems = errors.toList
       if problems.nonEmpty then
@@ -83,24 +85,32 @@ object ProductionConfigValidator:
     else if !email.contains("@") then
       errors += "net.email must be a valid public contact email in production."
 
-  private def requireCaptchaIfEnabled(
+  private def requireSignupProtections(
       config: Configuration,
       errors: ListBuffer[String]
   ): Unit =
+    val emailConfirmEnabled = config.getOptional[Boolean]("security.email_confirm.enabled").getOrElse(false)
+    if !emailConfirmEnabled then
+      errors += "security.email_confirm.enabled must be true in production."
+
     val enabled = config.getOptional[Boolean]("security.hcaptcha.enabled").getOrElse(false)
-    if enabled then
-      requireNonPlaceholder(
-        config,
-        "security.hcaptcha.secret",
-        errors,
-        invalid = Set("dummy_secret", "0x0000000000000000000000000000000000000000")
-      )
-      requireNonPlaceholder(
-        config,
-        "security.hcaptcha.public.sitekey",
-        errors,
-        invalid = Set("10000000-ffff-ffff-ffff-000000000001", "f91a151d-73e5-4a95-9d4e-74bfa19bec9d")
-      )
+    if !enabled then
+      errors += "security.hcaptcha.enabled must be true in production."
+    requireNonPlaceholder(
+      config,
+      "security.hcaptcha.secret",
+      errors,
+      invalid = Set("dummy_secret", "0x0000000000000000000000000000000000000000")
+    )
+    requireNonPlaceholder(
+      config,
+      "security.hcaptcha.public.sitekey",
+      errors,
+      invalid = Set("10000000-ffff-ffff-ffff-000000000001", "f91a151d-73e5-4a95-9d4e-74bfa19bec9d")
+    )
+
+    if config.getOptional[Boolean]("auth.magicLink.autoCreate").getOrElse(false) then
+      errors += "auth.magicLink.autoCreate must be false in production."
 
   private def requirePositiveInt(
       config: Configuration,

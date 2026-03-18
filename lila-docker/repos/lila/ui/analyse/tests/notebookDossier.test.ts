@@ -84,6 +84,15 @@ describe('notebook dossier schema', () => {
 
     assert.match(errors.join('\n'), /Referenced game id g2 is missing from appendix\.sampledGames/i);
   });
+
+  test('product kind and subject role must stay aligned', () => {
+    const dossier = makeOpponentPrepDossier();
+    dossier.subject.role = 'self';
+
+    const errors = validateNotebookDossier(dossier);
+
+    assert.match(errors.join('\n'), /Opponent Prep dossiers must use subject\.role=opponent\./i);
+  });
 });
 
 function makeMyAccountDossier(overrides: DossierOverrides = {}): NotebookDossierV1 {

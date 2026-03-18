@@ -603,9 +603,23 @@ case class BookmakerResult(
     cacheHit: Boolean
 )
 
+object AsyncGameAnalysisDurability:
+  val EphemeralMemory = "ephemeral_memory"
+
+case class GameAnalysisValidationError(
+    code: String,
+    message: String
+)
+object GameAnalysisValidationError:
+  given Writes[GameAnalysisValidationError] = Json.writes[GameAnalysisValidationError]
+
 case class AsyncGameAnalysisSubmitResponse(
     jobId: String,
-    status: String
+    status: String,
+    statusToken: String,
+    refineToken: String,
+    durability: String = AsyncGameAnalysisDurability.EphemeralMemory,
+    expiresAtMs: Long
 )
 object AsyncGameAnalysisSubmitResponse:
   given Writes[AsyncGameAnalysisSubmitResponse] = Json.writes[AsyncGameAnalysisSubmitResponse]
@@ -615,6 +629,8 @@ case class AsyncGameAnalysisStatusResponse(
     status: String,
     createdAtMs: Long,
     updatedAtMs: Long,
+    expiresAtMs: Long,
+    durability: String = AsyncGameAnalysisDurability.EphemeralMemory,
     result: Option[GameChronicleResponse] = None,
     error: Option[String] = None
 )
@@ -640,4 +656,17 @@ case class FullAnalysisRequest(
     probeResultsByPly: Option[List[ProbeResultsByPlyEntry]] = None
 )
 object FullAnalysisRequest:
+  val MaxPgnChars = 200000
+
   given Reads[FullAnalysisRequest] = Json.reads[FullAnalysisRequest]
+
+  def validateGameChronicle(request: FullAnalysisRequest): Either[GameAnalysisValidationError, FullAnalysisRequest] =
+    val normalizedPgn = Option(request.pgn).map(_.trim).getOrElse("")
+    if normalizedPgn.isEmpty then
+      Left(GameAnalysisValidationError("invalid_pgn", "PGN payload is empty."))
+    else if normalizedPgn.length > MaxPgnChars then
+      Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload exceeds $MaxPgnChars characters."))
+    else
+      lila.llm.PgnAnalysisHelper.extractPlyDataStrict(normalizedPgn) match
+        case Left(err)  => Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload is invalid: $err"))
+        case Right(_)   => Right(request.copy(pgn = normalizedPgn))

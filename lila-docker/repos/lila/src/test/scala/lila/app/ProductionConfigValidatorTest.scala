@@ -14,6 +14,8 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
         net.domain = "chesstory.com"
         net.base_url = "https://chesstory.com"
         net.email = "contact@chesstory.com"
+        play.http.secret.key = "play-http-secret"
+        user.password.bpass.secret = "bpass-secret"
         security.password_reset.secret = "???"
         security.email_confirm.secret = "???"
         security.email_change.secret = "???"
@@ -41,10 +43,14 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
         net.domain = "chesstory.com"
         net.base_url = "https://chesstory.com"
         net.email = "contact@chesstory.com"
+        play.http.secret.key = "play-http-secret"
+        user.password.bpass.secret = "bpass-secret"
+        security.email_confirm.enabled = true
         security.password_reset.secret = "reset-secret"
         security.email_confirm.secret = "confirm-secret"
         security.email_change.secret = "change-secret"
         security.login_token.secret = "token-secret"
+        auth.magicLink.autoCreate = false
         mailer.primary.mock = false
         mailer.primary.host = "smtp.postmarkapp.com"
         mailer.primary.port = 587
@@ -64,6 +70,40 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
     assert(err.getMessage.contains("security.hcaptcha.secret"))
     assert(err.getMessage.contains("security.hcaptcha.public.sitekey"))
 
+  test("production validation rejects disabled signup protections and magic-link auto create"):
+    val weakConfig = Configuration(
+      ConfigFactory.parseString("""
+        net.domain = "chesstory.com"
+        net.base_url = "https://chesstory.com"
+        net.email = "contact@chesstory.com"
+        play.http.secret.key = "play-http-secret"
+        user.password.bpass.secret = "bpass-secret"
+        security.email_confirm.enabled = false
+        security.password_reset.secret = "reset-secret"
+        security.email_confirm.secret = "confirm-secret"
+        security.email_change.secret = "change-secret"
+        security.login_token.secret = "token-secret"
+        auth.magicLink.autoCreate = true
+        mailer.primary.mock = false
+        mailer.primary.host = "smtp.postmarkapp.com"
+        mailer.primary.port = 587
+        mailer.primary.tls = true
+        mailer.primary.user = "smtp-user"
+        mailer.primary.password = "smtp-pass"
+        mailer.primary.sender = "Chesstory <noreply@chesstory.com>"
+        security.hcaptcha.enabled = false
+        security.hcaptcha.secret = "captcha-secret"
+        security.hcaptcha.public.sitekey = "captcha-sitekey"
+      """)
+    )
+
+    val err = intercept[IllegalStateException]:
+      ProductionConfigValidator.validate(weakConfig, Mode.Prod)
+
+    assert(err.getMessage.contains("security.email_confirm.enabled"))
+    assert(err.getMessage.contains("security.hcaptcha.enabled"))
+    assert(err.getMessage.contains("auth.magicLink.autoCreate"))
+
   test("non-production mode skips production validation"):
     val devConfig = Configuration(ConfigFactory.parseString("""net.domain = "localhost:9663""""))
     ProductionConfigValidator.validate(devConfig, Mode.Dev)
@@ -77,6 +117,8 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
         security.email_confirm.secret = "confirm-secret"
         security.email_change.secret = "change-secret"
         security.login_token.secret = "token-secret"
+        play.http.secret.key = "play-http-secret"
+        user.password.bpass.secret = "bpass-secret"
         mailer.primary.mock = false
         mailer.primary.host = "smtp.postmarkapp.com"
         mailer.primary.port = 587
@@ -92,15 +134,52 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
 
     assert(err.getMessage.contains("net.email"))
 
+  test("production validation rejects public framework and password-pepper defaults"):
+    val weakSecrets = Configuration(
+      ConfigFactory.parseString("""
+        net.domain = "chesstory.com"
+        net.base_url = "https://chesstory.com"
+        net.email = "contact@chesstory.com"
+        play.http.secret.key = "CiebwjgIM9cHQ;I?Xk:sfqDJ;BhIe:jsL?r=?IPF[saf>s^r0]?0grUq4>q?5mP^"
+        user.password.bpass.secret = "9qEYN0ThHer1KWLNekA76Q=="
+        security.email_confirm.enabled = true
+        security.password_reset.secret = "reset-secret"
+        security.email_confirm.secret = "confirm-secret"
+        security.email_change.secret = "change-secret"
+        security.login_token.secret = "token-secret"
+        auth.magicLink.autoCreate = false
+        mailer.primary.mock = false
+        mailer.primary.host = "smtp.postmarkapp.com"
+        mailer.primary.port = 587
+        mailer.primary.tls = true
+        mailer.primary.user = "smtp-user"
+        mailer.primary.password = "smtp-pass"
+        mailer.primary.sender = "Chesstory <noreply@chesstory.com>"
+        security.hcaptcha.enabled = true
+        security.hcaptcha.secret = "captcha-secret"
+        security.hcaptcha.public.sitekey = "captcha-sitekey"
+      """)
+    )
+
+    val err = intercept[IllegalStateException]:
+      ProductionConfigValidator.validate(weakSecrets, Mode.Prod)
+
+    assert(err.getMessage.contains("play.http.secret.key"))
+    assert(err.getMessage.contains("user.password.bpass.secret"))
+
   private val validProdConfig = Configuration(
     ConfigFactory.parseString("""
       net.domain = "chesstory.com"
       net.base_url = "https://chesstory.com"
       net.email = "contact@chesstory.com"
+      play.http.secret.key = "play-http-secret"
+      user.password.bpass.secret = "bpass-secret"
+      security.email_confirm.enabled = true
       security.password_reset.secret = "reset-secret"
       security.email_confirm.secret = "confirm-secret"
       security.email_change.secret = "change-secret"
       security.login_token.secret = "token-secret"
+      auth.magicLink.autoCreate = false
       mailer.primary.mock = false
       mailer.primary.host = "smtp.postmarkapp.com"
       mailer.primary.port = 587

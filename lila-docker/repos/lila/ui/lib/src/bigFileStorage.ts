@@ -1,4 +1,5 @@
 import { objectStorage } from './objectStorage';
+import { preferenceStorageAllowed } from './cookieConsent';
 import { memoize } from './index';
 import { randomToken } from './algo';
 import { log } from './permalog';
@@ -14,7 +15,8 @@ class BigFileStorage {
   private opfs = memoize(() => directoryHandleIfAvailable());
 
   async get(assetUrl: string, onProgress?: (loaded: number, total: number) => void): Promise<U8> {
-    const stored = await this.readFile(assetUrl).catch(() => undefined);
+    const allowStorage = preferenceStorageAllowed();
+    const stored = allowStorage ? await this.readFile(assetUrl).catch(() => undefined) : undefined;
     if (stored) return stored;
 
     const fetched = await new Promise<U8>((resolve, reject) => {
@@ -29,17 +31,19 @@ class BigFileStorage {
           : reject(new Error(`fetch '${assetUrl}' failed: ${xhr.status}`));
       xhr.send();
     });
-    this.writeFile(assetUrl, fetched);
+    if (allowStorage) this.writeFile(assetUrl, fetched);
     return fetched;
   }
 
   async delete(assetUrl: string): Promise<void> {
+    if (!preferenceStorageAllowed()) return;
     const opfs = await this.opfs();
     if (opfs) await opfs.removeEntry(opfsName(assetUrl)).catch(() => {});
     else await this.idb().then(idb => idb.remove(assetUrl));
   }
 
   private async readFile(assetUrl: string): Promise<U8 | undefined> {
+    if (!preferenceStorageAllowed()) return undefined;
     const opfs = await this.opfs();
     if (!opfs) return this.idb().then(idb => idb.get(assetUrl));
 
@@ -59,6 +63,7 @@ class BigFileStorage {
   }
 
   private async writeFile(assetUrl: string, u8: U8) {
+    if (!preferenceStorageAllowed()) return;
     const out = await this.opfs()
       ?.then(f => f?.getFileHandle(opfsName(assetUrl), { create: true }).then(fh => fh.createWritable()))
       .catch(() => undefined);

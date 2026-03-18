@@ -18,45 +18,127 @@ object importer:
     Page("Import Games - Chesstory")
       .css("auth")
       .wrap: _ =>
-        main(cls := "auth-page")(
+        main(cls := "auth-page auth-page--importer")(
           div(cls := "landing-container")(
             div(cls := "landing-header")(
               a(href := routes.Main.landing.url, cls := "logo")("Chesstory")
             ),
-            div(cls := "auth-container")(
-              div(cls := "auth-card")(
-                h1(cls := "auth-title")("Import Recent Games"),
-                p(cls := "auth-subtitle")(
-                  "Load recent public games from Lichess or Chess.com, then open them in the analysis shell for on-demand move insight or full-game review."
-                ),
-                pageError.map(msg => div(cls := "auth-error")(msg)),
-                form(cls := "auth-form", method := "post", action := routes.Importer.sendGame.url)(
-                  div(cls := "form-group")(
-                    label(`for` := "import-provider")("Provider"),
-                    st.select(id := "import-provider", name := "provider")(
-                      option(value := "lichess", if provider == "lichess" then selected := true else emptyFrag)("Lichess"),
-                      option(value := "chesscom", if provider == "chesscom" then selected := true else emptyFrag)("Chess.com")
+            div(cls := "auth-container auth-container--wide")(
+              div(cls := "auth-card auth-card--importer")(
+                  div(cls := "importer-shell")(
+                  div(cls := "importer-hero")(
+                    div(cls := "importer-hero__eyebrow")("Import"),
+                    h1(cls := "auth-title importer-hero__title")("Import Recent Games"),
+                    p(cls := "auth-subtitle importer-hero__subtitle")(
+                      "Load recent public games from Lichess or Chess.com, then choose between opening one game now or building a notebook from the full sample."
+                    ),
+                    div(cls := "importer-summary-strip")(
+                      div(cls := "importer-summary-chip")(
+                        strong("40 games"),
+                        span("Maximum sample per account")
+                      ),
+                      div(cls := "importer-summary-chip")(
+                        strong("Move insight"),
+                        span("Open any game in analysis")
+                      ),
+                      div(cls := "importer-summary-chip")(
+                        strong("Notebook build"),
+                        span("Turn the sample into a notebook")
+                      )
                     )
                   ),
-                  div(cls := "form-group")(
-                    label(`for` := "import-username")("Username"),
-                    input(
-                      id := "import-username",
-                      tpe := "text",
-                      name := "username",
-                      value := username,
-                      placeholder := "e.g. DrNykterstein or hikaru",
-                      required
+                  pageError.map(msg => div(cls := "auth-error")(msg)),
+                  div(cls := "importer-grid")(
+                    div(cls := "importer-panel importer-panel--intake")(
+                      div(cls := "importer-panel__head")(
+                        strong(cls := "importer-panel__title")("Fetch an account"),
+                        p(cls := "importer-panel__copy")(
+                          "Choose a provider, enter a public username, and pull the latest public sample into Chesstory."
+                        )
+                      ),
+                      form(cls := "auth-form importer-form", method := "post", action := routes.Importer.sendGame.url)(
+                        div(cls := "form-group")(
+                          label(`for` := "import-provider")("Provider"),
+                          st.select(id := "import-provider", name := "provider")(
+                            option(
+                              value := "lichess",
+                              if provider == "lichess" then selected := true else emptyFrag
+                            )("Lichess"),
+                            option(
+                              value := "chesscom",
+                              if provider == "chesscom" then selected := true else emptyFrag
+                            )("Chess.com")
+                          )
+                        ),
+                        div(cls := "form-group")(
+                          label(`for` := "import-username")("Username"),
+                          input(
+                            id := "import-username",
+                            tpe := "text",
+                            name := "username",
+                            value := username,
+                            placeholder := "e.g. DrNykterstein or hikaru",
+                            required
+                          )
+                        ),
+                        div(cls := "importer-panel__hint")(
+                          span("Public games only"),
+                          span("No browser engine eval"),
+                          span("Notebook builds run asynchronously")
+                        ),
+                        button(cls := "auth-submit importer-submit", tpe := "submit")(
+                          "Fetch Recent Games",
+                          span(cls := "arrow")(" ->")
+                        )
+                      )
+                    ),
+                    div(cls := "importer-side")(
+                      div(cls := "importer-panel importer-panel--guide")(
+                        div(cls := "importer-panel__head")(
+                          strong(cls := "importer-panel__title")("What happens next"),
+                          p(cls := "importer-panel__copy")(
+                            "The next step should be obvious: open one game right away, or build a notebook when the sample already looks useful."
+                          )
+                        ),
+                        ol(cls := "importer-timeline")(
+                          li(cls := "importer-timeline__item")(
+                            strong("1. Pull the sample"),
+                            span("Load recent public games and keep the account ready for a quick return.")
+                          ),
+                          li(cls := "importer-timeline__item")(
+                            strong("2. Open a game"),
+                            span("Open one game in analysis when you want an answer right away.")
+                          ),
+                          li(cls := "importer-timeline__item")(
+                            strong("3. Build the notebook"),
+                            span("Use the whole sample to build repair notes for yourself or prep notes for an opponent.")
+                          )
+                        )
+                      ),
+                      div(cls := "importer-panel importer-panel--guide importer-panel--compact")(
+                        div(cls := "importer-panel__head")(
+                          strong(cls := "importer-panel__title")("Why this surface works"),
+                          p(cls := "importer-panel__copy")(
+                            "This should feel like a clear starting point, not a blank utility form."
+                          )
+                        ),
+                        div(cls := "importer-note-grid")(
+                          div(cls := "importer-note-card")(
+                            strong("Account identity first"),
+                            span("You should understand the provider, username, sample size, and next action at a glance.")
+                          ),
+                          div(cls := "importer-note-card")(
+                            strong("Branching by intent"),
+                            span("Open one game when you want a quick answer. Build a notebook when you want the bigger pattern.")
+                          )
+                        )
+                      )
                     )
                   ),
-                  button(cls := "auth-submit", tpe := "submit")(
-                    "Fetch Recent Games",
-                    span(cls := "arrow")(" ->")
+                  renderRecentSections(recentAccounts, recentAnalyses),
+                  div(cls := "auth-links")(
+                    a(href := routes.UserAnalysis.index.url)("Back to Analysis")
                   )
-                ),
-                renderRecentSections(recentAccounts, recentAnalyses),
-                div(cls := "auth-links")(
-                  a(href := routes.UserAnalysis.index.url)("Back to Analysis")
                 )
               )
             )
@@ -75,71 +157,114 @@ object importer:
     Page("Imported Games - Chesstory")
       .css("auth")
       .wrap: _ =>
-        main(cls := "auth-page")(
+        main(cls := "auth-page auth-page--importer")(
           div(cls := "landing-container")(
             div(cls := "landing-header")(
               a(href := routes.Main.landing.url, cls := "logo")("Chesstory")
             ),
-            div(cls := "auth-container")(
-              div(cls := "auth-card")(
-                h1(cls := "auth-title")(s"${providerLabel(provider)}: @$username"),
-                p(cls := "auth-subtitle")(
-                  "Choose a game to open it in analysis. From there you can explain one move on demand or run Game Chronicle on the full PGN."
-                ),
-                pageError.map(msg => div(cls := "auth-error")(msg)),
-                notice.map(msg => div(cls := "auth-error")(msg)),
-                games.nonEmpty.option(
-                  div(cls := "auth-history__section")(
-                    div(cls := "auth-history__section-head")(
-                      strong("Turn This Account Into A Notebook"),
-                      span("Create a saved notebook from the recent public game sample. The same account can be read as your own repair surface or as opponent prep.")
+            div(cls := "auth-container auth-container--wide")(
+              div(cls := "auth-card auth-card--importer")(
+                div(cls := "importer-shell")(
+                  div(cls := "importer-hero importer-hero--results")(
+                    div(cls := "importer-hero__eyebrow")(providerShortLabel(provider)),
+                    h1(cls := "auth-title importer-hero__title")(s"@$username"),
+                    p(cls := "auth-subtitle importer-hero__subtitle")(
+                      "Open one game in analysis now, or turn the full sample into a notebook."
                     ),
-                    form(cls := "auth-form", method := "post", action := routes.Study.createAccountNotebook.url)(
-                      input(tpe := "hidden", name := "provider", value := provider),
-                      input(tpe := "hidden", name := "username", value := username),
-                      input(tpe := "hidden", name := "kind", value := "my_account_intelligence_lite"),
-                      button(cls := "auth-submit", tpe := "submit")(
-                        "Build My Account Notebook",
-                        span(cls := "arrow")(" ->")
+                    div(cls := "importer-summary-strip")(
+                      div(cls := "importer-summary-chip")(
+                        strong(games.size.toString),
+                        span("Recent public games")
+                      ),
+                      div(cls := "importer-summary-chip")(
+                        strong(providerShortLabel(provider)),
+                        span("Source provider")
+                      ),
+                      div(cls := "importer-summary-chip")(
+                        strong("Notebook-ready"),
+                        span("Two account-reading modes")
                       )
-                    ),
-                    form(cls := "auth-form", method := "post", action := routes.Study.createAccountNotebook.url)(
-                      input(tpe := "hidden", name := "provider", value := provider),
-                      input(tpe := "hidden", name := "username", value := username),
-                      input(tpe := "hidden", name := "kind", value := "opponent_prep"),
-                      button(cls := "auth-submit", tpe := "submit")(
-                        "Build Opponent Prep",
-                        span(cls := "arrow")(" ->")
-                      )
-                    )
-                  )
-                ),
-                games.nonEmpty.option(
-                  div(
-                    games.map(renderGameCard(_, username))*
-                  )
-                ),
-                form(cls := "auth-form", method := "post", action := routes.Importer.sendGame.url)(
-                  input(tpe := "hidden", name := "provider", value := provider),
-                  div(cls := "form-group")(
-                    label(`for` := "import-username")("Load another username"),
-                    input(
-                      id := "import-username",
-                      tpe := "text",
-                      name := "username",
-                      value := username,
-                      required
                     )
                   ),
-                  button(cls := "auth-submit", tpe := "submit")(
-                    "Refresh List",
-                    span(cls := "arrow")(" ->")
+                  pageError.map(msg => div(cls := "auth-error")(msg)),
+                  notice.map(msg => div(cls := "auth-error")(msg)),
+                  div(cls := "importer-grid importer-grid--results")(
+                    div(cls := "importer-panel importer-panel--results")(
+                      div(cls := "importer-panel__head")(
+                        strong(cls := "importer-panel__title")("Open a representative game"),
+                        p(cls := "importer-panel__copy")(
+                          "Use this list when you want a quick answer from one game. The notebook actions stay on the right because they answer a different question."
+                        )
+                      ),
+                      games.nonEmpty.option(
+                        div(cls := "importer-results-grid")(
+                          games.map(renderGameCard(_, username))*
+                        )
+                      )
+                    ),
+                    div(cls := "importer-side")(
+                      games.nonEmpty.option(
+                        div(cls := "importer-panel importer-panel--notebook")(
+                          div(cls := "importer-panel__head")(
+                            strong(cls := "importer-panel__title")("Turn this account into a notebook"),
+                            p(cls := "importer-panel__copy")(
+                              "The same sample can become notes about your own habits or prep notes against this account."
+                            )
+                          ),
+                          div(cls := "importer-mode-grid")(
+                            renderNotebookMode(
+                              provider = provider,
+                              username = username,
+                              kind = "my_account_intelligence_lite",
+                              title = "My Account Notebook",
+                              body =
+                                "Use the sample to spot the decisions you keep repeating and the structure worth fixing first.",
+                              eyebrow = "Repair"
+                            ),
+                            renderNotebookMode(
+                              provider = provider,
+                              username = username,
+                              kind = "opponent_prep",
+                              title = "Opponent Prep",
+                              body =
+                                "Use the same sample as prep: which structures are worth steering toward and where the first quiet decision tends to bend.",
+                              eyebrow = "Steer"
+                            )
+                          )
+                        )
+                      ),
+                      div(cls := "importer-panel importer-panel--compact")(
+                        div(cls := "importer-panel__head")(
+                          strong(cls := "importer-panel__title")("Load another username"),
+                          p(cls := "importer-panel__copy")(
+                            "Stay on the same provider and refresh the account list without starting over."
+                          )
+                        ),
+                        form(cls := "auth-form importer-form importer-form--compact", method := "post", action := routes.Importer.sendGame.url)(
+                          input(tpe := "hidden", name := "provider", value := provider),
+                          div(cls := "form-group")(
+                            label(`for` := "import-username")("Username"),
+                            input(
+                              id := "import-username",
+                              tpe := "text",
+                              name := "username",
+                              value := username,
+                              required
+                            )
+                          ),
+                          button(cls := "auth-submit importer-submit", tpe := "submit")(
+                            "Refresh List",
+                            span(cls := "arrow")(" ->")
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  renderRecentSections(recentAccounts, recentAnalyses),
+                  div(cls := "auth-links")(
+                    a(href := routes.Importer.importGame.url)("New import"),
+                    a(href := routes.UserAnalysis.index.url)("Back to Analysis")
                   )
-                ),
-                renderRecentSections(recentAccounts, recentAnalyses),
-                div(cls := "auth-links")(
-                  a(href := routes.Importer.importGame.url)("New import"),
-                  a(href := routes.UserAnalysis.index.url)("Back to Analysis")
                 )
               )
             )
@@ -180,8 +305,35 @@ object importer:
           button(tpe := "submit", cls := "auth-import-card__action")("Open in Analysis")
         ),
         game.sourceUrl.map(url =>
-          a(href := url, target := "_blank", rel := "noopener noreferrer", cls := "auth-import-card__source")("Source")
+          a(href := url, target := "_blank", rel := "noopener noreferrer", cls := "auth-import-card__source")(
+            "Source"
+          )
         )
+      )
+    )
+
+  private def renderNotebookMode(
+      provider: String,
+      username: String,
+      kind: String,
+      title: String,
+      body: String,
+      eyebrow: String
+  ): Frag =
+    form(
+      cls := "importer-mode-card",
+      method := "post",
+      action := routes.AccountIntel.submit.url
+    )(
+      input(tpe := "hidden", name := "provider", value := provider),
+      input(tpe := "hidden", name := "username", value := username),
+      input(tpe := "hidden", name := "kind", value := kind),
+      div(cls := "importer-mode-card__eyebrow")(eyebrow),
+      strong(cls := "importer-mode-card__title")(title),
+      p(cls := "importer-mode-card__body")(body),
+      button(cls := "auth-submit importer-submit importer-submit--secondary", tpe := "submit")(
+        "Build notebook",
+        span(cls := "arrow")(" ->")
       )
     )
 
@@ -192,12 +344,15 @@ object importer:
     if recentAccounts.isEmpty && recentAnalyses.isEmpty then
       div(cls := "auth-history auth-history--empty")(
         div(cls := "auth-empty-state")(
-          span(cls := "auth-empty-state__eyebrow")(if ctx.isAuth then "Saved imports" else "Cross-device history"),
+          span(cls := "auth-empty-state__eyebrow")(
+            if ctx.isAuth then "Saved imports" else "Cross-device history"
+          ),
           strong(if ctx.isAuth then "No saved analyses yet" else "Sign in to keep import history"),
           p(
             if ctx.isAuth then
               "Open a PGN or imported game once, and it will appear here for fast reopen in the same analysis shell."
-            else "Guest sessions only keep local drafts. Sign in to save recent accounts and imported games across devices."
+            else
+              "Guest sessions only keep local drafts. Sign in to save recent accounts and imported games across devices."
           )
         )
       )
@@ -207,14 +362,17 @@ object importer:
           div(cls := "auth-history__section")(
             div(cls := "auth-history__section-head")(
               strong("Recent analyses"),
-              span("Resume imported games from the exact PGN snapshot you saved, then continue with move insight or full-game review.")
+              span(
+                "Resume imported games from the exact PGN snapshot you saved, then continue with move insight or full-game review."
+              )
             ),
             div(cls := "auth-history__list")(
               recentAnalyses.zipWithIndex.map { case (entry, index) =>
                 renderRecentAnalysis(entry, priority = index == 0)
               }*
             )
-          ),
+          )
+        ,
         recentAccounts.nonEmpty.option:
           div(cls := "auth-history__section")(
             div(cls := "auth-history__section-head")(
@@ -233,7 +391,7 @@ object importer:
     val targetUrl =
       account.provider match
         case ImportHistory.providerChessCom => routes.Importer.importFromChessCom(account.username).url
-        case _                              => routes.Importer.importFromLichess(account.username).url
+        case _ => routes.Importer.importFromLichess(account.username).url
     val footer =
       if priority then "Fastest way back to your last imported account list."
       else "Open this account list again without typing the username."
@@ -274,7 +432,9 @@ object importer:
     )(
       div(cls := "auth-history__badges")(
         entry.provider.map(providerBadge),
-        span(cls := s"auth-badge auth-badge--${sourceBadgeTone(entry.sourceType)}")(sourceTypeLabel(entry.sourceType)),
+        span(cls := s"auth-badge auth-badge--${sourceBadgeTone(entry.sourceType)}")(
+          sourceTypeLabel(entry.sourceType)
+        ),
         priority.option(span(cls := "auth-badge auth-badge--priority")("Latest"))
       ),
       div(cls := "auth-history__title-row")(
@@ -294,30 +454,27 @@ object importer:
     ).flatten.mkString(" • ")
     if line.nonEmpty then line else "Saved PGN snapshot ready to resume"
 
-  private def providerLabel(provider: String): String =
-    provider.trim.toLowerCase match
-      case "chesscom" => "Chess.com Recent Games"
-      case _          => "Lichess Recent Games"
-
   private def providerShortLabel(provider: String): String =
     provider.trim.toLowerCase match
       case "chesscom" => "Chess.com"
-      case _          => "Lichess"
+      case _ => "Lichess"
 
   private def providerBadge(provider: String): Frag =
-    span(cls := s"auth-badge auth-badge--provider auth-badge--${providerTone(provider)}")(providerShortLabel(provider))
+    span(cls := s"auth-badge auth-badge--provider auth-badge--${providerTone(provider)}")(
+      providerShortLabel(provider)
+    )
 
   private def providerTone(provider: String): String =
     provider.trim.toLowerCase match
       case "chesscom" => "chesscom"
-      case _          => "lichess"
+      case _ => "lichess"
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match
       case ImportHistory.sourceManual => "Manual PGN"
-      case _                          => "Imported game"
+      case _ => "Imported game"
 
   private def sourceBadgeTone(sourceType: String): String =
     sourceType match
       case ImportHistory.sourceManual => "manual"
-      case _                          => "imported"
+      case _ => "imported"

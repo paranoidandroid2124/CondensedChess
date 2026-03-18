@@ -9,9 +9,33 @@ object auth:
 
   val pubOrTor = span("This access is from a public or Tor network.")
 
-  private def authHeader()(using @unused ctx: Context) =
+  private def themeChoice(using ctx: Context) =
+    ctx.pref.currentBg match
+      case "light"  => "light"
+      case "system" => "system"
+      case _        => "dark"
+
+  private def authThemeSwitch(using ctx: Context) =
+    val current = themeChoice
+    div(cls := "auth-theme-switch", role := "group", aria.label := "Theme")(
+      List(
+        "light" -> "Light",
+        "dark" -> "Dark",
+        "system" -> "Auto"
+      ).map: (value, label) =>
+        button(
+          tpe := "button",
+          cls := "auth-theme-switch__button js-theme-choice",
+          attr("data-theme-choice") := value,
+          attr("aria-pressed") := (value == current).toString,
+          title := s"Use ${if value == "system" then "device theme" else s"$label theme"}"
+        )(label)
+    )
+
+  private def authHeader()(using ctx: Context) =
     div(cls := "landing-header")(
-      a(href := routes.Main.landing.url, cls := "logo")("Chesstory")
+      a(href := routes.Main.landing.url, cls := "logo")("Chesstory"),
+      authThemeSwitch
     )
 
   private def authFooter() =

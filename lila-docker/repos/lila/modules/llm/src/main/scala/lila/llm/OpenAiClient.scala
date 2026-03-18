@@ -414,6 +414,70 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens = maxOutputTokens
     )
 
+  def strategicPuzzleTerminalSync(
+      input: StrategicPuzzlePrompt.TerminalInput,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
+  ): Future[Option[OpenAiPolishResult]] =
+    strategicPuzzleTerminalWithFallback(
+      input = input,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def strategicPuzzleTerminalAsync(
+      input: StrategicPuzzlePrompt.TerminalInput,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
+  ): Future[Option[OpenAiPolishResult]] =
+    strategicPuzzleTerminalWithFallback(
+      input = input,
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def strategicPuzzleSummarySync(
+      input: StrategicPuzzlePrompt.SummaryInput,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
+  ): Future[Option[OpenAiPolishResult]] =
+    strategicPuzzleSummaryWithFallback(
+      input = input,
+      asyncTier = false,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
+  def strategicPuzzleSummaryAsync(
+      input: StrategicPuzzlePrompt.SummaryInput,
+      lang: String = "en",
+      maxOutputTokens: Option[Int] = None,
+      planTier: String = PlanTier.Basic,
+      llmLevel: String = LlmLevel.Polish
+  ): Future[Option[OpenAiPolishResult]] =
+    strategicPuzzleSummaryWithFallback(
+      input = input,
+      asyncTier = true,
+      planTier = planTier,
+      llmLevel = llmLevel,
+      lang = lang,
+      maxOutputTokens = maxOutputTokens
+    )
+
   private def polishWithFallback(
       prose: String,
       phase: String,
@@ -663,6 +727,82 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens
+              )
+            case None => Future.successful(None)
+      }
+
+  private def strategicPuzzleTerminalWithFallback(
+      input: StrategicPuzzlePrompt.TerminalInput,
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    if !config.enabled || input.draftCommentary.isBlank then Future.successful(None)
+    else
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish)
+      val userPrompt = StrategicPuzzlePrompt.buildTerminalPrompt(input)
+      callModelWithPrompt(
+        userPrompt = userPrompt,
+        model = route.primary,
+        serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
+        lang = lang,
+        maxOutputTokens = maxOutputTokens,
+        systemPrompt = StrategicPuzzlePrompt.terminalSystemPrompt
+      ).flatMap {
+        case some @ Some(_) => Future.successful(some)
+        case None =>
+          route.fallback match
+            case Some(fb) =>
+              callModelWithPrompt(
+                userPrompt = userPrompt,
+                model = fb,
+                serviceTier = route.serviceTier,
+                reasoningEffort = defaultReasoningEffortForModel(fb),
+                lang = lang,
+                maxOutputTokens = maxOutputTokens,
+                systemPrompt = StrategicPuzzlePrompt.terminalSystemPrompt
+              )
+            case None => Future.successful(None)
+      }
+
+  private def strategicPuzzleSummaryWithFallback(
+      input: StrategicPuzzlePrompt.SummaryInput,
+      asyncTier: Boolean,
+      planTier: String,
+      llmLevel: String,
+      lang: String,
+      maxOutputTokens: Option[Int]
+  ): Future[Option[OpenAiPolishResult]] =
+    if !config.enabled || input.draftSummary.isBlank then Future.successful(None)
+    else
+      val route =
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyPolish)
+      val userPrompt = StrategicPuzzlePrompt.buildSummaryPrompt(input)
+      callModelWithPrompt(
+        userPrompt = userPrompt,
+        model = route.primary,
+        serviceTier = route.serviceTier,
+        reasoningEffort = route.reasoningEffort,
+        lang = lang,
+        maxOutputTokens = maxOutputTokens,
+        systemPrompt = StrategicPuzzlePrompt.summarySystemPrompt
+      ).flatMap {
+        case some @ Some(_) => Future.successful(some)
+        case None =>
+          route.fallback match
+            case Some(fb) =>
+              callModelWithPrompt(
+                userPrompt = userPrompt,
+                model = fb,
+                serviceTier = route.serviceTier,
+                reasoningEffort = defaultReasoningEffortForModel(fb),
+                lang = lang,
+                maxOutputTokens = maxOutputTokens,
+                systemPrompt = StrategicPuzzlePrompt.summarySystemPrompt
               )
             case None => Future.successful(None)
       }

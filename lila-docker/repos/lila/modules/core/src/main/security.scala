@@ -48,8 +48,7 @@ case class UserSignup(
     apiVersion: Option[ApiVersion]
 )
 
-trait SecurityApi:
-  def shareAnIpOrFp(u1: UserId, u2: UserId): Fu[Boolean]
+trait SecurityApi
 
 trait SpamApi:
   def detect(text: String): Boolean
@@ -94,6 +93,3 @@ opaque type FloodSource = String
 object FloodSource extends TotalWrapper[FloodSource, String]:
   def apply(ip: lila.core.net.IpAddress): FloodSource = ip.value.asInstanceOf[FloodSource]
   def apply(userId: UserId): FloodSource = userId.value.asInstanceOf[FloodSource]
-
-opaque type FingerHash = String
-object FingerHash extends TotalWrapper[FingerHash, String]

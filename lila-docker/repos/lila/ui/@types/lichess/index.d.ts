@@ -166,14 +166,8 @@ type Nvui = (redraw: () => void) => {
   render(ctrl: any): any;
 };
 
-interface Fipr {
-  get(cb: (c: { value: string }[]) => void): void;
-  x64hash128(input: string, seed: number): string;
-}
-
 interface Window {
   site: Site;
-  fipr: Fipr;
   readonly chrome?: unknown;
   readonly moment: any;
   readonly stripeHandler: any;
@@ -306,6 +300,5 @@ declare namespace PowerTip {
 }
 
 declare const site: Site;
-declare const fipr: Fipr;
 declare const $html: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts
 declare const $trim: (s: TemplateStringsArray, ...k: any[]) => string; // file://./../../.build/src/esbuild.ts

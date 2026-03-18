@@ -262,7 +262,7 @@ object BookmakerStrategicLedgerBuilder:
       case _ =>
     }
 
-    if ctx.semantic.flatMap(_.compensation).exists(_.investedMaterial > 0) then
+    if CompensationInterpretation.effectiveSemanticDecision(ctx).exists(_.decision.signal.investedMaterial.exists(_ > 0)) then
       scores.update("compensation_attack", scores("compensation_attack") + 3.0)
     if ctx.semantic.exists(_.preventedPlans.nonEmpty) then
       scores.update("counterplay_restraint", scores("counterplay_restraint") + 3.0)
@@ -529,7 +529,10 @@ object BookmakerStrategicLedgerBuilder:
       ctx: NarrativeContext,
       endgameStateToken: Option[EndgamePatternState]
   ): Option[String] =
-    ctx.semantic.flatMap(_.compensation).map(_.conversionPlan.trim).filter(_.nonEmpty)
+    CompensationInterpretation.effectiveSemanticDecision(ctx)
+      .flatMap(_.decision.signal.summary)
+      .map(_.trim)
+      .filter(_.nonEmpty)
       .orElse(ctx.decision.toList.flatMap(_.delta.planAdvancements).headOption.map(trimSentence).filter(_.nonEmpty))
       .orElse(endgameStateToken.flatMap(_.activePattern).map(trimSentence).filter(_.nonEmpty))
 

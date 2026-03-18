@@ -10,7 +10,6 @@ import lila.ui.Nonce
 /* Who is logged in, and how */
 final class LoginContext(
     val me: Option[Me],
-    val needsFp: Boolean,
     val impersonatedBy: Option[lila.core.userId.ModId]
 ):
   export me.{ isDefined as isAuth, isEmpty as isAnon }
@@ -25,7 +24,7 @@ final class LoginContext(
   def isTokenAuth = false
 
 object LoginContext:
-  val anon = LoginContext(none, false, none)
+  val anon = LoginContext(none, none)
 
 /* Data available in every HTTP request */
 class Context(

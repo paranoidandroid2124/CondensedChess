@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { sharedWasmMemory } from '../util';
 import { Cache } from '../cache';
+import { preferenceStorageAllowed } from '../../cookieConsent';
 
 interface WasmModule {
   (opts: {
@@ -75,7 +76,7 @@ export class ThreadedEngine implements CevalEngine {
 
     let wasmBinary: ArrayBuffer | undefined;
     if (this.info.id === '__sf14nnue') {
-      const cache = window.indexedDB && new Cache('ceval-wasm-cache');
+      const cache = preferenceStorageAllowed() && window.indexedDB && new Cache('ceval-wasm-cache');
       try {
         if (cache) {
           const [found, data] = await cache.get(wasmPath, pathVersion!);
@@ -98,11 +99,12 @@ export class ThreadedEngine implements CevalEngine {
           req.send();
         });
       }
-      try {
-        await cache.set(wasmPath, pathVersion!, wasmBinary);
-      } catch (e) {
-        console.log('ceval: idb cache store failed:', e);
-      }
+      if (cache)
+        try {
+          await cache.set(wasmPath, pathVersion!, wasmBinary);
+        } catch (e) {
+          console.log('ceval: idb cache store failed:', e);
+        }
     }
 
     // Load Emscripten module.

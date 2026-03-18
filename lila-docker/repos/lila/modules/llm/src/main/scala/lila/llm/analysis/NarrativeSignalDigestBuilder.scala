@@ -7,15 +7,7 @@ import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 object NarrativeSignalDigestBuilder:
 
   private def effectiveCompensationInfo(ctx: NarrativeContext) =
-    ctx.semantic.flatMap(_.compensation).orElse(
-      ctx.semantic
-        .flatMap(_.afterCompensation)
-        .filterNot(comp =>
-          ctx.playedMove.exists(move =>
-            CompensationRecaptureGate.suppressAfterCompensation(ctx.fen, move, comp.investedMaterial)
-          )
-        )
-    )
+    CompensationInterpretation.effectiveSemanticDecision(ctx).map(_.compensation)
 
   def build(
       ctx: NarrativeContext,

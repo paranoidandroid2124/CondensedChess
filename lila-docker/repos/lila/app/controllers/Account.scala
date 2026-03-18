@@ -251,13 +251,3 @@ final class Account(
                   if ctx.me.exists(_.id == userId) then routes.Account.passwd else routes.Auth.login
                 Redirect(redirect).flashing("success" -> "Email address updated.")
   }
-
-  def twoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def setupTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def disableTwoFactor = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def kid = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def apiKid = Auth { _ ?=> _ ?=> JsonOk(Json.obj("kid" -> false)) }
-  def kidPost = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def apiKidPost = Auth { _ ?=> _ ?=> JsonOk(Json.obj("ok" -> true)) }
-  def security = Auth { _ ?=> _ ?=> fuccess(Redirect(routes.Account.profile)) }
-  def data = Auth { _ ?=> me ?=> fuccess(Redirect(routes.Account.profile)) }

@@ -9,7 +9,7 @@ const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
     const reviewVars = extractCustomProperties(analyseFreeScss, '.analyse-review');
-    const summaryCardBg = extractLiteral(analyseFreeScss, /&__summary-card[\s\S]*?background:\s*(#[0-9a-fA-F]{6})/);
+    const summaryCardBg = reviewVars.get('--review-summary-surface');
 
     const cases = [
       ['idle review tabs', reviewVars.get('--review-text-muted'), reviewVars.get('--review-surface-raised'), 4.5],
@@ -68,6 +68,43 @@ describe('review shell contrast palette', () => {
       analyseFreeScss,
       /&__panel--board[\s\S]*?&\.action-menu\s*\{[\s\S]*?color:\s*var\(--review-text\);[\s\S]*?span\s*\{[\s\S]*?color:\s*inherit;/,
     );
+  });
+
+  test('keeps import-history provider badges above AA in both themes', () => {
+    const lightVars = extractCustomProperties(analyseFreeScss, '.analyse-review');
+    const darkVars = extractCustomProperties(analyseFreeScss, 'html.dark .analyse-review');
+
+    const cases = [
+      [
+        'light lichess provider badge',
+        lightVars.get('--review-provider-lichess-text'),
+        lightVars.get('--review-provider-lichess-bg'),
+      ],
+      [
+        'light chess.com provider badge',
+        lightVars.get('--review-provider-chesscom-text'),
+        lightVars.get('--review-provider-chesscom-bg'),
+      ],
+      [
+        'dark lichess provider badge',
+        darkVars.get('--review-provider-lichess-text'),
+        darkVars.get('--review-provider-lichess-bg'),
+      ],
+      [
+        'dark chess.com provider badge',
+        darkVars.get('--review-provider-chesscom-text'),
+        darkVars.get('--review-provider-chesscom-bg'),
+      ],
+    ] as const;
+
+    for (const [label, fg, bg] of cases) {
+      assert.ok(fg, `${label}: missing foreground color`);
+      assert.ok(bg, `${label}: missing background color`);
+      assert.ok(
+        contrastRatio(parseHex(fg), parseHex(bg)) >= 4.5,
+        `${label}: expected contrast >= 4.5, got ${contrastRatio(parseHex(fg), parseHex(bg)).toFixed(2)}`,
+      );
+    }
   });
 });
 

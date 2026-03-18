@@ -239,11 +239,11 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
   if (ctrl.narrative) {
     tools.push({
       id: 'narrative',
-      label: 'Insights',
+      label: 'Game Chronicle',
       summary: ctrl.narrative.loading()
         ? 'Game Chronicle is running'
         : ctrl.narrative.data()
-          ? 'Resume Game Chronicle insights'
+          ? 'Resume Game Chronicle'
           : 'Run Game Chronicle',
       icon: licon.BubbleSpeech,
       active: ctrl.activeControlBarTool() === 'narrative',
@@ -405,6 +405,11 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
     .recentImportDrafts()
     .filter(draft => draft !== pgnInspection.normalized && draft !== currentInspection.normalized);
   const serverHistory = ctrl.opts.importHistory;
+  const submitPgnDraft = () => {
+    if (pgnInspection.status !== 'ready') return;
+    const draft = defined(ctrl.pgnInput) ? ctrl.pgnInput : pgnExport.renderFullTxt(ctrl);
+    if (draft !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(draft);
+  };
   return hl('div.copyables.copyables--workspace', [
     hl('div.analyse-review__summary-grid.copyables__summary', [
       compactSummaryCard(pgnInspection.headline, 'import status'),
@@ -424,8 +429,18 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             insert: vnode => {
               const el = vnode.elm as HTMLInputElement;
               el.value = defined(ctrl.fenInput) ? ctrl.fenInput : ctrl.node.fen;
+              const submitFen = () => {
+                const nextFen = el.value.trim();
+                if (nextFen === ctrl.node.fen || !parseFen(nextFen).isOk) return false;
+                ctrl.changeFen(nextFen);
+                return true;
+              };
               el.addEventListener('change', () => {
-                if (el.value !== ctrl.node.fen && el.reportValidity()) ctrl.changeFen(el.value.trim());
+                if (el.reportValidity()) submitFen();
+              });
+              el.addEventListener('keydown', (e: KeyboardEvent) => {
+                if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+                if (el.reportValidity() && submitFen()) e.preventDefault();
               });
               el.addEventListener('input', () => {
                 ctrl.fenInput = el.value;
@@ -478,19 +493,14 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
         }),
       ]),
       hl('div.bottom-item.bottom-actions', [
-        !isMobile() &&
-          hl(
-            'button.button.button-thin.bottom-action.text',
-            {
-              attrs: pgnInspection.status !== 'ready' ? { disabled: true } : {},
-              hook: bind('click', () => {
-                if (pgnInspection.status !== 'ready') return;
-                const pgn = $('.copyables textarea').val() as string;
-                  if (pgn !== pgnExport.renderFullTxt(ctrl)) ctrl.importPgn(pgn);
-                }),
-              },
-            [icon(licon.PlayTriangle as any), ' Import PGN'],
-          ),
+        hl(
+          'button.button.button-thin.bottom-action.text',
+          {
+            attrs: pgnInspection.status !== 'ready' ? { disabled: true } : {},
+            hook: bind('click', submitPgnDraft),
+          },
+          [icon(licon.PlayTriangle as any), ' Import PGN'],
+        ),
         pgnInspection.status !== 'current' &&
           hl(
             'button.button.button-thin.bottom-action.text',
@@ -503,13 +513,17 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
           'button.button.button-thin.bottom-action.text',
           {
             attrs: {
-              title: 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
+              title:
+                pgnInspection.status === 'ready'
+                  ? 'Analyze the staged PGN without importing it first.'
+                  : 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
+              disabled: pgnInspection.status === 'invalid',
             },
             hook: bind('click', () => {
-              void ctrl.openNarrative();
+              void ctrl.openNarrative(pgnInspection.status === 'ready' ? draftPgn : undefined);
             }),
           },
-                [icon(licon.Book as any), ' Run Game Chronicle'],
+          [icon(licon.Book as any), ' Run Game Chronicle'],
         ),
       ]),
       renderInlineStatus(
@@ -689,6 +703,15 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
 
   const visibility = study.visibility || 'public';
   const currentUrl = ctrl.studyUrl();
+  const notebookTarget =
+    currentUrl && typeof window !== 'undefined'
+      ? new URL(currentUrl, window.location.origin)
+      : null;
+  const notebookUrl =
+    notebookTarget &&
+    notebookTarget.pathname + notebookTarget.search === window.location.pathname + window.location.search
+      ? null
+      : currentUrl;
   const actionMessage = ctrl.studyActionMessageText();
   const syncTone = ctrl.studyWriteError ? 'error' : ctrl.isStudyWriting() ? 'info' : 'success';
   const syncMessage = actionMessage || ctrl.studyStatusText();
@@ -709,10 +732,10 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
         ),
       ]),
       hl('div.copyables__study-actions', [
-        currentUrl
+        notebookUrl
           ? hl(
               'a.button.button-thin.copyables__study-button',
-              { attrs: { href: currentUrl } },
+              { attrs: { href: notebookUrl } },
               [renderNotebookGlyph('page', 'copyables__study-button-glyph'), ' Open notebook'],
             )
           : null,

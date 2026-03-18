@@ -1,5 +1,6 @@
 import { alert, info, spinnerHtml } from 'lib/view';
 import { wireMarkdownImgResizers, naturalSize, markdownPicfitRegex } from 'lib/view/markdownImgResizer';
+import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { marked } from 'marked';
 import { json as xhrJson } from 'lib/xhr';
 import { frag } from 'lib';
@@ -23,15 +24,16 @@ function wireMarkdownTextarea(markdown: HTMLElement) {
   const preview = markdown.querySelector<HTMLElement>('.comment-preview')!;
 
   previewTab.addEventListener('click', async () => {
+    const store = preferenceLocalStorage();
     const html = await marked.parse(textarea.value ?? '');
     preview.innerHTML = html;
     preview.classList.remove('none');
     uploadBtn?.classList.add('none');
     writeTab.classList.remove('active');
     previewTab.classList.add('active');
-    if (markdownPicfitRegex().test(textarea.value) && !localStorage.getItem('markdown.rtfm')) {
+    if (markdownPicfitRegex().test(textarea.value) && !store?.getItem('markdown.rtfm')) {
       info('Drag a side or bottom edge to resize an image.');
-      localStorage.setItem('markdown.rtfm', '1');
+      store?.setItem('markdown.rtfm', '1');
     }
     wireMarkdownImgResizers({
       root: preview,

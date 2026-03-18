@@ -5,6 +5,7 @@ import type {
   PolishMetaV1,
 } from './responsePayload';
 import type { EndgameStateToken, PlanStateToken } from './types';
+import { preferenceLocalStorage, preferenceSessionStorage } from 'lib/cookieConsent';
 
 export type StoredBookmakerTokenContext = {
   stateKey: string;
@@ -87,7 +88,15 @@ export function buildStoredBookmakerEntry(
 }
 
 function hasStorage(): boolean {
-  return typeof window !== 'undefined' && !!window.localStorage;
+  return !!preferenceLocalStorage();
+}
+
+function localStore(): Storage | null {
+  return preferenceLocalStorage();
+}
+
+function sessionStore(): Storage | null {
+  return preferenceSessionStorage();
 }
 
 function snapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
@@ -95,9 +104,10 @@ function snapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
 }
 
 function readIndex(): string[] {
-  if (!hasStorage()) return [];
+  const store = localStore();
+  if (!store) return [];
   try {
-    const raw = window.localStorage.getItem(storageIndexKey);
+    const raw = store.getItem(storageIndexKey);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
@@ -107,9 +117,10 @@ function readIndex(): string[] {
 }
 
 function writeIndex(keys: string[]): void {
-  if (!hasStorage()) return;
+  const store = localStore();
+  if (!store) return;
   try {
-    window.localStorage.setItem(storageIndexKey, JSON.stringify(keys));
+    store.setItem(storageIndexKey, JSON.stringify(keys));
   } catch {
     // Ignore storage quota and serialization failures.
   }
@@ -123,7 +134,7 @@ function pruneSnapshots(): void {
   const snapshots = keys
     .map(key => {
       try {
-        const raw = window.localStorage.getItem(key);
+        const raw = localStore()?.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
         return { key, savedAt: typeof parsed?.savedAt === 'number' ? parsed.savedAt : 0 };
@@ -137,7 +148,7 @@ function pruneSnapshots(): void {
   const toDrop = snapshots.slice(0, snapshots.length - maxSnapshots);
   toDrop.forEach(({ key }) => {
     try {
-      window.localStorage.removeItem(key);
+      localStore()?.removeItem(key);
     } catch {
       // Ignore best-effort cleanup failures.
     }
@@ -152,7 +163,8 @@ export function persistStudyBookmakerSnapshot(
   commentary: string | null,
   entry: StoredBookmakerEntry,
 ): void {
-  if (!hasStorage()) return;
+  const store = localStore();
+  if (!store) return;
   const key = snapshotKey(ref, commentPath);
   const payload: StudyBookmakerSnapshot = {
     schema: 'chesstory.bookmaker.study.v1',
@@ -166,7 +178,7 @@ export function persistStudyBookmakerSnapshot(
   };
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(payload));
+    store.setItem(key, JSON.stringify(payload));
     const keys = readIndex().filter(existing => existing !== key);
     keys.push(key);
     writeIndex(keys);
@@ -180,9 +192,10 @@ export function readStudyBookmakerSnapshot(
   ref: StudyBookmakerRef,
   commentPath: string,
 ): StudyBookmakerSnapshot | null {
-  if (!hasStorage()) return null;
+  const store = localStore();
+  if (!store) return null;
   try {
-    const raw = window.localStorage.getItem(snapshotKey(ref, commentPath));
+    const raw = store.getItem(snapshotKey(ref, commentPath));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
     if (
@@ -207,7 +220,7 @@ export function listStudyBookmakerSnapshots(ref: StudyBookmakerRef): StudyBookma
   const snapshots = keys
     .map(key => {
       try {
-        const raw = window.localStorage.getItem(key);
+        const raw = localStore()?.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
         if (
@@ -240,9 +253,10 @@ export function persistSessionBookmakerSnapshot(
   commentary: string | null,
   entry: StoredBookmakerEntry,
 ): void {
-  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  const store = sessionStore();
+  if (!store) return;
   try {
-    window.sessionStorage.setItem(
+    store.setItem(
       sessionKey(scope, commentPath),
       JSON.stringify({
         schema: 'chesstory.bookmaker.session.v1',
@@ -260,9 +274,10 @@ export function persistSessionBookmakerSnapshot(
 }
 
 export function readSessionBookmakerSnapshot(scope: string, commentPath: string): StudyBookmakerSnapshot | null {
-  if (typeof window === 'undefined' || !window.sessionStorage) return null;
+  const store = sessionStore();
+  if (!store) return null;
   try {
-    const raw = window.sessionStorage.getItem(sessionKey(scope, commentPath));
+    const raw = store.getItem(sessionKey(scope, commentPath));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       schema?: string;
@@ -297,12 +312,13 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
 }
 
 export function listSessionBookmakerSnapshots(scope: string): StudyBookmakerSnapshot[] {
-  if (typeof window === 'undefined' || !window.sessionStorage) return [];
+  const store = sessionStore();
+  if (!store) return [];
   const prefix = `${sessionPrefix}:${scope}:`;
   const snapshots: StudyBookmakerSnapshot[] = [];
 
-  for (let i = 0; i < window.sessionStorage.length; i += 1) {
-    const key = window.sessionStorage.key(i);
+  for (let i = 0; i < store.length; i += 1) {
+    const key = store.key(i);
     if (!key || !key.startsWith(prefix)) continue;
     const commentPath = key.slice(prefix.length);
     if (!commentPath) continue;

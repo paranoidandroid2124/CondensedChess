@@ -16,7 +16,7 @@ object terms:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Terms of Service"),
-                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 16, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 19, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -41,6 +41,10 @@ object terms:
                   "Chesstory is offered as a beta service. Features may change, be interrupted, or be removed without notice. ",
                   "The Service is currently offered without a public paid subscription, but some features may still be gated by login, quotas, fair-use controls, or beta access tiers. ",
                   "If public paid plans are introduced later, the applicable pricing and billing terms will be shown before purchase."
+                ),
+                p(
+                  "During beta, Chesstory may ask for voluntary product feedback, including whether certain features feel worth paying for and whether you want an email if paid plans open later. ",
+                  "Submitting that feedback does not create a purchase obligation or reserve a plan."
                 )
               ),
 
@@ -52,6 +56,12 @@ object terms:
                 p(
                   "You are responsible for activity that occurs under your account and for keeping your sign-in methods secure. ",
                   "Chesstory may use passwords, email confirmation links, password reset emails, and email login links as part of account security."
+                ),
+                p(
+                  "Chesstory may also store settings, analysis drafts, or performance caches in your browser when those features are enabled. ",
+                  "Optional browser-side storage is controlled through Cookie Settings and described in the ",
+                  a(href := routes.Main.privacy.url)("Privacy Policy"),
+                  "."
                 )
               ),
 
@@ -155,6 +165,8 @@ object terms:
 
               footer(cls := "legal-footer")(
                 a(href := routes.Main.privacy.url, cls := "legal-link")("Privacy Policy"),
+                span(" • "),
+                a(href := "#cookie-consent", cls := "legal-link js-cookie-consent-open")("Cookie settings"),
                 span(" • "),
                 a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 span(" • "),

@@ -22,7 +22,7 @@ export type ProbePlanningMoment = {
       compensation?: string;
       compensationVectors?: string[];
       investedMaterial?: number;
-    };
+    } | null;
   };
   probeRequests?: ProbeRequest[];
   probeRefinementRequests?: ProbeRequest[];

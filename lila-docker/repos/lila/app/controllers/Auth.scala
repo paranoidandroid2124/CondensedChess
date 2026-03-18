@@ -49,6 +49,8 @@ final class Auth(env: Env) extends LilaController(env):
     env.mode == Mode.Prod && env.config.getOptional[Boolean]("security.hcaptcha.enabled").getOrElse(false)
   private val signupCaptchaSiteKey =
     env.config.getOptional[String]("security.hcaptcha.public.sitekey").filter(_.nonEmpty)
+  private val signupEmailConfirmRequired =
+    env.config.getOptional[Boolean]("security.email_confirm.enabled").getOrElse(true)
   private val magicLinkAutoCreateEnabled =
     env.config.getOptional[Boolean]("auth.magicLink.autoCreate").getOrElse(false)
 
@@ -151,12 +153,14 @@ final class Auth(env: Env) extends LilaController(env):
         limit.signup(ctx.ip, BadRequest.page(signupPage(tooMany))):
           env.security.signup.website(data, ctx.blind).flatMap:
             case lila.security.Signup.Result.AllSet(user) =>
-              val email = data.normalizedEmail
-              val token = env.security.loginToken.generate(email, 30.minutes)
-              val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
-              env.mailer.automaticEmail.signupConfirm(user, email, url).inject:
-                Redirect(routes.Auth.checkYourEmail)
-                  .withCookies(EmailConfirm.cookie.set(user.id, email))
+              if signupEmailConfirmRequired then
+                val email = data.normalizedEmail
+                val token = env.security.loginToken.generate(email, 30.minutes)
+                val url = s"${env.baseUrl}${routes.Auth.loginWithToken(token).url}"
+                env.mailer.automaticEmail.signupConfirm(user, email, url).inject:
+                  Redirect(routes.Auth.checkYourEmail)
+                    .withCookies(EmailConfirm.cookie.set(user.id, email))
+              else authenticateUser(user, remember = true)
             case lila.security.Signup.Result.MissingCaptcha =>
               val captchaErr = form
                 .fill(data)

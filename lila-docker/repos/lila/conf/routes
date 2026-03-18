@@ -62,12 +62,22 @@ GET   /notebook                        controllers.Study.allDefault(page: Int ?=
 GET   /notebook/all/:order            controllers.Study.all(order: StudyOrder, page: Int ?= 1)
 GET   /notebook/mine/:order           controllers.Study.mine(order: StudyOrder, page: Int ?= 1)
 POST  /notebook/$id<\w{8}>/delete     controllers.Study.delete(id: StudyId)
-POST  /notebook/account               controllers.Study.createAccountNotebook
 POST  /notebook/$id<\w{8}>/$chapterId<\w{8}>/import-pgn controllers.Study.importPgn(id: StudyId, chapterId: StudyChapterId)
 GET   /notebook/$id<\w{8}>/$chapterId<\w{8}> controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
 POST  /notebook                       controllers.Study.create
 GET   /notebook/create                controllers.Study.createAs
 GET   /notebook/:id                   controllers.Study.show(id: StudyId)
+
+# Account Intel
+GET   /account-intel                  controllers.AccountIntel.landing(provider: String ?= "", username: String ?= "")
+POST  /account-intel/notebooks        controllers.AccountIntel.submit
+POST  /api/account-intel/notebooks    controllers.AccountIntel.submit
+GET   /api/account-intel/jobs/:jobId  controllers.AccountIntel.jobStatusApi(jobId)
+GET   /account-intel/jobs/:jobId      controllers.AccountIntel.jobStatusPage(jobId)
+GET   /api/account-intel/:provider/:username/history controllers.AccountIntel.historyApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
+GET   /api/account-intel/:provider/:username controllers.AccountIntel.surfaceApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
+GET   /account-intel/:provider/:username controllers.AccountIntel.product(provider: String, username: String, kind: String ?= "my_account_intelligence_lite", side: String ?= "")
+POST  /internal/account-intel/jobs/:jobId/run controllers.AccountIntel.runJobInternal(jobId)
 
 # Notebook API (legacy /api/study paths kept internal)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-move controllers.Study.anaMove(id: StudyId, chapterId: StudyChapterId)
@@ -80,7 +90,7 @@ POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/bookmaker-sync controllers.Study.b
 POST  /api/study/$id<\w{8}>/notebook-dossier controllers.Study.setNotebookDossier(id: StudyId)
 
 # User Analysis
-# GET   /analysis/help                   controllers.UserAnalysis.help
+GET   /analysis/help                   controllers.UserAnalysis.help
 GET   /analysis/import/:id             controllers.UserAnalysis.imported(id: String)
 GET   /analysis/pgn/*pgn               controllers.UserAnalysis.pgn(pgn)
 GET   /analysis/*something             controllers.UserAnalysis.parseArg(something)
@@ -99,7 +109,17 @@ GET   /api/llm/opening/masters          controllers.LlmController.openingMasters
 GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
 GET   /api/llm/defeat-dna              controllers.LlmController.defeatDna
 GET   /support                         controllers.Main.support
-GET   /plan                            controllers.Main.support
+GET   /plan                            controllers.Main.plan
+GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)
+POST  /beta-feedback                   controllers.BetaFeedback.submitForm
+POST  /api/beta-feedback               controllers.BetaFeedback.submitApi
+GET   /journal                         controllers.Main.journal
+GET   /journal/:slug                   controllers.Main.journalPost(slug)
+GET   /strategic-puzzle                controllers.StrategicPuzzle.home
+GET   /strategic-puzzle/:id            controllers.StrategicPuzzle.show(id)
+GET   /api/strategic-puzzle/next       controllers.StrategicPuzzle.next
+POST  /api/strategic-puzzle/:id/complete controllers.StrategicPuzzle.complete(id)
+GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

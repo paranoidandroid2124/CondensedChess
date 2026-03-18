@@ -76,8 +76,7 @@ final class SecurityForm(
         "email" -> emailField,
         "username" -> username,
         "password" -> newPasswordField,
-        "h-captcha-response" -> optional(nonEmptyText),
-        "fp" -> optional(nonEmptyText)
+        "h-captcha-response" -> optional(nonEmptyText)
       )(SignupData.apply)(_ => None)
 
     val mobile = Form:
@@ -92,18 +91,15 @@ object SecurityForm:
   trait AnySignupData:
     def email: EmailAddress
     def username: UserName
-    def fp: Option[String]
 
   case class SignupData(
       email: EmailAddress,
       username: UserName,
       password: String,
-      hCaptchaResponse: Option[String],
-      fp: Option[String]
+      hCaptchaResponse: Option[String]
   ) extends AnySignupData:
     def normalizedEmail = EmailAddress(email.normalize.value)
     def captchaResponse = hCaptchaResponse.map(_.trim).filter(_.nonEmpty)
-    def fingerPrint = FingerPrint.from(fp.filter(_.nonEmpty))
     def clearPassword = ClearPassword(password)
 
   case class MobileSignupData(
@@ -112,5 +108,4 @@ object SecurityForm:
       password: String
   ) extends AnySignupData:
     def normalizedEmail = EmailAddress(email.normalize.value)
-    def fp = Option.empty
     def clearPassword = ClearPassword(password)

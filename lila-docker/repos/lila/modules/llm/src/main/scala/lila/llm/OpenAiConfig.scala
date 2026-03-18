@@ -24,9 +24,9 @@ object OpenAiConfig:
 
   def fromEnv: OpenAiConfig =
     val apiKey = sys.env.getOrElse("OPENAI_API_KEY", "").trim
-    val proSync = sys.env.getOrElse("OPENAI_MODEL_PRO_SYNC", "gemini-3-flash-preview")
+    val proSync = sys.env.getOrElse("OPENAI_MODEL_PRO_SYNC", "gpt-5-mini")
     val proFallback = sys.env.getOrElse("OPENAI_MODEL_PRO_FALLBACK", "gpt-5-mini")
-    val proAsync = sys.env.getOrElse("OPENAI_MODEL_PRO_ASYNC", "gemini-3-flash-preview")
+    val proAsync = sys.env.getOrElse("OPENAI_MODEL_PRO_ASYNC", "gpt-5-mini")
     val activeReasoning =
       sys.env
         .get("OPENAI_REASONING_EFFORT_ACTIVE")
@@ -48,9 +48,9 @@ object OpenAiConfig:
       modelProSync = proSync,
       modelProFallback = proFallback,
       modelProAsync = proAsync,
-      modelActiveSync = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_SYNC", proSync),
+      modelActiveSync = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_SYNC", "gpt-5-mini"),
       modelActiveFallback = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_FALLBACK", proFallback),
-      modelActiveAsync = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_ASYNC", proAsync),
+      modelActiveAsync = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_ASYNC", "gpt-5-mini"),
       reasoningEffortActive = activeReasoning,
       promptCacheKeyPrefix = sys.env.getOrElse("OPENAI_PROMPT_CACHE_KEY_PREFIX", "bookmaker:polish:v2"),
       enabled = apiKey.nonEmpty,

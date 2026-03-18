@@ -508,18 +508,23 @@ function validateProductDefaults(dossier: NotebookDossierV1, errors: string[]): 
   const actionCount = collectSectionCount(sections, 'action_page');
   const steeringCount = collectSectionCount(sections, 'steering_plan');
   const checklistCount = collectSectionCount(sections, 'pre_game_checklist');
+  const expectedRole = subjectRoleByProduct[dossier.productKind];
 
   if (openingCount !== 1) errors.push('Notebook dossier must contain exactly one opening_map section.');
   if (patternCount < 2 || patternCount > 3) errors.push('Notebook dossier must contain 2-3 pattern_cluster sections.');
+  if (dossier.subject.role !== expectedRole)
+    errors.push(
+      expectedRole === 'self'
+        ? 'My Account dossiers must use subject.role=self.'
+        : 'Opponent Prep dossiers must use subject.role=opponent.',
+    );
 
   if (dossier.productKind === 'my_account_intelligence_lite') {
-    if (dossier.subject.role !== 'self') errors.push('My Account dossiers must use subject.role=self.');
     if (exemplarCount !== 1) errors.push('My Account dossiers must contain exactly one exemplar_games section.');
     if (actionCount !== 1) errors.push('My Account dossiers must contain exactly one action_page section.');
     if (steeringCount !== 0) errors.push('My Account dossiers cannot contain steering_plan sections.');
     if (checklistCount !== 0) errors.push('My Account dossiers cannot contain pre_game_checklist sections.');
   } else {
-    if (dossier.subject.role !== 'opponent') errors.push('Opponent Prep dossiers must use subject.role=opponent.');
     if (steeringCount !== 1) errors.push('Opponent Prep dossiers must contain exactly one steering_plan section.');
     if (checklistCount !== 1) errors.push('Opponent Prep dossiers must contain exactly one pre_game_checklist section.');
     if (actionCount !== 0) errors.push('Opponent Prep dossiers cannot contain action_page sections.');

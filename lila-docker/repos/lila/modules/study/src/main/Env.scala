@@ -55,8 +55,6 @@ final class Env(
 
   private lazy val serverEvalRequester = wire[ServerEval.Requester]
 
-  lazy val accountNotebookBuilder = wire[AccountNotebookBuilder]
-
   private lazy val sequencer = wire[StudySequencer]
 
   lazy val serverEvalMerger = wire[ServerEval.Merger]
@@ -73,7 +71,9 @@ final class Env(
 
   lazy val gifExport = GifExport(ws, appConfig.get[String]("game.gifUrl"))
 
-  def findConnectedUsersIn(@unused studyId: StudyId)(@unused filter: Iterable[UserId] => Fu[List[UserId]]): Fu[List[UserId]] =
+  def findConnectedUsersIn(@unused studyId: StudyId)(
+      @unused filter: Iterable[UserId] => Fu[List[UserId]]
+  ): Fu[List[UserId]] =
     fuccess(Nil) // Socket removed - simplified
 
   lila.common.Cli.handle:

@@ -1,5 +1,6 @@
 import { repeater, myUserId } from 'lib';
 import * as licon from 'lib/licon';
+import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { type VNode, onInsert, hl, icon } from 'lib/view';
 import { displayColumns, isTouchDevice } from 'lib/device';
 import { addPointerListeners } from 'lib/pointer';
@@ -67,7 +68,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
           'button.fbt',
           {
             attrs: {
-              title: 'Deep game insights',
+              title: 'Game Chronicle',
               'data-act': 'narrative',
             },
             class: {
@@ -183,7 +184,8 @@ function scrubHelp(ctrl: AnalyseCtrl) {
 
 function scrubHelpAcknowledged(ack?: boolean) {
   const key = `analyse.help.scrub-acknowledged.${myUserId() ?? 'anon'}`;
-  if (ack === undefined) return !!localStorage.getItem(key);
-  if (ack) localStorage.setItem(key, '1');
+  const store = preferenceLocalStorage();
+  if (ack === undefined) return !!store?.getItem(key);
+  if (ack) store?.setItem(key, '1');
   return ack;
 }

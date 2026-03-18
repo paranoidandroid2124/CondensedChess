@@ -13,19 +13,26 @@ final class UserAnalysis(
   def index = Open:
     renderPage()
 
+  def help = Open:
+    fuccess(Ok.snip(views.analyse.ui.keyboardHelp))
+
   def parseArg(arg: String) = Open:
     val (key, fenStr) = arg.indexOf('/') match
       case -1 => (arg, None)
       case i  => (arg.take(i), Some(arg.drop(i + 1)))
 
-    val variant = chess.variant.Variant.orDefault(chess.variant.Variant.LilaKey(key))
-    val fen: Option[chess.format.Fen.Full] = fenStr
-      .map(_.replace("_", " "))
-      .flatMap(lila.common.String.decodeUriPath)
-      .filter(_.trim.nonEmpty)
-      .map(chess.format.Fen.Full.clean)
+    chess.variant.Variant(chess.variant.Variant.LilaKey(key)).fold(
+      Redirect(routes.UserAnalysis.index).toFuccess
+    ): variant =>
+      val rawFen: Option[chess.format.Fen.Full] = fenStr
+        .map(_.replace("_", " "))
+        .flatMap(lila.common.String.decodeUriPath)
+        .filter(_.trim.nonEmpty)
+        .map(chess.format.Fen.Full.clean)
+      val fen = rawFen.filter(fen => chess.format.Fen.read(variant, fen).isDefined)
 
-    renderPage(variant = variant, fen = fen)
+      if rawFen.isDefined && fen.isEmpty then Redirect(routes.UserAnalysis.parseArg(variant.key.value)).toFuccess
+      else renderPage(variant = variant, fen = fen)
 
   def pgn(pgnString: String) = Open:
     val decodedPgn = lila.common.String.decodeUriPath(pgnString).getOrElse(pgnString)
@@ -41,7 +48,16 @@ final class UserAnalysis(
   }
 
   def embed = Anon:
-    Ok("Analysis Board Embed").toFuccess
+    val payload = AnalysePgnPipeline.buildPayload()
+    fuccess:
+      InEmbedContext:
+        Ok.snip(
+          views.analyse.embed.userAnalysis(
+            payload.data,
+            bookmaker = payload.pov.game.variant.standard || payload.pov.game.variant.chess960,
+            inlinePgn = payload.inlinePgn
+          )
+        )
 
   private def renderPage(
       variant: chess.variant.Variant = chess.variant.Standard,

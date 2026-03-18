@@ -14,6 +14,7 @@ const manifest = {
   dirty: false,
 };
 let writeTimer: NodeJS.Timeout;
+let hydrated = false;
 
 type SplitAsset = { hash?: string; path?: string; imports?: string[]; inline?: string; omit?: boolean };
 
@@ -27,10 +28,12 @@ export function stopManifest(clear = false): void {
     manifest.css = {};
     manifest.hashed = {};
     manifest.dirty = false;
+    hydrated = false;
   }
 }
 
-export function updateManifest(update: ManifestUpdate = {}): void {
+export function updateManifest(update: ManifestUpdate = {}, force = false): void {
+  hydrateManifest();
   for (const [key, partial] of Object.entries(update) as [keyof ManifestUpdate, Manifest][]) {
     const full = manifest[key];
     if (isContained(full, partial)) continue;
@@ -40,9 +43,28 @@ export function updateManifest(update: ManifestUpdate = {}): void {
     manifest[key] = shallowSort(full);
     manifest.dirty = true;
   }
+  if (force) manifest.dirty = true;
   if (manifest.dirty) {
     clearTimeout(writeTimer);
     writeTimer = setTimeout(writeManifest, env.watch && !env.startTime ? 750 : 0);
+  }
+}
+
+function hydrateManifest(): void {
+  if (hydrated) return;
+  hydrated = true;
+  const path = join(env.jsOutDir, 'manifest.json');
+  try {
+    const current = JSON.parse(fs.readFileSync(path, 'utf8')) as {
+      js?: Record<string, SplitAsset | string>;
+      css?: Record<string, SplitAsset | string>;
+      hashed?: Record<string, SplitAsset | string>;
+    };
+    manifest.js = inflateManifest(current.js);
+    manifest.css = inflateManifest(current.css);
+    manifest.hashed = inflateManifest(current.hashed);
+  } catch {
+    // start from an empty manifest when there is no previous build output
   }
 }
 
@@ -94,7 +116,7 @@ async function writeManifest() {
   const clientManifest = hashable + `\ns.info.date='${new Date().toISOString().split('.')[0] + '+00:00'}';\n`;
   const serverManifest = JSON.stringify(
     {
-      js: compactManifest({ manifest: { hash }, ...manifest.js }),
+      js: compactManifest({ ...manifest.js, manifest: { hash } }),
       css: compactManifest(manifest.css),
       hashed: compactManifest(manifest.hashed),
     },
@@ -121,4 +143,11 @@ function compactManifest(manifest: Manifest): Record<string, SplitAsset | string
     else compacted[key] = info;
   }
   return compacted;
+}
+
+function inflateManifest(source: Record<string, SplitAsset | string> | undefined): Manifest {
+  if (!source) return {};
+  return Object.fromEntries(
+    Object.entries(source).map(([key, info]) => [key, typeof info === 'string' ? { hash: info } : info]),
+  );
 }

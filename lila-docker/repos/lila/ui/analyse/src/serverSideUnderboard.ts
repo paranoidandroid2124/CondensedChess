@@ -5,6 +5,7 @@ import { url as xhrUrl, textRaw as xhrTextRaw } from 'lib/xhr';
 import type { AnalyseData } from './interfaces';
 import type { ChartGame, AcplChart } from 'chart';
 import { spinnerHtml, domDialog, alert, confirm } from 'lib/view';
+import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { escapeHtml } from 'lib';
 import { storage } from 'lib/storage';
 import { pubsub } from 'lib/pubsub';
@@ -15,8 +16,10 @@ const t = (key: string, fallback: string): string => siteI18n[key] || fallback;
 
 const chartFlagFromQuery = new URLSearchParams(location.search).get('evalChart');
 const chartFlagFromStorage = (() => {
+  const store = preferenceLocalStorage();
+  if (!store) return null;
   try {
-    return window.localStorage.getItem('chesstory.evalChart');
+    return store.getItem('chesstory.evalChart');
   } catch {
     return null;
   }

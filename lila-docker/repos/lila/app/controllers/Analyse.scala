@@ -9,9 +9,6 @@ final class Analyse(
     env: Env
 ) extends LilaController(env):
 
-  def home = Anon:
-    fuccess(Ok("Analysis Home"))
-
   def externalEngineList = Auth { _ ?=> me ?=>
     env.analyse.externalEngine.list(me).map { list =>
       JsonOk(JsArray(list.map(lila.analyse.ExternalEngine.jsonWrites.writes)))

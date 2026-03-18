@@ -61,7 +61,24 @@ final class Env(
     net = net,
     cacheApi = memo.cacheApi
   )
-  
+
+  val accountintel: lila.accountintel.Env = new lila.accountintel.Env(
+    appConfig = config,
+    ws = summon[StandaloneWSClient],
+    mongo = mongo,
+    cacheApi = memo.cacheApi,
+    evalCacheApi = evalCache.api,
+    studyApi = study.api,
+    userApi = user.api
+  )
+  val strategicPuzzle: lila.strategicPuzzle.Env = new lila.strategicPuzzle.Env(
+    mongo = mongo
+  )
+  val beta: lila.beta.Env = new lila.beta.Env(
+    mongo = mongo,
+    userApi = user.api
+  )
+
   val llm: lila.llm.Env = new lila.llm.Env(
     db = mongo.mainDb,
     appConfig = config,

@@ -49,7 +49,7 @@ object LlmProviderConfig:
           sys.env
             .get("LLM_PROVIDER_ACTIVE_NOTE")
             .filter(_.trim.nonEmpty)
-            .getOrElse(sys.env.getOrElse("LLM_PROVIDER", "openai"))
+            .getOrElse("gemini")
         ),
       promptVersion = sys.env.getOrElse("LLM_PROMPT_VERSION", "v1"),
       polishGateThreshold = threshold,

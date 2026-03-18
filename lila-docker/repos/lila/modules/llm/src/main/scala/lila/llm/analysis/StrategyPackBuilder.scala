@@ -31,7 +31,7 @@ object StrategyPackBuilder:
     val routes = buildRoutes(data, boardOpt, sideToMoveColor, plans, structureArc)
     val moveRefs = buildMoveRefs(data, boardOpt, sideToMoveColor, plans)
     val directionalTargets = buildDirectionalTargets(data, boardOpt, sideToMoveColor, plans)
-    val longTermFocus = buildLongTermFocus(ctx, plans, routes, structureArc)
+    val longTermFocus = buildLongTermFocus(ctx, plans, routes, moveRefs, structureArc)
     val evidence = buildEvidence(ctx, routes, moveRefs, structureArc)
     val signalDigest = NarrativeSignalDigestBuilder.build(ctx)
 
@@ -333,11 +333,14 @@ object StrategyPackBuilder:
       ctx: NarrativeContext,
       plans: List[StrategySidePlan],
       routes: List[StrategyPieceRoute],
+      moveRefs: List[StrategyPieceMoveRef],
       structureArc: Option[StructurePlanArc]
   ): List[String] =
     val scored = scala.collection.mutable.HashMap.empty[String, Double]
     val dominantThesis = StrategicThesisBuilder.build(ctx).map(_.claim).map(_.trim).filter(_.nonEmpty)
     val planNameKeys = plans.map(_.planName.trim.toLowerCase).toSet
+
+    def lowered(raw: String): String = raw.trim.toLowerCase
 
     def push(raw: String, weight: Double): Unit =
       val clean = raw.trim
@@ -378,6 +381,39 @@ object StrategyPackBuilder:
         1.95 + route.surfaceConfidence * 0.35
       )
     }
+
+    val centeredOpenFileRoutes =
+      routes.count { route =>
+        lowered(route.purpose) match
+          case purpose if
+              List("open-file occupation", "file occupation", "file pressure", "open file").exists(purpose.contains) =>
+            route.route.lastOption.exists { square =>
+              lowered(square).headOption.exists(ch => ch == 'd' || ch == 'e')
+            }
+          case _ => false
+      }
+    val repeatedTargetPawnRefs =
+      moveRefs.count { moveRef =>
+        val loweredIdea = lowered(moveRef.idea)
+        moveRef.evidence.map(lowered).contains("target_pawn") ||
+        loweredIdea.contains("contest the pawn")
+      }
+    val fixedTargetPlanSignal =
+      ctx.mainStrategicPlans.exists { hypothesis =>
+        val loweredPlanName = lowered(hypothesis.planName)
+        loweredPlanName.contains("attacking fixed pawn") ||
+        hypothesis.evidenceSources.exists { source =>
+          val loweredSource = lowered(source)
+          loweredSource.contains("fixed pawn") ||
+          loweredSource.contains("backward pawn") ||
+          loweredSource.contains("weakness_fixation")
+        }
+      }
+    if
+      (centeredOpenFileRoutes >= 2 && repeatedTargetPawnRefs >= 2) ||
+      (fixedTargetPlanSignal && centeredOpenFileRoutes >= 1 && repeatedTargetPawnRefs >= 1)
+    then
+      push("keep the fixed central targets under pressure before recovering material", 2.38)
 
     structureArc.foreach { arc =>
       push(s"structure deployment: ${arc.structureLabel} asks for ${StructurePlanArcBuilder.focusLine(arc)}", 2.18)

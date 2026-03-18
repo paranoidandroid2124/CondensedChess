@@ -1,6 +1,7 @@
 import { domDialog, alert } from 'lib/view';
 import { escapeHtml } from 'lib';
 import { userComplete } from 'lib/view/userComplete';
+import { text as xhrText } from 'lib/xhr';
 
 export function initModule({ input }: { input: HTMLInputElement }) {
   userComplete({
@@ -38,7 +39,8 @@ function command(q: string) {
   if (is('tv follow') && parts[1]) location.href = '/@/' + parts[1] + '/tv';
   else if (is('tv')) location.href = '/tv';
   else if (is('play challenge match') && parts[1]) location.href = '/?user=' + parts[1] + '#friend';
-  else if (is('light dark transp system')) console.log('Theme switching disabled in Chesstory');
+  else if (is('light dark transp system'))
+    xhrText(`/pref/bg?v=${encodeURIComponent(exec)}`, { method: 'post' }).then(() => location.reload());
   else if (is('stream') && parts[1]) location.href = '/streamer/' + parts[1];
   else if (is('help')) help();
   else alert(`Unknown command: "${q}". Type /help for the list of commands`);
