@@ -64,38 +64,10 @@ SUPPORT_BMC_URL=
 ./lila-docker lila restart
 ```
 
-### Auto Update + Auto Redeploy (Windows Task Scheduler)
-Run this once in PowerShell to install a background task that periodically:
-1. `git pull --ff-only`
-2. runs `sbt test:compile`
-3. redeploys with `docker compose --profile base up -d --build`
-4. checks `http://localhost:8080/` health
-
-```powershell
-cd lila-docker
-.\scripts\install_auto_deploy_task.ps1 -IntervalMinutes 10
-```
-
-For server-style unattended execution (runs even without user logon), use:
-
-```powershell
-.\scripts\install_auto_deploy_task.ps1 -IntervalMinutes 10 -RunAsSystem
-```
-
-Manual one-shot execution:
-
-```powershell
-.\scripts\ops_auto_deploy.ps1
-```
-
-Logs are written under `lila-docker/logs/ops/`.
-The `lila` runtime service reads `settings.env` directly via Docker Compose `env_file`, and `ops_auto_deploy.ps1` also loads both `.env` and `settings.env` before running `docker compose`.
-
-To remove the scheduled task:
-
-```powershell
-.\scripts\remove_auto_deploy_task.ps1
-```
+### Deployment Automation
+Production auto-deploy scripts and scheduler wrappers are maintained outside the
+public repository. Use the documented Docker commands in this README for local
+development and manage deployment automation in your private ops repository.
 
 ### Prod-Like Runtime (No `sbt run`)
 To run `lila` with Play stage binaries (Prod mode) instead of dev hot-reload:

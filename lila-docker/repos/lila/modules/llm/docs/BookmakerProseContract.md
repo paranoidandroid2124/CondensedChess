@@ -177,14 +177,14 @@ The contract does not weaken existing preservation rules:
   - `modules/llm/src/test/scala/lila/llm/tools/BookmakerProseGoldenDump.scala`
 - Sample QA + prompt-envelope report:
   - `modules/llm/src/test/scala/lila/llm/tools/BookmakerThesisQaRunner.scala`
-  - `modules/llm/docs/BookmakerThesisQaReport.md`
+  - latest generated report is maintained outside the public repository
 
 Current environment caveat:
 
 - the latest QA report uses the six thesis motif fixtures and, when provider
   keys are present, records live slot-driven polish runs against them
 - provider-side `prompt_tokens`, paragraph counts, and acceptance / fallback
-  ratios are recorded in `BookmakerThesisQaReport.md`
+  ratios are recorded in a private QA report generated from the runner above
 - `estimatedCostUsd` may still be `n/a` when the provider metadata does not
   return a cost estimate for the active model
 - `soft_repair_applied_rate` should now be read together with
