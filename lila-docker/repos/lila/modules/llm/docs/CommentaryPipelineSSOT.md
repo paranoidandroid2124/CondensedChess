@@ -208,6 +208,317 @@ Key references:
 
 ## Post-audit updates
 
+- `2026-03-20` working-tree update:
+  - Bookmaker and Game Chronicle user-facing language now share a stricter
+    player-language rewrite pass. The runtime contract keeps long-term plans
+    and strategic ideas, but rewrites them into concrete player language tied
+    to squares, files, exchanges, denied breaks, king safety, and practical
+    handling rather than surfacing internal commentary-analysis bookkeeping.
+  - `LiveNarrativeCompressionCore` now owns a shared player-language policy
+    layer:
+    - banned meta phrases such as `plan fit`, `nominal evaluation`,
+      `practical conversion`, `conversion window`, `forgiveness`,
+      `activation lane`, `counterplay suppression`, `cuts out counterplay`,
+      and `making ... available`
+    - concrete-anchor checks for abstract strategic words such as
+      `initiative`, `counterplay`, `compensation`, `conversion`, `pressure`,
+      `attack`, `plan`, `objective`, and `execution`
+    - common rewrites such as `making g7 available for the queen` ->
+      `bringing the queen to g7`
+  - `StrategicThesisBuilder` source templates now prefer concrete-first
+    language across the three highest-risk phrasing families:
+    - development:
+      `why this move`, `what square/file it works through`, `what break or
+      exchange it prepares`
+    - prophylaxis:
+      `what move/break/entry square it stops` instead of generic
+      `cuts out counterplay`
+    - compensation / practical:
+      `what is given up`, `what concrete pressure/initiative is gained`,
+      `why the material does not need to be recovered immediately`, and
+      `why the position is easier to handle over the board`
+  - default Support panels and collapsed Advanced details now use the same
+    player-language filter. Rows are kept only if they can be translated into
+    concrete chess language; raw cp bookkeeping, latent/fit bookkeeping,
+    probe/admin wording, and authoring/evidence console phrasing are pruned.
+  - Long-term plans are not removed by this rewrite. Evidence-backed plan
+    language still survives when it explains the move, but it is translated
+    into concrete move-purpose language instead of being surfaced as internal
+    planning jargon.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerLiveCompressionPolicy.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/src/chesstory/compactSupportSurface.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
+- `2026-03-22` QC workflow update:
+  - Commentary-player audit now has a deterministic 202-game audit-set layer
+    above raw run artifacts. The set is built from:
+    - `tmp/commentary-player-qc/manifests/active_parity_closure_runs_v2/*/report.json`
+      `games[].id`
+    - singled-out residual corpora
+      `tmp/commentary-player-qc/manifests/single_actorxu_77.json`
+      and
+      `tmp/commentary-player-qc/manifests/single_infernal_59.json`
+  - The deterministic audit set is emitted by:
+    - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerAuditSetBuilder.scala`
+  - Review queue generation now has an audit-set / full-review mode:
+    - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerReviewQueueBuilder.scala`
+    - `--audit-set <path>`
+    - `--full-review` / `--no-sampling`
+  - In audit-set mode, the queue no longer samples by default and emits four
+    explicit audit surfaces:
+    - Chronicle whole-game rows
+    - Chronicle focus-moment rows
+    - Bookmaker focus rows with support/advanced surfaces
+    - Active-note parity rows
+  - Review queue rows and manual judgments now carry richer audit metadata:
+    - `gameId`
+    - `reviewKind`
+    - `tier`
+    - `openingFamily`
+    - optional `surface` on judgments for direct merge attribution
+  - Review sharding now supports audit-mode partitioning by surface and tier:
+    - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerReviewShardBuilder.scala`
+  - Review merge now emits audit-level family distributions and patch guidance:
+    - surface-level family counts
+    - tier-level family counts
+    - opening-family counts
+    - exemplar bundle
+    - root-cause hints
+    - patch-target mapping
+    - output paths:
+      - `reports/fix-priority.json`
+      - `reports/audit-report.md`
+  - This is a QA / audit workflow change only.
+- `2026-03-22` working-tree update:
+  - Active-note strict compensation rescue now prioritizes the coaching
+    brief's dominant idea over noisy dossier `whyNow` filler when assembling a
+    fallback note.
+  - This is a narrow parity-closure fix for residual compensation survivors
+    where the contract/anchor/continuation were present, but the fallback note
+    could still fail validation because generic route-start prose displaced the
+    dominant idea sentence.
+  - Verification targets:
+    - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/LlmApiActiveParityTest.scala`
+    - Public API/schema: unchanged
+    - Bookmaker / Chronicle runtime response contracts: unchanged
+- `2026-03-20` working-tree update:
+  - a second cleanup pass hardens the remaining player-facing fallback/scaffold
+    families that still showed up in live corpus review:
+    - opening fallback wrappers such as
+      `The follow-up is to ... without losing the position's balance` now
+      collapse into direct move-purpose phrasing like
+      `The next step is to finish development without giving up the center.`
+      instead of reopening opening-name / balance-only filler.
+    - Chronicle active strategic notes now pass through the same stricter
+      player-facing sentence filter, so lines such as
+      `The plan still revolves around ...`,
+      `A useful route is ...`, and
+      `The next useful target is ...`
+      are either rewritten into simpler coaching language or dropped when they
+      cannot clear the concrete-anchor gate.
+    - default Support panels for both Bookmaker and Chronicle now render
+      filtered `mainPlanTexts` and `holdReasons` from the same compact support
+      surface, instead of showing the raw plan labels directly while the main
+      prose is already compressed.
+  - this pass reduces the remaining gap where the body prose had become more
+    player-facing but support/active-note surfaces still leaked system
+    scaffolding or opening-label filler.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/src/chesstory/compactSupportSurface.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
+- `2026-03-20` working-tree update:
+  - live isolated-move Bookmaker prose now routes through
+    `BookmakerLiveCompressionPolicy` before polish instead of letting the raw
+    validated outline expand into a wide thesis/support/wrap-up surface.
+  - Bookmaker slot selection is now constrained to a single main claim family
+    with one primary support line and at most one optional third paragraph.
+    Default live output budget is `2-3` paragraphs / `2-4` total sentences,
+    with compact standard early openings allowed to collapse to a single brief
+    paragraph.
+  - internal system-language fragments such as `strategic stack`,
+    `ranked stack`, `current support centers on`, `support still centers on`,
+    `plan first`, `latent plan`, `probe evidence says`, and
+    `nominal evaluation` are now explicitly banned from Bookmaker body prose at
+    the slot/prompt/soft-repair layer.
+  - Bookmaker body prose no longer uses sidecar-only state such as
+    `whyAbsentFromTopMultiPV`, latent-plan bookkeeping, strategic-plan
+    experiment status, authoring evidence summaries, or wrap-up stack summaries
+    as standalone topics. These remain sidecar-only unless already converted
+    into the compressed claim/support surface.
+  - named strategic plans now stay in live Bookmaker body prose only when they
+    are evidence-backed and actually explain the move's purpose; otherwise the
+    prose falls back to move-purpose / square / file / practical-consequence
+    language.
+  - `BookmakerSoftRepair` and `PolishPrompt` now treat Bookmaker polishing as
+    slot realization rather than free-form refinement: no new topic
+    introduction, no fourth paragraph, and no cited-line paragraph without an
+    actual SAN-backed line.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerLiveCompressionPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LineScopedCitation.scala`
+  - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
+  - `modules/llm/src/test/scala/lila/llm/PolishPromptTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
+  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.slots.txt`
+- `2026-03-20` working-tree update:
+  - Game Chronicle focused-moment prose now routes through
+    `GameChronicleCompressionPolicy` before the older hybrid
+    `lead + bridge + body` fallback. Chronicle main prose is therefore
+    compressed to a small player-facing surface instead of inheriting the full
+    validated outline expansion by default.
+  - Chronicle claim selection now prefers `MainMove`, `DecisionPoint`,
+    `Context`, and other player-facing beats, while strategic-distribution
+    bookkeeping (`strategic_distribution_first`,
+    `plan_evidence_three_stage`) and similar ranked-stack / support-center
+    language are suppressed from the main moment narrative.
+  - branch-based Chronicle follow-up prose now behaves like Bookmaker's cited
+    line slot: an optional extra paragraph survives only when a concrete
+    SAN-backed line is available. Otherwise the branch-specific extra prose is
+    dropped instead of falling back to source-label-only narration.
+  - `focusMomentOutline` now filters strategic-distribution wrap-up beats so
+    they no longer consume scarce focused-moment slots or crowd out move-
+    purpose / decision / cited-line beats.
+  - `outlineBridgeCandidate` also ignores strategic-distribution beats, so the
+    fallback bridge no longer reintroduces the bookkeeping prose that the
+    focused outline removed.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/GameChronicleCompressionPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+- `2026-03-20` working-tree update:
+  - standard-chess commentary now has a shared backend claim-strength gate in
+    `StandardCommentaryClaimPolicy`, used by both Bookmaker final prose and
+    Game Chronicle hybrid prose before user-facing text is emitted.
+  - quiet standard positions now prefer a brief backend-owned no-event note
+    rather than filler strategic narration. This is active for very early
+    standard openings by default and for later standard positions when there is
+    no meaningful opening event, no evidence-backed main plan, no durable
+    structural commitment, and no strong tactical driver.
+  - the standard early-opening collapse is now significance-aware in one more
+    way: durable structural commitments such as explicit structure/open-file
+    shifts, structural weaknesses, strong break commitments, or clear king-
+    safety damage bypass the opening clamp instead of being flattened into the
+    generic quiet path.
+  - `Fact.HangingPiece` is no longer treated as a synonym for any attacked,
+    undefended unit in user-facing standard commentary. Single-attacked,
+    undefended pawns are now extracted as `TargetPiece` rather than
+    `HangingPiece`, and standard prose suppresses or downgrades hanging
+    language unless the liability is concretely punishable.
+  - direct bypass phrasing such as `tactical liability`, `direct tactical
+    target`, `urgent`, and `requires immediate attention` is now normalized in
+    the shared final-prose pass when standard runtime evidence does not justify
+    the stronger tier.
+  - Bookmaker and Game Chronicle now share the same quiet standard note path,
+    so the same low-entropy standard position no longer reads restrained in one
+    surface and inflated in the other.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StandardCommentaryClaimPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/EarlyOpeningNarrationPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/FactExtractor.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeLexicon.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CriticalAnnotationPolicy.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StandardCommentaryClaimPolicyTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/FactExtractorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/EarlyOpeningNarrationPolicyTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeLexiconTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CriticalAnnotationPolicyTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
+- `2026-03-19` working-tree update:
+  - Bookmaker rule fallback prose now runs through the same user-facing
+    placeholder scrubber that already cleans slot/evidence surfaces, instead of
+    relying on opening-family sanitization alone.
+  - This closes the specific `fallback_rule_invalid` -> frontend retry path
+    where safe fallback prose still leaked internal labels such as
+    `PlayableByPV`, `under strict evidence mode`, `probe evidence pending`,
+    `[subplan:...]`, or `{seed}`, causing the Bookmaker panel to show the
+    generic timeout/retry state even though the backend returned `200`.
+  - `UserFacingSignalSanitizer` now rewrites the `PlayableByPV` bridge itself
+    into user-facing language, so the backend fallback no longer trips the
+    frontend suspicious-fallback guard on that token alone.
+  - Early-game gating is now explicit on both backend and frontend:
+    - Bookmaker requests are rejected until `ply >= 5`, and the Bookmaker panel
+      shows an on-surface locked state instead of wasting a polish attempt on
+      opening positions that are still too branch-heavy to narrate cleanly.
+      Player-facing copy now refers to move numbers rather than raw `ply`
+      counts.
+    - Game Chronicle requests are rejected until the PGN reaches `ply >= 9`,
+      and the review / narrative entry points now render a disabled state with
+      a short-game explanation rather than submitting doomed async/local jobs.
+      Player-facing copy now uses move-based phrasing rather than `ply`.
+- Verification:
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/models.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `app/controllers/LlmController.scala`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/bookmaker/blockingState.ts`
+  - `ui/analyse/src/narrative/narrativeCtrl.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `ui/analyse/src/review/view.ts`
+  - `modules/llm/src/test/scala/lila/llm/RequestValidationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/RuleTemplateSanitizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/FullGameDraftNormalizerTest.scala`
+- `2026-03-19` working-tree update:
+  - user-facing cleanup now has a payload-level backend gate in
+    `UserFacingPayloadSanitizer`, not just prose-level placeholder scrubbing.
+    Structured response fields such as `whyAbsentFromTopMultiPV`,
+    latent-plan hold reasons, strategy-pack digest text, bookmaker ledger
+    notes, and Game Chronicle moment text are sanitized through the same
+    backend layer before they reach JSON/page rendering.
+  - `PlanEvidenceEvaluator` no longer emits `PlayableByPV`,
+    `engine-coupled continuation`, raw probe contract wording, or raw missing
+    signal names into user-facing reasons. The source-stage evidence reasons are
+    now written directly in club-player language such as current engine-line
+    support vs. still-thin independent evidence.
+  - compensation prose is now normalized away from internal payoff jargon:
+    user-facing templates no longer rely on `return vector`, `cash out`,
+    `delayed recovery`, or bare `line pressure` phrasing in the primary
+    compensation claims/support text.
+  - strategic-puzzle bootstrap/read paths now sanitize stored `runtimeShell`
+    text on read in the controller layer, so legacy saved shells do not keep
+    leaking internal commentary tokens into the reveal panel.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/UserFacingPayloadSanitizer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/PlanEvidenceEvaluator.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `app/controllers/LlmController.scala`
+  - `app/controllers/StrategicPuzzle.scala`
+  - `ui/analyse/src/bookmaker.ts`
+  - `modules/llm/src/test/scala/lila/llm/UserFacingPayloadSanitizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/RuleTemplateSanitizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/PlanEvidenceEvaluatorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
 - `2026-03-16` working-tree update:
   - `StrategicIdeaSelector.enrich` now promotes typed compensation evidence
     into `strategyPack.signalDigest` even when `ctx.semantic.compensation` is
@@ -1039,7 +1350,6 @@ Key references:
   - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
   - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryPayloadNormalizerTest.scala`
   - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
-  - `modules/llm/src/test/scala/lila/llm/analysis/CoreCommentaryCloseoutQaRunner.scala`
 - `2026-03-08` working-tree update:
   - tactical mistake / blunder criticism now has higher priority on the
     Bookmaker prose path than a competing strategic thesis.
@@ -1166,6 +1476,46 @@ Key references:
   - `ui/analyse/src/narrative/narrativeView.ts:421`
   - `ui/analyse/src/narrative/narrativeView.ts:461`
   - `ui/analyse/src/narrative/narrativeView.ts:821`
+- `2026-03-20` working-tree update:
+  - Phase 1 expression-suppression now lands before any plan-selection /
+    fallback rewrite.
+  - `CommentResponse` and `GameChronicleMoment` now expose
+    `strategicPlanExperiments` for surfaced `mainStrategicPlans`, preserving
+    the existing experiment shape (`planId`, `subplanId`, `evidenceTier`,
+    `moveOrderSensitive`, counts/confidence) into both Bookmaker and Game Arc
+    payloads.
+  - Frontend consumption now joins `mainStrategicPlans` with
+    `strategicPlanExperiments` by `planId + subplanId`, and renders explicit
+    support state:
+    - `evidence_backed -> Probe-backed`
+    - `pv_coupled -> Engine-line only`
+    - `moveOrderSensitive -> Move-order sensitive`
+  - `whyAbsentFromTopMultiPV` is no longer suppressed when a canonical
+    decision-comparison surface exists. Both Bookmaker and Game Arc now keep
+    those reasons visible under the plan-gating label
+    `Why it stayed conditional`.
+  - Deterministic overclaiming was softened without changing plan ranking or
+    `leadingPlanName` fallback:
+    - generic negative annotations no longer use unqualified
+      `required / only stable route / necessary`
+    - decision / compensation thesis copy no longer says
+      `dominant thesis`, `The whole decision turns on ...`, or
+      `The compensation only works if ...` in the generic path
+    - Game Arc hybrid bridge now uses the same softened compensation /
+      leading-idea language as Bookmaker rather than a stronger bridge-only
+      assertive shell
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/models.scala`
+  - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
+  - `modules/llm/src/main/scala/lila/llm/UserFacingPayloadSanitizer.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeLexicon.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `ui/analyse/src/bookmaker/responsePayload.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeCtrl.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
 
 ## Findings
 
@@ -1262,9 +1612,9 @@ Key references:
 - Verdict: `Partially utilized`
 - Why this is a problem:
   - Backend now ships `probeRequests`, `authorQuestions`, `authorEvidence`,
-    `mainStrategicPlans`, `latentPlans`, and `whyAbsentFromTopMultiPV`, but
-    the frontend still does not render the authoring/evidence summaries as a
-    dedicated visible block.
+    `mainStrategicPlans`, `strategicPlanExperiments`, `latentPlans`, and
+    `whyAbsentFromTopMultiPV`, but the frontend still does not render the
+    authoring/evidence summaries as a dedicated visible block.
   - Game Arc path passes `probeResults = Nil`, weakening latent-plan and
     author-evidence consumption.
 - Producer:
@@ -1292,14 +1642,19 @@ Key references:
     - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala:569`
   - Bookmaker payload parsing:
     - `ui/analyse/src/bookmaker/responsePayload.ts:100`
-  - Bookmaker UI uses counts / attrs rather than visible rendering:
-    - `ui/analyse/src/bookmaker.ts:482`
-    - `ui/analyse/src/bookmaker.ts:490`
-    - `ui/analyse/src/bookmaker.ts:558`
+  - plan-support metadata now survives into both consumers:
+    - `ui/analyse/src/bookmaker/responsePayload.ts:100`
+    - `ui/analyse/src/bookmaker.ts:495`
+    - `ui/analyse/src/narrative/narrativeView.ts:1209`
+  - Bookmaker / Game Arc now visibly render plan support state and plan-gating
+    reasons, but still not the richer author-question / branch-proof block:
+    - `ui/analyse/src/bookmaker.ts:562`
+    - `ui/analyse/src/narrative/narrativeView.ts:1324`
 - User-facing impact:
-  - plan partitioning and evidence summaries now survive into the API layer,
-    but users still do not see the actual author-question / branch-proof
-    objects directly in the interface.
+  - plan partitioning and support-tier uncertainty now survive into the API
+    layer and are visible in both interfaces.
+  - users still do not see the actual author-question / branch-proof objects
+    directly in the interface.
   - There is strong full-game vs Bookmaker skew.
 - Fix difficulty / expected return:
   - Difficulty: medium
@@ -1347,7 +1702,6 @@ Key references:
   - Return: high
 - Testing caveat:
   - coverage is more quality-runner-heavy than user-facing prose-golden-heavy:
-    - `modules/llm/src/test/scala/lila/llm/tools/PawnStructureQualityRunner.scala`
 
 ### 5. StrategyPackBuilder
 
@@ -2373,6 +2727,62 @@ Verification:
     `Narrative Analysis`, and `Game Chronicle` are now normalized on the
     primary narrative surfaces to `Game Chronicle`, so the same LLM-backed
     product is not advertised under conflicting names.
+- `2026-03-19` working-tree update:
+  - full-game intro prose now uses plain text and metadata-aware fallback
+    phrasing instead of the older dramatic template that emitted raw
+    `**Unknown**`, result `*`, and `plies` wording into the review shell when
+    PGN tags were missing.
+  - short unfinished opening lines are now described as still being in the
+    opening after `N moves`, and the intro focuses on highlighted moments
+    rather than claiming a "sharp battle" or "critical turning points" when the
+    game has not actually resolved into that kind of narrative.
+  - frontend Game Chronicle payloads now persist in session storage under a
+    hashed full-PGN context key and are restored on constructor/reload for the
+    same analysis route. Hard refresh therefore preserves a completed review
+    for the same game, while switching to a different PGN clears the stale
+    Chronicle instead of replaying unrelated narrative state.
+  - moment prose sanitization now strips residual markdown emphasis and raw
+    `PlayedPV`-style carrier labels before the review shell renders them, and
+    frontend badges/themes humanize raw camel-case/internal labels such as
+    `OpeningBranchPoint` before display.
+  - early opening moments now suppress the critical-branch engine digression
+    and clamp the rendered body to a shorter budget, so move-2 / move-3 opening
+    references do not balloon into multi-paragraph pseudo-drama before the game
+    has actually left theory.
+  - the review-shell `Moments` tab now renders a compact, frontend-sanitized
+    prose summary instead of dumping the full raw Chronicle paragraph budget
+    into narrow cards. The view strips markdown/control labels, converts
+    lingering `ply N` wording into `move N`, cleans concept chips, and caps
+    early-opening moment cards to a shorter sentence budget.
+  - review-shell Chronicle hover previews are now wired on the shell itself,
+    not just the standalone narrative document view. Inline move refs and route
+    chips can therefore surface the commentary miniboard preview from the
+    review-shell `Overview`/`Moments` surfaces as well.
+  - Chronicle session persistence has been version-bumped so stale pre-sanitize
+    payloads do not keep resurfacing after refresh. A hard refresh now drops
+    old cached review payloads and rehydrates only the newer cleaned format.
+- `2026-03-20` working-tree update:
+  - Phase 2 generation alignment removed the remaining raw `plans.top5`
+    plan-name fallback from thesis-bearing prose paths. Bookmaker thesis
+    selection, outline strategic-stack beats, book-style wrap-up text, opening
+    precedent plan hints, and Game Arc bridge sourcing now treat a plan name as
+    thesis-worthy only when it is backed by the `mainStrategicPlans` partition
+    and an `evidence_backed` `strategicPlanExperiments` match.
+  - When runtime experiment metadata is absent, thesis helpers still fall back
+    to `mainStrategicPlans` for older/manual test fixtures, but they no longer
+    promote raw heuristic `plans.top5` names into user-facing main-plan prose.
+  - If no evidence-backed main plan exists, strategic prose now falls back to
+    non-plan framing already present in context (structure profile, opening
+    theme, decision logic, compensation summary, latent-plan/hold metadata)
+    rather than restating a weaker heuristic plan label.
+  - `StructurePlanArcBuilder` now distinguishes evidence-backed named plans
+    from alignment-intent fallbacks, so alignment prose is rendered as
+    structure-directed guidance instead of "the long plan is X" unless the plan
+    is actually backed.
+  - Game Arc hybrid bridge now reuses the validated strategic thesis claim
+    first, otherwise an already-validated outline sentence, and only then the
+    neutral/default bridge. It no longer synthesizes an independent strategic
+    bridge sentence from raw strategy-pack or signal-digest heuristics.
 - Verification:
   - `ui/analyse/src/narrative/probePlanning.ts`
   - `ui/analyse/src/notebookDossier.ts`
@@ -2383,6 +2793,622 @@ Verification:
   - `ui/analyse/tests/narrativeProbePlanning.test.ts`
   - `ui/analyse/tests/notebookDossier.test.ts`
   - `ui/analyse/tests/frontendAuditRegression.test.ts`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeLexicon.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicNarrativePlanSupport.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/OpeningPrecedentBranching.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeGenerator.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeLexiconTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+- `2026-03-20` working-tree update:
+  - Phase 3 added an explicit `variant` carrier on both single-position
+    Bookmaker requests and full-game Game Chronicle requests, then normalized
+    that value into `NarrativeContext.variantKey`. Missing or unsupported
+    request values now default to `standard`; `chess960`, `freestyle`, and
+    `960` normalize to the Chess960 bucket.
+  - A new centralized `EarlyOpeningNarrationPolicy` now gates very early
+    opening verbosity. The collapse path activates only for `standard`
+    openings at `ply <= 10` when there is no stronger explanatory event.
+    `OpeningEvent.Intro` is now treated as weak contextual metadata and no
+    longer authorizes rich prose on its own.
+  - Strong escape hatches are limited to concrete events already carried by
+    the pipeline: `BranchPoint`, `OutOfBook`, `TheoryEnds`, `Novelty`,
+    forced/critical states, strong tactical pressure, or severe
+    counterfactuals. Chess960 is explicitly excluded from this default clamp.
+  - Under the collapsed standard-opening path, Bookmaker now suppresses
+    opening-precedent comparison text, strategic distribution beats, and
+    generic wrap-up beats, then clamps the final user-facing prose to at most
+    two sentences. This keeps early standard openings terse unless a real
+    theory split or tactical event justifies expansion.
+  - Game Arc now uses the same collapse policy for moment rendering. Early
+    standard opening moments skip critical-branch insertion, avoid rebuilding
+    a larger preface around the shortened text, and clamp the final moment
+    narrative to at most two sentences across the assembled output.
+  - Phase 1/2 contracts remain unchanged in this phase: no plan-ranking
+    changes, no evidence-policy changes, and no response-schema additions.
+- Verification:
+  - `app/controllers/LlmController.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/EarlyOpeningNarrationPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/models.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/EarlyOpeningNarrationPolicyTest.scala`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/bookmaker/requestPayload.ts`
+  - `ui/analyse/src/narrative/narrativeCtrl.ts`
+  - `ui/analyse/src/narrative/requestPayload.ts`
+  - `ui/analyse/tests/requestPayload.test.ts`
+- `2026-03-20` working-tree update:
+  - Temporal / Branch Provenance Hardening v2 narrowed `FactScope.Now` to
+    current-board-verifiable facts only. The runtime now distinguishes
+    `Now`, `MainPv`, `ThreatLine`, `Counterfactual`, and `CandidatePv`
+    provenance, and only `Now` facts may feed unqualified board-anchor,
+    key-fact, or present-tense prose.
+  - `NarrativeContext` now carries line-scoped facts separately from generic
+    current-board facts. Main-PV, threat-line, and counterfactual motifs are
+    preserved as internal-only carriers, while candidate facts are explicitly
+    tagged as `CandidatePv`. This prevents future-line motifs from silently
+    re-entering generic context through the shared `facts` pool.
+  - `FactExtractor.fromMotifs(..., FactScope.Now)` is now strict for
+    line-sensitive tactical/structural motifs. `Pin`, `Skewer`, `Fork`, and
+    related fact families no longer reuse motif-role fallbacks when the root
+    board cannot verify the pieces directly. Future-only motifs therefore stay
+    line-scoped instead of being restated as current-board facts.
+  - Future-line prose can no longer rely on source labels alone. Main-PV,
+    threat/refutation, counterfactual, and candidate claims now require a
+    concrete SAN citation in the same sentence. Tactical motifs require SAN
+    coverage through the motif-trigger move with a bounded token budget;
+    non-tactical line claims still require a shorter SAN prefix. If the line
+    cannot be rendered safely, the claim is suppressed rather than paraphrased
+    as generic prose.
+  - Threat/refutation-derived prophylaxis is now treated as line-scoped
+    support, not thesis text. `current_board` prophylaxis may still surface as
+    a generic lens, but threat-line prophylaxis is barred from paragraph-1
+    claim slots and only survives when the supporting SAN line is rendered in
+    the same sentence.
+  - Counterfactual-only motifs no longer mix into generic context beats,
+    board anchors, bridge prose, or canonical motif summaries. They remain
+    available only in explicit teaching/comparison/evidence zones, where they
+    must also carry SAN citation. This closes the path where missed-line forks,
+    pins, or other tactical motifs could be rephrased as the ambient character
+    of the current position.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/model/Fact.scala`
+  - `modules/llm/src/main/scala/lila/llm/model/NarrativeContext.scala`
+  - `modules/llm/src/main/scala/lila/llm/model/strategic/StrategicModels.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LineScopedCitation.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/FactExtractor.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CounterfactualAnalyzer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicFeatureExtractorImpl.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/strategic/StrategicAnalyzers.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/LineScopedCitationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/FactExtractorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeContextBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StandardCommentaryClaimPolicyTest.scala`
+- `2026-03-20` working-tree update:
+  - Branch provenance is now carried through renderer selection, not just
+    producer and outline construction. `OutlineBeat` gained internal
+    `branchScoped` and `supportKinds` metadata so focus selection can treat
+    cited branch claims as dependent on the evidence surface that justifies
+    them.
+  - `focusMomentOutline` no longer drops `Evidence` and `Alternatives` beats
+    wholesale. It now preserves support beats when a surviving branch-scoped
+    claim depends on them, and if the support beat cannot fit in the moment
+    budget the claim is dropped first. This enforces the player-facing rule
+    that inline SAN provenance survives with the claim or the claim is removed.
+  - Hybrid moment assembly now suppresses lead/bridge prefaces whenever the
+    focused body already contains branch-scoped cited prose or a cited critical
+    branch block. This removes the old `claim before qualifier` ordering where
+    generic framing appeared before the concrete SAN line that actually backed
+    the point.
+  - Evidence branch identity is no longer deduped by head SAN alone.
+    `LineScopedCitation` now builds stable SAN-prefix signatures from concrete
+    branch lines, so two continuations that share the same first move but
+    diverge later stay distinct in decision questions and evidence beats.
+  - Decision/evidence surfaces now render SAN-prefix lines directly instead of
+    first-move labels or source-label-only phrasing. Generic meta text such as
+    `Probe evidence says ...` is suppressed unless the underlying text already
+    carries inline SAN citation.
+  - Branch-derived prophylaxis remains available in main prose only when cited,
+    but its threat-line form no longer reappears in signal-digest sidecars as
+    generic `cuts out ...` summary text. The digest now exposes prophylaxis
+    summary fields only for `current_board` prophylaxis, leaving threat-line
+    provenance to the cited main narrative and explicit evidence surfaces.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/model/authoring/NarrativeOutline.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BranchScopedSentencePolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LineScopedCitation.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeSignalDigestBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/LineScopedCitationTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BranchProvenanceRegressionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+- `2026-03-20` working-tree update:
+  - Legacy prose-expanding fallback targets have been removed from the live
+    Bookmaker and Chronicle paths. Bookmaker no longer falls back from missing
+    slots to raw validated-outline prose, Chronicle no longer falls back from
+    failed compression to the old hybrid renderer, and polish failure now
+    returns deterministic compressed prose derived from structured slots rather
+    than the original widened draft.
+  - `LiveNarrativeCompressionCore` now owns the shared live compression
+    contract for both surfaces. Claim-family priority, system-language bans,
+    player-language rewrites, deterministic slot rendering, and compressed
+    fallback reconstruction now come from one backend module instead of
+    product-specific policy forks.
+  - Runtime bookkeeping prose has been removed from the main narrative path.
+    `buildStrategicDistributionBeat` is deleted from outline construction, wrap
+    up no longer restates threat warnings or hypothesis-difference bookkeeping,
+    and the dormant legacy wrap-up renderer has been narrowed to
+    player-facing practical/compensation summaries only.
+  - Signal-digest and strategy-pack bookkeeping no longer feed main prose.
+    Live narrative generation now blocks latent-plan bookkeeping, hold/refute
+    summaries, authoring-evidence summaries, and related stack/precondition
+    metadata from re-entering Bookmaker/Chronicle body text through
+    `StrategyPackBuilder` and `StrategyPackSurface`.
+  - Default frontend support UI now follows a compact player-facing contract.
+    Bookmaker and Chronicle default panels keep only main plans with support
+    badges, decision compare, `Why it stayed conditional`, and compact Opening
+    / Opponent / Structure / Piece deployment / Practical rows. Evidence
+    probes, authoring evidence, branch dossiers, strategic notes, latent-plan
+    bookkeeping, and related analyst-console material move behind one collapsed
+    `Advanced details` disclosure or remain internal-only.
+  - Chronicle now follows the same default product philosophy as Bookmaker:
+    compressed prose first, one compact support panel second, and optional
+    collapsed detail surfaces only after that. This is a UX convergence pass,
+    not an API contract change.
+- Verification:
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerLiveCompressionPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/GameChronicleCompressionPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `ui/analyse/src/chesstory/compactSupportSurface.ts`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
+- `2026-03-20` working-tree update:
+  - The player-language rewrite now happens at the source idea layer, not only
+    as downstream cleanup. `StrategicIdeaSelector` gained
+    `playerFacingIdeaText`, which renders break / pressure / exchange /
+    outpost / target-fixing ideas with concrete anchors (`the ...e5 break`,
+    `pressure on d5`, `exchanges on c3`, `an outpost on d5`) instead of the
+    old `kind around focus` scaffold.
+  - `StrategyPackSurface` now consumes those player-facing idea summaries
+    directly. `StrategicThesisBuilder.ideaText`, `targetText`, and
+    `ActiveStrategicCoachingBriefBuilder.primaryIdeaLabel` no longer surface
+    `pawn break around ...`, `pressure toward ...`, `exchanges around ...`,
+    or `making c4 available for the knight` style text in default prose.
+  - Decision/support phrasing has been shifted further toward coach language.
+    `StrategicThesisBuilder` now renders support/objective surfaces as
+    `A likely follow-up is ...`, `The knight can head for ... next`, `The move
+    prepares ...`, `The move increases pressure on ...`, or `The move leans
+    toward exchanges on ...` instead of generic `The move is really about ...`
+    or `The next useful route/target is ...` scaffolding.
+  - Support placeholders are now suppressed instead of being reworded into a
+    different meta sentence. `LiveNarrativeCompressionCore`,
+    `UserFacingSignalSanitizer`, and frontend `signalFormatting.ts` remove
+    `still needs more concrete support` / `the idea still needs concrete
+    support` from default user-facing surfaces rather than preserving the
+    underlying evidence-bookkeeping state in prose.
+  - Frontend support labels now humanize strategic plan names before display.
+    `planSupportSurface.ts` and `signalFormatting.ts` normalize labels such as
+    `Preparing e-break Break`, `Piece Activation`, and `Opening Development and
+    Center Control` before they reach the compact support panel, while the
+    compact panel continues to drop rows that remain non-player-facing after
+    rewriting.
+  - Spot-check reruns on the `club_000` shard confirmed the main prose gains:
+    Bookmaker dropped `pawn break around` from `6 -> 0`, `pressure toward`
+    from `4 -> 0`, `exchanges around` from `2 -> 0`, and concrete-support
+    placeholder text from `24 -> 0`. Chronicle report prose also dropped
+    `king-attack build-up around`, `outpost creation or occupation around`,
+    and concrete-support placeholders to `0`, while now surfacing the shared
+    `The key idea is ...` / `A likely follow-up is ...` / `A concrete target
+    is ...` language family.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicIdeaSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/src/bookmaker/planSupportSurface.ts`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+- `2026-03-20` working-tree update:
+  - User-facing support and advanced-row label cleanup now happens in the same
+    backend/player-facing sanitation path as prose cleanup. Raw label families
+    such as `Preparing e-break Break`, `Preparing d-break Break`,
+    `Opening Development and Center Control`, `Piece Activation`,
+    `Exploiting Space Advantage`, `Simplification into Endgame`, and
+    `Immediate Tactical Gain Counterplay` are rewritten into compact chess
+    language before they reach Bookmaker support rows, Chronicle support rows,
+    or the external QA pipeline.
+  - `UserFacingSignalSanitizer` now rewrites those label families directly and
+    `UserFacingPayloadSanitizer` carries the same cleanup through payload
+    serialization, so user-facing rows and payload dumps stop exposing raw
+    strategic taxonomy names even when the underlying carriers still use them.
+  - The QA corpus tooling mirrors that same contract. `CommentaryPlayerQcSupport`
+    now sanitizes main-plan labels, `whyAbsent` rows, opening/opponent/structure
+    summaries, deployment text, practical notes, and advanced metadata rows
+    before writing review manifests, so manual PGN review sees the same
+    player-facing language the product shows.
+  - Compensation phrasing has been pushed another step away from system-summary
+    wording. `StrategicThesisBuilder.CompensationDisplayPhrasing` now prefers
+    coach-style language such as `The material can wait`, `winning the material
+    back`, `use the queenside files`, `use the central files`, `force the
+    favorable exchanges first`, and `keep the break ready` instead of older
+    `recover the material`, `file pressure alive`, or bookkeeping-style
+    conversion phrasing.
+  - This pass does not remove long-term ideas; it translates them into concrete
+    player language. Compensation text is now expected to say what was given,
+    what concrete pressure or initiative was gained, and why immediate material
+    recovery can wait, rather than narrating internal evaluation state.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/UserFacingPayloadSanitizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+- `2026-03-21` working-tree update:
+  - Compensation claim/support text is now rendered as a small clause-shaped
+    skeleton instead of raw string concatenation. The active Bookmaker and
+    Chronicle compensation path in `StrategicThesisBuilder` now limits itself
+    to `main reason + optional follow-up + optional practical explanation`, so
+    broken hybrids such as `via queen toward e4` and
+    `while aiming for the knight can head for d4` are no longer emitted.
+  - `CompensationDisplayPhrasing` now prefers anchored compensation windows
+    from existing typed carriers (`compensationSummary`, objective text,
+    execution text) before falling back to generic `initiative`/`attack`
+    wording. This keeps compensation prose tied to concrete targets, files, or
+    follow-up squares when they are available.
+  - The remaining raw fallback in `NarrativeOutlineBuilder` also now prefers
+    concrete compensation carriers such as open lines, fixed targets, or
+    ongoing attack pressure over the older `keep the compensation justified`
+    summary.
+  - Compensation-context support rows remain available, but abstract generic
+    labels are now hidden unless they can be rewritten with a concrete anchor.
+    In practice this means rows such as generic piece-placement or counterplay
+    summaries drop out of the default support panel when they cannot name a
+    real piece, square, file, or break.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
+  - `tmp/commentary-player-qc/runs/bookmaker/post_patch6_comp_focus/bookmaker_outputs.jsonl`
+  - `tmp/commentary-player-qc/runs/bookmaker/post_patch6_master_000/bookmaker_outputs.jsonl`
+  - `tmp/commentary-player-qc/runs/chronicle/post_patch6_master_000/report.md`
+- `2026-03-21` working-tree update:
+  - Compensation prose now collapses repeated recovery ideas before rendering.
+    Claim/support pairs such as `material can wait` plus another `winning the
+    material back can wait` sentence no longer survive together by default,
+    and duplicate square-follow-up phrasing such as `pressure on d3` plus
+    `bringing the queen to d3` is pruned in the compensation skeleton.
+  - Weak compensation shells no longer force the compensation lens. When the
+    strategy-pack carrier can name invested material but cannot concretely say
+    what was gained or why recovery can wait, `buildCompensation` now reframes
+    the moment through an ordinary decision-style claim instead of emitting a
+    generic compensation sentence.
+  - Semantic compensation without a strategy-pack carrier remains eligible for
+    compensation narration. The v2 gating now distinguishes between
+    surface-driven compensation prose and semantic-only compensation so that
+    the older semantic compensation path is not accidentally suppressed.
+  - Chronicle focused compensation prose now matches Bookmaker's gating more
+    closely because both consume the same `StrategicThesisBuilder`
+    compensation/reframe decision, rather than Chronicle keeping a separate
+    report-like compensation lead when the surface is too weak.
+  - Compensation-context support rows are stricter on both backend and
+    frontend. Generic attack/initiative bookkeeping no longer counts as a
+    concrete anchor, while real files, squares, routes, or named follow-up
+    moves still survive in user-facing support.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+- `2026-03-21` working-tree update:
+  - Compensation / player-language code has been structurally refactored
+    without changing the Bookmaker, Game Chronicle, support-panel, public API,
+    or payload-schema contract.
+  - `StrategicThesisBuilder` is now reduced to orchestration. It still chooses
+    lens order, compensation-vs-reframe behavior, and ordinary thesis
+    assembly, but the large nested helper objects are no longer the ownership
+    boundary for display wording.
+  - `StrategyPackSurface` now owns strategy-pack snapshot building, display
+    normalization, and compensation subtype derivation in one dedicated module.
+  - `CompensationDisplayPhrasing` is now the single backend owner for
+    compensation-specific phrasing, eligibility gating, anchored support
+    selection, subtype-specific wording, follow-up rendering, and duplicate
+    support pruning.
+  - `StrategicSentenceRenderer` now owns the shared piece-pattern and
+    clause-rendering helpers used by both ordinary thesis wording and
+    compensation follow-up rendering. The duplicate local/global
+    `Piece*Pattern` and execution-follow-up implementations were collapsed
+    into this one helper.
+  - Backend/frontend support filtering now has an explicit authority split:
+    backend `PlayerFacingSupportPolicy` is the source of truth for label
+    cleanup and compensation-context support gating, while frontend
+    `signalFormatting.ts` mirrors that contract for persisted/client-composed
+    rows.
+  - Drift protection is now explicit. Shared fixture
+    `modules/llm/src/test/resources/playerFacingSupportContract.json` is
+    consumed by both Scala and frontend tests so label cleanup and
+    compensation-context filtering remain aligned.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackSurface.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/CompensationDisplayPhrasing.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicSentenceRenderer.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/PlayerFacingSupportPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/UserFacingSignalSanitizer.scala`
+  - `ui/analyse/src/chesstory/signalFormatting.ts`
+  - `ui/analyse/src/chesstory/compactSupportSurface.ts`
+  - `ui/analyse/src/bookmaker.ts`
+  - `ui/analyse/src/narrative/narrativeView.ts`
+  - `modules/llm/src/test/resources/playerFacingSupportContract.json`
+  - `modules/llm/src/test/scala/lila/llm/analysis/PlayerFacingSupportPolicyContractTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/CommentaryEngineFocusSelectionTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/UserFacingPayloadSanitizerTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
+  - `ui/analyse/tests/playerFacingSupportContract.test.ts`
+  - `ui/analyse/tests/compactSupportSurface.test.ts`
+  - `ui/analyse/tests/frontendAuditRegression.test.ts`
+- `2026-03-21` working-tree update:
+  - Ordinary thesis selection is now more purpose-conformant for Bookmaker and
+    Chronicle. `StrategicThesisBuilder` now lets a concrete
+    `strategyPack.surface` idea become the main thesis before dropping into
+    generic decision/opening filler, and the decision lens now keeps
+    focal/anchored support in the first support slots instead of letting
+    conditionality boilerplate crowd it out.
+  - Broad or weakly anchored surface ideas are now downgraded before they reach
+    the player-facing main claim. In practice this means overloaded `pressure`
+    claims without matching objective/execution anchors no longer survive as the
+    headline thesis just because the surface named them.
+  - Live Bookmaker compression now explicitly prefers anchored support over
+    low-value opening filler. Generic sentences such as `finish development
+    without giving up the center` are treated as low-value tension/filler, while
+    anchored support or decision-specific tension survives into the third slot
+    first.
+  - QA review tooling now audits the same gap directly. `CommentaryPlayerQcSupport`
+    adds explicit review flags for:
+    - `generic_filler_main_prose`
+    - `anchored_support_missing_from_prose`
+    - `conditionality_blur`
+    - `taxonomy_residue:*`
+    This makes current must-fix Bookmaker/Chronicle failures reviewable without
+    changing the public payload/API contract.
+  - Real-PGN Chronicle signoff now emits explicit `mustFixFailures` instead of
+    only aggregate counts. The report/JSON surface now records positive
+    exemplar misses, negative-guard failures, cross-surface parity misses,
+    subtype mismatches, and path-vs-payoff divergence as concrete blocker rows,
+    plus a simple `releaseGatePassed` boolean.
+  - Strategic Puzzle now has a dedicated reveal audit path:
+    `StrategicPuzzleRevealAuditRunner` / `StrategicPuzzleRevealAuditSupport`.
+    This audits stored terminal reveal prose against the same player-facing
+    purpose rubric by flagging:
+    - `false_claim_risk`
+    - `provenance_blur`
+    - `missing_anchor`
+    - `strategic_flattening`
+    The new audit uses saved `runtimeShell` reveal text, so puzzle reveal
+    conformance can now be signed off separately from prompt-only QA.
+- Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerLiveCompressionPolicy.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupport.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/StrategicPuzzleRevealAuditSupport.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/StrategicPuzzleRevealAuditSupportTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/StrategicPuzzleRevealAuditRunner.scala`
+- `2026-03-21` working-tree update:
+  - Compensation conformance is now audited against an explicit canonical
+    internal contract. `StrategyPackSurface` owns the strict compensation
+    subtype / path / payoff / selected-display decision, and the public
+    Chronicle / Bookmaker schema stays unchanged. The important change is that
+    strict compensation signoff is now judged from this shared internal
+    contract instead of letting each surface drift through raw fallback labels.
+  - `StrategicBranchSelector` now keeps evidence-backed strict compensation
+    moments visible ahead of ordinary fallback strategic moments, so
+    compensation-positive turning points are less likely to be displaced by
+    generic thread fillers.
+  - Active-note parity is no longer treated as optional for compensation
+    moments. `ActiveStrategicNoteValidator` rejects compensation-positive notes
+    that do not mention the canonical compensation family, but it now allows a
+    compensation note to pass without a separate opponent-warning sentence if
+    the compensation family and forward plan are explicit. `LlmApi` also now
+    tries a strict-compensation deterministic rescue note before dropping the
+    active surface entirely.
+  - Positive compensation exemplar signoff is now grounded in real PGNs rather
+    than synthetic mini-lines. `RealPgnPositiveCompensationExemplarBuilder`
+    carves a dedicated exemplar corpus out of the selected 360-game manifest,
+    and `RealPgnNarrativeEvalRunner.PositiveCompensationExemplars` now points
+    at six real, currently compensation-positive moment keys.
+  - Empirical status after this pass:
+    - dedicated positive exemplar rerun:
+      `falseNegativeCount=0`, `positiveExemplarCoverage=6/6`,
+      `crossSurfaceAgreementRate=100%`, `releaseGatePassed=true`
+    - offender-heavy shard reruns show the original four blocker families have
+      mostly collapsed into one residual family:
+      - `edge_case_000`: must-fix `72 -> 9`
+      - `master_classical_000`: must-fix `48 -> 6`
+      - `master_classical_080`: must-fix `91 -> 9`
+      - `titled_practical_000`: must-fix `56 -> 9`
+      - `titled_practical_040`: must-fix `54 -> 8`
+      - across all five reruns, `positive_exemplar_missed=0`,
+        `subtype_mismatch=0`, and blocker-grade
+        `path_payoff_divergence=0`; the remaining must-fix rows are all
+        `cross_surface_parity` caused by active-note omission on a smaller set
+        of compensation moments
+    - path/payoff disagreement still appears as a diagnostic metric in shard
+      reports, but unresolved divergence is no longer the dominant blocker in
+      these reruns; the remaining release-gate pressure is concentrated in
+      active-note parity.
+  - Verification:
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackSurface.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicBranchSelector.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicNoteValidator.scala`
+  - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+  - `modules/llm/src/main/LlmApi.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnPositiveCompensationExemplarBuilder.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnPositiveCompensationExemplarBuilderTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalSignoffTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+  - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+  - `modules/llm/docs/RealPgnNarrativeEvalPositiveCompensationExemplars.json`
+  - `tmp/commentary-player-qc/positive_exemplar_check/report.md`
+  - `tmp/commentary-player-qc/manifests/comp_sprint_runs/edge_case_000/report.md`
+  - `tmp/commentary-player-qc/manifests/comp_sprint_runs/master_classical_000/report.md`
+  - `tmp/commentary-player-qc/manifests/comp_sprint_runs/master_classical_080/report.md`
+  - `tmp/commentary-player-qc/manifests/comp_sprint_runs/titled_practical_000/report.md`
+  - `tmp/commentary-player-qc/manifests/comp_sprint_runs/titled_practical_040/report.md`
+- `2026-03-22` working-tree update:
+  - The deterministic 202-game audit queue now preserves `auditId` on every
+    review row, so singled-out residual exemplars remain distinct from the 200
+    shard-derived games even when `gameId` overlaps. The audit/merge tooling
+    still keys judgments by `sampleId`, but the queue now carries the
+    higher-level audit-game identity needed for reliable manual review and
+    exemplar bundling.
+  - Active-note compensation parity selection now follows the resolved display
+    contract rather than the narrower strict-compensation subset. In practice,
+    `attachActiveStrategicNotes` uses
+    `activeCompensationParityEligible(...)`, which accepts resolved
+    compensation candidates whenever:
+    - `compensationPosition = true`
+    - `compensationContractResolved = true`
+    - `resolvedDisplaySubtypeSource != raw_fallback`
+    - a canonical compensation subtype label exists
+    This widens attachment to contract-resolved transition moments without
+    loosening truth checks.
+  - Active-note validation still keeps compensation-family mention as a hard
+    requirement for compensation-positive notes, but grounded non-compensation
+    notes can now pass without a separate opponent-warning sentence when they
+    already carry:
+    - the dominant idea
+    - a concrete anchor
+    - a forward continuation
+    This is intended to reduce avoidable active-note omission on route-led
+    strategic moments while keeping anchorless or generic notes rejected.
+  - Bookmaker objective phrasing now frames route ideas as availability rather
+    than as current-board facts:
+    - `The queen can head for c3 next.` -> `A likely route keeps the queen headed for c3.`
+    - `The move keeps the queen pointed toward c3.` -> `The move keeps the queen route toward c3 available.`
+    The third-paragraph variation hook is also softened from `A concrete line
+    is ...` to `One concrete line that keeps the idea in play is ...`, which
+    better matches the product's conditionality contract for candidate ideas.
+  - Chronicle whole-game conclusions now avoid the stock
+    `ultimately prevailed, capitalizing on the critical moments` boilerplate.
+    The conclusion instead anchors itself in the lead theme and the practical
+    error profile:
+    - clean games emphasize the lead strategic thread
+    - volatile games explicitly mention blunder / missed-win counts
+    This does not yet solve the full whole-game narrative problem, but it
+    reduces generic `TensionPeak`-style boilerplate in the game-level verdict.
+  - Shared rewrite guardrails now remove several recurring low-value sentence
+    shells across Bookmaker, Chronicle, and active-note prose before they
+    reach player-facing text:
+    - `keeps the pieces coordinated`
+    - `keeps the position easy to handle`
+    - `holds the position together`
+    - `X is the square that keeps ... grounded`
+    - `The next step is to keep bringing the ...`
+    These paths now prefer existing `objective`, `execution`, `dominant idea`,
+    `latent plan`, and compensation-family anchors when they are available. If
+    there is no concrete anchor, the prose is downgraded instead of hiding the
+    gap behind generic filler.
+  - Bookmaker structure claims now preserve evidence-backed strategic labels
+    when the structure actually supports them. In practice, structure-led prose
+    now keeps:
+    - the structure name
+    - the evidence-backed plan label when it is truly backed
+    - the concrete deployment anchor
+    This fixes cases such as Carlsbad / minority-attack positions where the
+    old surface flattened the claim into generic route or reorganization prose
+    even though the structure and move clearly pointed to a named strategic
+    plan.
+  - Compensation phrasing was tightened to preserve provenance and concrete
+    anchors without falling back to the old `material can wait` boilerplate as
+    the default narration. The current contract is:
+    - prefer `The move gives up material because ...`
+    - follow with `That only works while ...`
+    - keep subtype-specific support concrete (`queenside targets`, `central
+      files`, `favorable exchanges`, etc.)
+    - allow raw-fallback compensation surfaces to keep raw anchored idea text
+      when the path/payoff contract is not stable enough to promote normalized
+      display prose
+    This keeps compensation language aligned with the stricter
+    purpose-conformance audit while still allowing playable non-best ideas to
+    be described when they have real anchors.
+  - Chronicle audit tooling now exposes more of the whole-game narrative
+    contract directly in the review queue. Whole-game review rows include
+    opening/middlegame/endgame story summaries, side plans, turning-point
+    anchors, and punishment summaries. The short-game fallback is also tighter:
+    a game is only treated as `non-strategic short game` when it is genuinely
+    too short or strategically empty, instead of collapsing any thin game arc
+    into the fallback bucket.
+  - Verification:
+    - `modules/llm/src/main/LlmApi.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilder.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/ActiveStrategicNoteValidator.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerLiveCompressionPolicy.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/CompensationDisplayPhrasing.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/LiveNarrativeCompressionCore.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeLexicon.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/StrategicSentenceRenderer.scala`
+    - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
+    - `modules/llm/src/test/scala/lila/llm/LlmApiActiveParityTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicCoachingBriefBuilderTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/ActiveStrategicNoteValidatorTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/CompensationDisplayPhrasingTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/NarrativeLexiconTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/StrategicSentenceRendererTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/analysis/StrategicThesisBuilderTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerAuditWorkflowTest.scala`
+    - `modules/llm/src/test/scala/lila/llm/tools/CommentaryPlayerQcSupportTest.scala`
 
 ## Reference Files
 

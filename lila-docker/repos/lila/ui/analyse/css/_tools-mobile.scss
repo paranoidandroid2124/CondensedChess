@@ -34,12 +34,16 @@
       order: 1;
     }
 
-    [data-act='opening-explorer'] {
+    [data-act='analysis'] {
       order: 2;
     }
 
-    [data-act='menu'] {
+    [data-act='opening-explorer'] {
       order: 3;
+    }
+
+    [data-act='menu'] {
+      order: 4;
     }
 
     .fbt {
@@ -49,6 +53,12 @@
       border-bottom: none;
       border-radius: 6px 6px 0 0;
       background: $m-bg_bg-page--mix-50;
+    }
+
+    .fbt--engine-toggle {
+      min-width: 2.5rem;
+      padding: 0;
+      gap: 0;
     }
 
     .scrub-help {

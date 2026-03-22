@@ -72,6 +72,10 @@ def is_required(spec: dict[str, Any], envs: dict[str, bool]) -> bool:
     return False
 
 
+def cloud_run_managed(spec: dict[str, Any]) -> bool:
+    return bool(spec.get("cloudRunManaged", True))
+
+
 def evaluate_manifest(manifest: dict[str, Any], envs: dict[str, bool]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -81,7 +85,7 @@ def evaluate_manifest(manifest: dict[str, Any], envs: dict[str, bool]) -> tuple[
 
     for spec in specs:
         env_name = spec["env"]
-        if is_required(spec, envs) and not envs.get(env_name, False):
+        if cloud_run_managed(spec) and is_required(spec, envs) and not envs.get(env_name, False):
             errors.append(
                 f"Missing required binding {env_name} ({spec['configPath'] or 'env-only'})"
             )
@@ -113,7 +117,9 @@ def extract_documented_envs(doc_text: str) -> set[str]:
 
 
 def compare_doc(manifest: dict[str, Any], doc_text: str) -> tuple[list[str], list[str]]:
-    expected = {spec["env"] for spec in manifest["bindings"]} | set(manifest.get("removedBindings", []))
+    expected = {
+        spec["env"] for spec in manifest["bindings"] if cloud_run_managed(spec)
+    } | set(manifest.get("removedBindings", []))
     documented = extract_documented_envs(doc_text)
     missing = sorted(expected - documented)
     extra = sorted(documented - expected)

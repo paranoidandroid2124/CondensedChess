@@ -1,12 +1,18 @@
 import * as licon from 'lib/licon';
 import type { LooseVNode, LooseVNodes, VNode } from 'lib/view';
 import { bind, hl, icon } from 'lib/view';
+import { cleanNarrativeProseText, cleanNarrativeSurfaceLabel } from '../chesstory/signalFormatting';
 import type AnalyseCtrl from '../ctrl';
-import type { NarrativeMomentFilter, ReviewPrimaryTab, ReviewReferenceTab } from './state';
-import type { GameChronicleMoment } from '../narrative/narrativeCtrl';
-import { isOpening } from '../explorer/interfaces';
+import type { NarrativeMomentFilter, ReviewPrimaryTab } from './state';
+import {
+  MIN_GAME_CHRONICLE_PLY,
+  moveNumberFromPly,
+  totalMainlinePly,
+  type GameChronicleMoment,
+} from '../narrative/narrativeCtrl';
 import {
   collapseTimelineView,
+  bindPreviewHover,
   defeatDnaContentView,
   narrativeCollapseCardView,
   narrativeMomentView,
@@ -28,11 +34,6 @@ type ReviewTabMeta = {
   label: string;
 };
 
-type ReferenceTabMeta = {
-  tab: ReviewReferenceTab;
-  label: string;
-};
-
 type ReviewOverviewStats = {
   totalMoments: number;
   collapseMoments: number;
@@ -46,13 +47,7 @@ const primaryTabs: ReviewTabMeta[] = [
   { tab: 'repair', label: 'Repair' },
   { tab: 'patterns', label: 'Patterns' },
   { tab: 'moves', label: 'Moves' },
-  { tab: 'reference', label: 'Reference' },
-];
-
-const referenceTabs: ReferenceTabMeta[] = [
-  { tab: 'explorer', label: 'Explorer' },
-  { tab: 'board', label: 'Board View' },
-  { tab: 'import', label: 'Import' },
+  { tab: 'import', label: 'Import PGN' },
 ];
 
 const momentFilters: Array<{ filter: NarrativeMomentFilter; label: string }> = [
@@ -63,30 +58,42 @@ const momentFilters: Array<{ filter: NarrativeMomentFilter; label: string }> = [
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   const stats = reviewOverviewStats(ctrl);
-  return hl('section.analyse-review', [
-    hl(
-      'div.analyse-review__tabs',
-      {
-        hook: ensureActiveChildVisible('[data-review-tab].active'),
-        attrs: { role: 'tablist', 'aria-label': 'Review sections' },
+  return hl('section.analyse-review', {
+    hook: {
+      insert: vnode => {
+        if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
       },
-      primaryTabs.map(({ tab, label }) =>
-        hl(
-          `button.analyse-review__tab${ctrl.reviewPrimaryTab() === tab ? '.active' : ''}`,
-          {
-            key: tab,
-            attrs: {
-              type: 'button',
-              role: 'tab',
-              'aria-selected': ctrl.reviewPrimaryTab() === tab ? 'true' : 'false',
-              'data-review-tab': tab,
+      postpatch: (_, vnode) => {
+        if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
+      },
+    },
+  }, [
+    hl('div.analyse-review__tabs-head', [
+      hl(
+        'div.analyse-review__tabs',
+        {
+          hook: ensureActiveChildVisible('[data-review-tab].active'),
+          attrs: { role: 'tablist', 'aria-label': 'Review sections' },
+        },
+        primaryTabs.map(({ tab, label }) =>
+          hl(
+            `button.analyse-review__tab${ctrl.reviewPrimaryTab() === tab ? '.active' : ''}`,
+            {
+              key: tab,
+              attrs: {
+                type: 'button',
+                role: 'tab',
+                'aria-selected': ctrl.reviewPrimaryTab() === tab ? 'true' : 'false',
+                'data-review-tab': tab,
+              },
+              hook: bind('click', () => ctrl.setReviewPrimaryTab(tab)),
             },
-            hook: bind('click', () => ctrl.setReviewPrimaryTab(tab)),
-          },
-          [hl('span', label), renderPrimaryTabMeta(ctrl, tab, stats)],
+            [hl('span', label), renderPrimaryTabMeta(ctrl, tab, stats)],
+          ),
         ),
       ),
-    ),
+    ]),
+    renderUtilityPanel(ctrl, nodes),
     hl('div.analyse-review__body', [renderPrimaryTab(ctrl, nodes)]),
   ]);
 }
@@ -120,9 +127,9 @@ function renderPrimaryTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
     case 'patterns':
       return renderPatterns(ctrl);
     case 'moves':
-      return renderMoves(nodes);
-    case 'reference':
-      return renderReference(ctrl, nodes);
+      return renderMoves(ctrl, nodes);
+    case 'import':
+      return renderImport(ctrl, nodes);
   }
 }
 
@@ -130,6 +137,8 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
   const narrative = ctrl.narrative;
   const data = narrative?.data();
   const stats = reviewOverviewStats(ctrl);
+  const totalPly = totalMainlinePly(ctrl);
+  const chronicleEligible = totalPly >= MIN_GAME_CHRONICLE_PLY;
 
   if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
 
@@ -149,7 +158,8 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
                 hl('div', narrative.error()),
                 narrative.needsLogin() ? hl('a.button', { attrs: { href: narrative.loginHref() } }, 'Sign in') : null,
               ])
-            : hl(
+            : chronicleEligible
+              ? hl(
                 'button.button.button-fat',
                 {
                   hook: bind('click', () => {
@@ -157,10 +167,19 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
                   }),
                 },
                 'Run Game Chronicle',
-              ),
+              )
+              : hl('div.analyse-review__status', [
+                  hl(
+                    'button.button.button-fat',
+                    {
+                      attrs: { type: 'button', disabled: true },
+                    },
+                    `Unlocks at move ${moveNumberFromPly(MIN_GAME_CHRONICLE_PLY)}`,
+                  ),
+                ]),
       ]),
       hl('div.analyse-review__overview-cards', [
-        overviewCard(licon.BubbleSpeech, 'Moments', 'Surface the turning points instead of scanning every ply.'),
+        overviewCard(licon.BubbleSpeech, 'Moments', 'Surface the turning points instead of scanning every move.'),
         overviewCard(licon.Target, 'Repair', 'See where the game first broke and replay the patch line.'),
         overviewCard(licon.Book, 'Patterns', 'Track recurring collapse causes across analyzed games.'),
       ]),
@@ -173,11 +192,11 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
       hl('span.analyse-review__eyebrow', 'Review ready'),
       hl('h2', 'Narrative-first game review'),
       data.themes?.length
-        ? hl('div.narrative-themes', data.themes.map(theme => hl('span.narrative-theme', theme)))
+        ? hl('div.narrative-themes', data.themes.map(theme => hl('span.narrative-theme', cleanNarrativeSurfaceLabel(theme))))
         : null,
       renderOverviewStats(stats),
       narrativeReviewView(data),
-      data.intro ? hl('pre.narrative-prose', data.intro) : null,
+      data.intro ? hl('pre.narrative-prose', cleanNarrativeProseText(data.intro)) : null,
     ]),
     hl('div.analyse-review__next-actions', [
       actionCard(ctrl, licon.BubbleSpeech, 'Go to Moments', 'Read the selected turning points in order.', 'moments'),
@@ -261,6 +280,7 @@ function renderMoments(ctrl: AnalyseCtrl): VNode {
           filtered.map(moment =>
             narrativeMomentView(narrative, moment, {
               selected: ctrl.selectedReviewMomentPly() === moment.ply,
+              compact: true,
               onSelect: () => {
                 ctrl.selectReviewMoment(moment.ply);
                 ctrl.jumpToMain(moment.ply);
@@ -301,7 +321,7 @@ function renderRepair(ctrl: AnalyseCtrl): VNode {
       hl(
         'p',
         selectedCollapse?.collapse
-          ? `Reviewing ${selectedCollapse.collapse.rootCause} across ply ${selectedCollapse.collapse.interval}.`
+          ? `Reviewing ${selectedCollapse.collapse.rootCause} across the collapse window.`
           : `Found ${collapseMoments.length} collapse window${collapseMoments.length > 1 ? 's' : ''}.`,
       ),
     ]),
@@ -357,126 +377,88 @@ function renderPatterns(ctrl: AnalyseCtrl): VNode {
   ]);
 }
 
-function renderMoves(nodes: ReviewViewNodes): VNode {
+function renderMoves(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
+  const engineEnabled = !!ctrl.cevalEnabled();
   return hl('div.analyse-review__moves', [
     hl('div.analyse-review__section-head', [
       hl('h3', 'Raw analysis'),
       hl(
         'p',
-        nodes.cevalNode
-          ? 'Engine lines, move tree, and branch workbench remain available as reference.'
-          : 'Enable the engine panel from Board View, or turn on local analysis from the control bar to surface engine lines.',
+        engineEnabled
+          ? 'Live Stockfish lines stay pinned above while the move tree and branch workbench remain available below.'
+          : 'Turn on local engine from the header above to pin live Stockfish lines over the move tree and branch workbench.',
       ),
     ]),
-    nodes.cevalNode,
-    nodes.pvsNode,
+    !engineEnabled
+      ? hl('div.analyse-review__empty', [
+          hl('strong', 'Local engine is off'),
+          hl(
+            'p',
+            'Use the engine switch in the header above to start local Stockfish and surface live MultiPV lines over this review shell.',
+          ),
+          hl(
+            'button.button',
+            {
+              hook: bind('click', () => ctrl.cevalEnabled(true)),
+            },
+            'Turn On Engine',
+          ),
+        ])
+      : null,
     nodes.moveListNode,
     nodes.forkNode,
   ]);
 }
 
-function renderReference(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
-  return hl('div.analyse-review__reference', [
-    hl('div.analyse-review__section-head', [
-      hl('h3', 'Reference'),
-      hl('p', referenceHint(ctrl.reviewReferenceTab())),
-    ]),
-    renderReferenceSummary(ctrl),
-    renderReferenceActions(ctrl),
-    hl(
-      'div.analyse-review__subtabs',
-      {
-        hook: ensureActiveChildVisible('[data-reference-tab].active'),
-        attrs: { role: 'tablist', 'aria-label': 'Reference sections' },
-      },
-      referenceTabs.map(({ tab, label }) =>
-        hl(
-          `button.analyse-review__subtab${ctrl.reviewReferenceTab() === tab ? '.active' : ''}`,
-          {
-            key: tab,
-            attrs: {
-              type: 'button',
-              role: 'tab',
-              'aria-selected': ctrl.reviewReferenceTab() === tab ? 'true' : 'false',
-              'data-reference-tab': tab,
-            },
-            hook: bind('click', () => ctrl.setReviewReferenceTab(tab)),
-          },
-          label,
-        ),
+function renderUtilityPanel(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode | null {
+  const panel = ctrl.reviewUtilityPanel();
+  if (!panel) return null;
+  const heading = panel === 'explorer' ? 'Opening Explorer' : 'Board View';
+  const description =
+    panel === 'explorer'
+      ? 'Theory, database, and tablebase stay available without leaving the review flow.'
+      : 'Adjust board guides, perspective, and display settings without leaving the review flow.';
+  const body =
+    panel === 'explorer'
+      ? hl('div.analyse-review__panel.analyse-review__panel--explorer', [
+          ctrl.explorer.allowed()
+            ? nodes.explorerNode
+            : hl('div.analyse-review__empty', 'Opening explorer is unavailable for this position.'),
+        ])
+      : hl('div.action-menu.analyse-review__panel.analyse-review__panel--board', nodes.boardSettingsNodes);
+  return hl('section.analyse-review__utility', [
+    hl('div.analyse-review__utility-head', [
+      hl('div.analyse-review__utility-copy', [hl('strong', heading), hl('span', description)]),
+      hl(
+        'button.analyse-review__utility-close',
+        {
+          attrs: { type: 'button' },
+          hook: bind('click', () => ctrl.setReviewUtilityPanel(null)),
+        },
+        'Close panel',
       ),
-    ),
-    hl('div.analyse-review__reference-body', [renderReferenceBody(ctrl, nodes)]),
+    ]),
+    hl('div.analyse-review__utility-body', [body]),
   ]);
 }
 
-function renderReferenceSummary(ctrl: AnalyseCtrl): VNode {
-  const explorerAllowed = ctrl.explorer.allowed();
-  const explorerCurrent = typeof ctrl.explorer.current === 'function' ? ctrl.explorer.current() : undefined;
-  const explorerDb = typeof ctrl.explorer.db === 'function' ? ctrl.explorer.db() : 'lichess';
-  const explorerLoading = typeof ctrl.explorer.loading === 'function' ? ctrl.explorer.loading() : false;
-  const explorerOpening = explorerCurrent && isOpening(explorerCurrent) ? explorerCurrent.opening : undefined;
-  const positionFen = ctrl.node?.fen;
-  const sideToMove = positionFen?.split(' ')[1] === 'b' ? 'Black to move' : 'White to move';
-  const openingName = explorerOpening?.name || ctrl.data.game.opening?.name || ctrl.data.game.variant.name;
-  const openingEco = explorerOpening?.eco || ctrl.data.game.opening?.eco;
-  const ply = typeof ctrl.node?.ply === 'number' ? `${ctrl.node.ply} ply` : 'Current node';
-
-  return hl('div.analyse-review__summary-grid', [
-    compactStat(
-      !explorerAllowed
-        ? 'Unavailable'
-        : explorerLoading
-          ? 'Loading'
-          : explorerCurrent?.moves?.length
-            ? `${explorerCurrent.moves.length} moves`
-            : 'Ready',
-      'explorer status',
-    ),
-    compactStat(
-      openingEco ? `${openingEco} ${openingName}` : openingName || 'Custom position',
-      'current position',
-    ),
-    compactStat(`${sideToMove} • ${ply}`, explorerDb === 'masters' ? 'masters db' : 'online db'),
+function renderImport(_: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
+  return hl('div.analyse-review__import', [
+    hl('div.analyse-review__section-head', [
+      hl('h3', 'Import PGN'),
+      hl('p', 'Paste a PGN or jump by FEN without leaving this analysis shell.'),
+    ]),
+    hl('div.analyse-review__section-copy', [
+      hl('strong', 'Stay in analysis'),
+      hl(
+        'p',
+        'PGN import belongs here. Use the top-bar Recent Games page when you want to pull games from a Lichess or Chess.com account.',
+      ),
+    ]),
+    hl('div.analyse-review__panel.analyse-review__panel--import', [
+      nodes.importNode || hl('div.analyse-review__empty', 'Import is unavailable during live play.'),
+    ]),
   ]);
-}
-
-function renderReferenceActions(ctrl: AnalyseCtrl): VNode {
-  return hl('div.analyse-review__reference-actions', [
-    hl(
-      'button.analyse-review__reference-action.analyse-review__reference-action--primary',
-      {
-        attrs: { type: 'button' },
-        hook: bind('click', () => ctrl.setReviewPrimaryTab('overview')),
-      },
-      'Back to Overview',
-    ),
-    hl(
-      'button.analyse-review__reference-action',
-      {
-        attrs: { type: 'button' },
-        hook: bind('click', () => ctrl.setReviewPrimaryTab('moves')),
-      },
-      'Back to Moves',
-    ),
-  ]);
-}
-
-function renderReferenceBody(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
-  switch (ctrl.reviewReferenceTab()) {
-    case 'explorer':
-      return hl('div.analyse-review__panel.analyse-review__panel--explorer', [
-        ctrl.explorer.allowed()
-          ? nodes.explorerNode
-          : hl('div.analyse-review__empty', 'Opening explorer is unavailable for this position.'),
-      ]);
-    case 'board':
-      return hl('div.action-menu.analyse-review__panel.analyse-review__panel--board', nodes.boardSettingsNodes);
-    case 'import':
-      return hl('div.analyse-review__panel.analyse-review__panel--import', [
-        nodes.importNode || hl('div.analyse-review__empty', 'Import is unavailable during live play.'),
-      ]);
-  }
 }
 
 function renderMissingNarrative(ctrl: AnalyseCtrl, message: string): VNode {
@@ -532,17 +514,6 @@ function renderPrimaryTabMeta(ctrl: AnalyseCtrl, tab: ReviewPrimaryTab, stats: R
     return hl('span.analyse-review__tab-meta', String(ctrl.narrative.dnaData()!.totalGamesAnalyzed));
   }
   return null;
-}
-
-function referenceHint(tab: ReviewReferenceTab): string {
-  switch (tab) {
-    case 'explorer':
-      return 'Theory, game database, and tablebase access stay available as a secondary lookup surface.';
-    case 'board':
-      return 'Tune board view, guides, and perspective without dropping out of the review flow.';
-    case 'import':
-      return 'Stage a FEN jump or PGN import, preview the change, and relaunch from the same shell.';
-  }
 }
 
 function ensureActiveChildVisible(selector: string) {

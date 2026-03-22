@@ -1,6 +1,9 @@
 /\.scala-build/
+/tmp/
 /tmp_fide/
 /tmp_*
+/_cloudrun_service.json
+/_edge_cookies.db
 
 /lila-docker/conf/*.pem
 /lila-docker/logs/

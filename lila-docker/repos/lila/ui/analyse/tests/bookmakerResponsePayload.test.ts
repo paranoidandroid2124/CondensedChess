@@ -120,4 +120,42 @@ describe('bookmaker response payload', () => {
     assert.equal(decoded.strategyPack?.pieceRoutes[0]?.route[2], 'h5');
     assert.equal(decoded.strategyPack?.directionalTargets[0]?.targetSquare, 'h7');
   });
+
+  test('decodeBookmakerResponse preserves strategicPlanExperiments for UI support labels', () => {
+    const decoded = decodeBookmakerResponse({
+      mainStrategicPlans: [
+        {
+          planId: 'king_attack',
+          subplanId: 'rook_lift_scaffold',
+          planName: 'Kingside Attack',
+          rank: 1,
+          score: 0.81,
+          preconditions: [],
+          executionSteps: [],
+          failureModes: [],
+          viability: { score: 0.75, label: 'high', risk: 'thin support' },
+        },
+      ],
+      strategicPlanExperiments: [
+        {
+          planId: 'king_attack',
+          subplanId: 'rook_lift_scaffold',
+          themeL1: 'king_attack',
+          evidenceTier: 'pv_coupled',
+          supportProbeCount: 0,
+          refuteProbeCount: 0,
+          bestReplyStable: false,
+          futureSnapshotAligned: false,
+          counterBreakNeutralized: false,
+          moveOrderSensitive: true,
+          experimentConfidence: 0.54,
+        },
+      ],
+    });
+
+    assert.equal(decoded.mainStrategicPlans[0]?.subplanId, 'rook_lift_scaffold');
+    assert.equal(decoded.strategicPlanExperiments.length, 1);
+    assert.equal(decoded.strategicPlanExperiments[0]?.evidenceTier, 'pv_coupled');
+    assert.equal(decoded.strategicPlanExperiments[0]?.moveOrderSensitive, true);
+  });
 });

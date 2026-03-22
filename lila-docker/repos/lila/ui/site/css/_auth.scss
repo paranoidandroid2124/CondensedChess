@@ -31,10 +31,9 @@ html.pro .auth-page {
 
 // Reuse landing-container
 .auth-page .landing-container {
-    max-width: 1200px;
+    width: min(calc(100% - (var(---cs-shell-gutter-x, clamp(1rem, 2.2vw, 2rem)) * 2)), var(---cs-content-max-width, 1320px));
+    max-width: none;
     margin: 0 auto;
-    padding: 0 2rem;
-    width: 100%;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -44,7 +43,7 @@ html.pro .auth-page {
     max-width: 480px;
     width: 100%;
     margin: auto;
-    padding: 2rem;
+    padding: var(---cs-shell-gutter-x, clamp(1rem, 2.2vw, 2rem)) 0;
     flex: 1;
     display: flex;
     align-items: center;
@@ -963,12 +962,25 @@ html.pro .auth-page--importer {
 }
 
 .auth-container--wide {
-    max-width: 1120px;
+    max-width: none;
     align-items: stretch;
-    padding: 1rem 2rem 3rem;
+    width: 100%;
+    padding: var(---cs-shell-block-gap, clamp(0.75rem, 1.4vw, 1.5rem)) 0
+      calc(var(---cs-shell-block-gap, clamp(0.75rem, 1.4vw, 1.5rem)) * 2);
+}
+
+.auth-page--importer .auth-container {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: var(---cs-shell-block-gap, clamp(0.75rem, 1.4vw, 1.5rem)) 0 3rem;
+    flex: 0 0 auto;
+    align-items: stretch;
+    justify-content: flex-start;
 }
 
 .auth-card--importer {
+    width: 100%;
     padding: 2rem;
     border-radius: 28px;
     background:
@@ -1061,7 +1073,11 @@ html.pro .auth-card--importer {
 }
 
 .importer-grid--results {
-    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.importer-grid--intake {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .importer-side {
@@ -1079,6 +1095,10 @@ html.pro .auth-card--importer {
     border: 1px solid #E2E8F0;
     background: rgba(248, 249, 250, 0.92);
     text-align: left;
+}
+
+.importer-panel--intake {
+    width: min(100%, 44rem);
 }
 
 .importer-panel__head {
@@ -1135,36 +1155,12 @@ html.pro .auth-card--importer {
     background: rgba(15, 23, 42, 0.92);
 }
 
-.importer-timeline {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-    margin: 0;
-    padding: 0;
-}
-
-.importer-timeline__item {
-    display: grid;
-    gap: 0.2rem;
-    padding-left: 1rem;
-    border-left: 2px solid rgba(59, 130, 246, 0.24);
-}
-
-.importer-timeline__item strong {
-    color: #161A25;
-    font-size: 0.92rem;
-}
-
-.importer-timeline__item span,
-.importer-mode-card__body,
-.importer-note-card span {
+.importer-mode-card__body {
     color: #64748B;
     font-size: 0.88rem;
     line-height: 1.55;
 }
 
-.importer-note-grid,
 .importer-mode-grid,
 .status-meta-grid,
 .status-warning-list {
@@ -1172,7 +1168,6 @@ html.pro .auth-card--importer {
     gap: 0.75rem;
 }
 
-.importer-note-card,
 .importer-mode-card {
     display: flex;
     flex-direction: column;
@@ -1183,7 +1178,6 @@ html.pro .auth-card--importer {
     background: rgba(255, 255, 255, 0.78);
 }
 
-.importer-note-card strong,
 .importer-mode-card__title {
     color: #161A25;
     font-size: 0.96rem;
@@ -1336,6 +1330,10 @@ html.pro .auth-card--importer {
     margin-top: 0.2rem;
 }
 
+.status-links__form {
+    margin: 0;
+}
+
 .status-links__primary {
     display: inline-flex;
     align-items: center;
@@ -1346,6 +1344,13 @@ html.pro .auth-card--importer {
     background: #161A25;
     color: #fff !important;
     text-decoration: none;
+}
+
+.status-links__primary.is-disabled {
+    background: rgba(15, 23, 42, 0.12);
+    color: #64748B !important;
+    cursor: default;
+    pointer-events: none;
 }
 
 .status-links__primary:hover {
@@ -1361,10 +1366,6 @@ body.dark .importer-panel,
 body.pro .importer-panel,
 html.dark .importer-panel,
 html.pro .importer-panel,
-body.dark .importer-note-card,
-body.pro .importer-note-card,
-html.dark .importer-note-card,
-html.pro .importer-note-card,
 body.dark .importer-mode-card,
 body.pro .importer-mode-card,
 html.dark .importer-mode-card,
@@ -1397,14 +1398,6 @@ body.dark .importer-summary-chip strong,
 body.pro .importer-summary-chip strong,
 html.dark .importer-summary-chip strong,
 html.pro .importer-summary-chip strong,
-body.dark .importer-timeline__item strong,
-body.pro .importer-timeline__item strong,
-html.dark .importer-timeline__item strong,
-html.pro .importer-timeline__item strong,
-body.dark .importer-note-card strong,
-body.pro .importer-note-card strong,
-html.dark .importer-note-card strong,
-html.pro .importer-note-card strong,
 body.dark .importer-mode-card__title,
 body.pro .importer-mode-card__title,
 html.dark .importer-mode-card__title,
@@ -1428,18 +1421,10 @@ body.dark .importer-summary-chip span,
 body.pro .importer-summary-chip span,
 html.dark .importer-summary-chip span,
 html.pro .importer-summary-chip span,
-body.dark .importer-timeline__item span,
-body.pro .importer-timeline__item span,
-html.dark .importer-timeline__item span,
-html.pro .importer-timeline__item span,
 body.dark .importer-mode-card__body,
 body.pro .importer-mode-card__body,
 html.dark .importer-mode-card__body,
 html.pro .importer-mode-card__body,
-body.dark .importer-note-card span,
-body.pro .importer-note-card span,
-html.dark .importer-note-card span,
-html.pro .importer-note-card span,
 body.dark .status-progress__copy span,
 body.pro .status-progress__copy span,
 html.dark .status-progress__copy span,
@@ -1467,9 +1452,21 @@ html.pro .status-progress__index {
     color: $c-font;
 }
 
+body.dark .status-links__primary.is-disabled,
+body.pro .status-links__primary.is-disabled,
+html.dark .status-links__primary.is-disabled,
+html.pro .status-links__primary.is-disabled {
+    background: rgba(255, 255, 255, 0.08);
+    color: $c-shade !important;
+}
+
 @media (max-width: 960px) {
+    .auth-container {
+        padding: var(---cs-shell-gutter-x, 1rem) 0;
+    }
+
     .auth-container--wide {
-        padding: 1rem 1rem 2rem;
+        padding: var(---cs-shell-block-gap, 1rem) 0 calc(var(---cs-shell-block-gap, 1rem) * 2);
     }
 
     .importer-grid,
@@ -1477,6 +1474,10 @@ html.pro .status-progress__index {
     .status-grid,
     .importer-results-grid,
     .importer-summary-strip {
+        grid-template-columns: 1fr;
+    }
+
+    .account-product-mode-choice-grid {
         grid-template-columns: 1fr;
     }
 }
@@ -1533,6 +1534,74 @@ html.pro .status-progress__index {
     display: flex;
     flex-wrap: wrap;
     gap: 0.65rem;
+}
+
+.account-product-mode-field {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.account-product-mode-field__label {
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.account-product-mode-choice-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-product-mode-choice {
+    cursor: pointer;
+    display: block;
+    position: relative;
+}
+
+.account-product-mode-choice__input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.account-product-mode-choice__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-height: 100%;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.82);
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.account-product-mode-choice__copy strong {
+    color: #161A25;
+    font-size: 0.95rem;
+}
+
+.account-product-mode-choice__copy span {
+    color: #64748B;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.account-product-mode-choice:hover .account-product-mode-choice__copy {
+    border-color: rgba(59, 130, 246, 0.22);
+    box-shadow: 0 12px 24px rgba(59, 130, 246, 0.08);
+}
+
+.account-product-mode-choice__input:checked + .account-product-mode-choice__copy {
+    border-color: rgba(59, 130, 246, 0.42);
+    background: rgba(59, 130, 246, 0.08);
+    box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+}
+
+.account-product-mode-choice__input:focus-visible + .account-product-mode-choice__copy {
+    border-color: rgba(59, 130, 246, 0.42);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
 }
 
 .account-product-mode-link,
@@ -1853,6 +1922,14 @@ html.pro .account-product-secondary-link {
     background: rgba(22, 26, 37, 0.82);
 }
 
+body.dark .account-product-mode-choice__copy,
+body.pro .account-product-mode-choice__copy,
+html.dark .account-product-mode-choice__copy,
+html.pro .account-product-mode-choice__copy {
+    border-color: $c-border;
+    background: rgba(22, 26, 37, 0.82);
+}
+
 body.dark .account-product-mode-link,
 body.pro .account-product-mode-link,
 html.dark .account-product-mode-link,
@@ -1865,6 +1942,10 @@ body.dark .account-product-secondary-link,
 body.pro .account-product-secondary-link,
 html.dark .account-product-secondary-link,
 html.pro .account-product-secondary-link,
+body.dark .account-product-mode-field__label,
+body.pro .account-product-mode-field__label,
+html.dark .account-product-mode-field__label,
+html.pro .account-product-mode-field__label,
 body.dark .account-product-overview-card p,
 body.pro .account-product-overview-card p,
 html.dark .account-product-overview-card p,
@@ -1900,8 +1981,27 @@ html.pro .account-product-evidence-line,
 body.dark .account-product-pattern-meta,
 body.pro .account-product-pattern-meta,
 html.dark .account-product-pattern-meta,
-html.pro .account-product-pattern-meta {
+html.pro .account-product-pattern-meta,
+body.dark .account-product-mode-choice__copy span,
+body.pro .account-product-mode-choice__copy span,
+html.dark .account-product-mode-choice__copy span,
+html.pro .account-product-mode-choice__copy span {
     color: $c-shade;
+}
+
+body.dark .account-product-mode-choice__copy strong,
+body.pro .account-product-mode-choice__copy strong,
+html.dark .account-product-mode-choice__copy strong,
+html.pro .account-product-mode-choice__copy strong {
+    color: $c-font;
+}
+
+body.dark .account-product-mode-choice__input:checked + .account-product-mode-choice__copy,
+body.pro .account-product-mode-choice__input:checked + .account-product-mode-choice__copy,
+html.dark .account-product-mode-choice__input:checked + .account-product-mode-choice__copy,
+html.pro .account-product-mode-choice__input:checked + .account-product-mode-choice__copy {
+    border-color: rgba(59, 130, 246, 0.42);
+    background: rgba(59, 130, 246, 0.14);
 }
 
 body.dark .account-product-overview-card strong,

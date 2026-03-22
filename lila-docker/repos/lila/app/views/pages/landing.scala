@@ -6,29 +6,6 @@ import lila.ui.Page
 
 object landing:
 
-  private def themeChoice(using ctx: Context) =
-    ctx.pref.currentBg match
-      case "light"  => "light"
-      case "system" => "system"
-      case _        => "dark"
-
-  private def themeSwitch(using ctx: Context) =
-    val current = themeChoice
-    div(cls := "landing-theme-switch", role := "group", aria.label := "Theme")(
-      List(
-        "light" -> "Light",
-        "dark" -> "Dark",
-        "system" -> "Auto"
-      ).map: (value, label) =>
-        button(
-          tpe := "button",
-          cls := "landing-theme-switch__button js-theme-choice",
-          attr("data-theme-choice") := value,
-          attr("aria-pressed") := (value == current).toString,
-          title := s"Use ${if value == "system" then "device theme" else s"$label theme"}"
-        )(label)
-    )
-
   def apply(latestJournalPost: Option[JournalContent.Post])(using ctx: Context): Page =
     val samplePgn =
       "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 11. c4"
@@ -47,33 +24,6 @@ object landing:
             div(cls := "orb orb-3")
           ),
           div(cls := "landing-pro")(
-            header(cls := "landing-header")(
-              div(cls := "landing-container")(
-                a(href := routes.Main.landing.url, cls := "logo")("Chesstory"),
-                st.nav(cls := "section-nav", aria.label := "Landing sections")(
-                  a(href := "#features", cls := "btn-text")("Features"),
-                  a(href := "#sample-commentary", cls := "btn-text")("Sample"),
-                  a(href := accountIntelUrl, cls := "btn-text")("Account Intel"),
-                  a(href := "#how-it-works", cls := "btn-text")("How it works"),
-                  a(href := routes.Main.journal.url, cls := "btn-text")("Journal"),
-                  a(href := routes.Main.support.url, cls := "btn-text")("Support")
-                ),
-                div(cls := "auth-nav")(
-                  themeSwitch,
-                  ctx.me match
-                    case Some(me) =>
-                      frag(
-                        a(href := routes.UserAnalysis.index.url, cls := "btn-text")("Analysis"),
-                        a(href := routes.User.show(me.username).url, cls := "btn-text")(me.username.value),
-                        postForm(action := routes.Auth.logout, cls := "logout-form")(
-                          button(cls := "btn-text")("Log out")
-                        )
-                      )
-                    case None =>
-                      a(href := routes.Auth.login.url, cls := "btn-text")("Log in")
-                )
-              )
-            ),
             main(cls := "landing-main")(
               st.section(id := "top", cls := "hero-section landing-section")(
                 div(cls := "landing-container hero-grid")(

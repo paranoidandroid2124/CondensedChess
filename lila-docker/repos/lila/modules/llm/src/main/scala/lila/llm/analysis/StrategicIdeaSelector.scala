@@ -139,16 +139,43 @@ private[llm] object StrategicIdeaSelector:
   def humanizedKind(kind: String): String =
     kind match
       case StrategicIdeaKind.PawnBreak                       => "pawn break"
-      case StrategicIdeaKind.SpaceGainOrRestriction          => "space gain or restriction"
-      case StrategicIdeaKind.TargetFixing                    => "target fixing"
-      case StrategicIdeaKind.LineOccupation                  => "line occupation"
-      case StrategicIdeaKind.OutpostCreationOrOccupation     => "outpost creation or occupation"
-      case StrategicIdeaKind.MinorPieceImbalanceExploitation => "minor-piece imbalance exploitation"
+      case StrategicIdeaKind.SpaceGainOrRestriction          => "space"
+      case StrategicIdeaKind.TargetFixing                    => "fixed targets"
+      case StrategicIdeaKind.LineOccupation                  => "open-line pressure"
+      case StrategicIdeaKind.OutpostCreationOrOccupation     => "an outpost"
+      case StrategicIdeaKind.MinorPieceImbalanceExploitation => "the minor-piece imbalance"
       case StrategicIdeaKind.Prophylaxis                     => "prophylaxis"
-      case StrategicIdeaKind.KingAttackBuildUp               => "king-attack build-up"
-      case StrategicIdeaKind.FavorableTradeOrTransformation  => "favorable trade or transformation"
-      case StrategicIdeaKind.CounterplaySuppression          => "counterplay suppression"
+      case StrategicIdeaKind.KingAttackBuildUp               => "attacking chances"
+      case StrategicIdeaKind.FavorableTradeOrTransformation  => "favorable exchanges"
+      case StrategicIdeaKind.CounterplaySuppression          => "stopping counterplay"
       case other                                             => other.replace('_', ' ')
+
+  def playerFacingIdeaText(signal: StrategyIdeaSignal): String =
+    signal.kind match
+      case StrategicIdeaKind.PawnBreak =>
+        pawnBreakText(signal.ownerSide, signal.focusSquares, signal.focusFiles, signal.focusZone)
+      case StrategicIdeaKind.KingAttackBuildUp =>
+        pressureText(signal.focusSquares, signal.focusFiles, signal.focusDiagonals, signal.focusZone, fallback = "attacking chances")
+      case StrategicIdeaKind.LineOccupation =>
+        pressureText(signal.focusSquares, signal.focusFiles, signal.focusDiagonals, signal.focusZone, fallback = "open-line pressure")
+      case StrategicIdeaKind.FavorableTradeOrTransformation =>
+        exchangeText(signal.focusSquares, signal.focusZone)
+      case StrategicIdeaKind.TargetFixing =>
+        targetFixingText(signal.focusSquares, signal.focusZone)
+      case StrategicIdeaKind.OutpostCreationOrOccupation =>
+        outpostText(signal.focusSquares, signal.focusZone)
+      case StrategicIdeaKind.SpaceGainOrRestriction =>
+        spaceText(signal.focusSquares, signal.focusZone)
+      case StrategicIdeaKind.CounterplaySuppression =>
+        counterplayText(signal.focusSquares, signal.focusFiles, signal.focusDiagonals, signal.focusZone)
+      case StrategicIdeaKind.Prophylaxis =>
+        prophylaxisText(signal.focusSquares, signal.focusFiles, signal.focusDiagonals, signal.focusZone)
+      case StrategicIdeaKind.MinorPieceImbalanceExploitation =>
+        minorPieceText(signal.focusSquares, signal.focusZone)
+      case other =>
+        val label = humanizedKind(other)
+        val focus = focusSummary(signal)
+        if focus.nonEmpty && focus != "the key sector" then s"$label ${focusJoiner(focus)}" else label
 
   def focusSummary(signal: StrategyIdeaSignal): String =
     focusSummary(
@@ -2551,7 +2578,7 @@ private[llm] object StrategicIdeaSelector:
     val ideaLines =
       ideas.zipWithIndex.map { case (idea, idx) =>
         val prefix = if idx == 0 then "dominant idea" else "secondary idea"
-        s"$prefix: ${humanizedKind(idea.kind)}${withFocusSuffix(focusSummary(idea))}"
+        s"$prefix: ${playerFacingIdeaText(idea)}"
       }
     val targetLines =
       targets.take(2).map(target => s"objective: work toward making ${target.targetSquare} available for the ${pieceName(target.piece)}")
@@ -3482,17 +3509,112 @@ private[llm] object StrategicIdeaSelector:
       focusDiagonals: List[String],
       focusZone: Option[String]
   ): String =
-    val parts =
-      List(
-        Option.when(focusSquares.nonEmpty)(focusSquares.mkString(", ")),
-        Option.when(focusFiles.nonEmpty)(focusFiles.map(_ + "-file").mkString(", ")),
-        Option.when(focusDiagonals.nonEmpty)(focusDiagonals.mkString(", ")),
-        focusZone
-      ).flatten
-    parts.headOption.getOrElse("the key sector")
+    if focusSquares.nonEmpty then focusSquares.take(4).mkString(", ")
+    else if focusFiles.nonEmpty then joinLowerTerms(focusFiles.take(3).map(file => s"$file-file"))
+    else if focusDiagonals.nonEmpty then joinLowerTerms(focusDiagonals.take(2).map(diagonal => s"the $diagonal diagonal"))
+    else focusZone.flatMap(zoneFocusText).getOrElse("the key sector")
 
   private def withFocusSuffix(focus: String): String =
-    Option(focus).map(_.trim).filter(_.nonEmpty).map(v => s" around $v").getOrElse("")
+    Option(focus).map(_.trim).filter(_.nonEmpty).map(v => s" ${focusJoiner(v)}").getOrElse("")
+
+  private def focusJoiner(focus: String): String =
+    val low = Option(focus).getOrElse("").trim.toLowerCase
+    if low.startsWith("on ") || low.startsWith("along ") || low.startsWith("in ") then focus.trim
+    else if low.startsWith("the ") then s"around ${focus.trim}"
+    else s"around ${focus.trim}"
+
+  private def pawnBreakText(
+      ownerSide: String,
+      focusSquares: List[String],
+      focusFiles: List[String],
+      focusZone: Option[String]
+  ): String =
+    val breaks =
+      focusSquares.take(3).filter(_.nonEmpty).map(square => renderBreakToken(ownerSide, square))
+    if breaks.nonEmpty then
+      if breaks.size == 1 then s"the ${breaks.head} break"
+      else s"breaks with ${joinLowerTerms(breaks)}"
+    else
+      val fileBreaks = focusFiles.take(2).filter(_.nonEmpty).map(file => s"the $file-pawn break")
+      if fileBreaks.nonEmpty then joinLowerTerms(fileBreaks)
+      else focusZone.flatMap(zoneFocusText).map(zone => s"pawn play in $zone").getOrElse("a pawn break")
+
+  private def pressureText(
+      focusSquares: List[String],
+      focusFiles: List[String],
+      focusDiagonals: List[String],
+      focusZone: Option[String],
+      fallback: String
+  ): String =
+    pressureAnchor(focusSquares, focusFiles, focusDiagonals, focusZone).map(anchor => s"pressure $anchor").getOrElse(fallback)
+
+  private def exchangeText(focusSquares: List[String], focusZone: Option[String]): String =
+    if focusSquares.nonEmpty then s"exchanges on ${joinLowerTerms(focusSquares.take(3))}"
+    else focusZone.flatMap(zoneFocusText).map(zone => s"favorable exchanges in $zone").getOrElse("favorable exchanges")
+
+  private def targetFixingText(focusSquares: List[String], focusZone: Option[String]): String =
+    if focusSquares.nonEmpty then s"fixed targets on ${joinLowerTerms(focusSquares.take(3))}"
+    else focusZone.flatMap(zoneFocusText).map(zone => s"fixed targets in $zone").getOrElse("fixed targets")
+
+  private def outpostText(focusSquares: List[String], focusZone: Option[String]): String =
+    focusSquares.headOption.map(square => s"an outpost on $square")
+      .orElse(focusZone.flatMap(zoneFocusText).map(zone => s"an outpost in $zone"))
+      .getOrElse("an outpost")
+
+  private def spaceText(focusSquares: List[String], focusZone: Option[String]): String =
+    focusZone.flatMap(zoneFocusText).map(zone => s"space in $zone")
+      .orElse(Option.when(focusSquares.nonEmpty)(s"space around ${joinLowerTerms(focusSquares.take(3))}"))
+      .getOrElse("space")
+
+  private def counterplayText(
+      focusSquares: List[String],
+      focusFiles: List[String],
+      focusDiagonals: List[String],
+      focusZone: Option[String]
+  ): String =
+    pressureAnchor(focusSquares, focusFiles, focusDiagonals, focusZone)
+      .map(anchor => s"stopping counterplay $anchor")
+      .getOrElse("stopping counterplay")
+
+  private def prophylaxisText(
+      focusSquares: List[String],
+      focusFiles: List[String],
+      focusDiagonals: List[String],
+      focusZone: Option[String]
+  ): String =
+    focusSquares.headOption.map(square => s"keeping the opponent out of $square")
+      .orElse(pressureAnchor(focusSquares, focusFiles, focusDiagonals, focusZone).map(anchor => s"slowing the opponent $anchor"))
+      .getOrElse("slowing the opponent's next active idea")
+
+  private def minorPieceText(focusSquares: List[String], focusZone: Option[String]): String =
+    if focusSquares.nonEmpty then s"the minor-piece imbalance on ${joinLowerTerms(focusSquares.take(2))}"
+    else focusZone.flatMap(zoneFocusText).map(zone => s"the minor-piece imbalance in $zone").getOrElse("the minor-piece imbalance")
+
+  private def pressureAnchor(
+      focusSquares: List[String],
+      focusFiles: List[String],
+      focusDiagonals: List[String],
+      focusZone: Option[String]
+  ): Option[String] =
+    if focusSquares.nonEmpty then Some(s"on ${joinLowerTerms(focusSquares.take(3))}")
+    else if focusFiles.nonEmpty then
+      Some(s"along ${joinLowerTerms(focusFiles.take(2).map(file => s"the $file-file"))}")
+    else if focusDiagonals.nonEmpty then
+      Some(s"along ${joinLowerTerms(focusDiagonals.take(2).map(diagonal => s"the $diagonal diagonal"))}")
+    else focusZone.flatMap(zoneFocusText).map(zone => s"in $zone")
+
+  private def zoneFocusText(raw: String): Option[String] =
+    Option(raw).map(_.trim.toLowerCase).filter(_.nonEmpty).map {
+      case "center"    => "the center"
+      case "kingside"  => "the kingside"
+      case "queenside" => "the queenside"
+      case other       => other
+    }
+
+  private def renderBreakToken(ownerSide: String, square: String): String =
+    val normalized = Option(square).map(_.trim).getOrElse("")
+    if normalized.matches("[a-h][1-8]") && Option(ownerSide).exists(_.trim.equalsIgnoreCase("black")) then s"...$normalized"
+    else normalized
 
   private def routePurposeContainsLinePressure(route: StrategyPieceRoute): Boolean =
     val low = Option(route.purpose).getOrElse("").trim.toLowerCase

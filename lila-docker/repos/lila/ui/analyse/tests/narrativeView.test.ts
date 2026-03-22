@@ -599,4 +599,79 @@ describe('narrative review card click guard', () => {
     assert.match(text, /Q toward h5/);
     assert.match(text, /keep the initiative rather than recovering material/);
   });
+
+  test('default Chronicle support stays compact and pushes analyst detail into collapsed advanced details', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
+    const ctrl: any = {
+      root: {
+        data: {
+          game: {
+            variant: { key: 'standard' },
+          },
+        },
+      },
+    };
+
+    const moment: any = {
+      ply: 24,
+      moveNumber: 12,
+      side: 'white',
+      momentType: 'StrategicBridge',
+      fen: '4k3/8/8/8/8/8/3Q4/4K3 w - - 0 1',
+      narrative: 'Qe2 keeps the e4 push available while covering the c4 pawn.',
+      concepts: [],
+      variations: [],
+      mainStrategicPlans: [
+        {
+          planId: 'kingside_attack',
+          planName: 'Kingside attack',
+          rank: 1,
+          score: 0.82,
+        },
+      ],
+      strategicPlanExperiments: [
+        {
+          planId: 'kingside_attack',
+          supportStatus: 'evidence_backed',
+          evidenceTier: 'evidence_backed',
+          moveOrderSensitive: false,
+          supportProbeCount: 2,
+          opposingProbeCount: 0,
+          contradictoryProbeCount: 0,
+        },
+      ],
+      whyAbsentFromTopMultiPV: ['it still needs one free tempo first'],
+      signalDigest: {
+        opening: 'Queen’s Pawn Game',
+        opponentPlan: 'break with ...c5',
+        structuralCue: 'central tension still matters',
+        structureProfile: 'semi-open center',
+        practicalVerdict: 'The move keeps the position flexible.',
+        practicalFactors: ['holds e4 in reserve'],
+      },
+      activeStrategicNote: 'White keeps a kingside build in reserve if the center stays stable.',
+      authorQuestions: [
+        {
+          id: 'q1',
+          kind: 'latent_plan',
+          priority: 1,
+          question: 'Which attacking setup remains in reserve?',
+          confidence: 'heuristic',
+        },
+      ],
+    };
+
+    const vnode = narrativeMomentView(ctrl, moment);
+    const selectors = collectSelectors(vnode);
+    const text = collectText(vnode);
+
+    assert.ok(selectors.includes('div.narrative-signal-box'));
+    assert.ok(selectors.includes('details.narrative-advanced-details'));
+    assert.match(text, /Support/);
+    assert.match(text, /Main plans/);
+    assert.match(text, /Why it stayed conditional/);
+    assert.match(text, /Advanced details/);
+    assert.match(text, /Strategic Note/);
+    assert.match(text, /Authoring Evidence/);
+  });
 });

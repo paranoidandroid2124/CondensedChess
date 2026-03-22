@@ -85,6 +85,22 @@ export type PlanHypothesis = {
   viability: PlanViability;
   refutation?: string | null;
   evidenceSources?: string[];
+  themeL1?: string;
+  subplanId?: string | null;
+};
+
+export type StrategicPlanExperiment = {
+  planId: string;
+  themeL1: string;
+  subplanId?: string | null;
+  evidenceTier: string;
+  supportProbeCount: number;
+  refuteProbeCount: number;
+  bestReplyStable: boolean;
+  futureSnapshotAligned: boolean;
+  counterBreakNeutralized: boolean;
+  moveOrderSensitive: boolean;
+  experimentConfidence: number;
 };
 
 export type LatentPlanNarrative = {

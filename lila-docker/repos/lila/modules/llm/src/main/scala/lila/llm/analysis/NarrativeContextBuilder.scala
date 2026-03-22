@@ -27,7 +27,8 @@ object NarrativeContextBuilder:
     prevOpeningRef: Option[OpeningReference] = None,  // For BranchPoint/TheoryEnds detection
     openingBudget: OpeningEventBudget = OpeningEventBudget(),  // Passed from game-level tracker
     afterAnalysis: Option[ExtendedAnalysisData] = None,
-    renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame
+    renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame,
+    variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant
   ): NarrativeContext = {
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
@@ -204,8 +205,15 @@ object NarrativeContextBuilder:
           case _                  => true
         }
       else motifFactsRaw
+    val mainPvFacts = FactExtractor.fromMotifs(board, data.motifs, FactScope.MainPv)
     val staticFacts = FactExtractor.extractStaticFacts(board, color)
     val endgameFacts = FactExtractor.extractEndgameFacts(board, color, data.endgameFeatures)
+    val counterfactualFacts =
+      data.counterfactual.toList.flatMap(cf => FactExtractor.fromMotifs(board, cf.missedMotifs, FactScope.Counterfactual))
+    val threatLineFacts =
+      data.preventedPlans.flatMap(_.sourceLine.toList).flatMap { line =>
+        FactExtractor.fromMotifs(board, MoveAnalyzer.tokenizePv(data.fen, line.moves), FactScope.ThreatLine)
+      }
 
     NarrativeContext(
       fen = data.fen,
@@ -226,6 +234,9 @@ object NarrativeContextBuilder:
       authorQuestions = authorQuestions,
       authorEvidence = authorEvidence,
       facts = motifFacts ++ staticFacts ++ endgameFacts,
+      mainPvFacts = mainPvFacts,
+      threatLineFacts = threatLineFacts,
+      counterfactualFacts = counterfactualFacts,
       probeRequests = probeRequests,
       mainStrategicPlans = mainStrategicPlans,
       latentPlans = latentPlans,
@@ -246,7 +257,8 @@ object NarrativeContextBuilder:
       )),
       deltaAfterMove = afterDelta.isDefined,
       strategicSalience = data.strategicSalience,
-      renderMode = renderMode
+      renderMode = renderMode,
+      variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
     )
   }
 
@@ -785,6 +797,7 @@ object NarrativeContextBuilder:
         else if cpDiff >= Thresholds.DUBIOUS_CP then "?!"
         else ""
       val sanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(2))
+      val lineSanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(6))
       val moveSan = sanMoves.headOption.getOrElse(cand.move)
       val responseMotifs = cand.motifs.filter(_.plyIndex == 1)
       val alert = responseMotifs.collectFirst {
@@ -865,7 +878,9 @@ object NarrativeContextBuilder:
         whyNot = whyNot,
         tags = tags,
         tacticEvidence = tacticEvidence,
-        facts = cand.facts
+        facts = cand.facts,
+        lineSanMoves = lineSanMoves,
+        lineMotifs = cand.motifs
       )
     }.filterNot(_.move.isEmpty)
   }
@@ -1073,15 +1088,30 @@ object NarrativeContextBuilder:
       // 2. Logic for whyNot
       val whyNot = probe.flatMap { pr =>
         val moverLoss = if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline
+        val lineCitation =
+          c.uci.flatMap { uci =>
+            LineScopedCitation.strategicCitation(
+              data.fen,
+              data.ply + 1,
+              lila.llm.model.strategic.VariationLine(
+                moves = uci :: pr.bestReplyPv.take(5),
+                scoreCp = 0
+              )
+            )
+          }
         if (moverLoss >= 50) {
            val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
            val replySan = c.uci.map(u => NarrativeUtils.uciListToSan(data.fen, List(u, bestReply)).lift(1).getOrElse(bestReply)).getOrElse(bestReply)
            val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
            
            if (pr.id.startsWith("aggressive"))
-             Some(s"refuted: $replySan is a clear answer$collapseNote")
+             lineCitation
+               .map(citation => s"the line $citation is clearly refuted$collapseNote")
+               .orElse(Some(s"refuted: $replySan is a clear answer$collapseNote"))
            else
-             Some(s"inferior by $moverLoss cp after $replySan$collapseNote")
+             lineCitation
+               .map(citation => s"the line $citation is inferior by $moverLoss cp$collapseNote")
+               .orElse(Some(s"inferior by $moverLoss cp after $replySan$collapseNote"))
         } else if (pr.id.startsWith("competitive") && moverLoss.abs < 30) {
            Some("verified as a strong alternative")
         } else None
@@ -1102,6 +1132,15 @@ object NarrativeContextBuilder:
       val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
       val replySan = NarrativeUtils.uciListToSan(data.fen, List(uci, bestReply)).lift(1).getOrElse(bestReply)
       val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
+      val ghostCitation =
+        LineScopedCitation.strategicCitation(
+          data.fen,
+          data.ply + 1,
+          lila.llm.model.strategic.VariationLine(
+            moves = uci :: pr.bestReplyPv.take(5),
+            scoreCp = 0
+          )
+        )
 
       val ghostTags = if (pr.id.startsWith("aggressive")) List(CandidateTag.TacticalGamble, CandidateTag.Sharp)
                       else if (pr.id.startsWith("competitive")) List(CandidateTag.Competitive)
@@ -1116,8 +1155,12 @@ object NarrativeContextBuilder:
         alignmentBand = None,
         tacticalAlert = None,
         practicalDifficulty = "complex",
-        whyNot = Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote"),
+        whyNot =
+          ghostCitation
+            .map(citation => s"the line $citation is refuted (-$moverLoss cp)$collapseNote")
+            .orElse(Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote")),
         tags = ghostTags,
+        lineSanMoves = NarrativeUtils.uciListToSan(data.fen, uci :: pr.bestReplyPv.take(5)),
         probeLines =
           pr.replyPvs.getOrElse(if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil).take(2).flatMap { pv =>
             val sanLine = NarrativeUtils.uciListToSan(data.fen, uci :: pv.take(6)).drop(1).mkString(" ")
@@ -2165,7 +2208,7 @@ object NarrativeContextBuilder:
       compensation = currentCompensation,
       endgameFeatures = data.endgameFeatures.map(convertEndgame(_, data)),
       practicalAssessment = data.practicalAssessment.map(convertPractical),
-      preventedPlans = data.preventedPlans.map(convertPreventedPlan),
+      preventedPlans = data.preventedPlans.map(convertPreventedPlan(_, data.fen, data.ply)),
       conceptSummary = data.conceptSummary,
       structureProfile = data.structureProfile.map(convertStructureProfile),
       planAlignment = data.planAlignment.map(convertPlanAlignment),
@@ -2439,14 +2482,20 @@ object NarrativeContextBuilder:
     )
   }
 
-  private def convertPreventedPlan(pp: PreventedPlan): PreventedPlanInfo = {
+  private def convertPreventedPlan(pp: PreventedPlan, fen: String, ply: Int): PreventedPlanInfo = {
+    val citationLine =
+      pp.sourceLine.flatMap { line =>
+        LineScopedCitation.strategicCitation(fen, ply + 1, line)
+      }
     PreventedPlanInfo(
       planId = pp.planId,
       deniedSquares = pp.deniedSquares.map(_.key),
       breakNeutralized = pp.breakNeutralized,
       mobilityDelta = pp.mobilityDelta,
       counterplayScoreDrop = pp.counterplayScoreDrop,
-      preventedThreatType = pp.preventedThreatType
+      preventedThreatType = pp.preventedThreatType,
+      sourceScope = pp.sourceScope,
+      citationLine = citationLine
     )
   }
 

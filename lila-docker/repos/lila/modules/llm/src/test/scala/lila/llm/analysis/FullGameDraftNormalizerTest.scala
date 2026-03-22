@@ -156,8 +156,26 @@ class FullGameDraftNormalizerTest extends FunSuite:
       UserFacingSignalSanitizer.placeholderHits(
         "The draft still exposes theme:piece_redeployment and support:engine_hypothesis."
       )
+    val bridgeHits =
+      UserFacingSignalSanitizer.placeholderHits(
+        "The direct alternative stays secondary because Piece Activation is deferred as PlayableByPV under strict evidence mode."
+      )
 
     assertEquals(proseHits, Nil)
     assert(rawHits.contains("raw_label"))
+    assert(bridgeHits.contains("playablebypv"))
+  }
+
+  test("normalize strips markdown emphasis and raw played-pv markers") {
+    val normalized =
+      FullGameDraftNormalizer.normalize(
+        "Critical branch: Engine preference is clear: **Nc6** over **Nf6**. PlayedPV stays secondary here."
+      )
+
+    assert(!normalized.contains("**"))
+    assert(!normalized.contains("PlayedPV"))
+    assert(normalized.contains("Nc6"))
+    assert(normalized.contains("Nf6"))
+    assert(normalized.toLowerCase.contains("played branch"))
   }
 end FullGameDraftNormalizerTest

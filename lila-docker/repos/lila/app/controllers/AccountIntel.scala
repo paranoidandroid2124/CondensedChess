@@ -189,6 +189,8 @@ final class AccountIntel(
   def landing(provider: String, username: String) = Auth { ctx ?=> me ?=>
     val safeProvider = safeLandingProvider(provider)
     val safeUsername = username.trim
+    val requestedKindKey = get("kind").filter(_.nonEmpty).getOrElse(defaultKind.key)
+    val requestedKind = resolveKind(requestedKindKey)
     if safeUsername.nonEmpty then
       (for
         validProvider <- lila.accountintel.AccountIntel.normalizeProvider(provider).toRight("Unsupported provider.")
@@ -196,7 +198,7 @@ final class AccountIntel(
       yield validProvider -> validUsername).fold(
         err => Redirect(routes.AccountIntel.landing(safeProvider, "")).flashing("error" -> err).toFuccess,
         { case (validProvider, validUsername) =>
-          Redirect(accountResultUrl(validProvider, validUsername, defaultKind)).toFuccess
+          Redirect(accountResultUrl(validProvider, validUsername, requestedKind)).toFuccess
         }
       )
     else
@@ -208,6 +210,7 @@ final class AccountIntel(
             views.accountIntel.landing(
               provider = safeProvider,
               username = "",
+              selectedKindKey = requestedKind.key,
               recentAccounts = summary.accounts,
               recentRuns = recentRuns
             )

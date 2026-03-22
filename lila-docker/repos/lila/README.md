@@ -21,7 +21,7 @@ Unlike traditional computer analysis that shows cold numbers, Chesstory tells th
 | AI Narrative Generation | ✅ |
 | Motif Detection (34 types) | ✅ |
 | Plan Matching (24 types) | ✅ |
-| Stockfish 17.1 WASM | ✅ |
+| Stockfish 18 WASM | ✅ |
 
 ## Quick Start
 

@@ -1,5 +1,7 @@
 import { ratelimitSecondsFromResponse, resetAtFromResponse } from './responsePayload';
 
+const moveNumberFromPly = (ply: number): number => Math.max(1, Math.ceil(ply / 2));
+
 function renderBookmakerStateCard(
   kind: 'auth' | 'quota' | 'idle' | 'error',
   title: string,
@@ -26,6 +28,15 @@ export function bookmakerIdleHtml(): string {
   );
 }
 
+export function bookmakerTooEarlyHtml(minPly: number): string {
+  return renderBookmakerStateCard(
+    'idle',
+    'Bookmaker needs a few more moves',
+    `Bookmaker opens from move ${moveNumberFromPly(minPly)}. Continue a little further so the commentary has enough position and branch context to say something useful.`,
+    '',
+  );
+}
+
 export function bookmakerRetryHtml(message = 'Commentary generation took too long or failed. Try again when the position is settled.'): string {
   return renderBookmakerStateCard(
     'error',
@@ -36,6 +47,21 @@ export function bookmakerRetryHtml(message = 'Commentary generation took too lon
 }
 
 export async function blockedHtmlFromErrorResponse(res: Response, loginHref: string): Promise<string | null> {
+  if (res.status === 400) {
+    try {
+      const data = await res.json();
+      if (data?.error === 'bookmaker_too_early') {
+        return renderBookmakerStateCard(
+          'idle',
+          'Bookmaker needs a few more moves',
+          data?.msg || `Bookmaker opens from move ${moveNumberFromPly(5)}. Continue a few moves first before asking for commentary.`,
+          '',
+        );
+      }
+    } catch {}
+    return null;
+  }
+
   if (res.status === 403) {
     try {
       const data = await res.json();

@@ -1,8 +1,8 @@
 lens=Compensation
-claim=12... Rxc6: White is not trying to win the material back immediately; the 180cp compensation investment is for attack on king and dark square bind while keeping king-attack build-up around g7, h7 as the dominant thesis, with the line pressure running through queen toward h5 for mate threats against the king.
-supportPrimary=The compensation has to cash out through Mating Attack.
-supportSecondary=The return vector only holds if the initiative keeps generating attack on king and dark square bind.
-tension=The practical alternative stays secondary because the calm recapture lets Black untangle and trade off the attack.
-evidenceHook=Probe evidence starts with ...Qe7: Qe7 h5 Rh6 (+0.68).
+claim=12... Rxc6: The move gives up material because the initiative against the king stays alive.
+supportPrimary=That only works while the initiative against the king stays alive.
+supportSecondary=
+tension=The queen can head for h7 next.
+evidenceHook=
 coda=
-paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence
+paragraphPlan=p1=claim,p2=support,p3=practical_nuance

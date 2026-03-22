@@ -41,16 +41,21 @@ object StrategicBranchSelector:
         .distinctBy(_.ply)
         .take(MaxVisibleThreadMoments)
     val visibleThreadPlies = visibleThreadMoments.map(_.ply).toSet
-    val visibleCoreEvents =
-      selectCoreNonThreadEvents(moments, threadedPlies)
+    val visibleCompensationMoments =
+      selectCompensationPriorityMoments(moments, threadedPlies)
         .filterNot(moment => visibleThreadPlies.contains(moment.ply))
         .take((MaxVisibleMoments - visibleThreadMoments.size).max(0))
+    val visibleCompensationPlies = visibleCompensationMoments.map(_.ply).toSet
+    val visibleCoreEvents =
+      selectCoreNonThreadEvents(moments, threadedPlies)
+        .filterNot(moment => visibleThreadPlies.contains(moment.ply) || visibleCompensationPlies.contains(moment.ply))
+        .take((MaxVisibleMoments - visibleThreadMoments.size - visibleCompensationMoments.size).max(0))
     val visibleFallbackMoments =
-      Option.when(visibleThreadMoments.isEmpty && visibleCoreEvents.isEmpty) {
+      Option.when(visibleThreadMoments.isEmpty && visibleCoreEvents.isEmpty && visibleCompensationMoments.isEmpty) {
         selectStrategicFallbackMoments(moments, threadedPlies).take(MaxVisibleMoments)
       }.getOrElse(Nil)
     val visibleMoments =
-      (visibleThreadMoments ++ visibleCoreEvents ++ visibleFallbackMoments)
+      (visibleThreadMoments ++ visibleCompensationMoments ++ visibleCoreEvents ++ visibleFallbackMoments)
         .distinctBy(_.ply)
         .sortBy(_.ply)
         .take(MaxVisibleMoments)
@@ -124,15 +129,31 @@ object StrategicBranchSelector:
       }
       .map(_._2)
 
+  private def selectCompensationPriorityMoments(
+      moments: List[GameChronicleMoment],
+      threadedPlies: Set[Int]
+  ): List[GameChronicleMoment] =
+    moments
+      .filterNot(moment =>
+        threadedPlies.contains(moment.ply) ||
+          moment.selectionKind == "thread_bridge" ||
+          moment.momentType == "OpeningIntro"
+      )
+      .flatMap(moment => compensationPriorityScore(moment).map(score => score -> moment))
+      .sortBy { case ((priority, evidence, salience, tiebreak), moment) =>
+        (priority, evidence, salience, tiebreak, moment.ply)
+      }
+      .map(_._2)
+
   private def strategicFallbackScore(moment: GameChronicleMoment): Option[(Int, Int, Int)] =
     val surface = StrategyPackSurface.from(moment.strategyPack)
     val hasStrategicCarrier = strategicCarrierPresent(moment, surface)
 
     Option.when(hasStrategicCarrier) {
       val priority =
-        if surface.quietCompensationPosition then 0
-        else if surface.durableCompensationPosition then 1
-        else if surface.compensationPosition then 2
+        if surface.strictCompensationPosition && surface.quietCompensationPosition then 0
+        else if surface.strictCompensationPosition && surface.durableCompensationPosition then 1
+        else if surface.strictCompensationPosition then 2
         else if surface.dominantIdeaText.nonEmpty || surface.executionText.nonEmpty then 3
         else if surface.focusText.nonEmpty then 4
         else 5
@@ -161,18 +182,39 @@ object StrategicBranchSelector:
       }
       .map(_._2)
 
+  private def compensationPriorityScore(moment: GameChronicleMoment): Option[(Int, Int, Int, Int)] =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    Option.when(surface.strictCompensationPosition) {
+      val priority =
+        if surface.quietCompensationPosition then 0
+        else if surface.durableCompensationPosition then 1
+        else 2
+      val evidence =
+        if moment.probeRefinementRequests.nonEmpty then 0
+        else if moment.signalDigest.exists(_.decisionComparison.isDefined) then 1
+        else if moment.selectionKind == "key" then 2
+        else 3
+      val salience =
+        moment.strategicSalience match
+          case Some(level) if level.equalsIgnoreCase("High")   => 0
+          case Some(level) if level.equalsIgnoreCase("Medium") => 1
+          case _                                               => 2
+      val tiebreak = if moment.selectionKind == "key" then 0 else 1
+      (priority, evidence, salience, tiebreak)
+    }
+
   private def activeNoteFallbackScore(moment: GameChronicleMoment): Option[(Int, Int, Int, Int)] =
     val surface = StrategyPackSurface.from(moment.strategyPack)
     Option.when(strategicCarrierPresent(moment, surface)) {
       val priority =
-        if surface.quietCompensationPosition then 0
-        else if surface.durableCompensationPosition then 1
-        else if surface.compensationPosition then 2
+        if surface.strictCompensationPosition && surface.quietCompensationPosition then 0
+        else if surface.strictCompensationPosition && surface.durableCompensationPosition then 1
+        else if surface.strictCompensationPosition then 2
         else if moment.selectionKind == "key" && surface.dominantIdeaText.nonEmpty then 3
         else if moment.selectionKind == "key" then 4
         else 5
       val secondary =
-        if surface.quietCompensationPosition then 0
+        if surface.strictCompensationPosition && surface.quietCompensationPosition then 0
         else if moment.signalDigest.exists(_.compensation.exists(_.trim.nonEmpty)) then 1
         else if surface.executionText.nonEmpty || surface.objectiveText.nonEmpty then 1
         else 2

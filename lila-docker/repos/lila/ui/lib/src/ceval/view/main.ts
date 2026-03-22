@@ -28,7 +28,7 @@ function localEvalNodes(ctrl: CevalHandler, evs: NodeEvals): Array<VNode | strin
     if (!ceval.analysable) return ['Engine cannot analyze this position'];
     if (state === CevalState.Failed) return ['Engine failed'];
     const localEvalText = state === CevalState.Loading ? loadingText(ctrl) : 'Calculating moves';
-    return [evs.server && ctrl.nextNodeBest() ? 'Using server analysis' : localEvalText];
+    return [evs.server && ctrl.nextNodeBest() ? 'Using saved analysis' : localEvalText];
   }
   const t: Array<VNode | string> = [];
   if (!ceval.opts.custom && ceval.canGoDeeper)

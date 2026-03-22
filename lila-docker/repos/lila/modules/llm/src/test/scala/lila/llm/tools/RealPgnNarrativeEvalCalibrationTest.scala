@@ -35,7 +35,14 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
   private def snapshot(
       compensationSummary: Option[String] = Some("return vector through initiative and line pressure"),
       compensationVectors: List[String] = List("Initiative (0.6)", "Line Pressure (0.5)"),
-      investedMaterial: Option[Int] = Some(300)
+      investedMaterial: Option[Int] = Some(300),
+      subtype: StrategyPackSurface.CompensationSubtype =
+        StrategyPackSurface.CompensationSubtype(
+          pressureTheater = "center",
+          pressureMode = "line_occupation",
+          recoveryPolicy = "delayed",
+          stabilityClass = "durable_pressure"
+        )
   ) =
     StrategyPackSurface.Snapshot(
       sideToMove = Some("black"),
@@ -57,7 +64,25 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
       compensationSummary = compensationSummary,
       compensationVectors = compensationVectors,
       investedMaterial = investedMaterial,
-      compensationSubtype = None
+      compensationSubtype = Some(subtype),
+      displayNormalization = Some(
+        StrategyPackSurface.DisplayNormalization(
+          normalizedDominantIdeaText = None,
+          normalizedExecutionText = None,
+          normalizedObjectiveText = None,
+          normalizedLongTermFocusText = None,
+          normalizedCompensationLead = None,
+          normalizedCompensationSubtype = Some(subtype),
+          normalizationActive = true,
+          normalizationConfidence = 7,
+          preparationSubtype = Some(subtype),
+          payoffSubtype = Some(subtype),
+          selectedDisplaySubtype = Some(subtype),
+          displaySubtypeSource = "path",
+          payoffConfidence = 6,
+          pathConfidence = 7
+        )
+      )
     )
 
   test("late technical tails with only static space compensation are demoted") {
@@ -85,16 +110,14 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
       snapshot(
         compensationSummary = Some("cash out the compensation into a clean transition"),
         compensationVectors = List("Return Vector (0.5)"),
-        investedMaterial = Some(200)
-      ).copy(
-        compensationSubtype = Some(
+        investedMaterial = Some(200),
+        subtype =
           StrategyPackSurface.CompensationSubtype(
             pressureTheater = "mixed",
             pressureMode = "conversion_window",
             recoveryPolicy = "delayed",
             stabilityClass = "transition_only"
           )
-        )
       )
 
     assert(!RealPgnNarrativeEvalCalibration.compensationEvalPosition(technicalMoment, transitionSurface, transitionSurface))
@@ -109,16 +132,14 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
       snapshot(
         compensationSummary = Some("return vector through initiative and line pressure"),
         compensationVectors = List("Initiative (0.6)", "Line Pressure (0.6)", "Delayed Recovery (0.4)"),
-        investedMaterial = Some(300)
-      ).copy(
-        compensationSubtype = Some(
+        investedMaterial = Some(300),
+        subtype =
           StrategyPackSurface.CompensationSubtype(
             pressureTheater = "center",
             pressureMode = "line_occupation",
             recoveryPolicy = "immediate",
             stabilityClass = "durable_pressure"
           )
-        )
       )
 
     assert(
@@ -129,4 +150,53 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
         Some("e5f4")
       )
     )
+  }
+
+  test("signoff compensation is demoted when Chronicle and Bookmaker do not share a canonical subtype") {
+    val structuralMoment = moment(moveNumber = 24, momentType = "SustainedPressure")
+    val gameArcSurface =
+      snapshot().copy(
+        displayNormalization = Some(
+          StrategyPackSurface.DisplayNormalization(
+            normalizedDominantIdeaText = None,
+            normalizedExecutionText = None,
+            normalizedObjectiveText = None,
+            normalizedLongTermFocusText = None,
+            normalizedCompensationLead = None,
+            normalizedCompensationSubtype = None,
+            normalizationActive = true,
+            normalizationConfidence = 7,
+            preparationSubtype = Some(
+              StrategyPackSurface.CompensationSubtype("queenside", "target_fixing", "delayed", "durable_pressure")
+            ),
+            payoffSubtype = Some(
+              StrategyPackSurface.CompensationSubtype("queenside", "target_fixing", "delayed", "durable_pressure")
+            ),
+            selectedDisplaySubtype = Some(
+              StrategyPackSurface.CompensationSubtype("queenside", "target_fixing", "delayed", "durable_pressure")
+            ),
+            displaySubtypeSource = "path",
+            payoffConfidence = 6,
+            pathConfidence = 7
+          )
+        )
+      )
+    val bookmakerSurface =
+      gameArcSurface.copy(
+        displayNormalization = Some(
+          gameArcSurface.displayNormalization.get.copy(
+            preparationSubtype = Some(
+              StrategyPackSurface.CompensationSubtype("center", "line_occupation", "delayed", "durable_pressure")
+            ),
+            payoffSubtype = Some(
+              StrategyPackSurface.CompensationSubtype("center", "line_occupation", "delayed", "durable_pressure")
+            ),
+            selectedDisplaySubtype = Some(
+              StrategyPackSurface.CompensationSubtype("center", "line_occupation", "delayed", "durable_pressure")
+            )
+          )
+        )
+      )
+
+    assert(!RealPgnNarrativeEvalCalibration.compensationEvalPosition(structuralMoment, gameArcSurface, bookmakerSurface))
   }

@@ -8,6 +8,10 @@ import chess.{ Square, Role, Color }
 sealed trait FactScope
 object FactScope {
   case object Now extends FactScope
+  case object MainPv extends FactScope
+  case object ThreatLine extends FactScope
+  case object Counterfactual extends FactScope
+  case object CandidatePv extends FactScope
 }
 
 /**

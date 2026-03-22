@@ -62,7 +62,6 @@ These bindings are mandatory for open-beta runtime and are validated before depl
 - `LILA_DOMAIN`
 - `LILA_BASE_URL`
 - `PUBLIC_CONTACT_EMAIL`
-- `ENABLE_RATE_LIMITING`
 - `MONGODB_URI`
 - `REDIS_URI`
 - `SMTP_HOST`
@@ -80,17 +79,25 @@ These bindings are mandatory for open-beta runtime and are validated before depl
 - `HCAPTCHA_SITEKEY`
 - `HCAPTCHA_SECRET`
 - `PROMETHEUS_KEY`
-- `EXPLORER_API_BASE`
-- `TABLEBASE_API_BASE`
-- `LICHESS_IMPORT_API_BASE`
-- `LICHESS_WEB_BASE`
-- `CHESSCOM_API_BASE`
 - `EXTERNAL_ENGINE_ENDPOINT`
 
 Notes:
 
 - `PROMETHEUS_KEY` is production-required, not optional.
-- explorer, tablebase, and import-provider bindings are intentional external integrations, but they must be explicit. Missing values must not fall back to `base.conf` defaults.
+
+## Hardcoded open-beta defaults
+
+These runtime values are intentionally fixed in [application.openbeta.conf](lila-docker/repos/lila/conf/application.openbeta.conf) instead of being pushed out to Cloud Run env vars.
+
+- `net.ratelimit = true`
+- `explorer.endpoint = https://explorer.lichess.org`
+- `explorer.internal_endpoint = https://explorer.lichess.org`
+- `explorer.tablebase_endpoint = https://tablebase.lichess.ovh`
+- `external.import.lichess.api_base = https://lichess.org`
+- `external.import.lichess.web_base = https://lichess.org`
+- `external.import.chesscom.api_base = https://api.chess.com`
+
+These are still tracked by readiness and the open-beta binding manifest, but they are no longer Cloud Run env requirements.
 
 ## Required only in selected modes
 
@@ -151,7 +158,7 @@ Required always, plain env vars:
 ```bash
 gcloud run services update chesstory-openbeta \
   --region=asia-northeast3 \
-  --update-env-vars=LILA_DOMAIN=beta.chesstory.com,LILA_BASE_URL=https://beta.chesstory.com,PUBLIC_CONTACT_EMAIL=support@chesstory.com,ENABLE_RATE_LIMITING=true,MONGODB_URI='mongodb+srv://...',REDIS_URI='redis://...',SMTP_HOST=smtp.postmarkapp.com,SMTP_PORT=587,SMTP_TLS=true,SMTP_USER=postmark-server-token,SMTP_SENDER='Chesstory <noreply@beta.chesstory.com>',HCAPTCHA_SITEKEY=YOUR_SITE_KEY,EXPLORER_API_BASE=https://explorer.lichess.org,TABLEBASE_API_BASE=https://tablebase.lichess.ovh,LICHESS_IMPORT_API_BASE=https://lichess.org,LICHESS_WEB_BASE=https://lichess.org,CHESSCOM_API_BASE=https://api.chess.com,EXTERNAL_ENGINE_ENDPOINT=https://engine.chesstory.com
+  --update-env-vars=LILA_DOMAIN=beta.chesstory.com,LILA_BASE_URL=https://beta.chesstory.com,PUBLIC_CONTACT_EMAIL=support@chesstory.com,MONGODB_URI='mongodb+srv://...',REDIS_URI='redis://...',SMTP_HOST=smtp.postmarkapp.com,SMTP_PORT=587,SMTP_TLS=true,SMTP_USER=postmark-server-token,SMTP_SENDER='Chesstory <noreply@beta.chesstory.com>',HCAPTCHA_SITEKEY=YOUR_SITE_KEY,EXTERNAL_ENGINE_ENDPOINT=https://engine.chesstory.com
 ```
 
 Required always, secret bindings:

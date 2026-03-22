@@ -4,6 +4,7 @@ import play.api.libs.json.*
 import play.api.mvc.*
 
 import lila.app.*
+import lila.llm.UserFacingPayloadSanitizer
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 final class StrategicPuzzle(
@@ -29,7 +30,9 @@ final class StrategicPuzzle(
     env.strategicPuzzle.api
       .nextBootstrap(ctx.me.map(_.userId), excludeId)
       .map:
-        _.fold(NotFound(Json.obj("error" -> "No puzzle found")))(payload => JsonOk(Json.toJson(payload)))
+        _.fold(NotFound(Json.obj("error" -> "No live strategic puzzle is ready right now.")))(payload =>
+          JsonOk(Json.toJson(UserFacingPayloadSanitizer.sanitize(payload)))
+        )
 
   def complete(id: String) = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     ctx.body.body.validate[CompleteRequest].fold(
@@ -39,15 +42,15 @@ final class StrategicPuzzle(
           .complete(id, ctx.me.map(_.userId), payload)
           .map:
             case CompleteOutcome.Invalid =>
-              BadRequest(Json.obj("error" -> "Invalid strategic puzzle completion"))
+              BadRequest(Json.obj("error" -> "We could not record that puzzle result."))
             case CompleteOutcome.MissingPuzzle =>
-              NotFound(Json.obj("error" -> "Strategic puzzle not found"))
+              NotFound(Json.obj("error" -> "That strategic puzzle is no longer available."))
             case CompleteOutcome.Success(response, _) =>
               JsonOk(Json.toJson(response))
     )
 
   private def renderPage(payload: BootstrapPayload)(using Context): Fu[Result] =
-    Ok.page(views.pages.strategicPuzzlePage(payload))
+    Ok.page(views.pages.strategicPuzzlePage(UserFacingPayloadSanitizer.sanitize(payload)))
 
   private def renderEmptyPage(using Context): Fu[Result] =
     Ok.page(views.pages.strategicPuzzleEmpty())

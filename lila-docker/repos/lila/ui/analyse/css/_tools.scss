@@ -236,6 +236,19 @@
     transition: visibility 0s;
   }
 
+  .fbt--engine-toggle {
+    flex: 0 0 auto;
+    min-width: 5.75rem;
+    padding: 0 0.85rem;
+    gap: 0.45rem;
+
+    .label {
+      line-height: 1;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+  }
+
   .active {
     margin-top: -3px;
     padding-top: 3px;

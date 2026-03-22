@@ -15,6 +15,7 @@ import {
 import { playable } from 'lib/game';
 import { displayColumns, isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
+import { renderBoardPreview } from 'lib/view/boardPreview';
 
 import { boardSettingsView, view as actionMenu } from './actionMenu';
 import explorerView, { renderExplorerPanel } from '../explorer/explorerView';
@@ -310,13 +311,27 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
-  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval());
+  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? true : ctrl.showCeval());
   if (ctrl.isReviewShell()) {
+    const narrativeHoverPreview = ctrl.narrative?.pvBoard?.();
     return hl('div.analyse__tools.analyse__tools--review', [
       allowVideo && embeddedVideo,
+      showCeval || narrativeHoverPreview
+        ? hl('div.analyse-review__engine-stack', [
+            showCeval ? cevalView.renderCeval(ctrl) : null,
+            showCeval ? cevalView.renderPvs(ctrl) : null,
+            narrativeHoverPreview
+              ? hl('div.analyse-review__hover-preview-wrap', [
+                  hl('div.analyse-review__hover-preview-copy', [
+                    hl('span.analyse-review__hover-preview-label', 'Commentary preview'),
+                    hl('span.analyse-review__hover-preview-hint', 'Hover a move or route in Game Chronicle'),
+                  ]),
+                  renderBoardPreview(narrativeHoverPreview, ctrl.getOrientation(), 'div.analyse-review__hover-preview'),
+                ])
+              : null,
+          ])
+        : null,
       reviewView(ctrl, {
-        cevalNode: showCeval ? cevalView.renderCeval(ctrl) : undefined,
-        pvsNode: showCeval ? cevalView.renderPvs(ctrl) : undefined,
         moveListNode: renderMoveList(ctrl, concealOf),
         forkNode: forkView(ctrl, concealOf),
         explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
@@ -1065,7 +1080,7 @@ function renderEmptySavedHistory(): VNode {
       hl('span', 'Analyze a PGN or imported game once, and it will stay here for quick reopen on any signed-in device.'),
     ]),
     hl('div.copyables__empty-actions', [
-      hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open import'),
+      hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open recent games'),
       hl('span.copyables__recent-link-note', 'or paste a PGN below to start a reusable history.'),
     ]),
   ]);

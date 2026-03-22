@@ -12,7 +12,9 @@ case class PreventedPlan(
     deniedResourceClass: Option[String] = None, // "break" | "entry_square" | "forcing_threat" | "piece_activity"
     deniedEntryScope: Option[String] = None, // "single_square" | "file" | "sector"
     breakNeutralizationStrength: Option[Int] = None, // 0-100
-    defensiveSufficiency: Option[Int] = None // 0-100
+    defensiveSufficiency: Option[Int] = None, // 0-100
+    sourceScope: lila.llm.model.FactScope = lila.llm.model.FactScope.Now,
+    sourceLine: Option[VariationLine] = None
 )
 
 case class PieceActivity(
@@ -213,7 +215,8 @@ case class CounterfactualMatch(
     userMoveMotifs: List[lila.llm.model.Motif],
     severity: String,
     userLine: lila.llm.model.strategic.VariationLine,
-    causalThreat: Option[lila.llm.analysis.ThreatExtractor.CausalThreat] = None
+    causalThreat: Option[lila.llm.analysis.ThreatExtractor.CausalThreat] = None,
+    bestLine: lila.llm.model.strategic.VariationLine = lila.llm.model.strategic.VariationLine(Nil, 0)
 )
 case class MoveIntent(
     immediate: String,           // What the move itself does (e.g., "Development")

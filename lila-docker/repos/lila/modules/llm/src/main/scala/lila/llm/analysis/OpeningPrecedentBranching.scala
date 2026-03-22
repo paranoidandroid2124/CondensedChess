@@ -344,8 +344,7 @@ private[analysis] object OpeningPrecedentBranching:
       }
 
   private def planHintOf(ctx: NarrativeContext): Option[String] =
-    ctx.mainStrategicPlans.headOption.map(_.planName)
-      .orElse(ctx.plans.top5.headOption.map(_.name))
+    StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)
       .map(normalizeText)
       .filter(_.nonEmpty)
       .map(_.toLowerCase)

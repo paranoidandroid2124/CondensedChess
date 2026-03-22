@@ -70,7 +70,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
   def clinput(using ctx: Context) =
     val label = "Search"
     div(id := "clinput")(
-      a(cls := "link", dataIcon := Icon.Search),
+      a(
+        cls := "link",
+        dataIcon := Icon.Search,
+        role := "button",
+        tabindex := 0,
+        aria.label := label
+      )(span(cls := "clinput__label")(label)),
       input(
         spellcheck := "false",
         autocomplete := ctx.blind.toString,
@@ -275,6 +281,17 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
     cookieConsentUi
   )
 
+  def siteFooter =
+    footer(cls := "site-footer", aria.label := "Site footer")(
+      div(cls := "site-footer__inner")(
+        a(cls := "site-footer__home", href := routes.Main.landing.url)("Home"),
+        div(cls := "site-footer__links")(
+          a(href := routes.Main.privacy.url)("Privacy"),
+          a(href := routes.Main.terms.url)("Terms")
+        )
+      )
+    )
+
   def sitePreload(modules: EsmList)(using Context): Frag =
     val keys = "site" :: modules.flatMap(_.map(_.key))
     scriptsPreload("manifest" :: keys)
@@ -301,9 +318,15 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
       header(id := headerId)(
         div(cls := brandBarClass)(
           (!isAppealUser).option(topnavToggle),
-          a(cls := brandClass, href := "/")(
+          a(cls := brandClass, href := "/", aria.label := s"$siteName home", title := "Go to home")(
             ctx.isBot.option(botImage),
-            div(cls := markClass, dataIcon := Icon.Logo),
+            div(cls := markClass)(
+              img(
+                cls := s"${markClass}__img",
+                src := staticAssetUrl("logo/chesstory.svg"),
+                alt := ""
+              )
+            ),
             div(cls := wordmarkClass)(siteNameFrag)
           ),
           (!isAppealUser).option(topnav),

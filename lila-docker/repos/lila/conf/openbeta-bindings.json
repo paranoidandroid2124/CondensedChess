@@ -28,15 +28,6 @@
       "notes": "Public support and legal contact email."
     },
     {
-      "env": "ENABLE_RATE_LIMITING",
-      "configPath": "net.ratelimit",
-      "kind": "plain",
-      "requiredMode": "always",
-      "readinessClass": "none",
-      "probe": "config_only",
-      "notes": "Open-beta rate limiting flag."
-    },
-    {
       "env": "MONGODB_URI",
       "configPath": "mongodb.uri",
       "kind": "plain",
@@ -196,7 +187,8 @@
       "requiredMode": "always",
       "readinessClass": "core",
       "probe": "http",
-      "notes": "Opening explorer upstream base URL."
+      "notes": "Opening explorer upstream base URL hardcoded in open-beta config.",
+      "cloudRunManaged": false
     },
     {
       "env": "TABLEBASE_API_BASE",
@@ -205,7 +197,8 @@
       "requiredMode": "always",
       "readinessClass": "core",
       "probe": "http",
-      "notes": "Tablebase upstream base URL."
+      "notes": "Tablebase upstream base URL hardcoded in open-beta config.",
+      "cloudRunManaged": false
     },
     {
       "env": "LICHESS_IMPORT_API_BASE",
@@ -214,7 +207,8 @@
       "requiredMode": "always",
       "readinessClass": "core",
       "probe": "config_only",
-      "notes": "Lichess import API base URL."
+      "notes": "Lichess import API base URL hardcoded in open-beta config.",
+      "cloudRunManaged": false
     },
     {
       "env": "LICHESS_WEB_BASE",
@@ -223,7 +217,8 @@
       "requiredMode": "always",
       "readinessClass": "core",
       "probe": "config_only",
-      "notes": "Lichess web base URL used for source links."
+      "notes": "Lichess web base URL used for source links, hardcoded in open-beta config.",
+      "cloudRunManaged": false
     },
     {
       "env": "CHESSCOM_API_BASE",
@@ -232,7 +227,8 @@
       "requiredMode": "always",
       "readinessClass": "core",
       "probe": "config_only",
-      "notes": "Chess.com public API base URL."
+      "notes": "Chess.com public API base URL hardcoded in open-beta config.",
+      "cloudRunManaged": false
     },
     {
       "env": "EXTERNAL_ENGINE_ENDPOINT",

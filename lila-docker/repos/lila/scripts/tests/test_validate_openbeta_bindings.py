@@ -87,6 +87,16 @@ class ValidateOpenBetaBindingsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
 
+    def test_hardcoded_runtime_bindings_do_not_require_cloud_run_env(self) -> None:
+        envs = {
+            spec["env"]: True
+            for spec in self.manifest["bindings"]
+            if spec["requiredMode"] == "always" and spec.get("cloudRunManaged", True)
+        }
+        errors, warnings = module.evaluate_manifest(self.manifest, envs)
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+
     def test_dispatch_enabled_without_token_fails(self) -> None:
         envs = {
             spec["env"]: True

@@ -30,8 +30,14 @@ final class UserAnalysis(
         .filter(_.trim.nonEmpty)
         .map(chess.format.Fen.Full.clean)
       val fen = rawFen.filter(fen => chess.format.Fen.read(variant, fen).isDefined)
+      val positionQuery = Option.when(variant.chess960 && rawFen.isEmpty)(ctx.req.getQueryString("position")).flatten
 
       if rawFen.isDefined && fen.isEmpty then Redirect(routes.UserAnalysis.parseArg(variant.key.value)).toFuccess
+      else if positionQuery.isDefined then
+        Chess960Analysis
+          .canonicalArgForPosition(positionQuery)
+          .fold(Redirect(routes.UserAnalysis.parseArg(variant.key.value)).toFuccess): canonicalArg =>
+            Redirect(routes.UserAnalysis.parseArg(canonicalArg)).toFuccess
       else renderPage(variant = variant, fen = fen)
 
   def pgn(pgnString: String) = Open:

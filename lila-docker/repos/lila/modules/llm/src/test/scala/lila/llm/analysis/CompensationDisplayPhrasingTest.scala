@@ -87,23 +87,82 @@ class CompensationDisplayPhrasingTest extends FunSuite:
     val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
 
     val normalization =
-      StrategyPackSurface.CompensationDisplayPhrasing.buildDisplayNormalization(surface, rawSubtype, resolution)
+      CompensationDisplayPhrasing.buildDisplayNormalization(surface, rawSubtype, resolution)
 
     assertEquals(normalization.displaySubtypeSource, "payoff")
     assertEquals(normalization.normalizedDominantIdeaText, Some("fixed queenside targets"))
     assert(normalization.normalizedExecutionText.exists(_.contains("fixed queenside targets")), clue(normalization))
     assert(
-      normalization.normalizedLongTermFocusText.exists(_.contains("queenside targets under pressure")),
+      normalization.normalizedLongTermFocusText.exists(_.contains("queenside targets tied down")),
       clue(normalization)
     )
-    assertEquals(normalization.normalizedCompensationLead, Some("fixed queenside targets and long queenside pressure"))
+    assertEquals(normalization.normalizedCompensationLead, Some("queenside pressure against fixed targets"))
   }
 
   test("phrasing helper keeps subtype-specific support wording") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
 
-    val support = StrategyPackSurface.CompensationDisplayPhrasing.compensationSupportText(surface)
+    val support = CompensationDisplayPhrasing.compensationSupportText(surface)
 
-    assert(support.exists(_.contains("fixed queenside targets")), clue(support))
-    assert(support.exists(_.contains("file pressure")), clue(support))
+    assert(support.exists(_.contains("queenside targets")), clue(support))
+    assert(
+      support.exists(text =>
+        text.toLowerCase.contains("tied down") || text.toLowerCase.contains("before thinking about the material")
+      ),
+      clue(support)
+    )
+  }
+
+  test("normalized compensation phrasing avoids internal payoff jargon") {
+    val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
+    val whyNow = CompensationDisplayPhrasing.compensationWhyNowText(surface).getOrElse(fail("missing why-now text"))
+    val objective = CompensationDisplayPhrasing.compensationObjectiveText(surface).getOrElse(fail("missing objective text"))
+    val support = CompensationDisplayPhrasing.compensationSupportText(surface).mkString(" ")
+    val rendered = s"$whyNow $objective $support".toLowerCase
+
+    assert(!rendered.contains("cash out"), clue(rendered))
+    assert(!rendered.contains("return vector"), clue(rendered))
+    assert(!rendered.contains("delayed recovery"), clue(rendered))
+    assert(!rendered.contains("line pressure"), clue(rendered))
+    assert(rendered.contains("gives up material"), clue(rendered))
+    assert(rendered.contains("queenside targets"), clue(rendered))
+    assert(rendered.contains("only works while"), clue(rendered))
+  }
+
+  test("compensation phrasing avoids broken raw concatenation patterns") {
+    val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
+    val whyNow = CompensationDisplayPhrasing.compensationWhyNowText(surface).getOrElse(fail("missing why-now text"))
+    val objective = CompensationDisplayPhrasing.compensationObjectiveText(surface).getOrElse(fail("missing objective text"))
+    val followUp = CompensationDisplayPhrasing.compensationExecutionTail(surface).getOrElse(fail("missing follow-up"))
+    val rendered = s"$whyNow $objective $followUp".toLowerCase
+
+    assert(!rendered.contains("while aiming for"), clue(rendered))
+    assert(!rendered.contains("via queen toward"), clue(rendered))
+    assert(!rendered.contains("the play still runs through"), clue(rendered))
+    assert(!rendered.contains("pressure keeps building through"), clue(rendered))
+    assert(rendered.contains("gives up material"), clue(rendered))
+    assert(
+      rendered.contains("bringing the rook to d3") || rendered.contains("queenside targets"),
+      clue(rendered)
+    )
+  }
+
+  test("compensation narration eligibility rejects generic compensation shells without concrete anchors") {
+    val weakPack =
+      StrategyPack(
+        sideToMove = "white",
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            compensation = Some("initiative against the king"),
+            compensationVectors = List("Initiative (0.6)"),
+            investedMaterial = Some(100)
+          )
+        )
+      )
+
+    val weakSurface = StrategyPackSurface.from(Some(weakPack))
+    val strongSurface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
+
+    assert(!CompensationDisplayPhrasing.compensationNarrationEligible(weakSurface), clue(weakSurface))
+    assert(CompensationDisplayPhrasing.compensationNarrationEligible(strongSurface), clue(strongSurface))
   }

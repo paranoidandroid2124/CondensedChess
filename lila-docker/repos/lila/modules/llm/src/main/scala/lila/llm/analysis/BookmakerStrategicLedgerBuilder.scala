@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.{ BookmakerLedgerLineV1, BookmakerRefsV1, BookmakerStrategicLedgerV1, DecisionComparisonDigest, NarrativeSignalDigest, StrategyPack }
-import lila.llm.model.{ NarrativeContext, ProbeResult }
+import lila.llm.model.{ FactScope, NarrativeContext, ProbeResult }
 import lila.llm.model.authoring.QuestionEvidence
 import lila.llm.model.strategic.{ EndgamePatternState, PlanLifecyclePhase }
 
@@ -413,11 +413,20 @@ object BookmakerStrategicLedgerBuilder:
         )
       case _ if thesis.exists(_.lens == StrategicLens.Prophylaxis) || digest.exists(d => d.prophylaxisPlan.isDefined || d.prophylaxisThreat.isDefined) =>
         val counterplayText =
-          List(
-            digest.flatMap(_.prophylaxisThreat).map(v => s"cuts out $v"),
-            digest.flatMap(_.prophylaxisPlan).map(v => s"supports $v"),
-            digest.flatMap(_.counterplayScoreDrop).map(v => s"${v}cp of counterplay is stripped away")
-          ).flatten
+          ctx.semantic.flatMap(_.preventedPlans.headOption) match
+            case Some(prevented) if prevented.sourceScope != FactScope.Now =>
+              List(
+                prevented.citationLine.flatMap(citation =>
+                  LineScopedCitation.afterClause(citation, "the opponent's counterplay would come back")
+                ),
+                Option.when(prevented.counterplayScoreDrop > 0)(s"${prevented.counterplayScoreDrop}cp of counterplay swings back in that line")
+              ).flatten
+            case _ =>
+              List(
+                digest.flatMap(_.prophylaxisThreat).map(v => s"cuts out $v"),
+                digest.flatMap(_.prophylaxisPlan).map(v => s"supports $v"),
+                digest.flatMap(_.counterplayScoreDrop).map(v => s"${v}cp of counterplay is stripped away")
+              ).flatten
         StageChoice(
           key = "restrain",
           label = "Restrain",
@@ -426,7 +435,7 @@ object BookmakerStrategicLedgerBuilder:
       case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty || thesis.exists(_.lens == StrategicLens.Compensation) =>
         val conversionText =
           conversionTrigger
-            .map(trigger => s"the edge now has to cash out through $trigger")
+            .map(trigger => s"the edge is now built around converting through $trigger")
             .orElse(endgameStateToken.flatMap(_.activePattern).map(pattern => s"conversion has shifted into $pattern"))
             .orElse(Some("The accumulated edge is ready to be converted"))
         StageChoice(

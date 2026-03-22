@@ -25,7 +25,7 @@ object EvalData:
   given Reads[EvalData] = Json.reads[EvalData]
   given Writes[EvalData] = Json.writes[EvalData]
 
-case class PositionContext(opening: Option[String], phase: String, ply: Int)
+case class PositionContext(opening: Option[String], phase: String, ply: Int, variant: Option[String] = None)
 object PositionContext:
   given Reads[PositionContext] = Json.reads[PositionContext]
   given Writes[PositionContext] = Json.writes[PositionContext]
@@ -50,7 +50,19 @@ case class CommentRequest(
     endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None
 )
 object CommentRequest:
+  val MinBookmakerPly = 5
+  private def moveNumberFromPly(ply: Int): Int = math.max(1, (ply + 1) / 2)
   given Reads[CommentRequest] = Json.reads[CommentRequest]
+
+  def validateBookmaker(request: CommentRequest): Either[GameAnalysisValidationError, CommentRequest] =
+    if request.context.ply < MinBookmakerPly then
+      Left(
+        GameAnalysisValidationError(
+          "bookmaker_too_early",
+          s"Bookmaker opens from move ${moveNumberFromPly(MinBookmakerPly)}. Continue a few moves first."
+        )
+      )
+    else Right(request)
 
 case class MoveRefV1(
     refId: String,
@@ -581,6 +593,7 @@ case class CommentResponse(
   authorQuestions: List[AuthorQuestionSummary] = Nil,
   authorEvidence: List[AuthorEvidenceSummary] = Nil,
   mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
+  strategicPlanExperiments: List[lila.llm.model.StrategicPlanExperiment] = Nil,
   latentPlans: List[lila.llm.model.authoring.LatentPlanNarrative] = Nil,
   whyAbsentFromTopMultiPV: List[String] = Nil,
   planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
@@ -653,10 +666,13 @@ case class FullAnalysisRequest(
     pgn: String,
     evals: List[MoveEval],
     options: AnalysisOptions,
-    probeResultsByPly: Option[List[ProbeResultsByPlyEntry]] = None
+    probeResultsByPly: Option[List[ProbeResultsByPlyEntry]] = None,
+    variant: Option[String] = None
 )
 object FullAnalysisRequest:
   val MaxPgnChars = 200000
+  val MinGameChroniclePly = 9
+  private def moveNumberFromPly(ply: Int): Int = math.max(1, (ply + 1) / 2)
 
   given Reads[FullAnalysisRequest] = Json.reads[FullAnalysisRequest]
 
@@ -668,5 +684,14 @@ object FullAnalysisRequest:
       Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload exceeds $MaxPgnChars characters."))
     else
       lila.llm.PgnAnalysisHelper.extractPlyDataStrict(normalizedPgn) match
-        case Left(err)  => Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload is invalid: $err"))
-        case Right(_)   => Right(request.copy(pgn = normalizedPgn))
+        case Left(err)     => Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload is invalid: $err"))
+        case Right(plyData) =>
+          val totalPly = plyData.lastOption.map(_.ply).getOrElse(0)
+          if totalPly < MinGameChroniclePly then
+            Left(
+              GameAnalysisValidationError(
+                "game_chronicle_too_short",
+                s"Game Chronicle opens from move ${moveNumberFromPly(MinGameChroniclePly)}. Let the game develop a little more first."
+              )
+            )
+          else Right(request.copy(pgn = normalizedPgn))

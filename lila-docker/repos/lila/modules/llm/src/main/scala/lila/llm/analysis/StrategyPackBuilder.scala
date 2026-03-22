@@ -431,19 +431,6 @@ object StrategyPackBuilder:
       }
     }
 
-    ctx.whyAbsentFromTopMultiPV.take(2).foreach { reason =>
-      push(s"engine-line gap: $reason", 1.45)
-    }
-    NarrativeSignalDigestBuilder.build(ctx)
-      .flatMap(_.decisionComparison)
-      .foreach { comparison =>
-        comparison.engineBestMove.foreach(move => push(s"engine best: $move", 1.72))
-        comparison.deferredMove.foreach { move =>
-          val prefix = if comparison.practicalAlternative then "practical alternative" else "deferred branch"
-          push(s"$prefix: $move", 1.68)
-        }
-      }
-
     scored.toList
       .sortBy { case (text, weight) => (-weight, text) }
       .map(_._1)
@@ -468,46 +455,12 @@ object StrategyPackBuilder:
           Some(s"deployment_contribution:${arc.moveContribution}")
         ).flatten
         }
-    val comparisonEvidence =
-      DecisionComparisonBuilder.build(ctx).toList.flatMap { comparison =>
-        List(
-          comparison.engineBestMove.map(move => s"decision_compare:engine_best:$move"),
-          comparison.deferredMove.map { move =>
-            val prefix = if comparison.practicalAlternative then "practical" else "deferred"
-            s"decision_compare:${prefix}:$move"
-          },
-          comparison.deferredReason.map(reason => s"decision_compare:why:$reason"),
-          comparison.evidence.map(ev => s"decision_compare:evidence:$ev")
-        ).flatten
-      }
-    val authoringEvidence =
-      AuthoringEvidenceSummaryBuilder
-        .summarizeEvidence(ctx)
-        .flatMap { summary =>
-          val branchHint =
-            Option.when(summary.branchCount > 0)(s"branches=${summary.branchCount}")
-          val pendingHint =
-            Option.when(summary.pendingProbeCount > 0)(s"pending_probes=${summary.pendingProbeCount}")
-          val planHint =
-            summary.linkedPlans.headOption.map(plan => s"plan=$plan")
-          val detail = List(branchHint, pendingHint, planHint).flatten.mkString(" ")
-          Option(summary.question.trim)
-            .filter(_.nonEmpty)
-            .map { question =>
-              val suffix = if detail.nonEmpty then s" [$detail]" else ""
-              s"authoring:${summary.questionKind}:${summary.status}:$question$suffix"
-            }
-        }
     (
         ctx.mainStrategicPlans.flatMap(_.evidenceSources) ++
-        ctx.whyAbsentFromTopMultiPV ++
         routeEvidence ++
         moveRefEvidence ++
         structureEvidence ++
-        comparisonEvidence ++
-        dominantThesis.toList.map(v => s"dominant_thesis:$v") ++
-        authoringEvidence ++
-        AuthoringEvidenceSummaryBuilder.headline(ctx).toList.map(v => s"authoring_headline:$v")
+        dominantThesis.toList.map(v => s"dominant_thesis:$v")
     ).map(_.trim).filter(_.nonEmpty).distinct.take(MaxEvidence)
 
   private def refreshDominantThesis(

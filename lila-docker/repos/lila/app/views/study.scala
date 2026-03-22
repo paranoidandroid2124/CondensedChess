@@ -32,16 +32,7 @@ object study:
       Try(Json.parse(raw).as[JsObject]).toOption
 
   private def notebookLede(study: Study, chapter: Chapter): String =
-    val defaultLede =
-      s"${chapter.name.value} is open. Save branches, layer commentary, and treat each section like a page in a chess book."
-    notebookDossierJson(study)
-      .flatMap: dossier =>
-        dossier.value
-          .get("summary")
-          .flatMap(_.asOpt[String])
-          .orElse(dossier.value.get("headline").flatMap(_.asOpt[String]))
-      .filter(_.nonEmpty)
-      .getOrElse(defaultLede)
+    s"Working inside ${study.name.value}. The board below stays scoped to ${chapter.name.value}, and the rail lets you jump across saved sections without losing context."
 
   object ui:
 
@@ -99,28 +90,30 @@ object study:
                   study.name.value,
                   chapter.name.value,
                   s"${sectionCountLabel(chapters)} • ${study.visibility.toString}",
-                  compact = false
+                  compact = true
                 )
               ),
               div(cls := "notebook-hero__body")(
                 div(cls := "notebook-hero__eyebrow")(
                   studyBits.notebookGlyph("bookmark", "notebook-hero__eyebrow-icon"),
-                  span("Research notebook")
+                  span("Research notebook"),
+                  span(cls := "notebook-hero__eyebrow-sep")("•"),
+                  span(study.name.value)
                 ),
-                h1(cls := "notebook-hero__title")(study.name.value),
+                h1(cls := "notebook-hero__title")(chapter.name.value),
                 p(cls := "notebook-hero__lede")(notebookLede(study, chapter)),
                 div(cls := "notebook-hero__meta")(
-                  heroMeta("page", "Current section", chapter.name.value),
-                  heroMeta("section", "Library", sectionCountLabel(chapters)),
-                  heroMeta("notebook", "Access", if canWrite then "Editable" else "Read-only"),
-                  heroMeta("bookmark", "Visibility", study.visibility.toString)
+                  heroMeta("notebook", "Notebook", study.name.value),
+                  heroMeta("section", "Sections", sectionCountLabel(chapters)),
+                  heroMeta("bookmark", "Access", if canWrite then "Editable" else "Read-only"),
+                  heroMeta("page", "Visibility", study.visibility.toString)
                 ),
                 div(cls := "notebook-hero__navigator")(
                   div(cls := "notebook-hero__navigator-head")(
                     studyBits.notebookGlyph("section", "notebook-hero__navigator-icon"),
                     div(
-                      strong("Section navigator"),
-                      span("Jump to a saved section without losing the notebook context.")
+                      strong("Jump between sections"),
+                      span("Switch sections without leaving the board below.")
                     )
                   ),
                   div(cls := "notebook-hero__navigator-grid")(
@@ -135,7 +128,7 @@ object study:
                         ),
                         span(cls := "notebook-hero__section-copy")(
                           strong(c.name.value),
-                          span(if c.id == chapter.id then "Current section" else "Open section")
+                          span(if c.id == chapter.id then "In view" else "Open section")
                         )
                       )
                   )

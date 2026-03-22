@@ -5,10 +5,17 @@ $vp-max-width: 1200px;
 body {
   ---site-header-height: #{$site-header-short-height};
   ---site-header-margin: 0px;
-  ---site-header-sticky-padding: calc((100vw - #{$site-header-sticky-max-width}) / 2);
-  ---main-margin: 0px;
+  ---cs-content-max-width: #{$main-max-width};
+  ---cs-workspace-max-width: #{$site-header-sticky-max-width};
+  ---cs-shell-gutter-x: 0px;
+  ---cs-shell-block-gap: 10px;
+  ---site-header-sticky-padding: max(
+    0px,
+    calc((100vw - var(---cs-workspace-max-width, #{$site-header-sticky-max-width})) / 2)
+  );
+  ---main-margin: var(---cs-shell-gutter-x);
   ---sticky-gap: 0px;
-  ---block-gap: 10px;
+  ---block-gap: var(---cs-shell-block-gap);
 
   @include mq-site-header-tall {
     ---site-header-height: #{$site-header-tall-height};
@@ -20,8 +27,8 @@ body {
   }
 
   @media (min-width: at-least($small)) {
-    ---main-margin: 1vw;
-    ---block-gap: 15px;
+    ---cs-shell-gutter-x: 1vw;
+    ---cs-shell-block-gap: 15px;
     margin-bottom: $block-gap;
   }
 }

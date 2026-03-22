@@ -1,8 +1,8 @@
 lens=Structure
-claim=12... Nf1: The move reorganizes the pieces around French Chain and its closed center, aiming at Punish the Entrenched Knight.
+claim=12... Nf1: The French Chain points to reroute the knight toward e3 and g4 to squeeze the e5 knight, and the move follows that plan.
 supportPrimary=It follows the structure's logic of reroute the knight toward e3 and g4 to squeeze the e5 knight.
-supportSecondary=In this structure the knight still wants g4, so the move needs extra justification.
-tension=That still leaves Black gets c5 counterplay if the queenside opens first.
+supportSecondary=
+tension=In this structure the knight still wants g4, so the move needs extra justification.
 evidenceHook=
 coda=
-paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence
+paragraphPlan=p1=claim,p2=support,p3=practical_nuance

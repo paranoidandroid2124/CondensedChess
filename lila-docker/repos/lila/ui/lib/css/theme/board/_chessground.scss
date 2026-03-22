@@ -17,7 +17,8 @@ cg-board::before {
   content: '';
   left: 0;
   width: 100%;
-  background-size: cover;
+  background-size: 100% 100%;
+  background-position: 0 0;
   position: absolute;
   border-radius: inherit;
   box-shadow: inherit;

@@ -1,8 +1,8 @@
 lens=Practical
-claim=12... Rad1: More important than the nominal evaluation is that the move creates an easier practical task through mobility (multiple regrouping squares) and forgiveness (more than one safe continuation).
-supportPrimary=The resulting task is comfortable.
-supportSecondary=That matters because mobility (multiple regrouping squares) and forgiveness (more than one safe continuation) shape the workload.
-tension=The practical alternative e4 stays secondary because the sharper "e4" push gives Black tactical counterplay for little gain.
+claim=12... Rad1: The move is easier to handle because the pieces have more room and there are more safe follow up moves.
+supportPrimary=That leaves a comfortable version to handle.
+supportSecondary=
+tension=That is easier because the pieces have more room and there are more safe follow up moves.
 evidenceHook=
 coda=
-paragraphPlan=p1=claim,p2=support_chain,p3=tension_or_evidence
+paragraphPlan=p1=claim,p2=support,p3=practical_nuance

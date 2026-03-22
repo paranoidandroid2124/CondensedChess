@@ -1,9 +1,9 @@
 package lila.llm.analysis
 
-import lila.llm.{ BookmakerRefsV1, VariationRefV1 }
+import lila.llm.BookmakerRefsV1
 import lila.llm.StrategyPack
 import lila.llm.model.*
-import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
+import lila.llm.model.authoring.NarrativeOutline
 
 final case class BookmakerPolishSlots(
     lens: StrategicLens,
@@ -45,143 +45,15 @@ object BookmakerPolishSlotsBuilder:
       refs: Option[BookmakerRefsV1],
       strategyPack: Option[StrategyPack] = None
   ): Option[BookmakerPolishSlots] =
-    val surface = StrategyPackSurface.from(strategyPack)
-    val thesis = StrategicThesisBuilder.build(ctx, strategyPack)
-    val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).filter(_.nonEmpty)
-    val mainMoveBeat = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).filter(_.nonEmpty)
-    val decisionBeat = outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint).map(_.text).filter(_.nonEmpty)
-    val conditionalBeat = outline.beats.find(_.kind == OutlineBeatKind.ConditionalPlan).map(_.text).filter(_.nonEmpty)
-    val wrapBeat = outline.beats.find(_.kind == OutlineBeatKind.WrapUp).map(_.text).filter(_.nonEmpty)
-    val mainMoveSentences =
-      splitSentences(mainMoveBeat.getOrElse(""))
-        .map(BookmakerSlotSanitizer.sanitizeUserText)
-        .filter(_.nonEmpty)
-    val annotationOverride = annotationClaimOverride(ctx, mainMoveSentences, surface)
-    val claimCore =
-      annotationOverride.map(_._1)
-        .orElse(thesis.map(_.claim))
-        .orElse(contextBeat)
-        .map(BookmakerSlotSanitizer.sanitizeUserText)
-        .filter(_.nonEmpty)
-    claimCore.map { baseClaim =>
-      val claim = prefixMoveHeader(ctx, baseClaim)
-      val supports =
-        annotationOverride.map(_._2)
-          .getOrElse(thesis.map(_.support).filter(_.nonEmpty).getOrElse(mainMoveSentences))
-          .map(BookmakerSlotSanitizer.sanitizeUserText)
-          .filter(_.nonEmpty)
-          .distinct
-          .take(2)
-      val tension =
-        thesis.flatMap(_.tension)
-          .orElse(decisionBeat)
-          .orElse(conditionalBeat)
-          .map(BookmakerSlotSanitizer.sanitizeUserText)
-          .filter(_.nonEmpty)
-      val evidence =
-        variationGuardrail(refs)
-          .orElse(thesis.flatMap(_.evidenceHook).map(BookmakerSlotSanitizer.sanitizeUserText).filter(_.nonEmpty))
-      val coda =
-        wrapBeat
-          .map(BookmakerSlotSanitizer.sanitizeUserText)
-          .filter(_.nonEmpty)
-      val guardrails = List(evidence).flatten
-      val paragraphPlan = List(
-        Some("p1=claim"),
-        Option.when(supports.nonEmpty)("p2=support_chain"),
-        Option.when(tension.nonEmpty || evidence.nonEmpty)("p3=tension_or_evidence"),
-        Option.when(coda.nonEmpty)("p4=coda")
-      ).flatten
-      BookmakerPolishSlots(
-        lens = thesis.map(_.lens).getOrElse(StrategicLens.Decision),
-        claim = claim,
-        supportPrimary = supports.headOption,
-        supportSecondary = supports.lift(1),
-        tension = tension,
-        evidenceHook = evidence,
-        coda = coda,
-        factGuardrails = guardrails,
-        paragraphPlan = paragraphPlan
-      )
-    }
+    BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs, strategyPack)
 
-  private def prefixMoveHeader(ctx: NarrativeContext, claim: String): String =
-    if Option(claim).exists(_.matches("""^\d+\.(?:\.\.)?\s+[^:]+:\s*.*""")) then claim
-    else
-      val moveHeader =
-        for
-          san <- ctx.playedSan.filter(_.trim.nonEmpty)
-        yield
-          val moveNum = (ctx.ply + 1) / 2
-          val prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
-          s"$prefix $san:"
-      moveHeader.map(h => s"$h $claim").getOrElse(claim)
-
-  private def annotationClaimOverride(
+  def buildOrFallback(
       ctx: NarrativeContext,
-      mainMoveSentences: List[String],
-      surface: StrategyPackSurface.Snapshot
-  ): Option[(String, List[String])] =
-    Option.when(
-      CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx) &&
-        mainMoveSentences.nonEmpty &&
-        !shouldPreserveStrategicThesis(surface, mainMoveSentences.head)
-    ) {
-      val claim = mainMoveSentences.head
-      val support = mainMoveSentences.drop(1)
-      (claim, support)
-    }
-
-  private def shouldPreserveStrategicThesis(
-      surface: StrategyPackSurface.Snapshot,
-      candidateClaim: String
-  ): Boolean =
-    hasStrategicClaimSurface(surface) ||
-      startsWithGenericDecisionScaffold(candidateClaim)
-
-  private def hasStrategicClaimSurface(surface: StrategyPackSurface.Snapshot): Boolean =
-    surface.dominantIdeaText.nonEmpty ||
-      surface.executionText.nonEmpty ||
-      surface.objectiveText.nonEmpty ||
-      surface.compensationPosition ||
-      surface.investedMaterial.exists(_ > 0)
-
-  private def startsWithGenericDecisionScaffold(text: String): Boolean =
-    val low = Option(text).getOrElse("").trim.toLowerCase
-    low.startsWith("the whole decision turns on") || low.startsWith("the key decision is to choose")
-
-  private def splitSentences(text: String): List[String] =
-    Option(text)
-      .getOrElse("")
-      .split("""(?<=[.!?])\s+""")
-      .toList
-      .map(_.trim)
-      .filter(_.nonEmpty)
-
-  private def variationGuardrail(refs: Option[BookmakerRefsV1]): Option[String] =
-    refs.flatMap(_.variations.headOption).flatMap(renderVariationGuardrail)
-
-  private def renderVariationGuardrail(variation: VariationRefV1): Option[String] =
-    val preview =
-      variation.moves
-        .take(3)
-        .map(_.san.trim)
-        .filter(_.nonEmpty)
-        .mkString(" ")
-        .trim
-    Option.when(preview.nonEmpty) {
-      val eval = formatVariationScore(variation.scoreCp, variation.mate)
-      s"a) $preview$eval"
-    }
-
-  private def formatVariationScore(scoreCp: Int, mate: Option[Int]): String =
-    mate match
-      case Some(m) if m > 0 => s" (mate in $m)"
-      case Some(m) if m < 0 => s" (mated in ${Math.abs(m)})"
-      case Some(_)          => ""
-      case None =>
-        val sign = if scoreCp >= 0 then "+" else ""
-        f" ($sign${scoreCp.toDouble / 100}%.1f)"
+      outline: NarrativeOutline,
+      refs: Option[BookmakerRefsV1],
+      strategyPack: Option[StrategyPack] = None
+  ): BookmakerPolishSlots =
+    BookmakerLiveCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack)
 
 object BookmakerProseContract:
 
@@ -194,6 +66,7 @@ object BookmakerProseContract:
 
   final case class Evaluation(
       paragraphs: List[String],
+      sentenceCount: Int,
       claimLikeFirstParagraph: Boolean,
       paragraphBudgetOk: Boolean,
       placeholderHits: List[String],
@@ -214,11 +87,20 @@ object BookmakerProseContract:
     val first = paragraphs.headOption.getOrElse("")
     val claimLike = claimLikeFirstParagraph(first, slots.claim)
     val placeholderHits = BookmakerSlotSanitizer.placeholderHits(text)
-    val genericHits = genericPhrases.filter(text.toLowerCase.contains)
+    val genericHits =
+      (genericPhrases.filter(text.toLowerCase.contains) ++
+        BookmakerLiveCompressionPolicy.systemLanguageHits(text)).distinct
+    val sentenceCount = countSentences(paragraphs)
+    val paragraphBudgetOk =
+      if expectsSingleParagraph(slots) then
+        paragraphs.size == 1 && sentenceCount >= 1 && sentenceCount <= 2
+      else
+        paragraphs.size >= 2 && paragraphs.size <= 3 && sentenceCount >= 2 && sentenceCount <= 4
     Evaluation(
       paragraphs = paragraphs,
+      sentenceCount = sentenceCount,
       claimLikeFirstParagraph = claimLike,
-      paragraphBudgetOk = paragraphs.size >= 2 && paragraphs.size <= 4,
+      paragraphBudgetOk = paragraphBudgetOk,
       placeholderHits = placeholderHits,
       genericHits = genericHits
     )
@@ -253,6 +135,20 @@ object BookmakerProseContract:
     val bs = normalizeWords(b).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
     (as intersect bs).size
 
+  private def expectsSingleParagraph(slots: BookmakerPolishSlots): Boolean =
+    slots.paragraphPlan == List("p1=claim")
+
+  private def countSentences(paragraphs: List[String]): Int =
+    paragraphs.flatMap(splitSentences).size
+
+  private def splitSentences(text: String): List[String] =
+    Option(text)
+      .getOrElse("")
+      .split("""(?<=[.!?])\s+""")
+      .toList
+      .map(_.trim)
+      .filter(_.nonEmpty)
+
 object BookmakerSoftRepair:
 
   private val CosmeticActions = Set("claim_restore")
@@ -270,7 +166,11 @@ object BookmakerSoftRepair:
     val deterministic = deterministicParagraphs(slots)
     val initial = normalizeParagraphs(text)
     val actions = scala.collection.mutable.ListBuffer.empty[String]
-    val paragraphTarget = deterministic.size.max(2).min(4)
+    val singleParagraphMode = slots.paragraphPlan == List("p1=claim")
+    val paragraphTarget =
+      if singleParagraphMode then 1
+      else deterministic.size.max(2).min(3)
+    val sentenceTarget = if singleParagraphMode then 2 else 4
     var paragraphs = if initial.nonEmpty then initial else deterministic
     if initial.isEmpty then actions += "empty_to_deterministic"
 
@@ -279,24 +179,29 @@ object BookmakerSoftRepair:
     paragraphs = scrubbed
 
     if paragraphs.size > paragraphTarget then
-      val keep = paragraphs.take(paragraphTarget - 1)
-      val mergedTail = paragraphs.drop(paragraphTarget - 1).mkString(" ").trim
-      paragraphs = keep :+ mergedTail
+      paragraphs =
+        if paragraphTarget == 1 then List(paragraphs.mkString(" ").trim)
+        else
+          val keep = paragraphs.take(paragraphTarget - 1)
+          val mergedTail = paragraphs.drop(paragraphTarget - 1).mkString(" ").trim
+          keep :+ mergedTail
       actions += "paragraph_merge"
     if paragraphs.size < paragraphTarget then
       paragraphs = (paragraphs ++ deterministic.drop(paragraphs.size)).take(paragraphTarget)
       actions += "paragraph_fill"
+
+    paragraphs = trimToSentenceBudget(paragraphs, sentenceTarget, paragraphTarget)
 
     val currentEval = BookmakerProseContract.evaluate(paragraphs.mkString("\n\n"), slots)
     if !currentEval.claimLikeFirstParagraph || currentEval.genericHits.nonEmpty then
       paragraphs = deterministic.headOption.toList ++ paragraphs.drop(1)
       actions += "claim_restore"
 
-    if paragraphs.size >= 2 && paragraphs(1).trim.isEmpty then
+    if !singleParagraphMode && paragraphs.size >= 2 && paragraphs(1).trim.isEmpty then
       paragraphs = paragraphs.updated(1, deterministic.lift(1).getOrElse(paragraphs(1)))
       actions += "support_restore"
 
-    if slots.tension.nonEmpty || slots.evidenceHook.nonEmpty then
+    if !singleParagraphMode && (slots.tension.nonEmpty || slots.evidenceHook.nonEmpty) then
       val p3 = deterministic.lift(2)
       if p3.nonEmpty then
         val currentText = paragraphs.mkString(" ")
@@ -313,8 +218,10 @@ object BookmakerSoftRepair:
           // but for now, we prioritize not duplicating if the LLM integrated it elsewhere.
           ()
 
-    if slots.coda.isEmpty && paragraphs.size == 4 && deterministic.size < 4 then
-      paragraphs = paragraphs.take(3)
+    paragraphs = trimToSentenceBudget(paragraphs, sentenceTarget, paragraphTarget)
+
+    if slots.coda.isEmpty && paragraphs.size > paragraphTarget then
+      paragraphs = paragraphs.take(paragraphTarget)
       actions += "drop_extra_coda"
 
     val repairedText = paragraphs.map(_.trim).filter(_.nonEmpty).mkString("\n\n")
@@ -331,14 +238,20 @@ object BookmakerSoftRepair:
     )
 
   def deterministicParagraphs(slots: BookmakerPolishSlots): List[String] =
-    val supportParagraph = slots.support.mkString(" ").trim
-    val thirdParagraph = composeThirdParagraph(slots).trim
-    List(
-      Some(slots.claim.trim),
-      Option.when(supportParagraph.nonEmpty)(supportParagraph),
-      Option.when(thirdParagraph.nonEmpty)(thirdParagraph),
-      slots.coda.map(_.trim).filter(_.nonEmpty)
-    ).flatten
+    if slots.paragraphPlan == List("p1=claim") then List(slots.claim.trim)
+    else
+      val supportParagraph = slots.support.mkString(" ").trim
+      val thirdParagraph = composeThirdParagraph(slots).trim
+      val thirdOrCoda =
+        if thirdParagraph.nonEmpty && slots.coda.exists(_.trim.nonEmpty) then
+          s"${ensureSentence(thirdParagraph)} ${ensureSentence(slots.coda.get)}".trim
+        else if thirdParagraph.nonEmpty then thirdParagraph
+        else slots.coda.map(_.trim).filter(_.nonEmpty).getOrElse("")
+      List(
+        Some(slots.claim.trim),
+        Option.when(supportParagraph.nonEmpty)(supportParagraph),
+        Option.when(thirdOrCoda.nonEmpty)(thirdOrCoda)
+      ).flatten
 
   private def normalizeParagraphs(text: String): List[String] =
     BookmakerProseContract.splitParagraphs(text).map(_.trim).filter(_.nonEmpty)
@@ -353,10 +266,37 @@ object BookmakerSoftRepair:
 
   private def normalizeEvidenceHook(text: String): String =
     val trimmed = text.trim
-    if trimmed.matches("""^[a-z]\)\s+.*""") then s"A concrete line is $trimmed"
+    if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then trimmed
+    else if trimmed.toLowerCase.startsWith("a concrete line is") then
+      trimmed.replaceFirst("(?i)^a concrete line is", "One concrete line that keeps the idea in play is")
+    else if trimmed.matches("""^[a-z]\)\s+.*""") then s"One concrete line that keeps the idea in play is $trimmed"
     else trimmed
 
   private def ensureSentence(text: String): String =
     val trimmed = text.trim
     if trimmed.isEmpty || trimmed.matches(""".*[.!?]$""") then trimmed
     else s"$trimmed."
+
+  private def splitSentences(text: String): List[String] =
+    Option(text)
+      .getOrElse("")
+      .split("""(?<=[.!?])\s+""")
+      .toList
+      .map(_.trim)
+      .filter(_.nonEmpty)
+
+  private def trimToSentenceBudget(
+      paragraphs: List[String],
+      sentenceTarget: Int,
+      paragraphTarget: Int
+  ): List[String] =
+    val limited = scala.collection.mutable.ListBuffer.empty[String]
+    var remaining = sentenceTarget
+    paragraphs.take(paragraphTarget).foreach { paragraph =>
+      if remaining > 0 then
+        val keep = splitSentences(paragraph).take(remaining)
+        if keep.nonEmpty then
+          limited += keep.mkString(" ").trim
+          remaining -= keep.size
+    }
+    limited.toList

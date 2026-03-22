@@ -43,4 +43,10 @@ object AnalysePgnPipeline:
       importHistory: Option[JsObject] = None
   )(using ctx: Context): Page =
     val payload = buildPayload(variant = variant, fen = fen, inlinePgn = inlinePgn)
-    views.analyse.ui.userAnalysis(payload.data, payload.pov, inlinePgn = payload.inlinePgn, importHistory = importHistory)
+    views.analyse.ui.userAnalysis(
+      payload.data,
+      payload.pov,
+      chess960PositionNum = Chess960Analysis.positionNumber(variant, fen),
+      inlinePgn = payload.inlinePgn,
+      importHistory = importHistory
+    )

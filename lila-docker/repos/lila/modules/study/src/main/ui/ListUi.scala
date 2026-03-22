@@ -41,12 +41,12 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
       order: StudyOrder,
       pag: Paginator[WithChaptersAndLiked],
       url: StudyOrder => String
-  )(using Context): Page =
+  )(using ctx: Context): Page =
     val (eyebrow, lede, railTitle, railBody) =
       if active == "mine" then
         (
           "Your research shelf",
-          "Reopen the analysis notebooks you built, keep annotating key sections, and keep polished lines ready to share.",
+          "Create a blank notebook or reopen the ones you already use for lines, notes, and reusable sections.",
           "Analysis carry-over",
           "Carry over PGN trees, Bookmaker notes, and Chronicle summaries from analysis."
         )
@@ -72,7 +72,16 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
               ),
               div(cls := "notebook-index__controls")(
                 bits.orderSelect(order, active, url),
-                bits.newForm()
+                ctx.isAuth.option(
+                  div(cls := "notebook-index__create")(
+                    bits.newForm(),
+                    p(cls := "notebook-index__create-copy")(
+                      if active == "mine" then
+                        "Starts a blank notebook immediately. Bring lines in from analysis after it opens."
+                      else "Signed in? Start a blank notebook here, then add sections from analysis when you need them."
+                    )
+                  )
+                )
               )
             ),
             div(cls := "notebook-index__proof")(
@@ -100,7 +109,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
             "Create one from analysis to keep sections, notes, and commentary together."
           else "Public notebooks will appear here once authors choose to share them."
         ),
-        bits.newForm("Start a notebook")
+        bits.newForm("Create your first notebook")
       )
     else
       div(cls := "studies list infinite-scroll")(

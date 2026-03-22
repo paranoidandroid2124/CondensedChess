@@ -73,7 +73,9 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
            deniedEntryScope = Some(if scoreDiff >= 120 then "sector" else "single_square"),
            breakNeutralizationStrength =
              Option.when(deniedResourceClass.contains("break"))(math.min(100, scoreDiff)),
-           defensiveSufficiency = Some(if scoreDiff >= 120 then 90 else if scoreDiff >= 80 then 75 else 60)
+           defensiveSufficiency = Some(if scoreDiff >= 120 then 90 else if scoreDiff >= 80 then 75 else 60),
+           sourceScope = lila.llm.model.FactScope.ThreatLine,
+           sourceLine = Some(threat)
          )
        } else null
     }.toList.filter(_ != null) 

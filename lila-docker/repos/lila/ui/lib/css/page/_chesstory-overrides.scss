@@ -15,14 +15,19 @@ html.pro {
   body {
     // Softer background than legacy gradient
     background: $c-bg-page;
+    ---cs-content-max-width: 1320px;
+    ---cs-workspace-max-width: 1520px;
+    ---cs-shell-gutter-x: clamp(1rem, 2.2vw, 2rem);
+    ---cs-shell-block-gap: clamp(0.75rem, 1.4vw, 1.5rem);
     ---site-header-height: 64px;
     ---site-header-margin: 0px;
-    ---main-margin: 1.25rem;
-    ---block-gap: 16px;
+    ---site-header-sticky-padding: max(0px, calc((100vw - var(---cs-workspace-max-width)) / 2));
+    ---main-margin: var(---cs-shell-gutter-x);
+    ---block-gap: var(---cs-shell-block-gap);
   }
 
   #main-wrap {
-    ---main-max-width: 1600px;
+    ---main-max-width: var(---cs-workspace-max-width);
   }
 
   // Header: simplify the "lichess" chrome into a product header
@@ -30,7 +35,7 @@ html.pro {
     height: 64px;
     max-width: none;
     margin: 0;
-    padding: 0 1.25rem;
+    padding: 0 var(---cs-shell-gutter-x);
     border-bottom: 1px solid $c-border;
     background: $c-bg;
 

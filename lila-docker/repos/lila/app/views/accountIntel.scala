@@ -43,6 +43,7 @@ object accountIntel:
   def landing(
       provider: String,
       username: String,
+      selectedKindKey: String,
       recentAccounts: List[ImportHistory.Account],
       recentRuns: List[lila.accountintel.AccountIntel.AccountIntelJob]
   )(using ctx: Context): Page =
@@ -59,15 +60,15 @@ object accountIntel:
               div(cls := "auth-card auth-card--importer auth-card--account-product")(
                 div(cls := "account-product-shell")(
                   div(cls := "importer-hero importer-hero--account-product")(
-                    div(cls := "importer-hero__eyebrow")("Account Intel"),
-                    h1(cls := "auth-title importer-hero__title")("Analyze one account like a paid product, not a utility form."),
+                    div(cls := "importer-hero__eyebrow")("Account review"),
+                    h1(cls := "auth-title importer-hero__title")("Choose the account and the question you want answered."),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "Load a public Chess.com or Lichess account, get a full self-analysis or opponent prep surface, and keep the notebook as a secondary deep-dive."
+                      "Pick My Account when you want repair priorities for yourself, or Opponent Prep when you are preparing for someone else. The latest finished run reopens first."
                     ),
                     div(cls := "importer-summary-strip")(
-                      summaryChip("Self", "Repair priorities and recurring structures"),
-                      summaryChip("Prep", "Steering targets and pre-game checklist"),
-                      summaryChip("History", "Refresh runs instead of starting over")
+                      summaryChip("My Account", "Repair priorities and recurring structures"),
+                      summaryChip("Opponent Prep", "Steering targets and pre-game checklist"),
+                      summaryChip("Run history", "Reopen the latest finished result")
                     )
                   ),
                   pageError.map(msg => div(cls := "auth-error")(msg)),
@@ -76,7 +77,7 @@ object accountIntel:
                       div(cls := "importer-panel__head")(
                         strong(cls := "importer-panel__title")("Find an account"),
                         p(cls := "importer-panel__copy")(
-                          "Enter a public username and open its account-intel page. The first screen will show the latest analysis if it already exists."
+                          "Enter a public username, choose the mode first, and reopen the latest finished result if it already exists."
                         )
                       ),
                       form(cls := "auth-form importer-form", method := "get", action := routes.AccountIntel.landing("", "").url)(
@@ -98,13 +99,30 @@ object accountIntel:
                             required
                           )
                         ),
+                        div(cls := "form-group account-product-mode-field")(
+                          span(cls := "account-product-mode-field__label")("Mode"),
+                          div(cls := "account-product-mode-choice-grid")(
+                            landingModeChoice(
+                              selectedKindKey = selectedKindKey,
+                              kindKey = "my_account_intelligence_lite",
+                              title = "My Account",
+                              body = "Review your own recurring mistakes, structures, and repair priorities."
+                            ),
+                            landingModeChoice(
+                              selectedKindKey = selectedKindKey,
+                              kindKey = "opponent_prep",
+                              title = "Opponent Prep",
+                              body = "Prepare steering targets, recurring plans, and pre-game checklist items."
+                            )
+                          )
+                        ),
                         div(cls := "importer-panel__hint")(
                           span("Public games only"),
                           span("Async analysis build"),
                           span("Notebook stays secondary")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
-                          "Open Account Intel",
+                          "Open account review",
                           span(cls := "arrow")(" ->")
                         )
                       )
@@ -112,16 +130,16 @@ object accountIntel:
                     div(cls := "importer-side")(
                       div(cls := "importer-panel importer-panel--guide")(
                         div(cls := "importer-panel__head")(
-                          strong(cls := "importer-panel__title")("What you get"),
+                          strong(cls := "importer-panel__title")("What opens first"),
                           p(cls := "importer-panel__copy")(
-                            "This product should feel like a dossier. The latest run, top patterns, White/Black split, and rerun controls live in one place."
+                            "The result page should answer the primary question without forcing a notebook decision first."
                           )
                         ),
                         div(cls := "account-product-note-grid")(
-                          noteCard("Top 3 patterns", "See the decisions that keep repeating instead of sifting through all 40 games."),
-                          noteCard("White / Black split", "Treat repertoire and recurring mistakes as separate surfaces."),
+                          noteCard("My Account", "See your top recurring patterns, split by White and Black when needed."),
+                          noteCard("Opponent Prep", "Open steering ideas, pressure points, and a short checklist for the matchup."),
                           noteCard("Evidence drill-in", "Open the supporting games that justify each pattern."),
-                          noteCard("Rerun history", "Compare the newest run against older ones without rebuilding your workflow.")
+                          noteCard("Run history", "Compare the newest run against older ones without rebuilding your workflow.")
                         )
                       ),
                       recentRuns.nonEmpty.option(
@@ -201,21 +219,21 @@ object accountIntel:
               div(cls := "auth-card auth-card--importer auth-card--status")(
                 div(cls := "status-shell")(
                   div(cls := "importer-hero importer-hero--status")(
-                    div(cls := "importer-hero__eyebrow")("Account Intel"),
+                    div(cls := "importer-hero__eyebrow")("Account review"),
                     h1(cls := "auth-title importer-hero__title")(statusTitle(job)),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "This run is building in the background. Keep this page open while the account surface is being attached."
+                      "This run is building in the background. The account review opens automatically after the analysis is ready."
                     ),
                     div(cls := "importer-summary-strip")(
                       summaryChip(s"@${job.username}", providerLabel(job.provider)),
                       summaryChip(kindLabel(job.kind.key), "Mode"),
-                      summaryChip(job.status.key, stageLabel(job.progressStage))
+                      summaryChip(statusChipLabel(job), stageLabel(job.progressStage))
                     )
                   ),
                   div(cls := "status-grid")(
                     div(cls := "importer-panel importer-panel--status")(
                       div(cls := "importer-panel__head")(
-                        strong(cls := "importer-panel__title")("Build progress"),
+                        strong(cls := "importer-panel__title")("Analysis progress"),
                         p(cls := "importer-panel__copy")(
                           "You should be able to tell at a glance whether the worker is moving, blocked, or already finished."
                         )
@@ -235,24 +253,24 @@ object accountIntel:
                       ),
                       div(cls := "status-meta-grid")(
                         metaCard("Requested", job.requestedAt.toString),
-                        metaCard("Job ID", job.id),
-                        metaCard("Current stage", stageLabel(job.progressStage))
+                        metaCard("Run ID", job.id),
+                        metaCard("Current step", stageLabel(job.progressStage))
                       )
                     ),
                     div(cls := "importer-panel importer-panel--status-side")(
                       div(cls := "importer-panel__head")(
                         strong(cls := "importer-panel__title")("Next action"),
                         p(cls := "importer-panel__copy")(
-                          "The primary destination is now the account result page. The notebook stays a secondary deep-dive."
+                          statusActionCopy(job)
                         )
                       ),
                       div(cls := "status-callout status-callout--primary")(
                         strong(statusTitle(job)),
                         span(
                           if job.status == lila.accountintel.AccountIntel.JobStatus.Failed then
-                            "The build stopped before the account surface was attached."
+                            "The build stopped before the account review was attached."
                           else if job.status == lila.accountintel.AccountIntel.JobStatus.Succeeded then
-                            "The account surface is ready to open."
+                            "The account review is ready to open."
                           else "The worker is still processing the account. This page auto-refreshes while the run is active."
                         )
                       ),
@@ -273,9 +291,9 @@ object accountIntel:
                         )
                       ),
                       div(cls := "auth-links status-links")(
-                        a(href := resultHref, cls := "status-links__primary")("Open account surface"),
+                        statusPrimaryAction(job, resultHref),
                         job.notebookUrl.map(url => a(href := url)("Open notebook")),
-                        a(href := routes.AccountIntel.landing("", "").url)("Back to Account Intel")
+                        a(href := routes.AccountIntel.landing("", "").url)("Back to account review")
                       )
                     )
                   ),
@@ -377,14 +395,14 @@ object accountIntel:
         div(cls := "importer-hero__eyebrow")(providerLabel(state.provider)),
         h1(cls := "auth-title importer-hero__title")(s"@${state.username}"),
         p(cls := "auth-subtitle importer-hero__subtitle")(
-          "No finished account surface is attached yet. Start with a fresh run, then come back here for the standalone result page."
+          "No finished account review is attached yet. Choose the mode first, start a fresh run, then come back here for the standalone result page."
         )
       ),
       activeJob.map(renderActiveJobCallout),
       div(cls := "account-product-empty")(
         div(cls := "status-callout status-callout--primary")(
           strong("Analyze this account"),
-          span("Start with My Account or Opponent Prep. The finished result will live here, while the notebook stays secondary.")
+          span("Choose My Account or Opponent Prep. The finished review will live here, while the notebook stays secondary.")
         ),
         div(cls := "account-product-mode-switch")(
           modeLink(state, lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite, "My Account"),
@@ -401,7 +419,7 @@ object accountIntel:
         ),
         div(cls := "auth-links")(
           a(href := routes.UserAnalysis.index.url)("Open one game in analysis"),
-          a(href := routes.AccountIntel.landing("", "").url)("Back to Account Intel")
+          a(href := routes.AccountIntel.landing("", "").url)("Back to account review")
         )
       )
     )
@@ -679,7 +697,7 @@ object accountIntel:
   ): Frag =
     div(cls := "importer-panel importer-panel--guide account-product-utility")(
       div(cls := "importer-panel__head")(
-        strong(cls := "importer-panel__title")("Deep dive"),
+        strong(cls := "importer-panel__title")("Notebook"),
         p(cls := "importer-panel__copy")(
           "Stay on this page for the answer. Open the notebook only when you want the move tree, chapter flow, and a shareable study artifact."
         )
@@ -759,6 +777,26 @@ object accountIntel:
       span(label)
     )
 
+  private def landingModeChoice(
+      selectedKindKey: String,
+      kindKey: String,
+      title: String,
+      body: String
+  ): Frag =
+    label(cls := "account-product-mode-choice")(
+      input(
+        cls := "account-product-mode-choice__input",
+        tpe := "radio",
+        name := "kind",
+        value := kindKey,
+        if selectedKindKey == kindKey then checked := true else emptyFrag
+      ),
+      div(cls := "account-product-mode-choice__copy")(
+        strong(title),
+        span(body)
+      )
+    )
+
   private def noteCard(title: String, copy: String): Frag =
     div(cls := "importer-note-card")(
       strong(title),
@@ -773,18 +811,49 @@ object accountIntel:
 
   private def statusTitle(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
     job.status match
-      case lila.accountintel.AccountIntel.JobStatus.Queued => "Queued"
-      case lila.accountintel.AccountIntel.JobStatus.Running => "Building account surface"
-      case lila.accountintel.AccountIntel.JobStatus.Succeeded => "Account surface ready"
-      case lila.accountintel.AccountIntel.JobStatus.Failed => "Account build failed"
+      case lila.accountintel.AccountIntel.JobStatus.Queued => "Queued for analysis"
+      case lila.accountintel.AccountIntel.JobStatus.Running => "Building account review"
+      case lila.accountintel.AccountIntel.JobStatus.Succeeded => "Account review ready"
+      case lila.accountintel.AccountIntel.JobStatus.Failed => "Account review failed"
+
+  private def statusChipLabel(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
+    job.status match
+      case lila.accountintel.AccountIntel.JobStatus.Queued => "Waiting"
+      case lila.accountintel.AccountIntel.JobStatus.Running => "Running"
+      case lila.accountintel.AccountIntel.JobStatus.Succeeded => "Ready"
+      case lila.accountintel.AccountIntel.JobStatus.Failed => "Failed"
+
+  private def statusActionCopy(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
+    job.status match
+      case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
+        "The account review is ready. Open it now and treat the notebook as a secondary export."
+      case lila.accountintel.AccountIntel.JobStatus.Failed =>
+        "The run stopped before the result page was attached. Run it again or switch accounts."
+      case _ =>
+        "Stay on this page until the review is ready. The account result page unlocks only after the run succeeds."
+
+  private def statusPrimaryAction(job: lila.accountintel.AccountIntel.AccountIntelJob, resultHref: String): Frag =
+    job.status match
+      case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
+        a(href := resultHref, cls := "status-links__primary")("Open account surface")
+      case lila.accountintel.AccountIntel.JobStatus.Failed =>
+        postForm(cls := "status-links__form", action := routes.AccountIntel.submit.url)(
+          input(tpe := "hidden", name := "provider", value := job.provider),
+          input(tpe := "hidden", name := "username", value := job.username),
+          input(tpe := "hidden", name := "kind", value := job.kind.key),
+          input(tpe := "hidden", name := "force", value := "true"),
+          submitButton(cls := "status-links__primary")("Run again")
+        )
+      case _ =>
+        span(cls := "status-links__primary is-disabled", aria("disabled") := "true")("Analysis still running")
 
   private def stageLabel(stage: String): String =
     stage match
       case "queued" => "Waiting for the worker."
       case "fetching_games" => "Fetching recent public games."
       case "extracting_primitives" => "Extracting recurring structure signals."
-      case "creating_notebook" => "Attaching the notebook and account surface."
-      case "completed" => "Account surface created successfully."
+      case "creating_notebook" => "Attaching the account review and notebook link."
+      case "completed" => "Account review created successfully."
       case "failed" => "The job ended with an error."
       case other => other.replace('_', ' ')
 
@@ -803,10 +872,15 @@ object accountIntel:
 
   private val progressSteps =
     List(
-      ProgressStep(1, "queued", "Queued", "The request is waiting for a worker slot."),
+      ProgressStep(1, "queued", "Waiting to start", "The request is waiting for a worker slot."),
       ProgressStep(2, "fetching_games", "Fetch games", "Recent public games are being collected from the provider."),
       ProgressStep(3, "extracting_primitives", "Extract signals", "Recurring structures, transitions, and anchor candidates are being assembled."),
-      ProgressStep(4, "creating_notebook", "Attach result", "The account surface and notebook are being created and linked.")
+      ProgressStep(
+        4,
+        "creating_notebook",
+        "Attach result",
+        "The account review is being attached. The notebook link, if available, is added afterward."
+      )
     )
 
   private def stepState(job: lila.accountintel.AccountIntel.AccountIntelJob, key: String): String =

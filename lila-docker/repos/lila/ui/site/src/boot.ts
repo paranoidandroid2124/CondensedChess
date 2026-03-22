@@ -19,6 +19,29 @@ import { pubsub } from 'lib/pubsub';
 import { once } from 'lib/storage';
 import { addExceptionListeners } from './unhandledError';
 
+const retireDormantServiceWorkers = () => {
+  if (!('serviceWorker' in navigator)) return;
+
+  void navigator.serviceWorker.getRegistrations().then(async regs => {
+    if (!regs.length) return;
+
+    let unregistered = false;
+    for (const reg of regs) {
+      unregistered = (await reg.unregister()) || unregistered;
+    }
+
+    if (!unregistered) return;
+
+    const reloadKey = 'chesstory-sw-retired';
+    if (navigator.serviceWorker.controller && !sessionStorage.getItem(reloadKey)) {
+      sessionStorage.setItem(reloadKey, '1');
+      window.location.reload();
+    } else if (!navigator.serviceWorker.controller) {
+      sessionStorage.removeItem(reloadKey);
+    }
+  });
+};
+
 export function boot() {
   addExceptionListeners();
   $('#user_tag').removeAttr('href');
@@ -35,6 +58,8 @@ export function boot() {
     pubsub.on('content-loaded', toggleBoxInit);
   });
   requestIdleCallback(() => {
+    retireDormantServiceWorkers();
+
     const chatMembers = document.querySelector('.chat__members') as HTMLElement | null;
     if (chatMembers) watchers(chatMembers);
 

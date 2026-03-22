@@ -7,6 +7,7 @@ import type {
   PlanHypothesis,
   PlanStateToken,
   ProbeRequest,
+  StrategicPlanExperiment,
 } from './types';
 
 export type MoveRefV1 = {
@@ -173,6 +174,7 @@ export type DecodedBookmakerResponse = {
   strategyPack: StrategyPackV1 | null;
   signalDigest: NarrativeSignalDigest | null;
   mainStrategicPlans: PlanHypothesis[];
+  strategicPlanExperiments: StrategicPlanExperiment[];
   latentPlans: LatentPlanNarrative[];
   holdReasons: string[];
   probeRequests: ProbeRequest[];
@@ -198,6 +200,7 @@ export type MaybeResponse = {
   authorQuestions?: unknown;
   authorEvidence?: unknown;
   mainStrategicPlans?: unknown;
+  strategicPlanExperiments?: unknown;
   latentPlans?: unknown;
   whyAbsentFromTopMultiPV?: unknown;
   planStateToken?: unknown;
@@ -246,6 +249,33 @@ export function authorEvidenceFromResponse(data: MaybeResponse): AuthorEvidenceS
 
 export function mainStrategicPlansFromResponse(data: MaybeResponse): PlanHypothesis[] {
   return Array.isArray(data?.mainStrategicPlans) ? (data.mainStrategicPlans as PlanHypothesis[]) : [];
+}
+
+function strategicPlanExperimentFromUnknown(raw: unknown): StrategicPlanExperiment | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.planId !== 'string' || typeof raw.themeL1 !== 'string' || typeof raw.evidenceTier !== 'string')
+    return null;
+  return {
+    planId: raw.planId,
+    themeL1: raw.themeL1,
+    subplanId: typeof raw.subplanId === 'string' ? raw.subplanId : null,
+    evidenceTier: raw.evidenceTier,
+    supportProbeCount: typeof raw.supportProbeCount === 'number' ? raw.supportProbeCount : 0,
+    refuteProbeCount: typeof raw.refuteProbeCount === 'number' ? raw.refuteProbeCount : 0,
+    bestReplyStable: raw.bestReplyStable === true,
+    futureSnapshotAligned: raw.futureSnapshotAligned === true,
+    counterBreakNeutralized: raw.counterBreakNeutralized === true,
+    moveOrderSensitive: raw.moveOrderSensitive === true,
+    experimentConfidence: typeof raw.experimentConfidence === 'number' ? raw.experimentConfidence : 0,
+  };
+}
+
+export function strategicPlanExperimentsFromResponse(data: MaybeResponse): StrategicPlanExperiment[] {
+  return Array.isArray(data?.strategicPlanExperiments)
+    ? (data.strategicPlanExperiments as unknown[])
+        .map(strategicPlanExperimentFromUnknown)
+        .filter((value): value is StrategicPlanExperiment => !!value)
+    : [];
 }
 
 export function latentPlansFromResponse(data: MaybeResponse): LatentPlanNarrative[] {
@@ -310,6 +340,7 @@ export function decodeBookmakerResponse(
     strategyPack: strategyPackFromResponse(data),
     signalDigest: signalDigestFromResponse(data),
     mainStrategicPlans: mainStrategicPlansFromResponse(data),
+    strategicPlanExperiments: strategicPlanExperimentsFromResponse(data),
     latentPlans: latentPlansFromResponse(data),
     holdReasons: whyAbsentFromTopMultiPVFromResponse(data),
     probeRequests: fallbackList(probeRequestsFromResponse(data), fallbacks.probeRequests),

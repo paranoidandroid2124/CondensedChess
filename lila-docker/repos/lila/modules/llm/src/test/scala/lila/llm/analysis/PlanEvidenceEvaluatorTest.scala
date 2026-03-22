@@ -192,3 +192,52 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       clue(partition.whyAbsentFromTopMultiPV)
     )
   }
+
+  test("partition reasons stay user-facing for pv-coupled and incomplete evidence cases") {
+    val enginePlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.74,
+        sources = List("support:engine_hypothesis")
+      )
+    val deferredPlan =
+      hypothesis(
+        id = "PawnStorm",
+        name = "Kingside pawn storm",
+        score = 0.66,
+        sources = List("latent_seed:kingside_rook_pawn_march")
+      )
+    val request = ProbeRequest(
+      id = "probe_deferred",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("h2h4"),
+      depth = 18,
+      purpose = Some("free_tempo_branches"),
+      planId = Some("PawnStorm"),
+      seedId = Some("kingside_rook_pawn_march"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(enginePlan, deferredPlan),
+        probeRequests = List(request),
+        validatedProbeResults = Nil,
+        rulePlanIds = Set("pieceactivation"),
+        isWhiteToMove = true,
+        droppedProbeCount = 1,
+        invalidByRequestId = Map("probe_deferred" -> List("futureSnapshot"))
+      )
+
+    val rendered =
+      (partition.whyAbsentFromTopMultiPV ++ partition.latentPlans.map(_.whyAbsentFromTopMultiPv)).mkString(" ")
+    val lowered = rendered.toLowerCase
+
+    assert(!lowered.contains("playablebypv"), clue(rendered))
+    assert(!lowered.contains("strict evidence mode"), clue(rendered))
+    assert(!lowered.contains("probe evidence pending"), clue(rendered))
+    assert(!lowered.contains("engine-coupled continuation"), clue(rendered))
+    assert(!lowered.contains("futuresnapshot"), clue(rendered))
+    assert(lowered.contains("engine line") || lowered.contains("supporting evidence"), clue(rendered))
+  }

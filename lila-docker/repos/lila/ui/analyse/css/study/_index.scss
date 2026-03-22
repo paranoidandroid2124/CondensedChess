@@ -4,6 +4,9 @@
 $top-height: 3.2rem;
 
 .study-index {
+  width: min(100%, var(---cs-content-max-width, 1320px));
+  margin-inline: auto;
+
   .box__top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

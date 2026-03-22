@@ -30,8 +30,9 @@ html {
 .landing-pro {
   // `#main-wrap` is a grid shell; force landing root to span the full shell width.
   // Without this, the first grid column can clip content to a narrow strip.
+  --landing-shell-max-width: var(---cs-content-max-width, 1320px);
+  --landing-shell-gutter: var(---cs-shell-gutter-x, clamp(1rem, 2.2vw, 2rem));
   grid-column: 1 / -1;
-  --landing-max-width: 1320px;
   min-height: 100vh;
   background:
     radial-gradient(circle at 12% 10%, rgba($landing-secondary, 0.14), transparent 44%),
@@ -61,14 +62,14 @@ html {
 }
 
 .landing-container {
-  width: min(100% - clamp(2rem, 5vw, 5rem), var(--landing-max-width));
+  width: min(calc(100% - (var(--landing-shell-gutter) * 2)), var(--landing-shell-max-width));
   margin-inline: auto;
   position: relative;
   z-index: 2;
 }
 
 .landing-section {
-  padding-block: clamp(4rem, 8vw, 7.5rem);
+  padding-block: clamp(calc(var(---cs-shell-block-gap, 1rem) * 3), 8vw, calc(var(---cs-shell-block-gap, 1rem) * 5));
   scroll-margin-top: 7rem;
 }
 
@@ -152,7 +153,7 @@ html {
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: 1.25rem;
+    gap: var(---cs-shell-block-gap, clamp(0.75rem, 1.4vw, 1.5rem));
     min-height: 4.5rem;
   }
 
@@ -1200,10 +1201,6 @@ html {
 }
 
 @media (min-width: 1600px) {
-  .landing-pro {
-    --landing-max-width: 1520px;
-  }
-
   .landing-main::after {
     content: '';
     position: absolute;
@@ -1335,10 +1332,6 @@ html {
 }
 
 @media (max-width: calc(#{$bp-mobile} - 1px)) {
-  .landing-container {
-    width: min(100% - 1.5rem, var(--landing-max-width));
-  }
-
   .landing-section {
     padding-block: 3.2rem;
   }

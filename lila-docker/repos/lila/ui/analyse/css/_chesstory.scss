@@ -3,12 +3,23 @@
    ------------------------------------------------- */
 
 .notebook-shell {
+  ---notebook-shell-block-gap: var(---cs-shell-block-gap, clamp(0.7rem, 1.4vw, 1.05rem));
+  ---notebook-shell-gutter-x: var(---cs-shell-gutter-x, clamp(0.65rem, 1.3vw, 1rem));
   display: grid;
-  gap: clamp(0.9rem, 1.8vw, 1.4rem);
-  padding: clamp(0.8rem, 1.6vw, 1.3rem);
+  inline-size: min(100%, var(---cs-workspace-max-width, 100%));
+  max-inline-size: 100%;
+  justify-self: center;
+  gap: var(---notebook-shell-block-gap);
+  padding: var(---notebook-shell-block-gap) var(---notebook-shell-gutter-x);
   background:
     radial-gradient(circle at top left, rgba(166, 85, 39, 0.14), transparent 28%),
     linear-gradient(180deg, #efe3d0 0%, #e4d5bf 100%);
+}
+
+.notebook-shell > .analyse {
+  inline-size: 100%;
+  justify-self: stretch;
+  padding: 0;
 }
 
 .notebook-glyph {
@@ -157,10 +168,10 @@
 
 .notebook-hero {
   display: grid;
-  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
-  gap: clamp(1rem, 2vw, 1.6rem);
+  grid-template-columns: minmax(120px, 152px) minmax(0, 1fr);
+  gap: clamp(0.8rem, 1.6vw, 1.2rem);
   align-items: start;
-  padding: clamp(1rem, 1.9vw, 1.5rem);
+  padding: clamp(0.85rem, 1.4vw, 1.05rem);
   border-radius: 28px;
   background:
     radial-gradient(circle at top left, rgba(255, 249, 240, 0.94), transparent 34%),
@@ -170,22 +181,24 @@
 
   &__cover-frame {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: flex-start;
   }
 
   &__body {
     display: grid;
-    gap: 0.9rem;
+    gap: 0.65rem;
     min-width: 0;
   }
 
   &__eyebrow {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.55rem;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     font-weight: 800;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #9f4f23;
   }
@@ -195,34 +208,38 @@
     height: 1rem;
   }
 
+  &__eyebrow-sep {
+    opacity: 0.42;
+  }
+
   &__title {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.8rem, 3.4vw, 2.8rem);
-    line-height: 1.15;
+    font-size: clamp(1.45rem, 2.7vw, 2rem);
+    line-height: 1.08;
     color: #1d2a31;
   }
 
   &__lede {
-    max-width: 62ch;
+    max-width: 58ch;
     margin: 0;
     color: #59626a;
-    font-size: 1rem;
-    line-height: 1.7;
+    font-size: 0.92rem;
+    line-height: 1.55;
   }
 
   &__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   &__meta-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.65rem;
-    min-width: 11rem;
-    padding: 0.7rem 0.85rem;
+    gap: 0.55rem;
+    min-width: 9rem;
+    padding: 0.55rem 0.7rem;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.64);
     border: 1px solid rgba(166, 85, 39, 0.14);
@@ -236,17 +253,17 @@
 
   &__meta-copy {
     display: grid;
-    gap: 0.15rem;
+    gap: 0.08rem;
 
     strong {
       color: #1d2a31;
-      font-size: 0.92rem;
+      font-size: 0.84rem;
     }
   }
 
   &__meta-label {
     color: #7b6958;
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -254,8 +271,8 @@
 
   &__navigator {
     display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.55rem;
+    padding: 0.8rem;
     border-radius: 22px;
     background: rgba(255, 252, 246, 0.88);
     border: 1px solid rgba(166, 85, 39, 0.14);
@@ -264,19 +281,19 @@
   &__navigator-head {
     display: flex;
     align-items: flex-start;
-    gap: 0.7rem;
+    gap: 0.55rem;
 
     strong {
       display: block;
       color: #1d2a31;
       font-family: 'Merriweather', 'Georgia', serif;
-      font-size: 1rem;
+      font-size: 0.92rem;
     }
 
     span {
       color: #6f655c;
-      font-size: 0.84rem;
-      line-height: 1.5;
+      font-size: 0.78rem;
+      line-height: 1.35;
     }
   }
 
@@ -289,15 +306,15 @@
 
   &__navigator-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.5rem;
   }
 
   &__section {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.85rem 0.9rem;
+    gap: 0.6rem;
+    padding: 0.65rem 0.72rem;
     border-radius: 16px;
     text-decoration: none;
     color: #1d2a31;
@@ -335,12 +352,12 @@
     strong {
       @extend %nowrap-ellipsis;
       color: #1d2a31;
-      font-size: 0.9rem;
+      font-size: 0.84rem;
     }
 
     span {
       color: #73685c;
-      font-size: 0.76rem;
+      font-size: 0.72rem;
     }
   }
 
@@ -350,6 +367,32 @@
     &__cover-frame {
       justify-content: flex-start;
     }
+  }
+}
+
+.notebook-index__create {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: end;
+  max-width: 20rem;
+}
+
+.notebook-index__create-copy {
+  margin: 0;
+  color: #6b5b4d;
+  font-size: 0.81rem;
+  line-height: 1.42;
+  text-align: right;
+}
+
+@media (max-width: at-most($medium)) {
+  .notebook-index__create {
+    justify-items: stretch;
+    max-width: none;
+  }
+
+  .notebook-index__create-copy {
+    text-align: left;
   }
 }
 
@@ -364,6 +407,8 @@
   --atlas-accent: #a65527;
   --atlas-accent-strong: #8f431c;
   --atlas-shadow: 0 18px 38px rgba(67, 44, 21, 0.14);
+  ---atlas-shell-block-gap: var(---cs-shell-block-gap, 0.75rem);
+  ---atlas-shell-gutter-x: var(---cs-shell-gutter-x, 0.75rem);
 
   color: var(--atlas-text);
   background:
@@ -373,6 +418,9 @@
   position: relative;
   overflow: hidden;
   font-family: 'Source Sans 3', 'Noto Sans', 'Segoe UI', sans-serif;
+  inline-size: min(100%, var(---cs-workspace-max-width, 100%));
+  max-inline-size: 100%;
+  justify-self: center;
 
   &::before {
     content: '';
@@ -394,24 +442,26 @@
   ---chat-height: fit-content(0);
 
   @include mq-is-col1 {
-    grid-row-gap: 0.75rem;
-    padding: 0.75rem;
+    grid-row-gap: var(---atlas-shell-block-gap);
+    padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
   }
 
   @include mq-at-least-col2 {
+    ---atlas-shell-block-gap: var(---cs-shell-block-gap, clamp(0.8rem, 1.6vw, 1.35rem));
+    ---atlas-shell-gutter-x: var(---cs-shell-gutter-x, clamp(0.8rem, 1.7vw, 1.4rem));
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.74 + 0.26) * 0.78);
     grid-template-columns: minmax(20rem, 1fr) minmax(17rem, 24rem);
     grid-template-rows: auto auto auto auto auto $chat-height;
     grid-template-areas:
       'sidebar sidebar'
-      'board tools'
-      'controls tools'
-      'under tools'
-      'round-training round-training'
-      'chat uchat';
-    grid-column-gap: clamp(0.9rem, 1.9vw, 1.5rem);
-    grid-row-gap: clamp(0.8rem, 1.6vw, 1.35rem);
-    padding: clamp(0.8rem, 1.7vw, 1.4rem);
+        'board tools'
+        'controls tools'
+        'under tools'
+        'round-training round-training'
+        'chat uchat';
+    grid-column-gap: var(---atlas-shell-block-gap);
+    grid-row-gap: var(---atlas-shell-block-gap);
+    padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
 
     &--bookmaker {
       grid-template-columns: minmax(14rem, 18rem) minmax(20rem, 1fr) minmax(17rem, 24rem);
@@ -1783,6 +1833,10 @@ html.dark {
         box-shadow: 0 12px 22px rgba(0, 0, 0, 0.22);
       }
     }
+  }
+
+  .notebook-index__create-copy {
+    color: #bdd0de;
   }
 
   .analyse {

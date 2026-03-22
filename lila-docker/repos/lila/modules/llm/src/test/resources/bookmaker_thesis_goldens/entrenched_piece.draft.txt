@@ -1,4 +1,4 @@
-12... Nf1: The move reorganizes the pieces around French Chain and its closed center, aiming at Punish the Entrenched Knight.
+12... Nf1: The French Chain points to reroute the knight toward e3 and g4 to squeeze the e5 knight, and the move follows that plan.
 
 It follows the structure's logic of reroute the knight toward e3 and g4 to squeeze the e5 knight. In this structure the knight still wants g4, so the move needs extra justification.
 

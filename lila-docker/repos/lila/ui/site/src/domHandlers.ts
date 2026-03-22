@@ -252,6 +252,7 @@ function initAccountIntelProduct() {
 
   const kindLabel = (kind: string) =>
     kind === 'my_account_intelligence_lite' ? 'My Account' : kind === 'opponent_prep' ? 'Opponent Prep' : kind;
+  const activeJobLabel = (status: string) => (status === 'running' ? 'Building account review' : 'Queued for analysis');
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
     const date = new Date(raw);
@@ -620,7 +621,7 @@ function initAccountIntelProduct() {
     if (!job || (job.status !== 'queued' && job.status !== 'running')) return '';
     return `
       <div class="status-callout status-callout--primary account-product-callout">
-        <strong>${escapeHtml(job.status === 'running' ? 'Building account surface' : 'Queued')} • ${escapeHtml(kindLabel(state!.kind))}</strong>
+        <strong>${escapeHtml(activeJobLabel(job.status))} • ${escapeHtml(kindLabel(state!.kind))}</strong>
         <span>${escapeHtml(stageLabel(job.progressStage || 'queued'))}</span>
         <div class="auth-links status-links">
           <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open build status</a>

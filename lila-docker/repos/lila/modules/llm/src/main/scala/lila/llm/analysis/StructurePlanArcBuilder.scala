@@ -33,6 +33,7 @@ private[analysis] final case class StructurePlanArc(
     structureLabel: String,
     centerState: Option[String],
     planLabel: String,
+    planBacked: Boolean = true,
     alignmentBand: Option[String],
     alignmentReasons: List[String],
     primaryDeployment: PieceDeploymentCue,
@@ -59,7 +60,8 @@ private[analysis] object StructurePlanArcBuilder:
     val structureLabel =
       structure.flatMap(sp => normalized(sp.primary).filterNot(_.equalsIgnoreCase("Unknown")))
         .orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
-    val planLabel = leadingPlanLabel(ctx, alignment)
+    val backedPlanLabel = StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx).flatMap(normalized)
+    val planLabel = backedPlanLabel.orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
 
     for
       structureName <- structureLabel
@@ -69,13 +71,14 @@ private[analysis] object StructurePlanArcBuilder:
       val deployments = selectDeployments(pieceActivity, boardOpt, ownerSide, plan, structureName, alignment.map(_.band))
       val alignmentBand = alignment.map(_.band).flatMap(normalized)
       val alignmentReasons = alignment.toList.flatMap(_.reasonCodes).flatMap(humanizeAlignmentReason).distinct.take(3)
-      StructurePlanArc(
-        structureLabel = structureName,
-        centerState = structure.flatMap(sp => normalized(sp.centerState)),
-        planLabel = plan,
-        alignmentBand = alignmentBand,
-        alignmentReasons = alignmentReasons,
-        primaryDeployment = primary,
+        StructurePlanArc(
+          structureLabel = structureName,
+          centerState = structure.flatMap(sp => normalized(sp.centerState)),
+          planLabel = plan,
+          planBacked = backedPlanLabel.contains(plan),
+          alignmentBand = alignmentBand,
+          alignmentReasons = alignmentReasons,
+          primaryDeployment = primary,
         secondaryDeployment = deployments.drop(1).find(_.surfaceConfidence >= SecondaryConfidenceCutoff),
         moveContribution = moveContribution(ctx, primary, plan),
         prophylaxisSupport = prophylaxisSupport(ctx),
@@ -101,7 +104,10 @@ private[analysis] object StructurePlanArcBuilder:
         .filterNot(_.equalsIgnoreCase(arc.structureLabel))
         .map(center => s", with a ${center.toLowerCase} center,")
         .getOrElse("")
-    s"In the ${arc.structureLabel} structure$centerFragment the long plan is ${arc.planLabel}, and the ${pieceWord(arc.primaryDeployment.piece)} belongs on ${destinationPhrase(arc.primaryDeployment)}."
+    val planClause =
+      if arc.planBacked then s"the long plan is ${arc.planLabel}"
+      else s"the structure points toward ${arc.planLabel.toLowerCase}"
+    s"In the ${arc.structureLabel} structure$centerFragment $planClause, and the ${pieceWord(arc.primaryDeployment.piece)} belongs on ${destinationPhrase(arc.primaryDeployment)}."
 
   def supportPrimaryText(arc: StructurePlanArc): String =
     val cue = arc.primaryDeployment
@@ -269,8 +275,14 @@ private[analysis] object StructurePlanArcBuilder:
         prevented.preventedThreatType.flatMap(normalized)
           .orElse(prevented.breakNeutralized.map(file => s"$file-break"))
           .orElse(normalized(prevented.planId))
-      target.map { text =>
-        s"That deployment also matters because it cuts out ${text.toLowerCase}."
+      target.flatMap { text =>
+        prevented.sourceScope match
+          case FactScope.Now =>
+            Some(s"That deployment also matters because it cuts out ${text.toLowerCase}.")
+          case _ =>
+            prevented.citationLine.flatMap { citation =>
+              LineScopedCitation.afterClause(citation, s"${text.toLowerCase} becomes available again")
+            }
       }
     }
 
@@ -287,14 +299,6 @@ private[analysis] object StructurePlanArcBuilder:
         s"The long-term pay-off still depends on converting the position into ${plan.toLowerCase}."
       }
     }
-
-  private def leadingPlanLabel(
-      ctx: NarrativeContext,
-      alignment: Option[PlanAlignmentInfo]
-  ): Option[String] =
-    ctx.mainStrategicPlans.headOption.flatMap(h => normalized(h.planName))
-      .orElse(ctx.plans.top5.headOption.flatMap(p => normalized(p.name)))
-      .orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
 
   private def semanticStrategicFit(
       activity: PieceActivityInfo,

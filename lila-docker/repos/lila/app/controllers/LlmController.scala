@@ -116,6 +116,7 @@ final class LlmController(
                   lang = requestLang,
                   planTier = resolvedPlanTier,
                   llmLevel = resolvedGameAnalysisLlmLevel,
+                  variant = validReq.variant,
                   probeResultsByPly = normalizeProbeResultsByPly(validReq.probeResultsByPly)
                 )
                 .map:
@@ -219,67 +220,72 @@ final class LlmController(
         ctx.body.body.validate[CommentRequest].fold(
           errors => BadRequest(JsError.toJson(errors)).toFuccess,
           commentReq =>
-            api
-              .bookmakerCommentPosition(
-                fen = commentReq.fen,
-                lastMove = commentReq.lastMove,
-                eval = commentReq.eval,
-                variations = commentReq.variations,
-                probeResults = commentReq.probeResults,
-                openingData = commentReq.openingData,
-                afterFen = commentReq.afterFen,
-                afterEval = commentReq.afterEval,
-                afterVariations = commentReq.afterVariations,
-                opening = commentReq.context.opening,
-                phase = commentReq.context.phase,
-                ply = commentReq.context.ply,
-                prevStateToken = commentReq.planStateToken,
-                prevEndgameStateToken = commentReq.endgameStateToken,
-                allowLlmPolish = allowLlmPolish,
-                lang = requestLang,
-                planTier = resolvedPlanTier,
-                llmLevel = resolvedBookmakerLlmLevel
-              )
-              .map {
-                case Some(result) =>
-                  val response = result.response
-                  val html = BookmakerRenderer
-                    .render(
-                      commentary = response.commentary,
-                      variations = response.variations,
-                      fenBefore = commentReq.fen,
-                      refs = response.refs
-                    )
-                    .toString
-                  val baseJson = Json.obj(
-                    "schema" -> "chesstory.bookmaker.v2",
-                    "html" -> html,
-                    "commentary" -> response.commentary,
-                    "variations" -> response.variations,
-                    "concepts" -> response.concepts,
-                    "probeRequests" -> response.probeRequests,
-                    "authorQuestions" -> response.authorQuestions,
-                    "authorEvidence" -> response.authorEvidence,
-                    "mainStrategicPlans" -> response.mainStrategicPlans,
-                    "latentPlans" -> response.latentPlans,
-                    "whyAbsentFromTopMultiPV" -> response.whyAbsentFromTopMultiPV,
-                    "planStateToken" -> response.planStateToken,
-                    "endgameStateToken" -> response.endgameStateToken,
-                    "sourceMode" -> response.sourceMode,
-                    "model" -> response.model,
-                    "planTier" -> response.planTier,
-                    "llmLevel" -> response.llmLevel,
-                    "strategyPack" -> response.strategyPack,
-                    "signalDigest" -> response.signalDigest,
-                    "cacheHit" -> result.cacheHit
+            validatedBookmakerRequest(commentReq).fold(
+              err => validationErrorResult(err).toFuccess,
+              validReq =>
+                api
+                  .bookmakerCommentPosition(
+                    fen = validReq.fen,
+                    lastMove = validReq.lastMove,
+                    eval = validReq.eval,
+                    variations = validReq.variations,
+                    probeResults = validReq.probeResults,
+                    openingData = validReq.openingData,
+                    afterFen = validReq.afterFen,
+                    afterEval = validReq.afterEval,
+                    afterVariations = validReq.afterVariations,
+                    opening = validReq.context.opening,
+                    phase = validReq.context.phase,
+                    ply = validReq.context.ply,
+                    variant = validReq.context.variant,
+                    prevStateToken = validReq.planStateToken,
+                    prevEndgameStateToken = validReq.endgameStateToken,
+                    allowLlmPolish = allowLlmPolish,
+                    lang = requestLang,
+                    planTier = resolvedPlanTier,
+                    llmLevel = resolvedBookmakerLlmLevel
                   )
-                  val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
-                  val payload = response.polishMeta.fold(withRefs)(m => withRefs ++ Json.obj("polishMeta" -> m))
-                  Ok(
-                    payload
-                  )
-                case None => ServiceUnavailable("Lexicon Commentary unavailable")
-              }
+                  .map {
+                    case Some(result) =>
+                      val response = result.response
+                      val html = BookmakerRenderer
+                        .render(
+                          commentary = response.commentary,
+                          variations = response.variations,
+                          fenBefore = validReq.fen,
+                          refs = response.refs
+                        )
+                        .toString
+                      val baseJson = Json.obj(
+                        "schema" -> "chesstory.bookmaker.v2",
+                        "html" -> html,
+                        "commentary" -> response.commentary,
+                        "variations" -> response.variations,
+                        "concepts" -> response.concepts,
+                        "probeRequests" -> response.probeRequests,
+                        "authorQuestions" -> response.authorQuestions,
+                        "authorEvidence" -> response.authorEvidence,
+                        "mainStrategicPlans" -> response.mainStrategicPlans,
+                        "latentPlans" -> response.latentPlans,
+                        "whyAbsentFromTopMultiPV" -> response.whyAbsentFromTopMultiPV,
+                        "planStateToken" -> response.planStateToken,
+                        "endgameStateToken" -> response.endgameStateToken,
+                        "sourceMode" -> response.sourceMode,
+                        "model" -> response.model,
+                        "planTier" -> response.planTier,
+                        "llmLevel" -> response.llmLevel,
+                        "strategyPack" -> response.strategyPack,
+                        "signalDigest" -> response.signalDigest,
+                        "cacheHit" -> result.cacheHit
+                      )
+                      val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
+                      val payload = response.polishMeta.fold(withRefs)(m => withRefs ++ Json.obj("polishMeta" -> m))
+                      Ok(
+                        payload
+                      )
+                    case None => ServiceUnavailable("Lexicon Commentary unavailable")
+                  }
+            )
         )
   /** Proxy endpoint for opening explorer masters data. */
   def openingMasters(fen: String) = Open:
@@ -363,6 +369,11 @@ final class LlmController(
   ): Either[GameAnalysisValidationError, FullAnalysisRequest] =
     FullAnalysisRequest.validateGameChronicle(request)
 
+  private def validatedBookmakerRequest(
+      request: CommentRequest
+  ): Either[GameAnalysisValidationError, CommentRequest] =
+    CommentRequest.validateBookmaker(request)
+
   private def validationErrorResult(error: GameAnalysisValidationError): Result =
     BadRequest(Json.obj("error" -> error.code, "msg" -> error.message))
 
@@ -372,7 +383,8 @@ final class LlmController(
   )(using ctx: Context): JsObject =
     val uidOpt = ctx.me.map(_.userId.value)
     val isCcaEnabled = uidOpt.exists(uid => new lila.llm.DefeatDnaApi().isCcaEnabledForUser(uid))
-    Json.toJson(response).as[JsObject] ++ Json.obj(
+    val sanitizedResponse = lila.llm.UserFacingPayloadSanitizer.sanitize(response)
+    Json.toJson(sanitizedResponse).as[JsObject] ++ Json.obj(
       "ccaEnabled" -> isCcaEnabled,
       "refineToken" -> api.issueGameChronicleRefinementToken(analysisRequesterKey, pgn)
     )

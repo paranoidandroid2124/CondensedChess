@@ -19,10 +19,17 @@ object analyse:
     def userAnalysis(
         data: play.api.libs.json.JsObject,
         pov: lila.core.game.Pov,
+        chess960PositionNum: Option[Int] = None,
         inlinePgn: Option[String] = None,
         importHistory: Option[play.api.libs.json.JsObject] = None
     )(using Context) =
-      analyseUi.userAnalysis(data, pov, inlinePgn = inlinePgn, importHistory = importHistory)
+      analyseUi.userAnalysis(
+        data,
+        pov,
+        chess960PositionNum = chess960PositionNum,
+        inlinePgn = inlinePgn,
+        importHistory = importHistory
+      )
 
     def keyboardHelp =
       div(cls := "keyboard-help")(

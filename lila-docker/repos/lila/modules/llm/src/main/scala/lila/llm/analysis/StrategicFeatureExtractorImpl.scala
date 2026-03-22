@@ -116,7 +116,10 @@ class StrategicFeatureExtractorImpl(
           resultingFen = None,
           mate = probe.mate,
           tags = Nil,
-          parsedMoves = Nil
+          parsedMoves = lila.llm.analysis.MoveAnalyzer.parsePv(
+            nullMoveProbe.flatMap(_.fen).getOrElse(fen),
+            probe.bestReplyPv.take(3)
+          )
         )
         val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(
           nullMoveProbe.flatMap(_.fen).getOrElse(fen), 
@@ -140,7 +143,7 @@ class StrategicFeatureExtractorImpl(
             resultingFen = None,
             mate = None,
             tags = Nil,
-            parsedMoves = Nil
+            parsedMoves = lila.llm.analysis.MoveAnalyzer.parsePv(fen, detectedThreats.flatMap(_.move).take(3))
           )
           val causalThreatOpt = lila.llm.analysis.ThreatExtractor.extractThreatConcept(fen, color, threatLine)
           val planId = causalThreatOpt.map(_.concept).getOrElse("Tactical Threat")
@@ -162,7 +165,7 @@ class StrategicFeatureExtractorImpl(
             resultingFen = None,
             mate = None,
             tags = Nil,
-            parsedMoves = Nil
+            parsedMoves = lila.llm.analysis.MoveAnalyzer.parsePv(fen, detectedThreats.flatMap(_.move).take(3))
           )), Some(planId))
         } else (None, None)
     }
@@ -264,7 +267,7 @@ class StrategicFeatureExtractorImpl(
       // Does this candidate prevent the threat?
       val candPrevented = prophylaxisAnalyzer.analyze(fen, board, color, normalizedCandidateVar, threatLineRaw, threatPlanId)
       val moveStr = candidateVar.moves.headOption.getOrElse("")
-      val candidateFacts = FactExtractor.fromMotifs(board, candMotifs, FactScope.Now)
+      val candidateFacts = FactExtractor.fromMotifs(board, candMotifs, FactScope.CandidatePv)
       
       val moveIntent = deriveDualIntent(
         move = moveStr,

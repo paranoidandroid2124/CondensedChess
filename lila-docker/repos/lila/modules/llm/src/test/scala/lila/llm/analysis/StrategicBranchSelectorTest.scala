@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import munit.FunSuite
-import lila.llm.{ ActivePlanRef, GameChronicleMoment, NarrativeSignalDigest, StrategyIdeaSignal, StrategyPack, StrategyPieceRoute, StrategySidePlan }
+import lila.llm.{ ActivePlanRef, GameChronicleMoment, NarrativeSignalDigest, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute, StrategySidePlan }
 
 class StrategicBranchSelectorTest extends FunSuite:
 
@@ -331,4 +331,63 @@ class StrategicBranchSelectorTest extends FunSuite:
 
     assertEquals(selection.activeNoteMoments.headOption.map(_.ply), Some(21))
     assert(selection.activeNoteMoments.map(_.ply).contains(23))
+  }
+
+  test("selector keeps strict compensation moments visible before spare core-event slots are filled") {
+    val strictCompensation =
+      moment(
+        ply = 25,
+        momentType = "SustainedPressure",
+        strategyPack = Some(
+          StrategyPack(
+            sideToMove = "black",
+            strategicIdeas = List(
+              StrategyIdeaSignal(
+                ideaId = "idea_strict_comp",
+                ownerSide = "black",
+                kind = "target_fixing",
+                group = "slow_structural",
+                readiness = "building",
+                focusSquares = List("b2"),
+                focusFiles = List("b"),
+                focusZone = Some("queenside"),
+                beneficiaryPieces = List("R"),
+                confidence = 0.84
+              )
+            ),
+            pieceMoveRefs = List(
+              StrategyPieceMoveRef(
+                ownerSide = "black",
+                piece = "Q",
+                from = "d8",
+                target = "b6",
+                idea = "fix the queenside targets",
+                evidence = List("target_pawn")
+              )
+            ),
+            longTermFocus = List("fix the queenside targets before recovering the pawn"),
+            signalDigest = Some(
+              NarrativeSignalDigest(
+                compensation = Some("return vector through line pressure and delayed recovery"),
+                compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+                investedMaterial = Some(100),
+                dominantIdeaKind = Some("target_fixing"),
+                dominantIdeaFocus = Some("b2")
+              )
+            )
+          )
+        )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(
+          moment(18, "AdvantageSwing", moveClassification = Some("Blunder")),
+          moment(22, "MatePivot"),
+          strictCompensation
+        )
+      )
+
+    assert(selection.selectedMoments.map(_.ply).contains(25), clue(selection.selectedMoments))
+    assert(selection.activeNoteMoments.map(_.ply).contains(25), clue(selection.activeNoteMoments))
   }

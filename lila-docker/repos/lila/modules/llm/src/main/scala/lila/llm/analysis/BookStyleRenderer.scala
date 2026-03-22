@@ -22,8 +22,6 @@ object BookStyleRenderer:
     "REQ_MISS",
     "BLK_CONFLICT"
   )
-  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
-
   /**
    * Render NarrativeContext into book-style prose.
    */
@@ -36,11 +34,23 @@ object BookStyleRenderer:
   def validatedOutline(ctx: NarrativeContext): NarrativeOutline =
     val rec = new TraceRecorder()
     val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)
-    NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
+    EarlyOpeningNarrationPolicy.compactOutline(
+      ctx,
+      NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
+    )
 
   def renderValidatedOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val prose = renderOutlineRaw(outline, ctx)
-    PostCritic.revise(ctx, redactStructureTokens(prose))
+    EarlyOpeningNarrationPolicy.clampNarrative(
+      ctx,
+      StandardCommentaryClaimPolicy.finalizeProse(
+        ctx,
+        PostCritic.revise(ctx, redactStructureTokens(prose))
+      )
+    )
+
+  private[analysis] def renderBeatForSelection(beat: OutlineBeat, ctx: NarrativeContext): String =
+    redactStructureTokens(renderBeat(beat, ctx, Math.abs(ctx.hashCode))).trim
 
   private def renderOutlineRaw(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
@@ -133,15 +143,20 @@ object BookStyleRenderer:
 
   private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
     ctx.counterfactual.map { cf =>
-      cf.causalThreat match {
-        case Some(ct) => 
-          NarrativeLexicon.getCausalTeachingPoint(bead, ct.concept, ct.narrative, cf.cpLoss)
-        case None =>
-          val theme = cf.missedMotifs.headOption.map(motifName)
-            .orElse(Some(cf.severity))
-            .getOrElse("tactic")
-          NarrativeLexicon.getTeachingPoint(bead, theme, cf.cpLoss)
-      }
+      val citation =
+        LineScopedCitation.tacticalCitation(ctx.fen, ctx.ply + 1, cf.bestLine, cf.missedMotifs)
+          .orElse(LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, cf.bestLine))
+      citation.flatMap { cited =>
+        cf.causalThreat match {
+          case Some(ct) =>
+            LineScopedCitation.afterClause(cited, s"the line ${ct.narrative}")
+          case None =>
+            val theme = cf.missedMotifs.headOption.map(motifName)
+              .orElse(Some(cf.severity.toLowerCase))
+              .getOrElse("the practical refutation")
+            LineScopedCitation.afterClause(cited, s"the idea of $theme appears")
+        }
+      }.getOrElse("")
     }.getOrElse("")
 
   private def generateMainMove(ctx: NarrativeContext, bead: Int): String =
@@ -168,73 +183,18 @@ object BookStyleRenderer:
     }.mkString("\n")
 
   private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
-    val strategicSummary =
-      if ctx.mainStrategicPlans.nonEmpty then
-        def joinPhrases(items: List[String], conjunction: String): String =
-          items.filter(_.nonEmpty) match
-            case Nil           => ""
-            case one :: Nil    => one
-            case a :: b :: Nil => s"$a $conjunction $b"
-            case many          => s"${many.init.mkString(", ")}, $conjunction ${many.last}"
-
-        val topPlans = ctx.mainStrategicPlans.take(3)
-        val lead = topPlans.head
-        val slots = ThemeNarrativeSlots.forTheme(themeIdOfHypothesis(lead))
-        val ranked = topPlans.map(p => s"${p.rank}. ${p.planName} (${f"${p.score}%.2f"})").mkString("; ")
-        val preconditions =
-          lead.preconditions.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty).take(2)
-        val sourcePhrases =
-          topPlans
-            .flatMap(_.evidenceSources)
-            .flatMap(FullGameDraftNormalizer.humanizeEvidenceSource)
-            .distinct
-            .take(3)
-        val failures =
-          (lead.failureModes ++ lead.refutation.toList ++ ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-            .map(FullGameDraftNormalizer.humanizeConstraint)
-            .filter(_.nonEmpty)
-            .distinct
-            .take(2)
-        val rankedText =
-          if topPlans.size > 1 then s" Related candidates still cluster around $ranked." else ""
-        val preconditionText =
-          if preconditions.nonEmpty then s" This works best when ${joinPhrases(preconditions, "and")}." else ""
-        val evidenceText =
-          if sourcePhrases.nonEmpty then
-            s" ${slots.evidence} Current support centers on ${joinPhrases(sourcePhrases, "and")}."
-          else s" ${slots.evidence} Concrete support is still limited."
-        val holdText =
-          if failures.nonEmpty then
-            s" ${slots.hold} In practice the plan has to wait if ${joinPhrases(failures, "or")}."
-          else s" ${slots.hold}"
-        s"${slots.idea} The leading route is ${lead.planName}.$rankedText$preconditionText$evidenceText$holdText"
-      else ""
-
     val practicalSummary =
       ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
         NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
       }.getOrElse("")
 
-    List(strategicSummary, practicalSummary).filter(_.nonEmpty).mkString(" ").trim
+    List(practicalSummary).filter(_.nonEmpty).mkString(" ").trim
 
   private def themeIdOfHypothesis(plan: PlanHypothesis): String =
     ThemeResolver.fromHypothesis(plan).id
 
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
-    ctx.mainStrategicPlans.headOption.map(_.planName).orElse {
-      if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(_.name) else None
-    }
-
-  private def boolEnv(name: String, default: Boolean): Boolean =
-    sys.env
-      .get(name)
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on"  => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _                              => None
-      }
-      .getOrElse(default)
+    StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)
 
   private def softenText(text: String, bead: Int): String =
     val trimmed = text.trim

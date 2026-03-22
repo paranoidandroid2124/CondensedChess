@@ -12,6 +12,8 @@ import lila.llm.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOpp
  */
 object FactExtractor {
 
+  private def strictNow(scope: FactScope): Boolean = scope == FactScope.Now
+
   /**
    * Generates a list of verified Facts from raw Motifs and Board state.
    */
@@ -32,21 +34,26 @@ object FactExtractor {
     val ourPieces = board.byColor(color)
     val scope = FactScope.Now
 
-    val hanging = ourPieces.squares.flatMap { sq =>
-      val role = board.roleAt(sq).getOrElse(chess.Pawn)
-      if (role == chess.King) None // King is never "hanging", it's in check or mate
-      else {
-        val attackers = board.attackers(sq, !color).squares
-        val defenders = board.attackers(sq, color).squares
-        
-        // Piece value check to avoid trading down poorly
-        val isHanging = (attackers.nonEmpty && defenders.isEmpty) || 
-                        (attackers.nonEmpty && pieceValue(role) > 1 && attackers.size > defenders.size)
-        
-        if (isHanging) Some(Fact.HangingPiece(sq, role, attackers, defenders, scope))
-        else None
+      val hanging = ourPieces.squares.flatMap { sq =>
+        val role = board.roleAt(sq).getOrElse(chess.Pawn)
+        if (role == chess.King) None // King is never "hanging", it's in check or mate
+        else {
+          val attackers = board.attackers(sq, !color).squares
+          val defenders = board.attackers(sq, color).squares
+
+          val pressureGap = attackers.size - defenders.size
+          val isHanging =
+            attackers.nonEmpty &&
+              (
+                (role != chess.Pawn && defenders.isEmpty) ||
+                  (role != chess.Pawn && pieceValue(role) > 1 && pressureGap >= 1) ||
+                  (role == chess.Pawn && defenders.isEmpty && attackers.size >= 2)
+              )
+
+          if (isHanging) Some(Fact.HangingPiece(sq, role, attackers, defenders, scope))
+          else None
+        }
       }
-    }
 
     val loose = ourPieces.squares.flatMap { sq =>
       val role = board.roleAt(sq).getOrElse(chess.Pawn)
@@ -230,9 +237,9 @@ object FactExtractor {
           a <- m.pinningSq
           p <- m.pinnedSq
           b <- m.behindSq
-          aRole <- board.roleAt(a).orElse(Some(m.pinningPiece))
-          pRole <- board.roleAt(p).orElse(Some(m.pinnedPiece))
-          bRole <- board.roleAt(b).orElse(Some(m.targetBehind))
+          aRole <- roleForScope(board, a, m.pinningPiece, scope)
+          pRole <- roleForScope(board, p, m.pinnedPiece, scope)
+          bRole <- roleForScope(board, b, m.targetBehind, scope)
         } yield Fact.Pin(a, aRole, p, pRole, b, bRole, m.isAbsolutePin, scope)
 
       case m: Motif.Skewer =>
@@ -240,26 +247,23 @@ object FactExtractor {
           a <- m.attackingSq
           f <- m.frontSq
           b <- m.backSq
-          aRole <- board.roleAt(a).orElse(Some(m.attackingPiece))
-          fRole <- board.roleAt(f).orElse(Some(m.frontPiece))
-          bRole <- board.roleAt(b).orElse(Some(m.backPiece))
+          aRole <- roleForScope(board, a, m.attackingPiece, scope)
+          fRole <- roleForScope(board, f, m.frontPiece, scope)
+          bRole <- roleForScope(board, b, m.backPiece, scope)
         } yield Fact.Skewer(a, aRole, f, fRole, b, bRole, scope)
 
       case m: Motif.Fork =>
-        // Verify attacker exists (for Scope.Now)
-        val verifiedTargets = m.targetSquares.flatMap { ts =>
-          // In PV scope, pieces might move, so we rely on the motif's claim
-          // But for Now scope, we check the board.
-          if (scope == FactScope.Now) {
-            board.roleAt(ts).map(r => (ts, r))
-          } else {
-             // Fallback to roles from motif
-             // Since m.targets is just a list of Roles, we zip them if possible
-             m.targets.zip(m.targetSquares).map { case (r, s) => (s, r) }.headOption // Simplification
-          }
+        val attackerRoleOpt =
+          if strictNow(scope) then board.roleAt(m.square)
+          else Some(m.attackingPiece)
+        val verifiedTargets =
+          if strictNow(scope) then
+            m.targetSquares.flatMap(ts => board.roleAt(ts).map(r => (ts, r)))
+          else
+            m.targetSquares.zip(m.targets)
+        attackerRoleOpt.flatMap { attackerRole =>
+          Option.when(verifiedTargets.nonEmpty)(Fact.Fork(m.square, attackerRole, verifiedTargets, scope))
         }
-        if (verifiedTargets.nonEmpty) Some(Fact.Fork(m.square, m.attackingPiece, verifiedTargets.asInstanceOf[List[(Square, Role)]], scope))
-        else None
 
       case m: Motif.Outpost =>
         Some(Fact.Outpost(m.square, m.piece, scope))
@@ -307,6 +311,10 @@ object FactExtractor {
       case _ => None
     }
   }
+
+  private def roleForScope(board: Board, square: Square, fallback: Role, scope: FactScope): Option[Role] =
+    if strictNow(scope) then board.roleAt(square)
+    else board.roleAt(square).orElse(Some(fallback))
 
   private def pieceValue(role: Role): Int = role match {
     case chess.Pawn   => 1

@@ -56,6 +56,8 @@ case class OutlineBeat(
   confidenceLevel: Double = 1.0,
   focusPriority: Int = 0,
   fullGameEssential: Boolean = false,
+  branchScoped: Boolean = false,
+  supportKinds: List[OutlineBeatKind] = Nil,
   // Legacy compatibility
   mustMention: List[String] = Nil
 ):

@@ -1,4 +1,4 @@
-12... Rh3: In the Kingside Clamp structure, with a locked center, the long plan is Rook-Pawn March, and the rook belongs on the g-file.
+12... Rh3: The Kingside Clamp points to the rook pawn march, and the move starts the rook route toward the g-file.
 
 The rook wants the g-file because that is where kingside clamp gains force. This move starts that route immediately.
 

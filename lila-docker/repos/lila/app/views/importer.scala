@@ -15,7 +15,7 @@ object importer:
       recentAnalyses: List[ImportHistory.Analysis] = Nil
   )(using ctx: Context): Page =
     val pageError = error.orElse(ctx.flash("error"))
-    Page("Import Games - Chesstory")
+    Page("Recent Games - Chesstory")
       .css("auth")
       .wrap: _ =>
         main(cls := "auth-page auth-page--importer")(
@@ -25,30 +25,16 @@ object importer:
             ),
             div(cls := "auth-container auth-container--wide")(
               div(cls := "auth-card auth-card--importer")(
-                  div(cls := "importer-shell")(
+                div(cls := "importer-shell")(
                   div(cls := "importer-hero")(
-                    div(cls := "importer-hero__eyebrow")("Import"),
-                    h1(cls := "auth-title importer-hero__title")("Import Recent Games"),
+                    div(cls := "importer-hero__eyebrow")("Recent games"),
+                    h1(cls := "auth-title importer-hero__title")("Fetch Recent Games"),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "Load recent public games from Lichess or Chess.com, then choose between opening one game now or building a notebook from the full sample."
-                    ),
-                    div(cls := "importer-summary-strip")(
-                      div(cls := "importer-summary-chip")(
-                        strong("40 games"),
-                        span("Maximum sample per account")
-                      ),
-                      div(cls := "importer-summary-chip")(
-                        strong("Move insight"),
-                        span("Open any game in analysis")
-                      ),
-                      div(cls := "importer-summary-chip")(
-                        strong("Notebook build"),
-                        span("Turn the sample into a notebook")
-                      )
+                      "Pull recent public games from Lichess or Chess.com, then open one in analysis or build a notebook from the sample."
                     )
                   ),
                   pageError.map(msg => div(cls := "auth-error")(msg)),
-                  div(cls := "importer-grid")(
+                  div(cls := "importer-grid importer-grid--intake")(
                     div(cls := "importer-panel importer-panel--intake")(
                       div(cls := "importer-panel__head")(
                         strong(cls := "importer-panel__title")("Fetch an account"),
@@ -91,48 +77,6 @@ object importer:
                           span(cls := "arrow")(" ->")
                         )
                       )
-                    ),
-                    div(cls := "importer-side")(
-                      div(cls := "importer-panel importer-panel--guide")(
-                        div(cls := "importer-panel__head")(
-                          strong(cls := "importer-panel__title")("What happens next"),
-                          p(cls := "importer-panel__copy")(
-                            "The next step should be obvious: open one game right away, or build a notebook when the sample already looks useful."
-                          )
-                        ),
-                        ol(cls := "importer-timeline")(
-                          li(cls := "importer-timeline__item")(
-                            strong("1. Pull the sample"),
-                            span("Load recent public games and keep the account ready for a quick return.")
-                          ),
-                          li(cls := "importer-timeline__item")(
-                            strong("2. Open a game"),
-                            span("Open one game in analysis when you want an answer right away.")
-                          ),
-                          li(cls := "importer-timeline__item")(
-                            strong("3. Build the notebook"),
-                            span("Use the whole sample to build repair notes for yourself or prep notes for an opponent.")
-                          )
-                        )
-                      ),
-                      div(cls := "importer-panel importer-panel--guide importer-panel--compact")(
-                        div(cls := "importer-panel__head")(
-                          strong(cls := "importer-panel__title")("Why this surface works"),
-                          p(cls := "importer-panel__copy")(
-                            "This should feel like a clear starting point, not a blank utility form."
-                          )
-                        ),
-                        div(cls := "importer-note-grid")(
-                          div(cls := "importer-note-card")(
-                            strong("Account identity first"),
-                            span("You should understand the provider, username, sample size, and next action at a glance.")
-                          ),
-                          div(cls := "importer-note-card")(
-                            strong("Branching by intent"),
-                            span("Open one game when you want a quick answer. Build a notebook when you want the bigger pattern.")
-                          )
-                        )
-                      )
                     )
                   ),
                   renderRecentSections(recentAccounts, recentAnalyses),
@@ -169,7 +113,7 @@ object importer:
                     div(cls := "importer-hero__eyebrow")(providerShortLabel(provider)),
                     h1(cls := "auth-title importer-hero__title")(s"@$username"),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "Open one game in analysis now, or turn the full sample into a notebook."
+                      "Open one game in analysis first. Build a notebook only after the sample already looks worth keeping."
                     ),
                     div(cls := "importer-summary-strip")(
                       div(cls := "importer-summary-chip")(
@@ -181,8 +125,8 @@ object importer:
                         span("Source provider")
                       ),
                       div(cls := "importer-summary-chip")(
-                        strong("Notebook-ready"),
-                        span("Two account-reading modes")
+                        strong("Analysis first"),
+                        span("Notebook stays secondary")
                       )
                     )
                   ),
@@ -191,9 +135,9 @@ object importer:
                   div(cls := "importer-grid importer-grid--results")(
                     div(cls := "importer-panel importer-panel--results")(
                       div(cls := "importer-panel__head")(
-                        strong(cls := "importer-panel__title")("Open a representative game"),
+                        strong(cls := "importer-panel__title")("Open a game in analysis"),
                         p(cls := "importer-panel__copy")(
-                          "Use this list when you want a quick answer from one game. The notebook actions stay on the right because they answer a different question."
+                          "Pick the game you want and reopen it in the analysis workspace. Notebook actions stay below because they answer a different question."
                         )
                       ),
                       games.nonEmpty.option(
@@ -206,9 +150,9 @@ object importer:
                       games.nonEmpty.option(
                         div(cls := "importer-panel importer-panel--notebook")(
                           div(cls := "importer-panel__head")(
-                            strong(cls := "importer-panel__title")("Turn this account into a notebook"),
+                            strong(cls := "importer-panel__title")("Build a notebook from this sample"),
                             p(cls := "importer-panel__copy")(
-                              "The same sample can become notes about your own habits or prep notes against this account."
+                              "Do this only when the sample is worth keeping as a longer-lived repair sheet or prep file."
                             )
                           ),
                           div(cls := "importer-mode-grid")(
@@ -262,7 +206,7 @@ object importer:
                   ),
                   renderRecentSections(recentAccounts, recentAnalyses),
                   div(cls := "auth-links")(
-                    a(href := routes.Importer.importGame.url)("New import"),
+                    a(href := routes.Importer.importGame.url)("New recent-game search"),
                     a(href := routes.UserAnalysis.index.url)("Back to Analysis")
                   )
                 )

@@ -9,7 +9,7 @@ body > header {
   display: flex;
   justify-content: space-between;
   position: relative;
-  z-index: $z-site-header-106;
+  z-index: $z-topnav-111;
   max-width: 1800px;
   margin: 0 auto;
 
@@ -97,6 +97,54 @@ body.zen {
     line-height: $site-header-height;
     @media (max-width: at-most($xx-small)) {
       display: none;
+    }
+  }
+}
+
+.site-footer {
+  width: 100%;
+  padding: 2rem 0 2.5rem;
+
+  &__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: min(
+      calc(100% - (var(---cs-shell-gutter-x, 1rem) * 2)),
+      var(---cs-workspace-max-width, 1600px)
+    );
+    max-width: none;
+    margin: 0 auto;
+    padding-top: 1rem;
+    border-top: 1px solid $c-border;
+  }
+
+  &__home {
+    font-weight: 700;
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  a {
+    color: $c-font-dim;
+
+    &:hover,
+    &:focus-visible {
+      color: $c-font-clearer;
+    }
+  }
+
+  @media (max-width: at-most($x-small)) {
+    padding: 1.5rem 0 2rem;
+
+    &__inner {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 }

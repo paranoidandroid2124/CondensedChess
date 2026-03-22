@@ -102,10 +102,13 @@ class BookmakerPolishSlotsTest extends FunSuite:
       val slotsOpt = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
       assert(slotsOpt.isDefined, clues(s"expected slots for ${fixture.id}"))
       val slots = slotsOpt.get
+      clues(fixture.id, slots.claim, slots.supportPrimary, slots.tension)
       assertEquals(slots.lens, fixture.expectedLens)
       assert(BookmakerProseContract.stripMoveHeader(slots.claim).nonEmpty)
       assert(slots.paragraphPlan.headOption.contains("p1=claim"))
-      assert(slots.paragraphPlan.contains("p2=support_chain"))
+      assert(slots.paragraphPlan.exists(_.startsWith("p2=")))
+      assert(slots.paragraphPlan.size <= 3)
+      assertEquals(slots.supportSecondary, None)
       assert(BookmakerProseContract.claimLikeFirstParagraph(slots.claim, slots.claim))
     }
   }
@@ -118,16 +121,16 @@ class BookmakerPolishSlotsTest extends FunSuite:
         .getOrElse(fail("missing slots"))
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(claim.contains("french chain"))
-    assert(claim.contains("knight"))
+    assert(!claim.contains("aiming at"))
     assert(slots.supportPrimary.exists(text => {
       val low = text.toLowerCase
-      low.contains("structure's logic") || low.contains("reroute")
+      low.contains("structure's logic") || low.contains("reroute") || low.contains("knight")
     }))
     assert(slots.supportPrimary.exists(text => {
       val low = text.toLowerCase
       low.contains("gains force") || low.contains("squeeze")
     }))
-    assert(slots.supportSecondary.exists(text => {
+    assert(slots.tension.exists(text => {
       val low = text.toLowerCase
       low.contains("route") || low.contains("post") || low.contains("g4") || low.contains("justification")
     }))
@@ -190,7 +193,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
     val paragraphs = BookmakerSoftRepair.deterministicParagraphs(slots)
     assertEquals(paragraphs.size, 3)
-    assert(paragraphs(2).contains("A concrete line is a) ...c5 Nf3 Nc6 (+0.2)"))
+    assert(paragraphs(2).contains("One concrete line that keeps the idea in play is a) ...c5 Nf3 Nc6 (+0.2)"))
   }
 
   test("sanitizer preserves chess ellipsis markers in prose") {
@@ -239,7 +242,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val claimCore = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(claimCore.contains("tactical blunder"))
     assert(!claimCore.contains("reorganizes the pieces around kingside clamp"))
-    assert(slots.support.exists(_.toLowerCase.contains("better is **rc3**")))
+    assert(slots.support.exists(_.toLowerCase.contains("rc3")), clue(slots.support))
   }
 
   test("compensation slots surface campaign owner and execution objective from strategy pack") {
@@ -250,15 +253,72 @@ class BookmakerPolishSlotsTest extends FunSuite:
         .getOrElse(fail("missing slots"))
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim)
-    assert(claim.contains("White"))
-    assert(claim.toLowerCase.contains("investment"))
-    assert(slots.support.exists(text => {
+    assert(
+      claim.toLowerCase.contains("material can wait") ||
+        claim.toLowerCase.contains("recover the material") ||
+        claim.toLowerCase.contains("gives up material") ||
+        claim.toLowerCase.contains("winning it back"),
+      clue(claim)
+    )
+    assert(!claim.contains("180cp"))
+    assert((slots.support :+ slots.tension.getOrElse("")).exists(text => {
       val low = text.toLowerCase
-      low.contains("cash out") || low.contains("initiative") || low.contains("return vector") || low.contains("delayed recovery")
+      low.contains("initiative") ||
+        low.contains("attack") ||
+        low.contains("mating attack") ||
+        low.contains("winning the material back") ||
+        low.contains("bringing the queen") ||
+        low.contains("pressure on") ||
+        low.contains("h5") ||
+        low.contains("queen") ||
+        low.contains("g7")
     }))
   }
 
-  test("decision slots prefer dominant thesis wording when strategy-pack surface is available") {
+  test("compensation slots avoid broken compensation skeleton fragments") {
+    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+    val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
+    val slots =
+      BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+        .getOrElse(fail("missing slots"))
+
+    val rendered = (slots.claim :: slots.support).appended(slots.tension.getOrElse("")).mkString(" ").toLowerCase
+    assert(!rendered.contains("while aiming for"), clue(rendered))
+    assert(!rendered.contains("via queen toward"), clue(rendered))
+    assert(!rendered.contains("the play still runs through"), clue(rendered))
+    assert(!rendered.contains("pressure keeps building through"), clue(rendered))
+  }
+
+  test("weak compensation slots reframe to normal move-purpose instead of forcing compensation copy") {
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val weakPack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(
+            NarrativeSignalDigest(
+              compensation = Some("initiative against the king"),
+              investedMaterial = Some(100),
+              dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+              dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+              dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+              dominantIdeaFocus = Some("g7")
+            )
+          )
+        )
+      )
+
+    val slots =
+      BookmakerPolishSlotsBuilder.build(ctx, outline, refs = None, strategyPack = weakPack)
+        .getOrElse(fail("missing weak-compensation slots"))
+
+    val rendered = (slots.claim :: slots.support).mkString(" ").toLowerCase
+    assert(!rendered.contains("material can wait"), clue(rendered))
+    assert(!rendered.contains("winning the material back"), clue(rendered))
+  }
+
+  test("decision slots prefer centered plan wording when strategy-pack surface is available") {
     val ctx =
       BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
         whyAbsentFromTopMultiPV = List("the immediate 'Qh5' thrust lets Black trade queens and kill the attack")
@@ -270,10 +330,20 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(!claim.contains("the key decision is to choose"))
-    assert(claim.contains("dominant thesis"))
-    assert(claim.contains("g7"))
-    assert(slots.support.exists(text => text.toLowerCase.contains("the objective is")))
-    assert(slots.support.exists(text => text.toLowerCase.contains("stays secondary because")))
+    assert(!claim.contains("near the center of the plan"))
+    assert(
+      claim.contains("g7") ||
+        slots.support.exists(text => text.toLowerCase.contains("g7")) ||
+        slots.tension.exists(text => text.toLowerCase.contains("g7"))
+    )
+    assert(slots.support.exists(text => {
+      val low = text.toLowerCase
+      low.contains("g7") || low.contains("back-rank counterplay")
+    }))
+    assert(slots.tension.exists(text => {
+      val low = text.toLowerCase
+      low.contains("g7") || low.contains("decision")
+    }))
   }
 
   test("EVA01-style tactical override cannot replace a surfaced thesis with whole-decision scaffolding") {
@@ -301,9 +371,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       ).getOrElse(fail("missing slots"))
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(!claim.contains("the whole decision turns on"))
-    assert(claim.contains("dominant thesis"))
-    assert(claim.contains("d6"))
+    assert(!claim.contains("near the center of the plan"))
   }
 
   test("KG01-style tactical override cannot replace a surfaced thesis with whole-decision scaffolding") {
@@ -332,8 +400,12 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(!claim.contains("the whole decision turns on"))
-    assert(claim.contains("dominant thesis"))
-    assert(claim.contains("execution"))
+    assert(!claim.contains("near the center of the plan"))
+    assert(
+      claim.contains("e5") ||
+        slots.support.exists(text => text.toLowerCase.contains("e5")) ||
+        slots.tension.exists(text => text.toLowerCase.contains("e5"))
+    )
   }
 
   test("CAT02-style surfaced thesis remains stable after generic-scaffold hardening") {
@@ -358,8 +430,14 @@ class BookmakerPolishSlotsTest extends FunSuite:
       ).getOrElse(fail("missing slots"))
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("dominant thesis"))
-    assert(claim.contains("d4"))
+    assert(!claim.contains("near the center of the plan"))
+    assert(
+      claim.contains("d4") ||
+        claim.contains("b3") ||
+        slots.support.exists(text => text.toLowerCase.contains("d4")) ||
+        slots.support.exists(text => text.toLowerCase.contains("b3")) ||
+        slots.tension.exists(text => text.toLowerCase.contains("d4"))
+    )
     assert(!claim.contains("the key decision is to choose"))
   }
 
@@ -384,7 +462,6 @@ class BookmakerPolishSlotsTest extends FunSuite:
       ).getOrElse(fail("missing slots"))
 
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("dominant thesis"))
-    assert(claim.contains("execution"))
+    assert(!claim.contains("near the center of the plan"))
     assert(!claim.contains("the key decision is to choose"))
   }

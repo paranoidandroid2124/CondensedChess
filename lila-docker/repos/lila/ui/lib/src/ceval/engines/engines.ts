@@ -37,33 +37,34 @@ export class Engines {
     const browserEngines: WithMake[] = [
       {
         info: {
-          id: '__sf17_1nnue7v2',
-          name: 'Stockfish 17.1 NNUE · 7MB v2',
-          short: 'SF 17.1 · 7MB v2',
+          id: '__sf18nnuesmall',
+          name: 'Stockfish 18 NNUE · 7MB smallnet',
+          short: 'SF 18 · 7MB',
           tech: 'NNUE',
           requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
           minMem: 1536,
           cloudEval: true,
           assets: {
             root: 'npm/stockfish-web',
-            nnue: ['nn-9067e33176e8.nnue'],
-            js: 'sf17_1-7.js',
+            nnue: ['nn-4ca89e4b3abf.nnue'],
+            js: 'sf_18_smallnet.js',
           },
         },
         make: (e: BrowserEngineInfo) => new StockfishWebEngine(e, this.status),
       },
       {
         info: {
-          id: '__sf17_1nnue79',
-          name: 'Stockfish 17.1 NNUE · 79MB',
-          short: 'SF 17.1 · 79MB',
+          id: '__sf18nnue79',
+          name: 'Stockfish 18 NNUE · 79MB',
+          short: 'SF 18 · 79MB',
           tech: 'NNUE',
           requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
           minMem: 2560,
           cloudEval: true,
           assets: {
             root: 'npm/stockfish-web',
-            js: 'sf17_1-79.js',
+            nnue: ['nn-c288c895ea92.nnue', 'nn-37f18f62d772.nnue'],
+            js: 'sf_18.js',
           },
         },
         make: (e: BrowserEngineInfo) => new StockfishWebEngine(e, this.status),

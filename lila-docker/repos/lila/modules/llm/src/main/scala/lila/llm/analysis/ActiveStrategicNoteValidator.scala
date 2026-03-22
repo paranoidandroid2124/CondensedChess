@@ -26,10 +26,60 @@ private[llm] object ActiveStrategicNoteValidator:
   ): Result =
     val trimmed = Option(candidateText).map(_.trim).getOrElse("")
     val normalizedText = trimmed.toLowerCase
-    val comparison = strategyPack.flatMap(_.signalDigest).flatMap(_.decisionComparison)
     val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
     val coachingCoverage = ActiveStrategicCoachingBriefBuilder.evaluateCoverage(trimmed, coachingBrief)
     val surface = StrategyPackSurface.from(strategyPack)
+    val compensationContractExpected = LlmApi.activeCompensationNoteExpected(surface)
+    val compensationAnchorPresent =
+      """\b[a-h][1-8]\b""".r.findFirstIn(normalizedText).nonEmpty ||
+        """\b[a-h]-file\b""".r.findFirstIn(normalizedText).nonEmpty ||
+        """\b(?:queenside|kingside|central|open)\s+files?\b""".r.findFirstIn(normalizedText).nonEmpty ||
+        """\b(pawn|knight|bishop|rook|queen|king)\s+(?:toward|via|can use|head(?:s)? for)\b""".r.findFirstIn(normalizedText).nonEmpty
+    val compensationContinuationPresent =
+      normalizedText.contains("next step") ||
+        normalizedText.contains("from there") ||
+        normalizedText.contains("follow-up") ||
+        normalizedText.contains("follow up") ||
+        normalizedText.contains("before winning the material back") ||
+        normalizedText.contains("before recovering the pawn") ||
+        normalizedText.contains("work toward") ||
+        normalizedText.contains("can then") ||
+        normalizedText.contains("should ") ||
+        normalizedText.startsWith("should ") ||
+        normalizedText.contains("needs to") ||
+        normalizedText.contains("must ")
+    def explicitlyMentioned(signal: Option[String]): Boolean =
+      signal.exists { value =>
+        val normalized = value.trim.toLowerCase
+        normalized.nonEmpty && (
+          StrategicSignalMatcher.phraseMentioned(normalizedText, normalized) ||
+            StrategicSignalMatcher.containsComparablePhrase(normalizedText, value)
+        )
+      }
+    val compensationContractMentioned =
+      trimmed.nonEmpty &&
+        compensationContractExpected &&
+        CompensationContractMatcher.mentionsCompensationContract(trimmed, surface)
+    val compensationShapeSatisfied =
+      trimmed.nonEmpty &&
+        compensationContractExpected &&
+        compensationContractMentioned &&
+        coachingCoverage.hasDominantIdea &&
+        compensationAnchorPresent &&
+        compensationContinuationPresent
+    val groundedPlanShapeSatisfied =
+      trimmed.nonEmpty &&
+        coachingCoverage.hasDominantIdea &&
+        coachingCoverage.hasConcreteAnchor &&
+        coachingCoverage.hasForwardPlan
+    val explicitOpponentOrTriggerMentioned =
+      explicitlyMentioned(coachingBrief.opponentReply) || explicitlyMentioned(coachingBrief.keyTrigger)
+    val opponentOrTriggerSatisfied =
+      if compensationContractExpected && compensationContractMentioned then compensationShapeSatisfied
+      else explicitOpponentOrTriggerMentioned || groundedPlanShapeSatisfied
+    val forwardPlanSatisfied =
+      if compensationContractExpected && compensationContractMentioned then compensationContinuationPresent
+      else coachingCoverage.hasForwardPlan
 
     val baseHardReasons =
       List(
@@ -55,9 +105,17 @@ private[llm] object ActiveStrategicNoteValidator:
     val coachingHardReasons =
       List(
         Option.when(trimmed.nonEmpty && !coachingCoverage.hasDominantIdea)("dominant_idea_missing"),
-        Option.when(trimmed.nonEmpty && !coachingCoverage.hasForwardPlan)("forward_plan_missing"),
-        Option.when(trimmed.nonEmpty && !coachingCoverage.hasOpponentOrTrigger)("opponent_or_trigger_missing"),
-        Option.when(trimmed.nonEmpty && surface.ownerMismatch && !coachingCoverage.hasCampaignOwner)("campaign_owner_missing")
+        Option.when(trimmed.nonEmpty && !forwardPlanSatisfied)("forward_plan_missing"),
+        Option.when(
+          trimmed.nonEmpty &&
+            !opponentOrTriggerSatisfied
+        )("opponent_or_trigger_missing"),
+        Option.when(trimmed.nonEmpty && surface.ownerMismatch && !coachingCoverage.hasCampaignOwner)("campaign_owner_missing"),
+        Option.when(
+          trimmed.nonEmpty &&
+            compensationContractExpected &&
+            !compensationContractMentioned
+        )("compensation_family_missing")
       ).flatten
 
     val strategyWarnings =

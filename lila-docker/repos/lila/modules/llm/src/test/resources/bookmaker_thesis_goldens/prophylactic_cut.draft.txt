@@ -1,3 +1,3 @@
-12... a3: The move matters less for a direct gain than for cutting out counterplay.
+12... a3: The move is mainly about stopping ...c5 before it gets going.
 
-That strips away roughly 140cp of counterplay. It also gives Kingside Expansion more time to take hold.
+...c5 is harder to justify right away. The opponent no longer gets a free entry on b4.

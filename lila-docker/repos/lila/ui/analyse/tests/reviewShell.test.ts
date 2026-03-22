@@ -1,14 +1,74 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hl } from 'lib/view';
-import { reviewView, type ReviewViewNodes } from '../src/review/view';
+import { JSDOM } from 'jsdom';
 import type { DefeatDnaReport, GameChronicleResponse } from '../src/narrative/narrativeCtrl';
 
+const dom = new JSDOM('<!doctype html><html><body data-theme="dark"></body></html>');
+const mediaQuery = {
+  matches: false,
+  media: '',
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent() {
+    return false;
+  },
+};
+
+Object.defineProperty(globalThis, 'window', { value: dom.window, configurable: true });
+Object.defineProperty(globalThis, 'document', { value: dom.window.document, configurable: true });
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+Object.defineProperty(globalThis, 'HTMLElement', { value: dom.window.HTMLElement, configurable: true });
+Object.defineProperty(globalThis, 'Node', { value: dom.window.Node, configurable: true });
+Object.defineProperty(globalThis, 'Event', { value: dom.window.Event, configurable: true });
+Object.defineProperty(globalThis, '$html', {
+  value: (strings: TemplateStringsArray, ...values: unknown[]) =>
+    strings.reduce((acc, part, index) => `${acc}${part}${index < values.length ? String(values[index]) : ''}`, ''),
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'requestAnimationFrame', {
+  value: (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0),
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+  value: (id: number) => clearTimeout(id),
+  configurable: true,
+});
+Object.defineProperty(dom.window, 'requestAnimationFrame', {
+  value: (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0),
+  configurable: true,
+});
+Object.defineProperty(dom.window, 'cancelAnimationFrame', {
+  value: (id: number) => clearTimeout(id),
+  configurable: true,
+});
+Object.defineProperty(window, 'matchMedia', {
+  value: () => mediaQuery,
+  configurable: true,
+});
+Object.defineProperty(window, 'getComputedStyle', {
+  value: () => ({ getPropertyValue: () => '2' }),
+  configurable: true,
+});
+
+const { reviewView } = await import('../src/review/view');
+
+type ReviewViewNodes = {
+  moveListNode: any;
+  explorerNode?: any;
+  boardSettingsNodes: any[];
+  importNode?: any;
+};
+
+const textNode = (text: string) => ({ sel: 'div', data: {}, children: [], text }) as any;
+
 const reviewNodes: ReviewViewNodes = {
-  moveListNode: hl('div', 'move list'),
-  explorerNode: hl('div', 'explorer'),
-  boardSettingsNodes: [hl('div', 'board settings')],
-  importNode: hl('div', 'import'),
+  moveListNode: textNode('move list'),
+  explorerNode: textNode('explorer'),
+  boardSettingsNodes: [textNode('board settings')],
+  importNode: textNode('import'),
 };
 
 describe('review shell', () => {
@@ -159,62 +219,86 @@ describe('review shell', () => {
     assert.match(text, /Games Analyzed/);
   });
 
-  test('reference shows explorer and position summaries above the active panel', () => {
+  test('utility panel renders explorer without replacing the current primary tab', () => {
     const vnode = reviewView(
       makeCtrl({
-        primaryTab: 'reference',
-        referenceTab: 'board',
+        primaryTab: 'moves',
+        utilityPanel: 'explorer',
       }),
       reviewNodes,
     );
     const text = collectText(vnode);
 
-    assert.match(text, /Reference/);
-    assert.match(text, /explorer status/);
-    assert.match(text, /French Defense/);
-    assert.match(text, /Black to move/);
-    assert.match(text, /Board View/);
+    assert.match(text, /Raw analysis/);
+    assert.match(text, /Opening Explorer/);
+    assert.match(text, /Close panel/);
+    assert.match(text, /explorer/);
   });
 
-  test('reference shows shared back and close affordances for each panel', () => {
-    const cases = [
-      ['explorer', /Close Explorer/],
-      ['board', /Close Board View/],
-      ['import', /Close Import/],
-    ] as const;
+  test('import is promoted to a primary review tab', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'import',
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
 
-    for (const [referenceTab, closeLabel] of cases) {
-      const vnode = reviewView(
-        makeCtrl({
-          primaryTab: 'reference',
-          referenceTab,
-        }),
-        reviewNodes,
-      );
-      const text = collectText(vnode);
+    assert.match(text, /Import PGN/);
+    assert.match(text, /Paste a PGN or jump by FEN without leaving this analysis shell/);
+    assert.match(text, /Stay in analysis/);
+    assert.match(text, /Recent Games page/);
+  });
 
-      assert.match(text, /Back to Overview/);
-      assert.match(text, closeLabel);
-    }
+  test('utility panel renders board settings as a secondary tool surface', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'overview',
+        utilityPanel: 'board',
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Board View/);
+    assert.match(text, /Close panel/);
+    assert.match(text, /board settings/);
+    assert.match(text, /Run Game Chronicle/);
+  });
+
+  test('moves empty state exposes an immediate engine CTA', () => {
+    const vnode = reviewView(
+      makeCtrl({
+        primaryTab: 'moves',
+      }),
+      reviewNodes,
+    );
+    const text = collectText(vnode);
+
+    assert.match(text, /Local engine is off/);
+    assert.match(text, /Turn On Engine/);
+    assert.doesNotMatch(text, /Enable the engine panel from Board View/);
   });
 });
 
 function makeCtrl({
   primaryTab = 'overview',
-  referenceTab = 'explorer',
+  utilityPanel = null,
   momentFilter = 'all',
   selectedMomentPly = null,
   selectedCollapseId = null,
   narrativeData = null,
   dnaData = null,
+  engineVisible = false,
 }: {
-  primaryTab?: 'overview' | 'moments' | 'repair' | 'patterns' | 'moves' | 'reference';
-  referenceTab?: 'explorer' | 'board' | 'import';
+  primaryTab?: 'overview' | 'moments' | 'repair' | 'patterns' | 'moves' | 'import';
+  utilityPanel?: 'explorer' | 'board' | null;
   momentFilter?: 'all' | 'critical' | 'collapses';
   selectedMomentPly?: number | null;
   selectedCollapseId?: string | null;
   narrativeData?: GameChronicleResponse | null;
   dnaData?: DefeatDnaReport | null;
+  engineVisible?: boolean;
 }) {
   const root = {
     jumpToMain() {},
@@ -275,13 +359,18 @@ function makeCtrl({
       ply: 7,
       fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2',
     },
+    mainline: Array.from({ length: 12 }, (_, index) => ({ ply: index })),
     reviewPrimaryTab: () => primaryTab,
-    reviewReferenceTab: () => referenceTab,
+    reviewUtilityPanel: () => utilityPanel,
     reviewMomentFilter: () => momentFilter,
     selectedReviewMomentPly: () => selectedMomentPly,
     selectedReviewCollapseId: () => selectedCollapseId,
+    cevalEnabled: () => engineVisible,
+    showEnginePanel: () => engineVisible,
+    setShowEnginePanel() {},
+    isCevalAllowed: () => true,
     setReviewPrimaryTab() {},
-    setReviewReferenceTab() {},
+    setReviewUtilityPanel() {},
     setReviewMomentFilter() {},
     selectReviewMoment() {},
     selectReviewCollapse() {},

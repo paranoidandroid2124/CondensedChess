@@ -24,7 +24,8 @@ final case class OpenBetaBindingSpec(
     requiredMode: String,
     readinessClass: String,
     probe: String,
-    notes: String
+    notes: String,
+    cloudRunManaged: Boolean = true
 ):
   def displayConfigPath = if configPath.nonEmpty then configPath else "env-only"
 
@@ -34,7 +35,17 @@ final case class OpenBetaBindingsManifest(
 )
 
 object OpenBetaBindingsManifest:
-  given Reads[OpenBetaBindingSpec] = Json.reads[OpenBetaBindingSpec]
+  given Reads[OpenBetaBindingSpec] =
+    (
+      (__ \ "env").read[String] and
+        (__ \ "configPath").read[String] and
+        (__ \ "kind").read[String] and
+        (__ \ "requiredMode").read[String] and
+        (__ \ "readinessClass").read[String] and
+        (__ \ "probe").read[String] and
+        (__ \ "notes").read[String] and
+        (__ \ "cloudRunManaged").readWithDefault[Boolean](true)
+    )(OpenBetaBindingSpec.apply)
   given Reads[OpenBetaBindingsManifest] =
     (
       (__ \ "bindings").read[List[OpenBetaBindingSpec]] and

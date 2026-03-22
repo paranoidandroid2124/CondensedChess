@@ -79,12 +79,16 @@ case class NarrativeContext(
 
   // === VERIFIED FACTS ===
   facts: List[Fact] = Nil,
+  mainPvFacts: List[Fact] = Nil,
+  threatLineFacts: List[Fact] = Nil,
+  counterfactualFacts: List[Fact] = Nil,
 
 
 
   deltaAfterMove: Boolean = false,
   strategicSalience: lila.llm.model.strategic.StrategicSalience = lila.llm.model.strategic.StrategicSalience.High,
-  renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame
+  renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame,
+  variantKey: String = "standard"
 )
 
 case class StrategicPlanExperiment(
@@ -100,6 +104,8 @@ case class StrategicPlanExperiment(
   moveOrderSensitive: Boolean = false,
   experimentConfidence: Double = 0.0
 )
+object StrategicPlanExperiment:
+  given Writes[StrategicPlanExperiment] = Json.writes[StrategicPlanExperiment]
 
 
 case class PhaseContext(
@@ -230,6 +236,8 @@ case class CandidateInfo(
   tacticEvidence: List[String] = Nil,
   probeLines: List[String] = Nil,
   facts: List[Fact] = Nil,
+  lineSanMoves: List[String] = Nil,
+  lineMotifs: List[Motif] = Nil,
   hypotheses: List[HypothesisCard] = Nil
 )
 
@@ -407,7 +415,9 @@ case class PreventedPlanInfo(
   breakNeutralized: Option[String],
   mobilityDelta: Int,
   counterplayScoreDrop: Int,
-  preventedThreatType: Option[String]
+  preventedThreatType: Option[String],
+  sourceScope: FactScope = FactScope.Now,
+  citationLine: Option[String] = None
 )
 
 case class StructureProfileInfo(

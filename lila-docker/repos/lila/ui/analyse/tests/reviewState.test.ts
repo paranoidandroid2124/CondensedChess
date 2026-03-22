@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { initialReviewState, reduceReviewState, shouldFetchReviewPatterns } from '../src/review/state';
 
 describe('review state', () => {
-  test('starts in overview with reference defaults', () => {
+  test('starts in moves with utility panel cleared', () => {
     assert.deepEqual(initialReviewState(), {
-      primaryTab: 'overview',
-      referenceTab: 'explorer',
+      primaryTab: 'moves',
+      utilityPanel: null,
       momentFilter: 'all',
       selectedMomentPly: null,
       selectedCollapseId: null,
@@ -16,13 +16,13 @@ describe('review state', () => {
   test('switches primary tabs directly', () => {
     const next = reduceReviewState(initialReviewState(), { type: 'primary-tab', tab: 'moves' });
     assert.equal(next.primaryTab, 'moves');
-    assert.equal(next.referenceTab, 'explorer');
+    assert.equal(next.utilityPanel, null);
   });
 
-  test('reference subtabs force the reference primary tab', () => {
-    const next = reduceReviewState(initialReviewState(), { type: 'reference-tab', tab: 'import' });
-    assert.equal(next.primaryTab, 'reference');
-    assert.equal(next.referenceTab, 'import');
+  test('utility panels open without replacing the current primary tab', () => {
+    const next = reduceReviewState(initialReviewState(), { type: 'utility-panel', panel: 'explorer' });
+    assert.equal(next.primaryTab, 'moves');
+    assert.equal(next.utilityPanel, 'explorer');
   });
 
   test('moment filters route into the moments tab', () => {

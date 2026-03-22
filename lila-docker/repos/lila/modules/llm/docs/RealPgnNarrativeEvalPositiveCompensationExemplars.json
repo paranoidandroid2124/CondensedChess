@@ -1,0 +1,32 @@
+{
+  "version" : 1,
+  "generatedAt" : "2026-03-21T08:01:01.593464400Z",
+  "asOfDate" : "2026-03-21",
+  "title" : "Positive Compensation Exemplars",
+  "description" : "Real-PGN compensation-positive regression corpus carved out of the selected 360-game narrative corpus.",
+  "games" : [ {
+    "id" : "2023_07_30_1_25_daneshvar_bardiya_iri_muradli_mahammad_aze_fide_endgame_heavy_35",
+    "tier" : "positive_exemplar",
+    "family" : "other",
+    "label" : "Daneshvar Bardiya (IRI) vs Muradli Mahammad (AZE) (World Cup 2023)",
+    "notes" : [ "Real-PGN positive compensation exemplar from the 360 selected corpus." ],
+    "expectedThemes" : [ "endgame_heavy", "other" ],
+    "pgn" : "[Event \"World Cup 2023\"]\n[Site \"Baku, Azerbaijan\"]\n[Date \"2023.07.30\"]\n[Round \"1.25\"]\n[White \"Daneshvar Bardiya (IRI)\"]\n[Black \"Muradli Mahammad (AZE)\"]\n[Result \"1-0\"]\n[WhiteFideId \"12576468\"]\n[BlackFideId \"13409301\"]\n[WhiteElo \"2577\"]\n[BlackElo \"2546\"]\n\n1. c4 e5 2. Nc3 Nf6 3. Nf3 e4 4. Ng5 c6 5. Qa4 Qe7 6. Qc2 b5 7. cxb5 d5 8. e3\nQe5 9. f4 Qc7 10. b3 h6 11. Nh3 Qb7 12. Bb2 Be7 13. Rc1 c5 14. Na4 Bxh3 15.\nNxc5 Qc8 16. gxh3 Qf5 17. Qc3 O-O 18. Qe5 Qxe5 19. fxe5 Nfd7 20. d4 exd3 21.\nNxd3 a6 22. a4 axb5 23. axb5 Ra5 24. Nf4 Ra2 25. Rb1 Nxe5 26. Nxd5 Bd6 27. Bc4\nNbd7 28. O-O Rc8 29. Nc3 Ra7 30. Ne4 Bb8 31. Be2 Ra2 32. Rf2 Rc2 33. Bd1 Rxf2\n34. Nxf2 Ba7 35. Bd4 Bxd4 36. exd4 Ng6 37. Bf3 Nf4 38. Rd1 Rb2 39. Bc6 Nb6 40.\nd5 Kf8 41. d6 Ne6 42. d7 Ke7 43. Nd3 Rc2 44. b4 Nd8 45. Nc5 Re2 46. Kf1 Re5 47.\nRa1 Nc4 48. Ra8 Nd6 49. Kf2 g5 50. Rb8 Rf5+ 51. Ke1 Rf4 52. Na4 Nc4 53. Nc3 Ne3\n54. Ke2 Rc4 55. Kd3 1-0\n"
+  }, {
+    "id" : "2024_03_01_1_12_veres_alex_novomeska_karin_lichess_broadcast_club_classical_64",
+    "tier" : "positive_exemplar",
+    "family" : "french_caro_pirc_alekhine",
+    "label" : "Veres, Alex vs Novomeska, Karin (Pohar L.Stura)",
+    "notes" : [ "Real-PGN positive compensation exemplar from the 360 selected corpus." ],
+    "expectedThemes" : [ "french_caro_pirc_alekhine" ],
+    "pgn" : "[Event \"Pohar L.Stura\"]\n[Site \"?\"]\n[Date \"2024-03-01\"]\n[Round \"1.12\"]\n[White \"Veres, Alex\"]\n[Black \"Novomeska, Karin\"]\n[Result \"0-1\"]\n[WhiteElo \"1584\"]\n[WhiteFideId \"14976080\"]\n[BlackElo \"1929\"]\n[BlackTitle \"WCM\"]\n[BlackFideId \"14952300\"]\n[Variant \"Standard\"]\n[ECO \"B12\"]\n[Opening \"Caro-Kann Defense: Advance Variation\"]\n[StudyName \"Round 1\"]\n[ChapterName \"Veres, Alex - Novomeska, Karin\"]\n[BroadcastName \"Slovakia Chess Open | Modran Cup of Ľudovít Štúr\"]\n[BroadcastURL \"https://lichess.org/broadcast/slovakia-chess-open--modran-cup-of-ludovit-stur/round-1/KIrowYM9\"]\n[GameURL \"https://lichess.org/broadcast/slovakia-chess-open--modran-cup-of-ludovit-stur/round-1/KIrowYM9/7ae2uF3g\"]\n\n1. e4 c6 2. d4 d5 3. e5 Bf5 4. c4 e6 5. Nc3 Nd7 6. Bd3 Bxd3 7. Qxd3 dxc4 8.\nQxc4 Ne7 9. Nf3 Nb6 10. Qd3 Ned5 11. Ne4 Bb4+ 12. Bd2 Nf4 13. Qb3 Bxd2+ 14.\nNexd2 Nxg2+ 15. Kf1 Nf4 16. Rg1 O-O 17. Ne4 Kh8 18. Rd1 Nbd5 19. Nfg5 Qe7 20.\nQg3 Qb4 21. Nd6 g6 22. Qh4 h5 23. Rg4 Qa4 24. b3 Qa6+ 25. Kg1 Qe2 26. Rf1 Qxg4+\n27. Qxg4 hxg4 0-1\n"
+  }, {
+    "id" : "2024_10_23_4_1_khotenashvili_b_badelka_olga_twic_master_classical_30",
+    "tier" : "positive_exemplar",
+    "family" : "qgd_slav_qga",
+    "label" : "Khotenashvili,B vs Badelka,Olga (28th ECC Women 2024)",
+    "notes" : [ "Real-PGN positive compensation exemplar from the 360 selected corpus." ],
+    "expectedThemes" : [ "qgd_slav_qga" ],
+    "pgn" : "[Event \"28th ECC Women 2024\"]\n[Site \"Vrnjacka Banja SRB\"]\n[Date \"2024.10.23\"]\n[Round \"4.1\"]\n[White \"Khotenashvili,B\"]\n[Black \"Badelka,Olga\"]\n[Result \"0-1\"]\n[WhiteTitle \"GM\"]\n[BlackTitle \"IM\"]\n[WhiteElo \"2423\"]\n[BlackElo \"2430\"]\n[ECO \"D37\"]\n[Opening \"QGD\"]\n[Variation \"4.Nf3\"]\n[WhiteTeam \"Garuda Ajka BSK\"]\n[BlackTeam \"TAJFUN-SK Ljubljana\"]\n[WhiteFideId \"13602640\"]\n[BlackFideId \"13509926\"]\n[EventDate \"2024.10.20\"]\n[EventType \"team\"]\n\n1. c4 e6 2. Nc3 d5 3. d4 Nf6 4. Nf3 Nbd7 5. g3 dxc4 6. Bg2 c6 7. O-O b5 8. e4\nBb7 9. e5 Nd5 10. Ng5 Nxc3 11. bxc3 Be7 12. Qh5 g6 13. Qh6 Bf8 14. Qh3 Be7 15.\nNe4 O-O 16. Qh6 f6 17. exf6 Nxf6 18. Ng5 Bc8 19. Re1 a5 20. Rxe6 Ra7 21. Bf4\nBa3 22. Be5 Bxe6 23. Nxe6 Qe8 24. Bh3 Rff7 25. Ng5 Rae7 26. Re1 Nd5 27. Re4 Bc1\n28. Rg4 Bxg5 29. Rxg5 Rf6 30. f4 b4 31. Bf1 bxc3 32. f5 Rxe5 33. dxe5 Qxe5 34.\nfxg6 Qe3+ 35. Kg2 Rf2+ 36. Kh3 Nf4+ 37. Kg4 Qf3+ 38. Kf5 Nxg6+ 39. Ke6 Qf6+ 40.\nKd7 Rxf1 0-1\n"
+  } ]
+}

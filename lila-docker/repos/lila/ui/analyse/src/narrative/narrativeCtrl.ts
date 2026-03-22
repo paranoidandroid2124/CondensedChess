@@ -1,11 +1,12 @@
 import { prop, type Prop } from 'lib';
 import { pubsub } from 'lib/pubsub';
 import type AnalyseCtrl from '../ctrl';
-import { storedBooleanProp } from 'lib/storage';
+import { storedBooleanProp, tempStorage } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type { BoardPreview } from 'lib/view/boardPreview';
 import { createProbeOrchestrator } from '../bookmaker/probeOrchestrator';
+import type { StrategicPlanExperiment } from '../bookmaker/types';
 import {
     buildProbeResultsByPlyEntries,
     collectGameArcProbeMomentBundles,
@@ -13,8 +14,26 @@ import {
     validateProbeResultAgainstRequest,
     type ProbeResultsByPlyEntry,
 } from './probePlanning';
+import { buildFullAnalysisRequestPayload, type FullAnalysisRequestPayload } from './requestPayload';
 import type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
 export type { NarrativeSignalDigest, StrategicIdeaGroup, StrategicIdeaKind } from '../chesstory/signalTypes';
+
+export const MIN_GAME_CHRONICLE_PLY = 9;
+
+export function moveNumberFromPly(ply: number): number {
+    return Math.max(1, Math.ceil(ply / 2));
+}
+
+export function totalMainlinePly(ctrl: AnalyseCtrl): number {
+    return ctrl.mainline.length ? ctrl.mainline[ctrl.mainline.length - 1].ply : 0;
+}
+
+export function gameChronicleShortGameMessage(totalPly: number): string {
+    const startMove = moveNumberFromPly(MIN_GAME_CHRONICLE_PLY);
+    return totalPly <= 2
+        ? `Game Chronicle opens from move ${startMove}. Let the opening develop a little more first.`
+        : `Game Chronicle opens from move ${startMove}. A few more moves will give the review enough material to work with.`;
+}
 
 interface VariationLine {
     moves: string[];
@@ -36,6 +55,8 @@ export interface StrategicPlanSummary {
     planName: string;
     rank: number;
     score: number;
+    themeL1?: string;
+    subplanId?: string | null;
 }
 
 export interface LatentPlanSummary {
@@ -142,6 +163,7 @@ export interface GameChronicleMoment {
     authorQuestions?: AuthorQuestionSummary[];
     authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
+    strategicPlanExperiments?: StrategicPlanExperiment[];
     latentPlans?: LatentPlanSummary[];
     whyAbsentFromTopMultiPV?: string[];
     strategicBranch?: boolean;
@@ -373,16 +395,6 @@ interface GameChronicleEnvelope extends GameChronicleResponse {
     refineToken?: string | null;
 }
 
-type FullAnalysisRequestPayload = {
-    pgn: string;
-    evals: any[];
-    options: {
-        style: string;
-        focusOn: string[];
-    };
-    probeResultsByPly?: ProbeResultsByPlyEntry[] | null;
-};
-
 export interface DefeatDnaReport {
     userId: string;
     totalGamesAnalyzed: number;
@@ -404,6 +416,8 @@ const GAME_ARC_REFINE_HEADER = 'X-Chesstory-GameArc-Refine';
 const GAME_ARC_REFINE_TOKEN_HEADER = 'X-Chesstory-GameArc-Refine-Token';
 const ASYNC_STATUS_TOKEN_HEADER = 'X-Chesstory-Async-Status-Token';
 const ASYNC_DURABILITY_EPHEMERAL = 'ephemeral_memory';
+const NARRATIVE_SESSION_STORAGE_KEY = 'analyse.game-chronicle.session.v2';
+const MAX_PERSISTED_NARRATIVES = 4;
 type BetaFeedbackChoice = 'would_pay' | 'maybe' | 'not_now';
 
 interface BetaFeedbackResponse {
@@ -411,6 +425,12 @@ interface BetaFeedbackResponse {
     waitlist?: string;
     message?: string;
     storedEmail?: string | null;
+}
+
+interface PersistedNarrativeSnapshot {
+    key: string;
+    response: GameChronicleResponse;
+    savedAt: number;
 }
 
 function magicLinkHref(): string {
@@ -425,6 +445,15 @@ function formatSeconds(totalSeconds: number): string {
     if (hours > 0) return `${hours}h ${mins}m`;
     if (minutes > 0) return `${minutes}m`;
     return `${seconds}s`;
+}
+
+function hashNarrativeContext(source: string): string {
+    let hash = 2166136261;
+    for (let i = 0; i < source.length; i++) {
+        hash ^= source.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
 }
 
 export class NarrativeCtrl {
@@ -597,8 +626,77 @@ export class NarrativeCtrl {
         this.narrativeProbes.stop();
     };
 
-    private applyNarrativeResponse = (response: GameChronicleResponse): void => {
+    private narrativeContextKey = (pgnOverride?: string | null): string | null => {
+        const pgn = (pgnOverride ?? pgnExport.renderFullTxt(this.root)).trim();
+        if (!pgn) return null;
+        return `${location.pathname}|${this.root.data.game.variant.key}|${hashNarrativeContext(pgn)}`;
+    };
+
+    private readPersistedNarratives = (): PersistedNarrativeSnapshot[] => {
+        const raw = tempStorage.get(NARRATIVE_SESSION_STORAGE_KEY);
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter((entry): entry is PersistedNarrativeSnapshot => {
+                return (
+                    !!entry &&
+                    typeof entry === 'object' &&
+                    typeof entry.key === 'string' &&
+                    typeof entry.savedAt === 'number' &&
+                    !!entry.response &&
+                    typeof entry.response === 'object' &&
+                    typeof entry.response.schema === 'string' &&
+                    typeof entry.response.intro === 'string' &&
+                    Array.isArray(entry.response.moments) &&
+                    typeof entry.response.conclusion === 'string' &&
+                    Array.isArray(entry.response.themes)
+                );
+            });
+        } catch (_) {
+            tempStorage.remove(NARRATIVE_SESSION_STORAGE_KEY);
+            return [];
+        }
+    };
+
+    private writePersistedNarratives = (entries: PersistedNarrativeSnapshot[]): void => {
+        try {
+            tempStorage.set(NARRATIVE_SESSION_STORAGE_KEY, JSON.stringify(entries));
+        } catch (_) {
+            tempStorage.remove(NARRATIVE_SESSION_STORAGE_KEY);
+        }
+    };
+
+    private persistNarrativeResponse = (response: GameChronicleResponse, pgnOverride?: string | null): void => {
+        const key = this.narrativeContextKey(pgnOverride);
+        if (!key) return;
+        const entries = [
+            {
+                key,
+                response,
+                savedAt: Date.now(),
+            },
+            ...this.readPersistedNarratives().filter(entry => entry.key !== key),
+        ].slice(0, MAX_PERSISTED_NARRATIVES);
+        this.writePersistedNarratives(entries);
+    };
+
+    syncPersistedNarrative = (): void => {
+        const key = this.narrativeContextKey();
+        const snapshot = key ? this.readPersistedNarratives().find(entry => entry.key === key) : undefined;
+        this.data(snapshot?.response || null);
+        this.error(null);
+        this.needsLogin(false);
+        this.loading(false);
+        this.loadingDetail(null);
+        this.publishCollapseOverlay(snapshot?.response || null);
+        this.root.refreshReviewShellState();
+        this.root.redraw();
+    };
+
+    private applyNarrativeResponse = (response: GameChronicleResponse, pgnOverride?: string | null): void => {
         this.data(response);
+        this.persistNarrativeResponse(response, pgnOverride);
         this.publishCollapseOverlay(response);
         this.root.refreshReviewShellState();
     };
@@ -728,6 +826,12 @@ export class NarrativeCtrl {
             const stagedPgn = pgnOverride?.trim();
             const pgn = stagedPgn && stagedPgn !== currentPgn ? stagedPgn : currentPgn;
             const usesCurrentTree = pgn === currentPgn;
+            const currentTreePly = totalMainlinePly(this.root);
+
+            if (usesCurrentTree && currentTreePly < MIN_GAME_CHRONICLE_PLY) {
+                this.error(gameChronicleShortGameMessage(currentTreePly));
+                return;
+            }
 
             this.loadingDetail(
                 usesCurrentTree
@@ -749,12 +853,11 @@ export class NarrativeCtrl {
             );
             this.root.redraw();
 
-            const payload: FullAnalysisRequestPayload = {
-                pgn: pgn,
+            const payload = buildFullAnalysisRequestPayload({
+                pgn,
                 evals,
-                options: { style: 'book', focusOn: ['mistakes', 'turning_points'] },
-                probeResultsByPly: null,
-            };
+                variant: this.root.data.game.variant.key || 'standard',
+            });
 
             const submitRes = await fetch('/api/llm/game-analysis-async', {
                 method: 'POST',
@@ -812,12 +915,12 @@ export class NarrativeCtrl {
             body: JSON.stringify(payload),
         });
 
-        if (res.ok) {
-            const data = (await res.json()) as GameChronicleEnvelope;
-            const finalResponse = await this.refineNarrativeWithProbes(payload, data, data.refineToken);
-            this.applyNarrativeResponse(finalResponse);
-            return;
-        }
+              if (res.ok) {
+                  const data = (await res.json()) as GameChronicleEnvelope;
+                  const finalResponse = await this.refineNarrativeWithProbes(payload, data, data.refineToken);
+                  this.applyNarrativeResponse(finalResponse, payload.pgn);
+                  return;
+              }
 
         if (res.status === 400) {
             const data = await res.json().catch(() => null as { msg?: string } | null);
@@ -889,12 +992,12 @@ export class NarrativeCtrl {
             if (state === 'completed') {
                 if (status.result) {
                     // Merge ccaEnabled from the polling envelope into the result
-                    if (typeof status.ccaEnabled === 'boolean') {
-                        status.result.ccaEnabled = status.ccaEnabled;
-                    }
-                    const finalResponse = await this.refineNarrativeWithProbes(payload, status.result, refineToken);
-                    this.applyNarrativeResponse(finalResponse);
-                }
+                      if (typeof status.ccaEnabled === 'boolean') {
+                          status.result.ccaEnabled = status.ccaEnabled;
+                      }
+                      const finalResponse = await this.refineNarrativeWithProbes(payload, status.result, refineToken);
+                      this.applyNarrativeResponse(finalResponse, payload.pgn);
+                  }
                 else this.error('Async analysis completed without result.');
                 return;
             }
@@ -943,7 +1046,7 @@ async function extractMoveEvals(
         if (ev) evals.push(ev);
     }
 
-    onProgress?.(`Deep scan complete: eval coverage ${byPly.size}/${nodes.length} plies.`);
+    onProgress?.(`Deep scan complete: eval coverage ${byPly.size}/${nodes.length} positions.`);
     return evals;
 }
 

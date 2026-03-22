@@ -5,7 +5,7 @@ import _root_.chess.format.Uci
 import lila.llm.{ GameChronicleMoment, LlmConfig, LlmLevel, NarrativeSignalDigest }
 import lila.llm.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.llm.model.*
-import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
+import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
 import lila.llm.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.PositionAnalyzer
@@ -27,7 +27,6 @@ case class PositionAssessment(
 
 object CommentaryEngine:
   private val llmConfig = LlmConfig.fromEnv
-  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
 
   private def themeMaxShareFromHypotheses(
       hypotheses: List[lila.llm.model.authoring.PlanHypothesis]
@@ -443,6 +442,7 @@ object CommentaryEngine:
       providedMetadata: Option[GameMetadata] = None,
       openingRefsByFen: Map[String, OpeningReference] = Map.empty,
       probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty,
+      variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant,
       @unused llmLevel: String = LlmLevel.Polish
   ): GameArc = {
      
@@ -458,7 +458,7 @@ object CommentaryEngine:
            val preliminaryData = analyzeSelectedPlies(plyDataList, evals, anchorPlies)
            val preliminaryDataByPly = preliminaryData.map(d => d.ply -> d).toMap
            val preliminaryMoments =
-             buildPreviewResponseMoments(anchorMoments, preliminaryDataByPly, moveEvals, openingRefsByFen)
+             buildPreviewResponseMoments(anchorMoments, preliminaryDataByPly, moveEvals, openingRefsByFen, variantKey)
            val rankedThreads = StrategicBranchSelector.rankThreads(preliminaryMoments).take(3)
            val candidatePlan =
              ActiveBridgeMomentPlanner.planCandidatePlies(
@@ -484,7 +484,8 @@ object CommentaryEngine:
                    (anchorMoments ++ candidateMoments).sortBy(_.ply).distinctBy(_.ply),
                    enrichedDataByPly,
                    moveEvals,
-                   openingRefsByFen
+                   openingRefsByFen,
+                   variantKey
                  )
                val selectedBridges =
                  ActiveBridgeMomentPlanner.selectBridges(
@@ -504,7 +505,7 @@ object CommentaryEngine:
              else analyzeSelectedPlies(plyDataList, evals, finalPlies)
            val dataByPly = finalData.map(d => d.ply -> d).toMap
            val internalMomentNarratives =
-             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen, probeResultsByPly)
+             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen, probeResultsByPly, variantKey)
            val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameChronicleMoment.fromArcMoment))
            val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
            val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
@@ -651,9 +652,10 @@ object CommentaryEngine:
       moments: List[KeyMoment],
       dataByPly: Map[Int, ExtendedAnalysisData],
       moveEvals: List[lila.llm.MoveEval],
-      openingRefsByFen: Map[String, OpeningReference]
+      openingRefsByFen: Map[String, OpeningReference],
+      variantKey: String
   ): List[GameChronicleMoment] =
-    buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen)
+    buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen, variantKey = variantKey)
       .map(GameChronicleMoment.fromArcMoment)
 
   private def buildMomentNarratives(
@@ -661,7 +663,8 @@ object CommentaryEngine:
       dataByPly: Map[Int, ExtendedAnalysisData],
       moveEvals: List[lila.llm.MoveEval],
       openingRefsByFen: Map[String, OpeningReference],
-      probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty
+      probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty,
+      variantKey: String
   ): List[GameArcMoment] =
     val draftedMoments =
       moments
@@ -687,7 +690,8 @@ object CommentaryEngine:
                 openingRefsByFen.get(data.fen),
                 prevRef,
                 budget,
-                renderMode = NarrativeRenderMode.FullGame
+                renderMode = NarrativeRenderMode.FullGame,
+                variantKey = variantKey
               )
               val strategyPack = StrategyPackBuilder.build(data, ctx)
               val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
@@ -735,6 +739,7 @@ object CommentaryEngine:
                   authorQuestions = authoringSurface.questions,
                   authorEvidence = authoringSurface.evidence
                 )
+              val surfacedPlans = ctx.mainStrategicPlans.take(3)
 
               val momentNarrative = GameArcMoment(
                 ply = moment.ply,
@@ -776,7 +781,14 @@ object CommentaryEngine:
                 probeRefinementRequests = Nil,
                 authorQuestions = surfacedEvidence.authorQuestions,
                 authorEvidence = surfacedEvidence.authorEvidence,
-                mainStrategicPlans = ctx.mainStrategicPlans.take(3),
+                mainStrategicPlans = surfacedPlans,
+                strategicPlanExperiments =
+                  ctx.strategicPlanExperiments.filter(experiment =>
+                    surfacedPlans.exists(plan =>
+                      plan.planId.equalsIgnoreCase(experiment.planId) &&
+                        plan.subplanId.getOrElse("").equalsIgnoreCase(experiment.subplanId.getOrElse(""))
+                    )
+                  ),
                 latentPlans = ctx.latentPlans.take(2),
                 whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
               )
@@ -841,96 +853,79 @@ object CommentaryEngine:
   )
 
   private[llm] def buildHybridNarrativeParts(
-    ctx: NarrativeContext,
-    moment: KeyMoment
+      ctx: NarrativeContext,
+      moment: KeyMoment
   ): HybridNarrativeParts = {
-    val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
-    val phase = ctx.phase.current
-    val plan = topStrategicPlanName(ctx)
-    val cpWhite = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
-    val rankedVars = rankEngineVariationsForFen(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
-    val tacticalPressure =
-      ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= 80 || t.kind.toLowerCase.contains("mate")) ||
-        ctx.header.criticality.toLowerCase.contains("high") ||
-        ctx.candidates.exists(c => c.tags.contains(CandidateTag.Sharp) || c.tags.contains(CandidateTag.TacticalGamble))
+      val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
+      val phase = ctx.phase.current
+      val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx)
+      val plan = topStrategicPlanName(ctx)
+      val cpWhite = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
+      val rankedVars = rankEngineVariationsForFen(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
+      val tacticalPressure =
+        ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= 80 || t.kind.toLowerCase.contains("mate")) ||
+          ctx.header.criticality.toLowerCase.contains("high") ||
+          ctx.candidates.exists(c => c.tags.contains(CandidateTag.Sharp) || c.tags.contains(CandidateTag.TacticalGamble))
 
-    val lead = NarrativeLexicon.momentBlockLead(
-      bead = bead ^ 0x11f1f1f1,
-      phase = phase,
-      momentType = moment.momentType,
-      ply = moment.ply
-    )
-    val bridge = NarrativeLexicon.hybridBridge(
-      bead = bead ^ 0x27d4eb2f,
-      phase = phase,
-      primaryPlan = plan,
-      tacticalPressure = tacticalPressure,
-      cpWhite = cpWhite,
-      ply = ctx.ply
-    )
-    val criticalBranch = buildCriticalBranchNarrative(ctx, rankedVars, bead)
-    val validatedOutline = BookStyleRenderer.validatedOutline(ctx)
-    val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty)
+      val lead = NarrativeLexicon.momentBlockLead(
+        bead = bead ^ 0x11f1f1f1,
+        phase = phase,
+        momentType = moment.momentType,
+        ply = moment.ply
+      )
+      val bridge = NarrativeLexicon.hybridBridge(
+        bead = bead ^ 0x27d4eb2f,
+        phase = phase,
+        primaryPlan = plan,
+        tacticalPressure = tacticalPressure,
+        cpWhite = cpWhite,
+        ply = ctx.ply
+      )
+      val criticalBranch =
+        Option.when(!collapsedEarlyOpening)(buildCriticalBranchNarrative(ctx, rankedVars, bead)).flatten
+      val validatedOutline = BookStyleRenderer.validatedOutline(ctx)
+      val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty, Some(ctx))
 
-    val bookBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(validatedOutline, ctx)).trim
-    val focusedBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(focusedOutline, ctx)).trim
-    val fallback = lila.llm.NarrativeGenerator.describeHierarchical(ctx).trim
-    val body0 = if bookBody.nonEmpty then bookBody else fallback
-    val bodyBase =
-      if focusedBody.nonEmpty then focusedBody
-      else focusMomentBody(body0, keepParagraphs = if criticalBranch.nonEmpty then 3 else 4)
-    HybridNarrativeParts(
-      lead = lead,
-      defaultBridge = bridge,
-      criticalBranch = criticalBranch,
-      body = bodyBase,
-      primaryPlan = plan,
-      focusedOutline = focusedOutline,
-      phase = phase,
-      tacticalPressure = tacticalPressure,
-      cpWhite = cpWhite,
-      bead = bead
-    )
+      val bookBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(validatedOutline, ctx)).trim
+      val focusedBody = FullGameDraftNormalizer.normalize(BookStyleRenderer.renderValidatedOutline(focusedOutline, ctx)).trim
+      val bodyBase =
+        if focusedBody.nonEmpty then
+          if collapsedEarlyOpening then focusMomentBody(focusedBody, keepParagraphs = 2)
+          else focusedBody
+        else
+          focusMomentBody(
+            bookBody,
+            keepParagraphs =
+              if collapsedEarlyOpening then 2
+              else if criticalBranch.nonEmpty then 3
+              else 4
+          )
+      HybridNarrativeParts(
+        lead = lead,
+        defaultBridge = bridge,
+        criticalBranch = criticalBranch,
+        body = bodyBase,
+        primaryPlan = plan,
+        focusedOutline = focusedOutline,
+        phase = phase,
+        tacticalPressure = tacticalPressure,
+        cpWhite = cpWhite,
+        bead = bead
+      )
   }
 
   private[llm] def buildHybridNarrativeBridge(
       ctx: NarrativeContext,
       parts: HybridNarrativeParts,
       strategyPack: Option[lila.llm.StrategyPack] = None,
-      signalDigest: Option[NarrativeSignalDigest] = None
+      @unused signalDigest: Option[NarrativeSignalDigest] = None
   ): String =
-    val surface = StrategyPackSurface.from(strategyPack)
-    val digest = signalDigest.orElse(strategyPack.flatMap(_.signalDigest))
-    val executionObjectiveSentence =
-      (surface.executionText, surface.objectiveText) match
-        case (Some(execution), Some(objective)) =>
-          Some(s"The execution still runs through $execution, with the long-term objective of $objective.")
-        case (Some(execution), None) =>
-          Some(s"The execution still runs through $execution.")
-        case (None, Some(objective)) =>
-          Some(s"The long-term objective is $objective.")
-        case _ =>
-          None
-    val strategySentences =
-      List(
-        Option.when(surface.ownerMismatch)(
-          surface.campaignOwnerText.map(side => s"$side is the side steering the campaign here.").getOrElse("")
-        ).filter(_.nonEmpty),
-        if surface.compensationPosition then
-          StrategyPackSurface.compensationPersistenceText(surface)
-            .map(reason => s"The compensation only works if ${reason.trim.stripSuffix(".")}.")
-            .orElse(
-              digest.flatMap(_.compensation)
-                .map(comp => s"The compensation only works if ${comp.trim.stripSuffix(".")}." )
-            )
-            .orElse(surface.dominantIdeaText.map(idea => s"The compensation has to cash out through $idea."))
-        else surface.dominantIdeaText.map(idea => s"The dominant idea is $idea."),
-        executionObjectiveSentence,
-        digest.flatMap(_.opponentPlan).map(plan => s"The opponent is still aiming at ${plan.trim.stripSuffix(".")}.")
-      ).flatten.filter(_.nonEmpty).take(3)
-
-    if strategySentences.nonEmpty then strategySentences.mkString(" ")
-    else parts.defaultBridge
+    StrategicThesisBuilder.build(ctx, strategyPack)
+      .map(_.claim.trim)
+      .filter(_.nonEmpty)
+      .filterNot(sentenceAlreadyInBody(_, parts.body))
+      .orElse(outlineBridgeCandidate(parts.focusedOutline).filterNot(sentenceAlreadyInBody(_, parts.body)))
+      .getOrElse(parts.defaultBridge)
 
   private[llm] def renderHybridMomentNarrative(
     ctx: NarrativeContext,
@@ -940,16 +935,20 @@ object CommentaryEngine:
     prepared: Option[HybridNarrativeParts] = None
   ): (String, NarrativeOutline) = {
     val parts = prepared.getOrElse(buildHybridNarrativeParts(ctx, moment))
-    val bridge = buildHybridNarrativeBridge(ctx, parts, strategyPack, signalDigest)
-    val rendered =
-      assembleHybridNarrativeDraft(
-        lead = parts.lead,
-        bridge = bridge,
-        criticalBranch = parts.criticalBranch,
-        body = parts.body,
-        primaryPlan = parts.primaryPlan
-      )
-    (rendered, parts.focusedOutline)
+    StandardCommentaryClaimPolicy.noEventNote(ctx) match
+      case Some(note) => (note, parts.focusedOutline)
+      case None =>
+        val rendered = GameChronicleCompressionPolicy.render(ctx, parts).getOrElse("")
+        (
+          EarlyOpeningNarrationPolicy.clampNarrative(
+            ctx,
+            StandardCommentaryClaimPolicy.finalizeProse(
+              ctx,
+              FullGameDraftNormalizer.normalize(rendered).trim
+            )
+          ),
+          parts.focusedOutline
+        )
   }
 
   private[llm] def assembleHybridNarrativeDraft(
@@ -957,11 +956,12 @@ object CommentaryEngine:
       bridge: String,
       criticalBranch: Option[String],
       body: String,
-      primaryPlan: Option[String]
+      primaryPlan: Option[String],
+      suppressPreface: Boolean = false
   ): String =
     val trimmedBody = trimHybridBodyRepetition(body, primaryPlan)
-    val includeLead = trimmedBody.nonEmpty && !bodyAlreadyFramesMoment(trimmedBody)
-    val includeBridge = trimmedBody.nonEmpty && !bodyAlreadyCarriesPrimaryThesis(trimmedBody, primaryPlan)
+    val includeLead = !suppressPreface && trimmedBody.nonEmpty && !bodyAlreadyFramesMoment(trimmedBody)
+    val includeBridge = !suppressPreface && trimmedBody.nonEmpty && !bodyAlreadyCarriesPrimaryThesis(trimmedBody, primaryPlan)
     val preface =
       List(
         Option.when(includeLead)(lead).getOrElse(""),
@@ -1085,35 +1085,74 @@ object CommentaryEngine:
       low.startsWith("another key pillar is that") ||
       low.startsWith("in practical terms the split should appear")
 
+  private def isStrategicDistributionBeat(beat: OutlineBeat): Boolean =
+    beat.conceptIds.contains("strategic_distribution_first") ||
+      beat.conceptIds.contains("plan_evidence_three_stage")
+
+  private def isLowValueChronicleWrapUpBeat(beat: OutlineBeat): Boolean =
+    beat.kind == OutlineBeatKind.WrapUp &&
+      (
+        isStrategicDistributionBeat(beat) ||
+          isLowValueHybridMetaSentence(beat.text)
+      )
+
   private[analysis] def focusMomentOutline(
     outline: NarrativeOutline,
-    hasCriticalBranch: Boolean
+    hasCriticalBranch: Boolean,
+    ctxOpt: Option[NarrativeContext] = None
   ): NarrativeOutline =
     val maxBeats = if hasCriticalBranch then 5 else 6
     val candidates =
       outline.beats.zipWithIndex.filter { case (beat, _) =>
-        beat.kind != OutlineBeatKind.MoveHeader &&
-          beat.kind != OutlineBeatKind.Evidence &&
-          beat.kind != OutlineBeatKind.Alternatives
+        beat.kind != OutlineBeatKind.MoveHeader
       }
     val filtered =
       candidates.filterNot { case (beat, _) =>
-        beat.kind == OutlineBeatKind.WrapUp &&
-          beat.focusPriority < 75 &&
-          isGenericWrapupParagraph(beat.text)
+        isStrategicDistributionBeat(beat) ||
+        (
+          beat.kind == OutlineBeatKind.WrapUp &&
+            (
+              isLowValueChronicleWrapUpBeat(beat) ||
+                (beat.focusPriority < 75 && isGenericWrapupParagraph(beat.text))
+            )
+        )
       }
-    val essentials = filtered.filter(_._1.fullGameEssential)
+    val supportKinds = Set(OutlineBeatKind.Evidence, OutlineBeatKind.Alternatives)
+    val supportByKind =
+      filtered
+        .filter { case (beat, _) => supportKinds.contains(beat.kind) }
+        .groupBy(_._1.kind)
+        .view
+        .mapValues(_.sortBy(_._2))
+        .toMap
+    val rankedBaseBeats =
+      filtered.filterNot { case (beat, _) => supportKinds.contains(beat.kind) }
+    val essentials = rankedBaseBeats.filter(_._1.fullGameEssential)
     val essentialSlots =
-      if essentials.size <= maxBeats then essentials
-      else essentials.sortBy { case (beat, idx) => (-beat.focusPriority, idx) }.take(maxBeats)
+      essentials.sortBy { case (beat, idx) => (-beat.focusPriority, idx) }
     val selectedIndices = scala.collection.mutable.Set.empty[Int]
-    essentialSlots.foreach { case (_, idx) => selectedIndices += idx }
-    val remainingSlots = (maxBeats - essentialSlots.size).max(0)
-    filtered
+    def canKeepBeat(beat: OutlineBeat): Boolean =
+      ctxOpt match
+        case Some(ctx) => BranchScopedSentencePolicy.keepBeat(ctx, beat)
+        case None =>
+          !beat.branchScoped ||
+            (BranchScopedSentencePolicy.hasUsableCitation(beat) && !LineScopedCitation.hasSourceLabelOnly(beat.text))
+    def trySelect(entry: (OutlineBeat, Int)): Unit =
+      val (beat, idx) = entry
+      if !selectedIndices.contains(idx) && canKeepBeat(beat) then
+        val requiredSupport =
+          beat.supportKinds.flatMap(kind => supportByKind.getOrElse(kind, Nil).headOption)
+        val supportIndices = requiredSupport.map(_._2).filterNot(selectedIndices.contains)
+        val supportAvailable = requiredSupport.forall { case (supportBeat, _) => canKeepBeat(supportBeat) }
+        val needed = 1 + supportIndices.size
+        if supportAvailable && selectedIndices.size + needed <= maxBeats then
+          selectedIndices += idx
+          supportIndices.foreach(selectedIndices += _)
+    essentialSlots.foreach(trySelect)
+    rankedBaseBeats
       .filterNot { case (_, idx) => selectedIndices.contains(idx) }
       .sortBy { case (beat, idx) => (-beat.focusPriority, idx) }
-      .take(remainingSlots)
-      .foreach { case (_, idx) => selectedIndices += idx }
+      .foreach(trySelect)
     val selectedBeats =
       filtered
         .filter { case (_, idx) => selectedIndices.contains(idx) }
@@ -1122,21 +1161,28 @@ object CommentaryEngine:
     NarrativeOutline(selectedBeats, outline.diagnostics)
 
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
-    ctx.mainStrategicPlans.headOption.map(_.planName).orElse {
-      if LegacyStrategicFallbackText then ctx.plans.top5.headOption.map(_.name)
-      else None
-    }
+    StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)
 
-  private def boolEnv(name: String, default: Boolean): Boolean =
-    sys.env
-      .get(name)
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on"  => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _                              => None
-      }
-      .getOrElse(default)
+  private def outlineBridgeCandidate(outline: NarrativeOutline): Option[String] =
+    val preferredKinds = List(
+      OutlineBeatKind.Context,
+      OutlineBeatKind.DecisionPoint,
+      OutlineBeatKind.MainMove,
+      OutlineBeatKind.ConditionalPlan,
+      OutlineBeatKind.OpeningTheory,
+      OutlineBeatKind.TeachingPoint,
+      OutlineBeatKind.WrapUp
+    )
+    preferredKinds.iterator
+      .flatMap(kind => outline.beats.filter(beat => beat.kind == kind && !isStrategicDistributionBeat(beat)).iterator)
+      .flatMap(beat => splitNarrativeSentences(beat.text).iterator)
+      .map(_.trim)
+      .find(sentence => sentence.nonEmpty && !isLowValueHybridMetaSentence(sentence) && !isGenericWrapupParagraph(sentence))
+
+  private def sentenceAlreadyInBody(sentence: String, body: String): Boolean =
+    val sentenceFingerprint = normalizeNarrativeFingerprint(sentence)
+    val bodyFingerprint = normalizeNarrativeFingerprint(body)
+    sentenceFingerprint.nonEmpty && bodyFingerprint.contains(sentenceFingerprint)
 
   private def rankEngineVariationsForFen(
     fen: String,
@@ -1196,35 +1242,27 @@ object CommentaryEngine:
         val altIsPlayed = variationMatchesPlayed(ctx, alt)
         val cpLoss = cpLossForSideToMove(ctx.fen, best.effectiveScore, alt.effectiveScore)
         val gapPawns = f"${cpLoss.toDouble / 100}%.1f"
-        val bestLine = variationLinePreview(ctx.fen, best).map(_.stripPrefix(bestMove).trim).filter(_.nonEmpty)
-        val altLine = variationLinePreview(ctx.fen, alt).map(_.stripPrefix(altMove).trim).filter(_.nonEmpty)
-        val intro =
-          NarrativeLexicon.pick(bead ^ 0x4f1bbcdc, List(
-            "Critical branch:",
-            "Critical branch focus:",
-            "Main branch contrast:"
-          ))
-        val contrast =
-          if cpLoss <= 20 then
-            NarrativeLexicon.pick(bead ^ 0x2c1b3c6d, List(
-              s"Both moves are of comparable strength, with **$bestMove** being the engine's slight preference.",
-              s"The evaluation difference is minimal here; both **$bestMove** and **$altMove** are practically sound options."
-            ))
-          else if altIsPlayed && cpLoss >= 120 then
-            NarrativeLexicon.pick(bead ^ 0x2c1b3c6d, List(
-              s"The played move **$altMove** concedes heavily; **$bestMove** was superior by about $gapPawns pawns.",
-              s"After the game move **$altMove**, engine preference shifts strongly to **$bestMove** (about $gapPawns pawns)."
-            ))
-          else
-            NarrativeLexicon.pick(bead ^ 0x2c1b3c6d, List(
-              s"Engine preference is clear: **$bestMove** over **$altMove** by about $gapPawns pawns.",
-              s"Compared with **$altMove**, **$bestMove** holds roughly a $gapPawns-pawn edge."
-            ))
-        val bestSeq = bestLine.map(l => s" Primary engine line: **$bestMove** $l.").getOrElse(s" Primary engine line starts with **$bestMove**.")
-        val altLabel = if altIsPlayed then "Played branch" else "Alternative branch"
-        val altSeq = altLine.map(l => s" $altLabel: **$altMove** $l.").getOrElse(s" $altLabel starts with **$altMove**.")
-        val reason = branchReasonClause(ctx, bestMove).map(r => s" $r").getOrElse("")
-        Some(s"$intro $contrast$bestSeq$altSeq$reason")
+        val bestCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, best)
+        val altCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, alt)
+        for
+          bestLine <- bestCitation
+          altLine <- altCitation
+          bestSentence <- LineScopedCitation.afterClause(
+            bestLine,
+            if cpLoss <= 20 then
+              s"**$bestMove** stays only slightly ahead of **$altMove**"
+            else if altIsPlayed && cpLoss >= 120 then
+              s"**$bestMove** keeps about a $gapPawns-pawn edge over the played **$altMove**"
+            else
+              s"**$bestMove** keeps about a $gapPawns-pawn edge over **$altMove**"
+          )
+          altSentence <- LineScopedCitation.afterClause(
+            altLine,
+            if altIsPlayed then
+              s"the played branch gives up the cleaner continuation"
+            else s"the alternative branch remains secondary"
+          )
+        yield s"$bestSentence $altSentence"
       }
 
   private def focusMomentBody(body: String, keepParagraphs: Int): String =
@@ -1305,14 +1343,7 @@ object CommentaryEngine:
         s"This branch is preferable because it meets the $kind idea$square with less concession."
       ))
     }.orElse {
-      ctx.facts.collectFirst {
-        case Fact.HangingPiece(square, role, _, _, _) =>
-          s"It also keeps the ${role.toString.toLowerCase} on ${square.key} from becoming a tactical liability."
-        case Fact.Pin(_, _, pinned, pinnedRole, _, _, _, _) =>
-          s"It reduces the pin pressure against the ${pinnedRole.toString.toLowerCase} on ${pinned.key}."
-        case Fact.WeakSquare(square, _, _, _) =>
-          s"It prevents long-term weakening around ${square.key}."
-      }
+      ctx.facts.iterator.flatMap(fact => StandardCommentaryClaimPolicy.branchReasonFromFact(ctx, fact)).take(1).toList.headOption
     }.orElse {
       ctx.pawnPlay.breakFile.map { f =>
         val file = f.trim

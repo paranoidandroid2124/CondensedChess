@@ -1,12 +1,11 @@
-export type ReviewPrimaryTab = 'overview' | 'moments' | 'repair' | 'patterns' | 'moves' | 'reference';
-
-export type ReviewReferenceTab = 'explorer' | 'board' | 'import';
+export type ReviewPrimaryTab = 'overview' | 'moments' | 'repair' | 'patterns' | 'moves' | 'import';
+export type ReviewUtilityPanel = 'explorer' | 'board';
 
 export type NarrativeMomentFilter = 'all' | 'critical' | 'collapses';
 
 export type ReviewUIState = {
   primaryTab: ReviewPrimaryTab;
-  referenceTab: ReviewReferenceTab;
+  utilityPanel: ReviewUtilityPanel | null;
   momentFilter: NarrativeMomentFilter;
   selectedMomentPly: Ply | null;
   selectedCollapseId: string | null;
@@ -14,14 +13,14 @@ export type ReviewUIState = {
 
 export type ReviewUIAction =
   | { type: 'primary-tab'; tab: ReviewPrimaryTab }
-  | { type: 'reference-tab'; tab: ReviewReferenceTab }
+  | { type: 'utility-panel'; panel: ReviewUtilityPanel | null }
   | { type: 'moment-filter'; filter: NarrativeMomentFilter }
   | { type: 'select-moment'; ply: Ply | null }
   | { type: 'select-collapse'; collapseId: string | null };
 
 export const initialReviewState = (): ReviewUIState => ({
-  primaryTab: 'overview',
-  referenceTab: 'explorer',
+  primaryTab: 'moves',
+  utilityPanel: null,
   momentFilter: 'all',
   selectedMomentPly: null,
   selectedCollapseId: null,
@@ -38,8 +37,8 @@ export function reduceReviewState(state: ReviewUIState, action: ReviewUIAction):
   switch (action.type) {
     case 'primary-tab':
       return { ...state, primaryTab: action.tab };
-    case 'reference-tab':
-      return { ...state, primaryTab: 'reference', referenceTab: action.tab };
+    case 'utility-panel':
+      return { ...state, utilityPanel: action.panel };
     case 'moment-filter':
       return { ...state, primaryTab: 'moments', momentFilter: action.filter };
     case 'select-moment':

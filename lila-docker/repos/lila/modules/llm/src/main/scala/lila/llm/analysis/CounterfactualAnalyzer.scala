@@ -42,7 +42,8 @@ object CounterfactualAnalyzer:
       userMoveMotifs = userMotifs,
       severity = Thresholds.classifySeverity(cpLoss),
       userLine = userLine,
-      causalThreat = causality
+      causalThreat = causality,
+      bestLine = bestLine
     )
 
   /**
@@ -76,5 +77,6 @@ object CounterfactualAnalyzer:
       userMoveMotifs = userMotifs,
       severity = Thresholds.classifySeverity(cpLoss),
       userLine = userLine,
-      causalThreat = causality
+      causalThreat = causality,
+      bestLine = bestLine
     )

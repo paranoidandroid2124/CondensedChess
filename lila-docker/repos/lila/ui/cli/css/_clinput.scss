@@ -1,6 +1,22 @@
 #clinput {
   display: flex;
+  align-items: center;
   height: $site-header-height;
+  max-width: min(32vw, 18rem);
+
+  .link {
+    @extend %flex-center-nowrap;
+    gap: 0.35rem;
+    cursor: pointer;
+    padding-inline-end: 0.45rem;
+  }
+
+  .clinput__label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+    color: $c-font-dim;
+  }
 
   input {
     @extend %page-text;
@@ -10,13 +26,27 @@
     padding: 0;
     border: 0;
     width: 0;
+    min-width: 0;
 
     @media (min-width: at-least($x-large)) {
       @include transition(width);
+      width: 8ch;
     }
 
     body.clinput & {
-      width: 20ch;
+      width: clamp(10ch, 18vw, 18ch);
+    }
+
+    @media (max-width: at-most($x-large)) {
+      body.clinput & {
+        width: 12ch;
+      }
+    }
+
+    @media (max-width: at-most($small)) {
+      body.clinput & {
+        width: 9ch;
+      }
     }
   }
 
@@ -25,27 +55,14 @@
   }
 }
 
-body.clinput #cs-top {
-  @media (max-width: at-most($x-large)) {
-    #cs-nav {
-      display: none;
-    }
+@media (max-width: at-most($large)) {
+  #clinput .clinput__label {
+    display: none;
   }
+}
 
-  @media (max-width: at-most($x-small)) {
-    .cs-brand,
-    .cs-brandbar__donate {
-      display: none;
-    }
-  }
-
-  @media (max-width: at-most($xx-small)) {
-    .site-buttons > *:not(#clinput) {
-      display: none;
-    }
-
-    #clinput {
-      width: 75vw;
-    }
+@media (max-width: at-most($xx-small)) {
+  #clinput {
+    max-width: 44vw;
   }
 }

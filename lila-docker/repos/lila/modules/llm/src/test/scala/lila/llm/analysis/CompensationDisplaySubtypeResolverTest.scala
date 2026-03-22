@@ -210,6 +210,64 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
       )
     )
 
+  private def lockedTargetFixingPack: StrategyPack =
+    centeredTargetPayoffPack.copy(
+      strategicIdeas =
+        centeredTargetPayoffPack.strategicIdeas :+
+          StrategyIdeaSignal(
+            ideaId = "idea_center_fix",
+            ownerSide = "black",
+            kind = StrategicIdeaKind.TargetFixing,
+            group = "slow_structural",
+            readiness = StrategicIdeaReadiness.Build,
+            focusSquares = List("d4", "e5"),
+            focusFiles = List("d", "e"),
+            focusZone = Some("center"),
+            beneficiaryPieces = List("N", "Q"),
+            confidence = 0.84
+          ),
+      longTermFocus = List("keep the fixed central targets under pressure before recovering the pawn"),
+      signalDigest = centeredTargetPayoffPack.signalDigest.map(_.copy(
+        compensationVectors = List("Line Pressure (0.5)", "Delayed Recovery (0.7)", "Fixed Targets (0.7)"),
+        dominantIdeaKind = Some(StrategicIdeaKind.TargetFixing),
+        dominantIdeaFocus = Some("d4, e5"),
+        decisionComparison = Some(
+          DecisionComparisonDigest(
+            evidence = Some("The point is not to switch theaters yet; keep the fixed central targets tied down first.")
+          )
+        )
+      ))
+    )
+
+  private def weakCompensationShellPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_shell",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = "dynamic_attack",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("g7"),
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q"),
+          confidence = 0.76
+        )
+      ),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("initiative against the king"),
+          compensationVectors = List("Initiative (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some("dynamic_attack"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("g7")
+        )
+      )
+    )
+
   test("resolver prefers payoff subtype for fixed-target compensation shell") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
@@ -234,14 +292,37 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
     assertEquals(resolution.selectedDisplaySubtype.map(_.pressureMode), Some("line_occupation"))
   }
 
-  test("resolver keeps central target payoff when decision evidence only describes the preparation lane") {
+  test("resolver keeps the central target path when durable target anchors outweigh payoff drift") {
     val surface = StrategyPackSurface.from(Some(centeredTargetPayoffPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
 
     val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
 
-    assertEquals(resolution.displaySubtypeSource, "payoff")
+    assertEquals(resolution.displaySubtypeSource, "path")
     assertEquals(resolution.selectedDisplaySubtype.map(_.pressureTheater), Some("center"))
     assertEquals(resolution.selectedDisplaySubtype.map(_.pressureMode), Some("target_fixing"))
     assert(resolution.normalizationActive, clue(resolution))
+  }
+
+  test("resolver keeps the durable target-fixing path when concrete anchors lock the theater") {
+    val surface = StrategyPackSurface.from(Some(lockedTargetFixingPack))
+    val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
+
+    val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
+
+    assertEquals(resolution.displaySubtypeSource, "path")
+    assertEquals(resolution.selectedDisplaySubtype.map(_.pressureTheater), Some("center"))
+    assertEquals(resolution.selectedDisplaySubtype.map(_.pressureMode), Some("target_fixing"))
+    assert(resolution.pathConfidence >= 4, clue(resolution))
+  }
+
+  test("resolver leaves weak compensation shells in raw fallback") {
+    val surface = StrategyPackSurface.from(Some(weakCompensationShellPack))
+    val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
+
+    val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
+
+    assertEquals(resolution.displaySubtypeSource, "raw_fallback")
+    assertEquals(resolution.selectedDisplaySubtype, None)
+    assert(!resolution.normalizationActive, clue(resolution))
   }

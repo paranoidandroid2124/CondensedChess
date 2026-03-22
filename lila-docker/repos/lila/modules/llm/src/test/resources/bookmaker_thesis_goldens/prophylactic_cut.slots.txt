@@ -1,8 +1,8 @@
 lens=Prophylaxis
-claim=12... a3: The move matters less for a direct gain than for cutting out counterplay.
-supportPrimary=That strips away roughly 140cp of counterplay.
-supportSecondary=It also gives Kingside Expansion more time to take hold.
-tension=
+claim=12... a3: The move is mainly about stopping ...c5 before it gets going.
+supportPrimary=...c5 is harder to justify right away.
+supportSecondary=
+tension=The opponent no longer gets a free entry on b4.
 evidenceHook=
 coda=
-paragraphPlan=p1=claim,p2=support_chain
+paragraphPlan=p1=claim,p2=support,p3=practical_nuance

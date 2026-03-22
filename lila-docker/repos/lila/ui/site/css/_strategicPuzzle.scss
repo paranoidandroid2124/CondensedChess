@@ -14,9 +14,12 @@ $sp-muted-dark: #b1bfce;
 $sp-border-dark: #304153;
 
 .sp-demo-page {
+  ---sp-workspace-max-width: var(---cs-workspace-max-width, 100%);
+  ---sp-shell-block-gap: var(---cs-shell-block-gap, clamp(0.65rem, 1.2vw, 1rem));
+  ---sp-shell-gutter-x: var(---cs-shell-gutter-x, clamp(0.65rem, 1.2vw, 1rem));
   grid-column: 1 / -1;
-  min-height: 100vh;
-  padding: clamp(1.25rem, 2vw, 2rem);
+  min-height: calc(100vh - var(---site-header-height) - var(---site-header-margin) - var(---sticky-gap));
+  padding: var(---sp-shell-block-gap) var(---sp-shell-gutter-x);
   background:
     radial-gradient(circle at 10% 10%, rgba($sp-secondary, 0.12), transparent 38%),
     radial-gradient(circle at 86% 18%, rgba($sp-primary, 0.13), transparent 36%),
@@ -112,8 +115,9 @@ $sp-border-dark: #304153;
 .sp-demo-shell,
 .sp-demo-lines,
 .sp-demo-analysis,
-.sp-demo-footer {
-  width: min(100%, 1460px);
+.sp-demo-footer,
+.sp-beta-feedback {
+  width: min(100%, var(---sp-workspace-max-width));
   margin-inline: auto;
 }
 
@@ -155,6 +159,10 @@ $sp-border-dark: #304153;
 
 .sp-demo-link,
 .sp-demo-footer__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 0.65rem 1rem;
   border: 1px solid rgba($sp-font-light, 0.1);
   border-radius: 999px;
@@ -181,8 +189,20 @@ $sp-border-dark: #304153;
     0 0 0 4px rgba($sp-primary, 0.12);
 }
 
+.sp-demo-link.is-strong,
+.sp-demo-footer__link.is-strong {
+  background: linear-gradient(135deg, $sp-primary, darken($sp-primary, 8%));
+  color: #fff;
+  border-color: transparent;
+}
+
+.sp-demo-link.is-warning {
+  background: rgba($sp-secondary, 0.12);
+  border-color: rgba($sp-secondary, 0.24);
+  color: darken($sp-secondary, 10%);
+}
+
 .sp-beta-feedback {
-  width: min(100%, 1460px);
   margin: 1.2rem auto 0;
   display: grid;
   gap: 0.9rem;
@@ -236,10 +256,10 @@ $sp-border-dark: #304153;
 
 .sp-runtime-topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: clamp(1.2rem, 2.5vw, 2rem);
-  align-items: end;
-  margin-bottom: clamp(1.25rem, 2.5vw, 2rem);
+  grid-template-columns: minmax(0, 1.2fr) minmax(480px, 0.8fr);
+  gap: clamp(0.7rem, 1.3vw, 1rem);
+  align-items: center;
+  margin-bottom: clamp(0.55rem, 1vw, 0.8rem);
 }
 
 html.dark,
@@ -264,42 +284,36 @@ body.dark {
 
 .sp-runtime-topbar__lead {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.18rem;
 }
 
 .sp-runtime-topbar__lead h1 {
   font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
-  font-size: clamp(2.6rem, 5vw, 4.4rem);
-  line-height: 0.94;
+  font-size: clamp(1.8rem, 3.2vw, 2.65rem);
+  line-height: 0.92;
   margin: 0;
   letter-spacing: -0.03em;
 }
 
 .sp-runtime-intro {
-  max-width: 64ch;
+  max-width: 52ch;
   margin: 0;
   color: $sp-muted-light;
-  font-size: 1.02rem;
-  line-height: 1.72;
+  font-size: 0.9rem;
+  line-height: 1.38;
 }
 
 .sp-runtime-topbar__stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.sp-demo-footer__link.is-strong {
-  background: linear-gradient(135deg, $sp-primary, darken($sp-primary, 8%));
-  color: #fff;
-  border-color: transparent;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .sp-demo-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
   gap: clamp(1.4rem, 3vw, 2.4rem);
-  margin-bottom: clamp(2rem, 4vw, 3rem);
+  margin-bottom: clamp(1.1rem, 2vw, 1.5rem);
 }
 
 .sp-demo-hero__copy,
@@ -371,21 +385,21 @@ body.dark {
 .sp-demo-metric-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin-top: 1.3rem;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
 }
 
 .sp-metric-card {
   border-radius: 18px;
-  padding: 1rem 1.05rem;
+  padding: 0.7rem 0.8rem;
   background: rgba($sp-surface-strong-light, 0.9);
   border: 1px solid rgba($sp-border-light, 0.9);
 }
 
 .sp-metric-card strong {
   display: block;
-  font-size: 1.45rem;
-  margin-bottom: 0.2rem;
+  font-size: 1.05rem;
+  margin-bottom: 0.1rem;
 }
 
 .sp-metric-card span,
@@ -425,9 +439,9 @@ body.dark {
 .sp-demo-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.82fr);
-  gap: clamp(1.4rem, 2.5vw, 2.2rem);
+  gap: clamp(0.95rem, 1.8vw, 1.35rem);
   align-items: start;
-  margin-bottom: clamp(2.2rem, 4vw, 3.2rem);
+  margin-bottom: clamp(0.8rem, 1.2vw, 1rem);
 }
 
 .sp-live-noscript {
@@ -449,12 +463,12 @@ body.dark {
 
 .sp-demo-board-card {
   border-radius: 34px;
-  padding: clamp(1.1rem, 2vw, 1.45rem);
+  padding: clamp(0.8rem, 1.4vw, 1rem);
   position: relative;
 }
 
 .sp-demo-board-card--runtime {
-  padding: clamp(1rem, 1.8vw, 1.25rem);
+  padding: clamp(0.7rem, 1vw, 0.85rem);
 }
 
 .sp-demo-board-head {
@@ -516,7 +530,7 @@ body.dark {
 
 .sp-runtime-board-shell {
   display: grid;
-  gap: 1rem;
+  gap: 0.8rem;
 }
 
 .sp-runtime-board-stage {
@@ -530,6 +544,46 @@ body.dark {
   box-shadow:
     inset 0 1px 0 rgba(#fff, 0.38),
     0 18px 38px rgba(43, 34, 24, 0.16);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    background 180ms ease;
+}
+
+.sp-runtime-board-stage.is-success {
+  box-shadow:
+    inset 0 0 0 1px rgba($sp-primary, 0.34),
+    0 0 0 2px rgba($sp-primary, 0.14),
+    0 18px 38px rgba(31, 106, 90, 0.22);
+}
+
+.sp-runtime-board-stage.is-warning {
+  box-shadow:
+    inset 0 0 0 1px rgba($sp-secondary, 0.32),
+    0 0 0 2px rgba($sp-secondary, 0.12),
+    0 18px 38px rgba(160, 78, 45, 0.2);
+  animation: sp-board-shake 240ms ease;
+}
+
+@keyframes sp-board-shake {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 .sp-runtime-board-meta {
@@ -564,7 +618,7 @@ body.dark {
 .sp-runtime-inline {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .sp-demo-board-grid {
@@ -667,7 +721,7 @@ body.dark {
 
 .sp-callout {
   border-radius: 16px;
-  padding: 0.9rem 1rem;
+  padding: 0.8rem 0.9rem;
   background: rgba(#fff, 0.68);
   border: 1px solid rgba(#fff, 0.42);
 }
@@ -721,23 +775,23 @@ body.dark {
 .sp-demo-side {
   display: grid;
   gap: 1rem;
+  align-content: start;
 }
 
 .sp-demo-panel {
   border-radius: 28px;
-  padding: 1.25rem;
+  padding: 0.85rem 0.95rem;
 }
 
 .sp-demo-panel--solve {
-  position: sticky;
-  top: 1rem;
+  position: static;
 }
 
 .sp-stepper {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.7rem;
 }
 
 .sp-stepper span {
@@ -754,15 +808,32 @@ body.dark {
 }
 
 .sp-demo-panel h3 {
-  font-size: clamp(1.55rem, 3vw, 2.15rem);
-  margin-bottom: 0.7rem;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  margin-bottom: 0.35rem;
 }
 
 .sp-choice-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
-  margin: 1.15rem 0;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+
+.sp-choice-grid--hidden {
+  margin: 1rem 0 0;
+}
+
+.sp-choice-grid__notice {
+  border-radius: 18px;
+  padding: 1rem 1.05rem;
+  background: rgba($sp-surface-strong-light, 0.86);
+  border: 1px solid rgba($sp-border-light, 0.82);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sp-choice-grid__notice strong {
+  font-size: 1rem;
 }
 
 .sp-choice {
@@ -796,7 +867,7 @@ body.dark {
 .sp-summary-card,
 .sp-mini-facts div {
   border-radius: 18px;
-  padding: 1rem 1.05rem;
+  padding: 0.85rem 0.95rem;
   background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
 }
@@ -834,13 +905,41 @@ body.dark {
 .sp-runtime-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
 }
 
 .sp-runtime-actions .sp-demo-link {
   border: none;
   cursor: pointer;
+  width: auto;
+}
+
+.sp-runtime-actions .sp-demo-link[disabled],
+.sp-runtime-actions .sp-demo-link[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.58;
+  box-shadow: none;
+  transform: none;
+}
+
+.sp-runtime-actions__state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  background: rgba($sp-primary, 0.1);
+  border: 1px solid rgba($sp-primary, 0.22);
+  color: darken($sp-primary, 8%);
+  font-weight: 600;
+}
+
+.sp-runtime-actions__note {
+  margin: 0.1rem 0 0;
+  color: $sp-muted-light;
+  font-size: 0.95rem;
+  line-height: 1.55;
 }
 
 .sp-demo-panel--reveal.is-hidden {
@@ -863,9 +962,13 @@ body.dark {
   opacity: 0.94;
 }
 
+.sp-live-page .sp-demo-lines:not(.is-open) {
+  display: none;
+}
+
 .sp-demo-lines,
 .sp-demo-analysis {
-  margin-bottom: clamp(2rem, 4vw, 3rem);
+  margin-bottom: clamp(1.2rem, 2vw, 1.8rem);
 }
 
 .sp-demo-section-head {
@@ -939,6 +1042,10 @@ body.dark {
     grid-template-columns: 1fr;
   }
 
+  .sp-runtime-topbar__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sp-demo-board-frame {
     grid-template-columns: 1fr;
   }
@@ -964,7 +1071,8 @@ body.dark {
 
 @media (max-width: 680px) {
   .sp-demo-page {
-    padding: 1rem;
+    ---sp-shell-block-gap: var(---cs-shell-block-gap, 1rem);
+    ---sp-shell-gutter-x: var(---cs-shell-gutter-x, 1rem);
   }
 
   .sp-demo-header,
@@ -992,6 +1100,16 @@ body.dark {
 
   .sp-demo-panel--solve {
     position: static;
+  }
+
+  .sp-runtime-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sp-runtime-actions .sp-demo-link,
+  .sp-runtime-actions__state {
+    width: 100%;
   }
 }
 
@@ -1062,6 +1180,7 @@ html.dark .sp-demo-link,
 html.dark .sp-demo-footer__link,
 html.dark .sp-chip,
 html.dark .sp-choice,
+html.dark .sp-choice-grid__notice,
 html.dark .sp-feedback-strip,
 html.dark .sp-hidden-list,
 html.dark .sp-summary-card,
@@ -1071,6 +1190,50 @@ html.dark .sp-legend-row,
 html.dark .sp-metric-card {
   background: rgba(#1a2532, 0.88);
   border-color: rgba($sp-border-dark, 0.9);
+}
+
+html.dark .sp-demo-kicker,
+html.dark .sp-rail-label,
+html.dark .sp-demo-panel__label,
+html.dark .sp-line-card__label,
+html.dark .sp-analysis-card__label,
+html.dark .sp-summary-card__eyebrow,
+html.dark .sp-demo-eyebrow {
+  color: lighten($sp-primary, 30%);
+}
+
+html.dark .sp-chip {
+  color: $sp-font-dark;
+}
+
+html.dark .sp-demo-link.is-warning {
+  background: rgba($sp-secondary, 0.2);
+  border-color: rgba($sp-secondary, 0.34);
+  color: lighten($sp-secondary, 34%);
+}
+
+html.dark .sp-runtime-actions__state {
+  color: #bfeadd;
+  background: rgba($sp-primary, 0.18);
+  border-color: rgba($sp-primary, 0.3);
+}
+
+html.dark .sp-chip--theme {
+  background: rgba($sp-primary, 0.22);
+  border-color: rgba($sp-primary, 0.34);
+  color: lighten($sp-primary, 34%);
+}
+
+html.dark .sp-chip--turn {
+  background: rgba($sp-secondary, 0.22);
+  border-color: rgba($sp-secondary, 0.34);
+  color: lighten($sp-secondary, 36%);
+}
+
+html.dark .sp-chip--echo {
+  background: rgba($sp-amber, 0.22);
+  border-color: rgba($sp-amber, 0.34);
+  color: lighten($sp-amber, 28%);
 }
 
 html.dark .sp-square.is-light {

@@ -54,7 +54,7 @@ final class StudyBits(helpers: Helpers):
       ),
       div(cls := "notebook-cover__face")(
         div(cls := "notebook-cover__seal")(notebookGlyph("notebook", "notebook-cover__glyph")),
-        span(cls := "notebook-cover__eyebrow")("Chess notebook"),
+        span(cls := "notebook-cover__eyebrow")("Research notebook"),
         strong(cls := "notebook-cover__title")(title),
         span(cls := "notebook-cover__subtitle")(subtitle),
         span(cls := "notebook-cover__detail")(detail)
@@ -72,11 +72,11 @@ final class StudyBits(helpers: Helpers):
         a(href := url(o), cls := (order == o).option("current"))(Orders.name(o))
     )
 
-  def newForm(label: String = "New notebook") =
+  def newForm(label: String = "Create notebook") =
     postForm(cls := "new-study", action := routes.Study.create.url)(
       submitButton(
         cls := "button button-green",
-        title := "Create a new notebook",
+        title := "Create a blank notebook and open it immediately",
         notebookGlyph("notebook", "new-study__glyph"),
         span(cls := "new-study__label")(label)
       )
@@ -147,11 +147,11 @@ final class StudyBits(helpers: Helpers):
       div(cls := "study__footer")(
         span(cls := "study__footnote")(
           notebookGlyph("bookmark", "study__footer-glyph"),
-          span("Open as a reusable research board")
+          span("Board, notes, and saved sections together")
         ),
         span(cls := "study__cta")(
           notebookGlyph("page", "study__cta-glyph"),
-          span("Open notebook")
+          span("Open workspace")
         )
       )
     )

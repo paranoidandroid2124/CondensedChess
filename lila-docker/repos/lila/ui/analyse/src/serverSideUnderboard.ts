@@ -10,7 +10,8 @@ import { escapeHtml } from 'lib';
 import { storage } from 'lib/storage';
 import { pubsub } from 'lib/pubsub';
 
-export const stockfishName = 'Stockfish 17.1';
+export const stockfishName = 'Stockfish';
+export const savedAnalysisLabel = 'Saved analysis';
 const siteI18n = ((window as any).i18n?.site ?? {}) as Record<string, string | undefined>;
 const t = (key: string, fallback: string): string => siteI18n[key] || fallback;
 
@@ -80,7 +81,7 @@ export default function (element: HTMLElement, ctrl: AnalyseCtrl) {
   }
 
   const chartLoader = () =>
-    `<div id="acpl-chart-container-loader"><span>${stockfishName}<br>server analysis</span>${spinnerHtml}</div>`;
+    `<div id="acpl-chart-container-loader"><span>${stockfishName}<br>${savedAnalysisLabel}</span>${spinnerHtml}</div>`;
 
   function startAdvantageChart() {
     if (advChart || site.blindMode || !chartsEnabled) return;

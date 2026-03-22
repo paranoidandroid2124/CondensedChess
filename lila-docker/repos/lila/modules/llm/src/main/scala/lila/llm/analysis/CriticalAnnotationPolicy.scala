@@ -5,7 +5,8 @@ import lila.llm.model.NarrativeContext
 private[analysis] object CriticalAnnotationPolicy:
 
   def shouldPrioritizeClaim(ctx: NarrativeContext): Boolean =
-    hasTacticalMetaOrMotifs(ctx) || hasTacticalCounterfactual(ctx) || hasSevereBlunder(ctx)
+    !StandardCommentaryClaimPolicy.quietStandardPosition(ctx) &&
+      (hasTacticalMetaOrMotifs(ctx) || hasTacticalCounterfactual(ctx) || hasSevereBlunder(ctx))
 
   def shouldUseTacticalEmphasis(
       ctx: NarrativeContext,

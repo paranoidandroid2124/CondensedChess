@@ -150,6 +150,7 @@ object page:
               "is3d" -> pref.is3d
             )
           )(p.transform(p.body)),
+          Option.when(!p.flags(PageFlags.noHeader) && !p.flags(PageFlags.fullScreen) && !playing)(ui.siteFooter),
           bottomHtml,
           ctx.nonce.map(inlineJs(_, allModules)),
           modulesInit(allModules, ctx.nonce),

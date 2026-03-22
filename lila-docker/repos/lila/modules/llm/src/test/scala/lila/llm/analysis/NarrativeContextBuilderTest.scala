@@ -163,6 +163,45 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(experiments.head.experimentConfidence > 0.8)
   }
 
+  test("current-board facts stay separate from main-pv and counterfactual facts") {
+    val futurePin =
+      Motif.Pin(
+        pinningPiece = chess.Bishop,
+        pinnedPiece = chess.Pawn,
+        targetBehind = chess.Rook,
+        color = chess.White,
+        plyIndex = 2,
+        move = Some("c1f4"),
+        pinningSq = Some(chess.Square.F4),
+        pinnedSq = Some(chess.Square.C7),
+        behindSq = Some(chess.Square.C8)
+      )
+    val bestLine = VariationLine(moves = List("c1f4", "b8c6", "f4c7"), scoreCp = 40)
+    val userLine = VariationLine(moves = List("g1f3", "b8c6", "e2e3"), scoreCp = 0)
+    val counterfactual =
+      CounterfactualMatch(
+        userMove = "g1f3",
+        bestMove = "c1f4",
+        cpLoss = 80,
+        missedMotifs = List(futurePin),
+        userMoveMotifs = Nil,
+        severity = "inaccuracy",
+        userLine = userLine,
+        bestLine = bestLine
+      )
+
+    val data = minimalData().copy(
+      motifs = List(futurePin),
+      counterfactual = Some(counterfactual)
+    )
+    val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
+    val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
+
+    assert(!narrativeCtx.facts.exists(_.isInstanceOf[Fact.Pin]), clue(narrativeCtx.facts))
+    assert(narrativeCtx.mainPvFacts.exists(_.isInstanceOf[Fact.Pin]), clue(narrativeCtx.mainPvFacts))
+    assert(narrativeCtx.counterfactualFacts.exists(_.isInstanceOf[Fact.Pin]), clue(narrativeCtx.counterfactualFacts))
+  }
+
   // ============================================================
   // A3: HEADER from Classification
   // ============================================================

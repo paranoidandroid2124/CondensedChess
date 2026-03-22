@@ -119,7 +119,7 @@ object strategicPuzzleDemo:
             ),
             div(cls := "sp-callout")(
               strong("Fixed reply"),
-              span("After a correct start, Black answers with ...Be7 in this shell.")
+              span("After a correct start, Black answers with ...Be7 in this route.")
             )
           )
         ),
@@ -161,29 +161,16 @@ object strategicPuzzleDemo:
             div(cls := "sp-aura sp-aura--3")
           ),
           main(cls := "sp-demo-page")(
-            header(cls := "sp-demo-header")(
-              div(cls := "sp-demo-header__brand")(
-                a(href := routes.Main.landing.url, cls := "sp-demo-logo")("Chesstory"),
-                span(cls := "sp-demo-header__divider")("/"),
-                span("Strategic Puzzle Demo")
-              ),
-              div(cls := "sp-demo-header__actions")(
-                a(href := routes.UserAnalysis.index.url, cls := "sp-demo-link")("Analysis"),
-                a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-link")("Open live puzzle"),
-                a(href := analysisUrl, cls := "sp-demo-link")("Open sample PGN"),
-                a(href := routes.Main.journal.url, cls := "sp-demo-link")("Journal")
-              )
-            ),
             st.section(cls := "sp-demo-hero")(
               div(cls := "sp-demo-hero__copy")(
-                p(cls := "sp-demo-kicker")("Plan-first puzzle shell"),
+                p(cls := "sp-demo-kicker")("Plan-first puzzle"),
                 h1(
                   "Build a strategy puzzle page that feels",
                   br,
                   span("closer to a rehearsal than a quiz.")
                 ),
                 p(cls := "sp-demo-intro")(
-                  "The move is still concrete, but the page is organized around plan recognition, fixed opponent replies, and terminal-line explanation instead of a one-shot best-move reveal."
+                  "The move is still concrete, but the page is organized around plan recognition, fixed opponent replies, and end-of-line review instead of a one-shot best-move reveal."
                 ),
                 div(cls := "sp-demo-metric-row")(
                   div(cls := "sp-metric-card")(
@@ -199,8 +186,8 @@ object strategicPuzzleDemo:
                     span("accepted root moves on average")
                   ),
                   div(cls := "sp-metric-card")(
-                    strong("terminal-only"),
-                    span("LLM at line end, not every move")
+                    strong("end-only"),
+                    span("Review opens at the end, not every move")
                   )
                 )
               ),
@@ -209,8 +196,8 @@ object strategicPuzzleDemo:
                   p(cls := "sp-rail-label")("Different from tactics"),
                   ul(
                     li("The page asks for a plan to be sustained, not a single forcing shot."),
-                    li("Opponent replies are fixed inside the shell to keep training load focused."),
-                    li("Analysis is still visible through line rails, plan families, and underboard reveal cards.")
+                    li("Opponent replies are fixed inside the route to keep training load focused."),
+                    li("Analysis is still visible through line rails, plan labels, and underboard review cards.")
                   )
                 ),
                 div(cls := "sp-rail-card sp-rail-card--soft")(
@@ -237,22 +224,10 @@ object strategicPuzzleDemo:
                   p(cls := "sp-demo-panel__copy")(
                     "The page prompt stays short. Opening name, eval, and best line stay hidden until reveal so the user solves the position as a planning task."
                   ),
-                  div(cls := "sp-choice-grid", role := "list")(
-                    div(cls := "sp-choice is-primary", role := "listitem")(
-                      span(cls := "sp-choice__move")("Bd3"),
-                      span("Accepted rehearsal start in the demo shell")
-                    ),
-                    div(cls := "sp-choice", role := "listitem")(
-                      span(cls := "sp-choice__move")("O-O"),
-                      span("Also accepted in the live puzzle family")
-                    ),
-                    div(cls := "sp-choice", role := "listitem")(
-                      span(cls := "sp-choice__move")("b4"),
-                      span("Converges later after the fixed reply")
-                    ),
-                    div(cls := "sp-choice is-muted", role := "listitem")(
-                      span(cls := "sp-choice__move")("Qc3"),
-                      span("Illustrative miss; the demo does not score moves")
+                  div(cls := "sp-choice-grid sp-choice-grid--hidden")(
+                    div(cls := "sp-choice-grid__notice")(
+                      strong("Move list stays hidden"),
+                      span("The live puzzle keeps starts off the page. You drag on the board first, then the review underneath explains which starts converge.")
                     )
                   ),
                   div(cls := "sp-runtime-actions")(
@@ -268,21 +243,21 @@ object strategicPuzzleDemo:
                   div(cls := "sp-hidden-list")(
                     p("Hidden until reveal"),
                     ul(
-                      li("Dominant family key"),
-                      li("Accepted sibling starts"),
+                      li("Pattern label"),
+                      li("Other accepted starts"),
                       li("Engine comparison against the fastest line"),
-                      li("Terminal commentary")
+                      li("Review commentary")
                     )
                   )
                 ),
                 st.section(cls := "sp-demo-panel sp-demo-panel--reveal")(
-                  p(cls := "sp-demo-panel__label")("Reveal state"),
+                  p(cls := "sp-demo-panel__label")("Review"),
                   h3("After 7. O-O ...Be7 8. b4"),
                   p(cls := "sp-demo-panel__copy")(
-                    "Once the player reaches a terminal, the page stops talking in move-sized fragments and explains the sequence as one coherent strategic action."
+                    "Once the player reaches the end of the line, the page stops talking in move-sized fragments and explains the sequence as one coherent strategic action."
                   ),
                   div(cls := "sp-summary-card")(
-                    p(cls := "sp-summary-card__eyebrow")("Terminal explanation"),
+                    p(cls := "sp-summary-card__eyebrow")("Why this line works"),
                     h4("Castle first, then expand while the reply is tied down."),
                     p(
                       "O-O keeps White's structure intact long enough for b4 to gain queenside space without giving Black an immediate central break. The point is not speed alone but preserving the option to hit c6 under improved coordination."
@@ -290,7 +265,7 @@ object strategicPuzzleDemo:
                   ),
                   div(cls := "sp-mini-facts")(
                     div(
-                      strong("Family"),
+                      strong("Pattern"),
                       span("space_gain_or_restriction | c6")
                     ),
                     div(
@@ -298,7 +273,7 @@ object strategicPuzzleDemo:
                       span("...Be7")
                     ),
                     div(
-                      strong("Sibling starts"),
+                      strong("Other starts"),
                       span("Bd3 and b4 converge toward the same plan")
                     )
                   )
@@ -307,9 +282,9 @@ object strategicPuzzleDemo:
             ),
             st.section(cls := "sp-demo-lines")(
               div(cls := "sp-demo-section-head")(
-                p(cls := "sp-demo-kicker")("Underboard line rail"),
+                p(cls := "sp-demo-kicker")("Underboard review"),
                 h2("Keep the tree visible without turning the page into an engine dump."),
-                p("Each lane is a playable shell: accepted root, fixed opponent reply, then the terminal where commentary appears.")
+                p("Each lane is one playable route: accepted root, fixed opponent reply, then the review card that explains the result.")
               ),
               div(cls := "sp-line-grid")(
                 st.article(cls := "sp-line-card")(
@@ -320,7 +295,7 @@ object strategicPuzzleDemo:
                 st.article(cls := "sp-line-card")(
                   p(cls := "sp-line-card__label")("Lane B"),
                   h3("O-O -> ...Be7 -> b4"),
-                  p("A more patient start that keeps the same terminal family while reducing tactical noise.")
+                  p("A more patient start that keeps the same pattern while reducing tactical noise.")
                 ),
                 st.article(cls := "sp-line-card")(
                   p(cls := "sp-line-card__label")("Lane C"),

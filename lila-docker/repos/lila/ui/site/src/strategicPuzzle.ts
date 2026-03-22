@@ -1,8 +1,11 @@
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import type { Api as ChessgroundApi } from '@lichess-org/chessground/api';
+import type { DrawShape } from '@lichess-org/chessground/draw';
+import { parseUci, makeSquare } from 'chessops/util';
 
 type Credit = 'full' | 'partial';
 type Outcome = 'full' | 'partial' | 'wrong' | 'giveup';
+const site = window.site as any;
 
 interface SourcePayload {
   seedId: string;
@@ -132,6 +135,7 @@ interface StrategicPuzzleSnapshot {
   completion: CompleteResponse | null;
   betaFeedbackSubmitted: BetaFeedbackChoice | null;
   betaFeedbackMessage: string;
+  hintStep: 0 | 1 | 2;
 }
 
 interface StrategicPuzzleHistoryState {
@@ -153,6 +157,8 @@ class StrategicPuzzleApp {
   private betaFeedbackLoading = false;
   private betaFeedbackSubmitted: BetaFeedbackChoice | null = null;
   private betaFeedbackMessage = '';
+  private hintStep: 0 | 1 | 2 = 0;
+  private boardFeedback: Exclude<FeedbackKind, 'neutral'> | null = null;
 
   constructor(payload: BootstrapPayload, app: HTMLElement) {
     this.payload = payload;
@@ -233,6 +239,7 @@ class StrategicPuzzleApp {
       completion: this.completion,
       betaFeedbackSubmitted: this.betaFeedbackSubmitted,
       betaFeedbackMessage: this.betaFeedbackMessage,
+      hintStep: this.hintStep,
     };
   }
 
@@ -251,8 +258,10 @@ class StrategicPuzzleApp {
     this.completion = snapshot.completion;
     this.betaFeedbackSubmitted = snapshot.betaFeedbackSubmitted;
     this.betaFeedbackMessage = snapshot.betaFeedbackMessage;
+    this.hintStep = snapshot.hintStep;
     this.betaFeedbackLoading = false;
     this.busy = false;
+    this.boardFeedback = null;
     this.render();
   }
 
@@ -268,28 +277,28 @@ class StrategicPuzzleApp {
   private view(): string {
     const reveal = this.reveal;
     const dominant = this.payload.puzzle.dominantFamily;
+    const introText = 'Solve three planning decisions on the board. Review opens only after you finish the line or give up.';
     return `
       <section class="sp-runtime-topbar">
         <div class="sp-runtime-topbar__lead">
           <p class="sp-demo-kicker">Live strategic puzzle</p>
           <h1>${this.orientation === 'white' ? 'White' : 'Black'} to move</h1>
-          <p class="sp-runtime-intro">Build the route through three planned decisions. The board never calls the engine at runtime, but the shell still behaves like a short rehearsal with fixed replies and terminal reveals.</p>
+          <p class="sp-runtime-intro">${escapeHtml(introText)}</p>
         </div>
         <div class="sp-runtime-topbar__stats">
           <div class="sp-metric-card"><strong>${this.payload.progress.currentStreak}</strong><span>current streak</span></div>
-          <div class="sp-metric-card"><strong>${this.currentStep} / 3</strong><span>decision step</span></div>
-          <div class="sp-metric-card"><strong>${this.payload.puzzle.qualityScore.total}</strong><span>quality score</span></div>
-          <div class="sp-metric-card"><strong>${this.currentChoices.length}</strong><span>active choices</span></div>
+          <div class="sp-metric-card"><strong>${this.currentStep} / 3</strong><span>step</span></div>
+          <div class="sp-metric-card"><strong>${reveal ? 'open' : 'locked'}</strong><span>review</span></div>
         </div>
       </section>
       <section class="sp-demo-shell sp-runtime-shell">
         <article class="sp-demo-board-card sp-demo-board-card--runtime">
           <div class="sp-runtime-board-shell">
-            <div class="sp-runtime-board-stage">
+            <div class="sp-runtime-board-stage${this.boardFeedback ? ` is-${this.boardFeedback}` : ''}">
               <div class="sp-runtime-board-meta">
                 <span class="sp-chip sp-chip--turn">${capitalize(this.orientation)} to move</span>
                 <span class="sp-chip sp-chip--theme">${escapeHtml(dominant?.dominantIdeaKind ? humanize(dominant.dominantIdeaKind) : 'strategic puzzle')}</span>
-                <span class="sp-chip sp-chip--echo">3-step shell</span>
+                <span class="sp-chip sp-chip--echo">3-step plan</span>
               </div>
               <div id="sp-runtime-board" class="sp-runtime-board"></div>
             </div>
@@ -299,119 +308,92 @@ class StrategicPuzzleApp {
                 <span>${this.lineSans.length ? escapeHtml(this.lineSans.join(' ')) : 'No moves played yet.'}</span>
               </div>
               <div class="sp-callout">
-                <strong>Current lens</strong>
-                <span>${escapeHtml(this.currentPrompt)}</span>
-              </div>
-              <div class="sp-callout">
-                <strong>Interaction</strong>
-                <span>Drag any move you want. If it does not match the precomputed shell, the board snaps back and asks you to retry.</span>
-              </div>
-              <div class="sp-callout">
-                <strong>Reveal policy</strong>
-                <span>Opening, ECO, dominant family, and commentary stay hidden until the line resolves.</span>
+                <strong>How to solve</strong>
+                <span>${escapeHtml(this.currentPrompt)} Drag a move on the board. If it breaks the plan, the board resets and asks you to try again.</span>
               </div>
             </div>
           </div>
         </article>
         <div class="sp-demo-side">
           <section class="sp-demo-panel sp-demo-panel--solve">
-            <p class="sp-demo-panel__label">Now solve</p>
+            <p class="sp-demo-panel__label">Solve</p>
             <div class="sp-stepper">
-              <span class="${this.currentStep >= 1 ? 'is-live' : ''}">1. Start the route</span>
+              <span class="${this.currentStep >= 1 ? 'is-live' : ''}">1. Start the plan</span>
               <span class="${this.currentStep >= 2 ? 'is-live' : ''}">2. Keep the plan</span>
-              <span class="${this.currentStep >= 3 ? 'is-live' : ''}">3. Finish the shell</span>
+              <span class="${this.currentStep >= 3 ? 'is-live' : ''}">3. Finish the line</span>
             </div>
             <h3>Choose the move that keeps the plan alive.</h3>
             <p class="sp-demo-panel__copy">${escapeHtml(this.currentPrompt)}</p>
             <div class="sp-feedback-strip ${this.feedback.kind === 'success' ? 'is-success' : this.feedback.kind === 'warning' ? 'is-warning' : ''}">
               <div>
                 <strong>${this.feedback.kind === 'success' ? 'Accepted' : this.feedback.kind === 'warning' ? 'Retry' : 'Guidance'}</strong>
-                <span>${escapeHtml(this.feedback.text || 'Use the board to test the plan. Correct choices drive the fixed replies automatically.')}</span>
+                <span>${escapeHtml(this.feedback.text || 'Use the board to test the plan. Hints narrow the route, and reveal ends the attempt.')}</span>
               </div>
             </div>
-            <div class="sp-choice-grid">
-              ${this.currentChoices.map(choice => `
-                <button type="button" class="sp-choice ${choice.credit === 'full' ? 'is-primary' : ''}" data-choice="${choice.uci}">
-                  <span class="sp-choice__move">${escapeHtml(choice.san)}</span>
-                  <small>${escapeHtml(choice.label || (choice.credit === 'full' ? 'Main line' : 'Alternate'))}</small>
-                </button>
-              `).join('')}
+            <div class="sp-choice-grid sp-choice-grid--hidden">
+              <div class="sp-choice-grid__notice">
+                <strong>Move list stays hidden</strong>
+                <span>Drag on the board. Accepted starts stay hidden until you finish the line or give up.</span>
+              </div>
             </div>
             <div class="sp-runtime-actions">
-              <button type="button" class="sp-demo-link" data-action="reveal">${reveal ? 'Reveal shown' : 'Reveal best line'}</button>
+              ${!reveal ? `<button type="button" class="sp-demo-link" data-action="hint" ${this.hintStep >= 2 ? 'disabled aria-disabled="true"' : ''}>${this.hintStep === 0 ? 'Hint' : this.hintStep === 1 ? 'More hint' : 'Hint shown'}</button>` : ''}
               <button type="button" class="sp-demo-link" data-action="reset">Reset line</button>
+              ${!reveal ? `<button type="button" class="sp-demo-link is-warning" data-action="reveal">Give up and reveal the line</button>` : `<span class="sp-runtime-actions__state">Review open</span>`}
               ${reveal && this.nextAvailable ? `<button type="button" class="sp-demo-link is-strong" data-action="next">Next puzzle</button>` : ''}
             </div>
+            ${!reveal ? `<p class="sp-runtime-actions__note">Reveal ends the attempt and opens the review below.</p>` : ''}
           </section>
-          <section class="sp-demo-panel sp-demo-panel--reveal ${reveal ? 'is-open' : 'is-hidden'}">
-            <p class="sp-demo-panel__label">Reveal state</p>
-            ${reveal ? `
+          ${reveal ? `
+            <section class="sp-demo-panel sp-demo-panel--reveal is-open">
+              <p class="sp-demo-panel__label">Review</p>
               <h3>${escapeHtml(reveal.title)}</h3>
               <p class="sp-demo-panel__copy">${escapeHtml(reveal.summary)}</p>
               <div class="sp-summary-card">
-                <p class="sp-summary-card__eyebrow">${reveal.outcome === 'full' ? 'Terminal explanation' : 'Alternate terminal'}</p>
-                <h4>${escapeHtml(reveal.familyKey ? humanize(reveal.familyKey) : 'Strategic explanation')}</h4>
+                <p class="sp-summary-card__eyebrow">${reveal.outcome === 'full' ? 'Why this line works' : 'Related finish'}</p>
+                <h4>${escapeHtml(reveal.familyKey ? humanize(reveal.familyKey) : 'Plan review')}</h4>
                 <p>${escapeHtml(shorten(reveal.commentary || reveal.summary, 900))}</p>
               </div>
               <div class="sp-mini-facts">
-                <div><strong>Family</strong><span>${escapeHtml(reveal.familyKey ? humanize(reveal.familyKey) : dominant?.key ? humanize(dominant.key) : 'n/a')}</span></div>
+                <div><strong>Pattern</strong><span>${escapeHtml(reveal.familyKey ? humanize(reveal.familyKey) : dominant?.key ? humanize(dominant.key) : 'n/a')}</span></div>
                 <div><strong>Opening</strong><span>${escapeHtml(reveal.opening || 'Hidden in solve mode')}</span></div>
                 <div><strong>ECO</strong><span>${escapeHtml(reveal.eco || 'n/a')}</span></div>
               </div>
-            ` : `
-              <h3>Terminal explanation stays hidden</h3>
-              <p class="sp-demo-panel__copy">Reach a terminal or use “Reveal best line” to open the explanation panel.</p>
-            `}
-          </section>
+            </section>
+          ` : ''}
         </div>
       </section>
-      <section class="sp-demo-lines sp-runtime-lines ${reveal ? 'is-open' : ''}">
+      ${reveal ? `
+      <section class="sp-demo-lines sp-runtime-lines is-open">
         <div class="sp-demo-section-head">
-          <p class="sp-demo-kicker">Line rail</p>
-          <h2>${reveal ? 'Reached terminal' : 'Shell branches stay compressed until reveal'}</h2>
-          <p>${reveal ? 'The line rail now shows the exact sequence you reached and the sibling continuations stored in the same terminal.' : 'The page keeps the analytical shape without dumping engine trees before the solve is over.'}</p>
+          <p class="sp-demo-kicker">Review</p>
+          <h2>Review the finished line</h2>
+          <p>The line rail now shows the route you reached and any other accepted starts that end in the same plan.</p>
         </div>
         <div class="sp-line-grid">
-          ${reveal ? `
             <article class="sp-line-card">
-              <p class="sp-line-card__label">Reached line</p>
+              <p class="sp-line-card__label">Completed line</p>
               <h3>${escapeHtml(reveal.lineSan.join(' '))}</h3>
               <p>${escapeHtml(reveal.summary)}</p>
             </article>
             <article class="sp-line-card">
-              <p class="sp-line-card__label">Sibling continuations</p>
-              <h3>${reveal.siblingMoves.length ? escapeHtml(reveal.siblingMoves.join(', ')) : 'No sibling moves stored'}</h3>
-              <p>Sibling moves share the same terminal family and are treated as the same strategic finish.</p>
+              <p class="sp-line-card__label">Other accepted starts</p>
+              <h3>${reveal.siblingMoves.length ? escapeHtml(reveal.siblingMoves.join(', ')) : 'No other starts stored'}</h3>
+              <p>Other starts still reach the same strategic finish.</p>
             </article>
             <article class="sp-line-card">
-              <p class="sp-line-card__label">Persistence</p>
-              <h3>${this.completion?.saved ? 'Saved for your account' : this.payload.progress.authenticated ? 'Ready to save on terminal' : 'Anonymous session'}</h3>
+              <p class="sp-line-card__label">Saved progress</p>
+              <h3>${this.completion?.saved ? 'Saved to your account' : this.payload.progress.authenticated ? 'Saving to your account' : 'Anonymous session'}</h3>
               <p>${this.payload.progress.authenticated ? `Current streak is ${this.completion?.currentStreak ?? this.payload.progress.currentStreak}.` : 'Sign in if you want streaks and recent history to persist.'}</p>
             </article>
             <article class="sp-line-card">
-              <p class="sp-line-card__label">What happens next</p>
-              <h3>${this.nextAvailable ? 'Another uncleared puzzle is ready' : this.payload.progress.authenticated ? 'You finished the current public pool' : 'Anonymous mode can keep sampling'}</h3>
+              <p class="sp-line-card__label">Next</p>
+              <h3>${this.nextAvailable ? 'Another puzzle is ready' : this.payload.progress.authenticated ? 'You finished the current public pool' : 'Anonymous mode can keep sampling'}</h3>
               <p>${this.nextAvailable ? 'The next button now pulls another puzzle that has not yet been cleared by this account.' : this.payload.progress.authenticated ? 'This account has already cleared every published strategic puzzle in the current pool.' : 'Because anonymous play is not persisted, the site can still serve random puzzles.'}</p>
             </article>
-          ` : `
-            <article class="sp-line-card">
-              <p class="sp-line-card__label">Accepted starts</p>
-              <h3>${escapeHtml(this.payload.runtimeShell.rootChoices.filter(c => c.credit === 'full').map(c => c.san).join(', '))}</h3>
-              <p>Multiple starts can still count as correct as long as they preserve the same strategic thesis.</p>
-            </article>
-            <article class="sp-line-card">
-              <p class="sp-line-card__label">Fixed replies</p>
-              <h3>${this.payload.runtimeShell.forcedReplies.length}</h3>
-              <p>Opponent responses are precomputed and auto-played, so the player’s attention stays on the planning decisions.</p>
-            </article>
-            <article class="sp-line-card">
-              <p class="sp-line-card__label">Recent history</p>
-              <h3>${this.payload.progress.recentAttempts.length}</h3>
-              <p>${this.payload.progress.authenticated ? 'Recent results are loaded from server-side attempt history.' : 'Anonymous sessions do not persist attempt history.'}</p>
-            </article>
-          `}
         </div>
       </section>
+      ` : ''}
       ${reveal ? this.renderBetaFeedbackPrompt() : ''}
     `;
   }
@@ -427,8 +409,8 @@ class StrategicPuzzleApp {
     return `
       <section class="sp-beta-feedback">
         <div class="sp-beta-feedback__copy">
-          <p class="sp-demo-kicker">Open beta signal</p>
-          <h2>Would you pay for a deeper strategic puzzle library if this kept helping your study?</h2>
+          <p class="sp-demo-kicker">Product feedback</p>
+          <h2>Would a deeper strategic puzzle library be worth paying for if this kept helping your study?</h2>
           <p>${escapeHtml(
             this.betaFeedbackSubmitted
               ? 'Your answer is saved. If you want a launch email when paid plans open later, join the waitlist.'
@@ -477,16 +459,11 @@ class StrategicPuzzleApp {
         move: (orig, dest) => this.handleBoardMove(orig, dest),
       },
     });
+    this.syncHintShapes();
   }
 
   private bindButtons() {
-    this.app.querySelectorAll<HTMLElement>('[data-choice]').forEach(button => {
-      button.addEventListener('click', () => {
-        const uci = button.dataset.choice!;
-        const choice = this.currentChoices.find(it => it.uci === uci);
-        if (choice) this.playChoice(choice);
-      });
-    });
+    this.app.querySelector<HTMLElement>('[data-action="hint"]')?.addEventListener('click', () => this.showHint());
     this.app.querySelector<HTMLElement>('[data-action="reset"]')?.addEventListener('click', () => this.reset());
     this.app.querySelector<HTMLElement>('[data-action="reveal"]')?.addEventListener('click', () => this.revealBestLine());
     this.app.querySelector<HTMLElement>('[data-action="next"]')?.addEventListener('click', () => this.loadNext());
@@ -502,9 +479,13 @@ class StrategicPuzzleApp {
     const prefix = `${orig}${dest}`;
     const choice = this.currentChoices.find(it => it.uci.startsWith(prefix));
     if (!choice) {
+      void site.sound?.play?.('genericNotify', 0.7);
+      this.flashBoard('warning');
       this.feedback = {
         kind: 'warning',
-        text: this.currentNodeId ? this.nodeMap.get(this.currentNodeId)?.badMoveFeedback || 'That move is outside the current shell.' : 'That start is outside the current shell. Try to preserve the plan rather than making a generic improving move.',
+        text: this.currentNodeId
+          ? this.nodeMap.get(this.currentNodeId)?.badMoveFeedback || 'That move breaks the current plan.'
+          : 'That start does not keep the plan alive. Try again without releasing the position too early.',
       };
       this.currentFen = this.currentNodeId ? this.nodeMap.get(this.currentNodeId)?.fen || this.payload.runtimeShell.startFen : this.payload.runtimeShell.startFen;
       this.render();
@@ -515,16 +496,20 @@ class StrategicPuzzleApp {
 
   private playChoice(choice: ShellChoice) {
     if (this.busy) return;
+    this.hintStep = 0;
     this.feedback = {
       kind: choice.credit === 'full' ? 'success' : 'neutral',
       text: choice.feedback,
     };
     this.lineUcis.push(choice.uci);
     this.lineSans.push(choice.san);
+    void site.sound?.move?.({ san: choice.san, filter: 'game', volume: 0.8 });
+    this.flashBoard('success');
     const nextFen = choice.afterFen || this.currentFen;
     if (choice.terminalId) {
       this.currentFen = nextFen;
       this.currentNodeId = null;
+      this.clearHintShapes();
       this.revealTerminal(choice.terminalId, choice.credit === 'full' ? 'full' : 'partial');
       return;
     }
@@ -545,6 +530,7 @@ class StrategicPuzzleApp {
       this.currentFen = forced.afterFen;
       this.currentNodeId = forced.nextNodeId || null;
       this.busy = false;
+      void site.sound?.move?.({ san: forced.san, filter: 'game', volume: 0.65 });
       this.feedback = { kind: 'success', text: `${choice.feedback} ${forced.san} was auto-played.` };
       this.render();
     }, 320);
@@ -554,6 +540,9 @@ class StrategicPuzzleApp {
     const terminal = this.terminalMap.get(terminalId);
     if (!terminal) return;
     this.reveal = terminal;
+    this.hintStep = 0;
+    this.clearHintShapes();
+    void site.sound?.play?.('genericNotify', 0.9);
     this.complete(outcome, terminal.id, false);
     this.render();
   }
@@ -566,7 +555,9 @@ class StrategicPuzzleApp {
     this.lineUcis = featured.lineUcis;
     this.currentFen = featured.finalFen;
     this.currentNodeId = null;
-    this.feedback = { kind: 'neutral', text: 'The featured line was revealed.' };
+    this.hintStep = 0;
+    this.clearHintShapes();
+    this.feedback = { kind: 'neutral', text: 'The review opened and this attempt counts as a give-up.' };
     this.complete('giveup', featured.terminal.id, true);
     this.render();
   }
@@ -649,6 +640,7 @@ class StrategicPuzzleApp {
       this.lineUcis = [];
       this.lineSans = [];
       this.reveal = null;
+      this.hintStep = 0;
       this.feedback = { kind: 'neutral', text: '' };
       this.completion = null;
       this.betaFeedbackLoading = false;
@@ -669,9 +661,79 @@ class StrategicPuzzleApp {
     this.lineUcis = [];
     this.lineSans = [];
     this.reveal = null;
+    this.hintStep = 0;
+    this.clearHintShapes();
     this.feedback = { kind: 'neutral', text: 'The shell was reset to the start position.' };
     this.completion = null;
     this.render();
+  }
+
+  private showHint() {
+    if (this.reveal || this.hintStep >= 2) return;
+    this.hintStep = this.hintStep === 0 ? 1 : 2;
+    this.feedback = {
+      kind: 'neutral',
+      text:
+        this.hintStep === 1
+          ? 'Hint: focus on the key pieces first.'
+          : 'More hint: the intended route is now drawn on the board.',
+    };
+    this.render();
+  }
+
+  private syncHintShapes() {
+    this.cg?.setAutoShapes(this.computeHintShapes());
+  }
+
+  private clearHintShapes() {
+    this.cg?.setAutoShapes([]);
+  }
+
+  private computeHintShapes(): DrawShape[] {
+    if (this.reveal || this.hintStep === 0) return [];
+    const rankedChoices = [...this.currentChoices]
+      .sort((a, b) => creditRank(b.credit) - creditRank(a.credit))
+      .slice(0, 3);
+    if (!rankedChoices.length) return [];
+
+    if (this.hintStep === 1) {
+      const seen = new Set<string>();
+      return rankedChoices
+        .map(choice => {
+          const move = parseUci(choice.uci);
+          if (!move || !('from' in move) || !('to' in move)) return null;
+          const orig = makeSquare(move.from);
+          if (seen.has(orig)) return null;
+          seen.add(orig);
+          return {
+            orig,
+            brush: choice.credit === 'full' ? 'green' : 'paleBlue',
+          } as DrawShape;
+        })
+        .filter((shape): shape is DrawShape => Boolean(shape));
+    }
+
+    return rankedChoices
+      .map(choice => {
+        const move = parseUci(choice.uci);
+        if (!move || !('from' in move) || !('to' in move)) return null;
+        return {
+          orig: makeSquare(move.from),
+          dest: makeSquare(move.to),
+          brush: choice.credit === 'full' ? 'green' : 'paleBlue',
+        } as DrawShape;
+      })
+      .filter((shape): shape is DrawShape => Boolean(shape));
+  }
+
+  private flashBoard(kind: Exclude<FeedbackKind, 'neutral'>) {
+    this.boardFeedback = kind;
+    this.render();
+    window.setTimeout(() => {
+      if (this.boardFeedback !== kind) return;
+      this.boardFeedback = null;
+      this.render();
+    }, 280);
   }
 
   private async submitBetaFeedback(willingness: BetaFeedbackChoice) {
@@ -738,6 +800,17 @@ function escapeHtml(value: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function creditRank(credit: Credit): number {
+  switch (credit) {
+    case 'full':
+      return 2;
+    case 'partial':
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 export default initModule;

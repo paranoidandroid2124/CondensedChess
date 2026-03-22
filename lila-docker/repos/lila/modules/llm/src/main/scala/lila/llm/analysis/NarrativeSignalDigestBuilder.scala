@@ -1,7 +1,7 @@
 package lila.llm.analysis
 
 import lila.llm.NarrativeSignalDigest
-import lila.llm.model.{ NarrativeContext, PlanAlignmentInfo, PracticalBiasInfo, StructureProfileInfo }
+import lila.llm.model.{ FactScope, NarrativeContext, PlanAlignmentInfo, PracticalBiasInfo, StructureProfileInfo }
 import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 
 object NarrativeSignalDigestBuilder:
@@ -69,13 +69,14 @@ object NarrativeSignalDigestBuilder:
     val structuralCue = buildStructuralCue(structure, alignment)
     val deployment = structureArc.flatMap(StructurePlanArcBuilder.visibleDeployment)
 
-    val prophylaxisPlan = prevented.flatMap(pp => normalized(pp.planId))
+    val currentBoardPrevented = prevented.filter(_.sourceScope == FactScope.Now)
+    val prophylaxisPlan = currentBoardPrevented.flatMap(pp => normalized(pp.planId))
     val prophylaxisThreat =
-      prevented.flatMap { pp =>
+      currentBoardPrevented.flatMap { pp =>
         pp.preventedThreatType.flatMap(normalized)
           .orElse(pp.breakNeutralized.flatMap(file => normalized(s"$file-break")))
       }
-    val counterplayScoreDrop = prevented.map(_.counterplayScoreDrop).filter(_ > 0)
+    val counterplayScoreDrop = currentBoardPrevented.map(_.counterplayScoreDrop).filter(_ > 0)
 
     val decision = ctx.decision.flatMap(d => normalized(d.logicSummary))
     val strategicFlow = ctx.strategicFlow.flatMap(normalized)
@@ -177,13 +178,11 @@ object NarrativeSignalDigestBuilder:
         case _                             => None
 
     alignment.flatMap { pa =>
-      val band = normalized(pa.band).map(_.toLowerCase)
       val intent = pa.narrativeIntent.flatMap(normalized)
       val risk = pa.narrativeRisk.flatMap(normalized)
       val summary =
         List(
           base,
-          band.map(b => s"plan fit $b"),
           intent,
           risk
         ).flatten.distinct
@@ -191,12 +190,11 @@ object NarrativeSignalDigestBuilder:
     }.orElse(base)
 
   private def formatPracticalBias(bias: PracticalBiasInfo): Option[String] =
-    normalized(bias.factor).map { factor =>
-      val desc = normalized(bias.description)
-      desc match
-        case Some(d) => s"$factor: $d"
-        case None    => factor
-    }
+    for
+      factor <- normalized(bias.factor)
+      desc <- normalized(bias.description)
+      rendered <- LiveNarrativeCompressionCore.renderPracticalBiasPlayer(factor, desc)
+    yield rendered
 
   private def formatCompensationVector(entry: (String, Double)): Option[String] =
     val (label, weight) = entry

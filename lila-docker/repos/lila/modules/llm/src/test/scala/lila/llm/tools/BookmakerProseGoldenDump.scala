@@ -14,7 +14,7 @@ object BookmakerProseGoldenDump:
     Files.createDirectories(outDir)
     BookmakerProseGoldenFixtures.all.foreach { fixture =>
       val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-      val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None).get
+      val slots = BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack).get
       writeText(
         outDir.resolve(s"${fixture.id}.slots.txt"),
         List(

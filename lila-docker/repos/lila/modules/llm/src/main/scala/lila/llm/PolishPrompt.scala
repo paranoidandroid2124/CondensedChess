@@ -1,6 +1,6 @@
 package lila.llm
 
-import lila.llm.analysis.BookmakerPolishSlots
+import lila.llm.analysis.{ BookmakerPolishSlots, LiveNarrativeCompressionCore }
 
 /** System prompt and per-request polish prompt builder for LLM polishing.
   *
@@ -11,11 +11,18 @@ object PolishPrompt:
   private val proseModeReminder: String =
     "Structure reminder: return plain prose only; do not emit UI section titles, bullets, or markdown; preserve draft paragraph breaks."
 
-  private def bookmakerParagraphReminder(momentType: Option[String]): String =
+  private def bookmakerParagraphReminder(
+      momentType: Option[String],
+      bookmakerSlots: Option[BookmakerPolishSlots]
+  ): String =
     if momentType.isDefined then
       "When refining this narrative, preserve the draft paragraph rhythm unless a small edit improves clarity."
     else
-      "For isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each."
+      bookmakerSlots match
+        case Some(slots) if slots.paragraphPlan == List("p1=claim") =>
+          "For isolated-move / Bookmaker prose in compact mode, keep one brief paragraph with 1-2 sentences."
+        case _ =>
+          "For isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences."
 
   private def claimOpeningClause(claim: String): String =
     val trimmed = Option(claim).map(_.trim).getOrElse("")
@@ -107,9 +114,15 @@ object PolishPrompt:
       |   `Strategic Signals`, `Evidence Probes`, `Authoring Evidence`, or `Alternative Options`.
       |   Return plain prose only: no markdown headers, no bullet lists, no metadata wrapper text.
       |8. Preserve paragraph structure when possible. Do not collapse multi-paragraph draft text into
-      |   one block. In isolated-move / Bookmaker mode, target 2-4 short paragraphs with 1-3 sentences each,
-      |   usually: immediate move meaning -> strategic consequence -> optional line or practical nuance.
-      |9. If the draft is already strong, make minimal changes. If it is empty or unusable,
+      |   one block. In isolated-move / Bookmaker mode, target 2-3 short paragraphs and 2-4 total sentences,
+      |   usually: immediate move meaning -> strategic consequence -> optional cited line or practical nuance.
+      |   If the slots indicate compact mode, keep a single brief paragraph instead.
+      |9. Treat slot metadata as a hard topic budget. Do not promote sidecar concepts such as evidence tiers,
+      |   hold reasons, latent plans, ranked stacks, or probe status into new prose topics.
+      |10. Avoid internal system language such as `strategic stack`, `ranked stack`,
+      |   `current support centers on`, `support still centers on`, `plan first`,
+      |   `latent plan`, `probe evidence says`, or `nominal evaluation`.
+      |11. If the draft is already strong, make minimal changes. If it is empty or unusable,
       |   return one brief neutral observation grounded only in the provided context.
       |
       |## OUTPUT
@@ -141,7 +154,7 @@ object PolishPrompt:
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val momentTypeStr = momentType.map(m => s"Key Moment ($m) - Part of Full Game Review").getOrElse("Isolated Move")
-    val modeReminder = bookmakerParagraphReminder(momentType)
+    val modeReminder = bookmakerParagraphReminder(momentType, bookmakerSlots)
     bookmakerSlots match
       case Some(slots) =>
         val supportText = slots.support.mkString("\n")
@@ -154,6 +167,13 @@ object PolishPrompt:
           else "Keep the move header/SAN and any exact branch/eval tokens already implied by the slots."
         val paragraphPlan =
           if slots.paragraphPlan.nonEmpty then slots.paragraphPlan.mkString(", ") else "p1=claim, p2=support_chain"
+        val slotBudgetReminder =
+          if slots.paragraphPlan == List("p1=claim") then
+            "Keep a single brief paragraph built from the slot claim only."
+          else
+            "Keep paragraph order aligned to the slots: claim first, then support, then optional cited line or practical nuance. Do not add a fourth paragraph."
+        val bannedSystemLanguage =
+          LiveNarrativeCompressionCore.systemLanguageBanList.mkString(", ")
         val contextBlock =
           contextLines(
             phase = phase,
@@ -177,9 +197,12 @@ object PolishPrompt:
            |
            |$proseModeReminder
            |$modeReminder
-           |Keep paragraph order aligned to the slots: claim first, then the support chain, then optional tension/evidence, then optional coda.
+           |$slotBudgetReminder
            |Paragraph 1 must begin with this exact opening clause: "$claimLead".
            |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
+           |Do not introduce a new topic beyond the slots.
+           |Do not turn sidecar metadata into prose.
+           |Avoid these internal-system phrases: $bannedSystemLanguage.
            |
            |## SLOT CLAIM
            |${slots.claim}
@@ -270,7 +293,7 @@ object PolishPrompt:
            |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
            |
            |$proseModeReminder
-           |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
+           |If the original draft is isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences unless the slot plan is compact.
            |Paragraph 1 must begin with this exact opening clause: "$claimLead".
            |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
            |
@@ -280,6 +303,7 @@ object PolishPrompt:
            |- Do not add SAN tokens beyond this allowed extension set: ${if allowedSansStr.nonEmpty then allowedSansStr else "none"}.
            |- Preserve move numbering, branch labels, eval tokens, and marker style for concrete lines.
            |- Restore the dominant strategic claim in paragraph 1 and keep the support chain in paragraph 2.
+           |- Do not reintroduce sidecar/system language such as ${LiveNarrativeCompressionCore.systemLanguageBanList.mkString(", ")}.
            |- Keep the prose concise and natural; remove repetitive template artifacts.
            |
            |## SLOT CLAIM
@@ -315,7 +339,7 @@ object PolishPrompt:
            |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
            |
            |$proseModeReminder
-           |If the original draft is isolated-move / Bookmaker prose, keep 2-4 short paragraphs with 1-3 sentences each.
+           |If the original draft is isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences.
            |
            |## STRICT REPAIR REQUIREMENTS
            |- Keep factual claims from ORIGINAL_DRAFT.

@@ -107,6 +107,48 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
     )
   )
 
+  private val compensationPack = Some(
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_comp",
+          ownerSide = "black",
+          kind = StrategicIdeaKind.TargetFixing,
+          group = StrategicIdeaGroup.StructuralChange,
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("b2"),
+          focusFiles = List("b"),
+          focusZone = Some("queenside"),
+          beneficiaryPieces = List("R"),
+          confidence = 0.84
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "black",
+          piece = "Q",
+          from = "d8",
+          target = "b6",
+          idea = "fix the queenside targets",
+          evidence = List("target_pawn")
+        )
+      ),
+      longTermFocus = List("fix the queenside targets before recovering the pawn"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.TargetFixing),
+          dominantIdeaGroup = Some(StrategicIdeaGroup.StructuralChange),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("b2")
+        )
+      )
+    )
+  )
+
   private def validate(
       candidateText: String,
       baseNarrative: String = "White stabilizes the center before choosing a kingside plan.",
@@ -204,14 +246,29 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
     assert(ActiveStrategicNoteValidator.shouldRepair(result))
   }
 
-  test("missing opponent or trigger is a hard fail") {
+  test("grounded note can pass without a separate opponent or trigger sentence") {
     val result =
       validate(
         candidateText =
           "Because the position is ready for space gain and restriction around e3 and g4, White should keep building that kingside clamp. The knight can head toward e3 to support it."
       )
 
-    assert(result.hardReasons.contains("opponent_or_trigger_missing"))
+    assert(result.isAccepted, clue(result))
+    assert(!result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+  }
+
+  test("anchorless note without opponent or trigger still fails") {
+    val result =
+      validate(
+        candidateText =
+          "The space gain and restriction plan around e3 and g4 is still the key strategic idea."
+      )
+
+    assert(
+      result.hardReasons.contains("opponent_or_trigger_missing") ||
+        result.hardReasons.contains("forward_plan_missing"),
+      clue(result)
+    )
     assert(ActiveStrategicNoteValidator.shouldRepair(result))
   }
 
@@ -248,5 +305,131 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       )
 
     assert(result.hardReasons.contains("campaign_owner_missing"))
+    assert(ActiveStrategicNoteValidator.shouldRepair(result))
+  }
+
+  test("compensation-positive notes must mention the canonical compensation family") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The key idea is fixed queenside targets. A likely follow-up is queen toward b6 to lean on those fixed targets before winning the material back. If Black relaxes, the pressure disappears.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted, clue(result))
+  }
+
+  test("compensation-positive notes can pass without a separate opponent warning when the family is explicit") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The key idea is fixed queenside targets. A likely follow-up is queen toward b6 to lean on those fixed targets before winning the material back.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted, clue(result))
+    assert(!result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+  }
+
+  test("compensation-positive notes can satisfy parity through family, anchor, and continuation") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The compensation comes from queenside pressure against fixed targets. The key idea is fixed queenside targets, with the queen toward b6 as a concrete anchor. The next step is to keep the queenside targets tied down before winning the material back.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier =
+          Some(
+            ActiveBranchDossier(
+              dominantLens = "compensation",
+              chosenBranchLabel = "queenside bind",
+              continuationFocus = Some("keep the queenside targets tied down before winning the material back")
+            )
+          ),
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted, clue(result))
+    assert(!result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+  }
+
+  test("compensation-positive notes can use from-there continuation wording") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The compensation comes from queenside pressure against fixed targets. That pressure is anchored on queen toward b6. From there, keep the queenside targets tied down before winning the material back.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted, clue(result))
+    assert(!result.hardReasons.contains("forward_plan_missing"), clue(result))
+  }
+
+  test("compensation-positive notes with family but no concrete anchor are rejected") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The compensation comes from queenside pressure against fixed targets. The key idea is fixed queenside targets. The next step is to keep pressing before winning the material back.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+    assert(ActiveStrategicNoteValidator.shouldRepair(result))
+  }
+
+  test("compensation-positive notes with family and anchor but no continuation are rejected") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The compensation comes from queenside pressure against fixed targets. The key idea is fixed queenside targets, with the queen toward b6 as a concrete anchor.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.hardReasons.contains("forward_plan_missing"), clue(result))
+    assert(result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+    assert(ActiveStrategicNoteValidator.shouldRepair(result))
+  }
+
+  test("compensation-positive notes without family mention are rejected") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "Black should keep improving the position before White gets any activity. If the move order drifts, the edge disappears.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.hardReasons.contains("compensation_family_missing"), clue(result))
     assert(ActiveStrategicNoteValidator.shouldRepair(result))
   }

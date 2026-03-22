@@ -119,10 +119,10 @@ POST  /api/beta-feedback               controllers.BetaFeedback.submitApi
 GET   /journal                         controllers.Main.journal
 GET   /journal/:slug                   controllers.Main.journalPost(slug)
 GET   /strategic-puzzle                controllers.StrategicPuzzle.home
+GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo
 GET   /strategic-puzzle/:id            controllers.StrategicPuzzle.show(id)
 GET   /api/strategic-puzzle/next       controllers.StrategicPuzzle.next
 POST  /api/strategic-puzzle/:id/complete controllers.StrategicPuzzle.complete(id)
-GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)

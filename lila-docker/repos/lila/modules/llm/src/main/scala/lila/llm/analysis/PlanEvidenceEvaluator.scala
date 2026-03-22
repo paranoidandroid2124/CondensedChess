@@ -72,10 +72,10 @@ object PlanEvidenceEvaluator:
         dropped += 1
         val reason =
           if validation.missingSignals.nonEmpty then
-            s"probe ${pr.id} missing required signals: ${validation.missingSignals.mkString(", ")}"
+            s"supporting evidence is still incomplete: missing ${describeSignalList(validation.missingSignals)}"
           else if validation.reasonCodes.nonEmpty then
-            s"probe ${pr.id} failed contract: ${validation.reasonCodes.mkString(", ")}"
-          else s"probe ${pr.id} failed validation"
+            "supporting evidence is still incomplete after validation"
+          else "supporting evidence is still incomplete"
         droppedReasons += reason
         reqOpt.foreach { req =>
           val details =
@@ -150,22 +150,25 @@ object PlanEvidenceEvaluator:
             if refutations.nonEmpty then
               val (_, pr) = refutations.maxBy { case (req, res) => moverLoss(res, isWhiteToMove) - req.maxCpLoss.getOrElse(120) }
               val collapse = pr.l1Delta.flatMap(_.collapseReason).getOrElse("forcing tactical concession")
-              (PlanEvidenceStatus.Refuted, s"probe refutation: $collapse")
+              (PlanEvidenceStatus.Refuted, s"concrete follow-up refutes it: $collapse")
             else if supports.nonEmpty then
-              (PlanEvidenceStatus.PlayableEvidenceBacked, "validated by purpose-aligned probe evidence")
+              (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by concrete supporting lines")
             else if structuralEscalation then
-              (PlanEvidenceStatus.PlayableEvidenceBacked, "validated by structural evidence with no refutation signal")
+              (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by the structure with no refutation signal")
             else if pvCoupled && h.score >= PvCoupledPlayableThreshold then
-              (PlanEvidenceStatus.PlayablePvCoupled, "supported by engine-coupled continuation (probe evidence pending)")
+              (
+                PlanEvidenceStatus.PlayablePvCoupled,
+                "the current engine line still keeps this idea alive, but it still needs independent support"
+              )
             else
               val why =
                 if linkedRequests.nonEmpty then
                   if missingSignals.nonEmpty then
-                    s"evidence pending: missing ${missingSignals.take(3).mkString(", ")}"
+                    s"supporting evidence is still incomplete: missing ${describeSignalList(missingSignals)}"
                   else if subplanSignalsMissing(subplanSpec, linkedRequests) then
-                    s"evidence pending: subplan $subplanId lacks required probe signals"
-                  else "evidence pending: probe contract passed but support signal is insufficient"
-                else "evidence pending: structurally plausible but probe validation is not yet available"
+                    "supporting evidence is still incomplete for this subplan"
+                  else "the idea still looks playable, but the supporting evidence is still thin"
+                else "the idea fits the position, but supporting evidence is not ready yet"
               (PlanEvidenceStatus.Deferred, why)
 
           EvaluatedPlan(
@@ -251,7 +254,7 @@ object PlanEvidenceEvaluator:
         .sortBy(ep => -ep.hypothesis.score)
         .take(2)
         .foreach { ep =>
-          reasons += s"${ep.hypothesis.planName} is held back by refutation evidence (${ep.reason})"
+          reasons += s"${ep.hypothesis.planName} is held back by concrete refutation evidence (${ep.reason})"
         }
 
       evaluated
@@ -259,7 +262,7 @@ object PlanEvidenceEvaluator:
         .sortBy(ep => -ep.hypothesis.score)
         .take(2)
         .foreach { ep =>
-          reasons += s"${ep.hypothesis.planName} remains conditional (${ep.reason})"
+          reasons += s"${ep.hypothesis.planName} is not promoted yet because ${ep.reason}"
         }
 
       evaluated
@@ -267,17 +270,21 @@ object PlanEvidenceEvaluator:
         .sortBy(ep => -ep.hypothesis.score)
         .take(2)
         .foreach { ep =>
-          val label = if StrictPvCoupledMode then "deferred as PlayableByPV under strict evidence mode" else "accepted as PlayableByPV fallback"
-          reasons += s"${ep.hypothesis.planName} is $label (${ep.reason})"
+          val reason =
+            if StrictPvCoupledMode then
+              s"${ep.hypothesis.planName} still looks playable in the engine line, but it needs stronger support beyond that line."
+            else
+              s"${ep.hypothesis.planName} still looks playable in the engine line, but stronger plans currently outrank it."
+          reasons += reason
         }
 
       if droppedProbeCount > 0 then
         reasons += s"$droppedProbeCount probe result(s) were discarded due to contract validation gaps"
 
       if reasons.isEmpty && latentPlans.nonEmpty then
-        reasons += "strategic ideas are preparatory and need further probe confirmation"
+        reasons += "other strategic ideas remain plausible, but they still need firmer support"
       if reasons.isEmpty && mainPlans.isEmpty then
-        reasons += "no plan passed evidence gating in the current search window"
+        reasons += "no plan earned enough support in the current search window"
 
       PartitionedPlans(
         mainPlans = mainPlans,
@@ -432,6 +439,35 @@ object PlanEvidenceEvaluator:
   private def hasStructuralEvidence(h: PlanHypothesis): Boolean =
     val evidenceLow = h.evidenceSources.map(_.toLowerCase)
     evidenceLow.exists(_.startsWith("structural_state:"))
+
+  private def describeSignalList(signals: List[String]): String =
+    signals
+      .map(humanizeSignalName)
+      .filter(_.nonEmpty)
+      .distinct
+      .take(3)
+      .mkString(", ")
+
+  private def humanizeSignalName(raw: String): String =
+    raw match
+      case "replyPvs"              => "a concrete reply line"
+      case "futureSnapshot"        => "a stable follow-up position"
+      case "l1Delta"               => "positional follow-through"
+      case "keyMotifs"             => "the underlying motif"
+      case "resolvedThreatKinds"   => "the resulting threats"
+      case "newThreatKinds"        => "new attacking chances"
+      case "targetsDelta"          => "target changes"
+      case "planBlockersRemoved"   => "removed blockers"
+      case "planPrereqsMet"        => "met plan conditions"
+      case "bestReplyPv"           => "the best defensive line"
+      case "requiredSignals"       => "the requested supporting details"
+      case other if Option(other).exists(_.trim.nonEmpty) =>
+        other
+          .replaceAll("([a-z])([A-Z])", "$1 $2")
+          .replace('_', ' ')
+          .trim
+          .toLowerCase
+      case _ => "supporting details"
 
   private def boolEnv(name: String, default: Boolean): Boolean =
     sys.env

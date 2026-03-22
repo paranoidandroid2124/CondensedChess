@@ -43,7 +43,7 @@ class RuleTemplateSanitizerTest extends munit.FunSuite:
       fen = Some(OpenGamesFen)
     )
 
-    assert(out.contains("Open Games (1.e4 e5)"))
+    assert(out.contains("Open Games"))
     assert(!out.contains("opening-family claim"))
   }
 
@@ -119,4 +119,47 @@ class RuleTemplateSanitizerTest extends munit.FunSuite:
       else
         assert(!out.contains("opening-family claim"), clues(scenario.input, scenario.opening, scenario.fen, out))
     }
+  }
+
+  test("applies user-facing placeholder rewrites to bookmaker fallback prose") {
+    val input =
+      """The direct alternative stays secondary because Piece Activation is deferred as PlayableByPV under strict evidence mode (supported by engine-coupled continuation (probe evidence pending)).
+        |
+        |Further probe work still targets Piece Activation [subplan:worst piece improvement] and still leans on {seed}.""".stripMargin
+    val out = RuleTemplateSanitizer.sanitize(
+      text = input,
+      opening = Some("Italian Game"),
+      phase = "opening",
+      ply = 7,
+      fen = Some(OpenGamesFen)
+    )
+
+    assert(!out.contains("PlayableByPV"), clues(out))
+    assert(!out.contains("under strict evidence mode"), clues(out))
+    assert(!out.contains("probe evidence pending"), clues(out))
+    assert(!out.contains("[subplan:"), clues(out))
+    assert(!out.contains("{seed}"), clues(out))
+    assert(out.contains("current evidence threshold"), clues(out))
+    assert(out.contains("current engine line"), clues(out))
+    assert(out.contains("confirmation is still pending"), clues(out))
+    assert(out.contains("intended pawn lever"), clues(out))
+  }
+
+  test("rewrites compensation jargon into club-player prose") {
+    val input =
+      "The return vector only holds if the initiative keeps generating line pressure, delayed recovery, and a clean cash out."
+    val out = RuleTemplateSanitizer.sanitize(
+      text = input,
+      opening = Some("Italian Game"),
+      phase = "middlegame",
+      ply = 24,
+      fen = Some(OpenGamesFen)
+    )
+
+    assert(!out.toLowerCase.contains("return vector"), clues(out))
+    assert(!out.toLowerCase.contains("cash out"), clues(out))
+    assert(!out.toLowerCase.contains("delayed recovery"), clues(out))
+    assert(!out.toLowerCase.contains("line pressure"), clues(out))
+    assert(out.toLowerCase.contains("pays off"), clues(out))
+    assert(out.toLowerCase.contains("continuing pressure"), clues(out))
   }

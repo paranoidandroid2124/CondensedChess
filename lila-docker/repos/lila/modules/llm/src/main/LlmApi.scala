@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, FullGameDraftNormalizer, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface }
 import lila.llm.model.{ OpeningReference, ProbeResult }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -1553,7 +1553,15 @@ final class LlmApi(
           actions = Nil,
           materialApplied = false,
           materialActions = Nil,
-          evaluation = BookmakerProseContract.Evaluation(Nil, claimLikeFirstParagraph = true, paragraphBudgetOk = true, placeholderHits = Nil, genericHits = Nil)
+          evaluation =
+            BookmakerProseContract.Evaluation(
+              paragraphs = Nil,
+              sentenceCount = 0,
+              claimLikeFirstParagraph = true,
+              paragraphBudgetOk = true,
+              placeholderHits = Nil,
+              genericHits = Nil
+            )
         )
     if repaired.applied then
       softRepairAppliedCount.incrementAndGet()
@@ -1614,6 +1622,69 @@ final class LlmApi(
       carriedWarningReasons: List[String] = Nil,
       carriedObservedModels: List[String] = Nil
   ): ActiveStrategicNoteDecision =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    val compensationContractExpected = LlmApi.activeCompensationNoteExpected(surface)
+
+    def validateRuleNote(note: String): ActiveStrategicNoteValidator.Result =
+      validateActiveStrategicNote(
+        candidateText = note,
+        baseNarrative = moment.narrative,
+        dossier = dossier,
+        strategyPack = moment.strategyPack,
+        routeRefs = routeRefs,
+        moveRefs = moveRefs
+      )
+
+    def acceptedDecision(
+        validation: ActiveStrategicNoteValidator.Result,
+        warningReasons: List[String]
+    ): ActiveStrategicNoteDecision =
+      ActiveStrategicNoteDecision(
+        note = Some(validation.text),
+        sourceMode = Some("rule"),
+        hardReasons = Nil,
+        warningReasons = warningReasons.distinct,
+        provider = Some("rule"),
+        observedModels = carriedObservedModels
+      )
+
+    def omittedDecision(
+        hardReasons: List[String],
+        warningReasons: List[String]
+    ): ActiveStrategicNoteDecision =
+      ActiveStrategicNoteDecision(
+        note = None,
+        sourceMode = Some("omitted"),
+        hardReasons = hardReasons.distinct,
+        warningReasons = warningReasons.distinct,
+        provider = Some("rule"),
+        observedModels = carriedObservedModels
+      )
+
+    def strictCompensationRescue(
+        leadingWarningReasons: List[String]
+    ): Option[ActiveStrategicNoteDecision] =
+      ActiveStrategicCoachingBriefBuilder
+        .buildStrictCompensationFallbackNote(
+          strategyPack = moment.strategyPack,
+          dossier = dossier,
+          routeRefs = routeRefs,
+          moveRefs = moveRefs,
+          currentFen = Some(moment.fen)
+        )
+        .flatMap { note =>
+          val validation = validateRuleNote(note)
+          Option.when(validation.isAccepted) {
+          acceptedDecision(
+              validation = validation,
+              warningReasons =
+                leadingWarningReasons ++
+                  validation.warningReasons ++
+                  List("active_note_rule_fallback", "active_note_compensation_rescue")
+            )
+          }
+        }
+
     ActiveStrategicCoachingBriefBuilder
       .buildDeterministicNote(
         strategyPack = moment.strategyPack,
@@ -1623,41 +1694,32 @@ final class LlmApi(
         currentFen = Some(moment.fen)
       ) match
       case Some(note) =>
-        val validation =
-          validateActiveStrategicNote(
-            candidateText = note,
-            baseNarrative = moment.narrative,
-            dossier = dossier,
-            strategyPack = moment.strategyPack,
-            routeRefs = routeRefs,
-            moveRefs = moveRefs
-          )
-        if validation.isAccepted then
-          ActiveStrategicNoteDecision(
-            note = Some(validation.text),
-            sourceMode = Some("rule"),
-            hardReasons = Nil,
-            warningReasons = (carriedWarningReasons ++ validation.warningReasons :+ "active_note_rule_fallback").distinct,
-            provider = Some("rule"),
-            observedModels = carriedObservedModels
+        val validation = validateRuleNote(note)
+        val primaryMentionsCompensation =
+          !compensationContractExpected ||
+            CompensationContractMatcher.mentionsCompensationContract(validation.text, surface)
+        if validation.isAccepted && primaryMentionsCompensation then
+          acceptedDecision(
+            validation = validation,
+            warningReasons = carriedWarningReasons ++ validation.warningReasons :+ "active_note_rule_fallback"
           )
         else
-          ActiveStrategicNoteDecision(
-            note = None,
-            sourceMode = Some("omitted"),
-            hardReasons = (validation.hardReasons :+ "active_note_rule_failed").distinct,
-            warningReasons = (carriedWarningReasons ++ validation.warningReasons).distinct,
-            provider = Some("rule"),
-            observedModels = carriedObservedModels
+          strictCompensationRescue(
+            leadingWarningReasons = carriedWarningReasons ++ validation.warningReasons
+          ).getOrElse(
+            omittedDecision(
+              hardReasons = validation.hardReasons :+ "active_note_rule_failed",
+              warningReasons = carriedWarningReasons ++ validation.warningReasons
+            )
           )
       case None =>
-        ActiveStrategicNoteDecision(
-          note = None,
-          sourceMode = Some("omitted"),
-          hardReasons = List("active_note_rule_empty"),
-          warningReasons = carriedWarningReasons.distinct,
-          provider = Some("rule"),
-          observedModels = carriedObservedModels
+        strictCompensationRescue(
+          leadingWarningReasons = carriedWarningReasons
+        ).getOrElse(
+          omittedDecision(
+            hardReasons = List("active_note_rule_empty"),
+            warningReasons = carriedWarningReasons
+          )
         )
 
   private def maybeGenerateActiveStrategicNote(
@@ -2544,6 +2606,8 @@ final class LlmApi(
       bookmakerSlots: Option[BookmakerPolishSlots] = None,
       disablePolishCircuit: Boolean = false
   ): Future[PolishDecision] =
+    val deterministicFallback =
+      LiveNarrativeCompressionCore.deterministicFallbackProse(prose, bookmakerSlots)
     if prose.isBlank then
       Future.successful(
         PolishDecision(
@@ -2557,7 +2621,7 @@ final class LlmApi(
     else if !isLlmPolishEnabledForRequest(allowLlmPolish) || providerConfig.isNone then
       Future.successful(
         PolishDecision(
-          commentary = prose,
+          commentary = deterministicFallback,
           sourceMode = "rule",
           model = None,
           cacheHit = false,
@@ -2567,7 +2631,7 @@ final class LlmApi(
     else if momentType.isEmpty && shouldSkipPolish(prose) then
       Future.successful(
         PolishDecision(
-          commentary = prose,
+          commentary = deterministicFallback,
           sourceMode = "rule",
           model = None,
           cacheHit = false,
@@ -2577,7 +2641,7 @@ final class LlmApi(
     else if !disablePolishCircuit && isPolishCircuitOpen(System.currentTimeMillis()) then
       Future.successful(
         PolishDecision(
-          commentary = prose,
+          commentary = deterministicFallback,
           sourceMode = "rule_circuit_open",
           model = None,
           cacheHit = false,
@@ -2823,7 +2887,7 @@ final class LlmApi(
                           withRecordedPolishMetrics(
                             requestStartNs,
                             PolishDecision(
-                              commentary = prose,
+                              commentary = deterministicFallback,
                               sourceMode = "fallback_rule_invalid",
                               model = None,
                               cacheHit = false,
@@ -2843,11 +2907,11 @@ final class LlmApi(
                           )
                       case None =>
                         withRecordedPolishMetrics(
-                          requestStartNs,
-                          PolishDecision(
-                            commentary = prose,
-                            sourceMode = "fallback_rule_invalid",
-                            model = None,
+                        requestStartNs,
+                        PolishDecision(
+                          commentary = deterministicFallback,
+                          sourceMode = "fallback_rule_invalid",
+                          model = None,
                             cacheHit = false,
                               meta = Some(
                                 buildPolishMetaOpenAi(
@@ -2868,7 +2932,7 @@ final class LlmApi(
                     withRecordedPolishMetrics(
                       requestStartNs,
                       PolishDecision(
-                        commentary = prose,
+                        commentary = deterministicFallback,
                         sourceMode = "fallback_rule_empty",
                         model = None,
                         cacheHit = false,
@@ -3151,7 +3215,8 @@ final class LlmApi(
           else Future.successful(basePolished)
 
         finalResponseFut.map { finalResponse =>
-          finalResponse.moments.foreach { moment =>
+          val sanitizedResponse = UserFacingPayloadSanitizer.sanitize(finalResponse)
+          sanitizedResponse.moments.foreach { moment =>
             recordComparisonObservation(
               path = "fullgame",
               digest = moment.signalDigest.flatMap(_.decisionComparison),
@@ -3162,7 +3227,7 @@ final class LlmApi(
             )
             moment.activeStrategicNote.foreach(note => recordActiveThesisAgreement(moment, note))
           }
-          finalResponse
+          sanitizedResponse
         }
       }
 
@@ -3171,6 +3236,10 @@ final class LlmApi(
     else
       val basePolishLevel = LlmLevel.Polish
       val polishTargetPlies = selectFullGamePolishTargetPlies(response.moments)
+      val introSlots =
+        LiveNarrativeCompressionCore.openingSlotsFromCompressedProse(response.intro)
+      val conclusionSlots =
+        LiveNarrativeCompressionCore.practicalSlotsFromCompressedProse(response.conclusion)
 
       val basePolishFut =
         for
@@ -3193,6 +3262,7 @@ final class LlmApi(
             planTier = normalizedPlanTier,
             llmLevel = basePolishLevel,
             momentType = Some("Game Intro"),
+            bookmakerSlots = introSlots,
             disablePolishCircuit = disablePolishCircuit
           )
           conclusionPolish <- maybePolishCommentary(
@@ -3214,11 +3284,14 @@ final class LlmApi(
             planTier = normalizedPlanTier,
             llmLevel = basePolishLevel,
             momentType = Some("Game Conclusion"),
+            bookmakerSlots = conclusionSlots,
             disablePolishCircuit = disablePolishCircuit
           )
           polishedMoments <- Future.traverse(response.moments) { moment =>
             if polishTargetPlies.contains(moment.ply) then
               val allowedSans = moment.variations.flatMap(v => NarrativeUtils.uciListToSan(moment.fen, v.moves))
+              val momentSlots =
+                LiveNarrativeCompressionCore.decisionSlotsFromCompressedProse(moment.narrative)
               maybePolishCommentary(
                 prose = moment.narrative,
                 validationSeed = moment.narrative,
@@ -3238,6 +3311,7 @@ final class LlmApi(
                 planTier = normalizedPlanTier,
                 llmLevel = basePolishLevel,
                 momentType = Some(moment.momentType),
+                bookmakerSlots = momentSlots,
                 disablePolishCircuit = disablePolishCircuit
               ).map { decision =>
                 (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
@@ -3273,7 +3347,12 @@ final class LlmApi(
       planTier: String,
       llmLevel: String
   ): Future[GameChronicleResponse] =
-    val selectedByPly = response.moments.filter(_.strategicBranch).map(_.ply).toSet
+    val compensationParityPlies =
+      response.moments
+        .filter(moment => LlmApi.activeCompensationSelectionEligible(moment.strategyPack))
+        .map(_.ply)
+        .toSet
+    val selectedByPly = response.moments.filter(_.strategicBranch).map(_.ply).toSet ++ compensationParityPlies
     val threadsById = response.strategicThreads.map(thread => thread.threadId -> thread).toMap
     activeNoteSelectedCount.addAndGet(selectedByPly.size.toLong)
 
@@ -3522,6 +3601,7 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int,
+      variant: Option[String] = None,
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
       prevEndgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None,
       allowLlmPolish: Boolean = false,
@@ -3546,10 +3626,11 @@ final class LlmApi(
     if prevStateToken.isDefined || prevEndgameStateToken.isDefined then tokenPresentCount.incrementAndGet()
     commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, prevEndgameStateToken, cacheCtx) match
       case Some(cached) =>
+        val sanitizedCached = UserFacingPayloadSanitizer.sanitize(cached)
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
         traceBookmakerFallbackResponse(
-          response = cached,
+          response = sanitizedCached,
           phase = phase,
           ply = resolvedPly,
           lastMove = lastMove,
@@ -3559,12 +3640,12 @@ final class LlmApi(
         )
         recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
         maybeLogBookmakerMetrics()
-        Future.successful(Some(BookmakerResult(response = cached, cacheHit = true)))
+        Future.successful(Some(BookmakerResult(response = sanitizedCached, cacheHit = true)))
       case None =>
         stateAwareCacheMissCount.incrementAndGet()
         computeBookmakerResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply, prevStateToken, prevEndgameStateToken, allowLlmPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
+          afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowLlmPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
         ).map:
           case (responseOpt, structEvalMsOpt) =>
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
@@ -3586,6 +3667,7 @@ final class LlmApi(
       opening: Option[String],
       phase: String,
       ply: Int,
+      variant: Option[String],
       prevStateToken: Option[lila.llm.analysis.PlanStateTracker],
       prevEndgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState],
       allowLlmPolish: Boolean,
@@ -3595,6 +3677,7 @@ final class LlmApi(
       llmLevel: String
   ): Future[(Option[BookmakerResult], Option[Long])] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
+    val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
 
     val varsFromEval =
       eval.flatMap(_.pv).filter(_.nonEmpty).map { pv =>
@@ -3701,7 +3784,8 @@ final class LlmApi(
               probeResults = probeResults.getOrElse(Nil),
               openingRef = openingRef,
               afterAnalysis = afterDataOpt,
-              renderMode = lila.llm.model.NarrativeRenderMode.Bookmaker
+              renderMode = lila.llm.model.NarrativeRenderMode.Bookmaker,
+              variantKey = normalizedVariant
             )
             recordStrategicMetrics(
               data = dataWithContinuity,
@@ -3711,14 +3795,8 @@ final class LlmApi(
             val strategyPack = StrategyPackBuilder.build(dataWithContinuity, ctx)
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val outline = BookStyleRenderer.validatedOutline(ctx)
-            val bookmakerSlots = BookmakerPolishSlotsBuilder.build(ctx, outline, refs, strategyPack)
-            val proseRaw =
-              bookmakerSlots
-                .map(BookmakerSoftRepair.deterministicParagraphs)
-                .filter(_.nonEmpty)
-                .map(_.mkString("\n\n"))
-                .filter(_.nonEmpty)
-                .getOrElse(BookStyleRenderer.renderValidatedOutline(outline, ctx))
+            val bookmakerSlots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack)
+            val proseRaw = LiveNarrativeCompressionCore.deterministicProse(bookmakerSlots)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,
               opening = opening,
@@ -3726,6 +3804,7 @@ final class LlmApi(
               ply = effectivePly,
               fen = Some(fen)
             )
+            val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose)
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
             val allowedSans =
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
@@ -3739,10 +3818,10 @@ final class LlmApi(
             )
             val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
             val strategyPromptHints = strategyHints(strategyPack)
-            val validationSeed = bookmakerSlots.map(_.validationSeedText).filter(_.nonEmpty).getOrElse(prose)
+            val validationSeed = Option(bookmakerSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
 
             maybePolishCommentary(
-              prose = prose,
+              prose = compactProse,
               validationSeed = validationSeed,
               phase = phase,
               evalDelta = None,
@@ -3759,29 +3838,38 @@ final class LlmApi(
               refs = refs,
               planTier = planTier,
               llmLevel = llmLevel,
-              bookmakerSlots = bookmakerSlots
+              bookmakerSlots = Some(bookmakerSlots)
             ).map { decision =>
-              val response = CommentResponse(
-                commentary = decision.commentary,
-                concepts = baseConcepts,
-                variations = dataWithContinuity.alternatives,
-                probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
-                authorQuestions = authoringSurface.questions,
-                authorEvidence = authoringSurface.evidence,
-                mainStrategicPlans = ctx.mainStrategicPlans,
-                latentPlans = ctx.latentPlans,
-                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,
-                planStateToken = Some(nextTracker),
-                endgameStateToken = nextEndgameState,
-                sourceMode = decision.sourceMode,
-                model = decision.model,
-                refs = refs,
-                polishMeta = decision.meta,
-                planTier = planTier,
-                llmLevel = llmLevel,
-                strategyPack = strategyPack,
-                signalDigest = strategyPack.flatMap(_.signalDigest),
-                bookmakerLedger = bookmakerLedger
+              val response = UserFacingPayloadSanitizer.sanitize(
+                CommentResponse(
+                  commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary),
+                  concepts = baseConcepts,
+                  variations = dataWithContinuity.alternatives,
+                  probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+                  authorQuestions = authoringSurface.questions,
+                  authorEvidence = authoringSurface.evidence,
+                  mainStrategicPlans = ctx.mainStrategicPlans,
+                  strategicPlanExperiments =
+                    ctx.strategicPlanExperiments.filter(experiment =>
+                      ctx.mainStrategicPlans.exists(plan =>
+                        plan.planId.equalsIgnoreCase(experiment.planId) &&
+                          plan.subplanId.getOrElse("").equalsIgnoreCase(experiment.subplanId.getOrElse(""))
+                      )
+                    ),
+                  latentPlans = ctx.latentPlans,
+                  whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV,
+                  planStateToken = Some(nextTracker),
+                  endgameStateToken = nextEndgameState,
+                  sourceMode = decision.sourceMode,
+                  model = decision.model,
+                  refs = refs,
+                  polishMeta = decision.meta,
+                  planTier = planTier,
+                  llmLevel = llmLevel,
+                  strategyPack = strategyPack,
+                  signalDigest = strategyPack.flatMap(_.signalDigest),
+                  bookmakerLedger = bookmakerLedger
+                )
               )
               recordComparisonObservation(
                 path = "bookmaker",
@@ -3825,6 +3913,7 @@ final class LlmApi(
       lang: String = "en",
       planTier: String = PlanTier.Basic,
       llmLevel: String = LlmLevel.Polish,
+      variant: Option[String] = None,
       probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty,
       disablePolishCircuit: Boolean = false
   ): Future[Option[GameChronicleResponse]] =
@@ -3840,6 +3929,7 @@ final class LlmApi(
       else normalizeLlmLevel(llmLevel)
     val effectiveLevel = effectiveLlmLevel(normalizedPlanTier, requestedLevel, allowLlmPolish)
     val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
+    val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
     val normalizedProbeResultsByPly = probeResultsByPly.view.mapValues(_.take(GameArcProbeRequestsPerMoment)).toMap
     if normalizedProbeResultsByPly.nonEmpty then
       logger.info(
@@ -3852,6 +3942,7 @@ final class LlmApi(
           evals = evalMap,
           openingRefsByFen = openingRefsByFen,
           probeResultsByPly = normalizedProbeResultsByPly,
+          variantKey = normalizedVariant,
           llmLevel = effectiveLevel
         )
       }
@@ -3861,6 +3952,7 @@ final class LlmApi(
           pgn = pgn,
           evals = evalMap,
           probeResultsByPly = normalizedProbeResultsByPly,
+          variantKey = normalizedVariant,
           llmLevel = effectiveLevel
         )
       }
@@ -3934,6 +4026,7 @@ final class LlmApi(
       lang = lang,
       planTier = planTier,
       llmLevel = llmLevel,
+      variant = req.variant,
       probeResultsByPly = normalizeProbeResultsByPly(req.probeResultsByPly)
     ).map {
       case Some(result) =>
@@ -4401,10 +4494,12 @@ private[llm] object RuleTemplateSanitizer:
     val src = Option(text).getOrElse("")
     val noInvalidFamilyClaim = neutralizeUnsupportedFamilyClaims(src, opening, phase, ply, fen)
 
-    collapseRepeatedDots(noInvalidFamilyClaim)
-      .replaceAll(""":\s*:""", ": ")
-      .replaceAll("""\.\s*:""", ". ")
-      .replaceAll("""\s+\.""", ".")
+    lila.llm.analysis.UserFacingSignalSanitizer.sanitize(
+      collapseRepeatedDots(noInvalidFamilyClaim)
+        .replaceAll(""":\s*:""", ": ")
+        .replaceAll("""\.\s*:""", ". ")
+        .replaceAll("""\s+\.""", ".")
+    )
 
 private[llm] object PolishValidation:
 
@@ -4543,3 +4638,40 @@ private[llm] object PolishValidation:
       allowedSans: List[String]
   ): Boolean =
     validatePolishedCommentary(polished, original, allowedSans).isValid
+
+object LlmApi:
+
+  private[llm] def activeCompensationNoteExpected(surface: StrategyPackSurface.Snapshot): Boolean =
+    CompensationContractMatcher
+      .canonicalSubtype(surface)
+      .exists(subtype => surface.compensationPosition && !subtype.transitionOnly)
+
+  private[llm] def activeCompensationNoteExpected(strategyPack: Option[StrategyPack]): Boolean =
+    activeCompensationNoteExpected(StrategyPackSurface.from(strategyPack))
+
+  private[llm] def activeCompensationParityEligible(surface: StrategyPackSurface.Snapshot): Boolean =
+    val canonicalLabel = StrategyPackSurface.strictCompensationSubtypeLabel(surface)
+    surface.compensationPosition &&
+      surface.compensationContractResolved &&
+      StrategyPackSurface.resolvedDisplaySubtypeSource(surface) != "raw_fallback" &&
+      canonicalLabel.nonEmpty
+
+  private[llm] def activeCompensationParityEligible(strategyPack: Option[StrategyPack]): Boolean =
+    activeCompensationParityEligible(StrategyPackSurface.from(strategyPack))
+
+  private[llm] def activeCompensationSelectionEligible(surface: StrategyPackSurface.Snapshot): Boolean =
+    def hasConcreteCarrierAnchor: Boolean =
+      List(
+        StrategyPackSurface.resolvedNormalizedExecutionText(surface),
+        StrategyPackSurface.resolvedNormalizedObjectiveText(surface),
+        StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
+        surface.executionText,
+        surface.objectiveText,
+        surface.focusText
+      ).flatten.exists(_.trim.nonEmpty)
+
+    activeCompensationParityEligible(surface) ||
+      (activeCompensationNoteExpected(surface) && hasConcreteCarrierAnchor)
+
+  private[llm] def activeCompensationSelectionEligible(strategyPack: Option[StrategyPack]): Boolean =
+    activeCompensationSelectionEligible(StrategyPackSurface.from(strategyPack))

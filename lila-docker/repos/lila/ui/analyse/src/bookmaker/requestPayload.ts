@@ -16,6 +16,7 @@ type BuildBookmakerRequestInput = {
   afterVariations: EvalVariation[] | null;
   phase: string;
   ply: number;
+  variant: string;
   planStateToken: PlanStateToken | null;
   endgameStateToken: EndgameStateToken | null;
 };
@@ -58,7 +59,7 @@ export function deriveAfterVariations(
 }
 
 export function buildBookmakerRequest(input: BuildBookmakerRequestInput) {
-  const { fen, lastMove, variations, probeResults, openingData, afterFen, afterVariations, phase, ply, planStateToken, endgameStateToken } = input;
+  const { fen, lastMove, variations, probeResults, openingData, afterFen, afterVariations, phase, ply, variant, planStateToken, endgameStateToken } = input;
   return {
     fen,
     lastMove: lastMove || null,
@@ -73,6 +74,7 @@ export function buildBookmakerRequest(input: BuildBookmakerRequestInput) {
       opening: null,
       phase,
       ply,
+      variant,
     },
     planStateToken,
     endgameStateToken,

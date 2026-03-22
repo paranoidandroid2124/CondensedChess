@@ -36,7 +36,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
       ),
     },
     [
-      displayColumns() === 1 && ctrl.isCevalAllowed() && renderMobileAnalysisTab(ctrl),
+      ctrl.isCevalAllowed() && (!reviewShell || displayColumns() === 1) && renderAnalysisToggle(ctrl),
       hl('div.jumps', [
         !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
@@ -47,21 +47,20 @@ export function renderControls(ctrl: AnalyseCtrl) {
         !isMobileUi() &&
           jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
       ]),
-      !reviewShell &&
-        hl(
-          'button.fbt',
-          {
-            attrs: {
-              title: 'Opening explorer and Tablebase',
-              'data-act': 'opening-explorer',
-            },
-            class: {
-              hidden: !ctrl.explorer.allowed(),
-              active: ctrl.activeControlBarTool() === 'opening-explorer',
-            },
+      hl(
+        'button.fbt',
+        {
+          attrs: {
+            title: reviewShell ? 'Opening explorer' : 'Opening explorer and Tablebase',
+            'data-act': 'opening-explorer',
           },
-          [icon(licon.Book as any)],
-        ),
+          class: {
+            hidden: !ctrl.explorer.allowed(),
+            active: ctrl.activeControlBarTool() === 'opening-explorer',
+          },
+        },
+        [icon(licon.Book as any)],
+      ),
       !reviewShell &&
         ctrl.narrative &&
         hl(
@@ -74,35 +73,36 @@ export function renderControls(ctrl: AnalyseCtrl) {
             class: {
               active: ctrl.activeControlBarTool() === 'narrative',
             },
-          },
+            },
           [icon(licon.BubbleSpeech as any)],
         ),
-      !reviewShell &&
-        hl(
-          'button.fbt',
-          {
-            class: { active: ctrl.activeControlBarTool() === 'action-menu' },
-            attrs: { title: 'Menu', 'data-act': 'menu' },
-          },
-          [icon(licon.Hamburger as any)],
-        ),
+      hl(
+        'button.fbt',
+        {
+          class: { active: ctrl.activeControlBarTool() === 'action-menu' },
+          attrs: { title: reviewShell ? 'Board view and settings' : 'Menu', 'data-act': 'menu' },
+        },
+        [icon(licon.Hamburger as any)],
+      ),
     ],
   );
 }
 
-function renderMobileAnalysisTab(ctrl: AnalyseCtrl): VNode {
-  const active = ctrl.showCeval() && !ctrl.activeControlBarTool(),
-    latent = ctrl.showCeval() && !!ctrl.activeControlBarTool();
+function renderAnalysisToggle(ctrl: AnalyseCtrl): VNode {
+  const active = ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval(),
+    latent = active && !!ctrl.activeControlBarTool(),
+    showLabel = displayColumns() > 1;
   return hl(
-    'button.fbt',
+    'button.fbt.fbt--engine-toggle',
     {
       attrs: {
-        title: 'Toggle local analysis',
+        title: 'Toggle engine analysis',
         'data-act': 'analysis',
+        'aria-pressed': active ? 'true' : 'false',
       },
       class: { active, latent, computing: ctrl.ceval.isComputing },
     },
-    [icon(licon.Cogs as any)],
+    [icon(licon.Cogs as any), showLabel ? hl('span.label', 'Engine') : null],
   );
 }
 
@@ -134,8 +134,10 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
       ctrl.explorer.disable();
       ctrl.narrative?.enabled(false);
       ctrl.actionMenu(false);
+      if (ctrl.isReviewShell()) ctrl.setReviewUtilityPanel(null);
     }
-    ctrl.showCeval(!ctrl.showCeval());
+    if (ctrl.isReviewShell()) ctrl.setShowEnginePanel(!ctrl.showEnginePanel());
+    else ctrl.showCeval(!ctrl.showCeval());
   }
   ctrl.redraw();
 }
