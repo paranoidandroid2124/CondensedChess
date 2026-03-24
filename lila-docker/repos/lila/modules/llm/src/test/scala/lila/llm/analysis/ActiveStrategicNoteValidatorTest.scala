@@ -382,6 +382,23 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
     assert(!result.hardReasons.contains("forward_plan_missing"), clue(result))
   }
 
+  test("compensation-positive notes accept square-led anchor wording without can-use phrasing") {
+    val result =
+      ActiveStrategicNoteValidator.validate(
+        candidateText =
+          "The compensation comes from queenside pressure against fixed targets. The key idea is fixed queenside targets. That pressure is anchored on b2. From there, keep the queenside targets tied down before winning the material back.",
+        baseNarrative = "Black keeps the queenside pressure alive.",
+        dossier = None,
+        strategyPack = compensationPack,
+        routeRefs = Nil,
+        moveRefs = Nil,
+        strategyReasons = Nil
+      )
+
+    assert(result.isAccepted, clue(result))
+    assert(!result.hardReasons.contains("opponent_or_trigger_missing"), clue(result))
+  }
+
   test("compensation-positive notes with family but no concrete anchor are rejected") {
     val result =
       ActiveStrategicNoteValidator.validate(

@@ -42,6 +42,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       gameArcCompensationPosition = false,
       bookmakerCompensationPosition = false,
       compensationPosition = false,
+      exemplarVisible = false,
       gameArcCompensationSubtype = None,
       bookmakerCompensationSubtype = None,
       compensationSubtype = None,

@@ -279,7 +279,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   def activeStrategicNoteSync(
-      baseNarrative: String,
+      draftNote: String,
       phase: String,
       momentType: String,
       concepts: List[String],
@@ -294,7 +294,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel: String = LlmLevel.Active
   ): Future[Option[OpenAiPolishResult]] =
     activeStrategicNoteWithFallback(
-      baseNarrative = baseNarrative,
+      draftNote = draftNote,
       phase = phase,
       momentType = momentType,
       concepts = concepts,
@@ -311,7 +311,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   def activeStrategicNoteAsync(
-      baseNarrative: String,
+      draftNote: String,
       phase: String,
       momentType: String,
       concepts: List[String],
@@ -326,7 +326,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel: String = LlmLevel.Active
   ): Future[Option[OpenAiPolishResult]] =
     activeStrategicNoteWithFallback(
-      baseNarrative = baseNarrative,
+      draftNote = draftNote,
       phase = phase,
       momentType = momentType,
       concepts = concepts,
@@ -343,8 +343,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   def repairActiveStrategicNoteSync(
-      baseNarrative: String,
-      rejectedNote: String,
+      draftNote: String,
+      rejectedPolish: String,
       failureReasons: List[String],
       phase: String,
       momentType: String,
@@ -360,8 +360,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel: String = LlmLevel.Active
   ): Future[Option[OpenAiPolishResult]] =
     repairActiveStrategicNoteWithFallback(
-      baseNarrative = baseNarrative,
-      rejectedNote = rejectedNote,
+      draftNote = draftNote,
+      rejectedPolish = rejectedPolish,
       failureReasons = failureReasons,
       phase = phase,
       momentType = momentType,
@@ -379,8 +379,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   def repairActiveStrategicNoteAsync(
-      baseNarrative: String,
-      rejectedNote: String,
+      draftNote: String,
+      rejectedPolish: String,
       failureReasons: List[String],
       phase: String,
       momentType: String,
@@ -396,8 +396,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       llmLevel: String = LlmLevel.Active
   ): Future[Option[OpenAiPolishResult]] =
     repairActiveStrategicNoteWithFallback(
-      baseNarrative = baseNarrative,
-      rejectedNote = rejectedNote,
+      draftNote = draftNote,
+      rejectedPolish = rejectedPolish,
       failureReasons = failureReasons,
       phase = phase,
       momentType = momentType,
@@ -608,7 +608,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       }
 
   private def activeStrategicNoteWithFallback(
-      baseNarrative: String,
+      draftNote: String,
       phase: String,
       momentType: String,
       concepts: List[String],
@@ -623,12 +623,12 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
-    if !config.enabled || baseNarrative.isBlank then Future.successful(None)
+    if !config.enabled || draftNote.isBlank then Future.successful(None)
     else
       val route =
         selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote)
       callActiveStrategicNoteModel(
-        baseNarrative = baseNarrative,
+        draftNote = draftNote,
         phase = phase,
         momentType = momentType,
         concepts = concepts,
@@ -648,7 +648,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
           route.fallback match
             case Some(fb) =>
               callActiveStrategicNoteModel(
-                baseNarrative = baseNarrative,
+                draftNote = draftNote,
                 phase = phase,
                 momentType = momentType,
                 concepts = concepts,
@@ -667,8 +667,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       }
 
   private def repairActiveStrategicNoteWithFallback(
-      baseNarrative: String,
-      rejectedNote: String,
+      draftNote: String,
+      rejectedPolish: String,
       failureReasons: List[String],
       phase: String,
       momentType: String,
@@ -684,13 +684,13 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       lang: String,
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
-    if !config.enabled || baseNarrative.isBlank || rejectedNote.isBlank then Future.successful(None)
+    if !config.enabled || draftNote.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
       val route =
         selectModelRoute(asyncTier = asyncTier, planTier = planTier, llmLevel = llmLevel, promptFamily = PromptFamilyActiveNote)
       callRepairActiveStrategicNoteModel(
-        baseNarrative = baseNarrative,
-        rejectedNote = rejectedNote,
+        draftNote = draftNote,
+        rejectedPolish = rejectedPolish,
         failureReasons = failureReasons,
         phase = phase,
         momentType = momentType,
@@ -711,8 +711,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
           route.fallback match
             case Some(fb) =>
               callRepairActiveStrategicNoteModel(
-                baseNarrative = baseNarrative,
-                rejectedNote = rejectedNote,
+                draftNote = draftNote,
+                rejectedPolish = rejectedPolish,
                 failureReasons = failureReasons,
                 phase = phase,
                 momentType = momentType,
@@ -849,7 +849,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   private def callActiveStrategicNoteModel(
-      baseNarrative: String,
+      draftNote: String,
       phase: String,
       momentType: String,
       concepts: List[String],
@@ -865,7 +865,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
     val userPrompt = ActiveStrategicPrompt.buildPrompt(
-      baseNarrative = baseNarrative,
+      draftNote = draftNote,
       phase = phase,
       momentType = momentType,
       fen = fen,
@@ -886,8 +886,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     )
 
   private def callRepairActiveStrategicNoteModel(
-      baseNarrative: String,
-      rejectedNote: String,
+      draftNote: String,
+      rejectedPolish: String,
       failureReasons: List[String],
       phase: String,
       momentType: String,
@@ -904,8 +904,8 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int]
   ): Future[Option[OpenAiPolishResult]] =
     val userPrompt = ActiveStrategicPrompt.buildRepairPrompt(
-      baseNarrative = baseNarrative,
-      rejectedNote = rejectedNote,
+      draftNote = draftNote,
+      rejectedPolish = rejectedPolish,
       failureReasons = failureReasons,
       phase = phase,
       momentType = momentType,

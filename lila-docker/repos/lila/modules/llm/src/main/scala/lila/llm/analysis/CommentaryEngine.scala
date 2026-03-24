@@ -28,6 +28,22 @@ case class PositionAssessment(
 object CommentaryEngine:
   private val llmConfig = LlmConfig.fromEnv
 
+  private case class TruthBoundArcMoment(
+      moment: GameArcMoment,
+      truthContract: DecisiveTruthContract
+  )
+
+  private[llm] case class WholeGameConclusionSupport(
+      mainContest: Option[String] = None,
+      decisiveShift: Option[String] = None,
+      payoff: Option[String] = None
+  )
+
+  private case class WholeGameAnchor(
+      text: String,
+      fullSentence: Boolean
+  )
+
   private def themeMaxShareFromHypotheses(
       hypotheses: List[lila.llm.model.authoring.PlanHypothesis]
   ): Double =
@@ -505,30 +521,46 @@ object CommentaryEngine:
              else analyzeSelectedPlies(plyDataList, evals, finalPlies)
            val dataByPly = finalData.map(d => d.ply -> d).toMap
            val internalMomentNarratives =
-             buildMomentNarratives(internalMoments, dataByPly, moveEvals, openingRefsByFen, probeResultsByPly, variantKey)
-           val projection = StrategicBranchSelector.buildSelection(internalMomentNarratives.map(GameChronicleMoment.fromArcMoment))
+             buildMomentNarratives(
+               internalMoments,
+               dataByPly,
+               moveEvals,
+               openingRefsByFen,
+               probeResultsByPly,
+               variantKey
+             )
+           val truthContractsByPly =
+             internalMomentNarratives.map(bound => bound.moment.ply -> bound.truthContract).toMap
+           val projection =
+             StrategicBranchSelector.buildSelection(
+               internalMomentNarratives.map(bound => GameChronicleMoment.fromArcMoment(bound.moment)),
+               truthContractsByPly
+             )
            val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
+           val promotedWholeGamePly =
+             selectWholeGamePromotionPly(
+               internalMomentNarratives.map(_.moment),
+               visibleMomentPlies,
+               truthContractsByPly
+             )
+           val finalVisibleMomentPlies = visibleMomentPlies ++ promotedWholeGamePly.toSet
            val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
            val momentNarratives =
              internalMomentNarratives
-               .filter(moment => visibleMomentPlies.contains(moment.ply))
-               .sortBy(_.ply)
-               .map { moment =>
-                 moment.copy(
-                   strategicBranch = activeNotePlies.contains(moment.ply),
-                   strategicThread = projection.threadRefsByPly.get(moment.ply)
+               .filter(bound => finalVisibleMomentPlies.contains(bound.moment.ply))
+               .sortBy(_.moment.ply)
+               .map { bound =>
+                 bound.moment.copy(
+                   strategicBranch = activeNotePlies.contains(bound.moment.ply),
+                   strategicThread = projection.threadRefsByPly.get(bound.moment.ply)
                  )
                }
 
            val totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
            val blundersCount =
-             momentNarratives.count(moment =>
-               moment.momentType == "AdvantageSwing" && moment.moveClassification.contains("Blunder")
-             )
+             momentNarratives.count(moment => wholeGameClassification(moment, truthContractsByPly) == "blunder")
            val missedWinsCount =
-             momentNarratives.count(moment =>
-               moment.momentType == "AdvantageSwing" && moment.moveClassification.contains("MissedWin")
-             )
+             momentNarratives.count(moment => wholeGameClassification(moment, truthContractsByPly) == "missedwin")
 
            val gameIntro = lila.llm.analysis.NarrativeLexicon.gameIntro(
              metadata.white, metadata.black, metadata.event, metadata.date, metadata.result,
@@ -540,6 +572,13 @@ object CommentaryEngine:
            val planThemes = visibleData.flatMap(_.plans.map(_.plan.name)).distinct
            val allThemes = if (planThemes.nonEmpty) planThemes.take(3)
                            else visibleData.flatMap(_.conceptSummary).distinct.take(3)
+           val conclusionSupport =
+             buildWholeGameConclusionSupport(
+               moments = momentNarratives,
+               strategicThreads = projection.threads,
+               themes = allThemes,
+               truthContractsByPly = truthContractsByPly.filter { case (ply, _) => finalVisibleMomentPlies.contains(ply) }
+             )
 
            val conclusion = lila.llm.analysis.NarrativeLexicon.gameConclusion(
              winner = if (metadata.result.startsWith("1-0")) Some(metadata.white)
@@ -547,7 +586,10 @@ object CommentaryEngine:
                       else None,
              themes = allThemes,
              blunders = blundersCount,
-             missedWins = missedWinsCount
+             missedWins = missedWinsCount,
+             mainContest = conclusionSupport.mainContest,
+             decisiveShift = conclusionSupport.decisiveShift,
+             payoff = conclusionSupport.payoff
            )
 
            GameArc(
@@ -656,7 +698,7 @@ object CommentaryEngine:
       variantKey: String
   ): List[GameChronicleMoment] =
     buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen, variantKey = variantKey)
-      .map(GameChronicleMoment.fromArcMoment)
+      .map(bound => GameChronicleMoment.fromArcMoment(bound.moment))
 
   private def buildMomentNarratives(
       moments: List[KeyMoment],
@@ -665,13 +707,13 @@ object CommentaryEngine:
       openingRefsByFen: Map[String, OpeningReference],
       probeResultsByPly: Map[Int, List[ProbeResult]] = Map.empty,
       variantKey: String
-  ): List[GameArcMoment] =
+  ): List[TruthBoundArcMoment] =
     val draftedMoments =
       moments
         .sortBy(_.ply)
         .foldLeft(
           (
-            List.empty[(GameArcMoment, Option[FullGameEvidenceSurfacePolicy.InternalProbeCandidate])],
+            List.empty[(TruthBoundArcMoment, Option[FullGameEvidenceSurfacePolicy.InternalProbeCandidate])],
             Option.empty[ExtendedAnalysisData],
             OpeningEventBudget(),
             Option.empty[OpeningReference],
@@ -682,7 +724,7 @@ object CommentaryEngine:
           dataByPly.get(moment.ply) match
             case Some(data) =>
               val momentProbeResults = probeResultsByPly.getOrElse(moment.ply, Nil)
-              val ctx = NarrativeContextBuilder.build(
+              val rawCtx = NarrativeContextBuilder.build(
                 data,
                 data.toContext,
                 prevAnalysis,
@@ -693,11 +735,35 @@ object CommentaryEngine:
                 renderMode = NarrativeRenderMode.FullGame,
                 variantKey = variantKey
               )
-              val strategyPack = StrategyPackBuilder.build(data, ctx)
+              val rawComparison = DecisionComparisonBuilder.build(rawCtx)
+              val rawStrategyPack = StrategyPackBuilder.build(data, rawCtx)
+              val truthContract =
+                DecisiveTruth.derive(
+                  ctx = rawCtx,
+                  momentType = Some(moment.momentType),
+                  transitionType = data.planSequence.map(_.transitionType.toString),
+                  cpBefore = Some(moment.cpBefore),
+                  cpAfter = Some(moment.cpAfter),
+                  strategyPack = rawStrategyPack,
+                  comparisonOverride = rawComparison
+                )
+              val ctx = DecisiveTruth.sanitizeContext(rawCtx, truthContract)
+              val strategyPack =
+                DecisiveTruth.sanitizeStrategyPack(
+                  rawStrategyPack,
+                  truthContract
+                )
               val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
-              val preparedNarrative = buildHybridNarrativeParts(ctx, moment)
+              val preparedNarrative = buildHybridNarrativeParts(ctx, moment, Some(truthContract))
               val signalDigest =
-                buildMomentSignalDigest(ctx, preparedNarrative.focusedOutline, strategyPack, authoringSurface.headline)
+                buildMomentSignalDigest(
+                  ctx,
+                  preparedNarrative.focusedOutline,
+                  strategyPack,
+                  authoringSurface.headline,
+                  truthContract = Some(truthContract),
+                  decisionComparisonOverride = rawComparison
+                )
               val (fullText, focusedOutline) =
                 renderHybridMomentNarrative(
                   ctx,
@@ -707,14 +773,8 @@ object CommentaryEngine:
                   prepared = Some(preparedNarrative)
                 )
 
-              val (classification, narrativeEvent) = moment.momentType match
-                case "Blunder"                            => (Some("Blunder"), "AdvantageSwing")
-                case "MissedWin"                          => (Some("MissedWin"), "AdvantageSwing")
-                case "Equalization"                       => (None, "Equalization")
-                case "SustainedPressure"                  => (None, "SustainedPressure")
-                case "TensionPeak"                        => (None, "TensionPeak")
-                case "MateFound" | "MateLost" | "MateShift" => (None, "MatePivot")
-                case other                                => (None, other)
+              val classification = truthContract.moveClassificationLabel
+              val narrativeEvent = truthContract.narrativeEvent(moment.momentType)
 
               val collapseData =
                 if moment.momentType == "Blunder" || moment.momentType == "SustainedPressure" then
@@ -722,10 +782,10 @@ object CommentaryEngine:
                 else None
               val evidenceEligible =
                 evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
-                  FullGameEvidenceSurfacePolicy.eligible(moment.momentType, ctx, focusedOutline)
+                  FullGameEvidenceSurfacePolicy.eligible(narrativeEvent, ctx, focusedOutline)
               val internalProbeCandidate =
                 FullGameEvidenceSurfacePolicy.internalCandidate(
-                  momentType = moment.momentType,
+                  momentType = narrativeEvent,
                   selectionKind = moment.selectionKind,
                   strategicSalienceHigh = data.strategicSalience == StrategicSalience.High,
                   ctx = ctx,
@@ -765,15 +825,13 @@ object CommentaryEngine:
                     commitmentScore = Some(seq.momentum)
                   ))
                 ),
-                topEngineMove = data.alternatives.headOption.map { alt =>
-                  lila.llm.EngineAlternative(
-                    uci = alt.moves.headOption.getOrElse(""),
-                    san = None,
-                    cpAfterAlt = Some(alt.scoreCp),
-                    cpLossVsPlayed = Some(cpLossForSideToMove(data.fen, alt.scoreCp, moment.cpAfter)),
-                    pv = alt.moves
-                  )
-                },
+                topEngineMove =
+                  buildTruthBoundTopEngineMove(
+                    data = data,
+                    comparison = rawComparison,
+                    truthContract = truthContract,
+                    playedCpAfter = moment.cpAfter
+                  ),
                 collapse = collapseData,
                 strategyPack = strategyPack,
                 signalDigest = signalDigest,
@@ -790,13 +848,24 @@ object CommentaryEngine:
                     )
                   ),
                 latentPlans = ctx.latentPlans.take(2),
-                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3)
+                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3),
+                truthPhase = truthContract.truthPhase.map(_.toString),
+                surfacedMoveOwnsTruth = truthContract.surfacedMoveOwnsTruth,
+                verifiedPayoffAnchor = truthContract.verifiedPayoffAnchor,
+                compensationProseAllowed = truthContract.compensationProseAllowed,
+                benchmarkProseAllowed = truthContract.benchmarkProseAllowed,
+                investmentTruthChainKey = truthContract.investmentTruthChainKey
               )
 
               val nextRef = ctx.openingData.orElse(prevRef)
               val nextEvidenceCount =
                 evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
-              (acc :+ (momentNarrative -> internalProbeCandidate), Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
+              val truthBoundMoment =
+                TruthBoundArcMoment(
+                  moment = momentNarrative,
+                  truthContract = truthContract
+                )
+              (acc :+ (truthBoundMoment -> internalProbeCandidate), Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
             case None =>
               (acc, prevAnalysis, budget, prevRef, evidenceMomentsUsed)
       }._1
@@ -809,8 +878,602 @@ object CommentaryEngine:
     draftedMoments.map { case (moment, candidateOpt) =>
       val probeRefinementRequests =
         candidateOpt.filter(candidate => internalProbePlies.contains(candidate.ply)).map(_.probeRequests).getOrElse(Nil)
-      moment.copy(probeRefinementRequests = probeRefinementRequests)
+      moment.copy(moment = moment.moment.copy(probeRefinementRequests = probeRefinementRequests))
     }
+
+  private[llm] def selectWholeGamePromotionPly(
+      internalMoments: List[GameArcMoment],
+      visibleMomentPlies: Set[Int],
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[Int] =
+    val visibleMoments = internalMoments.filter(moment => visibleMomentPlies.contains(moment.ply))
+    val visibleHasDecisiveShift =
+      visibleMoments.exists(moment => wholeGameMomentPriority(moment, truthContractsByPly) >= 90)
+    if visibleHasDecisiveShift then None
+    else
+      internalMoments
+        .filterNot(moment => visibleMomentPlies.contains(moment.ply))
+        .map(moment => (moment, wholeGameMomentPriority(moment, truthContractsByPly), wholeGameMomentSwing(moment)))
+        .filter { case (_, priority, _) => priority >= 90 }
+        .sortBy { case (moment, priority, swing) => (-priority, -swing, moment.ply) }
+        .headOption
+        .map(_._1.ply)
+
+  private[llm] def buildWholeGameConclusionSupport(
+      moments: List[GameArcMoment],
+      strategicThreads: List[lila.llm.ActiveStrategicThread],
+      themes: List[String],
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): WholeGameConclusionSupport =
+    val decisiveMoment = selectWholeGameDecisiveMoment(moments, truthContractsByPly)
+    val payoffMoment =
+      decisiveMoment
+        .filter(moment => wholeGameOwnsTruth(moment, truthContractsByPly) && isPunishOrConversionMoment(moment, truthContractsByPly))
+        .orElse(
+          moments
+            .filter(moment => wholeGameOwnsTruth(moment, truthContractsByPly) && isPunishOrConversionMoment(moment, truthContractsByPly))
+            .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
+            .headOption
+        ).orElse(
+          moments
+            .filter(moment => isPunishOrConversionMoment(moment, truthContractsByPly))
+            .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
+            .headOption
+        )
+
+    WholeGameConclusionSupport(
+      mainContest = buildWholeGameMainContest(strategicThreads, themes),
+      decisiveShift = decisiveMoment.flatMap(moment => buildWholeGameDecisiveShiftSentence(moment, truthContractsByPly)),
+      payoff = payoffMoment.flatMap(moment => buildWholeGamePayoffSentence(moment, truthContractsByPly))
+    )
+
+  private def selectWholeGameDecisiveMoment(
+      moments: List[GameArcMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[GameArcMoment] =
+    moments
+      .map(moment => (moment, wholeGameMomentPriority(moment, truthContractsByPly), wholeGameMomentSwing(moment)))
+      .filter { case (_, priority, _) => priority >= 70 }
+      .sortBy { case (moment, priority, swing) =>
+        (if wholeGameOwnsTruth(moment, truthContractsByPly) then 0 else 1, -priority, -swing, moment.ply)
+      }
+      .headOption
+      .map(_._1)
+
+  private def buildWholeGameMainContest(
+      strategicThreads: List[lila.llm.ActiveStrategicThread],
+      themes: List[String]
+  ): Option[String] =
+    val threadBySide =
+      strategicThreads
+        .groupBy(thread => normalizedWholeGameText(thread.side).getOrElse(""))
+        .view
+        .mapValues(_.sortBy(thread => (-thread.continuityScore, thread.seedPly)).headOption)
+        .toMap
+    val whitePlan = threadBySide.get("white").flatten.flatMap(thread => wholeGameThreadPlanLabel(thread))
+    val blackPlan = threadBySide.get("black").flatten.flatMap(thread => wholeGameThreadPlanLabel(thread))
+
+    (whitePlan, blackPlan) match
+      case (Some(white), Some(black)) if !sameWholeGameText(white, black) =>
+        Some(s"White was mainly playing for $white, while Black was mainly playing for $black.")
+      case (Some(white), _) =>
+        Some(s"White's clearest long-term plan was $white.")
+      case (_, Some(black)) =>
+        Some(s"Black's clearest long-term plan was $black.")
+      case _ =>
+        themes.headOption
+          .flatMap(text => cleanedWholeGameAnchor(text))
+          .map(theme => s"The long strategic fight revolved around $theme.")
+
+  private def buildWholeGameDecisiveShiftSentence(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    extractWholeGameAnchor(moment, truthContractsByPly).flatMap { anchor =>
+      if anchor.fullSentence then
+        Option.when(wholeGameSentenceCarriesShift(anchor.text, moment, truthContractsByPly))(ensureWholeGameSentence(anchor.text))
+          .orElse(
+            extractWholeGameStructuredAnchor(moment, truthContractsByPly)
+              .flatMap(text => renderWholeGameShiftSentence(text, moment, truthContractsByPly))
+          )
+      else
+        renderWholeGameShiftSentence(anchor.text, moment, truthContractsByPly)
+    }
+
+  private def buildWholeGamePayoffSentence(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    extractWholeGameAnchor(moment, truthContractsByPly).flatMap { anchor =>
+      if anchor.fullSentence then
+        Option.when(wholeGameSentenceCarriesPayoff(anchor.text, moment))(ensureWholeGameSentence(anchor.text))
+          .orElse(
+            extractWholeGameStructuredAnchor(moment, truthContractsByPly)
+              .flatMap(text => renderWholeGamePayoffSentence(text, moment, truthContractsByPly))
+          )
+      else
+        renderWholeGamePayoffSentence(anchor.text, moment, truthContractsByPly)
+    }
+
+  private def extractWholeGameAnchor(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[WholeGameAnchor] =
+    extractWholeGameNarrativeSentence(moment)
+      .orElse(
+        extractWholeGameStructuredAnchor(moment, truthContractsByPly).map(text => WholeGameAnchor(text, fullSentence = false))
+      )
+
+  private def renderWholeGameShiftSentence(
+      rawAnchorText: String,
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    val anchorText = rawAnchorText.trim.stripSuffix(".")
+    Option.when(anchorText.nonEmpty) {
+      val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
+      val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
+      val surfaceMode = wholeGameSurfaceMode(moment, truthContractsByPly)
+      val classification = wholeGameClassification(moment, truthContractsByPly)
+      val shiftLead =
+        if ownershipRole == TruthOwnershipRole.ConversionOwner || surfaceMode == TruthSurfaceMode.ConversionExplain then
+          "The decisive shift came through"
+        else if ownershipRole == TruthOwnershipRole.BlunderOwner then
+          "The decisive shift came through"
+        else if classification == "missedwin" then
+          "The decisive shift came through"
+        else if ownershipRole == TruthOwnershipRole.CommitmentOwner then "The decisive shift came through"
+        else if normalizedWholeGameText(moment.momentType).exists(_.contains("sustainedpressure")) then
+          "The long strategic pressure finally became concrete through"
+        else
+          "The turning point came through"
+      s"$shiftLead $anchorText."
+    }
+
+  private def renderWholeGamePayoffSentence(
+      rawAnchorText: String,
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    val anchorText = rawAnchorText.trim.stripSuffix(".")
+    Option.when(anchorText.nonEmpty) {
+      wholeGameClassification(moment, truthContractsByPly) match
+        case "blunder" =>
+          s"The punishment story ran through $anchorText."
+        case "missedwin" =>
+          s"The winning route was $anchorText."
+        case _ =>
+          "The conversion route ran through " + anchorText + "."
+    }.filter { _ =>
+      isPunishOrConversionMoment(moment, truthContractsByPly)
+    }
+
+  private def extractWholeGameStructuredAnchor(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    wholeGameSupportTexts(moment, truthContractsByPly).flatMap(normalizeWholeGameSupportAnchor).headOption
+      .orElse(extractWholeGameDirectionalTargetAnchor(moment, truthContractsByPly))
+      .orElse(extractWholeGameMoveRefAnchor(moment, truthContractsByPly))
+      .orElse(extractWholeGameRouteAnchor(moment, truthContractsByPly))
+      .orElse(
+        List(
+          moment.analysisData.plans.headOption.map(_.plan.name),
+          moment.activePlan.map(_.themeL1)
+        ).flatten.flatMap(normalizeWholeGameSupportAnchor).headOption
+      )
+
+  private def extractWholeGameNarrativeSentence(
+      moment: GameArcMoment
+  ): Option[WholeGameAnchor] =
+    splitNarrativeSentences(moment.narrative)
+      .map(sentence => ensureWholeGameSentence(LiveNarrativeCompressionCore.rewritePlayerLanguage(sentence).trim))
+      .filter(_.nonEmpty)
+      .filter(sentence => LiveNarrativeCompressionCore.systemLanguageHits(sentence).isEmpty)
+      .filterNot(sentence => LiveNarrativeCompressionCore.isLowValueNarrativeSentence(sentence))
+      .filterNot(sentence => bodyAlreadyFramesMoment(sentence))
+      .filterNot(sentence => wholeGameSentenceHasRoughAnchor(sentence))
+      .filterNot(sentence => wholeGameNarrativeSentenceHasMetaLeakage(sentence))
+      .find(sentence => wholeGameNarrativeSentenceEligible(sentence, moment))
+      .map(sentence => WholeGameAnchor(sentence, fullSentence = true))
+
+  private def wholeGameSupportTexts(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): List[String] =
+    List(
+      truthContractsByPly.get(moment.ply).flatMap(_.verifiedPayoffAnchor).orElse(moment.verifiedPayoffAnchor),
+      moment.signalDigest.flatMap(_.dominantIdeaFocus),
+      moment.signalDigest.flatMap(_.strategicFlow),
+      Option.when(wholeGameSurfaceMode(moment, truthContractsByPly) == TruthSurfaceMode.InvestmentExplain)(
+        moment.signalDigest.flatMap(_.compensation)
+      ).flatten,
+      moment.signalDigest.flatMap(_.practicalVerdict),
+      moment.strategyPack.flatMap(_.signalDigest.flatMap(_.dominantIdeaFocus)),
+      moment.strategyPack.flatMap(_.signalDigest.flatMap(_.strategicFlow)),
+      moment.strategyPack.flatMap(_.longTermFocus.headOption)
+    ).flatten ++
+      moment.strategyPack.toList.flatMap(_.directionalTargets.flatMap(_.strategicReasons))
+
+  private def normalizeWholeGameSupportAnchor(
+      raw: String
+  ): Option[String] =
+    cleanedWholeGameAnchor(raw).flatMap { text =>
+      Option.when(
+        !wholeGameAnchorLooksTooRough(text) &&
+          !wholeGameSupportAnchorIsGenericFragment(text) &&
+          (looksStrategicWholeGameAnchor(text) || LiveNarrativeCompressionCore.hasConcreteAnchor(text) || wholeGameAnchorHasStrategicNoun(text))
+      )(text)
+    }
+
+  private def extractWholeGameDirectionalTargetAnchor(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    val targets = moment.strategyPack.toList.flatMap(_.directionalTargets)
+    val supportTexts = wholeGameSupportTexts(moment, truthContractsByPly)
+    val targetSquares = targets.flatMap(target => normalizedWholeGameSquare(target.targetSquare))
+    val theaters = targetSquares.flatMap(wholeGameTheaterFromSquare).distinct
+
+    targets.flatMap(_.strategicReasons).flatMap(normalizeWholeGameSupportAnchor).headOption
+      .orElse {
+        if supportTexts.exists(wholeGameTextSuggestsFilePressure) then
+          targetSquares.headOption.map(wholeGameFilePressurePhrase)
+        else if supportTexts.exists(wholeGameTextSuggestsTargetPressure) && theaters.size == 1 && targetSquares.size >= 2 then
+          Some(wholeGameTargetPhrase(theaters.head))
+        else
+          targetSquares.headOption.map(wholeGamePressurePhrase)
+      }
+
+  private def extractWholeGameMoveRefAnchor(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    val moveRefs = moment.strategyPack.toList.flatMap(_.pieceMoveRefs)
+    moveRefs.view.flatMap { moveRef =>
+      val explicitSupport =
+        (List(Some(moveRef.idea)).flatten ++ moveRef.evidence).flatMap(normalizeWholeGameSupportAnchor).headOption
+      explicitSupport
+        .orElse {
+          val target = normalizedWholeGameSquare(moveRef.target)
+          if wholeGameTextSuggestsFilePressure(moveRef.idea) || moveRef.evidence.exists(wholeGameTextSuggestsFilePressure) then
+            target.map(wholeGameFilePressurePhrase)
+          else if wholeGameTextSuggestsTargetPressure(moveRef.idea) || moveRef.evidence.exists(wholeGameTextSuggestsTargetPressure) then
+            target.map(wholeGamePressurePhrase)
+          else None
+        }
+        .toList
+    }.headOption
+
+  private def extractWholeGameRouteAnchor(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Option[String] =
+    val routes = moment.strategyPack.toList.flatMap(_.pieceRoutes)
+    routes.view.flatMap { route =>
+      normalizeWholeGameSupportAnchor(route.purpose)
+        .orElse {
+          val target = route.route.lastOption.flatMap(normalizedWholeGameSquare)
+          if wholeGameTextSuggestsFilePressure(route.purpose) then target.map(wholeGameFilePressurePhrase)
+          else if wholeGameTextSuggestsTargetPressure(route.purpose) then target.map(wholeGamePressurePhrase)
+          else None
+        }
+        .toList
+    }.headOption
+
+  private def wholeGameThreadPlanLabel(
+      thread: lila.llm.ActiveStrategicThread
+  ): Option[String] =
+    val summary = Option(thread.summary).map(_.trim).filter(_.nonEmpty)
+    val corePlan =
+      summary.flatMap { text =>
+        """(?i)\bcore plan:\s*([^.;]+)""".r.findFirstMatchIn(text).map(_.group(1).trim)
+      }
+    corePlan
+      .orElse(Option(thread.themeLabel).map(_.trim).filter(_.nonEmpty))
+      .flatMap(cleanedWholeGameAnchor)
+
+  private def cleanedWholeGameAnchor(
+      raw: String
+  ): Option[String] =
+    Option(raw)
+      .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
+      .map(_.replace("**", "").trim)
+      .map(_.stripSuffix(".").trim)
+      .filter(text => text.nonEmpty && LiveNarrativeCompressionCore.systemLanguageHits(text).isEmpty)
+
+  private def normalizedWholeGameText(
+      raw: String
+  ): Option[String] =
+    Option(raw).map(_.trim).filter(_.nonEmpty).map(_.toLowerCase)
+
+  private def normalizedWholeGameSquare(
+      raw: String
+  ): Option[String] =
+    normalizedWholeGameText(raw).filter(_.matches("^[a-h][1-8]$"))
+
+  private def sameWholeGameText(a: String, b: String): Boolean =
+    normalizeNarrativeFingerprint(a) == normalizeNarrativeFingerprint(b)
+
+  private def looksStrategicWholeGameAnchor(
+      text: String
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(text)
+    List("pressure", "target", "break", "counterplay", "exchange", "file", "files", "control", "clamp", "pawn", "king", "outpost", "promotion", "race", "initiative").exists(low.contains)
+
+  private def wholeGameAnchorHasStrategicNoun(
+      text: String
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(text)
+    List("pressure", "target", "targets", "file", "files", "control", "clamp", "break", "counterplay", "promotion", "race", "conversion", "initiative").exists(low.contains)
+
+  private def wholeGameAnchorLooksTooRough(
+      text: String
+  ): Boolean =
+    wholeGameSquareBundleOnly(text) || wholeGameBareTheaterOnly(text) || wholeGamePieceRouteOnly(text)
+
+  private def wholeGameSquareBundleOnly(
+      text: String
+  ): Boolean =
+    normalizeNarrativeFingerprint(text).matches("^[a-h][1-8](?:\\s+[a-h][1-8])*$")
+
+  private def wholeGameBareTheaterOnly(
+      text: String
+  ): Boolean =
+    Set("kingside", "the kingside", "queenside", "the queenside", "center", "the center").contains(
+      normalizeNarrativeFingerprint(text)
+    )
+
+  private def wholeGamePieceRouteOnly(
+      text: String
+  ): Boolean =
+    normalizeNarrativeFingerprint(text).matches("^(rook|queen|bishop|knight|king|pawn)\\s+(to|route toward)\\s+[a-h][1-8]$")
+
+  private def wholeGameSentenceHasRoughAnchor(
+      sentence: String
+  ): Boolean =
+    val low = Option(sentence).map(_.trim.toLowerCase.stripSuffix(".")).getOrElse("")
+    low.matches(".*\\b(came through|ran through|winning route was|route ran through)\\s+[a-h][1-8](?:\\s*,\\s*[a-h][1-8])*$") ||
+      low.matches(".*\\b(came through|ran through|winning route was|route ran through)\\s+(the\\s+)?(kingside|queenside|center)$") ||
+      low.matches(".*\\b(came through|ran through|winning route was|route ran through)\\s+(rook|queen|bishop|knight|king|pawn)\\s+(to|route toward)\\s+[a-h][1-8]$")
+
+  private def wholeGameNarrativeSentenceEligible(
+      sentence: String,
+      moment: GameArcMoment
+  ): Boolean =
+    wholeGameSentenceCarriesExplicitShift(sentence) || wholeGameSentenceCarriesPayoff(sentence, moment)
+
+  private def wholeGameSentenceCarriesExplicitShift(
+      sentence: String
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    low.contains("turning point") ||
+      low.contains("decisive shift") ||
+      (low.contains("turned into") && (
+        low.contains("promotion") ||
+          low.contains("conversion") ||
+          low.contains("race") ||
+          low.contains("endgame")
+      )) ||
+      low.contains("became concrete") ||
+      low.contains("finally became concrete") ||
+      low.contains("strategic clarity increases") ||
+      low.contains("technical details matter more") ||
+      low.contains("tactical dust settles")
+
+  private def wholeGameSupportAnchorIsGenericFragment(
+      text: String
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(text)
+    low == "under pressure" ||
+      low.startsWith("supports ") ||
+      low.startsWith("continues ") ||
+      low.startsWith("white continues ") ||
+      low.startsWith("black continues ") ||
+      low.startsWith("white keeps ") ||
+      low.startsWith("black keeps ") ||
+      low.startsWith("improving ") ||
+      low.startsWith("preparing ") ||
+      low.startsWith("using ") ||
+      low.startsWith("attacking ") ||
+      low.startsWith("development and ") ||
+      low.startsWith("immediate ") ||
+      low.startsWith("tactical ") ||
+      low.startsWith("prophylaxis ") ||
+      low.startsWith("simplifying ") ||
+      low.startsWith("rook pawn march ")
+
+  private def wholeGameNarrativeSentenceHasMetaLeakage(
+      sentence: String
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    low.contains("sampled principal lines") ||
+      low.contains("principal lines") ||
+      low.contains("engine reference")
+
+  private def wholeGameTextSuggestsFilePressure(
+      raw: String
+  ): Boolean =
+    normalizedWholeGameText(raw).exists(text =>
+      text.contains("file") || text.contains("line occupation") || text.contains("open-file occupation") || text.contains("open file")
+    )
+
+  private def wholeGameTextSuggestsTargetPressure(
+      raw: String
+  ): Boolean =
+    normalizedWholeGameText(raw).exists(text =>
+      text.contains("target") ||
+        text.contains("fixed pawn") ||
+        text.contains("weak pawn") ||
+        text.contains("pressure on") ||
+        text.contains("pressure against") ||
+        text.contains("clamp") ||
+        text.contains("bind")
+    )
+
+  private def wholeGameTheaterFromSquare(
+      square: String
+  ): Option[String] =
+    normalizedWholeGameSquare(square).map(_.head).flatMap {
+      case 'a' | 'b' | 'c' => Some("queenside")
+      case 'd' | 'e'       => Some("center")
+      case 'f' | 'g' | 'h' => Some("kingside")
+      case _               => None
+    }
+
+  private def wholeGameFilePressurePhrase(
+      square: String
+  ): String =
+    s"${square.head}-file control"
+
+  private def wholeGamePressurePhrase(
+      square: String
+  ): String =
+    s"pressure on $square"
+
+  private def wholeGameTargetPhrase(
+      theater: String
+  ): String =
+    theater match
+      case "center" => "central targets"
+      case other    => s"$other targets"
+
+  private def wholeGameTruthContract(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): Option[DecisiveTruthContract] =
+    truthContractsByPly.get(moment.ply)
+
+  private def wholeGameTruthProjection(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): MomentTruthProjection =
+    DecisiveTruth.momentProjection(moment, wholeGameTruthContract(moment, truthContractsByPly))
+
+  private def chronicleTruthProjection(
+      moment: GameChronicleMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): MomentTruthProjection =
+    DecisiveTruth.momentProjection(moment, truthContractsByPly.get(moment.ply))
+
+  private def wholeGameClassification(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): String =
+    wholeGameTruthProjection(moment, truthContractsByPly).classificationKey
+
+  private def wholeGameOwnershipRole(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): TruthOwnershipRole =
+    wholeGameTruthProjection(moment, truthContractsByPly).ownershipRole
+
+  private def wholeGameVisibilityRole(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): TruthVisibilityRole =
+    wholeGameTruthProjection(moment, truthContractsByPly).visibilityRole
+
+  private def wholeGameSurfaceMode(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): TruthSurfaceMode =
+    wholeGameTruthProjection(moment, truthContractsByPly).surfaceMode
+
+  private def wholeGameOwnsTruth(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): Boolean =
+    wholeGameTruthProjection(moment, truthContractsByPly).surfacedMoveOwnsTruth
+
+  private def wholeGameMomentPriority(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Int =
+    val classification = wholeGameClassification(moment, truthContractsByPly)
+    val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
+    val visibilityRole = wholeGameVisibilityRole(moment, truthContractsByPly)
+    val momentType = normalizedWholeGameText(moment.momentType).getOrElse("")
+    val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
+
+    if classification == "blunder" then 120
+    else if classification == "missedwin" then 110
+    else if ownershipRole == TruthOwnershipRole.CommitmentOwner && visibilityRole == TruthVisibilityRole.PrimaryVisible then 108
+    else if ownershipRole == TruthOwnershipRole.ConversionOwner && visibilityRole != TruthVisibilityRole.Hidden then 95
+    else if ownershipRole == TruthOwnershipRole.MaintenanceEcho then 60
+    else if momentType.contains("mate") then 105
+    else if transition.contains("promotion") then 100
+    else if transition.contains("exchange") || transition.contains("convert") || transition.contains("simplif") then 95
+    else if momentType.contains("advantageswing") || momentType.contains("swing") then 90
+    else if momentType.contains("sustainedpressure") then 80
+    else if momentType.contains("equalization") then 65
+    else if momentType.contains("tensionpeak") then 30
+    else 40
+
+  private def wholeGameMomentSwing(
+      moment: GameArcMoment
+  ): Int =
+    math.abs(moment.cpAfter.getOrElse(0) - moment.cpBefore.getOrElse(0))
+
+  private def isPunishOrConversionMoment(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Boolean =
+    val classification = wholeGameClassification(moment, truthContractsByPly)
+    val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
+    val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
+    classification == "blunder" ||
+      classification == "missedwin" ||
+      ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+      ownershipRole == TruthOwnershipRole.ConversionOwner ||
+      transition.contains("promotion") ||
+      transition.contains("exchange") ||
+      transition.contains("convert") ||
+      transition.contains("simplif")
+
+  private def ensureWholeGameSentence(
+      text: String
+  ): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty then trimmed
+    else if trimmed.endsWith(".") || trimmed.endsWith("!") || trimmed.endsWith("?") then trimmed
+    else s"$trimmed."
+
+  private def wholeGameSentenceCarriesShift(
+      sentence: String,
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    val classification = wholeGameClassification(moment, truthContractsByPly)
+    val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
+    val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
+    low.contains("turning point") ||
+      low.contains("decisive shift") ||
+      low.contains("promotion") ||
+      low.contains("exchange") ||
+      low.contains("initiative") ||
+      low.contains("pressure") ||
+      ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+      ownershipRole == TruthOwnershipRole.ConversionOwner ||
+      ownershipRole == TruthOwnershipRole.BlunderOwner ||
+      classification == "blunder" ||
+      classification == "missedwin" ||
+      transition.contains("promotion") ||
+      transition.contains("exchange") ||
+      transition.contains("convert") ||
+      transition.contains("simplif")
+
+  private def wholeGameSentenceCarriesPayoff(
+      sentence: String,
+      moment: GameArcMoment
+  ): Boolean =
+    val low = normalizeNarrativeFingerprint(sentence)
+    low.contains("punish") ||
+      low.contains("missed win") ||
+      low.contains("winning route") ||
+      low.contains("converted") ||
+      low.contains("conversion")
 
   private def bridgeCandidateMoment(
       ply: Int,
@@ -854,7 +1517,8 @@ object CommentaryEngine:
 
   private[llm] def buildHybridNarrativeParts(
       ctx: NarrativeContext,
-      moment: KeyMoment
+      moment: KeyMoment,
+      truthContract: Option[DecisiveTruthContract] = None
   ): HybridNarrativeParts = {
       val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
       val phase = ctx.phase.current
@@ -882,7 +1546,7 @@ object CommentaryEngine:
         ply = ctx.ply
       )
       val criticalBranch =
-        Option.when(!collapsedEarlyOpening)(buildCriticalBranchNarrative(ctx, rankedVars, bead)).flatten
+        Option.when(!collapsedEarlyOpening)(buildCriticalBranchNarrative(ctx, rankedVars, bead, truthContract)).flatten
       val validatedOutline = BookStyleRenderer.validatedOutline(ctx)
       val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty, Some(ctx))
 
@@ -1198,6 +1862,43 @@ object CommentaryEngine:
     if fenSideToMoveIsWhite(fen) then (bestScore - playedScore).max(0)
     else (playedScore - bestScore).max(0)
 
+  private def buildTruthBoundTopEngineMove(
+      data: ExtendedAnalysisData,
+      comparison: Option[DecisionComparison],
+      truthContract: DecisiveTruthContract,
+      playedCpAfter: Int
+  ): Option[lila.llm.EngineAlternative] =
+    val verifiedBest = truthContract.benchmarkMove.orElse(truthContract.verifiedBestMove)
+    val matchedAlt =
+      verifiedBest.flatMap(bestMove =>
+        data.alternatives.find(alt =>
+          alt.moves.headOption.exists(move => DecisiveTruth.sameMoveToken(move, bestMove)) ||
+            alt.ourMove.map(_.san).exists(move => DecisiveTruth.sameMoveToken(move, bestMove))
+        )
+      ).orElse(data.alternatives.headOption.filter(_ => truthContract.allowConcreteBenchmark))
+    verifiedBest.flatMap { bestMove =>
+      matchedAlt.map { alt =>
+        lila.llm.EngineAlternative(
+          uci = alt.moves.headOption.getOrElse(bestMove),
+          san = Some(bestMove),
+          cpAfterAlt = Some(alt.scoreCp),
+          cpLossVsPlayed = Option.when(truthContract.cpLoss > 0)(truthContract.cpLoss)
+            .orElse(Some(cpLossForSideToMove(data.fen, alt.scoreCp, playedCpAfter))),
+          pv = alt.moves
+        )
+      }.orElse {
+        Option.when(truthContract.allowConcreteBenchmark || truthContract.chosenMatchesBest) {
+          lila.llm.EngineAlternative(
+            uci = comparison.flatMap(_.engineBestPv.headOption).getOrElse(bestMove),
+            san = Some(bestMove),
+            cpAfterAlt = comparison.flatMap(_.engineBestScoreCp),
+            cpLossVsPlayed = Option.when(truthContract.cpLoss > 0)(truthContract.cpLoss),
+            pv = comparison.map(_.engineBestPv).getOrElse(Nil)
+          )
+        }
+      }
+    }
+
   private def variationFirstMoveSan(fen: String, v: VariationLine): Option[String] =
     v.ourMove.map(_.san).map(_.trim).filter(_.nonEmpty).orElse {
       v.moves.headOption
@@ -1229,41 +1930,50 @@ object CommentaryEngine:
   private def buildCriticalBranchNarrative(
     ctx: NarrativeContext,
     rankedVars: List[VariationLine],
-    bead: Int
+    bead: Int,
+    truthContract: Option[DecisiveTruthContract] = None
   ): Option[String] =
     if rankedVars.size < 2 then None
     else
-      val best = rankedVars.head
-      val playedBranch = rankedVars.find(v => variationMatchesPlayed(ctx, v))
-      val pivot = playedBranch.filterNot(_ == best).orElse(rankedVars.lift(1))
-      pivot.flatMap { alt =>
-        val bestMove = variationFirstMoveSan(ctx.fen, best).getOrElse("the engine first move")
-        val altMove = variationFirstMoveSan(ctx.fen, alt).getOrElse("the alternative move")
-        val altIsPlayed = variationMatchesPlayed(ctx, alt)
-        val cpLoss = cpLossForSideToMove(ctx.fen, best.effectiveScore, alt.effectiveScore)
-        val gapPawns = f"${cpLoss.toDouble / 100}%.1f"
-        val bestCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, best)
-        val altCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, alt)
-        for
-          bestLine <- bestCitation
-          altLine <- altCitation
-          bestSentence <- LineScopedCitation.afterClause(
-            bestLine,
-            if cpLoss <= 20 then
-              s"**$bestMove** stays only slightly ahead of **$altMove**"
-            else if altIsPlayed && cpLoss >= 120 then
-              s"**$bestMove** keeps about a $gapPawns-pawn edge over the played **$altMove**"
-            else
-              s"**$bestMove** keeps about a $gapPawns-pawn edge over **$altMove**"
-          )
-          altSentence <- LineScopedCitation.afterClause(
-            altLine,
-            if altIsPlayed then
-              s"the played branch gives up the cleaner continuation"
-            else s"the alternative branch remains secondary"
-          )
-        yield s"$bestSentence $altSentence"
-      }
+      val contract =
+        truthContract.getOrElse(
+          DecisiveTruth.derive(ctx, comparisonOverride = DecisionComparisonBuilder.build(ctx))
+        )
+      if contract.chosenMatchesBest || !contract.allowConcreteBenchmark then None
+      else
+        val best =
+          contract.verifiedBestMove.flatMap(bestMove =>
+            rankedVars.find(variation =>
+              variationFirstMoveSan(ctx.fen, variation).exists(move => DecisiveTruth.sameMoveToken(move, bestMove)) ||
+                variation.moves.headOption.exists(move => DecisiveTruth.sameMoveToken(move, bestMove))
+            )
+          ).orElse(rankedVars.headOption)
+        val playedBranch = rankedVars.find(v => variationMatchesPlayed(ctx, v))
+        best.flatMap { bestVar =>
+          playedBranch.flatMap { alt =>
+            val bestMove = contract.benchmarkMove.orElse(contract.verifiedBestMove).getOrElse("the engine first move")
+            val altMove = variationFirstMoveSan(ctx.fen, alt).getOrElse("the played move")
+            val cpLoss = contract.cpLoss
+            val gapPawns = f"${cpLoss.toDouble / 100}%.1f"
+            val bestCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, bestVar)
+            val altCitation = LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, alt)
+            for
+              bestLine <- bestCitation
+              altLine <- altCitation
+              bestSentence <- LineScopedCitation.afterClause(
+                bestLine,
+                if cpLoss <= 20 then
+                  s"**$bestMove** stays only slightly ahead of the played **$altMove**"
+                else
+                  s"**$bestMove** keeps about a $gapPawns-pawn edge over the played **$altMove**"
+              )
+              altSentence <- LineScopedCitation.afterClause(
+                altLine,
+                "the played branch gives up the cleaner continuation"
+              )
+            yield s"$bestSentence $altSentence"
+          }
+        }
 
   private def focusMomentBody(body: String, keepParagraphs: Int): String =
     val paras = Option(body).getOrElse("")
@@ -1278,13 +1988,21 @@ object CommentaryEngine:
     ctx: NarrativeContext,
     focusedOutline: NarrativeOutline,
     strategyPack: Option[lila.llm.StrategyPack],
-    authoringEvidence: Option[String]
+    authoringEvidence: Option[String],
+    truthContract: Option[DecisiveTruthContract] = None,
+    decisionComparisonOverride: Option[DecisionComparison] = None
   ): Option[NarrativeSignalDigest] =
+    val sanitizedComparison =
+      truthContract
+        .flatMap(contract => DecisiveTruth.sanitizeDecisionComparison(decisionComparisonOverride, contract).map(_.toDigest))
+        .orElse(decisionComparisonOverride.map(_.toDigest))
     val base =
       NarrativeSignalDigestBuilder.buildWithAuthoringEvidence(
         ctx,
         preservedSignalsOverride = Some(NarrativeSignalDigestBuilder.preservedSignalsFromOutline(ctx, focusedOutline)),
-        authoringEvidence = authoringEvidence
+        authoringEvidence = authoringEvidence,
+        decisionComparisonOverride = sanitizedComparison,
+        allowCompensationSignals = truthContract.forall(_.compensationProseAllowed)
       )
     (base, strategyPack.flatMap(_.signalDigest)) match
       case (Some(digest), Some(packDigest)) =>

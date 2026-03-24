@@ -55,7 +55,13 @@ case class GameArcMoment(
   activeStrategicMoves: List[lila.llm.ActiveStrategicMoveRef] = Nil,
   activeDirectionalTargets: List[lila.llm.StrategyDirectionalTarget] = Nil,
   activeBranchDossier: Option[lila.llm.ActiveBranchDossier] = None,
-  strategicThread: Option[lila.llm.ActiveStrategicThreadRef] = None
+  strategicThread: Option[lila.llm.ActiveStrategicThreadRef] = None,
+  truthPhase: Option[String] = None,
+  surfacedMoveOwnsTruth: Boolean = false,
+  verifiedPayoffAnchor: Option[String] = None,
+  compensationProseAllowed: Boolean = false,
+  benchmarkProseAllowed: Boolean = false,
+  investmentTruthChainKey: Option[String] = None
 )
 object GameArcMoment {
   implicit val writes: OWrites[GameArcMoment] = Json.writes[GameArcMoment]

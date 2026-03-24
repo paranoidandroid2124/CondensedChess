@@ -131,9 +131,10 @@ class ActiveStrategicPromptTest extends FunSuite:
     threadOpponentCounterplan = Some("Black still wants ...c5 counterplay.")
   )
 
-  test("buildPrompt renders a coaching brief instead of raw strategy dumps") {
+  test("buildPrompt renders deterministic-draft polish context instead of raw strategy dumps") {
     val prompt = ActiveStrategicPrompt.buildPrompt(
-      baseNarrative = "White stabilizes and prepares kingside play.",
+      draftNote =
+        "The key idea is space gain or restriction around e3 and g4. That pressure is anchored on the knight headed for e3. From there, work toward making g4 available before Black's counterplay returns.",
       phase = "middlegame",
       momentType = "TensionPeak",
       fen = "r2q1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PPBNBPPP/R2Q1RK1 w - - 0 11",
@@ -146,20 +147,26 @@ class ActiveStrategicPromptTest extends FunSuite:
 
     assert(prompt.contains("## MOMENT CONTEXT"))
     assert(prompt.contains("## COACHING BRIEF"))
-    assert(prompt.contains("## OPENING LENS"))
-    assert(prompt.contains("Preferred opening lens"))
+    assert(prompt.contains("## DETERMINISTIC DRAFT"))
+    assert(prompt.contains("## REWRITE GUARDRAILS"))
     assert(prompt.contains("Primary idea"))
     assert(prompt.contains("Why now"))
     assert(prompt.contains("Opponent reply to watch"))
     assert(prompt.contains("Execution hint"))
     assert(prompt.contains("Long-term objective"))
     assert(prompt.contains("Key trigger or failure mode"))
-    assert(prompt.contains("space gain or restriction around e3, g4"))
+    assert(prompt.contains("space gain or restriction"))
+    assert(prompt.contains("e3"))
+    assert(prompt.contains("g4"))
     assert(prompt.contains("knight toward e3"))
     assert(prompt.contains("work toward making g4 available"))
+    assert(prompt.contains("The key idea is space gain or restriction around e3 and g4."))
     assert(!prompt.contains("d2-f1-e3"))
     assert(prompt.contains("the game is pivoting toward a new sector or target"))
-    assert(!prompt.contains("White stabilizes and prepares kingside play."))
+    assert(prompt.contains("Rewrite the deterministic draft into one polished active note."))
+    assert(prompt.contains("Do not swap campaign owner, theater, or compensation mode."))
+    assert(!prompt.contains("Write one independent strategic coaching note now."))
+    assert(!prompt.contains("## OPENING LENS"))
     assert(!prompt.contains("## ACTIVE DOSSIER"))
     assert(!prompt.contains("## CAMPAIGN THREAD"))
     assert(!prompt.contains("## STRATEGY PACK"))
@@ -169,14 +176,15 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(!prompt.contains("d2f1"))
     assert(!prompt.contains("thread stage: Switch"))
     assert(!prompt.contains("Signal Digest"))
-    assert(prompt.contains("avoid bare imperative leads"))
     assert(prompt.contains("dominant idea as the thesis"))
+    assert(prompt.contains("rewrite pass over the deterministic draft"))
   }
 
-  test("buildRepairPrompt keeps coaching brief and player-facing repair instructions") {
+  test("buildRepairPrompt returns to deterministic draft instead of rewriting a fresh note") {
     val prompt = ActiveStrategicPrompt.buildRepairPrompt(
-      baseNarrative = "Black must neutralize pressure on e6.",
-      rejectedNote = "Play better somehow.",
+      draftNote =
+        "The compensation comes from queenside pressure against fixed targets. That pressure is anchored on b2. From there, keep the queenside targets tied down before winning the material back.",
+      rejectedPolish = "Play better somehow.",
       failureReasons = List("forward_plan_missing", "strategy_coverage_low"),
       phase = "middlegame",
       momentType = "SustainedPressure",
@@ -188,17 +196,16 @@ class ActiveStrategicPromptTest extends FunSuite:
       moveRefs = sampleMoveRefs
     )
 
-    assert(prompt.contains("## PRIOR NOTE TO AVOID PARAPHRASING"))
-    assert(prompt.contains("## REJECTED NOTE"))
+    assert(prompt.contains("## DETERMINISTIC DRAFT"))
+    assert(prompt.contains("## REJECTED POLISH"))
     assert(prompt.contains("## REPAIR REASONS"))
     assert(prompt.contains("forward_plan_missing"))
     assert(prompt.contains("strategy_coverage_low"))
     assert(prompt.contains("## COACHING BRIEF"))
-    assert(prompt.contains("## OPENING LENS"))
-    assert(prompt.contains("Preferred opening lens"))
-    assert(prompt.contains("Do not mirror its wording or sentence structure"))
-    assert(prompt.contains("dominant idea as the thesis"))
-    assert(prompt.contains("mention at most one of the execution hint or the long-term objective"))
+    assert(prompt.contains("Return to the deterministic draft and repair the rejected polish."))
+    assert(prompt.contains("rewrite pass over the deterministic draft"))
+    assert(!prompt.contains("## PRIOR NOTE TO AVOID PARAPHRASING"))
+    assert(!prompt.contains("## OPENING LENS"))
     assert(!prompt.contains("route_1"))
     assert(!prompt.contains("Engine preference"))
     assert(!prompt.contains("d2f1"))
@@ -208,7 +215,7 @@ class ActiveStrategicPromptTest extends FunSuite:
 
   test("buildPrompt omits empty optional context sections") {
     val prompt = ActiveStrategicPrompt.buildPrompt(
-      baseNarrative = "White improves coordination.",
+      draftNote = "The key idea is coordination before expansion.",
       phase = "middlegame",
       momentType = "Strategic Moment",
       fen = "",
@@ -222,15 +229,17 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("## MOMENT CONTEXT"))
     assert(prompt.contains("Phase: middlegame"))
     assert(prompt.contains("Moment Type: Strategic Moment"))
+    assert(prompt.contains("## DETERMINISTIC DRAFT"))
     assert(!prompt.contains("FEN:"))
     assert(!prompt.contains("Concepts:"))
     assert(!prompt.contains("## COACHING BRIEF"))
     assert(!prompt.contains("## OPENING LENS"))
   }
 
-  test("buildPrompt surfaces tactical-first guidance when immediate material gain exists") {
+  test("buildPrompt keeps immediate tactical guidance as a deterministic-draft guardrail") {
     val prompt = ActiveStrategicPrompt.buildPrompt(
-      baseNarrative = "White keeps the bind together.",
+      draftNote =
+        "The key idea is queenside control before the broader bind expands. That pressure is anchored on Qxd6. From there, keep Black's breaks under control.",
       phase = "middlegame",
       momentType = "Strategic Moment",
       fen = tacticalFen,
@@ -247,11 +256,10 @@ class ActiveStrategicPromptTest extends FunSuite:
             san = Some("Qxd6"),
             fenAfter = Some(tacticalFenAfter)
           )
-        )
+      )
     )
 
-    assert(prompt.contains("Preferred opening lens: tactical-first"))
     assert(prompt.contains("Qxd6 immediately wins a pawn."))
-    assert(prompt.contains("surface any immediate tactical or material gain in the first sentence"))
-    assert(prompt.contains("already occupied friendly square"))
+    assert(prompt.contains("Keep this immediate tactical/material fact near the start when possible"))
+    assert(ActiveStrategicPrompt.systemPrompt.contains("already occupied friendly square"))
   }

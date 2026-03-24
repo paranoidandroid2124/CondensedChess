@@ -4,6 +4,13 @@ import munit.FunSuite
 
 class StrategicPuzzlePromptTest extends FunSuite:
 
+  test("system prompts keep puzzle text as grounded product-specific polish") {
+    assert(StrategicPuzzlePrompt.terminalSystemPrompt.contains("Stay grounded in the supplied draft and context."))
+    assert(StrategicPuzzlePrompt.terminalSystemPrompt.contains("Do not invent moves, evaluations, or opening lore."))
+    assert(StrategicPuzzlePrompt.summarySystemPrompt.contains("Stay grounded in the supplied draft and context."))
+    assert(StrategicPuzzlePrompt.summarySystemPrompt.contains("Never mention engines"))
+  }
+
   test("buildTerminalPrompt stays compact and line-focused") {
     val prompt = StrategicPuzzlePrompt.buildTerminalPrompt(
       StrategicPuzzlePrompt.TerminalInput(

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, StrategicIdeaSelector, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface }
 import lila.llm.model.{ OpeningReference, ProbeResult }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -1739,10 +1739,6 @@ final class LlmApi(
     val activeEligible =
       normalizedPlanTier == PlanTier.Pro &&
         normalizedLlmLevel == LlmLevel.Active
-    val llmAttemptEnabled =
-      activeEligible &&
-        isLlmPolishEnabledForRequest(allowLlmPolish) &&
-        !providerConfig.isActiveNoteNone
 
     if !activeEligible then
       Future.successful(
@@ -1756,16 +1752,26 @@ final class LlmApi(
           reasoningEffort = routeMeta.reasoningEffort
         )
       )
-    else if !llmAttemptEnabled then
-      Future.successful(
+    else
+      val deterministicDecision =
         deterministicActiveStrategicNoteDecision(
           moment = moment,
           dossier = dossier,
           routeRefs = routeRefs,
           moveRefs = moveRefs
         )
-      )
-    else
+      val deterministicDraft = deterministicDecision.note.map(_.trim).filter(_.nonEmpty)
+      val llmAttemptEnabled =
+        LlmApi.activeNoteOptionalPolishEligible(
+          activeEligible = activeEligible,
+          allowLlmPolish = isLlmPolishEnabledForRequest(allowLlmPolish),
+          providerResolved = providerConfig.activeNoteProviderResolved,
+          deterministicDraftPresent = deterministicDraft.nonEmpty
+        )
+
+      if !llmAttemptEnabled then Future.successful(deterministicDecision)
+      else {
+      val draftNote = deterministicDraft.get
       val phase = phaseFromPly(moment.ply)
       val momentType = Option(moment.momentType).map(_.trim).filter(_.nonEmpty).getOrElse("Strategic Moment")
       val concepts = moment.concepts.map(_.trim).filter(_.nonEmpty).distinct.take(8)
@@ -1784,39 +1790,60 @@ final class LlmApi(
       ): List[String] =
         (leadingModels ++ meta.configuredModel.toList ++ results.toList.flatMap(result => trimmedOption(result.model))).distinct
 
-      def enrichActiveNoteDecision(
-          decision: ActiveStrategicNoteDecision,
-          leadingHardReasons: List[String],
-          leadingWarningReasons: List[String],
-          leadingObservedModels: List[String],
-          leadingRepairAttempted: Boolean
-      ): ActiveStrategicNoteDecision =
-        decision.copy(
-          hardReasons =
-            if decision.note.nonEmpty then decision.hardReasons
-            else (leadingHardReasons ++ decision.hardReasons).distinct,
-          warningReasons = (leadingWarningReasons ++ decision.warningReasons).distinct,
-            observedModels = (leadingObservedModels ++ decision.observedModels).distinct,
-            repairAttempted = leadingRepairAttempted || decision.repairAttempted
-          )
+      def optionalPolishWarnings(reasons: List[String]): List[String] =
+        reasons
+          .map(_.trim)
+          .filter(_.nonEmpty)
+          .distinct
+          .map(reason => s"active_note_optional_polish_$reason")
 
-      def ensureDeterministicActiveFallback(
-          decision: ActiveStrategicNoteDecision
+      def fallbackToDeterministicDraft(
+          meta: ActiveNoteRouteMeta,
+          fallbackWarnings: List[String] = Nil,
+          fallbackObservedModels: List[String] = Nil,
+          repairAttempted: Boolean = false,
+          promptUsages: List[(String, OpenAiPolishResult)] = Nil
       ): ActiveStrategicNoteDecision =
-        if decision.note.nonEmpty then decision
-        else
-          deterministicActiveStrategicNoteDecision(
-            moment = moment,
-            dossier = dossier,
-            routeRefs = routeRefs,
-            moveRefs = moveRefs,
-            carriedWarningReasons = decision.warningReasons,
-            carriedObservedModels = decision.observedModels
+        deterministicDecision.copy(
+          warningReasons = (deterministicDecision.warningReasons ++ fallbackWarnings).distinct,
+          provider = Some(meta.provider),
+          configuredModel = meta.configuredModel,
+          fallbackModel = meta.fallbackModel,
+          reasoningEffort = meta.reasoningEffort,
+          observedModels =
+            (deterministicDecision.observedModels ++ fallbackObservedModels).flatMap(trimmedOption).distinct,
+          repairAttempted = deterministicDecision.repairAttempted || repairAttempted,
+          promptUsages = promptUsages
+        )
+
+      def polishedDecision(
+          meta: ActiveNoteRouteMeta,
+          text: String,
+          warningReasons: List[String],
+          observedModels: List[String],
+          primaryAccepted: Boolean = false,
+          repairAttempted: Boolean = false,
+          repairRecovered: Boolean = false,
+          promptUsages: List[(String, OpenAiPolishResult)] = Nil
+      ): ActiveStrategicNoteDecision =
+        ActiveStrategicNoteDecision(
+          note = Some(text),
+          sourceMode = Some("llm_polished"),
+          hardReasons = Nil,
+          warningReasons = warningReasons.distinct,
+          provider = Some(meta.provider),
+          configuredModel = meta.configuredModel,
+          fallbackModel = meta.fallbackModel,
+          reasoningEffort = meta.reasoningEffort,
+          observedModels = observedModels.flatMap(trimmedOption).distinct,
+          primaryAccepted = primaryAccepted,
+          repairAttempted = repairAttempted,
+          repairRecovered = repairRecovered,
+          promptUsages = promptUsages
           )
 
       def runOpenAiActiveStrategicNote(
           meta: ActiveNoteRouteMeta,
-          leadingHardReasons: List[String],
           leadingWarningReasons: List[String],
           leadingObservedModels: List[String],
           leadingRepairAttempted: Boolean
@@ -1824,7 +1851,7 @@ final class LlmApi(
         val op =
           if asyncTier then
             openAiClient.activeStrategicNoteAsync(
-              baseNarrative = moment.narrative,
+              draftNote = draftNote,
               phase = phase,
               momentType = momentType,
               concepts = concepts,
@@ -1840,7 +1867,7 @@ final class LlmApi(
             )
           else
             openAiClient.activeStrategicNoteSync(
-              baseNarrative = moment.narrative,
+              draftNote = draftNote,
               phase = phase,
               momentType = momentType,
               concepts = concepts,
@@ -1855,15 +1882,6 @@ final class LlmApi(
               llmLevel = normalizedLlmLevel
             )
 
-        def wrap(decision: ActiveStrategicNoteDecision): ActiveStrategicNoteDecision =
-          enrichActiveNoteDecision(
-            decision = decision,
-            leadingHardReasons = leadingHardReasons,
-            leadingWarningReasons = leadingWarningReasons,
-            leadingObservedModels = leadingObservedModels,
-            leadingRepairAttempted = leadingRepairAttempted
-          )
-
         op.flatMap {
           case Some(primary) =>
             val primaryValidation = validateActiveStrategicNote(
@@ -1874,48 +1892,25 @@ final class LlmApi(
               routeRefs = routeRefs,
               moveRefs = moveRefs
             )
-            if primaryValidation.isAccepted then
+            val observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary)
+            if primaryValidation.isAccepted || !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
               Future.successful(
-                wrap(
-                  ActiveStrategicNoteDecision(
-                    note = Some(primaryValidation.text),
-                    sourceMode = Some("llm_polished"),
-                    hardReasons = Nil,
-                    warningReasons = primaryValidation.warningReasons,
-                    provider = Some(meta.provider),
-                    configuredModel = meta.configuredModel,
-                    fallbackModel = meta.fallbackModel,
-                    reasoningEffort = meta.reasoningEffort,
-                    observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
-                    primaryAccepted = true,
-                    promptUsages = List(activePolishFamily -> primary)
-                  )
-                )
-              )
-            else if !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
-              Future.successful(
-                wrap(
-                  ActiveStrategicNoteDecision(
-                    note = Some(primaryValidation.text),
-                    sourceMode = Some("llm_polished"),
-                    hardReasons = Nil,
-                    warningReasons = primaryValidation.warningReasons,
-                    provider = Some(meta.provider),
-                    configuredModel = meta.configuredModel,
-                    fallbackModel = meta.fallbackModel,
-                    reasoningEffort = meta.reasoningEffort,
-                    observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
-                    primaryAccepted = true,
-                    promptUsages = List(activePolishFamily -> primary)
-                  )
+                polishedDecision(
+                  meta = meta,
+                  text = primaryValidation.text,
+                  warningReasons = leadingWarningReasons ++ primaryValidation.warningReasons,
+                  observedModels = observedModels,
+                  primaryAccepted = true,
+                  repairAttempted = leadingRepairAttempted,
+                  promptUsages = List(activePolishFamily -> primary)
                 )
               )
             else
               val repairOp =
                 if asyncTier then
                   openAiClient.repairActiveStrategicNoteAsync(
-                    baseNarrative = moment.narrative,
-                    rejectedNote = primary.commentary,
+                    draftNote = draftNote,
+                    rejectedPolish = primary.commentary,
                     failureReasons = primaryValidation.hardReasons,
                     phase = phase,
                     momentType = momentType,
@@ -1932,8 +1927,8 @@ final class LlmApi(
                   )
                 else
                   openAiClient.repairActiveStrategicNoteSync(
-                    baseNarrative = moment.narrative,
-                    rejectedNote = primary.commentary,
+                    draftNote = draftNote,
+                    rejectedPolish = primary.commentary,
                     failureReasons = primaryValidation.hardReasons,
                     phase = phase,
                     momentType = momentType,
@@ -1959,74 +1954,45 @@ final class LlmApi(
                     moveRefs = moveRefs
                   )
                   if repairedValidation.isAccepted then
-                    wrap(
-                      ActiveStrategicNoteDecision(
-                        note = Some(repairedValidation.text),
-                        sourceMode = Some("llm_polished"),
-                        hardReasons = Nil,
-                        warningReasons = repairedValidation.warningReasons,
-                        provider = Some(meta.provider),
-                        configuredModel = meta.configuredModel,
-                        fallbackModel = meta.fallbackModel,
-                        reasoningEffort = meta.reasoningEffort,
-                        observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
-                        repairAttempted = true,
-                        repairRecovered = true,
-                        promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
-                      )
+                    polishedDecision(
+                      meta = meta,
+                      text = repairedValidation.text,
+                      warningReasons = leadingWarningReasons ++ repairedValidation.warningReasons,
+                      observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
+                      repairAttempted = true,
+                      repairRecovered = true,
+                      promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
                     )
                   else
-                    wrap(
-                      ActiveStrategicNoteDecision(
-                        note = None,
-                        sourceMode = Some("omitted"),
-                        hardReasons = repairedValidation.hardReasons.distinct,
-                        warningReasons = repairedValidation.warningReasons,
-                        provider = Some(meta.provider),
-                        configuredModel = meta.configuredModel,
-                        fallbackModel = meta.fallbackModel,
-                        reasoningEffort = meta.reasoningEffort,
-                        observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
-                        repairAttempted = true,
-                        promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
-                      )
+                    fallbackToDeterministicDraft(
+                      meta = meta,
+                      fallbackWarnings =
+                        leadingWarningReasons ++ optionalPolishWarnings(repairedValidation.hardReasons),
+                      fallbackObservedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary, repaired),
+                      repairAttempted = true,
+                      promptUsages = List(activePolishFamily -> primary, activeRepairFamily -> repaired)
                     )
                 case None =>
-                  wrap(
-                    ActiveStrategicNoteDecision(
-                      note = None,
-                      sourceMode = Some("omitted"),
-                      hardReasons = (primaryValidation.hardReasons :+ "active_note_repair_empty").distinct,
-                      warningReasons = primaryValidation.warningReasons,
-                      provider = Some(meta.provider),
-                      configuredModel = meta.configuredModel,
-                      fallbackModel = meta.fallbackModel,
-                      reasoningEffort = meta.reasoningEffort,
-                      observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
-                      repairAttempted = true,
-                      promptUsages = List(activePolishFamily -> primary)
-                    )
+                  fallbackToDeterministicDraft(
+                    meta = meta,
+                    fallbackWarnings =
+                      leadingWarningReasons ++ optionalPolishWarnings(primaryValidation.hardReasons :+ "active_note_repair_empty"),
+                    fallbackObservedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary),
+                    repairAttempted = true,
+                    promptUsages = List(activePolishFamily -> primary)
                   )
               }
           case None =>
             Future.successful(
-              wrap(
-                ActiveStrategicNoteDecision(
-                  note = None,
-                  sourceMode = Some("omitted"),
-                  hardReasons = List("empty_polish"),
-                  provider = Some(meta.provider),
-                  configuredModel = meta.configuredModel,
-                  fallbackModel = meta.fallbackModel,
-                  reasoningEffort = meta.reasoningEffort,
-                  observedModels = leadingObservedModels
-                )
-                )
+              fallbackToDeterministicDraft(
+                meta = meta,
+                fallbackWarnings = leadingWarningReasons ++ optionalPolishWarnings(List("empty_polish")),
+                fallbackObservedModels = leadingObservedModels
               )
+            )
         }
 
       def fallbackToOpenAiFromGemini(
-          hardReasons: List[String],
           warningReasons: List[String],
           repairAttempted: Boolean
       ): Future[ActiveStrategicNoteDecision] =
@@ -2034,170 +2000,128 @@ final class LlmApi(
           case Some(openAiMeta) =>
             runOpenAiActiveStrategicNote(
               meta = openAiMeta,
-              leadingHardReasons = hardReasons,
               leadingWarningReasons = warningReasons,
               leadingObservedModels = routeMeta.configuredModel.toList,
               leadingRepairAttempted = repairAttempted
             )
           case None =>
             Future.successful(
-              ActiveStrategicNoteDecision(
-                note = None,
-                sourceMode = Some("omitted"),
-                hardReasons = hardReasons.distinct,
-                warningReasons = warningReasons.distinct,
-                provider = Some(routeMeta.provider),
-                configuredModel = routeMeta.configuredModel,
-                fallbackModel = routeMeta.fallbackModel,
-                reasoningEffort = routeMeta.reasoningEffort,
-                observedModels = routeMeta.configuredModel.toList,
+              fallbackToDeterministicDraft(
+                meta = routeMeta,
+                fallbackWarnings = warningReasons,
+                fallbackObservedModels = routeMeta.configuredModel.toList,
                 repairAttempted = repairAttempted
               )
             )
-      val llmDecisionFut =
-        providerConfig.activeNoteProviderResolved match
-          case "openai" if openAiClient.isEnabled =>
-            runOpenAiActiveStrategicNote(
-              meta = routeMeta,
-              leadingHardReasons = Nil,
-              leadingWarningReasons = Nil,
-              leadingObservedModels = Nil,
-              leadingRepairAttempted = false
+
+      providerConfig.activeNoteProviderResolved match
+        case "openai" if openAiClient.isEnabled =>
+          runOpenAiActiveStrategicNote(
+            meta = routeMeta,
+            leadingWarningReasons = Nil,
+            leadingObservedModels = Nil,
+            leadingRepairAttempted = false
+          )
+        case "gemini" if geminiClient.isEnabled =>
+          geminiClient
+            .activeStrategicNote(
+              draftNote = draftNote,
+              phase = phase,
+              momentType = momentType,
+              concepts = concepts,
+              fen = moment.fen,
+              strategyPack = moment.strategyPack,
+              dossier = dossier,
+              routeRefs = routeRefs,
+              moveRefs = moveRefs
             )
-          case "gemini" if geminiClient.isEnabled =>
-            geminiClient
-              .activeStrategicNote(
-                baseNarrative = moment.narrative,
-                phase = phase,
-                momentType = momentType,
-                concepts = concepts,
-                fen = moment.fen,
-                strategyPack = moment.strategyPack,
-                dossier = dossier,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs
-              )
-              .flatMap {
-                case Some(primary) =>
-                  val primaryValidation = validateActiveStrategicNote(
-                    candidateText = primary,
-                    baseNarrative = moment.narrative,
-                    dossier = dossier,
-                    strategyPack = moment.strategyPack,
-                    routeRefs = routeRefs,
-                    moveRefs = moveRefs
+            .flatMap {
+              case Some(primary) =>
+                val primaryValidation = validateActiveStrategicNote(
+                  candidateText = primary,
+                  baseNarrative = moment.narrative,
+                  dossier = dossier,
+                  strategyPack = moment.strategyPack,
+                  routeRefs = routeRefs,
+                  moveRefs = moveRefs
+                )
+                if primaryValidation.isAccepted || !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
+                  Future.successful(
+                    polishedDecision(
+                      meta = routeMeta,
+                      text = primaryValidation.text,
+                      warningReasons = primaryValidation.warningReasons,
+                      observedModels = routeMeta.configuredModel.toList,
+                      primaryAccepted = true
+                    )
                   )
-                  if primaryValidation.isAccepted then
-                    Future.successful(
-                      ActiveStrategicNoteDecision(
-                        note = Some(primaryValidation.text),
-                        sourceMode = Some("llm_polished"),
-                        hardReasons = Nil,
-                        warningReasons = primaryValidation.warningReasons,
-                        provider = Some(routeMeta.provider),
-                        configuredModel = routeMeta.configuredModel,
-                        fallbackModel = routeMeta.fallbackModel,
-                        reasoningEffort = routeMeta.reasoningEffort,
-                        observedModels = routeMeta.configuredModel.toList,
-                        primaryAccepted = true
-                      )
+                else
+                  geminiClient
+                    .repairActiveStrategicNote(
+                      draftNote = draftNote,
+                      rejectedPolish = primary,
+                      failureReasons = primaryValidation.hardReasons,
+                      phase = phase,
+                      momentType = momentType,
+                      concepts = concepts,
+                      fen = moment.fen,
+                      strategyPack = moment.strategyPack,
+                      dossier = dossier,
+                      routeRefs = routeRefs,
+                      moveRefs = moveRefs
                     )
-                  else if !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
-                    Future.successful(
-                      ActiveStrategicNoteDecision(
-                        note = Some(primaryValidation.text),
-                        sourceMode = Some("llm_polished"),
-                        hardReasons = Nil,
-                        warningReasons = primaryValidation.warningReasons,
-                        provider = Some(routeMeta.provider),
-                        configuredModel = routeMeta.configuredModel,
-                        fallbackModel = routeMeta.fallbackModel,
-                        reasoningEffort = routeMeta.reasoningEffort,
-                        observedModels = routeMeta.configuredModel.toList,
-                        primaryAccepted = true
-                      )
-                    )
-                  else
-                    geminiClient
-                      .repairActiveStrategicNote(
-                        baseNarrative = moment.narrative,
-                        rejectedNote = primary,
-                        failureReasons = primaryValidation.hardReasons,
-                        phase = phase,
-                        momentType = momentType,
-                        concepts = concepts,
-                        fen = moment.fen,
-                        strategyPack = moment.strategyPack,
-                        dossier = dossier,
-                        routeRefs = routeRefs,
-                        moveRefs = moveRefs
-                      )
-                      .flatMap {
-                        case Some(repaired) =>
-                          val repairedValidation = validateActiveStrategicNote(
-                            candidateText = repaired,
-                            baseNarrative = moment.narrative,
-                            dossier = dossier,
-                            strategyPack = moment.strategyPack,
-                            routeRefs = routeRefs,
-                            moveRefs = moveRefs
-                          )
-                          if repairedValidation.isAccepted then
-                            Future.successful(
-                              ActiveStrategicNoteDecision(
-                                note = Some(repairedValidation.text),
-                                sourceMode = Some("llm_polished"),
-                                hardReasons = Nil,
-                                warningReasons = repairedValidation.warningReasons,
-                                provider = Some(routeMeta.provider),
-                                configuredModel = routeMeta.configuredModel,
-                                fallbackModel = routeMeta.fallbackModel,
-                                reasoningEffort = routeMeta.reasoningEffort,
-                                observedModels = routeMeta.configuredModel.toList,
-                                repairAttempted = true,
-                                repairRecovered = true
-                              )
-                            )
-                          else
-                            fallbackToOpenAiFromGemini(
-                              hardReasons = repairedValidation.hardReasons.distinct,
+                    .flatMap {
+                      case Some(repaired) =>
+                        val repairedValidation = validateActiveStrategicNote(
+                          candidateText = repaired,
+                          baseNarrative = moment.narrative,
+                          dossier = dossier,
+                          strategyPack = moment.strategyPack,
+                          routeRefs = routeRefs,
+                          moveRefs = moveRefs
+                        )
+                        if repairedValidation.isAccepted then
+                          Future.successful(
+                            polishedDecision(
+                              meta = routeMeta,
+                              text = repairedValidation.text,
                               warningReasons = repairedValidation.warningReasons,
-                              repairAttempted = true
+                              observedModels = routeMeta.configuredModel.toList,
+                              repairAttempted = true,
+                              repairRecovered = true
                             )
-                        case None =>
+                          )
+                        else
                           fallbackToOpenAiFromGemini(
-                            hardReasons = (primaryValidation.hardReasons :+ "active_note_repair_empty").distinct,
-                            warningReasons = primaryValidation.warningReasons,
+                            warningReasons = optionalPolishWarnings(repairedValidation.hardReasons),
                             repairAttempted = true
                           )
-                      }
-                case None =>
-                  fallbackToOpenAiFromGemini(
-                    hardReasons = List("empty_polish"),
-                    warningReasons = Nil,
-                    repairAttempted = false
-                  )
-              }
-          case "gemini" =>
-            fallbackToOpenAiFromGemini(
-              hardReasons = List("provider_unavailable"),
-              warningReasons = Nil,
-              repairAttempted = false
-            )
-          case _ =>
+                      case None =>
+                        fallbackToOpenAiFromGemini(
+                          warningReasons =
+                            optionalPolishWarnings(primaryValidation.hardReasons :+ "active_note_repair_empty"),
+                          repairAttempted = true
+                        )
+                    }
+              case None =>
+                fallbackToOpenAiFromGemini(
+                  warningReasons = optionalPolishWarnings(List("empty_polish")),
+                  repairAttempted = false
+                )
+            }
+        case "gemini" =>
+          fallbackToOpenAiFromGemini(
+            warningReasons = optionalPolishWarnings(List("provider_unavailable")),
+            repairAttempted = false
+          )
+        case _ =>
             Future.successful(
-              ActiveStrategicNoteDecision(
-                note = None,
-                sourceMode = Some("omitted"),
-                hardReasons = List("provider_unavailable"),
-                provider = Some(routeMeta.provider),
-                configuredModel = routeMeta.configuredModel,
-                fallbackModel = routeMeta.fallbackModel,
-                reasoningEffort = routeMeta.reasoningEffort
+              fallbackToDeterministicDraft(
+                meta = routeMeta,
+                fallbackWarnings = optionalPolishWarnings(List("provider_unavailable"))
               )
             )
-
-      llmDecisionFut.map(ensureDeterministicActiveFallback)
+      }
 
   private def buildPolishMetaOpenAi(
       model: Option[String],
@@ -3778,7 +3702,7 @@ final class LlmApi(
                   )
                 }
 
-            val ctx = NarrativeContextBuilder.build(
+            val rawCtx = NarrativeContextBuilder.build(
               data = dataWithContinuity,
               ctx = dataWithContinuity.toContext,
               probeResults = probeResults.getOrElse(Nil),
@@ -3789,10 +3713,22 @@ final class LlmApi(
             )
             recordStrategicMetrics(
               data = dataWithContinuity,
-              ctx = ctx,
+              ctx = rawCtx,
               probeResults = probeResults.getOrElse(Nil)
             )
-            val strategyPack = StrategyPackBuilder.build(dataWithContinuity, ctx)
+            val rawStrategyPack = StrategyPackBuilder.build(dataWithContinuity, rawCtx)
+            val truthContract =
+              DecisiveTruth.derive(
+                ctx = rawCtx,
+                transitionType = dataWithContinuity.planSequence.map(_.transitionType.toString),
+                strategyPack = rawStrategyPack
+              )
+            val ctx = DecisiveTruth.sanitizeContext(rawCtx, truthContract)
+            val strategyPack =
+              DecisiveTruth.sanitizeStrategyPack(
+                rawStrategyPack,
+                truthContract
+              )
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val outline = BookStyleRenderer.validatedOutline(ctx)
             val bookmakerSlots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack)
@@ -4640,6 +4576,17 @@ private[llm] object PolishValidation:
     validatePolishedCommentary(polished, original, allowedSans).isValid
 
 object LlmApi:
+
+  private[llm] def activeNoteOptionalPolishEligible(
+      activeEligible: Boolean,
+      allowLlmPolish: Boolean,
+      providerResolved: String,
+      deterministicDraftPresent: Boolean
+  ): Boolean =
+    activeEligible &&
+      allowLlmPolish &&
+      deterministicDraftPresent &&
+      Option(providerResolved).exists(_.trim.toLowerCase != "none")
 
   private[llm] def activeCompensationNoteExpected(surface: StrategyPackSurface.Snapshot): Boolean =
     CompensationContractMatcher

@@ -102,7 +102,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         }
 
   def activeStrategicNote(
-      baseNarrative: String,
+      draftNote: String,
       phase: String,
       momentType: String,
       concepts: List[String],
@@ -113,10 +113,10 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
-    else if baseNarrative.isBlank then Future.successful(None)
+    else if draftNote.isBlank then Future.successful(None)
     else
       val prompt = ActiveStrategicPrompt.buildPrompt(
-        baseNarrative = baseNarrative,
+        draftNote = draftNote,
         phase = phase,
         momentType = momentType,
         fen = fen,
@@ -132,13 +132,13 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         allowContextCache = false,
         model = config.modelActive
       ).recover { case e: Throwable =>
-        logger.warn(s"Gemini active note failed, omitting note: ${e.getMessage}")
+        logger.warn(s"Gemini active note polish failed, falling back to deterministic draft: ${e.getMessage}")
         None
       }
 
   def repairActiveStrategicNote(
-      baseNarrative: String,
-      rejectedNote: String,
+      draftNote: String,
+      rejectedPolish: String,
       failureReasons: List[String],
       phase: String,
       momentType: String,
@@ -150,11 +150,11 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       moveRefs: List[ActiveStrategicMoveRef] = Nil
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
-    else if baseNarrative.isBlank || rejectedNote.isBlank then Future.successful(None)
+    else if draftNote.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
       val prompt = ActiveStrategicPrompt.buildRepairPrompt(
-        baseNarrative = baseNarrative,
-        rejectedNote = rejectedNote,
+        draftNote = draftNote,
+        rejectedPolish = rejectedPolish,
         failureReasons = failureReasons,
         phase = phase,
         momentType = momentType,
@@ -171,7 +171,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         allowContextCache = false,
         model = config.modelActive
       ).recover { case e: Throwable =>
-        logger.warn(s"Gemini active note repair failed, omitting note: ${e.getMessage}")
+        logger.warn(s"Gemini active note repair failed, falling back to deterministic draft: ${e.getMessage}")
         None
       }
 

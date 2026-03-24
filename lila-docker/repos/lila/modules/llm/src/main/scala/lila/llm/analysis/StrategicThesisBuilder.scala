@@ -41,7 +41,7 @@ private[analysis] object StrategicThesisBuilder:
       compensationDecision.flatMap(_.signal.summary).map(normalizeText).filter(_.nonEmpty)
     val hasCompensationSignal = compensationDecision.isDefined
     val allowCompensationNarration =
-      !surface.compensationPosition || CompensationDisplayPhrasing.compensationNarrationEligible(surface)
+      surface.compensationPosition && CompensationDisplayPhrasing.compensationNarrationEligible(surface)
     if !hasCompensationSignal then None
     else if !allowCompensationNarration then buildOrdinaryCompensationReframe(ctx, surface)
     else

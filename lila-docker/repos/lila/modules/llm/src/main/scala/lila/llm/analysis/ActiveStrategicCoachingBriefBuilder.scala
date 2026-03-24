@@ -72,14 +72,18 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     val currentBoard = currentFen.flatMap(parseBoard)
     val tacticalReality = immediateTacticalReality(currentBoard, preferredSide, moveRefs)
     val compensationNarrationEligible = CompensationDisplayPhrasing.compensationNarrationEligible(surface)
-    val primaryIdea =
+    val canonicalCompensationSubtype = CompensationContractMatcher.canonicalSubtype(surface)
+    def decoratePrimaryIdea(value: Option[String]): Option[String] =
+      value
+        .map(text => surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side => s"$side: $text").getOrElse(text))
+        .flatMap(text => contextualizeSignal(Some(text), currentBoard, preferredSide))
+    val rawPrimaryIdeaBase =
       surface.dominantIdeaText
         .orElse(
           dominantIdea
         .map(primaryIdeaLabel)
         )
-        .map(value => surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side => s"$side: $value").getOrElse(value))
-        .flatMap(value => contextualizeSignal(Some(value), currentBoard, preferredSide))
+    val rawPrimaryIdea = decoratePrimaryIdea(rawPrimaryIdeaBase)
     val compensationWhyNow =
       Option.when(compensationNarrationEligible)(CompensationDisplayPhrasing.compensationWhyNowText(surface)).flatten
     val compensationLead =
@@ -101,7 +105,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
             digest.flatMap(_.practicalVerdict),
             dossier.flatMap(_.evidenceCue)
           ),
-          primaryIdea
+          rawPrimaryIdea
         ),
         currentBoard,
         preferredSide
@@ -145,6 +149,22 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         ),
         currentBoard,
         preferredSide
+      )
+    val primaryIdea =
+      decoratePrimaryIdea(
+      Option
+        .when(compensationNarrationEligible)(
+          selectStrictCompensationPrimaryIdea(
+            compensationLead = compensationLead,
+            primaryIdea = rawPrimaryIdeaBase,
+            longTermObjective = longTermObjective,
+            continuationFocus = continuationFocus,
+            surface = surface,
+            canonicalSubtype = canonicalCompensationSubtype
+          )
+        )
+        .flatten
+        .orElse(rawPrimaryIdeaBase)
       )
     val compensationAnchor =
       contextualizeSignal(
@@ -354,9 +374,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       brief: Brief,
       surface: StrategyPackSurface.Snapshot
   ): Option[String] =
-    val resolvedExecution = StrategyPackSurface.resolvedNormalizedExecutionText(surface).orElse(surface.executionText)
-    val resolvedObjective = StrategyPackSurface.resolvedNormalizedObjectiveText(surface).orElse(surface.objectiveText)
-    val resolvedFocus = StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface).orElse(surface.focusText)
+    val canonicalSubtype = CompensationContractMatcher.canonicalSubtype(surface)
     val leadSentence =
       brief.compensationLead
         .flatMap(cleanStringSignal)
@@ -365,53 +383,65 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         .map(lead => asSentence(s"The compensation comes from ${stripTrailingPunctuation(lead)}."))
 
     val primaryIdea =
-      brief.primaryIdea
-        .flatMap(cleanStringSignal)
-        .orElse(surface.dominantIdeaText.flatMap(cleanStringSignal))
-        .orElse(resolvedFocus.flatMap(cleanStringSignal))
+      selectStrictCompensationPrimaryIdea(
+        compensationLead = brief.compensationLead,
+        primaryIdea = brief.primaryIdea,
+        longTermObjective = brief.longTermObjective,
+        continuationFocus = brief.continuationFocus,
+        surface = surface,
+        canonicalSubtype = canonicalSubtype
+      )
     val ideaSentence =
       primaryIdea.map(idea => asSentence(s"The key idea is ${stripTrailingPunctuation(idea)}."))
 
     val anchorSignal =
-      pickFirst(
-        brief.compensationAnchor,
-        resolvedExecution.filter(hasConcreteCompensationAnchor),
-        brief.executionHint.filter(hasConcreteCompensationAnchor),
-        resolvedObjective.filter(hasConcreteCompensationAnchor),
-        brief.longTermObjective.filter(hasConcreteCompensationAnchor),
-        brief.continuationFocus.filter(hasConcreteCompensationAnchor),
-        resolvedFocus.filter(hasConcreteCompensationAnchor)
-      )
+      selectStrictCompensationAnchorSignal(brief, surface, canonicalSubtype)
     val anchorSentence =
       anchorSignal
         .flatMap(cleanStringSignal)
         .filter(hasConcreteCompensationAnchor)
         .filterNot(anchor => primaryIdea.exists(idea => normalize(idea) == normalize(anchor)))
         .filterNot(anchor => leadSentence.exists(sentence => normalize(sentence).contains(normalize(anchor))))
-        .map(anchor => asSentence(s"That pressure is anchored on ${stripTrailingPunctuation(anchor)}."))
+        .map(StrategicSentenceRenderer.renderCompensationAnchor)
 
-    val continuationSentence =
-      selectCompensationContinuationSignal(brief, surface)
-        .orElse(
-          pickFirst(
-            resolvedExecution,
-            resolvedObjective,
-            resolvedFocus,
-            surface.executionText,
-            surface.objectiveText,
-            surface.focusText
-          )
-        )
-        .flatMap(cleanStringSignal)
+    def continuationCandidate(raw: Option[String], requireCanonicalCompatibility: Boolean): Option[String] =
+      raw
+        .filter(text => !requireCanonicalCompatibility || compensationSignalAllowed(text, canonicalSubtype))
         .filterNot(signal => primaryIdea.exists(idea => normalize(idea) == normalize(signal)))
         .filterNot(signal => anchorSignal.exists(anchor => normalize(anchor) == normalize(signal)))
         .filterNot(signal => leadSentence.exists(sentence => normalize(sentence).contains(normalize(signal))))
+
+    val authoritativeContract = surface.normalizationActive && canonicalSubtype.nonEmpty
+    val continuationSentence =
+      (if authoritativeContract then
+         pickFirst(
+           continuationCandidate(StrategyPackSurface.resolvedNormalizedExecutionText(surface), requireCanonicalCompatibility = false),
+           continuationCandidate(StrategyPackSurface.resolvedNormalizedObjectiveText(surface), requireCanonicalCompatibility = false),
+           continuationCandidate(StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface), requireCanonicalCompatibility = false),
+           continuationCandidate(brief.executionHint, requireCanonicalCompatibility = true),
+           continuationCandidate(brief.longTermObjective, requireCanonicalCompatibility = true),
+           continuationCandidate(brief.continuationFocus, requireCanonicalCompatibility = true),
+           continuationCandidate(surface.executionText, requireCanonicalCompatibility = true),
+           continuationCandidate(surface.objectiveText, requireCanonicalCompatibility = true),
+           continuationCandidate(surface.focusText, requireCanonicalCompatibility = true)
+         )
+       else
+         pickFirst(
+           continuationCandidate(brief.executionHint, requireCanonicalCompatibility = false),
+           continuationCandidate(brief.longTermObjective, requireCanonicalCompatibility = false),
+           continuationCandidate(brief.continuationFocus, requireCanonicalCompatibility = false),
+           continuationCandidate(surface.executionText, requireCanonicalCompatibility = false),
+           continuationCandidate(surface.objectiveText, requireCanonicalCompatibility = false),
+           continuationCandidate(surface.focusText, requireCanonicalCompatibility = false)
+         ))
+        .flatMap(cleanStringSignal)
         .map(renderCompensationContinuationSentence)
 
     val whyNowSentence =
       brief.whyNow
         .flatMap(cleanStringSignal)
         .filter(text => normalize(text).nonEmpty)
+        .filterNot(text => canonicalSubtype.exists(conflictsWithCanonicalSubtype(text, _)))
         .filterNot(text => leadSentence.exists(sentence => normalize(sentence).contains(normalize(text))))
         .filterNot(text => anchorSignal.exists(anchor => normalize(anchor) == normalize(text)))
         .map(asSentence)
@@ -433,12 +463,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     CompensationContractMatcher
       .canonicalSubtype(surface)
       .map { subtype =>
-        val theater =
-          subtype.pressureTheater match
-            case "queenside" => "queenside"
-            case "center"    => "central"
-            case "kingside"  => "kingside"
-            case other       => other
+        val theater = canonicalCompensationTheaterLabel(subtype)
         subtype.pressureMode match
           case "line_occupation" =>
             if theater == "central" then "central file pressure" else s"$theater file pressure"
@@ -457,6 +482,113 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
             s"$theater compensation"
       }
       .flatMap(cleanStringSignal)
+
+  private def canonicalCompensationPrimaryIdea(
+      subtype: StrategyPackSurface.CompensationSubtype
+  ): Option[String] =
+    val theater = canonicalCompensationTheaterLabel(subtype)
+    (subtype.pressureMode match
+      case "line_occupation" =>
+        if theater == "central" then Some("central file pressure") else Some(s"$theater file pressure")
+      case "target_fixing" =>
+        if theater == "central" then Some("fixed central targets") else Some(s"fixed $theater targets")
+      case "counterplay_denial" =>
+        Some(s"denying $theater counterplay")
+      case "defender_tied_down" =>
+        Some(s"the defender tied down on the $theater")
+      case "conversion_window" =>
+        Some(s"$theater conversion pressure")
+      case "break_preparation" =>
+        Some(s"keeping the $theater break ready")
+      case _ =>
+        Some(s"$theater compensation")
+    ).flatMap(cleanStringSignal)
+
+  private def canonicalCompensationTheaterLabel(
+      subtype: StrategyPackSurface.CompensationSubtype
+  ): String =
+    subtype.pressureTheater match
+      case "queenside" => "queenside"
+      case "center"    => "central"
+      case "kingside"  => "kingside"
+      case other       => other
+
+  private def selectStrictCompensationPrimaryIdea(
+      compensationLead: Option[String],
+      primaryIdea: Option[String],
+      longTermObjective: Option[String],
+      continuationFocus: Option[String],
+      surface: StrategyPackSurface.Snapshot,
+      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype]
+  ): Option[String] =
+    val ideaContractSubtype =
+      strictCompensationIdeaSubtype(
+        compensationLead = compensationLead,
+        longTermObjective = longTermObjective,
+        continuationFocus = continuationFocus,
+        surface = surface,
+        canonicalSubtype = canonicalSubtype
+      )
+    val canonicalIdeaOwned = surface.normalizationActive || surface.quietCompensationPosition
+
+    def canonicalCandidate(raw: Option[String]): Option[String] =
+      raw.filter(text =>
+        compensationSignalAllowed(
+          text,
+          ideaContractSubtype,
+          requireSubtypeSupport = ideaContractSubtype.nonEmpty
+        )
+      )
+
+    def rawCandidate(raw: Option[String]): Option[String] =
+      raw.filter(text => compensationSignalAllowed(text, ideaContractSubtype))
+
+    if canonicalIdeaOwned then
+      pickFirst(
+        ideaContractSubtype.flatMap(canonicalCompensationPrimaryIdea),
+        canonicalCandidate(surface.normalizedDominantIdeaText),
+        canonicalCandidate(StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface)),
+        canonicalCandidate(primaryIdea),
+        canonicalCandidate(longTermObjective),
+        canonicalCandidate(continuationFocus),
+        rawCandidate(surface.dominantIdeaText),
+        rawCandidate(surface.objectiveText),
+        rawCandidate(surface.focusText)
+      )
+    else
+      pickFirst(
+        primaryIdea,
+        surface.dominantIdeaText,
+        StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
+        surface.focusText
+      ).flatMap(cleanStringSignal)
+
+  private def selectStrictCompensationAnchorSignal(
+      brief: Brief,
+      surface: StrategyPackSurface.Snapshot,
+      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype]
+  ): Option[String] =
+    pickFirst(
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedDirectionalTarget(surface, subtype).flatMap(compensationTargetAnchorSummary)
+      ),
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedMoveRef(surface, subtype).map(compensationMoveRefAnchorSummary)
+      ),
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedRoute(surface, subtype).map(compensationRouteAnchorSummary)
+      ),
+      StrategyPackSurface.resolvedNormalizedExecutionText(surface).filter(hasConcreteCompensationAnchor),
+      StrategyPackSurface.resolvedNormalizedObjectiveText(surface).filter(hasConcreteCompensationAnchor),
+      StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface).filter(hasConcreteCompensationAnchor),
+      brief.compensationAnchor.filter(text => compensationSignalAllowed(text, canonicalSubtype)),
+      brief.executionHint.filter(text => compensationSignalAllowed(text, canonicalSubtype)),
+      brief.longTermObjective.filter(text => compensationSignalAllowed(text, canonicalSubtype)),
+      brief.continuationFocus.filter(text => compensationSignalAllowed(text, canonicalSubtype)),
+      surface.executionText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
+      surface.objectiveText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
+      surface.focusText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text))
+    )
 
   private def pickFirst(values: Option[String]*): Option[String] =
     values.iterator.flatMap(cleanSignal).toSeq.headOption
@@ -607,31 +739,27 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
     val canonicalSubtype = CompensationContractMatcher.canonicalSubtype(surface)
     pickFirst(
-      canonicalSubtype.flatMap(subtype => StrategyPackSurface.alignedDirectionalTarget(surface, subtype).flatMap(targetSummary)),
-      canonicalSubtype.flatMap(subtype => StrategyPackSurface.alignedMoveRef(surface, subtype).map(moveRefSummary)),
-      canonicalSubtype.flatMap(subtype => StrategyPackSurface.alignedRoute(surface, subtype).map(routeSummary)),
-      dossier.flatMap(_.routeCue).filter(cue => preferredSide.forall(_ == cue.ownerSide)).map(routeCueSummary),
-      routeRefs.find(ref => preferredSide.forall(_ == ref.ownerSide)).map(routeRefSummary),
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedDirectionalTarget(surface, subtype).flatMap(compensationTargetAnchorSummary)
+      ),
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedMoveRef(surface, subtype).map(compensationMoveRefAnchorSummary)
+      ),
+      canonicalSubtype.flatMap(subtype =>
+        StrategyPackSurface.alignedRoute(surface, subtype).map(compensationRouteAnchorSummary)
+      ),
+      StrategyPackSurface.resolvedNormalizedExecutionText(surface).filter(hasConcreteCompensationAnchor),
+      StrategyPackSurface.resolvedNormalizedObjectiveText(surface).filter(hasConcreteCompensationAnchor),
+      StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface).filter(hasConcreteCompensationAnchor),
+      dossier.flatMap(_.routeCue).filter(cue => preferredSide.forall(_ == cue.ownerSide)).map(compensationRouteCueAnchorSummary),
+      routeRefs.find(ref => preferredSide.forall(_ == ref.ownerSide)).map(compensationRouteRefAnchorSummary),
       executionHint.filter(hasConcreteCompensationAnchor),
       longTermObjective.filter(hasConcreteCompensationAnchor),
       continuationFocus.filter(hasConcreteCompensationAnchor),
-      surface.executionText.filter(hasConcreteCompensationAnchor),
-      surface.objectiveText.filter(hasConcreteCompensationAnchor),
-      surface.focusText.filter(hasConcreteCompensationAnchor)
+      surface.executionText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
+      surface.objectiveText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
+      surface.focusText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text))
     ).filter(hasConcreteCompensationAnchor)
-
-  private def selectCompensationContinuationSignal(
-      brief: Brief,
-      surface: StrategyPackSurface.Snapshot
-  ): Option[String] =
-    pickFirst(
-      brief.executionHint,
-      brief.longTermObjective,
-      brief.continuationFocus,
-      surface.executionText,
-      surface.objectiveText,
-      surface.focusText
-    )
 
   private def routeCueSummary(cue: ActiveBranchRouteCue): String =
     routeLabel(
@@ -664,6 +792,40 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     cleanSignal(Some(s"${pieceName(moveRef.piece)} toward ${moveRef.target} ${purposeClause(moveRef.idea, moveRef.target)}"))
       .orElse(cleanSignal(Some(moveRef.idea)))
       .getOrElse(moveRef.idea)
+
+  private def compensationMoveRefAnchorSummary(moveRef: StrategyPieceMoveRef): String =
+    cleanSignal(Some(s"${pieceName(moveRef.piece)} toward ${moveRef.target}"))
+      .getOrElse(s"${pieceName(moveRef.piece)} toward ${moveRef.target}")
+
+  private def compensationTargetAnchorSummary(target: StrategyDirectionalTarget): Option[String] =
+    cleanSignal(Some(target.targetSquare.toLowerCase))
+
+  private def compensationRouteCueAnchorSummary(cue: ActiveBranchRouteCue): String =
+    routeLabel(
+      ownerSide = None,
+      piece = cue.piece,
+      route = cue.route,
+      purpose = None,
+      surfaceMode = cue.surfaceMode
+    )
+
+  private def compensationRouteRefAnchorSummary(routeRef: ActiveStrategicRouteRef): String =
+    routeLabel(
+      ownerSide = None,
+      piece = routeRef.piece,
+      route = routeRef.route,
+      purpose = None,
+      surfaceMode = routeRef.surfaceMode
+    )
+
+  private def compensationRouteAnchorSummary(route: StrategyPieceRoute): String =
+    routeLabel(
+      ownerSide = None,
+      piece = route.piece,
+      route = route.route,
+      purpose = None,
+      surfaceMode = route.surfaceMode
+    )
 
   private def targetSummary(target: StrategyDirectionalTarget): Option[String] =
     cleanSignal(Some(s"${pieceName(target.piece)} can use ${target.targetSquare}"))
@@ -738,6 +900,105 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           .map(_ => "to contest the target there")
           .getOrElse(s"to $cleaned")
       else s"to support ${strippedLeadingArticle(cleaned)}"
+
+  private def compensationSignalAllowed(
+      text: String,
+      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype],
+      requireSubtypeSupport: Boolean = false
+  ): Boolean =
+    cleanStringSignal(text).exists { cleaned =>
+      canonicalSubtype.forall { subtype =>
+        !conflictsWithCanonicalSubtype(cleaned, subtype) &&
+          (!requireSubtypeSupport || CompensationContractMatcher.supportsSubtype(cleaned, subtype))
+      }
+    }
+
+  private def conflictsWithCanonicalSubtype(
+      text: String,
+      subtype: StrategyPackSurface.CompensationSubtype
+  ): Boolean =
+    val normalized = normalize(text)
+    normalized.nonEmpty && (mentionsConflictingTheater(normalized, subtype) || mentionsConflictingMode(normalized, subtype))
+
+  private def mentionsConflictingTheater(
+      normalized: String,
+      subtype: StrategyPackSurface.CompensationSubtype
+  ): Boolean =
+    subtype.pressureTheater match
+      case "queenside" => normalized.contains("kingside") || normalized.contains("center") || normalized.contains("central")
+      case "center"    => normalized.contains("kingside") || normalized.contains("queenside")
+      case "kingside"  => normalized.contains("queenside") || normalized.contains("center") || normalized.contains("central")
+      case _           => false
+
+  private val LineOccupationMarkers =
+    List("line pressure", "file pressure", "open file", "open files", "queenside files", "central files")
+  private val TargetFixingMarkers =
+    List("fixed target", "fixed targets", "targets tied down", "fixed pawn", "weak pawn", "tied down")
+
+  private def strictCompensationIdeaSubtype(
+      compensationLead: Option[String],
+      longTermObjective: Option[String],
+      continuationFocus: Option[String],
+      surface: StrategyPackSurface.Snapshot,
+      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype]
+  ): Option[StrategyPackSurface.CompensationSubtype] =
+    canonicalSubtype.orElse(
+      Option.when(surface.normalizationActive) {
+        pickFirstDerivedCompensationSubtype(
+          StrategyPackSurface.resolvedNormalizedCompensationLead(surface),
+          canonicalCompensationLead(surface),
+          compensationLead,
+          surface.normalizedDominantIdeaText,
+          StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
+          StrategyPackSurface.resolvedNormalizedObjectiveText(surface),
+          longTermObjective,
+          continuationFocus,
+          surface.dominantIdeaText,
+          surface.focusText
+        )
+      }.flatten
+    )
+
+  private def pickFirstDerivedCompensationSubtype(
+      values: Option[String]*
+  ): Option[StrategyPackSurface.CompensationSubtype] =
+    values.iterator.flatMap(cleanSignal).flatMap(inferCompensationIdeaSubtype).toSeq.headOption
+
+  private def inferCompensationIdeaSubtype(
+      text: String
+  ): Option[StrategyPackSurface.CompensationSubtype] =
+    val normalized = normalize(text)
+    if normalized.isEmpty then None
+    else
+      for
+        theater <- inferCompensationIdeaTheater(normalized)
+        mode <- inferCompensationIdeaMode(normalized)
+      yield StrategyPackSurface.CompensationSubtype(
+        pressureTheater = theater,
+        pressureMode = mode,
+        recoveryPolicy = "intentionally_deferred",
+        stabilityClass = "durable_pressure"
+      )
+
+  private def inferCompensationIdeaTheater(normalized: String): Option[String] =
+    if normalized.contains("queenside") then Some("queenside")
+    else if normalized.contains("kingside") then Some("kingside")
+    else if normalized.contains("center") || normalized.contains("central") then Some("center")
+    else None
+
+  private def inferCompensationIdeaMode(normalized: String): Option[String] =
+    if LineOccupationMarkers.exists(normalized.contains) then Some("line_occupation")
+    else if TargetFixingMarkers.exists(normalized.contains) then Some("target_fixing")
+    else None
+
+  private def mentionsConflictingMode(
+      normalized: String,
+      subtype: StrategyPackSurface.CompensationSubtype
+  ): Boolean =
+    subtype.pressureMode match
+      case "target_fixing"   => LineOccupationMarkers.exists(normalized.contains)
+      case "line_occupation" => TargetFixingMarkers.exists(normalized.contains)
+      case _                 => false
 
   private def normalizeExecutionLikeSignal(text: String): String =
     val trimmed = Option(text).getOrElse("").trim

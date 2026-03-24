@@ -103,6 +103,8 @@ object PolishPrompt:
       |   but preserve the draft's dominant strategic claim and cause -> effect chain instead of flattening them into generic advantage language.
       |4. Keep prose concrete. Name moves, squares, plans, structure, and piece roles explicitly
       |   when the draft already provides them.
+      |4a. Preserve deterministic whole-game anchor nouns when the draft already has them.
+      |   Do not rewrite them into generic theme labels, bare square lists, or vague theater-only wording.
       |5. Respect evaluation and salience:
       |   - never overstate the position relative to eval
       |   - if `Salience: Low` is provided, stay brief and mostly tactical

@@ -75,16 +75,26 @@ object NarrativeLexicon {
     s"This review covers $source. $status $focus"
   }
 
-  def gameConclusion(winner: Option[String], themes: List[String], blunders: Int, missedWins: Int): String = {
+  def gameConclusion(
+      winner: Option[String],
+      themes: List[String],
+      blunders: Int,
+      missedWins: Int,
+      mainContest: Option[String] = None,
+      decisiveShift: Option[String] = None,
+      payoff: Option[String] = None
+  ): String = {
     val leadTheme = themes.headOption
     val extraThemes = themes.drop(1).take(2)
+    val hasContestLead = mainContest.exists(_.trim.nonEmpty)
 
     def themeTail: String =
       if extraThemes.nonEmpty then s" Other recurring themes were ${extraThemes.mkString(", ")}."
       else ""
 
     def practicalTail: String =
-      if blunders > 0 && missedWins > 0 then
+      if payoff.exists(_.trim.nonEmpty) then ""
+      else if blunders > 0 && missedWins > 0 then
         s" The practical story included $blunders blunder${if blunders == 1 then "" else "s"} and $missedWins missed win${if missedWins == 1 then "" else "s"}."
       else if blunders > 0 then
         s" The decisive practical swings came from $blunders blunder${if blunders == 1 then "" else "s"}."
@@ -92,8 +102,43 @@ object NarrativeLexicon {
         s" The game also featured $missedWins missed win${if missedWins == 1 then "" else "s"}."
       else ""
 
+    val detailSentences =
+      List(mainContest, decisiveShift, payoff).flatten
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .foldLeft(List.empty[String]) { case (acc, raw) =>
+          val sentence =
+            if raw.endsWith(".") || raw.endsWith("!") || raw.endsWith("?") then raw
+            else s"$raw."
+          val fingerprint =
+            sentence
+              .replace("**", "")
+              .replaceAll("""[^\p{L}\p{N}\s]""", " ")
+              .replaceAll("""\s+""", " ")
+              .trim
+              .toLowerCase
+          if fingerprint.nonEmpty && acc.exists { existing =>
+              val existingFingerprint =
+                existing
+                  .replace("**", "")
+                  .replaceAll("""[^\p{L}\p{N}\s]""", " ")
+                  .replaceAll("""\s+""", " ")
+                  .trim
+                  .toLowerCase
+              existingFingerprint == fingerprint
+            }
+          then acc
+          else acc :+ sentence
+        }
+
     val core =
       winner match {
+        case Some(w) if detailSentences.nonEmpty =>
+          if hasContestLead then s"**$w** came out ahead once the game's main ideas became concrete."
+          else
+            leadTheme match
+              case Some(theme) => s"**$w** came out ahead once the game's main ideas became concrete around $theme."
+              case None        => s"**$w** came out ahead once the game's main ideas became concrete."
         case Some(w) if blunders > 0 =>
           leadTheme match
             case Some(theme) => s"**$w** handled the decisive mistakes better, with $theme as the main strategic thread."
@@ -107,16 +152,24 @@ object NarrativeLexicon {
             case Some(theme) => s"**$w** kept the game on the right strategic track through $theme."
             case None        => s"**$w** kept control of the key turning points and converted cleanly."
         case None if blunders > 0 || missedWins > 0 =>
-          leadTheme match
-            case Some(theme) => s"The game never fully settled because both sides left practical chances around $theme."
-            case None        => "The game never fully settled because both sides left practical chances on the board."
+          if hasContestLead then "The game never fully settled because both sides left practical chances on the board."
+          else
+            leadTheme match
+              case Some(theme) => s"The game never fully settled because both sides left practical chances around $theme."
+              case None        => "The game never fully settled because both sides left practical chances on the board."
         case None =>
-          leadTheme match
-            case Some(theme) => s"The game stayed balanced around $theme and neither side forced a decisive breakthrough."
-            case None        => "The game stayed balanced and neither side forced a decisive breakthrough."
+          if hasContestLead then "The game stayed balanced and neither side forced a decisive breakthrough."
+          else
+            leadTheme match
+              case Some(theme) => s"The game stayed balanced around $theme and neither side forced a decisive breakthrough."
+              case None        => "The game stayed balanced and neither side forced a decisive breakthrough."
       }
 
-    s"$core$practicalTail$themeTail"
+    val detailTail =
+      if detailSentences.nonEmpty then s" ${detailSentences.mkString(" ")}"
+      else ""
+
+    s"$core$detailTail$practicalTail$themeTail"
   }
 
   def momentBlockLead(bead: Int, phase: String, momentType: String, ply: Int): String = {
@@ -1591,42 +1644,90 @@ object NarrativeLexicon {
     ))
   }
 
+  def getAnnotationInvestment(bead: Int, playedSan: String): String = {
+    pick(bead, List(
+      s"**$playedSan** is a real investment that keeps the main pressure alive.",
+      s"**$playedSan** commits material to preserve the active plan.",
+      s"With **$playedSan**, the game turns on whether the invested material keeps enough pressure.",
+      s"**$playedSan** is an investment move that keeps the practical initiative in play.",
+      s"**$playedSan** leans into a material investment to keep the strategic payoff available."
+    ))
+  }
+
   def getAnnotationNegative(bead: Int, playedSan: String, bestSan: String, cpLoss: Int): String = {
+    val mark = Thresholds.annotationMark(cpLoss)
+    val markedMove = if mark.nonEmpty then s"**$playedSan** $mark" else s"**$playedSan**"
+
+    if Option(bestSan).forall(_.trim.isEmpty) then getAnnotationNegativeWithoutBenchmark(bead, playedSan, cpLoss)
+    else
+      Thresholds.classifySeverity(cpLoss) match {
+        case "blunder" =>
+          pick(bead, List(
+            s"$markedMove is a blunder; it opens immediate tactical problems, so your position loses control quickly. **$bestSan** was the cleanest defense.",
+            s"$markedMove is a decisive error, and as a result coordination collapses quickly. The critical move was **$bestSan**.",
+            s"$markedMove is a blunder that hands over game flow, while **$bestSan** was the more resilient route.",
+            s"$markedMove is a blunder because it disconnects defense from counterplay; **$bestSan** was the best practical way to hold things together.",
+            s"$markedMove is a major error, so king safety and initiative both deteriorate; **$bestSan** held the balance."
+          ))
+        case "mistake" =>
+          pick(bead, List(
+            s"$markedMove is a clear mistake; it gives the opponent initiative, so practical defense becomes harder. Stronger is **$bestSan**.",
+            s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure easier to manage.",
+            s"$markedMove is a serious mistake that shifts practical control, and **$bestSan** was the preferable route.",
+            s"$markedMove is a mistake because it loosens tempo order; **$bestSan** keeps the position connected.",
+            s"$markedMove is inaccurate in practical terms, so **$bestSan** was the cleaner way to preserve initiative."
+          ))
+        case "inaccuracy" =>
+          pick(bead, List(
+            s"$markedMove is an inaccuracy, and **$bestSan** keeps cleaner control of coordination.",
+            s"$markedMove concedes practical ease, so **$bestSan** is the tighter continuation.",
+            s"$markedMove drifts from the best plan, while **$bestSan** keeps initiative better anchored.",
+            s"$markedMove is slightly loose in timing, and **$bestSan** keeps the structure easier to handle.",
+            s"$markedMove gives up some practical control; therefore **$bestSan** is the cleaner route."
+          ))
+        case _ =>
+          pick(bead, List(
+            s"$markedMove is slightly imprecise, while **$bestSan** is cleaner in practical terms.",
+            s"$markedMove is playable but second-best, and **$bestSan** keeps the position simpler to convert.",
+            s"$markedMove is not the top choice here, so **$bestSan** remains the reference move.",
+            s"$markedMove can be played, but **$bestSan** keeps better structure and coordination.",
+            s"$markedMove is acceptable yet less direct, whereas **$bestSan** keeps initiative more stable."
+          ))
+      }
+  }
+
+  def getAnnotationNegativeWithoutBenchmark(bead: Int, playedSan: String, cpLoss: Int): String = {
     val mark = Thresholds.annotationMark(cpLoss)
     val markedMove = if mark.nonEmpty then s"**$playedSan** $mark" else s"**$playedSan**"
 
     Thresholds.classifySeverity(cpLoss) match {
       case "blunder" =>
         pick(bead, List(
-          s"$markedMove is a blunder; it opens immediate tactical problems, so your position loses control quickly. **$bestSan** was the cleanest defense.",
-          s"$markedMove is a decisive error, and as a result coordination collapses quickly. The critical move was **$bestSan**.",
-          s"$markedMove is a blunder that hands over game flow, while **$bestSan** was the more resilient route.",
-          s"$markedMove is a blunder because it disconnects defense from counterplay; **$bestSan** was the best practical way to hold things together.",
-          s"$markedMove is a major error, so king safety and initiative both deteriorate; **$bestSan** held the balance."
+          s"$markedMove is a blunder; it opens immediate tactical problems and loses control quickly.",
+          s"$markedMove is a decisive error, so coordination collapses and the position turns difficult fast.",
+          s"$markedMove is a blunder that hands over game flow and leaves too much to defend.",
+          s"$markedMove is a major error because defense disconnects from counterplay and the initiative slips away."
         ))
       case "mistake" =>
         pick(bead, List(
-          s"$markedMove is a clear mistake; it gives the opponent initiative, so practical defense becomes harder. Stronger is **$bestSan**.",
-          s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure easier to manage.",
-          s"$markedMove is a serious mistake that shifts practical control, and **$bestSan** was the preferable route.",
-          s"$markedMove is a mistake because it loosens tempo order; **$bestSan** keeps the position connected.",
-          s"$markedMove is inaccurate in practical terms, so **$bestSan** was the cleaner way to preserve initiative."
+          s"$markedMove is a clear mistake; it gives the opponent initiative and makes defense harder.",
+          s"$markedMove is a serious mistake that shifts practical control away from your side.",
+          s"$markedMove is a mistake because it loosens coordination and leaves the position harder to manage.",
+          s"$markedMove is inaccurate in practical terms, so the game becomes much easier for the opponent to steer."
         ))
       case "inaccuracy" =>
         pick(bead, List(
-          s"$markedMove is an inaccuracy, and **$bestSan** keeps cleaner control of coordination.",
-          s"$markedMove concedes practical ease, so **$bestSan** is the tighter continuation.",
-          s"$markedMove drifts from the best plan, while **$bestSan** keeps initiative better anchored.",
-          s"$markedMove is slightly loose in timing, and **$bestSan** keeps the structure easier to handle.",
-          s"$markedMove gives up some practical control; therefore **$bestSan** is the cleaner route."
+          s"$markedMove is an inaccuracy that gives up some practical ease.",
+          s"$markedMove drifts from the cleanest plan and leaves coordination a bit looser.",
+          s"$markedMove is slightly loose in timing, so the opponent gets easier play.",
+          s"$markedMove gives up some practical control and leaves the initiative less secure."
         ))
       case _ =>
         pick(bead, List(
-          s"$markedMove is slightly imprecise, while **$bestSan** is cleaner in practical terms.",
-          s"$markedMove is playable but second-best, and **$bestSan** keeps the position simpler to convert.",
-          s"$markedMove is not the top choice here, so **$bestSan** remains the reference move.",
-          s"$markedMove can be played, but **$bestSan** keeps better structure and coordination.",
-          s"$markedMove is acceptable yet less direct, whereas **$bestSan** keeps initiative more stable."
+          s"$markedMove is slightly imprecise in practical terms.",
+          s"$markedMove is playable but not the cleanest continuation here.",
+          s"$markedMove can be played, though the position becomes a bit less direct to handle.",
+          s"$markedMove is acceptable yet less tidy in structure and coordination."
         ))
     }
   }

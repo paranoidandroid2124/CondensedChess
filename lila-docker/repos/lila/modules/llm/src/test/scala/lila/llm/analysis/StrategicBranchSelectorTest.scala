@@ -78,6 +78,45 @@ class StrategicBranchSelectorTest extends FunSuite:
       )
     )
 
+  private def truthContract(
+      ownershipRole: TruthOwnershipRole,
+      visibilityRole: TruthVisibilityRole,
+      surfaceMode: TruthSurfaceMode,
+      exemplarRole: Option[TruthExemplarRole] = None,
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
+      truthPhase: Option[InvestmentTruthPhase] = None,
+      chainKey: Option[String] = None,
+      payoffAnchor: Option[String] = Some("open-file pressure")
+  ): DecisiveTruthContract =
+    val resolvedExemplarRole =
+      exemplarRole.getOrElse:
+        if ownershipRole == TruthOwnershipRole.CommitmentOwner then TruthExemplarRole.VerifiedExemplar
+        else TruthExemplarRole.NonExemplar
+    DecisiveTruthContract(
+      playedMove = Some("d1d5"),
+      verifiedBestMove = Some("d1d5"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
+      truthPhase = truthPhase,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = resolvedExemplarRole,
+      surfacedMoveOwnsTruth =
+        ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+          ownershipRole == TruthOwnershipRole.ConversionOwner ||
+          ownershipRole == TruthOwnershipRole.BlunderOwner,
+      verifiedPayoffAnchor = payoffAnchor,
+      compensationProseAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = chainKey
+    )
+
   test("selector keeps only top 3 threads visible and caps active-note targets at 8") {
     val selection =
       StrategicBranchSelector.buildSelection(
@@ -131,6 +170,180 @@ class StrategicBranchSelectorTest extends FunSuite:
     assert(plies.contains(134))
     assert(!plies.contains(136))
     assert(!plies.contains(138))
+  }
+
+  test("selector preserves investment pivots as visible decisive moments even without strict compensation subtype") {
+    val threadedSeed = threadedMoment(11, decision = "seed thread one")
+    val threadedBuild = threadedMoment(19, decision = "build thread one")
+    val threadedConvert = threadedMoment(27, transitionType = Some("NaturalShift"), decision = "convert thread one")
+    val investmentMoment =
+      moment(
+        ply = 31,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("CompensatedInvestment"),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("queenside pressure against fixed targets"),
+              signalDigest =
+                Some(
+                  NarrativeSignalDigest(
+                    compensation = Some("queenside pressure against fixed targets"),
+                    compensationVectors = List("fixed targets"),
+                    investedMaterial = Some(100)
+                  )
+                )
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(List(threadedSeed, threadedBuild, threadedConvert, investmentMoment))
+
+    assert(selection.selectedMoments.exists(_.ply == 31))
+    assert(selection.activeNoteMoments.exists(_.ply == 31))
+  }
+
+  test("selector treats conversion pivots as core decisive events without turning them into investment pivots") {
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(
+          moment(18, "TensionPeak"),
+          moment(36, "SustainedPressure", transitionType = Some("ExchangeConversion")),
+          moment(40, "OpeningNovelty", selectionKind = "opening", selectionLabel = Some("Opening Event"))
+        )
+      )
+
+    assert(selection.selectedMoments.exists(_.ply == 36))
+  }
+
+  test("commitment owner stays visible even when prose permission is withheld") {
+    val commitment =
+      moment(
+        ply = 31,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("WinningInvestment"),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("open-file pressure")
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(commitment),
+        Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.CommitmentOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            truthClass = DecisiveTruthClass.WinningInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            chainKey = Some("white:open-file pressure")
+          )
+        )
+      )
+
+    assert(selection.selectedMoments.exists(_.ply == 31), clue(selection.selectedMoments))
+  }
+
+  test("provisional exemplar stays visible without compensation-positive prose") {
+    val provisional =
+      moment(
+        ply = 31,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("CompensatedInvestment"),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("open-file pressure")
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(provisional),
+        Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            exemplarRole = Some(TruthExemplarRole.ProvisionalExemplar),
+            truthClass = DecisiveTruthClass.CompensatedInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            chainKey = Some("white:open-file pressure")
+          )
+        )
+      )
+
+    assert(selection.selectedMoments.exists(_.ply == 31), clue(selection.selectedMoments))
+    assert(selection.activeNoteMoments.exists(_.ply == 31), clue(selection.activeNoteMoments))
+  }
+
+  test("maintenance echo cannot outrank a nearby commitment owner in the same chain") {
+    val commitment =
+      moment(
+        ply = 31,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("WinningInvestment"),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("open-file pressure")
+            )
+          )
+      )
+    val maintenance =
+      moment(
+        ply = 35,
+        momentType = "SustainedPressure",
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("pressure on e6")
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(maintenance, commitment),
+        Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.CommitmentOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.InvestmentExplain,
+            truthClass = DecisiveTruthClass.WinningInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            chainKey = Some("white:open-file pressure")
+          ),
+          35 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            exemplarRole = Some(TruthExemplarRole.NonExemplar),
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("pressure on e6")
+          )
+        )
+      )
+
+    assert(selection.selectedMoments.map(_.ply).contains(31), clue(selection.selectedMoments))
+    assert(selection.selectedMoments.count(_.ply == 31) == 1, clue(selection.selectedMoments))
+    assert(selection.selectedMoments.map(_.ply).contains(35), clue(selection.selectedMoments))
+    assert(
+      selection.selectedMoments.map(_.ply).indexOf(31) < selection.selectedMoments.map(_.ply).indexOf(35),
+      clue(selection.selectedMoments)
+    )
   }
 
   test("bridge moments are visible only when they occupy a representative stage slot") {

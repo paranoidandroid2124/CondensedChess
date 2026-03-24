@@ -1,203 +1,134 @@
 # Bookmaker Prose Contract
 
-Snapshot: `2026-03-08`
+This document is the current-source contract for Bookmaker body prose.
+
+It describes the live ownership boundary between deterministic Bookmaker
+structure and optional prose polish.
 
 ## Purpose
 
-This contract defines the structure level for LLM-polished Bookmaker commentary.
-It fixes the boundary between:
+Bookmaker is a hybrid surface:
 
-- UI-owned structure
-- LLM-owned prose
+- backend / frontend own structure
+- the commentary body owns prose only
 
-The target level is `L2.5 hybrid`.
-
-Meaning:
-
-- the product owns sections, cards, and summary blocks
-- the LLM owns only the commentary body prose
-- the prose must be paragraph-structured, but it must not invent document chrome
+The prose contract exists so optional polish cannot recreate the product
+structure or drift away from deterministic strategic content.
 
 ## Ownership Model
 
-UI-owned structure:
+### UI / backend owned
 
-- `Strategic Signals`
-- `Bookmaker ledger` rows inside `Strategic Signals`:
-  - `Motif`
-  - `Stage`
-  - `Carry-over`
-  - `Prereqs`
-  - `Conversion`
-- `Decision Compare`
-- `Piece Deployment`
-- `Evidence Probes`
-- `Bookmaker ledger` rows inside `Evidence Probes`:
-  - `Plan line`
-  - `Counter-resource`
-- `Authoring Evidence`
-- `Alternative Options`
-- eval toggle, preview board, move chips, and variation controls
+- Bookmaker card / panel structure
+- Strategic Signals rows
+- Bookmaker ledger rows when present
+- Decision compare surfaces
+- Piece deployment blocks
+- Evidence probe blocks
+- Authoring evidence blocks
+- Alternative option controls, chips, and boards
 
-LLM-owned structure:
+### Prose owned
 
-- the main commentary body only
+- the main Bookmaker body only
 - paragraph boundaries
 - sentence flow inside paragraphs
-- connective tissue between facts already present in the draft
+- connective tissue between already computed facts
 
-Boundary rule:
+## Deterministic-First Rule
 
-- `bookmakerLedger` is computed from raw `NarrativeContext`, refs, probe /
-  decision evidence, and continuity tokens.
-- `bookmakerLedger` is optional and evidence-gated. If motif/stage support is
-  too weak, the response may omit it and the UI must stay on the legacy
-  surface.
-- Ledger computation may reuse normalized backend carriers such as
-  `StrategicThesis`, `NarrativeSignalDigest`, and `DecisionComparisonDigest`,
-  but must not mine free-form prose fields back into motif/stage rows.
-- It is not derived from the outline, validated outline, slots, or polished
-  prose.
-- The prose path must therefore not be used as a carrier for ledger-only
-  information.
+Current Bookmaker contract is deterministic first:
+
+- deterministic draft prose is built before any LLM step
+- optional polish may improve wording only
+- ledger rows are computed, not prose-mined
+- signoff / provider-none evaluation remains valid because Bookmaker still has
+  a deterministic body path
 
 ## Output Contract
 
-The polished Bookmaker body must satisfy all of the following:
+The Bookmaker body must:
 
-- Return plain prose only.
-- Do not emit markdown headers, bullet lists, metadata wrappers, or JSON prose wrappers.
-- Do not recreate UI section titles such as `Strategic Signals`, `Evidence Probes`, `Authoring Evidence`, or `Alternative Options`.
-- Preserve paragraph boundaries from the draft when possible.
-- Do not collapse a multi-paragraph draft into one wall of text.
-- If branch labels such as `a)`, `b)`, or `c)` already exist in the draft, preserve them exactly.
-- Do not invent new list structures.
-- Do not restate ledger rows as prose bullets or mini-cards.
-- Do not turn `Motif`, `Stage`, `Carry-over`, `Prereqs`, `Conversion`,
-  `Plan line`, or `Counter-resource` into repeated body scaffolding.
-- The body may mention at most one exact concrete line.
+- return plain prose only
+- avoid headings, bullet lists, metadata wrappers, and JSON prose wrappers
+- avoid recreating UI section titles
+- preserve paragraph structure when possible
+- avoid wall-of-text collapse
+- preserve existing branch labels if they already exist in the draft
+- avoid turning ledger rows into repeated body scaffolding
+- keep at most one exact concrete line in the body unless the deterministic
+  draft already justifies more
 
-## Paragraph Budget
+## Prose Priorities
 
-For isolated-move / Bookmaker commentary:
+The body should prioritize:
 
-- Target `2-4` short paragraphs.
-- Keep each paragraph to `1-3` sentences.
-- Prefer this order when supported by the draft:
-- Paragraph 1: the dominant strategic claim for the move
-- Paragraph 2: the main cause -> effect chain that supports that claim
-- Paragraph 3: only when supported, the opponent resource, deferred alternative, or evidence-backed line
-- Paragraph 4: only when supported, a practical or compensation coda
+- the dominant strategic claim
+- the main cause -> effect chain behind that claim
+- the most decision-relevant concrete line, tension point, or practical note
 
-For full-game intro / conclusion / moment polishing using the same polish path:
+The body should not expand into:
 
-- keep the same “plain prose only” rule
-- preserve the draft paragraph rhythm instead of inventing new section structure
+- full ledger restatements
+- UI-card duplication
+- free-form topic invention beyond the deterministic draft / slots
 
 ## Signal Triage
 
 Not every structured signal belongs in prose.
 
-The body should prioritize:
+Preferred prose payload:
 
-- the dominant strategic claim
-- the most important cause -> effect support for that claim
-- the most decision-relevant concrete line, tension, or practical note
+- dominant claim
+- strongest support chain
+- one concrete deployment / line / counter-resource when materially helpful
 
-Secondary evidence should stay in UI-owned blocks when available.
+Preferred structured payload:
 
-Decision comparison details should also stay in UI-owned surfaces when
-available. The commentary body should not expand into a full best-vs-deferred
-comparison card when the same information is already present in a dedicated
-visible block.
+- motif / stage / carry-over / prerequisites / conversion rows
+- decision compare detail
+- secondary routes and sidecar evidence
 
-Ledger duplication rule:
+## Prompt / Polish Rules
 
-- If `bookmakerLedger` already exposes the dominant motif, stage, carry-over,
-  prerequisites, conversion trigger, or a concrete line, the body should
-  prefer causal explanation over repeating that structured payload verbatim.
-- The body may still refer to the same strategic idea, but should not enumerate
-  the ledger fields one by one.
+`PolishPrompt` must follow this contract:
 
-For structure-led positions, the commentary body should keep only:
-
-- the structure name
-- the long plan it implies
-- one primary piece deployment cue
-- the current move's contribution to that route
-
-Secondary routes, alignment reasons, and practical/prophylaxis detail should
-stay in `Strategic Signals`.
-
-## Compatibility Rules
-
-The contract does not weaken existing preservation rules:
-
-- SAN token order must remain valid
-- move numbering and marker style must remain valid
-- eval tokens and variation labels must remain valid
-- anchor tokens such as `[[MV_*]]`, `[[MK_*]]`, `[[EV_*]]`, and `[[VB_*]]` must remain exact
+- draft-grounded
+- slot-grounded when slot payload exists
+- no new topic introduction
+- no UI chrome recreation
+- no ledger field enumeration
 
 ## Enforcement Points
 
-- Prompt contract:
-  - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
-  - implementation note:
-    - the full contract is documented here, but per-request polish / repair prompts
-      should carry only a short structure reminder to reduce token cost
-- Slot builder + user-safe sanitizer:
-  - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
-- Bookmaker-only soft repair after LLM polish:
-  - `modules/llm/src/main/LlmApi.scala`
-- Common payload normalization before repair / validation:
-  - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryPayloadNormalizer.scala`
-- Deterministic paragraph rendering:
-  - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
-- Deterministic thesis selection before outline construction:
-  - `modules/llm/src/main/scala/lila/llm/analysis/StrategicThesisBuilder.scala`
-- Shared structure-to-deployment synthesis:
-  - `modules/llm/src/main/scala/lila/llm/analysis/StructurePlanArcBuilder.scala`
-- Post-processing that preserves paragraph breaks:
-  - `modules/llm/src/main/scala/lila/llm/analysis/PostCritic.scala`
-- Frontend UI-owned blocks:
-  - `ui/analyse/src/bookmaker.ts`
-  - `ui/analyse/css/_side.scss`
+Primary enforcement lives in:
 
-## Validation Artifacts
+- `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/CommentaryPayloadNormalizer.scala`
+- `modules/llm/src/main/LlmApi.scala`
 
-- Golden prose snapshots:
-  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.slots.txt`
-  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.draft.txt`
-  - `modules/llm/src/test/resources/bookmaker_thesis_goldens/*.final.txt`
-- Snapshot regression tests:
-  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerProseGoldenTest.scala`
-- Slot regression tests:
-  - `modules/llm/src/test/scala/lila/llm/analysis/BookmakerPolishSlotsTest.scala`
-- Snapshot refresh tool:
-  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerProseGoldenDump.scala`
-- Sample QA + prompt-envelope report:
-  - `modules/llm/src/test/scala/lila/llm/tools/BookmakerThesisQaRunner.scala`
-  - latest generated report is maintained outside the public repository
+## Relationship To Pipeline SSOT
 
-Current environment caveat:
+This file is narrower than `CommentaryPipelineSSOT.md`.
 
-- the latest QA report uses the six thesis motif fixtures and, when provider
-  keys are present, records live slot-driven polish runs against them
-- provider-side `prompt_tokens`, paragraph counts, and acceptance / fallback
-  ratios are recorded in a private QA report generated from the runner above
-- `estimatedCostUsd` may still be `n/a` when the provider metadata does not
-  return a cost estimate for the active model
-- `soft_repair_applied_rate` should now be read together with
-  `soft_repair_material_rate`: wrapper / fence normalization happens before
-  repair, and claim-only opening-clause restoration is treated as cosmetic for
-  closeout QA, while paragraph/evidence/placeholder fixes remain material
-  repairs
+Use:
 
-## Non-Goals
+- `CommentaryPipelineSSOT.md` for the full commentary pipeline
+- `PromptSurfacePolicy.md` for prompt-family ownership
+- this file for the Bookmaker body prose contract only
 
-This contract does not ask the LLM to:
+## Maintenance Rule
 
-- build cards
-- choose UI section ordering
-- expose every helper signal in prose
-- replace deterministic frontend structure
+Update this file in the same change if any of the following changes:
+
+- Bookmaker body prompt contract
+- slot ownership
+- ledger duplication rules
+- paragraph / structure expectations
+- deterministic-vs-polish ownership for Bookmaker prose
+
+Do not append dated change logs here. Keep this file as the current Bookmaker
+body contract only.

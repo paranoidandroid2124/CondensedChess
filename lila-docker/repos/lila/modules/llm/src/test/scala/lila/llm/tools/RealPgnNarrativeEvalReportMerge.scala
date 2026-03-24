@@ -40,25 +40,37 @@ object RealPgnNarrativeEvalReportMerge:
     if reportFiles.isEmpty then
       throw new IllegalArgumentException(s"no shard report.json files found under ${config.inputDir}")
     val reports = reportFiles.map(readReport)
-    val first = reports.head
-    val mergedGames = reports.flatMap(_.games).distinctBy(_.id).sortBy(_.id)
-    val negativeGuards = reports.flatMap(_.signoff.negativeGuards).distinctBy(_.id).sortBy(_.id)
-    val merged =
-      RealPgnNarrativeEvalRunner.RunReport(
-        generatedAt = Instant.now().toString,
-        corpusTitle = first.corpusTitle.replaceAll("""\s+\[[^\]]+\]$""", "") + " [merged shards]",
-        corpusAsOfDate = first.corpusAsOfDate,
-        depth = first.depth,
-        multiPv = first.multiPv,
-        enginePath = first.enginePath,
-        summary = RealPgnNarrativeEvalRunner.buildSummary(mergedGames),
-        signoff = RealPgnNarrativeEvalRunner.buildSignoff(mergedGames, negativeGuards),
-        games = mergedGames
-      )
+    val merged = mergeReports(reports)
     writeText(config.markdownPath, RealPgnNarrativeEvalRunner.renderMarkdown(merged))
     writeText(config.jsonPath, Json.prettyPrint(Json.toJson(merged)) + "\n")
     println(
       s"[real-pgn-eval-merge] merged ${reports.size} shard reports -> `${config.jsonPath}` (games=${merged.games.size})"
+    )
+
+  private[tools] def mergeReports(
+      reports: List[RunReport]
+  ): RunReport =
+    val first = reports.head
+    val mergedGames = reports.flatMap(_.games).distinctBy(_.id).sortBy(_.id)
+    val negativeGuards = reports.flatMap(_.signoff.negativeGuards).distinctBy(_.id).sortBy(_.id)
+    val mergedSignoff = RealPgnNarrativeEvalRunner.buildSignoff(mergedGames, negativeGuards)
+    val exemplarExpected = reports.map(_.signoff.positiveExemplarExpectedCount).max
+    val exemplarEvaluated = reports.map(_.signoff.positiveExemplarEvaluatedCount).min
+    val exemplarMisses = reports.map(_.signoff.falseNegativeCount).max
+    RealPgnNarrativeEvalRunner.RunReport(
+      generatedAt = Instant.now().toString,
+      corpusTitle = first.corpusTitle.replaceAll("""\s+\[[^\]]+\]$""", "") + " [merged shards]",
+      corpusAsOfDate = first.corpusAsOfDate,
+      depth = first.depth,
+      multiPv = first.multiPv,
+      enginePath = first.enginePath,
+      summary = RealPgnNarrativeEvalRunner.buildSummary(mergedGames),
+      signoff = mergedSignoff.copy(
+        falseNegativeCount = exemplarMisses,
+        positiveExemplarExpectedCount = exemplarExpected,
+        positiveExemplarEvaluatedCount = exemplarEvaluated
+      ),
+      games = mergedGames
     )
 
   private def readReport(path: Path): RunReport =

@@ -398,7 +398,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
     assert(note.exists(_.toLowerCase.contains("compensation comes from queenside pressure against fixed targets")), clue(note))
   }
 
-  test("line-occupation compensation note falls back to a canonical file-pressure lead") {
+  test("line-occupation compensation note keeps a canonical central file-pressure idea sentence") {
     val lineOccupationCompensationPack =
       Some(
         StrategyPack(
@@ -408,8 +408,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               ownerSide = "black",
               piece = "R",
               from = "a8",
-              route = List("a8", "b8", "b4"),
-              purpose = "work the queenside files",
+              route = List("a8", "d8", "d4"),
+              purpose = "work the central files",
               strategicFit = 0.82,
               tacticalSafety = 0.77,
               surfaceConfidence = 0.79,
@@ -421,8 +421,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               ownerSide = "black",
               piece = "R",
               from = "a8",
-              target = "b4",
-              idea = "bring the rook to b4"
+              target = "d4",
+              idea = "bring the rook to d4"
             )
           ),
           strategicIdeas = List(
@@ -432,14 +432,14 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               kind = StrategicIdeaKind.LineOccupation,
               group = "slow_structural",
               readiness = StrategicIdeaReadiness.Build,
-              focusSquares = List("a4", "b4", "b2"),
-              focusFiles = List("a", "b"),
-              focusZone = Some("queenside"),
+              focusSquares = List("d4", "d6", "e4"),
+              focusFiles = List("d", "e"),
+              focusZone = Some("center"),
               beneficiaryPieces = List("R", "Q"),
               confidence = 0.86
             )
           ),
-          longTermFocus = List("queenside file pressure before winning the material back"),
+          longTermFocus = List("central file pressure before winning the material back"),
           signalDigest = Some(
             NarrativeSignalDigest(
               compensation = Some("return vector through line pressure and delayed recovery"),
@@ -448,7 +448,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
               dominantIdeaGroup = Some("slow_structural"),
               dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
-              dominantIdeaFocus = Some("a4, b4, b2")
+              dominantIdeaFocus = Some("d4, d6, e4")
             )
           )
         )
@@ -456,7 +456,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
     val brief = ActiveStrategicCoachingBriefBuilder.build(lineOccupationCompensationPack, None, Nil, Nil)
     val note =
-      ActiveStrategicCoachingBriefBuilder.buildDeterministicNote(
+      ActiveStrategicCoachingBriefBuilder.buildStrictCompensationFallbackNote(
         strategyPack = lineOccupationCompensationPack,
         dossier = None,
         routeRefs = Nil,
@@ -464,8 +464,10 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       )
     val surface = StrategyPackSurface.from(lineOccupationCompensationPack)
 
-    assert(brief.compensationLead.exists(_.toLowerCase.contains("queenside file pressure")), clue(brief.compensationLead))
+    assert(brief.compensationLead.exists(_.toLowerCase.contains("central file pressure")), clue(brief.compensationLead))
     assert(note.exists(text => CompensationContractMatcher.mentionsCompensationContract(text, surface)), clue(note))
+    assert(note.exists(_.toLowerCase.contains("the key idea is central file pressure")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("the key idea is fixed central targets")), clue(note))
   }
 
   test("strict compensation fallback can use dossier continuation focus with canonical family") {
@@ -551,6 +553,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       )
 
     assert(note.exists(_.toLowerCase.contains("compensation comes from")), clue(note))
+    assert(note.exists(_.toLowerCase.contains("fixed queenside targets")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("file pressure")), clue(note))
     assert(note.exists(_.toLowerCase.contains("anchored on")), clue(note))
     assert(note.exists(_.toLowerCase.contains("from there")), clue(note))
   }
@@ -618,7 +622,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       )
 
     assert(note.exists(_.toLowerCase.contains("compensation comes from")), clue(note))
-    assert(note.exists(text => text.toLowerCase.contains("b2") || text.toLowerCase.contains("rook can use b2")), clue(note))
+    assert(note.exists(_.toLowerCase.contains("anchored on b2")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("can use")), clue(note))
     assert(note.exists(_.toLowerCase.contains("from there")), clue(note))
   }
 
@@ -632,7 +637,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               ownerSide = "black",
               piece = "B",
               from = "c8",
-              route = List("c8", "e6", "g4"),
+              route = List("c8", "d7", "e5"),
               purpose = "keep the pressure fixed there",
               strategicFit = 0.81,
               tacticalSafety = 0.78,
@@ -680,7 +685,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
                   routeId = "route_1",
                   ownerSide = "black",
                   piece = "B",
-                  route = List("c8", "e6", "g4"),
+                  route = List("c8", "d7", "e5"),
                   purpose = "keep the pressure fixed there",
                   strategicFit = 0.81,
                   tacticalSafety = 0.78,
@@ -695,7 +700,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       )
 
     assert(note.exists(_.toLowerCase.contains("compensation comes from")), clue(note))
-    assert(note.exists(text => text.toLowerCase.contains("g4") || text.toLowerCase.contains("bishop toward g4")), clue(note))
+    assert(note.exists(_.toLowerCase.contains("anchored on the bishop headed for e5")), clue(note))
     assert(note.exists(_.toLowerCase.contains("from there")), clue(note))
   }
 
@@ -818,6 +823,13 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
         )
       )
 
+    val brief =
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = compensationPack,
+        dossier = dossier,
+        routeRefs = Nil,
+        moveRefs = Nil
+      )
     val note =
       ActiveStrategicCoachingBriefBuilder.buildStrictCompensationFallbackNote(
         strategyPack = compensationPack,
@@ -838,9 +850,12 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
         )
       }
 
+    assert(brief.primaryIdea.exists(_.toLowerCase.contains("fixed central targets")), clue(brief.primaryIdea))
+    assert(!brief.primaryIdea.exists(_.toLowerCase.contains("pressure on d6")), clue(brief.primaryIdea))
     assert(note.exists(_.toLowerCase.contains("fixed central targets")), clue(note))
     assert(note.exists(_.toLowerCase.contains("anchored on")), clue(note))
     assert(note.exists(_.toLowerCase.contains("from there")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("kingside")), clue(note))
     assert(!note.exists(_.toLowerCase.contains("this move starts that route immediately")), clue(note))
     assert(validation.exists(_.isAccepted), clue(validation))
   }
@@ -936,6 +951,13 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
         )
       )
 
+    val brief =
+      ActiveStrategicCoachingBriefBuilder.build(
+        strategyPack = compensationPack,
+        dossier = dossier,
+        routeRefs = Nil,
+        moveRefs = Nil
+      )
     val note =
       ActiveStrategicCoachingBriefBuilder.buildStrictCompensationFallbackNote(
         strategyPack = compensationPack,
@@ -956,9 +978,13 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
         )
       }
 
+    assert(brief.primaryIdea.exists(_.toLowerCase.contains("fixed central targets")), clue(brief.primaryIdea))
+    assert(!brief.primaryIdea.exists(_.toLowerCase.contains("pressure on d3")), clue(brief.primaryIdea))
     assert(note.exists(_.toLowerCase.contains("fixed central targets")), clue(note))
     assert(note.exists(_.toLowerCase.contains("anchored on")), clue(note))
     assert(note.exists(_.toLowerCase.contains("from there")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("file pressure")), clue(note))
+    assert(!note.exists(_.toLowerCase.contains("kingside")), clue(note))
     assert(!note.exists(_.toLowerCase.contains("focus on c5")), clue(note))
     assert(validation.exists(_.isAccepted), clue(validation))
   }

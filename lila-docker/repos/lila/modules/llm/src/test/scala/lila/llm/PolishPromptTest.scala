@@ -29,6 +29,7 @@ class PolishPromptTest extends FunSuite:
   test("system prompt preserves the dominant strategic claim and causal chain") {
     assert(PolishPrompt.systemPrompt.contains("dominant strategic claim"))
     assert(PolishPrompt.systemPrompt.contains("cause -> effect chain"))
+    assert(PolishPrompt.systemPrompt.contains("whole-game anchor nouns"))
     assert(PolishPrompt.estimatedSystemTokens <= 1500)
   }
 

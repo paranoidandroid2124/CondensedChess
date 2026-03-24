@@ -1308,6 +1308,11 @@ object NarrativeOutlineBuilder:
     if isAnnotation then
       val playedSan = ctx.playedSan.getOrElse("")
       val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+      val truthContract =
+        DecisiveTruth.derive(
+          ctx = ctx,
+          comparisonOverride = DecisionComparisonBuilder.build(ctx)
+        )
       val engineBest = rankedEngineVariations(ctx).headOption
       val engineBestUci = engineBest
         .flatMap(_.moves.headOption)
@@ -1320,31 +1325,39 @@ object NarrativeOutlineBuilder:
       val best = engineBestUci
         .flatMap(bestU => ctx.candidates.find(_.uci.exists(cu => NarrativeUtils.uciEquivalent(cu, bestU))))
         .orElse(ctx.candidates.headOption)
-      val bestSan = engineBestSan.orElse(best.map(_.move).filter(_.trim.nonEmpty)).getOrElse("")
-      val bestUci = engineBestUci.orElse(best.flatMap(_.uci).map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty))
-      val playedRank = playedMoveRank(ctx, playedUci, playedSan)
-      val sameAsBestByUci =
-        playedUci.exists(pu => bestUci.exists(bu => NarrativeUtils.uciEquivalent(pu, bu)))
-      val sameAsBestBySan =
-        playedSan.nonEmpty &&
-          bestSan.nonEmpty &&
-          normalizeMoveToken(playedSan) == normalizeMoveToken(bestSan)
+      val bestSan =
+        truthContract.verifiedBestMove
+          .orElse(engineBestSan)
+          .orElse(best.map(_.move).filter(_.trim.nonEmpty))
+          .getOrElse("")
+      val bestUci =
+        Option.when(truthContract.allowConcreteBenchmark || truthContract.chosenMatchesBest) {
+          engineBestUci.orElse(best.flatMap(_.uci).map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty))
+        }.flatten
+      val playedRank =
+        if truthContract.allowConcreteBenchmark then playedMoveRank(ctx, playedUci, playedSan)
+        else Option.when(truthContract.chosenMatchesBest)(1)
       val cpLoss = resolveCpLoss(ctx, playedUci, playedSan, playedRank)
-      val hasEngineReference = playedRank.nonEmpty || bestUci.nonEmpty
-      val isBest =
-        if hasEngineReference then playedRank.contains(1) || sameAsBestByUci
-        else sameAsBestByUci || sameAsBestBySan
+      val isBest = truthContract.chosenMatchesBest
+      val isInvestment = truthContract.isInvestment
+      val isConstructive = isBest || isInvestment
 
       val playedCand = playedUci.flatMap(uci => ctx.candidates.find(_.uci.exists(cu => NarrativeUtils.uciEquivalent(cu, uci))))
       val bestCand = best
 
       val baseText =
-        if isBest then NarrativeLexicon.getAnnotationPositive(bead, playedSan)
+        if isInvestment then NarrativeLexicon.getAnnotationInvestment(bead, playedSan)
+        else if isBest then NarrativeLexicon.getAnnotationPositive(bead, playedSan)
         else
-          NarrativeLexicon.getAnnotationNegative(bead, playedSan, bestSan, cpLoss)
+          if truthContract.allowConcreteBenchmark then
+            NarrativeLexicon.getAnnotationNegative(bead, playedSan, bestSan, truthContract.cpLoss)
+          else
+            NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, playedSan, truthContract.cpLoss)
 
       val detailText =
-        if isBest then
+        if isInvestment then
+          buildInvestmentAnnotationDetail(ctx, truthContract)
+        else if isBest then
           playedCand.flatMap { c =>
             val b = bead ^ Math.abs(c.move.hashCode)
             val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
@@ -1369,28 +1382,33 @@ object NarrativeOutlineBuilder:
           val alert = None
           val bestReply = None
           val bestIntent =
-            bestCand.map { c =>
-              val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
-              val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), preferredIntent(c), evidenceOpt, ply = ctx.ply + 1)
-              if intent.nonEmpty then s"Better is **$bestSan**; it $intent."
-              else s"Better is **$bestSan** to keep tighter control of the position."
-            }.getOrElse {
-              if bestSan.nonEmpty then s"Better is **$bestSan** to keep tighter control of the position."
-              else ""
-            }
-          val rankContext = NarrativeLexicon.getEngineRankContext(
-            bead = b ^ 0x27d4eb2f,
-            rank = playedRank,
-            bestSan = bestSan,
-            cpLoss = cpLoss
-          )
+            if truthContract.allowConcreteBenchmark then
+              bestCand.map { c =>
+                val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
+                val intent = NarrativeLexicon.getIntent(b ^ Math.abs(c.move.hashCode), preferredIntent(c), evidenceOpt, ply = ctx.ply + 1)
+                if intent.nonEmpty then s"Better is **$bestSan**; it $intent."
+                else s"Better is **$bestSan** to keep tighter control of the position."
+              }.getOrElse {
+                if bestSan.nonEmpty then s"Better is **$bestSan** to keep tighter control of the position."
+                else ""
+              }
+            else ""
+          val rankContext =
+            Option.when(truthContract.allowConcreteBenchmark) {
+              NarrativeLexicon.getEngineRankContext(
+                bead = b ^ 0x27d4eb2f,
+                rank = playedRank,
+                bestSan = bestSan,
+                cpLoss = truthContract.cpLoss
+              )
+            }.flatten
           val reason = buildConcreteAnnotationIssue(
             bead = b ^ 0x6d2b79f5,
             playedSan = playedSan,
             playedUci = playedUci,
             bestSan = bestSan,
             bestUci = bestUci,
-            cpLoss = cpLoss,
+            cpLoss = truthContract.cpLoss,
             playedRank = playedRank,
             missedMotif = missedMotif,
             whyNot = whyNot,
@@ -1399,7 +1417,8 @@ object NarrativeOutlineBuilder:
             bestReply = bestReply,
             threatsToUs = ctx.threats.toUs,
             contextHint = Math.abs(playedSan.hashCode),
-            currentPly = ctx.ply
+            currentPly = ctx.ply,
+            allowConcreteBenchmark = truthContract.allowConcreteBenchmark
           )
           val combined = composeCausalAnnotation(
             rankContext = rankContext,
@@ -1457,8 +1476,8 @@ object NarrativeOutlineBuilder:
         List(rawText, practicalText)
           .filter(_.trim.nonEmpty)
           .mkString(" ")
-      val tonedText = harmonizeAnnotationTone(enrichedRawText, cpLoss, isBest, bead ^ Math.abs(playedSan.hashCode))
-      val text = enforceAnnotationPolarity(tonedText, cpLoss, isBest, bead ^ Math.abs(bestSan.hashCode))
+      val tonedText = harmonizeAnnotationTone(enrichedRawText, cpLoss, isConstructive, bead ^ Math.abs(playedSan.hashCode))
+      val text = enforceAnnotationPolarity(tonedText, cpLoss, isConstructive, bead ^ Math.abs(bestSan.hashCode))
       if text.trim.nonEmpty then trackTemplateUsage(text, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
       OutlineBeat(
@@ -2840,7 +2859,8 @@ object NarrativeOutlineBuilder:
     bestReply: Option[String],
     threatsToUs: List[ThreatRow],
     contextHint: Int,
-    currentPly: Int
+    currentPly: Int,
+    allowConcreteBenchmark: Boolean = true
   ): String =
     val severity = Thresholds.classifySeverity(cpLoss)
     val tacticalIssue =
@@ -2874,14 +2894,16 @@ object NarrativeOutlineBuilder:
         bestReply.filter(isForcingReplySan).map(r => s"Issue: after this, ...$r gives the opponent a forcing reply.")
       }.flatten
     val rankIssue =
-      playedRank match
-        case Some(r) if r >= 3 =>
-          Some(s"Issue: this is only the ${ordinal(r)} engine option. ${buildSeverityTail(bead ^ 0x3d12ab77, cpLoss, contextHint ^ r)}")
-        case Some(2) if cpLoss >= Thresholds.INACCURACY_CP =>
-          Some("Issue: this is second-tier compared with the engine's main continuation.")
-        case None if cpLoss >= Thresholds.INACCURACY_CP =>
-          Some("Issue: this move falls outside the sampled principal lines.")
-        case _ => None
+      if !allowConcreteBenchmark then None
+      else
+        playedRank match
+          case Some(r) if r >= 3 =>
+            Some(s"Issue: this is only the ${ordinal(r)} engine option. ${buildSeverityTail(bead ^ 0x3d12ab77, cpLoss, contextHint ^ r)}")
+          case Some(2) if cpLoss >= Thresholds.INACCURACY_CP =>
+            Some("Issue: this is second-tier compared with the engine's main continuation.")
+          case None if cpLoss >= Thresholds.INACCURACY_CP =>
+            Some("Issue: this move falls outside the sampled principal lines.")
+          case _ => None
     val fallbackIssue = Option.when(cpLoss >= Thresholds.INACCURACY_CP)(s"Issue: ${defaultIssueBySeverity(bead, cpLoss)}.")
     val cause =
       List(tacticalIssue, threatIssue, factIssue, alertIssue, whyNotIssue, motifIssue, replyIssue, rankIssue, fallbackIssue)
@@ -3927,6 +3949,57 @@ object NarrativeOutlineBuilder:
   private def isForcingReplySan(reply: String): Boolean =
     val r = Option(reply).getOrElse("").trim
     r.nonEmpty && (r.contains("+") || r.contains("#") || r.contains("x"))
+
+  private def buildInvestmentAnnotationDetail(
+      ctx: NarrativeContext,
+      contract: DecisiveTruthContract
+  ): Option[String] =
+    val prefix =
+      contract.surfaceMode match
+        case TruthSurfaceMode.InvestmentExplain =>
+          contract.truthClass match
+            case DecisiveTruthClass.WinningInvestment     => "The investment works because the payoff rests on"
+            case DecisiveTruthClass.CompensatedInvestment => "The investment still works because the payoff rests on"
+            case _                                        => "The move works because the payoff rests on"
+        case TruthSurfaceMode.MaintenancePreserve =>
+          "The compensation still has to be preserved through"
+        case TruthSurfaceMode.ConversionExplain =>
+          "The conversion works because the payoff rests on"
+        case _ =>
+          "The move works because the payoff rests on"
+    contract.verifiedPayoffAnchor
+      .map(carrier => s"$prefix $carrier.")
+      .orElse(
+        CompensationInterpretation
+          .effectiveSemanticDecision(ctx)
+          .filter(_.decision.accepted)
+          .flatMap { semanticDecision =>
+            val summaryCarrier = normalizedInvestmentCarrier(semanticDecision.compensation.conversionPlan)
+            val vectorCarrier =
+              semanticDecision.compensation.returnVector.toList
+                .sortBy { case (_, weight) => -weight }
+                .map(_._1)
+                .flatMap(normalizedInvestmentCarrier)
+                .headOption
+            summaryCarrier
+              .map(carrier => s"$prefix $carrier.")
+              .orElse(vectorCarrier.map(carrier => s"$prefix $carrier."))
+          }
+      )
+
+  private def normalizedInvestmentCarrier(raw: String): Option[String] =
+    Option(raw)
+      .map(UserFacingSignalSanitizer.sanitize)
+      .map(_.trim.stripSuffix("."))
+      .filter(_.nonEmpty)
+      .map(
+        _.replaceFirst("(?i)^a path to compensation through\\s+", "")
+          .replaceFirst("(?i)^compensation carrier:\\s*", "")
+          .replaceFirst("(?i)^the move gives up material because\\s+", "")
+          .replaceAll("\\s+", " ")
+          .trim
+      )
+      .filter(_.nonEmpty)
 
   private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean, contextHint: Int): String =
     if text.trim.isEmpty then text

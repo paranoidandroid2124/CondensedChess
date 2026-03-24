@@ -72,6 +72,43 @@ class NarrativeLexiconTest extends FunSuite:
     assert(conclusion.contains("1 missed win"), clue(conclusion))
   }
 
+  test("gameConclusion prefers concrete whole-game binder sentences over count-only practical tail") {
+    val conclusion =
+      NarrativeLexicon.gameConclusion(
+        winner = Some("WhitePlayer"),
+        themes = List("Queenside pressure", "Improving piece placement"),
+        blunders = 2,
+        missedWins = 1,
+        mainContest = Some("White was mainly playing for pressure on b2, while Black was mainly playing for control of the d-file."),
+        decisiveShift = Some("The decisive shift came through pressure on b2."),
+        payoff = Some("The punishment story ran through pressure on b2.")
+      )
+
+    assert(conclusion.contains("White was mainly playing for pressure on b2"), clue(conclusion))
+    assert(conclusion.contains("The decisive shift came through pressure on b2."), clue(conclusion))
+    assert(conclusion.contains("The punishment story ran through pressure on b2."), clue(conclusion))
+    assert(!conclusion.contains("around Queenside pressure"), clue(conclusion))
+    assert(!conclusion.contains("2 blunders"), clue(conclusion))
+    assert(!conclusion.contains("1 missed win"), clue(conclusion))
+  }
+
+  test("gameConclusion keeps balanced games compact when the binder only has a contest sentence") {
+    val conclusion =
+      NarrativeLexicon.gameConclusion(
+        winner = None,
+        themes = List("Queenside pressure"),
+        blunders = 0,
+        missedWins = 0,
+        mainContest = Some("White was mainly playing for queenside targets, while Black was mainly playing for central files."),
+        decisiveShift = None,
+        payoff = None
+      )
+
+    assert(conclusion.startsWith("The game stayed balanced and neither side forced a decisive breakthrough."), clue(conclusion))
+    assert(conclusion.contains("White was mainly playing for queenside targets"), clue(conclusion))
+    assert(!conclusion.contains("around Queenside pressure"), clue(conclusion))
+  }
+
   test("generic negative annotations avoid forced-only wording without explicit evidence") {
     val text = NarrativeLexicon.getAnnotationNegative(
       bead = 0,
@@ -85,4 +122,25 @@ class NarrativeLexiconTest extends FunSuite:
     assert(!text.contains("was necessary"), clue(text))
     assert(!text.contains("forcing sequence"), clue(text))
     assert(text.contains("cleanest defense") || text.contains("resilient route") || text.contains("hold things together"), clue(text))
+  }
+
+  test("generic negative annotations without a verified benchmark stay vague and truthful") {
+    val text = NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(
+      bead = 0,
+      playedSan = "Qc6",
+      cpLoss = 180
+    ).toLowerCase
+
+    assert(!text.contains("better is"), clue(text))
+    assert(!text.contains("engine reference"), clue(text))
+    assert(!text.contains("benchmark"), clue(text))
+    assert(!text.contains("qd3"), clue(text))
+    assert(
+      text.contains("loses control") ||
+        text.contains("concedes") ||
+        text.contains("lets the position drift") ||
+        text.contains("hands over the initiative") ||
+        text.contains("inaccurate in practical terms"),
+      clue(text)
+    )
   }

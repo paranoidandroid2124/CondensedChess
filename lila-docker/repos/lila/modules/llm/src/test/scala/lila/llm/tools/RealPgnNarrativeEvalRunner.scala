@@ -139,6 +139,7 @@ object RealPgnNarrativeEvalRunner:
       gameArcCompensationPosition: Boolean,
       bookmakerCompensationPosition: Boolean,
       compensationPosition: Boolean,
+      exemplarVisible: Boolean,
       gameArcCompensationSubtype: Option[String],
       bookmakerCompensationSubtype: Option[String],
       compensationSubtype: Option[String],
@@ -524,6 +525,8 @@ object RealPgnNarrativeEvalRunner:
         val gameArcCompensationPosition = momentSurface.compensationPosition
         val bookmakerCompensationPosition = bookmakerSurface.compensationPosition
         val compensationPosition = compensationEvalPosition(moment, momentSurface, bookmakerSurface, Some(pd.playedUci))
+        val exemplarVisible =
+          RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, bookmakerSurface)
         val rawBookmakerPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.json")
         writeJson(rawBookmakerPath, Json.toJson(bookmakerResult.response))
         FocusMomentReport(
@@ -539,6 +542,7 @@ object RealPgnNarrativeEvalRunner:
           gameArcCompensationPosition = gameArcCompensationPosition,
           bookmakerCompensationPosition = bookmakerCompensationPosition,
           compensationPosition = compensationPosition,
+          exemplarVisible = exemplarVisible,
           gameArcCompensationSubtype =
             StrategyPackSurface.strictCompensationSubtypeLabel(momentSurface)
               .orElse(StrategyPackSurface.compensationSubtypeLabel(momentSurface)),
@@ -1036,19 +1040,19 @@ object RealPgnNarrativeEvalRunner:
     val positiveFalseNegatives =
       evaluatedPositiveExemplarKeys.toList.sorted.count { key =>
         val focusHit =
-          focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.compensationPosition)
+          focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.exemplarVisible)
         val exemplarHit =
           exemplarFocusMoments.exists(moment =>
-            momentKey(gameIdForMoment(positiveExemplarReports, moment), moment) == key && moment.compensationPosition
+            momentKey(gameIdForMoment(positiveExemplarReports, moment), moment) == key && moment.exemplarVisible
           )
         !focusHit && !exemplarHit
       }
     evaluatedPositiveExemplarKeys.toList.sorted.foreach { key =>
       val focusHit =
-        focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.compensationPosition)
+        focusMoments.exists(moment => momentKey(gameIdForMoment(games, moment), moment) == key && moment.exemplarVisible)
       val exemplarHit =
         exemplarFocusMoments.exists(moment =>
-          momentKey(gameIdForMoment(positiveExemplarReports, moment), moment) == key && moment.compensationPosition
+          momentKey(gameIdForMoment(positiveExemplarReports, moment), moment) == key && moment.exemplarVisible
         )
       if !focusHit && !exemplarHit then
         val (gameId, ply) = parseMomentKey(key)
@@ -1058,7 +1062,7 @@ object RealPgnNarrativeEvalRunner:
           key = key,
           gameId = gameId,
           ply = ply,
-          detail = "Expected compensation exemplar is missing from the current focus-moment compensation set."
+          detail = "Expected positive exemplar is missing from the current focus-moment exemplar set."
         )
     }
     val borderlineFalsePositives =
@@ -1105,13 +1109,27 @@ object RealPgnNarrativeEvalRunner:
     val pathVsPayoffDivergenceCount =
       compensationMoments.count(moment =>
         (moment.gameArcPreparationCompensationSubtype, moment.gameArcPayoffCompensationSubtype) match
-          case (Some(path), Some(payoff)) if path != payoff => true
-          case _                                            => false
+          case (Some(path), Some(payoff))
+              if unresolvedPathPayoffDivergence(
+                path,
+                payoff,
+                moment.gameArcCompensationSubtype,
+                moment.gameArcDisplaySubtypeSource
+              ) =>
+            true
+          case _ => false
       ) +
         compensationMoments.count(moment =>
           (moment.bookmakerPreparationCompensationSubtype, moment.bookmakerPayoffCompensationSubtype) match
-            case (Some(path), Some(payoff)) if path != payoff => true
-            case _                                            => false
+            case (Some(path), Some(payoff))
+                if unresolvedPathPayoffDivergence(
+                  path,
+                  payoff,
+                  moment.bookmakerCompensationSubtype,
+                  moment.bookmakerDisplaySubtypeSource
+                ) =>
+              true
+            case _ => false
         )
     val displaySubtypeSourceDistribution =
       compensationMoments
@@ -1280,7 +1298,7 @@ object RealPgnNarrativeEvalRunner:
         val focusText = moment.focus.getOrElse("-")
         val activeNoteText = moment.activeNote.getOrElse("<omitted>")
         sb.append(s"- Ply `${moment.ply}` `${moment.selectionKind}` `${moment.momentType}`\n")
-        sb.append(s"  - Surface: dominant=`${dominantIdeaText}` owner=`${campaignOwnerText}` mismatch=`${moment.ownerMismatch}` compensation=`${moment.compensationPosition}` subtype=`${compensationSubtypeText}`\n")
+        sb.append(s"  - Surface: dominant=`${dominantIdeaText}` owner=`${campaignOwnerText}` mismatch=`${moment.ownerMismatch}` compensation=`${moment.compensationPosition}` exemplar=`${moment.exemplarVisible}` subtype=`${compensationSubtypeText}`\n")
         sb.append(s"  - Execution / objective / focus: `${executionText}` / `${objectiveText}` / `${focusText}`\n")
         sb.append(s"  - Game Arc: ${moment.gameArcNarrative}\n")
         sb.append(s"  - Bookmaker (`${moment.bookmakerSourceMode}`): ${moment.bookmakerCommentary}\n")
@@ -1576,6 +1594,7 @@ private[tools] object RealPgnNarrativeEvalCalibration:
 
   private val TechnicalTailMomentTypes = Set("MatePivot", "TensionPeak", "AdvantageSwing")
   private val DynamicCompensationTerms = List("initiative", "line pressure", "delayed recovery", "return vector")
+  private val TruthBoundInvestmentLabels = Set("WinningInvestment", "CompensatedInvestment")
 
   def compensationEvalPosition(
       moment: GameChronicleMoment,
@@ -1583,7 +1602,8 @@ private[tools] object RealPgnNarrativeEvalCalibration:
       bookmakerSurface: StrategyPackSurface.Snapshot,
       playedMove: Option[String] = None
   ): Boolean =
-    if !gameArcSurface.compensationPosition then false
+    if truthBoundInvestmentCompensation(moment, gameArcSurface, bookmakerSurface) then true
+    else if !gameArcSurface.compensationPosition then false
     else if !bookmakerSurface.compensationPosition then false
     else if !surfaceSupportsCompensationContract(gameArcSurface) then false
     else if !surfaceSupportsCompensationContract(bookmakerSurface) then false
@@ -1593,6 +1613,16 @@ private[tools] object RealPgnNarrativeEvalCalibration:
     else if lateTechnicalStaticTailCompensation(moment, gameArcSurface, bookmakerSurface) then false
     else if lateTransitionOnlyCompensation(moment, gameArcSurface, bookmakerSurface) then false
     else true
+
+  def exemplarEvalPosition(
+      moment: GameChronicleMoment,
+      gameArcSurface: StrategyPackSurface.Snapshot,
+      bookmakerSurface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    if truthBoundInvestmentCompensation(moment, gameArcSurface, bookmakerSurface) then true
+    else
+      moment.moveClassification.exists(TruthBoundInvestmentLabels.contains) ||
+        moment.momentType == "InvestmentPivot"
 
   def lateTechnicalSpaceOnlyCompensation(
       moment: GameChronicleMoment,
@@ -1644,6 +1674,16 @@ private[tools] object RealPgnNarrativeEvalCalibration:
     (surface.compensationSummary.toList ++ surface.compensationVectors)
       .map(_.toLowerCase)
       .exists(text => DynamicCompensationTerms.exists(text.contains))
+
+  private def truthBoundInvestmentCompensation(
+      moment: GameChronicleMoment,
+      gameArcSurface: StrategyPackSurface.Snapshot,
+      bookmakerSurface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    (moment.moveClassification.exists(TruthBoundInvestmentLabels.contains) || moment.momentType == "InvestmentPivot") &&
+      gameArcSurface.compensationPosition &&
+      bookmakerSurface.compensationPosition &&
+      sharedCompensationSubtype(gameArcSurface, bookmakerSurface)
 
   private def technicalTail(moment: GameChronicleMoment): Boolean =
     moment.moveNumber >= 35 && TechnicalTailMomentTypes.contains(moment.momentType)

@@ -157,6 +157,58 @@ class StrategicThesisBuilderTest extends FunSuite:
       )
     )
 
+  test("maintenance phase sanitized pack does not surface compensation thesis") {
+    val ctx =
+      baseContext.copy(
+        fen = "r5k1/8/8/8/1b6/8/8/3R2K1 w - - 0 1",
+        playedMove = Some("g1h2"),
+        playedSan = Some("Kh2")
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("central file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              compensation = Some("central file pressure"),
+              compensationVectors = List("central files"),
+              investedMaterial = Some(100),
+              dominantIdeaFocus = Some("pressure on e6")
+            )
+          )
+      )
+    val contract = DecisiveTruth.derive(
+      ctx = ctx,
+      cpBefore = Some(40),
+      cpAfter = Some(40),
+      strategyPack = Some(pack),
+      comparisonOverride =
+        Some(
+          DecisionComparison(
+            chosenMove = Some("Kh2"),
+            engineBestMove = Some("Kh2"),
+            engineBestScoreCp = Some(40),
+            engineBestPv = List("Kh2"),
+            cpLossVsChosen = Some(0),
+            deferredMove = None,
+            deferredReason = None,
+            deferredSource = None,
+            evidence = None,
+            practicalAlternative = false,
+            chosenMatchesBest = true
+          )
+        )
+    )
+    val sanitizedCtx = DecisiveTruth.sanitizeContext(ctx, contract)
+    val sanitizedPack = DecisiveTruth.sanitizeStrategyPack(Some(pack), contract)
+    val thesis = StrategicThesisBuilder.build(sanitizedCtx, sanitizedPack)
+
+    assertEquals(contract.truthPhase, Some(InvestmentTruthPhase.CompensationMaintenance))
+    assertEquals(contract.compensationProseAllowed, false)
+    assert(thesis.exists(_.lens != StrategicLens.Compensation), clue(thesis))
+  }
+
   private def benkoLikeCompensationPack: StrategyPack =
     StrategyPack(
       sideToMove = "black",
@@ -847,44 +899,13 @@ class StrategicThesisBuilderTest extends FunSuite:
       )
     )
 
-    val thesis = StrategicThesisBuilder.build(ctx).getOrElse(fail("missing compensation thesis"))
-    assertEquals(thesis.lens, StrategicLens.Compensation)
+    val thesis = StrategicThesisBuilder.build(ctx).getOrElse(fail("missing truth-first thesis"))
+    assertNotEquals(thesis.lens, StrategicLens.Compensation)
     val claimLow = thesis.claim.toLowerCase
-    assert(
-      claimLow.contains("material can wait") ||
-      claimLow.contains("recover the material") ||
-        claimLow.contains("gives up material") ||
-        claimLow.contains("down material"),
-      clue(thesis.claim)
-    )
-    assert(claimLow.contains("attack") || claimLow.contains("pressure"), clue(thesis.claim))
-    assert(
-      claimLow.contains("recover the material") ||
-        claimLow.contains("winning it back") ||
-        claimLow.contains("rather than") ||
-        claimLow.contains("material can wait") ||
-        claimLow.contains("gives up material"),
-      clue(thesis.claim)
-    )
-
-    val prose = BookStyleRenderer.render(ctx)
-    val paras = paragraphs(prose)
-    assertEquals(paras.size, 3)
-    assert(
-      paras.head.toLowerCase.contains("recover the material") ||
-        paras.head.toLowerCase.contains("material can wait") ||
-        paras.head.toLowerCase.contains("gives up material") ||
-        paras.head.toLowerCase.contains("down material")
-    )
-    assert(
-      paras(1).contains("Mating Attack") ||
-        paras(1).toLowerCase.contains("initiative") ||
-        paras(1).toLowerCase.contains("attack") ||
-        paras(1).toLowerCase.contains("winning the material back") ||
-        paras(1).toLowerCase.contains("favorable exchanges"),
-      clue(paras(1))
-    )
-    assert(paras(2).contains("Probe evidence"))
+    assert(claimLow.nonEmpty, clue(thesis.claim))
+    assert(!claimLow.contains("gives up material"), clue(thesis.claim))
+    assert(!claimLow.contains("winning it back"), clue(thesis.claim))
+    assert(!claimLow.contains("material can wait"), clue(thesis.claim))
   }
 
   test("strategy-pack compensation fallback survives without semantic compensation") {
@@ -1748,6 +1769,7 @@ class StrategicThesisBuilderTest extends FunSuite:
     val rendered = (thesis.claim :: thesis.support).mkString(" ").toLowerCase
     assert(!rendered.contains("material can wait"), clue(rendered))
     assert(!rendered.contains("winning the material back"), clue(rendered))
+    assert(!rendered.contains("gives up material"), clue(rendered))
   }
 
   test("compensation thesis drops repeated recovery wording when claim and support say the same thing") {

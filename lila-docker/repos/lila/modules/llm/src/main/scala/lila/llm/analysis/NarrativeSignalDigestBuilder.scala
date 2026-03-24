@@ -11,14 +11,24 @@ object NarrativeSignalDigestBuilder:
 
   def build(
       ctx: NarrativeContext,
-      preservedSignalsOverride: Option[List[String]] = None
+      preservedSignalsOverride: Option[List[String]] = None,
+      decisionComparisonOverride: Option[lila.llm.DecisionComparisonDigest] = None,
+      allowCompensationSignals: Boolean = true
   ): Option[NarrativeSignalDigest] =
-    buildWithAuthoringEvidence(ctx, preservedSignalsOverride, AuthoringEvidenceSummaryBuilder.headline(ctx))
+    buildWithAuthoringEvidence(
+      ctx,
+      preservedSignalsOverride,
+      AuthoringEvidenceSummaryBuilder.headline(ctx),
+      decisionComparisonOverride = decisionComparisonOverride,
+      allowCompensationSignals = allowCompensationSignals
+    )
 
   def buildWithAuthoringEvidence(
       ctx: NarrativeContext,
       preservedSignalsOverride: Option[List[String]],
-      authoringEvidence: Option[String]
+      authoringEvidence: Option[String],
+      decisionComparisonOverride: Option[lila.llm.DecisionComparisonDigest] = None,
+      allowCompensationSignals: Boolean = true
   ): Option[NarrativeSignalDigest] =
     val opening =
       ctx.openingData.flatMap(_.name).flatMap(normalized)
@@ -30,10 +40,10 @@ object NarrativeSignalDigestBuilder:
       (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
         .flatMap(normalized)
         .headOption
-    val decisionComparison = DecisionComparisonBuilder.digest(ctx)
+    val decisionComparison = decisionComparisonOverride.orElse(DecisionComparisonBuilder.digest(ctx))
 
     val practical = ctx.semantic.flatMap(_.practicalAssessment)
-    val compensationInfo = effectiveCompensationInfo(ctx)
+    val compensationInfo = Option.when(allowCompensationSignals)(effectiveCompensationInfo(ctx)).flatten
     val prevented = ctx.semantic.flatMap(_.preventedPlans.headOption)
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)

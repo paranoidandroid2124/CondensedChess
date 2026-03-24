@@ -10,6 +10,59 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
   private def countOccurrences(text: String, needle: String): Int =
     text.sliding(needle.length).count(_ == needle)
 
+  private def minimalAnalysisData(
+      ply: Int,
+      plans: List[PlanMatch] = Nil
+  ): ExtendedAnalysisData =
+    ExtendedAnalysisData(
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      nature = PositionNature(NatureType.Dynamic, 0.5, 0.5, "Dynamic position"),
+      motifs = Nil,
+      plans = plans,
+      preventedPlans = Nil,
+      pieceActivity = Nil,
+      structuralWeaknesses = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      prevMove = None,
+      ply = ply,
+      evalCp = 0,
+      isWhiteToMove = true
+    )
+
+  private def chronicleMoment(
+      ply: Int,
+      momentType: String,
+      moveClassification: Option[String] = None,
+      cpBefore: Int = 0,
+      cpAfter: Int = 0,
+      narrative: String = "Pressure on b2 became the decisive shift.",
+      transitionType: Option[String] = None,
+      strategyPack: Option[StrategyPack] = None,
+      signalDigest: Option[NarrativeSignalDigest] = None,
+      truthPhase: Option[String] = None,
+      surfacedMoveOwnsTruth: Boolean = false,
+      verifiedPayoffAnchor: Option[String] = None,
+      compensationProseAllowed: Boolean = false
+  ): GameArcMoment =
+    GameArcMoment(
+      ply = ply,
+      momentType = momentType,
+      narrative = narrative,
+      analysisData = minimalAnalysisData(ply),
+      moveClassification = moveClassification,
+      cpBefore = Some(cpBefore),
+      cpAfter = Some(cpAfter),
+      transitionType = transitionType,
+      strategyPack = strategyPack,
+      signalDigest = signalDigest,
+      truthPhase = truthPhase,
+      surfacedMoveOwnsTruth = surfacedMoveOwnsTruth,
+      verifiedPayoffAnchor = verifiedPayoffAnchor,
+      compensationProseAllowed = compensationProseAllowed
+    )
+
   private def chronicleCtx(): NarrativeContext =
     NarrativeContext(
       fen = "r2q1rk1/pp2bppp/2np1n2/2p1p3/2P1P3/2NP1NP1/PP2QPBP/R1B2RK1 w - - 0 10",
@@ -25,6 +78,48 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       phase = PhaseContext("Middlegame", "Normal middlegame"),
       candidates = Nil,
       renderMode = NarrativeRenderMode.FullGame
+    )
+
+  private def truthContract(
+      ownershipRole: TruthOwnershipRole,
+      visibilityRole: TruthVisibilityRole,
+      surfaceMode: TruthSurfaceMode,
+      exemplarRole: Option[TruthExemplarRole] = None,
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
+      truthPhase: Option[InvestmentTruthPhase] = None,
+      payoffAnchor: Option[String] = None,
+      benchmarkProseAllowed: Boolean = false
+  ): DecisiveTruthContract =
+    val resolvedExemplarRole =
+      exemplarRole.getOrElse:
+        if ownershipRole == TruthOwnershipRole.CommitmentOwner then TruthExemplarRole.VerifiedExemplar
+        else TruthExemplarRole.NonExemplar
+    DecisiveTruthContract(
+      playedMove = Some("d1d5"),
+      verifiedBestMove = Some("d1d5"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily =
+        if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonFamily.Conversion
+        else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonFamily.TacticalRefutation
+        else DecisiveReasonFamily.InvestmentSacrifice,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
+      truthPhase = truthPhase,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = resolvedExemplarRole,
+      surfacedMoveOwnsTruth =
+        ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+          ownershipRole == TruthOwnershipRole.ConversionOwner ||
+          ownershipRole == TruthOwnershipRole.BlunderOwner,
+      verifiedPayoffAnchor = payoffAnchor,
+      compensationProseAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
+      benchmarkProseAllowed = benchmarkProseAllowed,
+      investmentTruthChainKey = payoffAnchor.map(anchor => s"white:$anchor")
     )
 
   test("focusMomentOutline keeps essential beats and highest-priority late beats") {
@@ -379,7 +474,11 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     val sentenceCount = rendered.split("(?<=[.!?])\\s+").count(_.trim.nonEmpty)
 
     assert(sentenceCount >= 3, clue(rendered))
-    assert(rendered.contains("A concrete line is"), clue(rendered))
+    assert(
+      rendered.contains("A concrete line is") ||
+        rendered.contains("One concrete line that keeps the idea in play is"),
+      clue(rendered)
+    )
     assert(rendered.contains("Qa5"), clue(rendered))
     assert(!rendered.contains("Lead."), clue(rendered))
     assert(!rendered.contains("Bridge."), clue(rendered))
@@ -627,4 +726,359 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     assert(!parts.body.toLowerCase.contains("kingside expansion"), clue(parts.body))
     assert(!hierarchicalFallback.toLowerCase.contains("kingside expansion"), clue(hierarchicalFallback))
     assert(!bridge.toLowerCase.contains("kingside expansion"), clue(bridge))
+  }
+
+  test("selectWholeGamePromotionPly promotes a decisive blunder over visible tension-only moments") {
+    val visibleTension =
+      chronicleMoment(
+        ply = 20,
+        momentType = "TensionPeak",
+        cpBefore = 10,
+        cpAfter = 20,
+        narrative = "This middlegame block near move 10 remains balanced but highly tension-sensitive."
+      )
+    val hiddenBlunder =
+      chronicleMoment(
+        ply = 36,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 20,
+        cpAfter = 260,
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on b2"))),
+        narrative = "Pressure on b2 became the decisive shift."
+      )
+
+    val promoted = CommentaryEngine.selectWholeGamePromotionPly(
+      internalMoments = List(visibleTension, hiddenBlunder),
+      visibleMomentPlies = Set(20)
+    )
+
+    assertEquals(promoted, Some(36))
+  }
+
+  test("selectWholeGamePromotionPly promotes a winning investment over visible tension-only moments") {
+    val visibleTension =
+      chronicleMoment(
+        ply = 24,
+        momentType = "TensionPeak",
+        cpBefore = 8,
+        cpAfter = 18,
+        narrative = "The game stayed tense around the center."
+      )
+    val hiddenInvestment =
+      chronicleMoment(
+        ply = 55,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("WinningInvestment"),
+        cpBefore = 12,
+        cpAfter = 210,
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("open-file pressure"))),
+        narrative = "Rxd5 changed the game by giving White open-file pressure."
+      )
+
+    val promoted = CommentaryEngine.selectWholeGamePromotionPly(
+      internalMoments = List(visibleTension, hiddenInvestment),
+      visibleMomentPlies = Set(24),
+      truthContractsByPly =
+        Map(
+          55 -> truthContract(
+            ownershipRole = TruthOwnershipRole.CommitmentOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            truthClass = DecisiveTruthClass.WinningInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            payoffAnchor = Some("open-file pressure")
+          )
+        )
+    )
+
+    assertEquals(promoted, Some(55))
+  }
+
+  test("buildWholeGameConclusionSupport keeps payoff anchored on the owning commitment instead of a later maintenance echo") {
+    val commitment =
+      chronicleMoment(
+        ply = 55,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("WinningInvestment"),
+        cpBefore = 12,
+        cpAfter = 210,
+        narrative = "Rxd5 changed the game by creating open-file pressure.",
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("open-file pressure"))),
+        truthPhase = Some("FirstInvestmentCommitment"),
+        surfacedMoveOwnsTruth = true,
+        verifiedPayoffAnchor = Some("open-file pressure"),
+        compensationProseAllowed = true
+      )
+    val maintenance =
+      chronicleMoment(
+        ply = 59,
+        momentType = "SustainedPressure",
+        cpBefore = 210,
+        cpAfter = 220,
+        narrative = "White kept the pressure going.",
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on e6"))),
+        truthPhase = Some("CompensationMaintenance"),
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = Some("pressure on e6"),
+        compensationProseAllowed = false
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(commitment, maintenance),
+      strategicThreads = Nil,
+      themes = List("Open-file pressure"),
+      truthContractsByPly =
+        Map(
+          55 -> truthContract(
+            ownershipRole = TruthOwnershipRole.CommitmentOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.InvestmentExplain,
+            truthClass = DecisiveTruthClass.WinningInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            payoffAnchor = Some("open-file pressure")
+          ),
+          59 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            payoffAnchor = Some("pressure on e6")
+          )
+        )
+    )
+
+    assertEquals(support.decisiveShift, Some("The decisive shift came through open-file pressure."))
+    assertEquals(support.payoff, Some("The conversion route ran through open-file pressure."))
+  }
+
+  test("buildWholeGameConclusionSupport can use conversion followthrough without turning it into investment") {
+    val conversion =
+      chronicleMoment(
+        ply = 71,
+        momentType = "SustainedPressure",
+        cpBefore = 120,
+        cpAfter = 250,
+        narrative = "The position turned into a promotion race.",
+        transitionType = Some("PromotionConversion"),
+        truthPhase = Some("ConversionFollowthrough"),
+        surfacedMoveOwnsTruth = true,
+        verifiedPayoffAnchor = Some("a promotion race")
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(conversion),
+      strategicThreads = Nil,
+      themes = List("Passed pawn play"),
+      truthContractsByPly =
+        Map(
+          71 -> truthContract(
+            ownershipRole = TruthOwnershipRole.ConversionOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.ConversionExplain,
+            truthPhase = Some(InvestmentTruthPhase.ConversionFollowthrough),
+            payoffAnchor = Some("a promotion race")
+          )
+        )
+    )
+
+    assertEquals(support.decisiveShift, Some("The position turned into a promotion race."))
+    assertEquals(support.payoff, Some("The conversion route ran through a promotion race."))
+  }
+
+  test("buildWholeGameConclusionSupport keeps concrete contest and punishment anchors") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 36,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 15,
+        cpAfter = 240,
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on b2"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("pressure on b2")
+            )
+          ),
+        narrative = "Pressure on b2 became the decisive shift."
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads =
+        List(
+          ActiveStrategicThread(
+            threadId = "w1",
+            side = "white",
+            themeKey = "target_fixing",
+            themeLabel = "Target Fixing",
+            summary = "White keeps improving squares before cashing in. Core plan: pressure on b2.",
+            seedPly = 14,
+            lastPly = 36,
+            continuityScore = 0.92
+          ),
+          ActiveStrategicThread(
+            threadId = "b1",
+            side = "black",
+            themeKey = "line_occupation",
+            themeLabel = "Line Occupation",
+            summary = "Black tries to stay active. Core plan: control of the d-file.",
+            seedPly = 18,
+            lastPly = 34,
+            continuityScore = 0.78
+          )
+        ),
+      themes = List("Queenside pressure")
+    )
+
+    assertEquals(
+      support.mainContest,
+      Some("White was mainly playing for pressure on b2, while Black was mainly playing for control of the d-file.")
+    )
+    assertEquals(support.decisiveShift, Some("Pressure on b2 became the decisive shift."))
+    assertEquals(support.payoff, Some("The punishment story ran through pressure on b2."))
+  }
+
+  test("buildWholeGameConclusionSupport lifts square-only payoff evidence into player language when support text exists") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 44,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 10,
+        cpAfter = 310,
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on e6"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              directionalTargets =
+                List(
+                  StrategyDirectionalTarget(
+                    targetId = "target_e6",
+                    ownerSide = "white",
+                    piece = "Q",
+                    from = "d1",
+                    targetSquare = "e6",
+                    readiness = DirectionalTargetReadiness.Build,
+                    strategicReasons = List("pressure on e6"),
+                    evidence = List("d1, e6")
+                  )
+                ),
+              longTermFocus = List("pressure on e6")
+            )
+          ),
+        narrative = "The decisive shift came through d1, e6."
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Central pressure")
+    )
+
+    assertEquals(support.decisiveShift, Some("The decisive shift came through pressure on e6."))
+    assertEquals(support.payoff, Some("The punishment story ran through pressure on e6."))
+  }
+
+  test("buildWholeGameConclusionSupport omits rough bare-theater fallback when no player-language anchor survives") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 52,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 5,
+        cpAfter = 280,
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("the kingside"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              pieceRoutes =
+                List(
+                  StrategyPieceRoute(
+                    ownerSide = "black",
+                    piece = "R",
+                    from = "a8",
+                    route = List("a8", "g8"),
+                    purpose = "the kingside",
+                    strategicFit = 0.74,
+                    tacticalSafety = 0.71,
+                    surfaceConfidence = 0.73,
+                    surfaceMode = RouteSurfaceMode.Toward
+                  )
+                )
+            )
+          ),
+        narrative = "The punishment story ran through the kingside."
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Kingside play")
+    )
+
+    assertEquals(support.decisiveShift, None)
+    assertEquals(support.payoff, None)
+  }
+
+  test("buildWholeGameConclusionSupport falls back to structured anchor when the moment narrative is generic") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 58,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 18,
+        cpAfter = 260,
+        narrative = "Qb4 is a solid move that keeps the plan clear.",
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on e6"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("pressure on e6")
+            )
+          )
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Central pressure")
+    )
+
+    assertEquals(support.decisiveShift, Some("The decisive shift came through pressure on e6."))
+    assertEquals(support.payoff, Some("The punishment story ran through pressure on e6."))
+  }
+
+  test("buildWholeGameConclusionSupport rejects meta whole-game sentences and keeps deterministic anchors") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 62,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("MissedWin"),
+        cpBefore = 30,
+        cpAfter = -210,
+        narrative = "This move is outside sampled principal lines, and Qf8 is the engine reference for safer conversion.",
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("pressure on e6"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              longTermFocus = List("pressure on e6")
+            )
+          )
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Central pressure")
+    )
+
+    assertEquals(support.decisiveShift, Some("The decisive shift came through pressure on e6."))
+    assertEquals(support.payoff, Some("The winning route was pressure on e6."))
   }

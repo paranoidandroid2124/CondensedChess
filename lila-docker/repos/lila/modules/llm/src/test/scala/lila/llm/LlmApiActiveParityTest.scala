@@ -309,3 +309,33 @@ class LlmApiActiveParityTest extends FunSuite:
     assert(!surface.strictCompensationPosition, clue(surface))
     assert(LlmApi.activeCompensationParityEligible(surface))
   }
+
+  test("provider split only gates optional polish and never canonical deterministic attachment") {
+    val surface = StrategyPackSurface.from(resolvedCompensationPack)
+
+    assert(LlmApi.activeCompensationParityEligible(surface), clue(surface))
+    assert(
+      LlmApi.activeNoteOptionalPolishEligible(
+        activeEligible = true,
+        allowLlmPolish = true,
+        providerResolved = "gemini",
+        deterministicDraftPresent = true
+      )
+    )
+    assert(
+      !LlmApi.activeNoteOptionalPolishEligible(
+        activeEligible = true,
+        allowLlmPolish = true,
+        providerResolved = "none",
+        deterministicDraftPresent = true
+      )
+    )
+    assert(
+      !LlmApi.activeNoteOptionalPolishEligible(
+        activeEligible = true,
+        allowLlmPolish = true,
+        providerResolved = "gemini",
+        deterministicDraftPresent = false
+      )
+    )
+  }
