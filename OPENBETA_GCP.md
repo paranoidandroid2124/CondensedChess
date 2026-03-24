@@ -1,37 +1,23 @@
 # Chesstory Open Beta on GCP
 
-This repository ships a repo-contained path for open-beta deployment:
+This repository retains the repo-contained assets for an open-beta deployment,
+but the GitHub Actions rollout path has been removed for now:
 
 - container build: [lila-docker/repos/lila/Dockerfile.openbeta](lila-docker/repos/lila/Dockerfile.openbeta)
 - production config: [lila-docker/repos/lila/conf/application.openbeta.conf](lila-docker/repos/lila/conf/application.openbeta.conf)
 - binding manifest: [lila-docker/repos/lila/conf/openbeta-bindings.json](lila-docker/repos/lila/conf/openbeta-bindings.json)
-- GitHub Actions workflow: [.github/workflows/gcp-openbeta.yml](.github/workflows/gcp-openbeta.yml)
 
 ## Deployment model
 
-Use GitHub Actions to:
+Use the repo assets here as a manual reference to:
 
 1. build the app image
 2. push it to Artifact Registry
 3. deploy the new image to an already-bootstrapped Cloud Run service
 
-The workflow now validates Cloud Run runtime bindings before the build starts. A deployment is expected to fail if the target service is missing or if its env/secret bindings are incomplete.
-
-## GitHub Actions prerequisites
-
-Set these repository variables:
-
-- `GCP_PROJECT_ID`
-- `GCP_REGION`
-- `GCP_ARTIFACT_REPOSITORY`
-- `CLOUD_RUN_SERVICE`
-- optional: `CLOUD_RUN_IMAGE_NAME`
-- optional: `CLOUD_RUN_FLAGS`
-
-Set these repository secrets:
-
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_SERVICE_ACCOUNT`
+No GitHub Actions deploy workflow is currently wired in this repository. If
+open beta is revived later, validate Cloud Run runtime bindings before build or
+deploy so the target service is not missing required env or secret bindings.
 
 ## First-time GCP bootstrap
 
@@ -43,7 +29,7 @@ gcloud artifacts repositories create chesstory-openbeta \
   --location=asia-northeast3
 ```
 
-Create the Cloud Run service once before using the standard workflow. A simple bootstrap path is to deploy a temporary placeholder image:
+Create the Cloud Run service once before using this manual rollout path. A simple bootstrap path is to deploy a temporary placeholder image:
 
 ```bash
 gcloud run deploy chesstory-openbeta \
@@ -53,7 +39,7 @@ gcloud run deploy chesstory-openbeta \
   --port=8080
 ```
 
-Then configure the runtime env vars and secret bindings with `gcloud run services update`. After the service exists and the bindings are complete, the `gcp-openbeta` workflow becomes the standard rollout path for later revisions.
+Then configure the runtime env vars and secret bindings with `gcloud run services update`. After the service exists and the bindings are complete, future revisions can be rolled out manually with the same image/build assets listed above.
 
 ## Required always
 

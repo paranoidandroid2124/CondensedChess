@@ -65,12 +65,13 @@ SUPPORT_BMC_URL=
 ```
 
 ### Deployment Automation
-Open-beta deployment is now repo-contained via GCP / Cloud Run.
+Open-beta deployment assets remain repo-contained via GCP / Cloud Run, but the
+GitHub Actions rollout workflow has been removed.
 
-- Workflow: [../.github/workflows/gcp-openbeta.yml](../.github/workflows/gcp-openbeta.yml)
 - Bootstrap guide: [../OPENBETA_GCP.md](../OPENBETA_GCP.md)
 
-Use this README for local Docker development. Use the GCP workflow and guide for open-beta deployment.
+Use this README for local Docker development. Use the bootstrap guide only if
+the open-beta deployment path is revived.
 
 ### Prod-Like Runtime (No `sbt run`)
 To run `lila` with Play stage binaries (Prod mode) instead of dev hot-reload:
