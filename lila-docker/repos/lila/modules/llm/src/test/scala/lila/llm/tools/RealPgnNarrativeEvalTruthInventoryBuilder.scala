@@ -10,8 +10,8 @@ object RealPgnNarrativeEvalTruthInventoryBuilder:
 
   private val DefaultManifestRoot =
     CommentaryPlayerQcSupport.DefaultManifestDir.resolve("master_only_truth_reboot_v1_20260324_2344")
-  private val DefaultOutputPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
-  private val SupplementalSourceCorpusCandidates = List(DefaultOutputPath)
+  private val DefaultOutputPath = CommentaryPlayerQcSupport.DefaultTruthInventoryPath
+  private val SupplementalSourceCorpusCandidates = CommentaryPlayerQcSupport.TruthInventoryLookupPaths
   private val PracticalErrorCpLossThreshold = 70
   private val SevereErrorCpLossThreshold = 180
   private val ExplicitProblemMomentTypes = Set("InvestmentPivot", "Blunder", "MatePivot")

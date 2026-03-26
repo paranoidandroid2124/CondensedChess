@@ -25,7 +25,7 @@ import lila.llm.model.strategic.VariationLine
 
 object RealPgnNarrativeEvalTruthTraceRunner:
 
-  private val DefaultInventoryPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
+  private val DefaultInventoryPath = CommentaryPlayerQcSupport.DefaultTruthInventoryPath
   private val DefaultDepth = 10
   private val DefaultMultiPv = 3
   private val OpeningRefMinPly = 3
@@ -747,7 +747,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       inventoryPath =
         optionString(args, "--inventory")
           .map(Paths.get(_))
-          .getOrElse(DefaultInventoryPath)
+          .getOrElse(resolveDefaultInventoryPath())
           .toAbsolutePath
           .normalize,
       outDir =
@@ -763,6 +763,12 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       keys = optionStrings(args, "--key").toSet,
       limit = optionInt(args, "--limit").filter(_ > 0)
     )
+
+  private def resolveDefaultInventoryPath(): Path =
+    CommentaryPlayerQcSupport.TruthInventoryLookupPaths
+      .map(_.toAbsolutePath.normalize)
+      .find(Files.isRegularFile(_))
+      .getOrElse(DefaultInventoryPath.toAbsolutePath.normalize)
 
   private def optionString(args: List[String], flag: String): Option[String] =
     args.sliding(2).collectFirst { case List(`flag`, value) => value.trim }.filter(_.nonEmpty)

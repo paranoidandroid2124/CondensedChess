@@ -26,6 +26,13 @@ object CommentaryPlayerQcSupport:
   val DefaultChronicleRunDir: Path = ExternalRoot.resolve("runs").resolve("chronicle")
   val DefaultReviewDir: Path = ExternalRoot.resolve("reviews")
   val DefaultReportDir: Path = ExternalRoot.resolve("reports")
+  val DefaultTruthInventoryDir: Path = ExternalRoot.resolve("inventory")
+  val DefaultTruthInventoryPath: Path =
+    DefaultTruthInventoryDir.resolve("RealPgnNarrativeEvalTruthInventory.json")
+  val LegacyTrackedTruthInventoryPath: Path =
+    Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
+  val TruthInventoryLookupPaths: List[Path] =
+    List(DefaultTruthInventoryPath, LegacyTrackedTruthInventoryPath)
 
   object MixBucket:
     val MasterClassical = "master_classical"

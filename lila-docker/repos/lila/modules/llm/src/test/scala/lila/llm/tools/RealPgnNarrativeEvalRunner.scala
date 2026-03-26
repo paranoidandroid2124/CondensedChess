@@ -28,7 +28,6 @@ object RealPgnNarrativeEvalRunner:
   private val DefaultMarkdownPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalReport.latest.md")
   private val DefaultJsonPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalReport.latest.json")
   private val DefaultRawDir = Paths.get("modules/llm/docs/real_pgn_eval/latest")
-  private val DefaultTruthInventoryPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
   private val DefaultDepth = 10
   private val DefaultMultiPv = 3
   private val EngineEnvVars = List("STOCKFISH_BIN", "LLM_ACTIVE_CORPUS_ENGINE_PATH")
@@ -713,8 +712,9 @@ object RealPgnNarrativeEvalRunner:
       .toMap
 
   private def findTruthInventory(): Option[Path] =
-    val path = DefaultTruthInventoryPath.toAbsolutePath.normalize
-    Option.when(Files.isRegularFile(path))(path)
+    CommentaryPlayerQcSupport.TruthInventoryLookupPaths
+      .map(_.toAbsolutePath.normalize)
+      .find(Files.isRegularFile(_))
 
   private[tools] def buildPositiveExemplarCorpus(
       inventory: RealPgnNarrativeEvalTruthInventoryBuilder.TruthInventory,
