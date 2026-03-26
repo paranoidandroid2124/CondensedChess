@@ -6,6 +6,39 @@ import lila.llm.model.strategic.VariationLine
 
 class ActiveBranchDossierBuilderTest extends FunSuite:
 
+  private def truthContract(
+      ownershipRole: TruthOwnershipRole,
+      visibilityRole: TruthVisibilityRole,
+      surfaceMode: TruthSurfaceMode,
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("a1b1"),
+      verifiedBestMove = Some("a1b1"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
   private def moment(
       momentType: String = "SustainedPressure",
       moveClassification: Option[String] = None,
@@ -274,4 +307,39 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
     assertEquals(dossier.threadSummary, Some("White fixes one sector before switching pressure across the board."))
     assertEquals(dossier.threadOpponentCounterplan, Some("...c5 counterplay"))
     assert(clue(dossier.chosenBranchLabel).contains("Whole-Board Play"))
+  }
+
+  test("truth contract blocks raw compensation lens when the canonical truth is neutral") {
+    val digest = NarrativeSignalDigest(
+      compensation = Some("pressure on e6"),
+      investedMaterial = Some(100)
+    )
+
+    val dossier =
+      ActiveBranchDossierBuilder.build(
+        moment(
+          momentType = "InvestmentPivot",
+          signalDigestOpt = Some(digest),
+          strategyPack =
+            Some(
+              StrategyPack(
+                sideToMove = "white",
+                longTermFocus = List("pressure on e6"),
+                signalDigest = Some(digest)
+              )
+            )
+        ),
+        routeRefs,
+        moveRefs,
+        truthContract =
+          Some(
+            truthContract(
+              ownershipRole = TruthOwnershipRole.NoneRole,
+              visibilityRole = TruthVisibilityRole.Hidden,
+              surfaceMode = TruthSurfaceMode.Neutral
+            )
+          )
+      ).getOrElse(fail("missing dossier"))
+
+    assertNotEquals(dossier.dominantLens, "compensation")
   }

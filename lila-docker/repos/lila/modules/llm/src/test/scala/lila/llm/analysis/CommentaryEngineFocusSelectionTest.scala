@@ -4,6 +4,7 @@ import munit.FunSuite
 import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
+import lila.llm.model.strategic.VariationLine
 
 class CommentaryEngineFocusSelectionTest extends FunSuite:
 
@@ -88,7 +89,12 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
       truthPhase: Option[InvestmentTruthPhase] = None,
       payoffAnchor: Option[String] = None,
-      benchmarkProseAllowed: Boolean = false
+      benchmarkProseAllowed: Boolean = false,
+      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan,
+      cpLoss: Int = 0,
+      swingSeverity: Int = 0,
+      benchmarkCriticalMove: Boolean = false
   ): DecisiveTruthContract =
     val resolvedExemplarRole =
       exemplarRole.getOrElse:
@@ -98,10 +104,11 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       playedMove = Some("d1d5"),
       verifiedBestMove = Some("d1d5"),
       truthClass = truthClass,
-      cpLoss = 0,
-      swingSeverity = 0,
+      cpLoss = cpLoss,
+      swingSeverity = swingSeverity,
       reasonFamily =
-        if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonFamily.Conversion
+        if reasonFamily != DecisiveReasonFamily.InvestmentSacrifice then reasonFamily
+        else if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonFamily.Conversion
         else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonFamily.TacticalRefutation
         else DecisiveReasonFamily.InvestmentSacrifice,
       allowConcreteBenchmark = false,
@@ -119,7 +126,13 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       verifiedPayoffAnchor = payoffAnchor,
       compensationProseAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
       benchmarkProseAllowed = benchmarkProseAllowed,
-      investmentTruthChainKey = payoffAnchor.map(anchor => s"white:$anchor")
+      investmentTruthChainKey = payoffAnchor.map(anchor => s"white:$anchor"),
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = benchmarkCriticalMove,
+      failureMode = failureMode,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   test("focusMomentOutline keeps essential beats and highest-priority late beats") {
@@ -313,6 +326,119 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
     assert(!focused.beats.exists(_.conceptIds.contains("strategic_distribution_first")))
     assert(!focused.beats.exists(_.text.contains("Current support centers on")))
+  }
+
+  test("generateGameArcDiagnostic rescues a severe cp swing into the canonical internal trace even below the WPA gate") {
+    val pgn =
+      """[Event "Canonical Rescue"]
+        |[Site "?"]
+        |[Date "2026.03.25"]
+        |[Round "1"]
+        |[White "White"]
+        |[Black "Black"]
+        |[Result "*"]
+        |
+        |1. e4 e5 2. Nf3 Nc6 *
+        |""".stripMargin
+    val evals =
+      Map(
+        1 -> List(VariationLine(moves = List("e7e5"), scoreCp = 950)),
+        2 -> List(VariationLine(moves = List("g1f3"), scoreCp = 500)),
+        3 -> List(VariationLine(moves = List("b8c6"), scoreCp = 340)),
+        4 -> List(VariationLine(moves = List("f1b5"), scoreCp = 320))
+      )
+
+    val diagnostic = CommentaryEngine.generateGameArcDiagnostic(pgn = pgn, evals = evals)
+
+    assert(diagnostic.anchorPlies.contains(2), clue(diagnostic))
+    assert(
+      diagnostic.canonicalTraceMoments.exists(trace =>
+        trace.ply == 2 &&
+          trace.traceSource == "canonical_internal" &&
+          trace.anchorMoment &&
+          trace.finalInternal
+      ),
+      clue(diagnostic.canonicalTraceMoments)
+    )
+  }
+
+  test("canonical bridge rescue admits catastrophic blunders and severe only-move failures into the internal path") {
+    val catastrophicBridge =
+      chronicleMoment(
+        ply = 81,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 220,
+        cpAfter = -340,
+        transitionType = Some("StrategicBridge")
+      ).copy(selectionKind = "thread_bridge", selectionLabel = Some("Campaign Bridge"))
+    val severeOnlyMoveFailure =
+      chronicleMoment(
+        ply = 61,
+        momentType = "StrategicBridge",
+        moveClassification = Some("Mistake"),
+        cpBefore = 90,
+        cpAfter = -128,
+        transitionType = Some("StrategicBridge")
+      ).copy(selectionKind = "thread_bridge", selectionLabel = Some("Campaign Bridge"))
+
+    val catastrophicContract =
+      truthContract(
+        ownershipRole = TruthOwnershipRole.BlunderOwner,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.FailureExplain,
+        truthClass = DecisiveTruthClass.Blunder,
+        reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+        failureMode = FailureInterpretationMode.OnlyMoveFailure,
+        cpLoss = 560,
+        swingSeverity = 21,
+        benchmarkCriticalMove = true
+      )
+    val onlyMoveFailureContract =
+      truthContract(
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.Hidden,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        truthClass = DecisiveTruthClass.Mistake,
+        reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+        failureMode = FailureInterpretationMode.OnlyMoveFailure,
+        cpLoss = 218,
+        swingSeverity = 48,
+        benchmarkCriticalMove = true
+      )
+
+    assert(CommentaryEngine.canonicalRescueBridgeCandidate(catastrophicBridge, catastrophicContract))
+    assert(CommentaryEngine.canonicalRescueBridgeCandidate(severeOnlyMoveFailure, onlyMoveFailureContract))
+  }
+
+  test("mergeCanonicalInternalMoments keeps decisive same-ply labels ahead of softer bridge labels") {
+    val merged =
+      CommentaryEngine.mergeCanonicalInternalMoments(
+        List(
+          KeyMoment(
+            ply = 57,
+            momentType = "TensionPeak",
+            score = 0,
+            description = "Soft label",
+            cpBefore = 80,
+            cpAfter = 80
+          ),
+          KeyMoment(
+            ply = 57,
+            momentType = "Blunder",
+            score = -300,
+            description = "Rescued decisive label",
+            cpBefore = 180,
+            cpAfter = -340,
+            selectionKind = "thread_bridge",
+            selectionLabel = Some("Campaign Bridge"),
+            selectionReason = Some("Canonical bridge rescue")
+          )
+        )
+      )
+
+    assertEquals(merged.map(_.momentType), List("Blunder"))
+    assertEquals(merged.map(_.selectionKind), List("thread_bridge"))
   }
 
   test("trimHybridBodyRepetition drops redundant strategic stack meta") {
@@ -1081,4 +1207,46 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
     assertEquals(support.decisiveShift, Some("The decisive shift came through pressure on e6."))
     assertEquals(support.payoff, Some("The winning route was pressure on e6."))
+  }
+
+  test("selectWholeGamePromotionPly ignores raw conversion fallback when the truth contract is neutral") {
+    val neutralConversionLikeMoment =
+      chronicleMoment(
+        ply = 44,
+        momentType = "TensionPeak",
+        transitionType = Some("ExchangeConversion"),
+        narrative = "The move converted smoothly."
+      )
+    val commitmentMoment =
+      chronicleMoment(
+        ply = 52,
+        momentType = "TensionPeak",
+        narrative = "Pressure on e6 made the commitment concrete."
+      )
+
+    val promoted =
+      CommentaryEngine.selectWholeGamePromotionPly(
+        internalMoments = List(neutralConversionLikeMoment, commitmentMoment),
+        visibleMomentPlies = Set.empty,
+        truthContractsByPly =
+          Map(
+            44 ->
+              truthContract(
+                ownershipRole = TruthOwnershipRole.NoneRole,
+                visibilityRole = TruthVisibilityRole.Hidden,
+                surfaceMode = TruthSurfaceMode.Neutral
+              ),
+            52 ->
+              truthContract(
+                ownershipRole = TruthOwnershipRole.CommitmentOwner,
+                visibilityRole = TruthVisibilityRole.PrimaryVisible,
+                surfaceMode = TruthSurfaceMode.InvestmentExplain,
+                truthClass = DecisiveTruthClass.CompensatedInvestment,
+                truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+                payoffAnchor = Some("pressure on e6")
+              )
+          )
+      )
+
+    assertEquals(promoted, Some(52))
   }

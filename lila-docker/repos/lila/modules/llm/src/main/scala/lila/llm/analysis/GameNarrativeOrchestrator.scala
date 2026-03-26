@@ -19,8 +19,101 @@ case class KeyMoment(
 
 object GameNarrativeOrchestrator {
 
+  private val SevereCpSwingThreshold = 280
+  private val CatastrophicCpSwingThreshold = 420
+  private val DecisiveEdgeCp = 320
+  private val BalancedWindowCp = 120
+  private val SharpWindowCp = 220
+
   private def winChance(cp: Int): Double = 
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-0.00368208 * cp)) - 1.0)
+
+  private def swingScore(eval: MoveEval): Int =
+    eval.mate match
+      case Some(mateScore) if mateScore > 0 => 10000
+      case Some(_)                          => -10000
+      case None                             => eval.cp
+
+  private def momentPriority(moment: KeyMoment): Int =
+    moment.momentType match
+      case "MissedWin"         => 0
+      case "Blunder"           => 1
+      case "MateLost"          => 2
+      case "MateFound"         => 3
+      case "MateShift"         => 4
+      case "Equalization"      => 5
+      case "SustainedPressure" => 6
+      case "TensionPeak"       => 7
+      case _                   => 8
+
+  private def momentSeverity(moment: KeyMoment): Double =
+    math.abs(moment.wpaSwing.getOrElse(0.0)) * 1000.0 + math.abs(moment.cpAfter - moment.cpBefore).toDouble
+
+  private def missedWinningEdge(prevScore: Int, currScore: Int): Boolean =
+    (prevScore >= DecisiveEdgeCp && currScore <= SharpWindowCp) ||
+      (prevScore <= -DecisiveEdgeCp && currScore >= -SharpWindowCp)
+
+  private def sharpDecisiveRescue(prevScore: Int, currScore: Int, absWpDiff: Double, absCpDiff: Int): Boolean =
+    absWpDiff <= 18.0 &&
+      absCpDiff >= SevereCpSwingThreshold &&
+      (
+        missedWinningEdge(prevScore, currScore) ||
+          (math.abs(prevScore) <= BalancedWindowCp && math.abs(currScore) >= DecisiveEdgeCp) ||
+          (math.signum(prevScore) != math.signum(currScore) &&
+            (absCpDiff >= SevereCpSwingThreshold || math.abs(prevScore) >= SharpWindowCp || math.abs(currScore) >= SharpWindowCp)) ||
+          absCpDiff >= CatastrophicCpSwingThreshold
+      )
+
+  private def severeSwingMoment(
+      prev: MoveEval,
+      curr: MoveEval,
+      prevScore: Int,
+      currScore: Int,
+      wpDiff: Double,
+      absWpDiff: Double
+  ): Option[KeyMoment] =
+    val absCpDiff = math.abs(currScore - prevScore)
+    if absWpDiff > 18.0 then {
+      if (winChance(prevScore) > 75.0 && winChance(currScore) < 60.0)
+        Some(KeyMoment(curr.ply, "MissedWin", curr.cp, "White squandered advantage", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
+      else if (winChance(prevScore) < 25.0 && winChance(currScore) > 40.0)
+        Some(KeyMoment(curr.ply, "MissedWin", curr.cp, "Black squandered advantage", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
+      else if (winChance(prevScore) > 40.0 && winChance(prevScore) < 60.0 && (winChance(currScore) < 30.0 || winChance(currScore) > 70.0))
+        Some(KeyMoment(curr.ply, "Blunder", curr.cp, f"Decisive swing (${absWpDiff}%.1f%% WPA)", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
+      else
+        Some(KeyMoment(curr.ply, "Blunder", curr.cp, f"Major error (${absWpDiff}%.1f%% WPA)", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
+    } else if sharpDecisiveRescue(prevScore, currScore, absWpDiff, absCpDiff) then {
+      if missedWinningEdge(prevScore, currScore) then
+        Some(
+          KeyMoment(
+            curr.ply,
+            "MissedWin",
+            curr.cp,
+            s"Winning edge collapsed (${absCpDiff} cp swing)",
+            prev.cp,
+            curr.cp,
+            prev.mate,
+            curr.mate,
+            Some(wpDiff)
+          )
+        )
+      else
+        Some(
+          KeyMoment(
+            curr.ply,
+            "Blunder",
+            curr.cp,
+            s"Severe engine swing rescued (${absCpDiff} cp)",
+            prev.cp,
+            curr.cp,
+            prev.mate,
+            curr.mate,
+            Some(wpDiff)
+          )
+        )
+    } else if (absWpDiff > 12.0 && (winChance(currScore) - 50.0).abs < 10.0 && (winChance(prevScore) - 50.0).abs > 15.0) then
+      Some(KeyMoment(curr.ply, "Equalization", curr.cp, "Position stabilized", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
+    else None
 
   // NOTE: Lichess CP is ALWAYS from White's perspective (positive = White winning)
   // We convert CP to Win Probability (WPA) to accurately gauge if a blunder is decisive.
@@ -28,28 +121,15 @@ object GameNarrativeOrchestrator {
   def selectKeyMoments(evals: List[MoveEval]): List[KeyMoment] = {
     // 1. Identify Swings using WPA
     val swings = evals.zip(evals.drop(1)).flatMap { case (prev, curr) =>
-      // Convert mates to large cp values for WPA calculation (+/- 10000)
-      val prevScore = prev.mate.map(m => math.signum(m) * 10000).getOrElse(prev.cp)
-      val currScore = curr.mate.map(m => math.signum(m) * 10000).getOrElse(curr.cp)
+      val prevScore = swingScore(prev)
+      val currScore = swingScore(curr)
       
       val wpPrev = winChance(prevScore)
       val wpCurr = winChance(currScore)
       val wpDiff = wpCurr - wpPrev
       val absWpDiff = wpDiff.abs
-      
-      if (absWpDiff > 18.0) {
-        // High advantage to completely balanced or losing
-        if (wpPrev > 75.0 && wpCurr < 60.0) Some(KeyMoment(curr.ply, "MissedWin", curr.cp, "White squandered advantage", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
-        else if (wpPrev < 25.0 && wpCurr > 40.0) Some(KeyMoment(curr.ply, "MissedWin", curr.cp, "Black squandered advantage", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
-        // Balanced to losing
-        else if (wpPrev > 40.0 && wpPrev < 60.0 && (wpCurr < 30.0 || wpCurr > 70.0)) Some(KeyMoment(curr.ply, "Blunder", curr.cp, f"Decisive swing (${absWpDiff}%.1f%% WPA)", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
-        // Other major errors
-        else Some(KeyMoment(curr.ply, "Blunder", curr.cp, f"Major error (${absWpDiff}%.1f%% WPA)", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
-      } else if (absWpDiff > 12.0 && (wpCurr - 50.0).abs < 10.0 && (wpPrev - 50.0).abs > 15.0) {
-        Some(KeyMoment(curr.ply, "Equalization", curr.cp, "Position stabilized", prev.cp, curr.cp, prev.mate, curr.mate, Some(wpDiff)))
-      } else {
-        None
-      }
+
+      severeSwingMoment(prev, curr, prevScore, currScore, wpDiff, absWpDiff)
     }
     
     // 2. Identify Sustained Pressure (gradual drift in one direction)
@@ -110,9 +190,13 @@ object GameNarrativeOrchestrator {
     }
 
     // 4. Return ALL important moments, sorted by ply
-    val allMoments = (matePivots ++ swings ++ pressure ++ tension).sortBy(_.ply)
-    
-    // Deduplicate by ply
-    allMoments.distinctBy(_.ply)
+    val allMoments = matePivots ++ swings ++ pressure ++ tension
+
+    allMoments
+      .groupBy(_.ply)
+      .values
+      .map(_.toList.sortBy(moment => (momentPriority(moment), -momentSeverity(moment))).head)
+      .toList
+      .sortBy(_.ply)
   }
 }

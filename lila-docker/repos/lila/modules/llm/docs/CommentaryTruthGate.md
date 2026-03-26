@@ -30,21 +30,26 @@ vivid explanation.
    - baseline truth pass
    - selective deep verification for truth-critical moves
    - chain synthesis for commitment / maintenance / conversion ownership
-4. Project `DecisiveTruthContract` from the finalized `MoveTruthFrame`.
-5. Resolve `TruthOwnershipRole` so commitment, maintenance, conversion, and
+4. Canonical key-moment anchoring must rescue engine-severe CP / mate swings
+   even when WPA saturation alone would miss them; if such a move survives only
+   as a candidate bridge, canonical internal admission must still rescue it
+   from runtime truth instead of leaving it witness-only, and decisive
+   `blunder` / `missed_win` labels beat softer same-ply labels.
+5. Project `DecisiveTruthContract` from the finalized `MoveTruthFrame`.
+6. Resolve `TruthOwnershipRole` so commitment, maintenance, conversion, and
    blunder truth do not share the same decisive explanation.
-6. Resolve `TruthVisibilityRole` so real exemplars can stay visible even when
+7. Resolve `TruthVisibilityRole` so real exemplars can stay visible even when
    prose permission is too weak to let them overclaim.
-7. Resolve `TruthSurfaceMode` so Chronicle / Bookmaker / Active know whether a
+8. Resolve `TruthSurfaceMode` so Chronicle / Bookmaker / Active know whether a
    row may explain investment, preserve it, explain conversion, explain
    failure, or stay neutral.
-8. Resolve `TruthExemplarRole` so visible exemplar preservation is measured
+9. Resolve `TruthExemplarRole` so visible exemplar preservation is measured
    separately from ownership and separately from compensation-positive prose.
-9. Promote decisive moments using truth and exemplar preservation, not only
+10. Promote decisive moments using truth and exemplar preservation, not only
    salience.
-10. Realize Chronicle / Bookmaker / Active from that truth-bound state.
-11. Allow optional wording polish only after truth-bound prose exists.
-12. Judge release readiness with both automatic health checks and GM-style
+11. Realize Chronicle / Bookmaker / Active from that truth-bound state.
+12. Allow optional wording polish only after truth-bound prose exists.
+13. Judge release readiness with both automatic health checks and GM-style
    manual audit.
 
 Automatic green checks alone do not imply chess-truth signoff.
@@ -72,11 +77,11 @@ The required truth gate is the master-only 140-game corpus under
 
 This corpus is the mandatory manual audit gate for decisive-move truth.
 
-Its merged signoff must preserve the dedicated positive-exemplar audit set even
-when some exemplar games live outside the main 140-game corpus. Exemplar
-coverage is judged against the audited exemplar set, not only against the
-intersection of exemplar keys with the current shard/game list, and not only
-against compensation-positive prose permission.
+Its merged signoff must preserve the canonical positive-exemplar gate carried in
+the truth inventory even when some exemplar games live outside the main
+140-game corpus. Exemplar coverage is judged against that audited gate, not
+only against the intersection of exemplar keys with the current shard/game
+list, and not only against compensation-positive prose permission.
 
 Verified `WinningInvestment` / `CompensatedInvestment` moments stay eligible as
 positive compensation exemplars during audit calibration when Game Arc and
@@ -117,6 +122,8 @@ The following are automatic truth-gate blockers:
 - a conversion move is surfaced as compensation rather than conversion
 - compensation-positive prose appears on a move that does not own investment
   truth
+- a low-confidence blunder is narrated as if the player had a verified
+  strategic intent
 
 ## Health Signals vs Truth Gate
 
@@ -145,9 +152,38 @@ truth-gate failure and must not count as remaining divergence.
   - visibility is not permission to emit compensation-positive prose
   - visibility is not itself ownership; `TruthExemplarRole` may be
     `provisional_exemplar` while ownership remains `none`
+  - a truth-bound `compensation_maintenance` move stays `non_exemplar` in the
+    public/runtime contract; a private maintenance-exemplar candidate may keep
+    it focus-visible without becoming the commitment owner
+  - public/runtime `maintenance_echo + supporting_visible +
+    maintenance_preserve` is reserved for `critical maintenance`: verified
+    payoff anchor, verified investment payoff, direct current semantic/carrier
+    anchor match, and pressure evidence (`only_move`, `unique_good_move`,
+    forcing proof, bad followthrough, or accepted current-semantic match)
+  - routine maintenance may keep the internal truth phase while the public
+    projection is forced back to `none / hidden / neutral`
+  - a proof-backed best `only_move_defense` may still project
+    `none / primary_visible / neutral`; this is a visible critical hold, not a
+    failure owner and not a compensation owner
+  - a benchmark-critical quiet hold without proof stays `hidden / neutral`
+- fresh commitment seeding happens before any explicit `investedMaterial`
+  carrier is required:
+  - current-move material loss plus a move-local payoff anchor may produce a
+    `provisional_exemplar`
+  - that path may classify as `first_investment_commitment` even when the raw
+    carrier has no `investedMaterial`
+  - ownership remains stricter than visibility
 - serialized/debug truth fields are audit aids only. Signoff-path runtime logic
   must not reconstruct ownership or surface permission from those strings when
   canonical `MoveTruthFrame` / `DecisiveTruthContract` data is available.
+- truth-first runtime semantics are mandatory when a contract exists:
+  - raw `momentType`, `moveClassification`, `criticality`, and `choiceType`
+    may remain in payloads for compatibility, display, or fallback only
+  - raw `StrategyPackSurface` compensation flags may help extract carriers or
+    support no-contract fallback, but they may not recreate compensation
+    significance once the contract is present
+  - whole-game binders, selector scoring, dossiers, and prose policies must use
+    canonical truth semantics first and treat raw strings as fallback only
 - Investment families must consume the same truth-phase ownership:
   - `first_investment_commitment`
   - `compensation_maintenance`
@@ -161,6 +197,63 @@ truth-gate failure and must not count as remaining divergence.
 - current-move evidence and inherited shell are distinct:
   - `investedMaterial` or durable-pressure residue may keep a row visible
   - they may not, by themselves, certify a fresh commitment move
+- provenance rules are explicit:
+  - `current_material` may originate a fresh seed
+  - `current_semantic` may verify and upgrade that seed into ownership
+  - `current_semantic` also covers concrete current-move payoff-route
+    carriers that keep a maintenance move focus-visible only when they directly
+    match the verified payoff anchor; generic route/target scaffolding does not
+    qualify
+  - `after_semantic` may support maintenance or conversion continuity
+  - `legacy_shell` may preserve visibility only
+  - `after_semantic` and `legacy_shell` may not create fresh commitment
+    ownership
+- bad-move intent is separately gated:
+  - `failure_intent` is internal and evidence-backed
+  - move-local route / purpose / target evidence must directly match the
+    verified payoff anchor before intent is allowed; bare square-access
+    scaffolding is not enough
+  - accepted current semantic support may keep intent alive only when it also
+    directly matches the verified payoff anchor
+  - `speculative_investment_failed` requires fresh current-move matched
+    investment evidence; inherited maintenance shells alone may not trigger it
+  - low-confidence or `no_clear_plan` failures may not keep route / target /
+    plan carriers alive in sanitized commentary surfaces
+  - commentary may describe tactical collapse or speculative failure, but it
+    may not attribute a concrete player plan unless that plan survived the
+    intent-confidence gate
+- tactical tension is also canonicalized:
+  - forced / critical / tactical-pressure checks must come from one shared
+    truth-first policy
+  - when the contract exists, `reasonFamily`, `failureMode`, benchmark
+    pressure, and intent-confidence gating outrank raw `criticality` /
+    `choiceType` strings
+  - raw tension strings may remain fallback inputs only when no decisive-truth
+    contract is available
+- selector/runtime significance is also canonicalized:
+  - threaded representative selection must be truth-aware; a hidden/neutral
+    nominal representative must yield to a truth-visible or
+    significance-qualified move from the same thread when one exists
+  - representative replacement stays stage-aware; local tactical / only-move
+    failures may replace hidden thread shells without becoming global protected
+    families
+  - hidden `benchmarkCriticalMove` rows are diagnostic/thread-local only; they
+    do not earn global visible-slot or active-note protection on their own, and
+    quiet benchmark-critical holds may only replace thread shells when the
+    thread lacks stronger truth-visible/failure representatives
+  - representative and active-note ordering remain fixed-cap and truth-first:
+    severe failures first, then promoted best holds, then
+    verified/provisional exemplar ownership
+  - the protected pass reserves visible / active-note space first, but the
+    selector must still backfill remaining visible slots with truth-eligible
+    fallback moments instead of collapsing the visible set to the protected
+    family only
+  - generic hidden best tactical/technical moves may help same-thread
+    replacement, but they may not outrank those protected families in the
+    global visible / active-note caps
+  - investment-chain dedupe keeps one supporting-visible move per chain by
+    default, but a second support is allowed for a private
+    maintenance-exemplar candidate or a non-best / failure-significant follow-up
 - Concrete benchmark naming is allowed only when the verified best move exists
   and the contract explicitly allows it.
 - Whole-game Chronicle binders must anchor decisive shift / punishment prose in

@@ -9,12 +9,13 @@ object ActiveBranchDossierBuilder:
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
       threadRef: Option[ActiveStrategicThreadRef] = None,
-      thread: Option[ActiveStrategicThread] = None
+      thread: Option[ActiveStrategicThread] = None,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[ActiveBranchDossier] =
     val digest = moment.signalDigest
     val comparison = digest.flatMap(_.decisionComparison)
-    val dominantLens = lensFor(moment, digest)
-    val chosenBranch = chosenBranchLabel(moment, digest, comparison, dominantLens, threadRef)
+    val dominantLens = lensFor(moment, digest, truthContract)
+    val chosenBranch = chosenBranchLabel(moment, digest, comparison, dominantLens, threadRef, truthContract)
     val engineBranch = engineBranchLabel(digest, comparison)
     val deferredBranch = deferredBranchLabel(digest, comparison)
     val routeCue = selectRouteCue(digest, routeRefs)
@@ -58,33 +59,28 @@ object ActiveBranchDossierBuilder:
       )
     )
 
-  private def lensFor(moment: GameChronicleMoment, digest: Option[NarrativeSignalDigest]): String =
-    val momentType = normalize(moment.momentType)
-    val classification = normalize(moment.moveClassification.getOrElse(""))
-    if isTactical(momentType) || isTactical(classification) then "tactical"
-    else if digest.exists(d => d.structureProfile.exists(_.trim.nonEmpty) && d.deploymentPiece.exists(_.trim.nonEmpty)) then
-      "structure"
-    else if digest.exists(_.opening.exists(_.trim.nonEmpty)) then "opening"
-    else if digest.exists(d => d.compensation.exists(_.trim.nonEmpty) || d.investedMaterial.exists(_ > 0)) then "compensation"
-    else if digest.exists(d => d.prophylaxisPlan.exists(_.trim.nonEmpty) || d.prophylaxisThreat.exists(_.trim.nonEmpty)) then
-      "prophylaxis"
-    else if digest.exists(d => d.decisionComparison.isDefined || d.decision.exists(_.trim.nonEmpty)) then "decision"
-    else if digest.exists(_.practicalVerdict.exists(_.trim.nonEmpty)) then "practical"
-    else "strategic"
+  private def lensFor(
+      moment: GameChronicleMoment,
+      digest: Option[NarrativeSignalDigest],
+      truthContract: Option[DecisiveTruthContract]
+  ): String =
+    MomentTruthSemantics.chronicle(moment, truthContract).canonicalLens
 
   private def chosenBranchLabel(
       moment: GameChronicleMoment,
       digest: Option[NarrativeSignalDigest],
       comparison: Option[DecisionComparisonDigest],
       dominantLens: String,
-      threadRef: Option[ActiveStrategicThreadRef]
+      threadRef: Option[ActiveStrategicThreadRef],
+      truthContract: Option[DecisiveTruthContract]
   ): String =
     val chosenMove = comparison.flatMap(_.chosenMove).flatMap(normalized)
     val threadLabel = threadRef.flatMap(ref => normalized(ref.themeLabel))
     dominantLens match
       case "tactical" =>
         val head =
-          moment.moveClassification.flatMap(normalized)
+          truthContract.flatMap(_.moveClassificationLabel).flatMap(normalized)
+            .orElse(moment.moveClassification.flatMap(normalized))
             .orElse(normalized(moment.momentType))
             .getOrElse("critical tactical turn")
         val movePart = chosenMove.map(move => s" via $move").getOrElse("")

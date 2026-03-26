@@ -31,22 +31,32 @@ object BookStyleRenderer:
   private[llm] def renderDraft(ctx: NarrativeContext): String =
     renderOutlineRaw(validatedOutline(ctx), ctx)
 
-  def validatedOutline(ctx: NarrativeContext): NarrativeOutline =
+  def validatedOutline(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): NarrativeOutline =
     val rec = new TraceRecorder()
-    val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec)
+    val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec, truthContract)
     EarlyOpeningNarrationPolicy.compactOutline(
       ctx,
-      NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx))
+      NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx)),
+      truthContract
     )
 
-  def renderValidatedOutline(outline: NarrativeOutline, ctx: NarrativeContext): String =
+  def renderValidatedOutline(
+      outline: NarrativeOutline,
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): String =
     val prose = renderOutlineRaw(outline, ctx)
     EarlyOpeningNarrationPolicy.clampNarrative(
       ctx,
       StandardCommentaryClaimPolicy.finalizeProse(
         ctx,
-        PostCritic.revise(ctx, redactStructureTokens(prose))
-      )
+        PostCritic.revise(ctx, redactStructureTokens(prose)),
+        truthContract
+      ),
+      truthContract
     )
 
   private[analysis] def renderBeatForSelection(beat: OutlineBeat, ctx: NarrativeContext): String =

@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import chess.{ Bishop, Board, Color, Knight, Pawn, Queen, Rook, Role }
 import chess.format.{ Fen, Uci }
-import lila.llm.{ GameChronicleMoment, NarrativeSignalDigest, StrategyPack }
+import lila.llm.{ GameChronicleMoment, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.llm.model.*
 
 private[llm] enum DecisiveTruthClass:
@@ -51,6 +51,19 @@ private[llm] enum TruthExemplarRole:
   case VerifiedExemplar
   case ProvisionalExemplar
   case NonExemplar
+
+private[llm] enum CommitmentEvidenceProvenance:
+  case CurrentMaterial
+  case CurrentSemantic
+  case AfterSemantic
+  case LegacyShell
+
+private[llm] enum FailureInterpretationMode:
+  case TacticalRefutation
+  case OnlyMoveFailure
+  case QuietPositionalCollapse
+  case SpeculativeInvestmentFailed
+  case NoClearPlan
 
 private[llm] enum MoveQualityVerdict:
   case Best
@@ -120,19 +133,44 @@ private[llm] final case class MaterialEconomicsFact(
   def deficitDelta: Int = afterDeficit - beforeDeficit
   def increasesDeficit: Boolean = deficitDelta >= 75
 
+private[llm] final case class FreshCommitmentEvidence(
+    moveLocalPayoffAnchor: Option[String],
+    verifiedPayoffAnchor: Option[String],
+    provenance: Set[CommitmentEvidenceProvenance],
+    currentMaterialSeed: Boolean,
+    seedEligible: Boolean,
+    ownerEligible: Boolean,
+    legacyVisibleOnly: Boolean,
+    currentConcreteCarrier: Boolean,
+    currentSemanticSupport: Boolean,
+    afterSemanticSupport: Boolean,
+    legacyShellSupport: Boolean
+):
+  def currentMoveEvidence: Boolean =
+    currentMaterialSeed || currentSemanticSupport || currentConcreteCarrier
+
 private[llm] final case class StrategicOwnershipFact(
     truthPhase: Option[InvestmentTruthPhase],
     reasonFamily: DecisiveReasonFamily,
+    benchmarkCriticalMove: Boolean,
     verifiedPayoffAnchor: Option[String],
     chainKey: Option[String],
+    evidenceProvenance: Set[CommitmentEvidenceProvenance],
     createsFreshInvestment: Boolean,
     maintainsInvestment: Boolean,
     convertsInvestment: Boolean,
     durablePressure: Boolean,
-    currentMoveEvidenceScore: Int,
     currentMoveEvidence: Boolean,
+    currentConcreteCarrier: Boolean,
+    currentSemanticAnchorMatch: Boolean,
+    currentCarrierAnchorMatch: Boolean,
     freshCommitmentCandidate: Boolean,
-    surfaceEvidenceStrong: Boolean
+    freshCurrentInvestmentEvidence: Boolean,
+    ownerEligible: Boolean,
+    legacyVisibleOnly: Boolean,
+    maintenancePressureQualified: Boolean,
+    criticalMaintenance: Boolean,
+    maintenanceExemplarCandidate: Boolean
 )
 
 private[llm] final case class PunishConversionFact(
@@ -140,6 +178,13 @@ private[llm] final case class PunishConversionFact(
     latentPunishment: Boolean,
     conversionRoute: Option[String],
     concessionSummary: Option[String]
+)
+
+private[llm] final case class FailureInterpretationFact(
+    failureMode: FailureInterpretationMode,
+    intentConfidence: Double,
+    intentAnchor: Option[String],
+    interpretationAllowed: Boolean
 )
 
 private[llm] final case class DifficultyNoveltyFact(
@@ -159,6 +204,7 @@ private[llm] final case class MoveTruthFrame(
     materialEconomics: MaterialEconomicsFact,
     strategicOwnership: StrategicOwnershipFact,
     punishConversion: PunishConversionFact,
+    failureInterpretation: FailureInterpretationFact,
     difficultyNovelty: DifficultyNoveltyFact,
     truthClass: DecisiveTruthClass,
     ownershipRole: TruthOwnershipRole,
@@ -179,7 +225,9 @@ private[llm] final case class MomentTruthProjection(
     surfacedMoveOwnsTruth: Boolean,
     verifiedPayoffAnchor: Option[String],
     benchmarkProseAllowed: Boolean,
-    chainKey: Option[String]
+    chainKey: Option[String],
+    maintenanceExemplarCandidate: Boolean,
+    benchmarkCriticalMove: Boolean = false
 )
 
 private[llm] final case class DecisiveTruthContract(
@@ -201,7 +249,13 @@ private[llm] final case class DecisiveTruthContract(
     verifiedPayoffAnchor: Option[String],
     compensationProseAllowed: Boolean,
     benchmarkProseAllowed: Boolean,
-    investmentTruthChainKey: Option[String]
+    investmentTruthChainKey: Option[String],
+    maintenanceExemplarCandidate: Boolean,
+    benchmarkCriticalMove: Boolean = false,
+    failureMode: FailureInterpretationMode,
+    failureIntentConfidence: Double,
+    failureIntentAnchor: Option[String],
+    failureInterpretationAllowed: Boolean
 ):
   def isInvestment: Boolean =
     ownershipRole == TruthOwnershipRole.CommitmentOwner
@@ -236,7 +290,28 @@ private[llm] final case class DecisiveTruthContract(
     exemplarRole == TruthExemplarRole.ProvisionalExemplar
 
   def isExemplarCandidate: Boolean =
-    exemplarRole != TruthExemplarRole.NonExemplar
+    exemplarRole != TruthExemplarRole.NonExemplar || maintenanceExemplarCandidate
+
+  def hasMaintenanceExemplarCandidate: Boolean =
+    maintenanceExemplarCandidate
+
+  def isPromotedBestHold: Boolean =
+    benchmarkCriticalMove &&
+      truthClass == DecisiveTruthClass.Best &&
+      reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+
+  def isBenchmarkCriticalQuietHold: Boolean =
+    benchmarkCriticalMove &&
+      truthClass == DecisiveTruthClass.Best &&
+      reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
+
+  def isCriticalBestMove: Boolean =
+    truthClass == DecisiveTruthClass.Best &&
+      (
+        reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+          reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+          isBenchmarkCriticalQuietHold
+      )
 
   def benchmarkMove: Option[String] =
     Option.when(benchmarkProseAllowed || allowConcreteBenchmark) {
@@ -294,7 +369,6 @@ private[llm] final case class DecisiveTruthContract(
 
 private[llm] object DecisiveTruth:
 
-  private val DirectCommitmentOwnershipInvestmentCp = 200
   private val WinPercentSlope = 0.00368208
   private val GoodAlternativeGapCp = 40
 
@@ -319,7 +393,13 @@ private[llm] object DecisiveTruth:
         verifiedPayoffAnchor = frame.strategicOwnership.verifiedPayoffAnchor,
         compensationProseAllowed = frame.compensationProseAllowed,
         benchmarkProseAllowed = frame.benchmarkProseAllowed,
-        investmentTruthChainKey = frame.strategicOwnership.chainKey
+        investmentTruthChainKey = frame.strategicOwnership.chainKey,
+        maintenanceExemplarCandidate = frame.strategicOwnership.maintenanceExemplarCandidate,
+        benchmarkCriticalMove = frame.strategicOwnership.benchmarkCriticalMove,
+        failureMode = frame.failureInterpretation.failureMode,
+        failureIntentConfidence = frame.failureInterpretation.intentConfidence,
+        failureIntentAnchor = frame.failureInterpretation.intentAnchor,
+        failureInterpretationAllowed = frame.failureInterpretation.interpretationAllowed
       )
 
   def derive(
@@ -373,42 +453,56 @@ private[llm] object DecisiveTruth:
         .getOrElse(0)
     val moveQuality = deriveMoveQualityFact(chosenMatchesBest, cpLoss, swingSeverity, beforePerspective, afterPerspective, momentType)
     val transition = normalized(transitionType.getOrElse("")).map(_.toLowerCase)
+    val transitionSignalsConversion =
+      transition.exists(text =>
+        text.contains("promotion") || text.contains("exchange") || text.contains("convert") || text.contains("simplif")
+      )
     val materialShift = playedMoveUci.flatMap(move => materialShiftForMove(ctx.fen, move))
-    val investmentCp =
+    val currentInvestmentCp =
       strategyPack.flatMap(_.signalDigest.flatMap(_.investedMaterial))
         .orElse(ctx.semantic.flatMap(_.compensation.map(_.investedMaterial)))
-        .orElse(ctx.semantic.flatMap(_.afterCompensation.map(_.investedMaterial)))
         .filter(_ > 0)
-    val semanticCompensationDecision = CompensationInterpretation.effectiveSemanticDecision(ctx).map(_.decision)
-    val surfaceCompensationDecision =
-      strategyPack.flatMap(pack => CompensationInterpretation.surfaceDecision(ctx, StrategyPackSurface.from(Some(pack))))
+    val afterInvestmentCp =
+      ctx.semantic.flatMap(_.afterCompensation.map(_.investedMaterial))
+        .filter(_ > 0)
+    val investmentCp =
+      currentInvestmentCp
+        .orElse(afterInvestmentCp)
+    val strategySurface = StrategyPackSurface.from(strategyPack)
+    val currentSemanticDecision = currentAcceptedSemanticDecision(ctx).map(_.decision)
+    val afterSemanticDecision = afterAcceptedSemanticDecision(ctx).map(_.decision)
+    val rawSurfaceSemanticDecision = CompensationInterpretation.surfaceDecision(ctx, strategySurface)
+    val surfaceSemanticDecision = rawSurfaceSemanticDecision.filter(_.accepted)
     val acceptedCompensationEvidence =
-      List(semanticCompensationDecision, surfaceCompensationDecision).flatten.filter(_.accepted)
+      List(currentSemanticDecision, afterSemanticDecision, surfaceSemanticDecision).flatten
     val legacyDurableInvestmentPayoff =
       investmentCp.nonEmpty && strategyPack.exists(hasLegacyDurableInvestmentCarrier)
     val verifiedInvestmentPayoff =
       investmentCp.nonEmpty &&
-        surfaceCompensationDecision.forall(_.accepted) &&
         (
-          acceptedCompensationEvidence.exists(decision =>
-            decision.durableStructuralPressure || decision.persistenceClass == "non_immediate_transition"
+          (
+            rawSurfaceSemanticDecision.forall(_.accepted) &&
+              acceptedCompensationEvidence.exists(decision =>
+                decision.durableStructuralPressure || decision.persistenceClass == "non_immediate_transition"
+              )
           ) ||
             legacyDurableInvestmentPayoff
         )
-    val currentSemanticDecision = currentAcceptedSemanticDecision(ctx).map(_.decision)
-    val surfaceSemanticDecision = surfaceAcceptedDecision(ctx, strategyPack)
-    val freshSemanticDecision =
-      currentSemanticDecision
-        .orElse(afterAcceptedSemanticDecision(ctx).map(_.decision))
-        .orElse(surfaceSemanticDecision)
+    val freshCommitmentEvidence =
+      collectFreshCommitmentEvidence(
+        strategyPack = strategyPack,
+        strategySurface = strategySurface,
+        materialShift = materialShift,
+        currentSemanticDecision = currentSemanticDecision,
+        afterSemanticDecision = afterSemanticDecision,
+        currentInvestmentCp = currentInvestmentCp,
+        transitionSignalsConversion = transitionSignalsConversion,
+        moveQuality = moveQuality
+      )
     val verifiedPayoffAnchor =
       selectVerifiedPayoffAnchor(
-        freshDecision = freshSemanticDecision,
-        strategyPack = strategyPack
-      )
-    val transitionSignalsConversion =
-      transition.exists(text =>
-        text.contains("promotion") || text.contains("exchange") || text.contains("convert") || text.contains("simplif")
+        moveLocalPayoffAnchor = freshCommitmentEvidence.moveLocalPayoffAnchor,
+        afterSemanticDecision = afterSemanticDecision
       )
     val materialEconomics =
       deriveMaterialEconomicsFact(
@@ -438,31 +532,51 @@ private[llm] object DecisiveTruth:
         swingSeverity = swingSeverity
       )
     val reasonFamily =
-      deriveReasonFamily(ctx, momentType, transition, investmentCp, verifiedInvestmentPayoff, tactical)
+      deriveReasonFamily(
+        momentType = momentType,
+        transition = transition,
+        benchmark = benchmark,
+        investmentCp = investmentCp,
+        verifiedInvestmentPayoff = verifiedInvestmentPayoff,
+        freshCommitmentEvidence = freshCommitmentEvidence,
+        tactical = tactical
+      )
     val strategicOwnership =
       deriveStrategicOwnershipFact(
         ctx = ctx,
-        strategyPack = strategyPack,
         materialEconomics = materialEconomics,
-        verifiedPayoffAnchor = verifiedPayoffAnchor,
+        freshCommitmentEvidence = freshCommitmentEvidence.copy(verifiedPayoffAnchor = verifiedPayoffAnchor),
+        currentInvestmentCp = currentInvestmentCp,
         investmentCp = investmentCp,
         reasonFamily = reasonFamily,
         verifiedInvestmentPayoff = verifiedInvestmentPayoff,
-        currentSemanticDecision = currentSemanticDecision,
-        surfaceSemanticDecision = surfaceSemanticDecision,
         transitionSignalsConversion = transitionSignalsConversion,
-        tactical = tactical
+        afterSemanticSupport = afterSemanticDecision.nonEmpty,
+        benchmark = benchmark,
+        tactical = tactical,
+        moveQuality = moveQuality,
+        currentSemanticDecision = currentSemanticDecision,
+        strategyPack = strategyPack
+      )
+    val failureInterpretation =
+      deriveFailureInterpretationFact(
+        moveQuality = moveQuality,
+        benchmark = benchmark,
+        tactical = tactical,
+        materialEconomics = materialEconomics,
+        strategicOwnership = strategicOwnership,
+        strategyPack = strategyPack
       )
     val difficultyNovelty =
       deriveDifficultyNoveltyFact(comparison, moveQuality, benchmark, tactical, strategicOwnership)
     val truthClass =
       projectTruthClass(moveQuality, strategicOwnership, benchmark, afterPerspective)
     val ownershipRole =
-      projectOwnershipRole(truthClass, strategicOwnership, benchmark, materialEconomics)
+      projectOwnershipRole(truthClass, strategicOwnership)
     val exemplarRole =
       projectExemplarRole(ownershipRole, strategicOwnership, moveQuality)
     val visibilityRole =
-      projectVisibilityRole(ownershipRole, exemplarRole, strategicOwnership)
+      projectVisibilityRole(ownershipRole, exemplarRole, truthClass, strategicOwnership)
     val surfaceMode =
       projectSurfaceMode(ownershipRole, truthClass, strategicOwnership)
     val compensationProseAllowed =
@@ -488,6 +602,7 @@ private[llm] object DecisiveTruth:
       materialEconomics = materialEconomics,
       strategicOwnership = strategicOwnership,
       punishConversion = punishConversion,
+      failureInterpretation = failureInterpretation,
       difficultyNovelty = difficultyNovelty,
       truthClass = truthClass,
       ownershipRole = ownershipRole,
@@ -617,12 +732,22 @@ private[llm] object DecisiveTruth:
     strategyPack.map { pack =>
       pack.copy(
         longTermFocus =
-          if contract.compensationProseAllowed then pack.longTermFocus
+          if !allowsFailureIntentInterpretation(contract) then Nil
+          else if contract.compensationProseAllowed then pack.longTermFocus
           else pack.longTermFocus.filterNot(isCompensationCarrierText),
+        pieceRoutes =
+          if allowsFailureIntentInterpretation(contract) then pack.pieceRoutes else Nil,
+        pieceMoveRefs =
+          if allowsFailureIntentInterpretation(contract) then pack.pieceMoveRefs else Nil,
+        directionalTargets =
+          if allowsFailureIntentInterpretation(contract) then pack.directionalTargets else Nil,
+        strategicIdeas =
+          if allowsFailureIntentInterpretation(contract) then pack.strategicIdeas else Nil,
         evidence =
-          if contract.compensationProseAllowed then pack.evidence
+          if !allowsFailureIntentInterpretation(contract) then Nil
+          else if contract.compensationProseAllowed then pack.evidence
           else pack.evidence.filterNot(isCompensationCarrierText),
-        signalDigest = sanitizeDigest(pack.signalDigest, contract)
+        signalDigest = sanitizeFailureDigest(sanitizeDigest(pack.signalDigest, contract), contract)
       )
     }
 
@@ -639,7 +764,9 @@ private[llm] object DecisiveTruth:
       surfacedMoveOwnsTruth = contract.surfacedMoveOwnsTruth,
       verifiedPayoffAnchor = contract.verifiedPayoffAnchor,
       benchmarkProseAllowed = contract.benchmarkProseAllowed,
-      chainKey = contract.investmentTruthChainKey
+      chainKey = contract.investmentTruthChainKey,
+      maintenanceExemplarCandidate = contract.maintenanceExemplarCandidate,
+      benchmarkCriticalMove = contract.benchmarkCriticalMove
     )
 
   private def deriveMoveQualityFact(
@@ -759,18 +886,7 @@ private[llm] object DecisiveTruth:
       transitionSignalsConversion: Boolean
   ): MaterialEconomicsFact =
     val shift = materialShift.getOrElse(MaterialShift(0, 0, 0, 0))
-    val sacrificeKind =
-      materialShift.flatMap { current =>
-        if current.movingPieceValue >= 900 && current.capturedPieceValue <= 500 && current.increasesDeficit then
-          Some("queen_sac")
-        else if current.movingPieceValue >= 500 && current.isValueDownCapture then
-          Some("exchange_sac")
-        else if current.movingPieceValue >= 300 && current.increasesDeficit then
-          Some("piece_sac")
-        else if current.movingPieceValue == 100 && current.increasesDeficit then
-          Some("pawn_sac")
-        else None
-      }
+    val sacrificeKind = classifySacrificeKind(materialShift)
     MaterialEconomicsFact(
       investedMaterialCp = investmentCp,
       beforeDeficit = shift.beforeDeficit,
@@ -785,61 +901,240 @@ private[llm] object DecisiveTruth:
       forcedRecovery = materialShift.exists(_.recoversDeficit) && transitionSignalsConversion
     )
 
+  private def classifySacrificeKind(materialShift: Option[MaterialShift]): Option[String] =
+    materialShift.flatMap { shift =>
+      if shift.isValueDownCapture && shift.movingPieceValue >= 500 && shift.capturedPieceValue <= 300 then
+        Some("exchange_sac")
+      else if shift.isValueDownCapture then Some("value_down_capture")
+      else if shift.capturedPieceValue == 0 && shift.increasesDeficit && shift.movingPieceValue >= 300 then
+        Some("piece_sac")
+      else if shift.increasesDeficit && shift.movingPieceValue > shift.capturedPieceValue then
+        Some("material_investment")
+      else None
+    }
+
+  private def collectFreshCommitmentEvidence(
+      strategyPack: Option[StrategyPack],
+      strategySurface: StrategyPackSurface.Snapshot,
+      materialShift: Option[MaterialShift],
+      currentSemanticDecision: Option[CompensationInterpretation.Decision],
+      afterSemanticDecision: Option[CompensationInterpretation.Decision],
+      currentInvestmentCp: Option[Int],
+      transitionSignalsConversion: Boolean,
+      moveQuality: MoveQualityFact
+  ): FreshCommitmentEvidence =
+    val currentMaterialSeed =
+      materialShift.exists(shift =>
+        classifySacrificeKind(Some(shift)).nonEmpty || shift.increasesDeficit || shift.isValueDownCapture
+      )
+    val moveLocalPayoffAnchor =
+      selectMoveLocalPayoffAnchor(
+        currentSemanticDecision = currentSemanticDecision,
+        strategyPack = strategyPack,
+        strategySurface = strategySurface
+      )
+    val currentConcreteCarrier =
+      strategyPack.exists(pack =>
+        pack.directionalTargets.nonEmpty || pack.pieceRoutes.nonEmpty || pack.pieceMoveRefs.nonEmpty
+      )
+    val currentSemanticSupport = currentSemanticDecision.nonEmpty
+    val afterSemanticSupport = afterSemanticDecision.nonEmpty
+    val legacyShellSupport =
+      strategySurface.compensationSummary.nonEmpty ||
+        strategySurface.compensationVectors.nonEmpty ||
+        strategySurface.investedMaterial.nonEmpty ||
+        strategyPack.exists(hasLegacyDurableInvestmentCarrier)
+    val blunderGrade =
+      moveQuality.verdict == MoveQualityVerdict.Blunder ||
+        moveQuality.verdict == MoveQualityVerdict.MissedWin
+    val seedEligible =
+      currentMaterialSeed &&
+        moveLocalPayoffAnchor.nonEmpty &&
+        !transitionSignalsConversion &&
+        !blunderGrade
+    val ownerEligible =
+      seedEligible && (currentSemanticSupport || currentInvestmentCp.nonEmpty)
+    val legacyVisibleOnly =
+      legacyShellSupport &&
+        !currentMaterialSeed &&
+        !currentSemanticSupport &&
+        !afterSemanticSupport &&
+        !currentConcreteCarrier
+    val provenance =
+      Set.newBuilder[CommitmentEvidenceProvenance]
+    if currentMaterialSeed then provenance += CommitmentEvidenceProvenance.CurrentMaterial
+    if currentSemanticSupport || currentConcreteCarrier then provenance += CommitmentEvidenceProvenance.CurrentSemantic
+    if afterSemanticSupport then provenance += CommitmentEvidenceProvenance.AfterSemantic
+    if legacyShellSupport then provenance += CommitmentEvidenceProvenance.LegacyShell
+    FreshCommitmentEvidence(
+      moveLocalPayoffAnchor = moveLocalPayoffAnchor,
+      verifiedPayoffAnchor = None,
+      provenance = provenance.result(),
+      currentMaterialSeed = currentMaterialSeed,
+      seedEligible = seedEligible,
+      ownerEligible = ownerEligible,
+      legacyVisibleOnly = legacyVisibleOnly,
+      currentConcreteCarrier = currentConcreteCarrier,
+      currentSemanticSupport = currentSemanticSupport,
+      afterSemanticSupport = afterSemanticSupport,
+      legacyShellSupport = legacyShellSupport
+    )
+
+  private def selectMoveLocalPayoffAnchor(
+      currentSemanticDecision: Option[CompensationInterpretation.Decision],
+      strategyPack: Option[StrategyPack],
+      strategySurface: StrategyPackSurface.Snapshot
+  ): Option[String] =
+    moveLocalPayoffSignals(
+      currentSemanticDecision = currentSemanticDecision,
+      strategyPack = strategyPack,
+      strategySurface = strategySurface
+    ).flatMap(normalizeVerifiedPayoffAnchor).headOption
+
+  private def moveLocalPayoffSignals(
+      currentSemanticDecision: Option[CompensationInterpretation.Decision],
+      strategyPack: Option[StrategyPack],
+      strategySurface: StrategyPackSurface.Snapshot
+  ): List[String] =
+    val semanticSignals =
+      currentSemanticDecision.toList.flatMap(decision =>
+        decision.signal.summary.toList ++ decision.signal.vectors
+      )
+    val packSignals =
+      strategyPack.toList.flatMap { pack =>
+        val digest = pack.signalDigest
+        (
+          List(
+            strategySurface.rawDominantIdeaText,
+            strategySurface.rawSecondaryIdeaText,
+            strategySurface.rawObjectiveText,
+            strategySurface.rawFocusText,
+            digest.flatMap(_.strategicFlow),
+            digest.flatMap(_.dominantIdeaFocus),
+            digest.flatMap(_.secondaryIdeaFocus)
+          ).flatten ++
+            pack.longTermFocus ++
+            pack.pieceRoutes.flatMap(routePurposeSignals) ++
+            pack.pieceMoveRefs.flatMap(moveRefPurposeSignals) ++
+            pack.directionalTargets.flatMap(directionalTargetSignals) ++
+            strategySurface.rawExecutionText.toList
+        )
+      }
+    (semanticSignals ++ packSignals).flatMap(normalized).distinct
+
+  private def semanticAnchorSignals(
+      currentSemanticDecision: Option[CompensationInterpretation.Decision]
+  ): List[String] =
+    currentSemanticDecision.toList
+      .flatMap(decision => decision.signal.summary.toList ++ decision.signal.vectors)
+      .flatMap(normalized)
+      .distinct
+
+  private def strictCurrentCarrierSignals(strategyPack: Option[StrategyPack]): List[String] =
+    strategyPack.toList
+      .flatMap(pack =>
+        pack.pieceRoutes.map(_.purpose) ++
+          pack.pieceMoveRefs.map(_.idea) ++
+          pack.directionalTargets.flatMap(_.strategicReasons)
+      )
+      .flatMap(normalized)
+      .distinct
+
+  private def matchedAnchorSignal(
+      verifiedPayoffAnchor: Option[String],
+      rawSignals: List[String]
+  ): Option[String] =
+    verifiedPayoffAnchor.filter(anchor =>
+      rawSignals.exists(signal => anchorSignalsMatch(anchor, signal))
+    )
+
+  private def hasMatchedAnchorSignal(
+      verifiedPayoffAnchor: Option[String],
+      rawSignals: List[String]
+  ): Boolean =
+    matchedAnchorSignal(verifiedPayoffAnchor, rawSignals).nonEmpty
+
+  private def routePurposeSignals(route: StrategyPieceRoute): List[String] =
+    val purpose = StrategyPackSurface.normalizeText(route.purpose)
+    val destination = route.route.lastOption.map(StrategyPackSurface.normalizeText).filter(_.nonEmpty)
+    val piece = StrategyPackSurface.pieceName(route.piece)
+    List(
+      Option.when(purpose.nonEmpty)(purpose),
+      Option.when(purpose.nonEmpty && destination.nonEmpty)(s"$piece toward ${destination.get} for $purpose")
+    ).flatten
+
+  private def moveRefPurposeSignals(moveRef: StrategyPieceMoveRef): List[String] =
+    val idea = StrategyPackSurface.normalizeText(moveRef.idea)
+    val target = StrategyPackSurface.normalizeText(moveRef.target)
+    val piece = StrategyPackSurface.pieceName(moveRef.piece)
+    List(
+      Option.when(idea.nonEmpty)(idea),
+      Option.when(idea.nonEmpty && target.nonEmpty)(s"$piece toward $target for $idea")
+    ).flatten
+
+  private def directionalTargetSignals(target: StrategyDirectionalTarget): List[String] =
+    val square = StrategyPackSurface.normalizeText(target.targetSquare)
+    val piece = StrategyPackSurface.pieceName(target.piece)
+    target.strategicReasons.map(StrategyPackSurface.normalizeText).filter(_.nonEmpty).distinct ++
+      Option.when(square.nonEmpty)(s"the $piece can head for $square").toList
+
   private def deriveReasonFamily(
-      ctx: NarrativeContext,
       momentType: Option[String],
       transition: Option[String],
+      benchmark: BenchmarkFact,
       investmentCp: Option[Int],
       verifiedInvestmentPayoff: Boolean,
+      freshCommitmentEvidence: FreshCommitmentEvidence,
       tactical: TacticalFact
   ): DecisiveReasonFamily =
+    val nonTrivialProofLine = tactical.proofLine.lengthCompare(2) >= 0
+    val proofBackedBestHold =
+      tactical.immediateRefutation ||
+        tactical.forcingLine ||
+        tactical.forcedMate ||
+        tactical.forcedDrawResource ||
+        nonTrivialProofLine
     if momentType.exists(_.equalsIgnoreCase("MissedWin")) then DecisiveReasonFamily.MissedWin
-    else if ctx.header.choiceType.equalsIgnoreCase("OnlyMove") && tactical.immediateRefutation then
+    else if (benchmark.onlyMove || benchmark.uniqueGoodMove) && proofBackedBestHold
+    then
       DecisiveReasonFamily.OnlyMoveDefense
     else if transition.exists(text =>
         text.contains("promotion") || text.contains("exchange") || text.contains("convert") || text.contains("simplif")
       )
     then DecisiveReasonFamily.Conversion
-    else if investmentCp.nonEmpty || verifiedInvestmentPayoff then DecisiveReasonFamily.InvestmentSacrifice
-    else if tactical.immediateRefutation || tactical.forcingLine then DecisiveReasonFamily.TacticalRefutation
+    else if investmentCp.nonEmpty || verifiedInvestmentPayoff || freshCommitmentEvidence.seedEligible then
+      DecisiveReasonFamily.InvestmentSacrifice
+    else if proofBackedBestHold then DecisiveReasonFamily.TacticalRefutation
     else DecisiveReasonFamily.QuietTechnicalMove
 
   private def deriveStrategicOwnershipFact(
       ctx: NarrativeContext,
-      strategyPack: Option[StrategyPack],
       materialEconomics: MaterialEconomicsFact,
-      verifiedPayoffAnchor: Option[String],
+      freshCommitmentEvidence: FreshCommitmentEvidence,
+      currentInvestmentCp: Option[Int],
       investmentCp: Option[Int],
       reasonFamily: DecisiveReasonFamily,
       verifiedInvestmentPayoff: Boolean,
-      currentSemanticDecision: Option[CompensationInterpretation.Decision],
-      surfaceSemanticDecision: Option[CompensationInterpretation.Decision],
       transitionSignalsConversion: Boolean,
-      tactical: TacticalFact
+      afterSemanticSupport: Boolean,
+      benchmark: BenchmarkFact,
+      tactical: TacticalFact,
+      moveQuality: MoveQualityFact,
+      currentSemanticDecision: Option[CompensationInterpretation.Decision],
+      strategyPack: Option[StrategyPack]
   ): StrategicOwnershipFact =
-    val captureLikeCommitment =
-      investmentCp.nonEmpty &&
-        verifiedPayoffAnchor.nonEmpty &&
-        materialEconomics.sacrificeKind.nonEmpty &&
-        !materialEconomics.recoversDeficit &&
-        !transitionSignalsConversion
-    val createsFreshInvestment =
-      verifiedPayoffAnchor.nonEmpty &&
-        investmentCp.nonEmpty &&
-        (
-          materialEconomics.increasesDeficit ||
-            materialEconomics.valueDownCapture ||
-            captureLikeCommitment
-        )
+    val verifiedPayoffAnchor = freshCommitmentEvidence.verifiedPayoffAnchor
+    val benchmarkCriticalMove = benchmark.onlyMove || benchmark.uniqueGoodMove
+    val createsFreshInvestment = freshCommitmentEvidence.seedEligible
     val recoversInvestment =
       verifiedPayoffAnchor.nonEmpty &&
         materialEconomics.recoversDeficit &&
-        (investmentCp.nonEmpty || transitionSignalsConversion)
+        (investmentCp.nonEmpty || transitionSignalsConversion || afterSemanticSupport)
     val maintainsInvestment =
       verifiedPayoffAnchor.nonEmpty &&
-        investmentCp.nonEmpty &&
         !createsFreshInvestment &&
-        !recoversInvestment
+        !recoversInvestment &&
+        (investmentCp.nonEmpty || afterSemanticSupport || freshCommitmentEvidence.legacyVisibleOnly)
     val truthPhase =
       if createsFreshInvestment then Some(InvestmentTruthPhase.FirstInvestmentCommitment)
       else if recoversInvestment || (transitionSignalsConversion && verifiedPayoffAnchor.nonEmpty) then
@@ -854,51 +1149,128 @@ private[llm] object DecisiveTruth:
           DecisiveReasonFamily.Conversion
         case None => reasonFamily
     val chainKey =
-      Option.when(investmentCp.nonEmpty && verifiedPayoffAnchor.nonEmpty) {
+      Option.when(truthPhase.nonEmpty && verifiedPayoffAnchor.nonEmpty) {
         buildInvestmentTruthChainKey(verifiedPayoffAnchor, chainReasonFamily, ctx)
       }.filter(_.nonEmpty)
-    val currentMoveEvidenceScore =
-      List(
-        Option.when(materialEconomics.sacrificeKind.nonEmpty)(2),
-        Option.when(materialEconomics.increasesDeficit || materialEconomics.recoversDeficit)(1),
-        Option.when(currentSemanticDecision.nonEmpty)(2),
-        Option.when(surfaceSemanticDecision.nonEmpty)(1),
-        Option.when(tactical.forcingLine)(1),
-        Option.when(verifiedPayoffAnchor.nonEmpty)(1)
-      ).flatten.sum
-    val currentMoveEvidence =
-      currentMoveEvidenceScore >= 2 ||
-        materialEconomics.sacrificeKind.nonEmpty ||
-        currentSemanticDecision.nonEmpty
-    val freshCommitmentCandidate =
-      truthPhase.contains(InvestmentTruthPhase.FirstInvestmentCommitment) &&
+    val currentSemanticAnchorMatch =
+      hasMatchedAnchorSignal(verifiedPayoffAnchor, semanticAnchorSignals(currentSemanticDecision))
+    val currentCarrierAnchorMatch =
+      hasMatchedAnchorSignal(verifiedPayoffAnchor, strictCurrentCarrierSignals(strategyPack))
+    val anchorMatchedCurrentEvidence = currentSemanticAnchorMatch || currentCarrierAnchorMatch
+    val tacticalPressureSignal =
+      tactical.immediateRefutation ||
+        tactical.forcingLine ||
+        tactical.forcedMate ||
+        tactical.forcedDrawResource ||
+        tactical.proofLine.nonEmpty
+    val badFollowthroughSignal =
+      moveQuality.isBad &&
+        !benchmark.chosenMatchesBest &&
         verifiedPayoffAnchor.nonEmpty &&
-        investmentCp.nonEmpty &&
-        !transitionSignalsConversion &&
-        (
-          materialEconomics.sacrificeKind.nonEmpty ||
-            materialEconomics.increasesDeficit ||
-            currentMoveEvidenceScore >= 2
-        )
-    val surfaceEvidenceStrong =
-      verifiedInvestmentPayoff ||
-        strategyPack.exists(hasLegacyDurableInvestmentCarrier) ||
-        currentSemanticDecision.nonEmpty ||
-        surfaceSemanticDecision.nonEmpty
+        anchorMatchedCurrentEvidence
+    val maintenancePressureQualified =
+      benchmark.onlyMove ||
+        benchmark.uniqueGoodMove ||
+        tacticalPressureSignal ||
+        badFollowthroughSignal ||
+        currentSemanticAnchorMatch
+    val criticalMaintenance =
+      truthPhase.contains(InvestmentTruthPhase.CompensationMaintenance) &&
+        verifiedPayoffAnchor.nonEmpty &&
+        chainKey.nonEmpty &&
+        verifiedInvestmentPayoff &&
+        anchorMatchedCurrentEvidence &&
+        maintenancePressureQualified &&
+        !freshCommitmentEvidence.legacyVisibleOnly
 
     StrategicOwnershipFact(
       truthPhase = truthPhase,
       reasonFamily = chainReasonFamily,
+      benchmarkCriticalMove = benchmarkCriticalMove,
       verifiedPayoffAnchor = verifiedPayoffAnchor,
       chainKey = chainKey,
+      evidenceProvenance = freshCommitmentEvidence.provenance,
       createsFreshInvestment = createsFreshInvestment,
       maintainsInvestment = maintainsInvestment,
       convertsInvestment = recoversInvestment || transitionSignalsConversion,
       durablePressure = verifiedInvestmentPayoff,
-      currentMoveEvidenceScore = currentMoveEvidenceScore,
-      currentMoveEvidence = currentMoveEvidence,
-      freshCommitmentCandidate = freshCommitmentCandidate,
-      surfaceEvidenceStrong = surfaceEvidenceStrong
+      currentMoveEvidence = freshCommitmentEvidence.currentMoveEvidence,
+      currentConcreteCarrier = freshCommitmentEvidence.currentConcreteCarrier,
+      currentSemanticAnchorMatch = currentSemanticAnchorMatch,
+      currentCarrierAnchorMatch = currentCarrierAnchorMatch,
+      freshCommitmentCandidate = freshCommitmentEvidence.seedEligible,
+      freshCurrentInvestmentEvidence =
+        freshCommitmentEvidence.currentMaterialSeed || anchorMatchedCurrentEvidence,
+      ownerEligible =
+        freshCommitmentEvidence.ownerEligible ||
+          (
+            createsFreshInvestment &&
+              currentInvestmentCp.nonEmpty &&
+              freshCommitmentEvidence.currentMaterialSeed &&
+              freshCommitmentEvidence.verifiedPayoffAnchor.nonEmpty
+          ),
+      legacyVisibleOnly = freshCommitmentEvidence.legacyVisibleOnly,
+      maintenancePressureQualified = maintenancePressureQualified,
+      criticalMaintenance = criticalMaintenance,
+      maintenanceExemplarCandidate = criticalMaintenance
+    )
+
+  private def deriveFailureInterpretationFact(
+      moveQuality: MoveQualityFact,
+      benchmark: BenchmarkFact,
+      tactical: TacticalFact,
+      materialEconomics: MaterialEconomicsFact,
+      strategicOwnership: StrategicOwnershipFact,
+      strategyPack: Option[StrategyPack]
+  ): FailureInterpretationFact =
+    val routeTargetAnchor =
+      selectConcreteCarrierAnchor(strategyPack, strategicOwnership.verifiedPayoffAnchor)
+    val semanticIntentAnchor =
+      Option.when(strategicOwnership.currentSemanticAnchorMatch)(strategicOwnership.verifiedPayoffAnchor).flatten
+    val intentAnchor = routeTargetAnchor.orElse(semanticIntentAnchor)
+    val proofBackedCriticalHold =
+      tactical.immediateRefutation ||
+        tactical.forcingLine ||
+        tactical.forcedMate ||
+        tactical.forcedDrawResource ||
+        tactical.proofLine.lengthCompare(2) >= 0
+    val failureMode =
+      if !moveQuality.isBad then FailureInterpretationMode.NoClearPlan
+      else if materialEconomics.sacrificeKind.nonEmpty &&
+        strategicOwnership.freshCurrentInvestmentEvidence &&
+        intentAnchor.nonEmpty &&
+        !strategicOwnership.legacyVisibleOnly
+      then FailureInterpretationMode.SpeculativeInvestmentFailed
+      else if strategicOwnership.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+        (benchmark.onlyMove && intentAnchor.nonEmpty) ||
+        (strategicOwnership.benchmarkCriticalMove && proofBackedCriticalHold)
+      then
+        FailureInterpretationMode.OnlyMoveFailure
+      else if tactical.immediateRefutation ||
+        tactical.forcingLine ||
+        tactical.proofLine.lengthCompare(2) >= 0 ||
+        strategicOwnership.reasonFamily == DecisiveReasonFamily.TacticalRefutation
+      then FailureInterpretationMode.TacticalRefutation
+      else if strategicOwnership.verifiedPayoffAnchor.nonEmpty then FailureInterpretationMode.QuietPositionalCollapse
+      else FailureInterpretationMode.NoClearPlan
+    val intentConfidence =
+      if !moveQuality.isBad then 0.0
+      else if routeTargetAnchor.nonEmpty then
+        if benchmark.onlyMove then 0.92
+        else if tactical.immediateRefutation || tactical.forcingLine then 0.84
+        else 0.76
+      else if semanticIntentAnchor.nonEmpty then
+        if tactical.immediateRefutation || tactical.forcingLine then 0.66 else 0.62
+      else 0.0
+    val interpretationAllowed =
+      moveQuality.isBad &&
+        failureMode != FailureInterpretationMode.NoClearPlan &&
+        intentAnchor.nonEmpty
+    FailureInterpretationFact(
+      failureMode = failureMode,
+      intentConfidence = intentConfidence,
+      intentAnchor = Option.when(moveQuality.isBad && intentAnchor.nonEmpty)(intentAnchor).flatten,
+      interpretationAllowed = interpretationAllowed
     )
 
   private def deriveDifficultyNoveltyFact(
@@ -983,7 +1355,9 @@ private[llm] object DecisiveTruth:
       surfacedMoveOwnsTruth = ownsTruth,
       verifiedPayoffAnchor = verifiedPayoffAnchor,
       benchmarkProseAllowed = benchmarkProseAllowed,
-      chainKey = chainKey
+      chainKey = chainKey,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false
     )
 
   private def derivePunishConversionFact(
@@ -1047,9 +1421,7 @@ private[llm] object DecisiveTruth:
 
   private def projectOwnershipRole(
       truthClass: DecisiveTruthClass,
-      strategicOwnership: StrategicOwnershipFact,
-      benchmark: BenchmarkFact,
-      materialEconomics: MaterialEconomicsFact
+      strategicOwnership: StrategicOwnershipFact
   ): TruthOwnershipRole =
     truthClass match
       case DecisiveTruthClass.Blunder | DecisiveTruthClass.MissedWin =>
@@ -1059,22 +1431,13 @@ private[llm] object DecisiveTruth:
           case Some(InvestmentTruthPhase.FirstInvestmentCommitment)
               if strategicOwnership.verifiedPayoffAnchor.nonEmpty &&
                 strategicOwnership.freshCommitmentCandidate &&
-                (
-                  strategicOwnership.surfaceEvidenceStrong ||
-                    (
-                      benchmark.chosenMatchesBest &&
-                        materialEconomics.investedMaterialCp.exists(_ >= DirectCommitmentOwnershipInvestmentCp) &&
-                        strategicOwnership.currentMoveEvidence
-                    )
-                ) =>
+                strategicOwnership.ownerEligible =>
             TruthOwnershipRole.CommitmentOwner
           case Some(InvestmentTruthPhase.ConversionFollowthrough)
               if strategicOwnership.verifiedPayoffAnchor.nonEmpty || strategicOwnership.convertsInvestment =>
             TruthOwnershipRole.ConversionOwner
           case Some(InvestmentTruthPhase.CompensationMaintenance)
-              if strategicOwnership.verifiedPayoffAnchor.nonEmpty &&
-                strategicOwnership.currentMoveEvidence &&
-                strategicOwnership.durablePressure =>
+              if strategicOwnership.criticalMaintenance =>
             TruthOwnershipRole.MaintenanceEcho
           case _ =>
             TruthOwnershipRole.NoneRole
@@ -1097,6 +1460,7 @@ private[llm] object DecisiveTruth:
   private def projectVisibilityRole(
       ownershipRole: TruthOwnershipRole,
       exemplarRole: TruthExemplarRole,
+      truthClass: DecisiveTruthClass,
       strategicOwnership: StrategicOwnershipFact
   ): TruthVisibilityRole =
     ownershipRole match
@@ -1107,11 +1471,15 @@ private[llm] object DecisiveTruth:
           TruthVisibilityRole.PrimaryVisible
         else TruthVisibilityRole.SupportingVisible
       case TruthOwnershipRole.MaintenanceEcho =>
-        if strategicOwnership.verifiedPayoffAnchor.nonEmpty || strategicOwnership.chainKey.nonEmpty then
+        if strategicOwnership.criticalMaintenance then
           TruthVisibilityRole.SupportingVisible
         else TruthVisibilityRole.Hidden
       case TruthOwnershipRole.NoneRole =>
-        exemplarRole match
+        if truthClass == DecisiveTruthClass.Best &&
+          strategicOwnership.benchmarkCriticalMove &&
+          strategicOwnership.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+        then TruthVisibilityRole.PrimaryVisible
+        else exemplarRole match
           case TruthExemplarRole.ProvisionalExemplar => TruthVisibilityRole.SupportingVisible
           case _                                     => TruthVisibilityRole.Hidden
 
@@ -1125,19 +1493,46 @@ private[llm] object DecisiveTruth:
         TruthSurfaceMode.FailureExplain
       case TruthOwnershipRole.CommitmentOwner
           if strategicOwnership.verifiedPayoffAnchor.nonEmpty &&
-            strategicOwnership.surfaceEvidenceStrong &&
+            strategicOwnership.durablePressure &&
             (
               truthClass == DecisiveTruthClass.WinningInvestment ||
                 truthClass == DecisiveTruthClass.CompensatedInvestment
             ) =>
         TruthSurfaceMode.InvestmentExplain
-      case TruthOwnershipRole.MaintenanceEcho if strategicOwnership.verifiedPayoffAnchor.nonEmpty =>
+      case TruthOwnershipRole.MaintenanceEcho if strategicOwnership.criticalMaintenance =>
         TruthSurfaceMode.MaintenancePreserve
       case TruthOwnershipRole.ConversionOwner
           if strategicOwnership.verifiedPayoffAnchor.nonEmpty || strategicOwnership.convertsInvestment =>
         TruthSurfaceMode.ConversionExplain
       case _ =>
         TruthSurfaceMode.Neutral
+
+  private def selectConcreteCarrierAnchor(
+      strategyPack: Option[StrategyPack],
+      verifiedPayoffAnchor: Option[String]
+  ): Option[String] =
+    matchedAnchorSignal(verifiedPayoffAnchor, strictCurrentCarrierSignals(strategyPack))
+
+  private def allowsFailureIntentInterpretation(contract: DecisiveTruthContract): Boolean =
+    contract.ownershipRole != TruthOwnershipRole.BlunderOwner || contract.failureInterpretationAllowed
+
+  private def sanitizeFailureDigest(
+      digest: Option[NarrativeSignalDigest],
+      contract: DecisiveTruthContract
+  ): Option[NarrativeSignalDigest] =
+    if allowsFailureIntentInterpretation(contract) then digest
+    else
+      digest.map(
+        _.copy(
+          dominantIdeaKind = None,
+          dominantIdeaGroup = None,
+          dominantIdeaReadiness = None,
+          dominantIdeaFocus = None,
+          secondaryIdeaKind = None,
+          secondaryIdeaGroup = None,
+          secondaryIdeaFocus = None
+        )
+      )
 
   private def tacticalMotifId(fact: Fact): Option[String] =
     fact match
@@ -1233,31 +1628,15 @@ private[llm] object DecisiveTruth:
   ): Option[CompensationInterpretation.SemanticDecision] =
     CompensationInterpretation.afterSemanticDecision(ctx).filter(_.decision.accepted)
 
-  private def surfaceAcceptedDecision(
-      ctx: NarrativeContext,
-      strategyPack: Option[StrategyPack]
-  ): Option[CompensationInterpretation.Decision] =
-    strategyPack.flatMap(pack =>
-      CompensationInterpretation.surfaceDecision(ctx, StrategyPackSurface.from(Some(pack))).filter(_.accepted)
-    )
-
   private def selectVerifiedPayoffAnchor(
-      freshDecision: Option[CompensationInterpretation.Decision],
-      strategyPack: Option[StrategyPack]
+      moveLocalPayoffAnchor: Option[String],
+      afterSemanticDecision: Option[CompensationInterpretation.Decision]
   ): Option[String] =
-    val structured =
-      freshDecision.toList.flatMap { decision =>
+    val afterSignals =
+      afterSemanticDecision.toList.flatMap { decision =>
         decision.signal.summary.toList ++ decision.signal.vectors
       }.flatMap(normalizeVerifiedPayoffAnchor).headOption
-    val currentMoveSignals =
-      strategyPack.toList.flatMap { pack =>
-        List(
-          pack.signalDigest.flatMap(_.strategicFlow),
-          pack.longTermFocus.headOption,
-          pack.signalDigest.flatMap(_.dominantIdeaFocus)
-        ).flatten
-      }.flatMap(normalizeVerifiedPayoffAnchor).headOption
-    structured.orElse(currentMoveSignals)
+    moveLocalPayoffAnchor.orElse(afterSignals)
 
   private def normalizeVerifiedPayoffAnchor(raw: String): Option[String] =
     Option(raw)
@@ -1311,6 +1690,46 @@ private[llm] object DecisiveTruth:
         lower.contains("open lines stay active") ||
         lower.contains("keep the material invested")
     hasStrategicNoun && !genericShell
+
+  private def anchorSignalsMatch(anchor: String, signal: String): Boolean =
+    val anchorTokens = anchorMatchTokens(anchor)
+    val signalTokens = anchorMatchTokens(signal)
+    anchorTokens.nonEmpty &&
+      signalTokens.nonEmpty &&
+      anchorTokens.intersect(signalTokens).size >= requiredAnchorOverlap(anchorTokens.size)
+
+  private def anchorMatchTokens(raw: String): Set[String] =
+    Option(raw)
+      .map(_.toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("""\s+""", " ").trim)
+      .toList
+      .flatMap(_.split(" ").toList)
+      .filter(token => token.length > 1 && !AnchorMatchStopTokens.contains(token))
+      .toSet
+
+  private def requiredAnchorOverlap(anchorTokenCount: Int): Int =
+    if anchorTokenCount <= 1 then 1 else 2
+
+  private val AnchorMatchStopTokens = Set(
+    "the",
+    "and",
+    "for",
+    "with",
+    "into",
+    "from",
+    "that",
+    "this",
+    "same",
+    "more",
+    "than",
+    "while",
+    "before",
+    "after",
+    "under",
+    "over",
+    "toward",
+    "head",
+    "can"
+  )
 
   private def buildInvestmentTruthChainKey(
       verifiedPayoffAnchor: Option[String],

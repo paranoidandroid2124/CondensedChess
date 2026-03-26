@@ -48,9 +48,11 @@ private[llm] object BookmakerLiveCompressionPolicy:
       ctx: NarrativeContext,
       outline: NarrativeOutline,
       refs: Option[BookmakerRefsV1],
-      strategyPack: Option[StrategyPack]
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract] = None
   ): BookmakerPolishSlots =
-    buildSlots(ctx, outline, refs, strategyPack).getOrElse(compactFallbackSlots(ctx, outline))
+    buildSlots(ctx, outline, refs, strategyPack, truthContract)
+      .getOrElse(compactFallbackSlots(ctx, outline, truthContract))
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
     cleanSentence(raw, ctx)
@@ -59,11 +61,16 @@ private[llm] object BookmakerLiveCompressionPolicy:
       ctx: NarrativeContext,
       outline: NarrativeOutline,
       refs: Option[BookmakerRefsV1],
-      strategyPack: Option[StrategyPack]
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[BookmakerPolishSlots] =
-    quietStandardOpeningClaim(ctx)
-      .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx))
-      .flatMap(cleanSentence(_, ctx).orElse(quietStandardOpeningClaim(ctx)).orElse(StandardCommentaryClaimPolicy.noEventNote(ctx)))
+    quietStandardOpeningClaim(ctx, truthContract)
+      .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract))
+      .flatMap(
+        cleanSentence(_, ctx)
+          .orElse(quietStandardOpeningClaim(ctx, truthContract))
+          .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract))
+      )
       .map { quietClaim =>
         BookmakerPolishSlots(
           lens = StrategicLens.Decision,
@@ -78,8 +85,8 @@ private[llm] object BookmakerLiveCompressionPolicy:
         )
       }
       .orElse {
-        val compactOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx)
-        val thesis = StrategicThesisBuilder.build(ctx, strategyPack)
+        val compactOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx, truthContract)
+        val thesis = StrategicThesisBuilder.build(ctx, strategyPack, truthContract)
         val surface = StrategyPackSurface.from(strategyPack)
         val mainMoveBeat = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).filter(_.nonEmpty)
         val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).filter(_.nonEmpty)
@@ -118,7 +125,8 @@ private[llm] object BookmakerLiveCompressionPolicy:
                 ctx = ctx,
                 selection = selection,
                 supportRemainder = selection.support.drop(1),
-                refs = refs
+                refs = refs,
+                truthContract = truthContract
               )
             }.flatten
           val coda =
@@ -177,8 +185,11 @@ private[llm] object BookmakerLiveCompressionPolicy:
         }
       }
 
-  private def quietStandardOpeningClaim(ctx: NarrativeContext): Option[String] =
-    StandardCommentaryClaimPolicy.noEventNote(ctx)
+  private def quietStandardOpeningClaim(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[String] =
+    StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract)
       .filter(_ =>
         StandardCommentaryClaimPolicy.openingLike(ctx) &&
           ctx.ply <= 16
@@ -323,12 +334,13 @@ private[llm] object BookmakerLiveCompressionPolicy:
       ctx: NarrativeContext,
       selection: ClaimSelection,
       supportRemainder: List[String],
-      refs: Option[BookmakerRefsV1]
+      refs: Option[BookmakerRefsV1],
+      truthContract: Option[DecisiveTruthContract]
   ): Option[String] =
     val citedLine =
       variationGuardrail(refs)
         .flatMap(cleanSentence(_, ctx))
-        .filter(_ => shouldUseCitedLine(ctx, selection.family))
+        .filter(_ => shouldUseCitedLine(ctx, selection.family, truthContract))
     val preferredNuance =
       Option.when(citedLine.isEmpty) {
         supportRemainder
@@ -355,14 +367,12 @@ private[llm] object BookmakerLiveCompressionPolicy:
       wrapBeat.flatMap(cleanSentence(_, ctx))
     }.flatten
 
-  private def shouldUseCitedLine(ctx: NarrativeContext, family: ClaimFamily): Boolean =
-    val tacticallyTense =
-      ctx.header.criticality.equalsIgnoreCase("critical") ||
-        ctx.header.criticality.equalsIgnoreCase("forced") ||
-        ctx.header.choiceType.equalsIgnoreCase("OnlyMove") ||
-        ctx.counterfactual.nonEmpty ||
-        ctx.meta.flatMap(_.errorClass).exists(_.isTactical)
-    tacticallyTense && family != ClaimFamily.Practical
+  private def shouldUseCitedLine(
+      ctx: NarrativeContext,
+      family: ClaimFamily,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    TacticalTensionPolicy.isTacticallyTense(ctx, truthContract) && family != ClaimFamily.Practical
 
   private def renderDecisionLogic(raw: String): Option[String] =
     normalized(raw).map { text =>
@@ -586,7 +596,8 @@ private[llm] object BookmakerLiveCompressionPolicy:
 
   private def compactFallbackSlots(
       ctx: NarrativeContext,
-      outline: NarrativeOutline
+      outline: NarrativeOutline,
+      truthContract: Option[DecisiveTruthContract]
   ): BookmakerPolishSlots =
     val mainMoveBeat = outline.beats.find(_.kind == OutlineBeatKind.MainMove).map(_.text).filter(_.nonEmpty)
     val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).map(_.text).filter(_.nonEmpty)
@@ -598,8 +609,8 @@ private[llm] object BookmakerLiveCompressionPolicy:
       fallbackSentences.headOption
         .orElse(fallbackSupport(ctx, ClaimFamily.Decision))
         .orElse(fallbackMovePurpose(ctx))
-        .orElse(quietStandardOpeningClaim(ctx).flatMap(cleanSentence(_, ctx)))
-        .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx).flatMap(cleanSentence(_, ctx)))
+        .orElse(quietStandardOpeningClaim(ctx, truthContract).flatMap(cleanSentence(_, ctx)))
+        .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract).flatMap(cleanSentence(_, ctx)))
         .getOrElse("The move improves the position without forcing a sharp change yet.")
     val support =
       fallbackSentences.drop(1).headOption

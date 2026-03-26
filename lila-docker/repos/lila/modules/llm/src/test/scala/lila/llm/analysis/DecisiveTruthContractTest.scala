@@ -3,6 +3,8 @@ package lila.llm.analysis
 import munit.FunSuite
 import lila.llm.*
 import lila.llm.model.*
+import lila.llm.analysis.DecisiveTruth.toContract
+import lila.llm.model.strategic.{ EngineEvidence, VariationLine }
 
 class DecisiveTruthContractTest extends FunSuite:
 
@@ -26,11 +28,14 @@ class DecisiveTruthContractTest extends FunSuite:
       playedMove: String,
       playedSan: String,
       fen: String = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-      semantic: Option[SemanticSection] = None
+      semantic: Option[SemanticSection] = None,
+      criticality: String = "Critical",
+      choiceType: String = "StyleChoice",
+      engineVariations: List[VariationLine] = Nil
   ): NarrativeContext =
     NarrativeContext(
       fen = fen,
-      header = ContextHeader("Middlegame", "Critical", "StyleChoice", "Medium", "ExplainPlan"),
+      header = ContextHeader("Middlegame", criticality, choiceType, "Medium", "ExplainPlan"),
       ply = 24,
       playedMove = Some(playedMove),
       playedSan = Some(playedSan),
@@ -41,6 +46,7 @@ class DecisiveTruthContractTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Middlegame", "Balanced middlegame"),
       candidates = Nil,
+      engineEvidence = Option.when(engineVariations.nonEmpty)(EngineEvidence(depth = 18, variations = engineVariations)),
       semantic = semantic,
       renderMode = NarrativeRenderMode.FullGame
     )
@@ -323,7 +329,12 @@ class DecisiveTruthContractTest extends FunSuite:
         ctx(
           playedMove = "d1d5",
           playedSan = "Rxd5",
-          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1"
+          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1",
+          engineVariations =
+            List(
+              VariationLine(moves = List("d1e2"), scoreCp = 220),
+              VariationLine(moves = List("g1f3"), scoreCp = 205)
+            )
         ),
       cpBefore = Some(20),
       cpAfter = Some(180),
@@ -342,7 +353,7 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(contract.verifiedPayoffAnchor, Some("pressure on d5"))
   }
 
-  test("later preserving move becomes compensation maintenance and loses fresh investment ownership") {
+  test("routine preserving move stays in maintenance truth phase but loses public maintenance visibility") {
     val pack =
       StrategyPack(
         sideToMove = "white",
@@ -381,28 +392,452 @@ class DecisiveTruthContractTest extends FunSuite:
 
     assertEquals(contract.truthPhase, Some(InvestmentTruthPhase.CompensationMaintenance))
     assertEquals(contract.truthClass, DecisiveTruthClass.Best)
-    assertEquals(contract.ownershipRole, TruthOwnershipRole.MaintenanceEcho)
-    assertEquals(contract.visibilityRole, TruthVisibilityRole.SupportingVisible)
-    assertEquals(contract.surfaceMode, TruthSurfaceMode.MaintenancePreserve)
+    assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(contract.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
     assertEquals(contract.exemplarRole, TruthExemplarRole.NonExemplar)
     assertEquals(contract.isInvestment, false)
     assertEquals(contract.surfacedMoveOwnsTruth, false)
     assertEquals(contract.compensationProseAllowed, false)
     assertEquals(contract.verifiedPayoffAnchor, Some("central file pressure"))
+    assertEquals(contract.maintenanceExemplarCandidate, false)
     assertEquals(sanitizedPack.signalDigest.flatMap(_.compensation), None)
     assertEquals(sanitizedPack.signalDigest.flatMap(_.investedMaterial), None)
   }
 
-  test("low-confidence real exemplar stays visible without claiming compensation ownership") {
+  test("generic route carrier no longer promotes routine maintenance into a maintenance candidate") {
     val pack =
       StrategyPack(
         sideToMove = "white",
-        longTermFocus = List("pressure on e6"),
+        longTermFocus = List("central file pressure"),
+        pieceRoutes =
+          List(
+            StrategyPieceRoute(
+              ownerSide = "white",
+              piece = "R",
+              from = "d1",
+              route = List("d1", "d3", "d5"),
+              purpose = "queenside pressure",
+              strategicFit = 0.87,
+              tacticalSafety = 0.82,
+              surfaceConfidence = 0.84,
+              surfaceMode = RouteSurfaceMode.Exact
+            )
+          ),
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "target_d5",
+              ownerSide = "white",
+              piece = "R",
+              from = "d1",
+              targetSquare = "d5",
+              readiness = "build",
+              strategicReasons = List("queenside pressure")
+            )
+          ),
         signalDigest =
           Some(
             NarrativeSignalDigest(
+              compensation = Some("central file pressure"),
+              compensationVectors = List("central files"),
               investedMaterial = Some(100),
               dominantIdeaFocus = Some("pressure on e6")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Kh2",
+        engineBestMove = Some("Kh2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "g1h2",
+          playedSan = "Kh2",
+          fen = "r5k1/8/8/8/1b6/8/8/3R2K1 w - - 0 1"
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(40),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.strategicOwnership.truthPhase, Some(InvestmentTruthPhase.CompensationMaintenance))
+    assertEquals(frame.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(frame.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(frame.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(frame.exemplarRole, TruthExemplarRole.NonExemplar)
+    assertEquals(frame.strategicOwnership.currentMoveEvidence, true)
+    assertEquals(frame.strategicOwnership.currentConcreteCarrier, true)
+    assertEquals(frame.strategicOwnership.legacyVisibleOnly, false)
+    assertEquals(frame.strategicOwnership.currentCarrierAnchorMatch, false)
+    assertEquals(frame.strategicOwnership.maintenanceExemplarCandidate, false)
+    assert(frame.strategicOwnership.evidenceProvenance.contains(CommitmentEvidenceProvenance.CurrentSemantic))
+    assert(frame.strategicOwnership.evidenceProvenance.contains(CommitmentEvidenceProvenance.LegacyShell))
+    assertEquals(frame.surfacedMoveOwnsTruth, false)
+    assertEquals(frame.compensationProseAllowed, false)
+  }
+
+  test("critical maintenance keeps maintenance visibility when the best move is a direct only-move hold") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("central file pressure"),
+        pieceRoutes =
+          List(
+            StrategyPieceRoute(
+              ownerSide = "white",
+              piece = "R",
+              from = "d1",
+              route = List("d1", "d3", "d5"),
+              purpose = "central file pressure",
+              strategicFit = 0.87,
+              tacticalSafety = 0.82,
+              surfaceConfidence = 0.84,
+              surfaceMode = RouteSurfaceMode.Exact
+            )
+          ),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              compensation = Some("central file pressure"),
+              compensationVectors = List("central file pressure", "central files"),
+              investedMaterial = Some(100),
+              dominantIdeaFocus = Some("central file pressure")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Kh2",
+        engineBestMove = Some("Kh2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "g1h2",
+          playedSan = "Kh2",
+          fen = "r5k1/8/8/8/1b6/8/8/3R2K1 w - - 0 1",
+          choiceType = "OnlyMove"
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(40),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.strategicOwnership.truthPhase, Some(InvestmentTruthPhase.CompensationMaintenance))
+    assertEquals(frame.strategicOwnership.currentCarrierAnchorMatch, true)
+    assertEquals(frame.strategicOwnership.maintenancePressureQualified, true)
+    assertEquals(frame.strategicOwnership.criticalMaintenance, true)
+    assertEquals(frame.ownershipRole, TruthOwnershipRole.MaintenanceEcho)
+    assertEquals(frame.visibilityRole, TruthVisibilityRole.SupportingVisible)
+    assertEquals(frame.surfaceMode, TruthSurfaceMode.MaintenancePreserve)
+    assertEquals(frame.strategicOwnership.maintenanceExemplarCandidate, true)
+  }
+
+  test("bare target-square scaffolding cannot authorize a failure intent anchor") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("pressure on b7"),
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "target_b7",
+              ownerSide = "white",
+              piece = "Q",
+              from = "d1",
+              targetSquare = "b7",
+              readiness = "build",
+              strategicReasons = Nil
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Qa4",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 220
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d1a4",
+          playedSan = "Qa4",
+          fen = "rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        ),
+      cpBefore = Some(20),
+      cpAfter = Some(0),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.QuietPositionalCollapse)
+    assertEquals(frame.failureInterpretation.intentAnchor, None)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, false)
+  }
+
+  test("legacy shell sacrifice without a fresh matched anchor no longer counts as speculative investment failure") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("open-file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              compensation = Some("open-file pressure"),
+              compensationVectors = List("initiative"),
+              investedMaterial = Some(200)
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Rxd5",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 360
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d1d5",
+          playedSan = "Rxd5",
+          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1"
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(0),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
+    assertNotEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.SpeculativeInvestmentFailed)
+    assertEquals(frame.failureInterpretation.intentAnchor, None)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, false)
+  }
+
+  test("forcing-line blunder with a concrete route carrier keeps a tactical failure interpretation") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes =
+          List(
+            StrategyPieceRoute(
+              ownerSide = "white",
+              piece = "Q",
+              from = "d1",
+              route = List("d1", "h5"),
+              purpose = "kingside pressure",
+              strategicFit = 0.82,
+              tacticalSafety = 0.50,
+              surfaceConfidence = 0.78,
+              surfaceMode = RouteSurfaceMode.Exact
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Qh5",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 360
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d1h5",
+          playedSan = "Qh5",
+          fen = "rnb1kbnr/pppp1ppp/8/4p2q/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          engineVariations =
+            List(
+              VariationLine(moves = List("d1e2"), scoreCp = 220),
+              VariationLine(moves = List("g1f3"), scoreCp = 205)
+            )
+        ),
+      momentType = Some("AdvantageSwing"),
+      cpBefore = Some(80),
+      cpAfter = Some(-160),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
+    assertEquals(frame.ownershipRole, TruthOwnershipRole.BlunderOwner)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.TacticalRefutation)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, true)
+    assert(frame.failureInterpretation.intentAnchor.contains("kingside pressure"), clue(frame.failureInterpretation))
+  }
+
+  test("only-move failure keeps the stronger failure mode when the player plan is concrete") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceMoveRefs =
+          List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "N",
+              from = "f3",
+              target = "f7",
+              idea = "attack f7",
+              evidence = List("threatens pressure on f7")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Ng5",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 360
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "f3g5",
+          playedSan = "Ng5",
+          fen = "rnbqkbnr/pppp1ppp/8/4p3/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1",
+          choiceType = "OnlyMove"
+        ),
+      cpBefore = Some(30),
+      cpAfter = Some(-10),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.OnlyMoveFailure)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, true)
+    assert(frame.failureInterpretation.intentAnchor.exists(_.contains("attack f7")), clue(frame.failureInterpretation))
+  }
+
+  test("objective-only quiet collapse is not allowed to over-interpret intent and strips strategy carriers") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("pressure on b7"),
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "idea_space",
+              ownerSide = "white",
+              kind = StrategicIdeaKind.SpaceGainOrRestriction,
+              group = "slow_structural",
+              readiness = StrategicIdeaReadiness.Build,
+              focusSquares = List("b5"),
+              beneficiaryPieces = List("P"),
+              confidence = 0.64
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "a4",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 360
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "a2a4",
+          playedSan = "a4",
+          fen = "rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          engineVariations =
+            List(
+              VariationLine(moves = List("d1e2"), scoreCp = 220),
+              VariationLine(moves = List("g1f3"), scoreCp = 205)
+            )
+        ),
+      cpBefore = Some(20),
+      cpAfter = Some(0),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+    val sanitizedPack = DecisiveTruth.sanitizeStrategyPack(Some(pack), frame.toContract).getOrElse(fail("missing pack"))
+
+    assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.QuietPositionalCollapse)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, false)
+    assertEquals(sanitizedPack.longTermFocus, Nil)
+    assertEquals(sanitizedPack.strategicIdeas, Nil)
+    assertEquals(sanitizedPack.pieceRoutes, Nil)
+    assertEquals(sanitizedPack.directionalTargets, Nil)
+    assert(sanitizedPack.signalDigest.flatMap(_.dominantIdeaFocus).isEmpty, clue(sanitizedPack.signalDigest))
+  }
+
+  test("failed speculative sacrifice is tagged separately from generic tactical blunders") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes =
+          List(
+            StrategyPieceRoute(
+              ownerSide = "white",
+              piece = "R",
+              from = "d1",
+              route = List("d1", "d5"),
+              purpose = "open-file pressure",
+              strategicFit = 0.86,
+              tacticalSafety = 0.41,
+              surfaceConfidence = 0.76,
+              surfaceMode = RouteSurfaceMode.Exact
+            )
+          ),
+        longTermFocus = List("open-file pressure"),
+        signalDigest = Some(NarrativeSignalDigest(dominantIdeaFocus = Some("open-file pressure")))
+      )
+    val raw =
+      comparison(
+        chosenMove = "Rxd5",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 360
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d1d5",
+          playedSan = "Rxd5",
+          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1",
+          engineVariations =
+            List(
+              VariationLine(moves = List("d1e2"), scoreCp = 220),
+              VariationLine(moves = List("g1f3"), scoreCp = 205)
+            )
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(-180),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.SpeculativeInvestmentFailed)
+    assertEquals(frame.failureInterpretation.interpretationAllowed, true)
+    assert(frame.failureInterpretation.intentAnchor.contains("open file pressure"), clue(frame.failureInterpretation))
+  }
+
+  test("fresh value-down capture can stay provisional without investedMaterial carrier") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("open-file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              dominantIdeaFocus = Some("open-file pressure")
             )
           )
       )
@@ -435,7 +870,248 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(contract.exemplarRole, TruthExemplarRole.ProvisionalExemplar)
     assertEquals(contract.compensationProseAllowed, false)
     assertEquals(contract.surfacedMoveOwnsTruth, false)
-    assertEquals(contract.verifiedPayoffAnchor, Some("pressure on e6"))
+    assertEquals(contract.verifiedPayoffAnchor, Some("open file pressure"))
+    assert(contract.investmentTruthChainKey.exists(_.nonEmpty), clue(contract.investmentTruthChainKey))
+  }
+
+  test("accepted current semantic support upgrades the same fresh seed to commitment owner") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("open-file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              dominantIdeaFocus = Some("open-file pressure")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Rxd5",
+        engineBestMove = Some("Rxd5"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "d1d5",
+          playedSan = "Rxd5",
+          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1",
+          semantic =
+            Some(
+              semanticSection(
+                compensation =
+                  Some(
+                    compensationInfo(
+                      investedMaterial = 100,
+                      conversionPlan = "open-file pressure",
+                      returnVector = Map("open-file pressure" -> 0.72)
+                    )
+                  )
+              )
+            )
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(180),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(contract.truthPhase, Some(InvestmentTruthPhase.FirstInvestmentCommitment))
+    assertEquals(contract.truthClass, DecisiveTruthClass.WinningInvestment)
+    assertEquals(contract.ownershipRole, TruthOwnershipRole.CommitmentOwner)
+    assertEquals(contract.visibilityRole, TruthVisibilityRole.PrimaryVisible)
+    assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(contract.exemplarRole, TruthExemplarRole.VerifiedExemplar)
+    assertEquals(contract.compensationProseAllowed, false)
+    assertEquals(contract.verifiedPayoffAnchor, Some("open file pressure"))
+  }
+
+  test("after-semantic support alone cannot upgrade a fresh seed into commitment owner") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("open-file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              dominantIdeaFocus = Some("open-file pressure")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Rxd5",
+        engineBestMove = Some("Rxd5"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "d1d5",
+          playedSan = "Rxd5",
+          fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1",
+          semantic =
+            Some(
+              semanticSection(
+                afterCompensation =
+                  Some(
+                    compensationInfo(
+                      investedMaterial = 100,
+                      conversionPlan = "central file pressure",
+                      returnVector = Map("central file pressure" -> 0.76)
+                    )
+                  )
+              )
+            )
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(180),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(contract.truthPhase, Some(InvestmentTruthPhase.FirstInvestmentCommitment))
+    assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(contract.visibilityRole, TruthVisibilityRole.SupportingVisible)
+    assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(contract.exemplarRole, TruthExemplarRole.ProvisionalExemplar)
+    assertEquals(contract.verifiedPayoffAnchor, Some("open file pressure"))
+  }
+
+  test("legacy shell can preserve maintenance truth phase but cannot reopen public maintenance visibility") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        longTermFocus = List("central file pressure"),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              compensation = Some("central file pressure"),
+              compensationVectors = List("central files"),
+              investedMaterial = Some(100),
+              dominantIdeaFocus = Some("pressure on e6")
+            )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "Kh2",
+        engineBestMove = Some("Kh2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "g1h2",
+          playedSan = "Kh2",
+          fen = "r5k1/8/8/8/1b6/8/8/3R2K1 w - - 0 1"
+        ),
+      cpBefore = Some(40),
+      cpAfter = Some(40),
+      strategyPack = Some(pack),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.strategicOwnership.truthPhase, Some(InvestmentTruthPhase.CompensationMaintenance))
+    assertEquals(frame.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(frame.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(frame.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(frame.exemplarRole, TruthExemplarRole.NonExemplar)
+    assertEquals(frame.strategicOwnership.evidenceProvenance, Set(CommitmentEvidenceProvenance.LegacyShell))
+    assertEquals(frame.strategicOwnership.ownerEligible, false)
+  }
+
+  test("secondary idea, route purpose, and directional target text can each seed the payoff anchor") {
+    val raw =
+      comparison(
+        chosenMove = "Rxd5",
+        engineBestMove = Some("Rxd5"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+    val packs =
+      List(
+        (
+          "secondary_idea",
+          StrategyPack(
+            sideToMove = "white",
+            signalDigest =
+              Some(
+                NarrativeSignalDigest(
+                  secondaryIdeaFocus = Some("pressure on b2")
+                )
+              )
+          ),
+          Some("pressure on b2")
+        ),
+        (
+          "route_purpose",
+          StrategyPack(
+            sideToMove = "white",
+            pieceRoutes =
+              List(
+                StrategyPieceRoute(
+                  ownerSide = "white",
+                  piece = "R",
+                  from = "d1",
+                  route = List("d1", "d5"),
+                  purpose = "open-file pressure",
+                  strategicFit = 0.84,
+                  tacticalSafety = 0.79,
+                  surfaceConfidence = 0.82,
+                  surfaceMode = RouteSurfaceMode.Exact
+                )
+              )
+          ),
+          Some("open file pressure")
+        ),
+        (
+          "directional_target",
+          StrategyPack(
+            sideToMove = "white",
+            directionalTargets =
+              List(
+                StrategyDirectionalTarget(
+                  targetId = "target_b2",
+                  ownerSide = "white",
+                  piece = "Q",
+                  from = "d1",
+                  targetSquare = "b2",
+                  readiness = "build",
+                  strategicReasons = List("fixed queenside targets")
+                )
+              )
+          ),
+          Some("fixed queenside targets")
+        )
+      )
+
+    packs.foreach { case (label, pack, expectedAnchor) =>
+      val contract = DecisiveTruth.derive(
+        ctx =
+          ctx(
+            playedMove = "d1d5",
+            playedSan = "Rxd5",
+            fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1"
+          ),
+        cpBefore = Some(40),
+        cpAfter = Some(180),
+        strategyPack = Some(pack),
+        comparisonOverride = Some(raw)
+      )
+
+      assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole, clue(label))
+      assertEquals(contract.exemplarRole, TruthExemplarRole.ProvisionalExemplar, clue(label))
+      assertEquals(contract.verifiedPayoffAnchor, expectedAnchor, clue(label))
+    }
   }
 
   test("recovery move becomes conversion followthrough instead of fresh investment") {
@@ -570,4 +1246,62 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(frame.ownershipRole, TruthOwnershipRole.BlunderOwner)
     assertEquals(frame.surfaceMode, TruthSurfaceMode.FailureExplain)
     assertEquals(frame.compensationProseAllowed, false)
+  }
+
+  test("proof-backed best only-move defense becomes primary-visible without claiming ownership") {
+    val raw =
+      comparison(
+        chosenMove = "Qe2",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "d1e2",
+          playedSan = "Qe2",
+          choiceType = "OnlyMove",
+          criticality = "Forced"
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(contract.truthClass, DecisiveTruthClass.Best)
+    assertEquals(contract.reasonFamily, DecisiveReasonFamily.OnlyMoveDefense)
+    assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(contract.visibilityRole, TruthVisibilityRole.PrimaryVisible)
+    assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(contract.benchmarkCriticalMove, true)
+    assertEquals(contract.isPromotedBestHold, true)
+  }
+
+  test("quiet benchmark-critical hold stays hidden until proof exists") {
+    val raw =
+      comparison(
+        chosenMove = "Qe2",
+        engineBestMove = Some("Qe2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "d1e2",
+          playedSan = "Qe2",
+          choiceType = "OnlyMove",
+          criticality = "Normal"
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(contract.truthClass, DecisiveTruthClass.Best)
+    assertEquals(contract.reasonFamily, DecisiveReasonFamily.QuietTechnicalMove)
+    assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(contract.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(contract.benchmarkCriticalMove, true)
+    assertEquals(contract.isBenchmarkCriticalQuietHold, true)
   }

@@ -73,7 +73,11 @@ object NarrativeOutlineBuilder:
     case StrategicTransition
     case DecisionDriver
 
-  def build(ctx: NarrativeContext, rec: TraceRecorder): (NarrativeOutline, OutlineDiagnostics) =
+  def build(
+      ctx: NarrativeContext,
+      rec: TraceRecorder,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): (NarrativeOutline, OutlineDiagnostics) =
     val bead = Math.abs(ctx.hashCode)
     val beats = scala.collection.mutable.ListBuffer.empty[OutlineBeat]
     val crossBeatState = CrossBeatRepetitionState(
@@ -87,7 +91,7 @@ object NarrativeOutlineBuilder:
     var diag = OutlineDiagnostics()
 
     val isAnnotation = isMoveAnnotation(ctx)
-    val thesisOpt = Option.when(isBookmakerMode(ctx))(StrategicThesisBuilder.build(ctx)).flatten
+    val thesisOpt = Option.when(isBookmakerMode(ctx))(StrategicThesisBuilder.build(ctx, truthContract = truthContract)).flatten
     val questions = ctx.authorQuestions.sortBy(-_.priority).take(3)
     diag = diag.copy(selectedQuestions = questions)
 
@@ -128,7 +132,7 @@ object NarrativeOutlineBuilder:
     // 6. TEACHING POINT (lower threshold for visibility)
     buildTeachingBeat(ctx, rec, bead).foreach(beat => beats += annotateBeat(beat))
 
-    val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx)
+    val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx, truthContract)
 
     // 7. MAIN MOVE
     val moveLevelPrecedent =

@@ -7,6 +7,39 @@ import lila.llm.model.authoring.*
 
 class BookmakerPolishSlotsTest extends FunSuite:
 
+  private def truthContract(
+      ownershipRole: TruthOwnershipRole,
+      visibilityRole: TruthVisibilityRole,
+      surfaceMode: TruthSurfaceMode,
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("c3g3"),
+      verifiedBestMove = Some("c3g3"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
   private def surfaceDrivenPack(
       ideaKind: String = StrategicIdeaKind.KingAttackBuildUp,
       focusSquares: List[String] = List("g7"),
@@ -464,4 +497,37 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(!claim.contains("near the center of the plan"))
     assert(!claim.contains("the key decision is to choose"))
+  }
+
+  test("neutral truth contract suppresses compensation thesis even when raw compensation surface is present") {
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val rawCompensationPack =
+      Some(
+        surfaceDrivenPack(
+          compensation = Some("pressure on g7"),
+          investedMaterial = Some(100)
+        )
+      )
+
+    val slots =
+      BookmakerPolishSlotsBuilder.build(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = rawCompensationPack,
+        truthContract =
+          Some(
+            truthContract(
+              ownershipRole = TruthOwnershipRole.NoneRole,
+              visibilityRole = TruthVisibilityRole.Hidden,
+              surfaceMode = TruthSurfaceMode.Neutral
+            )
+          )
+      ).getOrElse(fail("missing slots"))
+
+    val rendered = (slots.claim :: slots.support).mkString(" ").toLowerCase
+    assertNotEquals(slots.lens, StrategicLens.Compensation)
+    assert(!rendered.contains("material can wait"), clue(rendered))
+    assert(!rendered.contains("winning the material back"), clue(rendered))
   }

@@ -10,7 +10,6 @@ import java.time.Instant
 import java.util.concurrent.{ LinkedBlockingQueue, TimeUnit }
 
 import scala.concurrent.{ Await, ExecutionContext }
-import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
 import akka.actor.ActorSystem
@@ -19,7 +18,7 @@ import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
 import lila.llm.*
-import lila.llm.analysis.{ CompensationContractMatcher, CompensationRecaptureGate, NarrativeUtils, OpeningExplorerClient, StrategyPackSurface }
+import lila.llm.analysis.{ CommentaryEngine, CompensationContractMatcher, CompensationRecaptureGate, EarlyOpeningNarrationPolicy, NarrativeUtils, OpeningExplorerClient, StrategyPackSurface }
 import lila.llm.model.{ FutureSnapshot, L1DeltaSnapshot, ProbeRequest, ProbeResult, TargetsDelta }
 import lila.llm.model.strategic.VariationLine
 
@@ -29,12 +28,9 @@ object RealPgnNarrativeEvalRunner:
   private val DefaultMarkdownPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalReport.latest.md")
   private val DefaultJsonPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalReport.latest.json")
   private val DefaultRawDir = Paths.get("modules/llm/docs/real_pgn_eval/latest")
+  private val DefaultTruthInventoryPath = Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
   private val DefaultDepth = 10
   private val DefaultMultiPv = 3
-  private val DefaultPositiveExemplarCorpusCandidates = List(
-    Paths.get("tmp/commentary-player-qc/manifests/positive_compensation_exemplars.json"),
-    Paths.get("modules/llm/docs/RealPgnNarrativeEvalPositiveCompensationExemplars.json")
-  )
   private val EngineEnvVars = List("STOCKFISH_BIN", "LLM_ACTIVE_CORPUS_ENGINE_PATH")
   private val MaxProbeMoments = 3
   private val MaxFocusMoments = 3
@@ -55,7 +51,7 @@ object RealPgnNarrativeEvalRunner:
   private val CompensationLexicon =
     List("compensation", "initiative", "line pressure", "delayed recovery", "return vector", "cash out")
 
-  private final case class NegativeGuardSpec(
+  private[tools] final case class NegativeGuardSpec(
       id: String,
       label: String,
       family: String,
@@ -63,7 +59,7 @@ object RealPgnNarrativeEvalRunner:
       pgn: String
   )
 
-  private val NegativeGuards = List(
+  private[tools] val NegativeGuards = List(
     NegativeGuardSpec(
       id = "TAT06",
       label = "Abdusattorov vs Gukesh, Tata Steel 2026 Round 6",
@@ -160,7 +156,12 @@ object RealPgnNarrativeEvalRunner:
       activeNoteStatus: String,
       activeNote: Option[String],
       probeRequestCount: Int,
-      probeRefinementRequestCount: Int
+      probeRefinementRequestCount: Int,
+      maintenanceExemplarCandidate: Boolean = false,
+      failureMode: Option[String] = None,
+      failureIntentConfidence: Double = 0.0,
+      failureIntentAnchor: Option[String] = None,
+      failureInterpretationAllowed: Boolean = false
   )
 
   object FocusMomentReport:
@@ -350,12 +351,12 @@ object RealPgnNarrativeEvalRunner:
           System.err.println(s"[real-pgn-eval] failed to read corpus `${config.corpusPath}`: $err")
           sys.exit(1)
     val positiveExemplarCorpus =
-      findPositiveExemplarCorpus()
+      findTruthInventory()
         .flatMap(path =>
-          readCorpus(path) match
-            case Right(value) => Some(value)
+          readTruthInventory(path) match
+            case Right(value) => Some(buildPositiveExemplarCorpus(value))
             case Left(err) =>
-              System.err.println(s"[real-pgn-eval] failed to read positive exemplar corpus `${path}`: $err")
+              System.err.println(s"[real-pgn-eval] failed to read truth inventory `${path}`: $err")
               None
         )
 
@@ -391,14 +392,14 @@ object RealPgnNarrativeEvalRunner:
       api: LlmApi,
       engine: LocalUciEngine,
       config: Config
-  )(using Executor): GameReport =
+  ): GameReport =
     val header = parseHeaders(game.pgn)
     val plyData =
       PgnAnalysisHelper.extractPlyDataStrict(game.pgn) match
         case Right(value) => value
         case Left(err)    => throw new IllegalArgumentException(s"${game.id}: PGN validation failed: $err")
 
-    val afterMoveEvals = buildAfterMoveEvals(game.id, plyData, engine, config.depth, config.multiPv)
+    val afterMoveEvals = buildAfterMoveEvals(plyData, engine, config.depth, config.multiPv)
     val initialResponse =
       Await.result(
         api.analyzeGameChronicleLocal(
@@ -438,6 +439,13 @@ object RealPgnNarrativeEvalRunner:
           180.seconds
         ).getOrElse(initialResponse)
 
+    val internalTruthByPly =
+      buildInternalTruthByPly(
+        pgn = game.pgn,
+        afterMoveEvals = afterMoveEvals,
+        probeResultsByPly = probeResultsByPly
+      )
+
     val focusMoments = pickFocusMoments(refinedResponse).flatMap { moment =>
       buildFocusMomentReport(
         game = game,
@@ -447,7 +455,8 @@ object RealPgnNarrativeEvalRunner:
         afterMoveEvals = afterMoveEvals,
         api = api,
         engine = engine,
-        config = config
+        config = config,
+        internalTruthByPly = internalTruthByPly
       )
     }
 
@@ -487,8 +496,9 @@ object RealPgnNarrativeEvalRunner:
       afterMoveEvals: List[MoveEval],
       api: LlmApi,
       engine: LocalUciEngine,
-      config: Config
-  )(using Executor): Option[FocusMomentReport] =
+      config: Config,
+      internalTruthByPly: Map[Int, CommentaryEngine.TruthTraceMoment]
+  ): Option[FocusMomentReport] =
     plyData.find(_.ply == moment.ply).flatMap { pd =>
       val beforeVars = engine.analyze(pd.fen, config.depth, config.multiPv)
       val afterEval = afterMoveEvals.find(_.ply == pd.ply)
@@ -520,13 +530,20 @@ object RealPgnNarrativeEvalRunner:
       bookmakerResultOpt.map { bookmakerResult =>
         val momentSurface = StrategyPackSurface.from(moment.strategyPack)
         val bookmakerSurface = StrategyPackSurface.from(bookmakerResult.response.strategyPack)
+        val internalTruth = internalTruthByPly.get(moment.ply)
         val activeNoteText = moment.activeStrategicNote.map(oneLine)
         val bookmakerCommentary = oneLine(bookmakerResult.response.commentary)
         val gameArcCompensationPosition = momentSurface.compensationPosition
         val bookmakerCompensationPosition = bookmakerSurface.compensationPosition
-        val compensationPosition = compensationEvalPosition(moment, momentSurface, bookmakerSurface, Some(pd.playedUci))
+        val compensationPosition =
+          RealPgnNarrativeEvalCalibration.compensationEvalPosition(
+            moment,
+            momentSurface,
+            bookmakerSurface,
+            Some(pd.playedUci)
+          )
         val exemplarVisible =
-          RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, bookmakerSurface)
+          RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, bookmakerSurface, internalTruth)
         val rawBookmakerPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.json")
         writeJson(rawBookmakerPath, Json.toJson(bookmakerResult.response))
         FocusMomentReport(
@@ -578,25 +595,22 @@ object RealPgnNarrativeEvalRunner:
           activeNoteStatus = moment.activeStrategicSourceMode.getOrElse("missing"),
           activeNote = activeNoteText,
           probeRequestCount = moment.probeRequests.size,
-          probeRefinementRequestCount = moment.probeRefinementRequests.size
+          probeRefinementRequestCount = moment.probeRefinementRequests.size,
+          maintenanceExemplarCandidate = internalTruth.exists(_.maintenanceExemplarCandidate),
+          failureMode = internalTruth.map(_.failureMode),
+          failureIntentConfidence = internalTruth.map(_.failureIntentConfidence).getOrElse(0.0),
+          failureIntentAnchor = internalTruth.flatMap(_.failureIntentAnchor),
+          failureInterpretationAllowed = internalTruth.exists(_.failureInterpretationAllowed)
         )
       }
     }
-
-  private def compensationEvalPosition(
-      moment: GameChronicleMoment,
-      gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot,
-      playedMove: Option[String] = None
-  ): Boolean =
-    RealPgnNarrativeEvalCalibration.compensationEvalPosition(moment, gameArcSurface, bookmakerSurface, playedMove)
 
   private def runNegativeGuard(
       guard: NegativeGuardSpec,
       api: LlmApi,
       engine: LocalUciEngine,
       config: Config
-  )(using Executor): Option[NegativeGuardResult] =
+  ): Option[NegativeGuardResult] =
     val game =
       CorpusGame(
         id = guard.id,
@@ -613,7 +627,7 @@ object RealPgnNarrativeEvalRunner:
         case Right(value) => value
         case Left(err)    => throw new IllegalArgumentException(s"${guard.id}: PGN validation failed: $err")
 
-    val afterMoveEvals = buildAfterMoveEvals(game.id, plyData, engine, config.depth, config.multiPv)
+    val afterMoveEvals = buildAfterMoveEvals(plyData, engine, config.depth, config.multiPv)
     val initialResponse =
       Await.result(
         api.analyzeGameChronicleLocal(
@@ -651,6 +665,13 @@ object RealPgnNarrativeEvalRunner:
           180.seconds
         ).getOrElse(initialResponse)
 
+    val internalTruthByPly =
+      buildInternalTruthByPly(
+        pgn = game.pgn,
+        afterMoveEvals = afterMoveEvals,
+        probeResultsByPly = probeResultsByPly
+      )
+
     refinedResponse.moments.find(_.ply == guard.targetPly).flatMap { moment =>
       buildFocusMomentReport(
         game = game,
@@ -660,7 +681,8 @@ object RealPgnNarrativeEvalRunner:
         afterMoveEvals = afterMoveEvals,
         api = api,
         engine = engine,
-        config = config
+        config = config,
+        internalTruthByPly = internalTruthByPly
       ).map { report =>
         NegativeGuardResult(
           id = guard.id,
@@ -673,24 +695,47 @@ object RealPgnNarrativeEvalRunner:
       }
     }
 
-  private def lateTechnicalSpaceOnlyCompensation(
-      moment: GameChronicleMoment,
-      gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
-  ): Boolean =
-    RealPgnNarrativeEvalCalibration.lateTechnicalSpaceOnlyCompensation(
-      moment,
-      gameArcSurface,
-      bookmakerSurface
+  private def buildInternalTruthByPly(
+      pgn: String,
+      afterMoveEvals: List[MoveEval],
+      probeResultsByPly: Map[Int, List[lila.llm.model.ProbeResult]]
+  ): Map[Int, CommentaryEngine.TruthTraceMoment] =
+    val evalMap = afterMoveEvals.map(eval => eval.ply -> eval.getVariations).toMap
+    CommentaryEngine
+      .generateGameArcDiagnostic(
+        pgn = pgn,
+        evals = evalMap,
+        probeResultsByPly = probeResultsByPly,
+        variantKey = EarlyOpeningNarrationPolicy.StandardVariant
+      )
+      .canonicalTraceMoments
+      .map(trace => trace.ply -> trace)
+      .toMap
+
+  private def findTruthInventory(): Option[Path] =
+    val path = DefaultTruthInventoryPath.toAbsolutePath.normalize
+    Option.when(Files.isRegularFile(path))(path)
+
+  private[tools] def buildPositiveExemplarCorpus(
+      inventory: RealPgnNarrativeEvalTruthInventoryBuilder.TruthInventory,
+      generatedAt: Instant = Instant.now()
+  ): Corpus =
+    val selectedGameIds =
+      PositiveCompensationExemplars.toList.sorted.map(_.takeWhile(_ != ':')).distinct
+    val sourceById = inventory.games.map(game => game.id -> game).toMap
+    val missingGameIds = selectedGameIds.filterNot(sourceById.contains)
+    require(
+      missingGameIds.isEmpty,
+      s"truth inventory is missing canonical positive exemplar game ids: ${missingGameIds.mkString(", ")}"
     )
-
-  private def compensationVectorsAreSpaceOnly(surface: StrategyPackSurface.Snapshot): Boolean =
-    RealPgnNarrativeEvalCalibration.compensationVectorsAreSpaceOnly(surface)
-
-  private def findPositiveExemplarCorpus(): Option[Path] =
-    DefaultPositiveExemplarCorpusCandidates
-      .map(_.toAbsolutePath.normalize)
-      .find(Files.isRegularFile(_))
+    Corpus(
+      version = 1,
+      generatedAt = generatedAt.toString,
+      asOfDate = generatedAt.toString.take(10),
+      title = "Positive Compensation Exemplars",
+      description = "Canonical positive-exemplar rerun corpus derived from the truth inventory.",
+      games = selectedGameIds.flatMap(sourceById.get)
+    )
 
   private def pickFocusMoments(response: GameChronicleResponse): List[GameChronicleMoment] =
     def rank(moment: GameChronicleMoment): (Int, Int, Int, Int, Int) =
@@ -899,7 +944,6 @@ object RealPgnNarrativeEvalRunner:
       moverLoss: Int,
       keyMotifs: List[String]
   ): Option[FutureSnapshot] =
-    val futureFen = NarrativeUtils.uciListToFen(afterFen, best.moves.take(2))
     val supportive = moverLoss <= 80 && !best.mate.exists(_ < 0)
     val planHints = planProgressHints(request, keyMotifs)
     val blockersRemoved =
@@ -982,7 +1026,6 @@ object RealPgnNarrativeEvalRunner:
     Fen.read(chess.variant.Standard, Fen.Full(fen)).exists(_.check.yes)
 
   private def buildAfterMoveEvals(
-      gameId: String,
       plyData: List[PgnAnalysisHelper.PlyData],
       engine: LocalUciEngine,
       depth: Int,
@@ -1360,6 +1403,19 @@ object RealPgnNarrativeEvalRunner:
       Json.parse(raw).validate[Corpus].asEither.left.map(_.toString)
     catch case NonFatal(e) => Left(e.getMessage)
 
+  private def readTruthInventory(
+      path: Path
+  ): Either[String, RealPgnNarrativeEvalTruthInventoryBuilder.TruthInventory] =
+    try
+      val raw = Files.readString(path, StandardCharsets.UTF_8)
+      Json
+        .parse(raw)
+        .validate[RealPgnNarrativeEvalTruthInventoryBuilder.TruthInventory]
+        .asEither
+        .left
+        .map(_.toString)
+    catch case NonFatal(e) => Left(e.getMessage)
+
   private def writeJson(path: Path, value: JsValue): Unit =
     ensureParent(path)
     Files.writeString(path, Json.prettyPrint(value) + "\n", StandardCharsets.UTF_8)
@@ -1617,9 +1673,11 @@ private[tools] object RealPgnNarrativeEvalCalibration:
   def exemplarEvalPosition(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      bookmakerSurface: StrategyPackSurface.Snapshot,
+      internalTruth: Option[CommentaryEngine.TruthTraceMoment] = None
   ): Boolean =
     if truthBoundInvestmentCompensation(moment, gameArcSurface, bookmakerSurface) then true
+    else if internalTruth.exists(_.maintenanceExemplarCandidate) then true
     else
       moment.moveClassification.exists(TruthBoundInvestmentLabels.contains) ||
         moment.momentType == "InvestmentPivot"

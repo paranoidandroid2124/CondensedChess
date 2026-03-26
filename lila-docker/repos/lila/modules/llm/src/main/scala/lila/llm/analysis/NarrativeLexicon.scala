@@ -2282,7 +2282,7 @@ object NarrativeLexicon {
   }
 
   def getThreatStatement(bead: Int, kind: String, loss: Int, ctx: Option[NarrativeContext] = None): String = {
-    val strongTierAllowed = ctx.forall(StandardCommentaryClaimPolicy.allowsRedTier)
+    val strongTierAllowed = ctx.forall(c => StandardCommentaryClaimPolicy.allowsRedTier(c))
     val quietSuppressed =
       ctx.exists(c => StandardCommentaryClaimPolicy.quietStandardPosition(c) && loss < 50)
     if quietSuppressed then ""

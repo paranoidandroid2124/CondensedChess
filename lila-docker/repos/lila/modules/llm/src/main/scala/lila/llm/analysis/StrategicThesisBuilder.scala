@@ -21,28 +21,37 @@ private[analysis] case class StrategicThesis(
 
 private[analysis] object StrategicThesisBuilder:
 
-  def build(ctx: NarrativeContext, strategyPack: Option[StrategyPack] = None): Option[StrategicThesis] =
+  def build(
+      ctx: NarrativeContext,
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Option[StrategicThesis] =
     val surface = StrategyPackSurface.from(strategyPack)
-    buildCompensation(ctx, surface)
+    buildCompensation(ctx, surface, truthContract)
       .orElse(buildProphylaxis(ctx, surface))
       .orElse(buildStructure(ctx, surface))
-      .orElse(buildSurfaceIdea(ctx, surface))
-      .orElse(buildDecision(ctx, surface))
+      .orElse(buildSurfaceIdea(ctx, surface, truthContract))
+      .orElse(buildDecision(ctx, surface, truthContract))
       .orElse(buildPractical(ctx))
       .orElse(buildOpening(ctx))
 
   private def buildCompensation(
       ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[StrategicThesis] =
     val compensationDecision = CompensationInterpretation.effectiveConsumerDecision(ctx, surface)
     val vectors = compensationDecision.map(_.signal.vectors).filter(_.nonEmpty).getOrElse(Nil)
     val plan =
       compensationDecision.flatMap(_.signal.summary).map(normalizeText).filter(_.nonEmpty)
     val hasCompensationSignal = compensationDecision.isDefined
+    val truthCompensationEligible = compensationTruthEligible(truthContract)
     val allowCompensationNarration =
-      surface.compensationPosition && CompensationDisplayPhrasing.compensationNarrationEligible(surface)
+      truthCompensationEligible &&
+        surface.compensationPosition &&
+        CompensationDisplayPhrasing.compensationNarrationEligible(surface)
     if !hasCompensationSignal then None
+    else if !truthCompensationEligible then None
     else if !allowCompensationNarration then buildOrdinaryCompensationReframe(ctx, surface)
     else
       val vectorText = joinNatural(vectors)
@@ -147,7 +156,8 @@ private[analysis] object StrategicThesisBuilder:
 
   private def buildSurfaceIdea(
       ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[StrategicThesis] =
     val claim =
       ordinaryClaimFromSurface(surface)
@@ -164,7 +174,8 @@ private[analysis] object StrategicThesisBuilder:
           ctx.whyAbsentFromTopMultiPV.headOption
             .map(normalizeSentenceFragment)
             .filter(_.nonEmpty)
-            .map(reason => s"The alternative stays secondary because $reason.")
+            .map(reason => s"The alternative stays secondary because $reason."),
+        truthContract = truthContract
       )
     claim.map(claimText =>
       StrategicThesis(
@@ -311,19 +322,25 @@ private[analysis] object StrategicThesisBuilder:
         .map(StrategicSentenceRenderer.renderObjectiveSupport)
     ).flatten.filter(_.nonEmpty)
 
-  private def hasStrategicClaimSurface(surface: StrategyPackSurface.Snapshot): Boolean =
+  private def hasStrategicClaimSurface(
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
     surface.dominantIdeaText.nonEmpty ||
       surface.executionText.nonEmpty ||
       surface.objectiveText.nonEmpty ||
-      surface.compensationPosition ||
-      surface.investedMaterial.exists(_ > 0)
+      (compensationTruthEligible(truthContract) && (
+        surface.compensationPosition ||
+          surface.investedMaterial.exists(_ > 0)
+      ))
 
   private def decisionClaimFromSurface(
-      surface: StrategyPackSurface.Snapshot
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[String] =
-    Option.when(hasStrategicClaimSurface(surface)) {
+    Option.when(hasStrategicClaimSurface(surface, truthContract)) {
       val lead =
-        if surface.compensationPosition then
+        if compensationSurfaceAllowed(surface, truthContract) then
           surface.objectiveText
             .map(StrategicSentenceRenderer.renderCompensationClaimFromObjective)
             .orElse(surface.executionText.map(StrategicSentenceRenderer.renderCompensationClaimFromExecution))
@@ -338,19 +355,21 @@ private[analysis] object StrategicThesisBuilder:
 
   private def renderDecisionFocalSupport(
       target: TargetRef,
-      surface: StrategyPackSurface.Snapshot
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
   ): String =
     val rendered = renderTargetRef(target)
-    if surface.compensationPosition then s"Pressure on $rendered keeps the compensation alive."
+    if compensationSurfaceAllowed(surface, truthContract) then s"Pressure on $rendered keeps the compensation alive."
     else
       surface.dominantIdeaText.map(_ => s"Pressure on $rendered is the concrete point of the move.")
         .orElse(surface.objectiveText.map(_ => s"Pressure on $rendered is the concrete target here."))
-        .orElse(Option.when(hasStrategicClaimSurface(surface))(s"The move is really about pressure on $rendered."))
+        .orElse(Option.when(hasStrategicClaimSurface(surface, truthContract))(s"The move is really about pressure on $rendered."))
         .getOrElse(s"The decision becomes concrete around $rendered.")
 
   private def buildDecision(
       ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[StrategicThesis] =
     ctx.decision.flatMap { decision =>
       val hasSignal =
@@ -369,13 +388,14 @@ private[analysis] object StrategicThesisBuilder:
           normalizedDecisionSummary(decision.logicSummary)
             .orElse(ctx.whyAbsentFromTopMultiPV.headOption.map(normalizeSentenceFragment))
             .getOrElse("it keeps the move order coherent")
-        val surfaceClaim = decisionClaimFromSurface(surface)
+        val surfaceClaim = decisionClaimFromSurface(surface, truthContract)
         val claim =
           surfaceClaim.getOrElse(s"The move chooses $chosen first because $reason.")
-        val focalSupport = ctx.decision.flatMap(_.focalPoint.map(target => renderDecisionFocalSupport(target, surface)))
+        val focalSupport =
+          ctx.decision.flatMap(_.focalPoint.map(target => renderDecisionFocalSupport(target, surface, truthContract)))
         val support =
           (
-            if surfaceClaim.isDefined || hasStrategicClaimSurface(surface) then
+            if surfaceClaim.isDefined || hasStrategicClaimSurface(surface, truthContract) then
               decisionNarrativeSupport(
                 ctx = ctx,
                 surface = surface,
@@ -389,10 +409,11 @@ private[analysis] object StrategicThesisBuilder:
                         StrategicSentenceRenderer.renderCompensationSupportFromObjective(objective)
                       )
                     )
-                    .filter(_ => surface.compensationPosition),
+                    .filter(_ => compensationSurfaceAllowed(surface, truthContract)),
                 compensationFollowUp =
-                  Option.when(surface.compensationPosition)(renderCompensationFollowUp(surface)).flatten,
-                alternativeSupport = Some(s"$deferred stays secondary because $reason.")
+                  Option.when(compensationSurfaceAllowed(surface, truthContract))(renderCompensationFollowUp(surface)).flatten,
+                alternativeSupport = Some(s"$deferred stays secondary because $reason."),
+                truthContract = truthContract
               ).map(Some(_))
             else
               List(
@@ -408,8 +429,28 @@ private[analysis] object StrategicThesisBuilder:
             tension = opponentOrAbsenceTension(ctx),
             evidenceHook = NarrativeEvidenceHooks.build(ctx)
           )
-        )
+          )
     }
+
+  private def compensationTruthEligible(
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    truthContract.forall { contract =>
+      contract.ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+        contract.ownershipRole == TruthOwnershipRole.MaintenanceEcho ||
+        contract.ownershipRole == TruthOwnershipRole.ConversionOwner ||
+        contract.exemplarRole != TruthExemplarRole.NonExemplar ||
+        contract.maintenanceExemplarCandidate ||
+        contract.surfaceMode == TruthSurfaceMode.InvestmentExplain ||
+        contract.surfaceMode == TruthSurfaceMode.MaintenancePreserve ||
+        contract.surfaceMode == TruthSurfaceMode.ConversionExplain
+    }
+
+  private def compensationSurfaceAllowed(
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    compensationTruthEligible(truthContract) && surface.compensationPosition
 
   private def decisionNarrativeSupport(
       ctx: NarrativeContext,
@@ -418,11 +459,12 @@ private[analysis] object StrategicThesisBuilder:
       preferFocalSupportFirst: Boolean,
       compensationObjectiveSupport: Option[String],
       compensationFollowUp: Option[String],
-      alternativeSupport: Option[String]
+      alternativeSupport: Option[String],
+      truthContract: Option[DecisiveTruthContract] = None
   ): List[String] =
     val focalSupport =
       ctx.decision
-        .flatMap(_.focalPoint.map(target => renderDecisionFocalSupport(target, surface)))
+        .flatMap(_.focalPoint.map(target => renderDecisionFocalSupport(target, surface, truthContract)))
         .filter(text => claim.forall(existing => !sameStrategicIdea(existing, text)))
     val deltaSupport =
       ctx.decision

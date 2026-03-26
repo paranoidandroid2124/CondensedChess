@@ -43,17 +43,19 @@ object BookmakerPolishSlotsBuilder:
       ctx: NarrativeContext,
       outline: NarrativeOutline,
       refs: Option[BookmakerRefsV1],
-      strategyPack: Option[StrategyPack] = None
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[BookmakerPolishSlots] =
-    BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs, strategyPack)
+    BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs, strategyPack, truthContract)
 
   def buildOrFallback(
       ctx: NarrativeContext,
       outline: NarrativeOutline,
       refs: Option[BookmakerRefsV1],
-      strategyPack: Option[StrategyPack] = None
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
   ): BookmakerPolishSlots =
-    BookmakerLiveCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack)
+    BookmakerLiveCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack, truthContract)
 
 object BookmakerProseContract:
 

@@ -84,9 +84,13 @@ class StrategicBranchSelectorTest extends FunSuite:
       surfaceMode: TruthSurfaceMode,
       exemplarRole: Option[TruthExemplarRole] = None,
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
+      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
       truthPhase: Option[InvestmentTruthPhase] = None,
       chainKey: Option[String] = None,
-      payoffAnchor: Option[String] = Some("open-file pressure")
+      payoffAnchor: Option[String] = Some("open-file pressure"),
+      maintenanceCandidate: Boolean = false,
+      failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan,
+      benchmarkCriticalMove: Boolean = false
   ): DecisiveTruthContract =
     val resolvedExemplarRole =
       exemplarRole.getOrElse:
@@ -98,7 +102,7 @@ class StrategicBranchSelectorTest extends FunSuite:
       truthClass = truthClass,
       cpLoss = 0,
       swingSeverity = 0,
-      reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      reasonFamily = reasonFamily,
       allowConcreteBenchmark = false,
       chosenMatchesBest = true,
       compensationAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
@@ -114,7 +118,13 @@ class StrategicBranchSelectorTest extends FunSuite:
       verifiedPayoffAnchor = payoffAnchor,
       compensationProseAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
       benchmarkProseAllowed = false,
-      investmentTruthChainKey = chainKey
+      investmentTruthChainKey = chainKey,
+      maintenanceExemplarCandidate = maintenanceCandidate,
+      benchmarkCriticalMove = benchmarkCriticalMove,
+      failureMode = failureMode,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   test("selector keeps only top 3 threads visible and caps active-note targets at 8") {
@@ -346,6 +356,259 @@ class StrategicBranchSelectorTest extends FunSuite:
     )
   }
 
+  test("maintenance exemplar candidate stays selection-visible even when its public exemplar role is non-exemplar") {
+    val candidate =
+      moment(
+        ply = 131,
+        momentType = "SustainedPressure",
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("pressure on e6")))
+      )
+    val ordinary =
+      moment(
+        ply = 133,
+        momentType = "SustainedPressure",
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("pressure on b7")))
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        (101 to 111).toList.map(ply => moment(ply, "AdvantageSwing", moveClassification = Some("Blunder"))) ++
+          List(candidate, ordinary),
+        (101 to 111).map(ply =>
+          ply -> truthContract(
+            ownershipRole = TruthOwnershipRole.BlunderOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.FailureExplain,
+            truthClass = DecisiveTruthClass.Blunder
+          )
+        ).toMap ++ Map(
+          131 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("pressure on e6"),
+            maintenanceCandidate = true
+          ),
+          133 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:other chain"),
+            payoffAnchor = Some("pressure on b7"),
+            maintenanceCandidate = false
+          )
+        )
+      )
+
+    val plies = selection.selectedMoments.map(_.ply)
+    assert(plies.contains(131), clue(selection.selectedMoments))
+  }
+
+  test("truth-aware representative selection skips hidden thread reps when a visible same-thread candidate exists") {
+    val seed = threadedMoment(11, decision = "seed the same campaign")
+    val build = threadedMoment(19, decision = "routine build step")
+    val criticalHold = threadedMoment(25, decision = "only move that keeps the campaign alive")
+    val finisher = threadedMoment(29, transitionType = Some("NaturalShift"), decision = "routine finish shell")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(seed, build, criticalHold, finisher),
+        Map(
+          11 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            payoffAnchor = Some("queenside pressure")
+          ),
+          19 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            payoffAnchor = Some("queenside pressure")
+          ),
+          25 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("queenside pressure"),
+            maintenanceCandidate = true
+          ),
+          29 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            payoffAnchor = Some("queenside pressure")
+          )
+        )
+      )
+
+    val plies = selection.selectedMoments.map(_.ply)
+    assert(plies.contains(25), clue(selection.selectedMoments))
+    assert(!plies.contains(11), clue(selection.selectedMoments))
+  }
+
+  test("thread-local tactical failure can replace a hidden representative without earning global protection") {
+    val seed = threadedMoment(11, decision = "seed the campaign")
+    val tacticalFailure = threadedMoment(17, decision = "the move walks into a tactical refutation")
+    val finisher = threadedMoment(29, transitionType = Some("NaturalShift"), decision = "routine finish shell")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(seed, tacticalFailure, finisher),
+        Map(
+          11 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral
+          ),
+          17 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            truthClass = DecisiveTruthClass.Inaccuracy,
+            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            failureMode = FailureInterpretationMode.TacticalRefutation
+          ),
+          29 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral
+          )
+        )
+      )
+
+    val plies = selection.selectedMoments.map(_.ply)
+    assert(plies.contains(17), clue(selection.selectedMoments))
+    assert(plies.size <= 3, clue(selection.selectedMoments))
+  }
+
+  test("representative selection promotes a best only-move hold over routine maintenance reps in the same thread") {
+    val seed = threadedMoment(11, decision = "seed the campaign")
+    val build = threadedMoment(19, decision = "routine maintenance shell")
+    val bestHold = threadedMoment(25, decision = "only move that keeps the structure together")
+    val finisher = threadedMoment(29, transitionType = Some("NaturalShift"), decision = "convert the residual edge")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(seed, build, bestHold, finisher),
+        Map(
+          11 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:queenside pressure")
+          ),
+          19 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:queenside pressure")
+          ),
+          25 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            benchmarkCriticalMove = true
+          ),
+          29 -> truthContract(
+            ownershipRole = TruthOwnershipRole.ConversionOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.ConversionExplain,
+            reasonFamily = DecisiveReasonFamily.Conversion,
+            truthPhase = Some(InvestmentTruthPhase.ConversionFollowthrough),
+            chainKey = Some("white:queenside pressure")
+          )
+        )
+      )
+
+    val plies = selection.selectedMoments.map(_.ply)
+    assert(plies.contains(25), clue(selection.selectedMoments))
+    assert(plies.size <= 4, clue(selection.selectedMoments))
+  }
+
+  test("selector allows a qualified second support in the same investment chain") {
+    val commitment =
+      moment(
+        ply = 31,
+        momentType = "InvestmentPivot",
+        moveClassification = Some("WinningInvestment"),
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("open-file pressure")))
+      )
+    val ordinarySupport =
+      moment(
+        ply = 35,
+        momentType = "SustainedPressure",
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("pressure on e6")))
+      )
+    val qualifiedSupport =
+      moment(
+        ply = 37,
+        momentType = "SustainedPressure",
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("pressure on e6")))
+      )
+    val excessOrdinary =
+      moment(
+        ply = 39,
+        momentType = "SustainedPressure",
+        strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List("pressure on e6")))
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(commitment, ordinarySupport, qualifiedSupport, excessOrdinary),
+        Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.CommitmentOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.InvestmentExplain,
+            truthClass = DecisiveTruthClass.WinningInvestment,
+            truthPhase = Some(InvestmentTruthPhase.FirstInvestmentCommitment),
+            chainKey = Some("white:open-file pressure")
+          ),
+          35 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("pressure on e6")
+          ),
+          37 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthClass = DecisiveTruthClass.Mistake,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("pressure on e6"),
+            failureMode = FailureInterpretationMode.QuietPositionalCollapse
+          ),
+          39 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:open-file pressure"),
+            payoffAnchor = Some("pressure on e6")
+          )
+        )
+      )
+
+    val plies = selection.selectedMoments.map(_.ply)
+    assert(plies.contains(31), clue(selection.selectedMoments))
+    assert(plies.contains(35), clue(selection.selectedMoments))
+    assert(plies.contains(37), clue(selection.selectedMoments))
+    assert(!plies.contains(39), clue(selection.selectedMoments))
+  }
+
   test("bridge moments are visible only when they occupy a representative stage slot") {
     val selection =
       StrategicBranchSelector.buildSelection(
@@ -378,8 +641,60 @@ class StrategicBranchSelectorTest extends FunSuite:
       )
 
     assertEquals(selection.threads, Nil)
-    assertEquals(selection.activeNoteMoments, Nil)
+    assertEquals(selection.activeNoteMoments.map(_.ply), List(18))
     assertEquals(selection.selectedMoments.map(_.ply), List(14, 18, 22))
+  }
+
+  test("visible fallback still fills spare slots after protected moments consume the first pass") {
+    def fallbackMoment(ply: Int, focus: String) =
+      moment(
+        ply = ply,
+        momentType = "SustainedPressure",
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              strategicIdeas = List(
+                StrategyIdeaSignal(
+                  ideaId = s"idea_$ply",
+                  ownerSide = "black",
+                  kind = "slow_press",
+                  group = "slow_structural",
+                  readiness = "building",
+                  focusSquares = Nil,
+                  focusFiles = Nil,
+                  focusDiagonals = Nil,
+                  focusZone = Some("queenside"),
+                  beneficiaryPieces = List("R"),
+                  confidence = 0.74,
+                  evidenceRefs = Nil
+                )
+              ),
+              longTermFocus = List(focus)
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(
+          moment(14, "AdvantageSwing", moveClassification = Some("Blunder")),
+          fallbackMoment(18, "queenside squeeze")
+        ),
+        Map(
+          14 -> truthContract(
+            ownershipRole = TruthOwnershipRole.BlunderOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.FailureExplain,
+            truthClass = DecisiveTruthClass.Blunder,
+            failureMode = FailureInterpretationMode.TacticalRefutation
+          )
+        )
+      )
+
+    val visiblePlies = selection.selectedMoments.map(_.ply)
+    assert(visiblePlies.contains(14), clue(selection.selectedMoments))
+    assert(visiblePlies.contains(18), clue(selection.selectedMoments))
   }
 
   test("selector keeps strategic fallback moments visible when no threads or core events exist") {
@@ -472,6 +787,142 @@ class StrategicBranchSelectorTest extends FunSuite:
       StrategicBranchSelector.buildSelection(List(threadedSeed, threadedBuild, visibleStrategicKey, threadedConvert))
 
     assert(selection.activeNoteMoments.map(_.ply).contains(25))
+  }
+
+  test("active-note fallback keeps severe failures and promoted best holds ahead of maintenance pressure under the 8-note cap") {
+    val maintenanceMoments =
+      (11 to 18).toList.map { ply =>
+        moment(
+          ply = ply,
+          momentType = "SustainedPressure",
+          strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List(s"pressure at $ply")))
+        )
+      }
+    val severeFailure = moment(31, "AdvantageSwing", moveClassification = Some("Blunder"))
+    val promotedHold = moment(33, "TensionPeak")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        maintenanceMoments ++ List(severeFailure, promotedHold),
+        maintenanceMoments.map(_.ply).map(ply =>
+          ply -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some(s"white:maintenance_$ply")
+          )
+        ).toMap ++ Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.BlunderOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.FailureExplain,
+            truthClass = DecisiveTruthClass.Blunder,
+            failureMode = FailureInterpretationMode.TacticalRefutation
+          ),
+          33 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            benchmarkCriticalMove = true
+          )
+        )
+      )
+
+    val notePlies = selection.activeNoteMoments.map(_.ply)
+    assert(notePlies.contains(31), clue(selection.activeNoteMoments))
+    assert(notePlies.contains(33), clue(selection.activeNoteMoments))
+    assertEquals(selection.activeNoteMoments.size, 8)
+    assert(!notePlies.contains(18), clue(selection.activeNoteMoments))
+  }
+
+  test("protected visible pass keeps severe failures and promoted best holds ahead of maintenance pressure under the 12-slot cap") {
+    val maintenanceMoments =
+      (11 to 22).toList.map { ply =>
+        moment(
+          ply = ply,
+          momentType = "SustainedPressure",
+          strategyPack = Some(StrategyPack(sideToMove = "white", longTermFocus = List(s"pressure at $ply")))
+        )
+      }
+    val severeFailure = moment(31, "AdvantageSwing", moveClassification = Some("Blunder"))
+    val promotedHold = moment(33, "TensionPeak")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        maintenanceMoments ++ List(severeFailure, promotedHold),
+        maintenanceMoments.map(_.ply).map(ply =>
+          ply -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some(s"white:maintenance_$ply")
+          )
+        ).toMap ++ Map(
+          31 -> truthContract(
+            ownershipRole = TruthOwnershipRole.BlunderOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.FailureExplain,
+            truthClass = DecisiveTruthClass.Blunder,
+            failureMode = FailureInterpretationMode.TacticalRefutation
+          ),
+          33 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            benchmarkCriticalMove = true
+          )
+        )
+      )
+
+    val visiblePlies = selection.selectedMoments.map(_.ply)
+    assert(visiblePlies.contains(31), clue(selection.selectedMoments))
+    assert(visiblePlies.contains(33), clue(selection.selectedMoments))
+    assertEquals(selection.selectedMoments.size, 12)
+    assert(!visiblePlies.contains(22), clue(selection.selectedMoments))
+  }
+
+  test("hidden benchmark-critical quiet holds stay thread-local and do not consume visible slots directly") {
+    val seed = threadedMoment(11, decision = "seed the campaign")
+    val quietHold = threadedMoment(19, decision = "quiet only-move shell")
+    val finisher = threadedMoment(29, transitionType = Some("NaturalShift"), decision = "convert the pressure")
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(seed, quietHold, finisher),
+        Map(
+          11 -> truthContract(
+            ownershipRole = TruthOwnershipRole.MaintenanceEcho,
+            visibilityRole = TruthVisibilityRole.SupportingVisible,
+            surfaceMode = TruthSurfaceMode.MaintenancePreserve,
+            truthPhase = Some(InvestmentTruthPhase.CompensationMaintenance),
+            chainKey = Some("white:queenside pressure")
+          ),
+          19 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
+            benchmarkCriticalMove = true
+          ),
+          29 -> truthContract(
+            ownershipRole = TruthOwnershipRole.ConversionOwner,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.ConversionExplain,
+            reasonFamily = DecisiveReasonFamily.Conversion,
+            truthPhase = Some(InvestmentTruthPhase.ConversionFollowthrough),
+            chainKey = Some("white:queenside pressure")
+          )
+        )
+      )
+
+    val visiblePlies = selection.selectedMoments.map(_.ply)
+    assert(!visiblePlies.contains(19), clue(selection.selectedMoments))
+    assert(visiblePlies.contains(11), clue(selection.selectedMoments))
+    assert(visiblePlies.contains(29), clue(selection.selectedMoments))
   }
 
   test("selector prioritizes quiet durable compensation over attack-led compensation in fallback notes") {
@@ -603,4 +1054,45 @@ class StrategicBranchSelectorTest extends FunSuite:
 
     assert(selection.selectedMoments.map(_.ply).contains(25), clue(selection.selectedMoments))
     assert(selection.activeNoteMoments.map(_.ply).contains(25), clue(selection.activeNoteMoments))
+  }
+
+  test("raw compensation surface cannot create selector visibility when the truth contract is neutral") {
+    val rawCompensationMoment =
+      moment(
+        ply = 41,
+        momentType = "InvestmentPivot",
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("pressure on e6"),
+              signalDigest =
+                Some(
+                  NarrativeSignalDigest(
+                    compensation = Some("pressure on e6"),
+                    compensationVectors = List("initiative"),
+                    investedMaterial = Some(100)
+                  )
+                )
+            )
+          )
+      )
+
+    val selection =
+      StrategicBranchSelector.buildSelection(
+        List(rawCompensationMoment),
+        Map(
+          41 -> truthContract(
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.Hidden,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            exemplarRole = Some(TruthExemplarRole.NonExemplar),
+            truthClass = DecisiveTruthClass.Best,
+            payoffAnchor = None
+          )
+        )
+      )
+
+    assertEquals(selection.selectedMoments, Nil)
+    assertEquals(selection.activeNoteMoments, Nil)
   }

@@ -126,12 +126,48 @@ Out of scope:
   compatibility/debug projections only. Runtime selection, whole-game binding,
   and signoff-path control flow must consume canonical `MoveTruthFrame` /
   `DecisiveTruthContract`, not re-derive truth from serialized strings.
+- when a `DecisiveTruthContract` exists, runtime semantic consumers must stay
+  truth-first:
+  - raw `momentType`, `moveClassification`, `criticality`, and `choiceType`
+    remain compatibility / display / fallback fields
+  - raw `StrategyPackSurface` compensation flags remain extraction helpers and
+    no-contract fallbacks
+  - helpers such as whole-game binders, dossier builders, selector scoring, and
+    tactical-pressure checks must prefer canonical truth semantics over those
+    raw fields
 - visible exemplar preservation is separate from ownership and from
   compensation-positive prose permission:
   - `verified_exemplar` may own and explain the decisive investment
   - `provisional_exemplar` may stay visible while surface mode remains
     `neutral`
+  - a truth-bound `compensation_maintenance` row stays `non_exemplar` in the
+    public/runtime contract; a private maintenance-exemplar candidate may keep
+    that row eligible for focus selection / audit without upgrading ownership
+  - public/runtime `maintenance_echo + supporting_visible +
+    maintenance_preserve` is reserved for `critical maintenance`: verified
+    payoff anchor, verified investment payoff, direct current semantic/carrier
+    anchor match, and a pressure signal (`only_move`, `unique_good_move`,
+    forcing proof, bad followthrough, or accepted current-semantic match)
+  - routine follow-up may keep the internal `compensation_maintenance` truth
+    phase while the public/runtime projection is forced back to
+    `none / hidden / neutral`
   - `non_exemplar` rows may not inherit investment ownership from stale shells
+- fresh commitment recognition now starts before any explicit
+  `investedMaterial` requirement:
+  - current-move material loss (`sacrificeKind`, value-down capture, or
+    rising deficit) may seed `first_investment_commitment`
+  - that seed still needs a move-local payoff anchor
+  - when ownership proof is still too weak, the move may project only as a
+    `provisional_exemplar`
+- payoff-anchor extraction for fresh commitment seeding is widened, but still
+  move-local and truth-first:
+  - accepted current semantic summary / vectors
+  - current dominant / secondary idea text
+  - current objective / focus text
+  - current directional-target reasons
+  - current route / move-ref purpose text
+  - current long-term focus text
+  - stale compensation shell text is not allowed to originate a fresh seed
 - Surface layers may become less specific than the contract, but they may not
   contradict it.
 - If the runtime cannot verify a concrete benchmark, prose must stay compact and
@@ -148,6 +184,11 @@ Out of scope:
   Chronicle, Bookmaker, and Active note.
 - compensation family / theater / mode / normalization are resolved once and
   reused across surfaces instead of being independently reinterpreted.
+- raw compensation flags on `StrategyPackSurface`
+  (`compensationPosition`, `strictCompensationPosition`,
+  `durableCompensationPosition`, `quietCompensationPosition`) are carrier
+  extraction only. Once a decisive-truth contract exists, they may not recreate
+  compensation significance on their own.
 - decisive-truth derivation suppresses fake compensation on bad moves, but it
   preserves real investment exemplars when compensation-valid payoff is
   verified from accepted compensation evidence and current-move truth.
@@ -158,12 +199,57 @@ Out of scope:
   before surface cleanup. Investment exemplars are classified from verified raw
   pack evidence first, and only then are Chronicle / Bookmaker / Active
   surfaces sanitized from the finalized contract.
+- decisive-truth derivation tracks four evidence provenance buckets:
+  - `current_material`
+  - `current_semantic`
+  - `after_semantic`
+  - `legacy_shell`
+- provenance policy is strict:
+  - `current_material` may seed a fresh commitment
+  - `current_semantic` may verify that seed and upgrade ownership
+  - `current_semantic` also includes concrete current-move payoff-route
+    carriers from the raw pack when those carriers directly match the verified
+    payoff anchor and keep a maintenance move truth-bound without recreating
+    ownership
+  - `after_semantic` may support maintenance / conversion continuity
+  - `legacy_shell` may preserve visibility only
+  - `after_semantic` and `legacy_shell` may not originate fresh commitment
+    ownership
 - verified investment payoff can come either from accepted structured
   compensation decisions or from backward-compatible durable-investment
   carriers already encoded in the raw pack (`investedMaterial` +
   compensation summary + durable deferred-payoff text). Those legacy carriers
-  may preserve visibility or exemplar candidacy, but they do not by themselves
-  certify that the current move is a fresh commitment owner.
+  may preserve truth-phase continuity or private maintenance-candidate
+  eligibility when direct current-move evidence also survives, but they do not
+  by themselves certify that the current move is a fresh commitment owner or a
+  public maintenance echo.
+- bad-move interpretation is also gated canonically:
+  - `failure_intent` is a private/internal fact, not a public payload field
+  - `tactical_refutation`, `only_move_failure`,
+    `quiet_positional_collapse`, `speculative_investment_failed`, and
+    `no_clear_plan` are derived from benchmark pressure, proof line, and
+    move-local plan carriers
+  - route / purpose / target evidence only counts when it directly matches the
+    verified payoff anchor; bare square-access scaffolding is not an intent
+    anchor
+  - accepted current semantic support may keep intent alive only when it also
+    matches the verified payoff anchor
+  - `speculative_investment_failed` requires fresh current-move matched
+    investment evidence; inherited shells alone may not trigger it
+  - low-confidence or `no_clear_plan` failures must not keep strategic route /
+    target / plan carriers alive in sanitized commentary surfaces
+  - commentary may explain collapse or refutation without inventing a player
+    intention that the truth layer could not support
+- canonical key-moment anchoring is also truth-first:
+  - WPA remains the first swing gate for decisive anchors
+  - the runtime rescues catastrophic CP / mate swings when WPA saturation would
+    otherwise miss an engine-severe move
+  - when a severe move survives only as a candidate bridge, canonical internal
+    admission rescues that bridge from runtime truth (`blunder` /
+    `missed_win`, mate shock, or severe `only_move_failure`) instead of leaving
+    it witness-only
+  - if a soft label and a decisive label land on the same ply, the decisive
+    `blunder` / `missed_win` anchor wins
 
 ### 3. Bounded probe evidence
 
@@ -215,16 +301,22 @@ Current canonical flow:
 11. Chronicle / Game Arc prose is rendered deterministically from those
    carriers.
 12. Chronicle conclusion quality is carried by a deterministic game-level
-   binder inside `CommentaryEngine`, not by an LLM-only summary layer.
+    binder inside `CommentaryEngine`, not by an LLM-only summary layer.
 13. That binder reuses visible moments, strategic threads, and surfaced
-   strategy-pack evidence to carry:
+    strategy-pack evidence to carry:
    - the main two-sided strategic contest
    - the decisive shift / turning point
    - punishment or conversion payoff when the game actually hinged on one
    - player-language anchors lifted from narrative/support evidence before any
-     raw route or square evidence
-14. Full-game review uses this deterministic path as the canonical signoff
-   surface.
+      raw route or square evidence
+14. whole-game priority, decisive-shift binding, and punish / conversion
+    realization are truth-first:
+    - canonical helpers consume `truthClass`, `reasonFamily`, `ownershipRole`,
+      `surfaceMode`, `failureMode`, and exemplar visibility first
+    - raw `momentType` / `moveClassification` remain display and fallback aids
+      for opening / mate / synthetic-bridge cases only
+15. Full-game review uses this deterministic path as the canonical signoff
+    surface.
 
 Current implications:
 
@@ -269,6 +361,14 @@ Current rules:
 - Bookmaker ledger rows are computed, evidence-gated, and UI-owned.
 - the commentary body is optional-polish prose only
 - LLM polish must stay slot-grounded and must not add new topics
+- Bookmaker runtime semantics are truth-first:
+  - compensation significance comes from `ownershipRole`, `visibilityRole`,
+    `surfaceMode`, `exemplarRole`, and `maintenanceExemplarCandidate` when a
+    contract exists
+  - raw compensation surface flags may only assist no-contract fallback flows
+  - tactical tension, cited-line pressure, and early-opening escape hatches
+    consume a shared canonical tension policy rather than re-reading raw
+    `criticality` / `choiceType` strings in each surface
 - Bookmaker may not name a concrete benchmark unless the decisive-truth
   contract marks that benchmark as verified.
 - Bookmaker may not use compensation-positive framing on a verified bad move.
@@ -278,8 +378,9 @@ Current rules:
 - `The move gives up material ...` belongs only to a truth-owning commitment
   row. Maintenance rows describe preservation, and conversion rows describe
   realization.
-- provisional exemplars may remain visible in focus selection while Bookmaker
-  stays neutral and avoids compensation-positive ownership language.
+- private maintenance-exemplar candidates may remain focus-visible for audit /
+  signoff while Bookmaker stays neutral and avoids compensation-positive
+  ownership language.
 - Bookmaker remains compatible with rule-only signoff and provider-none audit
   runs
 
@@ -320,6 +421,42 @@ Current rules:
 - `sourceMode = rule / llm_polished / omitted` stays externally stable.
 - `llm_polished` means wording polish over a deterministic draft, not fresh
   canonical note generation.
+- Active selection and dossier semantics are truth-first:
+  - the dossier lens comes from canonical truth semantics when a contract
+    exists, not from raw `momentType`, `moveClassification`, or compensation
+    digest strings
+  - raw label strings remain compatibility / display / no-contract fallback
+    fields only
+  - selection scoring may keep a private maintenance-exemplar candidate
+    focus-visible without widening the public exemplar enum
+  - a proof-backed best `only_move_defense` may project as
+    `none / primary_visible / neutral`; this keeps a critical hold visible
+    without reclassifying it as failure or investment ownership
+  - benchmark-critical quiet holds may remain `hidden / neutral`, but they are
+    thread-local tie-break material only; they do not receive global
+    visible-slot or active-note protection on their own
+  - threaded representative selection is truth-aware: if a nominal
+    seed/build/finisher representative is hidden/neutral and the same thread
+    has a truth-visible or significance-qualified move, Active uses that move
+    instead
+  - representative replacement remains stage-aware:
+    seed/build/finisher slots are preserved when possible, and same-thread
+    tactical / only-move failures may replace hidden shells locally without
+    becoming global protected families
+  - representative and active-note ordering stay fixed-cap and truth-first:
+    severe failures first, then promoted best holds, then
+    verified/provisional exemplar ownership
+  - generic hidden best tactical/technical moves may help same-thread
+    replacement only when a thread lacks stronger truth-visible/failure reps;
+    they may not outrank those protected families in the global visible /
+    active-note caps
+  - the protected pass reserves visible / active-note space first, but any
+    remaining visible slots are still backfilled by truth-eligible fallback
+    moments; protection may not collapse the visible set to only the protected
+    family
+  - investment-chain dedupe still defaults to one supporting-visible move per
+    chain, but a second support is allowed when that move is a private
+    maintenance-exemplar candidate or a non-best / failure-significant follow-up
 - compensation-positive note survival is closed through the deterministic path,
   including strict compensation rescue.
 - Active may not explain a verified blunder as compensation-positive.
@@ -420,9 +557,8 @@ Prompt-bearing surfaces are intentionally narrow and role-specific.
 - product-specific reveal / summary polish
 - separate from commentary signoff canonical logic
 
-The detailed prompt-family contract lives in:
-
-- `modules/llm/docs/PromptSurfacePolicy.md`
+This section is the maintained prompt-family contract. No separate prompt-policy
+markdown file is authoritative anymore.
 
 ## Provider Split and Signoff Path
 
@@ -439,9 +575,9 @@ This split is a runtime polish-routing choice, not a canonical attach contract.
 - signoff path is deterministic canonical first
 - provider-none eval remains the canonical measurement path for release signoff
 - rerun outputs under `tmp/commentary-player-qc/...` are local evidence only
-- merged shard signoff must preserve the dedicated positive-exemplar audit set;
-  exemplar coverage is not reduced to the intersection of exemplar keys with
-  the current main-corpus focus set
+- merged shard signoff must preserve the canonical positive-exemplar gate
+  carried in the truth inventory; exemplar coverage is not reduced to the
+  intersection of exemplar keys with the current main-corpus focus set
 - audit calibration keeps verified `winning_investment` /
   `compensated_investment` pivots eligible as positive exemplars when Game Arc
   and Bookmaker agree on the compensation contract; legacy suppression is for
@@ -483,19 +619,17 @@ Primary files:
 
 ## Source-of-Truth Document Set
 
-Current SSOT / contract docs in `modules/llm/docs`:
+Current maintained markdown contracts in `modules/llm/docs`:
 
 - `CommentaryPipelineSSOT.md`
-  - full commentary-analysis runtime and signoff contract
+  - full commentary-analysis runtime, prompt ownership, Bookmaker prose
+    boundary, and signoff contract
 - `CommentaryTruthGate.md`
   - decisive-truth signoff contract and GM-audit grading
-- `PromptSurfacePolicy.md`
-  - prompt-family role split and polish/canonical ownership
-- `BookmakerProseContract.md`
-  - Bookmaker body prose contract
 
 Older narrative update-log style sections are intentionally removed from this
-document. The current-state contract above is the only maintained authority.
+document. The current-state contract above is the only maintained markdown
+authority for the commentary pipeline.
 
 ## Reference Files
 

@@ -43,26 +43,23 @@ private[analysis] object StandardCommentaryClaimPolicy:
       case OpeningEvent.Intro(_, _, _, _)    => false
     }
 
-  def hasForcedOrCriticalState(ctx: NarrativeContext): Boolean =
-    val criticality = Option(ctx.header.criticality).map(_.trim.toLowerCase).getOrElse("")
-    criticality.contains("forced") ||
-      criticality.contains("critical") ||
-      Option(ctx.header.choiceType).exists(_.trim.equalsIgnoreCase("OnlyMove"))
+  def hasForcedOrCriticalState(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
+    TacticalTensionPolicy.hasForcedOrCriticalState(ctx, truthContract)
 
-  def hasStrongTacticalPressure(ctx: NarrativeContext): Boolean =
-    ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= StrongThreatCp || t.kind.toLowerCase.contains("mate")) ||
-      ctx.candidates.exists(c =>
-        c.tags.contains(CandidateTag.Sharp) ||
-          c.tags.contains(CandidateTag.TacticalGamble) ||
-          c.tacticEvidence.nonEmpty
-      ) ||
-      ctx.meta.flatMap(_.errorClass).exists(ec => ec.isTactical || ec.missedMotifs.nonEmpty)
+  def hasStrongTacticalPressure(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
+    TacticalTensionPolicy.hasStrongTacticalPressure(ctx, truthContract)
 
-  def hasSevereCounterfactual(ctx: NarrativeContext): Boolean =
-    ctx.counterfactual.exists { cf =>
-      cf.cpLoss >= SevereCounterfactualCp ||
-      List("blunder", "missedwin", "mistake").contains(cf.severity.trim.toLowerCase.replace(" ", ""))
-    }
+  def hasSevereCounterfactual(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
+    TacticalTensionPolicy.hasSevereCounterfactual(ctx, truthContract)
 
   def hasDurableStructuralCommitment(ctx: NarrativeContext): Boolean =
     ctx.delta.exists(d => d.structureChange.exists(_.trim.nonEmpty) || d.openFileCreated.exists(_.trim.nonEmpty)) ||
@@ -86,21 +83,33 @@ private[analysis] object StandardCommentaryClaimPolicy:
         }
       )
 
-  def allowsRedTier(ctx: NarrativeContext): Boolean =
+  def allowsRedTier(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
     !isStandard(ctx) ||
-      hasForcedOrCriticalState(ctx) ||
+      hasForcedOrCriticalState(ctx, truthContract) ||
       ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= UrgentThreatCp || t.kind.toLowerCase.contains("mate")) ||
-      hasStrongTacticalPressure(ctx) ||
-      hasSevereCounterfactual(ctx)
+      hasStrongTacticalPressure(ctx, truthContract) ||
+      hasSevereCounterfactual(ctx, truthContract)
 
-  def allowsAmberTier(ctx: NarrativeContext): Boolean =
-    !isStandard(ctx) || (!quietOpeningNoEvent(ctx) && signalSupportCount(ctx) >= 2)
+  def allowsAmberTier(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
+    !isStandard(ctx) || (!quietOpeningNoEvent(ctx, truthContract) && signalSupportCount(ctx) >= 2)
 
-  def quietStandardPosition(ctx: NarrativeContext): Boolean =
-    quietOpeningNoEvent(ctx) || quietLaterNoEvent(ctx)
+  def quietStandardPosition(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Boolean =
+    quietOpeningNoEvent(ctx, truthContract) || quietLaterNoEvent(ctx, truthContract)
 
-  def noEventNote(ctx: NarrativeContext): Option[String] =
-    Option.when(quietStandardPosition(ctx)) {
+  def noEventNote(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Option[String] =
+    Option.when(quietStandardPosition(ctx, truthContract)) {
       val note =
         if openingLike(ctx) && ctx.ply <= GuardedOpeningPlyCutoff then openingNoEventSentence(ctx)
         else quietPositionSentence(ctx)
@@ -150,51 +159,68 @@ private[analysis] object StandardCommentaryClaimPolicy:
         Some(s"It prevents longer-term weakening around ${square.key}.")
       case _ => None
 
-  def finalizeProse(ctx: NarrativeContext, rawText: String): String =
-    noEventNote(ctx).getOrElse(sanitizeClaimStrength(ctx, rawText))
+  def finalizeProse(
+      ctx: NarrativeContext,
+      rawText: String,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): String =
+    noEventNote(ctx, truthContract).getOrElse(sanitizeClaimStrength(ctx, rawText, truthContract))
 
-  private def sanitizeClaimStrength(ctx: NarrativeContext, rawText: String): String =
+  private def sanitizeClaimStrength(
+      ctx: NarrativeContext,
+      rawText: String,
+      truthContract: Option[DecisiveTruthContract]
+  ): String =
     if !isStandard(ctx) then Option(rawText).getOrElse("").trim
     else
       val trimmed = Option(rawText).getOrElse("").trim
       if trimmed.isEmpty then trimmed
       else
         var updated = trimmed
-        if !allowsRedTier(ctx) then
+        if !allowsRedTier(ctx, truthContract) then
           updated = replaceRegex(updated, "(?i)\\bhanging\\b", "loose")
           updated = replaceRegex(updated, "(?i)\\bunderdefended\\b", "lightly defended")
           updated = replaceLiteralIgnoreCase(updated, "tactical liability", "point of pressure")
           updated = replaceLiteralIgnoreCase(updated, "direct tactical target", "practical point of pressure")
           updated = replaceLiteralIgnoreCase(updated, "requires immediate attention", "deserves attention")
           updated = replaceLiteralIgnoreCase(updated, "priority here", "practical concern here")
-          updated = replaceRegex(updated, "(?i)\\burgent\\b", if allowsAmberTier(ctx) then "important" else "notable")
-        if !allowsAmberTier(ctx) then
+          updated = replaceRegex(updated, "(?i)\\burgent\\b", if allowsAmberTier(ctx, truthContract) then "important" else "notable")
+        if !allowsAmberTier(ctx, truthContract) then
           updated = replaceLiteralIgnoreCase(updated, "dominant plan", "main idea")
           updated = replaceLiteralIgnoreCase(updated, "direct target", "point of pressure")
           updated = replaceLiteralIgnoreCase(updated, "lasting weakness", "potential weakness")
         updated.trim
 
-  private def quietOpeningNoEvent(ctx: NarrativeContext): Boolean =
+  private def quietOpeningNoEvent(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
     isStandard(ctx) &&
       openingLike(ctx) &&
       ctx.ply <= EarlyOpeningPlyCutoff &&
       !hasMeaningfulOpeningEvent(ctx) &&
       !hasDurableStructuralCommitment(ctx) &&
       !hasEvidenceBackedMainPlan(ctx) &&
-      !hasStrongNarrativeDriver(ctx)
+      !hasStrongNarrativeDriver(ctx, truthContract)
 
-  private def quietLaterNoEvent(ctx: NarrativeContext): Boolean =
+  private def quietLaterNoEvent(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
     isStandard(ctx) &&
       !openingLike(ctx) &&
       !hasEvidenceBackedMainPlan(ctx) &&
-      !hasStrongNarrativeDriver(ctx) &&
+      !hasStrongNarrativeDriver(ctx, truthContract) &&
       !hasDurableStructuralCommitment(ctx) &&
       !hasActiveStrategicSurface(ctx)
 
-  private def hasStrongNarrativeDriver(ctx: NarrativeContext): Boolean =
-    hasForcedOrCriticalState(ctx) ||
-      hasStrongTacticalPressure(ctx) ||
-      hasSevereCounterfactual(ctx) ||
+  private def hasStrongNarrativeDriver(
+      ctx: NarrativeContext,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    hasForcedOrCriticalState(ctx, truthContract) ||
+      hasStrongTacticalPressure(ctx, truthContract) ||
+      hasSevereCounterfactual(ctx, truthContract) ||
       ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= AmberThreatCp || t.kind.toLowerCase.contains("mate"))
 
   private def hasEvidenceBackedMainPlan(ctx: NarrativeContext): Boolean =
