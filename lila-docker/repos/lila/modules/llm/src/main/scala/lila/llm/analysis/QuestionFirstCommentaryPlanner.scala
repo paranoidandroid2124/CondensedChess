@@ -74,28 +74,91 @@ private[llm] enum OwnerFamily:
       case OpeningRelation   => "OpeningRelation"
       case EndgameTransition => "EndgameTransition"
 
+private[llm] enum OwnerCandidateMateriality:
+  case OwnerCandidate
+  case SupportMaterial
+
+  def wireName: String =
+    this match
+      case OwnerCandidate  => "owner_candidate"
+      case SupportMaterial => "support_material"
+
+private[llm] enum TimingSource:
+  case DecisionComparison
+  case CloseCandidate
+  case PreventedResource
+  case OnlyMove
+
+  def wireName: String =
+    this match
+      case DecisionComparison => "decision_comparison"
+      case CloseCandidate     => "close_candidate"
+      case PreventedResource  => "prevented_resource"
+      case OnlyMove           => "only_move"
+
+private[llm] enum DecisionComparisonTimingDetail:
+  case ConcreteReplyOrReason
+  case BareEngineGap
+
+  def wireName: String =
+    this match
+      case ConcreteReplyOrReason => "concrete_reply_or_reason"
+      case BareEngineGap         => "bare_engine_gap"
+
+private[llm] enum AdmissionDecision:
+  case PrimaryAllowed
+  case SupportOnly
+  case Demote
+  case Forbidden
+
+  def wireName: String =
+    this match
+      case PrimaryAllowed => "PrimaryAllowed"
+      case SupportOnly    => "SupportOnly"
+      case Demote         => "Demote"
+      case Forbidden      => "Forbidden"
+
 private[llm] final case class OwnerCandidateTrace(
     family: OwnerFamily,
     source: String,
     sourceKinds: List[String],
     questionKinds: List[AuthorQuestionKind],
     moveLinked: Boolean,
-    supportMaterial: Boolean,
+    materiality: OwnerCandidateMateriality,
+    timingSource: Option[TimingSource],
+    decisionComparisonTimingDetail: Option[DecisionComparisonTimingDetail],
     proposedFamilyMapping: String,
-    reasons: List[String]
+    reasons: List[String],
+    admissionDecision: Option[AdmissionDecision] = None,
+    admissionReason: Option[String] = None,
+    demotedTo: Option[AuthorQuestionKind] = None
 ):
-  def key: (OwnerFamily, String) = family -> source
+  def supportMaterial: Boolean =
+    materiality == OwnerCandidateMateriality.SupportMaterial
+
+  def key: (OwnerFamily, String, OwnerCandidateMateriality, Option[TimingSource]) =
+    (family, source, materiality, timingSource)
 
   def render: String =
-    List(
-      family.wireName,
-      s"source_kind=$source",
-      s"move_linked=$moveLinked",
-      s"support_material=$supportMaterial",
-      s"mapping=$proposedFamilyMapping",
-      s"source_kinds=${sourceKinds.distinct.sorted.mkString("+")}",
-      s"questions=${questionKinds.map(_.toString).distinct.sorted.mkString("+")}",
-      reasons.distinct.sorted.mkString("+")
+    (
+      List(
+        family.wireName,
+        s"source_kind=$source",
+        s"materiality=${materiality.wireName}",
+        s"move_linked=$moveLinked",
+        s"support_material=$supportMaterial",
+        s"mapping=$proposedFamilyMapping",
+        s"source_kinds=${sourceKinds.distinct.sorted.mkString("+")}",
+        s"questions=${questionKinds.map(_.toString).distinct.sorted.mkString("+")}"
+      ) ++
+        timingSource.toList.map(source => s"timing_source=${source.wireName}") ++
+        decisionComparisonTimingDetail.toList.map(detail =>
+          s"decision_comparison_detail=${detail.wireName}"
+        ) ++
+        admissionDecision.toList.map(decision => s"admission_decision=${decision.wireName}") ++
+        admissionReason.toList.map(reason => s"admission_reason=$reason") ++
+        demotedTo.toList.map(kind => s"demoted_to=${kind.toString}") ++
+        List(reasons.distinct.sorted.mkString("+"))
     ).filter(_.nonEmpty).mkString(":")
 
 private[llm] final case class DroppedOwnerFamilyTrace(
@@ -133,12 +196,20 @@ private[llm] final case class PlannerOwnerTrace(
 
   def supportMaterialSeparationLabels: List[String] =
     ownerCandidates.map(candidate =>
-      s"${candidate.source}:${if candidate.supportMaterial then "support_material" else "owner_candidate"}"
+      s"${candidate.source}:${candidate.materiality.wireName}" +
+        candidate.timingSource.fold("")(source => s":timing_source=${source.wireName}") +
+        candidate.decisionComparisonTimingDetail.fold("")(detail =>
+          s":decision_comparison_detail=${detail.wireName}"
+        )
     )
 
   def proposedFamilyMappingLabels: List[String] =
     ownerCandidates.map(candidate =>
-      s"${candidate.source}->${candidate.family.wireName}:${candidate.proposedFamilyMapping}"
+      s"${candidate.source}->${candidate.family.wireName}:${candidate.proposedFamilyMapping}:${candidate.materiality.wireName}" +
+        candidate.timingSource.fold("")(source => s":timing_source=${source.wireName}") +
+        candidate.decisionComparisonTimingDetail.fold("")(detail =>
+          s":decision_comparison_detail=${detail.wireName}"
+        )
     )
 
 private[llm] final case class QuestionPlan(
@@ -172,6 +243,12 @@ private[llm] final case class RankedQuestionPlans(
     secondary: Option[QuestionPlan],
     rejected: List[RejectedQuestionPlan],
     ownerTrace: PlannerOwnerTrace = PlannerOwnerTrace()
+)
+
+private[llm] final case class AdmissionOutcome(
+    decision: AdmissionDecision,
+    reason: String,
+    demotedTo: Option[AuthorQuestionKind] = None
 )
 
 private[llm] final case class QuestionPlannerInputs(
@@ -304,13 +381,37 @@ private[llm] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): RankedQuestionPlans =
+    val rawCandidates = rawOwnerCandidates(ctx, inputs, truthContract)
+    val sceneType = classifyScene(inputs, truthContract, rawCandidates)
+    val ownerCandidates = rawCandidates.map(candidate => applyAdmission(sceneType, candidate))
     val evaluated = authorQuestions.map(question => evaluateQuestion(question, ply, inputs, truthContract))
-    val admitted = evaluated.collect { case Left(value) => value }
-    val rejected = evaluated.collect { case Right(value) => value }
+    val evaluatedAdmitted = evaluated.collect { case Left(value) => value }
+    val evaluationRejected = evaluated.collect { case Right(value) => value }
+    val ownerCandidateIndex =
+      ownerCandidates
+        .filter(_.materiality == OwnerCandidateMateriality.OwnerCandidate)
+        .groupBy(candidate => candidate.family -> candidate.source)
+        .view
+        .mapValues(_.sortBy(candidate =>
+          (
+            admissionRank(candidate.admissionDecision.getOrElse(AdmissionDecision.Forbidden)),
+            candidate.timingSource.map(_.wireName).getOrElse(""),
+            candidate.reasons.mkString("+")
+          )
+        ).head)
+        .toMap
+    val (admitted, admissionRejected) =
+      evaluatedAdmitted.foldLeft((List.empty[QuestionPlan], List.empty[RejectedQuestionPlan])) {
+        case ((kept, dropped), plan) =>
+          admittedPlanDecision(sceneType, ownerCandidateIndex.get(plan.ownerFamily -> plan.ownerSource), plan) match
+            case Left(admittedPlan)    => (kept :+ admittedPlan, dropped)
+            case Right(rejectedPlan) => (kept, dropped :+ rejectedPlan)
+      }
+    val rejected = evaluationRejected ++ admissionRejected
     val ranked = admitted.sortBy(planScore).reverse
     val primary = ranked.headOption
     val secondary = ranked.drop(1).find(plan => secondaryAllowed(primary, plan))
-    val ownerTrace = buildOwnerTrace(ctx, inputs, truthContract, admitted, rejected, primary)
+    val ownerTrace = buildOwnerTrace(sceneType, ownerCandidates, admitted, rejected, primary)
     RankedQuestionPlans(primary = primary, secondary = secondary, rejected = rejected, ownerTrace = ownerTrace)
 
   def hasConcreteWhyNowOwner(
@@ -639,6 +740,37 @@ private[llm] object QuestionFirstCommentaryPlanner:
           .filter(_.trim.nonEmpty)
           .filter(move => comparison.chosenMove.forall(chosen => !sameText(chosen, move)))
       )
+
+  private def decisionComparisonTimingDetail(
+      comparison: DecisionComparison
+  ): DecisionComparisonTimingDetail =
+    val concreteSource =
+      comparison.deferredSource.exists(source => !isEngineGapLikeDecisionSource(source))
+    val concreteReason =
+      comparison.deferredReason
+        .filter(_.trim.nonEmpty)
+        .exists(reason =>
+          !comparison.practicalAlternative &&
+            !looksLikeEngineGapReason(reason) &&
+            comparison.deferredSource.forall(source => !isEngineGapLikeDecisionSource(source))
+        )
+    val concreteReply = !comparison.practicalAlternative &&
+      comparison.deferredMove.exists(_.trim.nonEmpty) &&
+      concreteSource
+    if concreteReason || concreteReply then DecisionComparisonTimingDetail.ConcreteReplyOrReason
+    else DecisionComparisonTimingDetail.BareEngineGap
+
+  private def isEngineGapLikeDecisionSource(source: String): Boolean =
+    sameText(source, "engine_gap") ||
+      sameText(source, "top_engine_move") ||
+      sameText(source, "close_candidate")
+
+  private def looksLikeEngineGapReason(reason: String): Boolean =
+    val normalized = normalizeText(reason)
+    normalized.startsWith("it trails the engine line by about") ||
+      normalized.startsWith("it trails the engine line") ||
+      normalized.startsWith("delaying costs about") ||
+      normalized.startsWith("it costs about")
 
   private def buildWhyThisPlan(
       question: AuthorQuestion,
@@ -1179,43 +1311,65 @@ private[llm] object QuestionFirstCommentaryPlanner:
 
   private val EndgameTransitionPattern = raw"(.+)\((.+)\)\s*→\s*(.+)\((.+)\)".r
 
+  private def ownerCandidate(
+      family: OwnerFamily,
+      source: String,
+      sourceKinds: List[String],
+      questionKinds: List[AuthorQuestionKind],
+      moveLinked: Boolean,
+      materiality: OwnerCandidateMateriality = OwnerCandidateMateriality.OwnerCandidate,
+      timingSource: Option[TimingSource] = None,
+      decisionComparisonTimingDetail: Option[DecisionComparisonTimingDetail] = None,
+      proposedFamilyMapping: String,
+      reasons: List[String]
+  ): OwnerCandidateTrace =
+    OwnerCandidateTrace(
+      family = family,
+      source = source,
+      sourceKinds = sourceKinds,
+      questionKinds = questionKinds,
+      moveLinked = moveLinked,
+      materiality = materiality,
+      timingSource = timingSource,
+      decisionComparisonTimingDetail = decisionComparisonTimingDetail,
+      proposedFamilyMapping = proposedFamilyMapping,
+      reasons = reasons
+    )
+
   private def buildOwnerTrace(
-      ctx: Option[NarrativeContext],
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract],
+      sceneType: SceneType,
+      ownerCandidates: List[OwnerCandidateTrace],
       admitted: List[QuestionPlan],
       rejected: List[RejectedQuestionPlan],
       primary: Option[QuestionPlan]
   ): PlannerOwnerTrace =
-    val rawCandidates = rawOwnerCandidates(ctx, inputs, truthContract)
     val admittedFamilies =
-      admitted
-        .groupBy(plan => plan.ownerFamily -> plan.ownerSource)
-        .toList
-        .sortBy { case ((family, source), _) => (family.wireName, source) }
-        .map { case ((family, source), plans) =>
-          OwnerCandidateTrace(
-            family = family,
-            source = source,
-            sourceKinds = plans.flatMap(_.sourceKinds).distinct.sorted,
-            questionKinds = plans.map(_.questionKind).distinct.sortBy(_.toString),
-            moveLinked = true,
-            supportMaterial = false,
-            proposedFamilyMapping = s"${family.wireName}/owner_candidate",
-            reasons = (plans.flatMap(_.admissibilityReasons) ++ plans.flatMap(_.demotionReasons)).distinct.sorted
+      ownerCandidates
+        .filter(_.admissionDecision.contains(AdmissionDecision.PrimaryAllowed))
+        .map { candidate =>
+          val relatedPlans =
+            admitted.filter(plan => plan.ownerFamily == candidate.family && plan.ownerSource == candidate.source)
+          candidate.copy(
+            sourceKinds = (candidate.sourceKinds ++ relatedPlans.flatMap(_.sourceKinds)).distinct.sorted,
+            questionKinds = (candidate.questionKinds ++ relatedPlans.map(_.questionKind)).distinct.sortBy(_.toString),
+            reasons = (candidate.reasons ++ relatedPlans.flatMap(_.admissibilityReasons) ++ relatedPlans.flatMap(_.demotionReasons)).distinct.sorted
           )
         }
-    val admittedKeys = admittedFamilies.map(_.key).toSet
     val droppedFamilies =
-      rawCandidates
-        .filterNot(candidate => admittedKeys.contains(candidate.key))
+      ownerCandidates
+        .filterNot(_.admissionDecision.contains(AdmissionDecision.PrimaryAllowed))
         .map { candidate =>
           val relatedRejected =
-            rejected.filter(rejectedPlan => candidate.questionKinds.contains(rejectedPlan.questionKind))
+            rejected.filter(rejectedPlan =>
+              candidate.questionKinds.contains(rejectedPlan.questionKind) ||
+                rejectedPlan.reasons.contains(candidate.admissionReason.getOrElse(""))
+            )
           val reasons =
             (relatedRejected.flatMap(_.reasons) ++
               relatedRejected.flatMap(_.demotionReasons) ++
-              candidate.reasons).distinct.sorted
+              candidate.reasons ++
+              candidate.admissionReason.toList ++
+              candidate.admissionDecision.toList.map(_.wireName)).distinct.sorted
           DroppedOwnerFamilyTrace(
             family = candidate.family,
             source = candidate.source,
@@ -1224,16 +1378,159 @@ private[llm] object QuestionFirstCommentaryPlanner:
           )
         }
     PlannerOwnerTrace(
-      sceneType = classifyScene(inputs, truthContract, rawCandidates),
-      ownerCandidates = rawCandidates,
+      sceneType = sceneType,
+      ownerCandidates = ownerCandidates,
       admittedFamilies = admittedFamilies,
       droppedFamilies = droppedFamilies,
       demotionReasons =
-        (admitted.flatMap(_.demotionReasons) ++ rejected.flatMap(_.demotionReasons)).distinct.sorted,
+        (
+          admitted.flatMap(_.demotionReasons) ++
+            rejected.flatMap(_.demotionReasons) ++
+            ownerCandidates
+              .filterNot(_.admissionDecision.contains(AdmissionDecision.PrimaryAllowed))
+              .flatMap(_.admissionReason)
+        ).distinct.sorted,
       selectedQuestion = primary.map(_.questionKind),
       selectedOwnerFamily = primary.map(_.ownerFamily),
       selectedOwnerSource = primary.map(_.ownerSource)
     )
+
+  private def admissionRank(decision: AdmissionDecision): Int =
+    decision match
+      case AdmissionDecision.PrimaryAllowed => 0
+      case AdmissionDecision.SupportOnly    => 1
+      case AdmissionDecision.Demote         => 2
+      case AdmissionDecision.Forbidden      => 3
+
+  private def admittedPlanDecision(
+      sceneType: SceneType,
+      candidate: Option[OwnerCandidateTrace],
+      plan: QuestionPlan
+  ): Either[QuestionPlan, RejectedQuestionPlan] =
+    candidate match
+      case Some(ownerCandidate) if ownerCandidate.admissionDecision.contains(AdmissionDecision.PrimaryAllowed) =>
+        Left(plan)
+      case Some(ownerCandidate) =>
+        Right(rejectByAdmission(plan, sceneType, ownerCandidate))
+      case None =>
+        Right(
+          RejectedQuestionPlan(
+            questionId = plan.questionId,
+            questionKind = plan.questionKind,
+            fallbackMode = QuestionPlanFallbackMode.Suppressed,
+            reasons = List("admission_missing_owner_candidate", s"scene=${sceneType.wireName}"),
+            demotionReasons = plan.demotionReasons
+          )
+        )
+
+  private def rejectByAdmission(
+      plan: QuestionPlan,
+      sceneType: SceneType,
+      candidate: OwnerCandidateTrace
+  ): RejectedQuestionPlan =
+    val decision = candidate.admissionDecision.getOrElse(AdmissionDecision.Forbidden)
+    val reason = candidate.admissionReason.getOrElse("admission_filtered")
+    val fallbackMode =
+      candidate.demotedTo match
+        case Some(AuthorQuestionKind.WhyThis)           => QuestionPlanFallbackMode.DemotedToWhyThis
+        case Some(AuthorQuestionKind.WhatMustBeStopped) => QuestionPlanFallbackMode.DemotedToWhatMustBeStopped
+        case _                                          => QuestionPlanFallbackMode.Suppressed
+    RejectedQuestionPlan(
+      questionId = plan.questionId,
+      questionKind = plan.questionKind,
+      fallbackMode = fallbackMode,
+      reasons =
+        List(
+          s"admission_${decision.wireName}",
+          reason,
+          s"scene=${sceneType.wireName}",
+          s"owner_family=${plan.ownerFamily.wireName}",
+          s"owner_source=${plan.ownerSource}"
+        ).distinct,
+      demotedTo = candidate.demotedTo,
+      demotionReasons = (plan.demotionReasons ++ candidate.demotedTo.toList.map(_ => reason)).distinct
+    )
+
+  private def applyAdmission(
+      sceneType: SceneType,
+      candidate: OwnerCandidateTrace
+  ): OwnerCandidateTrace =
+    val outcome = admissionOutcome(sceneType, candidate)
+    candidate.copy(
+      admissionDecision = Some(outcome.decision),
+      admissionReason = Some(outcome.reason),
+      demotedTo = outcome.demotedTo
+    )
+
+  private def admissionOutcome(
+      sceneType: SceneType,
+      candidate: OwnerCandidateTrace
+  ): AdmissionOutcome =
+    def primary(reason: String) = AdmissionOutcome(AdmissionDecision.PrimaryAllowed, reason)
+    def support(reason: String) = AdmissionOutcome(AdmissionDecision.SupportOnly, reason)
+    def demote(reason: String, to: AuthorQuestionKind) =
+      AdmissionOutcome(AdmissionDecision.Demote, reason, demotedTo = Some(to))
+    def forbid(reason: String) = AdmissionOutcome(AdmissionDecision.Forbidden, reason)
+
+    if candidate.materiality == OwnerCandidateMateriality.SupportMaterial then
+      support("support_material_not_owner_legal")
+    else
+      candidate.family match
+        case OwnerFamily.TacticalFailure =>
+          if sceneType == SceneType.TacticalFailure then primary("tactical_failure_primary_in_tactical_scene")
+          else support("tactical_failure_subordinate_outside_tactical_scene")
+        case OwnerFamily.ForcingDefense =>
+          sceneType match
+            case SceneType.ForcingDefense => primary("forcing_defense_primary_in_forcing_scene")
+            case SceneType.TacticalFailure | SceneType.PlanClash | SceneType.TransitionConversion |
+                SceneType.EndgameTransition => support("forcing_defense_support_only_outside_forcing_scene")
+            case _ => forbid("forcing_defense_not_legal_in_current_scene")
+        case OwnerFamily.MoveDelta =>
+          sceneType match
+            case SceneType.QuietImprovement | SceneType.TransitionConversion =>
+              primary("move_delta_primary_in_quiet_or_conversion_scene")
+            case _ => support("move_delta_support_only_outside_quiet_or_conversion_scene")
+        case OwnerFamily.DecisionTiming =>
+          candidate.timingSource match
+            case Some(TimingSource.CloseCandidate) =>
+              support("decision_timing_close_candidate_support_only")
+            case Some(TimingSource.DecisionComparison) =>
+              sceneType match
+                case SceneType.TacticalFailure =>
+                  demote("decision_timing_demoted_under_tactical_failure", AuthorQuestionKind.WhyThis)
+                case _ =>
+                  support("decision_timing_support_only_in_v1")
+            case Some(TimingSource.PreventedResource | TimingSource.OnlyMove) =>
+              sceneType match
+                case SceneType.TacticalFailure =>
+                  demote("decision_timing_demoted_under_tactical_failure", AuthorQuestionKind.WhyThis)
+                case _ =>
+                  support("decision_timing_support_only_in_v1")
+            case _ =>
+              forbid("decision_timing_missing_supported_source")
+        case OwnerFamily.PlanRace =>
+          sceneType match
+            case SceneType.PlanClash => primary("plan_race_primary_in_plan_clash")
+            case SceneType.ForcingDefense =>
+              demote("plan_race_demoted_under_forcing_defense", AuthorQuestionKind.WhatMustBeStopped)
+            case _ =>
+              demote("plan_race_demoted_outside_plan_clash", AuthorQuestionKind.WhyThis)
+        case OwnerFamily.OpeningRelation =>
+          if !candidate.moveLinked || candidate.source == "opening_precedent_summary" then
+            support("opening_relation_raw_summary_support_only")
+          else
+            sceneType match
+              case SceneType.OpeningRelation => primary("opening_relation_primary_in_opening_scene")
+              case SceneType.TransitionConversion => support("opening_relation_support_only_under_conversion")
+              case _ => forbid("opening_relation_not_legal_in_current_scene")
+        case OwnerFamily.EndgameTransition =>
+          if !candidate.moveLinked || candidate.source == "endgame_theoretical_hint" then
+            support("endgame_transition_raw_hint_support_only")
+          else
+            sceneType match
+              case SceneType.EndgameTransition => primary("endgame_transition_primary_in_endgame_scene")
+              case SceneType.TransitionConversion => support("endgame_transition_support_only_under_conversion")
+              case _ => forbid("endgame_transition_not_legal_in_current_scene")
 
   private def rawOwnerCandidates(
       ctx: Option[NarrativeContext],
@@ -1250,13 +1547,12 @@ private[llm] object QuestionFirstCommentaryPlanner:
         ) ||
           inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical)
       ) {
-        OwnerCandidateTrace(
+        ownerCandidate(
           family = OwnerFamily.TacticalFailure,
           source = truthContract.map(_ => "truth_contract").getOrElse("main_bundle"),
           sourceKinds = List(truthContract.map(_ => "truth_contract").getOrElse("main_bundle")),
           questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
           moveLinked = true,
-          supportMaterial = false,
           proposedFamilyMapping = "TacticalFailure/move_linked",
           reasons = List("tactical_failure_signal")
         )
@@ -1265,13 +1561,12 @@ private[llm] object QuestionFirstCommentaryPlanner:
     val forcingDefense =
       List(
         bestImmediateThreat(inputs.opponentThreats).map { _ =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family = OwnerFamily.ForcingDefense,
             source = "threat",
             sourceKinds = List("threat"),
             questionKinds = List(AuthorQuestionKind.WhyNow, AuthorQuestionKind.WhatMustBeStopped),
             moveLinked = true,
-            supportMaterial = false,
             proposedFamilyMapping = "ForcingDefense/move_linked",
             reasons = List("urgent_threat")
           )
@@ -1282,7 +1577,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
               preventedPlanChangeClaim(plan).nonEmpty
           )
           .map { _ =>
-            OwnerCandidateTrace(
+            ownerCandidate(
               family = OwnerFamily.ForcingDefense,
               source = "prevented_plan",
               sourceKinds = List("prevented_plan"),
@@ -1292,19 +1587,17 @@ private[llm] object QuestionFirstCommentaryPlanner:
                 AuthorQuestionKind.WhatMustBeStopped
               ),
               moveLinked = true,
-              supportMaterial = false,
               proposedFamilyMapping = "ForcingDefense/move_linked",
               reasons = List("prevented_resource")
             )
           },
         onlyMovePressure(truthContract).map { _ =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family = OwnerFamily.ForcingDefense,
             source = "truth_contract",
             sourceKinds = List("truth_contract"),
             questionKinds = List(AuthorQuestionKind.WhyNow),
             moveLinked = true,
-            supportMaterial = false,
             proposedFamilyMapping = "ForcingDefense/move_linked",
             reasons = List("only_move_defense")
           )
@@ -1314,7 +1607,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
     val moveDelta =
       List(
         inputs.mainBundle.flatMap(_.mainClaim).map { claim =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family =
               if claim.mode == PlayerFacingTruthMode.Tactical then OwnerFamily.TacticalFailure
               else OwnerFamily.MoveDelta,
@@ -1322,7 +1615,6 @@ private[llm] object QuestionFirstCommentaryPlanner:
             sourceKinds = List(claim.sourceKind),
             questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
             moveLinked = true,
-            supportMaterial = false,
             proposedFamilyMapping =
               if claim.mode == PlayerFacingTruthMode.Tactical then "TacticalFailure/move_linked"
               else "MoveDelta/move_linked",
@@ -1330,25 +1622,23 @@ private[llm] object QuestionFirstCommentaryPlanner:
           )
         },
         inputs.quietIntent.map { intent =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family = OwnerFamily.MoveDelta,
             source = intent.sourceKind,
             sourceKinds = List(intent.sourceKind),
             questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
             moveLinked = true,
-            supportMaterial = false,
             proposedFamilyMapping = "MoveDelta/move_linked",
             reasons = List("quiet_move_claim")
           )
         },
         inputs.pvDelta.map { _ =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family = OwnerFamily.MoveDelta,
             source = "pv_delta",
             sourceKinds = List("pv_delta"),
             questionKinds = List(AuthorQuestionKind.WhatChanged),
             moveLinked = true,
-            supportMaterial = false,
             proposedFamilyMapping = "MoveDelta/move_linked",
             reasons = List("move_local_delta")
           )
@@ -1360,26 +1650,61 @@ private[llm] object QuestionFirstCommentaryPlanner:
         decisionComparisonTimingClaim(inputs.decisionComparison).nonEmpty ||
           decisionComparisonChangeClaim(inputs.decisionComparison).nonEmpty
       ) {
-        OwnerCandidateTrace(
+        val detail =
+          inputs.decisionComparison
+            .map(decisionComparisonTimingDetail)
+            .getOrElse(DecisionComparisonTimingDetail.BareEngineGap)
+        ownerCandidate(
           family = OwnerFamily.DecisionTiming,
           source = "decision_comparison",
           sourceKinds = List("decision_comparison"),
           questionKinds = List(AuthorQuestionKind.WhyNow, AuthorQuestionKind.WhatChanged),
           moveLinked = true,
-          supportMaterial = false,
-          proposedFamilyMapping = "DecisionTiming/move_linked",
-          reasons = List("timing_loss")
+          timingSource = Some(TimingSource.DecisionComparison),
+          decisionComparisonTimingDetail = Some(detail),
+          proposedFamilyMapping = s"DecisionTiming/${detail.wireName}",
+          reasons = List("timing_loss", detail.wireName)
         )
       }.toList
 
+    val timingRefinements =
+      List(
+        inputs.preventedPlansNow
+          .find(plan => preventedPlanTimingClaim(plan).nonEmpty)
+          .map { _ =>
+            ownerCandidate(
+              family = OwnerFamily.DecisionTiming,
+              source = "prevented_plan",
+              sourceKinds = List("prevented_plan"),
+              questionKinds = List(AuthorQuestionKind.WhyNow, AuthorQuestionKind.WhatChanged),
+              moveLinked = true,
+              timingSource = Some(TimingSource.PreventedResource),
+              proposedFamilyMapping = "DecisionTiming/move_linked",
+              reasons = List("prevented_resource_timing")
+            )
+          },
+        onlyMovePressure(truthContract).map { _ =>
+          ownerCandidate(
+            family = OwnerFamily.DecisionTiming,
+            source = "truth_contract",
+            sourceKinds = List("truth_contract"),
+            questionKinds = List(AuthorQuestionKind.WhyNow),
+            moveLinked = true,
+            timingSource = Some(TimingSource.OnlyMove),
+            proposedFamilyMapping = "DecisionTiming/move_linked",
+            reasons = List("only_move_timing")
+          )
+        }
+      ).flatten
+
     val planRace =
       Option.when(hasPlanRaceCandidate(inputs)) {
-        OwnerCandidateTrace(
+        ownerCandidate(
           family = OwnerFamily.PlanRace,
           source =
             inputs.decisionFrame.intent.map(_.sourceKind)
+              .orElse(Option.when(inputs.evidenceBackedPlans.nonEmpty)("evidence_backed_plan"))
               .orElse(inputs.decisionFrame.battlefront.map(_.sourceKind))
-              .orElse(inputs.evidenceBackedPlans.headOption.map(_ => "evidence_backed_plan"))
               .getOrElse("plan_race"),
           sourceKinds =
             List(
@@ -1389,7 +1714,6 @@ private[llm] object QuestionFirstCommentaryPlanner:
             ).flatten.distinct,
           questionKinds = List(AuthorQuestionKind.WhosePlanIsFaster),
           moveLinked = true,
-          supportMaterial = false,
           proposedFamilyMapping = "PlanRace/move_linked",
           reasons = List("certified_plan_race")
         )
@@ -1397,16 +1721,17 @@ private[llm] object QuestionFirstCommentaryPlanner:
 
     val domainShadowSignals = shadowDomainSignals(ctx, inputs)
 
-    (tacticalFailure ++ forcingDefense ++ moveDelta ++ decisionTiming ++ planRace ++ domainShadowSignals)
+    (tacticalFailure ++ forcingDefense ++ moveDelta ++ decisionTiming ++ timingRefinements ++ planRace ++ domainShadowSignals)
       .groupBy(_.key)
       .toList
-      .sortBy { case ((family, source), _) => (family.wireName, source) }
+      .sortBy { case ((family, source, materiality, timingSource), _) =>
+        (family.wireName, source, materiality.wireName, timingSource.map(_.wireName).getOrElse(""))
+      }
       .map { case (_, traces) =>
         traces.reduce { (left, right) =>
           left.copy(
             sourceKinds = (left.sourceKinds ++ right.sourceKinds).distinct.sorted,
             questionKinds = (left.questionKinds ++ right.questionKinds).distinct.sortBy(_.toString),
-            supportMaterial = left.supportMaterial && right.supportMaterial,
             reasons = (left.reasons ++ right.reasons).distinct.sorted
           )
         }
@@ -1420,7 +1745,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
       inputs.alternativeNarrative
         .filter(_.source == "close_candidate")
         .map { _ =>
-          OwnerCandidateTrace(
+          ownerCandidate(
             family = OwnerFamily.DecisionTiming,
             source = "close_candidate",
             sourceKinds = List("alternative_narrative", "close_candidate"),
@@ -1430,7 +1755,8 @@ private[llm] object QuestionFirstCommentaryPlanner:
               AuthorQuestionKind.WhatChanged
             ),
             moveLinked = false,
-            supportMaterial = true,
+            materiality = OwnerCandidateMateriality.SupportMaterial,
+            timingSource = Some(TimingSource.CloseCandidate),
             proposedFamilyMapping = "DecisionTiming/support_only",
             reasons = List("raw_close_alternative")
           )
@@ -1445,25 +1771,24 @@ private[llm] object QuestionFirstCommentaryPlanner:
           OpeningPrecedentBranching.summarySentence(narrativeCtx, narrativeCtx.openingData, requireFocus = false)
         List(
           relation.map { _ =>
-            OwnerCandidateTrace(
+            ownerCandidate(
               family = OwnerFamily.OpeningRelation,
               source = "opening_relation_translator",
               sourceKinds = List("opening_relation_translator"),
               questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
               moveLinked = true,
-              supportMaterial = false,
               proposedFamilyMapping = "OpeningRelation/move_linked",
               reasons = List("opening_relation_translated")
             )
           },
           summary.map { _ =>
-            OwnerCandidateTrace(
+            ownerCandidate(
               family = OwnerFamily.OpeningRelation,
               source = "opening_precedent_summary",
               sourceKinds = List("opening_precedent_summary"),
               questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
               moveLinked = false,
-              supportMaterial = true,
+              materiality = OwnerCandidateMateriality.SupportMaterial,
               proposedFamilyMapping = "OpeningRelation/support_only",
               reasons = List("raw_opening_precedent_summary")
             )
@@ -1476,25 +1801,24 @@ private[llm] object QuestionFirstCommentaryPlanner:
         narrativeCtx.semantic.flatMap(_.endgameFeatures).toList.flatMap { info =>
           List(
             endgameTransitionSentence(info).map { _ =>
-              OwnerCandidateTrace(
+              ownerCandidate(
                 family = OwnerFamily.EndgameTransition,
                 source = "endgame_transition_translator",
                 sourceKinds = List("endgame_transition_translator"),
                 questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
                 moveLinked = true,
-                supportMaterial = false,
                 proposedFamilyMapping = "EndgameTransition/move_linked",
                 reasons = List("endgame_transition_translated")
               )
             },
             rawEndgameHint(info).map { _ =>
-              OwnerCandidateTrace(
+              ownerCandidate(
                 family = OwnerFamily.EndgameTransition,
                 source = "endgame_theoretical_hint",
                 sourceKinds = List("endgame_theoretical_hint", "endgame_oracle"),
                 questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
                 moveLinked = false,
-                supportMaterial = true,
+                materiality = OwnerCandidateMateriality.SupportMaterial,
                 proposedFamilyMapping = "EndgameTransition/support_only",
                 reasons = List("raw_endgame_hint")
               )
@@ -1565,22 +1889,39 @@ private[llm] object QuestionFirstCommentaryPlanner:
     val timingAnchorAvailable = concreteRaceUrgency(inputs).nonEmpty || bestImmediateThreat(inputs.opponentThreats).nonEmpty
     ownRaceAvailable && opponentRaceAvailable && timingAnchorAvailable
 
+  private def hasDomainTransitionOverlap(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      families: Set[OwnerFamily]
+  ): Boolean =
+    val pairedTranslators =
+      families.contains(OwnerFamily.OpeningRelation) &&
+        families.contains(OwnerFamily.EndgameTransition)
+    val moveTransitionAnchor =
+      families.contains(OwnerFamily.MoveDelta) ||
+        truthContract.exists(_.reasonFamily == DecisiveReasonFamily.Conversion) ||
+        inputs.pvDelta.exists(delta =>
+          delta.resolvedThreats.nonEmpty || delta.newOpportunities.nonEmpty || delta.planAdvancements.nonEmpty
+        )
+    pairedTranslators && moveTransitionAnchor
+
   private def classifyScene(
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
       candidates: List[OwnerCandidateTrace]
   ): SceneType =
     val families = candidates.filterNot(_.supportMaterial).map(_.family).toSet
-    if families.contains(OwnerFamily.OpeningRelation) then SceneType.OpeningRelation
-    else if families.contains(OwnerFamily.EndgameTransition) then SceneType.EndgameTransition
-    else if families.contains(OwnerFamily.TacticalFailure) then SceneType.TacticalFailure
-    else if families.contains(OwnerFamily.ForcingDefense) then SceneType.ForcingDefense
+    if families.contains(OwnerFamily.TacticalFailure) then SceneType.TacticalFailure
     else if families.contains(OwnerFamily.PlanRace) then SceneType.PlanClash
-    else if truthContract.exists(_.reasonFamily == DecisiveReasonFamily.Conversion) ||
+    else if families.contains(OwnerFamily.ForcingDefense) then SceneType.ForcingDefense
+    else if hasDomainTransitionOverlap(inputs, truthContract, families) ||
+      truthContract.exists(_.reasonFamily == DecisiveReasonFamily.Conversion) ||
       inputs.pvDelta.exists(delta =>
         delta.resolvedThreats.nonEmpty || delta.newOpportunities.nonEmpty || delta.planAdvancements.nonEmpty
       )
     then SceneType.TransitionConversion
+    else if families.contains(OwnerFamily.OpeningRelation) then SceneType.OpeningRelation
+    else if families.contains(OwnerFamily.EndgameTransition) then SceneType.EndgameTransition
     else SceneType.QuietImprovement
 
   private def evidenceBackedRaceIntent(

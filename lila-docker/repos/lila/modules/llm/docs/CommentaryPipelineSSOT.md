@@ -309,30 +309,59 @@ Current canonical flow:
     outline beats.
 13. `QuestionFirstCommentaryPlanner` ranks `primary + optional secondary`
     question plans from that shared moment bundle.
-    - Phase 5 adds a trace-only scene-first admission scaffold ahead of any
-      legality changes:
+    - Phase 5 now runs scene-first admission inside the shared planner ahead of
+      ranking:
       planner output now records `scene_type`, raw `owner_candidates`,
       `admitted_families`, `dropped_families`, `demotion_reasons`,
       `selected_question`, `selected_owner_family`, and
       `selected_owner_source`
-    - shadow normalization now also records, per candidate:
-      `owner_family`, `source_kind`, `move_linked`, `support_material`, raw
-      support-material separation, and proposed family mapping
+    - shadow normalization remains visible, per candidate:
+      `owner_family`, `source_kind`, `move_linked`, `support_material`,
+      `materiality`, `timing_source`, raw support-material separation, and
+      proposed family mapping
+    - every normalized candidate now also carries `admission_decision`,
+      `admission_reason`, and optional `demoted_to`; ranking sees only
+      `PrimaryAllowed`
     - raw close alternatives from `AlternativeNarrativeSupport` are traced as
-      `DecisionTiming` support material only; they are not yet legal owners
+      `DecisionTiming` support material only and remain illegal as direct
+      owners
+    - `DecisionTiming` trace stays split by materiality and source, and
+      `decision_comparison` timing is now further refined into
+      `concrete_reply_or_reason` vs `bare_engine_gap`, so later recovery can
+      reopen only the concrete subset while keeping raw close-candidate
+      support, prevented-resource timing, and only-move timing distinct
     - opening precedent summaries and endgame theoretical/oracle hints are
       traced as raw domain support material, while
       `OpeningPrecedentBranching.relationSentence` and move-attributed endgame
       transition continuity are traced separately as move-linked candidates
-    - this trace does not yet change ranking legality on its own; it exists so
-      admission design can be evaluated separately from ranking behavior
-    - `WhyNow` may now stay planner-owned from decision-comparison timing loss
-      only when delay cost is concrete (for example, a real cp-loss window),
-      not from generic urgency text such as `the position slips away`
-    - Chronicle / Active replay may reconstruct that concrete
-      decision-comparison timing loss from carried digest data plus the
-      truth-bound `topEngineMove` fallback when the digest itself is too thin
-      to name the deferred move or cp-loss window
+    - scene precedence is now trace-first
+      `tactical_failure > plan_clash > forcing_defense > transition_conversion >
+      opening_relation > endgame_transition > quiet_improvement`
+      so `plan_clash` is no longer shadow-hidden by a concurrent forcing-defense
+      signal
+    - when move-linked `OpeningRelation` and move-linked `EndgameTransition`
+      translators coexist with a move-local transition anchor, shadow
+      classification absorbs them into `transition_conversion` rather than
+      forcing an arbitrary opening-vs-endgame prior
+    - v1 admission is intentionally conservative:
+      `support_material` never enters the owner pool;
+      `DecisionTiming(close_candidate)` is always `SupportOnly`;
+      `PlanRace` is `PrimaryAllowed` only in `plan_clash`;
+      `MoveDelta` is `PrimaryAllowed` only in
+      `quiet_improvement | transition_conversion`;
+      `TacticalFailure` and `ForcingDefense` only own their matching scenes
+    - move-linked `OpeningRelation` / `EndgameTransition` translators can be
+      `PrimaryAllowed` in trace for their own scenes, but the planner still
+      forbids raw domain text as a direct owner and surface replay may not
+      mint a new owner family from them
+    - `WhyNow` / `WhatChanged` plans that rely only on `DecisionTiming` are
+      filtered out of the legal pool in v1; even the
+      `concrete_reply_or_reason` decision-comparison subtype remains trace-only
+      at this stage, so fail-closed fallback or another already-legal owner
+      must carry the scene instead
+    - Chronicle / Active replay may still consume the shared trace, but they
+      may not override planner legality to resurrect timing-only or raw-domain
+      owners
     - `WhatChanged` may now stay planner-owned from move-attributed
       `preventedPlans` / counterplay-window change or concrete
       decision-comparison balance shift, but not from state-only structure

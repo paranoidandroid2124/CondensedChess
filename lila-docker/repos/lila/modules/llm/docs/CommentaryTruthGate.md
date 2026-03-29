@@ -298,20 +298,49 @@ are stale regression artifacts, not chess-truth signoff gates.
     `dropped_families`, `demotion_reasons`, `selected_question`,
     `selected_owner_family`, `selected_owner_source`) but they may not mint a
     new owner family locally from that trace
+  - shared-planner admission is now live in v1:
+    every normalized candidate carries `admission_decision`,
+    `admission_reason`, and optional `demoted_to`, and ranking only sees
+    `PrimaryAllowed`
   - shadow normalization must keep raw-domain material visibly separate from
     move-linked owner candidates:
     raw close alternatives, opening precedent summaries, and endgame
     theoretical hints may be traced with a proposed family mapping, but they
     stay `support_material=true` until shared-planner admission explicitly
     legalizes them
-  - `WhyNow` timing ownership remains strict even after planner-first uplift:
-    a concrete decision-comparison timing loss may own `WhyNow` only when the
-    delay cost itself is explicit and bounded; generic lines such as `other
-    moves allow the position to slip away` are not sufficient timing owners
-  - Chronicle / Active replay may rebuild that concrete timing owner from the
-    carried `DecisionComparison` plus truth-bound `topEngineMove`, but replay
-    may not promote generic urgency or unnamed drift language into a timing
-    owner
+  - `DecisionTiming` trace must preserve source and materiality before
+    admission:
+    `decision_comparison`, `close_candidate`, `prevented_resource`, and
+    `only_move` timing sources are distinct inputs, and
+    `decision_comparison` is now further split into
+    `concrete_reply_or_reason` vs `bare_engine_gap`; raw close alternatives
+    remain support material even when a concrete timing-owner path also exists
+  - scene-hint precedence is now trace-first
+    `tactical_failure > plan_clash > forcing_defense > transition_conversion >
+    opening_relation > endgame_transition > quiet_improvement`
+    so `plan_clash` is no longer shadow-hidden behind a concurrent
+    forcing-defense trace
+  - when opening and endgame translators both survive as move-linked
+    candidates, shared-planner trace prefers the common
+    `transition_conversion` prior if a move-local transition anchor is also
+    present; this avoids arbitrary domain precedence while keeping tactical /
+    race / forcing scenes above it
+  - v1 legality is intentionally conservative:
+    `support_material` never becomes a primary owner,
+    `DecisionTiming(close_candidate)` is always `SupportOnly`,
+    `DecisionTiming` is kept out of the primary pool,
+    `PlanRace` is primary only in `plan_clash`,
+    and `MoveDelta` is primary only in
+    `quiet_improvement | transition_conversion`
+  - `WhyNow` timing ownership therefore remains strict after planner-first
+    uplift:
+    concrete timing loss may still be traced, including the
+    `concrete_reply_or_reason` decision-comparison subtype, but timing-only
+    `WhyNow` / `WhatChanged` plans are filtered from the legal pool until a
+    later admission phase explicitly widens them
+  - Chronicle / Active replay may inspect the carried `DecisionComparison`
+    trace, but replay may not promote generic urgency, unnamed drift language,
+    or raw domain summaries into a timing owner
   - `WhatChanged` move ownership remains separate from state summary:
     move-attributed `preventedPlans`, counterplay-window removal, or concrete
     decision-comparison balance shift may own `WhatChanged`, but a bare

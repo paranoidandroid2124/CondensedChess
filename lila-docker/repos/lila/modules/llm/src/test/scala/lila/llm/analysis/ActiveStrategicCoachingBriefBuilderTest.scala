@@ -277,38 +277,34 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
   private def decisionFrame(moment: GameChronicleMoment): CertifiedDecisionFrame =
     CertifiedDecisionFrameBuilder.build(moment, deltaBundle, dossier)
 
-  test("planner-first active note uses the primary claim and keeps side surfaces outside the note body") {
+  test("active replay omits the note when Step 4a leaves a race-heavy WhyThis moment without a legal primary") {
     val activeMoment =
       moment(
         authorQuestions = List(authorQuestion("q_why_this", "WhyThis")),
         authorEvidence = List(authorEvidence("q_why_this", "WhyThis", "reply_multipv", "14...Rc8 15.Re1 Qc7"))
       )
     val frame = decisionFrame(activeMoment)
-    val selection =
+    val replay =
       ActiveStrategicCoachingBriefBuilder
-        .selectPlannerSurface(activeMoment, deltaBundle, dossier, frame)
-        .getOrElse(fail("expected planner selection"))
+        .replayPlanner(activeMoment, deltaBundle, dossier, frame)
+        .getOrElse(fail("expected planner replay"))
 
-    assertEquals(selection.primary.questionKind, lila.llm.model.authoring.AuthorQuestionKind.WhyThis)
-
-    val note =
-      ActiveStrategicCoachingBriefBuilder
-        .buildDeterministicNote(selection, activeMoment)
-        .getOrElse(fail("expected deterministic note"))
-
-    assert(note.contains("This move increases pressure on g7."), clue(note))
-    assert(!note.contains("The real fight is on the kingside"), clue(note))
-
-    val visible =
-      ActiveStrategicCoachingBriefBuilder.visibleSideSurfaces(selection, frame, deltaBundle, dossier)
-
-    assert(visible.ideaRefs.nonEmpty, clue(visible))
-    assert(visible.routeRefs.nonEmpty, clue(visible))
-    assert(visible.moveRefs.nonEmpty, clue(visible))
-    assert(visible.directionalTargets.nonEmpty, clue(visible))
+    assertEquals(replay.rankedPlans.primary, None)
+    assertEquals(replay.rankedPlans.ownerTrace.sceneType, SceneType.PlanClash)
+    assert(
+      replay.rankedPlans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("MoveDelta") &&
+          label.contains("admission_decision=SupportOnly")
+      ),
+      clue(replay.rankedPlans.ownerTrace.ownerCandidateLabels)
+    )
+    assertEquals(
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, dossier, frame),
+      None
+    )
   }
 
-  test("WhatMustBeStopped note stays short and keeps only defensive dossier support") {
+  test("active replay leaves defensive-only surface empty when Step 4a scene admission keeps defense support-only") {
     val activeMoment =
       moment(
         authorQuestions =
@@ -330,29 +326,27 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
           )
       )
     val frame = decisionFrame(activeMoment)
-    val selection =
+    val replay =
       ActiveStrategicCoachingBriefBuilder
-        .selectPlannerSurface(activeMoment, deltaBundle, dossier, frame)
-        .getOrElse(fail("expected defensive planner selection"))
+        .replayPlanner(activeMoment, deltaBundle, dossier, frame)
+        .getOrElse(fail("expected defensive planner replay"))
 
-    assertEquals(selection.primary.questionKind, lila.llm.model.authoring.AuthorQuestionKind.WhatMustBeStopped)
-
-    val note =
-      ActiveStrategicCoachingBriefBuilder
-        .buildDeterministicNote(selection, activeMoment)
-        .getOrElse(fail("expected defensive note"))
-
-    assert(note.toLowerCase.contains("stop") || note.toLowerCase.contains("prevent"), clue(note))
-
-    val visible =
-      ActiveStrategicCoachingBriefBuilder.visibleSideSurfaces(selection, frame, deltaBundle, dossier)
-
-    assertEquals(visible.routeRefs, Nil)
-    assertEquals(visible.moveRefs, Nil)
-    assert(visible.dossier.nonEmpty, clue(visible))
+    assertEquals(replay.rankedPlans.primary, None)
+    assertEquals(replay.rankedPlans.ownerTrace.sceneType, SceneType.PlanClash)
+    assert(
+      replay.rankedPlans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("ForcingDefense") &&
+          label.contains("admission_decision=SupportOnly")
+      ),
+      clue(replay.rankedPlans.ownerTrace.ownerCandidateLabels)
+    )
+    assertEquals(
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, dossier, frame),
+      None
+    )
   }
 
-  test("Active replay can recover WhyNow from top-engine timing loss without generic urgency") {
+  test("active replay keeps top-engine timing loss in trace but out of the legal primary pool in Step 4a") {
     val activeMoment =
       moment(
         authorQuestions = List(authorQuestion("q_now", "WhyNow")),
@@ -389,25 +383,28 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
             counterplayScoreDrop = Some(90),
             strategicFlow = Some("Keep the kingside pressure rolling."),
             opponentPlan = Some("queenside counterplay")
-          )
+        )
       )
     val frame = CertifiedDecisionFrameBuilder.build(activeMoment, deltaBundle, None)
-    val selection =
+    val replay =
       ActiveStrategicCoachingBriefBuilder
-        .selectPlannerSurface(activeMoment, deltaBundle, None, frame)
-        .getOrElse(fail("expected timing planner selection"))
+        .replayPlanner(activeMoment, deltaBundle, None, frame)
+        .getOrElse(fail("expected timing planner replay"))
 
-    assertEquals(selection.primary.questionKind, lila.llm.model.authoring.AuthorQuestionKind.WhyNow)
-
-      val note =
-        ActiveStrategicCoachingBriefBuilder
-          .buildDeterministicNote(selection, activeMoment)
-          .getOrElse(fail("expected timing note"))
-
-      assert(note.contains("Qe2") || note.toLowerCase.contains("84cp"), clue(note))
-      assert(note.toLowerCase.contains("now"), clue(note))
-      assert(note.toLowerCase.contains("if delayed") || note.split("[.!?]").count(_.trim.nonEmpty) >= 2, clue(note))
-    }
+    assertEquals(replay.rankedPlans.primary, None)
+    assert(
+      replay.rankedPlans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("DecisionTiming") &&
+          label.contains("timing_source=decision_comparison") &&
+          label.contains("admission_decision=SupportOnly")
+      ),
+      clue(replay.rankedPlans.ownerTrace.ownerCandidateLabels)
+    )
+    assertEquals(
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, None, frame),
+      None
+    )
+  }
 
   test("WhyNow active note skips duplicate contrast and keeps the next anchored support") {
     val activeMoment =
