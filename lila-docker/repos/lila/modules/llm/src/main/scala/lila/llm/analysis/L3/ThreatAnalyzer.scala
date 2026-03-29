@@ -28,6 +28,12 @@ object ThreatAnalyzer:
   private val ONLY_DEFENSE_TOLERANCE = 50        // cp difference for "adequate" defense
   private val MIN_DEPTH_FOR_RELIABILITY = 16
 
+  private case class ThreatProfile(
+    kind: ThreatKind,
+    turnsToImpact: Int,
+    baseLossCp: Int
+  )
+
   /**
    * Analyze threats in the position from the opponent's perspective.
    * 
@@ -47,45 +53,34 @@ object ThreatAnalyzer:
     val isWhiteToMove = sideToMove.equalsIgnoreCase("white")
     
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
-    val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, isWhiteToMove, fen)
+    val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, fen)
     val withDefenses = populateDefenseEvidence(correctedThreats, multiPv)
     computeAggregates(withDefenses, multiPv, phase1)
 
   /**
-   * Extract opponent threats from L2 motifs. Labeling-only pass:
-   * sets lossIfIgnoredCp = 0 (actual severity comes from MultiPV delta in correctWithMultiPv).
+   * Extract opponent threats from L2 motifs.
+   * We keep conservative base timing/loss estimates so positional pressure survives
+   * even when MultiPV evidence is thin.
    */
   private def extractOpponentThreats(motifs: List[Motif], isWhiteToMove: Boolean): List[Threat] =
+    val opponentColor = if isWhiteToMove then Color.Black else Color.White
+
     motifs.flatMap { motif =>
-      val motifColor = getMotifColor(motif)
-      val isOpponentMotif = motifColor.exists { color =>
-        (isWhiteToMove && color == Color.Black) || (!isWhiteToMove && color == Color.White)
-      }
-      
-      if !isOpponentMotif then None
-      else
-        val motifName = motif.getClass.getSimpleName.replace("$", "")
-        val lower = motifName.toLowerCase
-        
-        // Classify threat kind from motif type directly
-        val kind = 
-          if lower.contains("mate") || lower.contains("checkmate") || lower == "backrankweakness" then ThreatKind.Mate
-          else if isTacticalMotifName(lower) then ThreatKind.Material
-          else ThreatKind.Positional
-        
-        // Tactical motifs are immediate (1-2 turns), positional are strategic (3+ turns)
-        val turnsToImpact = if kind == ThreatKind.Positional then 3 else 1
-        
-        Some(Threat(
-          kind = kind,
-          lossIfIgnoredCp = 0, // Actual severity will be set by correctWithMultiPv
-          turnsToImpact = turnsToImpact,
-          motifs = List(motifName),
-          attackSquares = extractAttackSquares(motif),
-          targetPieces = extractTargetPieces(motif),
-          bestDefense = None,
-          defenseCount = 0
-        )).filter(_ => kind == ThreatKind.Mate || kind == ThreatKind.Material) // Drop pure positional labels (no value)
+      if threateningColor(motif).contains(opponentColor) then
+        threatProfileFor(motif).map { profile =>
+          val motifName = motif.getClass.getSimpleName.replace("$", "")
+          Threat(
+            kind = profile.kind,
+            lossIfIgnoredCp = profile.baseLossCp,
+            turnsToImpact = profile.turnsToImpact,
+            motifs = List(motifName),
+            attackSquares = extractAttackSquares(motif),
+            targetPieces = extractTargetPieces(motif),
+            bestDefense = None,
+            defenseCount = 0
+          )
+        }
+      else None
     }
 
   /** Tactical motif names that indicate material-level threats. */
@@ -94,13 +89,69 @@ object ThreatAnalyzer:
          "trappedpiece", "interference", "decoy", "zwischenzug", "doublecheck")
       .exists(lower.contains)
 
-  /**
-   * Comprehensive motif color extraction.
-   * All 31+ motif types now have explicit color fields.
-   */
-  private def getMotifColor(motif: Motif): Option[Color] =
+  private def threatProfileFor(motif: Motif): Option[ThreatProfile] =
     motif match
-      // Tactical motifs with explicit color field
+      case _: Motif.BackRankMate | _: Motif.MateNet | _: Motif.SmotheredMate =>
+        Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
+      case m: Motif.Check if m.checkType == Motif.CheckType.Mate || m.checkType == Motif.CheckType.Smothered =>
+        Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
+      case _: Motif.Check | _: Motif.DoubleCheck =>
+        Some(ThreatProfile(ThreatKind.Material, 1, 180))
+      case m: Motif.Capture =>
+        val baseLoss = m.captureType match
+          case Motif.CaptureType.Winning => 320
+          case Motif.CaptureType.Exchange | Motif.CaptureType.Recapture => 220
+          case Motif.CaptureType.ExchangeSacrifice => 180
+          case _ => 150
+        Some(ThreatProfile(ThreatKind.Material, 1, baseLoss))
+      case _: Motif.Fork | _: Motif.Pin | _: Motif.Skewer | _: Motif.DiscoveredAttack |
+          _: Motif.Deflection | _: Motif.Decoy | _: Motif.Overloading | _: Motif.Interference |
+          _: Motif.Clearance | _: Motif.Zwischenzug | _: Motif.RemovingTheDefender | _: Motif.XRay =>
+        Some(ThreatProfile(ThreatKind.Material, 1, 180))
+      case m: Motif.TrappedPiece =>
+        Some(ThreatProfile(ThreatKind.Material, if m.isValuableTrap then 1 else 2, if m.isValuableTrap then 240 else 160))
+      case _: Motif.PawnPromotion =>
+        Some(ThreatProfile(ThreatKind.Material, 1, 900))
+      case m: Motif.PassedPawnPush =>
+        val rel = m.relativeTo
+        Some(
+          ThreatProfile(
+            kind = if rel >= 6 then ThreatKind.Material else ThreatKind.Positional,
+            turnsToImpact = if rel >= 6 then 1 else 2,
+            baseLossCp = if rel >= 6 then 260 else 140
+          )
+        )
+      case m: Motif.PassedPawn =>
+        val rel = Motif.relativeRank(m.rank, m.color)
+        Some(
+          ThreatProfile(
+            kind = if rel >= 6 then ThreatKind.Material else ThreatKind.Positional,
+            turnsToImpact = if rel >= 6 then 2 else if rel >= 4 then 3 else 4,
+            baseLossCp = if rel >= 6 then 220 else if m.isProtected then 130 else 100
+          )
+        )
+      case _: Motif.WeakBackRank =>
+        Some(ThreatProfile(ThreatKind.Positional, 2, 120))
+      case _: Motif.RookBehindPassedPawn | _: Motif.SeventhRankInvasion | _: Motif.KingCutOff =>
+        Some(ThreatProfile(ThreatKind.Positional, 2, 110))
+      case _: Motif.OpenFileControl | _: Motif.SemiOpenFileControl | _: Motif.RookLift |
+          _: Motif.Battery | _: Motif.SpaceAdvantage | _: Motif.Initiative |
+          _: Motif.Domination | _: Motif.Blockade =>
+        Some(ThreatProfile(ThreatKind.Positional, 3, 100))
+      case _ =>
+        val lower = motif.getClass.getSimpleName.replace("$", "").toLowerCase
+        if lower.contains("mate") || lower.contains("checkmate") then
+          Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
+        else if isTacticalMotifName(lower) then
+          Some(ThreatProfile(ThreatKind.Material, 1, 160))
+        else None
+
+  /**
+   * Maps motifs to the side actually posing the threat.
+   * Some motifs store the vulnerable side (`WeakBackRank`, `TrappedPiece`) rather than the attacker.
+   */
+  private def threateningColor(motif: Motif): Option[Color] =
+    motif match
       case m: Motif.Fork => Some(m.color)
       case m: Motif.Pin => Some(m.color)
       case m: Motif.Skewer => Some(m.color)
@@ -110,39 +161,31 @@ object ThreatAnalyzer:
       case m: Motif.Overloading => Some(m.color)
       case m: Motif.DoubleCheck => Some(m.color)
       case m: Motif.BackRankMate => Some(m.color)
-      case m: Motif.TrappedPiece => Some(m.color)
       case m: Motif.Interference => Some(m.color)
       case m: Motif.Clearance => Some(m.color)
       case m: Motif.Check => Some(m.color)
       case m: Motif.Capture => Some(m.color)
       case m: Motif.Zwischenzug => Some(m.color)
-      // Pawn motifs with explicit color field
-      case m: Motif.PawnAdvance => Some(m.color)
-      case m: Motif.PawnBreak => Some(m.color)
+      case m: Motif.RemovingTheDefender => Some(m.color)
+      case m: Motif.XRay => Some(m.color)
+      case m: Motif.MateNet => Some(m.color)
+      case m: Motif.SmotheredMate => Some(m.color)
+      case m: Motif.TrappedPiece => Some(!m.color)
       case m: Motif.PawnPromotion => Some(m.color)
       case m: Motif.PassedPawnPush => Some(m.color)
-      // Piece motifs with explicit color field
       case m: Motif.RookLift => Some(m.color)
-      case m: Motif.Fianchetto => Some(m.color)
-      case m: Motif.Outpost => Some(m.color)
-      case m: Motif.PieceLift => Some(m.color)
-      case m: Motif.Centralization => Some(m.color)
-      // King motifs with explicit color field
-      case m: Motif.KingStep => Some(m.color)
-      case m: Motif.Castling => Some(m.color)
-      // Structural motifs with explicit color field
-      case m: Motif.DoubledPieces => Some(m.color)
       case m: Motif.Battery => Some(m.color)
-      case m: Motif.IsolatedPawn => Some(m.color)
-      case m: Motif.BackwardPawn => Some(m.color)
       case m: Motif.PassedPawn => Some(m.color)
-      // Positional motifs (strategic, not immediate threats)
-      // NOTE: These are included for completeness but typically produce
-      // ThreatKind.Positional labels, which are filtered out in extractOpponentThreats.
       case m: Motif.OpenFileControl => Some(m.color)
-      case m: Motif.WeakBackRank => Some(m.color)
+      case m: Motif.SemiOpenFileControl => Some(m.color)
+      case m: Motif.SeventhRankInvasion => Some(m.color)
+      case m: Motif.RookBehindPassedPawn => Some(m.color)
+      case m: Motif.KingCutOff => Some(m.color)
+      case m: Motif.WeakBackRank => Some(!m.color)
       case m: Motif.SpaceAdvantage => Some(m.color)
-      // Fallback for any other motifs without color field
+      case m: Motif.Initiative => Some(m.color)
+      case m: Motif.Domination => Some(m.color)
+      case m: Motif.Blockade => Some(m.color)
       case _ => None
 
   private def extractAttackSquares(motif: Motif): List[String] =
@@ -155,6 +198,9 @@ object ThreatAnalyzer:
       case m: Motif.Pin => m.pinnedSq.map(_.key).toList
       case m: Motif.Skewer => m.frontSq.map(_.key).toList
       case m: Motif.DiscoveredAttack => m.targetSq.map(_.key).toList
+      case m: Motif.TrappedPiece => List(m.trappedSquare.key)
+      case m: Motif.PassedPawnPush => List(s"${m.file.char.toString.toLowerCase}${m.toRank}")
+      case m: Motif.PassedPawn => List(s"${m.file.char.toString.toLowerCase}${m.rank}")
       case _ => Nil
 
   private def extractTargetPieces(motif: Motif): List[String] =
@@ -165,18 +211,19 @@ object ThreatAnalyzer:
       case m: Motif.DiscoveredAttack => List(m.target.name)
       case _: Motif.Check => List("King")
       case m: Motif.Capture => List(m.captured.name)
+      case m: Motif.TrappedPiece => List(m.trappedRole.name)
+      case _: Motif.WeakBackRank | _: Motif.BackRankMate | _: Motif.MateNet => List("King")
       case _ => Nil
 
   /**
    * FIX #1 & #5: Correct MultiPV detection
    * - Use UCI pattern matching (not SAN)
-   * - Use SIGNED eval delta (negative = opponent threat)
+   * - Use side-to-move-normalized eval deltas
    * - Classify threats correctly based on mate signals
    */
   private def correctWithMultiPv(
     threats: List[Threat],
     multiPv: List[PvLine],
-    isWhiteToMove: Boolean,
     fen: String
   ): List[Threat] =
     if multiPv.size < 2 then
@@ -185,11 +232,9 @@ object ThreatAnalyzer:
     else
       val pv1 = multiPv.head
       val pv2 = multiPv(1)
-      // Positive delta = PV1 is better than PV2 (loss if we don't play PV1)
-      val signedDelta = if isWhiteToMove then pv1.score - pv2.score else pv2.score - pv1.score
-      
-      // If PV2 is significantly worse, opponent has a threat
-      val evalLoss = signedDelta.max(0)
+      // `PvLine.score` is already normalized to the side-to-move's perspective.
+      // Positive delta means PV1 preserves more value than PV2 for that same side.
+      val evalLoss = (pv1.score - pv2.score).max(0)
       // For other captures, rely on evalLoss threshold instead
       val pv2FirstMove = pv2.moves.headOption
       val pv2IsPawnCapture = pv2FirstMove.exists(isPawnDiagonalCapture)

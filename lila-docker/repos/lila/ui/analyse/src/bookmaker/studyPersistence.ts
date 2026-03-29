@@ -21,8 +21,6 @@ export type StoredBookmakerEntry = {
   model: string | null;
   cacheHit: boolean | null;
   mainPlansCount: number;
-  latentPlansCount: number;
-  holdReasonsCount: number;
   bookmakerLedger?: BookmakerStrategicLedgerV1 | null;
   planStateToken?: PlanStateToken | null;
   endgameStateToken?: EndgameStateToken | null;
@@ -58,8 +56,6 @@ type StoredBookmakerEntrySource = Pick<
   | 'model'
   | 'cacheHit'
   | 'mainStrategicPlans'
-  | 'latentPlans'
-  | 'holdReasons'
   | 'bookmakerLedger'
   | 'planStateToken'
   | 'endgameStateToken'
@@ -78,8 +74,6 @@ export function buildStoredBookmakerEntry(
     model: decoded.model,
     cacheHit: decoded.cacheHit,
     mainPlansCount: decoded.mainStrategicPlans.length,
-    latentPlansCount: decoded.latentPlans.length,
-    holdReasonsCount: decoded.holdReasons.length,
     bookmakerLedger: decoded.bookmakerLedger,
     planStateToken: decoded.planStateToken,
     endgameStateToken: decoded.endgameStateToken,

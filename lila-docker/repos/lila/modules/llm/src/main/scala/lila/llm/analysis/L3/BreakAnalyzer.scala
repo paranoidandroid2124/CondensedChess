@@ -27,6 +27,13 @@ object BreakAnalyzer:
   
   private val HIGH_TENSION_THRESHOLD = 2      // Tension squares to force resolution
 
+  private case class BreakCandidate(
+    file: String,
+    impact: Int,
+    priority: Int,
+    reason: String
+  )
+
   /**
    * Analyze pawn play concepts from position features.
    * 
@@ -46,7 +53,7 @@ object BreakAnalyzer:
     
     // Parse board from FEN to get access to raw bitboards/piece locations
     val board = Fen.read(Standard, Fen.Full(features.fen)).map(_.board).getOrElse(Board.empty)
-    val (breakReady, breakFile, breakImpact) = analyzeBreaks(features, motifs, isWhite)
+    val (breakReady, breakFile, breakImpact, breakReason) = analyzeBreaks(features, motifs, board, isWhite)
     val advanceOrCapture = checkTensionResolution(features, phase1)
     val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
     val minorityAttack = checkMinorityAttack(board, isWhite)
@@ -72,15 +79,16 @@ object BreakAnalyzer:
       tensionPolicy = tensionPolicy,
       tensionSquares = tensionSquares,
       primaryDriver = driver,
-      notes = s"$tensionNote; Break: $breakReady, Passer: $urgency"
+      notes = s"$tensionNote; Break: $breakReady ($breakReason), Passer: $urgency"
     )
   // CONCEPT 1-3: BREAK ANALYSIS
 
   private def analyzeBreaks(
     features: PositionFeatures,
     motifs: List[Motif],
+    board: Board,
     isWhite: Boolean
-  ): (Boolean, Option[String], Int) =
+  ): (Boolean, Option[String], Int, String) =
     
     // Check for existing PawnBreak motifs from L2
     val pawnBreakMotifs = motifs.collect {
@@ -92,43 +100,81 @@ object BreakAnalyzer:
       // `chess.File.toString` is numeric in some contexts; use `.char` for file letter.
       val file = primaryBreak.file.char.toString.toLowerCase
       val impact = estimateBreakImpact(features, file, isWhite)
-      (true, Some(file), impact)
+      (true, Some(file), impact, "motif")
     else
       // Detect potential breaks from pawn structure
-      detectPotentialBreak(features, isWhite)
+      detectPotentialBreak(features, board, isWhite)
 
   private def detectPotentialBreak(
     features: PositionFeatures,
+    board: Board,
     isWhite: Boolean
-  ): (Boolean, Option[String], Int) =
+  ): (Boolean, Option[String], Int, String) =
+    detectBoardBreak(features, board, isWhite)
+      .map(candidate => (true, Some(candidate.file), candidate.impact, candidate.reason))
+      .getOrElse(detectCentralBreak(features, isWhite))
+
+  private def detectBoardBreak(
+    features: PositionFeatures,
+    board: Board,
+    isWhite: Boolean
+  ): Option[BreakCandidate] =
+    val color = if isWhite then Color.White else Color.Black
+    val enemy = !color
+    val myPawns = board.byPiece(color, Pawn)
+    val enemyPawns = board.byPiece(enemy, Pawn)
+
+    myPawns.squares
+      .flatMap { pawnSq =>
+        (pawnSq.pawnAttacks(color) & enemyPawns).squares.map { targetSq =>
+          val file = pawnSq.file.char.toString.toLowerCase
+          val centralFile = isCentralFile(pawnSq.file)
+          val wingLever = !centralFile && features.centralSpace.lockedCenter
+          val impact =
+            estimateBreakImpact(features, file, isWhite) +
+              fileOpennessBonus(board, pawnSq.file) +
+              (if centralFile then 15 else 10) +
+              (if wingLever then 20 else 0)
+          val priority =
+            impact +
+              relativeRank(pawnSq, color) * 4 +
+              (if board.attackers(targetSq, color).count >= board.attackers(targetSq, enemy).count then 12 else 0)
+          BreakCandidate(
+            file = file,
+            impact = impact,
+            priority = priority,
+            reason = if wingLever then "wing_lever" else if centralFile then "central_lever" else "flank_lever"
+          )
+        }
+      }
+      .sortBy(candidate => -candidate.priority)
+      .headOption
+
+  private def detectCentralBreak(
+    features: PositionFeatures,
+    isWhite: Boolean
+  ): (Boolean, Option[String], Int, String) =
     val central = features.centralSpace
-    
-    // Check for d4-d5 or e4-e5 type central breaks
-    // If center is locked, no immediate break
+
     if central.lockedCenter then
-      (false, None, 0)
+      (false, None, 0, "none")
     else if central.pawnTensionCount > 0 then
-      // Tension exists - break is potentially ready
-      // Heuristic: if we have central pawns and tension, break is ready
-      val hasCentralPawns = if isWhite then 
-        central.whiteCentralPawns > 0
-      else 
-        central.blackCentralPawns > 0
-      
+      val hasCentralPawns =
+        if isWhite then central.whiteCentralPawns > 0
+        else central.blackCentralPawns > 0
+
       if hasCentralPawns then
-        val whiteStronger = features.centralSpace.whiteCenterControl > features.centralSpace.blackCenterControl
-        // If we are white and stronger, we break on 'd' (d4 push vs e5), else 'e'
-        // If we are black, we want to break where we are stronger
-        val breakFile = if isWhite then
-          if whiteStronger then "d" else "e"
-        else
-          if !whiteStronger then "d" else "e" // Black stronger in center -> d5
-          
-        (true, Some(breakFile), 100)
+        val whiteStronger = central.whiteCenterControl > central.blackCenterControl
+        val breakFile =
+          if isWhite then
+            if whiteStronger then "d" else "e"
+          else if !whiteStronger then "d" else "e"
+
+        (true, Some(breakFile), 100, "central_tension")
       else
-        (false, None, 0)
+        (false, None, 0, "none")
     else
-      (false, None, 0)
+      (false, None, 0, "none")
 
   private def estimateBreakImpact(features: PositionFeatures, file: String, isWhite: Boolean): Int =
     // Base impact from opening a file
@@ -177,9 +223,6 @@ object BreakAnalyzer:
     if passedCount == 0 then
       (PassedPawnUrgency.Background, false, None, None, false)
     else
-      // Concept 5: Urgency based on rank
-      val urgency = computePasserUrgency(passedRank)
-      
       // Get actual passed pawn squares using PositionAnalyzer logic
       val color = if isWhite then Color.White else Color.Black
       val myPawns = board.byPiece(color, Pawn)
@@ -203,35 +246,39 @@ object BreakAnalyzer:
       // Concept 7: Support detection
       val hasRookSupport = if isWhite then features.lineControl.whiteRookOn7th 
                           else features.lineControl.blackRookOn7th
-      val detailedSupport = checkRookSupport(board, isWhite)
-      val support = hasRookSupport || detailedSupport || protectedPassed > 0
+      val detailedSupport = checkRookSupport(board, sortedPassers, color)
+      val kingSupport = checkKingSupport(board, sortedPassers, color)
+      val support = hasRookSupport || detailedSupport || kingSupport || protectedPassed > 0
+      val urgency = adjustPasserUrgency(
+        computePasserUrgency(passedRank),
+        passedRank,
+        isBlocked,
+        blockadeInfo.map(_._2),
+        support
+      )
 
       (urgency, isBlocked, blockadeInfo.map(_._1), blockadeInfo.map(_._2), support)
     }
 
-  private def checkRookSupport(board: Board, isWhite: Boolean): Boolean =
-    val color = if isWhite then Color.White else Color.Black
-    val oppColor = !color
-    val myPawns = board.byPiece(color, Pawn)
-    val oppPawns = board.byPiece(oppColor, Pawn)
-    
-    // Find passed pawns manually to check their files
-    val passedPawns = myPawns.squares.filter { pSq =>
-      // Check files: p.file, p.file-1, p.file+1
-      val fileRange = (math.max(0, pSq.file.value - 1) to math.min(7, pSq.file.value + 1))
-      // Check ranks ahead
-      !oppPawns.squares.exists { opSq => 
-        fileRange.contains(opSq.file.value) && 
-        (if isWhite then opSq.rank.value > pSq.rank.value else opSq.rank.value < pSq.rank.value)
-      }
-    }
-    
+  private def checkRookSupport(board: Board, passedPawns: List[Square], color: Color): Boolean =
     // Check for rook behind any passed pawn
     val myRooks = board.byPiece(color, Rook)
     passedPawns.exists { pSq =>
       myRooks.squares.exists { rSq =>
         rSq.file == pSq.file && 
-        (if isWhite then rSq.rank.value < pSq.rank.value else rSq.rank.value > pSq.rank.value)
+        (if color.white then rSq.rank.value < pSq.rank.value else rSq.rank.value > pSq.rank.value)
+      }
+    }
+
+  private def checkKingSupport(board: Board, passedPawns: List[Square], color: Color): Boolean =
+    board.kingPosOf(color).exists { kingSq =>
+      passedPawns.exists { pawnSq =>
+        val nextRank = pawnSq.rank.value + (if color.white then 1 else -1)
+        val advanceSquare = Square.at(pawnSq.file.value, nextRank)
+        (pawnSq :: advanceSquare.toList).exists { sq =>
+          (kingSq.file.value - sq.file.value).abs <= 1 &&
+          (kingSq.rank.value - sq.rank.value).abs <= 2
+        }
       }
     }
 
@@ -249,6 +296,23 @@ object BreakAnalyzer:
       case r if r >= 4 => PassedPawnUrgency.Important  // Rank 5 or 6 (Index 4/5)
       case r if r >= 2 => PassedPawnUrgency.Background // Rank 3 or 4 (Index 2/3)
       case _ => PassedPawnUrgency.Blocked              // Rank 2 (Index 1)
+
+  private def adjustPasserUrgency(
+    base: PassedPawnUrgency,
+    passedRank: Int,
+    isBlocked: Boolean,
+    blockadeRole: Option[Role],
+    support: Boolean
+  ): PassedPawnUrgency =
+    if passedRank >= 6 then
+      if isBlocked && !support then PassedPawnUrgency.Important
+      else PassedPawnUrgency.Critical
+    else if passedRank >= 4 then
+      if isBlocked && blockadeRole.contains(King) && !support then PassedPawnUrgency.Background
+      else if support || !isBlocked then PassedPawnUrgency.Important
+      else PassedPawnUrgency.Background
+    else if isBlocked && !support then PassedPawnUrgency.Blocked
+    else base
   // CONCEPT 8-9: STRATEGIC POSTURE
 
   private def checkMinorityAttack(board: Board, isWhite: Boolean): Boolean =
@@ -327,6 +391,19 @@ object BreakAnalyzer:
 
   private def colorMatches(motifColor: Color, isWhite: Boolean): Boolean =
     (isWhite && motifColor == Color.White) || (!isWhite && motifColor == Color.Black)
+
+  private def isCentralFile(file: File): Boolean =
+    file == File.C || file == File.D || file == File.E || file == File.F
+
+  private def relativeRank(square: Square, color: Color): Int =
+    if color.white then square.rank.value + 1 else 8 - square.rank.value
+
+  private def fileOpennessBonus(board: Board, file: File): Int =
+    val fileMask = Bitboard.file(file)
+    val pawnsOnFile = (board.pawns & fileMask).count
+    if pawnsOnFile == 0 then 25
+    else if pawnsOnFile == 1 then 12
+    else 0
 
   def noPawnPlay: PawnPlayAnalysis = PawnPlayAnalysis(
     pawnBreakReady = false,

@@ -22,8 +22,8 @@ function renderBookmakerStateCard(
 export function bookmakerIdleHtml(): string {
   return renderBookmakerStateCard(
     'idle',
-    'Bookmaker is on demand',
-    'Explain the current move only when you want it. This keeps Bookmaker on demand, lowers request cost, and avoids queue pileups.',
+    'Explain This Move',
+    'Ask for a move-level explanation only when you want it. This keeps requests focused, lowers cost, and avoids queue pileups.',
     '<button type="button" class="button button-metal" data-bookmaker-request="1">Explain this move</button>',
   );
 }
@@ -31,8 +31,8 @@ export function bookmakerIdleHtml(): string {
 export function bookmakerTooEarlyHtml(minPly: number): string {
   return renderBookmakerStateCard(
     'idle',
-    'Bookmaker needs a few more moves',
-    `Bookmaker opens from move ${moveNumberFromPly(minPly)}. Continue a little further so the commentary has enough position and branch context to say something useful.`,
+    'Need a few more moves first',
+    `Move explanations open from move ${moveNumberFromPly(minPly)}. Continue a little further so the commentary has enough position and branch context to say something useful.`,
     '',
   );
 }
@@ -42,7 +42,7 @@ export function bookmakerRetryHtml(message = 'Commentary generation took too lon
     'error',
     'Commentary unavailable',
     message,
-    '<button type="button" class="button button-metal" data-bookmaker-request="1" data-bookmaker-force="1">Retry commentary</button>',
+    '<button type="button" class="button button-metal" data-bookmaker-request="1" data-bookmaker-force="1">Retry explanation</button>',
   );
 }
 
@@ -53,8 +53,8 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       if (data?.error === 'bookmaker_too_early') {
         return renderBookmakerStateCard(
           'idle',
-          'Bookmaker needs a few more moves',
-          data?.msg || `Bookmaker opens from move ${moveNumberFromPly(5)}. Continue a few moves first before asking for commentary.`,
+          'Need a few more moves first',
+          data?.msg || `Move explanations open from move ${moveNumberFromPly(5)}. Continue a few moves first before asking for commentary.`,
           '',
         );
       }
@@ -68,14 +68,14 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const resetAt = resetAtFromResponse(data);
       return renderBookmakerStateCard(
         'quota',
-        'Bookmaker request blocked',
+        'Move explanation blocked',
         `This move request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
       return renderBookmakerStateCard(
         'quota',
-        'Bookmaker request blocked',
+        'Move explanation blocked',
         'This move request hit the current usage policy. Please retry later.',
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
@@ -86,7 +86,7 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
     return renderBookmakerStateCard(
       'auth',
       'Sign In Required',
-      'Sign in to continue using Bookmaker move analysis.',
+      'Sign in to continue using move explanations.',
       `<a class="button" href="${loginHref}">Sign in</a>`,
     );
   }
@@ -97,11 +97,11 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const seconds = ratelimitSecondsFromResponse(data);
       const message =
         typeof seconds === 'number'
-          ? `Bookmaker quota reached. Try again in ${seconds}s.`
-          : 'Bookmaker quota reached. Please retry shortly.';
+          ? `Move explanation quota reached. Try again in ${seconds}s.`
+          : 'Move explanation quota reached. Please retry shortly.';
       return renderBookmakerStateCard('quota', 'Rate Limit Reached', message, '');
     } catch {
-      return renderBookmakerStateCard('quota', 'Rate Limit Reached', 'Bookmaker quota reached. Please retry shortly.', '');
+      return renderBookmakerStateCard('quota', 'Rate Limit Reached', 'Move explanation quota reached. Please retry shortly.', '');
     }
   }
 

@@ -1,56 +1,322 @@
 package lila.llm.analysis
 
+import lila.llm.StrategyPack
 import lila.llm.model.*
-import lila.llm.model.authoring.{ OutlineBeat, OutlineBeatKind }
+import lila.llm.model.authoring.{ AuthorQuestionKind, OutlineBeat, OutlineBeatKind }
 
 private[llm] object GameChronicleCompressionPolicy:
 
-  private enum ClaimFamily:
-    case MainMove
-    case Decision
-    case Context
-    case Opening
-    case Teaching
-    case Practical
-    case Fallback
-
   private final case class BeatSurface(
       beat: OutlineBeat,
-      rendered: String,
       sentences: List[String],
       citedLine: Option[String]
   )
 
-  private final case class ClaimChoice(
-      beat: OutlineBeat,
-      family: ClaimFamily,
-      text: String
+  final case class ChroniclePlanSurface(
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan]
   )
 
-  private val claimOrder = List(
-    ClaimFamily.MainMove,
-    ClaimFamily.Decision,
-    ClaimFamily.Context,
-    ClaimFamily.Opening,
-    ClaimFamily.Teaching,
-    ClaimFamily.Practical,
-    ClaimFamily.Fallback
-  )
+  private val ChronicleTokenStopWords =
+    Set(
+      "this",
+      "that",
+      "with",
+      "from",
+      "into",
+      "before",
+      "after",
+      "because",
+      "move",
+      "line",
+      "plan",
+      "them",
+      "they",
+      "your",
+      "their",
+      "here",
+      "there"
+    )
 
   def render(
       ctx: NarrativeContext,
-      parts: CommentaryEngine.HybridNarrativeParts
+      parts: CommentaryEngine.HybridNarrativeParts,
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[String] =
-    val compactOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx)
     val surfaces =
       parts.focusedOutline.beats
         .filterNot(isStrategicDistributionBeat)
         .filterNot(_.kind == OutlineBeatKind.MoveHeader)
         .flatMap(renderSurface(ctx, _))
-    buildSlots(ctx, surfaces, parts, compactOpening)
-      .orElse(fallbackSlots(parts))
-      .map(LiveNarrativeCompressionCore.deterministicProse)
-      .map(text => FullGameDraftNormalizer.normalize(text).trim)
+    val beatEvidence = citedLineCandidates(parts, surfaces)
+    val candidateEvidence =
+      beatEvidence.flatMap(text => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(text, ctx))
+    val plannerInputs =
+      QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
+
+    selectPlannerSurface(rankedPlans, plannerInputs)
+      .flatMap(surface => renderPlanSurface(ctx, surface, beatEvidence))
+      .orElse(factualFallback(ctx, plannerInputs))
+
+  private def factualFallback(
+      ctx: NarrativeContext,
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    inputs.factualFallback
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+
+  def selectPlannerSurface(
+      rankedPlans: RankedQuestionPlans,
+      inputs: QuestionPlannerInputs
+  ): Option[ChroniclePlanSurface] =
+    rankedPlans.primary.map { primary =>
+      val secondary = rankedPlans.secondary
+      secondary
+        .filter(candidate =>
+          chroniclePriority(candidate.questionKind) > chroniclePriority(primary.questionKind) &&
+            notWeaker(candidate, primary, inputs)
+        )
+        .map(candidate => ChroniclePlanSurface(primary = candidate, secondary = Some(primary)))
+        .getOrElse(ChroniclePlanSurface(primary = primary, secondary = secondary))
+    }
+
+  private def renderPlanSurface(
+      ctx: NarrativeContext,
+      surface: ChroniclePlanSurface,
+      beatEvidence: List[String]
+  ): Option[String] =
+    sanitizePrimaryClaim(surface.primary, ctx).flatMap { claim =>
+      val contrast =
+        sanitizeDistinctSentence(surface.primary.contrast, ctx, claim)
+      val evidence =
+        plannerEvidenceLine(surface.primary, ctx)
+          .orElse(beatEvidenceLine(surface.primary, beatEvidence, ctx, claim, contrast))
+      val primaryConsequence =
+        plannerConsequenceLine(surface.primary.consequence, ctx, claim, contrast, evidence)
+      val secondarySupport =
+        secondarySupportLine(surface.primary, surface.secondary, ctx, claim, contrast, evidence)
+      val support =
+        secondarySupport.orElse(primaryConsequence)
+
+      val sentences =
+        distinctChronicleSentences(
+          List(Some(claim), contrast, evidence, support).flatten
+        )
+
+      Option.when(sentences.size >= 2) {
+        FullGameDraftNormalizer.normalize(sentences.mkString(" ")).trim
+      }.filter(text => text.nonEmpty && !isLowValueSentence(text))
+    }
+
+  private def sanitizePrimaryClaim(
+      plan: QuestionPlan,
+      ctx: NarrativeContext
+  ): Option[String] =
+    cleanChronicleSentence(plan.claim, ctx)
+      .orElse {
+        Option.when(plan.questionKind == AuthorQuestionKind.WhosePlanIsFaster) {
+          BookmakerLiveCompressionPolicy.relaxedCertifiedRaceSentence(plan.claim, ctx)
+        }.flatten
+      }
+
+  private def chroniclePriority(kind: AuthorQuestionKind): Int =
+    kind match
+      case AuthorQuestionKind.WhyNow             => 5
+      case AuthorQuestionKind.WhatChanged        => 4
+      case AuthorQuestionKind.WhatMustBeStopped  => 3
+      case AuthorQuestionKind.WhyThis            => 2
+      case AuthorQuestionKind.WhosePlanIsFaster  => 1
+
+  private def notWeaker(
+      candidate: QuestionPlan,
+      current: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    strengthScore(candidate.strengthTier) >= strengthScore(current.strengthTier) &&
+      fallbackScore(candidate.fallbackMode) >= fallbackScore(current.fallbackMode) &&
+      claimOwnershipScore(candidate, inputs) >= claimOwnershipScore(current, inputs) &&
+      evidenceScore(candidate.evidence) >= evidenceScore(current.evidence)
+
+  private def strengthScore(tier: QuestionPlanStrengthTier): Int =
+    tier match
+      case QuestionPlanStrengthTier.Strong   => 3
+      case QuestionPlanStrengthTier.Moderate => 2
+      case QuestionPlanStrengthTier.Exact    => 1
+
+  private def fallbackScore(mode: QuestionPlanFallbackMode): Int =
+    mode match
+      case QuestionPlanFallbackMode.PlannerOwned              => 4
+      case QuestionPlanFallbackMode.DemotedToWhyThis          => 3
+      case QuestionPlanFallbackMode.DemotedToWhatMustBeStopped => 3
+      case QuestionPlanFallbackMode.FactualFallback           => 2
+      case QuestionPlanFallbackMode.Suppressed                => 1
+
+  private def evidenceScore(evidence: Option[QuestionPlanEvidence]): Int =
+    evidence match
+      case Some(value) if value.text.linesIterator.count(_.trim.matches("""^[a-z]\)\s+.*""")) >= 2 => 3
+      case Some(value) if value.branchScoped => 2
+      case Some(_)                           => 1
+      case None                              => 0
+
+  private def claimOwnershipScore(
+      plan: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Int =
+    if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => sameSentence(claim.claimText, plan.claim)) then 4
+    else if plan.questionKind == AuthorQuestionKind.WhatChanged &&
+      plan.sourceKinds.exists(kind =>
+        kind == "pv_delta" || kind == "move_delta" || kind == "prevented_plan" || kind == "decision_comparison"
+      )
+    then 4
+    else if inputs.quietIntent.exists(intent => sameSentence(intent.claimText, plan.claim)) then 3
+    else if plan.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
+      plan.sourceKinds.exists(kind => kind == "threat" || kind == "prevented_plan")
+    then 3
+    else if plan.questionKind == AuthorQuestionKind.WhyNow &&
+      plan.sourceKinds.exists(kind =>
+        kind == "threat" || kind == "prevented_plan" || kind == "truth_contract" || kind == "decision_comparison"
+      )
+    then 4
+    else if plan.questionKind == AuthorQuestionKind.WhosePlanIsFaster &&
+      plan.sourceKinds.exists(kind => kind == "evidence_backed_plan" || kind == "opponent_plan")
+    then 2
+    else 1
+
+  private def plannerEvidenceLine(
+      plan: QuestionPlan,
+      ctx: NarrativeContext
+  ): Option[String] =
+    plan.evidence
+      .flatMap { evidence =>
+        evidence.text.linesIterator
+          .map(_.trim)
+          .find(line =>
+            line.nonEmpty &&
+              (line.matches("""^[a-z]\)\s+.*""") ||
+                LineScopedCitation.hasInlineCitation(line) ||
+                LineScopedCitation.hasConcreteSanLine(line))
+          )
+      }
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+
+  private def beatEvidenceLine(
+      plan: QuestionPlan,
+      beatEvidence: List[String],
+      ctx: NarrativeContext,
+      claim: String,
+      contrast: Option[String]
+  ): Option[String] =
+    beatEvidence
+      .filter(line =>
+        LineScopedCitation.hasInlineCitation(line) ||
+          LineScopedCitation.hasConcreteSanLine(line)
+      )
+      .find(line => evidenceMatchesPlan(line, plan))
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+      .filter(text =>
+        !sameSentence(text, claim) &&
+          !contrast.exists(sameSentence(_, text))
+      )
+
+  private def plannerConsequenceLine(
+      consequence: Option[QuestionPlanConsequence],
+      ctx: NarrativeContext,
+      claim: String,
+      contrast: Option[String],
+      evidence: Option[String]
+  ): Option[String] =
+    consequence
+      .filter(_.certified)
+      .map(_.text)
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+      .filter(text =>
+        !sameSentence(text, claim) &&
+          !contrast.exists(sameSentence(_, text)) &&
+          !evidence.exists(sameSentence(_, text))
+      )
+
+  private def secondarySupportLine(
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan],
+      ctx: NarrativeContext,
+      claim: String,
+      contrast: Option[String],
+      evidence: Option[String]
+  ): Option[String] =
+    secondary
+      .flatMap { plan =>
+        plan.contrast
+          .orElse(plan.consequence.filter(_.certified).map(_.text))
+      }
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+      .filter(text =>
+        !sameSentence(text, claim) &&
+          !sameSentence(text, primary.claim) &&
+          !contrast.exists(sameSentence(_, text)) &&
+          !evidence.exists(sameSentence(_, text))
+      )
+
+  private def evidenceMatchesPlan(line: String, plan: QuestionPlan): Boolean =
+    val planTokens =
+      significantTokens(
+        List(
+          plan.claim,
+          plan.contrast.getOrElse(""),
+          plan.consequence.map(_.text).getOrElse("")
+        ).mkString(" ")
+      )
+    val lineTokens = significantTokens(line)
+    lineTokens.intersect(planTokens).nonEmpty ||
+      (
+        plan.questionKind match
+          case AuthorQuestionKind.WhyNow =>
+            containsAny(normalize(line), List("threat", "window", "delay", "immediate", "counterplay"))
+          case AuthorQuestionKind.WhatChanged =>
+            containsAny(normalize(line), List("opens", "pressure", "exchange", "counterplay", "improves"))
+          case AuthorQuestionKind.WhatMustBeStopped =>
+            containsAny(normalize(line), List("threat", "defend", "counterplay", "break", "stop"))
+          case AuthorQuestionKind.WhosePlanIsFaster =>
+            containsAny(normalize(line), List("window", "before", "initiative", "counterplay"))
+          case _ =>
+            false
+      )
+
+  private def significantTokens(text: String): Set[String] =
+    normalize(text)
+      .split("""[^a-z0-9]+""")
+      .toList
+      .filter(token => token.nonEmpty && token.length >= 4 && !ChronicleTokenStopWords.contains(token))
+      .toSet
+
+  private def distinctChronicleSentences(sentences: List[String]): List[String] =
+    sentences.foldLeft(List.empty[String]) { (acc, sentence) =>
+      if acc.exists(existing => sameSentence(existing, sentence)) then acc else acc :+ sentence
+    }
+
+  private def sanitizeDistinctSentence(
+      textOpt: Option[String],
+      ctx: NarrativeContext,
+      claim: String
+  ): Option[String] =
+    textOpt
+      .flatMap(text => cleanChronicleSentence(text, ctx))
+      .filter(text => !sameSentence(text, claim))
+
+  private def cleanChronicleSentence(
+      raw: String,
+      ctx: NarrativeContext
+  ): Option[String] =
+    BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx)
+      .filterNot(isQuestionLike)
+      .filterNot(isLowValueSentence)
+
+  private def containsAny(text: String, needles: List[String]): Boolean =
+    needles.exists(text.contains)
+
+  private def sameSentence(a: String, b: String): Boolean =
+    NarrativeDedupCore.sameSemanticSentence(a, b)
 
   private def renderSurface(ctx: NarrativeContext, beat: OutlineBeat): Option[BeatSurface] =
     val rendered = BookStyleRenderer.renderBeatForSelection(beat, ctx)
@@ -60,164 +326,17 @@ private[llm] object GameChronicleCompressionPolicy:
         .filterNot(isQuestionLike)
         .filterNot(isLowValueSentence)
         .filterNot(s => beat.branchScoped && !LineScopedCitation.hasInlineCitation(s))
-
     val citedLine =
       citationFromBeat(beat, rendered)
         .flatMap(raw => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx))
         .filterNot(isLowValueSentence)
-
     Option.when(sentences.nonEmpty || citedLine.nonEmpty)(
       BeatSurface(
         beat = beat,
-        rendered = rendered,
         sentences = sentences,
         citedLine = citedLine
       )
     )
-
-  private def buildSlots(
-      ctx: NarrativeContext,
-      surfaces: List[BeatSurface],
-      parts: CommentaryEngine.HybridNarrativeParts,
-      compactOpening: Boolean
-  ): Option[BookmakerPolishSlots] =
-    selectClaim(ctx, surfaces, parts).map { claim =>
-      val support =
-        Option.unless(compactOpening) {
-          selectSupport(ctx, surfaces, claim)
-        }.flatten
-      val thirdParagraph =
-        Option.unless(compactOpening) {
-          selectThirdParagraph(ctx, surfaces, claim, support, parts)
-        }.flatten
-      val evidenceHook = thirdParagraph.filter(LineScopedCitation.hasConcreteSanLine)
-      val tension = thirdParagraph.filterNot(LineScopedCitation.hasConcreteSanLine)
-      val paragraphPlan =
-        if compactOpening then List("p1=claim")
-        else
-          List(
-            Some("p1=claim"),
-            support.map(_ => "p2=support"),
-            evidenceHook.map(_ => "p3=cited_line").orElse(tension.map(_ => "p3=practical_nuance"))
-          ).flatten
-      BookmakerPolishSlots(
-        lens = lensFor(claim.family),
-        claim = claim.text,
-        supportPrimary = support,
-        supportSecondary = None,
-        tension = tension,
-        evidenceHook = evidenceHook,
-        coda = None,
-        factGuardrails = evidenceHook.toList,
-        paragraphPlan = paragraphPlan
-      )
-    }
-
-  private def fallbackSlots(parts: CommentaryEngine.HybridNarrativeParts): Option[BookmakerPolishSlots] =
-    LiveNarrativeCompressionCore.slotsFromCompressedProse(
-      List(parts.body, parts.defaultBridge, parts.lead)
-        .map(_.trim)
-        .find(_.nonEmpty)
-        .getOrElse("")
-    )
-
-  private def selectClaim(
-      ctx: NarrativeContext,
-      surfaces: List[BeatSurface],
-      parts: CommentaryEngine.HybridNarrativeParts
-  ): Option[ClaimChoice] =
-    val direct =
-      claimOrder.iterator
-        .flatMap(family => claimCandidates(ctx, surfaces, family).iterator.map(choice => (family, choice)))
-        .collectFirst { case (family, (beat, text)) => ClaimChoice(beat, family, text) }
-
-    direct.orElse {
-      fallbackSentences(parts)
-        .flatMap(raw => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx))
-        .filterNot(isQuestionLike)
-        .filterNot(isLowValueSentence)
-        .headOption
-        .map(text => ClaimChoice(OutlineBeat(kind = OutlineBeatKind.Context), ClaimFamily.Fallback, text))
-    }
-
-  private def lensFor(family: ClaimFamily): StrategicLens =
-    family match
-      case ClaimFamily.Practical => StrategicLens.Practical
-      case ClaimFamily.Opening   => StrategicLens.Opening
-      case ClaimFamily.Decision  => StrategicLens.Decision
-      case ClaimFamily.Context   => StrategicLens.Structure
-      case ClaimFamily.Teaching  => StrategicLens.Decision
-      case ClaimFamily.MainMove  => StrategicLens.Decision
-      case ClaimFamily.Fallback  => StrategicLens.Decision
-
-  private def claimCandidates(
-      ctx: NarrativeContext,
-      surfaces: List[BeatSurface],
-      family: ClaimFamily
-  ): List[(OutlineBeat, String)] =
-    surfaces.flatMap { surface =>
-      val kindMatches =
-        family match
-          case ClaimFamily.MainMove  => surface.beat.kind == OutlineBeatKind.MainMove
-          case ClaimFamily.Decision  => surface.beat.kind == OutlineBeatKind.DecisionPoint
-          case ClaimFamily.Context   => surface.beat.kind == OutlineBeatKind.Context
-          case ClaimFamily.Opening   => surface.beat.kind == OutlineBeatKind.OpeningTheory
-          case ClaimFamily.Teaching  => surface.beat.kind == OutlineBeatKind.TeachingPoint
-          case ClaimFamily.Practical => isPracticalWrapUp(surface.beat, ctx)
-          case ClaimFamily.Fallback  => false
-      if kindMatches then
-        surface.sentences.headOption.toList.map(surface.beat -> _)
-      else Nil
-    }
-
-  private def selectSupport(
-      ctx: NarrativeContext,
-      surfaces: List[BeatSurface],
-      claim: ClaimChoice
-  ): Option[String] =
-    val sameBeatExtra =
-      surfaces
-        .find(_.beat == claim.beat)
-        .flatMap(_.sentences.filterNot(sameSentence(_, claim.text)).headOption)
-
-    sameBeatExtra.orElse {
-      supportKindPriority(claim.family).iterator
-        .flatMap { kind =>
-          surfaces.iterator
-            .filter(_.beat != claim.beat)
-            .filter(_.beat.kind == kind)
-            .filterNot(surface => kind == OutlineBeatKind.WrapUp && !isPracticalWrapUp(surface.beat, ctx))
-            .flatMap(_.sentences.iterator)
-            .filterNot(sameSentence(_, claim.text))
-        }
-        .find(_.nonEmpty)
-    }
-
-  private def selectThirdParagraph(
-      ctx: NarrativeContext,
-      surfaces: List[BeatSurface],
-      claim: ClaimChoice,
-      support: Option[String],
-      parts: CommentaryEngine.HybridNarrativeParts
-  ): Option[String] =
-    val cited =
-      citedLineCandidates(parts, surfaces).find { candidate =>
-        candidate.nonEmpty &&
-        !sameSentence(candidate, claim.text) &&
-        support.forall(s => !sameSentence(candidate, s))
-      }
-
-    cited.orElse {
-      Option.when(
-        ctx.phase.current.equalsIgnoreCase("Endgame") || claim.family == ClaimFamily.Practical
-      ) {
-        surfaces.iterator
-          .filter(surface => surface.beat != claim.beat && isPracticalWrapUp(surface.beat, ctx))
-          .flatMap(_.sentences.iterator)
-          .filterNot(sameSentence(_, claim.text))
-          .find(s => support.forall(other => !sameSentence(s, other)))
-      }.flatten
-    }
 
   private def citedLineCandidates(
       parts: CommentaryEngine.HybridNarrativeParts,
@@ -253,33 +372,8 @@ private[llm] object GameChronicleCompressionPolicy:
     if LineScopedCitation.hasInlineCitation(trimmed) then
       Some(trimmed.stripSuffix(".") + ".")
     else if LineScopedCitation.hasConcreteSanLine(unlabelled) then
-      Some(s"A concrete line is ${unlabelled.stripSuffix(".")}.")
+      Some(s"Line: a) ${unlabelled.stripSuffix(".")}.")
     else None
-
-  private def fallbackSentences(
-      parts: CommentaryEngine.HybridNarrativeParts
-  ): List[String] =
-    List(parts.body, parts.defaultBridge, parts.lead)
-      .flatMap(splitSentences)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-
-  private def supportKindPriority(family: ClaimFamily): List[OutlineBeatKind] =
-    family match
-      case ClaimFamily.MainMove =>
-        List(OutlineBeatKind.DecisionPoint, OutlineBeatKind.Context, OutlineBeatKind.OpeningTheory, OutlineBeatKind.TeachingPoint, OutlineBeatKind.WrapUp)
-      case ClaimFamily.Decision =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.Context, OutlineBeatKind.OpeningTheory, OutlineBeatKind.TeachingPoint, OutlineBeatKind.WrapUp)
-      case ClaimFamily.Context =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.DecisionPoint, OutlineBeatKind.OpeningTheory, OutlineBeatKind.TeachingPoint)
-      case ClaimFamily.Opening =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.DecisionPoint, OutlineBeatKind.Context)
-      case ClaimFamily.Teaching =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.DecisionPoint, OutlineBeatKind.Context)
-      case ClaimFamily.Practical =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.DecisionPoint, OutlineBeatKind.Context)
-      case ClaimFamily.Fallback =>
-        List(OutlineBeatKind.MainMove, OutlineBeatKind.DecisionPoint, OutlineBeatKind.Context)
 
   private def splitSentences(text: String): List[String] =
     Option(text)
@@ -313,8 +407,6 @@ private[llm] object GameChronicleCompressionPolicy:
       low.startsWith("validation evidence specifically") ||
       low.startsWith("another key pillar is that") ||
       low.startsWith("in practical terms the split should appear") ||
-      low.startsWith("dominant thesis:") ||
-      low.startsWith("keep ") && low.contains(" in the foreground via ") ||
       low.contains("ranked stack") ||
       low.contains("latent plan") ||
       low.contains("probe evidence says") ||
@@ -324,12 +416,6 @@ private[llm] object GameChronicleCompressionPolicy:
     beat.conceptIds.contains("strategic_distribution_first") ||
       beat.conceptIds.contains("plan_evidence_three_stage")
 
-  private def isPracticalWrapUp(beat: OutlineBeat, ctx: NarrativeContext): Boolean =
-    beat.kind == OutlineBeatKind.WrapUp &&
-      (beat.conceptIds.contains("practical_assessment") || ctx.phase.current.equalsIgnoreCase("Endgame")) &&
-      !isStrategicDistributionBeat(beat) &&
-      !isLowValueSentence(beat.text)
-
   private def normalize(text: String): String =
     Option(text)
       .getOrElse("")
@@ -338,8 +424,3 @@ private[llm] object GameChronicleCompressionPolicy:
       .replaceAll("""\s+""", " ")
       .trim
       .toLowerCase
-
-  private def sameSentence(a: String, b: String): Boolean =
-    val left = normalize(a)
-    val right = normalize(b)
-    left.nonEmpty && left == right

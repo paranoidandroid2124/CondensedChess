@@ -40,13 +40,10 @@ class CommentaryEngineTruthDiagnosticTest extends FunSuite:
         )
       )
 
-    assert(diagnostic.arc.keyMomentNarratives.nonEmpty, clue(diagnostic))
-    val visiblePlies = diagnostic.arc.keyMomentNarratives.map(_.ply).toSet
-    assert(visiblePlies.subsetOf(diagnostic.canonicalTraceMoments.map(_.ply).toSet), clue(diagnostic))
+    assert(diagnostic.canonicalTraceMoments.nonEmpty, clue(diagnostic))
     assert(
       diagnostic.canonicalTraceMoments.exists(trace =>
-        visiblePlies.contains(trace.ply) &&
-          trace.traceSource == "canonical_internal" &&
+        diagnostic.finalInternalPlies.contains(trace.ply) &&
           trace.finalInternal
       ),
       clue(diagnostic.canonicalTraceMoments)
@@ -54,7 +51,6 @@ class CommentaryEngineTruthDiagnosticTest extends FunSuite:
     assert(
       diagnostic.witnessTraceMoments.exists(trace =>
         trace.ply == 2 &&
-          trace.traceSource == "diagnostic_witness" &&
           trace.selectionKind == "diagnostic_witness" &&
           !trace.finalInternal
       ),

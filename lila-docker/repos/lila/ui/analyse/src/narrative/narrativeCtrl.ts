@@ -59,13 +59,6 @@ export interface StrategicPlanSummary {
     subplanId?: string | null;
 }
 
-export interface LatentPlanSummary {
-    seedId: string;
-    planName: string;
-    viabilityScore: number;
-    whyAbsentFromTopMultiPv: string;
-}
-
 export interface EngineAlternative {
     uci: string;
     san?: string;
@@ -164,8 +157,6 @@ export interface GameChronicleMoment {
     authorEvidence?: AuthorEvidenceSummary[];
     mainStrategicPlans?: StrategicPlanSummary[];
     strategicPlanExperiments?: StrategicPlanExperiment[];
-    latentPlans?: LatentPlanSummary[];
-    whyAbsentFromTopMultiPV?: string[];
     strategicBranch?: boolean;
     activeStrategicNote?: string;
     activeStrategicSourceMode?: string;
@@ -198,6 +189,10 @@ export interface ProbeRequest {
     requiredSignals?: string[];
     horizon?: 'short' | 'medium' | 'long' | string;
     maxCpLoss?: number;
+    candidateMove?: string;
+    depthFloor?: number;
+    variationHash?: string;
+    engineConfigFingerprint?: string;
 }
 
 export interface AuthorQuestionSummary {

@@ -3,8 +3,6 @@ package lila.llm.analysis
 import munit.FunSuite
 import lila.llm.model.*
 import lila.llm.model.authoring.*
-import lila.llm.model.authoring.SeedFamily
-
 class EarlyOpeningNarrationPolicyTest extends FunSuite:
 
   private val CompactBeatKinds = Set(
@@ -62,30 +60,6 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
           whyNot = None
         )
       ),
-      latentPlans = List(
-        LatentPlanNarrative(
-          seedId = "latent_c4_break",
-          planName = "c4 break",
-          viabilityScore = 0.58,
-          whyAbsentFromTopMultiPv = "it still needs full development first"
-        )
-      ),
-      whyAbsentFromTopMultiPV = List("the c4 break still needs full development first"),
-      authorQuestions = List(
-        AuthorQuestion(
-          id = "latent_plan",
-          kind = AuthorQuestionKind.LatentPlan,
-          priority = 1,
-          question = "What slower plan is waiting in the position?",
-          latentPlan = Some(
-            LatentPlanInfo(
-              seedId = "latent_c4_break",
-              seedFamily = SeedFamily.Pawn,
-              narrative = NarrativeTemplate("A delayed c4 break becomes playable once development is complete.")
-            )
-          )
-        )
-      ),
       openingEvent = Some(openingEvent),
       renderMode = renderMode,
       variantKey = variantKey
@@ -105,7 +79,6 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
     assert(outline.beats.nonEmpty, clue(outline))
     assert(outline.beats.forall(beat => CompactBeatKinds.contains(beat.kind)), clue(outline.beats.map(_.kind)))
     assert(!outline.beats.exists(_.kind == OutlineBeatKind.WrapUp), clue(outline.beats.map(_.kind)))
-    assert(!outline.beats.exists(_.kind == OutlineBeatKind.ConditionalPlan), clue(outline.beats.map(_.kind)))
 
     val prose = BookStyleRenderer.render(ctx)
     assert(sentenceCount(prose) <= EarlyOpeningNarrationPolicy.MaxCollapsedSentences, clue(prose))
@@ -133,12 +106,28 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
   }
 
   test("chess960 does not trigger the standard early-opening collapse") {
-    val ctx = earlyOpeningContext(variantKey = EarlyOpeningNarrationPolicy.Chess960Variant)
+    val ctx =
+      earlyOpeningContext(variantKey = EarlyOpeningNarrationPolicy.Chess960Variant)
+        .copy(
+          decision = Some(
+            DecisionRationale(
+              focalPoint = None,
+              logicSummary = "develop the kingside before clarifying the center",
+              delta = PVDelta(
+                resolvedThreats = List("early central pressure"),
+                newOpportunities = Nil,
+                planAdvancements = Nil,
+                concessions = Nil
+              ),
+              confidence = ConfidenceLevel.Heuristic
+            )
+          )
+        )
 
     assert(!EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx), clue(ctx))
 
     val outline = BookStyleRenderer.validatedOutline(ctx)
-    assert(outline.beats.exists(beat => !CompactBeatKinds.contains(beat.kind)), clue(outline.beats.map(_.kind)))
+    assert(outline.beats.exists(_.kind == OutlineBeatKind.DecisionPoint), clue(outline.beats.map(_.kind)))
   }
 
   test("meaningful opening events bypass the collapse") {

@@ -36,32 +36,19 @@ object NarrativeOutlineValidator:
     // 2. Drop exact duplicates
     beats = dropDuplicateBeats(beats, rec)
 
-    // 3. Check tactical override (drop all LatentPlan if immediate tactics dominate)
-    ctx.foreach { c =>
-      if hasTacticalOverride(c) then
-        val (latent, other) = beats.partition(_.kind == OutlineBeatKind.ConditionalPlan)
-        if latent.nonEmpty then
-          rec.drop("outline.tactical_override", latent.size, "Dropped LatentPlan beats due to immediate tactics")
-          latent.foreach(b => currentDiag = currentDiag.addDropped(b.kind, "TACTICAL_OVERRIDE"))
-        beats = other
-    }
-
-    // 4. Validate evidence requirements per question kind (QK_EVIDENCE_MAP)
+    // 3. Validate evidence requirements per question / evidence-purpose mapping.
     beats = validateEvidenceRequirements(beats, rec)
 
-    // 5. Validate minimum branches for evidence beats (MIN_BRANCHES)
+    // 4. Validate minimum branches for evidence beats.
     beats = validateMinBranches(beats, rec)
 
-    // 6. Validate LatentPlan gate
-    beats = validateLatentGate(beats, rec)
-
-    // 7. Validate TacticalTest theme mention (TACTICAL_TEST_THEME)
+    // 5. Validate tactical-stop theme mention.
     beats = validateTacticalTestTheme(beats, rec)
 
-    // 8. Validate must-mention anchors (MUST_MENTION_3STEP)
+    // 6. Validate must-mention anchors.
     beats = validateMustMention(beats, rec)
 
-    // 9. Reconcile evidence metadata
+    // 7. Reconcile evidence metadata.
     beats = reconcileEvidenceMetadata(beats)
 
     NarrativeOutline(beats, Some(currentDiag))
@@ -83,18 +70,11 @@ object NarrativeOutlineValidator:
     if dropped > 0 then rec.drop("outline.dupes", dropped, "Dropped duplicate beats (DUPLICATE_BEAT)")
     out.toList
 
-  private def hasTacticalOverride(ctx: NarrativeContext): Boolean =
-    ctx.threats.toUs.exists(_.lossIfIgnoredCp >= 300) ||
-      ctx.threats.toThem.exists(_.lossIfIgnoredCp >= 300) ||
-      ctx.authorQuestions.exists(_.kind == AuthorQuestionKind.TacticalTest)
-
   private def validateEvidenceRequirements(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
     beats.map { b =>
       if !b.requiresEvidence then b
       else
-        val satisfied = b.questionKinds.forall { kind =>
-          EvidencePlanner.isSatisfied(kind, b.evidencePurposes.toSet)
-        }
+        val satisfied = EvidencePlanner.isSatisfied(b.expectedEvidencePurposes.toSet, b.evidencePurposes.toSet)
         if satisfied then b
         else
           rec.drop(s"outline.evidence_req", b.kind.toString, "Downgraded due to missing evidence (QK_EVIDENCE_MAP)")
@@ -106,7 +86,9 @@ object NarrativeOutlineValidator:
       if b.kind != OutlineBeatKind.Evidence then true
       else
         val branchCount = countBranches(b.text)
-        val minRequired = b.questionKinds.map(EvidencePlanner.minBranches).maxOption.getOrElse(2)
+        val minRequired =
+          if b.expectedEvidencePurposes.nonEmpty then EvidencePlanner.minBranches(b.expectedEvidencePurposes.toSet)
+          else 2
         if branchCount >= minRequired then true
         else
           rec.drop("outline.min_branches", s"$branchCount < $minRequired", "Dropped Evidence beat (MIN_BRANCHES)")
@@ -118,29 +100,9 @@ object NarrativeOutlineValidator:
   private def countBranches(text: String): Int =
     BranchPattern.findAllMatchIn(text).size
 
-  private def validateLatentGate(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
-    beats.filter { b =>
-      val isLatent = b.kind == OutlineBeatKind.ConditionalPlan ||
-        b.questionKinds.contains(AuthorQuestionKind.LatentPlan)
-
-      if !isLatent then true
-      else
-        val hasSupport =
-          b.evidencePurposes.contains("free_tempo_branches") ||
-            b.evidencePurposes.contains("latent_plan_refutation") ||
-            b.evidencePurposes.contains("latent_plan_immediate") ||
-            b.evidencePurposes.contains("latent_plan_heuristic") ||
-            (!b.requiresEvidence && b.confidenceLevel >= 0.7)
-
-        if hasSupport then true
-        else
-          rec.drop("outline.latent_gate", b.conceptIds.mkString(","), "Dropped LatentPlan beat (LATENT_GATE)")
-          false
-    }
-
   private def validateTacticalTestTheme(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
     beats.map { b =>
-      if !b.questionKinds.contains(AuthorQuestionKind.TacticalTest) then b
+      if !b.questionKinds.contains(AuthorQuestionKind.WhatMustBeStopped) then b
       else
         val anchors = b.allAnchors.filter(isUserFacingAnchor)
         val textLower = b.text.toLowerCase

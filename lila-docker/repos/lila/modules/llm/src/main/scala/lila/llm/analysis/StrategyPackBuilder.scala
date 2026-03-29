@@ -48,7 +48,7 @@ object StrategyPackBuilder:
           signalDigest = signalDigest
         )
       val enrichedPack = StrategicIdeaSelector.enrich(basePack, semanticContext)
-      refreshDominantThesis(ctx, enrichedPack)
+      enrichedPack
     }
 
   def promptHints(pack: StrategyPack): List[String] =
@@ -73,7 +73,6 @@ object StrategyPackBuilder:
       pack.signalDigest.toList.flatMap { digest =>
         List(
           digest.opening.map(v => s"opening: $v"),
-          digest.latentPlan.map(v => s"latent plan: $v"),
           digest.authoringEvidence.map(v => s"authoring evidence: $v"),
           digest.practicalVerdict.map(v => s"practical: $v"),
           Option.when(digest.practicalFactors.nonEmpty)(s"practical factors: ${digest.practicalFactors.mkString("; ")}"),
@@ -89,10 +88,6 @@ object StrategyPackBuilder:
           digest.prophylaxisPlan.map(v => s"prophylaxis: $v"),
           digest.decision.map(v => s"decision: $v"),
           digest.decisionComparison.flatMap(_.engineBestMove).map(v => s"engine best: $v"),
-          digest.decisionComparison.flatMap(_.deferredMove).map { v =>
-            val label = if digest.decisionComparison.exists(_.practicalAlternative) then "deferred practical" else "deferred"
-            s"$label: $v"
-          },
           digest.opponentPlan.map(v => s"opponent plan: $v")
         ).flatten
       }
@@ -337,7 +332,6 @@ object StrategyPackBuilder:
       structureArc: Option[StructurePlanArc]
   ): List[String] =
     val scored = scala.collection.mutable.HashMap.empty[String, Double]
-    val dominantThesis = StrategicThesisBuilder.build(ctx).map(_.claim).map(_.trim).filter(_.nonEmpty)
     val planNameKeys = plans.map(_.planName.trim.toLowerCase).toSet
 
     def lowered(raw: String): String = raw.trim.toLowerCase
@@ -419,7 +413,6 @@ object StrategyPackBuilder:
       push(s"structure deployment: ${arc.structureLabel} asks for ${StructurePlanArcBuilder.focusLine(arc)}", 2.18)
       push(s"move contribution: ${arc.moveContribution}", 1.92)
     }
-    dominantThesis.foreach(thesis => push(s"dominant thesis: $thesis", 2.42))
 
     ctx.semantic.foreach { semantic =>
       semantic.conceptSummary.take(4).zipWithIndex.foreach { case (concept, idx) =>
@@ -442,7 +435,6 @@ object StrategyPackBuilder:
       moveRefs: List[StrategyPieceMoveRef],
       structureArc: Option[StructurePlanArc]
   ): List[String] =
-    val dominantThesis = StrategicThesisBuilder.build(ctx).map(_.claim).map(_.trim).filter(_.nonEmpty)
     val routeEvidence =
       routes.flatMap(route => route.evidence.map(signal => s"route:${route.ownerSide}:$signal"))
     val moveRefEvidence =
@@ -459,44 +451,8 @@ object StrategyPackBuilder:
         ctx.mainStrategicPlans.flatMap(_.evidenceSources) ++
         routeEvidence ++
         moveRefEvidence ++
-        structureEvidence ++
-        dominantThesis.toList.map(v => s"dominant_thesis:$v")
+        structureEvidence
     ).map(_.trim).filter(_.nonEmpty).distinct.take(MaxEvidence)
-
-  private def refreshDominantThesis(
-      ctx: NarrativeContext,
-      pack: StrategyPack
-  ): StrategyPack =
-    val surface = StrategyPackSurface.from(Some(pack))
-    val normalizedFocusLead = surface.normalizedLongTermFocusText.map(_.trim).filter(_.nonEmpty)
-    StrategicThesisBuilder
-      .build(ctx, Some(pack))
-      .map(_.claim.trim)
-      .filter(_.nonEmpty)
-      .map { thesis =>
-        val refreshedFocus =
-          (
-            normalizedFocusLead.toList ++
-              List(s"dominant thesis: $thesis") ++
-              pack.longTermFocus.filterNot { focus =>
-                val lowered = focus.trim.toLowerCase
-                lowered.startsWith("dominant thesis:") ||
-                normalizedFocusLead.exists(_.equalsIgnoreCase(focus.trim))
-              }
-          )
-            .map(_.trim)
-            .filter(_.nonEmpty)
-            .distinct
-            .take(MaxFocus)
-        val refreshedEvidence =
-          (s"dominant_thesis:$thesis" :: pack.evidence.filterNot(_.trim.toLowerCase.startsWith("dominant_thesis:")))
-            .map(_.trim)
-            .filter(_.nonEmpty)
-            .distinct
-            .take(MaxEvidence)
-        pack.copy(longTermFocus = refreshedFocus, evidence = refreshedEvidence)
-      }
-      .getOrElse(pack)
 
   private def sideName(color: Color): String =
     if color.white then "white" else "black"

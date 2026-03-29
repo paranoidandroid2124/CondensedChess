@@ -17,7 +17,6 @@ private[llm] object LiveNarrativeCompressionCore:
     "evidence must show",
     "nominal evaluation",
     "cp compensation investment",
-    "dominant thesis",
     "so the plan cannot drift",
     "still looks playable in the engine line",
     "needs stronger support beyond that line"
@@ -140,9 +139,9 @@ private[llm] object LiveNarrativeCompressionCore:
       .replaceAll("""(?i)\beasier to organize\b""", "easier to carry out")
       .replaceAll("""(?i)\bmore confirmation is still needed\b""", "")
       .replaceAll("""(?i)\bfocus on ([a-h][1-8](?:,\s*[a-h][1-8])*)\b""", "pressure on $1")
-      .replaceAll("""(?i)^the plan still revolves around ([^.]+)\.$""", "The key idea is $1.")
-      .replaceAll("""(?i)^a useful route is ([^.]+)\.$""", "A likely follow-up is $1.")
-      .replaceAll("""(?i)^the next useful target is ([^.]+)\.$""", "A concrete target is $1.")
+      .replaceAll("""(?i)^the plan still revolves around ([^.]+)\.$""", "The play still runs through $1.")
+      .replaceAll("""(?i)^a useful route is ([^.]+)\.$""", "The clearest route runs through $1.")
+      .replaceAll("""(?i)^the next useful target is ([^.]+)\.$""", "The clearest target is $1.")
       .replaceAll(
         """(?i)^the move keeps the play focused on ([^.]+?), with the pieces working through ([^.]+?) rather than drifting into ([^.]+)\.$""",
         "The move is really about $1, and $2 is the clearest way to build on it."
@@ -332,8 +331,6 @@ private[llm] object LiveNarrativeCompressionCore:
       low.matches("""the move keeps the game in [^.]+\.""") ||
       low.matches("""the move keeps the game in [^.]+, with [^.]+ as the main theme\.""") ||
       low.matches("""the follow-up is to stay inside [^.]+ themes without losing the position's balance\.""") ||
-      low.matches("""the next step is to keep bringing the [a-z]+(?: to [a-h][1-8])?\.""") ||
-      low.matches("""the move keeps the [a-z]+ pointed toward [a-h][1-8](?: while [^.]+)?\.""") ||
       low.contains("keeps the pieces coordinated") ||
       low.contains("keeps the position easy to handle") ||
       low.contains("holds the position together") ||
@@ -341,8 +338,7 @@ private[llm] object LiveNarrativeCompressionCore:
       low.contains("still looks playable in the engine line") ||
       low.contains("needs stronger support beyond that line") ||
       low.contains("more confirmation is still needed") ||
-      low.contains("so the plan cannot drift") ||
-      low.contains("dominant thesis")
+      low.contains("so the plan cannot drift")
 
   def deterministicProse(slots: BookmakerPolishSlots): String =
     BookmakerSoftRepair.deterministicParagraphs(slots).mkString("\n\n").trim

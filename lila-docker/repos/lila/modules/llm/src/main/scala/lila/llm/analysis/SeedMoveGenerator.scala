@@ -61,15 +61,20 @@ object SeedMoveGenerator:
           else Nil
         }
 
+      case "OpenFile_Doubling" =>
+        heavyPieceBatteries(pos, us)
+
       case "Battery_Formation" =>
-         val pieces = pos.board.piecesOf(us)
-         val hasQ = pieces.exists(_._2.role == Queen)
-         val hasB = pieces.exists(_._2.role == Bishop)
-         val hasR = pieces.exists(_._2.role == Rook)
-         
-         if (hasQ && hasB) || (hasQ && hasR) || (pieces.count(_._2.role == Rook) >= 2) then
-           List(MovePattern.BatteryFormation(Queen, Bishop, LineType.DiagonalLine)) // Generic placeholder
-         else Nil
+        val fileBatteries = heavyPieceBatteries(pos, us)
+        if fileBatteries.nonEmpty then fileBatteries
+        else
+          val pieces = pos.board.piecesOf(us)
+          val hasQ = pieces.exists(_._2.role == Queen)
+          val hasB = pieces.exists(_._2.role == Bishop)
+
+          if hasQ && hasB then
+            List(MovePattern.BatteryFormation(Queen, Bishop, LineType.DiagonalLine))
+          else Nil
 
       case "RookLift_Kingside" =>
         val rooks = (pos.board.rooks & pos.board.byColor(us)).squares
@@ -270,6 +275,26 @@ object SeedMoveGenerator:
       case _ => Nil
 
   // --- Helpers ---
+
+  private def heavyPieceBatteries(pos: Position, us: Color): List[MovePattern] =
+    val board = pos.board
+    val rooks = (board.rooks & board.byColor(us)).squares
+    val queenCount = (board.queens & board.byColor(us)).count
+    pressureFiles(board, us).flatMap { file =>
+      if rooks.size >= 2 then
+        List(MovePattern.BatteryFormation(Rook, Rook, LineType.FileLine(file)))
+      else if rooks.nonEmpty && queenCount > 0 then
+        List(MovePattern.BatteryFormation(Rook, Queen, LineType.FileLine(file)))
+      else Nil
+    }.distinct.take(2)
+
+  private def pressureFiles(board: Board, us: Color): List[File] =
+    File.all.filter { file =>
+      val fileMask = Bitboard.file(file)
+      val friendlyPawns = (board.pawns & board.byColor(us)) & fileMask
+      val heavyPieces = (board.rooks | board.queens) & board.byColor(us) & fileMask
+      friendlyPawns.isEmpty && heavyPieces.nonEmpty
+    }
   
   private def getOutpostSquares(pos: Position, us: Color): List[Square] = {
     val relevantRanks = if us.white then Bitboard.rank(Rank.Fourth) | Bitboard.rank(Rank.Fifth) | Bitboard.rank(Rank.Sixth)

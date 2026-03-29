@@ -3,7 +3,6 @@ import type {
   AuthorQuestionSummary,
   EndgameStateToken,
   EvalVariation,
-  LatentPlanNarrative,
   PlanHypothesis,
   PlanStateToken,
   ProbeRequest,
@@ -175,8 +174,6 @@ export type DecodedBookmakerResponse = {
   signalDigest: NarrativeSignalDigest | null;
   mainStrategicPlans: PlanHypothesis[];
   strategicPlanExperiments: StrategicPlanExperiment[];
-  latentPlans: LatentPlanNarrative[];
-  holdReasons: string[];
   probeRequests: ProbeRequest[];
   authorQuestions: AuthorQuestionSummary[];
   authorEvidence: AuthorEvidenceSummary[];
@@ -201,8 +198,6 @@ export type MaybeResponse = {
   authorEvidence?: unknown;
   mainStrategicPlans?: unknown;
   strategicPlanExperiments?: unknown;
-  latentPlans?: unknown;
-  whyAbsentFromTopMultiPV?: unknown;
   planStateToken?: unknown;
   endgameStateToken?: unknown;
   sourceMode?: unknown;
@@ -278,16 +273,6 @@ export function strategicPlanExperimentsFromResponse(data: MaybeResponse): Strat
     : [];
 }
 
-export function latentPlansFromResponse(data: MaybeResponse): LatentPlanNarrative[] {
-  return Array.isArray(data?.latentPlans) ? (data.latentPlans as LatentPlanNarrative[]) : [];
-}
-
-export function whyAbsentFromTopMultiPVFromResponse(data: MaybeResponse): string[] {
-  return Array.isArray(data?.whyAbsentFromTopMultiPV)
-    ? (data.whyAbsentFromTopMultiPV as unknown[]).filter((v): v is string => typeof v === 'string')
-    : [];
-}
-
 export function planStateTokenFromResponse(data: MaybeResponse): PlanStateToken | null {
   return data?.planStateToken && typeof data.planStateToken === 'object'
     ? (data.planStateToken as PlanStateToken)
@@ -341,8 +326,6 @@ export function decodeBookmakerResponse(
     signalDigest: signalDigestFromResponse(data),
     mainStrategicPlans: mainStrategicPlansFromResponse(data),
     strategicPlanExperiments: strategicPlanExperimentsFromResponse(data),
-    latentPlans: latentPlansFromResponse(data),
-    holdReasons: whyAbsentFromTopMultiPVFromResponse(data),
     probeRequests: fallbackList(probeRequestsFromResponse(data), fallbacks.probeRequests),
     authorQuestions: fallbackList(authorQuestionsFromResponse(data), fallbacks.authorQuestions),
     authorEvidence: fallbackList(authorEvidenceFromResponse(data), fallbacks.authorEvidence),

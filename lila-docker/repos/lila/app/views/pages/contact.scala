@@ -70,7 +70,7 @@ object contact:
                 span(" • "),
                 a(href := routes.Main.terms.url, cls := "legal-link")("Terms of Service"),
                 span(" • "),
-                a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")
+                a(href := homeUrl, cls := "legal-link")("Back to Home")
               )
             )
           )

@@ -34,7 +34,7 @@ object auth:
 
   private def authHeader()(using ctx: Context) =
     div(cls := "landing-header")(
-      a(href := routes.Main.landing.url, cls := "logo")("Chesstory"),
+      a(href := homeUrl, cls := "logo")("Chesstory"),
       authThemeSwitch
     )
 

@@ -1,6 +1,6 @@
 package lila.llm.analysis
 
-import lila.llm.analysis.ThemeTaxonomy.{ SubplanCatalog, SubplanId, ThemeL1, ThemeResolver }
+import lila.llm.analysis.ThemeTaxonomy.{ SubplanCatalog, ThemeL1, ThemeResolver }
 
 private[llm] object FullGameDraftNormalizer:
 
@@ -11,7 +11,12 @@ private[llm] object FullGameDraftNormalizer:
     "Preconditions:",
     "Evidence:",
     "Signals:",
-    "Refutation/Hold:"
+    "Refutation/Hold:",
+    "Strategic focus:",
+    "Strategic priority:",
+    "The strategic stack still points first to",
+    "The strategic stack still favors",
+    "The backup strategic stack is"
   )
 
   private val MetaRewrites: List[(String, String)] = List(
@@ -21,32 +26,16 @@ private[llm] object FullGameDraftNormalizer:
     """(?i)\bPreconditions:\s*""" -> "This works best when ",
     """(?i)\bEvidence:\s*""" -> "",
     """(?i)\bSignals:\s*""" -> "The clearest signs are ",
-    """(?i)\bRefutation/Hold:\s*""" -> ""
+    """(?i)\bRefutation/Hold:\s*""" -> "",
+    """(?i)\bStrategic focus:\s*""" -> "Key theme: ",
+    """(?i)\bStrategic priority:\s*""" -> "Key theme: ",
+    """(?i)\bStrategic focus centers on\s+""" -> "The position revolves around ",
+    """(?i)\bStrategic focus remains on\s+""" -> "The position still turns on ",
+    """(?i)\bStrategic focus is sharpening along\s+""" -> "Pressure is sharpening along ",
+    """(?i)\bThe strategic stack still points first to\s+""" -> "The main plan remains ",
+    """(?i)\bThe strategic stack still favors\s+""" -> "The main plan remains ",
+    """(?i)\bThe backup strategic stack is\s+""" -> "Secondary ideas still include "
   )
-
-  def renderLatentPlanText(
-      template: String,
-      fen: String,
-      seedId: String,
-      fallbackPlanName: Option[String] = None
-  ): String =
-    val us = if sideToMoveIsWhite(fen) then "White" else "Black"
-    val them = if us == "White" then "Black" else "White"
-    val seedReadable = renderSeedPhrase(seedId)
-    val fallback =
-      fallbackPlanName
-        .map(_.trim)
-        .filter(_.nonEmpty)
-        .map(plan => s"If $them is slow, $us can work toward $plan.")
-        .getOrElse(s"If $them is slow, a long-term plan becomes available for $us.")
-    val base = Option(template).map(_.trim).filter(_.nonEmpty).getOrElse(fallback)
-    val dedupedBase = collapseRedundantSeedPlaceholder(base, seedId, seedReadable)
-    normalize(
-      dedupedBase
-        .replace("{us}", us)
-        .replace("{them}", them)
-        .replace("{seed}", Option.when(seedReadable.nonEmpty)(seedReadable).getOrElse("the key setup move"))
-    )
 
   def normalize(raw: String): String =
     val sanitized = UserFacingSignalSanitizer.sanitize(raw)
@@ -121,37 +110,16 @@ private[llm] object FullGameDraftNormalizer:
       .replaceAll("""(?i)\bopponent blocks with\.\s*""", "the opponent blocks with ")
       .replaceAll("""(?i)\bThis works best when\s+if\b""", "This works best when ")
       .replaceAll("""(?i)\bThis works best when\s+(requires|needs)\b""", "This works best when ")
+      .replaceAll("""(?i)\bStrategic focus remains on ([^.]+)\.""", "$1 remains the practical priority.")
+      .replaceAll("""(?i)\bThe strategic burden is still ([^.]+)\.""", "$1 remains the practical priority.")
+      .replaceAll("""(?i)\bStrategic priority remains ([^.]+)\.""", "$1 remains the practical priority.")
       .replaceAll("""\s+\.""", ".")
       .replaceAll("""\.\s*\.""", ". ")
       .replaceAll("""\s{2,}""", " ")
+      .replaceAll("""(?i)\bKey theme:\s+Key theme:\s+""", "Key theme: ")
       .replaceAll("""(?i)\bThe leading route is\s+The leading route is\b""", "The leading route is")
+      .replaceAll("""(?i)\bThe main plan remains\s+The main plan remains\b""", "The main plan remains")
       .trim
-
-  private def collapseRedundantSeedPlaceholder(
-      template: String,
-      seedId: String,
-      seedReadable: String
-  ): String =
-    val rawTemplate = Option(template).getOrElse("")
-    if !rawTemplate.contains("{seed}") then rawTemplate
-    else
-      val normalizedTemplate = semanticText(rawTemplate)
-      val normalizedSeed = semanticText(seedReadable)
-      val redundantSeed =
-        ThemeResolver.subplanFromSeedId(seedId).exists {
-          case SubplanId.RookPawnMarch        => normalizedTemplate.contains("pawn storm")
-          case SubplanId.CentralBreakTiming   => normalizedTemplate.contains("central break")
-          case SubplanId.HookCreation         => normalizedTemplate.contains("hook")
-          case SubplanId.RookLiftScaffold     => normalizedTemplate.contains("rook lift")
-          case SubplanId.OutpostEntrenchment  => normalizedTemplate.contains("outpost")
-          case _                              => normalizedSeed.nonEmpty && normalizedTemplate.contains(normalizedSeed)
-        } || (normalizedSeed.nonEmpty && normalizedTemplate.contains(normalizedSeed))
-
-      if redundantSeed then
-        rawTemplate
-          .replaceAll("""\s+with\s+\{seed\}""", "")
-          .replaceAll("""\s*\(\{seed\}\)""", "")
-      else rawTemplate
 
   private def semanticText(raw: String): String =
     Option(raw)
@@ -161,55 +129,3 @@ private[llm] object FullGameDraftNormalizer:
       .replaceAll("""[^\p{L}\p{N}\s]""", " ")
       .replaceAll("""\s+""", " ")
       .trim
-
-  private def renderSeedPhrase(seedId: String): String =
-    val raw = Option(seedId).getOrElse("").trim
-    if raw.isEmpty then ""
-    else
-      val normalized = raw.replaceAll("([a-z])([A-Z])", "$1_$2").replace('-', '_').toLowerCase
-      val tokens = normalized.split("[^a-z0-9]+").filter(_.nonEmpty).toSet
-
-      def has(token: String) = tokens.contains(token)
-
-      ThemeResolver
-        .subplanFromSeedId(normalized)
-        .flatMap {
-          case SubplanId.RookPawnMarch if has("kingside")  => Some("a kingside pawn storm")
-          case SubplanId.RookPawnMarch if has("queenside") => Some("a queenside pawn storm")
-          case SubplanId.RookPawnMarch                     => Some("a pawn storm")
-          case SubplanId.CentralBreakTiming if has("e")    => Some("an e-break")
-          case SubplanId.CentralBreakTiming if has("d")    => Some("a d-break")
-          case sid =>
-            SubplanCatalog.specs
-              .get(sid)
-              .flatMap(_.aliases.headOption)
-              .map(withIndefiniteArticle)
-        }
-        .orElse {
-          val pawnStorm = has("pawnstorm") || (has("pawn") && has("storm"))
-          if pawnStorm && has("kingside") then Some("a kingside pawn storm")
-          else if pawnStorm && has("queenside") then Some("a queenside pawn storm")
-          else if pawnStorm then Some("a pawn storm")
-          else None
-        }
-        .getOrElse {
-          val plain = normalized.replace('_', ' ').trim
-          if plain.isEmpty then ""
-          else withIndefiniteArticle(plain)
-        }
-
-  private def withIndefiniteArticle(phrase: String): String =
-    val cleaned = Option(phrase).getOrElse("").trim
-    if cleaned.isEmpty then cleaned
-    else
-      val low = cleaned.toLowerCase
-      if low.startsWith("a ") || low.startsWith("an ") || low.startsWith("the ") then cleaned
-      else
-        val article =
-          cleaned.headOption.map(_.toLower) match
-            case Some('a' | 'e' | 'i' | 'o' | 'u') => "an"
-            case _                                  => "a"
-        s"$article $cleaned"
-
-  private def sideToMoveIsWhite(fen: String): Boolean =
-    Option(fen).getOrElse("").trim.split("\\s+").drop(1).headOption.contains("w")

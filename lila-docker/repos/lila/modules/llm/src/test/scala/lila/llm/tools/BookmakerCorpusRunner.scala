@@ -58,7 +58,7 @@ object BookmakerCorpusRunner:
         entries.map { entry =>
           val catalogEntry = loadCatalogEntry(entry)
           val pgn = Files.readString(Paths.get(entry.pgnPath))
-          PgnAnalysisHelper.extractPlyDataStrict(pgn) match
+          val plyData = PgnAnalysisHelper.extractPlyDataStrict(pgn) match
             case Right(value) =>
               value.find(_.ply == entry.targetPly).getOrElse {
                 throw new IllegalArgumentException(s"${entry.sampleId}: missing ply ${entry.targetPly}")
@@ -70,6 +70,21 @@ object BookmakerCorpusRunner:
           val afterFen = lila.llm.analysis.NarrativeUtils.uciListToFen(entry.fen, List(entry.playedUci))
           val afterVars = engine.analyze(afterFen, config.depth, config.multiPv)
           val afterBest = afterVars.headOption
+          val plannerTrace =
+            analyzePly(
+              catalogEntry,
+              plyData,
+              beforeVars,
+              afterBest.map(best =>
+                MoveEval(
+                  ply = entry.targetPly,
+                  cp = best.scoreCp,
+                  mate = best.mate,
+                  pv = best.moves,
+                  variations = afterVars
+                )
+              )
+            ).map(bookmakerPlannerTrace).getOrElse(BookmakerPlannerTrace())
           val result =
             Await.result(
               api.bookmakerCommentPosition(
@@ -116,7 +131,23 @@ object BookmakerCorpusRunner:
             model = result.response.model,
             rawResponsePath = rawPath.toAbsolutePath.normalize.toString,
             variationCount = result.response.variations.size,
-            cacheHit = result.cacheHit
+            cacheHit = result.cacheHit,
+            plannerPrimaryKind = plannerTrace.primaryKind,
+            plannerPrimaryFallbackMode = plannerTrace.primaryFallbackMode,
+            plannerSecondaryKind = plannerTrace.secondaryKind,
+            plannerSecondarySurfaced = plannerTrace.secondarySurfaced,
+            bookmakerFallbackMode = plannerTrace.bookmakerFallbackMode,
+            plannerSceneType = plannerTrace.sceneType,
+            plannerOwnerCandidates = plannerTrace.ownerCandidates,
+            plannerAdmittedFamilies = plannerTrace.admittedFamilies,
+            plannerDroppedFamilies = plannerTrace.droppedFamilies,
+            plannerSupportMaterialSeparation = plannerTrace.supportMaterialSeparation,
+            plannerProposedFamilyMappings = plannerTrace.proposedFamilyMappings,
+            plannerDemotionReasons = plannerTrace.demotionReasons,
+            plannerSelectedQuestion = plannerTrace.selectedQuestion,
+            plannerSelectedOwnerFamily = plannerTrace.selectedOwnerFamily,
+            plannerSelectedOwnerSource = plannerTrace.selectedOwnerSource,
+            surfaceReplayOutcome = plannerTrace.surfaceReplayOutcome
           )
         }
 

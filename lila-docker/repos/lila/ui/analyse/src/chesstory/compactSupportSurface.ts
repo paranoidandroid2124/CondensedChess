@@ -9,21 +9,18 @@ export type CompactSupportRow = [string, string];
 
 export type CompactSupportSurface = {
   mainPlanTexts: string[];
-  holdReasons: string[];
   rows: CompactSupportRow[];
 };
 
 type Args = {
   signalDigest: NarrativeSignalDigest | null | undefined;
   mainPlanTexts?: string[];
-  holdReasons?: string[];
   deploymentSummary?: string | null;
 };
 
 export function buildCompactSupportSurface({
   signalDigest,
   mainPlanTexts = [],
-  holdReasons = [],
   deploymentSummary,
 }: Args): CompactSupportSurface {
   const digest = signalDigest || null;
@@ -55,10 +52,6 @@ export function buildCompactSupportSurface({
 
   return {
     mainPlanTexts: filterPlayerFacingValues(mainPlanTexts, supportOpts),
-    holdReasons: holdReasons
-      .map(reason => rewritePlayerFacingSupportText(reason, supportOpts))
-      .filter(Boolean)
-      .slice(0, 2) as string[],
     rows,
   };
 }

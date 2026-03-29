@@ -55,7 +55,7 @@ object AuthoringEvidenceSummaryBuilder:
             .distinct
             .take(MaxPurposes)
         val linkedPlans =
-          (requests.flatMap(_.planName) ++ requests.flatMap(_.seedId) ++ q.latentPlan.toList.map(_.seedId))
+          (requests.flatMap(_.planName) ++ requests.flatMap(_.seedId))
             .map(_.trim)
             .filter(_.nonEmpty)
             .distinct
@@ -112,21 +112,9 @@ object AuthoringEvidenceSummaryBuilder:
   private def headlineFromEvidence(summaries: List[AuthorEvidenceSummary]): Option[String] =
     val resolved = summaries.count(_.status == "resolved")
     val pending = summaries.count(_.status == "pending")
-    val latentEvidence = summaries.find(_.questionKind == "LatentPlan")
-    latentEvidence
-      .map { summary =>
-        if summary.status == "resolved" then
-          s"latent plan evidence is resolved via ${summary.branchCount} branch${if summary.branchCount == 1 then "" else "es"}"
-        else if summary.pendingProbeCount > 0 then
-          s"latent plan evidence is pending across ${summary.pendingProbeCount} probe${if summary.pendingProbeCount == 1 then "" else "s"}"
-        else
-          "latent plan framing remains heuristic"
-      }
-      .orElse {
-        Option.when(resolved > 0 || pending > 0)(
-          s"author evidence: $resolved resolved, $pending pending"
-        )
-      }
+    Option.when(resolved > 0 || pending > 0)(
+      s"author evidence: $resolved resolved, $pending pending"
+    )
 
   private def summarizeQuestion(q: AuthorQuestion): AuthorQuestionSummary =
     AuthorQuestionSummary(
@@ -137,6 +125,6 @@ object AuthoringEvidenceSummaryBuilder:
       why = q.why.map(UserFacingSignalSanitizer.sanitize),
       anchors = q.anchors.take(4),
       confidence = q.confidence.toString,
-      latentPlanName = q.latentPlan.map(_.seedId.replace('_', ' ')),
-      latentSeedId = q.latentPlan.map(_.seedId)
+      latentPlanName = None,
+      latentSeedId = None
     )

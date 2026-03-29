@@ -3,6 +3,7 @@
 
 # Account
 GET   /                                controllers.Main.landing
+GET   /home                            controllers.Main.home
 GET   /account/info                    controllers.Account.info
 GET   /api/account                     controllers.Account.apiMe
 GET   /account/profile                 controllers.Account.profile

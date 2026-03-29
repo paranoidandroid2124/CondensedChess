@@ -96,6 +96,18 @@ object RealPgnNarrativeEvalRunner:
       enginePath: Path
   )
 
+  final case class ChronicleRunArtifacts(
+      initialMomentCount: Int,
+      internalResponse: GameChronicleResponse,
+      response: GameChronicleResponse,
+      afterMoveEvals: List[MoveEval],
+      probeResultsByPly: Map[Int, List[lila.llm.model.ProbeResult]],
+      probeCandidateMoments: Int,
+      probeCandidateRequests: Int,
+      probeUnsupportedCount: Int,
+      probeExecutedCount: Int
+  )
+
   final case class Corpus(
       version: Int,
       generatedAt: String,
@@ -393,50 +405,16 @@ object RealPgnNarrativeEvalRunner:
       config: Config
   ): GameReport =
     val header = parseHeaders(game.pgn)
+    val artifacts = analyzeChronicleGame(game.pgn, api, engine, config.depth, config.multiPv, Some(game.id))
     val plyData =
       PgnAnalysisHelper.extractPlyDataStrict(game.pgn) match
         case Right(value) => value
         case Left(err)    => throw new IllegalArgumentException(s"${game.id}: PGN validation failed: $err")
-
-    val afterMoveEvals = buildAfterMoveEvals(plyData, engine, config.depth, config.multiPv)
-    val initialResponse =
-      Await.result(
-        api.analyzeGameChronicleLocal(
-          pgn = game.pgn,
-          evals = afterMoveEvals,
-          style = "active",
-          focusOn = List("strategy", "long_plan", "piece_route"),
-          allowLlmPolish = false,
-          asyncTier = false,
-          lang = "en",
-          planTier = PlanTier.Pro,
-          llmLevel = LlmLevel.Active
-        ),
-        180.seconds
-      ).getOrElse(throw new IllegalStateException(s"${game.id}: empty Game Chronicle response"))
-
-    val probeBundles = collectProbeMomentBundles(initialResponse, MaxProbeMoments)
-    val (probeResultsByPly, unsupportedProbeCount, executedProbeCount) =
-      executeSupportedProbeRequests(probeBundles, engine)
-
-    val refinedResponse =
-      if probeResultsByPly.isEmpty then initialResponse
-      else
-        Await.result(
-          api.analyzeGameChronicleLocal(
-            pgn = game.pgn,
-            evals = afterMoveEvals,
-            style = "active",
-            focusOn = List("strategy", "long_plan", "piece_route"),
-            allowLlmPolish = false,
-            asyncTier = false,
-            lang = "en",
-            planTier = PlanTier.Pro,
-            llmLevel = LlmLevel.Active,
-            probeResultsByPly = probeResultsByPly
-          ),
-          180.seconds
-        ).getOrElse(initialResponse)
+    val visibleResponse = artifacts.response
+    val afterMoveEvals = artifacts.afterMoveEvals
+    val probeResultsByPly = artifacts.probeResultsByPly
+    val unsupportedProbeCount = artifacts.probeUnsupportedCount
+    val executedProbeCount = artifacts.probeExecutedCount
 
     val internalTruthByPly =
       buildInternalTruthByPly(
@@ -445,7 +423,7 @@ object RealPgnNarrativeEvalRunner:
         probeResultsByPly = probeResultsByPly
       )
 
-    val focusMoments = pickFocusMoments(refinedResponse).flatMap { moment =>
+    val focusMoments = pickFocusMoments(visibleResponse).flatMap { moment =>
       buildFocusMomentReport(
         game = game,
         header = header,
@@ -460,7 +438,7 @@ object RealPgnNarrativeEvalRunner:
     }
 
     val rawGamePath = config.rawDir.resolve(s"${game.id}.game_arc.json")
-    writeJson(rawGamePath, Json.toJson(refinedResponse))
+    writeJson(rawGamePath, Json.toJson(visibleResponse))
 
     GameReport(
       id = game.id,
@@ -472,19 +450,87 @@ object RealPgnNarrativeEvalRunner:
       opening = combineOpening(header),
       result = header.result,
       totalPlies = plyData.size,
-      initialMomentCount = initialResponse.moments.size,
-      refinedMomentCount = refinedResponse.moments.size,
-      strategicMomentCount = refinedResponse.moments.count(_.strategyPack.exists(_.strategicIdeas.nonEmpty)),
-      threadCount = refinedResponse.strategicThreads.size,
-      activeNoteCount = refinedResponse.moments.count(_.activeStrategicNote.exists(_.trim.nonEmpty)),
-      probeCandidateMoments = probeBundles.size,
-      probeCandidateRequests = probeBundles.map(_.requests.size).sum,
+      initialMomentCount = artifacts.initialMomentCount,
+      refinedMomentCount = visibleResponse.moments.size,
+      strategicMomentCount = visibleResponse.moments.count(_.strategyPack.exists(_.strategicIdeas.nonEmpty)),
+      threadCount = visibleResponse.strategicThreads.size,
+      activeNoteCount = visibleResponse.moments.count(_.activeStrategicNote.exists(_.trim.nonEmpty)),
+      probeCandidateMoments = artifacts.probeCandidateMoments,
+      probeCandidateRequests = artifacts.probeCandidateRequests,
       probeExecutedRequests = executedProbeCount,
       probeUnsupportedRequests = unsupportedProbeCount,
       usedProbeRefinement = probeResultsByPly.nonEmpty,
-      overallThemes = refinedResponse.themes,
-      visibleMomentPlies = refinedResponse.moments.map(_.ply),
+      overallThemes = visibleResponse.themes,
+      visibleMomentPlies = visibleResponse.moments.map(_.ply),
       focusMoments = focusMoments
+    )
+
+  private[tools] def analyzeChronicleGame(
+      pgn: String,
+      api: LlmApi,
+      engine: LocalUciEngine,
+      depth: Int,
+      multiPv: Int,
+      gameId: Option[String] = None
+  ): ChronicleRunArtifacts =
+    val gameLabel = gameId.getOrElse("chronicle_game")
+    val plyData =
+      PgnAnalysisHelper.extractPlyDataStrict(pgn) match
+        case Right(value) => value
+        case Left(err)    => throw new IllegalArgumentException(s"$gameLabel: PGN validation failed: $err")
+
+    val afterMoveEvals = buildAfterMoveEvals(plyData, engine, depth, multiPv)
+    val initialArtifacts =
+      Await.result(
+        api.analyzeGameChronicleLocalArtifacts(
+          pgn = pgn,
+          evals = afterMoveEvals,
+          style = "active",
+          focusOn = List("strategy", "long_plan", "piece_route"),
+          allowLlmPolish = false,
+          asyncTier = false,
+          lang = "en",
+          planTier = PlanTier.Pro,
+          llmLevel = LlmLevel.Active
+        ),
+        180.seconds
+      ).getOrElse(throw new IllegalStateException(s"$gameLabel: empty Game Chronicle response"))
+    val initialInternalResponse = initialArtifacts.internalResponse
+    val initialVisibleResponse = initialArtifacts.response
+
+    val probeBundles = collectProbeMomentBundles(initialInternalResponse, MaxProbeMoments)
+    val (probeResultsByPly, unsupportedProbeCount, executedProbeCount) =
+      executeSupportedProbeRequests(probeBundles, engine)
+
+    val refinedArtifacts =
+      if probeResultsByPly.isEmpty then initialArtifacts
+      else
+        Await.result(
+          api.analyzeGameChronicleLocalArtifacts(
+            pgn = pgn,
+            evals = afterMoveEvals,
+            style = "active",
+            focusOn = List("strategy", "long_plan", "piece_route"),
+            allowLlmPolish = false,
+            asyncTier = false,
+            lang = "en",
+            planTier = PlanTier.Pro,
+            llmLevel = LlmLevel.Active,
+            probeResultsByPly = probeResultsByPly
+          ),
+          180.seconds
+        ).getOrElse(initialArtifacts)
+
+    ChronicleRunArtifacts(
+      initialMomentCount = initialVisibleResponse.moments.size,
+      internalResponse = refinedArtifacts.internalResponse,
+      response = refinedArtifacts.response,
+      afterMoveEvals = afterMoveEvals,
+      probeResultsByPly = probeResultsByPly,
+      probeCandidateMoments = probeBundles.size,
+      probeCandidateRequests = probeBundles.map(_.requests.size).sum,
+      probeUnsupportedCount = unsupportedProbeCount,
+      probeExecutedCount = executedProbeCount
     )
 
   private def buildFocusMomentReport(
@@ -545,6 +591,12 @@ object RealPgnNarrativeEvalRunner:
           RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, bookmakerSurface, internalTruth)
         val rawBookmakerPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.json")
         writeJson(rawBookmakerPath, Json.toJson(bookmakerResult.response))
+        bookmakerResult.diagnosticPlanSidecar
+          .filter(sidecar => sidecar.entries.nonEmpty || sidecar.droppedProbeCount > 0)
+          .foreach { sidecar =>
+            val sidecarPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.plan_diagnostic.json")
+            writeJson(sidecarPath, Json.toJson(sidecar))
+          }
         FocusMomentReport(
           ply = moment.ply,
           moveNumber = moment.moveNumber,
@@ -596,10 +648,10 @@ object RealPgnNarrativeEvalRunner:
           probeRequestCount = moment.probeRequests.size,
           probeRefinementRequestCount = moment.probeRefinementRequests.size,
           maintenanceExemplarCandidate = internalTruth.exists(_.maintenanceExemplarCandidate),
-          failureMode = internalTruth.map(_.failureMode),
-          failureIntentConfidence = internalTruth.map(_.failureIntentConfidence).getOrElse(0.0),
-          failureIntentAnchor = internalTruth.flatMap(_.failureIntentAnchor),
-          failureInterpretationAllowed = internalTruth.exists(_.failureInterpretationAllowed)
+          failureMode = None,
+          failureIntentConfidence = 0.0,
+          failureIntentAnchor = None,
+          failureInterpretationAllowed = false
         )
       }
     }
@@ -1511,7 +1563,7 @@ object RealPgnNarrativeEvalRunner:
       moves: List[String]
   )
 
-  private final class LocalUciEngine(enginePath: Path, timeoutMs: Long):
+  private[tools] final class LocalUciEngine(enginePath: Path, timeoutMs: Long):
     private val process =
       new ProcessBuilder(enginePath.toAbsolutePath.normalize.toString)
         .redirectErrorStream(true)

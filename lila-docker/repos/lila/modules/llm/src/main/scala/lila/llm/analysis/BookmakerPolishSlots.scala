@@ -144,12 +144,28 @@ object BookmakerProseContract:
     paragraphs.flatMap(splitSentences).size
 
   private def splitSentences(text: String): List[String] =
-    Option(text)
-      .getOrElse("")
+    protectChessMoveNumbers(Option(text).getOrElse(""))
       .split("""(?<=[.!?])\s+""")
       .toList
+      .map(restoreChessMoveNumbers)
       .map(_.trim)
       .filter(_.nonEmpty)
+
+  private def protectChessMoveNumbers(text: String): String =
+    text
+      .replaceAll(
+        """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<ELLIPSIS>"
+      )
+      .replaceAll(
+        """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<PLY>"
+      )
+
+  private def restoreChessMoveNumbers(text: String): String =
+    text
+      .replace("<ELLIPSIS>", "...")
+      .replace("<PLY>", ".")
 
 object BookmakerSoftRepair:
 
@@ -228,6 +244,8 @@ object BookmakerSoftRepair:
 
     val repairedText = paragraphs.map(_.trim).filter(_.nonEmpty).mkString("\n\n")
     val evaluation = BookmakerProseContract.evaluate(repairedText, slots)
+    if !evaluation.claimLikeFirstParagraph then
+      println(s"[soft-repair] claim-fail text=${repairedText.replace('\n', '|')}")
     val distinctActions = actions.toList.distinct
     val materialActions = distinctActions.filterNot(CosmeticActions.contains)
     RepairResult(
@@ -280,12 +298,28 @@ object BookmakerSoftRepair:
     else s"$trimmed."
 
   private def splitSentences(text: String): List[String] =
-    Option(text)
-      .getOrElse("")
+    protectChessMoveNumbers(Option(text).getOrElse(""))
       .split("""(?<=[.!?])\s+""")
       .toList
+      .map(restoreChessMoveNumbers)
       .map(_.trim)
       .filter(_.nonEmpty)
+
+  private def protectChessMoveNumbers(text: String): String =
+    text
+      .replaceAll(
+        """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<ELLIPSIS>"
+      )
+      .replaceAll(
+        """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<PLY>"
+      )
+
+  private def restoreChessMoveNumbers(text: String): String =
+    text
+      .replace("<ELLIPSIS>", "...")
+      .replace("<PLY>", ".")
 
   private def trimToSentenceBudget(
       paragraphs: List[String],

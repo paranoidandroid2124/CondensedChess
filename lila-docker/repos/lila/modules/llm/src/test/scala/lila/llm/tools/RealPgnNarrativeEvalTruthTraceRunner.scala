@@ -95,8 +95,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       bottleneckSamples: Map[String, List[String]],
       tagCounts: Map[String, Int],
       truthClassCounts: Map[String, Int],
-      ownershipRoleCounts: Map[String, Int],
-      exemplarRoleCounts: Map[String, Int]
+      reasonFamilyCounts: Map[String, Int]
   )
   object TraceBottleneckSummary:
     given OFormat[TraceBottleneckSummary] = Json.format[TraceBottleneckSummary]
@@ -110,7 +109,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       entriesWithWitnessTrace: Int,
       entriesWithoutWitnessTrace: Int,
       entriesCanonicallyVisible: Int,
-      entriesCanonicallyExemplarVisible: Int,
+      entriesCanonicallyRepresentativeVisible: Int,
       bottlenecks: TraceBottleneckSummary
   )
   object TraceSummary:
@@ -314,10 +313,10 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       entriesWithWitnessTrace = entries.count(_.witnessTracePresent),
       entriesWithoutWitnessTrace = entries.count(entry => !entry.witnessTracePresent),
       entriesCanonicallyVisible = entries.count(_.canonicalTrace.exists(_.visibleMoment)),
-      entriesCanonicallyExemplarVisible =
+      entriesCanonicallyRepresentativeVisible =
         entries.count(_.canonicalTrace.exists(trace =>
           trace.visibleMoment &&
-            (trace.exemplarRole == "VerifiedExemplar" || trace.exemplarRole == "ProvisionalExemplar")
+            trace.threadRepresentativeSelected
         )),
       bottlenecks =
         TraceBottleneckSummary(
@@ -326,8 +325,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
           bottleneckSamples = bottleneckSamples,
           tagCounts = countMap(entries.flatMap(_.tags)),
           truthClassCounts = countMap(entries.flatMap(traceForSummary(_).map(_.truthClass))),
-          ownershipRoleCounts = countMap(entries.flatMap(traceForSummary(_).map(_.ownershipRole))),
-          exemplarRoleCounts = countMap(entries.flatMap(traceForSummary(_).map(_.exemplarRole)))
+          reasonFamilyCounts = countMap(entries.flatMap(traceForSummary(_).map(_.reasonFamily)))
         )
     )
 
@@ -343,33 +341,14 @@ object RealPgnNarrativeEvalTruthTraceRunner:
         "canonical_non_internal"
       case Some(trace) if trace.finalInternal && !trace.visibleMoment =>
         "canonical_internal_hidden"
-      case Some(trace) if trace.visibleMoment && trace.exemplarRole == "VerifiedExemplar" =>
-        "canonical_verified_exemplar"
-      case Some(trace) if trace.visibleMoment && trace.exemplarRole == "ProvisionalExemplar" =>
-        "canonical_provisional_exemplar"
+      case Some(trace) if trace.visibleMoment && trace.threadRepresentativeSelected =>
+        "canonical_visible_thread_representative"
+      case Some(trace) if trace.visibleMoment && trace.maintenanceExemplarCandidate =>
+        "canonical_visible_maintenance_candidate"
       case Some(trace) if trace.visibleMoment =>
-        "canonical_visible_non_exemplar"
+        "canonical_visible_non_representative"
       case Some(_) =>
         "canonical_other"
-
-  private def currentMaterialSeed(trace: CommentaryEngine.TruthTraceMoment): Boolean =
-    trace.sacrificeKind.nonEmpty || trace.increasesDeficit || trace.valueDownCapture
-
-  private def moveLocalAnchorCarrierPresent(trace: CommentaryEngine.TruthTraceMoment): Boolean =
-    trace.rawDominantIdea.exists(_.trim.nonEmpty) ||
-      trace.rawSecondaryIdea.exists(_.trim.nonEmpty) ||
-      trace.rawExecution.exists(_.trim.nonEmpty) ||
-      trace.rawObjective.exists(_.trim.nonEmpty) ||
-      trace.rawFocus.exists(_.trim.nonEmpty) ||
-      trace.rawLongTermFocus.exists(_.trim.nonEmpty) ||
-      trace.rawDirectionalTargets.exists(_.trim.nonEmpty) ||
-      trace.rawPieceRoutes.exists(_.trim.nonEmpty) ||
-      trace.rawPieceMoveRefs.exists(_.trim.nonEmpty)
-
-  private def usesLegacyShellOnly(trace: CommentaryEngine.TruthTraceMoment): Boolean =
-    trace.legacyVisibleOnly ||
-      (trace.evidenceProvenance.nonEmpty &&
-        trace.evidenceProvenance.forall(_ == "LegacyShell"))
 
   private def bottleneckLabels(entry: TraceInventoryEntryReport): List[String] =
     val canonical = entry.canonicalTrace
@@ -381,31 +360,12 @@ object RealPgnNarrativeEvalTruthTraceRunner:
     if canonical.isEmpty && witness.nonEmpty then labels += "witness_only_trace"
 
     trace.foreach { moment =>
-      if !currentMaterialSeed(moment) then labels += "no_current_material_seed"
-      if !moveLocalAnchorCarrierPresent(moment) then labels += "no_move_local_anchor"
-      if currentMaterialSeed(moment) && !moveLocalAnchorCarrierPresent(moment) then
-        labels += "current_material_without_anchor"
-      if moveLocalAnchorCarrierPresent(moment) && !currentMaterialSeed(moment) then
-        labels += "anchor_without_current_material"
-      if usesLegacyShellOnly(moment) then labels += "legacy_visible_only"
-      if moment.ownershipRole == "MaintenanceEcho" then labels += "maintenance_echo"
       if moment.maintenanceExemplarCandidate then labels += "maintenance_exemplar_candidate"
-      if !moment.ownerEligible then labels += "owner_not_eligible"
       if moment.finalInternal && !moment.visibleMoment then labels += "canonical_hidden_after_internal"
-      if moment.visibleMoment &&
-        moment.exemplarRole != "VerifiedExemplar" &&
-        moment.exemplarRole != "ProvisionalExemplar"
-      then labels += "visible_non_exemplar"
-      if moment.truthClass == "TensionPeak" || moment.truthClass == "Neutral" then
-        labels += "high_cp_loss_unresolved_truth_class"
-      if moment.currentMoveEvidence && !moment.freshCommitmentCandidate then
-        if moment.ownershipRole == "MaintenanceEcho" && moment.currentConcreteCarrier then
-          labels += "maintenance_current_carrier_without_fresh_commitment"
-        else labels += "current_evidence_without_fresh_commitment"
-      if moment.freshCommitmentCandidate && !moment.ownerEligible then
-        labels += "fresh_commitment_blocked_before_owner"
-      if moment.ownershipRole == "BlunderOwner" && !moment.failureInterpretationAllowed then
-        labels += "failure_no_clear_plan"
+      if moment.visibleMoment && !moment.threadRepresentativeSelected then labels += "visible_non_representative"
+      if moment.activeNoteMoment && !moment.visibleMoment then labels += "active_without_visible"
+      if moment.reasonFamily == "OnlyMoveDefense" && !moment.threadRepresentativeSelected then
+        labels += "only_move_non_representative"
     }
 
     labels.toList.distinct

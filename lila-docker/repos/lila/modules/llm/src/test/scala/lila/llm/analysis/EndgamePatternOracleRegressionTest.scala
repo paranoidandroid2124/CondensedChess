@@ -37,6 +37,14 @@ class EndgamePatternOracleRegressionTest extends FunSuite:
     assertEquals(feature.rookEndgamePattern, RookEndgamePattern.PassiveRookDefense)
   }
 
+  test("PassiveRookDefense remains visible from the opposite side's perspective") {
+    val fen = "6k1/8/8/8/8/3p4/3r2K1/R7 w - - 0 1"
+    val feature = evaluate(fen, Color.White)
+
+    assertEquals(feature.primaryPattern, Some("PassiveRookDefense"))
+    assertEquals(feature.rookEndgamePattern, RookEndgamePattern.PassiveRookDefense)
+  }
+
   test("QueenVsAdvancedPawn uses attacking-king distance for win/draw split") {
     val drawFen = "8/PqK5/8/8/8/8/8/7k w - - 0 1"
     val winFen = "8/PqK5/k7/8/8/8/8/8 w - - 0 1"
@@ -60,4 +68,28 @@ class EndgamePatternOracleRegressionTest extends FunSuite:
     assertEquals(positive.primaryPattern, Some("SameColoredBishopsBlockade"))
     assertEquals(positive.theoreticalOutcomeHint, TheoreticalOutcomeHint.Draw)
     assertNotEquals(negative.primaryPattern, Some("SameColoredBishopsBlockade"))
+  }
+
+  test("OutsidePasserDecoy recognizes a far main-wing pawn when the king escorts the outside passer") {
+    val fen = "8/7k/1K6/P4P2/8/8/8/8 w - - 0 1"
+    val feature = evaluate(fen, Color.White)
+
+    assertEquals(feature.primaryPattern, Some("OutsidePasserDecoy"))
+    assertEquals(feature.theoreticalOutcomeHint, TheoreticalOutcomeHint.Win)
+  }
+
+  test("OppositeColoredBishopsDraw allows a blockaded advanced rook pawn") {
+    val fen = "5b2/6k1/5pp1/7P/8/5PP1/2B3K1/8 w - - 0 1"
+    val feature = evaluate(fen, Color.White)
+
+    assertEquals(feature.primaryPattern, Some("OppositeColoredBishopsDraw"))
+    assertEquals(feature.theoreticalOutcomeHint, TheoreticalOutcomeHint.Draw)
+  }
+
+  test("RookAndBishopVsRookDraw is detected even when the stronger side is not the analyzed color") {
+    val fen = "2b2r1k/8/8/8/8/8/8/K6R w - - 0 1"
+    val feature = evaluate(fen, Color.White)
+
+    assertEquals(feature.primaryPattern, Some("RookAndBishopVsRookDraw"))
+    assertEquals(feature.theoreticalOutcomeHint, TheoreticalOutcomeHint.Draw)
   }

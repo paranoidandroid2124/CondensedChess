@@ -64,7 +64,7 @@ class ActiveStrategicPromptTest extends FunSuite:
       )
     ),
     longTermFocus = List("Dark-square control"),
-    evidence = List("dominant_thesis:The French Chain calls for a knight reroute toward e3."),
+    evidence = List("deployment:N:d2-f1-e3:piece improvement"),
     signalDigest = Some(
       NarrativeSignalDigest(
         practicalVerdict = Some("conversion requires precision"),
@@ -149,17 +149,12 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(prompt.contains("## COACHING BRIEF"))
     assert(prompt.contains("## DETERMINISTIC DRAFT"))
     assert(prompt.contains("## REWRITE GUARDRAILS"))
-    assert(prompt.contains("Primary idea"))
     assert(prompt.contains("Why now"))
     assert(prompt.contains("Opponent reply to watch"))
-    assert(prompt.contains("Execution hint"))
-    assert(prompt.contains("Long-term objective"))
     assert(prompt.contains("Key trigger or failure mode"))
     assert(prompt.contains("space gain or restriction"))
     assert(prompt.contains("e3"))
     assert(prompt.contains("g4"))
-    assert(prompt.contains("knight toward e3"))
-    assert(prompt.contains("work toward making g4 available"))
     assert(prompt.contains("The key idea is space gain or restriction around e3 and g4."))
     assert(!prompt.contains("d2-f1-e3"))
     assert(prompt.contains("the game is pivoting toward a new sector or target"))
@@ -178,6 +173,9 @@ class ActiveStrategicPromptTest extends FunSuite:
     assert(!prompt.contains("Signal Digest"))
     assert(prompt.contains("dominant idea as the thesis"))
     assert(prompt.contains("rewrite pass over the deterministic draft"))
+    assert(!prompt.contains("Primary idea"))
+    assert(!prompt.contains("Execution hint"))
+    assert(!prompt.contains("Long-term objective"))
   }
 
   test("buildRepairPrompt returns to deterministic draft instead of rewriting a fresh note") {

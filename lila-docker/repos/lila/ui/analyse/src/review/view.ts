@@ -1,8 +1,8 @@
-import * as licon from 'lib/licon';
 import type { LooseVNode, LooseVNodes, VNode } from 'lib/view';
-import { bind, hl, icon } from 'lib/view';
+import { bind, hl } from 'lib/view';
 import { cleanNarrativeProseText, cleanNarrativeSurfaceLabel } from '../chesstory/signalFormatting';
 import type AnalyseCtrl from '../ctrl';
+import { bookmakerToggleBox } from '../bookmaker';
 import type { NarrativeMomentFilter, ReviewPrimaryTab } from './state';
 import {
   MIN_GAME_CHRONICLE_PLY,
@@ -11,12 +11,11 @@ import {
   type GameChronicleMoment,
 } from '../narrative/narrativeCtrl';
 import {
-  collapseTimelineView,
   bindPreviewHover,
+  collapseTimelineView,
   defeatDnaContentView,
   narrativeCollapseCardView,
   narrativeMomentView,
-  narrativeReviewView,
 } from '../narrative/narrativeView';
 
 export type ReviewViewNodes = {
@@ -29,11 +28,6 @@ export type ReviewViewNodes = {
   importNode?: VNode;
 };
 
-type ReviewTabMeta = {
-  tab: ReviewPrimaryTab;
-  label: string;
-};
-
 type ReviewOverviewStats = {
   totalMoments: number;
   collapseMoments: number;
@@ -41,61 +35,29 @@ type ReviewOverviewStats = {
   evalCoveragePct: number | null;
 };
 
-const primaryTabs: ReviewTabMeta[] = [
-  { tab: 'overview', label: 'Overview' },
-  { tab: 'moments', label: 'Moments' },
-  { tab: 'repair', label: 'Repair' },
-  { tab: 'patterns', label: 'Patterns' },
-  { tab: 'moves', label: 'Moves' },
-  { tab: 'import', label: 'Import PGN' },
-];
-
-const momentFilters: Array<{ filter: NarrativeMomentFilter; label: string }> = [
-  { filter: 'all', label: 'All' },
-  { filter: 'critical', label: 'Critical' },
-  { filter: 'collapses', label: 'Collapses' },
-];
+type CoachPaneTab = 'review' | 'explain' | 'engine' | 'explorer' | 'board';
+type RawPaneTab = 'moves' | 'explain' | 'engine' | 'explorer' | 'board' | 'patterns' | 'import';
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
-  const stats = reviewOverviewStats(ctrl);
-  return hl('section.analyse-review', {
-    hook: {
-      insert: vnode => {
-        if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
-      },
-      postpatch: (_, vnode) => {
-        if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
+  return hl(
+    'section.analyse-review',
+    {
+      hook: {
+        insert: vnode => {
+          if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
+        },
+        postpatch: (_, vnode) => {
+          if (ctrl.narrative) bindPreviewHover(ctrl.narrative, vnode.elm as HTMLElement);
+        },
       },
     },
-  }, [
-    hl('div.analyse-review__tabs-head', [
-      hl(
-        'div.analyse-review__tabs',
-        {
-          hook: ensureActiveChildVisible('[data-review-tab].active'),
-          attrs: { role: 'tablist', 'aria-label': 'Review sections' },
-        },
-        primaryTabs.map(({ tab, label }) =>
-          hl(
-            `button.analyse-review__tab${ctrl.reviewPrimaryTab() === tab ? '.active' : ''}`,
-            {
-              key: tab,
-              attrs: {
-                type: 'button',
-                role: 'tab',
-                'aria-selected': ctrl.reviewPrimaryTab() === tab ? 'true' : 'false',
-                'data-review-tab': tab,
-              },
-              hook: bind('click', () => ctrl.setReviewPrimaryTab(tab)),
-            },
-            [hl('span', label), renderPrimaryTabMeta(ctrl, tab, stats)],
-          ),
-        ),
-      ),
-    ]),
-    renderUtilityPanel(ctrl, nodes),
-    hl('div.analyse-review__body', [renderPrimaryTab(ctrl, nodes)]),
-  ]);
+    [
+      renderSurfaceSwitch(ctrl),
+      hl('div.analyse-review__body', [
+        ctrl.reviewSurfaceMode() === 'review' ? renderCoachReview(ctrl, nodes) : renderRawWorkspace(ctrl, nodes),
+      ]),
+    ],
+  );
 }
 
 export function filterNarrativeMoments(
@@ -116,43 +78,46 @@ function isCriticalMoment(moment: GameChronicleMoment): boolean {
   return ['critical', 'turning', 'blunder', 'mistake', 'missed', 'swing'].some(token => haystack.includes(token));
 }
 
-function renderPrimaryTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
-  switch (ctrl.reviewPrimaryTab()) {
-    case 'overview':
-      return renderOverview(ctrl);
-    case 'moments':
-      return renderMoments(ctrl);
-    case 'repair':
-      return renderRepair(ctrl);
-    case 'patterns':
-      return renderPatterns(ctrl);
-    case 'moves':
-      return renderMoves(ctrl, nodes);
-    case 'import':
-      return renderImport(ctrl, nodes);
-  }
+function renderSurfaceSwitch(ctrl: AnalyseCtrl): VNode {
+  return hl('div.analyse-review__surface-switch', [
+    surfaceModeButton(ctrl, 'review', 'Guided Review'),
+    surfaceModeButton(ctrl, 'raw', 'Full Analysis'),
+  ]);
 }
 
-function renderOverview(ctrl: AnalyseCtrl): VNode {
+function surfaceModeButton(ctrl: AnalyseCtrl, mode: 'review' | 'raw', label: string): VNode {
+  return hl(
+    `button.analyse-review__surface-toggle${ctrl.reviewSurfaceMode() === mode ? '.active' : ''}`,
+    {
+      attrs: {
+        type: 'button',
+        'aria-pressed': ctrl.reviewSurfaceMode() === mode ? 'true' : 'false',
+      },
+      hook: bind('click', () => ctrl.setReviewSurfaceMode(mode)),
+    },
+    label,
+  );
+}
+
+function renderCoachReview(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   const narrative = ctrl.narrative;
   const data = narrative?.data();
-  const stats = reviewOverviewStats(ctrl);
   const totalPly = totalMainlinePly(ctrl);
   const chronicleEligible = totalPly >= MIN_GAME_CHRONICLE_PLY;
 
-  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Guided review is unavailable for this game.');
 
   if (!data) {
-    return hl('div.analyse-review__overview', [
+    return hl('div.analyse-review__coach', [
       hl('section.analyse-review__hero', [
-        hl('span.analyse-review__eyebrow', 'Post-game review'),
-        hl('h2', 'Run Game Chronicle'),
+        hl('span.analyse-review__eyebrow', 'Guided Review'),
+        hl('h2', 'Review this game'),
         hl(
           'p',
-          'Generate a Game Chronicle with turning points, repair windows, and pattern tracking before you drop into raw moves.',
+          'Build a board-first review with critical moments, one main explanation card, and the best chance to fix the game before you open full analysis.',
         ),
         narrative.loading()
-          ? hl('div.loader', narrative.loadingDetail() || 'Game Chronicle in progress...')
+          ? hl('div.loader', narrative.loadingDetail() || 'Guided review in progress...')
           : narrative.error()
             ? hl('div.analyse-review__status.is-error', [
                 hl('div', narrative.error()),
@@ -160,217 +125,504 @@ function renderOverview(ctrl: AnalyseCtrl): VNode {
               ])
             : chronicleEligible
               ? hl(
-                'button.button.button-fat',
-                {
-                  hook: bind('click', () => {
-                    void ctrl.openNarrative();
-                  }),
-                },
-                'Run Game Chronicle',
-              )
+                  'button.button.button-fat',
+                  {
+                    hook: bind('click', () => {
+                      void ctrl.openNarrative();
+                    }),
+                  },
+                  'Review this game',
+                )
               : hl('div.analyse-review__status', [
                   hl(
                     'button.button.button-fat',
                     {
                       attrs: { type: 'button', disabled: true },
                     },
-                    `Unlocks at move ${moveNumberFromPly(MIN_GAME_CHRONICLE_PLY)}`,
+                    `Available after move ${moveNumberFromPly(MIN_GAME_CHRONICLE_PLY)}`,
                   ),
                 ]),
       ]),
-      hl('div.analyse-review__overview-cards', [
-        overviewCard(licon.BubbleSpeech, 'Moments', 'Surface the turning points instead of scanning every move.'),
-        overviewCard(licon.Target, 'Repair', 'See where the game first broke and replay the patch line.'),
-        overviewCard(licon.Book, 'Patterns', 'Track recurring collapse causes across analyzed games.'),
-      ]),
     ]);
   }
 
-  const collapseMoments = data.moments.filter(moment => !!moment.collapse);
-  return hl('div.analyse-review__overview', [
+  const stats = reviewOverviewStats(ctrl);
+  const selectedMoment = selectedCoachMoment(ctrl);
+  const keyMoments = keyCoachMoments(ctrl, selectedMoment);
+  const selectedCollapse = selectedMoment?.collapse ? selectedMoment : null;
+  const accountHref = ctrl.accountPatternsHref();
+  const activeTab = resolveCoachTab(ctrl.reviewPrimaryTab());
+
+  return hl('div.analyse-review__coach', [
     hl('section.analyse-review__hero.analyse-review__hero--ready', [
-      hl('span.analyse-review__eyebrow', 'Review ready'),
-      hl('h2', 'Narrative-first game review'),
+      hl('span.analyse-review__eyebrow', 'Guided Review'),
+      hl('h2', reviewHeadline(data.themes || [])),
+      hl('p', reviewLead(data.intro, data.conclusion)),
       data.themes?.length
-        ? hl('div.narrative-themes', data.themes.map(theme => hl('span.narrative-theme', cleanNarrativeSurfaceLabel(theme))))
+        ? hl(
+            'div.narrative-themes',
+            data.themes.map(theme => hl('span.narrative-theme', cleanNarrativeSurfaceLabel(theme))),
+          )
         : null,
       renderOverviewStats(stats),
-      narrativeReviewView(data),
-      data.intro ? hl('pre.narrative-prose', cleanNarrativeProseText(data.intro)) : null,
-    ]),
-    hl('div.analyse-review__next-actions', [
-      actionCard(ctrl, licon.BubbleSpeech, 'Go to Moments', 'Read the selected turning points in order.', 'moments'),
-      actionCard(
-        ctrl,
-        licon.Target,
-        collapseMoments.length ? 'Open Repair' : 'Repair unavailable',
-        collapseMoments.length
-          ? `Inspect ${collapseMoments.length} causal collapse${collapseMoments.length > 1 ? 's' : ''}.`
-          : 'This game has no causal collapse window yet.',
-        'repair',
-        !collapseMoments.length,
-      ),
-      actionCard(ctrl, licon.Book, 'See Patterns', 'Open Defeat DNA and look for recurring failure modes.', 'patterns'),
-    ]),
-  ]);
-}
-
-function overviewCard(iconName: string, title: string, body: string): VNode {
-  return hl('article.analyse-review__card', [
-    hl('span.analyse-review__card-icon', icon(iconName as any)),
-    hl('strong', title),
-    hl('p', body),
-  ]);
-}
-
-function actionCard(
-  ctrl: AnalyseCtrl,
-  iconName: string,
-  title: string,
-  body: string,
-  tab: ReviewPrimaryTab,
-  disabled = false,
-): VNode {
-  return hl(
-    `button.analyse-review__action-card${disabled ? '.disabled' : ''}`,
-    {
-      attrs: { type: 'button', disabled },
-      hook: disabled ? undefined : bind('click', () => ctrl.setReviewPrimaryTab(tab)),
-    },
-    [hl('span.analyse-review__card-icon', icon(iconName as any)), hl('strong', title), hl('p', body)],
-  );
-}
-
-function renderMoments(ctrl: AnalyseCtrl): VNode {
-  const narrative = ctrl.narrative;
-  const data = narrative?.data();
-
-  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
-  if (!data) return renderMissingNarrative(ctrl, 'Run deep analysis to unlock the moment-by-moment review.');
-
-  const filtered = filterNarrativeMoments(data.moments || [], ctrl.reviewMomentFilter());
-  return hl('div.analyse-review__moments', [
-    hl('div.analyse-review__section-head', [
-      hl('h3', 'Moments'),
-      hl(
-        'p',
-        filtered.length === data.moments.length
-          ? `Showing all ${filtered.length} highlighted moments.`
-          : `Showing ${filtered.length} of ${data.moments.length} highlighted moments.`,
-      ),
-    ]),
-    hl('div.analyse-review__filters', [
-      hl('strong', 'Moment filter'),
-      ...momentFilters.map(({ filter, label }) =>
+      hl('div.analyse-review__hero-actions', [
+        renderCoachExpertStrip(ctrl),
         hl(
-          `button.analyse-review__filter${ctrl.reviewMomentFilter() === filter ? '.active' : ''}`,
+          'button.button',
           {
-            key: filter,
-            attrs: { type: 'button' },
-            hook: bind('click', () => ctrl.setReviewMomentFilter(filter)),
+            hook: bind('click', () => openFullAnalysis(ctrl, { tab: 'moves' })),
           },
-          label,
+          'Open full analysis',
         ),
-      ),
+      ]),
     ]),
-    filtered.length
-      ? hl(
-          'div.analyse-review__moment-list',
-          { hook: ensureActiveChildVisible('.narrative-moment.active') },
-          filtered.map(moment =>
-            narrativeMomentView(narrative, moment, {
-              selected: ctrl.selectedReviewMomentPly() === moment.ply,
-              compact: true,
-              onSelect: () => {
-                ctrl.selectReviewMoment(moment.ply);
-                ctrl.jumpToMain(moment.ply);
-              },
-            }),
-          ),
-        )
-      : hl('div.analyse-review__empty', 'No moments match the current filter.'),
+    hl('div.analyse-review__moment-layout', [
+      renderMomentListCard(
+        ctrl,
+        keyMoments,
+        selectedMoment,
+        activeTab === 'review'
+          ? 'Selecting one keeps the board and the explanation in sync.'
+          : 'Selecting one keeps the board in sync while you work in another tool.',
+      ),
+      hl('div.analyse-review__detail-stack', [
+        renderCoachTabs(ctrl, activeTab),
+        renderCoachPane(ctrl, nodes, narrative, selectedMoment, selectedCollapse, data, stats, accountHref, activeTab),
+      ]),
+    ]),
   ]);
 }
 
-function renderRepair(ctrl: AnalyseCtrl): VNode {
-  const narrative = ctrl.narrative;
-  const data = narrative?.data();
-
-  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
-  if (!data) return renderMissingNarrative(ctrl, 'Run deep analysis to unlock collapse diagnosis and repair lines.');
-
-  const collapseMoments = data.moments.filter(moment => !!moment.collapse);
-  const selectedCollapse = collapseMoments.find(moment => moment.collapse?.interval === ctrl.selectedReviewCollapseId());
-  if (!collapseMoments.length) {
-    return hl('div.analyse-review__empty', [
-      hl('strong', 'No causal collapse detected'),
-      hl('p', 'This game does not have a repair window yet. Review the moments list for the main turning points.'),
-      hl(
-        'button.button',
-        {
-          hook: bind('click', () => ctrl.setReviewPrimaryTab('moments')),
-        },
-        'Go to Moments',
-      ),
-    ]);
-  }
-
-  return hl('div.analyse-review__repair', [
+function renderMomentListCard(
+  ctrl: AnalyseCtrl,
+  keyMoments: GameChronicleMoment[],
+  selectedMoment: GameChronicleMoment | null,
+  copy: string,
+): VNode {
+  return hl('section.analyse-review__moment-list-card', [
     hl('div.analyse-review__section-head', [
-      hl('h3', 'Repair'),
-      hl(
-        'p',
-        selectedCollapse?.collapse
-          ? `Reviewing ${selectedCollapse.collapse.rootCause} across the collapse window.`
-          : `Found ${collapseMoments.length} collapse window${collapseMoments.length > 1 ? 's' : ''}.`,
-      ),
+      hl('h3', 'Critical moments'),
+      hl('p', `Start with ${keyMoments.length} curated moments. ${copy}`),
     ]),
-    collapseTimelineView(narrative, collapseMoments),
     hl(
-      'div.analyse-review__collapse-list',
-      { hook: ensureActiveChildVisible('.narrative-collapse-card.active') },
-      collapseMoments.map(moment =>
-        narrativeCollapseCardView(narrative, moment, {
-          selected: ctrl.selectedReviewCollapseId() === moment.collapse?.interval,
-          onSelect: () => {
-            if (!moment.collapse) return;
-            ctrl.selectReviewCollapse(moment.collapse.interval);
-            ctrl.jumpToMain(moment.collapse.earliestPreventablePly);
+      'div.analyse-review__moment-list',
+      { hook: ensureActiveChildVisible('.analyse-review__moment-pill.active') },
+      keyMoments.map(moment =>
+        hl(
+          `button.analyse-review__moment-pill${selectedMoment?.ply === moment.ply ? '.active' : ''}`,
+          {
+            key: String(moment.ply),
+            attrs: { type: 'button' },
+            hook: bind('click', () => {
+              ctrl.setReviewSelectedMoment(moment.ply);
+              ctrl.jumpToMain(moment.ply);
+            }),
           },
-        }),
+          [
+            hl('span.analyse-review__moment-pill-kicker', reviewMomentLabel(moment)),
+            hl('strong', reviewMomentTitle(moment)),
+            hl('span.analyse-review__moment-pill-copy', reviewMomentCopy(moment)),
+          ],
+        ),
       ),
     ),
   ]);
 }
 
+function renderCoachTabs(ctrl: AnalyseCtrl, activeTab: CoachPaneTab): VNode {
+  return hl('div.analyse-review__tool-tabs', [
+    coachTabButton(ctrl, activeTab, 'review', 'Review', 'overview'),
+    ctrl.opts.bookmaker ? coachTabButton(ctrl, activeTab, 'explain', 'Explain', 'explain') : null,
+    coachTabButton(ctrl, activeTab, 'engine', 'Engine', 'engine'),
+    ctrl.explorer.allowed() ? coachTabButton(ctrl, activeTab, 'explorer', 'Explorer', 'explorer') : null,
+    coachTabButton(ctrl, activeTab, 'board', 'Board', 'board'),
+  ]);
+}
+
+function coachTabButton(
+  ctrl: AnalyseCtrl,
+  activeTab: CoachPaneTab,
+  tab: CoachPaneTab,
+  label: string,
+  primaryTab: ReviewPrimaryTab,
+): VNode {
+  return hl(
+    `button.analyse-review__tab${activeTab === tab ? '.active' : ''}`,
+    {
+      attrs: { type: 'button' },
+      hook: bind('click', () => ctrl.setReviewPrimaryTab(primaryTab)),
+    },
+    label,
+  );
+}
+
+function renderCoachPane(
+  ctrl: AnalyseCtrl,
+  nodes: ReviewViewNodes,
+  narrative: NonNullable<AnalyseCtrl['narrative']>,
+  selectedMoment: GameChronicleMoment | null,
+  selectedCollapse: GameChronicleMoment | null,
+  data: {
+    intro?: string | null;
+    conclusion?: string | null;
+    themes?: string[];
+    sourceMode?: string;
+    model?: string | null;
+    planTier?: string;
+    llmLevel?: string;
+    review?: { totalPlies?: number; evalCoveredPlies?: number };
+  },
+  stats: ReviewOverviewStats,
+  accountHref: string | null,
+  activeTab: CoachPaneTab,
+): VNode {
+  if (activeTab === 'explain')
+    return hl('div.analyse-review__tool-pane', [
+      renderSelectedMomentContext(selectedMoment, 'Selected moment'),
+      renderExplainMovePanel(
+        ctrl,
+        'Selected moment only',
+        'Ask for a move-level explanation of this selected moment. Choose another moment on the left to update the request without leaving the current viewport.',
+      ),
+    ]);
+
+  if (activeTab === 'engine')
+    return hl('div.analyse-review__tool-pane', [
+      renderSelectedMomentContext(selectedMoment, 'Board-linked moment'),
+      renderCoachEnginePreview(ctrl, nodes),
+    ]);
+
+  if (activeTab === 'explorer')
+    return hl('div.analyse-review__tool-pane', [
+      renderSelectedMomentContext(selectedMoment, 'Board-linked moment'),
+      renderExplorerTab(ctrl, nodes),
+    ]);
+
+  if (activeTab === 'board')
+    return hl('div.analyse-review__tool-pane', [
+      renderSelectedMomentContext(selectedMoment, 'Board-linked moment'),
+      renderBoardTab(nodes),
+    ]);
+
+  return hl('div.analyse-review__tool-pane', [
+    renderCoachReviewCard(ctrl, narrative, selectedMoment),
+    selectedCollapse
+      ? renderSectionDrawer(
+          'Best chance to fix it',
+          'Open the repair window for the current collapse interval.',
+          [
+            collapseTimelineView(narrative, [selectedCollapse]),
+            narrativeCollapseCardView(narrative, selectedCollapse, {
+              selected: true,
+              onSelect: () => {
+                if (!selectedCollapse.collapse) return;
+                ctrl.selectReviewCollapse(selectedCollapse.collapse.interval);
+                ctrl.jumpToMain(selectedCollapse.collapse.earliestPreventablePly);
+              },
+            }),
+          ],
+          ctrl.reviewPrimaryTab() === 'repair',
+        )
+      : null,
+    renderSectionDrawer(
+      'What to remember',
+      cleanNarrativeProseText(
+        data.conclusion || 'Review the selected moment, then open full analysis only when you need the full move tree.',
+      ),
+      [
+        hl('div.analyse-review__context-actions', [
+          hl(
+            'button.button',
+            {
+              hook: bind('click', () => ctrl.setReviewPrimaryTab('explain')),
+            },
+            'Explain this move',
+          ),
+          hl(
+            'button.button.button-empty',
+            {
+              hook: bind('click', () => openFullAnalysis(ctrl, { tab: 'moves' })),
+            },
+            'Open full analysis',
+          ),
+          accountHref ? hl('a.button.button-empty', { attrs: { href: accountHref } }, 'See if this shows up often') : null,
+        ]),
+      ],
+    ),
+    renderAnalysisDetails(ctrl, data, stats),
+  ]);
+}
+
+function renderCoachReviewCard(
+  ctrl: AnalyseCtrl,
+  narrative: NonNullable<AnalyseCtrl['narrative']>,
+  selectedMoment: GameChronicleMoment | null,
+): VNode {
+  return selectedMoment
+    ? hl('section.analyse-review__detail-card', [
+        hl('div.analyse-review__section-head', [
+          hl('h3', 'Why this move mattered'),
+          hl(
+            'p',
+            'The selected moment stays board-linked. Use the tabs above when you want explanation, engine, explorer, or board controls without leaving the current tools pane.',
+          ),
+        ]),
+        narrativeMomentView(narrative, selectedMoment, {
+          selected: true,
+          onSelect: () => {
+            ctrl.setReviewSelectedMoment(selectedMoment.ply);
+            ctrl.jumpToMain(selectedMoment.ply);
+          },
+        }),
+        hl('div.analyse-review__context-actions', [
+          ctrl.opts.bookmaker
+            ? hl(
+                'button.button.button-empty',
+                {
+                  hook: bind('click', () => ctrl.setReviewPrimaryTab('explain')),
+                },
+                'Explain this move',
+              )
+            : null,
+          hl(
+            'button.button.button-empty',
+            {
+              hook: bind('click', () => ctrl.setReviewPrimaryTab('engine')),
+            },
+            'Engine preview',
+          ),
+          ctrl.explorer.allowed()
+            ? hl(
+                'button.button.button-empty',
+                {
+                  hook: bind('click', () => ctrl.setReviewPrimaryTab('explorer')),
+                },
+                'Explorer',
+              )
+            : null,
+          hl(
+            'button.button.button-empty',
+            {
+              hook: bind('click', () => ctrl.setReviewPrimaryTab('board')),
+            },
+            'Board settings',
+          ),
+        ]),
+      ])
+    : hl('div.analyse-review__empty', 'No highlighted moment is available yet.');
+}
+
+function renderSelectedMomentContext(selectedMoment: GameChronicleMoment | null, label: string): VNode {
+  return selectedMoment
+    ? hl('section.analyse-review__context-card', [
+        hl('span.analyse-review__eyebrow', label),
+        hl('strong', `${reviewMomentLabel(selectedMoment)} ${reviewMomentTitle(selectedMoment)}`),
+        hl('p', reviewMomentCopy(selectedMoment)),
+      ])
+    : hl('div.analyse-review__empty', 'Pick a moment from the left rail to anchor this tool.');
+}
+
+function renderSectionDrawer(title: string, summaryCopy: string, body: Array<VNode | LooseVNode | null>, open = false): VNode {
+  return hl(
+    'details.analyse-review__section-drawer',
+    {
+      attrs: open ? { open: true } : {},
+    },
+    [
+      hl('summary', [hl('strong', title), hl('span', summaryCopy)]),
+      hl('div.analyse-review__section-drawer-body', body),
+    ],
+  );
+}
+
+function renderRawWorkspace(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
+  const activeTab = resolveRawTab(ctrl.reviewPrimaryTab());
+  return hl('div.analyse-review__raw', [
+    hl('section.analyse-review__section-head', [
+      hl('h3', 'Full Analysis'),
+      hl(
+        'p',
+        'Keep the current board position while you open the move list, Explain This Move, engine, explorer, board settings, recurring mistakes, or PGN import.',
+      ),
+    ]),
+    hl('div.analyse-review__raw-toolbar', [
+      hl(
+        'button.analyse-review__reference-action.analyse-review__reference-action--primary',
+        {
+          attrs: { type: 'button' },
+          hook: bind('click', () => ctrl.setReviewSurfaceMode('review')),
+        },
+        'Back to guided review',
+      ),
+      rawTabButton(ctrl, activeTab, 'moves', 'Moves'),
+      ctrl.opts.bookmaker ? rawTabButton(ctrl, activeTab, 'explain', 'Explain This Move') : null,
+      rawTabButton(ctrl, activeTab, 'engine', 'Engine'),
+      ctrl.explorer.allowed() ? rawTabButton(ctrl, activeTab, 'explorer', 'Explorer') : null,
+      rawTabButton(ctrl, activeTab, 'board', 'Board'),
+      rawTabButton(ctrl, activeTab, 'patterns', 'Recurring mistakes'),
+      rawTabButton(ctrl, activeTab, 'import', 'Import PGN'),
+    ]),
+    activeTab === 'patterns'
+      ? renderPatterns(ctrl)
+      : activeTab === 'import'
+        ? renderImport(ctrl, nodes)
+        : activeTab === 'explain'
+          ? renderExplainMovePanel(
+              ctrl,
+              'Current move or variation',
+              'Ask for a move-level explanation of the current node. Switch moves or variations first if you want a different branch.',
+            )
+          : activeTab === 'engine'
+            ? renderCoachEnginePreview(ctrl, nodes)
+            : activeTab === 'explorer'
+              ? renderExplorerTab(ctrl, nodes)
+              : activeTab === 'board'
+                ? renderBoardTab(nodes)
+                : renderMoves(ctrl, nodes),
+  ]);
+}
+
+function rawTabButton(ctrl: AnalyseCtrl, activeTab: RawPaneTab, tab: RawPaneTab, label: string): VNode {
+  return hl(
+    `button.analyse-review__tab${activeTab === tab ? '.active' : ''}`,
+    {
+      key: tab,
+      attrs: { type: 'button' },
+      hook: bind('click', () => ctrl.setReviewPrimaryTab(tab)),
+    },
+    label,
+  );
+}
+
+function selectedCoachMoment(ctrl: AnalyseCtrl): GameChronicleMoment | null {
+  const moments = ctrl.narrative?.data()?.moments || [];
+  const selected = ctrl.selectedReviewMomentPly();
+  return moments.find(moment => moment.ply === selected) || keyCoachMoments(ctrl)[0] || moments[0] || null;
+}
+
+function keyCoachMoments(ctrl: AnalyseCtrl, selectedMoment?: GameChronicleMoment | null): GameChronicleMoment[] {
+  const moments = ctrl.narrative?.data()?.moments || [];
+  const critical = filterNarrativeMoments(moments, 'critical');
+  const base = (critical.length ? critical : moments).slice(0, 5);
+  const selected = selectedMoment || moments.find(moment => moment.ply === ctrl.selectedReviewMomentPly()) || null;
+  if (!selected || base.some(moment => moment.ply === selected.ply)) return base;
+  return [selected, ...base].slice(0, 5);
+}
+
+function reviewHeadline(themes: string[]): string {
+  return themes.length ? cleanNarrativeSurfaceLabel(themes[0]) : 'Guided review';
+}
+
+function reviewLead(intro?: string | null, conclusion?: string | null): string {
+  const source = cleanNarrativeProseText(intro || conclusion || '').replace(/\s+/g, ' ').trim();
+  return source || 'Review the most important moments first, then open full analysis only when you need the full move tree.';
+}
+
+function reviewMomentLabel(moment: GameChronicleMoment): string {
+  const moveNumber = moment.moveNumber || Math.floor((moment.ply + 1) / 2);
+  const side = moment.side || (moment.ply % 2 === 0 ? 'black' : 'white');
+  return `${moveNumber}${side === 'black' ? '...' : '.'}`;
+}
+
+function reviewMomentTitle(moment: GameChronicleMoment): string {
+  return cleanNarrativeSurfaceLabel(moment.moveClassification || moment.selectionLabel || moment.momentType || 'Key moment');
+}
+
+function reviewMomentCopy(moment: GameChronicleMoment): string {
+  const copy = cleanNarrativeProseText(moment.narrative || '').replace(/\s+/g, ' ').trim();
+  return copy.length > 120 ? `${copy.slice(0, 117).trimEnd()}...` : copy || 'Open this moment for the full support card.';
+}
+
+function renderAnalysisDetails(
+  ctrl: AnalyseCtrl,
+  data: {
+    sourceMode?: string;
+    model?: string | null;
+    planTier?: string;
+    llmLevel?: string;
+    review?: { totalPlies?: number; evalCoveredPlies?: number };
+  },
+  stats: ReviewOverviewStats,
+): VNode {
+  const metaRows: Array<[string, string | null | undefined]> = [
+    ['Source', data.sourceMode],
+    ['Model', data.model],
+    ['Plan', data.planTier],
+    ['Level', data.llmLevel],
+    ['Total moments', stats.totalMoments ? String(stats.totalMoments) : null],
+    ['Repair windows', stats.collapseMoments ? String(stats.collapseMoments) : null],
+    ['Selected moments', stats.selectedMoments ? String(stats.selectedMoments) : null],
+    ['Eval coverage', stats.evalCoveragePct !== null ? `${Math.round(stats.evalCoveragePct)}%` : null],
+  ].filter(([, value]) => !!value) as [string, string][];
+
+  if (!metaRows.length) return hl('div');
+
+  return hl(
+    'details.analyse-review__details-drawer',
+    {
+      attrs: ctrl.reviewAnalysisDetailsOpen() ? { open: true } : {},
+      hook: bind('toggle', e => ctrl.setReviewAnalysisDetailsOpen((e.target as HTMLDetailsElement).open)),
+    },
+    [
+      hl('summary', 'Review info'),
+      hl(
+        'div.analyse-review__details-grid',
+        metaRows.map(([label, value]) => hl('div.analyse-review__details-row', [hl('strong', label), hl('span', value)])),
+      ),
+    ],
+  );
+}
+
+function resolveCoachTab(tab: ReviewPrimaryTab): CoachPaneTab {
+  if (tab === 'explain') return 'explain';
+  if (tab === 'engine') return 'engine';
+  if (tab === 'explorer') return 'explorer';
+  if (tab === 'board') return 'board';
+  return 'review';
+}
+
+function resolveRawTab(tab: ReviewPrimaryTab): RawPaneTab {
+  if (
+    tab === 'moves' ||
+    tab === 'explain' ||
+    tab === 'engine' ||
+    tab === 'explorer' ||
+    tab === 'board' ||
+    tab === 'patterns' ||
+    tab === 'import'
+  )
+    return tab;
+  return 'moves';
+}
+
 function renderPatterns(ctrl: AnalyseCtrl): VNode {
   const narrative = ctrl.narrative;
-  if (!narrative) return hl('div.analyse-review__empty', 'Game Chronicle review is unavailable on this surface.');
+  if (!narrative) return hl('div.analyse-review__empty', 'Recurring mistakes are unavailable for this game.');
 
   if (!narrative.dnaLoading() && !narrative.dnaError() && !narrative.dnaData()) {
     return hl('div.analyse-review__empty', [
-      hl('strong', 'Patterns unlock after more analysis'),
-      hl('p', 'Defeat DNA becomes active after you accumulate enough deep reviews.'),
+      hl('strong', 'Patterns appear after more reviewed games'),
+      hl('p', 'Review a few more games to unlock recurring mistakes.'),
       hl(
         'button.button',
         {
-          hook: bind('click', () => ctrl.setReviewPrimaryTab('overview')),
+          hook: bind('click', () => ctrl.setReviewSurfaceMode('review')),
         },
-        'Back to Overview',
+        'Back to guided review',
       ),
     ]);
   }
 
   return hl('div.analyse-review__patterns', [
     hl('div.analyse-review__section-head', [
-      hl('h3', 'Patterns'),
+      hl('h3', 'Recurring mistakes'),
       hl(
         'p',
         narrative.dnaData()
-          ? `Account-level profile built from ${narrative.dnaData()!.totalGamesAnalyzed} analyzed games.`
+          ? `Built from ${narrative.dnaData()!.totalGamesAnalyzed} reviewed games.`
           : narrative.dnaLoading()
-            ? 'Building your Defeat DNA profile.'
-            : 'Review recurring failure modes across analyzed games.',
+            ? 'Building recurring mistakes from your reviewed games.'
+            : 'Review recurring mistakes across analyzed games.',
       ),
     ]),
     defeatDnaContentView(narrative),
@@ -381,27 +633,27 @@ function renderMoves(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   const engineEnabled = !!ctrl.cevalEnabled();
   return hl('div.analyse-review__moves', [
     hl('div.analyse-review__section-head', [
-      hl('h3', 'Raw analysis'),
+      hl('h3', 'Moves'),
       hl(
         'p',
         engineEnabled
-          ? 'Live Stockfish lines stay pinned above while the move tree and branch workbench remain available below.'
-          : 'Turn on local engine from the header above to pin live Stockfish lines over the move tree and branch workbench.',
+          ? 'The move list stays here while the Engine tab shows the live Stockfish preview.'
+          : 'Turn on local engine, then open the Engine tab when you want live Stockfish lines.',
       ),
     ]),
     !engineEnabled
       ? hl('div.analyse-review__empty', [
           hl('strong', 'Local engine is off'),
-          hl(
-            'p',
-            'Use the engine switch in the header above to start local Stockfish and surface live MultiPV lines over this review shell.',
-          ),
+          hl('p', 'Use the engine tab to start local Stockfish without leaving full analysis.'),
           hl(
             'button.button',
             {
-              hook: bind('click', () => ctrl.cevalEnabled(true)),
+              hook: bind('click', () => {
+                ctrl.cevalEnabled(true);
+                ctrl.setReviewPrimaryTab('engine');
+              }),
             },
-            'Turn On Engine',
+            'Open Engine tab',
           ),
         ])
       : null,
@@ -410,43 +662,56 @@ function renderMoves(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   ]);
 }
 
-function renderUtilityPanel(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode | null {
-  const panel = ctrl.reviewUtilityPanel();
-  if (!panel) return null;
-  const heading = panel === 'explorer' ? 'Opening Explorer' : 'Board View';
-  const description =
-    panel === 'explorer'
-      ? 'Theory, database, and tablebase stay available without leaving the review flow.'
-      : 'Adjust board guides, perspective, and display settings without leaving the review flow.';
-  const body =
-    panel === 'explorer'
-      ? hl('div.analyse-review__panel.analyse-review__panel--explorer', [
-          ctrl.explorer.allowed()
-            ? nodes.explorerNode
-            : hl('div.analyse-review__empty', 'Opening explorer is unavailable for this position.'),
-        ])
-      : hl('div.action-menu.analyse-review__panel.analyse-review__panel--board', nodes.boardSettingsNodes);
-  return hl('section.analyse-review__utility', [
-    hl('div.analyse-review__utility-head', [
-      hl('div.analyse-review__utility-copy', [hl('strong', heading), hl('span', description)]),
-      hl(
-        'button.analyse-review__utility-close',
-        {
-          attrs: { type: 'button' },
-          hook: bind('click', () => ctrl.setReviewUtilityPanel(null)),
-        },
-        'Close panel',
-      ),
+function renderExplorerTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
+  return hl('div.analyse-review__panel.analyse-review__panel--explorer', [
+    hl('div.analyse-review__section-head', [
+      hl('h3', 'Opening Explorer'),
+      hl('p', 'Theory, database, and tablebase stay available without leaving the current tools pane.'),
     ]),
-    hl('div.analyse-review__utility-body', [body]),
+    ctrl.explorer.allowed()
+      ? nodes.explorerNode
+      : hl('div.analyse-review__empty', 'Opening explorer is unavailable for this position.'),
   ]);
+}
+
+function renderBoardTab(nodes: ReviewViewNodes): VNode {
+  return hl('div.analyse-review__panel.analyse-review__panel--board', [
+    hl('div.analyse-review__section-head', [
+      hl('h3', 'Board settings'),
+      hl('p', 'Adjust guides, perspective, labels, and board display without leaving the current tools pane.'),
+    ]),
+    hl('div.action-menu.analyse-review__panel.analyse-review__panel--board', nodes.boardSettingsNodes),
+  ]);
+}
+
+function renderExplainMovePanel(ctrl: AnalyseCtrl, title: string, copy: string): VNode {
+  return ctrl.opts.bookmaker
+    ? hl(
+        'fieldset.analyse-review__detail-card.analyse-review__bookmaker-card.analyse__bookmaker.toggle-box.toggle-box--toggle.empty',
+        {
+          attrs: { id: 'bookmaker-field' },
+          hook: {
+            insert: () => bookmakerToggleBox(ctrl),
+            update: () => bookmakerToggleBox(ctrl),
+          },
+        },
+        [
+          hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'),
+          hl('div.analyse-review__bookmaker-copy', [
+            hl('strong', title),
+            hl('p.analyse-review__bookmaker-note', copy),
+          ]),
+          hl('div.analyse__bookmaker-text'),
+        ],
+      )
+    : hl('div.analyse-review__empty', 'Explain This Move is unavailable for this account.');
 }
 
 function renderImport(_: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   return hl('div.analyse-review__import', [
     hl('div.analyse-review__section-head', [
       hl('h3', 'Import PGN'),
-      hl('p', 'Paste a PGN or jump by FEN without leaving this analysis shell.'),
+      hl('p', 'Paste a PGN or jump by FEN without leaving full analysis.'),
     ]),
     hl('div.analyse-review__section-copy', [
       hl('strong', 'Stay in analysis'),
@@ -458,25 +723,6 @@ function renderImport(_: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
     hl('div.analyse-review__panel.analyse-review__panel--import', [
       nodes.importNode || hl('div.analyse-review__empty', 'Import is unavailable during live play.'),
     ]),
-  ]);
-}
-
-function renderMissingNarrative(ctrl: AnalyseCtrl, message: string): VNode {
-  const narrative = ctrl.narrative;
-  return hl('div.analyse-review__empty', [
-    hl('strong', 'Deep analysis not started'),
-    hl('p', message),
-    narrative?.loading()
-        ? hl('div.loader', narrative.loadingDetail() || 'Game Chronicle in progress...')
-      : hl(
-          'button.button',
-          {
-            hook: bind('click', () => {
-              void ctrl.openNarrative();
-            }),
-          },
-        'Run Game Chronicle',
-        ),
   ]);
 }
 
@@ -494,7 +740,7 @@ function renderOverviewStats(stats: ReviewOverviewStats): VNode | null {
   const items = [
     stats.totalMoments ? compactStat(String(stats.totalMoments), 'moments') : null,
     stats.collapseMoments ? compactStat(String(stats.collapseMoments), 'repair windows') : null,
-    stats.selectedMoments ? compactStat(String(stats.selectedMoments), 'selected beats') : null,
+    stats.selectedMoments ? compactStat(String(stats.selectedMoments), 'selected moments') : null,
     stats.evalCoveragePct !== null ? compactStat(`${Math.round(stats.evalCoveragePct)}%`, 'eval coverage') : null,
   ].filter(Boolean) as VNode[];
   return items.length ? hl('div.analyse-review__summary-grid', items) : null;
@@ -504,36 +750,119 @@ function compactStat(value: string, label: string): VNode {
   return hl('div.analyse-review__summary-card', [hl('strong', value), hl('span', label)]);
 }
 
-function renderPrimaryTabMeta(ctrl: AnalyseCtrl, tab: ReviewPrimaryTab, stats: ReviewOverviewStats): VNode | null {
-  if (tab === 'overview' && ctrl.narrative?.loading()) return hl('span.analyse-review__tab-meta.is-busy', 'Running');
-  if (tab === 'overview' && ctrl.narrative?.data()) return hl('span.analyse-review__tab-meta', 'Ready');
-  if (tab === 'moments' && stats.totalMoments) return hl('span.analyse-review__tab-meta', String(stats.totalMoments));
-  if (tab === 'repair' && stats.collapseMoments) return hl('span.analyse-review__tab-meta', String(stats.collapseMoments));
-  if (tab === 'patterns' && ctrl.narrative?.dnaLoading()) return hl('span.analyse-review__tab-meta.is-busy', '...');
-  if (tab === 'patterns' && ctrl.narrative?.dnaData()) {
-    return hl('span.analyse-review__tab-meta', String(ctrl.narrative.dnaData()!.totalGamesAnalyzed));
-  }
-  return null;
-}
-
 function ensureActiveChildVisible(selector: string) {
   const sync = (elm: Element) => {
-    const container = elm as HTMLElement;
-    const active = container.querySelector<HTMLElement>(selector);
-    if (!active) return;
-    const activeKey = active.dataset.reviewTab || active.dataset.referenceTab || active.dataset.ply || active.dataset.collapseId || active.textContent || '';
-    if (container.dataset.activeKey === activeKey) return;
-    container.dataset.activeKey = activeKey;
-    requestAnimationFrame(() =>
-      active.scrollIntoView({
-        block: 'nearest',
-        inline: 'nearest',
-        behavior: 'smooth',
-      }),
-    );
+    const active = elm.querySelector(selector);
+    if (!active || typeof (active as HTMLElement).scrollIntoView !== 'function') return;
+    (active as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' });
   };
+
   return {
-    insert: (vnode: VNode) => sync(vnode.elm as Element),
-    postpatch: (_old: VNode, vnode: VNode) => sync(vnode.elm as Element),
+    insert(vnode: VNode) {
+      sync(vnode.elm as Element);
+    },
+    postpatch(_: VNode, vnode: VNode) {
+      sync(vnode.elm as Element);
+    },
   };
+}
+
+function openFullAnalysis(ctrl: AnalyseCtrl, options: { tab?: RawPaneTab } = {}): void {
+  if (options.tab) ctrl.setReviewPrimaryTab(options.tab);
+  ctrl.setReviewSurfaceMode('raw');
+}
+
+function renderCoachExpertStrip(ctrl: AnalyseCtrl): VNode {
+  const engineReady = !!ctrl.cevalEnabled();
+  return hl('div.analyse-review__expert-strip', [
+    ctrl.opts.bookmaker
+      ? hl(
+          `button.analyse-review__reference-action${ctrl.reviewPrimaryTab() === 'explain' ? '.analyse-review__reference-action--primary' : ''}`,
+          {
+            attrs: { type: 'button' },
+            hook: bind('click', () => ctrl.setReviewPrimaryTab('explain')),
+          },
+          'Explain',
+        )
+      : null,
+    hl(
+      `button.analyse-review__reference-action${ctrl.reviewPrimaryTab() === 'engine' || engineReady ? '.analyse-review__reference-action--primary' : ''}`,
+      {
+        attrs: {
+          type: 'button',
+          'aria-pressed': ctrl.reviewPrimaryTab() === 'engine' ? 'true' : 'false',
+        },
+        hook: bind('click', () => {
+          if (!engineReady) ctrl.cevalEnabled(true);
+          ctrl.setReviewPrimaryTab('engine');
+        }),
+      },
+      'Engine',
+    ),
+    ctrl.explorer.allowed()
+      ? hl(
+          `button.analyse-review__reference-action${ctrl.reviewPrimaryTab() === 'explorer' ? '.analyse-review__reference-action--primary' : ''}`,
+          {
+            attrs: { type: 'button' },
+            hook: bind('click', () => ctrl.setReviewPrimaryTab('explorer')),
+          },
+          'Explorer',
+        )
+      : null,
+    hl(
+      `button.analyse-review__reference-action${ctrl.reviewPrimaryTab() === 'board' ? '.analyse-review__reference-action--primary' : ''}`,
+      {
+        attrs: { type: 'button' },
+        hook: bind('click', () => ctrl.setReviewPrimaryTab('board')),
+      },
+      'Board settings',
+    ),
+  ]);
+}
+
+function renderCoachEnginePreview(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
+  const engineEnabled = !!ctrl.cevalEnabled();
+  const hasPreview = !!nodes.cevalNode || !!nodes.pvsNode;
+
+  return hl('section.analyse-review__detail-card.analyse-review__engine-preview', [
+    hl('div.analyse-review__section-head', [
+      hl('h3', 'Engine preview'),
+      hl(
+        'p',
+        engineEnabled
+          ? 'Keep a lightweight Stockfish preview here. Open the Moves tab in full analysis only when you need the move tree and branch workbench.'
+          : 'Turn on the local engine to pin a lightweight Stockfish preview in the current tools pane.',
+      ),
+    ]),
+    !engineEnabled
+      ? hl('div.analyse-review__empty', [
+          hl('strong', 'Engine preview is off'),
+          hl('p', 'Turn on the local engine here, or open full analysis if you want the full move list right away.'),
+          hl('div.analyse-review__context-actions', [
+            hl(
+              'button.button',
+              {
+                hook: bind('click', () => ctrl.cevalEnabled(true)),
+              },
+              'Turn on engine preview',
+            ),
+            hl(
+              'button.button.button-empty',
+              {
+                hook: bind('click', () => openFullAnalysis(ctrl, { tab: 'moves' })),
+              },
+              'Open full analysis',
+            ),
+          ]),
+        ])
+      : hasPreview
+        ? hl('div.analyse-review__engine-stack', [
+            nodes.cevalNode ? hl('div', nodes.cevalNode) : null,
+            nodes.pvsNode ? hl('div', nodes.pvsNode) : null,
+          ])
+        : hl('div.analyse-review__empty', [
+            hl('strong', 'Engine preview is loading'),
+            hl('p', 'Local evaluation is on. The preview appears here as soon as lines are ready.'),
+          ]),
+  ]);
 }

@@ -22,9 +22,11 @@ private[llm] object ActiveStrategicNoteValidator:
       strategyPack: Option[StrategyPack],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
-      strategyReasons: List[String]
+      strategyReasons: List[String],
+      plannerPrimaryKind: Option[lila.llm.model.authoring.AuthorQuestionKind] = None
   ): Result =
-    val trimmed = Option(candidateText).map(_.trim).getOrElse("")
+    val surfaceValidation = UserFacingProseHardGate.validate(candidateText)
+    val trimmed = surfaceValidation.text
     val normalizedText = trimmed.toLowerCase
     val coachingBrief = ActiveStrategicCoachingBriefBuilder.build(strategyPack, dossier, routeRefs, moveRefs)
     val coachingCoverage = ActiveStrategicCoachingBriefBuilder.evaluateCoverage(trimmed, coachingBrief)
@@ -40,6 +42,9 @@ private[llm] object ActiveStrategicNoteValidator:
         normalizedText.contains("from there") ||
         normalizedText.contains("follow-up") ||
         normalizedText.contains("follow up") ||
+        normalizedText.contains("keeps ") ||
+        normalizedText.contains("keep ") ||
+        normalizedText.contains("anchored on") ||
         normalizedText.contains("before winning the material back") ||
         normalizedText.contains("before recovering the pawn") ||
         normalizedText.contains("work toward") ||
@@ -64,7 +69,6 @@ private[llm] object ActiveStrategicNoteValidator:
       trimmed.nonEmpty &&
         compensationContractExpected &&
         compensationContractMentioned &&
-        coachingCoverage.hasDominantIdea &&
         compensationAnchorPresent &&
         compensationContinuationPresent
     val groundedPlanShapeSatisfied =
@@ -74,20 +78,62 @@ private[llm] object ActiveStrategicNoteValidator:
         coachingCoverage.hasForwardPlan
     val explicitOpponentOrTriggerMentioned =
       explicitlyMentioned(coachingBrief.opponentReply) || explicitlyMentioned(coachingBrief.keyTrigger)
+    val dossierBackedCore =
+      dossier.exists(value =>
+        value.whyChosen.exists(_.trim.nonEmpty) ||
+          value.routeCue.nonEmpty ||
+          value.moveCue.nonEmpty ||
+          value.evidenceCue.exists(_.trim.nonEmpty)
+      )
+    val dossierBackedFollowup =
+      dossier.exists(value =>
+        value.whyDeferred.exists(_.trim.nonEmpty) ||
+          value.opponentResource.exists(_.trim.nonEmpty) ||
+          value.practicalRisk.exists(_.trim.nonEmpty) ||
+          value.routeCue.nonEmpty
+      )
+    val dossierBackedAnchor =
+      dossier.exists(value =>
+        value.routeCue.nonEmpty ||
+          value.moveCue.nonEmpty ||
+          value.evidenceCue.exists(text =>
+            LiveNarrativeCompressionCore.hasConcreteAnchor(text) || StrategicSignalMatcher.containsComparablePhrase(normalizedText, text)
+          )
+      )
+    val tacticalLeadPresent =
+      normalizedText.contains("this is a blunder") ||
+        normalizedText.contains("misses a win") ||
+        normalizedText.contains("only move") ||
+        normalizedText.contains("tactical sacrifice")
+    val plannerWhyNowGrounded =
+      plannerPrimaryKind.contains(lila.llm.model.authoring.AuthorQuestionKind.WhyNow) &&
+        (
+          normalizedText.contains("timing matters now") ||
+            normalizedText.contains("has to happen now") ||
+            normalizedText.contains("if delayed") ||
+            normalizedText.contains("if white drifts")
+        ) &&
+        (
+          LiveNarrativeCompressionCore.hasConcreteAnchor(trimmed) ||
+            """\b\d+cp\b""".r.findFirstIn(normalizedText).nonEmpty ||
+            normalizedText.contains("costs about")
+        )
     val opponentOrTriggerSatisfied =
       if compensationContractExpected && compensationContractMentioned then compensationShapeSatisfied
-      else explicitOpponentOrTriggerMentioned || groundedPlanShapeSatisfied
+      else
+        explicitOpponentOrTriggerMentioned || groundedPlanShapeSatisfied || dossierBackedFollowup || tacticalLeadPresent ||
+          plannerWhyNowGrounded
     val forwardPlanSatisfied =
       if compensationContractExpected && compensationContractMentioned then compensationContinuationPresent
-      else coachingCoverage.hasForwardPlan
+      else coachingCoverage.hasForwardPlan || dossierBackedFollowup || dossierBackedAnchor || tacticalLeadPresent || plannerWhyNowGrounded
 
     val baseHardReasons =
       List(
         Option.when(trimmed.isEmpty)("empty_polish"),
-        Option.when(trimmed.nonEmpty && looksJsonWrapper(trimmed))("json_wrapper_unparsed"),
-        Option.when(trimmed.nonEmpty && looksTruncated(trimmed))("truncated_output"),
+        Option.when(trimmed.nonEmpty && UserFacingProseHardGate.looksJsonWrapper(trimmed))("json_wrapper_unparsed"),
+        Option.when(trimmed.nonEmpty && UserFacingProseHardGate.looksTruncated(trimmed))("truncated_output"),
         Option.when(trimmed.nonEmpty && LeakTokens.exists(trimmed.contains))("leak_token_detected")
-      ).flatten
+      ).flatten ++ surfaceValidation.reasons
 
     val sentenceWarnings =
       if trimmed.isEmpty then Nil
@@ -97,14 +143,28 @@ private[llm] object ActiveStrategicNoteValidator:
 
     val independenceHardReasons =
       if trimmed.isEmpty then Nil
-      else ActiveNoteIndependenceGuard.reasons(trimmed, baseNarrative)
+      else
+        val independenceSignals = ActiveNoteIndependenceGuard.signals(trimmed, baseNarrative)
+        if plannerWhyNowGrounded &&
+          independenceSignals.sentenceReuse &&
+          !independenceSignals.leadReuse
+        then Nil
+        else ActiveNoteIndependenceGuard.reasons(independenceSignals)
 
     val strategyHardReasons =
-      strategyReasons.filter(_ == "strategy_coverage_low")
+      if plannerWhyNowGrounded then Nil
+      else strategyReasons.filter(_ == "strategy_coverage_low")
 
     val coachingHardReasons =
       List(
-        Option.when(trimmed.nonEmpty && !coachingCoverage.hasDominantIdea)("dominant_idea_missing"),
+        Option.when(
+          trimmed.nonEmpty &&
+            !coachingCoverage.hasDominantIdea &&
+            !dossierBackedCore &&
+            !tacticalLeadPresent &&
+            !plannerWhyNowGrounded &&
+            !(compensationContractExpected && compensationShapeSatisfied)
+        )("dominant_idea_missing"),
         Option.when(trimmed.nonEmpty && !forwardPlanSatisfied)("forward_plan_missing"),
         Option.when(
           trimmed.nonEmpty &&
@@ -119,7 +179,8 @@ private[llm] object ActiveStrategicNoteValidator:
       ).flatten
 
     val strategyWarnings =
-      strategyReasons.filterNot(_ == "strategy_coverage_low")
+      if plannerWhyNowGrounded then Nil
+      else strategyReasons.filterNot(_ == "strategy_coverage_low")
 
     val dossierWarnings =
       if trimmed.isEmpty then Nil
@@ -154,17 +215,3 @@ private[llm] object ActiveStrategicNoteValidator:
       .split("(?<=[.!?])\\s+")
       .map(_.trim)
       .count(_.nonEmpty)
-
-  private def looksJsonWrapper(text: String): Boolean =
-    val trimmed = Option(text).map(_.trim).getOrElse("")
-    trimmed.startsWith("{") && trimmed.contains("\"commentary\"")
-
-  private def looksTruncated(text: String): Boolean =
-    val trimmed = Option(text).map(_.trim).getOrElse("")
-    if trimmed.isEmpty then false
-    else
-      def balanced(open: Char, close: Char): Boolean =
-        trimmed.count(_ == open) == trimmed.count(_ == close)
-      val quoteCount = trimmed.count(_ == '"')
-      !balanced('{', '}') || !balanced('[', ']') || (quoteCount % 2 != 0) || trimmed.endsWith("\\") ||
-        MoveAnchorCodec.hasBrokenAnchorPrefix(trimmed)

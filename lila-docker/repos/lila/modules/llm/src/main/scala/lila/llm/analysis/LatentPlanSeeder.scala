@@ -43,7 +43,7 @@ object LatentPlanSeeder:
           // 2. Filter & Score
           if candidateMoves.isEmpty then None
           else
-            scoreSeed(seed, afterPos, featuresOpt, ctx, usColor, themColor).map { score =>
+            scoreSeed(seed, afterPos, featuresOpt, ctx, usColor, themColor, candidateMoves).map { score =>
               (seed, score, candidateMoves) // Keep score & moves
             }
         }
@@ -72,12 +72,11 @@ object LatentPlanSeeder:
     featuresOpt: Option[PositionFeatures],
     ctx: IntegratedContext,
     us: Color,
-    them: Color
+    them: Color,
+    candidateMoves: List[MovePattern]
   ): Option[Double] =
     // Avoid idea-space suggestions when tactics/defense dominate.
     if (ctx.tacticalThreatToUs || ctx.tacticalThreatToThem) return None
-    // Guard for legacy seeds
-    if (seed.candidateMoves.isEmpty && seed.id == "KnightOutpost_Route") return None 
 
     def isSatisfied(cond: Precondition): Boolean =
       cond match
@@ -127,7 +126,11 @@ object LatentPlanSeeder:
     if (!requiredOk) return None
 
     val weightSum = seed.preconditions.collect { case p if isSatisfied(p.condition) => p.weight }.sum
-    val base = weightSum + 0.3
+    val candidateCount = candidateMoves.distinct.size
+    val candidateBonus = math.min(1.4, candidateCount * 0.7)
+    val dynamicSeedBonus =
+      Option.when(seed.candidateMoves.isEmpty && candidateCount > 0)(0.4).getOrElse(0.0)
+    val base = weightSum + candidateBonus + dynamicSeedBonus + 0.3
     val adjusted =
       if seed.id == "PawnStorm_Kingside" then
         val flankSpaceEdge = spaceScore(pos.board, us, Flank.Kingside) - spaceScore(pos.board, them, Flank.Kingside)

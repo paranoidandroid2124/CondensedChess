@@ -104,3 +104,91 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     assert(relation.toLowerCase.contains("bends away"))
     assert(relation.toLowerCase.contains("queenside pressure"))
   }
+
+  test("generic opening hints upgrade to flank fianchetto support when precedent route shows the pattern") {
+    val fianchettoCtx =
+      ctx.copy(
+        summary = NarrativeSummary("Development", None, "NarrowChoice", "Maintain", "+0.12"),
+        plans = PlanTable(
+          top5 = List(PlanRow(rank = 1, name = "Development", score = 0.62, evidence = List("quiet setup"))),
+          suppressed = Nil
+        ),
+        mainStrategicPlans = List(
+          PlanHypothesis(
+            planId = "opening_development",
+            planName = "Opening Development",
+            rank = 1,
+            score = 0.71,
+            preconditions = Nil,
+            executionSteps = Nil,
+            failureModes = Nil,
+            viability = lila.llm.model.authoring.PlanViability(0.73, "high", "coordinated"),
+            themeL1 = "opening_principles"
+          )
+        ),
+        openingEvent = Some(OpeningEvent.BranchPoint(List("g3", "Bg2", "O-O"), "Main line shifts", Some("lichess.org/game3"))),
+        openingData = ctx.openingData.map(_.copy(sampleGames =
+          List(
+            ExplorerGame(
+              id = "game3",
+              winner = Some(White),
+              white = ExplorerPlayer("Gelfand, Boris", 2750),
+              black = ExplorerPlayer("Topalov, Veselin", 2785),
+              year = 2010,
+              month = 5,
+              event = Some("Grand Prix"),
+              pgn = Some("9. g3 Bg7 10. Bg2 O-O 11. O-O")
+            )
+          )
+        ))
+      )
+
+    val precedent = OpeningPrecedentBranching.representative(fianchettoCtx, fianchettoCtx.openingData, requireFocus = false).getOrElse(fail("missing precedent"))
+    assertEquals(precedent.branchLabel, "flank fianchetto support")
+    assertEquals(precedent.mechanism, OpeningBranchMechanism.StructuralTransformation)
+    assert(precedent.summarySentence.toLowerCase.contains("flank fianchetto support"))
+  }
+
+  test("generic opening hints upgrade to early queen exposure when precedent route is queen-led") {
+    val queenCtx =
+      ctx.copy(
+        summary = NarrativeSummary("Development", None, "NarrowChoice", "Maintain", "+0.08"),
+        plans = PlanTable(
+          top5 = List(PlanRow(rank = 1, name = "Development", score = 0.58, evidence = List("piece activity"))),
+          suppressed = Nil
+        ),
+        mainStrategicPlans = List(
+          PlanHypothesis(
+            planId = "opening_development",
+            planName = "Opening Development",
+            rank = 1,
+            score = 0.66,
+            preconditions = Nil,
+            executionSteps = Nil,
+            failureModes = Nil,
+            viability = lila.llm.model.authoring.PlanViability(0.68, "medium", "queen active"),
+            themeL1 = "opening_principles"
+          )
+        ),
+        openingEvent = Some(OpeningEvent.Intro("B01", "Scandinavian Defense", "early queen exposure", List("Qxd5", "Nc3", "Qa4"))),
+        openingData = ctx.openingData.map(_.copy(sampleGames =
+          List(
+            ExplorerGame(
+              id = "game4",
+              winner = Some(Black),
+              white = ExplorerPlayer("Ivanchuk, Vassily", 2740),
+              black = ExplorerPlayer("Karjakin, Sergey", 2760),
+              year = 2012,
+              month = 9,
+              event = Some("Tal Memorial"),
+              pgn = Some("3. Qxd4 Nc6 4. Qa4 Nf6 5. Nc3")
+            )
+          )
+        ))
+      )
+
+    val precedent = OpeningPrecedentBranching.representative(queenCtx, queenCtx.openingData, requireFocus = false).getOrElse(fail("missing precedent"))
+    assertEquals(precedent.branchLabel, "early queen exposure")
+    assertEquals(precedent.mechanism, OpeningBranchMechanism.InitiativeSwing)
+    assert(precedent.representativeSentence.toLowerCase.contains("early queen exposure branch"))
+  }

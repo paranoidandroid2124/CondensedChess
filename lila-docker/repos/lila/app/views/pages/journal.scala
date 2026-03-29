@@ -136,7 +136,7 @@ object journal:
                   footer(cls := "journal-post-footer")(
                     p("Want to see the product context around these notes?"),
                     div(cls := "journal-footer-actions")(
-                      a(href := routes.Main.landing.url, cls := "journal-action journal-action--secondary")("Back to home"),
+                      a(href := homeUrl, cls := "journal-action journal-action--secondary")("Back to home"),
                       a(href := routes.UserAnalysis.index.url, cls := "journal-action journal-action--primary")("Open analysis")
                     )
                   )

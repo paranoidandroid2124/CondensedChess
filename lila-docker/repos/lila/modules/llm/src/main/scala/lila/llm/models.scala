@@ -613,7 +613,8 @@ object CommentResponse:
 
 case class BookmakerResult(
     response: CommentResponse,
-    cacheHit: Boolean
+    cacheHit: Boolean,
+    diagnosticPlanSidecar: Option[lila.llm.analysis.PlanEvidenceEvaluator.DiagnosticPlanSidecar] = None
 )
 
 object AsyncGameAnalysisDurability:

@@ -14,6 +14,8 @@ class EndgamePatternContinuityTest extends FunSuite:
   private val philidorBrokenFen = "8/4k3/8/4PK2/8/8/8/R3r3 b - - 0 1"
   private val vancuraFen = "6k1/7R/PKr5/8/8/8/8/8 w - - 0 1"
   private val vancuraBrokenFen = "6k1/2r4R/1KP5/8/8/8/8/8 b - - 0 1"
+  private val passiveRookFenBlackToMove = "6k1/8/8/8/8/3p4/3r2K1/R7 b - - 0 1"
+  private val passiveRookFenWhiteToMove = "6k1/8/8/8/8/3p4/3r2K1/R7 w - - 0 1"
   private val syntheticFen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
 
   private def analyzeAt(
@@ -184,6 +186,17 @@ class EndgamePatternContinuityTest extends FunSuite:
         (vancuraText.contains("pawn's rank") || vancuraText.contains("side-checking formation")),
       s"expected Vancura loss-cause text, got: $vancuraText"
     )
+  }
+
+  test("objective endgame patterns keep continuity across side-to-move flips") {
+    val (m70, s70) = analyzeAt(passiveRookFenBlackToMove, 70, None)
+    assertEquals(m70.endgameFeatures.flatMap(_.primaryPattern), Some("PassiveRookDefense"))
+    assertEquals(m70.endgamePatternAge, 0)
+
+    val (m71, _) = analyzeAt(passiveRookFenWhiteToMove, 71, s70)
+    assertEquals(m71.endgameFeatures.flatMap(_.primaryPattern), Some("PassiveRookDefense"))
+    assertEquals(m71.endgamePatternAge, 1)
+    assertEquals(m71.endgameTransition, None)
   }
 
   test("Remaining DB patterns emit hold and loss causality prose") {

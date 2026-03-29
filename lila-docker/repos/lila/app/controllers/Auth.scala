@@ -63,7 +63,7 @@ final class Auth(env: Env) extends LilaController(env):
         )
 
   private def getReferrer(using Context): String =
-    env.web.referrerRedirect.fromReq | routes.UserAnalysis.index.url
+    env.web.referrerRedirect.fromReq | routes.Main.home.url
 
   private val cookieMaxAgeRemember: Int = 60 * 60 * 24 * 30
   private def sidCookie(value: String, remember: Boolean)(using ctx: Context): Cookie =

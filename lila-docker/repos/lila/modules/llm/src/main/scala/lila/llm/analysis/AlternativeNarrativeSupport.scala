@@ -15,7 +15,7 @@ private[analysis] object AlternativeNarrativeSupport:
   private val CloseAlternativeThresholdCp = 35
 
   def build(ctx: NarrativeContext): Option[AlternativeNarrative] =
-    fromWhyAbsent(ctx).orElse(fromCloseAlternative(ctx))
+    fromCloseAlternative(ctx)
 
   def sentence(ctx: NarrativeContext): Option[String] =
     build(ctx).map(_.sentence)
@@ -33,20 +33,6 @@ private[analysis] object AlternativeNarrativeSupport:
         .toList
         .filter(token => token.nonEmpty && token.length > 4)
     moveHit || reasonTokens.count(low.contains) >= math.min(2, reasonTokens.size)
-
-  private def fromWhyAbsent(ctx: NarrativeContext): Option[AlternativeNarrative] =
-    ctx.whyAbsentFromTopMultiPV.headOption.flatMap { raw =>
-      val reason = normalizeSentenceFragment(raw)
-      Option.when(reason.nonEmpty) {
-        val move = extractQuotedMove(raw).orElse(bestAlternativeMove(ctx))
-        AlternativeNarrative(
-          move = move,
-          reason = reason,
-          sentence = renderSentence(move, reason),
-          source = "why_absent"
-        )
-      }
-    }
 
   private def fromCloseAlternative(ctx: NarrativeContext): Option[AlternativeNarrative] =
     val altLine = ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption)
@@ -66,10 +52,6 @@ private[analysis] object AlternativeNarrativeSupport:
       )
     }
 
-  private def bestAlternativeMove(ctx: NarrativeContext): Option[String] =
-    ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption).flatMap(variationLeadSan(ctx.fen, _))
-      .orElse(ctx.candidates.drop(1).headOption.map(_.move).map(normalize).filter(_.nonEmpty))
-
   private def renderSentence(move: Option[String], reason: String): String =
     val lead = move.map(m => s"The practical alternative $m").getOrElse("The practical alternative")
     s"$lead stays secondary because $reason."
@@ -79,10 +61,6 @@ private[analysis] object AlternativeNarrativeSupport:
       .orElse {
         line.moves.headOption.map(m => NarrativeUtils.uciToSanOrFormat(fen, m)).map(normalize).filter(_.nonEmpty)
       }
-
-  private def extractQuotedMove(raw: String): Option[String] =
-    "\"([^\"]+)\"".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).trim).filter(_.nonEmpty)
-      .orElse("'([^']+)'".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).trim).filter(_.nonEmpty))
 
   private def normalizeSentenceFragment(raw: String): String =
     normalize(raw).stripSuffix(".")

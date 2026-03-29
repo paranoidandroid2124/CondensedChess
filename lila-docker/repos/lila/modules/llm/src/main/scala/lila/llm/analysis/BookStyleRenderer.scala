@@ -13,6 +13,13 @@ import lila.llm.analysis.ThemeTaxonomy.ThemeResolver
  */
 object BookStyleRenderer:
 
+  private final case class RenderedSentenceCandidate(
+      candidate: NarrativeDedupCore.NarrativeSentenceCandidate,
+      beatKind: OutlineBeatKind,
+      beatIndex: Int,
+      sentenceIndex: Int
+  )
+
   private val structureLeakTokens = List(
     "PA_MATCH",
     "PRECOND_MISS",
@@ -33,10 +40,11 @@ object BookStyleRenderer:
 
   def validatedOutline(
       ctx: NarrativeContext,
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      strategyPack: Option[lila.llm.StrategyPack] = None
   ): NarrativeOutline =
     val rec = new TraceRecorder()
-    val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec, truthContract)
+    val (outline, diag) = NarrativeOutlineBuilder.build(ctx, rec, truthContract, strategyPack)
     EarlyOpeningNarrationPolicy.compactOutline(
       ctx,
       NarrativeOutlineValidator.validate(outline, diag, rec, Some(ctx)),
@@ -64,31 +72,97 @@ object BookStyleRenderer:
 
   private def renderOutlineRaw(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
+    val renderedCandidates =
+      outline.beats.zipWithIndex.flatMap { case (beat, beatIndex) =>
+        renderBeatSentences(beat, ctx, bead, beatIndex)
+      }
+    val kept = NarrativeDedupCore.dedupe(renderedCandidates.map(_.candidate)).map(_.order).toSet
+    val selected = renderedCandidates.filter(candidate => kept.contains(candidate.candidate.order))
+
     val sb = new StringBuilder()
     var lastKind: Option[OutlineBeatKind] = None
+    var lastBeatIndex: Option[Int] = None
 
-    outline.beats.foreach { b =>
-      val text = renderBeat(b, ctx, bead)
-      if (text.nonEmpty) {
-        val needsNewParagraph = lastKind match {
-          case Some(OutlineBeatKind.MoveHeader) => false
-          case Some(OutlineBeatKind.MainMove) if b.kind == OutlineBeatKind.PsychologicalVerdict => false
-          case Some(OutlineBeatKind.Context) if b.kind == OutlineBeatKind.DecisionPoint => true
-          case Some(_) => true
-          case None => false
-        }
-
-        if (needsNewParagraph && sb.nonEmpty) sb.append("\n\n")
-        else if (sb.nonEmpty) {
-          if (lastKind.contains(OutlineBeatKind.MoveHeader)) sb.append(": ")
-          else sb.append(" ")
-        }
-
+    selected.foreach { rendered =>
+      val text = rendered.candidate.text
+      if text.nonEmpty then
+        val separator =
+          if sb.isEmpty then ""
+          else if lastBeatIndex.contains(rendered.beatIndex) then " "
+          else if lastKind.contains(OutlineBeatKind.MoveHeader) then ": "
+          else if needsNewParagraph(lastKind, rendered.beatKind) then "\n\n"
+          else " "
+        sb.append(separator)
         sb.append(text)
-        lastKind = Some(b.kind)
-      }
+        lastKind = Some(rendered.beatKind)
+        lastBeatIndex = Some(rendered.beatIndex)
     }
+
     sb.toString()
+
+  private def renderBeatSentences(
+      beat: OutlineBeat,
+      ctx: NarrativeContext,
+      bead: Int,
+      beatIndex: Int
+  ): List[RenderedSentenceCandidate] =
+    val rendered = renderBeat(beat, ctx, bead).trim
+    if rendered.isEmpty then Nil
+    else
+      val parts =
+        beat.kind match
+          case OutlineBeatKind.Evidence | OutlineBeatKind.Alternatives =>
+            rendered.linesIterator.map(_.trim).filter(_.nonEmpty).toList
+          case _ =>
+            NarrativeDedupCore.splitSentences(rendered)
+      parts.zipWithIndex.map { case (sentence, sentenceIndex) =>
+        RenderedSentenceCandidate(
+          candidate =
+            NarrativeDedupCore.buildCandidate(
+              surface = "renderer",
+              role = roleForBeat(beat.kind),
+              text = sentence,
+              priority = beat.focusPriority,
+              order = beatIndex * 100 + sentenceIndex,
+              familyOverride = familyForBeat(beat.kind)
+            ),
+          beatKind = beat.kind,
+          beatIndex = beatIndex,
+          sentenceIndex = sentenceIndex
+        )
+      }
+
+  private def needsNewParagraph(
+      previous: Option[OutlineBeatKind],
+      current: OutlineBeatKind
+  ): Boolean =
+    previous match
+      case Some(OutlineBeatKind.MoveHeader) => false
+      case Some(OutlineBeatKind.MainMove) if current == OutlineBeatKind.PsychologicalVerdict => false
+      case Some(OutlineBeatKind.Context) if current == OutlineBeatKind.DecisionPoint          => true
+      case Some(_)                                                                           => true
+      case None                                                                              => false
+
+  private def roleForBeat(kind: OutlineBeatKind): String =
+    kind match
+      case OutlineBeatKind.Context              => "context"
+      case OutlineBeatKind.DecisionPoint        => "support"
+      case OutlineBeatKind.Evidence             => "support"
+      case OutlineBeatKind.TeachingPoint        => "support"
+      case OutlineBeatKind.MainMove             => "main_move"
+      case OutlineBeatKind.OpeningTheory        => "support"
+      case OutlineBeatKind.Alternatives         => "route"
+      case OutlineBeatKind.WrapUp               => "wrap_up"
+      case OutlineBeatKind.MoveHeader           => "context"
+      case OutlineBeatKind.PsychologicalVerdict => "support"
+
+  private def familyForBeat(
+      kind: OutlineBeatKind
+  ): Option[NarrativeDedupCore.NarrativeClaimFamily] =
+    kind match
+      case OutlineBeatKind.MainMove        => Some(NarrativeDedupCore.NarrativeClaimFamily.PlanLead)
+      case OutlineBeatKind.WrapUp          => Some(NarrativeDedupCore.NarrativeClaimFamily.PracticalVerdict)
+      case _                               => None
 
   private def renderBeat(beat: OutlineBeat, ctx: NarrativeContext, bead: Int): String =
     if beat.text.nonEmpty then
@@ -100,7 +174,6 @@ object BookStyleRenderer:
         case OutlineBeatKind.Context => generateContext(ctx, bead)
         case OutlineBeatKind.DecisionPoint => generateDecision(beat, ctx)
         case OutlineBeatKind.Evidence => generateEvidence(beat, ctx)
-        case OutlineBeatKind.ConditionalPlan => generateConditionalPlan(beat, ctx)
         case OutlineBeatKind.TeachingPoint => generateTeaching(ctx, bead)
         case OutlineBeatKind.MainMove => generateMainMove(ctx, bead)
         case OutlineBeatKind.OpeningTheory => generateOpeningTheory(ctx, bead)
@@ -130,26 +203,6 @@ object BookStyleRenderer:
         val evalPart = b.evalCp.map(cp => s" (${formatCp(cp)})").getOrElse("")
         s"$label ${b.keyMove} ${b.line}$evalPart"
       }.mkString("\n")
-
-  private def generateConditionalPlan(beat: OutlineBeat, ctx: NarrativeContext): String =
-    val hasRefutation = beat.evidencePurposes.contains("latent_plan_refutation")
-    val template = beat.conceptIds.headOption.flatMap { seedId =>
-      ctx.authorQuestions
-        .find(_.latentPlan.exists(_.seedId == seedId))
-        .flatMap(_.latentPlan.map { lp =>
-          FullGameDraftNormalizer.renderLatentPlanText(
-            template = lp.narrative.template,
-            fen = ctx.fen,
-            seedId = lp.seedId,
-            fallbackPlanName = ctx.latentPlans.find(_.seedId == lp.seedId).map(_.planName)
-          )
-        })
-    }.getOrElse("A strategic idea worth considering if given time.")
-
-    val narrative =
-      if hasRefutation then s"$template But the opponent can neutralize this with accurate play."
-      else template
-    FullGameDraftNormalizer.normalize(narrative)
 
   private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
     ctx.counterfactual.map { cf =>

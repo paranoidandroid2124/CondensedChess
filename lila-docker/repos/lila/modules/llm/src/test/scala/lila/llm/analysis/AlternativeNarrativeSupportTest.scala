@@ -23,18 +23,12 @@ class AlternativeNarrativeSupportTest extends FunSuite:
       renderMode = NarrativeRenderMode.Bookmaker
     )
 
-  test("uses whyAbsent reason before any looser alternative heuristic") {
+  test("returns no alternative narrative when only legacy whyAbsent text exists") {
     val ctx = baseContext.copy(
       whyAbsentFromTopMultiPV = List("""the immediate "g4" push loses 220 cp""")
     )
 
-    val alt = AlternativeNarrativeSupport.build(ctx).getOrElse(fail("missing alternative support"))
-    assertEquals(alt.move, Some("g4"))
-    assert(alt.reason.contains("loses 220 cp"))
-    assertEquals(
-      alt.sentence,
-      "The practical alternative g4 stays secondary because the immediate \"g4\" push loses 220 cp."
-    )
+    assertEquals(AlternativeNarrativeSupport.build(ctx), None)
   }
 
   test("falls back to a close engine alternative when whyAbsent is missing") {

@@ -163,6 +163,10 @@ object LatentSeedLibrary:
         family = SeedFamily.Piece,
         mapsToPlan = Some(PlanId.PieceActivation),
         candidateMoves = Nil, // position-specific (computed by seeder)
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 1.2),
+          WeightedPrecondition(Precondition.CenterStateIs(CenterState.Locked), required = false, weight = 0.6)
+        ),
         narrative = NarrativeTemplate(
           template =
             "{us} may need to reroute a passive bishop ({seed}) to a more active diagonal to avoid being stuck behind the pawn chain."
@@ -173,9 +177,25 @@ object LatentSeedLibrary:
         family = SeedFamily.Piece,
         mapsToPlan = None,
         candidateMoves = Nil, // position-specific (computed by seeder)
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 1.2)
+        ),
         narrative = NarrativeTemplate(
           template =
             "{us} can consider forming a battery ({seed}) to concentrate force on a critical file or diagonal before breaking through."
+        )
+      ),
+      LatentSeed(
+        id = "OpenFile_Doubling",
+        family = SeedFamily.Piece,
+        mapsToPlan = Some(PlanId.FileControl),
+        candidateMoves = Nil,
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 0.9)
+        ),
+        narrative = NarrativeTemplate(
+          template =
+            "{us} can double heavy pieces on an open or semi-open file ({seed}) to build lasting pressure before the position opens further."
         )
       ),
       // 3) Structural Transformation
@@ -184,6 +204,9 @@ object LatentSeedLibrary:
         family = SeedFamily.Structure,
         mapsToPlan = Some(PlanId.PassedPawnCreation),
         candidateMoves = Nil,
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 0.9)
+        ),
         narrative = NarrativeTemplate(
           template =
             "{us} can aim to create a passed pawn ({seed}) by using the majority and forcing favorable exchanges."
@@ -194,6 +217,9 @@ object LatentSeedLibrary:
         family = SeedFamily.Structure,
         mapsToPlan = Some(PlanId.WeakPawnAttack),
         candidateMoves = Nil,
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 0.9)
+        ),
         narrative = NarrativeTemplate(
           template =
             "{us} may try to induce an isolated pawn ({seed}) and then blockade and attack it as a long-term weakness."
@@ -249,6 +275,9 @@ object LatentSeedLibrary:
         family = SeedFamily.Exchange,
         mapsToPlan = Some(PlanId.Exchange),
         candidateMoves = Nil,
+        preconditions = List(
+          WeightedPrecondition(Precondition.NoImmediateDefensiveTask(maxThreatCp = 150), required = true, weight = 0.9)
+        ),
         narrative = NarrativeTemplate(
           template =
             "{us} can consider exchanging a bad piece ({seed}) to improve the long-term structure and reduce defensive tasks."

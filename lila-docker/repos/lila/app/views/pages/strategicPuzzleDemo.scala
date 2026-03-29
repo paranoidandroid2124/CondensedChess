@@ -148,7 +148,7 @@ object strategicPuzzleDemo:
       )
     )
 
-  def apply: Page =
+  def apply(using Context): Page =
     val analysisUrl = routes.UserAnalysis.pgn(samplePgn).url
 
     Page("Strategic Puzzle Demo - Chesstory")
@@ -342,7 +342,7 @@ object strategicPuzzleDemo:
               )
             ),
             footer(cls := "sp-demo-footer")(
-              a(href := routes.Main.landing.url, cls := "sp-demo-footer__link")("Back to home"),
+              a(href := homeUrl, cls := "sp-demo-footer__link")("Back to home"),
               a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-footer__link")("Open a live puzzle"),
               a(href := analysisUrl, cls := "sp-demo-footer__link is-strong")("Open the sample in analysis")
             )

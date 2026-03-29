@@ -266,8 +266,6 @@ final class LlmController(
                         "authorQuestions" -> response.authorQuestions,
                         "authorEvidence" -> response.authorEvidence,
                         "mainStrategicPlans" -> response.mainStrategicPlans,
-                        "latentPlans" -> response.latentPlans,
-                        "whyAbsentFromTopMultiPV" -> response.whyAbsentFromTopMultiPV,
                         "planStateToken" -> response.planStateToken,
                         "endgameStateToken" -> response.endgameStateToken,
                         "sourceMode" -> response.sourceMode,

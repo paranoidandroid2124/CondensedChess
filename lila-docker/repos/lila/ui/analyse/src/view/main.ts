@@ -47,9 +47,10 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
     crazyView(ctrl, ctrl.bottomColor(), 'bottom'),
     renderControls(ctrl),
     renderUnderboard(ctx),
-    trainingView(ctrl),
-    ctrl.forecast && forecastView(ctrl, ctrl.forecast),
+    !ctrl.isReviewShell() && trainingView(ctrl),
+    !ctrl.isReviewShell() && ctrl.forecast && forecastView(ctrl, ctrl.forecast),
     !ctrl.synthetic &&
+    !ctrl.isReviewShell() &&
     playable(ctrl.data) &&
     hl(
       'div.back-to-game',
@@ -69,6 +70,7 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
 
 function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
   if (!ctrl.opts.bookmaker) return;
+  if (ctrl.isReviewShell()) return;
 
   return hl('aside.analyse__side', {
     hook: {
@@ -81,7 +83,7 @@ function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
       {
         attrs: { id: 'bookmaker-field' },
       },
-      [hl('legend', { attrs: { tabindex: '0' } }, 'Bookmaker'), hl('div.analyse__bookmaker-text')],
+      [hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'), hl('div.analyse__bookmaker-text')],
     ),
   ]);
 }

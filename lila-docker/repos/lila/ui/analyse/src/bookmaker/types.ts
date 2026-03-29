@@ -19,6 +19,10 @@ export type ProbeRequest = {
   requiredSignals?: string[];
   horizon?: 'short' | 'medium' | 'long' | string;
   maxCpLoss?: number;
+  candidateMove?: string;
+  depthFloor?: number;
+  variationHash?: string;
+  engineConfigFingerprint?: string;
 };
 
 export type L1DeltaSnapshot = {
@@ -66,6 +70,11 @@ export type ProbeResult = {
   requiredSignals?: string[];
   generatedRequiredSignals?: string[];
   motifInferenceMode?: 'purpose_only' | 'purpose_plus_compat' | string;
+  candidateMove?: string;
+  depthFloor?: number;
+  variationHash?: string;
+  engineConfigFingerprint?: string;
+  generatedAtEpochMs?: number;
 };
 
 export type PlanViability = {
@@ -101,13 +110,6 @@ export type StrategicPlanExperiment = {
   counterBreakNeutralized: boolean;
   moveOrderSensitive: boolean;
   experimentConfidence: number;
-};
-
-export type LatentPlanNarrative = {
-  seedId: string;
-  planName: string;
-  viabilityScore: number;
-  whyAbsentFromTopMultiPv: string;
 };
 
 export type AuthorQuestionSummary = {

@@ -21,7 +21,7 @@ object importer:
         main(cls := "auth-page auth-page--importer")(
           div(cls := "landing-container")(
             div(cls := "landing-header")(
-              a(href := routes.Main.landing.url, cls := "logo")("Chesstory")
+              a(href := homeUrl, cls := "logo")("Chesstory")
             ),
             div(cls := "auth-container auth-container--wide")(
               div(cls := "auth-card auth-card--importer")(
@@ -104,7 +104,7 @@ object importer:
         main(cls := "auth-page auth-page--importer")(
           div(cls := "landing-container")(
             div(cls := "landing-header")(
-              a(href := routes.Main.landing.url, cls := "logo")("Chesstory")
+              a(href := homeUrl, cls := "logo")("Chesstory")
             ),
             div(cls := "auth-container auth-container--wide")(
               div(cls := "auth-card auth-card--importer")(

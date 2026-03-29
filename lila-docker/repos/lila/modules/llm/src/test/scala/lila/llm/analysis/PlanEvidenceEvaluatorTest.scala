@@ -54,7 +54,7 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     assert(validation.invalidByRequestId.getOrElse("probe_missing", Nil).contains("futureSnapshot"))
   }
 
-  test("partition promotes top pv-coupled plans to main via fallback when no evidence-backed plan exists") {
+  test("partition keeps pv-coupled plans out of user-facing main plans without supportive probe evidence") {
     val enginePlan =
       hypothesis(
         id = "CentralControl",
@@ -80,13 +80,16 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
         droppedProbeCount = 0
       )
 
-    // With StrictFallbackToPvCoupled=true, pv-coupled plans fall back to mainPlans
+    assertEquals(partition.mainPlans, Nil)
+    assertEquals(partition.latentPlans, Nil)
+    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assert(
-      partition.mainPlans.nonEmpty,
-      clue(s"Expected mainPlans to contain fallback pv-coupled plans: ${partition.mainPlans}")
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "CentralControl" &&
+          entry.userFacingEligibility == "pv_coupled_only"
+      ),
+      clue(partition.diagnosticSidecar)
     )
-    assert(partition.mainPlans.size <= 2, clue(partition.mainPlans))
-    assert(partition.whyAbsentFromTopMultiPV.nonEmpty)
   }
 
   test("partition marks plan as refuted when validated refutation probe exceeds cp-loss bound") {
@@ -145,13 +148,18 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
         rulePlanIds = Set.empty,
         isWhiteToMove = true,
         droppedProbeCount = 0
-      )
+    )
 
     assertEquals(partition.mainPlans, Nil)
     assertEquals(partition.latentPlans, Nil)
+    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assert(
-      partition.whyAbsentFromTopMultiPV.exists(_.toLowerCase.contains("refutation")),
-      clue(partition.whyAbsentFromTopMultiPV)
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "PawnStorm" &&
+          entry.userFacingEligibility == "refuted" &&
+          entry.refuteProbeIds.contains("probe_refute")
+      ),
+      clue(partition.diagnosticSidecar)
     )
   }
 
@@ -186,58 +194,236 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       )
 
     assertEquals(partition.mainPlans, Nil)
-    assertEquals(partition.latentPlans.map(_.seedId), List("kingside_rook_pawn_march"))
+    assertEquals(partition.latentPlans, Nil)
+    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
+    assertEquals(partition.diagnosticSidecar.droppedProbeCount, 1)
     assert(
-      partition.whyAbsentFromTopMultiPV.exists(_.contains("discarded")),
-      clue(partition.whyAbsentFromTopMultiPV)
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "PawnStorm" &&
+          entry.userFacingEligibility == "deferred" &&
+          entry.missingSignals.contains("futureSnapshot")
+      ),
+      clue(partition.diagnosticSidecar)
     )
   }
 
-  test("partition reasons stay user-facing for pv-coupled and incomplete evidence cases") {
-    val enginePlan =
+  test("partition exposes only validated supportive plans to user-facing main plans") {
+    val backedPlan =
       hypothesis(
         id = "PieceActivation",
         name = "Piece activation",
         score = 0.74,
         sources = List("support:engine_hypothesis")
       )
+    val request = ProbeRequest(
+      id = "probe_support",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("e2e4"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
+    val result = ProbeResult(
+      id = "probe_support",
+      evalCp = 24,
+      bestReplyPv = List("e7e5", "g1f3"),
+      replyPvs = Some(List(List("e7e5", "g1f3"))),
+      deltaVsBaseline = 8,
+      keyMotifs = List("piece_activation"),
+      purpose = Some("theme_plan_validation"),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = List("Development"),
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, Nil, Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      )
+    )
     val deferredPlan =
       hypothesis(
-        id = "PawnStorm",
+        id = "PawnStorm2",
         name = "Kingside pawn storm",
         score = 0.66,
         sources = List("latent_seed:kingside_rook_pawn_march")
       )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(backedPlan, deferredPlan),
+        probeRequests = List(request),
+        validatedProbeResults = List(result),
+        rulePlanIds = Set("pieceactivation"),
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    assertEquals(partition.mainPlans.map(_.planId), List("PieceActivation"))
+    assert(
+      partition.mainPlans.headOption.exists(_.evidenceSources.contains("probe_backed:validated_support")),
+      clue(partition.mainPlans)
+    )
+    assertEquals(partition.latentPlans, Nil)
+    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
+    assert(
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "PawnStorm2" &&
+          entry.userFacingEligibility == "deferred"
+      ),
+      clue(partition.diagnosticSidecar)
+    )
+  }
+
+  test("partition records certification metadata for probe-backed plans in diagnostic sidecar") {
+    val backedPlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.78,
+        sources = List("support:engine_hypothesis", "theme:piece_redeployment")
+      )
     val request = ProbeRequest(
-      id = "probe_deferred",
+      id = "probe_support_cert",
       fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-      moves = List("h2h4"),
-      depth = 18,
-      purpose = Some("free_tempo_branches"),
-      planId = Some("PawnStorm"),
-      seedId = Some("kingside_rook_pawn_march"),
-      requiredSignals = List("replyPvs", "futureSnapshot")
+      moves = List("g1f3"),
+      depth = 20,
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_theme_plan"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("replyPvs", "futureSnapshot"),
+      candidateMove = Some("g1f3"),
+      depthFloor = Some(20),
+      variationHash = Some("piece-activation-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=20:multipv=2")
+    )
+    val result = ProbeResult(
+      id = "probe_support_cert",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 26,
+      bestReplyPv = List("g8f6", "e2e4"),
+      replyPvs = Some(List(List("g8f6", "e2e4"), List("e7e5", "g1f3"))),
+      deltaVsBaseline = 12,
+      keyMotifs = List("piece_activation"),
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_theme_plan"),
+      probedMove = Some("g1f3"),
+      depth = Some(20),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = List("Development"),
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, List("e4"), Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      ),
+      variationHash = Some("piece-activation-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=20:multipv=2")
     )
 
     val partition =
       PlanEvidenceEvaluator.partition(
-        hypotheses = List(enginePlan, deferredPlan),
+        hypotheses = List(backedPlan),
         probeRequests = List(request),
-        validatedProbeResults = Nil,
+        validatedProbeResults = List(result),
         rulePlanIds = Set("pieceactivation"),
         isWhiteToMove = true,
-        droppedProbeCount = 1,
-        invalidByRequestId = Map("probe_deferred" -> List("futureSnapshot"))
+        droppedProbeCount = 0
       )
 
-    val rendered =
-      (partition.whyAbsentFromTopMultiPV ++ partition.latentPlans.map(_.whyAbsentFromTopMultiPv)).mkString(" ")
-    val lowered = rendered.toLowerCase
+    val entry =
+      partition.diagnosticSidecar.entries.find(_.planId == "PieceActivation").getOrElse(fail("missing diagnostic entry"))
+    assertEquals(entry.certificateStatus, "valid")
+    assertEquals(entry.quantifier, "universal")
+    assertEquals(entry.modalityTier, "advances")
+    assertEquals(entry.provenanceClass, "probe_backed")
+    assertEquals(entry.ontologyFamily, "plan_advance")
+  }
 
-    assert(!lowered.contains("playablebypv"), clue(rendered))
-    assert(!lowered.contains("strict evidence mode"), clue(rendered))
-    assert(!lowered.contains("probe evidence pending"), clue(rendered))
-    assert(!lowered.contains("engine-coupled continuation"), clue(rendered))
-    assert(!lowered.contains("futuresnapshot"), clue(rendered))
-    assert(lowered.contains("engine line") || lowered.contains("supporting evidence"), clue(rendered))
+  test("partition summarizes blocked and downgraded claim-certification outcomes in diagnostic sidecar") {
+    val downgradedPlan =
+      hypothesis(
+        id = "ExchangeWindow",
+        name = "Favorable exchange window",
+        score = 0.76,
+        sources = List("theme:favorable_exchange")
+      )
+    val siblingExchangePlan =
+      hypothesis(
+        id = "ExchangeShield",
+        name = "Queen trade shield",
+        score = 0.74,
+        sources = List("theme:favorable_exchange")
+      )
+    val blockedPlan =
+      hypothesis(
+        id = "PieceCoordination",
+        name = "Piece coordination",
+        score = 0.72,
+        sources = List("theme:piece_redeployment")
+      )
+
+    val downgradedRequest = ProbeRequest(
+      id = "probe_downgraded",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 20,
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_plan_presence"),
+      planId = Some("ExchangeWindow"),
+      requiredSignals = List("replyPvs")
+    )
+    val blockedRequest = ProbeRequest(
+      id = "probe_blocked",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("b1c3"),
+      depth = 20,
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_plan_presence"),
+      planId = Some("PieceCoordination"),
+      requiredSignals = List("keyMotifs")
+    )
+
+    val downgradedResult = ProbeResult(
+      id = "probe_downgraded",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 22,
+      bestReplyPv = List("g8f6", "f3e5"),
+      replyPvs = Some(List(List("g8f6", "f3e5"))),
+      deltaVsBaseline = 8,
+      keyMotifs = List("favorable_exchange"),
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_plan_presence"),
+      probedMove = Some("g1f3"),
+      depth = Some(20)
+    )
+    val blockedResult = ProbeResult(
+      id = "probe_blocked",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 18,
+      bestReplyPv = Nil,
+      deltaVsBaseline = 4,
+      keyMotifs = List("piece_redeployment"),
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_plan_presence"),
+      probedMove = Some("b1c3"),
+      depth = Some(20)
+    )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(downgradedPlan, siblingExchangePlan, blockedPlan),
+        probeRequests = List(downgradedRequest, blockedRequest),
+        validatedProbeResults = List(downgradedResult, blockedResult),
+        rulePlanIds = Set.empty,
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    assert(partition.diagnosticSidecar.blockedStrongClaims >= 1)
+    assert(partition.diagnosticSidecar.downgradedWeakClaims >= 1)
+    assert(partition.diagnosticSidecar.quantifierFailures >= 1)
+    assert(partition.diagnosticSidecar.stabilityFailures >= 1)
   }

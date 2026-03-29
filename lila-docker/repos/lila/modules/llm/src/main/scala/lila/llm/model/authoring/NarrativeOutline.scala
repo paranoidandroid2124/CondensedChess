@@ -16,7 +16,6 @@ enum OutlineBeatKind:
   case Context
   case DecisionPoint
   case Evidence
-  case ConditionalPlan
   case OpeningTheory
   case TeachingPoint
   case MainMove
@@ -50,6 +49,7 @@ case class OutlineBeat(
   questionIds: List[String] = Nil,
   questionKinds: List[AuthorQuestionKind] = Nil,
   evidencePurposes: List[String] = Nil,
+  expectedEvidencePurposes: List[String] = Nil,
   evidenceSourceIds: List[String] = Nil,
   // Quality control
   requiresEvidence: Boolean = false,
@@ -72,6 +72,20 @@ case class OutlineDiagnostics(
   selectedQuestions: List[AuthorQuestion] = Nil,
   usedEvidencePurposes: Set[String] = Set.empty,
   missingEvidencePurposes: Set[String] = Set.empty,
+  plannerPrimary: Option[String] = None,
+  plannerSecondary: Option[String] = None,
+  plannerRejected: List[String] = Nil,
+  plannerSceneType: Option[String] = None,
+  plannerOwnerCandidates: List[String] = Nil,
+  plannerAdmittedFamilies: List[String] = Nil,
+  plannerDroppedFamilies: List[String] = Nil,
+  plannerSupportMaterialSeparation: List[String] = Nil,
+  plannerProposedFamilyMappings: List[String] = Nil,
+  plannerDemotionReasons: List[String] = Nil,
+  plannerSelectedQuestion: Option[String] = None,
+  plannerSelectedOwnerFamily: Option[String] = None,
+  plannerSelectedOwnerSource: Option[String] = None,
+  surfaceReplayOutcome: Option[String] = None,
   droppedBeats: List[(OutlineBeatKind, String)] = Nil, // (kind, reason)
   downgradedBeats: List[(OutlineBeatKind, String)] = Nil, // (kind, reason)
   warnings: List[String] = Nil
@@ -93,6 +107,13 @@ case class OutlineDiagnostics(
       Some(s"Questions: ${selectedQuestions.size}"),
       Some(s"Evidence used: ${usedEvidencePurposes.mkString(", ")}"),
       Option.when(missingEvidencePurposes.nonEmpty)(s"Missing: ${missingEvidencePurposes.mkString(", ")}"),
+      plannerPrimary.map(value => s"Planner primary: $value"),
+      plannerSecondary.map(value => s"Planner secondary: $value"),
+      Option.when(plannerRejected.nonEmpty)(s"Planner rejected: ${plannerRejected.mkString("; ")}"),
+      plannerSceneType.map(value => s"Planner scene: $value"),
+      plannerSelectedOwnerFamily.map(value => s"Planner owner family: $value"),
+      plannerSelectedOwnerSource.map(value => s"Planner owner source: $value"),
+      surfaceReplayOutcome.map(value => s"Surface replay: $value"),
       Option.when(droppedBeats.nonEmpty)(s"Dropped: ${droppedBeats.size}"),
       Option.when(downgradedBeats.nonEmpty)(s"Downgraded: ${downgradedBeats.size}"),
       Option.when(warnings.nonEmpty)(s"Warnings: ${warnings.size}")

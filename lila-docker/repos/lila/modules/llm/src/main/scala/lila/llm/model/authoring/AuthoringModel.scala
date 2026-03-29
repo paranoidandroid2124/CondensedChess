@@ -3,13 +3,11 @@ package lila.llm.model.authoring
 import lila.llm.model.ConfidenceLevel
 
 enum AuthorQuestionKind:
-  case TensionDecision
-  case PlanClash
-  case TacticalTest
-  case StructuralCommitment
-  case ConversionPlan
-  case DefensiveTask
-  case LatentPlan
+  case WhyThis
+  case WhyNow
+  case WhatChanged
+  case WhatMustBeStopped
+  case WhosePlanIsFaster
 
 case class AuthorQuestion(
   id: String,
@@ -19,6 +17,7 @@ case class AuthorQuestion(
   why: Option[String] = None,
   anchors: List[String] = Nil,
   confidence: ConfidenceLevel = ConfidenceLevel.Heuristic,
+  evidencePurposes: List[String] = Nil,
   latentPlan: Option[LatentPlanInfo] = None
 )
 

@@ -11,3 +11,11 @@ class PlanOpeningCategoryTest extends FunSuite:
     assertEquals(plan.category, PlanCategory.Opening)
   }
 
+  test("OpeningDevelopment stays in the same user-facing category for both colors") {
+    val whitePlan = Plan.OpeningDevelopment(Color.White)
+    val blackPlan = Plan.OpeningDevelopment(Color.Black)
+
+    assertEquals(whitePlan.category, PlanCategory.Opening)
+    assertEquals(blackPlan.category, PlanCategory.Opening)
+    assertEquals(whitePlan.name, blackPlan.name)
+  }

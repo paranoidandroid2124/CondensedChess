@@ -1,0 +1,463 @@
+$home-bg-light: #f4efe7;
+$home-surface-light: rgba(255, 251, 246, 0.92);
+$home-surface-strong-light: #fffdf9;
+$home-ink-light: #1f2731;
+$home-muted-light: #5b6673;
+$home-border-light: rgba(160, 127, 82, 0.18);
+$home-primary: #256f63;
+$home-accent: #a35d36;
+$home-shadow-light: 0 24px 80px rgba(25, 36, 52, 0.08);
+
+$home-bg-dark: #101720;
+$home-surface-dark: rgba(24, 32, 46, 0.92);
+$home-surface-strong-dark: #17202d;
+$home-ink-dark: #eef3fb;
+$home-muted-dark: #b0bbcb;
+$home-border-dark: rgba(176, 196, 222, 0.14);
+$home-primary-dark: #58c8b4;
+$home-accent-dark: #f0a27b;
+$home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
+
+.home-page {
+  --home-shell-width: min(100% - 2rem, 1320px);
+  min-height: calc(100dvh - 4rem);
+  padding: clamp(1rem, 2.4vw, 1.6rem) 0 clamp(2rem, 5vw, 3rem);
+  background:
+    radial-gradient(circle at top left, rgba($home-accent, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 16%, rgba($home-primary, 0.12), transparent 32%),
+    $home-bg-light;
+  color: $home-ink-light;
+}
+
+.home-shell {
+  width: var(--home-shell-width);
+  margin: 0 auto;
+  display: grid;
+  gap: clamp(1rem, 2.6vw, 1.75rem);
+}
+
+.home-eyebrow {
+  margin: 0 0 0.8rem;
+  color: $home-primary;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(20rem, 0.84fr);
+  gap: clamp(1rem, 2vw, 1.5rem);
+  align-items: stretch;
+}
+
+.home-hero__copy,
+.home-quickstart,
+.home-section {
+  border: 1px solid $home-border-light;
+  border-radius: 1.6rem;
+  background: $home-surface-light;
+  box-shadow: $home-shadow-light;
+  backdrop-filter: blur(18px);
+}
+
+.home-hero__copy {
+  padding: clamp(1.2rem, 3vw, 2rem);
+
+  h1 {
+    margin: 0;
+    font-family: 'Merriweather', 'Georgia', serif;
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    max-width: 10ch;
+  }
+}
+
+.home-hero__summary {
+  margin: 1rem 0 0;
+  color: $home-muted-light;
+  max-width: 42rem;
+  line-height: 1.58;
+}
+
+.home-continue-card {
+  margin-top: 1.25rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  border-radius: 1.25rem;
+  background: $home-surface-strong-light;
+  border: 1px solid rgba($home-primary, 0.16);
+  display: grid;
+  gap: 0.7rem;
+
+  &__eyebrow {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $home-accent;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: clamp(1.35rem, 2vw, 1.9rem);
+    line-height: 1.1;
+  }
+
+  &__summary,
+  &__support {
+    margin: 0;
+    color: $home-muted-light;
+    line-height: 1.52;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-top: 0.25rem;
+  }
+}
+
+.home-quickstart {
+  padding: clamp(1rem, 2vw, 1.35rem);
+  display: grid;
+  gap: 1rem;
+}
+
+.home-section-head {
+  display: grid;
+  gap: 0.28rem;
+
+  strong {
+    font-size: 1rem;
+  }
+
+  span {
+    color: $home-muted-light;
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+}
+
+.home-quickstart__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.home-action-card,
+.home-card,
+.home-strip-card {
+  text-decoration: none;
+  color: inherit;
+}
+
+.home-action-card {
+  min-height: 11rem;
+  padding: 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid rgba($home-primary, 0.14);
+  background: $home-surface-strong-light;
+  display: grid;
+  gap: 0.6rem;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba($home-primary, 0.3);
+    box-shadow: 0 16px 40px rgba(25, 36, 52, 0.09);
+  }
+
+  &__label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 800;
+    color: $home-primary;
+  }
+
+  &__title {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  &__copy {
+    margin: 0;
+    color: $home-muted-light;
+    line-height: 1.5;
+    font-size: 0.94rem;
+  }
+
+  &__cta {
+    margin-top: auto;
+    font-weight: 700;
+    color: $home-accent;
+  }
+}
+
+.home-section {
+  padding: clamp(1rem, 2.4vw, 1.35rem);
+  display: grid;
+  gap: 0.95rem;
+}
+
+.home-card-grid {
+  display: grid;
+  gap: 0.85rem;
+
+  &--analysis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  &--reports,
+  &--notebooks {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.home-card {
+  min-height: 13rem;
+  padding: 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid $home-border-light;
+  background: $home-surface-strong-light;
+  display: grid;
+  gap: 0.65rem;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba($home-primary, 0.28);
+    box-shadow: 0 16px 40px rgba(25, 36, 52, 0.08);
+  }
+
+  &__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  &__title {
+    font-size: 1rem;
+    line-height: 1.32;
+  }
+
+  &__summary,
+  &__meta {
+    margin: 0;
+    color: $home-muted-light;
+    line-height: 1.5;
+    font-size: 0.94rem;
+  }
+
+  &__cta {
+    margin-top: auto;
+    font-weight: 700;
+    color: $home-accent;
+  }
+}
+
+.home-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: rgba($home-primary, 0.1);
+  color: $home-primary;
+
+  &--provider {
+    background: rgba($home-primary, 0.12);
+  }
+
+  &--lichess {
+    color: #7b4b15;
+    background: rgba(#d8a76f, 0.18);
+  }
+
+  &--chesscom {
+    color: #165083;
+    background: rgba(#4a97d9, 0.16);
+  }
+
+  &--manual,
+  &--imported,
+  &--pattern,
+  &--notebook,
+  &--liked {
+    color: $home-accent;
+    background: rgba($home-accent, 0.12);
+  }
+}
+
+.home-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.home-strip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.home-strip-card {
+  min-height: 7.8rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid $home-border-light;
+  background: $home-surface-strong-light;
+  display: grid;
+  gap: 0.7rem;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba($home-primary, 0.26);
+    box-shadow: 0 14px 34px rgba(25, 36, 52, 0.08);
+  }
+
+  &__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    align-items: start;
+  }
+
+  p {
+    margin: 0;
+    color: $home-muted-light;
+    line-height: 1.48;
+    font-size: 0.92rem;
+  }
+}
+
+.home-empty {
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px dashed rgba($home-primary, 0.24);
+  background: rgba($home-primary, 0.05);
+  display: grid;
+  gap: 0.35rem;
+
+  strong {
+    font-size: 0.98rem;
+  }
+
+  p {
+    margin: 0;
+    color: $home-muted-light;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 1100px) {
+  .home-hero,
+  .home-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-card-grid--analysis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-card-grid--reports,
+  .home-card-grid--notebooks,
+  .home-strip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .home-page {
+    padding-top: 0.85rem;
+  }
+
+  .home-shell {
+    width: min(100% - 1rem, 1320px);
+  }
+
+  .home-quickstart__grid,
+  .home-card-grid--analysis,
+  .home-card-grid--reports,
+  .home-card-grid--notebooks,
+  .home-strip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-continue-card__actions {
+    display: grid;
+  }
+}
+
+html.dark .home-page {
+  background:
+    radial-gradient(circle at top left, rgba($home-accent-dark, 0.14), transparent 34%),
+    radial-gradient(circle at 88% 16%, rgba($home-primary-dark, 0.16), transparent 32%),
+    $home-bg-dark;
+  color: $home-ink-dark;
+}
+
+html.dark .home-hero__copy,
+html.dark .home-quickstart,
+html.dark .home-section {
+  background: $home-surface-dark;
+  border-color: $home-border-dark;
+  box-shadow: $home-shadow-dark;
+}
+
+html.dark .home-continue-card,
+html.dark .home-action-card,
+html.dark .home-card,
+html.dark .home-strip-card {
+  background: $home-surface-strong-dark;
+  border-color: $home-border-dark;
+}
+
+html.dark .home-hero__summary,
+html.dark .home-card__summary,
+html.dark .home-card__meta,
+html.dark .home-strip-card p,
+html.dark .home-section-head span,
+html.dark .home-empty p,
+html.dark .home-continue-card__summary,
+html.dark .home-continue-card__support,
+html.dark .home-action-card__copy {
+  color: $home-muted-dark;
+}
+
+html.dark .home-eyebrow,
+html.dark .home-action-card__label,
+html.dark .home-pill,
+html.dark .home-pill--provider {
+  color: $home-primary-dark;
+}
+
+html.dark .home-continue-card__eyebrow,
+html.dark .home-card__cta,
+html.dark .home-action-card__cta {
+  color: $home-accent-dark;
+}
+
+html.dark .home-pill--lichess,
+html.dark .home-pill--chesscom,
+html.dark .home-pill--manual,
+html.dark .home-pill--imported,
+html.dark .home-pill--pattern,
+html.dark .home-pill--notebook,
+html.dark .home-pill--liked {
+  background: rgba($home-accent-dark, 0.16);
+  color: $home-accent-dark;
+}
+
+html.dark .home-empty {
+  border-color: rgba($home-primary-dark, 0.24);
+  background: rgba($home-primary-dark, 0.08);
+}

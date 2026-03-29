@@ -22,7 +22,6 @@ object NarrativeOutlineBuilder:
     "strategic_shift" -> 1,
     "engine" -> 1
   )
-  private val LegacyStrategicFallbackText = boolEnv("LLM_LEGACY_STRATEGIC_TEXT_FALLBACK", default = false)
 
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class AlternativeEngineSignal(
@@ -76,7 +75,8 @@ object NarrativeOutlineBuilder:
   def build(
       ctx: NarrativeContext,
       rec: TraceRecorder,
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      strategyPack: Option[lila.llm.StrategyPack] = None
   ): (NarrativeOutline, OutlineDiagnostics) =
     val bead = Math.abs(ctx.hashCode)
     val beats = scala.collection.mutable.ListBuffer.empty[OutlineBeat]
@@ -91,26 +91,37 @@ object NarrativeOutlineBuilder:
     var diag = OutlineDiagnostics()
 
     val isAnnotation = isMoveAnnotation(ctx)
-    val thesisOpt = Option.when(isBookmakerMode(ctx))(StrategicThesisBuilder.build(ctx, truthContract = truthContract)).flatten
     val questions = ctx.authorQuestions.sortBy(-_.priority).take(3)
     diag = diag.copy(selectedQuestions = questions)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
+    diag =
+      diag.copy(
+        plannerPrimary = rankedPlans.primary.map(plan => s"${plan.questionKind}:${plan.fallbackMode}"),
+        plannerSecondary = rankedPlans.secondary.map(plan => s"${plan.questionKind}:${plan.fallbackMode}"),
+        plannerRejected =
+          rankedPlans.rejected.map(rejected =>
+            s"${rejected.questionKind}:${rejected.fallbackMode}:${rejected.reasons.mkString("+")}"
+          ),
+        plannerSceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
+        plannerOwnerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
+        plannerAdmittedFamilies = rankedPlans.ownerTrace.admittedFamilyLabels,
+        plannerDroppedFamilies = rankedPlans.ownerTrace.droppedFamilyLabels,
+        plannerSupportMaterialSeparation = rankedPlans.ownerTrace.supportMaterialSeparationLabels,
+        plannerProposedFamilyMappings = rankedPlans.ownerTrace.proposedFamilyMappingLabels,
+        plannerDemotionReasons = rankedPlans.ownerTrace.demotionReasons,
+        plannerSelectedQuestion = rankedPlans.ownerTrace.selectedQuestion.map(_.toString),
+        plannerSelectedOwnerFamily = rankedPlans.ownerTrace.selectedOwnerFamily.map(_.wireName),
+        plannerSelectedOwnerSource = rankedPlans.ownerTrace.selectedOwnerSource,
+        surfaceReplayOutcome =
+          Some(if rankedPlans.primary.nonEmpty then "outline_planner_owned" else "outline_no_primary")
+      )
 
     val availablePurposes = ctx.authorEvidence.map(_.purpose).toSet
     diag = diag.copy(usedEvidencePurposes = availablePurposes)
 
     val missingPurposes = EvidencePlanner.getMissingPurposesFromEvidence(questions, ctx.authorEvidence)
     diag = diag.copy(missingEvidencePurposes = missingPurposes)
-
-    thesisOpt.foreach { thesis =>
-      if isAnnotation then
-        buildMoveHeader(ctx, rec).foreach(beat => beats += annotateBeat(beat))
-      beats += annotateBeat(buildBookmakerThesisContextBeat(thesis, rec))
-      beats += annotateBeat(buildBookmakerThesisMainMoveBeat(ctx, thesis, rec))
-      buildBookmakerThesisTensionBeat(thesis, rec).foreach(beat => beats += annotateBeat(beat))
-      buildBookmakerThesisWrapUpBeat(ctx, thesis).foreach(beat => beats += annotateBeat(beat))
-    }
-    if thesisOpt.isDefined then
-      return (NarrativeOutline(beats.toList, Some(diag)), diag)
 
     // 1. MOVE HEADER
     if isAnnotation then
@@ -120,21 +131,17 @@ object NarrativeOutlineBuilder:
     beats += annotateBeat(buildContextBeat(ctx, rec, bead))
 
     // 3. DECISION POINT
-    buildDecisionBeat(ctx, questions, rec).foreach(beat => beats += annotateBeat(beat))
+    buildDecisionBeat(ctx, questions, rankedPlans, plannerInputs, rec).foreach(beat => beats += annotateBeat(beat))
 
     // 4. EVIDENCE (from authorEvidence OR engineEvidence fallback)
-    buildEvidenceBeat(ctx, questions, rec).foreach(beat => beats += annotateBeat(beat))
+    buildEvidenceBeat(ctx, questions, rankedPlans, rec).foreach(beat => beats += annotateBeat(beat))
 
-    // 5. CONDITIONAL PLAN
-    questions.find(_.kind == AuthorQuestionKind.LatentPlan)
-      .flatMap(buildConditionalPlanBeat(ctx, _, rec)).foreach(beat => beats += annotateBeat(beat))
-
-    // 6. TEACHING POINT (lower threshold for visibility)
-    buildTeachingBeat(ctx, rec, bead).foreach(beat => beats += annotateBeat(beat))
+    // 5. TEACHING POINT (lower threshold for visibility)
+    buildTeachingBeat(ctx, rankedPlans, rec).foreach(beat => beats += annotateBeat(beat))
 
     val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx, truthContract)
 
-    // 7. MAIN MOVE
+    // 6. MAIN MOVE
     val moveLevelPrecedent =
       Option.when(!collapsedEarlyOpening)(buildContextPrecedentSentence(ctx, bead)).flatten
     val mainMoveBeat = annotateBeat(buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, crossBeatState))
@@ -148,19 +155,20 @@ object NarrativeOutlineBuilder:
       ))
     }
 
-    // 8. OPENING THEORY
+    // 7. OPENING THEORY
     buildOpeningTheoryBeat(
       ctx,
       rec,
       suppressPrecedents = collapsedEarlyOpening || moveLevelPrecedent.nonEmpty
     ).foreach(beat => beats += annotateBeat(beat))
 
-    // 9. ALTERNATIVES
+    // 8. ALTERNATIVES
     val altBeat = annotateBeat(buildAlternativesBeat(ctx, rec, bead, crossBeatState))
     if altBeat.text.nonEmpty then beats += altBeat
 
-    // 10. WRAP-UP
-    if !collapsedEarlyOpening then buildWrapUpBeat(ctx, bead, crossBeatState).foreach(beat => beats += annotateBeat(beat))
+    // 9. WRAP-UP
+    if !collapsedEarlyOpening then
+      buildWrapUpBeat(ctx, rankedPlans, bead).foreach(beat => beats += annotateBeat(beat))
 
     (NarrativeOutline(beats.toList, Some(diag)), diag)
 
@@ -178,10 +186,7 @@ object NarrativeOutlineBuilder:
       }
     val urgentThreat =
       ctx.threats.toThem.headOption.exists(t => t.lossIfIgnoredCp >= Thresholds.URGENT_THREAT_CP || t.kind.equalsIgnoreCase("Mate"))
-    val tacticalByLegacyFallback =
-      LegacyStrategicFallbackText &&
-        ctx.plans.top5.headOption.exists(_.name.toLowerCase.contains("immediate tactical gain"))
-    planTaggedTactical || urgentThreat || tacticalByLegacyFallback
+    planTaggedTactical || urgentThreat
 
   private def summarizeStrategicEvidence(
       ctx: NarrativeContext,
@@ -311,13 +316,7 @@ object NarrativeOutlineBuilder:
           Option.when(theme != ThemeL1.Unknown)(s"theme:${theme.id}") ++
           subplan.map(sp => s"subplan:${sp.id}")
       }
-    val latentKeys =
-      ctx.latentPlans.headOption.toList.flatMap { latent =>
-        evidenceSemanticKeys(latent.planName) ++
-          evidenceSemanticKeys(latent.seedId) ++
-          evidenceSemanticKeys(s"latent_seed:${latent.seedId}")
-      }
-    (planKeys ++ latentKeys).toSet
+    planKeys.toSet
 
   private def evidenceSemanticKeys(raw: String): Set[String] =
     val themeKeys =
@@ -336,20 +335,6 @@ object NarrativeOutlineBuilder:
       ).flatten.map(subplan => s"subplan:${subplan.id}")
     (themeKeys ++ subplanKeys).toSet
 
-  private def collectHoldReasons(
-      ctx: NarrativeContext,
-      primary: Option[PlanHypothesis]
-  ): List[String] =
-    val primaryFailures =
-      primary.toList.flatMap(_.failureModes).map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty)
-    val primaryRefutation =
-      primary.flatMap(_.refutation).toList.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty)
-    val globalReasons =
-      (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-        .map(FullGameDraftNormalizer.humanizeConstraint)
-        .filter(_.nonEmpty)
-    (primaryFailures ++ primaryRefutation ++ globalReasons).distinct
-
   private def renderPreconditions(plan: PlanHypothesis): Option[String] =
     val items = plan.preconditions.map(FullGameDraftNormalizer.humanizeConstraint).filter(_.nonEmpty).take(2)
     Option.when(items.nonEmpty)(items.mkString("; "))
@@ -360,133 +345,8 @@ object NarrativeOutlineBuilder:
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
     strategicPlanNames(ctx).headOption
 
-  private def bookmakerThesisFallbackFollowUp(
-      ctx: NarrativeContext,
-      thesis: StrategicThesis
-  ): Option[String] =
-    thesis.lens match
-      case StrategicLens.Compensation =>
-        ctx.mainStrategicPlans.headOption.map(_.planName).map(_.trim).filter(_.nonEmpty)
-          .map(name => s"keep ${name.toLowerCase} going")
-          .orElse(
-            ctx.semantic.flatMap(_.compensation).flatMap(c => Option(c.conversionPlan).map(_.trim).filter(_.nonEmpty))
-              .map(plan => s"keep ${plan.toLowerCase} alive")
-          )
-          .orElse(
-            thesis.support.collectFirst {
-              case text if text.toLowerCase.contains("open lines stay active") => "keep the open lines active"
-              case text if text.toLowerCase.contains("queenside targets stay tied down") => "keep the queenside targets tied down"
-              case text if text.toLowerCase.contains("central targets stay under pressure") => "keep the central targets under pressure"
-              case text if text.toLowerCase.contains("defenders stay tied to the king") => "keep the defenders tied to the king"
-            }
-          )
-          .orElse(Some("keep the initiative alive"))
-      case StrategicLens.Prophylaxis  => Some("keep the opponent's counterplay in check")
-      case StrategicLens.Structure    => Some("keep the structure's logic intact")
-      case StrategicLens.Decision     => Some("keep the move order coherent")
-      case StrategicLens.Practical    => Some("keep the practical task manageable")
-      case StrategicLens.Opening      => Some("finish development without giving up the center")
-
-  private def boolEnv(name: String, default: Boolean): Boolean =
-    sys.env
-      .get(name)
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on"  => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _                              => None
-      }
-      .getOrElse(default)
-
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
-
-  private def isBookmakerMode(ctx: NarrativeContext): Boolean =
-    ctx.renderMode == NarrativeRenderMode.Bookmaker
-
-  private def buildBookmakerThesisContextBeat(
-    thesis: StrategicThesis,
-    rec: TraceRecorder
-  ): OutlineBeat =
-    rec.use(s"strategicThesis.${thesis.lens.toString.toLowerCase}", thesis.claim, "Bookmaker thesis claim")
-    OutlineBeat(
-      kind = OutlineBeatKind.Context,
-      text = ensureSentence(thesis.claim),
-      conceptIds = List(s"thesis_${thesis.lens.toString.toLowerCase}"),
-      focusPriority = 100,
-      fullGameEssential = true
-    )
-
-  private def buildBookmakerThesisMainMoveBeat(
-    ctx: NarrativeContext,
-    thesis: StrategicThesis,
-    rec: TraceRecorder
-  ): OutlineBeat =
-    thesis.support.take(2).zipWithIndex.foreach { case (line, idx) =>
-      rec.use(s"strategicThesis.support[$idx]", line, "Bookmaker thesis support")
-    }
-    val mainText =
-      thesis.support
-        .take(2)
-        .map(ensureSentence)
-        .filter(_.nonEmpty)
-        .mkString(" ")
-        .trim
-    val fallbackText =
-      Option.when(mainText.isEmpty) {
-        val followUp =
-          topStrategicPlanName(ctx).map(primary => s"make $primary concrete")
-            .orElse(bookmakerThesisFallbackFollowUp(ctx, thesis))
-            .getOrElse("keep the position coordinated")
-        ensureSentence(s"The next step is to $followUp")
-      }.getOrElse("")
-    OutlineBeat(
-      kind = OutlineBeatKind.MainMove,
-      text = if mainText.nonEmpty then mainText else fallbackText,
-      anchors = ctx.playedSan.toList,
-      focusPriority = 92,
-      fullGameEssential = true
-    )
-
-  private def buildBookmakerThesisTensionBeat(
-    thesis: StrategicThesis,
-    rec: TraceRecorder
-  ): Option[OutlineBeat] =
-    val lines =
-      List(
-        thesis.tension.map(ensureSentence).filter(_.nonEmpty),
-        thesis.evidenceHook.map(ensureSentence).filter(_.nonEmpty)
-      ).flatten
-    if lines.isEmpty then None
-    else
-      thesis.tension.foreach(t => rec.use("strategicThesis.tension", t, "Bookmaker thesis tension"))
-      thesis.evidenceHook.foreach(e => rec.use("strategicThesis.evidenceHook", e, "Bookmaker thesis evidence"))
-      Some(
-        OutlineBeat(
-          kind = OutlineBeatKind.DecisionPoint,
-          text = lines.distinct.mkString(" "),
-          focusPriority = 88,
-          fullGameEssential = true
-        )
-      )
-
-  private def buildBookmakerThesisWrapUpBeat(
-    ctx: NarrativeContext,
-    thesis: StrategicThesis
-  ): Option[OutlineBeat] =
-    val parts = scala.collection.mutable.ListBuffer[String]()
-    if thesis.lens != StrategicLens.Practical then
-      ctx.semantic.flatMap(_.practicalAssessment).flatMap(buildBookmakerPracticalWrapSentence).foreach(parts += _)
-    if thesis.lens != StrategicLens.Compensation then
-      effectiveCompensationSignal(ctx).flatMap(buildBookmakerCompensationWrapSentence).foreach(parts += _)
-    Option.when(parts.nonEmpty) {
-      OutlineBeat(
-        kind = OutlineBeatKind.WrapUp,
-        text = parts.take(2).mkString(" "),
-        conceptIds = List("bookmaker_thesis_wrap"),
-        focusPriority = 72
-      )
-    }
 
   private def buildBookmakerPracticalWrapSentence(pa: PracticalInfo): Option[String] =
     val verdict = Option(pa.verdict).map(_.trim).filter(_.nonEmpty)
@@ -794,40 +654,59 @@ object NarrativeOutlineBuilder:
   private def buildDecisionBeat(
     ctx: NarrativeContext,
     questions: List[AuthorQuestion],
+    rankedPlans: RankedQuestionPlans,
+    plannerInputs: QuestionPlannerInputs,
     rec: TraceRecorder
   ): Option[OutlineBeat] =
-    val nonLatent = questions.filterNot(_.kind == AuthorQuestionKind.LatentPlan)
-    val questionOpt = nonLatent.headOption
-    val alignedQuestion = questionOpt.map { q =>
-      alignDecisionQuestionWithEvidence(q.question, ctx.authorEvidence.filter(_.questionId == q.id))
-    }
-    buildDecisionNarrativeText(ctx, alignedQuestion).map { text =>
-      val needsEvidenceSupport =
-        questionOpt.exists { q =>
-          alignedQuestion.exists(_ != q.question) &&
-            ctx.authorEvidence.exists(_.questionId == q.id)
+    rankedPlans.primary match
+      case Some(plan) =>
+        rec.use(s"planner.primary.${plan.questionId}", plan.claim, "Decision point")
+        val text =
+          List(
+            Some(plan.claim),
+            plan.contrast.filterNot(contrast => plan.claim.equalsIgnoreCase(contrast))
+          ).flatten.mkString(" ").trim
+        Some(
+          OutlineBeat(
+            kind = OutlineBeatKind.DecisionPoint,
+            text = text,
+            questionIds = List(plan.questionId),
+            questionKinds = List(plan.questionKind),
+            expectedEvidencePurposes = plan.evidence.map(_.purposes).getOrElse(Nil),
+            anchors =
+              questions.find(_.id == plan.questionId).toList.flatMap(_.anchors) ++
+                ctx.decision.flatMap(_.focalPoint.map(renderTargetRef)).toList,
+            requiresEvidence = plan.evidence.nonEmpty,
+            focusPriority = 96,
+            fullGameEssential = true,
+            supportKinds = Option.when(plan.evidence.nonEmpty)(List(OutlineBeatKind.Evidence)).getOrElse(Nil)
+          )
+        )
+      case None if questions.nonEmpty =>
+        plannerInputs.factualFallback.map { fallback =>
+          OutlineBeat(
+            kind = OutlineBeatKind.DecisionPoint,
+            text = fallback,
+            focusPriority = 96,
+            fullGameEssential = true
+          )
         }
-      questionOpt.foreach { q =>
-        rec.use(s"authorQuestions[${q.id}]", alignedQuestion.getOrElse(q.question), "Decision point")
-      }
-      ctx.decision.foreach { d =>
-        rec.use("decision.logicSummary", d.logicSummary, "Decision rationale")
-      }
-      ctx.meta.flatMap(_.whyNot).foreach { whyNot =>
-        rec.use("meta.whyNot", whyNot, "Decision meta")
-      }
-      OutlineBeat(
-        kind = OutlineBeatKind.DecisionPoint,
-        text = text,
-        questionIds = questionOpt.map(_.id).toList,
-        questionKinds = questionOpt.map(_.kind).toList,
-        anchors = (questionOpt.toList.flatMap(_.anchors) ++ ctx.decision.flatMap(_.focalPoint.map(renderTargetRef)).toList).distinct,
-        requiresEvidence = questionOpt.isDefined,
-        focusPriority = 96,
-        fullGameEssential = true,
-        supportKinds = Option.when(needsEvidenceSupport)(List(OutlineBeatKind.Evidence)).getOrElse(Nil)
-      )
-    }
+      case None =>
+        buildDecisionNarrativeText(ctx, None).map { text =>
+          ctx.decision.foreach { d =>
+            rec.use("decision.logicSummary", d.logicSummary, "Decision rationale")
+          }
+          ctx.meta.flatMap(_.whyNot).foreach { whyNot =>
+            rec.use("meta.whyNot", whyNot, "Decision meta")
+          }
+          OutlineBeat(
+            kind = OutlineBeatKind.DecisionPoint,
+            text = text,
+            anchors = ctx.decision.flatMap(_.focalPoint.map(renderTargetRef)).toList,
+            focusPriority = 96,
+            fullGameEssential = true
+          )
+        }
 
   private def buildDecisionNarrativeText(
     ctx: NarrativeContext,
@@ -893,23 +772,16 @@ object NarrativeOutlineBuilder:
     val mainPlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
     val primary = mainPlans.headOption
     val secondary = mainPlans.lift(1)
-    val latent = ctx.latentPlans.headOption
-    val holdReason =
-      (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-        .map(compactNarrativeReason)
-        .find(_.nonEmpty)
 
     val base =
       primary match
         case Some(main) if secondary.isDefined =>
           val backup = secondary.get.planName
-          Some(s"The strategic stack still favors ${main.planName} first, with $backup as the backup route.")
-        case Some(main) if holdReason.isDefined =>
-          Some(s"The strategic stack still favors ${main.planName}, while slower ideas stay secondary because ${holdReason.get}.")
+          Some(s"The main plan remains ${main.planName}, with $backup as the backup route.")
         case Some(main) =>
-          Some(s"The strategic stack still points first to ${main.planName}.")
+          Some(s"The main plan remains ${main.planName}.")
         case None =>
-          latent.map(lp => s"A slower idea like ${lp.planName} remains conditional for now.")
+          None
 
     base
       .map(ensureSentence)
@@ -1164,141 +1036,125 @@ object NarrativeOutlineBuilder:
   private def buildEvidenceBeat(
     ctx: NarrativeContext,
     questions: List[AuthorQuestion],
+    rankedPlans: RankedQuestionPlans,
     rec: TraceRecorder
   ): Option[OutlineBeat] =
-    // Primary: use authorEvidence if available
-    val relevantEvidence = ctx.authorEvidence.filter { ev =>
-      questions.exists(_.id == ev.questionId)
-    }
-
-    if relevantEvidence.nonEmpty then
-      val branches = dedupeEvidenceBranches(relevantEvidence.flatMap(_.branches)).take(3)
-      val renderedBranches =
-        branches.flatMap { b =>
-          LineScopedCitation.evidenceBranchDisplayLine(b).map(line => b -> line)
-        }
-      if renderedBranches.size >= 2 then
-        val labels = List("a)", "b)", "c)")
-        val formatted = renderedBranches.zip(labels).map { case ((b, line), label) =>
-          val evalPart = b.evalCp.map(cp => s" (${formatCp(cp)})").getOrElse("")
-          s"$label $line$evalPart"
-        }
-        val purposes = relevantEvidence.map(_.purpose).distinct
-        val qKinds = questions.filter(q => relevantEvidence.exists(_.questionId == q.id)).map(_.kind).distinct
-
-        rec.use("authorEvidence", purposes.mkString(","), "Evidence from authorEvidence")
-        return Some(OutlineBeat(
-          kind = OutlineBeatKind.Evidence,
-          text = formatted.mkString("\n"),
-          questionIds = relevantEvidence.map(_.questionId).distinct,
-          questionKinds = qKinds,
-          evidencePurposes = purposes
-        ))
-
-    // Fallback: use engineEvidence variations
-    ctx.engineEvidence.flatMap { ev =>
-      val variations =
-        sortVariationsForSideToMove(ctx.fen, ev.variations)
-          .flatMap(v => LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, v).map(citation => v -> citation))
-          .take(3)
-      if variations.size >= 2 then
-        val labels = List("a)", "b)", "c)")
-        val formatted = variations.zip(labels).map { case ((v, citation), label) =>
-          s"$label $citation (${formatCp(v.scoreCp)})"
-        }
-        rec.use("engineEvidence.variations", variations.size.toString, "Evidence fallback from engine PV")
-        Some(OutlineBeat(
-          kind = OutlineBeatKind.Evidence,
-          text = formatted.mkString("\n"),
-          evidencePurposes = List("engine_alternatives")
-        ))
-      else None
-    }
-
-  private def buildConditionalPlanBeat(
-    ctx: NarrativeContext,
-    question: AuthorQuestion,
-    rec: TraceRecorder
-  ): Option[OutlineBeat] =
-    question.latentPlan.map { lp =>
-      val narrativeLatent =
-        ctx.latentPlans.find(_.seedId == lp.seedId)
-      val renderedLatentPlan =
-        FullGameDraftNormalizer.renderLatentPlanText(
-          template = lp.narrative.template,
-          fen = ctx.fen,
-          seedId = lp.seedId,
-          fallbackPlanName = narrativeLatent.map(_.planName)
-        )
-      rec.use(s"latentPlan[${lp.seedId}]", renderedLatentPlan, "Conditional plan")
-
-      val hasViability = ctx.authorEvidence.exists { ev =>
-        ev.questionId == question.id &&
-          (ev.purpose == "free_tempo_branches" || ev.purpose == "latent_plan_immediate")
-      }
-      val hasRefutation = ctx.authorEvidence.exists { ev =>
-        ev.questionId == question.id && ev.purpose == "latent_plan_refutation"
-      }
-
-      val purposes =
-        (if hasViability then List("free_tempo_branches") else Nil) ++
-          (if hasRefutation then List("latent_plan_refutation") else Nil)
-      val heuristicPurposes =
-        if purposes.nonEmpty then Nil
-        else
-          Option.when(
-            narrativeLatent.exists(_.viabilityScore >= 0.58) ||
-              narrativeLatent.exists(lat => compactNarrativeReason(lat.whyAbsentFromTopMultiPv).nonEmpty)
-          )("latent_plan_heuristic").toList
-      val confidence =
-        if purposes.nonEmpty then 1.0
-        else (0.62 + narrativeLatent.map(_.viabilityScore).getOrElse(0.6) * 0.24).min(0.82)
-
+    rankedPlans.primary.flatMap(_.evidence).map { evidence =>
+      rec.use("planner.evidence", evidence.purposes.mkString(","), "Evidence from planner")
       OutlineBeat(
-        kind = OutlineBeatKind.ConditionalPlan,
-        text = renderedLatentPlan,
-        conceptIds = List(lp.seedId),
-        anchors = lp.candidateMoves.take(2).map(_.toString),
-        questionIds = List(question.id),
-        questionKinds = List(AuthorQuestionKind.LatentPlan),
-        evidencePurposes = purposes ++ heuristicPurposes,
-        requiresEvidence = purposes.nonEmpty,
-        confidenceLevel = confidence,
-        focusPriority = 84
+        kind = OutlineBeatKind.Evidence,
+        text = evidence.text,
+        questionIds = rankedPlans.primary.toList.map(_.questionId),
+        questionKinds = rankedPlans.primary.toList.map(_.questionKind),
+        evidencePurposes = evidence.purposes,
+        expectedEvidencePurposes = evidence.purposes,
+        evidenceSourceIds = evidence.sourceIds,
+        branchScoped = evidence.branchScoped
       )
+    }.orElse {
+      if questions.nonEmpty then None
+      else
+    // Primary: use authorEvidence if available
+        val relevantEvidence = ctx.authorEvidence.filter { ev =>
+          questions.exists(_.id == ev.questionId)
+        }
+
+        if relevantEvidence.nonEmpty then
+          val branches = dedupeEvidenceBranches(relevantEvidence.flatMap(_.branches)).take(3)
+          val renderedBranches =
+            branches.flatMap { b =>
+              LineScopedCitation.evidenceBranchDisplayLine(b).map(line => b -> line)
+            }
+          if renderedBranches.size >= 2 then
+            val labels = List("a)", "b)", "c)")
+            val formatted = renderedBranches.zip(labels).map { case ((b, line), label) =>
+              val evalPart = b.evalCp.map(cp => s" (${formatCp(cp)})").getOrElse("")
+              s"$label $line$evalPart"
+            }
+            val purposes = relevantEvidence.map(_.purpose).distinct
+            val qKinds = questions.filter(q => relevantEvidence.exists(_.questionId == q.id)).map(_.kind).distinct
+
+            rec.use("authorEvidence", purposes.mkString(","), "Evidence from authorEvidence")
+            Some(OutlineBeat(
+              kind = OutlineBeatKind.Evidence,
+              text = formatted.mkString("\n"),
+              questionIds = relevantEvidence.map(_.questionId).distinct,
+              questionKinds = qKinds,
+              evidencePurposes = purposes,
+              expectedEvidencePurposes =
+                questions
+                  .filter(q => relevantEvidence.exists(_.questionId == q.id))
+                  .flatMap(_.evidencePurposes)
+                  .distinct
+            ))
+          else None
+        else
+          // Fallback: use engineEvidence variations
+          ctx.engineEvidence.flatMap { ev =>
+            val variations =
+              sortVariationsForSideToMove(ctx.fen, ev.variations)
+                .flatMap(v => LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, v).map(citation => v -> citation))
+                .take(3)
+            if variations.size >= 2 then
+              val labels = List("a)", "b)", "c)")
+              val formatted = variations.zip(labels).map { case ((v, citation), label) =>
+                s"$label $citation (${formatCp(v.scoreCp)})"
+              }
+              rec.use("engineEvidence.variations", variations.size.toString, "Evidence fallback from engine PV")
+              Some(OutlineBeat(
+                kind = OutlineBeatKind.Evidence,
+                text = formatted.mkString("\n"),
+                evidencePurposes = List("engine_alternatives"),
+                expectedEvidencePurposes = questions.flatMap(_.evidencePurposes).distinct
+              ))
+            else None
+          }
     }
 
   /**
    * Build teaching beat with lower threshold (cpLoss > 20 instead of > 50).
    * Also adds fallback for counterfactual without motifs.
    */
-  private def buildTeachingBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): Option[OutlineBeat] =
-    ctx.counterfactual.flatMap { cf =>
-      val motifOpt =
-        cf.missedMotifs
-          .filter(_.category == MotifCategory.Tactical)
-          .sortBy(_.plyIndex)
-          .headOption
-          .orElse {
-            cf.missedMotifs
-              .filterNot(_.category == MotifCategory.King)
-              .sortBy(_.plyIndex)
-              .headOption
-          }
+  private def buildTeachingBeat(
+    ctx: NarrativeContext,
+    rankedPlans: RankedQuestionPlans,
+    rec: TraceRecorder
+  ): Option[OutlineBeat] =
+    rankedPlans.primary.flatMap(_.consequence).filter(_.beat == QuestionPlanConsequenceBeat.TeachingPoint).map { consequence =>
+      OutlineBeat(
+        kind = OutlineBeatKind.TeachingPoint,
+        text = consequence.text,
+        conceptIds = List("planner_consequence"),
+        focusPriority = 82
+      )
+    }.orElse {
+      ctx.counterfactual.flatMap { cf =>
+        val motifOpt =
+          cf.missedMotifs
+            .filter(_.category == MotifCategory.Tactical)
+            .sortBy(_.plyIndex)
+            .headOption
+            .orElse {
+              cf.missedMotifs
+                .filterNot(_.category == MotifCategory.King)
+                .sortBy(_.plyIndex)
+                .headOption
+            }
 
-      val hasTacticalTheme = motifOpt.exists(_.category == MotifCategory.Tactical)
-      val shouldShow = cf.cpLoss >= 50 && (hasTacticalTheme || cf.cpLoss >= 150)
-      if !shouldShow then None
-      else
-        rec.use("counterfactual", cf.userMove, "Teaching point")
-        counterfactualTeachingSentence(ctx, cf, motifOpt).map { text =>
-          OutlineBeat(
-            kind = OutlineBeatKind.TeachingPoint,
-            text = text,
-            conceptIds = List("teaching_counterfactual"),
-            anchors = List(cf.bestMove)
-          )
-        }
+        val hasTacticalTheme = motifOpt.exists(_.category == MotifCategory.Tactical)
+        val shouldShow = cf.cpLoss >= 50 && (hasTacticalTheme || cf.cpLoss >= 150)
+        if !shouldShow then None
+        else
+          rec.use("counterfactual", cf.userMove, "Teaching point")
+          counterfactualTeachingSentence(ctx, cf, motifOpt).map { text =>
+            OutlineBeat(
+              kind = OutlineBeatKind.TeachingPoint,
+              text = text,
+              conceptIds = List("teaching_counterfactual"),
+              anchors = List(cf.bestMove)
+            )
+          }
+      }
     }
 
   private def buildMainMoveBeat(
@@ -2187,12 +2043,15 @@ object NarrativeOutlineBuilder:
 
   private def buildWrapUpBeat(
     ctx: NarrativeContext,
-    bead: Int,
-    crossBeatState: CrossBeatRepetitionState
+    rankedPlans: RankedQuestionPlans,
+    bead: Int
   ): Option[OutlineBeat] =
     val parts = scala.collection.mutable.ListBuffer[String]()
     val cpWhite = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
 
+    rankedPlans.primary.flatMap(_.consequence).filter(_.beat == QuestionPlanConsequenceBeat.WrapUp).foreach { consequence =>
+      parts += consequence.text
+    }
     ctx.semantic.flatMap(_.practicalAssessment).foreach { pa =>
       parts += buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)
     }
@@ -3015,8 +2874,8 @@ object NarrativeOutlineBuilder:
         ply,
         List(
           text,
-          s"Strategic focus centers on ${terms.mkString(" and ")}.",
-          s"The position revolves around ${terms.mkString(" and ")}."
+          s"The position revolves around ${terms.mkString(" and ")}.",
+          s"The main strategic fight centers on ${terms.mkString(" and ")}."
         )
       )
       Some(polished)
@@ -3883,7 +3742,7 @@ object NarrativeOutlineBuilder:
           s"Both sides are currently focused on the $fileLabel channel.",
           s"Control of the $fileLabel is the main positional prize.",
           s"The structural fight revolves around $fileLabel possibilities.",
-          s"Strategic focus is sharpening along the $fileLabel."
+          s"Pressure is sharpening along the $fileLabel."
         ))
         BoardAnchor(text = text)
       }
@@ -4244,33 +4103,6 @@ object NarrativeOutlineBuilder:
 
   private def motifName(m: lila.llm.model.Motif): String =
     m.getClass.getSimpleName.replaceAll("\\$", "")
-
-  private def alignDecisionQuestionWithEvidence(
-    question: String,
-    evidence: List[QuestionEvidence]
-  ): String =
-    if evidence.isEmpty then question
-    else
-      val lower = question.toLowerCase
-      val recaptureMode = lower.contains("recapture")
-      val candidates0 = dedupeEvidenceBranches(evidence.flatMap(_.branches))
-        .flatMap(b => LineScopedCitation.evidenceBranchDisplayLine(b))
-      val candidates =
-        if recaptureMode then candidates0.filter(_.contains("x")).distinct
-        else candidates0.distinct
-
-      val picked = candidates.take(3)
-      if picked.size < 2 then question
-      else
-        val blackRecapture = recaptureMode && lower.contains("how should black")
-        val rendered =
-          picked.map { san =>
-            val core = san.replaceFirst("""^\.\.\.""", "")
-            if blackRecapture then s"...$core" else core
-          }
-        val stem = question.takeWhile(_ != '—').trim.stripSuffix("?")
-        if stem.nonEmpty && question.contains("—") then s"$stem —${joinWithOr(rendered)}?"
-        else question
 
   private def joinWithOr(items: List[String]): String =
     items match

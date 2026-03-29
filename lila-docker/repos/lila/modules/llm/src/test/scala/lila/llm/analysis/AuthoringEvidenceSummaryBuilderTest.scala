@@ -55,22 +55,23 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
 
   test("summarizeEvidence reports pending probe-backed author questions") {
     val question = AuthorQuestion(
-      id = "latent_1",
-      kind = AuthorQuestionKind.LatentPlan,
+      id = "why_this_1",
+      kind = AuthorQuestionKind.WhyThis,
       priority = 1,
-      question = "Can white keep the kingside bind after ...c5?",
+      question = "Why choose the kingside bind now?",
       why = Some("Need one probe to validate the latent plan."),
-      confidence = ConfidenceLevel.Probe
+      confidence = ConfidenceLevel.Probe,
+      evidencePurposes = List("reply_multipv")
     )
     val request = ProbeRequest(
-      id = "probe_latent_1",
+      id = "probe_why_this_1",
       fen = testFen,
       moves = List("g2g4"),
       depth = 18,
-      purpose = Some("latent_plan_refutation"),
-      questionId = Some("latent_1"),
-      questionKind = Some("LatentPlan"),
-      objective = Some("validate_latent_plan"),
+      purpose = Some("reply_multipv"),
+      questionId = Some("why_this_1"),
+      questionKind = Some("WhyThis"),
+      objective = Some("validate_reply_branch"),
       planName = Some("Kingside Bind"),
       seedId = Some("kingside_bind")
     )
@@ -80,11 +81,11 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
     val summary = surface.evidence.headOption.getOrElse(fail("missing author evidence summary"))
 
     assertEquals(summary.status, "pending")
-    assertEquals(summary.pendingProbeIds, List("probe_latent_1"))
+    assertEquals(summary.pendingProbeIds, List("probe_why_this_1"))
     assertEquals(summary.pendingProbeCount, 1)
     assertEquals(summary.linkedPlans, List("Kingside Bind", "kingside_bind"))
-    assertEquals(surface.questions.map(_.id), List("latent_1"))
-    assertEquals(surface.headline, Some("latent plan evidence is pending across 1 probe"))
+    assertEquals(surface.questions.map(_.id), List("why_this_1"))
+    assertEquals(surface.headline, Some("author evidence: 0 resolved, 1 pending"))
   }
 
   test("game narrative moment preserves authoring payload for API transport") {
@@ -95,29 +96,29 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
       analysisData = analysisData,
       probeRequests = List(
         ProbeRequest(
-          id = "probe_latent_1",
+          id = "probe_why_this_1",
           fen = testFen,
           moves = List("g2g4"),
           depth = 16,
-          questionId = Some("latent_1")
+          questionId = Some("why_this_1")
         )
       ),
       authorQuestions = List(
         AuthorQuestionSummary(
-          id = "latent_1",
-          kind = "LatentPlan",
+          id = "why_this_1",
+          kind = "WhyThis",
           priority = 1,
-          question = "Can white keep the kingside bind after ...c5?",
+          question = "Why choose the kingside bind now?",
           confidence = "Probe"
         )
       ),
       authorEvidence = List(
         AuthorEvidenceSummary(
-          questionId = "latent_1",
-          questionKind = "LatentPlan",
-          question = "Can white keep the kingside bind after ...c5?",
+          questionId = "why_this_1",
+          questionKind = "WhyThis",
+          question = "Why choose the kingside bind now?",
           status = "pending",
-          pendingProbeIds = List("probe_latent_1"),
+          pendingProbeIds = List("probe_why_this_1"),
           pendingProbeCount = 1
         )
       )
@@ -125,7 +126,7 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
 
     val apiMoment = GameChronicleMoment.fromArcMoment(moment)
 
-    assertEquals(apiMoment.probeRequests.map(_.id), List("probe_latent_1"))
-    assertEquals(apiMoment.authorQuestions.map(_.id), List("latent_1"))
+    assertEquals(apiMoment.probeRequests.map(_.id), List("probe_why_this_1"))
+    assertEquals(apiMoment.authorQuestions.map(_.id), List("why_this_1"))
     assertEquals(apiMoment.authorEvidence.map(_.status), List("pending"))
   }

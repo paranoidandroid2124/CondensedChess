@@ -32,7 +32,6 @@ object CommentaryEngine:
   private[llm] final case class TruthBoundArcMoment(
       moment: GameArcMoment,
       truthFrame: MoveTruthFrame,
-      rawStrategyPack: Option[lila.llm.StrategyPack],
       truthContract: DecisiveTruthContract
   )
 
@@ -46,82 +45,15 @@ object CommentaryEngine:
       ply: Int,
       momentType: String,
       selectionKind: String,
-      selectionLabel: Option[String],
-      selectionReason: Option[String],
-      traceSource: String,
-      anchorMoment: Boolean,
-      bridgeCandidate: Boolean,
-      selectedBridge: Boolean,
       finalInternal: Boolean,
       visibleMoment: Boolean,
       activeNoteMoment: Boolean,
       wholeGamePromoted: Boolean,
       strategicThreadId: Option[String],
-      moveClassification: Option[String],
-      playedMove: Option[String],
-      verifiedBestMove: Option[String],
       truthClass: String,
-      truthPhase: Option[String],
       reasonFamily: String,
-      ownershipRole: String,
-      visibilityRole: String,
-      surfaceMode: String,
-      exemplarRole: String,
-      surfacedMoveOwnsTruth: Boolean,
-      compensationAllowed: Boolean,
-      compensationProseAllowed: Boolean,
-      benchmarkProseAllowed: Boolean,
-      verifiedPayoffAnchor: Option[String],
-      chainKey: Option[String],
-      moveQualityVerdict: String,
-      cpLoss: Int,
-      swingSeverity: Int,
-      severityBand: String,
-      investedMaterialCp: Option[Int],
-      beforeDeficit: Int,
-      afterDeficit: Int,
-      deficitDelta: Int,
-      movingPieceValue: Int,
-      capturedPieceValue: Int,
-      sacrificeKind: Option[String],
-      valueDownCapture: Boolean,
-      increasesDeficit: Boolean,
-      recoversDeficit: Boolean,
-      overinvestment: Boolean,
-      uncompensatedLoss: Boolean,
-      forcedRecovery: Boolean,
-      createsFreshInvestment: Boolean,
-      maintainsInvestment: Boolean,
-      convertsInvestment: Boolean,
-      durablePressure: Boolean,
-      currentMoveEvidence: Boolean,
-      currentConcreteCarrier: Boolean,
-      freshCommitmentCandidate: Boolean,
-      ownerEligible: Boolean,
-      legacyVisibleOnly: Boolean,
       maintenanceExemplarCandidate: Boolean,
-      evidenceProvenance: List[String],
-      failureMode: String,
-      failureIntentConfidence: Double,
-      failureIntentAnchor: Option[String],
-      failureInterpretationAllowed: Boolean,
-      rawDominantIdea: Option[String],
-      rawSecondaryIdea: Option[String],
-      rawExecution: Option[String],
-      rawObjective: Option[String],
-      rawFocus: Option[String],
-      rawLongTermFocus: List[String],
-      rawDirectionalTargets: List[String],
-      rawPieceRoutes: List[String],
-      rawPieceMoveRefs: List[String],
-      rawCompensationSummary: Option[String],
-      rawCompensationVectors: List[String],
-      rawInvestedMaterial: Option[Int],
-      sanitizedDominantIdea: Option[String],
-      sanitizedSecondaryIdea: Option[String],
-      sanitizedExecution: Option[String],
-      sanitizedObjective: Option[String],
-      sanitizedFocus: Option[String]
+      threadRepresentativeSelected: Boolean = false
   )
 
   private[llm] final case class GameArcDiagnostic(
@@ -676,7 +608,12 @@ object CommentaryEngine:
             internalMomentNarratives.map(bound => GameChronicleMoment.fromArcMoment(bound.moment)),
             truthContractsByPly
           )
-        val visibleMomentPlies = projection.selectedMoments.map(_.ply).toSet
+        val visibleMomentPlies =
+          applyVisibleCommentabilityPass(
+            selectedVisiblePlies = projection.selectedMoments.map(_.ply),
+            bounds = internalMomentNarratives,
+            threadRefsByPly = projection.threadRefsByPly
+          )
         val promotedWholeGamePly =
           selectWholeGamePromotionPly(
             internalMomentNarratives.map(_.moment),
@@ -718,6 +655,7 @@ object CommentaryEngine:
             moments = momentNarratives,
             strategicThreads = projection.threads,
             themes = allThemes,
+            result = metadata.result,
             truthContractsByPly = truthContractsByPly.filter { case (ply, _) => finalVisibleMomentPlies.contains(ply) }
           )
 
@@ -746,14 +684,11 @@ object CommentaryEngine:
         val canonicalTraceMoments =
           buildTruthTraceMoments(
             bounds = internalMomentNarratives,
-            anchorPlies = anchorPlies,
-            candidateBridgePlies = candidateBridgePlies,
-            selectedBridgePlies = selectedBridgePlies,
             finalVisibleMomentPlies = finalVisibleMomentPlies,
             activeNotePlies = activeNotePlies,
             promotedWholeGamePly = promotedWholeGamePly,
-            threadRefsByPly = projection.threadRefsByPly,
-            traceSource = "canonical_internal"
+            selection = projection,
+            finalInternal = true
           )
 
         val witnessOnlyMoments =
@@ -781,14 +716,11 @@ object CommentaryEngine:
               ).filter(_.moment.selectionKind == "diagnostic_witness")
             buildTruthTraceMoments(
               bounds = witnessBounds,
-              anchorPlies = anchorPlies,
-              candidateBridgePlies = candidateBridgePlies,
-              selectedBridgePlies = selectedBridgePlies,
               finalVisibleMomentPlies = Set.empty,
               activeNotePlies = Set.empty,
               promotedWholeGamePly = None,
-              threadRefsByPly = projection.threadRefsByPly,
-              traceSource = "diagnostic_witness"
+              selection = projection,
+              finalInternal = false
             )
 
         GameArcDiagnostic(
@@ -851,121 +783,32 @@ object CommentaryEngine:
 
   private def buildTruthTraceMoments(
       bounds: List[TruthBoundArcMoment],
-      anchorPlies: Set[Int],
-      candidateBridgePlies: Set[Int],
-      selectedBridgePlies: Set[Int],
       finalVisibleMomentPlies: Set[Int],
       activeNotePlies: Set[Int],
       promotedWholeGamePly: Option[Int],
-      threadRefsByPly: Map[Int, lila.llm.ActiveStrategicThreadRef],
-      traceSource: String
+      selection: StrategicBranchSelector.StrategicBranchSelection,
+      finalInternal: Boolean
   ): List[TruthTraceMoment] =
     bounds.sortBy(_.moment.ply).map { bound =>
       val moment = bound.moment
       val frame = bound.truthFrame
       val contract = bound.truthContract
-      val projection = DecisiveTruth.momentProjection(moment, Some(contract))
-      val rawSurface = StrategyPackSurface.from(bound.rawStrategyPack)
-      val sanitizedSurface = StrategyPackSurface.from(moment.strategyPack)
-      val material = frame.materialEconomics
-      val ownership = frame.strategicOwnership
-      val failure = frame.failureInterpretation
       TruthTraceMoment(
         ply = moment.ply,
         momentType = moment.momentType,
         selectionKind = moment.selectionKind,
-        selectionLabel = moment.selectionLabel,
-        selectionReason = moment.selectionReason,
-        traceSource = traceSource,
-        anchorMoment = anchorPlies.contains(moment.ply),
-        bridgeCandidate = candidateBridgePlies.contains(moment.ply),
-        selectedBridge = selectedBridgePlies.contains(moment.ply),
-        finalInternal = traceSource == "canonical_internal",
+        finalInternal = finalInternal,
         visibleMoment = finalVisibleMomentPlies.contains(moment.ply),
         activeNoteMoment = activeNotePlies.contains(moment.ply),
         wholeGamePromoted = promotedWholeGamePly.contains(moment.ply),
-        strategicThreadId = threadRefsByPly.get(moment.ply).map(_.threadId),
-        moveClassification = moment.moveClassification,
-        playedMove = frame.playedMove,
-        verifiedBestMove = frame.verifiedBestMove,
+        strategicThreadId = selection.threadRefsByPly.get(moment.ply).map(_.threadId),
         truthClass = frame.truthClass.toString,
-        truthPhase = contract.truthPhase.map(_.toString),
         reasonFamily = contract.reasonFamily.toString,
-        ownershipRole = projection.ownershipRole.toString,
-        visibilityRole = projection.visibilityRole.toString,
-        surfaceMode = projection.surfaceMode.toString,
-        exemplarRole = projection.exemplarRole.toString,
-        surfacedMoveOwnsTruth = projection.surfacedMoveOwnsTruth,
-        compensationAllowed = contract.compensationAllowed,
-        compensationProseAllowed = contract.compensationProseAllowed,
-        benchmarkProseAllowed = projection.benchmarkProseAllowed,
-        verifiedPayoffAnchor = projection.verifiedPayoffAnchor,
-        chainKey = projection.chainKey,
-        moveQualityVerdict = frame.moveQuality.verdict.toString,
-        cpLoss = frame.moveQuality.cpLoss,
-        swingSeverity = frame.moveQuality.swingSeverity,
-        severityBand = frame.moveQuality.severityBand,
-        investedMaterialCp = material.investedMaterialCp,
-        beforeDeficit = material.beforeDeficit,
-        afterDeficit = material.afterDeficit,
-        deficitDelta = material.deficitDelta,
-        movingPieceValue = material.movingPieceValue,
-        capturedPieceValue = material.capturedPieceValue,
-        sacrificeKind = material.sacrificeKind,
-        valueDownCapture = material.valueDownCapture,
-        increasesDeficit = material.increasesDeficit,
-        recoversDeficit = material.recoversDeficit,
-        overinvestment = material.overinvestment,
-        uncompensatedLoss = material.uncompensatedLoss,
-        forcedRecovery = material.forcedRecovery,
-        createsFreshInvestment = ownership.createsFreshInvestment,
-        maintainsInvestment = ownership.maintainsInvestment,
-        convertsInvestment = ownership.convertsInvestment,
-        durablePressure = ownership.durablePressure,
-        currentMoveEvidence = ownership.currentMoveEvidence,
-        currentConcreteCarrier = ownership.currentConcreteCarrier,
-        freshCommitmentCandidate = ownership.freshCommitmentCandidate,
-        ownerEligible = ownership.ownerEligible,
-        legacyVisibleOnly = ownership.legacyVisibleOnly,
-        maintenanceExemplarCandidate = ownership.maintenanceExemplarCandidate,
-        evidenceProvenance = ownership.evidenceProvenance.toList.map(_.toString).sorted,
-        failureMode = failure.failureMode.toString,
-        failureIntentConfidence = failure.intentConfidence,
-        failureIntentAnchor = failure.intentAnchor,
-        failureInterpretationAllowed = failure.interpretationAllowed,
-        rawDominantIdea = rawSurface.rawDominantIdeaText,
-        rawSecondaryIdea = rawSurface.rawSecondaryIdeaText,
-        rawExecution = rawSurface.rawExecutionText,
-        rawObjective = rawSurface.rawObjectiveText,
-        rawFocus = rawSurface.rawFocusText,
-        rawLongTermFocus = bound.rawStrategyPack.toList.flatMap(_.longTermFocus.map(_.trim).filter(_.nonEmpty)).distinct,
-        rawDirectionalTargets = bound.rawStrategyPack.toList.flatMap(_.directionalTargets.map(renderDirectionalTarget)).distinct,
-        rawPieceRoutes = bound.rawStrategyPack.toList.flatMap(_.pieceRoutes.map(renderPieceRoute)).distinct,
-        rawPieceMoveRefs = bound.rawStrategyPack.toList.flatMap(_.pieceMoveRefs.map(renderPieceMoveRef)).distinct,
-        rawCompensationSummary = rawSurface.compensationSummary,
-        rawCompensationVectors = rawSurface.compensationVectors,
-        rawInvestedMaterial = rawSurface.investedMaterial,
-        sanitizedDominantIdea = sanitizedSurface.dominantIdeaText,
-        sanitizedSecondaryIdea = sanitizedSurface.secondaryIdeaText,
-        sanitizedExecution = sanitizedSurface.executionText,
-        sanitizedObjective = sanitizedSurface.objectiveText,
-        sanitizedFocus = sanitizedSurface.focusText
+        maintenanceExemplarCandidate = frame.strategicOwnership.maintenanceExemplarCandidate,
+        threadRepresentativeSelected =
+          selection.threadRepresentativeSelectedPlies.contains(moment.ply)
       )
     }
-
-  private def renderPieceRoute(route: lila.llm.StrategyPieceRoute): String =
-    val path = (route.from :: route.route).filter(_.trim.nonEmpty).mkString("->")
-    s"${route.ownerSide}:${route.piece}:$path:${route.purpose}"
-
-  private def renderPieceMoveRef(moveRef: lila.llm.StrategyPieceMoveRef): String =
-    s"${moveRef.ownerSide}:${moveRef.piece}:${moveRef.from}->${moveRef.target}:${moveRef.idea}"
-
-  private def renderDirectionalTarget(target: lila.llm.StrategyDirectionalTarget): String =
-    val reason =
-      target.strategicReasons.map(_.trim).find(_.nonEmpty)
-        .orElse(target.prerequisites.map(_.trim).find(_.nonEmpty))
-        .getOrElse(target.readiness)
-    s"${target.ownerSide}:${target.piece}:${target.from}->${target.targetSquare}:$reason"
 
   private def buildMoveEvals(
       plyDataList: List[lila.llm.PgnAnalysisHelper.PlyData],
@@ -1187,7 +1030,7 @@ object CommentaryEngine:
                   truthContract
                 )
               val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
-              val preparedNarrative = buildHybridNarrativeParts(ctx, moment, Some(truthContract))
+              val preparedNarrative = buildHybridNarrativeParts(ctx, moment, Some(truthContract), strategyPack)
               val signalDigest =
                 buildMomentSignalDigest(
                   ctx,
@@ -1214,7 +1057,7 @@ object CommentaryEngine:
                 if truthContract.isBad || narrativeEvent == "SustainedPressure" then
                   CausalCollapseAnalyzer.analyze(moment.ply, moveEvals, data)
                 else None
-              val evidenceEligible =
+              val probeSurfaceEligible =
                 evidenceMomentsUsed < FullGameEvidenceSurfacePolicy.MaxMoments &&
                   FullGameEvidenceSurfacePolicy.eligible(narrativeEvent, ctx, focusedOutline)
               val internalProbeCandidate =
@@ -1227,8 +1070,8 @@ object CommentaryEngine:
                   strategyPack = strategyPack
                 )
               val surfacedEvidence =
-                FullGameEvidenceSurfacePolicy.payload(
-                  eligible = evidenceEligible,
+                FullGameEvidenceSurfacePolicy.runtimePayload(
+                  allowProbeRequests = probeSurfaceEligible,
                   probeRequests = ctx.probeRequests,
                   authorQuestions = authoringSurface.questions,
                   authorEvidence = authoringSurface.evidence
@@ -1281,8 +1124,8 @@ object CommentaryEngine:
                         plan.subplanId.getOrElse("").equalsIgnoreCase(experiment.subplanId.getOrElse(""))
                     )
                   ),
-                latentPlans = ctx.latentPlans.take(2),
-                whyAbsentFromTopMultiPV = ctx.whyAbsentFromTopMultiPV.take(3),
+                latentPlans = Nil,
+                whyAbsentFromTopMultiPV = Nil,
                 truthPhase = truthContract.truthPhase.map(_.toString),
                 surfacedMoveOwnsTruth = truthContract.surfacedMoveOwnsTruth,
                 verifiedPayoffAnchor = truthContract.verifiedPayoffAnchor,
@@ -1293,12 +1136,11 @@ object CommentaryEngine:
 
               val nextRef = ctx.openingData.orElse(prevRef)
               val nextEvidenceCount =
-                evidenceMomentsUsed + (if surfacedEvidence.nonEmpty then 1 else 0)
+                evidenceMomentsUsed + (if surfacedEvidence.probeRequests.nonEmpty then 1 else 0)
               val truthBoundMoment =
                 TruthBoundArcMoment(
                   moment = momentNarrative,
                   truthFrame = truthFrame,
-                  rawStrategyPack = rawStrategyPack,
                   truthContract = truthContract
                 )
               (acc :+ (truthBoundMoment -> internalProbeCandidate), Some(data), ctx.updatedBudget, nextRef, nextEvidenceCount)
@@ -1339,28 +1181,45 @@ object CommentaryEngine:
       moments: List[GameArcMoment],
       strategicThreads: List[lila.llm.ActiveStrategicThread],
       themes: List[String],
+      result: String = "*",
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): WholeGameConclusionSupport =
     val decisiveMoment = selectWholeGameDecisiveMoment(moments, truthContractsByPly)
+    val decisiveProofMoment = decisiveMoment.filter(moment => wholeGameHasDecisiveProof(moment, truthContractsByPly))
+    val decisiveNarrativeAllowed =
+      PlayerFacingTruthModePolicy.allowWholeGameDecisiveNarrative(result) &&
+        decisiveProofMoment.nonEmpty
     val payoffMoment =
-      decisiveMoment
-        .filter(moment => wholeGameOwnsTruth(moment, truthContractsByPly) && isPunishOrConversionMoment(moment, truthContractsByPly))
-        .orElse(
-          moments
+      if !decisiveNarrativeAllowed then None
+      else
+          decisiveProofMoment
             .filter(moment => wholeGameOwnsTruth(moment, truthContractsByPly) && isPunishOrConversionMoment(moment, truthContractsByPly))
-            .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
-            .headOption
-        ).orElse(
-          moments
-            .filter(moment => isPunishOrConversionMoment(moment, truthContractsByPly))
-            .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
-            .headOption
-        )
+            .orElse(
+              moments
+                .filter(moment => wholeGameOwnsTruth(moment, truthContractsByPly) && isPunishOrConversionMoment(moment, truthContractsByPly))
+                .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
+              .headOption
+          ).orElse(
+            moments
+              .filter(moment => isPunishOrConversionMoment(moment, truthContractsByPly))
+              .sortBy(moment => (-wholeGameMomentPriority(moment, truthContractsByPly), -wholeGameMomentSwing(moment), moment.ply))
+              .headOption
+          )
+
+    val mainContest = buildWholeGameMainContest(strategicThreads, themes)
+    val decisiveShift =
+      Option.when(decisiveNarrativeAllowed)(decisiveProofMoment.flatMap(moment => buildWholeGameDecisiveShiftSentence(moment, truthContractsByPly))).flatten
+    val payoff =
+      Option.when(decisiveNarrativeAllowed)(payoffMoment.flatMap(moment => buildWholeGamePayoffSentence(moment, truthContractsByPly))).flatten
+    val collapseResolutionWrappers = strategicThreads.nonEmpty && mainContest.nonEmpty
+    def distinctFromMainContest(text: String): Boolean =
+      !collapseResolutionWrappers ||
+        mainContest.forall(keptContest => !NarrativeDedupCore.sameSemanticSentence(text, keptContest))
 
     WholeGameConclusionSupport(
-      mainContest = buildWholeGameMainContest(strategicThreads, themes),
-      decisiveShift = decisiveMoment.flatMap(moment => buildWholeGameDecisiveShiftSentence(moment, truthContractsByPly)),
-      payoff = payoffMoment.flatMap(moment => buildWholeGamePayoffSentence(moment, truthContractsByPly))
+      mainContest = mainContest,
+      decisiveShift = decisiveShift.filter(distinctFromMainContest),
+      payoff = payoff.filter(distinctFromMainContest)
     )
 
   private def selectWholeGameDecisiveMoment(
@@ -1375,6 +1234,22 @@ object CommentaryEngine:
       }
       .headOption
       .map(_._1)
+
+  private def wholeGameHasDecisiveProof(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): Boolean =
+    wholeGameTruthContract(moment, truthContractsByPly).exists { contract =>
+      contract.truthClass == DecisiveTruthClass.Blunder ||
+      contract.truthClass == DecisiveTruthClass.MissedWin ||
+      contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+      contract.verifiedPayoffAnchor.nonEmpty ||
+      contract.surfaceMode == TruthSurfaceMode.ConversionExplain ||
+      contract.surfaceMode == TruthSurfaceMode.FailureExplain ||
+      contract.ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+      contract.ownershipRole == TruthOwnershipRole.ConversionOwner ||
+      contract.ownershipRole == TruthOwnershipRole.BlunderOwner
+    }
 
   private def buildWholeGameMainContest(
       strategicThreads: List[lila.llm.ActiveStrategicThread],
@@ -1445,44 +1320,47 @@ object CommentaryEngine:
       moment: GameArcMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): Option[String] =
-    val anchorText = rawAnchorText.trim.stripSuffix(".")
-    Option.when(anchorText.nonEmpty) {
-      val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
-      val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
-      val surfaceMode = wholeGameSurfaceMode(moment, truthContractsByPly)
-      val classification = wholeGameClassification(moment, truthContractsByPly)
-      val shiftLead =
-        if ownershipRole == TruthOwnershipRole.ConversionOwner || surfaceMode == TruthSurfaceMode.ConversionExplain then
-          "The decisive shift came through"
-        else if ownershipRole == TruthOwnershipRole.BlunderOwner then
-          "The decisive shift came through"
-        else if classification == "missedwin" then
-          "The decisive shift came through"
-        else if ownershipRole == TruthOwnershipRole.CommitmentOwner then "The decisive shift came through"
-        else if normalizedWholeGameText(moment.momentType).exists(_.contains("sustainedpressure")) then
-          "The long strategic pressure finally became concrete through"
-        else
-          "The turning point came through"
-      s"$shiftLead $anchorText."
-    }
+    cleanedWholeGameAnchor(rawAnchorText)
+      .filterNot(wholeGameAnchorLooksTooRough)
+      .filterNot(wholeGameSupportAnchorIsGenericFragment)
+      .map { anchorText =>
+        val transition = normalizedWholeGameText(moment.transitionType.getOrElse("")).getOrElse("")
+        val ownershipRole = wholeGameOwnershipRole(moment, truthContractsByPly)
+        val surfaceMode = wholeGameSurfaceMode(moment, truthContractsByPly)
+        val classification = wholeGameClassification(moment, truthContractsByPly)
+        val shiftLead =
+          if ownershipRole == TruthOwnershipRole.ConversionOwner || surfaceMode == TruthSurfaceMode.ConversionExplain then
+            "The decisive shift came through"
+          else if ownershipRole == TruthOwnershipRole.BlunderOwner then
+            "The decisive shift came through"
+          else if classification == "missedwin" then
+            "The decisive shift came through"
+          else if ownershipRole == TruthOwnershipRole.CommitmentOwner then "The decisive shift came through"
+          else if normalizedWholeGameText(moment.momentType).exists(_.contains("sustainedpressure")) then
+            "The long strategic pressure finally became concrete through"
+          else
+            "The turning point came through"
+        s"$shiftLead $anchorText."
+      }
 
   private def renderWholeGamePayoffSentence(
       rawAnchorText: String,
       moment: GameArcMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): Option[String] =
-    val anchorText = rawAnchorText.trim.stripSuffix(".")
-    Option.when(anchorText.nonEmpty) {
-      wholeGameClassification(moment, truthContractsByPly) match
-        case "blunder" =>
-          s"The punishment story ran through $anchorText."
-        case "missedwin" =>
-          s"The winning route was $anchorText."
-        case _ =>
-          "The conversion route ran through " + anchorText + "."
-    }.filter { _ =>
-      isPunishOrConversionMoment(moment, truthContractsByPly)
-    }
+    cleanedWholeGameAnchor(rawAnchorText)
+      .filterNot(wholeGameAnchorLooksTooRough)
+      .filterNot(wholeGameSupportAnchorIsGenericFragment)
+      .map { anchorText =>
+        wholeGameClassification(moment, truthContractsByPly) match
+          case "blunder" =>
+            s"The punishment story ran through $anchorText."
+          case "missedwin" =>
+            s"The winning route was $anchorText."
+          case _ =>
+            "The conversion route ran through " + anchorText + "."
+      }
+      .filter(_ => isPunishOrConversionMoment(moment, truthContractsByPly))
 
   private def extractWholeGameStructuredAnchor(
       moment: GameArcMoment,
@@ -1510,6 +1388,7 @@ object CommentaryEngine:
       .filterNot(sentence => bodyAlreadyFramesMoment(sentence))
       .filterNot(sentence => wholeGameSentenceHasRoughAnchor(sentence))
       .filterNot(sentence => wholeGameNarrativeSentenceHasMetaLeakage(sentence))
+      .filter(sentence => UserFacingProseHardGate.validateSanitized(sentence).isAccepted)
       .find(sentence => wholeGameNarrativeSentenceEligible(sentence, moment))
       .map(sentence => WholeGameAnchor(sentence, fullSentence = true))
 
@@ -1616,7 +1495,11 @@ object CommentaryEngine:
       .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
       .map(_.replace("**", "").trim)
       .map(_.stripSuffix(".").trim)
-      .filter(text => text.nonEmpty && LiveNarrativeCompressionCore.systemLanguageHits(text).isEmpty)
+      .filter(text =>
+        text.nonEmpty &&
+          LiveNarrativeCompressionCore.systemLanguageHits(text).isEmpty &&
+          UserFacingProseHardGate.validateSanitized(text).isAccepted
+      )
 
   private def normalizedWholeGameText(
       raw: String
@@ -1930,7 +1813,8 @@ object CommentaryEngine:
   private[llm] def buildHybridNarrativeParts(
       ctx: NarrativeContext,
       moment: KeyMoment,
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      strategyPack: Option[lila.llm.StrategyPack] = None
   ): HybridNarrativeParts = {
       val bead = Math.abs(ctx.hashCode) ^ (moment.ply * 0x9e3779b9)
       val phase = ctx.phase.current
@@ -1956,7 +1840,7 @@ object CommentaryEngine:
       )
       val criticalBranch =
         Option.when(!collapsedEarlyOpening)(buildCriticalBranchNarrative(ctx, rankedVars, bead, truthContract)).flatten
-      val validatedOutline = BookStyleRenderer.validatedOutline(ctx, truthContract)
+      val validatedOutline = BookStyleRenderer.validatedOutline(ctx, truthContract, strategyPack)
       val focusedOutline = focusMomentOutline(validatedOutline, criticalBranch.nonEmpty, Some(ctx))
 
       val bookBody =
@@ -1989,20 +1873,6 @@ object CommentaryEngine:
       )
   }
 
-  private[llm] def buildHybridNarrativeBridge(
-      ctx: NarrativeContext,
-      parts: HybridNarrativeParts,
-      strategyPack: Option[lila.llm.StrategyPack] = None,
-      @unused signalDigest: Option[NarrativeSignalDigest] = None,
-      truthContract: Option[DecisiveTruthContract] = None
-  ): String =
-    StrategicThesisBuilder.build(ctx, strategyPack, truthContract)
-      .map(_.claim.trim)
-      .filter(_.nonEmpty)
-      .filterNot(sentenceAlreadyInBody(_, parts.body))
-      .orElse(outlineBridgeCandidate(parts.focusedOutline).filterNot(sentenceAlreadyInBody(_, parts.body)))
-      .getOrElse(parts.defaultBridge)
-
   private[llm] def renderHybridMomentNarrative(
     ctx: NarrativeContext,
     moment: KeyMoment,
@@ -2011,91 +1881,64 @@ object CommentaryEngine:
     prepared: Option[HybridNarrativeParts] = None,
     truthContract: Option[DecisiveTruthContract] = None
   ): (String, NarrativeOutline) = {
-    val parts = prepared.getOrElse(buildHybridNarrativeParts(ctx, moment, truthContract))
-    StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract) match
-      case Some(note) => (note, parts.focusedOutline)
-      case None =>
-        val rendered = GameChronicleCompressionPolicy.render(ctx, parts).getOrElse("")
-        (
-          EarlyOpeningNarrationPolicy.clampNarrative(
-            ctx,
-            StandardCommentaryClaimPolicy.finalizeProse(
-              ctx,
-              FullGameDraftNormalizer.normalize(rendered).trim,
-              truthContract
-            ),
-            truthContract
-          ),
-          parts.focusedOutline
-        )
+    val parts = prepared.getOrElse(buildHybridNarrativeParts(ctx, moment, truthContract, strategyPack))
+    val rendered = GameChronicleCompressionPolicy.render(ctx, parts, strategyPack, truthContract).getOrElse("")
+    (
+      EarlyOpeningNarrationPolicy.clampNarrative(
+        ctx,
+        StandardCommentaryClaimPolicy.sanitizeOnly(
+          ctx,
+          FullGameDraftNormalizer.normalize(rendered).trim,
+          truthContract
+        ),
+        truthContract
+      ),
+      parts.focusedOutline
+    )
   }
 
-  private[llm] def assembleHybridNarrativeDraft(
-      lead: String,
-      bridge: String,
-      criticalBranch: Option[String],
-      body: String,
-      primaryPlan: Option[String],
-      suppressPreface: Boolean = false
-  ): String =
-    val trimmedBody = trimHybridBodyRepetition(body, primaryPlan)
-    val includeLead = !suppressPreface && trimmedBody.nonEmpty && !bodyAlreadyFramesMoment(trimmedBody)
-    val includeBridge = !suppressPreface && trimmedBody.nonEmpty && !bodyAlreadyCarriesPrimaryThesis(trimmedBody, primaryPlan)
-    val preface =
-      List(
-        Option.when(includeLead)(lead).getOrElse(""),
-        Option.when(includeBridge)(bridge).getOrElse("")
-      ).map(_.trim).filter(_.nonEmpty).mkString(" ")
-    val parts = List(preface, criticalBranch.getOrElse(""), trimmedBody).map(_.trim).filter(_.nonEmpty)
-    val renderedRaw =
-      if parts.nonEmpty then parts.mkString("\n\n")
-      else if trimmedBody.nonEmpty then trimmedBody
-      else preface
-    FullGameDraftNormalizer.normalize(renderedRaw)
-
-  private[llm] def trimHybridBodyRepetition(
-      body: String,
-      primaryPlan: Option[String]
-  ): String =
-    val sentences = splitNarrativeSentences(body)
-    val kept = scala.collection.mutable.ListBuffer.empty[String]
-    val seenFingerprints = scala.collection.mutable.Set.empty[String]
-    var keptPlanThesis = false
-
-    sentences.foreach { sentence =>
-      val trimmed = sentence.trim
-      if trimmed.nonEmpty then
-        val fingerprint = normalizeNarrativeFingerprint(trimmed)
-        val thesisSentence = isPlanThesisSentence(trimmed, primaryPlan)
-        val dropAsDuplicate = fingerprint.nonEmpty && seenFingerprints.contains(fingerprint)
-        val dropAsMeta =
-          isLowValueHybridMetaSentence(trimmed) ||
-            (keptPlanThesis && isGenericPhaseRestatement(trimmed)) ||
-            (keptPlanThesis && thesisSentence)
-        if !dropAsDuplicate && !dropAsMeta then
-          kept += trimmed
-          if fingerprint.nonEmpty then seenFingerprints += fingerprint
-          if thesisSentence then keptPlanThesis = true
+  private[llm] def applyVisibleCommentabilityPass(
+      selectedVisiblePlies: List[Int],
+      bounds: List[TruthBoundArcMoment],
+      threadRefsByPly: Map[Int, lila.llm.ActiveStrategicThreadRef]
+  ): Set[Int] =
+    val boundByPly = bounds.map(bound => bound.moment.ply -> bound).toMap
+    val commentablePlies =
+      bounds.collect {
+        case bound if hasCommentableNarrative(bound.moment.narrative) => bound.moment.ply
+      }.toSet
+    val threadCandidates: Map[String, List[Int]] =
+      bounds
+        .flatMap(bound =>
+          threadRefsByPly.get(bound.moment.ply).map(ref => (ref.threadId, bound.moment.ply))
+        )
+        .groupMap(_._1)(_._2)
+        .view
+        .mapValues(_.filter(commentablePlies.contains).sorted)
+        .toMap
+    val accepted = scala.collection.mutable.LinkedHashSet.empty[Int]
+    selectedVisiblePlies.foreach { ply =>
+      val chosen =
+        if commentablePlies.contains(ply) then Some(ply)
+        else
+          threadRefsByPly.get(ply)
+            .flatMap(ref =>
+              threadCandidates.getOrElse(ref.threadId, Nil).find(candidate =>
+                candidate > ply && !accepted.contains(candidate)
+              )
+            )
+      chosen.foreach(accepted += _)
     }
+    accepted.toSet
 
-    val deduped = kept.mkString(" ").trim
-    if deduped.nonEmpty then deduped else body.trim
+  private def hasCommentableNarrative(text: String): Boolean =
+    Option(text).exists(_.trim.nonEmpty)
 
   private def splitNarrativeSentences(text: String): List[String] =
-    Option(text)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .map(_.split("(?<=[.!?])\\s+").toList)
-      .getOrElse(Nil)
+    NarrativeDedupCore.splitSentences(text)
 
   private def normalizeNarrativeFingerprint(text: String): String =
-    Option(text)
-      .getOrElse("")
-      .replace("**", "")
-      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
-      .replaceAll("""\s+""", " ")
-      .trim
-      .toLowerCase
+    NarrativeDedupCore.normalizeFingerprint(text)
 
   private def bodyAlreadyFramesMoment(body: String): Boolean =
     val low = normalizeNarrativeFingerprint(body)
@@ -2106,41 +1949,6 @@ object CommentaryEngine:
       low.startsWith("in the opening block") ||
       low.startsWith("in the middlegame block") ||
       low.startsWith("in the endgame block")
-
-  private def bodyAlreadyCarriesPrimaryThesis(
-      body: String,
-      primaryPlan: Option[String]
-  ): Boolean =
-    val low = normalizeNarrativeFingerprint(body)
-    val planMentioned =
-      primaryPlan.exists { plan =>
-        val normalizedPlan = normalizeNarrativeFingerprint(plan)
-        normalizedPlan.nonEmpty && low.contains(normalizedPlan)
-      }
-    planMentioned && (
-      low.contains("strategically this phase rewards a coherent plan around") ||
-        low.contains("key theme") ||
-        low.contains("the strategic stack still favors") ||
-        low.contains("the opponent s main counterplan is")
-    )
-
-  private def isPlanThesisSentence(
-      sentence: String,
-      primaryPlan: Option[String]
-  ): Boolean =
-    val low = normalizeNarrativeFingerprint(sentence)
-    val planMentioned =
-      primaryPlan.exists { plan =>
-        val normalizedPlan = normalizeNarrativeFingerprint(plan)
-        normalizedPlan.nonEmpty && low.contains(normalizedPlan)
-      }
-    planMentioned && (
-      low.contains("strategically this phase rewards a coherent plan around") ||
-        low.contains("key theme") ||
-        low.contains("the strategic stack still favors") ||
-        low.contains("the leading route is") ||
-        low.contains("the backup strategic stack is")
-    )
 
   private def isGenericPhaseRestatement(sentence: String): Boolean =
     val low = normalizeNarrativeFingerprint(sentence)
@@ -2242,30 +2050,9 @@ object CommentaryEngine:
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)
 
-  private def outlineBridgeCandidate(outline: NarrativeOutline): Option[String] =
-    val preferredKinds = List(
-      OutlineBeatKind.Context,
-      OutlineBeatKind.DecisionPoint,
-      OutlineBeatKind.MainMove,
-      OutlineBeatKind.ConditionalPlan,
-      OutlineBeatKind.OpeningTheory,
-      OutlineBeatKind.TeachingPoint,
-      OutlineBeatKind.WrapUp
-    )
-    preferredKinds.iterator
-      .flatMap(kind => outline.beats.filter(beat => beat.kind == kind && !isStrategicDistributionBeat(beat)).iterator)
-      .flatMap(beat => splitNarrativeSentences(beat.text).iterator)
-      .map(_.trim)
-      .find(sentence => sentence.nonEmpty && !isLowValueHybridMetaSentence(sentence) && !isGenericWrapupParagraph(sentence))
-
-  private def sentenceAlreadyInBody(sentence: String, body: String): Boolean =
-    val sentenceFingerprint = normalizeNarrativeFingerprint(sentence)
-    val bodyFingerprint = normalizeNarrativeFingerprint(body)
-    sentenceFingerprint.nonEmpty && bodyFingerprint.contains(sentenceFingerprint)
-
   private def rankEngineVariationsForFen(
-    fen: String,
-    vars: List[VariationLine]
+      fen: String,
+      vars: List[VariationLine]
   ): List[VariationLine] =
     if fenSideToMoveIsWhite(fen) then vars.sortBy(v => -v.effectiveScore)
     else vars.sortBy(_.effectiveScore)

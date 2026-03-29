@@ -1,5 +1,6 @@
 package lila.llm.analysis
 
+import play.api.libs.json.*
 import lila.llm.model.{ ProbeContractValidator, ProbeRequest, ProbeResult }
 import lila.llm.model.authoring.{ LatentPlanNarrative, PlanHypothesis }
 import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId, SubplanSpec }
@@ -18,16 +19,37 @@ object PlanEvidenceEvaluator:
     case Refuted
     case Deferred
 
+  enum UserFacingPlanEligibility:
+    case ProbeBacked
+    case StructuralOnly
+    case PvCoupledOnly
+    case Deferred
+    case Refuted
+
   case class EvaluatedPlan(
       hypothesis: PlanHypothesis,
       status: PlanEvidenceStatus,
+      userFacingEligibility: UserFacingPlanEligibility,
       reason: String,
       supportProbeIds: List[String] = Nil,
       refuteProbeIds: List[String] = Nil,
       missingSignals: List[String] = Nil,
       pvCoupled: Boolean = false,
       themeL1: String = ThemeL1.Unknown.id,
-      subplanId: Option[String] = None
+      subplanId: Option[String] = None,
+      claimCertification: ClaimCertification = ClaimCertification()
+  )
+
+  case class ClaimCertification(
+      certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
+      quantifier: PlayerFacingClaimQuantifier = PlayerFacingClaimQuantifier.Existential,
+      modalityTier: PlayerFacingClaimModalityTier = PlayerFacingClaimModalityTier.Available,
+      attributionGrade: PlayerFacingClaimAttributionGrade = PlayerFacingClaimAttributionGrade.StateOnly,
+      stabilityGrade: PlayerFacingClaimStabilityGrade = PlayerFacingClaimStabilityGrade.Unknown,
+      provenanceClass: PlayerFacingClaimProvenanceClass = PlayerFacingClaimProvenanceClass.Deferred,
+      taintFlags: List[PlayerFacingClaimTaintFlag] = Nil,
+      ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
+      alternativeDominance: Boolean = false
   )
 
   case class ProbeValidation(
@@ -37,17 +59,56 @@ object PlanEvidenceEvaluator:
       invalidByRequestId: Map[String, List[String]]
   )
 
+  case class DiagnosticPlanEntry(
+      planId: String,
+      subplanId: Option[String] = None,
+      planName: String,
+      status: String,
+      userFacingEligibility: String,
+      certificateStatus: String = "invalid",
+      quantifier: String = "existential",
+      modalityTier: String = "available",
+      attributionGrade: String = "state_only",
+      stabilityGrade: String = "unknown",
+      provenanceClass: String = "deferred",
+      taintFlags: List[String] = Nil,
+      ontologyFamily: String = "unknown",
+      linkedRequestIds: List[String] = Nil,
+      supportProbeIds: List[String] = Nil,
+      refuteProbeIds: List[String] = Nil,
+      missingSignals: List[String] = Nil,
+      reasonCodes: List[String] = Nil,
+      maxCpLoss: Option[Int] = None,
+      worstMoverLoss: Option[Int] = None,
+      alternativeDominance: Boolean = false
+  )
+
+  object DiagnosticPlanEntry:
+    given OWrites[DiagnosticPlanEntry] = Json.writes[DiagnosticPlanEntry]
+
+  case class DiagnosticPlanSidecar(
+      entries: List[DiagnosticPlanEntry] = Nil,
+      droppedProbeCount: Int = 0,
+      droppedReasonCodes: List[String] = Nil,
+      blockedStrongClaims: Int = 0,
+      downgradedWeakClaims: Int = 0,
+      attributionFailures: Int = 0,
+      quantifierFailures: Int = 0,
+      stabilityFailures: Int = 0
+  )
+
+  object DiagnosticPlanSidecar:
+    given OWrites[DiagnosticPlanSidecar] = Json.writes[DiagnosticPlanSidecar]
+
   case class PartitionedPlans(
       mainPlans: List[PlanHypothesis],
       latentPlans: List[LatentPlanNarrative],
       whyAbsentFromTopMultiPV: List[String],
-      evaluated: List[EvaluatedPlan]
+      evaluated: List[EvaluatedPlan],
+      diagnosticSidecar: DiagnosticPlanSidecar = DiagnosticPlanSidecar()
   )
 
-  private val RefutationPurposes = Set("latent_plan_refutation", "refute_aggressive_line")
   private val PvCoupledPlayableThreshold = 0.55
-  private val StrictPvCoupledMode = boolEnv("LLM_PLAN_EVIDENCE_STRICT", default = true)
-  private val StrictFallbackToPvCoupled = boolEnv("LLM_PLAN_EVIDENCE_STRICT_FALLBACK", default = true)
 
   def validateProbeResults(
       rawResults: List[ProbeResult],
@@ -104,15 +165,20 @@ object PlanEvidenceEvaluator:
       invalidByRequestId: Map[String, List[String]] = Map.empty
   ): PartitionedPlans =
     if hypotheses.isEmpty then
-      val onlyReasons =
-        if droppedProbeCount > 0 then
-          (droppedProbeReasons :+ s"$droppedProbeCount probe result(s) were rejected by contract validation").distinct.take(3)
-        else droppedProbeReasons.take(3)
       PartitionedPlans(
         mainPlans = Nil,
         latentPlans = Nil,
-        whyAbsentFromTopMultiPV = onlyReasons,
-        evaluated = Nil
+        whyAbsentFromTopMultiPV = Nil,
+        evaluated = Nil,
+        diagnosticSidecar =
+          DiagnosticPlanSidecar(
+            entries = Nil,
+            droppedProbeCount = droppedProbeCount,
+            droppedReasonCodes =
+              if droppedProbeCount > 0 then
+                (invalidByRequestId.values.flatten.toList :+ "contract_validation_drop").distinct.take(8)
+              else invalidByRequestId.values.flatten.toList.distinct.take(8)
+          )
       )
     else
       val resultsById = validatedProbeResults.groupBy(_.id)
@@ -132,6 +198,11 @@ object PlanEvidenceEvaluator:
             linkedResults.filter { case (req, pr) => isSupportive(req, pr, isWhiteToMove) }
           val missingSignals =
             linkedRequests.flatMap(req => invalidByRequestId.getOrElse(req.id, Nil)).distinct
+          val alternativeDominance =
+            isAlternativeDominated(
+              target = h,
+              allHypotheses = hypotheses
+            )
 
           val pvCoupled =
             rulePlanIds.exists(_.equalsIgnoreCase(h.planId)) ||
@@ -151,6 +222,11 @@ object PlanEvidenceEvaluator:
               val (_, pr) = refutations.maxBy { case (req, res) => moverLoss(res, isWhiteToMove) - req.maxCpLoss.getOrElse(120) }
               val collapse = pr.l1Delta.flatMap(_.collapseReason).getOrElse("forcing tactical concession")
               (PlanEvidenceStatus.Refuted, s"concrete follow-up refutes it: $collapse")
+            else if alternativeDominance then
+              (
+                PlanEvidenceStatus.Refuted,
+                "a stronger sibling plan explains the position more directly, so this wording would be misleading"
+              )
             else if supports.nonEmpty then
               (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by concrete supporting lines")
             else if structuralEscalation then
@@ -171,6 +247,27 @@ object PlanEvidenceEvaluator:
                 else "the idea fits the position, but supporting evidence is not ready yet"
               (PlanEvidenceStatus.Deferred, why)
 
+          val userFacingEligibility =
+            if refutations.nonEmpty || alternativeDominance then UserFacingPlanEligibility.Refuted
+            else if supports.nonEmpty then UserFacingPlanEligibility.ProbeBacked
+            else if structuralEscalation then UserFacingPlanEligibility.StructuralOnly
+            else if pvCoupled && h.score >= PvCoupledPlayableThreshold then UserFacingPlanEligibility.PvCoupledOnly
+            else UserFacingPlanEligibility.Deferred
+
+          val claimCertification =
+            certifyPlanClaim(
+              hypothesis = h,
+              allHypotheses = hypotheses,
+              supports = supports,
+              refutations = refutations,
+              missingSignals = missingSignals,
+              structuralEscalation = structuralEscalation,
+              pvCoupled = pvCoupled,
+              userFacingEligibility = userFacingEligibility,
+              themeId = themeId,
+              alternativeDominance = alternativeDominance
+            )
+
           EvaluatedPlan(
             hypothesis =
               h.copy(
@@ -178,119 +275,98 @@ object PlanEvidenceEvaluator:
                 subplanId = subplanId
               ),
             status = status,
+            userFacingEligibility = userFacingEligibility,
             reason = reason,
             supportProbeIds = supports.map(_._2.id).distinct,
             refuteProbeIds = refutations.map(_._2.id).distinct,
             missingSignals = missingSignals,
             pvCoupled = pvCoupled,
             themeL1 = themeId,
-            subplanId = subplanId
+            subplanId = subplanId,
+            claimCertification = claimCertification
           )
         }
 
-      val themeLeaders =
+      val userFacingThemeLeaders =
         evaluated
+          .filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
           .groupBy(_.themeL1)
           .values
           .toList
-          .flatMap(_.sortBy(ep => (-statusRank(ep.status), -rankingScore(ep))).headOption)
-
-      val evidenceBacked =
-        themeLeaders.filter(_.status == PlanEvidenceStatus.PlayableEvidenceBacked)
-      val pvCoupledPlayable =
-        themeLeaders.filter(_.status == PlanEvidenceStatus.PlayablePvCoupled)
+          .flatMap(_.sortBy(ep => -rankingScore(ep)).headOption)
 
       val mainPlanCandidates =
-        if StrictPvCoupledMode then
-          if evidenceBacked.nonEmpty then evidenceBacked
-          else if StrictFallbackToPvCoupled then pvCoupledPlayable.take(2)
-          else Nil
-        else evidenceBacked ++ pvCoupledPlayable
+        userFacingThemeLeaders
 
       val mainPlans =
         mainPlanCandidates
           .sortBy(ep => -rankingScore(ep))
           .take(3)
           .zipWithIndex
-          .map { case (ep, idx) => ep.hypothesis.copy(rank = idx + 1) }
-      val mainPlanKeys = mainPlans.map(h => planKey(h.planId, h.subplanId)).toSet
-
-      val latentPlans =
-        evaluated
-          .filter { ep =>
-            ep.status == PlanEvidenceStatus.Deferred ||
-            (ep.status == PlanEvidenceStatus.PlayablePvCoupled &&
-              !mainPlanKeys.contains(planKey(ep.hypothesis.planId, ep.hypothesis.subplanId)))
-          }
-          .sortBy(ep => -ep.hypothesis.score)
-          .take(2)
-          .map { ep =>
-            val seedId =
-              seedIdOf(ep.hypothesis)
-                .orElse {
-                  probeRequests
-                    .find(req => requestMatchesHypothesis(req, ep.hypothesis))
-                    .flatMap(_.seedId)
-                }
-                .getOrElse(ep.hypothesis.planId)
-            val adjustedViability =
-              ep.status match
-                case PlanEvidenceStatus.Deferred => (ep.hypothesis.viability.score * 0.8).max(0.1)
-                case PlanEvidenceStatus.PlayablePvCoupled =>
-                  if StrictPvCoupledMode then (ep.hypothesis.viability.score * 0.85).max(0.1)
-                  else (ep.hypothesis.viability.score * 0.92).max(0.1)
-                case _ => (ep.hypothesis.viability.score * 0.95).max(0.1)
-            LatentPlanNarrative(
-              seedId = seedId,
-              planName = ep.hypothesis.planName,
-              viabilityScore = adjustedViability,
-              whyAbsentFromTopMultiPv = ep.reason
+          .map { case (ep, idx) =>
+            markProbeBacked(
+              ep.hypothesis.copy(rank = idx + 1)
             )
           }
 
-      val reasons = scala.collection.mutable.ListBuffer.empty[String]
-      evaluated
-        .filter(_.status == PlanEvidenceStatus.Refuted)
-        .sortBy(ep => -ep.hypothesis.score)
-        .take(2)
-        .foreach { ep =>
-          reasons += s"${ep.hypothesis.planName} is held back by concrete refutation evidence (${ep.reason})"
+      val diagnosticEntries =
+        evaluated.map { ep =>
+          val linkedRequests = probeRequests.filter(req => requestMatchesHypothesis(req, ep.hypothesis))
+          DiagnosticPlanEntry(
+            planId = ep.hypothesis.planId,
+            subplanId = ep.hypothesis.subplanId,
+            planName = ep.hypothesis.planName,
+            status = statusCode(ep.status),
+            userFacingEligibility = eligibilityCode(ep.userFacingEligibility),
+            certificateStatus = certificateStatusCode(ep.claimCertification.certificateStatus),
+            quantifier = quantifierCode(ep.claimCertification.quantifier),
+            modalityTier = modalityTierCode(ep.claimCertification.modalityTier),
+            attributionGrade = attributionCode(ep.claimCertification.attributionGrade),
+            stabilityGrade = stabilityCode(ep.claimCertification.stabilityGrade),
+            provenanceClass = provenanceCode(ep.claimCertification.provenanceClass),
+            taintFlags = ep.claimCertification.taintFlags.map(taintCode),
+            ontologyFamily = ontologyCode(ep.claimCertification.ontologyFamily),
+            linkedRequestIds = linkedRequests.map(_.id).distinct,
+            supportProbeIds = ep.supportProbeIds,
+            refuteProbeIds = ep.refuteProbeIds,
+            missingSignals = ep.missingSignals,
+            reasonCodes =
+              diagnosticReasonCodes(
+                ep = ep,
+                linkedRequests = linkedRequests
+              ),
+            maxCpLoss =
+              linkedRequests
+                .map(req => req.maxCpLoss.getOrElse(defaultMaxCpLoss(req.purpose.orElse(req.planName).getOrElse(""))))
+                .maxOption,
+            worstMoverLoss =
+              linkedRequests.flatMap(req =>
+                resultsById.getOrElse(req.id, Nil).map(pr => moverLoss(pr, isWhiteToMove))
+              ).maxOption,
+            alternativeDominance = ep.claimCertification.alternativeDominance
+          )
         }
-
-      evaluated
-        .filter(_.status == PlanEvidenceStatus.Deferred)
-        .sortBy(ep => -ep.hypothesis.score)
-        .take(2)
-        .foreach { ep =>
-          reasons += s"${ep.hypothesis.planName} is not promoted yet because ${ep.reason}"
-        }
-
-      evaluated
-        .filter(_.status == PlanEvidenceStatus.PlayablePvCoupled)
-        .sortBy(ep => -ep.hypothesis.score)
-        .take(2)
-        .foreach { ep =>
-          val reason =
-            if StrictPvCoupledMode then
-              s"${ep.hypothesis.planName} still looks playable in the engine line, but it needs stronger support beyond that line."
-            else
-              s"${ep.hypothesis.planName} still looks playable in the engine line, but stronger plans currently outrank it."
-          reasons += reason
-        }
-
-      if droppedProbeCount > 0 then
-        reasons += s"$droppedProbeCount probe result(s) were discarded due to contract validation gaps"
-
-      if reasons.isEmpty && latentPlans.nonEmpty then
-        reasons += "other strategic ideas remain plausible, but they still need firmer support"
-      if reasons.isEmpty && mainPlans.isEmpty then
-        reasons += "no plan earned enough support in the current search window"
+      val claimAudit = summarizeClaimAudit(evaluated)
 
       PartitionedPlans(
         mainPlans = mainPlans,
-        latentPlans = latentPlans,
-        whyAbsentFromTopMultiPV = (reasons.toList ++ droppedProbeReasons).distinct.take(3),
-        evaluated = evaluated
+        latentPlans = Nil,
+        whyAbsentFromTopMultiPV = Nil,
+        evaluated = evaluated,
+        diagnosticSidecar =
+          DiagnosticPlanSidecar(
+            entries = diagnosticEntries,
+            droppedProbeCount = droppedProbeCount,
+            droppedReasonCodes =
+              if droppedProbeCount > 0 then
+                (invalidByRequestId.values.flatten.toList ++ droppedProbeReasons.map(normalizeReasonCode) :+ "contract_validation_drop").distinct.take(8)
+              else (invalidByRequestId.values.flatten.toList ++ droppedProbeReasons.map(normalizeReasonCode)).distinct.take(8),
+            blockedStrongClaims = claimAudit.blockedStrongClaims,
+            downgradedWeakClaims = claimAudit.downgradedWeakClaims,
+            attributionFailures = claimAudit.attributionFailures,
+            quantifierFailures = claimAudit.quantifierFailures,
+            stabilityFailures = claimAudit.stabilityFailures
+          )
       )
 
   private def requestMatchesHypothesis(req: ProbeRequest, h: PlanHypothesis): Boolean =
@@ -370,7 +446,7 @@ object PlanEvidenceEvaluator:
     }
 
   private def requestContractCompatible(req: ProbeRequest, hypSubplan: Option[String]): Boolean =
-    if !req.purpose.contains("theme_plan_validation") then false
+    if !req.purpose.exists(ThemePlanProbePurpose.isThemeValidationPurpose) then false
     else
       val required =
         hypSubplan
@@ -380,12 +456,215 @@ object PlanEvidenceEvaluator:
           .getOrElse(Set.empty[String])
       required.nonEmpty && required.subsetOf(req.requiredSignals.toSet)
 
-  private def statusRank(status: PlanEvidenceStatus): Int =
-    status match
-      case PlanEvidenceStatus.PlayableEvidenceBacked => 4
-      case PlanEvidenceStatus.PlayablePvCoupled      => 3
-      case PlanEvidenceStatus.Deferred               => 2
-      case PlanEvidenceStatus.Refuted                => 1
+  private case class ClaimAuditSummary(
+      blockedStrongClaims: Int,
+      downgradedWeakClaims: Int,
+      attributionFailures: Int,
+      quantifierFailures: Int,
+      stabilityFailures: Int
+  )
+
+  private def summarizeClaimAudit(evaluated: List[EvaluatedPlan]): ClaimAuditSummary =
+    evaluated.foldLeft(ClaimAuditSummary(0, 0, 0, 0, 0)) { case (acc, ep) =>
+      val cert = ep.claimCertification
+      val taint = cert.taintFlags.toSet
+      val allowsStrong =
+        PlayerFacingClaimCertification.allowsStrongMainClaim(
+          certificateStatus = cert.certificateStatus,
+          quantifier = cert.quantifier,
+          attribution = cert.attributionGrade,
+          stability = cert.stabilityGrade,
+          provenance = cert.provenanceClass,
+          taintFlags = taint
+        )
+      val allowsWeak =
+        PlayerFacingClaimCertification.allowsWeakMainClaim(
+          certificateStatus = cert.certificateStatus,
+          quantifier = cert.quantifier,
+          attribution = cert.attributionGrade,
+          stability = cert.stabilityGrade,
+          provenance = cert.provenanceClass,
+          taintFlags = taint
+        )
+      val strongModalityRequested =
+        cert.modalityTier == PlayerFacingClaimModalityTier.Advances ||
+          cert.modalityTier == PlayerFacingClaimModalityTier.Forces ||
+          cert.modalityTier == PlayerFacingClaimModalityTier.Removes
+      ClaimAuditSummary(
+        blockedStrongClaims =
+          acc.blockedStrongClaims + Option.when(strongModalityRequested && !allowsStrong && !allowsWeak)(1).getOrElse(0),
+        downgradedWeakClaims =
+          acc.downgradedWeakClaims + Option.when(strongModalityRequested && !allowsStrong && allowsWeak)(1).getOrElse(0),
+        attributionFailures =
+          acc.attributionFailures +
+            Option.when(cert.attributionGrade != PlayerFacingClaimAttributionGrade.Distinctive)(1).getOrElse(0),
+        quantifierFailures =
+          acc.quantifierFailures +
+            Option.when(
+              cert.quantifier == PlayerFacingClaimQuantifier.Existential ||
+                cert.quantifier == PlayerFacingClaimQuantifier.LineConditioned
+            )(1).getOrElse(0),
+        stabilityFailures =
+          acc.stabilityFailures +
+            Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Unstable)(1).getOrElse(0)
+      )
+    }
+
+  private def certifyPlanClaim(
+      hypothesis: PlanHypothesis,
+      allHypotheses: List[PlanHypothesis],
+      supports: List[(ProbeRequest, ProbeResult)],
+      refutations: List[(ProbeRequest, ProbeResult)],
+      missingSignals: List[String],
+      structuralEscalation: Boolean,
+      pvCoupled: Boolean,
+      userFacingEligibility: UserFacingPlanEligibility,
+      themeId: String,
+      alternativeDominance: Boolean
+  ): ClaimCertification =
+    val supportResults = supports.map(_._2).distinctBy(_.id)
+    val replyCoverage = supportResults.count(hasReplyCoverage)
+    val futureCoverage = supportResults.count(_.futureSnapshot.exists(isPositiveFutureSnapshot))
+    val quantifier =
+      if supportResults.size >= 2 || (replyCoverage > 0 && futureCoverage > 0) then
+        PlayerFacingClaimQuantifier.Universal
+      else if replyCoverage > 0 || futureCoverage > 0 then
+        PlayerFacingClaimQuantifier.BestResponse
+      else if supportResults.nonEmpty then PlayerFacingClaimQuantifier.Existential
+      else PlayerFacingClaimQuantifier.LineConditioned
+    val modalityTier =
+      if supportResults.exists(result => indicatesRemoval(themeId, result)) then
+        PlayerFacingClaimModalityTier.Removes
+      else if supportResults.exists(result => indicatesForcing(themeId, result)) then
+        PlayerFacingClaimModalityTier.Forces
+      else if supportResults.exists(result => indicatesAdvancement(themeId, result)) then
+        PlayerFacingClaimModalityTier.Advances
+      else if supportResults.nonEmpty then PlayerFacingClaimModalityTier.Supports
+      else PlayerFacingClaimModalityTier.Available
+    val attributionGrade =
+      if alternativeDominance then PlayerFacingClaimAttributionGrade.StateOnly
+      else if hasNearbySibling(hypothesis, allHypotheses, themeId) then PlayerFacingClaimAttributionGrade.AnchoredButShared
+      else PlayerFacingClaimAttributionGrade.Distinctive
+    val stabilityGrade =
+      if supportResults.isEmpty then PlayerFacingClaimStabilityGrade.Unknown
+      else if supportResults.exists(result =>
+          result.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)
+        ) then PlayerFacingClaimStabilityGrade.Unstable
+      else if replyCoverage > 0 || futureCoverage > 0 then PlayerFacingClaimStabilityGrade.Stable
+      else PlayerFacingClaimStabilityGrade.Unstable
+    val provenanceClass =
+      userFacingEligibility match
+        case UserFacingPlanEligibility.ProbeBacked   => PlayerFacingClaimProvenanceClass.ProbeBacked
+        case UserFacingPlanEligibility.StructuralOnly => PlayerFacingClaimProvenanceClass.StructuralOnly
+        case UserFacingPlanEligibility.PvCoupledOnly => PlayerFacingClaimProvenanceClass.PvCoupled
+        case UserFacingPlanEligibility.Deferred      => PlayerFacingClaimProvenanceClass.Deferred
+        case UserFacingPlanEligibility.Refuted       =>
+          if supports.nonEmpty then PlayerFacingClaimProvenanceClass.ProbeBacked
+          else if pvCoupled then PlayerFacingClaimProvenanceClass.PvCoupled
+          else PlayerFacingClaimProvenanceClass.Deferred
+    val taintFlags =
+      List(
+        Option.when(seedIdOf(hypothesis).nonEmpty)(PlayerFacingClaimTaintFlag.Latent),
+        Option.when(structuralEscalation)(PlayerFacingClaimTaintFlag.StructuralOnly),
+        Option.when(pvCoupled && supports.isEmpty && !structuralEscalation)(PlayerFacingClaimTaintFlag.PvCoupled),
+        Option.when(missingSignals.nonEmpty && supports.isEmpty)(PlayerFacingClaimTaintFlag.Deferred)
+      ).flatten
+    val certificateStatus =
+      if refutations.nonEmpty || alternativeDominance then PlayerFacingCertificateStatus.Invalid
+      else if supports.nonEmpty && quantifier != PlayerFacingClaimQuantifier.Existential then
+        PlayerFacingCertificateStatus.Valid
+      else if supports.nonEmpty then PlayerFacingCertificateStatus.WeaklyValid
+      else if missingSignals.nonEmpty || pvCoupled || structuralEscalation then
+        PlayerFacingCertificateStatus.WeaklyValid
+      else PlayerFacingCertificateStatus.Invalid
+    ClaimCertification(
+      certificateStatus = certificateStatus,
+      quantifier = quantifier,
+      modalityTier = modalityTier,
+      attributionGrade = attributionGrade,
+      stabilityGrade = stabilityGrade,
+      provenanceClass = provenanceClass,
+      taintFlags = taintFlags.distinct,
+      ontologyFamily = ontologyFamily(themeId, hypothesis),
+      alternativeDominance = alternativeDominance
+    )
+
+  private def hasNearbySibling(
+      hypothesis: PlanHypothesis,
+      allHypotheses: List[PlanHypothesis],
+      themeId: String
+  ): Boolean =
+    themeId != ThemeL1.Unknown.id && allHypotheses.exists { other =>
+      other.planId != hypothesis.planId &&
+        hypothesisThemeId(other) == themeId &&
+        rankingScore(other) >= rankingScore(hypothesis) - 0.04 &&
+        rankingScore(other) <= rankingScore(hypothesis) + 0.08 &&
+        normalizeText(other.planName) != normalizeText(hypothesis.planName)
+    }
+
+  private def isAlternativeDominated(
+      target: PlanHypothesis,
+      allHypotheses: List[PlanHypothesis]
+  ): Boolean =
+    val targetTheme = hypothesisThemeId(target)
+    targetTheme != ThemeL1.Unknown.id && allHypotheses.exists { other =>
+      other.planId != target.planId &&
+        hypothesisThemeId(other) == targetTheme &&
+        rankingScore(other) >= rankingScore(target) + 0.08 &&
+        other.viability.score >= target.viability.score &&
+        normalizeText(other.planName) != normalizeText(target.planName)
+    }
+
+  private def rankingScore(h: PlanHypothesis): Double =
+    h.score + h.viability.score * 0.1
+
+  private def indicatesAdvancement(themeId: String, result: ProbeResult): Boolean =
+    result.futureSnapshot.exists(snapshot =>
+      snapshot.planPrereqsMet.nonEmpty ||
+        snapshot.planBlockersRemoved.nonEmpty
+    ) || Set(
+      ThemeL1.OpeningPrinciples.id,
+      ThemeL1.PawnBreakPreparation.id,
+      ThemeL1.AdvantageTransformation.id,
+      ThemeL1.FlankInfrastructure.id,
+      ThemeL1.PieceRedeployment.id
+    ).contains(themeId)
+
+  private def indicatesForcing(themeId: String, result: ProbeResult): Boolean =
+    (themeId == ThemeL1.FavorableExchange.id &&
+      hasReplyCoverage(result)) ||
+      result.keyMotifs.exists(motif =>
+        containsAny(normalizeText(motif), List("forcing", "exchange", "trade", "simplif"))
+      )
+
+  private def indicatesRemoval(themeId: String, result: ProbeResult): Boolean =
+    Set(
+      ThemeL1.RestrictionProphylaxis.id,
+      ThemeL1.WeaknessFixation.id
+    ).contains(themeId) &&
+      result.futureSnapshot.exists(snapshot =>
+        snapshot.resolvedThreatKinds.nonEmpty ||
+          snapshot.targetsDelta.strategicRemoved.nonEmpty
+      )
+
+  private def ontologyFamily(
+      themeId: String,
+      hypothesis: PlanHypothesis
+  ): PlayerFacingClaimOntologyFamily =
+    themeId match
+      case id if id == ThemeL1.RestrictionProphylaxis.id =>
+        val low = normalizeText(hypothesis.planName)
+        if containsAny(low, List("route", "entry", "denial")) then
+          PlayerFacingClaimOntologyFamily.RouteDenial
+        else if containsAny(low, List("color", "complex", "bishop")) then
+          PlayerFacingClaimOntologyFamily.ColorComplexSqueeze
+        else PlayerFacingClaimOntologyFamily.LongTermRestraint
+      case id if id == ThemeL1.FavorableExchange.id     => PlayerFacingClaimOntologyFamily.Exchange
+      case id if id == ThemeL1.PawnBreakPreparation.id  => PlayerFacingClaimOntologyFamily.PlanAdvance
+      case id if id == ThemeL1.PieceRedeployment.id     => PlayerFacingClaimOntologyFamily.PlanAdvance
+      case id if id == ThemeL1.SpaceClamp.id            => PlayerFacingClaimOntologyFamily.CounterplayRestraint
+      case id if id == ThemeL1.WeaknessFixation.id      => PlayerFacingClaimOntologyFamily.ResourceRemoval
+      case _                                            => PlayerFacingClaimOntologyFamily.Unknown
 
   private def rankingScore(ep: EvaluatedPlan): Double =
     ep.hypothesis.score + (if isDefaultSubplan(ep.themeL1, ep.subplanId) then 0.0 else 0.03)
@@ -395,12 +674,125 @@ object PlanEvidenceEvaluator:
     val default = ThemeResolver.defaultSubplanForTheme(theme).map(_.id)
     default.exists(id => subplanId.contains(id))
 
-  private def planKey(planId: String, subplanId: Option[String]): String =
-    s"${planId.toLowerCase}|${subplanId.getOrElse("").toLowerCase}"
+  private def statusCode(status: PlanEvidenceStatus): String =
+    status match
+      case PlanEvidenceStatus.PlayableEvidenceBacked => "playable_evidence_backed"
+      case PlanEvidenceStatus.PlayablePvCoupled      => "playable_pv_coupled"
+      case PlanEvidenceStatus.Refuted                => "refuted"
+      case PlanEvidenceStatus.Deferred               => "deferred"
+
+  private def eligibilityCode(eligibility: UserFacingPlanEligibility): String =
+    eligibility match
+      case UserFacingPlanEligibility.ProbeBacked   => "probe_backed"
+      case UserFacingPlanEligibility.StructuralOnly => "structural_only"
+      case UserFacingPlanEligibility.PvCoupledOnly => "pv_coupled_only"
+      case UserFacingPlanEligibility.Deferred      => "deferred"
+      case UserFacingPlanEligibility.Refuted       => "refuted"
+
+  private def certificateStatusCode(status: PlayerFacingCertificateStatus): String =
+    status match
+      case PlayerFacingCertificateStatus.Valid             => "valid"
+      case PlayerFacingCertificateStatus.WeaklyValid       => "weakly_valid"
+      case PlayerFacingCertificateStatus.Invalid           => "invalid"
+      case PlayerFacingCertificateStatus.StaleOrMismatched => "stale_or_mismatched"
+
+  private def quantifierCode(quantifier: PlayerFacingClaimQuantifier): String =
+    quantifier match
+      case PlayerFacingClaimQuantifier.Universal      => "universal"
+      case PlayerFacingClaimQuantifier.BestResponse   => "best_response"
+      case PlayerFacingClaimQuantifier.Existential    => "existential"
+      case PlayerFacingClaimQuantifier.LineConditioned => "line_conditioned"
+
+  private def modalityTierCode(modality: PlayerFacingClaimModalityTier): String =
+    modality match
+      case PlayerFacingClaimModalityTier.Available => "available"
+      case PlayerFacingClaimModalityTier.Supports  => "supports"
+      case PlayerFacingClaimModalityTier.Advances  => "advances"
+      case PlayerFacingClaimModalityTier.Forces    => "forces"
+      case PlayerFacingClaimModalityTier.Removes   => "removes"
+
+  private def attributionCode(attribution: PlayerFacingClaimAttributionGrade): String =
+    attribution match
+      case PlayerFacingClaimAttributionGrade.Distinctive      => "distinctive"
+      case PlayerFacingClaimAttributionGrade.AnchoredButShared => "anchored_but_shared"
+      case PlayerFacingClaimAttributionGrade.StateOnly        => "state_only"
+
+  private def stabilityCode(stability: PlayerFacingClaimStabilityGrade): String =
+    stability match
+      case PlayerFacingClaimStabilityGrade.Stable   => "stable"
+      case PlayerFacingClaimStabilityGrade.Unstable => "unstable"
+      case PlayerFacingClaimStabilityGrade.Unknown  => "unknown"
+
+  private def provenanceCode(provenance: PlayerFacingClaimProvenanceClass): String =
+    provenance match
+      case PlayerFacingClaimProvenanceClass.ProbeBacked   => "probe_backed"
+      case PlayerFacingClaimProvenanceClass.StructuralOnly => "structural_only"
+      case PlayerFacingClaimProvenanceClass.PvCoupled     => "pv_coupled"
+      case PlayerFacingClaimProvenanceClass.Deferred      => "deferred"
+
+  private def taintCode(flag: PlayerFacingClaimTaintFlag): String =
+    flag match
+      case PlayerFacingClaimTaintFlag.Latent           => "latent"
+      case PlayerFacingClaimTaintFlag.PvCoupled        => "pv_coupled"
+      case PlayerFacingClaimTaintFlag.Deferred         => "deferred"
+      case PlayerFacingClaimTaintFlag.StructuralOnly   => "structural_only"
+      case PlayerFacingClaimTaintFlag.BranchConditioned => "branch_conditioned"
+
+  private def ontologyCode(family: PlayerFacingClaimOntologyFamily): String =
+    family match
+      case PlayerFacingClaimOntologyFamily.Access              => "access"
+      case PlayerFacingClaimOntologyFamily.Pressure            => "pressure"
+      case PlayerFacingClaimOntologyFamily.Exchange            => "exchange"
+      case PlayerFacingClaimOntologyFamily.CounterplayRestraint => "counterplay_restraint"
+      case PlayerFacingClaimOntologyFamily.ResourceRemoval     => "resource_removal"
+      case PlayerFacingClaimOntologyFamily.PlanAdvance         => "plan_advance"
+      case PlayerFacingClaimOntologyFamily.RouteDenial         => "route_denial"
+      case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze => "color_complex_squeeze"
+      case PlayerFacingClaimOntologyFamily.LongTermRestraint   => "long_term_restraint"
+      case PlayerFacingClaimOntologyFamily.PieceImprovement    => "piece_improvement"
+      case PlayerFacingClaimOntologyFamily.KingSafety          => "king_safety"
+      case PlayerFacingClaimOntologyFamily.TechnicalConversion => "technical_conversion"
+      case PlayerFacingClaimOntologyFamily.Unknown             => "unknown"
+
+  private def diagnosticReasonCodes(
+      ep: EvaluatedPlan,
+      linkedRequests: List[ProbeRequest]
+  ): List[String] =
+    val base =
+      ep.userFacingEligibility match
+        case UserFacingPlanEligibility.ProbeBacked   => List("validated_support_probe")
+        case UserFacingPlanEligibility.StructuralOnly => List("structural_escalation_only")
+        case UserFacingPlanEligibility.PvCoupledOnly => List("pv_coupled_only")
+        case UserFacingPlanEligibility.Deferred      => List("support_not_ready")
+        case UserFacingPlanEligibility.Refuted       => List("probe_refuted")
+    val certificateCodes =
+      List(
+        s"certificate_${certificateStatusCode(ep.claimCertification.certificateStatus)}",
+        s"quantifier_${quantifierCode(ep.claimCertification.quantifier)}",
+        s"modality_${modalityTierCode(ep.claimCertification.modalityTier)}",
+        s"attribution_${attributionCode(ep.claimCertification.attributionGrade)}",
+        s"stability_${stabilityCode(ep.claimCertification.stabilityGrade)}",
+        s"provenance_${provenanceCode(ep.claimCertification.provenanceClass)}",
+        s"ontology_${ontologyCode(ep.claimCertification.ontologyFamily)}"
+      ) ++ ep.claimCertification.taintFlags.map(flag => s"taint_${taintCode(flag)}")
+    val requestCodes =
+      Option.when(linkedRequests.isEmpty)("no_linked_probe_request").toList
+    val alternativeCodes =
+      Option.when(ep.claimCertification.alternativeDominance)("alternative_dominance").toList
+    (base ++ certificateCodes ++ requestCodes ++ alternativeCodes ++ ep.missingSignals).distinct
+
+  private def normalizeReasonCode(raw: String): String =
+    Option(raw)
+      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_"))
+      .filter(_.nonEmpty)
+      .getOrElse("validation_gap")
+
+  private def markProbeBacked(h: PlanHypothesis): PlanHypothesis =
+    h.copy(evidenceSources = (h.evidenceSources :+ "probe_backed:validated_support").distinct)
 
   private def isSupportive(req: ProbeRequest, pr: ProbeResult, isWhiteToMove: Boolean): Boolean =
     val purpose = req.purpose.orElse(pr.purpose).getOrElse("")
-    if RefutationPurposes.contains(purpose) then
+    if ProbePurposeClassifier.isRefutationPurpose(purpose) then
       // Refutation probes can still support a plan when no tactical punishment appears.
       !isRefuted(req, pr, isWhiteToMove)
     else
@@ -415,7 +807,7 @@ object PlanEvidenceEvaluator:
     val hardLoss = loss > maxLoss
     val tacticalCollapse = pr.l1Delta.flatMap(_.collapseReason).exists(_.nonEmpty) && loss >= 90
     val mateAgainstMover = isMateAgainstMover(pr, isWhiteToMove)
-    if RefutationPurposes.contains(purpose) then hardLoss || tacticalCollapse || mateAgainstMover
+    if ProbePurposeClassifier.isRefutationPurpose(purpose) then hardLoss || tacticalCollapse || mateAgainstMover
     else hardLoss || mateAgainstMover
 
   private def moverLoss(pr: ProbeResult, isWhiteToMove: Boolean): Int =
@@ -428,13 +820,22 @@ object PlanEvidenceEvaluator:
       case _ => false
 
   private def defaultMaxCpLoss(purpose: String): Int =
-    purpose match
-      case "theme_plan_validation" => 95
+    if ThemePlanProbePurpose.isThemeValidationPurpose(purpose) then 95
+    else purpose match
       case "latent_plan_immediate"  => 80
       case "free_tempo_branches"    => 90
       case "latent_plan_refutation" => 120
       case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" => 100
       case _ => 110
+
+  private def hasReplyCoverage(result: ProbeResult): Boolean =
+    result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))
+
+  private def isPositiveFutureSnapshot(snapshot: lila.llm.model.FutureSnapshot): Boolean =
+    snapshot.planPrereqsMet.nonEmpty ||
+      snapshot.planBlockersRemoved.nonEmpty ||
+      snapshot.targetsDelta.strategicAdded.nonEmpty ||
+      snapshot.resolvedThreatKinds.nonEmpty
 
   private def hasStructuralEvidence(h: PlanHypothesis): Boolean =
     val evidenceLow = h.evidenceSources.map(_.toLowerCase)
@@ -469,13 +870,5 @@ object PlanEvidenceEvaluator:
           .toLowerCase
       case _ => "supporting details"
 
-  private def boolEnv(name: String, default: Boolean): Boolean =
-    sys.env
-      .get(name)
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on" => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _ => None
-      }
-      .getOrElse(default)
+  private def containsAny(text: String, needles: List[String]): Boolean =
+    needles.exists(text.contains)

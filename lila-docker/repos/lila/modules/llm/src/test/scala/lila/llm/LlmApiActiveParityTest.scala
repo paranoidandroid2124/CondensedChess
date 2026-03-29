@@ -2,9 +2,39 @@ package lila.llm
 
 import munit.FunSuite
 
+import lila.llm.analysis.PlayerFacingTruthModePolicy
 import lila.llm.analysis.StrategyPackSurface
+import lila.llm.model.authoring.AuthorQuestionKind
 
 class LlmApiActiveParityTest extends FunSuite:
+
+  private def minimalMoment(
+      strategyPack: Option[StrategyPack] = None
+  ): GameChronicleMoment =
+    GameChronicleMoment(
+      momentId = "ply_24",
+      ply = 24,
+      moveNumber = 12,
+      side = "white",
+      moveClassification = Some("Quiet"),
+      momentType = "StrategicMoment",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      narrative = "A quiet move.",
+      concepts = Nil,
+      variations = Nil,
+      cpBefore = 20,
+      cpAfter = 24,
+      mateBefore = None,
+      mateAfter = None,
+      wpaSwing = None,
+      strategicSalience = Some("Low"),
+      transitionType = None,
+      transitionConfidence = None,
+      activePlan = None,
+      topEngineMove = None,
+      collapse = None,
+      strategyPack = strategyPack
+    )
 
   private val resolvedCompensationPack = Some(
     StrategyPack(
@@ -171,9 +201,6 @@ class LlmApiActiveParityTest extends FunSuite:
         ),
         longTermFocus = Some("central targets tied down before winning the material back"),
         evidenceHints = Nil,
-        strategicStack = Nil,
-        latentPlan = None,
-        decisionEvidence = None,
         compensationSummary = Some("a path to compensation through waiting before winning the material back"),
         compensationVectors = List("Waiting Before Winning the Material Back (0.5)", "Path to Compensation (0.5)"),
         investedMaterial = Some(100),
@@ -220,9 +247,6 @@ class LlmApiActiveParityTest extends FunSuite:
         topDirectionalTarget = None,
         longTermFocus = Some("keep the attack rolling on the kingside"),
         evidenceHints = Nil,
-        strategicStack = Nil,
-        latentPlan = None,
-        decisionEvidence = None,
         compensationSummary = Some("initiative against the king"),
         compensationVectors = List("Initiative (0.7)", "Line Pressure (0.6)"),
         investedMaterial = Some(300),
@@ -277,9 +301,6 @@ class LlmApiActiveParityTest extends FunSuite:
         topDirectionalTarget = None,
         longTermFocus = Some("central conversion window before recovering the pawn"),
         evidenceHints = Nil,
-        strategicStack = Nil,
-        latentPlan = None,
-        decisionEvidence = None,
         compensationSummary = Some("central conversion window"),
         compensationVectors = List("Conversion Window (0.6)", "Delayed Recovery (0.5)"),
         investedMaterial = Some(100),
@@ -338,4 +359,28 @@ class LlmApiActiveParityTest extends FunSuite:
         deterministicDraftPresent = false
       )
     )
+  }
+
+  test("only WhyNow may attach an active note without visible delta support") {
+    assert(LlmApi.activePlannerPrimaryCanAttachWithoutVisibleSupport(AuthorQuestionKind.WhyNow))
+    assert(!LlmApi.activePlannerPrimaryCanAttachWithoutVisibleSupport(AuthorQuestionKind.WhyThis))
+    assert(!LlmApi.activePlannerPrimaryCanAttachWithoutVisibleSupport(AuthorQuestionKind.WhatChanged))
+    assert(!LlmApi.activePlannerPrimaryCanAttachWithoutVisibleSupport(AuthorQuestionKind.WhatMustBeStopped))
+    assert(!LlmApi.activePlannerPrimaryCanAttachWithoutVisibleSupport(AuthorQuestionKind.WhosePlanIsFaster))
+  }
+
+  test("planner-approved WhyNow remains active-note eligible even without strategic-branch selection") {
+    assert(LlmApi.activePlannerSelectionEligible(strategicBranchSelected = true, primaryKind = None))
+    assert(LlmApi.activePlannerSelectionEligible(strategicBranchSelected = false, primaryKind = Some(AuthorQuestionKind.WhyNow)))
+    assert(!LlmApi.activePlannerSelectionEligible(strategicBranchSelected = false, primaryKind = Some(AuthorQuestionKind.WhyThis)))
+    assert(!LlmApi.activePlannerSelectionEligible(strategicBranchSelected = false, primaryKind = Some(AuthorQuestionKind.WhatChanged)))
+  }
+
+  test("planner-approved WhyNow may bypass the minimal truth-mode gate but other kinds may not") {
+    val moment = minimalMoment()
+
+    assertEquals(PlayerFacingTruthModePolicy.classify(moment).toString, "Minimal")
+    assert(!PlayerFacingTruthModePolicy.allowsActiveNote(moment))
+    assert(LlmApi.activePlannerPolicyEligible(moment, Some(AuthorQuestionKind.WhyNow)))
+    assert(!LlmApi.activePlannerPolicyEligible(moment, Some(AuthorQuestionKind.WhyThis)))
   }

@@ -11,6 +11,9 @@ private[analysis] object MomentTruthSemantics:
       canonicalLens: String,
       compensationSelectionEligible: Boolean,
       truthBackedStrategicVisibility: Boolean,
+      threadLocalReplacementEligible: Boolean,
+      globalVisibleEligible: Boolean,
+      globalActiveNoteEligible: Boolean,
       collapseSensitive: Boolean
   )
 
@@ -45,6 +48,18 @@ private[analysis] object MomentTruthSemantics:
             projection.exemplarRole != TruthExemplarRole.NonExemplar ||
             projection.maintenanceExemplarCandidate
         )
+    val threadLocalReplacementEligible =
+      contractOpt match
+        case Some(contract) => truthThreadLocalReplacementEligible(contract, projection)
+        case None           => fallbackStrategicCarrierPresent(moment, surface)
+    val globalVisibleEligible =
+      contractOpt match
+        case Some(contract) => truthGlobalVisibleEligible(contract, projection)
+        case None           => fallbackStrategicCarrierPresent(moment, surface)
+    val globalActiveNoteEligible =
+      contractOpt match
+        case Some(contract) => truthGlobalActiveNoteEligible(contract, projection)
+        case None           => fallbackStrategicCarrierPresent(moment, surface)
     val collapseSensitive =
       contractOpt match
         case Some(contract) =>
@@ -61,6 +76,9 @@ private[analysis] object MomentTruthSemantics:
       canonicalLens = canonicalLens,
       compensationSelectionEligible = compensationSelectionEligible,
       truthBackedStrategicVisibility = truthBackedStrategicVisibility,
+      threadLocalReplacementEligible = threadLocalReplacementEligible,
+      globalVisibleEligible = globalVisibleEligible,
+      globalActiveNoteEligible = globalActiveNoteEligible,
       collapseSensitive = collapseSensitive
     )
 
@@ -97,6 +115,84 @@ private[analysis] object MomentTruthSemantics:
       projection.surfaceMode == TruthSurfaceMode.InvestmentExplain ||
       projection.surfaceMode == TruthSurfaceMode.MaintenancePreserve ||
       projection.surfaceMode == TruthSurfaceMode.ConversionExplain
+
+  private def truthThreadLocalReplacementEligible(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    truthGlobalVisibleEligible(contract, projection) ||
+      truthFailureSignificantThreadLocal(contract, projection) ||
+      truthCriticalBestTacticalOrTechnical(contract, projection)
+
+  private def truthGlobalVisibleEligible(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    truthProtectedFamily(contract, projection) ||
+      (
+        projection.visibilityRole != TruthVisibilityRole.Hidden &&
+          (
+            projection.ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+              projection.ownershipRole == TruthOwnershipRole.ConversionOwner ||
+              projection.ownershipRole == TruthOwnershipRole.MaintenanceEcho ||
+              projection.exemplarRole != TruthExemplarRole.NonExemplar ||
+              projection.maintenanceExemplarCandidate ||
+              projection.surfaceMode == TruthSurfaceMode.InvestmentExplain ||
+              projection.surfaceMode == TruthSurfaceMode.MaintenancePreserve ||
+              projection.surfaceMode == TruthSurfaceMode.ConversionExplain
+          )
+      )
+
+  private def truthGlobalActiveNoteEligible(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    truthGlobalVisibleEligible(contract, projection)
+
+  private def truthProtectedFamily(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    projection.classificationKey == "blunder" ||
+      projection.classificationKey == "missedwin" ||
+      truthPromotedBestHold(contract, projection) ||
+      projection.exemplarRole == TruthExemplarRole.VerifiedExemplar ||
+      projection.exemplarRole == TruthExemplarRole.ProvisionalExemplar ||
+      projection.ownershipRole == TruthOwnershipRole.CommitmentOwner ||
+      projection.ownershipRole == TruthOwnershipRole.ConversionOwner
+
+  private def truthPromotedBestHold(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    projection.classificationKey == "best" &&
+      contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense &&
+      contract.benchmarkCriticalMove
+
+  private def truthFailureSignificantThreadLocal(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    projection.classificationKey != "best" &&
+      contract.failureMode != FailureInterpretationMode.NoClearPlan &&
+      (
+        contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+          contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+          contract.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
+      )
+
+  private def truthCriticalBestTacticalOrTechnical(
+      contract: DecisiveTruthContract,
+      projection: MomentTruthProjection
+  ): Boolean =
+    projection.classificationKey == "best" &&
+      (
+        contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+          (
+            contract.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove &&
+              contract.benchmarkCriticalMove
+          )
+      )
 
   private def contractLens(
       contract: DecisiveTruthContract,
@@ -143,6 +239,26 @@ private[analysis] object MomentTruthSemantics:
     else if digest.exists(d => d.decisionComparison.isDefined || d.decision.exists(_.trim.nonEmpty)) then "decision"
     else if digest.exists(_.practicalVerdict.exists(_.trim.nonEmpty)) then "practical"
     else "strategic"
+
+  private def fallbackStrategicCarrierPresent(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    surface.dominantIdeaText.nonEmpty ||
+      surface.executionText.nonEmpty ||
+      surface.objectiveText.nonEmpty ||
+      surface.focusText.nonEmpty ||
+      surface.compensationPosition ||
+      moment.activePlan.isDefined ||
+      moment.strategyPack.exists(pack =>
+        pack.strategicIdeas.nonEmpty || pack.longTermFocus.nonEmpty || pack.pieceRoutes.nonEmpty
+      ) ||
+      moment.signalDigest.exists(digest =>
+        digest.dominantIdeaKind.isDefined ||
+          digest.compensation.exists(_.trim.nonEmpty) ||
+          digest.compensationVectors.exists(_.trim.nonEmpty) ||
+          digest.opponentPlan.exists(_.trim.nonEmpty)
+      )
 
   private def truthFirstPriority(
       moment: GameArcMoment,

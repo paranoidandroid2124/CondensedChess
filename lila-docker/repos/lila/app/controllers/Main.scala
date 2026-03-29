@@ -4,6 +4,7 @@ import play.api.libs.json.Json
 import scala.util.control.NonFatal
 
 import lila.app.*
+import lila.core.study.StudyOrder
 import lila.core.config.CollName
 import lila.db.dsl.*
 import lila.web.{ StaticContent, WebForms }
@@ -28,9 +29,60 @@ final class Main(
     Option(env.net.email.value).map(_.trim).filter(_.nonEmpty)
 
   def landing = Open:
-    Ok.page(views.pages.landing(journalContent.latestPost)
-      .flag(_.noHeader)
-      .flag(_.fullScreen))
+    if ctx.isAuth then Redirect(routes.Main.home).toFuccess
+    else
+      Ok.page(views.pages.landing(journalContent.latestPost)
+        .flag(_.noHeader)
+        .flag(_.fullScreen))
+
+  def home = Auth { ctx ?=> me ?=>
+    for
+      summary <- env.analyse.importHistory.recentSummary(me.userId)
+      recentPatternReports <- env.accountintel.api.recentSuccessful(me.userId, limit = 3)
+      notebookPager <- env.study.pager.mine(StudyOrder.updated, page = 1)(using me)
+      recentNotebooks = notebookPager.currentPageResults.take(3).toList
+      continueCard =
+        summary.analyses.headOption
+          .map(Main.HomeContinueCard.Analysis.apply)
+          .orElse(recentPatternReports.headOption.map(Main.HomeContinueCard.PatternReport.apply))
+          .orElse(recentNotebooks.headOption.map(Main.HomeContinueCard.Notebook.apply))
+          .getOrElse(Main.HomeContinueCard.Starter)
+      data = Main.HomePageData(
+        continueCard = continueCard,
+        quickActions = List(
+          Main.HomeQuickAction(
+            label = "Start",
+            title = "Start from PGN",
+            copy = "Paste a game and open Guided Review without rebuilding your entry flow.",
+            href = routes.Importer.importGame.url
+          ),
+          Main.HomeQuickAction(
+            label = "Board",
+            title = "Open full analysis",
+            copy = "Go straight to the board, tree, engine, and explorer.",
+            href = s"${routes.UserAnalysis.index.url}?mode=raw"
+          ),
+          Main.HomeQuickAction(
+            label = "Patterns",
+            title = "See account patterns",
+            copy = "Open My Patterns or Prep for Opponent from a public account.",
+            href = routes.AccountIntel.landing("", "").url
+          ),
+          Main.HomeQuickAction(
+            label = "Puzzle",
+            title = "Open Strategic Puzzle",
+            copy = "Open the current live strategic puzzle without promising saved progress.",
+            href = routes.StrategicPuzzle.home.url
+          )
+        ),
+        recentAnalyses = summary.analyses.take(4),
+        recentPatternReports = recentPatternReports,
+        recentAccounts = summary.accounts.take(4),
+        recentNotebooks = recentNotebooks
+      )
+      result <- Ok.page(views.pages.home(data))
+    yield result
+  }
 
   def support = Open:
     Ok.page(
@@ -148,6 +200,29 @@ final class Main(
       .recover { case NonFatal(_) => false }
 
 object Main:
+
+  sealed trait HomeContinueCard
+  object HomeContinueCard:
+    final case class Analysis(entry: lila.analyse.ImportHistory.Analysis) extends HomeContinueCard
+    final case class PatternReport(job: lila.accountintel.AccountIntel.AccountIntelJob) extends HomeContinueCard
+    final case class Notebook(entry: lila.study.Study.WithChaptersAndLiked) extends HomeContinueCard
+    case object Starter extends HomeContinueCard
+
+  final case class HomeQuickAction(
+      label: String,
+      title: String,
+      copy: String,
+      href: String
+  )
+
+  final case class HomePageData(
+      continueCard: HomeContinueCard,
+      quickActions: List[HomeQuickAction],
+      recentAnalyses: List[lila.analyse.ImportHistory.Analysis],
+      recentPatternReports: List[lila.accountintel.AccountIntel.AccountIntelJob],
+      recentAccounts: List[lila.analyse.ImportHistory.Account],
+      recentNotebooks: List[lila.study.Study.WithChaptersAndLiked]
+  )
 
   final case class HealthCheck(
       name: String,

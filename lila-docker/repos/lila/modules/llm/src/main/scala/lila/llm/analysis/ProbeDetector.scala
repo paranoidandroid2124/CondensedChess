@@ -21,14 +21,14 @@ object ProbeDetector:
   private val MaxProbeRequests = 8
   private val PurposeBudget: Map[String, Int] = Map(
     "theme_plan_validation" -> 3,
+    "route_denial_validation" -> 2,
+    "color_complex_squeeze_validation" -> 2,
+    "long_term_restraint_validation" -> 2,
     "reply_multipv" -> 2,
     "defense_reply_multipv" -> 2,
     "convert_reply_multipv" -> 2,
     "recapture_branches" -> 1,
     "keep_tension_branches" -> 1,
-    "free_tempo_branches" -> 1,
-    "latent_plan_refutation" -> 1,
-    "latent_plan_immediate" -> 1,
     "played_move_counterfactual" -> 1,
     "NullMoveThreat" -> 2
   )
@@ -100,17 +100,28 @@ object ProbeDetector:
 
     // Task A (QID, etc): probe the played move itself with reply MultiPV,
     // even when it already appears in root MultiPV, to surface opponent branching.
+    authorQuestions.find(_.evidencePurposes.contains("defense_reply_multipv")).foreach { q =>
+      evidence += mkProbe(
+        id = s"evidence_reply_${q.id}",
+        probeFen = fen,
+        moves = List(playedUci),
+        purpose = "defense_reply_multipv",
+        question = q,
+        multiPv = 3,
+        planName = "Evidence: defense reply MultiPV"
+      )
+    }
     authorQuestions
-      .find(q => q.kind == AuthorQuestionKind.TensionDecision || q.kind == AuthorQuestionKind.DefensiveTask)
+      .find(q =>
+        q.evidencePurposes.contains("reply_multipv") &&
+          !q.evidencePurposes.contains("defense_reply_multipv")
+      )
       .foreach { q =>
-        val purpose =
-          if (q.kind == AuthorQuestionKind.DefensiveTask) "defense_reply_multipv"
-          else "reply_multipv"
         evidence += mkProbe(
           id = s"evidence_reply_${q.id}",
           probeFen = fen,
           moves = List(playedUci),
-          purpose = purpose,
+          purpose = "reply_multipv",
           question = q,
           multiPv = 3,
           planName = "Evidence: reply MultiPV"
@@ -118,7 +129,7 @@ object ProbeDetector:
       }
 
     // Task B (recapture branching): after a capture, probe at least 2 distinct recaptures if possible.
-    authorQuestions.find(_.kind == AuthorQuestionKind.StructuralCommitment).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains("recapture_branches")).foreach { q =>
       val recaptures = recaptureUcis(afterPlayedFen, playedUci).take(3)
       if (recaptures.size >= 2)
         evidence += mkProbe(
@@ -134,7 +145,7 @@ object ProbeDetector:
 
     // Keep-tension branching: when the best move keeps tension (often castling),
     // probe the opponent's main structural choices (e.g., ...dxc4 vs ...c5 in QID).
-    authorQuestions.find(_.kind == AuthorQuestionKind.PlanClash).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains("keep_tension_branches")).foreach { q =>
       val bestUci = candidates.headOption.flatMap(_.uci).filterNot(_ == playedUci)
       bestUci.foreach { uci =>
         val afterBestFen = NarrativeUtils.uciListToFen(fen, List(uci))
@@ -155,7 +166,7 @@ object ProbeDetector:
 
     // Conversion probing: when we are in a conversion window, probe the best move's reply MultiPV
     // so we can describe the defender's main resource and how the advantage persists.
-    authorQuestions.find(_.kind == AuthorQuestionKind.ConversionPlan).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains("convert_reply_multipv")).foreach { q =>
       val bestUci = candidates.headOption.flatMap(_.uci).filter(legalUci.contains)
       bestUci.foreach { uci =>
         evidence += mkProbe(
@@ -170,145 +181,7 @@ object ProbeDetector:
       }
     }
 
-    // Task D (latent plan): probe "free tempo" legal quiet branches + counters (refutations).
-    // The base FEN is AFTER the played move, where the opponent is to move.
-    authorQuestions
-      .filter(_.kind == AuthorQuestionKind.LatentPlan)
-      .flatMap(q => q.latentPlan.map(lp => q -> lp))
-      .take(1) // Keep this bounded: one latent plan per move is enough for book-style clarity.
-      .foreach { (q, lp) =>
-        Fen.read(chess.variant.Standard, Fen.Full(afterPlayedFen)).foreach { afterPos =>
-          val legalMoves = afterPos.legalMoves.toList
-          
-          def isQuiet(mv: Move): Boolean =
-            !mv.captures && !mv.after.check.yes
-
-          def slownessScore(mv: Move): Int =
-            var s = 0
-            if (mv.castle.isDefined) s -= 3
-            mv.piece.role match
-              case Pawn =>
-                mv.orig.file match
-                  case File.A | File.H => s += 5
-                  case File.B | File.G => s += 3
-                  case f if MovePredicates.isCentralFile(f) => s -= 2
-                  case _ => s += 0
-              case Queen | Rook => s += 2
-              case Knight | Bishop =>
-                val back = if afterPos.color.white then Rank.First else Rank.Eighth
-                if (mv.orig.rank == back) s -= 2 else s += 1
-              case _ => s += 0
-            s
-
-          val freeTempoCfg = lp.evidencePolicy.freeTempoVerify.getOrElse(FreeTempoVerify())
-          val slowMoves =
-            legalMoves
-              .filter(isQuiet)
-              .sortBy(mv => -slownessScore(mv))
-              .map(_.toUci.uci)
-              .distinct
-              .take(freeTempoCfg.maxBranches)
-
-          if (slowMoves.nonEmpty)
-            evidence += mkProbe(
-              id = s"evidence_free_tempo_${q.id}",
-              probeFen = afterPlayedFen,
-              moves = slowMoves,
-              purpose = "free_tempo_branches",
-              question = q,
-              multiPv = freeTempoCfg.replyMultiPv,
-              planName = s"Evidence: free tempo (${lp.seedId})",
-              seedId = Some(lp.seedId),
-              maxCpLoss = Some(60)
-            )
-
-          // 2) Immediate Viability (Why not now?)
-          lp.evidencePolicy.immediateViability.foreach { ivCfg =>
-             val candidateUcis = lp.candidateMoves.flatMap { pat =>
-               // Generating concrete moves from patterns for the CURRENT position (afterPlayedFen)
-               // Re-using LatentPlanSeeder logic would be ideal, but here we need simple matching.
-               // We assume LatentPlanInfo already carries concrete candidate moves if Seeder did its job.
-               // Since AuthorQuestion.LatentPlanInfo is the source, let's use the ones passed in via AuthorQuestion?
-               // Actually, AuthorQuestion just holds the Info.
-               // For now, let's filter legal moves matching the pattern.
-               legalMoves.filter(m => matchesMovePattern(m, pat)).map(_.toUci.uci)
-             }.distinct.take(2)
-
-             if (candidateUcis.nonEmpty)
-               evidence += mkProbe(
-                 id = s"evidence_immediate_${q.id}",
-                 probeFen = afterPlayedFen,
-                 moves = candidateUcis,
-                 purpose = "latent_plan_immediate",
-                 question = q,
-                 multiPv = ivCfg.replyMultiPv,
-                 planName = s"Evidence: immediate viability (${lp.seedId})",
-                 seedId = Some(lp.seedId),
-                 maxCpLoss = Some(ivCfg.maxMoverLossCp)
-               )
-          }
-
-          val refCfg = lp.evidencePolicy.refutationCheck.getOrElse(RefutationCheck())
-          val counterPatterns = (refCfg.counters ++ lp.typicalCounters).distinct
-
-          def matchesCounterPattern(mv: Move, p: CounterPattern): Boolean =
-            p match
-              case CounterPattern.PawnPushBlock(file) =>
-                mv.piece.role == Pawn && !mv.captures && mv.orig.file == file
-              case CounterPattern.CentralStrike =>
-                mv.piece.role == Pawn &&
-                  (MovePredicates.isCentralFile(mv.orig.file) || MovePredicates.isCentralFile(mv.dest.file))
-              case CounterPattern.PieceControl(role, sq) =>
-                mv.piece.role == role && mv.dest == sq
-              case CounterPattern.Counterplay(flank) =>
-                mv.piece.role == Pawn && !mv.captures && (flank match
-                  case Flank.Kingside  => mv.dest.file == File.F || mv.dest.file == File.G || mv.dest.file == File.H
-                  case Flank.Queenside => mv.dest.file == File.A || mv.dest.file == File.B || mv.dest.file == File.C
-                  case Flank.Center    => MovePredicates.isCentralFile(mv.dest.file)
-                )
-
-          // Refutation Candidates: Pattern Matches + Engine Top Replies (Contextual)
-          val patternCounters = 
-            if (counterPatterns.isEmpty) Nil
-            else legalMoves.filter(mv => counterPatterns.exists(p => matchesCounterPattern(mv, p)))
-
-          // We don't have engine top replies for the latent checking position yet (chicken-egg).
-          // We rely on pattern matching for the *initial* probe.
-          // However, we can add "Active Defense" candidates (checks, captures) as generic refutation candidates.
-          val activeDefense = legalMoves.filter(m => m.captures || m.after.check.yes)
-
-          val counterMoves = (patternCounters ++ activeDefense)
-            .sortBy(slownessScore) // prefer moves that do something
-            .map(_.toUci.uci)
-            .distinct
-            .take(3)
-
-          if (counterMoves.nonEmpty)
-            evidence += mkProbe(
-              id = s"evidence_refute_${q.id}",
-              probeFen = afterPlayedFen,
-              moves = counterMoves,
-              purpose = "latent_plan_refutation",
-              question = q,
-              multiPv = refCfg.replyMultiPv,
-              planName = s"Evidence: refutation (${lp.seedId})",
-              seedId = Some(lp.seedId),
-              maxCpLoss = Some(120)
-            )
-        }
-      }
-
     evidence.toList.distinctBy(_.id)
-
-  private def matchesMovePattern(mv: Move, pat: MovePattern): Boolean =
-    pat match
-      case MovePattern.PawnAdvance(f) => mv.piece.role == Pawn && mv.orig.file == f
-      case MovePattern.PawnLever(f, t) => mv.piece.role == Pawn && mv.orig.file == f && mv.dest.file == t
-      case MovePattern.PieceTo(r, s) => mv.piece.role == r && mv.dest == s
-      case MovePattern.PieceManeuver(r, t, _) => mv.piece.role == r && mv.dest == t // Simplified match
-      case MovePattern.Exchange(r, s) => mv.piece.role == r && mv.dest == s && mv.captures
-      case MovePattern.Castle => mv.castle.isDefined
-      case MovePattern.BatteryFormation(_, _, _) => true // Hard to match single move to battery, skip filtering
 
   private def recaptureUcis(afterFen: String, playedUci: String): List[String] =
     val played = chess.format.Uci(playedUci).collect { case m: chess.format.Uci.Move => m }
@@ -482,7 +355,7 @@ object ProbeDetector:
                         planId = Some(h.planId),
                         planName = Some(labeledPlanName),
                         planScore = Some(h.score),
-                        purpose = Some("theme_plan_validation"),
+                        purpose = Some(contract.purpose),
                         objective = contract.objective,
                         requiredSignals = contract.requiredSignals,
                         horizon = contract.horizon,
@@ -523,7 +396,7 @@ object ProbeDetector:
                       planId = Some(pm.plan.id.toString),
                       planName = Some(labeledPlanName),
                       planScore = Some(pm.score),
-                      purpose = Some("theme_plan_validation"),
+                      purpose = Some(contract.purpose),
                       objective = contract.objective,
                       requiredSignals = contract.requiredSignals,
                       horizon = contract.horizon,
@@ -576,9 +449,55 @@ object ProbeDetector:
       else
         counters(key) = current + 1
         true
-    }
+      }.map(bindProbeRequest)
+
+  private def bindProbeRequest(req: ProbeRequest): ProbeRequest =
+    val candidateMove =
+      req.candidateMove
+        .orElse(req.moves match
+          case move :: Nil => Some(move)
+          case _           => None
+        )
+        .map(_.trim)
+        .filter(_.nonEmpty)
+    val depthFloor =
+      req.depthFloor
+        .orElse(Option.when(req.depth > 0)(req.depth))
+        .filter(_ > 0)
+    val variationHash =
+      req.variationHash
+        .orElse(Some(probeVariationHash(req, candidateMove)))
+        .filter(_.trim.nonEmpty)
+    val engineConfigFingerprint =
+      req.engineConfigFingerprint
+        .orElse(Some(defaultEngineFingerprint(req)))
+        .filter(_.trim.nonEmpty)
+    req.copy(
+      candidateMove = candidateMove,
+      depthFloor = depthFloor,
+      variationHash = variationHash,
+      engineConfigFingerprint = engineConfigFingerprint
+    )
+
+  private def probeVariationHash(
+      req: ProbeRequest,
+      candidateMove: Option[String]
+  ): String =
+    List(
+      Option(req.fen).getOrElse("").trim,
+      candidateMove.getOrElse(""),
+      req.moves.distinct.sorted.mkString(","),
+      req.purpose.getOrElse("").trim,
+      req.objective.getOrElse("").trim,
+      req.seedId.getOrElse("").trim,
+      req.requiredSignals.sorted.mkString(",")
+    ).mkString("|")
+
+  private def defaultEngineFingerprint(req: ProbeRequest): String =
+    s"wasm_stockfish:depth=${req.depth}:multipv=${req.multiPv.getOrElse(1)}"
 
   private case class ThemePlanContract(
+      purpose: String,
       subplanId: Option[SubplanId],
       objective: Option[String],
       requiredSignals: List[String],
@@ -595,46 +514,36 @@ object ProbeDetector:
       taggedSubplan
         .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString))
         .orElse(ThemeResolver.subplanFromPlanName(pm.plan.name))
-    inferredSubplan.flatMap(SubplanCatalog.specs.get) match
-      case Some(spec) =>
-        val required =
-          inferredSubplan
-            .map(sp => broadenThemeContractForDefaultSubplan(sp, spec.requiredSignals))
-            .getOrElse(spec.requiredSignals.distinct)
-        ThemePlanContract(
-          subplanId = inferredSubplan,
-          objective = Some(spec.objective),
-          requiredSignals = required,
-          horizon = Some(spec.horizon)
-        )
-      case None =>
-        ThemePlanContract(
-          subplanId = inferredSubplan,
-          objective = objectiveForPurpose("theme_plan_validation"),
-          requiredSignals = requiredSignalsForPurpose("theme_plan_validation"),
-          horizon = horizonForPurpose("theme_plan_validation")
-        )
+    themePlanContractForSubplan(inferredSubplan)
 
   private def themePlanContract(h: PlanHypothesis): ThemePlanContract =
-    val inferredSubplan = hypothesisSubplanId(h)
+    themePlanContractForSubplan(hypothesisSubplanId(h))
+
+  private def themePlanContractForSubplan(
+      inferredSubplan: Option[SubplanId]
+  ): ThemePlanContract =
     inferredSubplan.flatMap(SubplanCatalog.specs.get) match
       case Some(spec) =>
+        val purpose = ThemePlanProbePurpose.contractForSubplan(inferredSubplan)
         val required =
           inferredSubplan
             .map(sp => broadenThemeContractForDefaultSubplan(sp, spec.requiredSignals))
             .getOrElse(spec.requiredSignals.distinct)
         ThemePlanContract(
+          purpose = purpose.purpose,
           subplanId = inferredSubplan,
-          objective = Some(spec.objective),
-          requiredSignals = required,
-          horizon = Some(spec.horizon)
+          objective = Some(purpose.objective),
+          requiredSignals = ThemePlanProbePurpose.mergedSignals(required, purpose.purpose),
+          horizon = Some(purpose.horizon)
         )
       case None =>
+        val purpose = ThemePlanProbePurpose.contractForSubplan(inferredSubplan)
         ThemePlanContract(
+          purpose = purpose.purpose,
           subplanId = inferredSubplan,
-          objective = objectiveForPurpose("theme_plan_validation"),
-          requiredSignals = requiredSignalsForPurpose("theme_plan_validation"),
-          horizon = horizonForPurpose("theme_plan_validation")
+          objective = Some(purpose.objective),
+          requiredSignals = purpose.requiredSignals,
+          horizon = Some(purpose.horizon)
         )
 
   private def hypothesisKey(h: PlanHypothesis): String =
@@ -666,45 +575,48 @@ object ProbeDetector:
     SignalPriority.filter(merged.contains) ++ (merged -- SignalPriority.toSet).toList.sorted
 
   private def requiredSignalsForPurpose(purpose: String): List[String] =
-    purpose match
-      case "theme_plan_validation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
-      case "latent_plan_refutation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
-      case "latent_plan_immediate"  => List("replyPvs", "l1Delta")
-      case "free_tempo_branches"    => List("replyPvs", "futureSnapshot")
-      case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" |
-          "recapture_branches" | "keep_tension_branches" =>
-        List("replyPvs")
-      case "played_move_counterfactual" =>
-        List("replyPvs", "l1Delta")
-      case "NullMoveThreat" =>
-        List("replyPvs", "keyMotifs", "l1Delta")
-      case _ =>
-        Nil
+    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.requiredSignals).getOrElse(
+      purpose match
+        case "latent_plan_refutation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
+        case "latent_plan_immediate"  => List("replyPvs", "l1Delta")
+        case "free_tempo_branches"    => List("replyPvs", "futureSnapshot")
+        case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" |
+            "recapture_branches" | "keep_tension_branches" =>
+          List("replyPvs")
+        case "played_move_counterfactual" =>
+          List("replyPvs", "l1Delta")
+        case "NullMoveThreat" =>
+          List("replyPvs", "keyMotifs", "l1Delta")
+        case _ =>
+          Nil
+    )
 
   private def objectiveForPurpose(purpose: String): Option[String] =
-    purpose match
-      case "theme_plan_validation" => Some("validate_plan_presence")
-      case "latent_plan_refutation" => Some("refute_plan")
-      case "latent_plan_immediate"  => Some("validate_immediate_viability")
-      case "free_tempo_branches"    => Some("validate_latent_plan")
-      case "reply_multipv"          => Some("compare_reply_branches")
-      case "defense_reply_multipv"  => Some("validate_defensive_resources")
-      case "convert_reply_multipv"  => Some("validate_conversion_route")
-      case "recapture_branches"     => Some("compare_recapture_structures")
-      case "keep_tension_branches"  => Some("compare_tension_branches")
-      case "played_move_counterfactual" => Some("counterfactual_probe")
-      case "NullMoveThreat"         => Some("validate_restriction_prophylaxis")
-      case _                        => None
+    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.objective).orElse(
+      purpose match
+        case "latent_plan_refutation" => Some("refute_plan")
+        case "latent_plan_immediate"  => Some("validate_immediate_viability")
+        case "free_tempo_branches"    => Some("validate_latent_plan")
+        case "reply_multipv"          => Some("compare_reply_branches")
+        case "defense_reply_multipv"  => Some("validate_defensive_resources")
+        case "convert_reply_multipv"  => Some("validate_conversion_route")
+        case "recapture_branches"     => Some("compare_recapture_structures")
+        case "keep_tension_branches"  => Some("compare_tension_branches")
+        case "played_move_counterfactual" => Some("counterfactual_probe")
+        case "NullMoveThreat"         => Some("validate_restriction_prophylaxis")
+        case _                        => None
+    )
 
   private def horizonForPurpose(purpose: String): Option[String] =
-    purpose match
-      case "theme_plan_validation" => Some("medium")
-      case "latent_plan_refutation" | "free_tempo_branches" => Some("long")
-      case "latent_plan_immediate" | "convert_reply_multipv" => Some("medium")
-      case "reply_multipv" | "defense_reply_multipv" | "recapture_branches" | "keep_tension_branches" =>
-        Some("short")
-      case "played_move_counterfactual" | "NullMoveThreat" => Some("short")
-      case _ => None
+    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.horizon).orElse(
+      purpose match
+        case "latent_plan_refutation" | "free_tempo_branches" => Some("long")
+        case "latent_plan_immediate" | "convert_reply_multipv" => Some("medium")
+        case "reply_multipv" | "defense_reply_multipv" | "recapture_branches" | "keep_tension_branches" =>
+          Some("short")
+        case "played_move_counterfactual" | "NullMoveThreat" => Some("short")
+        case _ => None
+    )
 
   /**
    * Structured probe-derived signals for hypothesis validation/ranking.
@@ -967,8 +879,15 @@ object ProbeDetector:
         legalMoves.filter(mv =>
           !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop)
         )
+      case SubplanId.BishopReanchor =>
+        legalMoves.filter(mv => mv.piece.role == Bishop && !mv.captures)
       case SubplanId.RookFileTransfer | SubplanId.RookLiftScaffold =>
         legalMoves.filter(mv => mv.piece.role == Rook && !mv.captures)
+      case SubplanId.OpenFilePressure =>
+        legalMoves.filter(mv =>
+          (mv.piece.role == Rook || mv.piece.role == Queen) &&
+            (!mv.captures || mv.dest.file == mv.orig.file)
+        )
       case SubplanId.FlankClamp | SubplanId.RookPawnMarch | SubplanId.HookCreation | SubplanId.WingBreakTiming |
           SubplanId.MinorityAttackFixation =>
         legalMoves.filter(mv =>
@@ -976,19 +895,22 @@ object ProbeDetector:
             !mv.dest.file.isCentral &&
             (!mv.captures || mv.dest.file.isKingside || mv.dest.file.isQueenside)
         )
-      case SubplanId.CentralSpaceBind | SubplanId.CentralBreakTiming | SubplanId.TensionMaintenance =>
+      case SubplanId.CentralSpaceBind | SubplanId.CentralBreakTiming | SubplanId.TensionMaintenance |
+          SubplanId.IQPInducement =>
         legalMoves.filter(mv =>
           mv.piece.role == Pawn &&
-            (mv.orig.file.isCentral || mv.dest.file.isCentral)
+            (mv.orig.file.isCentral || mv.dest.file.isCentral || mv.captures)
         )
       case SubplanId.StaticWeaknessFixation | SubplanId.BackwardPawnTargeting =>
         legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
       case SubplanId.SimplificationWindow | SubplanId.DefenderTrade | SubplanId.QueenTradeShield |
-          SubplanId.SimplificationConversion | SubplanId.InvasionTransition | SubplanId.OppositeBishopsConversion =>
+          SubplanId.SimplificationConversion | SubplanId.InvasionTransition | SubplanId.OppositeBishopsConversion |
+          SubplanId.BadPieceLiquidation =>
         legalMoves.filter(mv => mv.captures || mv.piece.role == Rook)
-      case SubplanId.PasserConversion =>
+      case SubplanId.PasserConversion | SubplanId.PassedPawnManufacture =>
         legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
-      case SubplanId.ForcingTacticalShot | SubplanId.DefenderOverload | SubplanId.ClearanceBreak =>
+      case SubplanId.ForcingTacticalShot | SubplanId.DefenderOverload | SubplanId.ClearanceBreak |
+          SubplanId.BatteryPressure =>
         legalMoves.filter(mv => mv.captures || mv.after.check.yes)
 
   private def movesFromTheme(theme: ThemeL1, legalMoves: List[Move]): List[Move] =

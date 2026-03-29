@@ -64,6 +64,8 @@ private[llm] object PlayerFacingSupportPolicy:
 
   def rewriteSurfaceLabels(text: String): String =
     List[(Regex, Regex.Match => String)](
+      """(?i)\bStrategic Focus\b""".r -> (_ => "Key theme"),
+      """(?i)\bStrategic Priority\b""".r -> (_ => "Key theme"),
       """(?i)\bOpening Branch Point\b""".r -> (_ => "Opening Branch"),
       """(?i)\bPreparing ([A-H])[- ]break Break\b""".r -> (m => s"Preparing the ${m.group(1).toLowerCase}-break"),
       """(?i)\bPreparing ([A-H])[- ]break\b""".r -> (m => s"Preparing the ${m.group(1).toLowerCase}-break"),
@@ -77,7 +79,7 @@ private[llm] object PlayerFacingSupportPolicy:
       """(?i)\bImmediate Tactical Gain Counterplay\b""".r -> (_ => "Immediate counterplay"),
       """(?i)\bAttacking Fixed Pawn\b""".r -> (_ => "Attacking a fixed pawn"),
       """(?i)\bRook Pawn March To Gain Flank Space\b""".r -> (_ => "Gaining flank space with a rook pawn"),
-      """(?i)\bKingside Pawn Storm\b""".r -> (_ => "Kingside pawn storm")
+      """(?i)\bKingside Pawn Storm\b""".r -> (_ => "kingside pawn storm")
     ).foldLeft(text) { case (acc, (pattern, rewrite)) =>
       pattern.replaceAllIn(acc, rewrite)
     }

@@ -88,7 +88,7 @@ object support:
                 )
               ),
               footer(cls := "legal-footer")(
-                a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")
+                a(href := homeUrl, cls := "legal-link")("Back to Home")
               )
             )
           )

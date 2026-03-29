@@ -35,11 +35,6 @@ object NarrativeSignalDigestBuilder:
         .orElse(ctx.openingEvent.map(_.toString.replace('_', ' ')).flatMap(normalized))
     val strategicStack =
       ctx.mainStrategicPlans.take(3).map(plan => f"${plan.rank}. ${plan.planName} (${plan.score}%.2f)")
-    val latentPlan = ctx.latentPlans.headOption.flatMap(plan => normalized(plan.planName))
-    val latentReason =
-      (ctx.whyAbsentFromTopMultiPV ++ ctx.latentPlans.map(_.whyAbsentFromTopMultiPv))
-        .flatMap(normalized)
-        .headOption
     val decisionComparison = decisionComparisonOverride.orElse(DecisionComparisonBuilder.digest(ctx))
 
     val practical = ctx.semantic.flatMap(_.practicalAssessment)
@@ -97,7 +92,6 @@ object NarrativeSignalDigestBuilder:
         List(
           Option.when(opening.isDefined)("opening"),
           Option.when(strategicStack.nonEmpty)("strategic_stack"),
-          Option.when(latentPlan.isDefined)("latent_plan"),
           Option.when(authoringEvidence.isDefined)("authoring_evidence"),
           Option.when(practicalVerdict.isDefined || compensation.isDefined)("practical"),
           Option.when(structuralCue.isDefined || prophylaxisPlan.isDefined)("structure"),
@@ -117,8 +111,8 @@ object NarrativeSignalDigestBuilder:
       NarrativeSignalDigest(
         opening = opening,
         strategicStack = strategicStack,
-        latentPlan = latentPlan,
-        latentReason = latentReason,
+        latentPlan = None,
+        latentReason = None,
         decisionComparison = decisionComparison,
         authoringEvidence = authoringEvidence,
         practicalVerdict = practicalVerdict,
@@ -168,7 +162,6 @@ object NarrativeSignalDigestBuilder:
             Option.when(beat.conceptIds.contains("opponent_plan"))("opponent_plan")
           ).flatten
         case OutlineBeatKind.DecisionPoint => List("decision")
-        case OutlineBeatKind.ConditionalPlan => List("latent_plan", "authoring_evidence")
         case OutlineBeatKind.Evidence => List("authoring_evidence")
         case OutlineBeatKind.OpeningTheory => List("opening_theory")
         case OutlineBeatKind.MainMove if hasPractical => List("practical")

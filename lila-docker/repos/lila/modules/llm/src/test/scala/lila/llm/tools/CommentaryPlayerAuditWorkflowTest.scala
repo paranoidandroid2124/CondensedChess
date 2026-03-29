@@ -241,7 +241,6 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
         "strategicPlanExperiments" -> Json.arr(
           Json.obj("planId" -> "plan_1", "subplanId" -> play.api.libs.json.JsNull, "evidenceTier" -> "pv_coupled")
         ),
-        "whyAbsentFromTopMultiPV" -> Json.arr("This route stays secondary until c4 lands."),
         "signalDigest" -> Json.obj(
           "opening" -> "English Opening",
           "opponentPlan" -> "Challenge d5 with c6",

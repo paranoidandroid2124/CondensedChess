@@ -44,14 +44,21 @@ private[analysis] object FullGameEvidenceSurfacePolicy:
     AlternativeNarrativeSupport.build(ctx).isDefined
 
   private def structureDeferred(ctx: NarrativeContext, hasDeferredAlternative: Boolean): Boolean =
-    StrategicThesisBuilder.build(ctx).exists(_.lens == StrategicLens.Structure) && hasDeferredAlternative
+    hasDeferredAlternative &&
+      (
+        StructurePlanArcBuilder.build(ctx).nonEmpty ||
+          ctx.semantic.flatMap(_.structureProfile).nonEmpty ||
+          ctx.semantic
+            .flatMap(_.planAlignment)
+            .exists(alignment => alignment.reasonCodes.nonEmpty || alignment.narrativeIntent.exists(_.trim.nonEmpty))
+      )
 
   private def blunderWhyNot(momentType: String, hasDeferredAlternative: Boolean): Boolean =
     Set("Blunder", "MissedWin", "Mistake").contains(Option(momentType).getOrElse("").trim) && hasDeferredAlternative
 
   private def endgameContinuation(ctx: NarrativeContext, hasDeferredAlternative: Boolean): Boolean =
     Option(ctx.phase.current).exists(_.trim.equalsIgnoreCase("endgame")) &&
-      (hasDeferredAlternative || ctx.latentPlans.nonEmpty)
+      hasDeferredAlternative
 
   private def selectionKindPriority(kind: String): Int =
     Option(kind).map(_.trim.toLowerCase) match
@@ -142,8 +149,48 @@ private[analysis] object FullGameEvidenceSurfacePolicy:
   ): FullGameEvidencePayload =
     if !eligible then FullGameEvidencePayload(Nil, Nil, Nil)
     else
+      val carriedQuestions = carriedQuestionSummaries(authorQuestions, authorEvidence)
+      val carriedEvidence = carriedEvidenceSummaries(authorEvidence, carriedQuestions)
       FullGameEvidencePayload(
         probeRequests = probeRequests.take(MaxProbeRequestsPerMoment),
-        authorQuestions = authorQuestions.take(2),
-        authorEvidence = authorEvidence.take(2)
+        authorQuestions = carriedQuestions,
+        authorEvidence = carriedEvidence
       )
+
+  def runtimePayload(
+      allowProbeRequests: Boolean,
+      probeRequests: List[ProbeRequest],
+      authorQuestions: List[AuthorQuestionSummary],
+      authorEvidence: List[AuthorEvidenceSummary]
+  ): FullGameEvidencePayload =
+    val carriedQuestions = carriedQuestionSummaries(authorQuestions, authorEvidence)
+    val carriedEvidence = carriedEvidenceSummaries(authorEvidence, carriedQuestions)
+    val carriedProbeRequests =
+      Option.when(allowProbeRequests)(probeRequests.take(MaxProbeRequestsPerMoment)).getOrElse(Nil)
+    if carriedProbeRequests.isEmpty && carriedQuestions.isEmpty && carriedEvidence.isEmpty then
+      FullGameEvidencePayload(Nil, Nil, Nil)
+    else
+      FullGameEvidencePayload(
+        probeRequests = carriedProbeRequests,
+        authorQuestions = carriedQuestions,
+        authorEvidence = carriedEvidence
+      )
+
+  private def carriedQuestionSummaries(
+      authorQuestions: List[AuthorQuestionSummary],
+      authorEvidence: List[AuthorEvidenceSummary]
+  ): List[AuthorQuestionSummary] =
+    val prioritizedQuestions = authorQuestions.sortBy(question => (question.priority, question.kind, question.id))
+    val evidenceLinkedIds = authorEvidence.iterator.map(_.questionId).toSet
+    val evidenceLinkedQuestions =
+      prioritizedQuestions.filter(question => evidenceLinkedIds.contains(question.id)).take(2)
+    val fillerQuestions =
+      prioritizedQuestions.filterNot(question => evidenceLinkedIds.contains(question.id)).take(2 - evidenceLinkedQuestions.size)
+    (evidenceLinkedQuestions ++ fillerQuestions).take(2)
+
+  private def carriedEvidenceSummaries(
+      authorEvidence: List[AuthorEvidenceSummary],
+      carriedQuestions: List[AuthorQuestionSummary]
+  ): List[AuthorEvidenceSummary] =
+    val carriedIds = carriedQuestions.iterator.map(_.id).toSet
+    authorEvidence.filter(summary => carriedIds.contains(summary.questionId)).take(2)

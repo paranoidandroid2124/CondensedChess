@@ -47,6 +47,8 @@ object UiEnv
   override def iconTag(icon: Icon, text: Frag): Tag = super[Helpers].iconTag(icon, text)
 
   def routeUrl = netConfig.routeUrl
+  def homeUrl(using ctx: Context): String =
+    if ctx.isAuth then "/home" else "/"
   def isOnline: IsOnline = new IsOnline:
     def exec(userId: UserId) = false
   def lightUserSync = env.user.lightUserSync

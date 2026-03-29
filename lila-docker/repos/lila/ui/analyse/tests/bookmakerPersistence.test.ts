@@ -12,11 +12,15 @@ import { restoreStoredBookmakerTokens } from '../src/bookmaker/stateContinuity';
 describe('bookmaker session persistence', () => {
   afterEach(() => {
     delete (globalThis as { window?: Window }).window;
+    delete (globalThis as { document?: Document }).document;
   });
 
   test('round-trips ledger and continuity tokens through session restore', () => {
     const dom = new JSDOM('', { url: 'https://example.test/analyse' });
     (globalThis as { window?: Window }).window = dom.window as unknown as Window;
+    (globalThis as { document?: Document }).document = dom.window.document;
+    dom.window.document.body.dataset.cookieConsentDecided = '1';
+    dom.window.document.body.dataset.cookieConsentPrefs = '1';
 
     const entry: StoredBookmakerEntry = {
       html: '<div>cached</div>',
@@ -26,8 +30,6 @@ describe('bookmaker session persistence', () => {
       model: null,
       cacheHit: true,
       mainPlansCount: 1,
-      latentPlansCount: 0,
-      holdReasonsCount: 1,
       bookmakerLedger: {
         schema: 'chesstory.bookmaker.ledger.v1',
         motifKey: 'counterplay_restraint',
@@ -69,7 +71,7 @@ describe('bookmaker session persistence', () => {
       },
     };
 
-    persistSessionBookmakerSnapshot('scope', 'path', 'commentary', entry);
+    persistSessionBookmakerSnapshot('scope', 'path', 'path-a', 'commentary', entry);
     const restored = readSessionBookmakerSnapshot('scope', 'path');
     assert(restored);
     assert.deepEqual(restored.entry.bookmakerLedger, entry.bookmakerLedger);
@@ -102,8 +104,6 @@ describe('bookmaker session persistence', () => {
       model: null,
       cacheHit: true,
       mainPlansCount: 0,
-      latentPlansCount: 0,
-      holdReasonsCount: 0,
       planStateToken: {
         version: 3,
         history: {
@@ -169,8 +169,6 @@ describe('bookmaker session persistence', () => {
             risk: 'medium',
           },
         }],
-        latentPlans: [{ seedId: 'l1', planName: 'Queenside expansion', viabilityScore: 0.62, whyAbsentFromTopMultiPv: 'too slow' }],
-        holdReasons: ['Engine keeps the center closed first'],
         bookmakerLedger: null,
         planStateToken: null,
         endgameStateToken: null,
@@ -184,8 +182,6 @@ describe('bookmaker session persistence', () => {
     );
 
     assert.equal(entry.mainPlansCount, 1);
-    assert.equal(entry.latentPlansCount, 1);
-    assert.equal(entry.holdReasonsCount, 1);
     assert.equal(entry.sourceMode, 'llm_polished');
     assert.equal(entry.model, 'gpt-5-mini');
     assert.deepEqual(entry.tokenContext, {

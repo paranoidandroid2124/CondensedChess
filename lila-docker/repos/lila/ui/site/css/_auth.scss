@@ -16,6 +16,7 @@ $c-accent: #F59E0B;
 
 .auth-page {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     background-color: #F8F9FA;
@@ -37,6 +38,7 @@ html.pro .auth-page {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .auth-container {
@@ -1483,7 +1485,16 @@ html.pro .status-links__primary.is-disabled {
 }
 
 .auth-card--account-product {
+    ---account-app-dvh: 100vh;
+    ---account-app-dvh: 100dvh;
     padding: 2.4rem;
+    height: calc(var(---account-app-dvh) - var(---site-header-height, 0px) - (2 * var(---cs-shell-block-gap, 1rem)));
+    min-height: calc(var(---account-app-dvh) - var(---site-header-height, 0px) - (2 * var(---cs-shell-block-gap, 1rem)));
+    max-height: calc(var(---account-app-dvh) - var(---site-header-height, 0px) - (2 * var(---cs-shell-block-gap, 1rem)));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .importer-grid--product,
@@ -1495,7 +1506,8 @@ html.pro .status-links__primary.is-disabled {
 .account-product-action-stack,
 .account-product-patterns,
 .account-product-evidence-grid,
-.account-product-exemplar-list {
+.account-product-exemplar-list,
+.account-product-support-grid {
     display: grid;
     gap: 1rem;
 }
@@ -1506,9 +1518,92 @@ html.pro .status-links__primary.is-disabled {
 }
 
 .account-product-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 1rem;
+    overflow: hidden;
+}
+
+.account-product-workspace,
+.account-product-shell > .js-ai-workspace {
+    min-height: 0;
+    display: flex;
+}
+
+.account-product-body--coach {
+    grid-template-columns: minmax(19rem, 0.92fr) minmax(0, 1.18fr);
+    align-items: stretch;
+    min-height: 0;
+    height: 100%;
+}
+
+.account-product-main--coach {
+    gap: 1.15rem;
+}
+
+.account-product-rail,
+.account-product-secondary {
+    min-width: 0;
+    min-height: 0;
+}
+
+.account-product-rail-shell,
+.account-product-secondary-scroll {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
+    min-height: 0;
+    max-height: none;
+    height: 100%;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+}
+
+.account-product-rail-shell {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+    padding-right: 0;
+}
+
+.account-product-secondary-scroll {
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.account-product-rail-slot {
+    min-width: 0;
+}
+
+.account-product-rail-slot--lead {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    overflow: hidden;
+}
+
+.account-product-rail-slot--action {
+    align-self: stretch;
+}
+
+.account-product-rail-slot .importer-panel {
+    margin: 0;
+}
+
+.account-product-rail-slot .importer-panel__copy {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.account-product-rail-shell:focus,
+.account-product-secondary-scroll:focus {
+    outline: none;
 }
 
 .importer-hero--account-product {
@@ -1606,11 +1701,12 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-mode-link,
 .account-product-side-link,
-.account-product-secondary-link {
+.account-product-secondary-link,
+.account-product-primary-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.4rem;
+    min-height: 2.75rem;
     padding: 0 1rem;
     border-radius: 999px;
     border: 1px solid rgba(15, 23, 42, 0.12);
@@ -1623,6 +1719,12 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-mode-link.is-active,
 .account-product-side-link.is-active {
+    background: #161A25;
+    border-color: #161A25;
+    color: #fff;
+}
+
+.account-product-primary-link {
     background: #161A25;
     border-color: #161A25;
     color: #fff;
@@ -1643,6 +1745,59 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-overview-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-product-support-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: start;
+}
+
+.account-product-support-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.account-product-support-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.account-product-support-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0 0.95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.78);
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.account-product-support-tab.is-active {
+    background: #161A25;
+    border-color: #161A25;
+    color: #fff;
+}
+
+.account-product-support-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+}
+
+.account-product-support-panel[hidden] {
+    display: none !important;
 }
 
 .account-product-overview-card,
@@ -1691,6 +1846,11 @@ html.pro .status-links__primary.is-disabled {
     padding: 0.9rem 1rem 1rem;
 }
 
+.account-product-pattern.is-featured {
+    border-color: rgba(59, 130, 246, 0.18);
+    box-shadow: 0 12px 28px rgba(59, 130, 246, 0.08);
+}
+
 .account-product-pattern summary {
     list-style: none;
     cursor: pointer;
@@ -1704,11 +1864,18 @@ html.pro .status-links__primary.is-disabled {
 .account-product-pattern-body,
 .account-product-anchor-meta,
 .account-product-anchor-plan,
+.account-product-action-details,
 .account-product-evidence-block,
 .account-product-history {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+}
+
+.account-product-pattern-headline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .account-product-pattern-head {
@@ -1723,6 +1890,11 @@ html.pro .status-links__primary.is-disabled {
     font-size: 0.86rem;
 }
 
+.account-product-pattern-confidence {
+    font-weight: 700;
+    color: #0F172A;
+}
+
 .account-product-pattern-summary,
 .account-product-action-card p,
 .account-product-anchor p,
@@ -1734,9 +1906,143 @@ html.pro .status-links__primary.is-disabled {
     line-height: 1.55;
 }
 
+.account-product-rail-slot--lead .account-product-pattern-summary,
+.account-product-rail-slot--lead .account-product-anchor-plan p,
+.account-product-rail-slot--action .account-product-action-card p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.account-product-rail-slot--lead .account-product-pattern-summary,
+.account-product-rail-slot--lead .account-product-anchor-plan p {
+    -webkit-line-clamp: 3;
+}
+
+.account-product-rail-slot--action .account-product-action-card p {
+    -webkit-line-clamp: 2;
+}
+
+.account-product-opening-summary {
+    margin: 0;
+    color: #64748B;
+    line-height: 1.55;
+}
+
 .account-product-evidence-line {
     color: #64748B;
     font-size: 0.85rem;
+}
+
+.account-product-anchor--coach {
+    display: grid;
+    grid-template-columns: minmax(9.5rem, 11rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.account-product-anchor.is-lead {
+    padding: 1.15rem;
+    border-color: rgba(59, 130, 246, 0.24);
+    background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.9));
+    box-shadow: 0 18px 38px rgba(59, 130, 246, 0.12);
+}
+
+.account-product-anchor-board {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.04);
+    box-shadow:
+        inset 0 0 0 1px rgba(15, 23, 42, 0.08),
+        0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.account-product-anchor-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.account-product-anchor-kicker {
+    font-size: 0.73rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $c-primary;
+}
+
+.account-product-action-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.account-product-action-stack--primary {
+    gap: 0;
+}
+
+.account-product-patterns--featured {
+    gap: 1rem;
+}
+
+.account-product-patterns--extra {
+    margin-top: 0.85rem;
+}
+
+.account-product-more-patterns,
+.account-product-opening-details,
+.account-product-action-details,
+.account-product-tools,
+.account-product-evidence-block {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 0.9rem 1rem 1rem;
+}
+
+.account-product-more-patterns summary,
+.account-product-opening-details summary,
+.account-product-action-details summary,
+.account-product-tools summary,
+.account-product-evidence-block summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-weight: 700;
+    color: #161A25;
+}
+
+.account-product-more-patterns summary::-webkit-details-marker,
+.account-product-opening-details summary::-webkit-details-marker,
+.account-product-action-details summary::-webkit-details-marker,
+.account-product-tools summary::-webkit-details-marker,
+.account-product-evidence-block summary::-webkit-details-marker {
+    display: none;
+}
+
+.account-product-more-patterns__count,
+.account-product-tools__hint {
+    color: #64748B;
+    font-size: 0.84rem;
+    font-weight: 600;
+}
+
+.account-product-tools-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+
+.account-product-action-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
 }
 
 .account-product-checklist-items {
@@ -1906,6 +2212,26 @@ body.dark .account-product-pattern,
 body.pro .account-product-pattern,
 html.dark .account-product-pattern,
 html.pro .account-product-pattern,
+body.dark .account-product-opening-details,
+body.pro .account-product-opening-details,
+html.dark .account-product-opening-details,
+html.pro .account-product-opening-details,
+body.dark .account-product-tools,
+body.pro .account-product-tools,
+html.dark .account-product-tools,
+html.pro .account-product-tools,
+body.dark .account-product-more-patterns,
+body.pro .account-product-more-patterns,
+html.dark .account-product-more-patterns,
+html.pro .account-product-more-patterns,
+body.dark .account-product-evidence-block,
+body.pro .account-product-evidence-block,
+html.dark .account-product-evidence-block,
+html.pro .account-product-evidence-block,
+body.dark .account-product-support-tabs,
+body.pro .account-product-support-tabs,
+html.dark .account-product-support-tabs,
+html.pro .account-product-support-tabs,
 body.dark .account-product-mode-link,
 body.pro .account-product-mode-link,
 html.dark .account-product-mode-link,
@@ -1917,7 +2243,15 @@ html.pro .account-product-side-link,
 body.dark .account-product-secondary-link,
 body.pro .account-product-secondary-link,
 html.dark .account-product-secondary-link,
-html.pro .account-product-secondary-link {
+html.pro .account-product-secondary-link,
+body.dark .account-product-support-tab,
+body.pro .account-product-support-tab,
+html.dark .account-product-support-tab,
+html.pro .account-product-support-tab,
+body.dark .account-product-primary-link,
+body.pro .account-product-primary-link,
+html.dark .account-product-primary-link,
+html.pro .account-product-primary-link {
     border-color: $c-border;
     background: rgba(22, 26, 37, 0.82);
 }
@@ -1942,6 +2276,10 @@ body.dark .account-product-secondary-link,
 body.pro .account-product-secondary-link,
 html.dark .account-product-secondary-link,
 html.pro .account-product-secondary-link,
+body.dark .account-product-support-tab,
+body.pro .account-product-support-tab,
+html.dark .account-product-support-tab,
+html.pro .account-product-support-tab,
 body.dark .account-product-mode-field__label,
 body.pro .account-product-mode-field__label,
 html.dark .account-product-mode-field__label,
@@ -1992,7 +2330,27 @@ html.pro .account-product-mode-choice__copy span {
 body.dark .account-product-mode-choice__copy strong,
 body.pro .account-product-mode-choice__copy strong,
 html.dark .account-product-mode-choice__copy strong,
-html.pro .account-product-mode-choice__copy strong {
+html.pro .account-product-mode-choice__copy strong,
+body.dark .account-product-pattern-confidence,
+body.pro .account-product-pattern-confidence,
+html.dark .account-product-pattern-confidence,
+html.pro .account-product-pattern-confidence,
+body.dark .account-product-tools summary,
+body.pro .account-product-tools summary,
+html.dark .account-product-tools summary,
+html.pro .account-product-tools summary,
+body.dark .account-product-opening-details summary,
+body.pro .account-product-opening-details summary,
+html.dark .account-product-opening-details summary,
+html.pro .account-product-opening-details summary,
+body.dark .account-product-more-patterns summary,
+body.pro .account-product-more-patterns summary,
+html.dark .account-product-more-patterns summary,
+html.pro .account-product-more-patterns summary,
+body.dark .account-product-evidence-block summary,
+body.pro .account-product-evidence-block summary,
+html.dark .account-product-evidence-block summary,
+html.pro .account-product-evidence-block summary {
     color: $c-font;
 }
 
@@ -2002,6 +2360,15 @@ html.dark .account-product-mode-choice__input:checked + .account-product-mode-ch
 html.pro .account-product-mode-choice__input:checked + .account-product-mode-choice__copy {
     border-color: rgba(59, 130, 246, 0.42);
     background: rgba(59, 130, 246, 0.14);
+}
+
+body.dark .account-product-support-tab.is-active,
+body.pro .account-product-support-tab.is-active,
+html.dark .account-product-support-tab.is-active,
+html.pro .account-product-support-tab.is-active {
+    background: #161A25;
+    border-color: #161A25;
+    color: #fff;
 }
 
 body.dark .account-product-overview-card strong,
@@ -2050,10 +2417,22 @@ html.pro .account-product-compare-list strong {
 body.dark .account-product-history-compare,
 body.pro .account-product-history-compare,
 html.dark .account-product-history-compare,
-html.pro .account-product-history-compare {
+html.pro .account-product-history-compare,
+body.dark .account-product-anchor-board,
+body.pro .account-product-anchor-board,
+html.dark .account-product-anchor-board,
+html.pro .account-product-anchor-board {
     border-color: $c-border;
     background: rgba(22, 26, 37, 0.82);
     color: $c-font;
+}
+
+body.dark .account-product-anchor.is-lead,
+body.pro .account-product-anchor.is-lead,
+html.dark .account-product-anchor.is-lead,
+html.pro .account-product-anchor.is-lead {
+    border-color: rgba(59, 130, 246, 0.38);
+    background: linear-gradient(180deg, rgba(24, 39, 63, 0.96), rgba(22, 26, 37, 0.9));
 }
 
 @media (max-width: 960px) {
@@ -2067,7 +2446,82 @@ html.pro .account-product-history-compare {
         grid-template-columns: 1fr;
     }
 
+    .account-product-support-grid,
+    .account-product-tools-grid,
+    .account-product-anchor--coach {
+        grid-template-columns: 1fr;
+    }
+
+    .account-product-body--coach {
+        grid-template-rows: auto minmax(0, 1fr);
+        height: 100%;
+    }
+
+    .account-product-rail-shell {
+        max-height: clamp(14rem, 34dvh, 18rem);
+        padding: 0.9rem;
+        border-radius: 20px;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        background: rgba(248, 250, 252, 0.94);
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+        backdrop-filter: blur(12px);
+    }
+
+    body.dark .account-product-rail-shell,
+    body.pro .account-product-rail-shell,
+    html.dark .account-product-rail-shell,
+    html.pro .account-product-rail-shell {
+        border-color: $c-border;
+        background: rgba(22, 26, 37, 0.9);
+    }
+
+    .account-product-secondary-scroll {
+        min-height: 0;
+        max-height: none;
+        height: 100%;
+        padding-right: 0;
+    }
+
+    .account-product-rail-shell .account-product-anchor--coach {
+        grid-template-columns: minmax(5.4rem, 6.25rem) minmax(0, 1fr);
+        gap: 0.75rem;
+    }
+
+    .account-product-rail-shell .account-product-anchor-board {
+        max-width: 6.25rem;
+        border-radius: 14px;
+    }
+
+    .account-product-rail-shell .account-product-anchor-copy {
+        gap: 0.5rem;
+    }
+
+    .account-product-rail-shell .account-product-anchor-plan p {
+        -webkit-line-clamp: 2;
+    }
+
+    .account-product-action-cta-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
     .auth-card--account-product {
-        padding: 1.6rem;
+        padding: 1.3rem;
+    }
+}
+
+@media (max-width: 1120px) {
+    .account-product-anchor--coach {
+        grid-template-columns: 1fr;
+    }
+
+    .account-product-rail-shell .account-product-anchor--coach {
+        grid-template-columns: minmax(6.5rem, 7.5rem) minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 960px) {
+    .account-product-rail-shell .account-product-anchor--coach {
+        grid-template-columns: minmax(5.4rem, 6.25rem) minmax(0, 1fr);
     }
 }

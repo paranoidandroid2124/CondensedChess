@@ -536,7 +536,7 @@ describe('narrative review card click guard', () => {
     assert.match(text, /keep the initiative rather than recovering material/);
   });
 
-  test('strategic note falls back to strategyPack and badges owner mismatch', async () => {
+  test('strategic note no longer rebuilds active strategy surfaces from strategyPack fallback', async () => {
     const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {
       root: {
@@ -594,10 +594,12 @@ describe('narrative review card click guard', () => {
     const vnode = narrativeMomentView(ctrl, moment);
     const text = collectText(vnode);
 
-    assert.match(text, /White Campaign/);
-    assert.match(text, /Dominant: King Attack Build Up · g7, h7 · Build/);
-    assert.match(text, /Q toward h5/);
-    assert.match(text, /keep the initiative rather than recovering material/);
+    assert.match(text, /Strategic Note/);
+    assert.match(text, /White should keep the initiative rather than rushing to recover the pawn/);
+    assert.doesNotMatch(text, /White Campaign/);
+    assert.doesNotMatch(text, /Dominant: King Attack Build Up/);
+    assert.doesNotMatch(text, /Q toward h5/);
+    assert.doesNotMatch(text, /keep the initiative rather than recovering material/);
   });
 
   test('default Chronicle support stays compact and pushes analyst detail into collapsed advanced details', async () => {
@@ -640,7 +642,6 @@ describe('narrative review card click guard', () => {
           contradictoryProbeCount: 0,
         },
       ],
-      whyAbsentFromTopMultiPV: ['it still needs one free tempo first'],
       signalDigest: {
         opening: 'Queen’s Pawn Game',
         opponentPlan: 'break with ...c5',
@@ -669,7 +670,6 @@ describe('narrative review card click guard', () => {
     assert.ok(selectors.includes('details.narrative-advanced-details'));
     assert.match(text, /Support/);
     assert.match(text, /Main plans/);
-    assert.match(text, /Why it stayed conditional/);
     assert.match(text, /Advanced details/);
     assert.match(text, /Strategic Note/);
     assert.match(text, /Authoring Evidence/);

@@ -23,7 +23,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
       renderMode = NarrativeRenderMode.Bookmaker
     )
 
-  test("build prefers whyAbsent deferred branch and keeps engine best context") {
+  test("build falls back to engine-gap deferred branch when legacy whyAbsent text is present") {
     val best =
       VariationLine(
         moves = List("g2g4", "a7a6", "h4h5"),
@@ -64,8 +64,8 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.chosenMove, Some("h4"))
     assertEquals(comparison.engineBestMove, Some("g4"))
     assertEquals(comparison.deferredMove, Some("g4"))
-    assertEquals(comparison.deferredSource, Some("why_absent"))
-    assert(comparison.deferredReason.exists(_.contains("loses 220 cp")))
+    assertEquals(comparison.deferredSource, Some("engine_gap"))
+    assert(comparison.deferredReason.exists(_.contains("220cp")))
     assertEquals(comparison.cpLossVsChosen, Some(220))
     assertEquals(comparison.engineBestPv, List("g4", "...a6", "h5"))
     assert(!comparison.chosenMatchesBest)

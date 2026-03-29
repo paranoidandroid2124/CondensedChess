@@ -2,33 +2,53 @@ package lila.llm
 
 import lila.llm.analysis.UserFacingSignalSanitizer
 import lila.llm.model.StrategicPlanExperiment
-import lila.llm.model.authoring.{ LatentPlanNarrative, PlanHypothesis }
+import lila.llm.model.authoring.PlanHypothesis
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 object UserFacingPayloadSanitizer:
 
   def sanitize(response: CommentResponse): CommentResponse =
+    val sanitizedPlans =
+      response.mainStrategicPlans
+        .filter(isProbeBackedPlan)
+        .map(sanitizePlanHypothesis)
+    val allowedPlanKeys = sanitizedPlans.map(planKey).toSet
+    val allowedPlanIds = sanitizedPlans.map(planIdKey).toSet
+    val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
     response.copy(
       commentary = clean(response.commentary),
       concepts = cleanList(response.concepts),
-      authorQuestions = response.authorQuestions.map(sanitizeAuthorQuestion),
-      authorEvidence = response.authorEvidence.map(sanitizeAuthorEvidence),
-      mainStrategicPlans = response.mainStrategicPlans.map(sanitizePlanHypothesis),
-      strategicPlanExperiments = response.strategicPlanExperiments.map(sanitizeStrategicPlanExperiment),
-      latentPlans = response.latentPlans.map(sanitizeLatentPlan),
-      whyAbsentFromTopMultiPV = cleanList(response.whyAbsentFromTopMultiPV),
-      strategyPack = response.strategyPack.map(sanitizeStrategyPack),
+      probeRequests = Nil,
+      authorQuestions = Nil,
+      authorEvidence = Nil,
+      mainStrategicPlans = sanitizedPlans,
+      strategicPlanExperiments =
+        response.strategicPlanExperiments
+          .filter(experiment => planExperimentAllowed(experiment.planId, experiment.subplanId, allowedPlanKeys, allowedPlanIds))
+          .map(sanitizeStrategicPlanExperiment),
+      latentPlans = Nil,
+      whyAbsentFromTopMultiPV = Nil,
+      planStateToken = response.planStateToken.filter(_ => sanitizedPlans.nonEmpty),
+      strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
-      bookmakerLedger = response.bookmakerLedger.map(sanitizeBookmakerLedger)
+      bookmakerLedger = response.bookmakerLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeBookmakerLedger)
     )
 
   def sanitize(response: GameChronicleResponse): GameChronicleResponse =
+    val sanitizedMoments = response.moments.map(sanitizeMoment)
+    val retainedPlanNames =
+      sanitizedMoments
+        .flatMap(_.mainStrategicPlans.map(_.planName))
+        .flatMap(planName => cleanOpt(Some(planName)))
+        .map(normalize)
+        .toSet
+    val sanitizedThemes = sanitizeChronicleThemes(response.themes, retainedPlanNames)
     response.copy(
       intro = clean(response.intro),
-      moments = response.moments.map(sanitizeMoment),
-      conclusion = clean(response.conclusion),
-      themes = cleanList(response.themes),
-      strategicThreads = response.strategicThreads.map(sanitizeStrategicThread)
+      moments = sanitizedMoments,
+      conclusion = sanitizeChronicleConclusion(response.conclusion, response.themes, sanitizedThemes),
+      themes = sanitizedThemes,
+      strategicThreads = response.strategicThreads.flatMap(thread => sanitizeStrategicThread(thread, retainedPlanNames))
     )
 
   def sanitize(payload: BootstrapPayload): BootstrapPayload =
@@ -43,22 +63,33 @@ object UserFacingPayloadSanitizer:
     )
 
   private def sanitizeMoment(moment: GameChronicleMoment): GameChronicleMoment =
+    val sanitizedPlans =
+      moment.mainStrategicPlans
+        .filter(isProbeBackedPlan)
+        .map(sanitizePlanHypothesis)
+    val allowedPlanKeys = sanitizedPlans.map(planKey).toSet
+    val allowedPlanIds = sanitizedPlans.map(planIdKey).toSet
+    val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
     moment.copy(
       moveClassification = cleanOpt(moment.moveClassification),
       narrative = clean(moment.narrative),
       selectionLabel = cleanOpt(moment.selectionLabel),
       selectionReason = cleanOpt(moment.selectionReason),
-      concepts = cleanList(moment.concepts),
-      strategyPack = moment.strategyPack.map(sanitizeStrategyPack),
+      concepts = Nil,
+      strategyPack = moment.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = moment.signalDigest.map(sanitizeSignalDigest),
-      authorQuestions = moment.authorQuestions.map(sanitizeAuthorQuestion),
-      authorEvidence = moment.authorEvidence.map(sanitizeAuthorEvidence),
-      mainStrategicPlans = moment.mainStrategicPlans.map(sanitizePlanHypothesis),
-      strategicPlanExperiments = moment.strategicPlanExperiments.map(sanitizeStrategicPlanExperiment),
-      latentPlans = moment.latentPlans.map(sanitizeLatentPlan),
-      whyAbsentFromTopMultiPV = cleanList(moment.whyAbsentFromTopMultiPV),
+      authorQuestions = Nil,
+      authorEvidence = Nil,
+      mainStrategicPlans = sanitizedPlans,
+      strategicPlanExperiments =
+        moment.strategicPlanExperiments
+          .filter(experiment => planExperimentAllowed(experiment.planId, experiment.subplanId, allowedPlanKeys, allowedPlanIds))
+          .map(sanitizeStrategicPlanExperiment),
+      latentPlans = Nil,
+      whyAbsentFromTopMultiPV = Nil,
       activeStrategicNote = cleanOpt(moment.activeStrategicNote),
       activeStrategicIdeas = moment.activeStrategicIdeas.map(sanitizeActiveIdeaRef),
+      activeStrategicRoutes = moment.activeStrategicRoutes.map(sanitizeActiveRouteRef),
       activeStrategicMoves = moment.activeStrategicMoves.map(sanitizeActiveMoveRef),
       activeDirectionalTargets = moment.activeDirectionalTargets.map(sanitizeDirectionalTarget),
       activeBranchDossier = moment.activeBranchDossier.map(sanitizeBranchDossier),
@@ -72,28 +103,32 @@ object UserFacingPayloadSanitizer:
       executionSteps = cleanList(plan.executionSteps),
       failureModes = cleanList(plan.failureModes),
       viability = plan.viability.copy(risk = clean(plan.viability.risk)),
-      refutation = cleanOpt(plan.refutation)
-    )
-
-  private def sanitizeLatentPlan(plan: LatentPlanNarrative): LatentPlanNarrative =
-    plan.copy(
-      planName = clean(plan.planName),
-      whyAbsentFromTopMultiPv = clean(plan.whyAbsentFromTopMultiPv)
+      refutation = cleanOpt(plan.refutation),
+      evidenceSources = Nil
     )
 
   private def sanitizeStrategicPlanExperiment(experiment: StrategicPlanExperiment): StrategicPlanExperiment =
     experiment.copy(themeL1 = clean(experiment.themeL1))
 
-  private def sanitizeStrategyPack(pack: StrategyPack): StrategyPack =
-    pack.copy(
-      plans = pack.plans.map(sanitizeSidePlan),
-      pieceRoutes = pack.pieceRoutes.map(sanitizePieceRoute),
-      pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
-      directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
-      longTermFocus = cleanList(pack.longTermFocus),
-      evidence = cleanList(pack.evidence),
-      signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
-    )
+  private def sanitizeStrategyPack(
+      pack: StrategyPack,
+      allowedPlanNames: Set[String]
+  ): Option[StrategyPack] =
+    val sanitizedPlans =
+      pack.plans
+        .filter(plan => allowedPlanNames.contains(plan.planName.trim.toLowerCase))
+        .map(sanitizeSidePlan)
+    Option.when(sanitizedPlans.nonEmpty) {
+      pack.copy(
+        plans = sanitizedPlans,
+        pieceRoutes = pack.pieceRoutes.map(sanitizePieceRoute),
+        pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
+        directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
+        longTermFocus = cleanList(pack.longTermFocus),
+        evidence = cleanList(pack.evidence),
+        signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
+      )
+    }
 
   private def sanitizeSidePlan(plan: StrategySidePlan): StrategySidePlan =
     plan.copy(
@@ -125,11 +160,11 @@ object UserFacingPayloadSanitizer:
   private def sanitizeSignalDigest(digest: NarrativeSignalDigest): NarrativeSignalDigest =
     digest.copy(
       opening = cleanOpt(digest.opening),
-      strategicStack = cleanList(digest.strategicStack),
-      latentPlan = cleanOpt(digest.latentPlan),
-      latentReason = cleanOpt(digest.latentReason),
+      strategicStack = Nil,
+      latentPlan = None,
+      latentReason = None,
       decisionComparison = digest.decisionComparison.map(sanitizeDecisionComparison),
-      authoringEvidence = cleanOpt(digest.authoringEvidence),
+      authoringEvidence = None,
       practicalVerdict = cleanOpt(digest.practicalVerdict),
       practicalFactors = cleanList(digest.practicalFactors),
       compensation = cleanOpt(digest.compensation),
@@ -137,50 +172,31 @@ object UserFacingPayloadSanitizer:
       structuralCue = cleanOpt(digest.structuralCue),
       structureProfile = cleanOpt(digest.structureProfile),
       alignmentReasons = cleanList(digest.alignmentReasons),
-      deploymentPurpose = cleanOpt(digest.deploymentPurpose),
-      deploymentContribution = cleanOpt(digest.deploymentContribution),
-      prophylaxisPlan = cleanOpt(digest.prophylaxisPlan),
-      prophylaxisThreat = cleanOpt(digest.prophylaxisThreat),
-      dominantIdeaFocus = cleanOpt(digest.dominantIdeaFocus),
-      secondaryIdeaFocus = cleanOpt(digest.secondaryIdeaFocus),
-      decision = cleanOpt(digest.decision),
-      strategicFlow = cleanOpt(digest.strategicFlow),
-      opponentPlan = cleanOpt(digest.opponentPlan),
-      preservedSignals = cleanList(digest.preservedSignals)
+      deploymentPurpose = None,
+      deploymentContribution = None,
+      prophylaxisPlan = None,
+      prophylaxisThreat = None,
+      dominantIdeaKind = None,
+      dominantIdeaGroup = None,
+      dominantIdeaReadiness = None,
+      dominantIdeaFocus = None,
+      secondaryIdeaKind = None,
+      secondaryIdeaGroup = None,
+      secondaryIdeaFocus = None,
+      decision = None,
+      strategicFlow = None,
+      opponentPlan = None,
+      preservedSignals = Nil
     )
 
   private def sanitizeDecisionComparison(digest: DecisionComparisonDigest): DecisionComparisonDigest =
     digest.copy(
       chosenMove = cleanOpt(digest.chosenMove),
       engineBestMove = cleanOpt(digest.engineBestMove),
-      deferredMove = cleanOpt(digest.deferredMove),
-      deferredReason = cleanOpt(digest.deferredReason),
-      deferredSource = cleanOpt(digest.deferredSource),
-      evidence = cleanOpt(digest.evidence)
-    )
-
-  private def sanitizeAuthorQuestion(question: AuthorQuestionSummary): AuthorQuestionSummary =
-    question.copy(
-      question = clean(question.question),
-      why = cleanOpt(question.why),
-      anchors = cleanList(question.anchors),
-      latentPlanName = cleanOpt(question.latentPlanName)
-    )
-
-  private def sanitizeAuthorEvidence(evidence: AuthorEvidenceSummary): AuthorEvidenceSummary =
-    evidence.copy(
-      question = clean(evidence.question),
-      why = cleanOpt(evidence.why),
-      purposes = cleanList(evidence.purposes),
-      branches = evidence.branches.map(sanitizeEvidenceBranch),
-      probeObjectives = cleanList(evidence.probeObjectives),
-      linkedPlans = cleanList(evidence.linkedPlans)
-    )
-
-  private def sanitizeEvidenceBranch(branch: EvidenceBranchSummary): EvidenceBranchSummary =
-    branch.copy(
-      keyMove = clean(branch.keyMove),
-      line = clean(branch.line)
+      deferredMove = None,
+      deferredReason = None,
+      deferredSource = None,
+      evidence = None
     )
 
   private def sanitizeBookmakerLedger(ledger: BookmakerStrategicLedgerV1): BookmakerStrategicLedgerV1 =
@@ -202,6 +218,9 @@ object UserFacingPayloadSanitizer:
 
   private def sanitizeActiveIdeaRef(ref: ActiveStrategicIdeaRef): ActiveStrategicIdeaRef =
     ref.copy(focusSummary = clean(ref.focusSummary))
+
+  private def sanitizeActiveRouteRef(ref: ActiveStrategicRouteRef): ActiveStrategicRouteRef =
+    ref.copy(purpose = clean(ref.purpose))
 
   private def sanitizeActiveMoveRef(ref: ActiveStrategicMoveRef): ActiveStrategicMoveRef =
     ref.copy(
@@ -238,18 +257,67 @@ object UserFacingPayloadSanitizer:
       source = clean(cue.source)
     )
 
-  private def sanitizeStrategicThread(thread: ActiveStrategicThread): ActiveStrategicThread =
-    thread.copy(
-      themeLabel = clean(thread.themeLabel),
-      summary = clean(thread.summary),
-      opponentCounterplan = cleanOpt(thread.opponentCounterplan)
-    )
+  private def sanitizeStrategicThread(
+      thread: ActiveStrategicThread,
+      retainedPlanNames: Set[String]
+  ): Option[ActiveStrategicThread] =
+    Option.when(retainedPlanNames.contains(normalize(thread.themeLabel))) {
+      thread.copy(
+        themeLabel = clean(thread.themeLabel),
+        summary = "",
+        opponentCounterplan = None
+      )
+    }
 
   private def sanitizeThreadRef(ref: ActiveStrategicThreadRef): ActiveStrategicThreadRef =
     ref.copy(
       themeLabel = clean(ref.themeLabel),
       stageLabel = clean(ref.stageLabel)
     )
+
+  private def isProbeBackedPlan(plan: PlanHypothesis): Boolean =
+    plan.evidenceSources.exists(_.trim.equalsIgnoreCase("probe_backed:validated_support"))
+
+  private def sanitizeChronicleThemes(
+      themes: List[String],
+      retainedPlanNames: Set[String]
+  ): List[String] =
+    cleanList(themes).filter(theme => retainedPlanNames.contains(normalize(theme)))
+
+  private def sanitizeChronicleConclusion(
+      conclusion: String,
+      originalThemes: List[String],
+      sanitizedThemes: List[String]
+  ): String =
+    val cleaned = clean(conclusion)
+    val droppedThemes =
+      cleanList(originalThemes).map(normalize).toSet -- sanitizedThemes.map(normalize)
+    Option
+      .when(
+        cleaned.nonEmpty &&
+          !droppedThemes.exists(theme => theme.nonEmpty && normalize(cleaned).contains(theme))
+      )(cleaned)
+      .getOrElse("")
+
+  private def planKey(plan: PlanHypothesis): String =
+    planKey(plan.planId, plan.subplanId)
+
+  private def planIdKey(plan: PlanHypothesis): String =
+    planIdKey(plan.planId)
+
+  private def planKey(planId: String, subplanId: Option[String]): String =
+    s"${Option(planId).getOrElse("").trim.toLowerCase}|${subplanId.getOrElse("").trim.toLowerCase}"
+
+  private def planIdKey(planId: String): String =
+    Option(planId).getOrElse("").trim.toLowerCase
+
+  private def planExperimentAllowed(
+      planId: String,
+      subplanId: Option[String],
+      allowedPlanKeys: Set[String],
+      allowedPlanIds: Set[String]
+  ): Boolean =
+    allowedPlanKeys.contains(planKey(planId, subplanId)) || allowedPlanIds.contains(planIdKey(planId))
 
   private def sanitizeRuntimeShell(shell: RuntimeShell): RuntimeShell =
     shell.copy(
@@ -292,3 +360,12 @@ object UserFacingPayloadSanitizer:
 
   private def cleanList(values: List[String]): List[String] =
     values.map(clean).map(_.trim).filter(_.nonEmpty)
+
+  private def normalize(raw: String): String =
+    Option(raw)
+      .getOrElse("")
+      .replace("**", "")
+      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
+      .replaceAll("""\s+""", " ")
+      .trim
+      .toLowerCase

@@ -1,8 +1,0 @@
-lens=Practical
-claim=12... Rad1: The move is easier to handle because the pieces have more room and there are more safe follow up moves.
-supportPrimary=That leaves a comfortable version to handle.
-supportSecondary=
-tension=That is easier because the pieces have more room and there are more safe follow up moves.
-evidenceHook=
-coda=
-paragraphPlan=p1=claim,p2=support,p3=practical_nuance

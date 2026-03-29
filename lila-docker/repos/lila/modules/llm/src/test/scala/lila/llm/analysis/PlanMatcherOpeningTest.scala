@@ -3,7 +3,23 @@ package lila.llm.analysis
 import chess.{ Color, File, Knight, Queen, Rook, Square }
 import lila.llm.analysis.L3.*
 import lila.llm.analysis.ThemeTaxonomy.ThemeL1
-import lila.llm.model.{ Motif, PlanId }
+import lila.llm.model.{
+  ContextHeader,
+  ExplorerMove,
+  NarrativeContext,
+  NarrativeRenderMode,
+  NarrativeSummary,
+  OpeningEvent,
+  OpeningEventBudget,
+  OpeningReference,
+  PawnPlayTable,
+  PhaseContext,
+  PlanId,
+  PlanRow,
+  PlanTable,
+  ThreatTable,
+  Motif
+}
 import munit.FunSuite
 
 class PlanMatcherOpeningTest extends FunSuite:
@@ -68,6 +84,30 @@ class PlanMatcherOpeningTest extends FunSuite:
       insufficientData = false
     )
 
+  private def openingNarrativeContext(
+      fen: String,
+      playedMove: String,
+      playedSan: String
+  ): NarrativeContext =
+    NarrativeContext(
+      fen = fen,
+      header = ContextHeader("Opening", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
+      ply = 6,
+      playedMove = Some(playedMove),
+      playedSan = Some(playedSan),
+      summary = NarrativeSummary("Development", None, "NarrowChoice", "Maintain", "+0.10"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet"),
+      plans = PlanTable(
+        top5 = List(PlanRow(rank = 1, name = "Development", score = 0.6, evidence = List("opening setup"))),
+        suppressed = Nil
+      ),
+      delta = None,
+      phase = PhaseContext("Opening", "Opening structure"),
+      candidates = Nil,
+      renderMode = NarrativeRenderMode.Bookmaker
+    )
+
   test("opening phase should emit OpeningDevelopment plan with opening theme") {
     val motifs = List(
       Motif.Centralization(Knight, Square.C3, Color.White, 0, Some("Nc3")),
@@ -119,3 +159,63 @@ class PlanMatcherOpeningTest extends FunSuite:
     )
   }
 
+  test("opening concept distinguishes flank fianchetto support inside existing opening goals") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnbqkb1r/pppppppp/5n2/8/3P4/6P1/PPP1PP1P/RNBQKBNR b KQkq - 0 2",
+        playedMove = "g2g3",
+        playedSan = "g3"
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
+    assertEquals(evaluation.goalName, "Flank Fianchetto Support")
+    assert(Set(OpeningGoals.Status.Achieved, OpeningGoals.Status.Partial).contains(evaluation.status), clue(evaluation))
+  }
+
+  test("intro event theme recognizes Scandinavian as early queen exposure") {
+    val ref = OpeningReference(
+      eco = Some("B01"),
+      name = Some("Scandinavian Defense"),
+      totalGames = 600,
+      topMoves = List(
+        ExplorerMove("d8d5", "Qxd5", 180, 65, 50, 65, 2580),
+        ExplorerMove("b8c6", "Nc6", 150, 58, 42, 50, 2570)
+      ),
+      sampleGames = Nil
+    )
+
+    val event = OpeningEventDetector.detectIntro(ply = 4, ref = ref, budget = OpeningEventBudget()).getOrElse(fail("expected intro"))
+    event match
+      case OpeningEvent.Intro(_, _, theme, _) =>
+        assertEquals(theme, "early queen exposure")
+      case other => fail(s"expected intro, got: $other")
+  }
+
+  test("branch-point event reason upgrades to development logic when theory pivots to minor-piece routes") {
+    val prevRef = OpeningReference(
+      eco = Some("C50"),
+      name = Some("Italian Game"),
+      totalGames = 1000,
+      topMoves = List(
+        ExplorerMove("e2e4", "e4", 700, 320, 200, 180, 2650)
+      ),
+      sampleGames = Nil
+    )
+    val currRef = OpeningReference(
+      eco = Some("C50"),
+      name = Some("Italian Game"),
+      totalGames = 1000,
+      topMoves = List(
+        ExplorerMove("g1f3", "Nf3", 260, 110, 90, 60, 2640),
+        ExplorerMove("b1c3", "Nc3", 230, 95, 80, 55, 2630),
+        ExplorerMove("f1b5", "Bb5", 180, 75, 60, 45, 2620)
+      ),
+      sampleGames = Nil
+    )
+
+    val event = OpeningEventDetector.detectBranchPoint(currRef, Some(prevRef), OpeningEventBudget()).getOrElse(fail("expected branch point"))
+    event match
+      case OpeningEvent.BranchPoint(_, reason, _) =>
+        assert(reason.toLowerCase.contains("development logic"), clue(reason))
+      case other => fail(s"expected branch point, got: $other")
+  }

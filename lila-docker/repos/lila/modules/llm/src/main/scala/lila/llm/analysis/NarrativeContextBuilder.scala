@@ -15,6 +15,11 @@ import lila.llm.model.structure.AlignmentBand
 object NarrativeContextBuilder:
   private val llmConfig = LlmConfig.fromEnv
 
+  final case class BuildResult(
+      context: NarrativeContext,
+      diagnosticPlanSidecar: PlanEvidenceEvaluator.DiagnosticPlanSidecar
+  )
+
   /**
    * Build NarrativeContext from ExtendedAnalysisData and IntegratedContext.
    */
@@ -29,7 +34,32 @@ object NarrativeContextBuilder:
     afterAnalysis: Option[ExtendedAnalysisData] = None,
     renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame,
     variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant
-  ): NarrativeContext = {
+  ): NarrativeContext =
+    buildWithDiagnostics(
+      data = data,
+      ctx = ctx,
+      prevAnalysis = prevAnalysis,
+      probeResults = probeResults,
+      openingRef = openingRef,
+      prevOpeningRef = prevOpeningRef,
+      openingBudget = openingBudget,
+      afterAnalysis = afterAnalysis,
+      renderMode = renderMode,
+      variantKey = variantKey
+    ).context
+
+  def buildWithDiagnostics(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    prevAnalysis: Option[ExtendedAnalysisData] = None,
+    probeResults: List[ProbeResult] = Nil,
+    openingRef: Option[OpeningReference] = None,
+    prevOpeningRef: Option[OpeningReference] = None,  // For BranchPoint/TheoryEnds detection
+    openingBudget: OpeningEventBudget = OpeningEventBudget(),  // Passed from game-level tracker
+    afterAnalysis: Option[ExtendedAnalysisData] = None,
+    renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame,
+    variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant
+  ): BuildResult = {
     // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
     // so they don't pollute candidate lists and meta signals.
     val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
@@ -127,18 +157,12 @@ object NarrativeContextBuilder:
       )
 
     val mainStrategicPlans = strategicPartition.mainPlans.take(3)
-    val latentPlans = strategicPartition.latentPlans.take(2)
     val strategicPlanExperiments =
       buildStrategicPlanExperiments(
         evaluated = strategicPartition.evaluated,
         validatedProbeResults = probeValidation.validResults
       )
 
-    val (absentReasons, absentReasonSource) =
-      val evidenceReasons = strategicPartition.whyAbsentFromTopMultiPV
-      if evidenceReasons.nonEmpty then evidenceReasons -> "evidence"
-      else Nil -> "none"
-    
     // Phase A: Semantic section from ExtendedAnalysisData
     val semantic =
       if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty then None
@@ -215,50 +239,54 @@ object NarrativeContextBuilder:
         FactExtractor.fromMotifs(board, MoveAnalyzer.tokenizePv(data.fen, line.moves), FactScope.ThreatLine)
       }
 
-    NarrativeContext(
-      fen = data.fen,
-      header = header,
-      ply = data.ply,
-      playedMove = data.prevMove,
-      playedSan = playedSan,
-      counterfactual = data.counterfactual,
-      summary = summary,
-      threats = threats,
-      pawnPlay = pawnPlay,
-      plans = plans,
-      planContinuity = data.planContinuity,
-      snapshots = List(l1),
-      delta = delta,
-      phase = phase,
-      candidates = candidates,
-      authorQuestions = authorQuestions,
-      authorEvidence = authorEvidence,
-      facts = motifFacts ++ staticFacts ++ endgameFacts,
-      mainPvFacts = mainPvFacts,
-      threatLineFacts = threatLineFacts,
-      counterfactualFacts = counterfactualFacts,
-      probeRequests = probeRequests,
-      mainStrategicPlans = mainStrategicPlans,
-      latentPlans = latentPlans,
-      strategicPlanExperiments = strategicPlanExperiments,
-      whyAbsentFromTopMultiPV = absentReasons,
-      absentReasonSource = absentReasonSource,
-      meta = meta,
-      strategicFlow = strategicFlow,
-      semantic = semantic,
-      opponentPlan = opponentPlan,
-      decision = decision,
-      openingEvent = openingEvent,
-      openingData = openingRef,
-      updatedBudget = updatedBudget,
-      engineEvidence = Some(lila.llm.model.strategic.EngineEvidence(
-        depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
-        variations = data.alternatives
-      )),
-      deltaAfterMove = afterDelta.isDefined,
-      strategicSalience = data.strategicSalience,
-      renderMode = renderMode,
-      variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
+    BuildResult(
+      context =
+        NarrativeContext(
+          fen = data.fen,
+          header = header,
+          ply = data.ply,
+          playedMove = data.prevMove,
+          playedSan = playedSan,
+          counterfactual = data.counterfactual,
+          summary = summary,
+          threats = threats,
+          pawnPlay = pawnPlay,
+          plans = plans,
+          planContinuity = data.planContinuity,
+          snapshots = List(l1),
+          delta = delta,
+          phase = phase,
+          candidates = candidates,
+          authorQuestions = authorQuestions,
+          authorEvidence = authorEvidence,
+          facts = motifFacts ++ staticFacts ++ endgameFacts,
+          mainPvFacts = mainPvFacts,
+          threatLineFacts = threatLineFacts,
+          counterfactualFacts = counterfactualFacts,
+          probeRequests = probeRequests,
+          mainStrategicPlans = mainStrategicPlans,
+          latentPlans = Nil,
+          strategicPlanExperiments = strategicPlanExperiments,
+          whyAbsentFromTopMultiPV = Nil,
+          absentReasonSource = "none",
+          meta = meta,
+          strategicFlow = strategicFlow,
+          semantic = semantic,
+          opponentPlan = opponentPlan,
+          decision = decision,
+          openingEvent = openingEvent,
+          openingData = openingRef,
+          updatedBudget = updatedBudget,
+          engineEvidence = Some(lila.llm.model.strategic.EngineEvidence(
+            depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
+            variations = data.alternatives
+          )),
+          deltaAfterMove = afterDelta.isDefined,
+          strategicSalience = data.strategicSalience,
+          renderMode = renderMode,
+          variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
+        ),
+      diagnosticPlanSidecar = strategicPartition.diagnosticSidecar
     )
   }
 
@@ -811,45 +839,41 @@ object NarrativeContextBuilder:
       val tacticEvidence = selfMotifs.flatMap { m =>
         m match {
           case f: Motif.Fork => 
-            Some(s"Fork(${f.attackingPiece} on ${f.square} vs ${f.targets.mkString(",")})")
+            Some(s"Fork pressure from ${roleLabel(f.attackingPiece)} on ${f.square} against ${f.targets.map(roleLabel).mkString(" and ")}.")
           case p: Motif.Pin => 
             val pSq = p.pinnedSq.map(_.key).getOrElse("?")
-            val bSq = p.behindSq.map(_.key).getOrElse("?")
-            Some(s"Pin(${p.pinnedPiece} on $pSq to ${p.targetBehind} on $bSq)")
+            Some(s"Pin pressure on $pSq against the ${roleLabel(p.targetBehind)}.")
           case c: Motif.Capture if c.captureType == Motif.CaptureType.Winning => 
-            Some(s"WinningCapture(${c.piece} takes ${c.captured} on ${c.square})")
+            Some(s"Winning capture by ${roleLabel(c.piece)} on ${c.square}.")
           case d: Motif.DiscoveredAttack => 
-            val aSq = d.attackingSq.map(_.key).getOrElse("?")
             val tSq = d.targetSq.map(_.key).getOrElse("?")
-            Some(s"DiscoveredAttack(${d.attackingPiece} from $aSq on ${d.target} on $tSq)")
+            Some(s"Discovered attack against the ${roleLabel(d.target)} on $tSq.")
           case ch: Motif.Check => 
-            Some(s"Check(${ch.piece} on ${ch.targetSquare})")
+            Some(s"Check on ${ch.targetSquare}.")
           case sk: Motif.Skewer =>
-            val fSq = sk.frontSq.map(_.key).getOrElse("?")
-            val bSq = sk.backSq.map(_.key).getOrElse("?")
-            Some(s"Skewer(${sk.attackingPiece} through ${sk.frontPiece} on $fSq to ${sk.backPiece} on $bSq)")
+            Some(s"Skewer pressure through the ${roleLabel(sk.frontPiece)}.")
           case o: Motif.Outpost =>
-            Some(s"Outpost(${o.piece} on ${o.square})")
+            Some(s"Outpost for the ${roleLabel(o.piece)} on ${o.square}.")
           case of: Motif.OpenFileControl =>
-            Some(s"OpenFileControl(Rook on ${of.file}-file)")
+            Some(s"Open-file pressure on the ${of.file}-file.")
           case c: Motif.Centralization =>
-            Some(s"Centralization(${c.piece} on ${c.square})")
+            Some(s"Centralization toward ${c.square}.")
           case rl: Motif.RookLift =>
-            Some(s"RookLift(Rook to rank ${rl.toRank})")
+            Some(s"Rook lift toward rank ${rl.toRank}.")
           case dom: Motif.Domination =>
-            Some(s"Domination(${dom.dominatingPiece} dominates ${dom.dominatedPiece})")
+            Some(s"Domination by the ${roleLabel(dom.dominatingPiece)}.")
           case man: Motif.Maneuver =>
-            Some(s"Maneuver(${man.piece.name}, ${man.purpose})")
+            Some(s"Maneuver by the ${roleLabel(man.piece)} for ${man.purpose.replace('_', ' ')}.")
           case tp: Motif.TrappedPiece =>
-            Some(s"TrappedPiece(${tp.trappedRole})")
+            Some(s"Trapped ${roleLabel(tp.trappedRole)}.")
           case kvb: Motif.KnightVsBishop =>
-            Some(s"KnightVsBishop(${kvb.color}, ${kvb.isKnightBetter})")
+            Some("Knight-versus-bishop imbalance.")
           case b: Motif.Blockade =>
-            Some(s"Blockade(${b.piece}, ${b.pawnSquare})")
+            Some(s"Blockade on ${b.pawnSquare}.")
           case _: Motif.SmotheredMate =>
-            Some(s"SmotheredMate(Knight)")
+            Some("Smothered-mate ideas.")
           case xr: Motif.XRay =>
-            Some(s"XRay(${xr.piece} through to ${xr.target} on ${xr.square})")
+            Some(s"X-ray pressure against the ${roleLabel(xr.target)} on ${xr.square}.")
           case _ => None
         }
       }
@@ -898,6 +922,9 @@ object NarrativeContextBuilder:
       case _ => None // Mistake, Good, Excellent, Inaccuracy, Blunder, Forced are not strategic tags
     }
   }
+
+  private def roleLabel(role: chess.Role): String =
+    Option(role).map(_.name.toLowerCase).getOrElse("piece")
   
   private val defaultClassification = PositionClassification(
     nature = NatureResult(lila.llm.analysis.L3.NatureType.Static, 0, 0, 0, false),

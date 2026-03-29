@@ -281,10 +281,13 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
     cookieConsentUi
   )
 
-  def siteFooter =
+  private def siteHomeUrl(using ctx: Context): String =
+    if ctx.me.isDefined then routes.Main.home.url else routes.Main.landing.url
+
+  def siteFooter(using ctx: Context) =
     footer(cls := "site-footer", aria.label := "Site footer")(
       div(cls := "site-footer__inner")(
-        a(cls := "site-footer__home", href := routes.Main.landing.url)("Home"),
+        a(cls := "site-footer__home", href := siteHomeUrl)("Home"),
         div(cls := "site-footer__links")(
           a(href := routes.Main.privacy.url)("Privacy"),
           a(href := routes.Main.terms.url)("Terms")
@@ -318,7 +321,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
       header(id := headerId)(
         div(cls := brandBarClass)(
           (!isAppealUser).option(topnavToggle),
-          a(cls := brandClass, href := "/", aria.label := s"$siteName home", title := "Go to home")(
+          a(cls := brandClass, href := siteHomeUrl, aria.label := s"$siteName home", title := "Go to home")(
             ctx.isBot.option(botImage),
             div(cls := markClass)(
               img(

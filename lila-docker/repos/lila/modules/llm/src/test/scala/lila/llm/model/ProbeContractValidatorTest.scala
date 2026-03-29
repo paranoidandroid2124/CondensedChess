@@ -64,3 +64,43 @@ class ProbeContractValidatorTest extends FunSuite:
     assertEquals(validation.isValid, false)
     assert(validation.reasonCodes.contains("PURPOSE_MISMATCH"))
   }
+
+  test("validateAgainstRequest rejects stale position-bound probe certificates") {
+    val request = ProbeRequest(
+      id = "probe-4",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("e2e4"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_theme_plan"),
+      requiredSignals = List("replyPvs"),
+      candidateMove = Some("e2e4"),
+      depthFloor = Some(18),
+      variationHash = Some("req-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=18:multipv=2")
+    )
+    val result = ProbeResult(
+      id = "probe-4",
+      fen = Some("4k3/8/8/8/8/8/8/3K4 w - - 0 1"),
+      evalCp = 24,
+      bestReplyPv = List("e7e5"),
+      replyPvs = Some(List(List("e7e5"))),
+      deltaVsBaseline = 6,
+      keyMotifs = List("theme_plan_validation"),
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_theme_plan"),
+      probedMove = Some("e2e4"),
+      depth = Some(18),
+      variationHash = Some("other-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=18:multipv=2")
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+    assertEquals(validation.isValid, false)
+    assertEquals(
+      validation.certificateStatus,
+      ProbeContractValidator.ProbeCertificateStatus.StaleOrMismatched
+    )
+    assert(validation.reasonCodes.contains("FEN_MISMATCH"))
+    assert(validation.reasonCodes.contains("VARIATION_HASH_MISMATCH"))
+  }

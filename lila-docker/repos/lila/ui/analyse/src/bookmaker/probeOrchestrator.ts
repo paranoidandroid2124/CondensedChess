@@ -53,6 +53,36 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     return { fromFile, toFile, isPawnPush, isRookPawnPush };
   };
 
+  const requestCandidateMove = (request: ProbeRequest, move: string | undefined): string | undefined => {
+    if (typeof move === 'string' && move.trim().length) return move.trim();
+    if (typeof request.candidateMove === 'string' && request.candidateMove.trim().length) return request.candidateMove.trim();
+    if (Array.isArray(request.moves) && request.moves.length === 1 && typeof request.moves[0] === 'string') {
+      const onlyMove = request.moves[0].trim();
+      return onlyMove.length ? onlyMove : undefined;
+    }
+    return undefined;
+  };
+
+  const defaultVariationHash = (request: ProbeRequest): string =>
+    [
+      request.fen || '',
+      Array.isArray(request.moves) ? [...request.moves].filter(Boolean).sort().join(',') : '',
+      request.purpose || '',
+      request.objective || '',
+      request.seedId || '',
+      Array.isArray(request.requiredSignals) ? [...request.requiredSignals].filter(Boolean).sort().join(',') : '',
+    ].join('|');
+
+  const requestVariationHash = (request: ProbeRequest): string =>
+    typeof request.variationHash === 'string' && request.variationHash.trim().length
+      ? request.variationHash.trim()
+      : defaultVariationHash(request);
+
+  const requestEngineFingerprint = (request: ProbeRequest, multiPv: number): string =>
+    typeof request.engineConfigFingerprint === 'string' && request.engineConfigFingerprint.trim().length
+      ? request.engineConfigFingerprint.trim()
+      : `wasm_stockfish:depth=${request.depth}:multipv=${multiPv}`;
+
   const purposeRequiredSignals = (purpose: string | undefined, requestRequiredSignals: string[] | undefined): string[] => {
     const required = new Set<string>();
     if (Array.isArray(requestRequiredSignals)) {
@@ -415,8 +445,17 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
       const evalCp = typeof ev.cp === 'number' ? ev.cp : 0;
       const deltaVsBaseline = evalCp - (typeof baseCp === 'number' ? baseCp : 0);
       const purpose = typeof pr.purpose === 'string' ? pr.purpose : undefined;
+      const candidateMove = requestCandidateMove(pr, move);
+      const depthFloor =
+        typeof pr.depthFloor === 'number' && pr.depthFloor > 0
+          ? pr.depthFloor
+          : typeof pr.depth === 'number' && pr.depth > 0
+            ? pr.depth
+            : undefined;
+      const variationHash = requestVariationHash(pr);
+      const engineConfigFingerprint = requestEngineFingerprint(pr, multiPv);
       const motifInference = computeMotifInference(
-        move,
+        candidateMove,
         purpose,
         replyPvs,
         Array.isArray(pr.requiredSignals) ? pr.requiredSignals : undefined,
@@ -465,6 +504,11 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
           ? motifInference.generatedRequiredSignals
           : undefined,
         motifInferenceMode: motifInference.compatFallbackUsed ? 'purpose_plus_compat' : 'purpose_only',
+        candidateMove,
+        depthFloor,
+        variationHash,
+        engineConfigFingerprint,
+        generatedAtEpochMs: Date.now(),
       });
     }
 

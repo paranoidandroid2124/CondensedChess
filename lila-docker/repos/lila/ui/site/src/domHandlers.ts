@@ -10,6 +10,7 @@ import { writeTextClipboard, text as xhrText } from 'lib/xhr';
 import topBar from './topBar';
 import { userComplete } from 'lib/view/userComplete';
 import { confirm } from 'lib/view';
+import { initMiniBoards } from 'lib/view';
 
 let pendingThemeChoice: string | null = null;
 
@@ -218,6 +219,8 @@ type AccountIntelHistoryEntry = {
   } | null;
 };
 
+type AccountIntelSupportTab = 'study' | 'compare' | 'history' | 'notes';
+
 function initAccountIntelProduct() {
   const root = document.querySelector<HTMLElement>('.js-account-intel-product');
   if (!root) return;
@@ -234,9 +237,12 @@ function initAccountIntelProduct() {
   let currentSide = normalizeSide(root.dataset.side || 'all', state.surface?.patterns || []);
   let currentSelectedJobId = state.selectedJobId || null;
   let compareJobId: string | null = null;
+  let activeSupportTab: AccountIntelSupportTab = 'study';
   let pollHandle: number | undefined;
+  let expandedPatternCount = 3;
 
   const pageBaseUrl = root.dataset.pageBaseUrl || `/account-intel/${state.provider}/${state.username}`;
+  const strategicPuzzleUrl = root.dataset.strategicPuzzleUrl || '/strategic-puzzle';
   const setInner = (selector: string, html: string) => {
     const el = root.querySelector<HTMLElement>(selector);
     if (el) el.innerHTML = html;
@@ -251,8 +257,8 @@ function initAccountIntelProduct() {
       .replaceAll("'", '&#39;');
 
   const kindLabel = (kind: string) =>
-    kind === 'my_account_intelligence_lite' ? 'My Account' : kind === 'opponent_prep' ? 'Opponent Prep' : kind;
-  const activeJobLabel = (status: string) => (status === 'running' ? 'Building account review' : 'Queued for analysis');
+    kind === 'my_account_intelligence_lite' ? 'My Patterns' : kind === 'opponent_prep' ? 'Prep for Opponent' : kind;
+  const activeJobLabel = (status: string) => (status === 'running' ? 'Building pattern report' : 'Queued for analysis');
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
     const date = new Date(raw);
@@ -307,6 +313,20 @@ function initAccountIntelProduct() {
     state?.latestSuccessfulJob?.notebookUrl ||
     '';
   const currentPatterns = () => (state?.surface?.patterns || []) as any[];
+  const visiblePatterns = () => currentPatterns().filter(pattern => currentSide === 'all' || pattern?.side === currentSide);
+  const availableSupportTabs = (): AccountIntelSupportTab[] =>
+    ((state?.surface?.overview?.cards || []).length ? ['study', 'compare', 'history', 'notes'] : ['study', 'compare', 'history']) as AccountIntelSupportTab[];
+  const normalizeSupportTab = (requested?: string | null): AccountIntelSupportTab =>
+    (availableSupportTabs().includes(requested as AccountIntelSupportTab) ? requested : 'study') as AccountIntelSupportTab;
+  const railShell = () => root.querySelector<HTMLElement>('.js-ai-rail-shell');
+  const secondaryScroller = () => root.querySelector<HTMLElement>('.js-ai-secondary-scroll');
+  const scrollSecondaryToSelector = (selector: string) => {
+    const scroller = secondaryScroller();
+    const target = root.querySelector<HTMLElement>(selector);
+    if (!scroller || !target) return;
+    const nextTop = scroller.scrollTop + target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16;
+    scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+  };
 
   function normalizeSide(requested: string, patterns: any[]): string {
     if (requested === 'white' || requested === 'black' || requested === 'all') {
@@ -315,6 +335,37 @@ function initAccountIntelProduct() {
     return patterns[0]?.side === 'white' || patterns[0]?.side === 'black' ? patterns[0].side : 'all';
   }
 
+  const renderMiniBoard = (fen: string | undefined, orientation: string) =>
+    fen
+      ? `<div class="mini-board mini-board--init account-product-anchor-board" data-state="${escapeHtml(fen)},${escapeHtml(orientation)},"></div>`
+      : '';
+
+  const boardOrientation = (side?: string | null) =>
+    side === 'white' || side === 'black' ? side : state?.kind === 'opponent_prep' ? 'black' : 'white';
+
+  const displaySideLabel = (side?: string | null) =>
+    side === 'white' ? 'White games' : side === 'black' ? 'Black games' : 'Mixed sample';
+
+  const playerFacingStructureLabel = (pattern: any) => pattern?.structureFamily || 'recurring middlegame shape';
+
+  const playerFacingEvidence = (evidence?: any) => {
+    const support = evidence?.supportingGames ?? 0;
+    const total = evidence?.totalSampledGames ?? 0;
+    return total > 0 ? `Seen in ${support} of ${total} games` : 'Sample still building';
+  };
+
+  const renderEvidence = (evidence?: any) => playerFacingEvidence(evidence);
+
+  const surfaceConfidenceLabel = (pattern: any) => {
+    const snapshot = Number(pattern?.snapshotConfidenceMean ?? 0);
+    if (snapshot >= 0.75) return 'High confidence';
+    if (snapshot >= 0.5) return 'Medium confidence';
+    return 'Low confidence';
+  };
+
+  const playerFacingDecisionPoint = (ply?: number | null) =>
+    typeof ply === 'number' && ply > 0 ? `Critical choice near move ${Math.max(1, Math.floor((ply + 1) / 2))}` : 'Critical choice repeats early';
+
   const renderSummaryStrip = () => {
     const surface = state?.surface;
     const sampled = surface?.source?.sampledGameCount ?? 0;
@@ -322,19 +373,18 @@ function initAccountIntelProduct() {
     const generatedAt = humanDate(surface?.generatedAt);
     return `
       <div class="importer-summary-chip"><strong>${sampled}</strong><span>Sampled games</span></div>
-      <div class="importer-summary-chip"><strong>${escapeHtml(capitalize(confidence))}</strong><span>Confidence</span></div>
-      <div class="importer-summary-chip"><strong>${escapeHtml(kindLabel(state!.kind))}</strong><span>Generated ${escapeHtml(generatedAt)}</span></div>
+        <div class="importer-summary-chip"><strong>${escapeHtml(capitalize(confidence))}</strong><span>Confidence</span></div>
+        <div class="importer-summary-chip"><strong>${escapeHtml(kindLabel(state!.kind))}</strong><span>Generated ${escapeHtml(generatedAt)}</span></div>
     `;
   };
 
   const renderOverview = () => {
-    const summary = escapeHtml(state?.surface?.summary || '');
     const cards = (state?.surface?.overview?.cards || []) as any[];
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Overview</strong>
-          <p class="importer-panel__copy">${summary}</p>
+          <strong class="importer-panel__title">Notes behind the review</strong>
+          <p class="importer-panel__copy">Keep the supporting notes nearby, but let the main diagnosis stay in front.</p>
         </div>
         <div class="account-product-overview-grid">
           ${cards
@@ -355,25 +405,50 @@ function initAccountIntelProduct() {
 
   const renderOpenings = () => {
     const cards = (state?.surface?.openingCards || []) as any[];
+    if (!cards.length) {
+      return `
+        <div class="importer-panel importer-panel--guide">
+          <div class="importer-panel__head">
+            <strong class="importer-panel__title">Openings you actually reach</strong>
+            <p class="importer-panel__copy">Start from the short map first, then open the details only if you need them.</p>
+          </div>
+          <div class="status-callout">
+            <strong>No opening map yet</strong>
+            <span>The current sample is still too thin to summarize the openings honestly.</span>
+          </div>
+        </div>
+      `;
+    }
+    const openingSummary = cards
+      .slice(0, 2)
+      .map(card => String(card.title || 'Unnamed line'))
+      .join(', ');
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Opening identity</strong>
-          <p class="importer-panel__copy">Keep opening labels honest and split by side. This page is about what the account repeatedly enters, not one vanity line.</p>
+          <strong class="importer-panel__title">Openings you actually reach</strong>
+          <p class="importer-panel__copy">Start from the short map first, then open the details only if you need them.</p>
         </div>
-        <div class="account-product-opening-grid">
-          ${cards
-            .map(
-              card => `
-                <div class="account-product-opening-card">
-                  <strong>${escapeHtml(card.title || 'Opening map')}</strong>
-                  <span class="account-product-opening-family">${escapeHtml(card.openingFamily || 'Recent practical structure')}</span>
-                  <p>${escapeHtml(card.story || '')}</p>
-                  <span class="account-product-evidence-line">${renderEvidence(card.evidence)}</span>
-                </div>`,
-            )
-            .join('')}
+        <div class="account-product-opening-summary">
+          <strong>${escapeHtml(`Most common: ${openingSummary}`)}</strong>
+          <span class="account-product-evidence-line">${renderEvidence(cards[0]?.evidence)}</span>
         </div>
+        <details class="account-product-opening-details">
+          <summary>See opening details</summary>
+          <div class="account-product-opening-grid">
+            ${cards
+              .map(
+                card => `
+                  <div class="account-product-opening-card">
+                    <strong>${escapeHtml(card.title || 'Opening map')}</strong>
+                    <span class="account-product-opening-family">${escapeHtml(card.openingFamily || 'Recent practical structure')}</span>
+                    <p>${escapeHtml(card.story || '')}</p>
+                    <span class="account-product-evidence-line">${renderEvidence(card.evidence)}</span>
+                  </div>`,
+              )
+              .join('')}
+          </div>
+        </details>
       </div>
     `;
   };
@@ -393,18 +468,105 @@ function initAccountIntelProduct() {
     `;
   };
 
+  const renderLeadPattern = () => {
+    const pattern = visiblePatterns()[0];
+    const title = state?.kind === 'opponent_prep' ? 'Typical position' : 'Main pattern to fix';
+    const copy =
+      state?.kind === 'opponent_prep'
+        ? 'Use this position as the board-first reference point for the game plan.'
+        : 'Start here. This is the clearest recurring issue in the current sample.';
+    return `
+      <div class="importer-panel importer-panel--results">
+        <div class="importer-panel__head">
+          <strong class="importer-panel__title">${escapeHtml(title)}</strong>
+          <p class="importer-panel__copy">${escapeHtml(copy)}</p>
+        </div>
+        ${
+          pattern
+            ? renderLeadPatternCard(pattern)
+            : `<div class="status-callout"><strong>No lead pattern yet</strong><span>This sample still needs more evidence before it can anchor the page on one typical position.</span></div>`
+        }
+      </div>
+    `;
+  };
+
+  const renderLeadPatternCard = (pattern: any) => {
+    const anchor = pattern.anchor;
+    return `
+      <div class="account-product-lead">
+        <div class="account-product-pattern-head account-product-pattern-head--lead">
+          <div class="account-product-pattern-headline">
+            <span class="account-product-pattern-side">${escapeHtml(displaySideLabel(pattern.side))}</span>
+            <strong>${escapeHtml(pattern.title || 'Pattern')}</strong>
+            <span class="account-product-pattern-structure">Repeated structure: ${escapeHtml(playerFacingStructureLabel(pattern))}</span>
+          </div>
+          <div class="account-product-pattern-meta">
+            <span class="account-product-pattern-confidence">${escapeHtml(surfaceConfidenceLabel(pattern))}</span>
+            <span class="account-product-evidence-line">${escapeHtml(playerFacingEvidence(pattern.evidence))}</span>
+          </div>
+        </div>
+        ${
+          anchor
+            ? renderAnchor(anchor, pattern, true)
+            : `<div class="account-product-anchor-copy"><div class="account-product-anchor-plan"><strong>Why this matters</strong><p>${escapeHtml(pattern.summary || '')}</p></div></div>`
+        }
+      </div>
+    `;
+  };
+
+  const renderPatternCard = (pattern: any, featured = false) => {
+    const actions = (pattern.actions || []) as any[];
+    const evidenceGames = (pattern.evidenceGames || []) as any[];
+    const anchor = pattern.anchor;
+    return `
+      <div class="account-product-pattern${featured ? ' is-featured' : ''}">
+        <div class="account-product-pattern-head">
+          <div class="account-product-pattern-headline">
+            <span class="account-product-pattern-side">${escapeHtml(displaySideLabel(pattern.side))}</span>
+            <strong>${escapeHtml(pattern.title || 'Pattern')}</strong>
+            <span class="account-product-pattern-structure">Repeated structure: ${escapeHtml(playerFacingStructureLabel(pattern))}</span>
+          </div>
+          <div class="account-product-pattern-meta">
+            <span class="account-product-pattern-confidence">${escapeHtml(surfaceConfidenceLabel(pattern))}</span>
+            <span class="account-product-evidence-line">${escapeHtml(playerFacingEvidence(pattern.evidence))}</span>
+          </div>
+        </div>
+        <div class="account-product-pattern-body">
+          <p class="account-product-pattern-summary">${escapeHtml(pattern.summary || '')}</p>
+          ${anchor ? renderAnchor(anchor, pattern) : ''}
+          ${actions.length ? `<div class="account-product-action-list">${actions.map(renderActionCard).join('')}</div>` : ''}
+          ${
+            evidenceGames.length
+              ? `<details class="account-product-evidence-block"><summary>Evidence games</summary><div class="account-product-evidence-grid">${evidenceGames
+                  .map(renderEvidenceGame)
+                  .join('')}</div></details>`
+              : ''
+          }
+        </div>
+      </div>
+    `;
+  };
+
   const renderPatterns = () => {
-    const patterns = currentPatterns().filter(pattern => currentSide === 'all' || pattern?.side === currentSide);
-    if (!patterns.length) {
+    const patterns = visiblePatterns();
+    const listed = patterns.slice(1);
+    const featured = listed.slice(0, 2);
+    const remaining = listed.slice(2);
+    if (!listed.length) {
       return `
         <div class="importer-panel importer-panel--results">
           <div class="importer-panel__head">
-            <strong class="importer-panel__title">Top patterns</strong>
-            <p class="importer-panel__copy">These are the account-level patterns that justify the product, not just a notebook chapter list.</p>
+            <strong class="importer-panel__title">${escapeHtml(state?.kind === 'opponent_prep' ? 'More patterns to watch' : 'Additional patterns')}</strong>
+            <p class="importer-panel__copy">${escapeHtml(
+              state?.kind === 'opponent_prep'
+                ? 'Keep the game plan first. Open these extra patterns only when you want more context.'
+                : 'Keep the lead pattern first. Open the other recurring issues only after the first fix is clear.',
+            )}</p>
           </div>
+          ${renderSideToggle()}
           <div class="status-callout">
-            <strong>No side-specific pattern yet</strong>
-            <span>This side of the sample is still too thin, so the page is leaning on the opposite color or broader overview cards.</span>
+            <strong>No additional pattern yet</strong>
+            <span>This side of the sample is still too thin to support more than one reliable pattern card.</span>
           </div>
         </div>
       `;
@@ -412,51 +574,30 @@ function initAccountIntelProduct() {
     return `
       <div class="importer-panel importer-panel--results">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Top patterns</strong>
-          <p class="importer-panel__copy">These are the account-level patterns that justify the product, not just a notebook chapter list.</p>
+          <strong class="importer-panel__title">${escapeHtml(state?.kind === 'opponent_prep' ? 'More patterns to watch' : 'Additional patterns')}</strong>
+          <p class="importer-panel__copy">${escapeHtml(
+            state?.kind === 'opponent_prep'
+              ? 'Keep the game plan first. Open these extra patterns only when you want more context.'
+              : 'Keep the lead pattern first. Open the other recurring issues only after the first fix is clear.',
+          )}</p>
         </div>
-        <div class="account-product-patterns">
-          ${patterns
-            .map(pattern => {
-              const actions = (pattern.actions || []) as any[];
-              const evidenceGames = (pattern.evidenceGames || []) as any[];
-              const anchor = pattern.anchor;
-              return `
-                <details class="account-product-pattern">
-                  <summary>
-                    <div class="account-product-pattern-head">
-                      <div>
-                        <span class="account-product-pattern-side">${escapeHtml(pattern.side || 'mixed')}</span>
-                        <strong>${escapeHtml(pattern.title || 'Pattern')}</strong>
-                        <span class="account-product-pattern-structure">${escapeHtml(pattern.structureFamily || '')}</span>
-                      </div>
-                      <div class="account-product-pattern-meta">
-                        <span class="account-product-evidence-line">${renderEvidence(pattern.evidence)}</span>
-                        <span>confidence ${escapeHtml((pattern.snapshotConfidenceMean ?? 0).toFixed ? pattern.snapshotConfidenceMean.toFixed(2) : pattern.snapshotConfidenceMean ?? 0)}</span>
-                      </div>
-                    </div>
-                  </summary>
-                  <div class="account-product-pattern-body">
-                    <p class="account-product-pattern-summary">${escapeHtml(pattern.summary || '')}</p>
-                    ${anchor ? renderAnchor(anchor) : ''}
-                    ${
-                      actions.length
-                        ? `<div class="account-product-action-list">${actions.map(renderActionCard).join('')}</div>`
-                        : ''
-                    }
-                    ${
-                      evidenceGames.length
-                        ? `<div class="account-product-evidence-block"><strong>Evidence games</strong><div class="account-product-evidence-grid">${evidenceGames
-                            .map(renderEvidenceGame)
-                            .join('')}</div></div>`
-                        : ''
-                    }
-                  </div>
-                </details>
-              `;
-            })
-            .join('')}
-        </div>
+        ${renderSideToggle()}
+        <div class="account-product-patterns account-product-patterns--featured">${featured
+          .map(pattern => renderPatternCard(pattern, true))
+          .join('')}</div>
+        ${
+          remaining.length
+            ? `<details class="account-product-more-patterns js-ai-more-patterns"${expandedPatternCount > 3 ? ' open' : ''}>
+                <summary>
+                  <span>More patterns</span>
+                  <span class="account-product-more-patterns__count">${remaining.length} more</span>
+                </summary>
+                <div class="account-product-patterns account-product-patterns--extra">${remaining
+                  .map(pattern => renderPatternCard(pattern))
+                  .join('')}</div>
+              </details>`
+            : ''
+        }
       </div>
     `;
   };
@@ -464,20 +605,38 @@ function initAccountIntelProduct() {
   const renderActions = () => {
     const actions = (state?.surface?.actions || []) as any[];
     const checklist = state?.surface?.checklist;
-    const title = state?.kind === 'opponent_prep' ? 'How to steer' : 'What to do next';
+    const primaryAction = actions[0];
+    const extraActions = actions.slice(1);
+    const notebookUrl = currentNotebookUrl();
+    const title = state?.kind === 'opponent_prep' ? 'Game plan' : 'What to look for next';
     const copy =
       state?.kind === 'opponent_prep'
-        ? 'Prep should end in steering decisions you can actually carry into the next game.'
-        : 'Use the product surface as a repair sheet. The notebook is still there, but the next action should already be obvious here.';
+        ? 'Keep the prep short enough to carry into the next game.'
+        : 'Use the actions below as the shortest route from the diagnosis to the board.';
+    const primaryHref = state?.kind === 'opponent_prep' ? notebookUrl : strategicPuzzleUrl;
+    const primaryLabel = state?.kind === 'opponent_prep' ? 'Open study notebook' : 'Try the idea on the board';
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">${escapeHtml(title)}</strong>
           <p class="importer-panel__copy">${escapeHtml(copy)}</p>
         </div>
-        <div class="account-product-action-stack">
-          ${actions.map(renderActionCard).join('')}
-          ${checklist ? renderChecklist(checklist) : ''}
+        ${primaryAction ? `<div class="account-product-action-stack account-product-action-stack--primary">${renderActionCard(primaryAction)}</div>` : ''}
+        ${
+          extraActions.length || checklist
+            ? `<details class="account-product-action-details">
+                <summary>${escapeHtml(state?.kind === 'opponent_prep' ? 'See the full prep plan' : 'See the full plan')}</summary>
+                <div class="account-product-action-stack">
+                  ${extraActions.map(renderActionCard).join('')}
+                  ${checklist ? renderChecklist(checklist) : ''}
+                </div>
+              </details>`
+            : ''
+        }
+        <div class="account-product-action-cta-row">
+          ${primaryHref ? `<a href="${escapeHtml(primaryHref)}" class="account-product-primary-link">${escapeHtml(primaryLabel)}</a>` : ''}
+          ${state?.kind === 'my_account_intelligence_lite' && notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
+          ${state?.kind === 'opponent_prep' ? `<a href="${escapeHtml(strategicPuzzleUrl)}" class="account-product-secondary-link">Try the idea on the board</a>` : ''}
         </div>
       </div>
     `;
@@ -485,45 +644,106 @@ function initAccountIntelProduct() {
 
   const renderExemplars = () => {
     const games = (state?.surface?.exemplarGames || []) as any[];
+    const lead = games[0];
+    const rest = games.slice(1);
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Representative games</strong>
-          <p class="importer-panel__copy">One or two games should explain why the selected patterns deserve attention.</p>
+          <strong class="importer-panel__title">Games that show the pattern</strong>
+          <p class="importer-panel__copy">Use one game first as proof that the pattern is real, then open the rest only if you need more evidence.</p>
         </div>
-        <div class="account-product-exemplar-list">
-          ${games
-            .map(game => {
-              const meta = game.game || {};
-              const link = meta.sourceUrl
-                ? `<a href="${escapeHtml(meta.sourceUrl)}" target="_blank" rel="noopener">Open source game</a>`
-                : '';
-              return `
-                <div class="account-product-exemplar-card">
-                  <strong>${escapeHtml(game.title || 'Exemplar')}</strong>
-                  <span>${escapeHtml(`${meta.white || '?'} vs ${meta.black || '?'}`)}</span>
-                  <p>${escapeHtml(game.whyItMatters || '')}</p>
-                  <p>${escapeHtml(game.takeaway || '')}</p>
-                  ${link}
-                </div>
-              `;
-            })
-            .join('')}
+        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No evidence game yet</strong><span>The current report does not have a lead evidence game yet.</span></div>'}
+        ${
+          rest.length
+            ? `<details class="account-product-opening-details"><summary>See ${rest.length} more games</summary><div class="account-product-exemplar-list">${rest
+                .map(renderExemplarCard)
+                .join('')}</div></details>`
+            : ''
+        }
+      </div>
+    `;
+  };
+
+  const renderWorkspace = () => {
+    const additionalPatterns = visiblePatterns().slice(1);
+    const openings = `<div class="js-ai-openings">${renderOpenings()}</div>`;
+    const patterns = additionalPatterns.length ? `<div class="js-ai-patterns">${renderPatterns()}</div>` : '';
+    const exemplars = `<div class="js-ai-exemplars">${renderExemplars()}</div>`;
+    const support = `<div class="js-ai-support">${renderSupport()}</div>`;
+    const secondary =
+      state?.kind === 'opponent_prep'
+        ? `${openings}${patterns}${exemplars}${support}`
+        : `${patterns}${openings}${exemplars}${support}`;
+    return `
+      <div class="account-product-body account-product-body--coach">
+        <div class="account-product-rail">
+          <div class="account-product-rail-shell js-ai-rail-shell" tabindex="-1">
+            <div class="account-product-rail-slot account-product-rail-slot--lead js-ai-lead-pattern">${renderLeadPattern()}</div>
+            <div class="account-product-rail-slot account-product-rail-slot--action js-ai-actions">${renderActions()}</div>
+          </div>
+        </div>
+        <div class="account-product-secondary">
+          <div class="account-product-secondary-scroll js-ai-secondary-scroll" tabindex="-1">
+            ${secondary}
+          </div>
         </div>
       </div>
     `;
   };
+
+  const renderSupportTab = (tab: AccountIntelSupportTab, label: string) => {
+    const active = activeSupportTab === tab;
+    return `
+      <button
+        type="button"
+        class="account-product-support-tab js-ai-support-tab${active ? ' is-active' : ''}"
+        data-tab="${tab}"
+        role="tab"
+        aria-selected="${active ? 'true' : 'false'}"
+      >${label}</button>
+    `;
+  };
+
+  const renderSupportPanel = (tab: AccountIntelSupportTab, content: string) => {
+    const active = activeSupportTab === tab;
+    return `
+      <div class="account-product-support-panel${active ? ' is-active' : ''}" data-tab="${tab}" role="tabpanel"${active ? '' : ' hidden'}>
+        ${content}
+      </div>
+    `;
+  };
+
+  const renderSupport = () => `
+    <div class="account-product-support-tabs js-ai-support-region" data-active-tab="${escapeHtml(activeSupportTab)}">
+      <div class="importer-panel__head">
+        <strong class="importer-panel__title">Support tools</strong>
+        <p class="importer-panel__copy">Keep the lead position and action plan in the rail. Use these tabs only when you need notebook, comparison, history, or supporting notes.</p>
+      </div>
+      <div class="account-product-support-tablist" role="tablist" aria-label="Support tools">
+        ${renderSupportTab('study', 'Study notebook')}
+        ${renderSupportTab('compare', 'Compare reports')}
+        ${renderSupportTab('history', 'History')}
+        ${(state?.surface?.overview?.cards || []).length ? renderSupportTab('notes', 'Notes') : ''}
+      </div>
+      <div class="account-product-support-panels">
+        ${renderSupportPanel('study', renderUtility())}
+        ${renderSupportPanel('compare', renderCompare())}
+        ${renderSupportPanel('history', renderHistory())}
+        ${(state?.surface?.overview?.cards || []).length ? renderSupportPanel('notes', renderOverview()) : ''}
+      </div>
+    </div>
+  `;
 
   const renderUtility = () => {
     const notebookUrl = currentNotebookUrl();
     return `
       <div class="importer-panel importer-panel--guide account-product-utility">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Deep dive</strong>
-          <p class="importer-panel__copy">Stay on this page for the answer. Open the notebook only when you want the move tree, chapter flow, and a shareable study artifact.</p>
+          <strong class="importer-panel__title">Study notebook</strong>
+          <p class="importer-panel__copy">Stay on this page for the answer. Open the study notebook only when you want the move tree, chapter flow, and a shareable study artifact.</p>
         </div>
         <div class="account-product-utility-links">
-          ${notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open notebook</a>` : ''}
+          ${notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
           <div class="copy-me account-product-copy">
             <input type="text" readonly class="account-product-copy__value" value="${escapeHtml(window.location.pathname + window.location.search)}" />
             <button class="copy-me__button button-metal">Copy result link</button>
@@ -538,8 +758,8 @@ function initAccountIntelProduct() {
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Run history</strong>
-          <p class="importer-panel__copy">Keep the latest result in front, but make reruns and older runs easy to compare.</p>
+          <strong class="importer-panel__title">History</strong>
+          <p class="importer-panel__copy">Keep the latest report in front, but make older reports easy to reopen and compare.</p>
         </div>
         <div class="account-product-history">
           ${history
@@ -554,7 +774,7 @@ function initAccountIntelProduct() {
                     <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'no sample')}</span>
                   </div>
                   <div class="account-product-history-actions">
-                    <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing run' : 'Open run'}</a>
+                    <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing report' : 'Open report'}</a>
                     ${job.surfacePreview ? `<button type="button" class="account-product-history-compare js-ai-history-compare" data-job-id="${escapeHtml(job.jobId)}">${compareJobId === job.jobId ? 'Comparing' : 'Compare'}</button>` : ''}
                   </div>
                 </div>`,
@@ -571,12 +791,12 @@ function initAccountIntelProduct() {
       return `
         <div class="importer-panel importer-panel--guide account-product-compare">
           <div class="importer-panel__head">
-            <strong class="importer-panel__title">Compare runs</strong>
-            <p class="importer-panel__copy">Pick an older run from history to see how the headline, confidence, and top patterns moved.</p>
+            <strong class="importer-panel__title">Compare reports</strong>
+            <p class="importer-panel__copy">Pick an older report from history to see how the headline, confidence, and main patterns moved.</p>
           </div>
           <div class="status-callout">
             <strong>No comparison selected</strong>
-            <span>Use Compare on a past run to open a compact then-vs-now panel without leaving the page.</span>
+            <span>Use Compare on a past report to open a compact then-vs-now panel without leaving the page.</span>
           </div>
         </div>
       `;
@@ -592,7 +812,7 @@ function initAccountIntelProduct() {
     return `
       <div class="importer-panel importer-panel--guide account-product-compare">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Compare runs</strong>
+          <strong class="importer-panel__title">Compare reports</strong>
           <p class="importer-panel__copy">A quick then-vs-now view keeps reruns useful instead of archival.</p>
         </div>
         <div class="account-product-compare-grid">
@@ -630,24 +850,24 @@ function initAccountIntelProduct() {
     `;
   };
 
-  const renderEvidence = (evidence?: any) => {
-    const support = evidence?.supportingGames ?? 0;
-    const total = evidence?.totalSampledGames ?? 0;
-    const strength = evidence?.strength ?? 'weak';
-    return `${support}/${total} games • ${escapeHtml(strength)}`;
-  };
-
-  const renderAnchor = (anchor: any) => `
-    <div class="account-product-anchor">
-      <strong>${escapeHtml(anchor.title || 'Anchor position')}</strong>
-      <p>${escapeHtml(anchor.explanation || anchor.claim || '')}</p>
-      <div class="account-product-anchor-meta">
-        <span>${escapeHtml(anchor.claim || '')}</span>
-        <span>ply ${escapeHtml(anchor.moveContext?.ply ?? 0)}</span>
-      </div>
-      <div class="account-product-anchor-plan">
-        <strong>What to do next</strong>
-        <p>${escapeHtml(anchor.recommendedPlan?.summary || '')}</p>
+  const renderAnchor = (anchor: any, pattern: any, lead = false) => `
+    <div class="account-product-anchor account-product-anchor--coach${lead ? ' is-lead' : ''}">
+      ${renderMiniBoard(anchor.fen, boardOrientation(pattern.side))}
+      <div class="account-product-anchor-copy">
+        <span class="account-product-anchor-kicker">Typical position</span>
+        <strong>${escapeHtml(anchor.title || 'Typical position')}</strong>
+        <div class="account-product-anchor-meta">
+          <span>Repeated structure: ${escapeHtml(playerFacingStructureLabel(pattern))}</span>
+          <span>${escapeHtml(playerFacingDecisionPoint(anchor.moveContext?.ply))}</span>
+        </div>
+        <div class="account-product-anchor-plan">
+          <strong>Why this matters</strong>
+          <p>${escapeHtml(anchor.explanation || anchor.claim || '')}</p>
+        </div>
+        <div class="account-product-anchor-plan">
+          <strong>What to look for next</strong>
+          <p>${escapeHtml(anchor.recommendedPlan?.summary || '')}</p>
+        </div>
       </div>
     </div>
   `;
@@ -659,6 +879,22 @@ function initAccountIntelProduct() {
       <span>${escapeHtml(card.successMarker || '')}</span>
     </div>
   `;
+
+  const renderExemplarCard = (game: any) => {
+    const meta = game.game || {};
+    const link = meta.sourceUrl
+      ? `<a href="${escapeHtml(meta.sourceUrl)}" target="_blank" rel="noopener">Open source game</a>`
+      : '';
+    return `
+      <div class="account-product-exemplar-card">
+        <strong>${escapeHtml(game.title || 'Example game')}</strong>
+        <span>${escapeHtml(`${meta.white || '?'} vs ${meta.black || '?'}`)}</span>
+        <p>${escapeHtml(game.whyItMatters || '')}</p>
+        <p>${escapeHtml(game.takeaway || '')}</p>
+        ${link}
+      </div>
+    `;
+  };
 
   const renderChecklist = (card: any) => `
     <div class="account-product-checklist">
@@ -703,9 +939,9 @@ function initAccountIntelProduct() {
       case 'extracting_primitives':
         return 'Extracting recurring structure signals.';
       case 'creating_notebook':
-        return 'Attaching the notebook and account surface.';
+        return 'Attaching the study notebook and pattern report.';
       case 'completed':
-        return 'Account surface created successfully.';
+        return 'Pattern report created successfully.';
       case 'failed':
         return 'The job ended with an error.';
       default:
@@ -713,24 +949,43 @@ function initAccountIntelProduct() {
     }
   };
 
-  const renderAll = () => {
+  const refreshSupportPanel = (scrollIntoView = false) => {
+    activeSupportTab = normalizeSupportTab(activeSupportTab);
+    setInner('.js-ai-support', renderSupport());
+    initMiniBoards(root);
+    if (scrollIntoView) {
+      window.requestAnimationFrame(() => scrollSecondaryToSelector('.js-ai-support'));
+    }
+  };
+
+  const renderAll = (options: { resetSecondaryScroll?: boolean; scrollSupportIntoView?: boolean; focusRail?: boolean } = {}) => {
     const surface = state?.surface;
     if (!surface) return;
+    const previousSecondaryScroll = secondaryScroller()?.scrollTop ?? 0;
+    const previousRailScroll = railShell()?.scrollTop ?? 0;
     currentSide = normalizeSide(currentSide, currentPatterns());
+    activeSupportTab = normalizeSupportTab(activeSupportTab);
     const headline = surface.headline || `@${state!.username}`;
     const headlineEl = root.querySelector<HTMLElement>('.js-ai-headline');
     if (headlineEl) headlineEl.textContent = headline;
     setInner('.js-ai-summary-strip', renderSummaryStrip());
-    setInner('.js-ai-overview', renderOverview());
-    setInner('.js-ai-openings', renderOpenings());
-    setInner('.js-ai-side-toggle', renderSideToggle());
-    setInner('.js-ai-patterns', renderPatterns());
-    setInner('.js-ai-actions', renderActions());
-    setInner('.js-ai-exemplars', renderExemplars());
-    setInner('.js-ai-history', renderHistory());
-    setInner('.js-ai-compare', renderCompare());
+    setInner('.js-ai-workspace', renderWorkspace());
     setInner('.js-ai-active-job', renderActiveJob());
-    setInner('.js-ai-utility', renderUtility());
+    initMiniBoards(root);
+    const nextSecondaryScroller = secondaryScroller();
+    if (nextSecondaryScroller) nextSecondaryScroller.scrollTop = options.resetSecondaryScroll ? 0 : previousSecondaryScroll;
+    const nextRailShell = railShell();
+    if (nextRailShell) nextRailShell.scrollTop = previousRailScroll;
+    if (options.focusRail) railShell()?.focus({ preventScroll: true });
+    if (options.scrollSupportIntoView) {
+      window.requestAnimationFrame(() => scrollSecondaryToSelector('.js-ai-support'));
+    }
+    const morePatterns = root.querySelector<HTMLDetailsElement>('.js-ai-more-patterns');
+    if (morePatterns) {
+      morePatterns.ontoggle = () => {
+        expandedPatternCount = morePatterns.open ? Math.max(visiblePatterns().length, 3) : 3;
+      };
+    }
 
     root.querySelectorAll<HTMLElement>('.js-ai-mode-link').forEach(link => {
       link.classList.toggle('is-active', link.dataset.kind === state!.kind);
@@ -739,7 +994,11 @@ function initAccountIntelProduct() {
     if (rerunKind) rerunKind.value = state!.kind;
   };
 
-  const fetchState = async (stateUrl: string, historyMode: 'push' | 'replace' | 'none' = 'push') => {
+  const fetchState = async (
+    stateUrl: string,
+    historyMode: 'push' | 'replace' | 'none' = 'push',
+    options: { resetSecondaryScroll?: boolean; focusRail?: boolean } = {},
+  ) => {
     root.classList.add('is-loading');
     try {
       const response = await fetch(stateUrl, {
@@ -751,7 +1010,7 @@ function initAccountIntelProduct() {
       if (!state) return;
       currentSelectedJobId = state.selectedJobId || null;
       currentSide = normalizeSide(currentSide, currentPatterns());
-      renderAll();
+      renderAll(options);
       if (historyMode !== 'none') syncLocation(state.kind, currentSide, historyMode === 'replace', currentSelectedJobId);
       schedulePoll();
     } catch (err) {
@@ -775,16 +1034,20 @@ function initAccountIntelProduct() {
     if (modeLink) {
       event.preventDefault();
       compareJobId = null;
+      activeSupportTab = 'study';
       currentSide = 'all';
       currentSelectedJobId = null;
-      fetchState(modeLink.dataset.stateUrl || stateUrlForKind(modeLink.dataset.kind || state!.kind, null), 'push');
+      fetchState(modeLink.dataset.stateUrl || stateUrlForKind(modeLink.dataset.kind || state!.kind, null), 'push', {
+        resetSecondaryScroll: true,
+        focusRail: true,
+      });
       return;
     }
     const sideLink = target?.closest<HTMLAnchorElement>('.js-ai-side-link');
     if (sideLink) {
       event.preventDefault();
       currentSide = normalizeSide(sideLink.dataset.side || 'all', currentPatterns());
-      renderAll();
+      renderAll({ resetSecondaryScroll: true, focusRail: true });
       syncLocation(state!.kind, currentSide, false, currentSelectedJobId);
       return;
     }
@@ -792,16 +1055,23 @@ function initAccountIntelProduct() {
     if (compareButton) {
       event.preventDefault();
       compareJobId = compareButton.dataset.jobId || null;
-      setInner('.js-ai-compare', renderCompare());
-      setInner('.js-ai-history', renderHistory());
+      activeSupportTab = 'compare';
+      refreshSupportPanel(true);
       return;
     }
     const clearCompare = target?.closest<HTMLButtonElement>('.js-ai-clear-compare');
     if (clearCompare) {
       event.preventDefault();
       compareJobId = null;
-      setInner('.js-ai-compare', renderCompare());
-      setInner('.js-ai-history', renderHistory());
+      activeSupportTab = 'compare';
+      refreshSupportPanel(true);
+      return;
+    }
+    const supportTab = target?.closest<HTMLButtonElement>('.js-ai-support-tab');
+    if (supportTab) {
+      event.preventDefault();
+      activeSupportTab = normalizeSupportTab(supportTab.dataset.tab);
+      refreshSupportPanel();
     }
   });
 
@@ -810,7 +1080,10 @@ function initAccountIntelProduct() {
     const intent = readLocationIntent();
     currentSide = intent.side;
     currentSelectedJobId = intent.jobId;
-    void fetchState(stateUrlForKind(intent.kind, currentSelectedJobId), 'none');
+    void fetchState(stateUrlForKind(intent.kind, currentSelectedJobId), 'none', {
+      resetSecondaryScroll: true,
+      focusRail: true,
+    });
   });
 
   renderAll();

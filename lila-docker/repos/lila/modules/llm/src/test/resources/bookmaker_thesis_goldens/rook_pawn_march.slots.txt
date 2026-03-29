@@ -1,8 +1,0 @@
-lens=Structure
-claim=12... Rh3: The rook wants the g-file because that is where kingside clamp gains force.
-supportPrimary=The Kingside Clamp points to the rook pawn march, and the move starts the rook route toward the g-file.
-supportSecondary=
-tension=The Kingside Clamp points to the rook pawn march, and the move starts the rook route toward the g-file.
-evidenceHook=
-coda=
-paragraphPlan=p1=claim,p2=support,p3=practical_nuance

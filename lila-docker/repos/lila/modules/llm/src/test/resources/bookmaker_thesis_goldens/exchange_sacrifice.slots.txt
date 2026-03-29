@@ -1,8 +1,0 @@
-lens=Compensation
-claim=12... Rxc6: The move gives up material because the initiative against the king stays alive.
-supportPrimary=That only works while the initiative against the king stays alive.
-supportSecondary=
-tension=The queen can head for h7 next.
-evidenceHook=
-coda=
-paragraphPlan=p1=claim,p2=support,p3=practical_nuance

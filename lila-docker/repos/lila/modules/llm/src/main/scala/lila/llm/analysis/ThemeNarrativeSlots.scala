@@ -10,8 +10,8 @@ object ThemeNarrativeSlots:
       hold = "If counterplay remains fast, this prophylactic claim is deferred."
     ),
     "piece_redeployment" -> ThemeSlots(
-      idea = "Piece redeployment first: improve the worst piece and tighten coordination.",
-      evidence = "Evidence requires concrete reroute feasibility with no tactical collapse.",
+      idea = "Piece redeployment first: improve the worst piece, re-anchor bishops, or claim strong files.",
+      evidence = "Evidence requires concrete reroute or file-occupation feasibility with no tactical collapse.",
       hold = "If reroute squares are unstable, redeployment is held."
     ),
     "space_clamp" -> ThemeSlots(
@@ -21,7 +21,7 @@ object ThemeNarrativeSlots:
     ),
     "weakness_fixation" -> ThemeSlots(
       idea = "Weakness fixation first: create and keep static targets.",
-      evidence = "Evidence requires persistent weak points after best practical replies.",
+      evidence = "Evidence requires persistent weak points such as IQPs or backward pawns after best practical replies.",
       hold = "If weaknesses can be released quickly, fixation is downgraded."
     ),
     "pawn_break_preparation" -> ThemeSlots(
@@ -30,8 +30,8 @@ object ThemeNarrativeSlots:
       hold = "If prep is incomplete or timing fails, the break stays conditional."
     ),
     "favorable_exchange" -> ThemeSlots(
-      idea = "Favorable exchange first: trade only when the resulting structure improves.",
-      evidence = "Evidence needs exchange sequences that preserve or improve evaluation trend.",
+      idea = "Favorable exchange first: trade only when the resulting structure or bad-piece liquidation improves.",
+      evidence = "Evidence needs exchange sequences that preserve evaluation trend while keeping the better structure or king shield.",
       hold = "If exchanges release opponent activity, simplification is held."
     ),
     "flank_infrastructure" -> ThemeSlots(
@@ -40,13 +40,13 @@ object ThemeNarrativeSlots:
       hold = "If center instability refutes flank timing, the attack is deferred."
     ),
     "advantage_transformation" -> ThemeSlots(
-      idea = "Advantage transformation first: convert one edge type into a durable one.",
-      evidence = "Evidence requires conversion lines that retain advantage through transition.",
+      idea = "Advantage transformation first: convert one edge type into a durable one, often via passer manufacture or invasion.",
+      evidence = "Evidence requires conversion lines that retain advantage through transition and keep the transformed edge alive.",
       hold = "If conversion leaks initiative or structure, transformation is delayed."
     ),
     "immediate_tactical_gain" -> ThemeSlots(
-      idea = "Immediate tactical gain takes priority over long-horizon planning.",
-      evidence = "Evidence requires forcing motifs with stable tactical follow-through.",
+      idea = "Immediate tactical gain takes priority over long-horizon planning, including batteries, overloads, and clearance ideas.",
+      evidence = "Evidence requires forcing motifs or pressure alignments with stable tactical follow-through.",
       hold = "If tactical lines are not forcing, strategic claims resume priority."
     ),
     "unknown" -> ThemeSlots(

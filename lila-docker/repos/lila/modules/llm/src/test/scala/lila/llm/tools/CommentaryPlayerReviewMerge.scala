@@ -49,7 +49,7 @@ object CommentaryPlayerReviewMerge:
     FixFamily.GenericTensionPeakOverload -> List("Chronicle moment selection", "whole-game summary framing"),
     FixFamily.ConcreteAnchorMissingInLongTermStory -> List("shared thesis/support path", "Chronicle long-term story compression"),
     FixFamily.GenericFillerMainProse -> List("Bookmaker main-thesis selection", "Bookmaker compression"),
-    FixFamily.AnchoredSupportMissingFromProse -> List("Bookmaker support-to-body promotion", "StrategicThesisBuilder"),
+    FixFamily.AnchoredSupportMissingFromProse -> List("Bookmaker support-to-body promotion", "move-delta carrier"),
     FixFamily.ConditionalityBlur -> List("Bookmaker provenance phrasing", "conditionality carryover"),
     FixFamily.MisanchoredConcreteClaim -> List("shared truth/provenance guard", "Bookmaker concrete-claim gating"),
     FixFamily.StrategicFlattening -> List("Bookmaker compression", "shared player-facing rewrite"),

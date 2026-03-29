@@ -166,6 +166,13 @@ private[analysis] object StandardCommentaryClaimPolicy:
   ): String =
     noEventNote(ctx, truthContract).getOrElse(sanitizeClaimStrength(ctx, rawText, truthContract))
 
+  def sanitizeOnly(
+      ctx: NarrativeContext,
+      rawText: String,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): String =
+    sanitizeClaimStrength(ctx, rawText, truthContract)
+
   private def sanitizeClaimStrength(
       ctx: NarrativeContext,
       rawText: String,
@@ -242,7 +249,6 @@ private[analysis] object StandardCommentaryClaimPolicy:
           semantic.structuralWeaknesses.nonEmpty ||
           semantic.positionalFeatures.nonEmpty
       } ||
-      ctx.whyAbsentFromTopMultiPV.exists(_.trim.nonEmpty) ||
       ctx.pawnPlay.breakReady ||
       ctx.pawnPlay.counterBreak ||
       !ctx.pawnPlay.primaryDriver.trim.equalsIgnoreCase("quiet") ||

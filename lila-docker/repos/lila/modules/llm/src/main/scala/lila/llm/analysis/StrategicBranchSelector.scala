@@ -13,13 +13,14 @@ object StrategicBranchSelector:
   private val MaxThreads = 3
   private val MaxVisibleMoments = 12
   private val MaxVisibleThreadMoments = MaxThreads * 3
-  private val MaxActiveNotes = 8
+  private val BaseActiveNotes = 8
 
   final case class StrategicBranchSelection(
       selectedMoments: List[GameChronicleMoment],
       activeNoteMoments: List[GameChronicleMoment],
       threads: List[ActiveStrategicThread],
-      threadRefsByPly: Map[Int, ActiveStrategicThreadRef]
+      threadRefsByPly: Map[Int, ActiveStrategicThreadRef],
+      threadRepresentativeSelectedPlies: Set[Int]
   )
 
   private case class TruthSelectionView(
@@ -35,6 +36,28 @@ object StrategicBranchSelector:
       benchmarkCriticalMove: Boolean
   )
 
+  private case class ProtectedMomentCandidate(
+      moment: GameChronicleMoment,
+      priority: (Int, Int, Int, Int),
+      truthView: TruthSelectionView,
+      threadId: Option[String],
+      threadRepresentativePromoted: Boolean
+  )
+
+  private case class ThreadSelectionArtifacts(
+      rankedThreads: List[ActiveStrategicThreadBuilder.BuiltThread],
+      threadRefsByPly: Map[Int, ActiveStrategicThreadRef],
+      threadedPlies: Set[Int],
+      threadLocalRepresentativeMoments: List[GameChronicleMoment],
+      threadRepresentativeSelectedPlies: Set[Int]
+  )
+
+  private case class NonProtectedVisibleCandidate(
+      moment: GameChronicleMoment,
+      sourcePriority: Int,
+      sortKey: (Int, Int, Int, Int)
+  )
+
   def select(moments: List[GameChronicleMoment]): List[GameChronicleMoment] =
     buildSelection(moments).selectedMoments
 
@@ -48,151 +71,251 @@ object StrategicBranchSelector:
       moments: List[GameChronicleMoment],
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): StrategicBranchSelection =
+    buildSelectionArtifacts(moments, truthContractsByPly)
+
+  private def buildSelectionArtifacts(
+      moments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): StrategicBranchSelection =
+    val threadSelection = buildThreadSelectionArtifacts(moments, truthContractsByPly)
+    val canonicalProtected =
+      buildCanonicalProtectedOrder(
+        moments,
+        truthContractsByPly,
+        threadSelection.threadRefsByPly,
+        threadSelection.threadLocalRepresentativeMoments
+      )
+    val visibleSelection =
+      buildVisibleMoments(
+        moments,
+        truthContractsByPly,
+        threadSelection,
+        canonicalProtected
+      )
+    val activeSelection =
+      buildActiveNoteMoments(
+        moments,
+        truthContractsByPly,
+        threadSelection,
+        canonicalProtected
+      )
+    if threadSelection.rankedThreads.isEmpty then
+      StrategicBranchSelection(
+        selectedMoments = visibleSelection,
+        activeNoteMoments = activeSelection,
+        threads = Nil,
+        threadRefsByPly = Map.empty,
+        threadRepresentativeSelectedPlies = threadSelection.threadRepresentativeSelectedPlies
+      )
+    else
+      StrategicBranchSelection(
+        selectedMoments = visibleSelection,
+        activeNoteMoments = activeSelection,
+        threads = threadSelection.rankedThreads.map(_.thread),
+        threadRefsByPly = threadSelection.threadRefsByPly,
+        threadRepresentativeSelectedPlies = threadSelection.threadRepresentativeSelectedPlies
+      )
+
+  private def buildThreadSelectionArtifacts(
+      moments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): ThreadSelectionArtifacts =
     val threadResult = ActiveStrategicThreadBuilder.build(moments)
     val rankedThreads = sortThreads(threadResult.builtThreads).take(MaxThreads)
     val rankedThreadIds = rankedThreads.map(_.thread.threadId).toSet
     val threadRefsByPly =
       threadResult.threadRefsByPly.filter { case (_, ref) => rankedThreadIds.contains(ref.threadId) }
-    val threadedPlies = threadResult.threadRefsByPly.keySet
-    val protectedVisibleMoments =
-      selectProtectedVisibleMoments(moments, truthContractsByPly)
-    val protectedVisiblePlies = protectedVisibleMoments.map(_.ply).toSet
-    val remainingVisibleSlotsAfterProtected = (MaxVisibleMoments - protectedVisibleMoments.size).max(0)
-    val visibleThreadMoments =
+    val threadedPlies = threadRefsByPly.keySet
+    val threadLocalRepresentativeMoments =
       rankedThreads
         .flatMap(thread => selectRepresentatives(thread, truthContractsByPly))
         .distinctBy(_.ply)
+    val threadRepresentativeSelectedPlies = threadLocalRepresentativeMoments.map(_.ply).toSet
+    ThreadSelectionArtifacts(
+      rankedThreads = rankedThreads,
+      threadRefsByPly = threadRefsByPly,
+      threadedPlies = threadedPlies,
+      threadLocalRepresentativeMoments = threadLocalRepresentativeMoments,
+      threadRepresentativeSelectedPlies = threadRepresentativeSelectedPlies
+    )
+
+  private def buildVisibleMoments(
+      moments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      threadSelection: ThreadSelectionArtifacts,
+      canonicalProtectedOrder: List[GameChronicleMoment]
+  ): List[GameChronicleMoment] =
+    val protectedVisibleMoments = canonicalProtectedOrder.take(MaxVisibleMoments)
+    val protectedVisiblePlies = protectedVisibleMoments.map(_.ply).toSet
+    val protectedVisibleThreadIds =
+      protectedVisibleMoments.flatMap(moment => surfacedThreadId(moment, threadSelection.threadRefsByPly)).toSet
+    val remainingVisibleSlotsAfterProtected = (MaxVisibleMoments - protectedVisibleMoments.size).max(0)
+    val visibleThreadOrder =
+      selectGlobalThreadMoments(
+        representativeMoments = threadSelection.threadLocalRepresentativeMoments,
+        truthContractsByPly = truthContractsByPly,
+        eligibility = _.globalVisibleEligible
+      )
         .filterNot(moment => protectedVisiblePlies.contains(moment.ply))
-        .take(MaxVisibleThreadMoments.min(remainingVisibleSlotsAfterProtected))
+        .filterNot(moment =>
+          surfacedThreadId(moment, threadSelection.threadRefsByPly).exists(protectedVisibleThreadIds.contains)
+        )
+    val visibleThreadMoments =
+      visibleThreadOrder.take(MaxVisibleThreadMoments.min(remainingVisibleSlotsAfterProtected))
     val visibleThreadPlies = visibleThreadMoments.map(_.ply).toSet
-    val visibleCompensationMoments =
-      suppressInvestmentEchoes(
-        selectCompensationPriorityMoments(moments, threadedPlies, truthContractsByPly),
-        truthContractsByPly
-      )
-        .filterNot(moment => protectedVisiblePlies.contains(moment.ply) || visibleThreadPlies.contains(moment.ply))
-        .take((remainingVisibleSlotsAfterProtected - visibleThreadMoments.size).max(0))
-    val visibleCompensationPlies = visibleCompensationMoments.map(_.ply).toSet
-    val visibleCoreEvents =
-      suppressInvestmentEchoes(
-        visibleCompensationMoments ++ selectCoreNonThreadEvents(moments, threadedPlies, truthContractsByPly),
-        truthContractsByPly
-      )
-        .filterNot(moment =>
-          protectedVisiblePlies.contains(moment.ply) ||
-            visibleThreadPlies.contains(moment.ply) ||
-            visibleCompensationPlies.contains(moment.ply)
-        )
-        .take((remainingVisibleSlotsAfterProtected - visibleThreadMoments.size - visibleCompensationMoments.size).max(0))
-    val visibleCoreEventPlies = visibleCoreEvents.map(_.ply).toSet
-    val visibleFallbackCandidates =
-      selectStrategicFallbackMoments(moments, threadedPlies, truthContractsByPly)
-        .filterNot(moment =>
-          protectedVisiblePlies.contains(moment.ply) ||
-            visibleThreadPlies.contains(moment.ply) ||
-            visibleCompensationPlies.contains(moment.ply) ||
-            visibleCoreEventPlies.contains(moment.ply)
-        )
-    val visibleFallbackMoments =
-      suppressInvestmentEchoes(
-        visibleCompensationMoments ++ visibleCoreEvents ++ visibleFallbackCandidates,
-        truthContractsByPly
-      )
-        .filterNot(moment =>
-          protectedVisiblePlies.contains(moment.ply) ||
-            visibleThreadPlies.contains(moment.ply) ||
-            visibleCompensationPlies.contains(moment.ply) ||
-            visibleCoreEventPlies.contains(moment.ply)
-        )
-        .take(
-          (
-            remainingVisibleSlotsAfterProtected -
-              visibleThreadMoments.size -
-              visibleCompensationMoments.size -
-              visibleCoreEvents.size
-          ).max(0)
-        )
-    val prioritizedVisibleMoments =
+    val visibleNonProtectedMoments =
+      buildNonProtectedVisibleStream(
+        moments = moments,
+        threadedPlies = threadSelection.threadedPlies,
+        truthContractsByPly = truthContractsByPly,
+        excludedPlies = protectedVisiblePlies ++ visibleThreadPlies
+      ).take((remainingVisibleSlotsAfterProtected - visibleThreadMoments.size).max(0))
+    val finalVisibleOrder =
       (
         protectedVisibleMoments ++
           visibleThreadMoments ++
-          visibleCompensationMoments ++
-          visibleCoreEvents ++
-          visibleFallbackMoments
+          visibleNonProtectedMoments
       ).distinctBy(_.ply).take(MaxVisibleMoments)
-    val visibleMoments =
-      prioritizedVisibleMoments
-        .sortBy(_.ply)
-    val protectedActiveNoteMoments =
-      selectProtectedActiveNoteMoments(moments, truthContractsByPly)
-    val protectedActiveNotePlies = protectedActiveNoteMoments.map(_.ply).toSet
-    val remainingActiveNoteSlotsAfterProtected = (MaxActiveNotes - protectedActiveNoteMoments.size).max(0)
-    val activeNoteFallbackMoments =
-      selectActiveNoteFallbackMoments(moments, visibleThreadPlies, truthContractsByPly)
+    finalVisibleOrder.sortBy(_.ply)
+
+  private def buildActiveNoteMoments(
+      moments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      threadSelection: ThreadSelectionArtifacts,
+      canonicalProtectedOrder: List[GameChronicleMoment]
+  ): List[GameChronicleMoment] =
+    val baseProtectedActiveNoteMoments = canonicalProtectedOrder.take(BaseActiveNotes)
+    val protectedActiveNotePlies = baseProtectedActiveNoteMoments.map(_.ply).toSet
+    val remainingActiveNoteSlotsAfterProtected =
+      (BaseActiveNotes - baseProtectedActiveNoteMoments.size).max(0)
+    val activeNoteThreadMoments =
+      selectGlobalThreadMoments(
+        representativeMoments = threadSelection.threadLocalRepresentativeMoments,
+        truthContractsByPly = truthContractsByPly,
+        eligibility = _.globalActiveNoteEligible
+      )
         .filterNot(moment => protectedActiveNotePlies.contains(moment.ply))
-        .take(
-          (
-            remainingActiveNoteSlotsAfterProtected -
-              visibleThreadMoments.count(moment => !protectedActiveNotePlies.contains(moment.ply))
-          ).max(0)
-        )
+        .take(remainingActiveNoteSlotsAfterProtected)
+    val activeNoteThreadPlies = activeNoteThreadMoments.map(_.ply).toSet
+    val activeNoteFallbackMoments =
+      buildNonProtectedActiveNoteStream(
+        moments = moments,
+        excludedPlies = protectedActiveNotePlies ++ activeNoteThreadPlies,
+        threadedRepresentativePlies = threadSelection.threadRepresentativeSelectedPlies,
+        truthContractsByPly = truthContractsByPly
+      )
+        .take((remainingActiveNoteSlotsAfterProtected - activeNoteThreadMoments.size).max(0))
     val prioritizedActiveNoteMoments =
-      if rankedThreads.isEmpty then
-        (
-          protectedActiveNoteMoments ++
-            activeNoteFallbackMoments
-        ).distinctBy(_.ply).take(MaxActiveNotes)
+      if threadSelection.rankedThreads.isEmpty then
+        (baseProtectedActiveNoteMoments ++ activeNoteFallbackMoments).distinctBy(_.ply).take(BaseActiveNotes)
       else
         (
-          protectedActiveNoteMoments ++
-            (visibleThreadMoments ++ activeNoteFallbackMoments)
+          baseProtectedActiveNoteMoments ++
+            (activeNoteThreadMoments ++ activeNoteFallbackMoments)
               .filterNot(moment => protectedActiveNotePlies.contains(moment.ply))
-        ).distinctBy(_.ply).take(MaxActiveNotes)
-
-    if rankedThreads.isEmpty then
-      StrategicBranchSelection(
-        selectedMoments = visibleMoments,
-        activeNoteMoments = prioritizedActiveNoteMoments,
-        threads = Nil,
-        threadRefsByPly = Map.empty
+        ).distinctBy(_.ply).take(BaseActiveNotes)
+    val overflowActiveNoteMoments =
+      selectProtectedOverflowActiveNotes(
+        protectedCandidates = canonicalProtectedOrder,
+        baseProtectedSeedMoments = baseProtectedActiveNoteMoments,
+        threadRefsByPly = threadSelection.threadRefsByPly,
+        truthContractsByPly = truthContractsByPly
       )
-    else
-      StrategicBranchSelection(
-        selectedMoments = visibleMoments,
-        activeNoteMoments = prioritizedActiveNoteMoments,
-        threads = rankedThreads.map(_.thread),
-        threadRefsByPly = threadRefsByPly
-      )
+    (prioritizedActiveNoteMoments ++ overflowActiveNoteMoments).distinctBy(_.ply)
 
-  private def selectCoreNonThreadEvents(
+  private def buildNonProtectedVisibleStream(
       moments: List[GameChronicleMoment],
       threadedPlies: Set[Int],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      excludedPlies: Set[Int]
+  ): List[GameChronicleMoment] =
+    suppressInvestmentEchoes(
+      moments
+        .filterNot(moment => excludedPlies.contains(moment.ply))
+        .filterNot(moment => isThreadedSelectionSuppressed(moment, threadedPlies))
+        .flatMap(moment =>
+          nonProtectedVisiblePriority(moment, truthContractsByPly).map(candidate => candidate -> moment)
+        )
+        .sortBy { case (candidate, moment) =>
+          (
+            candidate.sourcePriority,
+            candidate.sortKey._1,
+            candidate.sortKey._2,
+            candidate.sortKey._3,
+            candidate.sortKey._4,
+            moment.ply
+          )
+        }
+        .map(_._2),
+      truthContractsByPly
+    ).filterNot(moment => excludedPlies.contains(moment.ply))
+
+  private def buildNonProtectedActiveNoteStream(
+      moments: List[GameChronicleMoment],
+      excludedPlies: Set[Int],
+      threadedRepresentativePlies: Set[Int],
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): List[GameChronicleMoment] =
     moments
-      .filterNot(moment =>
-        threadedPlies.contains(moment.ply) ||
-          moment.selectionKind == "thread_bridge" ||
-          moment.momentType == "OpeningIntro"
-      )
-      .flatMap(moment => coreEventPriority(moment, truthContractsByPly).map(priority => priority -> moment))
-      .sortBy { case ((priority, tiebreak), moment) => (priority, tiebreak, moment.ply) }
+      .filterNot(moment => excludedPlies.contains(moment.ply))
+      .filterNot(moment => isActiveNoteThreadSuppressed(moment, threadedRepresentativePlies))
+      .flatMap(moment => activeNoteFallbackScore(moment, truthContractsByPly).map(score => score -> moment))
+      .sortBy { case ((priority, secondary, salience, tiebreak), moment) =>
+        (priority, secondary, salience, tiebreak, moment.ply)
+      }
       .map(_._2)
+
+  private def isThreadedSelectionSuppressed(
+      moment: GameChronicleMoment,
+      threadedPlies: Set[Int]
+  ): Boolean =
+    threadedPlies.contains(moment.ply) ||
+      moment.selectionKind == "thread_bridge" ||
+      moment.momentType == "OpeningIntro"
+
+  private def isActiveNoteThreadSuppressed(
+      moment: GameChronicleMoment,
+      threadedRepresentativePlies: Set[Int]
+  ): Boolean =
+    threadedRepresentativePlies.contains(moment.ply) ||
+      moment.selectionKind == "thread_bridge" ||
+      moment.momentType == "OpeningIntro"
+
+  private def nonProtectedVisiblePriority(
+      moment: GameChronicleMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract]
+  ): Option[NonProtectedVisibleCandidate] =
+    compensationPriorityScore(moment, truthContractsByPly).map(score =>
+      NonProtectedVisibleCandidate(moment, 0, score)
+    ).orElse(
+      coreEventPriority(moment, truthContractsByPly).map { case (priority, tiebreak) =>
+        NonProtectedVisibleCandidate(moment, 1, (priority, tiebreak, 0, 0))
+      }
+    ).orElse(
+      strategicFallbackScore(moment, truthContractsByPly).map { case (priority, secondary, tiebreak) =>
+        NonProtectedVisibleCandidate(moment, 2, (priority, secondary, tiebreak, 0))
+      }
+    )
 
   private def coreEventPriority(
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): Option[(Int, Int)] =
     val truthView = truthSelectionView(moment, truthContractsByPly)
-    if isSevereFailure(truthView) then Some(1 -> moment.ply)
-    else if isPromotedBestHold(truthView) then Some(2 -> moment.ply)
-    else if isVerifiedExemplar(truthView) then Some(3 -> moment.ply)
-    else if isProvisionalExemplar(truthView) || isPrimaryConversionOwner(truthView, moment) then Some(4 -> moment.ply)
-    else if isSelectionExemplar(truthView) then Some(5 -> moment.ply)
-    else if isMaintenanceEcho(truthView) then Some(6 -> moment.ply)
-    else if isMatePivot(moment) then Some(7 -> moment.ply)
-    else if isOpeningBranchEvent(moment) then Some(8 -> moment.ply)
-    else None
+    val semantics = chronicleSemantics(moment, truthContractsByPly)
+    val fallbackCoreEligible =
+      !semantics.hasTruthContract &&
+        (isSevereFailure(truthView) || isMatePivot(moment) || isOpeningBranchEvent(moment))
+    Option.when(semantics.globalVisibleEligible || fallbackCoreEligible) {
+      if isSevereFailure(truthView) then 1 -> moment.ply
+      else if isPromotedBestHold(truthView) then 2 -> moment.ply
+      else if isVerifiedExemplar(truthView) then 3 -> moment.ply
+      else if isProvisionalExemplar(truthView) || isPrimaryConversionOwner(truthView, moment) then 4 -> moment.ply
+      else if isSelectionExemplar(truthView) then 5 -> moment.ply
+      else if isMaintenanceEcho(truthView) then 6 -> moment.ply
+      else if isMatePivot(moment) then 7 -> moment.ply
+      else 8 -> moment.ply
+    }
 
   private def isBlunder(truthView: TruthSelectionView): Boolean =
     truthView.ownershipRole == TruthOwnershipRole.BlunderOwner &&
@@ -209,6 +332,9 @@ object StrategicBranchSelector:
     truthView.classificationKey == "best" &&
       truthView.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense &&
       truthView.benchmarkCriticalMove
+
+  private def isOverflowProtectedFamily(truthView: TruthSelectionView): Boolean =
+    isBlunder(truthView) || isMissedWin(truthView) || isPromotedBestHold(truthView)
 
   private def isCriticalBestTacticalOrTechnical(truthView: TruthSelectionView): Boolean =
     truthView.classificationKey == "best" &&
@@ -228,9 +354,6 @@ object StrategicBranchSelector:
           truthView.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
           truthView.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
       )
-
-  private def isReplacementOnlyThreadLocal(truthView: TruthSelectionView): Boolean =
-    isCriticalBestTacticalOrTechnical(truthView)
 
   private def isMatePivot(moment: GameChronicleMoment): Boolean =
     moment.momentType == "MatePivot"
@@ -261,6 +384,12 @@ object StrategicBranchSelector:
   private def isMaintenanceEcho(truthView: TruthSelectionView): Boolean =
     truthView.ownershipRole == TruthOwnershipRole.MaintenanceEcho &&
       truthView.visibilityRole != TruthVisibilityRole.Hidden
+
+  private def isCommitmentOwner(truthView: TruthSelectionView): Boolean =
+    truthView.ownershipRole == TruthOwnershipRole.CommitmentOwner
+
+  private def isConversionOwner(truthView: TruthSelectionView): Boolean =
+    truthView.ownershipRole == TruthOwnershipRole.ConversionOwner
 
   private def isPrimaryConversionOwner(
       truthView: TruthSelectionView,
@@ -296,55 +425,19 @@ object StrategicBranchSelector:
       benchmarkCriticalMove = truthContractsByPly.get(moment.ply).exists(_.benchmarkCriticalMove)
     )
 
-  private def selectStrategicFallbackMoments(
-      moments: List[GameChronicleMoment],
-      threadedPlies: Set[Int],
+  private def chronicleSemantics(
+      moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): List[GameChronicleMoment] =
-    moments
-      .filterNot(moment =>
-        threadedPlies.contains(moment.ply) ||
-          moment.selectionKind == "thread_bridge" ||
-          moment.momentType == "OpeningIntro"
-      )
-      .flatMap(moment => strategicFallbackScore(moment, truthContractsByPly).map(score => score -> moment))
-      .sortBy { case ((priority, secondary, tiebreak), moment) =>
-        (priority, secondary, tiebreak, moment.ply)
-      }
-      .map(_._2)
-
-  private def selectCompensationPriorityMoments(
-      moments: List[GameChronicleMoment],
-      threadedPlies: Set[Int],
-      truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): List[GameChronicleMoment] =
-    moments
-      .filterNot(moment =>
-        threadedPlies.contains(moment.ply) ||
-          moment.selectionKind == "thread_bridge" ||
-          moment.momentType == "OpeningIntro"
-      )
-      .flatMap(moment => compensationPriorityScore(moment, truthContractsByPly).map(score => score -> moment))
-      .sortBy { case ((priority, evidence, salience, tiebreak), moment) =>
-        (priority, evidence, salience, tiebreak, moment.ply)
-      }
-      .map(_._2)
+  ): MomentTruthSemantics.ChronicleSemantics =
+    MomentTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
 
   private def strategicFallbackScore(
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): Option[(Int, Int, Int)] =
     val surface = StrategyPackSurface.from(moment.strategyPack)
-    val semantics = MomentTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
-    val hasStrategicCarrier =
-      strategicCarrierPresent(
-        moment,
-        surface,
-        truthSelectionView(moment, truthContractsByPly),
-        semantics
-      )
-
-    Option.when(hasStrategicCarrier) {
+    val semantics = chronicleSemantics(moment, truthContractsByPly)
+    Option.when(semantics.globalVisibleEligible) {
       val priority =
         if surface.strictCompensationPosition && surface.quietCompensationPosition then 0
         else if surface.strictCompensationPosition && surface.durableCompensationPosition then 1
@@ -364,33 +457,19 @@ object StrategicBranchSelector:
       (priority, secondary, tiebreak)
     }
 
-  private def selectActiveNoteFallbackMoments(
-      moments: List[GameChronicleMoment],
-      visibleThreadPlies: Set[Int],
-      truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): List[GameChronicleMoment] =
-    moments
-      .filterNot(moment => visibleThreadPlies.contains(moment.ply))
-      .filterNot(moment => moment.selectionKind == "thread_bridge" || moment.momentType == "OpeningIntro")
-      .flatMap(moment => activeNoteFallbackScore(moment, truthContractsByPly).map(score => score -> moment))
-      .sortBy { case ((priority, secondary, salience, tiebreak), moment) =>
-        (priority, secondary, salience, tiebreak, moment.ply)
-      }
-      .map(_._2)
-
   private def compensationPriorityScore(
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): Option[(Int, Int, Int, Int)] =
     val surface = StrategyPackSurface.from(moment.strategyPack)
     val truthView = truthSelectionView(moment, truthContractsByPly)
-    val semantics = MomentTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
+    val semantics = chronicleSemantics(moment, truthContractsByPly)
     val visibleInvestment =
       truthView.visibilityRole == TruthVisibilityRole.PrimaryVisible ||
         truthView.visibilityRole == TruthVisibilityRole.SupportingVisible
     val exemplarTruth = isExemplarPivot(truthView)
     val compensationEligible =
-      if semantics.hasTruthContract then semantics.compensationSelectionEligible
+      if semantics.hasTruthContract then semantics.compensationSelectionEligible && semantics.globalVisibleEligible
       else surface.strictCompensationPosition || visibleInvestment || exemplarTruth
     Option.when(compensationEligible) {
       val priority =
@@ -424,8 +503,8 @@ object StrategicBranchSelector:
   ): Option[(Int, Int, Int, Int)] =
     val surface = StrategyPackSurface.from(moment.strategyPack)
     val truthView = truthSelectionView(moment, truthContractsByPly)
-    val semantics = MomentTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
-    Option.when(strategicCarrierPresent(moment, surface, truthView, semantics)) {
+    val semantics = chronicleSemantics(moment, truthContractsByPly)
+    Option.when(semantics.globalActiveNoteEligible) {
       val priority =
         if isSevereFailure(truthView) then 0
         else if isPromotedBestHold(truthView) then 1
@@ -492,47 +571,6 @@ object StrategicBranchSelector:
           (accepted :+ moment, primarySeen, supportSeen)
     }._1
 
-  private def strategicCarrierPresent(
-      moment: GameChronicleMoment,
-      surface: StrategyPackSurface.Snapshot,
-      truthView: TruthSelectionView,
-      semantics: MomentTruthSemantics.ChronicleSemantics
-  ): Boolean =
-    val truthBackedStrategicVisibility =
-      truthView.visibilityRole != TruthVisibilityRole.Hidden &&
-        truthView.surfaceMode != TruthSurfaceMode.FailureExplain &&
-        (
-          truthView.ownershipRole != TruthOwnershipRole.NoneRole ||
-            truthView.surfaceMode != TruthSurfaceMode.Neutral ||
-            truthView.exemplarRole != TruthExemplarRole.NonExemplar
-        )
-    val truthCriticalSupport =
-      isPromotedBestHold(truthView) ||
-        truthView.failureMode != FailureInterpretationMode.NoClearPlan
-    if semantics.hasTruthContract then
-      truthBackedStrategicVisibility ||
-        semantics.truthBackedStrategicVisibility ||
-        isExemplarPivot(truthView) ||
-        truthCriticalSupport
-    else
-      truthBackedStrategicVisibility ||
-        isExemplarPivot(truthView) ||
-        surface.dominantIdeaText.nonEmpty ||
-        surface.executionText.nonEmpty ||
-        surface.objectiveText.nonEmpty ||
-        surface.focusText.nonEmpty ||
-        surface.compensationPosition ||
-        moment.activePlan.isDefined ||
-        moment.strategyPack.exists(pack =>
-          pack.strategicIdeas.nonEmpty || pack.longTermFocus.nonEmpty || pack.pieceRoutes.nonEmpty
-        ) ||
-        moment.signalDigest.exists(digest =>
-          digest.dominantIdeaKind.isDefined ||
-            digest.compensation.exists(_.trim.nonEmpty) ||
-            digest.compensationVectors.exists(_.trim.nonEmpty) ||
-            digest.opponentPlan.exists(_.trim.nonEmpty)
-        )
-
   private def threadScore(thread: ActiveStrategicThreadBuilder.BuiltThread): Double =
     val moments = thread.moments
     val routeRichness = moments.count(_.moment.strategyPack.exists(_.pieceRoutes.nonEmpty)) * 0.45
@@ -568,122 +606,51 @@ object StrategicBranchSelector:
     val stagePriorityByPly =
       List(seed.map(_.ply -> 0), build.map(_.ply -> 1), finisher.map(_.ply -> 2)).flatten.toMap
     val threadMoments = thread.moments.map(_.moment).distinctBy(_.ply)
-    val rankedStrong =
+    val semanticsByPly =
+      threadMoments.map(moment => moment.ply -> chronicleSemantics(moment, truthContractsByPly)).toMap
+    val orderedCandidates =
       threadMoments
-        .filter(moment => isStrongRepresentativeQualified(truthSelectionView(moment, truthContractsByPly)))
         .sortBy(moment =>
-          representativeMomentScore(moment, truthContractsByPly, Set.empty, stagePriorityByPly)
+          representativeMomentScore(moment, truthContractsByPly, stagePriorityByPly, semanticsByPly)
         )
-    val rankedSecondary =
-      threadMoments
-        .filter(moment => isSecondaryRepresentativeQualified(truthSelectionView(moment, truthContractsByPly)))
-        .sortBy(moment =>
-          representativeMomentScore(moment, truthContractsByPly, Set.empty, stagePriorityByPly)
-        )
-    val baseRepresentatives =
-      selectStageAwareRepresentatives(
-        stageMoments = List(seed, build, finisher),
-        rankedStrong = rankedStrong,
-        rankedSecondary = rankedSecondary,
-        truthContractsByPly = truthContractsByPly,
-        stagePriorityByPly = stagePriorityByPly
-      )
-    val baseHasStrongOrFailureRepresentative =
-      baseRepresentatives.exists { moment =>
-        val truthView = truthSelectionView(moment, truthContractsByPly)
-        isStrongRepresentativeQualified(truthView) || isFailureSignificantThreadLocal(truthView)
+    val stageRepresentatives =
+      List(seed, build, finisher).foldLeft(List.empty[GameChronicleMoment]) { case (selected, stageMomentOpt) =>
+        val usedPlies = selected.map(_.ply).toSet
+        val chosen =
+          stageMomentOpt.flatMap(stageMoment =>
+            orderedCandidates
+              .filterNot(moment => usedPlies.contains(moment.ply))
+              .sortBy(moment =>
+                representativeStageScore(
+                  moment = moment,
+                  stageMoment = stageMoment,
+                  truthContractsByPly = truthContractsByPly,
+                  stagePriorityByPly = stagePriorityByPly,
+                  semanticsByPly = semanticsByPly
+                )
+              )
+              .headOption
+          )
+        chosen.fold(selected)(selected :+ _)
       }
     val supplementalRepresentatives =
-      (
-        rankedStrong ++
-          rankedSecondary.filter { moment =>
-            !isReplacementOnlyThreadLocal(truthSelectionView(moment, truthContractsByPly)) ||
-              !baseHasStrongOrFailureRepresentative
-          }
-      )
-        .filterNot(moment => baseRepresentatives.exists(_.ply == moment.ply))
-        .sortBy(moment =>
-          representativeMomentScore(moment, truthContractsByPly, baseRepresentatives.map(_.ply).toSet, stagePriorityByPly)
-        )
-        .take((3 - baseRepresentatives.size).max(0))
-    (baseRepresentatives ++ supplementalRepresentatives).distinctBy(_.ply).take(3).sortBy(_.ply)
-
-  private def selectStageAwareRepresentatives(
-      stageMoments: List[Option[GameChronicleMoment]],
-      rankedStrong: List[GameChronicleMoment],
-      rankedSecondary: List[GameChronicleMoment],
-      truthContractsByPly: Map[Int, DecisiveTruthContract],
-      stagePriorityByPly: Map[Int, Int]
-  ): List[GameChronicleMoment] =
-    stageMoments.foldLeft((List.empty[GameChronicleMoment], Set.empty[Int])) {
-      case ((selected, usedPlies), stageMomentOpt) =>
-        val stageTruthView = stageMomentOpt.map(moment => truthSelectionView(moment, truthContractsByPly))
-        val selectedHasStrongOrFailureRepresentative =
-          selected.exists { moment =>
-            val truthView = truthSelectionView(moment, truthContractsByPly)
-            isStrongRepresentativeQualified(truthView) || isFailureSignificantThreadLocal(truthView)
-          }
-        def scoreCandidate(moment: GameChronicleMoment): (Int, Int, Int, Int, Int) =
-          val (priority, _, stagePenalty, tiebreak) =
-            representativeMomentScore(moment, truthContractsByPly, Set.empty, stagePriorityByPly)
-          val distancePenalty = stageMomentOpt.map(stage => math.abs(stage.ply - moment.ply)).getOrElse(0)
-          (priority, distancePenalty, stagePenalty, tiebreak, moment.ply)
-        def pickUnused(
-            candidates: List[GameChronicleMoment],
-            excludedPly: Option[Int] = None
-        ): Option[GameChronicleMoment] =
-          candidates
-            .filterNot(moment => usedPlies.contains(moment.ply) || excludedPly.contains(moment.ply))
-            .sortBy(scoreCandidate)
-            .headOption
-        def pickSecondary(excludedPly: Option[Int] = None): Option[GameChronicleMoment] =
-          val reusableFailureSecondary =
-            rankedSecondary
-              .filter(moment => !isReplacementOnlyThreadLocal(truthSelectionView(moment, truthContractsByPly)))
-          val replacementOnlySecondary =
-            rankedSecondary
-              .filter(moment => isReplacementOnlyThreadLocal(truthSelectionView(moment, truthContractsByPly)))
-          pickUnused(reusableFailureSecondary, excludedPly)
-            .orElse(
-              Option.when(!selectedHasStrongOrFailureRepresentative) {
-                pickUnused(replacementOnlySecondary, excludedPly)
-              }.flatten
-            )
-        val chosen =
-          stageMomentOpt match
-            case Some(moment)
-                if !usedPlies.contains(moment.ply) &&
-                  isStrongRepresentativeQualified(truthSelectionView(moment, truthContractsByPly)) =>
-              Some(moment)
-            case Some(moment)
-                if !usedPlies.contains(moment.ply) &&
-                  isFailureSignificantThreadLocal(truthSelectionView(moment, truthContractsByPly)) =>
-              Some(moment)
-            case Some(moment) =>
-              pickUnused(rankedStrong)
-                .orElse(pickSecondary(stageTruthView.collect {
-                  case truthView if isReplacementOnlyThreadLocal(truthView) => moment.ply
-                }))
-                .orElse(
-                  Option.when(
-                    !usedPlies.contains(moment.ply) &&
-                      !stageTruthView.exists(isReplacementOnlyThreadLocal)
-                  )(moment)
-                )
-            case None =>
-              pickUnused(rankedStrong).orElse(pickSecondary())
-        chosen match
-          case Some(moment) if !usedPlies.contains(moment.ply) => (selected :+ moment, usedPlies + moment.ply)
-          case _                                               => (selected, usedPlies)
-    }._1
+      orderedCandidates
+        .filterNot(moment => stageRepresentatives.exists(_.ply == moment.ply))
+        .take((3 - stageRepresentatives.size).max(0))
+    (stageRepresentatives ++ supplementalRepresentatives).distinctBy(_.ply).take(3).sortBy(_.ply)
 
   private def representativeMomentScore(
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract],
-      baseRepresentativePlies: Set[Int],
-      stagePriorityByPly: Map[Int, Int]
+      stagePriorityByPly: Map[Int, Int],
+      semanticsByPly: Map[Int, MomentTruthSemantics.ChronicleSemantics]
   ): (Int, Int, Int, Int) =
     val truthView = truthSelectionView(moment, truthContractsByPly)
+    val semantics = semanticsByPly.getOrElse(moment.ply, chronicleSemantics(moment, truthContractsByPly))
+    val selectionBand =
+      if isStrongRepresentativeQualified(semantics) || isFailureSignificantThreadLocal(truthView) then 0
+      else if isSecondaryRepresentativeQualified(semantics) then 1
+      else 2
     val priority =
       if isSevereFailure(truthView) then 0
       else if isPromotedBestHold(truthView) then 1
@@ -695,51 +662,171 @@ object StrategicBranchSelector:
       else if isMaintenanceEcho(truthView) then 7
       else if truthView.visibilityRole != TruthVisibilityRole.Hidden then 8
       else 9
-    val basePenalty = if baseRepresentativePlies.contains(moment.ply) then 0 else 1
     val stagePenalty = stagePriorityByPly.getOrElse(moment.ply, 3)
-    (priority, basePenalty, stagePenalty, moment.ply)
+    (selectionBand, priority, stagePenalty, moment.ply)
+
+  private def representativeStageScore(
+      moment: GameChronicleMoment,
+      stageMoment: GameChronicleMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      stagePriorityByPly: Map[Int, Int],
+      semanticsByPly: Map[Int, MomentTruthSemantics.ChronicleSemantics]
+  ): (Int, Int, Int, Int, Int) =
+    val (selectionBand, priority, stagePenalty, tiebreak) =
+      representativeMomentScore(moment, truthContractsByPly, stagePriorityByPly, semanticsByPly)
+    val distancePenalty = math.abs(stageMoment.ply - moment.ply)
+    (selectionBand, distancePenalty, priority, stagePenalty, tiebreak)
+
+  private def selectGlobalThreadMoments(
+      representativeMoments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      eligibility: MomentTruthSemantics.ChronicleSemantics => Boolean
+  ): List[GameChronicleMoment] =
+    representativeMoments.zipWithIndex
+      .flatMap { case (moment, order) =>
+        val truthView = truthSelectionView(moment, truthContractsByPly)
+        val semantics = chronicleSemantics(moment, truthContractsByPly)
+        Option.when(eligibility(semantics)) {
+          globalThreadCandidatePriority(moment, truthView, order) -> moment
+        }
+      }
+      .sortBy { case ((priority, secondary, order, ply), moment) =>
+        (priority, secondary, order, ply, moment.ply)
+      }
+      .map(_._2)
+      .distinctBy(_.ply)
+
+  private def globalThreadCandidatePriority(
+      moment: GameChronicleMoment,
+      truthView: TruthSelectionView,
+      order: Int
+  ): (Int, Int, Int, Int) =
+    val priority =
+      if isSevereFailure(truthView) then 0
+      else if isPromotedBestHold(truthView) then 1
+      else if isVerifiedExemplar(truthView) then 2
+      else if isProvisionalExemplar(truthView) then 3
+      else if isCommitmentOwner(truthView) then 4
+      else if isConversionOwner(truthView) then 5
+      else if isMaintenanceEcho(truthView) then 6
+      else 7
+    val secondary =
+      moment.strategicSalience match
+        case Some(level) if level.equalsIgnoreCase("High")   => 0
+        case Some(level) if level.equalsIgnoreCase("Medium") => 1
+        case _                                               => 2
+    (priority, secondary, order, moment.ply)
 
   private def qualifiesForSecondSupport(truthView: TruthSelectionView): Boolean =
     truthView.maintenanceExemplarCandidate ||
       truthView.classificationKey != "best" ||
       truthView.failureMode != FailureInterpretationMode.NoClearPlan
 
-  private def isStrongRepresentativeQualified(truthView: TruthSelectionView): Boolean =
-    truthView.visibilityRole != TruthVisibilityRole.Hidden ||
-      truthView.maintenanceExemplarCandidate ||
-      truthView.exemplarRole != TruthExemplarRole.NonExemplar ||
-      truthView.classificationKey == "winninginvestment" ||
-      truthView.classificationKey == "compensatedinvestment"
+  private def isStrongRepresentativeQualified(
+      semantics: MomentTruthSemantics.ChronicleSemantics
+  ): Boolean =
+    semantics.globalVisibleEligible
 
-  private def isSecondaryRepresentativeQualified(truthView: TruthSelectionView): Boolean =
-    isCriticalBestTacticalOrTechnical(truthView) ||
-      isFailureSignificantThreadLocal(truthView)
+  private def isSecondaryRepresentativeQualified(
+      semantics: MomentTruthSemantics.ChronicleSemantics
+  ): Boolean =
+    semantics.threadLocalReplacementEligible && !semantics.globalVisibleEligible
 
-  private def selectProtectedVisibleMoments(
+  private def buildCanonicalProtectedOrder(
       moments: List[GameChronicleMoment],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
+      threadRefsByPly: Map[Int, ActiveStrategicThreadRef],
+      threadLocalRepresentativeMoments: List[GameChronicleMoment]
+  ): List[GameChronicleMoment] =
+    val representativePromotedPlies =
+      threadLocalRepresentativeMoments.flatMap { moment =>
+        val truthView = truthSelectionView(moment, truthContractsByPly)
+        Option.when(isPromotedBestHold(truthView))(moment.ply)
+      }.toSet
+    val candidates =
+      moments
+        .flatMap { moment =>
+        val truthView = truthSelectionView(moment, truthContractsByPly)
+        protectedMomentPriority(moment, truthContractsByPly).map(priority =>
+          ProtectedMomentCandidate(
+            moment = moment,
+            priority = priority,
+            truthView = truthView,
+            threadId = surfacedThreadId(moment, threadRefsByPly),
+            threadRepresentativePromoted = representativePromotedPlies.contains(moment.ply)
+          )
+        )
+      }
+    val severeCandidates =
+      candidates
+        .filter(candidate => isSevereFailure(candidate.truthView))
+        .sortBy(protectedCandidateSortKey)
+    val promotedCandidates =
+      candidates.filter(candidate => isPromotedBestHold(candidate.truthView))
+    val threadedPromoted = promotedCandidates.filter(_.threadId.nonEmpty)
+    val canonicalPromotedByThread =
+      threadedPromoted
+        .groupBy(_.threadId.get)
+        .values
+        .flatMap(_.sortBy(canonicalPromotedSortKey).headOption)
+        .toList
+        .sortBy(canonicalPromotedSortKey)
+    val canonicalPromotedPlies = canonicalPromotedByThread.map(_.moment.ply).toSet
+    val nonThreadedPromoted =
+      promotedCandidates
+        .filter(_.threadId.isEmpty)
+        .sortBy(protectedCandidateSortKey)
+    val duplicatePromoted =
+      threadedPromoted
+        .filterNot(candidate => canonicalPromotedPlies.contains(candidate.moment.ply))
+        .sortBy(canonicalPromotedSortKey)
+    val remainingProtected =
+      candidates
+        .filterNot(candidate => isSevereFailure(candidate.truthView) || isPromotedBestHold(candidate.truthView))
+        .sortBy(protectedCandidateSortKey)
+
+    (severeCandidates ++ canonicalPromotedByThread ++ nonThreadedPromoted ++ duplicatePromoted ++ remainingProtected)
+      .map(_.moment)
+      .distinctBy(_.ply)
+
+  private def selectProtectedOverflowActiveNotes(
+      protectedCandidates: List[GameChronicleMoment],
+      baseProtectedSeedMoments: List[GameChronicleMoment],
+      threadRefsByPly: Map[Int, ActiveStrategicThreadRef],
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): List[GameChronicleMoment] =
-    moments
-      .flatMap(moment => protectedMomentPriority(moment, truthContractsByPly).map(priority => priority -> moment))
-      .sortBy { case ((priority, severity, secondary, tiebreak), moment) =>
-        (priority, severity, secondary, tiebreak, moment.ply)
+    val basePlies = baseProtectedSeedMoments.map(_.ply).toSet
+    val seededThreadIds =
+      baseProtectedSeedMoments
+        .flatMap(moment => threadRefsByPly.get(moment.ply).map(_.threadId))
+        .filter(_.nonEmpty)
+        .toSet
+    val seededChainKeys =
+      baseProtectedSeedMoments
+        .flatMap(moment => truthSelectionView(moment, truthContractsByPly).chainKey.filter(_.nonEmpty))
+        .toSet
+    val (selectedMoments, _, _) =
+      protectedCandidates
+        .filterNot(moment => basePlies.contains(moment.ply))
+        .foldLeft((List.empty[GameChronicleMoment], seededThreadIds, seededChainKeys)) {
+        case ((accepted, seenThreadIds, seenChainKeys), moment) =>
+          val truthView = truthSelectionView(moment, truthContractsByPly)
+          val threadIdOpt = surfacedThreadId(moment, threadRefsByPly)
+          val chainKeyOpt = truthView.chainKey.filter(_.nonEmpty)
+          val threadSeen = threadIdOpt.exists(seenThreadIds.contains)
+          val chainSeen = chainKeyOpt.exists(seenChainKeys.contains)
+          if !isOverflowProtectedFamily(truthView) then
+            (accepted, seenThreadIds, seenChainKeys)
+          else if threadSeen || chainSeen then
+            (accepted, seenThreadIds, seenChainKeys)
+          else
+            (
+              accepted :+ moment,
+              threadIdOpt.fold(seenThreadIds)(seenThreadIds + _),
+              chainKeyOpt.fold(seenChainKeys)(seenChainKeys + _)
+            )
       }
-      .map(_._2)
-      .distinctBy(_.ply)
-      .take(MaxVisibleMoments)
-
-  private def selectProtectedActiveNoteMoments(
-      moments: List[GameChronicleMoment],
-      truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): List[GameChronicleMoment] =
-    moments
-      .flatMap(moment => protectedMomentPriority(moment, truthContractsByPly).map(priority => priority -> moment))
-      .sortBy { case ((priority, severity, secondary, tiebreak), moment) =>
-        (priority, severity, secondary, tiebreak, moment.ply)
-      }
-      .map(_._2)
-      .distinctBy(_.ply)
-      .take(MaxActiveNotes)
+    selectedMoments
 
   private def protectedMomentPriority(
       moment: GameChronicleMoment,
@@ -749,9 +836,39 @@ object StrategicBranchSelector:
     if isBlunder(truthView) then Some((0, protectedSeverityScore(moment), 0, moment.ply))
     else if isMissedWin(truthView) then Some((1, protectedSeverityScore(moment), 0, moment.ply))
     else if isPromotedBestHold(truthView) then Some((2, protectedSeverityScore(moment), 1, moment.ply))
+    else if isVerifiedExemplar(truthView) then Some((3, protectedSeverityScore(moment), 0, moment.ply))
+    else if isProvisionalExemplar(truthView) then Some((4, protectedSeverityScore(moment), 0, moment.ply))
+    else if isCommitmentOwner(truthView) then Some((5, protectedSeverityScore(moment), 0, moment.ply))
+    else if isConversionOwner(truthView) then Some((6, protectedSeverityScore(moment), 0, moment.ply))
     else None
 
   private def protectedSeverityScore(
       moment: GameChronicleMoment
   ): Int =
     -math.abs(moment.cpAfter - moment.cpBefore)
+
+  private def surfacedThreadId(
+      moment: GameChronicleMoment,
+      threadRefsByPly: Map[Int, ActiveStrategicThreadRef]
+  ): Option[String] =
+    threadRefsByPly.get(moment.ply).map(_.threadId)
+      .filter(_.nonEmpty)
+
+  private def protectedCandidateSortKey(
+      candidate: ProtectedMomentCandidate
+  ): (Int, Int, Int, Int, Int) =
+    val (priority, severity, secondary, tiebreak) = candidate.priority
+    (priority, severity, secondary, tiebreak, candidate.moment.ply)
+
+  private def canonicalPromotedSortKey(
+      candidate: ProtectedMomentCandidate
+  ): (Int, Int, Int, Int, Int, Int) =
+    val (priority, severity, secondary, tiebreak) = candidate.priority
+    (
+      if candidate.threadRepresentativePromoted then 0 else 1,
+      priority,
+      severity,
+      secondary,
+      tiebreak,
+      candidate.moment.ply
+    )

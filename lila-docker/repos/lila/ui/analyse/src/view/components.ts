@@ -98,7 +98,7 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
-        'analyse--bookmaker': !!ctrl.opts.bookmaker,
+        'analyse--bookmaker': !!ctrl.opts.bookmaker && !ctrl.isReviewShell(),
         'analyse--review-shell': ctrl.isReviewShell(),
         'analyse--notebook': ctrl.isStudy(),
       },
@@ -240,12 +240,12 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
   if (ctrl.narrative) {
     tools.push({
       id: 'narrative',
-      label: 'Game Chronicle',
+      label: 'Guided Review',
       summary: ctrl.narrative.loading()
-        ? 'Game Chronicle is running'
+        ? 'Guided review is running'
         : ctrl.narrative.data()
-          ? 'Resume Game Chronicle'
-          : 'Run Game Chronicle',
+          ? 'Resume guided review'
+          : 'Review this game',
       icon: licon.BubbleSpeech,
       active: ctrl.activeControlBarTool() === 'narrative',
       busy: ctrl.narrative.loading(),
@@ -274,7 +274,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
       hl(
         'span',
         activeTool
-          ? 'Jump between openings, Game Chronicle, and board controls without leaving the move list.'
+          ? 'Jump between openings, guided review, and board controls without leaving the move list.'
           : 'Keep the move list anchored and open the tool you need beside it.',
       ),
     ]),
@@ -311,33 +311,47 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
-  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? true : ctrl.showCeval());
+  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? ctrl.reviewPrimaryTab() === 'engine' : ctrl.showCeval());
   if (ctrl.isReviewShell()) {
-    const narrativeHoverPreview = ctrl.narrative?.pvBoard?.();
+    const boardPreview = renderBoardPreview(
+      { fen: ctrl.node.fen, uci: ctrl.node.uci },
+      ctrl.getOrientation(),
+      'div.analyse-review__mobile-board',
+    );
     return hl('div.analyse__tools.analyse__tools--review', [
+      hl(
+        'section.analyse-review__mobile-board-rail',
+        {
+          hook: {
+            insert: vnode => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
+            update: (_, vnode) => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
+          },
+        },
+        [
+        hl('div.analyse-review__mobile-board-copy', [
+          hl('strong', ctrl.reviewSurfaceMode() === 'review' ? 'Guided Review board' : 'Full Analysis board'),
+          hl(
+            'span',
+            ctrl.node.ply > 0
+              ? `Current position around move ${plyToTurn(ctrl.node.ply)}. This compact rail keeps the board in view while the tools pane scrolls.`
+              : 'Start position. This compact rail keeps the board in view while the tools pane scrolls.',
+          ),
+        ]),
+        boardPreview,
+        ],
+      ),
       allowVideo && embeddedVideo,
-      showCeval || narrativeHoverPreview
-        ? hl('div.analyse-review__engine-stack', [
-            showCeval ? cevalView.renderCeval(ctrl) : null,
-            showCeval ? cevalView.renderPvs(ctrl) : null,
-            narrativeHoverPreview
-              ? hl('div.analyse-review__hover-preview-wrap', [
-                  hl('div.analyse-review__hover-preview-copy', [
-                    hl('span.analyse-review__hover-preview-label', 'Commentary preview'),
-                    hl('span.analyse-review__hover-preview-hint', 'Hover a move or route in Game Chronicle'),
-                  ]),
-                  renderBoardPreview(narrativeHoverPreview, ctrl.getOrientation(), 'div.analyse-review__hover-preview'),
-                ])
-              : null,
-          ])
-        : null,
-      reviewView(ctrl, {
-        moveListNode: renderMoveList(ctrl, concealOf),
-        forkNode: forkView(ctrl, concealOf),
-        explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
-        boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false, mode: 'workspace' }),
-        importNode: renderInputs(ctrl),
-      }),
+      hl('div.analyse-review__workspace-shell', [
+        reviewView(ctrl, {
+          cevalNode: showCeval ? cevalView.renderCeval(ctrl) : undefined,
+          pvsNode: showCeval ? cevalView.renderPvs(ctrl) : undefined,
+          moveListNode: renderMoveList(ctrl, concealOf),
+          forkNode: forkView(ctrl, concealOf),
+          explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
+          boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false, mode: 'workspace' }),
+          importNode: renderInputs(ctrl),
+        }),
+      ]),
     ]);
   }
   const narrativeEnabled = !!ctrl.narrative?.enabled();
@@ -355,6 +369,12 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
     activeTool,
     ctrl.actionMenu() && actionMenu(ctrl),
   ]);
+}
+
+function syncReviewMobileRailHeight(elm: HTMLElement): void {
+  const shell = elm.closest('.analyse--review-shell') as HTMLElement | null;
+  if (!shell) return;
+  shell.style.setProperty('--review-mobile-rail-height', `${Math.ceil(elm.getBoundingClientRect().height)}px`);
 }
 
 export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewContext, skipInfo = false) {
@@ -538,7 +558,7 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
               void ctrl.openNarrative(pgnInspection.status === 'ready' ? draftPgn : undefined);
             }),
           },
-          [icon(licon.Book as any), ' Run Game Chronicle'],
+          [icon(licon.Book as any), ' Review this game'],
         ),
       ]),
       renderInlineStatus(
@@ -794,7 +814,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       renderNotebookPanelCover(
         'Untitled notebook',
         'First section from analysis',
-        narrativeReady ? 'Chronicle preface ready' : 'Add commentary as you go',
+        narrativeReady ? 'Guided review brief ready' : 'Add commentary as you go',
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Research notebook'),
@@ -830,15 +850,15 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     ]),
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('PGN + move tree', 'base'),
-      compactSummaryCard('Bookmaker carry-over', 'saved lines'),
-      compactSummaryCard(narrativeReady ? 'Chronicle brief included' : 'Chronicle optional', 'section intro'),
+      compactSummaryCard('Saved explanations', 'saved lines'),
+      compactSummaryCard(narrativeReady ? 'Guided review brief included' : 'Guided review brief optional', 'section intro'),
     ]),
     renderStudyStatusCard(
       busy
         ? transferCount > 0
           ? `Creating the new notebook and moving ${transferCount} saved explanation${transferCount === 1 ? '' : 's'}.`
           : 'Creating the new notebook shell from the current PGN.'
-        : 'Bookmaker explanations that already exist in this shell will be carried into the new notebook when possible.',
+        : 'Saved move explanations that already exist in this shell will be carried into the new notebook when possible.',
       busy ? 'info' : 'success',
     ),
     error ? renderStudyStatusCard(error, 'error') : null,
@@ -846,7 +866,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       studyFeaturePill('page', 'Move-by-move notes'),
       studyFeaturePill('section', 'Branches stay explorable'),
       studyFeaturePill('bookmark', 'Shareable section URL'),
-      narrativeReady ? studyFeaturePill('notebook', 'Game Chronicle preface') : null,
+      narrativeReady ? studyFeaturePill('notebook', 'Guided review brief') : null,
     ]),
   ]);
 }

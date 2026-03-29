@@ -103,10 +103,10 @@ private[analysis] object OpeningPrecedentBranching:
     val confidence =
       ((overlapConfidence(overlap) * 0.45) +
         ((metadataScore.toDouble / 12.0).min(1.0) * 0.30) +
-        (mechanismConfidence(mechanism, planHint, structureHint) * 0.25))
+        (mechanismConfidence(mechanism, planHint, structureHint, branchHint) * 0.25))
         .max(0.0)
         .min(1.0)
-    val branchLabel = branchLabelOf(planHint, branchHint, structureHint, mechanism)
+    val branchLabel = branchLabelOf(planHint, branchHint, structureHint, sanMoves, mechanism)
     val mechanismSummary = mechanismSummaryOf(mechanism, branchLabel)
     for
       text <- snippet
@@ -189,14 +189,16 @@ private[analysis] object OpeningPrecedentBranching:
   private def mechanismConfidence(
       mechanism: OpeningBranchMechanism,
       planHint: Option[String],
-      structureHint: Option[String]
+      structureHint: Option[String],
+      branchHint: Option[String]
   ): Double =
     val plan = planHint.getOrElse("")
     val structure = structureHint.getOrElse("")
+    val branch = branchHint.getOrElse("")
     mechanism match
-      case OpeningBranchMechanism.StructuralTransformation if structure.nonEmpty => 0.95
-      case OpeningBranchMechanism.TacticalPressure if plan.contains("attack") || plan.contains("pressure") => 0.92
-      case OpeningBranchMechanism.InitiativeSwing if plan.contains("initiative") || plan.contains("pressure") => 0.88
+      case OpeningBranchMechanism.StructuralTransformation if structure.nonEmpty || hasAny(branch, "center", "fianchetto", "break preparation") => 0.95
+      case OpeningBranchMechanism.TacticalPressure if plan.contains("attack") || plan.contains("pressure") || hasAny(branch, "queen exposure", "novelty") => 0.92
+      case OpeningBranchMechanism.InitiativeSwing if plan.contains("initiative") || plan.contains("pressure") || hasAny(branch, "development logic", "castle race", "queen exposure") => 0.9
       case OpeningBranchMechanism.ExchangeCascade if plan.contains("exchange") || plan.contains("simpl") => 0.9
       case OpeningBranchMechanism.PromotionRace if plan.contains("pawn") || plan.contains("passer") => 0.86
       case _ => 0.68
@@ -221,20 +223,20 @@ private[analysis] object OpeningPrecedentBranching:
     val planCompat =
       mechanism match
         case OpeningBranchMechanism.TacticalPressure =>
-          if plan.contains("attack") || plan.contains("pressure") || branch.contains("novelty") then 3 else 0
+          if plan.contains("attack") || plan.contains("pressure") || hasAny(branch, "novelty", "queen exposure") then 3 else 0
         case OpeningBranchMechanism.InitiativeSwing =>
-          if plan.contains("initiative") || plan.contains("pressure") || branch.contains("branch point") then 3 else 0
+          if plan.contains("initiative") || plan.contains("pressure") || hasAny(branch, "branch point", "development logic", "castle race", "queen exposure") then 3 else 0
         case OpeningBranchMechanism.ExchangeCascade =>
           if plan.contains("exchange") || plan.contains("simpl") || branch.contains("theory ends") then 3 else 0
         case OpeningBranchMechanism.PromotionRace =>
           if plan.contains("pawn") || plan.contains("passer") then 3 else 0
         case OpeningBranchMechanism.StructuralTransformation =>
-          if structure.nonEmpty || plan.contains("minority") || plan.contains("chain") || plan.contains("clamp") then 3 else 0
+          if structure.nonEmpty || plan.contains("minority") || plan.contains("chain") || plan.contains("clamp") || hasAny(branch, "center reaction", "fianchetto support", "break preparation") then 3 else 0
     val branchCompat =
       mechanism match
-        case OpeningBranchMechanism.StructuralTransformation if branch.contains("theory") => 1
-        case OpeningBranchMechanism.InitiativeSwing if branch.contains("branch point") || branch.contains("out of book") => 1
-        case OpeningBranchMechanism.TacticalPressure if branch.contains("novelty") => 1
+        case OpeningBranchMechanism.StructuralTransformation if branch.contains("theory") || hasAny(branch, "center reaction", "fianchetto support", "break preparation") => 1
+        case OpeningBranchMechanism.InitiativeSwing if branch.contains("branch point") || branch.contains("out of book") || hasAny(branch, "development logic", "castle race", "queen exposure") => 1
+        case OpeningBranchMechanism.TacticalPressure if branch.contains("novelty") || branch.contains("queen exposure") => 1
         case _ => 0
     planCompat + branchCompat
 
@@ -242,11 +244,16 @@ private[analysis] object OpeningPrecedentBranching:
       planHint: Option[String],
       branchHint: Option[String],
       structureHint: Option[String],
+      sanMoves: List[String],
       mechanism: OpeningBranchMechanism
   ): String =
+    val explicitPlan = planHint.filterNot(isGenericPlanLabel)
+    val explicitBranch = branchHint.flatMap(canonicalOpeningBranchLabel).orElse(branchHint.filterNot(isGenericBranchLabel))
+    val heuristicBranch = inferBranchLabelFromMoves(sanMoves)
     val raw =
-      planHint
-        .orElse(branchHint)
+      explicitPlan
+        .orElse(explicitBranch)
+        .orElse(heuristicBranch)
         .orElse(structureHint.map(s => s"$s structure play"))
         .getOrElse(defaultBranchLabel(mechanism))
     normalizeBranchLabel(raw)
@@ -270,28 +277,38 @@ private[analysis] object OpeningPrecedentBranching:
       case OpeningBranchMechanism.StructuralTransformation =>
         s"pawn-structure changes reroute the long-term plans inside the $branchLabel line"
       case OpeningBranchMechanism.InitiativeSwing =>
-        s"piece activity and tempo swings decide who keeps the initiative in the $branchLabel line"
+        s"development tempos and piece activity decide who keeps the initiative in the $branchLabel line"
 
   private def inferMechanism(sanMoves: List[String]): OpeningBranchMechanism =
+    val normalizedMoves = sanMoves.map(normalizeSanToken).filter(_.nonEmpty)
     val captures = sanMoves.count(_.contains("x"))
     val checks = sanMoves.count(m => m.contains("+") || m.contains("#"))
     val promotions = sanMoves.count(_.contains("="))
     val pawnPushes = sanMoves.count(isLikelyPawnMove)
     val pieceMoves = sanMoves.count(isPieceMove)
+    val developmentLogic = scoreDevelopmentLogic(normalizedMoves)
+    val centerReaction = scoreCenterReaction(normalizedMoves)
+    val fianchettoSupport = scoreFianchettoSupport(normalizedMoves)
+    val queenExposure = scoreQueenExposure(normalizedMoves)
+    val castleRace = scoreCastleRace(normalizedMoves)
+    val breakPreparation = scoreBreakPreparation(normalizedMoves)
     val forcingDensity =
       if sanMoves.nonEmpty then (captures + checks + promotions).toDouble / sanMoves.size.toDouble
       else 0.0
     val mechanismScores = Map(
       OpeningBranchMechanism.TacticalPressure ->
-        (checks * 2 + captures + Option.when(forcingDensity >= 0.45)(1).getOrElse(0)),
+        (checks * 2 + captures + Option.when(forcingDensity >= 0.45)(1).getOrElse(0) +
+          Option.when(queenExposure >= 2 && (checks > 0 || captures > 0))(2).getOrElse(0)),
       OpeningBranchMechanism.ExchangeCascade ->
         (captures * 2 + Option.when(captures >= 2)(2).getOrElse(0) + Option.when(pieceMoves >= 2)(1).getOrElse(0)),
       OpeningBranchMechanism.PromotionRace ->
         (promotions * 3 + Option.when(captures >= 1)(1).getOrElse(0) + Option.when(checks >= 1)(1).getOrElse(0)),
       OpeningBranchMechanism.StructuralTransformation ->
-        (pawnPushes * 2 + Option.when(captures <= 1)(1).getOrElse(0) + Option.when(pieceMoves >= 1)(1).getOrElse(0)),
+        (pawnPushes * 2 + Option.when(captures <= 1)(1).getOrElse(0) + Option.when(pieceMoves >= 1)(1).getOrElse(0) +
+          centerReaction * 2 + fianchettoSupport * 2 + breakPreparation * 2),
       OpeningBranchMechanism.InitiativeSwing ->
-        (pieceMoves + Option.when(captures == 1)(1).getOrElse(0) + Option.when(checks == 0)(1).getOrElse(0))
+        (pieceMoves + Option.when(captures == 1)(1).getOrElse(0) + Option.when(checks == 0)(1).getOrElse(0) +
+          developmentLogic * 2 + castleRace * 2 + Option.when(queenExposure >= 2 && checks == 0)(2).getOrElse(0))
     )
     mechanismScores.maxBy(_._2)._1
 
@@ -389,8 +406,105 @@ private[analysis] object OpeningPrecedentBranching:
       .replaceAll("""[+#?!]+$""", "")
       .replaceAll("\\s+", "")
 
+  private def normalizeSanToken(raw: String): String =
+    Option(raw).getOrElse("").trim.replaceAll("""^\d+\.(?:\.\.)?\s*""", "").replaceAll("""[+#?!]+$""", "")
+
   private def normalizeText(raw: String): String =
     Option(raw).getOrElse("").replaceAll("""[_\-]+""", " ").replaceAll("\\s+", " ").trim
+
+  private def hasAny(raw: String, needles: String*): Boolean =
+    needles.exists(raw.contains)
+
+  private def isGenericPlanLabel(raw: String): Boolean =
+    val normalized = normalizeText(raw).toLowerCase
+    normalized.isEmpty ||
+      normalized == "opening development" ||
+      normalized == "development" ||
+      normalized == "development lead" ||
+      normalized == "opening principles" ||
+      normalized == "center control" ||
+      normalized == "flexible development"
+
+  private def isGenericBranchLabel(raw: String): Boolean =
+    val normalized = normalizeText(raw).toLowerCase
+    normalized.isEmpty ||
+      normalized == "main line shifts" ||
+      normalized == "theory fragments" ||
+      normalized == "out of book" ||
+      normalized == "novelty" ||
+      normalized == "theory ends"
+
+  private def canonicalOpeningBranchLabel(raw: String): Option[String] =
+    val normalized = normalizeText(raw).toLowerCase
+    List(
+      "development logic",
+      "center reaction",
+      "flank fianchetto support",
+      "fianchetto support",
+      "early queen exposure",
+      "castle race",
+      "thematic break preparation"
+    ).collectFirst { case label if normalized.contains(label) => if label == "fianchetto support" then "flank fianchetto support" else label }
+
+  private def inferBranchLabelFromMoves(sanMoves: List[String]): Option[String] =
+    val normalized = sanMoves.map(normalizeSanToken).filter(_.nonEmpty)
+    val scores = List(
+      "development logic" -> scoreDevelopmentLogic(normalized),
+      "center reaction" -> scoreCenterReaction(normalized),
+      "flank fianchetto support" -> scoreFianchettoSupport(normalized),
+      "early queen exposure" -> scoreQueenExposure(normalized),
+      "castle race" -> scoreCastleRace(normalized),
+      "thematic break preparation" -> scoreBreakPreparation(normalized)
+    )
+    scores.maxByOption(_._2).collect { case (label, score) if score >= 2 => label }
+
+  private def isMinorDevelopmentMove(move: String): Boolean =
+    move.matches("""^[NB](?!x).*[a-h][1-8]$""")
+
+  private def isCenterReactionMove(move: String): Boolean =
+    move.matches("""^(c|d|e|f)[3-6]$""") ||
+      List("cxd4", "cxd5", "dxc4", "dxe4", "exd4", "exd5", "fxe4", "fxe5").contains(move)
+
+  private def isFianchettoMove(move: String): Boolean =
+    Set("g3", "b3", "g6", "b6", "Bg2", "Bb2", "Bg7", "Bb7").contains(move)
+
+  private def isQueenMove(move: String): Boolean =
+    move.startsWith("Q")
+
+  private def isCastleMove(move: String): Boolean =
+    move == "O-O" || move == "O-O-O"
+
+  private def isBreakPreparationMove(move: String): Boolean =
+    Set(
+      "c3", "d3", "f3", "a3", "h3", "Qc2", "Qe2", "Be2", "Bd3", "Re1",
+      "c6", "d6", "f6", "a6", "h6", "Qc7", "Qe7", "Be7", "Bd6", "Re8",
+      "b4", "b5", "g4", "g5", "f4", "f5"
+    ).contains(move)
+
+  private def scoreDevelopmentLogic(moves: List[String]): Int =
+    val minorMoves = moves.count(isMinorDevelopmentMove)
+    minorMoves + Option.when(moves.exists(isCastleMove))(1).getOrElse(0) - Option.when(moves.exists(isQueenMove))(1).getOrElse(0)
+
+  private def scoreCenterReaction(moves: List[String]): Int =
+    val centerMoves = moves.count(isCenterReactionMove)
+    centerMoves + Option.when(moves.exists(_.contains("x")))(1).getOrElse(0)
+
+  private def scoreFianchettoSupport(moves: List[String]): Int =
+    val fianchettoMoves = moves.count(isFianchettoMove)
+    fianchettoMoves * 2 + Option.when(moves.exists(isMinorDevelopmentMove))(1).getOrElse(0)
+
+  private def scoreQueenExposure(moves: List[String]): Int =
+    val queenMoves = moves.count(isQueenMove)
+    queenMoves * 2 + Option.when(moves.exists(m => m.startsWith("Q") && m.contains("x")))(1).getOrElse(0)
+
+  private def scoreCastleRace(moves: List[String]): Int =
+    val castles = moves.count(isCastleMove)
+    val flankCommitments = moves.count(m => Set("g4", "g5", "h4", "h5", "a4", "a5", "b4", "b5").contains(m))
+    castles * 2 + Option.when(castles >= 1 && flankCommitments >= 1)(1).getOrElse(0)
+
+  private def scoreBreakPreparation(moves: List[String]): Int =
+    val prepMoves = moves.count(isBreakPreparationMove)
+    prepMoves * 2 + Option.when(moves.exists(isCenterReactionMove))(1).getOrElse(0)
 
   private def isLikelyPawnMove(move: String): Boolean =
     Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")

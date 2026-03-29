@@ -71,7 +71,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             failureModes = List("probe evidence pending"),
             viability = PlanViability(score = 0.7, label = "medium", risk = "return vector collapse"),
             refutation = Some("engine-coupled continuation fails"),
-            evidenceSources = Nil
+            evidenceSources = List("probe_backed:validated_support")
           )
         ),
         strategicPlanExperiments = List(
@@ -199,15 +199,15 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       ).mkString(" ")
 
     assertNoLeaks(rendered)
-    assertEquals(
-      sanitized.strategicPlanExperiments.map(_.evidenceTier),
-      List("pv_coupled"),
-      clue(sanitized.strategicPlanExperiments)
-    )
-    assert(
-      sanitized.strategicPlanExperiments.headOption.exists(_.moveOrderSensitive),
-      clue(sanitized.strategicPlanExperiments)
-    )
+    assertEquals(sanitized.latentPlans, Nil, clue(sanitized))
+    assertEquals(sanitized.whyAbsentFromTopMultiPV, Nil, clue(sanitized))
+    assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized.signalDigest))
+    assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized.signalDigest))
+    assertEquals(sanitized.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.signalDigest))
+    assertEquals(sanitized.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.signalDigest))
+    assertEquals(sanitized.signalDigest.flatMap(_.decision), None, clue(sanitized.signalDigest))
+    assertEquals(sanitized.mainStrategicPlans.size, 1, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments.size, 1, clue(sanitized.strategicPlanExperiments))
     assert(rendered.toLowerCase.contains("pays off") || rendered.toLowerCase.contains("engine-backed"), clue(rendered))
   }
 
@@ -250,7 +250,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 failureModes = Nil,
                 viability = PlanViability(0.8, "high", "cash out"),
                 themeL1 = "king_attack",
-                subplanId = Some("rook_lift_scaffold")
+                subplanId = Some("rook_lift_scaffold"),
+                evidenceSources = List("probe_backed:validated_support")
               )
             ),
             strategicPlanExperiments = List(
@@ -268,7 +269,16 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 experimentConfidence = 0.81
               )
             ),
-            whyAbsentFromTopMultiPV = List("probe evidence pending")
+            whyAbsentFromTopMultiPV = List("probe evidence pending"),
+            signalDigest = Some(
+              NarrativeSignalDigest(
+                dominantIdeaKind = Some("pawn_break"),
+                dominantIdeaReadiness = Some("build"),
+                dominantIdeaFocus = Some("d5, e4"),
+                opponentPlan = Some("Preparing the d-break"),
+                preservedSignals = List("opponent_plan", "authoring_evidence")
+              )
+            )
           )
         ),
         conclusion = "PlayedPV closeout",
@@ -287,7 +297,12 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       Some("rook_lift_scaffold"),
       clue(sanitized.moments.head.strategicPlanExperiments)
     )
+    assertEquals(sanitized.moments.head.concepts, Nil, clue(sanitized.moments.head))
     assertEquals(sanitized.moments.head.whyAbsentFromTopMultiPV, Nil, clue(sanitized.moments.head))
+    assertEquals(sanitized.moments.head.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.moments.head.signalDigest))
+    assertEquals(sanitized.moments.head.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.moments.head.signalDigest))
+    assertEquals(sanitized.themes, Nil, clue(sanitized))
+    assertEquals(sanitized.strategicThreads, Nil, clue(sanitized))
   }
 
   test("humanizes raw plan label families in user-facing payloads") {
@@ -306,7 +321,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             failureModes = List("Opening Development and Center Control"),
             viability = PlanViability(0.66, "medium", "Exploiting Space Advantage"),
             refutation = Some("Simplification into Endgame"),
-            evidenceSources = Nil
+            evidenceSources = List("probe_backed:validated_support")
           )
         ),
         latentPlans = List(
@@ -349,23 +364,66 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       List("Simplifying toward an endgame"),
       clue(sanitized)
     )
-    assertEquals(sanitized.latentPlans.map(_.planName), List("Improving piece placement"), clue(sanitized))
-    assertEquals(
-      sanitized.latentPlans.map(_.whyAbsentFromTopMultiPv),
-      List("Development and central control"),
-      clue(sanitized)
-    )
-    assertEquals(
-      sanitized.whyAbsentFromTopMultiPV,
-      List("Using the space advantage", "Immediate counterplay"),
-      clue(sanitized)
-    )
-    assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), Some("Preparing the d-break"), clue(sanitized))
-    assertEquals(
-      sanitized.signalDigest.flatMap(_.latentReason),
-      Some("Simplifying toward an endgame"),
-      clue(sanitized)
-    )
+    assertEquals(sanitized.latentPlans, Nil, clue(sanitized))
+    assertEquals(sanitized.whyAbsentFromTopMultiPV, Nil, clue(sanitized))
+    assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized))
+    assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized))
+  }
+
+  test("sanitizes active strategic route surfaces in chronicle payloads") {
+    val response =
+      GameChronicleResponse(
+        schema = GameChronicleResponse.schemaV6,
+        intro = "Intro",
+        moments =
+          List(
+            GameChronicleMoment(
+              momentId = "ply_20",
+              ply = 20,
+              moveNumber = 10,
+              side = "black",
+              moveClassification = None,
+              momentType = "SustainedPressure",
+              fen = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
+              narrative = "Narrative",
+              concepts = Nil,
+              variations = Nil,
+              cpBefore = 0,
+              cpAfter = 0,
+              mateBefore = None,
+              mateAfter = None,
+              wpaSwing = None,
+              strategicSalience = Some("High"),
+              transitionType = None,
+              transitionConfidence = None,
+              activePlan = None,
+              topEngineMove = None,
+              collapse = None,
+              activeStrategicRoutes =
+                List(
+                  ActiveStrategicRouteRef(
+                    routeId = "route_1",
+                    ownerSide = "black",
+                    piece = "R",
+                    route = List("a8", "b8", "b4"),
+                    purpose = "PlayableByPV cash out on the b-file",
+                    strategicFit = 0.8,
+                    tacticalSafety = 0.8,
+                    surfaceConfidence = 0.8,
+                    surfaceMode = RouteSurfaceMode.Toward
+                  )
+                )
+            )
+          ),
+        conclusion = "Conclusion",
+        themes = Nil
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val routePurpose = sanitized.moments.head.activeStrategicRoutes.headOption.map(_.purpose).getOrElse("")
+
+    assert(routePurpose.nonEmpty, clue(sanitized))
+    assertNoLeaks(routePurpose)
   }
 
   test("sanitizes stored strategic puzzle runtime shell on read") {

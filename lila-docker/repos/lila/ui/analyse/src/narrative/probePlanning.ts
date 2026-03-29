@@ -60,6 +60,7 @@ export function probeRequestDedupKey(request: ProbeRequest): string {
     request.purpose || '',
     request.questionId || '',
     request.planId || '',
+    request.variationHash || '',
   ].join('|');
 }
 
@@ -88,8 +89,48 @@ function requiredSignalPresent(signal: string, result: ProbeResult): boolean {
 export function validateProbeResultAgainstRequest(request: ProbeRequest, result: ProbeResult): boolean {
   if (!request || !result) return false;
   if (request.id !== result.id) return false;
+  if (typeof result.fen === 'string' && request.fen && result.fen !== request.fen) return false;
   if (typeof request.purpose === 'string' && request.purpose.length) {
     if (typeof result.purpose === 'string' && result.purpose.length && result.purpose !== request.purpose) return false;
+  }
+  if (typeof request.objective === 'string' && request.objective.length) {
+    if (typeof result.objective === 'string' && result.objective.length && result.objective !== request.objective) return false;
+  }
+  if (typeof request.seedId === 'string' && request.seedId.length) {
+    if (typeof result.seedId === 'string' && result.seedId.length && result.seedId !== request.seedId) return false;
+  }
+  const expectedMove =
+    typeof request.candidateMove === 'string' && request.candidateMove.trim().length
+      ? request.candidateMove.trim()
+      : Array.isArray(request.moves) && request.moves.length === 1 && typeof request.moves[0] === 'string'
+        ? request.moves[0].trim()
+        : undefined;
+  const resultMove =
+    typeof result.probedMove === 'string' && result.probedMove.trim().length
+      ? result.probedMove.trim()
+      : typeof result.candidateMove === 'string' && result.candidateMove.trim().length
+        ? result.candidateMove.trim()
+        : undefined;
+  if (expectedMove && resultMove && expectedMove !== resultMove) return false;
+  if (resultMove && Array.isArray(request.moves) && request.moves.length && !request.moves.includes(resultMove)) return false;
+  if (typeof request.variationHash === 'string' && request.variationHash.trim().length) {
+    if (typeof result.variationHash === 'string' && result.variationHash.trim().length) {
+      if (result.variationHash.trim() !== request.variationHash.trim()) return false;
+    } else return false;
+  }
+  if (typeof request.engineConfigFingerprint === 'string' && request.engineConfigFingerprint.trim().length) {
+    if (typeof result.engineConfigFingerprint === 'string' && result.engineConfigFingerprint.trim().length) {
+      if (result.engineConfigFingerprint.trim() !== request.engineConfigFingerprint.trim()) return false;
+    } else return false;
+  }
+  const depthFloor =
+    typeof request.depthFloor === 'number' && request.depthFloor > 0
+      ? request.depthFloor
+      : typeof request.depth === 'number' && request.depth > 0
+        ? request.depth
+        : undefined;
+  if (typeof depthFloor === 'number' && depthFloor > 0) {
+    if (typeof result.depth !== 'number' || result.depth < depthFloor) return false;
   }
   const requiredSignals = Array.isArray(request.requiredSignals) ? request.requiredSignals.filter(Boolean) : [];
   return requiredSignals.every(signal => requiredSignalPresent(signal, result));

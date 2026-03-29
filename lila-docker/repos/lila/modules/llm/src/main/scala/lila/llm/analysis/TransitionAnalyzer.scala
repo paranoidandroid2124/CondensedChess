@@ -37,10 +37,7 @@ object TransitionAnalyzer:
     val transType = prevPlanKey match
       case None => TransitionType.Opening
       case Some(prev) if continuityMatches(prev, currPlan) => TransitionType.Continuation
-      case Some(_) =>
-        if (ctx.tacticalThreatToUs) TransitionType.ForcedPivot
-        else if (ctx.tacticalThreatToThem) TransitionType.Opportunistic
-        else TransitionType.NaturalShift
+      case Some(_) => classifyShift(None, currPlan, ctx)
     
     val momentum = calcMomentum(prevMomentum, transType)
 
@@ -72,17 +69,66 @@ object TransitionAnalyzer:
     case Some(prev) if prev.id == currPlan.id => 
       TransitionType.Continuation
       
-    case Some(_) =>
-      // ForcedPivot: tactical threat TO US forces abandonment
-      if (ctx.tacticalThreatToUs)
-        TransitionType.ForcedPivot
-      // Opportunistic: we suddenly have tactical threat TO THEM
-      else if (ctx.tacticalThreatToThem)
-        TransitionType.Opportunistic
-      // NaturalShift: phase change or natural plan evolution
-      else
-        TransitionType.NaturalShift
+    case Some(prev) =>
+      classifyShift(Some(prev), currPlan, ctx)
   }
+
+  private def classifyShift(
+    prevPlan: Option[Plan],
+    currPlan: Plan,
+    ctx: IntegratedContext
+  ): TransitionType =
+    if isForcedPivot(prevPlan, currPlan, ctx) then TransitionType.ForcedPivot
+    else if isConversionShift(prevPlan, currPlan, ctx) then TransitionType.NaturalShift
+    else if isOpportunisticShift(prevPlan, currPlan, ctx) then TransitionType.Opportunistic
+    else TransitionType.NaturalShift
+
+  private def isForcedPivot(
+    prevPlan: Option[Plan],
+    currPlan: Plan,
+    ctx: IntegratedContext
+  ): Boolean =
+    ctx.tacticalThreatToUs ||
+      (ctx.underDefensivePressure &&
+        currPlan.category == PlanCategory.Defensive &&
+        prevPlan.forall(_.category != PlanCategory.Defensive))
+
+  private def isConversionShift(
+    prevPlan: Option[Plan],
+    currPlan: Plan,
+    ctx: IntegratedContext
+  ): Boolean =
+    val winningWindow =
+      ctx.classification.exists(_.simplifyBias.shouldSimplify) &&
+        ctx.evalFor(currPlan.color) >= 80
+    val phaseDrivenEndgame =
+      ctx.phaseEnum == lila.llm.analysis.L3.GamePhaseType.Endgame &&
+        (currPlan.category == PlanCategory.Endgame || currPlan.category == PlanCategory.Transition)
+    val currentConversion =
+      currPlan.category == PlanCategory.Transition ||
+        currPlan.category == PlanCategory.Endgame ||
+        currPlan.id == PlanId.Exchange ||
+        currPlan.id == PlanId.QueenTrade
+    val previousAttackOrRace =
+      prevPlan.exists(plan =>
+        plan.category == PlanCategory.Attack ||
+          plan.category == PlanCategory.Structural ||
+          isCounterplayPlan(plan)
+      )
+
+    currentConversion && (winningWindow || phaseDrivenEndgame || previousAttackOrRace)
+
+  private def isOpportunisticShift(
+    prevPlan: Option[Plan],
+    currPlan: Plan,
+    ctx: IntegratedContext
+  ): Boolean =
+    val currentAttack = currPlan.category == PlanCategory.Attack || isCounterplayPlan(currPlan)
+    val attackingWindow = ctx.tacticalThreatToThem || (ctx.holdingAttackingThreats && currentAttack)
+    attackingWindow && !isConversionShift(prevPlan, currPlan, ctx)
+
+  private def isCounterplayPlan(plan: Plan): Boolean =
+    plan.id == PlanId.Counterplay
 
   /**
    * Calculate momentum based on transition type.

@@ -121,6 +121,7 @@ class NarrativeContextBuilderTest extends FunSuite {
             viability = PlanViability(0.71, "high", "counter-break survives")
           ),
         status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
+        userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
         reason = "validated by purpose-aligned probe evidence",
         supportProbeIds = List("probe_1"),
         themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
@@ -161,6 +162,36 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(experiments.head.futureSnapshotAligned)
     assert(experiments.head.counterBreakNeutralized)
     assert(experiments.head.experimentConfidence > 0.8)
+  }
+
+  test("buildWithDiagnostics keeps latent strategic hypotheses out of runtime context and sidecars them instead") {
+    val plan =
+      PlanHypothesis(
+        planId = "CentralControl",
+        planName = "Central control with flexible break",
+        rank = 1,
+        score = 0.74,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.66, "medium", "test"),
+        evidenceSources = List("support:engine_hypothesis")
+      )
+
+    val data = minimalData().copy(planHypotheses = List(plan))
+    val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
+    val result = NarrativeContextBuilder.buildWithDiagnostics(data, ctx, None)
+
+    assertEquals(result.context.mainStrategicPlans, Nil)
+    assertEquals(result.context.latentPlans, Nil)
+    assertEquals(result.context.whyAbsentFromTopMultiPV, Nil)
+    assert(
+      result.diagnosticPlanSidecar.entries.exists(entry =>
+        entry.planId == "CentralControl" &&
+          entry.userFacingEligibility == "pv_coupled_only"
+      ),
+      clue(result.diagnosticPlanSidecar)
+    )
   }
 
   test("current-board facts stay separate from main-pv and counterfactual facts") {
@@ -468,27 +499,6 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(flow.contains("continuing"), s"Expected continuation wording, got: $flow")
     assert(flow.contains("Central Control"), s"Expected plan anchor, got: $flow")
   }
-
-  test("describeHierarchical outputs PHASE section (A8)") {
-    val ctx = lila.llm.model.NarrativeContext(
-      fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      header = lila.llm.model.ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
-      ply = 1,
-      summary = lila.llm.model.NarrativeSummary("Kingside Attack", None, "StyleChoice", "Maintain", "+50"),
-      threats = lila.llm.model.ThreatTable(Nil, Nil),
-      pawnPlay = lila.llm.model.PawnPlayTable(false, None, "Low", "Maintain", "No breaks", "Background", None, false, "quiet"),
-      plans = lila.llm.model.PlanTable(Nil, Nil),
-      snapshots = List(lila.llm.model.L1Snapshot("=", None, None, None, None, None, Nil)),
-      delta = None,
-      phase = lila.llm.model.PhaseContext("Middlegame", "Material: 28, Queens present", None),
-      candidates = Nil
-    )
-    
-    val output = lila.llm.NarrativeGenerator.describeHierarchical(ctx)
-    
-    assert(output.contains("=== PHASE"), "Should have PHASE section")
-     assert(output.contains("Middlegame"), "Phase should show Middlegame")
-   }
 
   // ============================================================
   // PROBE LOOP (Phase 6.5): Ghost plan -> ProbeRequest

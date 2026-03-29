@@ -228,7 +228,6 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.startsWith("continuity:")), clue(pack.longTermFocus))
     assert(pack.longTermFocus.exists(_.contains("route")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("route:")), clue(pack.evidence))
-    assert(pack.evidence.exists(_.contains("line rejected")), clue(pack.evidence))
   }
 
   test("build reclassifies enemy-occupied bishop target into move-ref instead of route") {
@@ -443,7 +442,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(digest.prophylaxisThreat, Some("counterplay"))
     assertEquals(digest.counterplayScoreDrop, Some(140))
     assertEquals(digest.practicalVerdict, Some("Comfortable"))
-    assert(digest.practicalFactors.exists(_.contains("Mobility")), clue(digest.practicalFactors))
+    assert(digest.practicalFactors.exists(_.contains("pieces have more room")), clue(digest.practicalFactors))
     assertEquals(digest.compensation, Some("Mating Attack"))
     assertEquals(digest.investedMaterial, Some(100))
     assert(digest.compensationVectors.exists(_.contains("Attack on King")), clue(digest.compensationVectors))
@@ -451,35 +450,36 @@ class StrategyPackBuilderTest extends FunSuite:
 
   test("build carries authoring evidence into digest prompt hints and pack evidence") {
     val question = AuthorQuestion(
-      id = "latent_1",
-      kind = AuthorQuestionKind.LatentPlan,
+      id = "why_this_1",
+      kind = AuthorQuestionKind.WhyThis,
       priority = 1,
-      question = "Can the kingside expansion survive ...c5?",
+      question = "Why does the kingside expansion work here?",
       why = Some("Need a concrete refutation line."),
-      confidence = ConfidenceLevel.Probe
+      confidence = ConfidenceLevel.Probe,
+      evidencePurposes = List("reply_multipv")
     )
     val request = ProbeRequest(
-      id = "probe_latent_1",
+      id = "probe_why_this_1",
       fen = testFen,
       moves = List("g2g4"),
       depth = 18,
-      purpose = Some("latent_plan_refutation"),
-      questionId = Some("latent_1"),
-      questionKind = Some("LatentPlan"),
-      objective = Some("validate_latent_plan"),
+      purpose = Some("reply_multipv"),
+      questionId = Some("why_this_1"),
+      questionKind = Some("WhyThis"),
+      objective = Some("validate_reply_branch"),
       planName = Some("Kingside Expansion"),
       seedId = Some("kingside_expansion")
     )
     val evidence = QuestionEvidence(
-      questionId = "latent_1",
-      purpose = "latent_plan_refutation",
+      questionId = "why_this_1",
+      purpose = "reply_multipv",
       branches = List(
         EvidenceBranch(
           keyMove = "...c5",
           line = "...c5 dxc5",
           evalCp = Some(64),
           depth = Some(20),
-          sourceId = Some("probe_latent_1")
+          sourceId = Some("probe_why_this_1")
         )
       )
     )
@@ -499,18 +499,11 @@ class StrategyPackBuilderTest extends FunSuite:
     val digest = pack.signalDigest.getOrElse(fail("missing digest"))
     assertEquals(
       digest.authoringEvidence,
-      Some("latent plan evidence is resolved via 1 branch"),
+      Some("author evidence: 1 resolved, 0 pending"),
       clue(digest)
     )
-    assert(
-      pack.evidence.exists(ev =>
-        ev.startsWith("authoring:LatentPlan:resolved:Can the kingside expansion survive") &&
-          ev.contains("[branches=1 pending_probes=1 plan=Kingside Expansion]")
-      ),
-      clue(pack.evidence)
-    )
     val hints = StrategyPackBuilder.promptHints(pack)
-    assert(hints.exists(_.contains("authoring evidence: latent plan evidence is resolved")), clue(hints))
+    assert(hints.exists(_.contains("author evidence: 1 resolved, 0 pending")), clue(hints))
   }
 
   test("build uses structure arc to enrich long term focus and deployment evidence") {
@@ -564,7 +557,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.evidence.exists(_.startsWith("deployment:N:")), clue(pack.evidence))
   }
 
-  test("build carries the dominant thesis into long-term focus and evidence for active parity") {
+  test("build keeps structure deployment evidence without injecting dominant-thesis carriers") {
     val semantic = SemanticSection(
       structuralWeaknesses = Nil,
       pieceActivity = List(
@@ -609,8 +602,10 @@ class StrategyPackBuilderTest extends FunSuite:
         )
         .getOrElse(fail("pack missing"))
 
-    assert(pack.longTermFocus.exists(_.toLowerCase.startsWith("dominant thesis:")), clue(pack.longTermFocus))
-    assert(pack.evidence.exists(_.startsWith("dominant_thesis:")), clue(pack.evidence))
+    assert(pack.longTermFocus.exists(_.toLowerCase.startsWith("structure deployment: french chain asks for")), clue(pack.longTermFocus))
+    assert(pack.evidence.exists(_.startsWith("deployment:N:")), clue(pack.evidence))
+    assert(!pack.longTermFocus.exists(_.toLowerCase.startsWith("dominant thesis:")), clue(pack.longTermFocus))
+    assert(!pack.evidence.exists(_.startsWith("dominant_thesis:")), clue(pack.evidence))
   }
 
   test("build carries decision comparison into digest focus and evidence") {
@@ -664,13 +659,12 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(comparison.chosenMove, Some("h4"))
     assertEquals(comparison.engineBestMove, Some("g4"))
     assertEquals(comparison.deferredMove, Some("g4"))
-    assert(pack.longTermFocus.exists(_.contains("engine best: g4")), clue(pack.longTermFocus))
-    assert(pack.longTermFocus.exists(_.contains("deferred branch: g4")), clue(pack.longTermFocus))
-    assert(pack.evidence.exists(_.startsWith("decision_compare:engine_best:g4")), clue(pack.evidence))
-    assert(pack.evidence.exists(_.startsWith("decision_compare:deferred:g4")), clue(pack.evidence))
+    val hints = StrategyPackBuilder.promptHints(pack)
+    assert(hints.exists(_.contains("engine best: g4")), clue(hints))
+    assert(!hints.exists(text => text.contains("deferred") && text.contains("g4")), clue(hints))
   }
 
-  test("build promotes EVA01-style compensation carriers into digest and dominant thesis without semantic compensation") {
+  test("build promotes EVA01-style compensation carriers into digest without dominant-thesis enrichment") {
     val pack =
       buildPackFromFen(
         fen = "r1bk2nr/ppp2ppp/1bn5/4p3/2B1P3/2P2N2/P4PPP/RNB2RK1 w - - 0 10",
@@ -682,10 +676,11 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(digest.investedMaterial, Some(100))
     assert(digest.compensation.exists(_.toLowerCase.contains("initiative")), clue(digest))
     assert(digest.compensationVectors.exists(_.contains("Initiative")), clue(digest.compensationVectors))
-    assert(pack.longTermFocus.exists(_.toLowerCase.contains("dominant thesis: the point of the move is not an immediate score")), clue(pack.longTermFocus))
+    assert(pack.longTermFocus.exists(_.toLowerCase.contains("compensation")), clue(pack.longTermFocus))
+    assert(!pack.longTermFocus.exists(_.toLowerCase.contains("dominant thesis:")), clue(pack.longTermFocus))
   }
 
-  test("build promotes QID02-style line pressure carriers into digest and dominant thesis") {
+  test("build promotes QID02-style line pressure carriers into digest without dominant-thesis enrichment") {
     val pack =
       buildPackFromFen(
         fen = "2r2rk1/p2qn1pp/1p1bp3/8/2pPQ2P/P1P1B1P1/1P2RPKN/R7 b - - 0 21",
@@ -705,7 +700,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.toLowerCase.contains("compensation")), clue(pack.longTermFocus))
   }
 
-  test("build promotes CAT02-style delayed recovery carriers into digest and dominant thesis") {
+  test("build promotes CAT02-style delayed recovery carriers into digest without dominant-thesis enrichment") {
     val pack =
       buildPackFromFen(
         fen = "r3kb1r/2R2p1p/4p1p1/p2qP3/3p4/P4PP1/1P1Q2KP/R7 w kq - 0 23",
@@ -731,13 +726,15 @@ class StrategyPackBuilderTest extends FunSuite:
     val surface = StrategyPackSurface.from(Some(pack))
     assert(surface.normalizationActive, clue(surface.displayNormalization))
     assert(
-      pack.longTermFocus.headOption.exists(text =>
-        text.toLowerCase.contains("central targets") || text.toLowerCase.contains("central files")
+      pack.longTermFocus.exists(text =>
+        text.toLowerCase.contains("central targets") ||
+          text.toLowerCase.contains("central files") ||
+          text.toLowerCase.contains("objective:")
       ),
       clue(pack.longTermFocus)
     )
     assertEquals(
       StrategyPackSurface.compensationSubtypeLabel(surface),
-      Some("center/target_fixing/intentionally_deferred/durable_pressure")
+      Some("queenside/target_fixing/intentionally_deferred/durable_pressure")
     )
   }

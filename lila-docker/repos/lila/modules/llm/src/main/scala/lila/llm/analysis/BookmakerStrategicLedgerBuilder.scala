@@ -167,19 +167,30 @@ object BookmakerStrategicLedgerBuilder:
       endgameStateToken: Option[EndgamePatternState]
   ): Option[BookmakerStrategicLedgerV1] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
-    val thesis = StrategicThesisBuilder.build(ctx)
     val decision = digest.flatMap(_.decisionComparison).orElse(DecisionComparisonBuilder.digest(ctx))
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
     val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
     val planProfile = collectPlanProfile(ctx)
     val prerequisites = collectPrerequisites(ctx).take(2)
     val conversionTrigger = collectConversionTrigger(ctx, endgameStateToken)
-    val motif = pickMotif(ctx, thesis, digest, planProfile, endgameStateToken, conversionTrigger)
+    val compensationSignal = hasCompensationSignal(ctx, digest)
+    val prophylaxisSignal = hasProphylaxisSignal(ctx, digest)
+    val openingSignal = hasOpeningSignal(ctx)
+    val motif =
+      pickMotif(
+        ctx,
+        digest,
+        planProfile,
+        endgameStateToken,
+        conversionTrigger,
+        compensationSignal,
+        prophylaxisSignal,
+        openingSignal
+      )
     val primaryLine = choosePrimaryLine(ctx, decision, motif.map(_.motif.key), refs, probeResults)
     val resourceLine = chooseResourceLine(ctx, decision, refs, probeResults)
     val stage = classifyStage(
       ctx = ctx,
-      thesis = thesis,
       digest = digest,
       decision = decision,
       planStateToken = planStateToken,
@@ -187,6 +198,8 @@ object BookmakerStrategicLedgerBuilder:
       carryOver = carryOver,
       prerequisites = prerequisites,
       conversionTrigger = conversionTrigger,
+      compensationSignal = compensationSignal,
+      prophylaxisSignal = prophylaxisSignal,
       routeSignal = routeSignal,
       primaryLine = primaryLine,
       resourceLine = resourceLine
@@ -227,11 +240,13 @@ object BookmakerStrategicLedgerBuilder:
 
   private def pickMotif(
       ctx: NarrativeContext,
-      thesis: Option[StrategicThesis],
       digest: Option[NarrativeSignalDigest],
       planProfile: PlanProfile,
       endgameStateToken: Option[EndgamePatternState],
-      conversionTrigger: Option[String]
+      conversionTrigger: Option[String],
+      compensationSignal: Boolean,
+      prophylaxisSignal: Boolean,
+      openingSignal: Boolean
   ): Option[MotifChoice] =
     val endgamePattern = currentEndgamePattern(ctx, endgameStateToken)
     val conversionReady =
@@ -252,21 +267,11 @@ object BookmakerStrategicLedgerBuilder:
         }
     }
 
-    thesis.foreach {
-      case StrategicThesis(StrategicLens.Compensation, _, _, _, _) =>
-        scores.update("compensation_attack", scores("compensation_attack") + 2.5)
-      case StrategicThesis(StrategicLens.Prophylaxis, _, _, _, _) =>
-        scores.update("counterplay_restraint", scores("counterplay_restraint") + 2.5)
-      case StrategicThesis(StrategicLens.Opening, _, _, _, _) =>
-        scores.update("opening_branch", scores("opening_branch") + 2.0)
-      case _ =>
-    }
-
-    if CompensationInterpretation.effectiveSemanticDecision(ctx).exists(_.decision.signal.investedMaterial.exists(_ > 0)) then
+    if compensationSignal then
       scores.update("compensation_attack", scores("compensation_attack") + 3.0)
-    if ctx.semantic.exists(_.preventedPlans.nonEmpty) then
+    if prophylaxisSignal then
       scores.update("counterplay_restraint", scores("counterplay_restraint") + 3.0)
-    if ctx.openingData.flatMap(_.name).exists(_.trim.nonEmpty) || ctx.openingEvent.isDefined then
+    if openingSignal then
       scores.update("opening_branch", scores("opening_branch") + 2.0)
     if oppositePlanReady && hasOppositeBishopsSignal(ctx) then
       scores.update("opposite_bishops_conversion", scores("opposite_bishops_conversion") + 3.0)
@@ -388,9 +393,25 @@ object BookmakerStrategicLedgerBuilder:
     low.contains("good bishop rook pawn conversion") ||
       low.contains("opposite colored bishops draw")
 
+  private def hasCompensationSignal(
+      ctx: NarrativeContext,
+      digest: Option[NarrativeSignalDigest]
+  ): Boolean =
+    CompensationInterpretation.effectiveSemanticDecision(ctx).exists(_.decision.signal.investedMaterial.exists(_ > 0)) ||
+      digest.exists(d => d.investedMaterial.exists(_ > 0) || d.compensation.exists(_.trim.nonEmpty))
+
+  private def hasProphylaxisSignal(
+      ctx: NarrativeContext,
+      digest: Option[NarrativeSignalDigest]
+  ): Boolean =
+    ctx.semantic.exists(_.preventedPlans.nonEmpty) ||
+      digest.exists(d => d.prophylaxisPlan.isDefined || d.prophylaxisThreat.isDefined || d.counterplayScoreDrop.exists(_ > 0))
+
+  private def hasOpeningSignal(ctx: NarrativeContext): Boolean =
+    ctx.openingData.flatMap(_.name).exists(_.trim.nonEmpty) || ctx.openingEvent.isDefined
+
   private def classifyStage(
       ctx: NarrativeContext,
-      thesis: Option[StrategicThesis],
       digest: Option[NarrativeSignalDigest],
       decision: Option[DecisionComparisonDigest],
       planStateToken: Option[PlanStateTracker],
@@ -398,6 +419,8 @@ object BookmakerStrategicLedgerBuilder:
       carryOver: Boolean,
       prerequisites: List[String],
       conversionTrigger: Option[String],
+      compensationSignal: Boolean,
+      prophylaxisSignal: Boolean,
       routeSignal: Boolean,
       primaryLine: Option[LineCandidate],
       resourceLine: Option[LineCandidate]
@@ -411,7 +434,7 @@ object BookmakerStrategicLedgerBuilder:
             ctx.planContinuity.flatMap(_.abortedReason)
               .orElse(Some("Plan continuity was interrupted"))
         )
-      case _ if thesis.exists(_.lens == StrategicLens.Prophylaxis) || digest.exists(d => d.prophylaxisPlan.isDefined || d.prophylaxisThreat.isDefined) =>
+      case _ if prophylaxisSignal =>
         val counterplayText =
           ctx.semantic.flatMap(_.preventedPlans.headOption) match
             case Some(prevented) if prevented.sourceScope != FactScope.Now =>
@@ -432,7 +455,7 @@ object BookmakerStrategicLedgerBuilder:
           label = "Restrain",
           reason = Option.when(counterplayText.nonEmpty)(counterplayText.mkString(" · ")).orElse(Some("Counterplay denial is the main task"))
         )
-      case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty || thesis.exists(_.lens == StrategicLens.Compensation) =>
+      case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty || compensationSignal =>
         val conversionText =
           conversionTrigger
             .map(trigger => s"the edge is now built around converting through $trigger")
@@ -563,26 +586,20 @@ object BookmakerStrategicLedgerBuilder:
 
   private def chooseResourceLine(
       ctx: NarrativeContext,
-      decision: Option[DecisionComparisonDigest],
-      refs: Option[BookmakerRefsV1],
+      _decision: Option[DecisionComparisonDigest],
+      _refs: Option[BookmakerRefsV1],
       probeResults: List[ProbeResult]
   ): Option[LineCandidate] =
     val authoringBranch =
       ctx.authorEvidence.flatMap(authoringBranchCandidates)
         .sortBy(candidate => (-candidate.weight, candidate.title))
         .headOption
-    val decisionBranch = decisionResourceLineCandidate(decision)
     val negativeProbe =
       probeResults.flatMap(resourceProbeCandidate(ctx, _))
         .sortBy(candidate => (-candidate.weight, candidate.title))
         .headOption
-    val hasDeferredSignal =
-      ctx.whyAbsentFromTopMultiPV.nonEmpty ||
-        decision.exists(d => d.deferredMove.exists(_.trim.nonEmpty) || d.deferredReason.exists(_.trim.nonEmpty))
-    val whyNotVariation =
-      Option.when(hasDeferredSignal)(refVariationCandidate(refs, preferredIndex = 1)).flatten
 
-    authoringBranch.orElse(decisionBranch).orElse(negativeProbe).orElse(whyNotVariation)
+    authoringBranch.orElse(negativeProbe)
 
   private def supportiveProbeCandidate(
       ctx: NarrativeContext,
@@ -651,30 +668,6 @@ object BookmakerStrategicLedgerBuilder:
           note = digest.evidence.map(trimSentence).filter(_.nonEmpty),
           source = "decision_compare",
           weight = 2.0
-        )
-      }
-    }.flatMap(candidate => candidate.toWire.map(_ => candidate))
-
-  private def decisionResourceLineCandidate(
-      decision: Option[DecisionComparisonDigest]
-  ): Option[LineCandidate] =
-    decision.flatMap { digest =>
-      val deferredMove = digest.deferredMove.map(_.trim).filter(_.nonEmpty)
-      val sanMoves =
-        deferredMove match
-          case Some(move) if digest.engineBestMove.contains(move) && digest.engineBestPv.nonEmpty =>
-            digest.engineBestPv.take(4)
-          case Some(move) => List(move)
-          case None       => Nil
-      Option.when(sanMoves.nonEmpty) {
-        LineCandidate(
-          title = "Deferred branch",
-          sanMoves = sanMoves,
-          scoreCp = digest.engineBestScoreCp,
-          mate = None,
-          note = digest.deferredReason.map(trimSentence).filter(_.nonEmpty),
-          source = "decision_compare",
-          weight = 2.5
         )
       }
     }.flatMap(candidate => candidate.toWire.map(_ => candidate))

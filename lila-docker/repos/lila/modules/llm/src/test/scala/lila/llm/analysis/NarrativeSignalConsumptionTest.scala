@@ -127,8 +127,12 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       s"expected focal point in decision beat, got: ${decisionBeat.text}"
     )
     assert(
-      decisionBeat.text.contains("Probe evidence says 'g4' is refuted losing 220 cp."),
-      s"expected why-not meta in decision beat, got: ${decisionBeat.text}"
+      decisionBeat.text.contains("The tradeoff is dark-square drift."),
+      s"expected move-attributed tradeoff in decision beat, got: ${decisionBeat.text}"
+    )
+    assert(
+      !decisionBeat.text.contains("'g4' is refuted"),
+      s"expected uncited why-not text to stay out of decision beat, got: ${decisionBeat.text}"
     )
 
     val prose = BookStyleRenderer.render(ctx)
@@ -137,8 +141,8 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       s"expected decision logic to reach final prose, got: $prose"
     )
     assert(
-      prose.contains("Probe evidence says 'g4' is refuted losing 220 cp."),
-      s"expected why-not meta to reach final prose, got: $prose"
+      prose.contains("The tradeoff is dark-square drift."),
+      s"expected move-attributed tradeoff to reach final prose, got: $prose"
     )
   }
 

@@ -5,8 +5,54 @@ import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
 import lila.llm.*
+import lila.llm.model.*
+import lila.llm.model.authoring.*
+import scala.annotation.unused
 
 private[llm] object ActiveStrategicCoachingBriefBuilder:
+
+  final case class PlannerReplay(
+      authorQuestions: List[AuthorQuestion],
+      inputs: QuestionPlannerInputs,
+      rankedPlans: RankedQuestionPlans
+  )
+
+  final case class PlannerSurfaceSelection(
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan],
+      inputs: QuestionPlannerInputs
+  )
+
+  final case class DeterministicSupportCandidate(
+      source: String,
+      rawText: Option[String],
+      cleanedText: Option[String],
+      droppedReasons: List[String] = Nil
+  )
+
+  final case class DeterministicComposeDebug(
+      primaryKind: String,
+      secondaryKind: Option[String],
+      primaryClaimRaw: String,
+      primaryClaim: Option[String],
+      primaryEvidenceRaw: Option[String],
+      supportCandidates: List[DeterministicSupportCandidate],
+      selectedSupportSource: Option[String],
+      selectedSupport: Option[String],
+      sentences: List[String],
+      minimumSentences: Int,
+      validatorInput: Option[String],
+      failureReasons: List[String]
+  ):
+    def result: Option[String] = validatorInput
+
+  final case class VisibleSideSurfaces(
+      ideaRefs: List[ActiveStrategicIdeaRef],
+      routeRefs: List[ActiveStrategicRouteRef],
+      moveRefs: List[ActiveStrategicMoveRef],
+      directionalTargets: List[StrategyDirectionalTarget],
+      dossier: Option[ActiveBranchDossier]
+  )
 
   final case class Brief(
       campaignRole: Option[String],
@@ -18,7 +64,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       longTermObjective: Option[String],
       keyTrigger: Option[String],
       compensationAnchor: Option[String],
-      continuationFocus: Option[String]
+      continuationFocus: Option[String],
+      decisionSupports: List[String] = Nil
   ):
     def nonEmptySections: List[(String, String)] =
       List(
@@ -58,34 +105,972 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     """\b(reroute|reroutes|rerouting|expand|expands|expanding|clamp|clamps|clamping|targeting|pressing|challenge|challenges|challenging|consolidate|consolidates|consolidating|switch|switches|switching|convert|converts|converting|prevent|prevents|preventing|build(?:s|ing)? toward|head(?:s|ing)? toward)\b"""
   ).map(_.r)
 
+  def selectPlannerSurface(
+      moment: GameChronicleMoment,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier],
+      decisionFrame: CertifiedDecisionFrame
+  ): Option[PlannerSurfaceSelection] =
+    replayPlanner(moment, deltaBundle, dossier, decisionFrame)
+      .flatMap(selectPlannerSurface)
+
+  def selectPlannerSurface(
+      replay: PlannerReplay
+  ): Option[PlannerSurfaceSelection] =
+    selectActiveSurface(replay.rankedPlans, replay.inputs)
+
+  def replayPlanner(
+      moment: GameChronicleMoment,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier],
+      decisionFrame: CertifiedDecisionFrame
+  ): Option[PlannerReplay] =
+    val authorEvidence = replayAuthorEvidence(moment.authorEvidence)
+    val authorQuestions = replayAuthorQuestions(moment.authorQuestions, authorEvidence)
+    Option.when(authorQuestions.nonEmpty) {
+      val inputs = buildPlannerInputs(moment, deltaBundle, dossier, decisionFrame, authorEvidence)
+      val rankedPlans =
+        QuestionFirstCommentaryPlanner.plan(
+          ply = moment.ply,
+          authorQuestions = authorQuestions,
+          inputs = inputs,
+          truthContract = None
+        )
+      PlannerReplay(
+        authorQuestions = authorQuestions,
+        inputs = inputs,
+        rankedPlans = rankedPlans
+      )
+    }
+
+  def visibleSideSurfaces(
+      selection: PlannerSurfaceSelection,
+      decisionFrame: CertifiedDecisionFrame,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier]
+  ): VisibleSideSurfaces =
+    val alignedIdeas =
+      selection.primary.questionKind match
+        case AuthorQuestionKind.WhyThis =>
+          decisionFrame.ideaRefs(max = 2)
+        case AuthorQuestionKind.WhatChanged =>
+          decisionFrame.ideaRefs(max = 1)
+        case AuthorQuestionKind.WhyNow =>
+          decisionFrame.ideaRefs(max = 1)
+        case AuthorQuestionKind.WhatMustBeStopped =>
+          Nil
+        case AuthorQuestionKind.WhosePlanIsFaster =>
+          Nil
+    val alignedDossier = decisionFrame.alignedDossier(dossier)
+    selection.primary.questionKind match
+      case AuthorQuestionKind.WhyThis =>
+        VisibleSideSurfaces(
+          ideaRefs = alignedIdeas,
+          routeRefs = decisionFrame.alignedRouteRefs(deltaBundle.visibleRouteRefs),
+          moveRefs = decisionFrame.alignedMoveRefs(deltaBundle.visibleMoveRefs),
+          directionalTargets = decisionFrame.alignedTargets(deltaBundle.visibleDirectionalTargets),
+          dossier = alignedDossier
+        )
+      case AuthorQuestionKind.WhatChanged =>
+        VisibleSideSurfaces(
+          ideaRefs = alignedIdeas,
+          routeRefs = decisionFrame.alignedRouteRefs(deltaBundle.visibleRouteRefs),
+          moveRefs = decisionFrame.alignedMoveRefs(deltaBundle.visibleMoveRefs),
+          directionalTargets = decisionFrame.alignedTargets(deltaBundle.visibleDirectionalTargets),
+          dossier = alignedDossier
+        )
+      case AuthorQuestionKind.WhyNow =>
+        VisibleSideSurfaces(
+          ideaRefs = alignedIdeas,
+          routeRefs = Nil,
+          moveRefs = Nil,
+          directionalTargets = Nil,
+          dossier = alignedDossier.filter(d => d.practicalRisk.nonEmpty || d.whyChosen.nonEmpty || d.opponentResource.nonEmpty)
+        )
+      case AuthorQuestionKind.WhatMustBeStopped =>
+        VisibleSideSurfaces(
+          ideaRefs = Nil,
+          routeRefs = Nil,
+          moveRefs = Nil,
+          directionalTargets = Nil,
+          dossier = alignedDossier.filter(d => d.opponentResource.nonEmpty || d.practicalRisk.nonEmpty || d.whyChosen.nonEmpty)
+        )
+      case AuthorQuestionKind.WhosePlanIsFaster =>
+        VisibleSideSurfaces(Nil, Nil, Nil, Nil, None)
+
+  private def selectActiveSurface(
+      rankedPlans: RankedQuestionPlans,
+      inputs: QuestionPlannerInputs
+  ): Option[PlannerSurfaceSelection] =
+    rankedPlans.primary.flatMap { primary =>
+      val secondary = rankedPlans.secondary
+      val swapped =
+        secondary.filter(candidate =>
+          activePriority(candidate.questionKind) > activePriority(primary.questionKind) &&
+            activeKindAllowed(candidate.questionKind) &&
+            notWeaker(candidate, primary, inputs)
+        )
+      val selected =
+        if !activeKindAllowed(primary.questionKind) then
+          swapped.map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
+        else
+          swapped
+            .map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
+            .orElse(Some(PlannerSurfaceSelection(primary, secondary, inputs)))
+      selected.filter { selection =>
+        activeKindAllowed(selection.primary.questionKind) &&
+          (
+            selection.primary.questionKind != AuthorQuestionKind.WhatChanged ||
+              compactWhatChanged(selection.primary)
+          )
+      }
+    }
+
+  private def activePriority(kind: AuthorQuestionKind): Int =
+    kind match
+      case AuthorQuestionKind.WhyThis            => 4
+      case AuthorQuestionKind.WhatMustBeStopped  => 3
+      case AuthorQuestionKind.WhyNow             => 2
+      case AuthorQuestionKind.WhatChanged        => 1
+      case AuthorQuestionKind.WhosePlanIsFaster  => 0
+
+  private def activeKindAllowed(kind: AuthorQuestionKind): Boolean =
+    kind != AuthorQuestionKind.WhosePlanIsFaster
+
+  private def compactWhatChanged(plan: QuestionPlan): Boolean =
+    plan.contrast.nonEmpty || plan.consequence.nonEmpty || plan.evidence.nonEmpty
+
+  private def notWeaker(
+      candidate: QuestionPlan,
+      current: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    strengthScore(candidate.strengthTier) >= strengthScore(current.strengthTier) &&
+      fallbackScore(candidate.fallbackMode) >= fallbackScore(current.fallbackMode) &&
+      claimOwnershipScore(candidate, inputs) >= claimOwnershipScore(current, inputs) &&
+      evidenceScore(candidate.evidence) >= evidenceScore(current.evidence)
+
+  private def strengthScore(tier: QuestionPlanStrengthTier): Int =
+    tier match
+      case QuestionPlanStrengthTier.Strong   => 3
+      case QuestionPlanStrengthTier.Moderate => 2
+      case QuestionPlanStrengthTier.Exact    => 1
+
+  private def fallbackScore(mode: QuestionPlanFallbackMode): Int =
+    mode match
+      case QuestionPlanFallbackMode.PlannerOwned               => 4
+      case QuestionPlanFallbackMode.DemotedToWhyThis          => 3
+      case QuestionPlanFallbackMode.DemotedToWhatMustBeStopped => 3
+      case QuestionPlanFallbackMode.FactualFallback            => 2
+      case QuestionPlanFallbackMode.Suppressed                 => 1
+
+  private def evidenceScore(evidence: Option[QuestionPlanEvidence]): Int =
+    evidence match
+      case Some(value) if value.text.linesIterator.count(_.trim.matches("""^[a-z]\)\s+.*""")) >= 2 => 3
+      case Some(value) if value.branchScoped => 2
+      case Some(_)                           => 1
+      case None                              => 0
+
+  private def claimOwnershipScore(
+      plan: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Int =
+    if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim)) then 4
+    else if plan.questionKind == AuthorQuestionKind.WhatChanged &&
+      plan.sourceKinds.exists(kind =>
+        kind == "pv_delta" || kind == "move_delta" || kind == "prevented_plan" || kind == "decision_comparison"
+      )
+    then 4
+    else if inputs.quietIntent.exists(intent => NarrativeDedupCore.sameSemanticSentence(intent.claimText, plan.claim)) then 3
+    else if plan.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
+      plan.sourceKinds.exists(kind => kind == "threat" || kind == "prevented_plan")
+    then 3
+    else if plan.questionKind == AuthorQuestionKind.WhyNow &&
+      plan.sourceKinds.exists(kind =>
+        kind == "threat" || kind == "prevented_plan" || kind == "truth_contract" || kind == "decision_comparison"
+      )
+    then 4
+    else 1
+
+  private def buildPlannerInputs(
+      moment: GameChronicleMoment,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier],
+      decisionFrame: CertifiedDecisionFrame,
+      authorEvidence: List[QuestionEvidence]
+  ): QuestionPlannerInputs =
+    val decisionComparison = replayDecisionComparison(moment)
+    val candidateEvidenceLines =
+      (
+        authorEvidence.flatMap(_.branches).flatMap(branchDisplayLine) ++
+          deltaBundle.claims.flatMap(_.evidenceLines) ++
+          deltaBundle.tacticalEvidence.toList ++
+          dossier.flatMap(_.evidenceCue).toList ++
+          decisionComparison.flatMap(_.evidence).toList
+      ).flatMap(cleanStringSignal).distinct
+    val mainBundle = replayMainBundle(moment, deltaBundle, candidateEvidenceLines)
+
+    QuestionPlannerInputs(
+      mainBundle = mainBundle,
+      quietIntent = None,
+      decisionFrame = decisionFrame,
+      decisionComparison = decisionComparison,
+      alternativeNarrative = replayAlternativeNarrative(decisionComparison),
+      truthMode = PlayerFacingTruthModePolicy.classify(moment),
+      preventedPlansNow = replayPreventedPlans(moment, dossier),
+      pvDelta = replayPvDelta(deltaBundle, dossier),
+      counterfactual = None,
+      practicalAssessment = replayPracticalInfo(moment),
+      opponentThreats = replayThreats(moment, dossier),
+      forcingThreats = Nil,
+      evidenceByQuestionId = authorEvidence.groupBy(_.questionId),
+      candidateEvidenceLines = candidateEvidenceLines,
+      evidenceBackedPlans = replayEvidenceBackedPlans(moment),
+      opponentPlan = replayOpponentPlan(moment),
+      factualFallback = None
+    )
+
+  private def replayMainBundle(
+      moment: GameChronicleMoment,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      candidateEvidenceLines: List[String]
+  ): Option[MainPathClaimBundle] =
+    PlayerFacingTruthModePolicy.classify(moment) match
+      case PlayerFacingTruthMode.Tactical =>
+        val evidenceLines =
+          (deltaBundle.tacticalEvidence.toList ++ candidateEvidenceLines).flatMap(cleanStringSignal).distinct.take(1)
+        val mainClaim =
+          deltaBundle.tacticalLead
+            .orElse(PlayerFacingTruthModePolicy.tacticalLeadSentence(moment))
+            .flatMap(cleanStringSignal)
+            .map { lead =>
+              MainPathScopedClaim(
+                scope = PlayerFacingClaimScope.MoveLocal,
+                mode = PlayerFacingTruthMode.Tactical,
+                deltaClass = None,
+                claimText = lead,
+                anchorTerms = Nil,
+                evidenceLines = evidenceLines,
+                sourceKind = "active_tactical",
+                tacticalOwnership = moment.moveClassification.flatMap(cleanStringSignal)
+              )
+            }
+        val lineClaim =
+          evidenceLines.headOption.map { line =>
+            MainPathScopedClaim(
+              scope = PlayerFacingClaimScope.LineScoped,
+              mode = PlayerFacingTruthMode.Tactical,
+              deltaClass = None,
+              claimText = line,
+              anchorTerms = Nil,
+              evidenceLines = List(line),
+              sourceKind = "active_tactical_line",
+              tacticalOwnership = moment.moveClassification.flatMap(cleanStringSignal)
+            )
+          }
+        mainClaim
+          .map(main => MainPathClaimBundle(Some(main), lineClaim))
+          .orElse(lineClaim.map(line => MainPathClaimBundle(None, Some(line))))
+      case PlayerFacingTruthMode.Strategic =>
+        deltaBundle.claims.headOption.flatMap { claim =>
+          activeMainClaim(claim)
+            .flatMap(cleanStringSignal)
+            .map { claimText =>
+              val mainClaim =
+                MainPathScopedClaim(
+                  scope = PlayerFacingClaimScope.MoveLocal,
+                  mode = PlayerFacingTruthMode.Strategic,
+                  deltaClass = Some(claim.deltaClass),
+                  claimText = claimText,
+                  anchorTerms = anchorTermsForClaim(claim),
+                  evidenceLines = claim.evidenceLines.flatMap(cleanStringSignal).distinct.take(1),
+                  sourceKind = claim.sourceKind,
+                  tacticalOwnership = None
+                )
+              val lineClaim =
+                mainClaim.evidenceLines.headOption.map { line =>
+                  MainPathScopedClaim(
+                    scope = PlayerFacingClaimScope.LineScoped,
+                    mode = PlayerFacingTruthMode.Strategic,
+                    deltaClass = Some(claim.deltaClass),
+                    claimText = line,
+                    anchorTerms = mainClaim.anchorTerms,
+                    evidenceLines = List(line),
+                    sourceKind = s"${claim.sourceKind}_line",
+                    tacticalOwnership = None
+                  )
+                }
+              MainPathClaimBundle(Some(mainClaim), lineClaim)
+            }
+        }
+      case PlayerFacingTruthMode.Minimal =>
+        None
+
+  private def activeMainClaim(claim: PlayerFacingMoveDeltaClaim): Option[String] =
+    claim.reasonText.orElse {
+      cleanStringSignal(claim.anchorText).map { anchor =>
+        claim.deltaClass match
+          case PlayerFacingMoveDeltaClass.NewAccess =>
+            s"This opens access to $anchor."
+          case PlayerFacingMoveDeltaClass.PressureIncrease =>
+            s"This increases pressure on $anchor."
+          case PlayerFacingMoveDeltaClass.ExchangeForcing =>
+            s"This makes the exchange around $anchor more forcing."
+          case PlayerFacingMoveDeltaClass.CounterplayReduction =>
+            s"This cuts down the counterplay around $anchor."
+          case PlayerFacingMoveDeltaClass.ResourceRemoval =>
+            s"This removes a defensive resource around $anchor."
+          case PlayerFacingMoveDeltaClass.PlanAdvance =>
+            s"This advances the plan toward $anchor."
+      }
+    }
+
+  private def anchorTermsForClaim(claim: PlayerFacingMoveDeltaClaim): List[String] =
+    (
+      cleanStringSignal(claim.anchorText).toList ++
+        claim.routeCue.toList.flatMap(_.route.lastOption).flatMap(cleanStringSignal) ++
+        claim.moveCue.flatMap(_.san).flatMap(cleanStringSignal).toList ++
+        claim.directionalTargets.flatMap(target => cleanStringSignal(target.targetSquare))
+    ).distinct
+
+  private def replayDecisionComparison(moment: GameChronicleMoment): Option[DecisionComparison] =
+    val digest = moment.signalDigest.flatMap(_.decisionComparison)
+    val topEngine = moment.topEngineMove
+    val chosenMove = digest.flatMap(_.chosenMove).flatMap(cleanStringSignal)
+    val engineBestMove =
+      digest.flatMap(_.engineBestMove).flatMap(cleanStringSignal)
+        .orElse(topEngine.flatMap(replayTopEngineMoveLabel(moment, _)))
+    val cpLossVsChosen =
+      replayDecisionComparisonLoss(
+        digest.flatMap(_.cpLossVsChosen).filter(_ > 0),
+        topEngine.flatMap(_.cpLossVsPlayed).filter(_ > 0)
+      )
+    val chosenMatchesBest =
+      digest.flatMap(value => Option.when(value.chosenMatchesBest)(true))
+        .orElse(
+          for
+            chosen <- chosenMove
+            best <- engineBestMove
+          yield sameReplayMoveToken(chosen, best)
+        )
+        .getOrElse(false)
+    val deferredMove =
+      digest.flatMap(_.deferredMove).flatMap(cleanStringSignal)
+        .orElse(engineBestMove.filterNot(best => chosenMove.exists(chosen => sameReplayMoveToken(chosen, best))))
+    val engineBestPv =
+      digest.map(_.engineBestPv).filter(_.nonEmpty).getOrElse(topEngine.map(_.pv).getOrElse(Nil))
+    val evidence =
+      digest.flatMap(_.evidence).flatMap(cleanStringSignal)
+        .orElse(replayTopEngineEvidence(moment, topEngine))
+
+    Option.when(
+      chosenMove.nonEmpty ||
+        engineBestMove.nonEmpty ||
+        cpLossVsChosen.nonEmpty ||
+        deferredMove.nonEmpty ||
+        digest.flatMap(_.deferredReason).flatMap(cleanStringSignal).nonEmpty ||
+        evidence.nonEmpty
+    ) {
+      DecisionComparison(
+        chosenMove = chosenMove,
+        engineBestMove = engineBestMove,
+        engineBestScoreCp = digest.flatMap(_.engineBestScoreCp).orElse(topEngine.flatMap(_.cpAfterAlt)),
+        engineBestPv = engineBestPv,
+        cpLossVsChosen = cpLossVsChosen,
+        deferredMove = deferredMove,
+        deferredReason = digest.flatMap(_.deferredReason).flatMap(cleanStringSignal),
+        deferredSource =
+          digest.flatMap(_.deferredSource).flatMap(cleanStringSignal)
+            .orElse(Option.when(deferredMove.nonEmpty && topEngine.nonEmpty)("top_engine_move")),
+        evidence = evidence,
+        practicalAlternative = digest.exists(_.practicalAlternative),
+        chosenMatchesBest = chosenMatchesBest
+      )
+    }
+
+  private def replayDecisionComparisonLoss(
+      digestLoss: Option[Int],
+      topEngineLoss: Option[Int]
+  ): Option[Int] =
+    digestLoss.filter(_ >= 60)
+      .orElse(topEngineLoss)
+      .orElse(digestLoss)
+
+  private def replayTopEngineMoveLabel(
+      moment: GameChronicleMoment,
+      engineMove: EngineAlternative
+  ): Option[String] =
+    engineMove.san.flatMap(cleanStringSignal)
+      .orElse(cleanStringSignal(NarrativeUtils.uciToSanOrFormat(moment.fen, engineMove.uci)))
+
+  private def replayTopEngineEvidence(
+      moment: GameChronicleMoment,
+      engineMove: Option[EngineAlternative]
+  ): Option[String] =
+    engineMove
+      .flatMap { value =>
+        val sanLine =
+          NarrativeUtils
+            .uciListToSan(moment.fen, value.pv.take(4))
+            .map(_.trim)
+            .filter(_.nonEmpty)
+        Option.when(sanLine.nonEmpty)(sanLine.mkString(" "))
+      }
+      .flatMap(cleanStringSignal)
+
+  private def sameReplayMoveToken(a: String, b: String): Boolean =
+    normalizeReplayMoveToken(a) == normalizeReplayMoveToken(b)
+
+  private def normalizeReplayMoveToken(raw: String): String =
+    Option(raw).getOrElse("").trim.replaceAll("""[+#?!]+$""", "").toLowerCase
+
+  private def replayAlternativeNarrative(
+      comparison: Option[DecisionComparison]
+  ): Option[AlternativeNarrative] =
+    comparison
+      .flatMap(cmp => cmp.deferredReason.map(reason => cmp -> reason))
+      .map { case (cmp, reason) =>
+        AlternativeNarrative(
+          move = cmp.deferredMove,
+          reason = reason,
+          sentence =
+            cmp.deferredMove match
+              case Some(move) => s"The practical alternative $move stays secondary because $reason."
+              case None       => s"The practical alternative stays secondary because $reason."
+          ,
+          source = cmp.deferredSource.getOrElse("active_digest")
+        )
+      }
+
+  private def replayPreventedPlans(
+      moment: GameChronicleMoment,
+      dossier: Option[ActiveBranchDossier]
+  ): List[PreventedPlanInfo] =
+    val digest = moment.signalDigest
+    val threatType =
+      digest.flatMap(_.prophylaxisThreat).flatMap(cleanStringSignal)
+        .orElse(dossier.flatMap(_.opponentResource).flatMap(cleanStringSignal))
+    val breakNeutralized =
+      digest.flatMap(_.prophylaxisPlan).flatMap(cleanStringSignal).filter(_.toLowerCase.contains("break"))
+    val counterplayDrop = digest.flatMap(_.counterplayScoreDrop).getOrElse(if threatType.nonEmpty then 120 else 0)
+    Option.when(threatType.nonEmpty || breakNeutralized.nonEmpty || counterplayDrop > 0) {
+      PreventedPlanInfo(
+        planId = "active_prevention",
+        deniedSquares = Nil,
+        breakNeutralized = breakNeutralized,
+        mobilityDelta = 0,
+        counterplayScoreDrop = counterplayDrop,
+        preventedThreatType = threatType,
+        sourceScope = FactScope.Now,
+        citationLine = dossier.flatMap(_.evidenceCue).flatMap(cleanStringSignal)
+      )
+    }.toList
+
+  private def replayPvDelta(
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier]
+  ): Option[PVDelta] =
+    deltaBundle.claims.headOption.map { claim =>
+      val anchor = cleanStringSignal(claim.anchorText).toList
+      val resolved =
+        if claim.deltaClass == PlayerFacingMoveDeltaClass.CounterplayReduction || claim.deltaClass == PlayerFacingMoveDeltaClass.ResourceRemoval
+        then dossier.flatMap(_.opponentResource).flatMap(cleanStringSignal).toList
+        else Nil
+      val opportunities =
+        claim.deltaClass match
+          case PlayerFacingMoveDeltaClass.NewAccess | PlayerFacingMoveDeltaClass.PressureIncrease =>
+            anchor
+          case PlayerFacingMoveDeltaClass.ExchangeForcing =>
+            claim.moveCue.flatMap(_.san).flatMap(cleanStringSignal).toList
+          case _ =>
+            Nil
+      val advancements =
+        Option.when(claim.deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance)(anchor).getOrElse(Nil)
+      PVDelta(
+        resolvedThreats = resolved,
+        newOpportunities = opportunities,
+        planAdvancements = advancements,
+        concessions = Nil
+      )
+    }
+
+  private def replayPracticalInfo(moment: GameChronicleMoment): Option[PracticalInfo] =
+    moment.signalDigest.flatMap(_.practicalVerdict).flatMap(cleanStringSignal).map { verdict =>
+      PracticalInfo(
+        engineScore = moment.cpAfter,
+        practicalScore = 1.0,
+        verdict = verdict,
+        biasFactors =
+          moment.signalDigest.toList
+            .flatMap(_.practicalFactors)
+            .flatMap(cleanStringSignal)
+            .map(factor => PracticalBiasInfo("active_practical", factor, 0.6))
+            .take(2)
+      )
+    }
+
+  private def replayThreats(
+      moment: GameChronicleMoment,
+      dossier: Option[ActiveBranchDossier]
+  ): List[ThreatRow] =
+    val threatText =
+      moment.signalDigest.flatMap(_.prophylaxisThreat).flatMap(cleanStringSignal)
+        .orElse(dossier.flatMap(_.opponentResource).flatMap(cleanStringSignal))
+    threatText.toList.map { text =>
+      ThreatRow(
+        kind = text,
+        side = "US",
+        square = None,
+        lossIfIgnoredCp = moment.signalDigest.flatMap(_.counterplayScoreDrop).getOrElse(120),
+        turnsToImpact = 1,
+        bestDefense = dossier.flatMap(_.practicalRisk).flatMap(cleanStringSignal),
+        defenseCount = 1,
+        insufficientData = false,
+        confidence = ConfidenceLevel.Heuristic
+      )
+    }
+
+  private def replayEvidenceBackedPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
+    if moment.mainStrategicPlans.isEmpty then Nil
+    else if moment.strategicPlanExperiments.isEmpty then moment.mainStrategicPlans
+    else
+      val evidenceBackedKeys =
+        moment.strategicPlanExperiments.collect {
+          case experiment if experiment.evidenceTier == "evidence_backed" =>
+            s"${normalize(experiment.planId)}|${experiment.subplanId.map(normalize).getOrElse("")}"
+        }.toSet
+      moment.mainStrategicPlans.filter { plan =>
+        evidenceBackedKeys.contains(s"${normalize(plan.planId)}|${plan.subplanId.map(normalize).getOrElse("")}")
+      }
+
+  private def replayOpponentPlan(moment: GameChronicleMoment): Option[PlanRow] =
+    moment.signalDigest.flatMap(_.opponentPlan).flatMap(cleanStringSignal).map { name =>
+      PlanRow(
+        rank = 1,
+        name = name,
+        score = 0.6,
+        evidence = Nil,
+        confidence = ConfidenceLevel.Heuristic
+      )
+    }
+
+  private def replayAuthorQuestions(
+      summaries: List[AuthorQuestionSummary],
+      evidence: List[QuestionEvidence]
+  ): List[AuthorQuestion] =
+    val purposesByQuestion = evidence.groupBy(_.questionId).view.mapValues(_.map(_.purpose).distinct).toMap
+    summaries.flatMap { summary =>
+      replayQuestionKind(summary.kind).map { kind =>
+        AuthorQuestion(
+          id = summary.id,
+          kind = kind,
+          priority = summary.priority,
+          question = summary.question,
+          why = summary.why,
+          anchors = summary.anchors,
+          confidence = replayConfidence(summary.confidence),
+          evidencePurposes = purposesByQuestion.getOrElse(summary.id, Nil),
+          latentPlan = None
+        )
+      }
+    }
+
+  private def replayAuthorEvidence(
+      summaries: List[AuthorEvidenceSummary]
+  ): List[QuestionEvidence] =
+    summaries.map { summary =>
+      QuestionEvidence(
+        questionId = summary.questionId,
+        purpose = summary.purposes.headOption.getOrElse("active_summary"),
+        branches =
+          summary.branches.map(branch =>
+            EvidenceBranch(
+              keyMove = branch.keyMove,
+              line = branch.line,
+              evalCp = branch.evalCp,
+              mate = branch.mate,
+              depth = branch.depth,
+              sourceId = branch.sourceId
+            )
+          )
+      )
+    }
+
+  private def replayQuestionKind(raw: String): Option[AuthorQuestionKind] =
+    Option(raw).map(_.trim) collect {
+      case "WhyThis"            => AuthorQuestionKind.WhyThis
+      case "WhyNow"             => AuthorQuestionKind.WhyNow
+      case "WhatChanged"        => AuthorQuestionKind.WhatChanged
+      case "WhatMustBeStopped"  => AuthorQuestionKind.WhatMustBeStopped
+      case "WhosePlanIsFaster"  => AuthorQuestionKind.WhosePlanIsFaster
+    }
+
+  private def replayConfidence(raw: String): ConfidenceLevel =
+    Option(raw).map(_.trim) match
+      case Some("Engine") => ConfidenceLevel.Engine
+      case Some("Probe")  => ConfidenceLevel.Probe
+      case _              => ConfidenceLevel.Heuristic
+
+  private def branchDisplayLine(branch: EvidenceBranch): Option[String] =
+    LineScopedCitation
+      .evidenceBranchDisplayLine(branch)
+      .orElse(cleanStringSignal(branch.line))
+
+  private def renderPlannerFirstNoteDebug(
+      selection: PlannerSurfaceSelection,
+      moment: GameChronicleMoment
+  ): DeterministicComposeDebug =
+    val claim =
+      selection.primary.questionKind match
+        case AuthorQuestionKind.WhyNow =>
+          activeWhyNowClaim(selection, cleanActiveSentence(selection.primary.claim))
+        case _ =>
+          cleanActiveSentence(selection.primary.claim)
+    val supportCandidates =
+      selection.primary.questionKind match
+        case AuthorQuestionKind.WhyThis =>
+          List(
+            supportCandidate(
+              source = "evidence",
+              raw = selection.primary.evidence.map(_.text),
+              cleaned = shortEvidenceSentence(selection.primary.evidence)
+            ),
+            supportCandidate(
+              source = "contrast",
+              raw = selection.primary.contrast,
+              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+            )
+          )
+        case AuthorQuestionKind.WhatMustBeStopped =>
+          List(
+            supportCandidate(
+              source = "evidence",
+              raw = selection.primary.evidence.map(_.text),
+              cleaned = shortEvidenceSentence(selection.primary.evidence)
+            ),
+            supportCandidate(
+              source = "contrast",
+              raw = selection.primary.contrast,
+              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+            )
+          )
+        case AuthorQuestionKind.WhyNow =>
+          List(
+            supportCandidate(
+              source = "contrast",
+              raw = selection.primary.contrast,
+              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+            ),
+            supportCandidate(
+              source = "consequence",
+              raw = selection.primary.consequence.map(_.text),
+              cleaned = cleanActiveSupportSentence(selection.primary.consequence.map(_.text))
+            ),
+            supportCandidate(
+              source = "evidence",
+              raw = selection.primary.evidence.map(_.text),
+              cleaned = shortEvidenceSentence(selection.primary.evidence)
+            )
+          ) ++ fallbackWhyNowSupportCandidates(selection, moment)
+        case AuthorQuestionKind.WhatChanged =>
+          List(
+            supportCandidate(
+              source = "consequence",
+              raw = selection.primary.consequence.map(_.text),
+              cleaned = cleanActiveSupportSentence(selection.primary.consequence.map(_.text))
+            ),
+            supportCandidate(
+              source = "contrast",
+              raw = selection.primary.contrast,
+              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+            ),
+            supportCandidate(
+              source = "evidence",
+              raw = selection.primary.evidence.map(_.text),
+              cleaned = shortEvidenceSentence(selection.primary.evidence)
+            )
+          )
+        case AuthorQuestionKind.WhosePlanIsFaster =>
+          Nil
+
+    val vettedSupportCandidates = markDuplicateClaimSupport(claim, supportCandidates)
+    val selectedSupport = vettedSupportCandidates.collectFirst { case candidate if candidate.cleanedText.nonEmpty => candidate }
+
+    val sentences =
+      distinctSentences(List(claim, selectedSupport.flatMap(_.cleanedText)).flatten.map(asSentence))
+
+    val minimumSentences =
+      selection.primary.questionKind match
+        case AuthorQuestionKind.WhyNow | AuthorQuestionKind.WhatChanged => 2
+        case _                                                          => 1
+
+    val result =
+      Option.when(sentences.nonEmpty && sentences.size >= minimumSentences) {
+        sentences.take(2).mkString(" ")
+      }.flatMap(cleanStringSignal)
+
+    val failureReasons =
+      List(
+        Option.when(claim.isEmpty)("claim_empty"),
+        Option.when(selectedSupport.isEmpty) {
+          if vettedSupportCandidates.exists(_.droppedReasons.contains("duplicate_claim")) then "support_duplicate_claim"
+          else if vettedSupportCandidates.exists(_.rawText.nonEmpty) then "support_filtered"
+          else "support_missing"
+        },
+        Option.when(sentences.size < minimumSentences)(s"sentence_count_${sentences.size}_of_$minimumSentences"),
+        Option.when(result.isEmpty && claim.nonEmpty && selectedSupport.nonEmpty && sentences.size >= minimumSentences)(
+          "result_filtered"
+        )
+      ).flatten
+
+    DeterministicComposeDebug(
+      primaryKind = selection.primary.questionKind.toString,
+      secondaryKind = selection.secondary.map(_.questionKind.toString),
+      primaryClaimRaw = selection.primary.claim,
+      primaryClaim = claim,
+      primaryEvidenceRaw = selection.primary.evidence.map(_.text),
+      supportCandidates = vettedSupportCandidates,
+      selectedSupportSource = selectedSupport.map(_.source),
+      selectedSupport = selectedSupport.flatMap(_.cleanedText),
+      sentences = sentences,
+      minimumSentences = minimumSentences,
+      validatorInput = result,
+      failureReasons = failureReasons
+    )
+
+  private def renderPlannerFirstNote(
+      selection: PlannerSurfaceSelection,
+      moment: GameChronicleMoment
+  ): Option[String] =
+    renderPlannerFirstNoteDebug(selection, moment).result
+
+  private def fallbackWhyNowSupportCandidates(
+      selection: PlannerSurfaceSelection,
+      moment: GameChronicleMoment
+  ): List[DeterministicSupportCandidate] =
+    val comparisonSupport =
+      selection.inputs.decisionComparison.flatMap { comparison =>
+        val loss = comparison.cpLossVsChosen.map(math.abs).filter(_ >= 60)
+        val alternative =
+          comparison.deferredMove
+            .filter(_.trim.nonEmpty)
+            .orElse(
+              comparison.engineBestMove
+                .filter(_.trim.nonEmpty)
+                .filter(move => comparison.chosenMove.forall(chosen => !sameMoveToken(chosen, move)))
+            )
+        alternative.flatMap { move =>
+          loss.map(cp => s"If delayed, $move is the cleaner continuation and about ${cp}cp slips away.")
+        }.orElse {
+          comparison.deferredReason
+            .filter(_.trim.nonEmpty)
+            .flatMap(reason => loss.map(cp => s"If delayed, about ${cp}cp slips away: $reason."))
+        }.orElse {
+          loss.map(cp => s"If delayed, about ${cp}cp of practical value slips away.")
+        }
+      }
+    val threatSupport =
+      selection.inputs.opponentThreats.headOption.map { threat =>
+        s"If delayed, the ${threat.kind.toLowerCase} threat becomes harder to meet."
+      }
+    val preventedBreakSupport =
+      selection.inputs.preventedPlansNow.collectFirst {
+        case plan if plan.breakNeutralized.exists(_.trim.nonEmpty) =>
+          s"If delayed, the ${plan.breakNeutralized.get}-break becomes a live counterplay window."
+      }
+    val mainLineSupport =
+      selection.inputs.mainBundle
+        .flatMap(_.lineScopedClaim)
+        .flatMap(claim => anchoredWhyNowSupportSentence(Some(claim.claimText)))
+    val candidateLineSupport =
+      selection.inputs.candidateEvidenceLines.view
+        .flatMap(line => anchoredWhyNowSupportSentence(Some(line)))
+        .headOption
+    val narrativeTailSupport =
+      Option(moment.narrative)
+        .toList
+        .flatMap(_.split("""(?<=[.!?])\s+""").toList.drop(1))
+        .flatMap(text => anchoredWhyNowSupportSentence(Some(text)))
+        .headOption
+    val playedMoveSupport =
+      selection.inputs.decisionComparison
+        .flatMap(_.chosenMove)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .map(move => s"If delayed, $move no longer works with the same immediate tempo here.")
+    List(
+      supportCandidate(
+        source = "fallback_comparison",
+        raw = comparisonSupport,
+        cleaned = comparisonSupport.flatMap(text => cleanActiveSupportSentence(Some(text)))
+      ),
+      supportCandidate(
+        source = "fallback_threat",
+        raw = threatSupport,
+        cleaned = threatSupport.flatMap(text => cleanActiveSupportSentence(Some(text)))
+      ),
+      supportCandidate(
+        source = "fallback_prevented_break",
+        raw = preventedBreakSupport,
+        cleaned = preventedBreakSupport.flatMap(text => cleanActiveSupportSentence(Some(text)))
+      ),
+      supportCandidate(
+        source = "fallback_main_line",
+        raw = selection.inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText),
+        cleaned = mainLineSupport
+      ),
+      supportCandidate(
+        source = "fallback_candidate_line",
+        raw = selection.inputs.candidateEvidenceLines.headOption,
+        cleaned = candidateLineSupport
+      ),
+      supportCandidate(
+        source = "fallback_narrative_tail",
+        raw =
+          Option(moment.narrative)
+            .toList
+            .flatMap(_.split("""(?<=[.!?])\s+""").toList.drop(1))
+            .find(_.trim.nonEmpty),
+        cleaned = narrativeTailSupport
+      ),
+      supportCandidate(
+        source = "fallback_played_move",
+        raw = playedMoveSupport,
+        cleaned = playedMoveSupport.flatMap(text => cleanActiveSupportSentence(Some(text)))
+      )
+    )
+
+  private def activeWhyNowClaim(
+      selection: PlannerSurfaceSelection,
+      cleanedClaim: Option[String]
+  ): Option[String] =
+    cleanedClaim.flatMap { claim =>
+      val chosenMove =
+        selection.inputs.decisionComparison
+          .flatMap(_.chosenMove)
+          .map(_.trim)
+          .filter(_.nonEmpty)
+      chosenMove
+        .flatMap { move =>
+          val rewritten =
+            claim
+              .replaceFirst(
+                """(?i)^The timing matters now because\s+""",
+                s"$move has to be played now because "
+              )
+              .replaceFirst(
+                """(?i)^The move has to happen now because\s+""",
+                s"$move has to be played now because "
+              )
+          Option.when(rewritten != claim)(rewritten)
+        }
+        .orElse(Some(claim))
+        .flatMap(cleanActiveSentence)
+    }
+
+  private def supportCandidate(
+      source: String,
+      raw: Option[String],
+      cleaned: Option[String]
+  ): DeterministicSupportCandidate =
+    val normalizedRaw = raw.map(_.trim).filter(_.nonEmpty)
+    val baseReasons =
+      List(
+        Option.when(normalizedRaw.isEmpty)("missing_raw"),
+        Option.when(normalizedRaw.nonEmpty && cleaned.isEmpty)("filtered")
+      ).flatten
+    DeterministicSupportCandidate(
+      source = source,
+      rawText = normalizedRaw,
+      cleanedText = cleaned,
+      droppedReasons = baseReasons
+    )
+
+  private def markDuplicateClaimSupport(
+      claim: Option[String],
+      candidates: List[DeterministicSupportCandidate]
+  ): List[DeterministicSupportCandidate] =
+    candidates.map { candidate =>
+      val duplicateClaim =
+        claim.exists(current =>
+          candidate.cleanedText.exists(text =>
+            NarrativeDedupCore.sameSemanticSentence(current, text) ||
+              StrategicSignalMatcher.containsComparablePhrase(current, text)
+          )
+        )
+      if duplicateClaim then
+        candidate.copy(
+          cleanedText = None,
+          droppedReasons = (candidate.droppedReasons :+ "duplicate_claim").distinct
+        )
+      else candidate
+    }
+
+  private def anchoredWhyNowSupportSentence(raw: Option[String]): Option[String] =
+    raw.flatMap { text =>
+      val stripped = stripEvidenceLead(text)
+      cleanActiveSupportSentence(Some(stripped)).orElse {
+        cleanStringSignal(LiveNarrativeCompressionCore.rewritePlayerLanguage(stripped))
+          .filter(LiveNarrativeCompressionCore.hasConcreteAnchor)
+      }
+    }
+
+  private def sameMoveToken(a: String, b: String): Boolean =
+    normalizeMoveToken(a) == normalizeMoveToken(b)
+
+  private def normalizeMoveToken(move: String): String =
+    Option(move).getOrElse("").replaceAll("""[^A-Za-z0-9]""", "").trim.toLowerCase
+
+  private def shortEvidenceSentence(
+      evidence: Option[QuestionPlanEvidence]
+  ): Option[String] =
+    evidence
+      .flatMap(_.text.linesIterator.map(_.trim).find(_.nonEmpty))
+      .map(stripEvidenceLead)
+      .flatMap(cleanActiveSupportSentence)
+
+  private def cleanActiveSentence(raw: String): Option[String] =
+    playerFacingSentence(raw)
+      .filterNot(LiveNarrativeCompressionCore.isLowValueNarrativeSentence)
+
+  private def cleanActiveSupportSentence(raw: String): Option[String] =
+    cleanActiveSupportSentence(Some(raw))
+
+  private def cleanActiveSupportSentence(raw: Option[String]): Option[String] =
+    raw.flatMap(text =>
+      playerFacingSentence(stripEvidenceLead(text))
+        .filterNot(LiveNarrativeCompressionCore.isLowValueNarrativeSentence)
+    )
+
+  private def stripEvidenceLead(text: String): String =
+    Option(text)
+      .getOrElse("")
+      .replaceFirst("""^[a-z]\)\s*""", "")
+      .replaceFirst("""^Line:\s*""", "")
+      .replaceFirst("""(?i)^Further probe work still targets\s+""", "")
+      .trim
+
+  private def distinctSentences(sentences: List[String]): List[String] =
+    sentences.foldLeft(List.empty[String]) { (acc, sentence) =>
+      if acc.exists(existing => StrategicSignalMatcher.containsComparablePhrase(existing, sentence)) then acc
+      else acc :+ sentence
+    }
+
   def build(
       strategyPack: Option[StrategyPack],
       dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
+      @unused routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
-      currentFen: Option[String] = None
+      currentFen: Option[String] = None,
+      decisionFrame: Option[CertifiedDecisionFrame] = None
   ): Brief =
     val surface = StrategyPackSurface.from(strategyPack)
-    val digest = strategyPack.flatMap(_.signalDigest)
     val dominantIdea = strategyPack.toList.flatMap(_.strategicIdeas).headOption
     val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove)).getOrElse("white")
     val currentBoard = currentFen.flatMap(parseBoard)
+    val decisionSupports = decisionFrame.toList.flatMap(_.orderedSupports(max = 2))
     val tacticalReality = immediateTacticalReality(currentBoard, preferredSide, moveRefs)
     val compensationNarrationEligible = CompensationDisplayPhrasing.compensationNarrationEligible(surface)
-    val canonicalCompensationSubtype = CompensationContractMatcher.canonicalSubtype(surface)
-    def decoratePrimaryIdea(value: Option[String]): Option[String] =
-      value
-        .map(text => surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side => s"$side: $text").getOrElse(text))
-        .flatMap(text => contextualizeSignal(Some(text), currentBoard, preferredSide))
-    val rawPrimaryIdeaBase =
-      surface.dominantIdeaText
-        .orElse(
-          dominantIdea
-        .map(primaryIdeaLabel)
-        )
-    val rawPrimaryIdea = decoratePrimaryIdea(rawPrimaryIdeaBase)
-    val compensationWhyNow =
-      Option.when(compensationNarrationEligible)(CompensationDisplayPhrasing.compensationWhyNowText(surface)).flatten
     val compensationLead =
       Option.when(compensationNarrationEligible)(
         StrategyPackSurface
@@ -94,18 +1079,10 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       ).flatten
     val whyNow =
       contextualizeSignal(
-        dedupe(
-          pickFirst(
-            tacticalReality,
-            compensationWhyNow,
-            dossier.flatMap(_.whyChosen),
-            digest.flatMap(_.decision),
-            digest.flatMap(_.structuralCue),
-            digest.flatMap(_.dominantIdeaFocus).map(focus => s"The position is already pointing toward $focus."),
-            digest.flatMap(_.practicalVerdict),
-            dossier.flatMap(_.evidenceCue)
-          ),
-          rawPrimaryIdea
+        pickFirst(
+          tacticalReality,
+          dossier.flatMap(_.whyChosen),
+          Option.when(compensationNarrationEligible)(compensationLead.map(lead => s"This keeps $lead in play.")).flatten
         ),
         currentBoard,
         preferredSide
@@ -114,90 +1091,22 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       contextualizeSignal(
         pickFirst(
           dossier.flatMap(_.opponentResource),
-          digest.flatMap(_.opponentPlan),
-          digest.flatMap(_.prophylaxisThreat),
           dossier.flatMap(_.threadOpponentCounterplan)
         ),
         currentBoard,
         preferredSide
       )
     val executionHint =
-      Option.when(compensationNarrationEligible)(
-        StrategyPackSurface
-          .resolvedNormalizedExecutionText(surface)
-          .orElse(CompensationDisplayPhrasing.compensationExecutionTail(surface))
-      ).flatten
-        .orElse(selectExecutionHint(surface, strategyPack, dossier, routeRefs, dominantIdea))
-    val longTermObjective =
-      Option.when(compensationNarrationEligible)(
-        StrategyPackSurface
-          .resolvedNormalizedObjectiveText(surface)
-          .orElse(CompensationDisplayPhrasing.compensationObjectiveText(surface))
-          .orElse(StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface))
-      ).flatten
-        .orElse(selectLongTermObjective(surface, strategyPack, dossier, dominantIdea, executionHint))
-    val continuationFocus =
       contextualizeSignal(
-        dedupe(
-          pickFirst(
-            dossier.flatMap(_.continuationFocus),
-            longTermObjective,
-            StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
-            surface.focusText
-          ),
-          executionHint
-        ),
-        currentBoard,
-        preferredSide
-      )
-    val primaryIdea =
-      decoratePrimaryIdea(
-      Option
-        .when(compensationNarrationEligible)(
-          selectStrictCompensationPrimaryIdea(
-            compensationLead = compensationLead,
-            primaryIdea = rawPrimaryIdeaBase,
-            longTermObjective = longTermObjective,
-            continuationFocus = continuationFocus,
-            surface = surface,
-            canonicalSubtype = canonicalCompensationSubtype
-          )
-        )
-        .flatten
-        .orElse(rawPrimaryIdeaBase)
-      )
-    val compensationAnchor =
-      contextualizeSignal(
-        selectCompensationAnchor(
-          surface = surface,
-          strategyPack = strategyPack,
-          dossier = dossier,
-          routeRefs = routeRefs,
-          dominantIdea = dominantIdea,
-          executionHint = executionHint,
-          longTermObjective = longTermObjective,
-          continuationFocus = continuationFocus
+        pickFirst(
+          Option.when(compensationNarrationEligible)(CompensationDisplayPhrasing.compensationExecutionTail(surface)).flatten
         ),
         currentBoard,
         preferredSide
       )
     val keyTrigger =
       contextualizeSignal(
-        dedupe(
-          pickFirst(
-            dossier.flatMap(_.practicalRisk),
-            dossier.flatMap(_.whyDeferred),
-            digest.flatMap(_.latentReason),
-            digest.flatMap(_.counterplayScoreDrop).map(cp => s"If the plan drifts, the counterplay can rise by about ${cp}cp."),
-            strategyPack.flatMap(_.pieceMoveRefs.headOption.map(moveRefSummary)),
-            moveRefs.headOption.flatMap(_.san.map(san => s"The follow-up still depends on getting ${san.trim} into the right structure."))
-          ),
-          primaryIdea,
-          whyNow,
-          opponentReply,
-          executionHint,
-          longTermObjective
-        ),
+        dossier.flatMap(_.practicalRisk),
         currentBoard,
         preferredSide
       )
@@ -206,15 +1115,16 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         surface.campaignOwnerText.filter(_ => surface.ownerMismatch).map(side =>
           (List(side + "'s campaign") ++ dossier.flatMap(_.threadStage).flatMap(stageRoleDescription).toList).mkString(": ")
         ).orElse(dossier.flatMap(_.threadStage).flatMap(stageRoleDescription)),
-      primaryIdea = primaryIdea,
+      primaryIdea = decisionFrame.flatMap(_.intent).map(_.sentence),
       compensationLead = compensationLead,
       whyNow = whyNow,
       opponentReply = opponentReply,
       executionHint = executionHint,
-      longTermObjective = longTermObjective,
+      longTermObjective = decisionFrame.flatMap(_.battlefront).map(_.sentence),
       keyTrigger = keyTrigger,
-      compensationAnchor = compensationAnchor,
-      continuationFocus = continuationFocus
+      compensationAnchor = dossier.flatMap(_.evidenceCue).flatMap(cleanStringSignal).filter(LiveNarrativeCompressionCore.hasConcreteAnchor),
+      continuationFocus = decisionFrame.flatMap(_.urgency).map(_.sentence),
+      decisionSupports = decisionSupports
     )
 
   def evaluateCoverage(text: String, brief: Brief): Coverage =
@@ -275,75 +1185,66 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     )
 
   def buildDeterministicNote(
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      currentFen: Option[String] = None
+      selection: PlannerSurfaceSelection,
+      moment: GameChronicleMoment
   ): Option[String] =
-    renderDeterministicNote(build(strategyPack, dossier, routeRefs, moveRefs, currentFen))
+    renderPlannerFirstNote(selection, moment)
+
+  def debugDeterministicNote(
+      selection: PlannerSurfaceSelection,
+      moment: GameChronicleMoment
+  ): DeterministicComposeDebug =
+    renderPlannerFirstNoteDebug(selection, moment)
+
+  def buildDeterministicNote(
+      moment: GameChronicleMoment,
+      deltaBundle: PlayerFacingMoveDeltaBundle,
+      dossier: Option[ActiveBranchDossier],
+      decisionFrame: Option[CertifiedDecisionFrame] = None
+  ): Option[String] =
+    decisionFrame
+      .flatMap(frame => selectPlannerSurface(moment, deltaBundle, dossier, frame))
+      .flatMap(buildDeterministicNote(_, moment))
 
   def buildStrictCompensationFallbackNote(
       strategyPack: Option[StrategyPack],
       dossier: Option[ActiveBranchDossier],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
-      currentFen: Option[String] = None
+      currentFen: Option[String] = None,
+      decisionFrame: Option[CertifiedDecisionFrame] = None
   ): Option[String] =
     val surface = StrategyPackSurface.from(strategyPack)
     Option.when(LlmApi.activeCompensationNoteExpected(surface)) {
       renderStrictCompensationFallback(
-        brief = build(strategyPack, dossier, routeRefs, moveRefs, currentFen),
+        brief = build(strategyPack, dossier, routeRefs, moveRefs, currentFen, decisionFrame),
         surface = surface
       )
     }.flatten
 
   def renderDeterministicNote(brief: Brief): Option[String] =
-    val roleSentence =
-      brief.campaignRole
-        .flatMap(cleanStringSignal)
-        .filter(role => role.toLowerCase.contains("'s campaign") || brief.whyNow.isEmpty)
-        .map(asSentence)
+    val leadSentence =
+      pickFirst(
+        brief.whyNow.flatMap(playerFacingSentence),
+        brief.compensationLead.flatMap(playerFacingSentence).map(lead =>
+          s"The compensation comes from ${stripTrailingPunctuation(lead)}."
+        )
+      ).map(asSentence)
 
-    val planSentence =
-      for
-        primary <- brief.primaryIdea.flatMap(playerFacingSentence)
-      yield
-        val reasonSentence =
-          brief.whyNow
-            .flatMap(playerFacingSentence)
-            .map(asSentence)
-        val normalizedReason = reasonSentence.map(normalize).getOrElse("")
-        val compensationSentence =
-          brief.compensationLead
-            .flatMap(playerFacingSentence)
-            .filterNot(lead => normalize(primary) == normalize(lead))
-            .filterNot(lead => normalizedReason.contains(normalize(lead)))
-            .map(lead => asSentence(s"The compensation comes from ${stripTrailingPunctuation(lead)}."))
-        val planFollowup =
-          List(
-            compensationSentence,
-            playerFacingSentence(s"The key idea is $primary.").map(asSentence),
-            brief.executionHint
-              .flatMap(playerFacingSentence)
-              .filterNot(ex => normalize(ex) == normalize(primary))
-              .filterNot(ex => compensationSentence.exists(sentence => normalize(sentence).contains(normalize(ex))))
-              .filterNot(ex => normalizedReason.contains(normalize(ex)))
-              .map(ex => asSentence(s"A likely follow-up is $ex.")),
-            brief.longTermObjective
-              .flatMap(playerFacingSentence)
-              .filterNot(obj => normalize(obj) == normalize(primary))
-              .filterNot(obj => compensationSentence.exists(sentence => normalize(sentence).contains(normalize(obj))))
-              .filterNot(obj => normalizedReason.contains(normalize(obj)))
-              .map(obj => asSentence(s"A concrete target is ${stripLeadingObjective(stripTrailingPunctuation(obj))}.")),
-            brief.continuationFocus
-              .flatMap(playerFacingSentence)
-              .filterNot(signal => normalize(signal) == normalize(primary))
-              .filterNot(signal => compensationSentence.exists(sentence => normalize(sentence).contains(normalize(signal))))
-              .filterNot(signal => normalizedReason.contains(normalize(signal)))
-              .map(renderCompensationContinuationSentence)
-          ).flatten.take(2).mkString(" ")
-        reasonSentence.map(sentence => s"$sentence $planFollowup").getOrElse(planFollowup)
+    val executionSentence =
+      brief.executionHint
+        .flatMap(playerFacingSentence)
+        .filterNot(signal => leadSentence.exists(sentence => normalize(sentence).contains(normalize(signal))))
+        .map(asSentence)
+    val decisionSupportSentences =
+      brief.decisionSupports
+        .flatMap(playerFacingSentence)
+        .filterNot(signal =>
+          leadSentence.exists(sentence => normalize(sentence).contains(normalize(signal))) ||
+            executionSentence.exists(sentence => normalize(sentence).contains(normalize(signal)))
+        )
+        .map(asSentence)
+        .distinct
 
     val cautionSentence =
       (brief.opponentReply.flatMap(cleanStringSignal), brief.keyTrigger.flatMap(cleanStringSignal)) match
@@ -356,13 +1257,16 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         case (None, Some(trigger)) =>
           Some(asSentence(capitalizeSentenceStart(stripTrailingPunctuation(trigger))))
         case _ =>
-          brief.longTermObjective
-            .flatMap(playerFacingSentence)
-            .map(obj => asSentence(s"The long-term objective is to ${stripTrailingPunctuation(obj)}."))
-            .orElse(brief.continuationFocus.flatMap(playerFacingSentence).map(renderCompensationContinuationSentence))
+          None
 
     val sentences =
-      (roleSentence.toList ++ planSentence.toList ++ cautionSentence.toList)
+      (
+        leadSentence.toList ++
+          decisionSupportSentences.take(1) ++
+          executionSentence.toList.filterNot(sentence => decisionSupportSentences.exists(existing => normalize(existing) == normalize(sentence))) ++
+          cautionSentence.toList ++
+          decisionSupportSentences.drop(1).take(1)
+      )
         .map(_.trim)
         .filter(_.nonEmpty)
         .distinct
@@ -374,7 +1278,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       brief: Brief,
       surface: StrategyPackSurface.Snapshot
   ): Option[String] =
-    val canonicalSubtype = CompensationContractMatcher.canonicalSubtype(surface)
     val leadSentence =
       brief.compensationLead
         .flatMap(cleanStringSignal)
@@ -382,80 +1285,40 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         .orElse(canonicalCompensationLead(surface))
         .map(lead => asSentence(s"The compensation comes from ${stripTrailingPunctuation(lead)}."))
 
-    val primaryIdea =
-      selectStrictCompensationPrimaryIdea(
-        compensationLead = brief.compensationLead,
-        primaryIdea = brief.primaryIdea,
-        longTermObjective = brief.longTermObjective,
-        continuationFocus = brief.continuationFocus,
-        surface = surface,
-        canonicalSubtype = canonicalSubtype
-      )
-    val ideaSentence =
-      primaryIdea.map(idea => asSentence(s"The key idea is ${stripTrailingPunctuation(idea)}."))
-
     val anchorSignal =
-      selectStrictCompensationAnchorSignal(brief, surface, canonicalSubtype)
+      selectStrictCompensationAnchorSignal(brief, surface, CompensationContractMatcher.canonicalSubtype(surface))
     val anchorSentence =
       anchorSignal
         .flatMap(cleanStringSignal)
         .filter(hasConcreteCompensationAnchor)
-        .filterNot(anchor => primaryIdea.exists(idea => normalize(idea) == normalize(anchor)))
         .filterNot(anchor => leadSentence.exists(sentence => normalize(sentence).contains(normalize(anchor))))
         .map(StrategicSentenceRenderer.renderCompensationAnchor)
-
-    def continuationCandidate(raw: Option[String], requireCanonicalCompatibility: Boolean): Option[String] =
-      raw
-        .filter(text => !requireCanonicalCompatibility || compensationSignalAllowed(text, canonicalSubtype))
-        .filterNot(signal => primaryIdea.exists(idea => normalize(idea) == normalize(signal)))
-        .filterNot(signal => anchorSignal.exists(anchor => normalize(anchor) == normalize(signal)))
-        .filterNot(signal => leadSentence.exists(sentence => normalize(sentence).contains(normalize(signal))))
-
-    val authoritativeContract = surface.normalizationActive && canonicalSubtype.nonEmpty
-    val continuationSentence =
-      (if authoritativeContract then
-         pickFirst(
-           continuationCandidate(StrategyPackSurface.resolvedNormalizedExecutionText(surface), requireCanonicalCompatibility = false),
-           continuationCandidate(StrategyPackSurface.resolvedNormalizedObjectiveText(surface), requireCanonicalCompatibility = false),
-           continuationCandidate(StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface), requireCanonicalCompatibility = false),
-           continuationCandidate(brief.executionHint, requireCanonicalCompatibility = true),
-           continuationCandidate(brief.longTermObjective, requireCanonicalCompatibility = true),
-           continuationCandidate(brief.continuationFocus, requireCanonicalCompatibility = true),
-           continuationCandidate(surface.executionText, requireCanonicalCompatibility = true),
-           continuationCandidate(surface.objectiveText, requireCanonicalCompatibility = true),
-           continuationCandidate(surface.focusText, requireCanonicalCompatibility = true)
-         )
-       else
-         pickFirst(
-           continuationCandidate(brief.executionHint, requireCanonicalCompatibility = false),
-           continuationCandidate(brief.longTermObjective, requireCanonicalCompatibility = false),
-           continuationCandidate(brief.continuationFocus, requireCanonicalCompatibility = false),
-           continuationCandidate(surface.executionText, requireCanonicalCompatibility = false),
-           continuationCandidate(surface.objectiveText, requireCanonicalCompatibility = false),
-           continuationCandidate(surface.focusText, requireCanonicalCompatibility = false)
-         ))
-        .flatMap(cleanStringSignal)
-        .map(renderCompensationContinuationSentence)
 
     val whyNowSentence =
       brief.whyNow
         .flatMap(cleanStringSignal)
         .filter(text => normalize(text).nonEmpty)
-        .filterNot(text => canonicalSubtype.exists(conflictsWithCanonicalSubtype(text, _)))
         .filterNot(text => leadSentence.exists(sentence => normalize(sentence).contains(normalize(text))))
         .filterNot(text => anchorSignal.exists(anchor => normalize(anchor) == normalize(text)))
         .map(asSentence)
+    val decisionSupportSentence =
+      brief.decisionSupports
+        .flatMap(cleanStringSignal)
+        .find(text =>
+          !leadSentence.exists(sentence => normalize(sentence).contains(normalize(text))) &&
+            !anchorSignal.exists(anchor => normalize(anchor) == normalize(text))
+        )
+        .map(asSentence)
 
     val sentences =
-      List(leadSentence, ideaSentence.orElse(whyNowSentence), anchorSentence, continuationSentence)
+      List(leadSentence, decisionSupportSentence, whyNowSentence, anchorSentence)
         .flatten
         .map(_.trim)
         .filter(_.nonEmpty)
         .distinct
-        .take(4)
+        .take(3)
 
-    val ideaSatisfied = primaryIdea.isEmpty || ideaSentence.nonEmpty
-    Option.when(leadSentence.nonEmpty && anchorSentence.nonEmpty && continuationSentence.nonEmpty && ideaSatisfied) {
+    Option.when(leadSentence.nonEmpty && (anchorSentence.nonEmpty || whyNowSentence.nonEmpty)) {
       sentences.mkString(" ")
     }
 
@@ -483,27 +1346,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       }
       .flatMap(cleanStringSignal)
 
-  private def canonicalCompensationPrimaryIdea(
-      subtype: StrategyPackSurface.CompensationSubtype
-  ): Option[String] =
-    val theater = canonicalCompensationTheaterLabel(subtype)
-    (subtype.pressureMode match
-      case "line_occupation" =>
-        if theater == "central" then Some("central file pressure") else Some(s"$theater file pressure")
-      case "target_fixing" =>
-        if theater == "central" then Some("fixed central targets") else Some(s"fixed $theater targets")
-      case "counterplay_denial" =>
-        Some(s"denying $theater counterplay")
-      case "defender_tied_down" =>
-        Some(s"the defender tied down on the $theater")
-      case "conversion_window" =>
-        Some(s"$theater conversion pressure")
-      case "break_preparation" =>
-        Some(s"keeping the $theater break ready")
-      case _ =>
-        Some(s"$theater compensation")
-    ).flatMap(cleanStringSignal)
-
   private def canonicalCompensationTheaterLabel(
       subtype: StrategyPackSurface.CompensationSubtype
   ): String =
@@ -512,56 +1354,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       case "center"    => "central"
       case "kingside"  => "kingside"
       case other       => other
-
-  private def selectStrictCompensationPrimaryIdea(
-      compensationLead: Option[String],
-      primaryIdea: Option[String],
-      longTermObjective: Option[String],
-      continuationFocus: Option[String],
-      surface: StrategyPackSurface.Snapshot,
-      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype]
-  ): Option[String] =
-    val ideaContractSubtype =
-      strictCompensationIdeaSubtype(
-        compensationLead = compensationLead,
-        longTermObjective = longTermObjective,
-        continuationFocus = continuationFocus,
-        surface = surface,
-        canonicalSubtype = canonicalSubtype
-      )
-    val canonicalIdeaOwned = surface.normalizationActive || surface.quietCompensationPosition
-
-    def canonicalCandidate(raw: Option[String]): Option[String] =
-      raw.filter(text =>
-        compensationSignalAllowed(
-          text,
-          ideaContractSubtype,
-          requireSubtypeSupport = ideaContractSubtype.nonEmpty
-        )
-      )
-
-    def rawCandidate(raw: Option[String]): Option[String] =
-      raw.filter(text => compensationSignalAllowed(text, ideaContractSubtype))
-
-    if canonicalIdeaOwned then
-      pickFirst(
-        ideaContractSubtype.flatMap(canonicalCompensationPrimaryIdea),
-        canonicalCandidate(surface.normalizedDominantIdeaText),
-        canonicalCandidate(StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface)),
-        canonicalCandidate(primaryIdea),
-        canonicalCandidate(longTermObjective),
-        canonicalCandidate(continuationFocus),
-        rawCandidate(surface.dominantIdeaText),
-        rawCandidate(surface.objectiveText),
-        rawCandidate(surface.focusText)
-      )
-    else
-      pickFirst(
-        primaryIdea,
-        surface.dominantIdeaText,
-        StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
-        surface.focusText
-      ).flatMap(cleanStringSignal)
 
   private def selectStrictCompensationAnchorSignal(
       brief: Brief,
@@ -592,12 +1384,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
   private def pickFirst(values: Option[String]*): Option[String] =
     values.iterator.flatMap(cleanSignal).toSeq.headOption
-
-  private def dedupe(value: Option[String], others: Option[String]*): Option[String] =
-    value.filter { current =>
-      val normalized = normalize(current)
-      normalized.nonEmpty && !others.exists(other => normalize(other.getOrElse("")) == normalized)
-    }
 
   private def cleanSignal(raw: Option[String]): Option[String] =
     raw.flatMap { value =>
@@ -639,11 +1425,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     if trimmed.isEmpty then trimmed
     else s"${trimmed.head.toUpper}${trimmed.tail}"
 
-  private def lowercaseSentenceStart(text: String): String =
-    val trimmed = Option(text).getOrElse("").trim
-    if trimmed.isEmpty then trimmed
-    else s"${trimmed.head.toLower}${trimmed.tail}"
-
   private def asSentence(text: String): String =
     val trimmed = Option(text).getOrElse("").trim
     if trimmed.isEmpty then trimmed
@@ -673,150 +1454,12 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       }
       .getOrElse("piece")
 
-  private def primaryIdeaLabel(idea: StrategyIdeaSignal): String =
-    val ideaLabel = StrategicIdeaSelector.playerFacingIdeaText(idea)
-    cleanSignal(Some(ideaLabel)).getOrElse(ideaLabel)
-
-  private def selectExecutionHint(
-      surface: StrategyPackSurface.Snapshot,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      dominantIdea: Option[StrategyIdeaSignal]
-  ): Option[String] =
-    val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
-    pickFirst(
-      surface.executionText,
-      dossier.flatMap(_.routeCue).filter(cue => preferredSide.forall(_ == cue.ownerSide)).map(routeCueSummary),
-      routeRefs.find(ref => preferredSide.forall(_ == ref.ownerSide)).map(routeRefSummary),
-      strategyPack.flatMap(
-        _.pieceRoutes.find(route =>
-          route.surfaceMode != RouteSurfaceMode.Hidden && preferredSide.forall(_ == route.ownerSide)
-        ).map(routeSummary)
-      ),
-      strategyPack.flatMap(
-        _.pieceMoveRefs.find(moveRef => preferredSide.forall(_ == moveRef.ownerSide)).map(moveRefSummary)
-      ),
-      strategyPack.flatMap(
-        _.directionalTargets.find(target => preferredSide.forall(_ == target.ownerSide)).flatMap(targetSummary)
-      )
-    )
-
-  private def selectLongTermObjective(
-      surface: StrategyPackSurface.Snapshot,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      dominantIdea: Option[StrategyIdeaSignal],
-      executionHint: Option[String]
-  ): Option[String] =
-    val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
-    val executionDestination = extractLastSquare(executionHint.getOrElse(""))
-    pickFirst(
-      surface.objectiveText,
-      strategyPack.toList
-        .flatMap(_.directionalTargets)
-        .find(target =>
-          preferredSide.forall(_ == target.ownerSide) &&
-            !executionDestination.contains(target.targetSquare)
-        )
-        .flatMap { target =>
-          cleanSignal(Some(s"${pieceName(target.piece)} can use ${target.targetSquare}"))
-        },
-      dossier.flatMap(_.continuationFocus),
-      surface.focusText
-    )
-
-  private def selectCompensationAnchor(
-      surface: StrategyPackSurface.Snapshot,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      dominantIdea: Option[StrategyIdeaSignal],
-      executionHint: Option[String],
-      longTermObjective: Option[String],
-      continuationFocus: Option[String]
-  ): Option[String] =
-    val preferredSide = dominantIdea.map(_.ownerSide).orElse(strategyPack.map(_.sideToMove))
-    val canonicalSubtype = CompensationContractMatcher.canonicalSubtype(surface)
-    pickFirst(
-      canonicalSubtype.flatMap(subtype =>
-        StrategyPackSurface.alignedDirectionalTarget(surface, subtype).flatMap(compensationTargetAnchorSummary)
-      ),
-      canonicalSubtype.flatMap(subtype =>
-        StrategyPackSurface.alignedMoveRef(surface, subtype).map(compensationMoveRefAnchorSummary)
-      ),
-      canonicalSubtype.flatMap(subtype =>
-        StrategyPackSurface.alignedRoute(surface, subtype).map(compensationRouteAnchorSummary)
-      ),
-      StrategyPackSurface.resolvedNormalizedExecutionText(surface).filter(hasConcreteCompensationAnchor),
-      StrategyPackSurface.resolvedNormalizedObjectiveText(surface).filter(hasConcreteCompensationAnchor),
-      StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface).filter(hasConcreteCompensationAnchor),
-      dossier.flatMap(_.routeCue).filter(cue => preferredSide.forall(_ == cue.ownerSide)).map(compensationRouteCueAnchorSummary),
-      routeRefs.find(ref => preferredSide.forall(_ == ref.ownerSide)).map(compensationRouteRefAnchorSummary),
-      executionHint.filter(hasConcreteCompensationAnchor),
-      longTermObjective.filter(hasConcreteCompensationAnchor),
-      continuationFocus.filter(hasConcreteCompensationAnchor),
-      surface.executionText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
-      surface.objectiveText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text)),
-      surface.focusText.filter(text => compensationSignalAllowed(text, canonicalSubtype) && hasConcreteCompensationAnchor(text))
-    ).filter(hasConcreteCompensationAnchor)
-
-  private def routeCueSummary(cue: ActiveBranchRouteCue): String =
-    routeLabel(
-      ownerSide = None,
-      piece = cue.piece,
-      route = cue.route,
-      purpose = Some(cue.purpose),
-      surfaceMode = cue.surfaceMode
-    )
-
-  private def routeRefSummary(routeRef: ActiveStrategicRouteRef): String =
-    routeLabel(
-      ownerSide = None,
-      piece = routeRef.piece,
-      route = routeRef.route,
-      purpose = Some(routeRef.purpose),
-      surfaceMode = routeRef.surfaceMode
-    )
-
-  private def routeSummary(route: StrategyPieceRoute): String =
-    routeLabel(
-      ownerSide = None,
-      piece = route.piece,
-      route = route.route,
-      purpose = Some(route.purpose),
-      surfaceMode = route.surfaceMode
-    )
-
-  private def moveRefSummary(moveRef: StrategyPieceMoveRef): String =
-    cleanSignal(Some(s"${pieceName(moveRef.piece)} toward ${moveRef.target} ${purposeClause(moveRef.idea, moveRef.target)}"))
-      .orElse(cleanSignal(Some(moveRef.idea)))
-      .getOrElse(moveRef.idea)
-
   private def compensationMoveRefAnchorSummary(moveRef: StrategyPieceMoveRef): String =
     cleanSignal(Some(s"${pieceName(moveRef.piece)} toward ${moveRef.target}"))
       .getOrElse(s"${pieceName(moveRef.piece)} toward ${moveRef.target}")
 
   private def compensationTargetAnchorSummary(target: StrategyDirectionalTarget): Option[String] =
     cleanSignal(Some(target.targetSquare.toLowerCase))
-
-  private def compensationRouteCueAnchorSummary(cue: ActiveBranchRouteCue): String =
-    routeLabel(
-      ownerSide = None,
-      piece = cue.piece,
-      route = cue.route,
-      purpose = None,
-      surfaceMode = cue.surfaceMode
-    )
-
-  private def compensationRouteRefAnchorSummary(routeRef: ActiveStrategicRouteRef): String =
-    routeLabel(
-      ownerSide = None,
-      piece = routeRef.piece,
-      route = routeRef.route,
-      purpose = None,
-      surfaceMode = routeRef.surfaceMode
-    )
 
   private def compensationRouteAnchorSummary(route: StrategyPieceRoute): String =
     routeLabel(
@@ -826,19 +1469,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       purpose = None,
       surfaceMode = route.surfaceMode
     )
-
-  private def targetSummary(target: StrategyDirectionalTarget): Option[String] =
-    cleanSignal(Some(s"${pieceName(target.piece)} can use ${target.targetSquare}"))
-
-  private def renderCompensationContinuationSentence(raw: String): String =
-    val stripped = stripTrailingPunctuation(stripContinuationLead(stripLeadingObjective(raw)))
-    val normalized = normalize(stripped)
-    val body =
-      if startsWithContinuationAction(normalized) then lowercaseSentenceStart(stripped)
-      else if hasConcreteCompensationAnchor(normalized) || normalized.contains("pressure") || normalized.contains("target") then
-        s"keep ${strippedLeadingArticle(stripped)}"
-      else lowercaseSentenceStart(stripped)
-    asSentence(s"From there, $body")
 
   private def routeLabel(
       ownerSide: Option[String],
@@ -864,7 +1494,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       .map(text => s"$prefixedDeployment ${purposeClause(text, destination.orNull)}")
       .getOrElse(prefixedDeployment)
 
-  private def purposeClause(raw: String, targetSquare: String | Null = null): String =
+  private def purposeClause(raw: String, targetSquare: String | Null): String =
     val cleaned = stripTrailingPunctuation(cleanSignal(Some(raw)).getOrElse(raw))
     if cleaned.isEmpty then ""
     else
@@ -935,62 +1565,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
   private val TargetFixingMarkers =
     List("fixed target", "fixed targets", "targets tied down", "fixed pawn", "weak pawn", "tied down")
 
-  private def strictCompensationIdeaSubtype(
-      compensationLead: Option[String],
-      longTermObjective: Option[String],
-      continuationFocus: Option[String],
-      surface: StrategyPackSurface.Snapshot,
-      canonicalSubtype: Option[StrategyPackSurface.CompensationSubtype]
-  ): Option[StrategyPackSurface.CompensationSubtype] =
-    canonicalSubtype.orElse(
-      Option.when(surface.normalizationActive) {
-        pickFirstDerivedCompensationSubtype(
-          StrategyPackSurface.resolvedNormalizedCompensationLead(surface),
-          canonicalCompensationLead(surface),
-          compensationLead,
-          surface.normalizedDominantIdeaText,
-          StrategyPackSurface.resolvedNormalizedLongTermFocusText(surface),
-          StrategyPackSurface.resolvedNormalizedObjectiveText(surface),
-          longTermObjective,
-          continuationFocus,
-          surface.dominantIdeaText,
-          surface.focusText
-        )
-      }.flatten
-    )
-
-  private def pickFirstDerivedCompensationSubtype(
-      values: Option[String]*
-  ): Option[StrategyPackSurface.CompensationSubtype] =
-    values.iterator.flatMap(cleanSignal).flatMap(inferCompensationIdeaSubtype).toSeq.headOption
-
-  private def inferCompensationIdeaSubtype(
-      text: String
-  ): Option[StrategyPackSurface.CompensationSubtype] =
-    val normalized = normalize(text)
-    if normalized.isEmpty then None
-    else
-      for
-        theater <- inferCompensationIdeaTheater(normalized)
-        mode <- inferCompensationIdeaMode(normalized)
-      yield StrategyPackSurface.CompensationSubtype(
-        pressureTheater = theater,
-        pressureMode = mode,
-        recoveryPolicy = "intentionally_deferred",
-        stabilityClass = "durable_pressure"
-      )
-
-  private def inferCompensationIdeaTheater(normalized: String): Option[String] =
-    if normalized.contains("queenside") then Some("queenside")
-    else if normalized.contains("kingside") then Some("kingside")
-    else if normalized.contains("center") || normalized.contains("central") then Some("center")
-    else None
-
-  private def inferCompensationIdeaMode(normalized: String): Option[String] =
-    if LineOccupationMarkers.exists(normalized.contains) then Some("line_occupation")
-    else if TargetFixingMarkers.exists(normalized.contains) then Some("target_fixing")
-    else None
-
   private def mentionsConflictingMode(
       normalized: String,
       subtype: StrategyPackSurface.CompensationSubtype
@@ -1012,27 +1586,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
             .sanitize(s"${pieceName(pieceToken)} toward ${square.toLowerCase} ${purposeClause(purpose, square.toLowerCase)}")
             .trim
         case _ => trimmed
-
-  private def stripLeadingObjective(text: String): String =
-    text
-      .stripPrefix("keep the initiative alive while working toward ")
-      .stripPrefix("Keep the initiative alive while working toward ")
-      .stripPrefix("keep the initiative alive while ")
-      .stripPrefix("Keep the initiative alive while ")
-      .stripPrefix("work toward ")
-      .stripPrefix("Work toward ")
-      .stripPrefix("working toward ")
-      .stripPrefix("Working toward ")
-
-  private def stripContinuationLead(text: String): String =
-    text
-      .stripPrefix("a likely follow-up is ")
-      .stripPrefix("A likely follow-up is ")
-      .stripPrefix("the next step is ")
-      .stripPrefix("The next step is ")
-      .stripPrefix("a concrete target is ")
-      .stripPrefix("A concrete target is ")
-      .trim
 
   private def strippedLeadingArticle(text: String): String =
     text.replaceFirst("(?i)^(a|an|the)\\s+", "").trim
@@ -1056,9 +1609,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       }
       .flatMap(text => cleanSignal(Some(text)))
 
-  private def extractLastSquare(text: String): Option[String] =
-    """\b([a-h][1-8])\b""".r.findAllMatchIn(Option(text).getOrElse("").toLowerCase).map(_.group(1)).toList.lastOption
-
   private def hasConcreteCompensationAnchor(text: String): Boolean =
     val normalized = normalize(text)
     val hasSquare = """\b[a-h][1-8]\b""".r.findFirstIn(normalized).nonEmpty
@@ -1072,25 +1622,6 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     normalized.contains("queenside files") ||
     normalized.contains("open file") ||
     normalized.contains("open files")
-
-  private def startsWithContinuationAction(normalized: String): Boolean =
-    List(
-      "keep ",
-      "bring ",
-      "move ",
-      "head ",
-      "work toward ",
-      "prepare ",
-      "build ",
-      "fix ",
-      "occupy ",
-      "target ",
-      "press ",
-      "switch ",
-      "consolidate ",
-      "improve "
-    ).exists(normalized.startsWith) ||
-      """^(pawn|knight|bishop|rook|queen|king)\s+(toward|to|via|can use)\b""".r.findFirstIn(normalized).nonEmpty
 
   private def parseBoard(fen: String): Option[Board] =
     Fen.read(Standard, Fen.Full(fen)).map(_.board)

@@ -4,20 +4,14 @@ import munit.FunSuite
 
 class StrategicSentenceRendererTest extends FunSuite:
 
-  test("objective support keeps piece-head-for language conditional") {
-    val text = StrategicSentenceRenderer.renderObjectiveSupport("the queen can head for c3")
+  test("compensation follow-up keeps piece-head-for language concrete without generic shell phrasing") {
+    val text = StrategicSentenceRenderer.renderCompensationFollowUpFromExecution("queen toward c3")
 
-    assertEquals(text, "A concrete target is c3 for the queen.")
+    assertEquals(text, Some("From there, the queen can head for c3."))
   }
 
-  test("objective claim frames piece-head-for language as preparation rather than current-board fact") {
-    val text = StrategicSentenceRenderer.renderObjectiveClaim("the queen can head for c3")
+  test("compensation follow-up keeps anchored fallback concrete") {
+    val text = StrategicSentenceRenderer.renderCompensationFollowUpFromExecution("pressure on c3")
 
-    assertEquals(text, "The move is mainly about bringing the queen to c3.")
-  }
-
-  test("compensation support keeps piece-head-for language conditional") {
-    val text = StrategicSentenceRenderer.renderCompensationSupportFromObjective("the rook can head for b2")
-
-    assertEquals(text, "Bringing the rook to b2 matters more than grabbing the material back right away.")
+    assertEquals(text, Some("From there, the clearest continuation is pressure on c3."))
   }

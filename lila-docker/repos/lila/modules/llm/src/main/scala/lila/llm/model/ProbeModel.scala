@@ -29,7 +29,11 @@ case class ProbeRequest(
   seedId: Option[String] = None,           // Latent seed identifier when relevant
   requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"
   horizon: Option[String] = None,          // "short" | "medium" | "long"
-  maxCpLoss: Option[Int] = None            // optional fail-closed bound for viability probes
+  maxCpLoss: Option[Int] = None,           // optional fail-closed bound for viability probes
+  candidateMove: Option[String] = None,    // explicit root move when the request is move-bound
+  depthFloor: Option[Int] = None,          // minimum acceptable realized depth for certification
+  variationHash: Option[String] = None,    // binds the request to a specific logical variation bundle
+  engineConfigFingerprint: Option[String] = None // binds the request to engine/config generation
 )
 
 object ProbeRequest:
@@ -61,7 +65,15 @@ case class ProbeResult(
   futureSnapshot: Option[FutureSnapshot] = None,
   // v2: optional contract diagnostics
   objective: Option[String] = None,
-  seedId: Option[String] = None
+  seedId: Option[String] = None,
+  requiredSignals: List[String] = Nil,
+  generatedRequiredSignals: List[String] = Nil,
+  motifInferenceMode: Option[String] = None,
+  candidateMove: Option[String] = None,
+  depthFloor: Option[Int] = None,
+  variationHash: Option[String] = None,
+  engineConfigFingerprint: Option[String] = None,
+  generatedAtEpochMs: Option[Long] = None
 )
 
 object ProbeResult:
@@ -124,10 +136,17 @@ object TargetsDelta:
  */
 object ProbeContractValidator:
 
+  enum ProbeCertificateStatus:
+    case Valid
+    case WeaklyValid
+    case Invalid
+    case StaleOrMismatched
+
   case class ValidationResult(
       isValid: Boolean,
       missingSignals: List[String],
-      reasonCodes: List[String]
+      reasonCodes: List[String],
+      certificateStatus: ProbeCertificateStatus = ProbeCertificateStatus.Valid
   )
 
   private val branchPurposes = Set(
@@ -139,15 +158,45 @@ object ProbeContractValidator:
     "free_tempo_branches"
   )
 
+  private case class PurposeSignalProfile(
+      strict: Set[String],
+      relaxed: Set[String]
+  )
+
+  private val themePurposeSignals: Map[String, PurposeSignalProfile] = Map(
+    "theme_plan_validation" ->
+      PurposeSignalProfile(
+        strict = Set("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"),
+        relaxed = Set("replyPvs", "keyMotifs", "futureSnapshot")
+      ),
+    "route_denial_validation" ->
+      PurposeSignalProfile(
+        strict = Set("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"),
+        relaxed = Set("replyPvs", "keyMotifs", "futureSnapshot")
+      ),
+    "color_complex_squeeze_validation" ->
+      PurposeSignalProfile(
+        strict = Set("replyPvs", "keyMotifs", "futureSnapshot"),
+        relaxed = Set("replyPvs", "keyMotifs")
+      ),
+    "long_term_restraint_validation" ->
+      PurposeSignalProfile(
+        strict = Set("replyPvs", "keyMotifs", "futureSnapshot"),
+        relaxed = Set("replyPvs", "keyMotifs")
+      )
+  )
+
   /** Strict mode: full signal requirements for fail-closed safety. */
-  private val strictPurposeSignals: Map[String, Set[String]] = Map(
+  private val strictPurposeSignals: Map[String, Set[String]] =
+    themePurposeSignals.view.mapValues(_.strict).toMap ++ Map(
     "latent_plan_refutation" -> Set("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"),
     "latent_plan_immediate" -> Set("replyPvs", "l1Delta"),
     "free_tempo_branches" -> Set("replyPvs", "futureSnapshot")
   )
 
   /** Relaxed mode: reduced requirements to improve probe hit rate. */
-  private val relaxedPurposeSignals: Map[String, Set[String]] = Map(
+  private val relaxedPurposeSignals: Map[String, Set[String]] =
+    themePurposeSignals.view.mapValues(_.relaxed).toMap ++ Map(
     "latent_plan_refutation" -> Set("replyPvs", "l1Delta"),
     "latent_plan_immediate" -> Set("replyPvs"),
     "free_tempo_branches" -> Set("replyPvs")
@@ -163,12 +212,13 @@ object ProbeContractValidator:
 
   def validate(result: ProbeResult): ValidationResult =
     val purpose = result.purpose.getOrElse("")
-    val required =
-      activePurposeSignals.getOrElse(
-        purpose,
-        if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
-      )
-    validateSignals(result, required)
+    val required = purposeRequiredSignals(purpose)
+    val base = validateSignals(result, required)
+    base.copy(
+      certificateStatus =
+        if base.isValid then ProbeCertificateStatus.Valid
+        else ProbeCertificateStatus.Invalid
+    )
 
   def validateAgainstRequest(
       request: ProbeRequest,
@@ -183,15 +233,73 @@ object ProbeContractValidator:
     val purposeMismatch =
       request.purpose.flatMap(rp => result.purpose.map(_ != rp)).contains(true)
     val idMismatch = request.id != result.id
-    val extraReasons =
+    val fenMismatch =
+      result.fen.exists(_ != request.fen)
+    val objectiveMismatch =
+      request.objective.flatMap(expected => result.objective.map(_ != expected)).contains(true)
+    val seedMismatch =
+      request.seedId.flatMap(expected => result.seedId.map(_ != expected)).contains(true)
+    val expectedMove =
+      request.candidateMove
+        .orElse(request.moves match
+          case move :: Nil => Some(move)
+          case _           => None
+        )
+        .map(_.trim)
+        .filter(_.nonEmpty)
+    val resultMove =
+      result.probedMove
+        .orElse(result.candidateMove)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+    val moveMismatch =
+      expectedMove.exists(move => resultMove.exists(_ != move)) ||
+        resultMove.exists(move => request.moves.nonEmpty && !request.moves.contains(move))
+    val variationHashMismatch =
+      request.variationHash.flatMap(expected => result.variationHash.map(_ != expected)).contains(true)
+    val engineConfigMismatch =
+      request.engineConfigFingerprint.flatMap(expected => result.engineConfigFingerprint.map(_ != expected)).contains(true)
+    val depthFloor =
+      request.depthFloor
+        .orElse(Option.when(request.depth > 0)(request.depth))
+        .filter(_ > 0)
+    val depthFloorUnmet =
+      depthFloor.exists(floor => result.depth.exists(_ < floor))
+    val bindingEchoMissing =
+      List(
+        Option.when(request.variationHash.exists(_.trim.nonEmpty) && result.variationHash.forall(_.trim.isEmpty))("VARIATION_HASH_MISSING"),
+        Option.when(
+          request.engineConfigFingerprint.exists(_.trim.nonEmpty) &&
+            result.engineConfigFingerprint.forall(_.trim.isEmpty)
+        )("ENGINE_CONFIG_FINGERPRINT_MISSING"),
+        Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED")
+      ).flatten
+    val mismatchReasons =
+      List(
+        Option.when(fenMismatch)("FEN_MISMATCH"),
+        Option.when(objectiveMismatch)("OBJECTIVE_MISMATCH"),
+        Option.when(seedMismatch)("SEED_MISMATCH"),
+        Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
+        Option.when(variationHashMismatch)("VARIATION_HASH_MISMATCH"),
+        Option.when(engineConfigMismatch)("ENGINE_CONFIG_MISMATCH")
+      ).flatten
+    val invalidReasons =
       List(
         Option.when(purposeMismatch)("PURPOSE_MISMATCH"),
         Option.when(idMismatch)("ID_MISMATCH"),
-        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING")
+        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING"),
+        Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
       ).flatten
+    val weakReasons = bindingEchoMissing
+    val certificateStatus =
+      if mismatchReasons.nonEmpty then ProbeCertificateStatus.StaleOrMismatched
+      else if !base.isValid || invalidReasons.nonEmpty then ProbeCertificateStatus.Invalid
+      else if weakReasons.nonEmpty then ProbeCertificateStatus.WeaklyValid
+      else ProbeCertificateStatus.Valid
     base.copy(
-      isValid = base.isValid && !purposeMismatch && !idMismatch,
-      reasonCodes = (base.reasonCodes ++ extraReasons).distinct
+      isValid = certificateStatus == ProbeCertificateStatus.Valid,
+      reasonCodes = (base.reasonCodes ++ mismatchReasons ++ invalidReasons ++ weakReasons).distinct,
+      certificateStatus = certificateStatus
     )
 
   private def validateSignals(
@@ -234,5 +342,9 @@ object ProbeContractValidator:
         result.purpose.exists(_.nonEmpty)
       case "depth" =>
         result.depth.exists(_ > 0)
+      case "variationHash" =>
+        result.variationHash.exists(_.trim.nonEmpty)
+      case "engineConfigFingerprint" =>
+        result.engineConfigFingerprint.exists(_.trim.nonEmpty)
       case _ =>
         true

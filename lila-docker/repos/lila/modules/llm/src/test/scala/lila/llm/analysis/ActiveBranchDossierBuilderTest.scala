@@ -1,52 +1,75 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+
 import lila.llm.*
 import lila.llm.model.strategic.VariationLine
 
 class ActiveBranchDossierBuilderTest extends FunSuite:
 
-  private def truthContract(
-      ownershipRole: TruthOwnershipRole,
-      visibilityRole: TruthVisibilityRole,
-      surfaceMode: TruthSurfaceMode,
-      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best
-  ): DecisiveTruthContract =
-    DecisiveTruthContract(
-      playedMove = Some("a1b1"),
-      verifiedBestMove = Some("a1b1"),
-      truthClass = truthClass,
-      cpLoss = 0,
-      swingSeverity = 0,
-      reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
-      allowConcreteBenchmark = false,
-      chosenMatchesBest = true,
-      compensationAllowed = false,
-      truthPhase = None,
-      ownershipRole = ownershipRole,
-      visibilityRole = visibilityRole,
-      surfaceMode = surfaceMode,
-      exemplarRole = TruthExemplarRole.NonExemplar,
-      surfacedMoveOwnsTruth = false,
-      verifiedPayoffAnchor = None,
-      compensationProseAllowed = false,
-      benchmarkProseAllowed = false,
-      investmentTruthChainKey = None,
-      maintenanceExemplarCandidate = false,
-      failureMode = FailureInterpretationMode.NoClearPlan,
-      failureIntentConfidence = 0.0,
-      failureIntentAnchor = None,
-      failureInterpretationAllowed = false
+  private val routeRefs = List(
+    ActiveStrategicRouteRef(
+      routeId = "route_1",
+      ownerSide = "white",
+      piece = "R",
+      route = List("a1", "b1", "b3"),
+      purpose = "queenside pressure",
+      strategicFit = 0.84,
+      tacticalSafety = 0.77,
+      surfaceConfidence = 0.82,
+      surfaceMode = RouteSurfaceMode.Exact
+    )
+  )
+
+  private val moveRefs = List(
+    ActiveStrategicMoveRef(
+      label = "Engine preference",
+      source = "top_engine_move",
+      uci = "a1b1",
+      san = Some("Rb1")
+    )
+  )
+
+  private def strategicPack =
+    Some(
+      StrategyPack(
+        sideToMove = "white",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "R",
+            from = "a1",
+            route = List("a1", "b1", "b3"),
+            purpose = "queenside pressure",
+            strategicFit = 0.84,
+            tacticalSafety = 0.77,
+            surfaceConfidence = 0.82,
+            surfaceMode = RouteSurfaceMode.Exact,
+            evidence = List("probe")
+          )
+        ),
+        directionalTargets = List(
+          StrategyDirectionalTarget(
+            targetId = "target_b3",
+            ownerSide = "white",
+            piece = "R",
+            from = "a1",
+            targetSquare = "b3",
+            readiness = DirectionalTargetReadiness.Build,
+            strategicReasons = List("queenside pressure"),
+            evidence = List("probe")
+          )
+        )
+      )
     )
 
   private def moment(
+      signalDigestOpt: Option[NarrativeSignalDigest],
+      strategyPack: Option[StrategyPack] = strategicPack,
       momentType: String = "SustainedPressure",
       moveClassification: Option[String] = None,
-      signalDigestOpt: Option[NarrativeSignalDigest],
-      strategyPack: Option[StrategyPack] = None,
-      authorEvidence: List[AuthorEvidenceSummary] = Nil,
       topEngineMove: Option[EngineAlternative] = None,
-      narrative: String = "This structure calls for queenside pressure and a rook lift."
+      narrative: String = "White improves the queenside setup."
   ): GameChronicleMoment =
     GameChronicleMoment(
       momentId = "ply_24_test",
@@ -57,8 +80,8 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       momentType = momentType,
       fen = "r2q1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PPBNBPPP/R2Q1RK1 w - - 0 11",
       narrative = narrative,
-      concepts = List("space", "queenside pressure"),
-      variations = List(VariationLine(moves = List("a1b1", "a7a6"), scoreCp = 26)),
+      concepts = List("queenside pressure"),
+      variations = List(VariationLine(moves = List("Rb1", "...a6"), scoreCp = 26)),
       cpBefore = 14,
       cpAfter = 26,
       mateBefore = None,
@@ -71,62 +94,41 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       topEngineMove = topEngineMove,
       collapse = None,
       strategyPack = strategyPack,
-      signalDigest = signalDigestOpt,
-      authorEvidence = authorEvidence
+      signalDigest = signalDigestOpt
     )
 
-  private val routeRefs = List(
-    ActiveStrategicRouteRef(
-      routeId = "route_1",
-      piece = "R",
-      route = List("a1", "b1", "b3"),
-      purpose = "queenside pressure",
-      confidence = 0.84
-    )
-  )
-
-  private val moveRefs = List(
-    ActiveStrategicMoveRef(
-      label = "Engine preference",
-      source = "top_engine_move",
-      uci = "a1b1",
-      san = Some("Rb1"),
-      fenAfter = Some("r2q1rk1/pp2bppp/2n1pn2/2pp4/3P4/2P1PN2/PPBNBPPP/1R1Q1RK1 b - - 1 11")
-    )
-  )
-
-  test("build prefers structure deployment cue and comparison data") {
+  test("build keeps the active dossier delta-backed and ignores raw structure summaries") {
     val digest = NarrativeSignalDigest(
       structureProfile = Some("Carlsbad"),
-      deploymentPiece = Some("R"),
-      deploymentRoute = List("a1", "b1", "b3"),
       deploymentPurpose = Some("queenside pressure"),
-      deploymentContribution = Some("This move connects the b-file immediately."),
+      deploymentContribution = Some("This move connects the rook to b3 immediately."),
       decisionComparison = Some(
         DecisionComparisonDigest(
           chosenMove = Some("Rb1"),
           engineBestMove = Some("Rb1"),
           deferredMove = Some("a4"),
           deferredReason = Some("it fixes the queenside before Black is fully ready"),
-          evidence = Some("The engine line begins a4 ...a6 b4."),
+          evidence = Some("The engine line begins Rb1 ...a6 Rb3."),
           chosenMatchesBest = true
         )
       )
     )
 
-    val dossier = ActiveBranchDossierBuilder.build(moment(signalDigestOpt = Some(digest)), routeRefs, moveRefs)
-      .getOrElse(fail("missing dossier"))
+    val dossier =
+      ActiveBranchDossierBuilder
+        .build(moment(signalDigestOpt = Some(digest)), routeRefs, moveRefs)
+        .getOrElse(fail("missing dossier"))
 
-    assertEquals(dossier.dominantLens, "structure")
-    assert(clue(dossier.chosenBranchLabel).contains("Carlsbad"))
-    assertEquals(dossier.deferredBranchLabel, Some("deferred a4 -> it fixes the queenside before Black is fully ready"))
+    assert(clue(dossier.chosenBranchLabel).contains("plan advance"))
+    assert(!clue(dossier.chosenBranchLabel).contains("Carlsbad"))
     assertEquals(dossier.routeCue.map(_.routeId), Some("route_1"))
-    assertEquals(dossier.routeCue.map(_.ownerSide), Some("white"))
     assertEquals(dossier.moveCue.map(_.label), Some("Engine preference"))
-    assertEquals(dossier.evidenceCue, Some("The engine line begins a4 ...a6 b4."))
+    assertEquals(dossier.evidenceCue, Some("The engine line begins Rb1 ...a6 Rb3."))
+    assertEquals(dossier.opponentResource, None)
+    assertNotEquals(dossier.dominantLens, "structure")
   }
 
-  test("build uses tactical criticism as dominant lens and keeps comparison subordinate") {
+  test("build preserves tactical truth as the dominant active lens") {
     val digest = NarrativeSignalDigest(
       decisionComparison = Some(
         DecisionComparisonDigest(
@@ -140,137 +142,48 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
       )
     )
 
-    val dossier = ActiveBranchDossierBuilder.build(
-      moment(
-        momentType = "Blunder",
-        moveClassification = Some("Blunder"),
-        signalDigestOpt = Some(digest),
-        narrative = "Qe2 is the mistake. It misses the c-file pressure."
-      ),
-      routeRefs,
-      moveRefs
-    ).getOrElse(fail("missing dossier"))
+    val dossier =
+      ActiveBranchDossierBuilder
+        .build(
+          moment(
+            signalDigestOpt = Some(digest),
+            strategyPack = None,
+            momentType = "Blunder",
+            moveClassification = Some("Blunder"),
+            narrative = "Qe2 is the mistake. It misses the c-file pressure."
+          ),
+          routeRefs,
+          moveRefs
+        )
+        .getOrElse(fail("missing dossier"))
 
     assertEquals(dossier.dominantLens, "tactical")
     assert(clue(dossier.chosenBranchLabel).toLowerCase.contains("blunder"))
-    assertEquals(dossier.deferredBranchLabel, Some("deferred Rc8 -> it kept the c-file pressure alive"))
+    assertEquals(dossier.deferredBranchLabel, None)
   }
 
-  test("build falls back to authoring evidence when comparison evidence is absent") {
-    val digest = NarrativeSignalDigest(
-      decisionComparison = Some(
-        DecisionComparisonDigest(
-          chosenMove = Some("Nf3"),
-          engineBestMove = Some("Nc3"),
-          deferredMove = Some("Nc3"),
-          deferredReason = Some("it keeps queenside pressure in reserve")
-        )
-      )
-    )
-    val evidence = List(
-      AuthorEvidenceSummary(
-        questionId = "q1",
-        questionKind = "LatentPlan",
-        question = "Can White still force queenside pressure?",
-        status = "resolved",
-        branches = List(
-          EvidenceBranchSummary(
-            keyMove = "Nc3",
-            line = "Nc3 ...a6 0-0",
-            evalCp = Some(18),
-            depth = Some(18)
-          )
-        )
-      )
-    )
-
-    val dossier = ActiveBranchDossierBuilder.build(
-      moment(signalDigestOpt = Some(digest), authorEvidence = evidence),
-      routeRefs,
-      moveRefs
-    ).getOrElse(fail("missing dossier"))
-
-    assert(clue(dossier.evidenceCue).exists(_.contains("Nc3")))
-    assert(clue(dossier.evidenceCue).exists(_.contains("Nc3 ...a6 0-0")))
-  }
-
-  test("build chooses opponent resource from prophylaxis or opponent plan") {
+  test("build omits dossier when only raw prophylaxis or opponent-plan text survives") {
     val digest = NarrativeSignalDigest(
       prophylaxisThreat = Some("...c5 counterplay"),
-      opponentPlan = Some("queenside counterplay"),
-      decisionComparison = Some(
-        DecisionComparisonDigest(
-          chosenMove = Some("h3"),
-          engineBestMove = Some("a4"),
-          deferredMove = Some("a4"),
-          deferredReason = Some("it stays inside the queenside pressure branch")
-        )
-      )
+      opponentPlan = Some("queenside counterplay")
     )
 
-    val dossier = ActiveBranchDossierBuilder.build(moment(signalDigestOpt = Some(digest)), routeRefs, moveRefs)
-      .getOrElse(fail("missing dossier"))
-
-    assertEquals(dossier.opponentResource, Some("queenside counterplay"))
+    val dossier =
+      ActiveBranchDossierBuilder
+        .build(moment(signalDigestOpt = Some(digest), strategyPack = None), routeRefs, moveRefs)
+    assertEquals(dossier, None)
   }
 
-  test("build does not fall back to authoring question text for evidence cue") {
+  test("build keeps thread badges but does not revive thread summary prose") {
     val digest = NarrativeSignalDigest(
+      deploymentContribution = Some("This move clears b3 for the rook."),
       decisionComparison = Some(
         DecisionComparisonDigest(
-          chosenMove = Some("Nf3"),
-          engineBestMove = Some("Nc3"),
-          deferredMove = Some("Nc3")
-        )
-      )
-    )
-    val evidence = List(
-      AuthorEvidenceSummary(
-        questionId = "q1",
-        questionKind = "LatentPlan",
-        question = "Can White still force queenside pressure?",
-        status = "question_only"
-      )
-    )
-
-    val dossier = ActiveBranchDossierBuilder.build(
-      moment(signalDigestOpt = Some(digest), authorEvidence = evidence),
-      routeRefs,
-      moveRefs
-    ).getOrElse(fail("missing dossier"))
-
-    assertEquals(dossier.evidenceCue, None)
-  }
-
-  test("build avoids narrative sentence fallback when structured choice is absent") {
-    val digest = NarrativeSignalDigest(
-      decisionComparison = Some(
-        DecisionComparisonDigest(
+          chosenMove = Some("Rb1"),
           engineBestMove = Some("Rb1"),
-          deferredMove = Some("a4"),
-          deferredReason = Some("it keeps the queenside tension alive")
+          evidence = Some("The line Rb1 ...a6 Rb3 shows the new file access.")
         )
       )
-    )
-
-    val dossier = ActiveBranchDossierBuilder.build(
-      moment(
-        signalDigestOpt = Some(digest),
-        narrative = "This narrative sentence should not become the branch label."
-      ),
-      routeRefs,
-      moveRefs
-    ).getOrElse(fail("missing dossier"))
-
-    assert(!clue(dossier.chosenBranchLabel).contains("This narrative sentence should not become the branch label"))
-    assert(clue(dossier.chosenBranchLabel).contains("queenside tension"))
-  }
-
-  test("build carries campaign thread cues into the dossier") {
-    val digest = NarrativeSignalDigest(
-      structureProfile = Some("Carlsbad"),
-      deploymentPurpose = Some("queenside pressure"),
-      decision = Some("White is switching toward the kingside attack")
     )
     val threadRef =
       ActiveStrategicThreadRef(
@@ -294,52 +207,19 @@ class ActiveBranchDossierBuilderTest extends FunSuite:
         continuityScore = 0.81
       )
 
-    val dossier = ActiveBranchDossierBuilder.build(
-      moment(signalDigestOpt = Some(digest)),
-      routeRefs,
-      moveRefs,
-      threadRef = Some(threadRef),
-      thread = Some(thread)
-    ).getOrElse(fail("missing dossier"))
+    val dossier =
+      ActiveBranchDossierBuilder
+        .build(
+          moment(signalDigestOpt = Some(digest)),
+          routeRefs,
+          moveRefs,
+          threadRef = Some(threadRef),
+          thread = Some(thread)
+        )
+        .getOrElse(fail("missing dossier"))
 
     assertEquals(dossier.threadLabel, Some("Whole-Board Play"))
     assertEquals(dossier.threadStage, Some("Switch"))
-    assertEquals(dossier.threadSummary, Some("White fixes one sector before switching pressure across the board."))
-    assertEquals(dossier.threadOpponentCounterplan, Some("...c5 counterplay"))
-    assert(clue(dossier.chosenBranchLabel).contains("Whole-Board Play"))
-  }
-
-  test("truth contract blocks raw compensation lens when the canonical truth is neutral") {
-    val digest = NarrativeSignalDigest(
-      compensation = Some("pressure on e6"),
-      investedMaterial = Some(100)
-    )
-
-    val dossier =
-      ActiveBranchDossierBuilder.build(
-        moment(
-          momentType = "InvestmentPivot",
-          signalDigestOpt = Some(digest),
-          strategyPack =
-            Some(
-              StrategyPack(
-                sideToMove = "white",
-                longTermFocus = List("pressure on e6"),
-                signalDigest = Some(digest)
-              )
-            )
-        ),
-        routeRefs,
-        moveRefs,
-        truthContract =
-          Some(
-            truthContract(
-              ownershipRole = TruthOwnershipRole.NoneRole,
-              visibilityRole = TruthVisibilityRole.Hidden,
-              surfaceMode = TruthSurfaceMode.Neutral
-            )
-          )
-      ).getOrElse(fail("missing dossier"))
-
-    assertNotEquals(dossier.dominantLens, "compensation")
+    assertEquals(dossier.threadSummary, None)
+    assertEquals(dossier.threadOpponentCounterplan, None)
   }

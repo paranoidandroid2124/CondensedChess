@@ -170,7 +170,7 @@ object terms:
                 span(" • "),
                 a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 span(" • "),
-                a(href := routes.Main.landing.url, cls := "legal-link")("Back to Home")
+                a(href := homeUrl, cls := "legal-link")("Back to Home")
               )
             )
           )

@@ -12,8 +12,9 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 import lila.llm.*
-import lila.llm.analysis.{ CommentaryEngine, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, StrategyPackBuilder, UserFacingSignalSanitizer }
+import lila.llm.analysis.{ BookStyleRenderer, BookmakerLiveCompressionPolicy, BookmakerPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
 import lila.llm.model.NarrativeRenderMode
+import lila.llm.model.authoring.AuthorQuestionKind
 import lila.llm.model.strategic.VariationLine
 
 object CommentaryPlayerQcSupport:
@@ -29,10 +30,8 @@ object CommentaryPlayerQcSupport:
   val DefaultTruthInventoryDir: Path = ExternalRoot.resolve("inventory")
   val DefaultTruthInventoryPath: Path =
     DefaultTruthInventoryDir.resolve("RealPgnNarrativeEvalTruthInventory.json")
-  val LegacyTrackedTruthInventoryPath: Path =
-    Paths.get("modules/llm/docs/RealPgnNarrativeEvalTruthInventory.json")
   val TruthInventoryLookupPaths: List[Path] =
-    List(DefaultTruthInventoryPath, LegacyTrackedTruthInventoryPath)
+    List(DefaultTruthInventoryPath)
 
   object MixBucket:
     val MasterClassical = "master_classical"
@@ -63,6 +62,7 @@ object CommentaryPlayerQcSupport:
     val CompensationOrExchangeSac = "compensation_or_exchange_sac"
     val PracticalSimplification = "practical_simplification"
     val EndgameConversion = "endgame_conversion"
+    val QuestionWhyNow = "question_why_now"
     val all = List(
       OpeningTransition,
       StrategicChoice,
@@ -70,7 +70,8 @@ object CommentaryPlayerQcSupport:
       TacticalTurn,
       CompensationOrExchangeSac,
       PracticalSimplification,
-      EndgameConversion
+      EndgameConversion,
+      QuestionWhyNow
     )
 
   object ReviewSeverity:
@@ -235,10 +236,50 @@ object CommentaryPlayerQcSupport:
       model: Option[String],
       rawResponsePath: String,
       variationCount: Int,
-      cacheHit: Boolean
+      cacheHit: Boolean,
+      plannerPrimaryKind: Option[String] = None,
+      plannerPrimaryFallbackMode: Option[String] = None,
+      plannerSecondaryKind: Option[String] = None,
+      plannerSecondarySurfaced: Boolean = false,
+      bookmakerFallbackMode: String = "unknown",
+      plannerSceneType: Option[String] = None,
+      plannerOwnerCandidates: List[String] = Nil,
+      plannerAdmittedFamilies: List[String] = Nil,
+      plannerDroppedFamilies: List[String] = Nil,
+      plannerSupportMaterialSeparation: List[String] = Nil,
+      plannerProposedFamilyMappings: List[String] = Nil,
+      plannerDemotionReasons: List[String] = Nil,
+      plannerSelectedQuestion: Option[String] = None,
+      plannerSelectedOwnerFamily: Option[String] = None,
+      plannerSelectedOwnerSource: Option[String] = None,
+      surfaceReplayOutcome: Option[String] = None
   )
   object BookmakerOutputEntry:
     given Format[BookmakerOutputEntry] = Json.format[BookmakerOutputEntry]
+
+  final case class BookmakerPlannerTrace(
+      primaryKind: Option[String] = None,
+      primaryFallbackMode: Option[String] = None,
+      secondaryKind: Option[String] = None,
+      secondarySurfaced: Boolean = false,
+      bookmakerFallbackMode: String = "unknown",
+      sceneType: Option[String] = None,
+      ownerCandidates: List[String] = Nil,
+      admittedFamilies: List[String] = Nil,
+      droppedFamilies: List[String] = Nil,
+      supportMaterialSeparation: List[String] = Nil,
+      proposedFamilyMappings: List[String] = Nil,
+      demotionReasons: List[String] = Nil,
+      selectedQuestion: Option[String] = None,
+      selectedOwnerFamily: Option[String] = None,
+      selectedOwnerSource: Option[String] = None,
+      surfaceReplayOutcome: Option[String] = None
+  )
+
+  final case class BookmakerRuntimeTrace(
+      planner: BookmakerPlannerTrace,
+      prose: String
+  )
 
   final case class AuditSetEntry(
       auditId: String,
@@ -377,7 +418,9 @@ object CommentaryPlayerQcSupport:
       data: lila.llm.model.ExtendedAnalysisData,
       ctx: lila.llm.model.NarrativeContext,
       strategyPack: Option[StrategyPack],
-      signalDigest: Option[NarrativeSignalDigest]
+      signalDigest: Option[NarrativeSignalDigest],
+      truthContract: Option[lila.llm.analysis.DecisiveTruthContract],
+      refs: Option[BookmakerRefsV1]
   )
 
   private val tagPattern = """(?m)^\[(\w+)\s+"(.*)"\]\s*$""".r
@@ -704,7 +747,7 @@ object CommentaryPlayerQcSupport:
         opening = entry.opening,
         phase = Some(phase),
         ply = plyData.ply,
-        prevMove = None,
+        prevMove = Some(plyData.playedUci),
         evalDeltaCp = Some(evalSwing)
       )
       .map { data =>
@@ -724,7 +767,7 @@ object CommentaryPlayerQcSupport:
             }.flatten
           }
 
-        val ctx =
+        val rawCtx =
           NarrativeContextBuilder.build(
             data = data,
             ctx = data.toContext,
@@ -734,9 +777,20 @@ object CommentaryPlayerQcSupport:
             renderMode = NarrativeRenderMode.Bookmaker,
             variantKey = entry.variant
           )
-        val strategyPack = StrategyPackBuilder.build(data, ctx)
+        val rawStrategyPack = StrategyPackBuilder.build(data, rawCtx)
+        val truthContract =
+          Some(
+            DecisiveTruth.derive(
+              ctx = rawCtx,
+              transitionType = data.planSequence.map(_.transitionType.toString),
+              strategyPack = rawStrategyPack
+            )
+          )
+        val ctx = truthContract.fold(rawCtx)(DecisiveTruth.sanitizeContext(rawCtx, _))
+        val strategyPack = truthContract.fold(rawStrategyPack)(DecisiveTruth.sanitizeStrategyPack(rawStrategyPack, _))
         val signalDigest =
           strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
+        val refs = buildBookmakerRefs(plyData.fen, data.alternatives)
         SliceSnapshot(
           entry = entry,
           plyData = plyData,
@@ -748,7 +802,9 @@ object CommentaryPlayerQcSupport:
           data = data,
           ctx = ctx,
           strategyPack = strategyPack,
-          signalDigest = signalDigest
+          signalDigest = signalDigest,
+          truthContract = truthContract,
+          refs = refs
         )
       }
 
@@ -825,13 +881,71 @@ object CommentaryPlayerQcSupport:
         (snapshot.phase == "endgame" || snapshot.data.endgameFeatures.isDefined)
       }
 
-    List(opening, strategicChoice, prophylaxis, tacticalTurn, compensation, practical, endgame)
-      .flatten
-      .groupBy(_._2.plyData.ply)
+    val familySlices =
+      List(opening, strategicChoice, prophylaxis, tacticalTurn, compensation, practical, endgame)
+        .flatten
+        .groupBy(_._2.plyData.ply)
+        .values
+        .map(_.head)
+        .toList
+        .sortBy(_._2.plyData.ply)
+
+    val questionWhyNow = selectQuestionWhyNowSnapshot(sorted).map(SliceKind.QuestionWhyNow -> _)
+
+    (familySlices ++ questionWhyNow.toList)
+      .groupBy { case (kind, snapshot) =>
+        if kind == SliceKind.QuestionWhyNow then s"$kind:${snapshot.plyData.ply}" else snapshot.plyData.ply.toString
+      }
       .values
       .map(_.head)
       .toList
-      .sortBy(_._2.plyData.ply)
+      .sortBy { case (_, snapshot) => snapshot.plyData.ply }
+
+  private def carriesQuestion(snapshot: SliceSnapshot, kind: AuthorQuestionKind): Boolean =
+    snapshot.ctx.authorQuestions.exists(_.kind == kind) ||
+      snapshot.ctx.authorEvidence.exists(evidence =>
+        snapshot.ctx.authorQuestions.exists(q => q.id == evidence.questionId && q.kind == kind)
+      )
+
+  private[tools] def selectQuestionWhyNowSnapshot(
+      snapshots: List[SliceSnapshot],
+      allowedPlies: Option[Set[Int]] = None
+  ): Option[SliceSnapshot] =
+    snapshots
+      .sortBy(_.plyData.ply)
+      .filter(isConcreteWhyNowCandidate)
+      .filter(snapshot => allowedPlies.forall(_.contains(snapshot.plyData.ply)))
+      .sortBy(questionWhyNowScore)
+      .lastOption
+
+  private[tools] def isConcreteWhyNowCandidate(snapshot: SliceSnapshot): Boolean =
+    carriesQuestion(snapshot, AuthorQuestionKind.WhyNow) &&
+    snapshot.plyData.ply >= 6 &&
+    QuestionFirstCommentaryPlanner.hasConcreteWhyNowOwner(
+      inputs = QuestionPlannerInputsBuilder.build(snapshot.ctx, snapshot.strategyPack, snapshot.truthContract),
+      truthContract = snapshot.truthContract
+    )
+
+  private[tools] def questionWhyNowScore(snapshot: SliceSnapshot): (Int, Int, Int, Int, Int) =
+    (
+      questionWhyNowCriticalityScore(snapshot),
+      questionWhyNowChoiceScore(snapshot),
+      Option.when(snapshot.data.preventedPlans.nonEmpty || snapshot.ctx.threats.toUs.nonEmpty)(1).getOrElse(0),
+      snapshot.evalSwingCp.min(400),
+      snapshot.plyData.ply
+    )
+
+  private def questionWhyNowCriticalityScore(snapshot: SliceSnapshot): Int =
+    snapshot.ctx.header.criticality match
+      case "Critical" => 3
+      case "Forced"   => 2
+      case _          => 0
+
+  private def questionWhyNowChoiceScore(snapshot: SliceSnapshot): Int =
+    snapshot.ctx.header.choiceType match
+      case "OnlyMove"     => 3
+      case "NarrowChoice" => 2
+      case _              => 0
 
   def manifestEntriesFor(sliceKind: String, snapshot: SliceSnapshot): List[SliceManifestEntry] =
     val baseId = s"${snapshot.entry.gameKey}:${sliceKind}:${snapshot.plyData.ply}"
@@ -854,8 +968,7 @@ object CommentaryPlayerQcSupport:
     }
 
   def sentenceCount(text: String): Int =
-    Option(text)
-      .getOrElse("")
+    protectChessMoveNumbers(Option(text).getOrElse(""))
       .split("""(?<=[.!?])\s+""")
       .map(_.trim)
       .count(_.nonEmpty)
@@ -916,12 +1029,22 @@ object CommentaryPlayerQcSupport:
   )
 
   private def splitNarrativeSentences(raw: String): List[String] =
-    Option(raw)
-      .getOrElse("")
+    protectChessMoveNumbers(Option(raw).getOrElse(""))
       .split("""(?<=[.!?])\s+""")
       .toList
       .map(_.trim)
       .filter(_.nonEmpty)
+
+  private def protectChessMoveNumbers(text: String): String =
+    text
+      .replaceAll(
+        """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<ELLIPSIS>"
+      )
+      .replaceAll(
+        """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
+        "$1<PLY>"
+      )
 
   private def isLineEvidenceSentence(raw: String): Boolean =
     val low = Option(raw).getOrElse("").trim.toLowerCase
@@ -953,9 +1076,7 @@ object CommentaryPlayerQcSupport:
 
   private def hasConditionalitySupport(rows: List[SupportRow]): Boolean =
     rows.exists(row =>
-      row.label == "Why it stayed conditional" ||
-        row.label == "Decision compare" ||
-        mentionsConditionality(row.text)
+      row.label == "Decision compare" || mentionsConditionality(row.text)
     )
 
   private def taxonomyResidueHits(raw: String): List[String] =
@@ -1031,11 +1152,6 @@ object CommentaryPlayerQcSupport:
       if text.nonEmpty then support += SupportRow("Decision compare", text)
     }
 
-    if response.whyAbsentFromTopMultiPV.nonEmpty then
-      val whyAbsent =
-        response.whyAbsentFromTopMultiPV.flatMap(sanitizeRowText).distinct.mkString("; ")
-      if whyAbsent.nonEmpty then support += SupportRow("Why it stayed conditional", whyAbsent)
-
     response.signalDigest.flatMap(_.opening).flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opening =>
       support += SupportRow("Opening", opening)
     }
@@ -1069,8 +1185,6 @@ object CommentaryPlayerQcSupport:
       List(
         digest.compensation.flatMap(sanitizeRowText).map(text => SupportRow("Compensation", text)),
         digest.authoringEvidence.flatMap(sanitizeRowText).map(text => SupportRow("Evidence note", text)),
-        digest.latentPlan.flatMap(sanitizeRowText).map(text => SupportRow("Latent plan", text)),
-        digest.latentReason.flatMap(sanitizeRowText).map(text => SupportRow("Latent reason", text)),
         Option.when(digest.preservedSignals.nonEmpty) {
           val preserved = digest.preservedSignals.flatMap(sanitizeRowText).mkString("; ")
           SupportRow("Preserved signals", preserved)
@@ -1100,6 +1214,151 @@ object CommentaryPlayerQcSupport:
         signalDigest = moment.signalDigest
       )
     buildBookmakerRows(proxy)
+
+  def bookmakerPlannerRuntime(snapshot: SliceSnapshot): BookmakerRuntimeTrace =
+    val outline =
+      BookStyleRenderer.validatedOutline(
+        snapshot.ctx,
+        truthContract = snapshot.truthContract,
+        strategyPack = snapshot.strategyPack
+      )
+    val candidateEvidence =
+      BookmakerLiveCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
+    val plannerInputs =
+      QuestionPlannerInputsBuilder.build(
+        snapshot.ctx,
+        snapshot.strategyPack,
+        truthContract = snapshot.truthContract,
+        candidateEvidenceLines = candidateEvidence
+      )
+    val rankedPlans =
+      QuestionFirstCommentaryPlanner.plan(snapshot.ctx, plannerInputs, truthContract = snapshot.truthContract)
+    val plannerOwnedSlots =
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx = snapshot.ctx,
+        outline = outline,
+        refs = snapshot.refs,
+        strategyPack = snapshot.strategyPack,
+        truthContract = snapshot.truthContract
+      )
+    val slots =
+      plannerOwnedSlots.getOrElse(
+        BookmakerPolishSlotsBuilder.buildOrFallback(
+          ctx = snapshot.ctx,
+          outline = outline,
+          refs = snapshot.refs,
+          strategyPack = snapshot.strategyPack,
+          truthContract = snapshot.truthContract
+        )
+      )
+    val deterministicProse =
+      Option(LiveNarrativeCompressionCore.deterministicProse(slots)).map(_.trim).getOrElse("")
+    val prose =
+      EarlyOpeningNarrationPolicy.clampNarrative(
+        snapshot.ctx,
+        lila.llm.RuleTemplateSanitizer.sanitize(
+          if deterministicProse.nonEmpty then deterministicProse
+          else exactFactualReviewProse(snapshot),
+          opening = snapshot.openingLabel,
+          phase = snapshot.phase,
+          ply = snapshot.plyData.ply,
+          fen = Some(snapshot.plyData.fen)
+        ),
+        snapshot.truthContract
+      )
+    BookmakerRuntimeTrace(
+      planner =
+        BookmakerPlannerTrace(
+          primaryKind = rankedPlans.primary.map(_.questionKind.toString),
+          primaryFallbackMode =
+            rankedPlans.primary.map(_.fallbackMode.toString)
+              .orElse(rankedPlans.rejected.headOption.map(_.fallbackMode.toString)),
+          secondaryKind = rankedPlans.secondary.map(_.questionKind.toString),
+          secondarySurfaced =
+            rankedPlans.secondary.nonEmpty && plannerOwnedSlots.exists(_.supportSecondary.nonEmpty),
+          bookmakerFallbackMode = if plannerOwnedSlots.nonEmpty then "planner_owned" else "exact_factual",
+          sceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
+          ownerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
+          admittedFamilies = rankedPlans.ownerTrace.admittedFamilyLabels,
+          droppedFamilies = rankedPlans.ownerTrace.droppedFamilyLabels,
+          supportMaterialSeparation = rankedPlans.ownerTrace.supportMaterialSeparationLabels,
+          proposedFamilyMappings = rankedPlans.ownerTrace.proposedFamilyMappingLabels,
+          demotionReasons = rankedPlans.ownerTrace.demotionReasons,
+          selectedQuestion = rankedPlans.ownerTrace.selectedQuestion.map(_.toString),
+          selectedOwnerFamily = rankedPlans.ownerTrace.selectedOwnerFamily.map(_.wireName),
+          selectedOwnerSource = rankedPlans.ownerTrace.selectedOwnerSource,
+          surfaceReplayOutcome =
+            Some(if plannerOwnedSlots.nonEmpty then "bookmaker_planner_owned" else "bookmaker_exact_factual")
+        ),
+      prose = prose
+    )
+
+  def bookmakerPlannerTrace(snapshot: SliceSnapshot): BookmakerPlannerTrace =
+    bookmakerPlannerRuntime(snapshot).planner
+
+  private def fenAfterEachMove(startFen: String, ucis: List[String]): List[String] =
+    var current = startFen
+    ucis.map { uci =>
+      current = NarrativeUtils.uciListToFen(current, List(uci))
+      current
+    }
+
+  private def markerForPly(ply: Int): String =
+    val moveNo = (ply + 1) / 2
+    if ply % 2 == 1 then s"$moveNo."
+    else s"$moveNo..."
+
+  private def exactFactualReviewProse(snapshot: SliceSnapshot): String =
+    val san = snapshot.ctx.playedSan.orElse(Option(snapshot.plyData.playedMove).filter(_.trim.nonEmpty))
+    val header =
+      san.map(move => s"${markerForPly(snapshot.plyData.ply)} $move:")
+        .getOrElse("")
+    QuietMoveIntentBuilder.exactFactualSentence(snapshot.ctx)
+      .map(sentence => List(header, sentence).filter(_.nonEmpty).mkString(" ").trim)
+      .orElse {
+        san.map(move => s"${markerForPly(snapshot.plyData.ply)} $move: This is the move played.")
+      }
+      .getOrElse("")
+
+  private def buildBookmakerRefs(
+      fenBefore: String,
+      variations: List[VariationLine]
+  ): Option[BookmakerRefsV1] =
+    if variations.isEmpty then None
+    else
+      val startPly = NarrativeUtils.plyFromFen(fenBefore).map(_ + 1).getOrElse(1)
+      val lines = variations.zipWithIndex.map { case (line, lineIdx) =>
+        val sanList = NarrativeUtils.uciListToSan(fenBefore, line.moves)
+        val uciList = line.moves.take(sanList.size)
+        val fensAfter = fenAfterEachMove(fenBefore, uciList).take(sanList.size)
+        val size = List(sanList.size, uciList.size, fensAfter.size).min
+        val moves = (0 until size).toList.map { i =>
+          val ply = startPly + i
+          MoveRefV1(
+            refId = f"l${lineIdx + 1}%02d_m${i + 1}%02d",
+            san = sanList(i),
+            uci = uciList(i),
+            fenAfter = fensAfter(i),
+            ply = ply,
+            moveNo = (ply + 1) / 2,
+            marker = Some(markerForPly(ply))
+          )
+        }
+        VariationRefV1(
+          lineId = f"line_${lineIdx + 1}%02d",
+          scoreCp = line.scoreCp,
+          mate = line.mate,
+          depth = line.depth,
+          moves = moves
+        )
+      }
+      Some(
+        BookmakerRefsV1(
+          startFen = fenBefore,
+          startPly = startPly,
+          variations = lines
+        )
+      )
 
   final class LocalUciEngine(enginePath: Path, timeoutMs: Long):
     private val process =

@@ -6,13 +6,42 @@ import lila.llm.model.authoring.*
 
 class BranchProvenanceRegressionTest extends FunSuite:
 
+  private def tacticalTruthContract: DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("c3g3"),
+      verifiedBestMove = Some("c3g3"),
+      truthClass = DecisiveTruthClass.Blunder,
+      cpLoss = 280,
+      swingSeverity = 280,
+      reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.BlunderOwner,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = true,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.TacticalRefutation,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
   test("outline keeps same-head evidence branches distinct by SAN prefix") {
     val question =
       AuthorQuestion(
         id = "q_branch",
-        kind = AuthorQuestionKind.TensionDecision,
+        kind = AuthorQuestionKind.WhyThis,
         priority = 1,
-        question = "How should Black meet the position — choose the clean branch?"
+        question = "Why does Black choose the cleaner branch here?",
+        evidencePurposes = List("reply_multipv")
       )
     val ctx =
       BookmakerProseGoldenFixtures.exchangeSacrifice.ctx.copy(
@@ -21,7 +50,7 @@ class BranchProvenanceRegressionTest extends FunSuite:
         authorEvidence = List(
           QuestionEvidence(
             questionId = "q_branch",
-            purpose = "decision_branch",
+            purpose = "reply_multipv",
             branches = List(
               EvidenceBranch(
                 keyMove = "12...Bf5",
@@ -39,14 +68,17 @@ class BranchProvenanceRegressionTest extends FunSuite:
       )
 
     val rec = new TraceRecorder()
-    val (outline, _) = NarrativeOutlineBuilder.build(ctx, rec)
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, rec, Some(tacticalTruthContract))
     val decision = outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint).getOrElse(fail(s"missing decision beat: ${outline.beats.map(_.kind)}"))
     val evidence = outline.beats.find(_.kind == OutlineBeatKind.Evidence).getOrElse(fail(s"missing evidence beat: ${outline.beats.map(_.kind)}"))
 
-    assert(decision.text.contains("Qa5"), clue(decision.text))
-    assert(decision.text.contains("Rc8"), clue(decision.text))
+    assert(!decision.text.contains("Why does Black choose the cleaner branch here?"), clue(decision.text))
+    assert(decision.text.toLowerCase.contains("tactical point"), clue(decision.text))
+    assertEquals(decision.questionKinds, List(AuthorQuestionKind.WhyThis))
+    assertEquals(decision.expectedEvidencePurposes, List("reply_multipv"))
     assert(evidence.text.contains("Qa5"), clue(evidence.text))
     assert(evidence.text.contains("Rc8"), clue(evidence.text))
+    assertEquals(evidence.evidencePurposes, List("reply_multipv"))
   }
 
   test("line-scoped prophylaxis stays out of signal digest sidecars") {

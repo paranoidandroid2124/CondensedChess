@@ -5,10 +5,23 @@ private[llm] object ActiveNoteIndependenceGuard:
   private val MinSentenceChars = 36
   private val MinLeadWords = 6
 
+  final case class Signals(
+      sentenceReuse: Boolean,
+      leadReuse: Boolean
+  )
+
   def reasons(candidateText: String, priorText: String): List[String] =
+    reasons(signals(candidateText, priorText))
+
+  def reasons(signals: Signals): List[String] =
+    List(
+      Option.when(signals.sentenceReuse || signals.leadReuse)("active_note_prior_phrase_reuse")
+    ).flatten
+
+  def signals(candidateText: String, priorText: String): Signals =
     val candidate = Option(candidateText).getOrElse("").trim
     val prior = Option(priorText).getOrElse("").trim
-    if candidate.isEmpty || prior.isEmpty then Nil
+    if candidate.isEmpty || prior.isEmpty then Signals(sentenceReuse = false, leadReuse = false)
     else
       val normalizedPrior = normalizedText(prior)
       val sentenceReuse =
@@ -16,9 +29,7 @@ private[llm] object ActiveNoteIndependenceGuard:
           sentence.length >= MinSentenceChars && normalizedPrior.contains(sentence)
         )
       val leadReuse = sharedLeadWordCount(candidate, prior) >= MinLeadWords
-      List(
-        Option.when(sentenceReuse || leadReuse)("active_note_prior_phrase_reuse")
-      ).flatten
+      Signals(sentenceReuse = sentenceReuse, leadReuse = leadReuse)
 
   private def normalizedText(text: String): String =
     Option(text)

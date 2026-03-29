@@ -189,8 +189,8 @@ private[llm] object StrategicIdeaSelector:
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicIdeaEvidence] =
-    // Runtime selection is limited to the typed sources registered in
-    // StrategicIdeaSourceRegistry.authoritative / derivedTyped.
+    // Runtime selection is limited to typed structural and semantic sources,
+    // not prose-only text fields.
     val side = pack.sideToMove
     (
       collectPawnBreakEvidence(side, semantic) ++
@@ -2397,22 +2397,23 @@ private[llm] object StrategicIdeaSelector:
             Set(StrategicIdeaKind.Prophylaxis)
           case ThemeTaxonomy.SubplanId.OutpostEntrenchment =>
             Set(StrategicIdeaKind.OutpostCreationOrOccupation)
-          case ThemeTaxonomy.SubplanId.WorstPieceImprovement =>
+          case ThemeTaxonomy.SubplanId.WorstPieceImprovement | ThemeTaxonomy.SubplanId.BishopReanchor =>
             Set(StrategicIdeaKind.MinorPieceImbalanceExploitation, StrategicIdeaKind.LineOccupation)
-          case ThemeTaxonomy.SubplanId.RookFileTransfer =>
+          case ThemeTaxonomy.SubplanId.RookFileTransfer | ThemeTaxonomy.SubplanId.OpenFilePressure =>
             Set(StrategicIdeaKind.LineOccupation)
           case ThemeTaxonomy.SubplanId.FlankClamp | ThemeTaxonomy.SubplanId.CentralSpaceBind |
               ThemeTaxonomy.SubplanId.MobilitySuppression =>
             Set(StrategicIdeaKind.SpaceGainOrRestriction)
           case ThemeTaxonomy.SubplanId.StaticWeaknessFixation | ThemeTaxonomy.SubplanId.MinorityAttackFixation |
-              ThemeTaxonomy.SubplanId.BackwardPawnTargeting =>
+              ThemeTaxonomy.SubplanId.BackwardPawnTargeting | ThemeTaxonomy.SubplanId.IQPInducement =>
             Set(StrategicIdeaKind.TargetFixing)
           case ThemeTaxonomy.SubplanId.CentralBreakTiming | ThemeTaxonomy.SubplanId.WingBreakTiming |
               ThemeTaxonomy.SubplanId.TensionMaintenance =>
             Set(StrategicIdeaKind.PawnBreak)
           case ThemeTaxonomy.SubplanId.SimplificationWindow | ThemeTaxonomy.SubplanId.DefenderTrade |
               ThemeTaxonomy.SubplanId.QueenTradeShield | ThemeTaxonomy.SubplanId.SimplificationConversion |
-              ThemeTaxonomy.SubplanId.PasserConversion | ThemeTaxonomy.SubplanId.InvasionTransition |
+              ThemeTaxonomy.SubplanId.PasserConversion | ThemeTaxonomy.SubplanId.PassedPawnManufacture |
+              ThemeTaxonomy.SubplanId.BadPieceLiquidation | ThemeTaxonomy.SubplanId.InvasionTransition |
               ThemeTaxonomy.SubplanId.OppositeBishopsConversion =>
             Set(StrategicIdeaKind.FavorableTradeOrTransformation)
           case ThemeTaxonomy.SubplanId.RookPawnMarch | ThemeTaxonomy.SubplanId.HookCreation |
@@ -2420,7 +2421,7 @@ private[llm] object StrategicIdeaSelector:
             Set(StrategicIdeaKind.KingAttackBuildUp)
           case ThemeTaxonomy.SubplanId.OpeningDevelopment |
               ThemeTaxonomy.SubplanId.ForcingTacticalShot | ThemeTaxonomy.SubplanId.DefenderOverload |
-              ThemeTaxonomy.SubplanId.ClearanceBreak =>
+              ThemeTaxonomy.SubplanId.ClearanceBreak | ThemeTaxonomy.SubplanId.BatteryPressure =>
             Set.empty[String]
         }
         .getOrElse(experimentThemeKinds(experiment.themeL1))
@@ -3513,9 +3514,6 @@ private[llm] object StrategicIdeaSelector:
     else if focusFiles.nonEmpty then joinLowerTerms(focusFiles.take(3).map(file => s"$file-file"))
     else if focusDiagonals.nonEmpty then joinLowerTerms(focusDiagonals.take(2).map(diagonal => s"the $diagonal diagonal"))
     else focusZone.flatMap(zoneFocusText).getOrElse("the key sector")
-
-  private def withFocusSuffix(focus: String): String =
-    Option(focus).map(_.trim).filter(_.nonEmpty).map(v => s" ${focusJoiner(v)}").getOrElse("")
 
   private def focusJoiner(focus: String): String =
     val low = Option(focus).getOrElse("").trim.toLowerCase

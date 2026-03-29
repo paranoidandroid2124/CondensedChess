@@ -3,27 +3,19 @@ package lila.llm.analysis
 import chess.Color
 import lila.llm.analysis.L3.PvLine
 import lila.llm.model.{ Plan, PlanMatch, PlanScoringResult }
-import lila.llm.model.authoring.*
+import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import munit.FunSuite
 
 class ProbeDetectorTest extends FunSuite:
 
   private val StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-  private val latentPlanInfo = LatentPlanInfo(
-    seedId = "kingside_rook_pawn_march",
-    seedFamily = SeedFamily.Pawn,
-    candidateMoves = List(MovePattern.PawnAdvance(chess.File.A)),
-    typicalCounters = List(CounterPattern.CentralStrike),
-    narrative = NarrativeTemplate(template = "If the opponent is slow, flank expansion can follow.")
-  )
-
-  private val latentQuestion = AuthorQuestion(
-    id = "latent_q",
-    kind = AuthorQuestionKind.LatentPlan,
+  private val whyThisQuestion = AuthorQuestion(
+    id = "why_this_q",
+    kind = AuthorQuestionKind.WhyThis,
     priority = 1,
-    question = "Can a latent flank plan become viable here?",
-    latentPlan = Some(latentPlanInfo)
+    question = "Why choose the central advance here?",
+    evidencePurposes = List("reply_multipv")
   )
 
   private def emptyScoring: PlanScoringResult =
@@ -36,7 +28,28 @@ class ProbeDetectorTest extends FunSuite:
   private def matchPlan(plan: Plan, score: Double): PlanMatch =
     PlanMatch(plan = plan, score = score, evidence = Nil)
 
-  test("detect emits latent probes with purpose-aware contracts") {
+  private def hypothesis(
+      id: String,
+      name: String,
+      score: Double,
+      sources: List[String],
+      subplanId: Option[String] = None
+  ): PlanHypothesis =
+    PlanHypothesis(
+      planId = id,
+      planName = name,
+      rank = 0,
+      score = score,
+      preconditions = Nil,
+      executionSteps = Nil,
+      failureModes = Nil,
+      viability = PlanViability(score = score, label = "medium", risk = "test"),
+      refutation = None,
+      evidenceSources = sources,
+      subplanId = subplanId
+    )
+
+  test("detect emits question-first probes with purpose-aware contracts") {
     val ctx = IntegratedContext(evalCp = 30, isWhiteToMove = true)
     val multiPv = List(
       PvLine(List("e2e4", "e7e5"), evalCp = 30, mate = None, depth = 20),
@@ -49,26 +62,19 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = multiPv,
       fen = StartFen,
       playedMove = Some("e2e4"),
-      authorQuestions = List(latentQuestion)
+      authorQuestions = List(whyThisQuestion)
     )
 
     val byPurpose = requests.groupBy(_.purpose.getOrElse(""))
-    val freeTempo = byPurpose.getOrElse("free_tempo_branches", Nil)
-    val immediate = byPurpose.getOrElse("latent_plan_immediate", Nil)
-    val refute = byPurpose.getOrElse("latent_plan_refutation", Nil)
+    val reply = byPurpose.getOrElse("reply_multipv", Nil)
 
-    assert(freeTempo.nonEmpty, clue(requests))
-    assert(immediate.nonEmpty, clue(requests))
-    assert(refute.nonEmpty, clue(requests))
-
-    assert(freeTempo.head.requiredSignals.contains("futureSnapshot"))
-    assert(immediate.head.requiredSignals.contains("l1Delta"))
-    assert(refute.head.requiredSignals.contains("futureSnapshot"))
-    assert(refute.head.requiredSignals.contains("keyMotifs"))
-    assertEquals(refute.head.objective, Some("refute_plan"))
+    assert(reply.nonEmpty, clue(requests))
+    assert(reply.head.requiredSignals.contains("replyPvs"))
+    assertEquals(reply.head.questionKind, Some("WhyThis"))
+    assertEquals(reply.head.objective, Some("compare_reply_branches"))
   }
 
-  test("latent evidence probes remain present under mixed probe pressure") {
+  test("question-first evidence probes remain present under mixed probe pressure") {
     val ctx = IntegratedContext(evalCp = 20, isWhiteToMove = true)
     val multiPv = List(
       PvLine(List("g1h3", "d7d5"), evalCp = 20, mate = None, depth = 20),
@@ -93,14 +99,12 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = multiPv,
       fen = StartFen,
       playedMove = Some("e2e4"),
-      authorQuestions = List(latentQuestion)
+      authorQuestions = List(whyThisQuestion)
     )
 
     val purposes = requests.flatMap(_.purpose).toSet
-    assert(purposes.contains("free_tempo_branches"), clue(requests))
-    assert(purposes.contains("latent_plan_immediate"), clue(requests))
-    assert(purposes.contains("latent_plan_refutation"), clue(requests))
-    assert(purposes.contains("played_move_counterfactual"), clue(requests))
+    assert(purposes.contains("reply_multipv"), clue(requests))
+    assert(requests.size >= 2, clue(requests))
     assert(requests.size <= 8, clue(requests.map(_.id)))
   }
 
@@ -164,7 +168,11 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = List(PvLine(List("e2e4"), evalCp = 20, mate = None, depth = 20)),
       fen = StartFen
     )
-    assert(!lowRequests.exists(_.objective.contains("validate_plan_presence")), clue(lowRequests))
+    val lowGhostRequests = lowRequests.filter(_.planId.nonEmpty)
+    assert(
+      lowGhostRequests.forall(req => req.purpose.exists(ThemePlanProbePurpose.isThemeValidationPurpose)),
+      clue(lowRequests)
+    )
 
     val highConfidencePlan = lowConfidencePlan.copy(score = 0.85)
     val highScoring = PlanScoringResult(
@@ -178,6 +186,76 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = List(PvLine(List("e2e4"), evalCp = 20, mate = None, depth = 20)),
       fen = StartFen
     )
-    val ghost = highRequests.find(_.objective.contains("validate_restriction_prophylaxis"))
-    assert(ghost.nonEmpty, clue(highRequests))
+    assert(
+      highRequests.exists(req =>
+        req.planId.nonEmpty &&
+          req.purpose.exists(ThemePlanProbePurpose.isThemeValidationPurpose)
+      ),
+      clue(highRequests)
+    )
+  }
+
+  test("restriction subplans use family-specific probe purposes instead of generic theme validation") {
+    val keySquareDenial =
+      hypothesis(
+        id = "KeySquareClamp",
+        name = "Key-square denial around e5",
+        score = 0.81,
+        sources = List("theme:restriction_prophylaxis"),
+        subplanId = Some(ThemeTaxonomy.SubplanId.KeySquareDenial.id)
+      )
+
+    val requests = ProbeDetector.detect(
+      ctx = IntegratedContext(evalCp = 18, isWhiteToMove = true),
+      planScoring = emptyScoring,
+      planHypotheses = List(keySquareDenial),
+      multiPv = List(PvLine(List("e2e4"), evalCp = 18, mate = None, depth = 20)),
+      fen = StartFen,
+      playedMove = Some("e2e4")
+    )
+
+    val routeDenial = requests.find(_.planId.contains("KeySquareClamp")).getOrElse(fail(requests.toString))
+    assertEquals(routeDenial.purpose, Some("route_denial_validation"))
+    assertEquals(routeDenial.objective, Some("validate_route_denial"))
+    assert(routeDenial.requiredSignals.contains("futureSnapshot"), clue(routeDenial))
+    assert(routeDenial.requiredSignals.contains("l1Delta"), clue(routeDenial))
+  }
+
+  test("detect handles planner-era subplans without MatchError and keeps validation probes live") {
+    val fen = "4k3/8/8/2pp4/3BP3/5Q2/4R3/4K3 w - - 0 1"
+    val multiPv = List(
+      PvLine(List("e1d2"), evalCp = 18, mate = None, depth = 20)
+    )
+    val problematicSubplans =
+      List(
+        ThemeTaxonomy.SubplanId.BishopReanchor,
+        ThemeTaxonomy.SubplanId.OpenFilePressure,
+        ThemeTaxonomy.SubplanId.IQPInducement,
+        ThemeTaxonomy.SubplanId.BadPieceLiquidation,
+        ThemeTaxonomy.SubplanId.PassedPawnManufacture,
+        ThemeTaxonomy.SubplanId.BatteryPressure
+      )
+    problematicSubplans.foreach { subplan =>
+      val requests =
+        ProbeDetector.detect(
+          ctx = IntegratedContext(evalCp = 18, isWhiteToMove = true),
+          planScoring = emptyScoring,
+          planHypotheses =
+            List(
+              hypothesis(
+                id = s"plan_${subplan.id}",
+                name = subplan.id,
+                score = 0.84,
+                sources = List(s"subplan:${subplan.id}"),
+                subplanId = Some(subplan.id)
+              )
+            ),
+          multiPv = multiPv,
+          fen = fen
+        )
+      assert(
+        requests.exists(_.planId.contains(s"plan_${subplan.id}")),
+        clue(subplan, requests)
+      )
+    }
   }

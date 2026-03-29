@@ -16,12 +16,11 @@ private[llm] object UserFacingSignalSanitizer:
     "supported by engine coupled continuation" -> "supported by the current engine line",
     "engine-coupled continuation" -> "current engine line",
     "engine coupled continuation" -> "current engine line",
-    "probe evidence pending" -> "",
-    "probe contract passed but support signal is insufficient" -> "",
+    "probe evidence pending" -> "confirmation is still pending",
+    "probe contract passed but support signal is insufficient" -> "confirmation is still pending",
     "{them}" -> "the opponent",
     "{us}" -> "the attacking side",
     "{seed}" -> "the intended pawn lever",
-    "dominant thesis:" -> "",
     "coordination improvement" -> "better piece coordination",
     "plan activation lane" -> "the main plan",
     "a cleaner bishop circuit" -> "a better bishop route",
@@ -46,7 +45,8 @@ private[llm] object UserFacingSignalSanitizer:
     "{seed}",
     "engine-coupled continuation",
     "return vector",
-    "cash out"
+    "cash out",
+    "????.??.??"
   )
   private val placeholderRegexes: List[(String, String)] = List(
     "subplan" -> """(?i)\[subplan:[^\]]+\]""",
@@ -56,9 +56,10 @@ private[llm] object UserFacingSignalSanitizer:
     """(?i)\bthe compensation has to cash out through\b""".r -> "the compensation is still built around",
     """(?i)\bthe compensation still has to cash out toward\b""".r -> "the compensation still needs to point toward",
     """(?i)\bcash out the compensation into\b""".r -> "turn the compensation into",
-    """(?i)\bcash out cleanly\b""".r -> "turn into something concrete",
-    """(?i)\bcashing out the compensation\b""".r -> "turning the compensation into something concrete",
-    """(?i)\bcash out\b""".r -> "turn the compensation into something concrete",
+    """(?i)\ba clean cash out\b""".r -> "it pays off cleanly",
+    """(?i)\bcash out cleanly\b""".r -> "pay off cleanly",
+    """(?i)\bcashing out the compensation\b""".r -> "the compensation paying off",
+    """(?i)\bcash out\b""".r -> "pay off",
     """(?i)\b(?:the\s+)?return vector only holds if\b""".r -> "the compensation depends on",
     """(?i)\b(?:the\s+)?return vector through\b""".r -> "a path to compensation through",
     """(?i)\breturn vector\b""".r -> "path to compensation",
@@ -77,18 +78,20 @@ private[llm] object UserFacingSignalSanitizer:
     cleanup(
       collapseWhitespace(
         PlayerFacingSupportPolicy.rewriteSurfaceLabels(
-          clubPlayerRegexRewrites
-            .foldLeft(
-              rawLabelRegex
-                .replaceAllIn(
-                  placeholderRewrites.foldLeft(bracketedSubplanRegex.replaceAllIn(Option(raw).getOrElse(""), "")) {
-                    case (acc, (needle, replacement)) => acc.replace(needle, replacement)
-                  },
-                  m => humanizeLabel(m.group(1))
-                )
-            ) {
-              case (acc, (pattern, replacement)) => pattern.replaceAllIn(acc, replacement)
-            }
+          rewriteHelperNotation(
+            clubPlayerRegexRewrites
+              .foldLeft(
+                rawLabelRegex
+                  .replaceAllIn(
+                    placeholderRewrites.foldLeft(bracketedSubplanRegex.replaceAllIn(Option(raw).getOrElse(""), "")) {
+                      case (acc, (needle, replacement)) => acc.replace(needle, replacement)
+                    },
+                    m => humanizeLabel(m.group(1))
+                  )
+              ) {
+                case (acc, (pattern, replacement)) => pattern.replaceAllIn(acc, replacement)
+              }
+          )
         )
       )
     )
@@ -110,6 +113,26 @@ private[llm] object UserFacingSignalSanitizer:
 
   private def humanizeLabel(raw: String): String =
     Option(raw).getOrElse("").replace('_', ' ').trim
+
+  private def rewriteHelperNotation(text: String): String =
+    Option(text)
+      .getOrElse("")
+      .replaceAll("""(?i)\bPin\([^)]*\)""", "pin pressure")
+      .replaceAll("""(?i)\bWinningCapture\([^)]*\)""", "a winning capture")
+      .replaceAll("""(?i)\bDiscoveredAttack\([^)]*\)""", "a discovered attack")
+      .replaceAll("""(?i)\bOpenFileControl\([^)]*\)""", "pressure on the open file")
+      .replaceAll("""(?i)\bCentralization\([^)]*\)""", "piece improvement")
+      .replaceAll("""(?i)\bRookLift\([^)]*\)""", "a rook lift")
+      .replaceAll("""(?i)\bDomination\([^)]*\)""", "piece domination")
+      .replaceAll("""(?i)\bManeuver\([^)]*\)""", "piece improvement")
+      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", "a trapped piece")
+      .replaceAll("""(?i)\bKnightVsBishop\([^)]*\)""", "the knight against the bishop")
+      .replaceAll("""(?i)\bBlockade\([^)]*\)""", "a blockade")
+      .replaceAll("""(?i)\bSmotheredMate\([^)]*\)""", "smothered-mate ideas")
+      .replaceAll("""(?i)\bXRay\([^)]*\)""", "x-ray pressure")
+      .replaceAll("""(?i)\bSkewer\([^)]*\)""", "a skewer")
+      .replaceAll("""(?i)\bFork\([^)]*\)""", "fork pressure")
+      .replaceAll("""(?i)\bCheck\([^)]*\)""", "checking pressure")
 
   private def collapseWhitespace(text: String): String =
     text

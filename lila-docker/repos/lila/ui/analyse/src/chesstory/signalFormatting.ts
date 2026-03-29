@@ -23,7 +23,6 @@ const supportMetaPatterns = [
   /\brather than drifting into\b/i,
   /\bkeeps the play focused on\b/i,
   /\bwithin normal bounds\b/i,
-  /\bdominant thesis\b/i,
   /\bso the plan cannot drift\b/i,
   /\bstill looks playable in the engine line\b/i,
   /\bneeds stronger support beyond that line\b/i,
@@ -146,9 +145,9 @@ export function cleanNarrativeProseText(raw: string): string {
     .replace(/\bin the foreground via\b/gi, 'with')
     .replace(/\bso the plan cannot drift\b/gi, 'so the idea stays clear')
     .replace(/\bmore confirmation is still needed\b/gi, '')
-    .replace(/\bThe plan still revolves around\b/gi, 'The key idea is')
-    .replace(/\bA useful route is\b/gi, 'A likely follow-up is')
-    .replace(/\bThe next useful target is\b/gi, 'A concrete target is')
+    .replace(/\bThe plan still revolves around\b/gi, 'The play still runs through')
+    .replace(/\bA useful route is\b/gi, 'The clearest route runs through')
+    .replace(/\bThe next useful target is\b/gi, 'The clearest target is')
     .replace(/\bUnknown and its (?:fluid|locked|symmetric|semi-open|open) center\b/gi, 'the current structure')
     .replace(/\bUnknown\b/gi, 'the current structure')
     .replace(/\s*\((?:the idea still needs concrete support|still needs more concrete support)\)/gi, '')

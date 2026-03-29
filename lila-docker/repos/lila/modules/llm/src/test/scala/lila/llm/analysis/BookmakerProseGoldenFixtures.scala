@@ -16,6 +16,24 @@ object BookmakerProseGoldenFixtures:
       strategyPack: Option[StrategyPack] = None
   )
 
+  object PlannerFixtureExpectation:
+    val Positive = "positive"
+    val Negative = "negative"
+    val Fallback = "fallback"
+
+  final case class PlannerRuntimeFixture(
+      id: String,
+      title: String,
+      expectation: String,
+      questionKind: AuthorQuestionKind,
+      ctx: NarrativeContext,
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None,
+      expectedPrimaryKind: Option[AuthorQuestionKind] = None,
+      expectedClaimFragment: Option[String] = None,
+      expectedFallbackClaim: Option[String] = None
+  )
+
   private def baseContext(
       fen: String,
       playedMove: String,
@@ -82,6 +100,152 @@ object BookmakerProseGoldenFixtures:
       subplanId = subplan
     )
 
+  private def question(
+      id: String,
+      kind: AuthorQuestionKind,
+      priority: Int = 100,
+      evidencePurposes: List[String] = Nil
+  ): AuthorQuestion =
+    AuthorQuestion(
+      id = id,
+      kind = kind,
+      priority = priority,
+      question = s"placeholder-$id",
+      evidencePurposes = evidencePurposes
+    )
+
+  private def evidence(questionId: String, purpose: String, lines: List[String]): QuestionEvidence =
+    QuestionEvidence(
+      questionId = questionId,
+      purpose = purpose,
+      branches = lines.zipWithIndex.map { case (line, idx) =>
+        EvidenceBranch(
+          keyMove = s"line_${idx + 1}",
+          line = line,
+          evalCp = Some(40 - idx * 10)
+        )
+      }
+    )
+
+  private def threat(
+      kind: String,
+      lossIfIgnoredCp: Int,
+      bestDefense: Option[String] = None,
+      turnsToImpact: Int = 1
+  ): ThreatRow =
+    ThreatRow(
+      kind = kind,
+      side = "US",
+      square = None,
+      lossIfIgnoredCp = lossIfIgnoredCp,
+      turnsToImpact = turnsToImpact,
+      bestDefense = bestDefense,
+      defenseCount = 1,
+      insufficientData = false
+    )
+
+  private def truthContract(
+      ownershipRole: TruthOwnershipRole,
+      visibilityRole: TruthVisibilityRole,
+      surfaceMode: TruthSurfaceMode,
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
+      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.QuietTechnicalMove
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("c3g3"),
+      verifiedBestMove = Some("c3g3"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
+  private def pressurePack(
+      routePurpose: String = "kingside pressure",
+      targetSquare: String = "g7",
+      focusSquares: List[String] = List("g7", "h7"),
+      targetReasons: List[String] = List("pressure on g7", "mating net")
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_attack_g7",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.KingAttackBuildUp,
+          group = StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = focusSquares,
+          focusZone = Some("kingside"),
+          beneficiaryPieces = List("Q", "R"),
+          confidence = 0.91
+        )
+      ),
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "c3",
+          route = List("c3", "g3"),
+          purpose = routePurpose,
+          strategicFit = 0.88,
+          tacticalSafety = 0.8,
+          surfaceConfidence = 0.84,
+          surfaceMode = RouteSurfaceMode.Exact,
+          evidence = List("probe-route", routePurpose)
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "Q",
+          from = "d1",
+          target = "h5",
+          idea = "pressure on g7",
+          evidence = List("probe-move")
+        )
+      ),
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_g7",
+          ownerSide = "white",
+          piece = "Q",
+          from = "d1",
+          targetSquare = targetSquare,
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = targetReasons,
+          evidence = List("probe-target", s"pressure on $targetSquare")
+        )
+      ),
+      longTermFocus = List(s"keep pressure on $targetSquare"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          dominantIdeaKind = Some(StrategicIdeaKind.KingAttackBuildUp),
+          dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some(focusSquares.mkString(", "))
+        )
+      )
+    )
+
   val rookPawnMarch: Fixture =
     Fixture(
       id = "rook_pawn_march",
@@ -144,7 +308,6 @@ object BookmakerProseGoldenFixtures:
             evidence = List("locked center", "kingside space")
           )
         ),
-        whyAbsentFromTopMultiPV = List("the direct kingside break only works once the rook lift is in place")
       )
     )
 
@@ -153,7 +316,7 @@ object BookmakerProseGoldenFixtures:
       id = "exchange_sacrifice",
       title = "Exchange Sacrifice",
       motif = "exchange sac for long-term compensation",
-      expectedLens = StrategicLens.Compensation,
+      expectedLens = StrategicLens.Structure,
       ctx = baseContext(
         fen = "r2q1rk1/pb1nbppp/1pn1p3/2ppP3/3P4/2P1BN2/PPQ2PPP/R2R2K1 w - - 0 17",
         playedMove = "d1d6",
@@ -187,11 +350,10 @@ object BookmakerProseGoldenFixtures:
             evidence = List("dark-square bind", "open g-file")
           )
         ),
-        whyAbsentFromTopMultiPV = List("the calm recapture lets Black untangle and trade off the attack"),
         authorEvidence = List(
           QuestionEvidence(
             questionId = "q-exchange-sac",
-            purpose = "free_tempo_branches",
+            purpose = "reply_multipv",
             branches = List(
               EvidenceBranch("...Qe7", "Qe7 h5 Rh6", Some(68), None, Some(21), Some("probe-exchange-sac"))
             )
@@ -224,7 +386,8 @@ object BookmakerProseGoldenFixtures:
               strategicFit = 0.9,
               tacticalSafety = 0.74,
               surfaceConfidence = 0.84,
-              surfaceMode = RouteSurfaceMode.Toward
+              surfaceMode = RouteSurfaceMode.Exact,
+              evidence = List("probe-exchange-sac", "queen route to h5")
             )
           ),
           directionalTargets = List(
@@ -235,7 +398,8 @@ object BookmakerProseGoldenFixtures:
               from = "d1",
               targetSquare = "h7",
               readiness = DirectionalTargetReadiness.Build,
-              strategicReasons = List("dark-square bind", "mating net pressure")
+              strategicReasons = List("dark-square bind", "mating net pressure"),
+              evidence = List("probe-exchange-sac", "pressure on h7")
             )
           ),
           longTermFocus = List("keep the initiative rather than recovering the material"),
@@ -287,11 +451,10 @@ object BookmakerProseGoldenFixtures:
             evidence = List("c-file control", "rook lift")
           )
         ),
-        whyAbsentFromTopMultiPV = List("""the immediate "Qh5" thrust lets Black trade queens and kill the attack"""),
         authorEvidence = List(
           QuestionEvidence(
             questionId = "q-open-file",
-            purpose = "latent_plan_refutation",
+            purpose = "reply_multipv",
             branches = List(
               EvidenceBranch("...Rc8", "Rc8 Rc3 Rg6", Some(42), None, Some(23), Some("probe-open-file"))
             )
@@ -443,7 +606,6 @@ object BookmakerProseGoldenFixtures:
             conceptSummary = List("practical_choice", "low_risk")
           )
         ),
-        whyAbsentFromTopMultiPV = List("""the sharper "e4" push gives Black tactical counterplay for little gain""")
       )
     )
 
@@ -528,4 +690,318 @@ object BookmakerProseGoldenFixtures:
       entrenchedPiece,
       prophylacticCut,
       practicalChoice
+    )
+
+  private val raceCtx =
+    openFileFight.ctx.copy(
+      summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
+      plans =
+        PlanTable(
+          top5 =
+            List(
+              PlanRow(
+                rank = 1,
+                name = "Kingside Pressure",
+                score = 0.82,
+                evidence = List("probe-backed"),
+                confidence = ConfidenceLevel.Probe
+              )
+            ),
+          suppressed = Nil
+        ),
+      threats = ThreatTable(toUs = List(threat("Counterplay", 220, Some("...Rc8"))), toThem = Nil),
+      authorQuestions =
+        List(question("q_race", AuthorQuestionKind.WhosePlanIsFaster, evidencePurposes = List("reply_multipv"))),
+      authorEvidence =
+        List(
+          evidence(
+            "q_race",
+            "reply_multipv",
+            List("23...Rc8 24.Rg3 Rc7 25.Qxg7+", "23...Rc8 24.Qh5 Rc7 25.Rg3")
+          )
+        ),
+      opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...Rc8"))),
+      mainStrategicPlans =
+        List(
+          plan(
+            id = "kingside_pressure",
+            name = "Kingside Pressure",
+            theme = "kingside_attack",
+            evidence = List("probe-backed")
+          ).copy(executionSteps = List("Keep the pressure on g7."))
+        ),
+      strategicPlanExperiments =
+        List(
+          StrategicPlanExperiment(
+            planId = "kingside_pressure",
+            evidenceTier = "evidence_backed",
+            bestReplyStable = true,
+            futureSnapshotAligned = true
+          )
+        )
+    )
+
+  val plannerRuntimeFixtures: List[PlannerRuntimeFixture] =
+    List(
+      PlannerRuntimeFixture(
+        id = "why_this_positive",
+        title = "WhyThis surfaces move-owned purpose",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhyThis,
+        ctx =
+          rookPawnMarch.ctx.copy(
+            authorQuestions = List(question("q_why_this", AuthorQuestionKind.WhyThis, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_why_this", "reply_multipv", List("...Rc1+ 2.Bf1 Qxf1+", "...Rc1+ 2.Qxc1 Qxc1"))),
+            meta = Some(
+              MetaSignals(
+                choiceType = ChoiceType.NarrowChoice,
+                targets = Targets(Nil, Nil),
+                planConcurrency = PlanConcurrency("Rook-Pawn March", None, "independent"),
+                errorClass = Some(
+                  ErrorClassification(
+                    isTactical = true,
+                    missedMotifs = List("Fork"),
+                    errorSummary = "전술(320cp, Fork)"
+                  )
+                )
+              )
+            )
+          ),
+        truthContract =
+          Some(
+            truthContract(
+              ownershipRole = TruthOwnershipRole.BlunderOwner,
+              visibilityRole = TruthVisibilityRole.PrimaryVisible,
+              surfaceMode = TruthSurfaceMode.FailureExplain,
+              truthClass = DecisiveTruthClass.Blunder,
+              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+            )
+          ),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
+        expectedClaimFragment = Some("blunder")
+      ),
+      PlannerRuntimeFixture(
+        id = "why_this_negative",
+        title = "WhyThis does not surface from shell-only support",
+        expectation = PlannerFixtureExpectation.Negative,
+        questionKind = AuthorQuestionKind.WhyThis,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            latentPlans = Nil,
+            whyAbsentFromTopMultiPV = Nil,
+            authorQuestions = List(question("q_why_this_negative", AuthorQuestionKind.WhyThis))
+          ),
+        strategyPack = Some(pressurePack()),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "why_this_fallback",
+        title = "WhyThis falls closed on line-only evidence",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhyThis,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            authorQuestions =
+              List(question("q_why_this_fallback", AuthorQuestionKind.WhyThis, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_why_this_fallback", "reply_multipv", List("14...Rc8 15.Re1 Qd8")))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "why_now_positive",
+        title = "WhyNow surfaces timing pressure",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhyNow,
+        ctx =
+          openFileFight.ctx.copy(
+            threats = ThreatTable(toUs = List(threat("Mate", 900, Some("Qd8"))), toThem = Nil),
+            authorQuestions = List(question("q_why_now", AuthorQuestionKind.WhyNow, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_why_now", "reply_multipv", List("14...Rc8 15.Re1 Qd8", "14...Rc8 15.a4 Qd8")))
+          ),
+        truthContract =
+          Some(
+            truthContract(
+              ownershipRole = TruthOwnershipRole.BlunderOwner,
+              visibilityRole = TruthVisibilityRole.PrimaryVisible,
+              surfaceMode = TruthSurfaceMode.FailureExplain,
+              truthClass = DecisiveTruthClass.Blunder,
+              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+            )
+          ),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhyNow),
+        expectedClaimFragment = Some("now")
+      ),
+      PlannerRuntimeFixture(
+        id = "why_now_negative",
+        title = "WhyNow demotes generic urgency",
+        expectation = PlannerFixtureExpectation.Negative,
+        questionKind = AuthorQuestionKind.WhyNow,
+        ctx =
+          openFileFight.ctx.copy(
+            authorQuestions = List(question("q_why_now_negative", AuthorQuestionKind.WhyNow))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "why_now_fallback",
+        title = "WhyNow falls back without timing or move owner",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhyNow,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            authorQuestions = List(question("q_why_now_fallback", AuthorQuestionKind.WhyNow))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_changed_positive",
+        title = "WhatChanged surfaces move-attributed change",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhatChanged,
+        ctx =
+          openFileFight.ctx.copy(
+            authorQuestions = List(question("q_changed", AuthorQuestionKind.WhatChanged, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_changed", "reply_multipv", List("14...Rc8 15.Re1 Qd8", "14...Rc8 15.a4 Qd8")))
+          ),
+        strategyPack = Some(pressurePack()),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhatChanged),
+        expectedClaimFragment = Some("back-rank counterplay")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_changed_negative",
+        title = "WhatChanged rejects state-only structure summary",
+        expectation = PlannerFixtureExpectation.Negative,
+        questionKind = AuthorQuestionKind.WhatChanged,
+        ctx =
+          entrenchedPiece.ctx.copy(
+            authorQuestions = List(question("q_changed_negative", AuthorQuestionKind.WhatChanged))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the knight on f1.")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_changed_fallback",
+        title = "WhatChanged falls back without move delta",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhatChanged,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            authorQuestions = List(question("q_changed_fallback", AuthorQuestionKind.WhatChanged))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_must_be_stopped_positive",
+        title = "WhatMustBeStopped surfaces defensive necessity",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhatMustBeStopped,
+        ctx =
+          prophylacticCut.ctx.copy(
+            authorQuestions =
+              List(question("q_stop", AuthorQuestionKind.WhatMustBeStopped, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_stop", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4")))
+          ),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
+        expectedClaimFragment = Some("stop")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_must_be_stopped_negative",
+        title = "WhatMustBeStopped demotes generic opponent plan text",
+        expectation = PlannerFixtureExpectation.Negative,
+        questionKind = AuthorQuestionKind.WhatMustBeStopped,
+        ctx =
+          openFileFight.ctx.copy(
+            opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...Rc8"))),
+            authorQuestions = List(question("q_stop_negative", AuthorQuestionKind.WhatMustBeStopped))
+          ),
+        strategyPack = Some(pressurePack()),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "what_must_be_stopped_fallback",
+        title = "WhatMustBeStopped falls back without threat ownership",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhatMustBeStopped,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            authorQuestions = List(question("q_stop_fallback", AuthorQuestionKind.WhatMustBeStopped))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "whose_plan_is_faster_positive",
+        title = "WhosePlanIsFaster surfaces certified race framing",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhosePlanIsFaster,
+        ctx = raceCtx,
+        strategyPack = Some(pressurePack()),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhosePlanIsFaster),
+        expectedClaimFragment = Some("queenside counterplay")
+      ),
+      PlannerRuntimeFixture(
+        id = "whose_plan_is_faster_negative",
+        title = "WhosePlanIsFaster demotes to stopping counterplay when only pressure survives",
+        expectation = PlannerFixtureExpectation.Negative,
+        questionKind = AuthorQuestionKind.WhosePlanIsFaster,
+        ctx =
+          prophylacticCut.ctx.copy(
+            authorQuestions =
+              List(question("q_race_negative", AuthorQuestionKind.WhosePlanIsFaster, evidencePurposes = List("reply_multipv"))),
+            authorEvidence =
+              List(evidence("q_race_negative", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4"))),
+            opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...c5 break")))
+          ),
+        strategyPack = Some(pressurePack()),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
+        expectedClaimFragment = Some("stop")
+      ),
+      PlannerRuntimeFixture(
+        id = "whose_plan_is_faster_fallback",
+        title = "WhosePlanIsFaster falls back when no race pair survives",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhosePlanIsFaster,
+        ctx =
+          openFileFight.ctx.copy(
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            opponentPlan = None,
+            authorQuestions = List(question("q_race_fallback", AuthorQuestionKind.WhosePlanIsFaster))
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
+      )
     )

@@ -57,12 +57,12 @@ class PolishPromptTest extends FunSuite:
     val fixture = BookmakerProseGoldenFixtures.openFileFight
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.build(
+      BookmakerPolishSlotsBuilder.buildOrFallback(
         fixture.ctx,
         outline,
         refs = None,
         strategyPack = fixture.strategyPack
-      ).getOrElse(fail("missing bookmaker slots"))
+      )
     val prompt = PolishPrompt.buildPolishPrompt(
       prose = slots.claim,
       phase = "middlegame",
@@ -77,7 +77,10 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("Do not turn sidecar metadata into prose."))
     assert(prompt.contains("Avoid these internal-system phrases:"))
     assert(prompt.contains("strategic stack"))
-    assert(prompt.contains("Do not add a fourth paragraph."))
+    if slots.paragraphPlan == List("p1=claim") then
+      assert(prompt.contains("Keep a single brief paragraph built from the slot claim only."))
+    else
+      assert(prompt.contains("Do not add a fourth paragraph."))
   }
 
   test("slot-mode compact bookmaker prompt allows a single brief paragraph") {
@@ -116,7 +119,7 @@ class PolishPromptTest extends FunSuite:
           OutlineBeat(kind = OutlineBeatKind.MainMove, text = "The move keeps the center balanced.")
         )
       )
-    val slots = BookmakerPolishSlotsBuilder.build(ctx, outline, refs = None).getOrElse(fail("missing bookmaker slots"))
+    val slots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None)
     val prompt = PolishPrompt.buildPolishPrompt(
       prose = slots.claim,
       phase = "opening",

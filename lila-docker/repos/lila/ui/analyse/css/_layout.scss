@@ -105,6 +105,14 @@ body {
   'chat'
   'uchat';
 
+  &.analyse--review-shell {
+    box-sizing: border-box;
+    block-size: calc(100dvh - #{$site-header-outer-height});
+    min-block-size: calc(100dvh - #{$site-header-outer-height});
+    overflow: hidden;
+    align-content: stretch;
+  }
+
   @include mq-at-least-col2 {
     // Chesstory: modern workspace layout with a vertical sidebar.
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.75 + 0.25) * 0.75);

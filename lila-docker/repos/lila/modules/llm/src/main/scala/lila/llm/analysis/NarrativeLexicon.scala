@@ -27,7 +27,14 @@ object NarrativeLexicon {
 
   def gameIntro(white: String, black: String, event: String, date: String, result: String, totalPlies: Int, keyMomentsCount: Int): String = {
     def cleanMeta(value: String): Option[String] =
-      Option(value).map(_.trim).filter(v => v.nonEmpty && !v.equalsIgnoreCase("unknown") && v != "*")
+      Option(value)
+        .map(_.trim)
+        .filter(v =>
+          v.nonEmpty &&
+            !v.equalsIgnoreCase("unknown") &&
+            v != "*" &&
+            UserFacingSignalSanitizer.placeholderHits(v).isEmpty
+        )
 
     def moveCount(totalPlies: Int): Int = math.max(1, (totalPlies + 1) / 2)
 
@@ -93,7 +100,8 @@ object NarrativeLexicon {
       else ""
 
     def practicalTail: String =
-      if payoff.exists(_.trim.nonEmpty) then ""
+      if winner.isEmpty then ""
+      else if payoff.exists(_.trim.nonEmpty) then ""
       else if blunders > 0 && missedWins > 0 then
         s" The practical story included $blunders blunder${if blunders == 1 then "" else "s"} and $missedWins missed win${if missedWins == 1 then "" else "s"}."
       else if blunders > 0 then
@@ -1291,8 +1299,8 @@ object NarrativeLexicon {
       strategicAnchor match
         case "timing" =>
           List(
-            "Strategic focus remains on timing precision.",
-            "The strategic burden is still timing discipline.",
+            "The position still turns on timing precision.",
+            "Timing discipline still sets the practical limit.",
             "Timing accuracy remains the practical priority.",
             "Move-order timing is still the central strategic issue.",
             "Strategic outcomes still hinge on tempo management.",
@@ -1306,7 +1314,7 @@ object NarrativeLexicon {
           )
         case "coordination" =>
           List(
-            "Strategic focus remains on coordination quality.",
+            "The position still turns on coordination quality.",
             "Piece coordination remains the strategic baseline.",
             "The practical edge still comes from cleaner coordination.",
             "Strategic clarity still depends on piece harmony.",
@@ -1321,13 +1329,13 @@ object NarrativeLexicon {
           )
         case _ =>
           List(
-            "Strategic focus remains on long-term trajectory.",
+            "The position still turns on long-term trajectory.",
             "The practical story still follows a long-term strategic path.",
             "Long-range planning remains the core strategic task.",
             "Strategic direction still matters more than short-term noise.",
             "The position remains governed by long-horizon planning.",
             "Long-term route selection is still the strategic anchor.",
-            "Strategic priority remains the overall trajectory of play.",
+            "Overall trajectory still decides the strategic direction.",
             "The game still turns on long-range strategic direction.",
             "Long-horizon structure remains the decisive strategic layer.",
             "The position still rewards coherent long-term planning.",
@@ -2474,15 +2482,15 @@ object NarrativeLexicon {
       val templates = cycle match
         case 0 => List(
           s"Key theme: **$p**.",
-          s"Strategic focus: **$p**."
+          s"Play still revolves around **$p**."
         )
         case 1 => List(
           s"Current play is organized around **$p**.",
           s"The most reliable roadmap here is built around **$p**."
         )
         case 2 => List(
-          s"Strategic priority: **$p**.",
-          s"The practical roadmap centers on **$p**."
+          s"The practical plan still centers on **$p**.",
+          s"The clearest route still runs through **$p**."
         )
         case _ => List(
           s"Move-order choices are justified by **$p**.",

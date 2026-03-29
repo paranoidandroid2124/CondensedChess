@@ -46,9 +46,6 @@ private[llm] object StrategyPackSurface:
       topDirectionalTarget: Option[StrategyDirectionalTarget],
       longTermFocus: Option[String],
       evidenceHints: List[String],
-      strategicStack: List[String],
-      latentPlan: Option[String],
-      decisionEvidence: Option[String],
       compensationSummary: Option[String],
       compensationVectors: List[String],
       investedMaterial: Option[Int],
@@ -131,9 +128,6 @@ private[llm] object StrategyPackSurface:
     val longTermFocus = pack.toList.flatMap(_.longTermFocus.map(normalizeText).filter(_.nonEmpty)).headOption
     val evidenceHints =
       pack.toList.flatMap(_.evidence.map(normalizeText).filter(_.nonEmpty)).distinct
-    val strategicStack = Nil
-    val latentPlan = None
-    val decisionEvidence = None
     val compensationSummary = signalDigest.flatMap(_.compensation).map(normalizeText).filter(_.nonEmpty)
     val compensationVectors =
       signalDigest.toList.flatMap(_.compensationVectors.map(normalizeText).filter(_.nonEmpty)).distinct
@@ -169,9 +163,6 @@ private[llm] object StrategyPackSurface:
         topDirectionalTarget = topDirectionalTarget,
         longTermFocus = longTermFocus,
         evidenceHints = evidenceHints,
-        strategicStack = strategicStack,
-        latentPlan = latentPlan,
-        decisionEvidence = decisionEvidence,
         compensationSummary = compensationSummary,
         compensationVectors = compensationVectors,
         investedMaterial = investedMaterial,
@@ -584,8 +575,6 @@ private[llm] object StrategyPackSurface:
     (
       surface.longTermFocus.toList ++
         surface.evidenceHints ++
-        surface.strategicStack ++
-        surface.latentPlan.toList ++
         surface.compensationSummary.toList ++
         surface.compensationVectors
     ).map(normalizeText).filter(_.nonEmpty).map(_.toLowerCase).distinct
@@ -831,16 +820,7 @@ private[llm] object StrategyPackSurface:
             reasons.exists(reason => containsAny(reason, List("supports attacking fixed pawn", "fixed target", "weak pawn", "backward pawn")))
         Option.when(strongTarget || weakFixedPlanTarget)(target.targetSquare).flatMap(theaterFromSquare)
       }
-    val decisionAnchors =
-      surface.decisionEvidence.toList.flatMap { evidence =>
-        val lowered = normalizeText(evidence).toLowerCase
-        Option.when(
-          containsAny(lowered, List("attacking fixed pawn", "fixed target", "fixed pawn", "contest the pawn"))
-        ) {
-          """\b[a-h][1-8]\b""".r.findAllIn(lowered).toList.flatMap(theaterFromSquare)
-        }.getOrElse(Nil)
-      }
-    ideaAnchors ++ objectiveAnchors ++ moveRefAnchors ++ directionalAnchors ++ decisionAnchors
+    ideaAnchors ++ objectiveAnchors ++ moveRefAnchors ++ directionalAnchors
 
   private def targetFixingIdeaAnchorTheaters(surface: Snapshot): List[String] =
     List(surface.dominantIdea, surface.secondaryIdea).flatten.flatMap { idea =>
@@ -1093,12 +1073,7 @@ private[llm] object StrategyPackSurface:
         )
       ) * 2
     val lateStructuralScore =
-      (
-        surface.evidenceHints ++
-          surface.strategicStack ++
-          surface.latentPlan.toList ++
-          surface.decisionEvidence.toList
-      ).count(text =>
+      surface.evidenceHints.count(text =>
         containsAny(
           normalizeText(text).toLowerCase,
           List(
@@ -1136,12 +1111,7 @@ private[llm] object StrategyPackSurface:
     )
 
   private def lateTargetFixingEvidenceCount(surface: Snapshot): Int =
-    (
-      surface.evidenceHints ++
-        surface.strategicStack ++
-        surface.latentPlan.toList ++
-        surface.decisionEvidence.toList
-    ).count(text =>
+    surface.evidenceHints.count(text =>
       containsAny(
         normalizeText(text).toLowerCase,
         List(
@@ -1158,12 +1128,7 @@ private[llm] object StrategyPackSurface:
     )
 
   private def fixedTargetPlanCarrier(surface: Snapshot): Boolean =
-    surface.latentPlan.exists(plan =>
-      containsAny(normalizeText(plan).toLowerCase, List("attacking fixed pawn", "fixed target", "fixed pawn"))
-    ) ||
-      surface.decisionEvidence.exists(evidence =>
-        containsAny(normalizeText(evidence).toLowerCase, List("attacking fixed pawn", "fixed target", "fixed pawn"))
-      )
+    false
 
   private def sameTheaterOpenFileRouteCount(
       surface: Snapshot,
@@ -1319,13 +1284,6 @@ private[llm] object StrategyPackSurface:
       else if weakFixedPlanTarget then
         theaterFromSquare(target.targetSquare).foreach(add(_, 2))
     }
-    surface.decisionEvidence.foreach { evidence =>
-      val lowered = normalizeText(evidence).toLowerCase
-      if containsAny(lowered, List("attacking fixed pawn", "fixed target", "fixed pawn")) then
-        """\b[a-h][1-8]\b""".r.findAllIn(lowered).foreach { square =>
-          theaterFromSquare(square).foreach(add(_, 2))
-        }
-      }
     surface.longTermFocus.toList.foreach { focus =>
       val lowered = normalizeText(focus).toLowerCase
       if containsAny(lowered, List("fixed queenside targets", "queenside targets")) then add("queenside", 5)
@@ -1341,8 +1299,7 @@ private[llm] object StrategyPackSurface:
     val explicitFocusTheaterOverride =
       Option.when(explicitTargetFixingFocus(surface)) {
         val focusAnchors = surface.longTermFocus.toList.flatMap(theatersFromText)
-        val evidenceAnchors = surface.decisionEvidence.toList.flatMap(theatersFromText)
-        val counts = (focusAnchors ++ evidenceAnchors).groupMapReduce(identity)(_ => 1)(_ + _)
+        val counts = focusAnchors.groupMapReduce(identity)(_ => 1)(_ + _)
         counts.toList.sortBy { case (_, score) => -score } match
           case (topTheater, topScore) :: (_, secondScore) :: _ if topScore >= secondScore + 1 => Some(topTheater)
           case (topTheater, topScore) :: Nil if topScore >= 1                                  => Some(topTheater)

@@ -70,7 +70,7 @@ object OpeningEventDetector:
     
     (ref.eco, ref.name) match {
       case (Some(eco), Some(name)) if ref.totalGames >= 100 =>
-        val theme = inferTheme(name)
+        val theme = inferTheme(name, sortedMoves(ref).take(4).map(_.san))
         val topMoves = sortedMoves(ref).take(3).map(m => s"${m.san} (${m.total}g)")
         Some(OpeningEvent.Intro(eco, name, theme, topMoves))
       case _ => None
@@ -104,7 +104,7 @@ object OpeningEventDetector:
         
         if (topChanged || shareDropped) {
           val diverging = sortedMoves(ref).take(3).map(_.san)
-          val reason = if (topChanged) "Main line shifts" else "Theory fragments"
+          val reason = branchPointReason(ref, topChanged)
           val game = ref.sampleGames.headOption.map(g => s"lichess.org/${g.id}")
           Some(OpeningEvent.BranchPoint(diverging, reason, game))
         } else None
@@ -216,15 +216,110 @@ object OpeningEventDetector:
   /**
    * Infer opening theme from name.
    */
-  private def inferTheme(name: String): String = {
+  private def inferTheme(name: String, topMoves: List[String] = Nil): String = {
     val lower = name.toLowerCase
-    if (lower.contains("gambit")) "Sacrificial initiative"
-    else if (lower.contains("attack")) "Aggressive kingside play"
-    else if (lower.contains("defense") || lower.contains("defence")) "Solid defensive setup"
-    else if (lower.contains("indian")) "Hypermodern fianchetto"
-    else if (lower.contains("sicilian")) "Asymmetrical pawn structure"
-    else if (lower.contains("french")) "Central tension and counterplay"
-    else if (lower.contains("caro") || lower.contains("slav")) "Solid pawn structure"
-    else if (lower.contains("italian") || lower.contains("spanish")) "Classical central control"
-    else "Flexible development"
+    inferMoveTheme(topMoves)
+      .orElse {
+        if lower.contains("scandinavian") || lower.contains("center game") then Some("early queen exposure")
+        else if lower.contains("catalan") || lower.contains("english") || lower.contains("reti") then Some("flank fianchetto support")
+        else if
+          lower.contains("queen's gambit") || lower.contains("queens gambit") ||
+          lower.contains("slav") || lower.contains("grunfeld") || lower.contains("benoni")
+        then Some("center reaction")
+        else if lower.contains("dragon") || lower.contains("yugoslav") then Some("castle race")
+        else if
+          lower.contains("king's indian") || lower.contains("kings indian") ||
+          lower.contains("pirc") || lower.contains("modern")
+        then Some("thematic break preparation")
+        else if
+          lower.contains("italian") || lower.contains("spanish") || lower.contains("ruy") ||
+          lower.contains("vienna") || lower.contains("scotch") || lower.contains("four knights")
+        then Some("development logic")
+        else None
+      }
+      .orElse {
+        if (lower.contains("gambit")) Some("Sacrificial initiative")
+        else if (lower.contains("attack")) Some("Aggressive kingside play")
+        else if (lower.contains("defense") || lower.contains("defence")) Some("Solid defensive setup")
+        else if (lower.contains("indian")) Some("Hypermodern fianchetto")
+        else if (lower.contains("sicilian")) Some("Asymmetrical pawn structure")
+        else if (lower.contains("french")) Some("Central tension and counterplay")
+        else if (lower.contains("caro") || lower.contains("slav")) Some("Solid pawn structure")
+        else if (lower.contains("italian") || lower.contains("spanish")) Some("Classical central control")
+        else None
+      }
+      .getOrElse("Flexible development")
   }
+
+  private def branchPointReason(ref: OpeningReference, topChanged: Boolean): String =
+    inferMoveTheme(sortedMoves(ref).take(4).map(_.san)) match
+      case Some(theme @ ("development logic" | "center reaction" | "flank fianchetto support" |
+          "early queen exposure" | "castle race" | "thematic break preparation")) =>
+        if topChanged then s"Main line shifts toward $theme"
+        else s"Theory fragments around $theme"
+      case _ =>
+        if topChanged then "Main line shifts" else "Theory fragments"
+
+  private def inferMoveTheme(moves: List[String]): Option[String] = {
+    val normalized = moves.map(normalizeSan).filter(_.nonEmpty)
+    val scores = List(
+      "development logic" -> scoreDevelopmentLogic(normalized),
+      "center reaction" -> scoreCenterReaction(normalized),
+      "flank fianchetto support" -> scoreFianchettoSupport(normalized),
+      "early queen exposure" -> scoreQueenExposure(normalized),
+      "castle race" -> scoreCastleRace(normalized),
+      "thematic break preparation" -> scoreBreakPreparation(normalized)
+    )
+    scores.maxByOption(_._2).collect { case (label, score) if score >= 2 => label }
+  }
+
+  private def normalizeSan(raw: String): String =
+    Option(raw).getOrElse("").trim.replaceAll("""[+#?!]+$""", "")
+
+  private def isMinorDevelopmentMove(move: String): Boolean =
+    move.matches("""^[NB](?!x).*[a-h][1-8]$""")
+
+  private def isCenterReactionMove(move: String): Boolean =
+    move.matches("""^(c|d|e|f)[3-6]$""") ||
+      List("cxd4", "cxd5", "dxc4", "dxe4", "exd4", "exd5", "fxe4", "fxe5").contains(move)
+
+  private def isFianchettoMove(move: String): Boolean =
+    Set("g3", "b3", "g6", "b6", "Bg2", "Bb2", "Bg7", "Bb7").contains(move)
+
+  private def isQueenMove(move: String): Boolean =
+    move.startsWith("Q")
+
+  private def isCastleMove(move: String): Boolean =
+    move == "O-O" || move == "O-O-O"
+
+  private def isBreakPreparationMove(move: String): Boolean =
+    Set(
+      "c3", "d3", "f3", "a3", "h3", "Qc2", "Qe2", "Be2", "Bd3", "Re1",
+      "c6", "d6", "f6", "a6", "h6", "Qc7", "Qe7", "Be7", "Bd6", "Re8",
+      "b4", "b5", "g4", "g5", "f4", "f5"
+    ).contains(move)
+
+  private def scoreDevelopmentLogic(moves: List[String]): Int =
+    val minorMoves = moves.count(isMinorDevelopmentMove)
+    minorMoves + Option.when(moves.exists(isCastleMove))(1).getOrElse(0) - Option.when(moves.exists(isQueenMove))(1).getOrElse(0)
+
+  private def scoreCenterReaction(moves: List[String]): Int =
+    val centerMoves = moves.count(isCenterReactionMove)
+    centerMoves + Option.when(moves.exists(_.contains("x")))(1).getOrElse(0)
+
+  private def scoreFianchettoSupport(moves: List[String]): Int =
+    val fianchettoMoves = moves.count(isFianchettoMove)
+    fianchettoMoves * 2 + Option.when(moves.exists(isMinorDevelopmentMove))(1).getOrElse(0)
+
+  private def scoreQueenExposure(moves: List[String]): Int =
+    val queenMoves = moves.count(isQueenMove)
+    queenMoves * 2 + Option.when(moves.exists(m => m.startsWith("Q") && m.contains("x")))(1).getOrElse(0)
+
+  private def scoreCastleRace(moves: List[String]): Int =
+    val castles = moves.count(isCastleMove)
+    val flankCommitments = moves.count(m => Set("g4", "g5", "h4", "h5", "a4", "a5", "b4", "b5").contains(m))
+    castles * 2 + Option.when(castles >= 1 && flankCommitments >= 1)(1).getOrElse(0)
+
+  private def scoreBreakPreparation(moves: List[String]): Int =
+    val prepMoves = moves.count(isBreakPreparationMove)
+    prepMoves * 2 + Option.when(moves.exists(isCenterReactionMove))(1).getOrElse(0)

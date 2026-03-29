@@ -41,6 +41,24 @@ class NarrativeLexiconTest extends FunSuite:
     )
   }
 
+  test("gameIntro drops placeholder broadcast metadata") {
+    val intro = NarrativeLexicon.gameIntro(
+      white = "WhitePlayer",
+      black = "BlackPlayer",
+      event = "Weekend Swiss",
+      date = "????.??.??",
+      result = "1-0",
+      totalPlies = 47,
+      keyMomentsCount = 1
+    )
+
+    assertEquals(
+      intro,
+      "This review covers WhitePlayer vs BlackPlayer (Weekend Swiss). WhitePlayer won after 24 moves. The review focuses on one highlighted moment."
+    )
+    assert(!intro.contains("????.??.??"), clue(intro))
+  }
+
   test("gameConclusion uses the lead theme instead of generic critical-moments boilerplate") {
     val conclusion =
       NarrativeLexicon.gameConclusion(

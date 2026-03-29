@@ -377,7 +377,6 @@ function renderBookmakerMoveChip(
 
 function renderDecisionCompareStrip(
     comparison: NarrativeSignalDigest['decisionComparison'],
-    holdReason: string | null,
     refIndex: BookmakerRefIndex,
 ): string | null {
     const surface = buildDecisionComparisonSurface(comparison, {
@@ -387,7 +386,7 @@ function renderDecisionCompareStrip(
     const chosen = comparison?.chosenMove?.trim() || '';
     const best = comparison?.engineBestMove?.trim() || '';
     const deferred = comparison?.deferredMove?.trim() || '';
-    const secondary = surface.secondary || holdReason;
+    const secondary = surface.secondary;
 
     const moveBits = [
         renderBookmakerMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
@@ -505,8 +504,6 @@ function decorateBookmakerHtml(
     signalDigest: NarrativeSignalDigest | null,
     mainPlans: PlanHypothesis[],
     strategicPlanExperiments: StrategicPlanExperiment[],
-    _latentPlans: Array<{ planName?: string; viabilityScore?: number }>,
-    holdReasons: string[],
     probeRequests: ProbeRequest[],
     authorQuestions: AuthorQuestionSummary[],
     authorEvidence: AuthorEvidenceSummary[],
@@ -530,7 +527,6 @@ function decorateBookmakerHtml(
     const compactSurface = buildCompactSupportSurface({
         signalDigest,
         mainPlanTexts,
-        holdReasons,
         deploymentSummary,
     });
     const compactPlanText = compactSurface.mainPlanTexts.map(escapeHtml).join(' · ');
@@ -542,13 +538,8 @@ function decorateBookmakerHtml(
 
     if (compactPlanText)
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Main plans:</strong> ${compactPlanText}</div>`);
-    const decisionStrip = renderDecisionCompareStrip(decisionComparison, null, refIndex);
+    const decisionStrip = renderDecisionCompareStrip(decisionComparison, refIndex);
     if (decisionStrip) rows.push(decisionStrip);
-    compactSurface.holdReasons.forEach((reason, idx) => {
-            rows.push(
-                `<div class="bookmaker-strategic-summary__row"><strong>${idx === 0 ? 'Why it stayed conditional' : 'Also'}:</strong> ${escapeHtml(reason)}</div>`,
-            );
-        });
     compactSurface.rows.forEach(([label, value]) => {
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`);
     });
@@ -721,8 +712,6 @@ function decorateDecodedBookmakerHtml(decoded: DecodedBookmakerResponse): string
         decoded.signalDigest,
         decoded.mainStrategicPlans,
         decoded.strategicPlanExperiments,
-        decoded.latentPlans,
-        decoded.holdReasons,
         decoded.probeRequests,
         decoded.authorQuestions,
         decoded.authorEvidence,
@@ -913,24 +902,24 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
         });
     };
 
-    const applyStrategicMetaToRoot = (mainPlansCount: number, latentPlansCount: number, holdReasonsCount: number) => {
+    const applyStrategicMetaToRoot = (mainPlansCount: number) => {
         const root = document.querySelector('.analyse__bookmaker-text');
         if (!root) return;
         root.setAttribute('data-llm-main-plans-count', String(mainPlansCount));
-        root.setAttribute('data-llm-latent-plans-count', String(latentPlansCount));
-        root.setAttribute('data-llm-hold-reasons-count', String(holdReasonsCount));
+        root.removeAttribute('data-llm-latent-plans-count');
+        root.removeAttribute('data-llm-hold-reasons-count');
     };
 
     const resetMetaOnRoot = () => {
         applyMetaToRoot(null, null, null, null, null);
-        applyStrategicMetaToRoot(0, 0, 0);
+        applyStrategicMetaToRoot(0);
     };
 
     const applyCachedEntry = (entry: BookmakerCacheEntry) => {
         setBookmakerRefs(entry.refs);
         show(entry.html);
         applyMetaToRoot(entry.sourceMode, entry.model, entry.cacheHit, entry.polishMeta, entry.bookmakerLedger || null);
-        applyStrategicMetaToRoot(entry.mainPlansCount, entry.latentPlansCount, entry.holdReasonsCount);
+        applyStrategicMetaToRoot(entry.mainPlansCount);
     };
 
     const entryTokenContext = (context: CurrentBookmakerContext) => ({
@@ -990,8 +979,6 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             model: null,
             cacheHit: true,
             mainPlansCount: 0,
-            latentPlansCount: 0,
-            holdReasonsCount: 0,
             bookmakerLedger: null,
             planStateToken: null,
             endgameStateToken: null,

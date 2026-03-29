@@ -1,8 +1,0 @@
-lens=Decision
-claim=12... Rc3: The move chooses Open File Fight first because contest the c file > switch the rook to g3 > pressure g7.
-supportPrimary=It does that by resolving back-rank counterplay. A concrete target is g7.
-supportSecondary=
-tension=The decision becomes concrete around g7.
-evidenceHook=
-coda=
-paragraphPlan=p1=claim,p2=support,p3=practical_nuance

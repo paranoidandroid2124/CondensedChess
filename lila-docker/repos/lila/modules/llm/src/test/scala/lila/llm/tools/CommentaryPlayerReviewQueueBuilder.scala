@@ -399,15 +399,6 @@ object CommentaryPlayerReviewQueueBuilder:
         }
     if planRows.nonEmpty then support += SupportRow("Main plans", planRows.mkString(", "))
 
-    val whyAbsent =
-      (js \ "whyAbsentFromTopMultiPV")
-        .asOpt[List[String]]
-        .getOrElse(Nil)
-        .flatMap(sanitizeRowText)
-        .distinct
-        .mkString("; ")
-    if whyAbsent.nonEmpty then support += SupportRow("Why it stayed conditional", whyAbsent)
-
     (signalDigest \ "opening").asOpt[String].flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opening =>
       support += SupportRow("Opening", opening)
     }
@@ -444,8 +435,6 @@ object CommentaryPlayerReviewQueueBuilder:
     List(
       (signalDigest \ "compensation").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Compensation", text)),
       (signalDigest \ "authoringEvidence").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Evidence note", text)),
-      (signalDigest \ "latentPlan").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Latent plan", text)),
-      (signalDigest \ "latentReason").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Latent reason", text)),
       (signalDigest \ "preservedSignals").asOpt[List[String]].filter(_.nonEmpty).map(values =>
         SupportRow("Preserved signals", values.flatMap(sanitizeRowText).mkString("; "))
       )
