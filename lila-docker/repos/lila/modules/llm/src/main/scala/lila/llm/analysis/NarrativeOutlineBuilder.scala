@@ -36,6 +36,51 @@ object NarrativeOutlineBuilder:
     mechanism: OpeningBranchMechanism,
     confidence: Double
   )
+  private case class PrecedentComparisonSummaryFamilies(
+    ordinary: List[String],
+    sharedLesson: List[String]
+  )
+  private case class PrecedentComparisonFragments(
+    header: String,
+    items: List[String],
+    summary: Option[String],
+    sharedLesson: Option[String]
+  ):
+    def renderedText: String =
+      List(header, items.mkString(" "), summary.getOrElse(""), sharedLesson.getOrElse(""))
+        .filter(_.trim.nonEmpty)
+        .mkString(" ")
+        .trim
+  private case class OpeningPrecedentFragments(
+    body: List[String],
+    summary: Option[String] = None,
+    sharedLesson: Option[String] = None
+  ):
+    def bodyText: String = body.filter(_.trim.nonEmpty).mkString(" ").trim
+    def renderedText: String =
+      List(bodyText, summary.getOrElse(""), sharedLesson.getOrElse(""))
+        .filter(_.trim.nonEmpty)
+        .mkString(" ")
+        .trim
+    def fragmentCount: Int =
+      body.count(_.trim.nonEmpty) + List(summary, sharedLesson).flatten.count(_.trim.nonEmpty)
+    def nonEmpty: Boolean = renderedText.nonEmpty
+  private case class AnnotationHintFragments(
+    tagOnly: Option[String] = None,
+    difficulty: Option[String] = None,
+    terminal: Option[String] = None
+  ):
+    def renderedHints: List[String] =
+      terminal.orElse(tagOnly).orElse(difficulty).toList.map(_.trim).filter(_.nonEmpty)
+  private case class AnnotationTextProjection(
+    coreText: String,
+    severityTail: Option[String] = None
+  ):
+    def renderedText: String =
+      List(coreText.trim, severityTail.map(_.trim).getOrElse(""))
+        .filter(_.nonEmpty)
+        .mkString(" ")
+        .trim
   private case class RookEndgameFrame(
     attacker: Color,
     defender: Color,
@@ -67,6 +112,14 @@ object NarrativeOutlineBuilder:
     card: HypothesisCard,
     sourceMove: String
   )
+  private case class WrapUpFragments(
+    planner: List[String],
+    practical: Option[String],
+    compensation: Option[String]
+  ):
+    def orderedFragments: List[String] =
+      planner.filter(_.trim.nonEmpty) ++
+        List(practical, compensation).flatten.map(_.trim).filter(_.nonEmpty)
   private enum PrecedentRole:
     case Sequence
     case StrategicTransition
@@ -1223,7 +1276,8 @@ object NarrativeOutlineBuilder:
             val evidenceOpt = c.tacticEvidence.headOption.map(s => s.substring(0, 1).toLowerCase + s.substring(1))
             val intent = NarrativeLexicon.getIntent(b, preferredIntent(c), evidenceOpt, ply = ctx.ply)
             val isTerminal = isTerminalAnnotationMove(ctx, playedSan, bestCand)
-            val tagHint = annotationTagHint(b, c.tags, c.practicalDifficulty, c.move, ctx.phase.current, isTerminal)
+            val hintFragments =
+              annotationHintFragments(b, c.tags, c.practicalDifficulty, c.move, ctx.phase.current, isTerminal)
             val alert = c.tacticalAlert.map(_.trim).filter(_.nonEmpty).map(a => s"Note: $a.").getOrElse("")
             val alignmentNote =
               c.alignmentBand.map(_.trim.toLowerCase) match
@@ -1232,7 +1286,10 @@ object NarrativeOutlineBuilder:
                 case Some("onbook") => "Structure note: this keeps the strategic structure coherent."
                 case _ => ""
             val intentSentence = if intent.nonEmpty then s"It $intent." else ""
-            val combined = List(intentSentence, tagHint.getOrElse(""), alert, alignmentNote).filter(_.trim.nonEmpty).mkString(" ")
+            val combined =
+              (List(intentSentence) ++ hintFragments.renderedHints ++ List(alert, alignmentNote))
+                .filter(_.trim.nonEmpty)
+                .mkString(" ")
             Option.when(combined.nonEmpty)(combined)
           }
         else
@@ -1337,7 +1394,7 @@ object NarrativeOutlineBuilder:
           .filter(_.trim.nonEmpty)
           .mkString(" ")
       val tonedText = harmonizeAnnotationTone(enrichedRawText, cpLoss, isConstructive, bead ^ Math.abs(playedSan.hashCode))
-      val text = enforceAnnotationPolarity(tonedText, cpLoss, isConstructive, bead ^ Math.abs(bestSan.hashCode))
+      val text = enforceAnnotationPolarity(tonedText, cpLoss, isConstructive, bead ^ Math.abs(bestSan.hashCode)).renderedText
       if text.trim.nonEmpty then trackTemplateUsage(text, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
       OutlineBeat(
@@ -1421,11 +1478,11 @@ object NarrativeOutlineBuilder:
         NarrativeLexicon.getOpeningReference(bead, name, ref.totalGames, 0.5)
       }
     }
-    val precedentSnippets =
-      if suppressPrecedents then Nil
+    val precedentFragments =
+      if suppressPrecedents then OpeningPrecedentFragments(Nil)
       else buildOpeningPrecedentSnippets(ctx, openingRef, Math.abs(ctx.hashCode) ^ 0x4b1d0f6a)
-    if precedentSnippets.nonEmpty then
-      rec.use("openingData.sampleGames", precedentSnippets.length.toString, "Opening precedents")
+    if precedentFragments.nonEmpty then
+      rec.use("openingData.sampleGames", precedentFragments.fragmentCount.toString, "Opening precedents")
     val branchSummary =
       Option.when(!suppressPrecedents) {
         OpeningPrecedentBranching.summarySentence(ctx, openingRef, requireFocus = false)
@@ -1438,14 +1495,16 @@ object NarrativeOutlineBuilder:
     branchRelation.foreach(_ => rec.use("openingData.sampleGames", "relation", "Opening branch relation"))
 
     val precedentBridge =
-      if precedentSnippets.nonEmpty || openingText.isEmpty || !openingRef.exists(_.sampleGames.isEmpty) then ""
+      if precedentFragments.nonEmpty || openingText.isEmpty || !openingRef.exists(_.sampleGames.isEmpty) then ""
       else buildPrecedentFallbackSentence(ctx, Math.abs(ctx.hashCode) ^ 0x19f8b4ad, scope = "opening").getOrElse("")
     val text = List(
       openingText.getOrElse(""),
       branchSummary.getOrElse(""),
       branchRelation.getOrElse(""),
       precedentBridge,
-      precedentSnippets.mkString(" ")
+      precedentFragments.bodyText,
+      precedentFragments.summary.getOrElse(""),
+      precedentFragments.sharedLesson.getOrElse("")
     )
       .filter(_.trim.nonEmpty)
       .mkString(" ")
@@ -1454,7 +1513,7 @@ object NarrativeOutlineBuilder:
     else
       val anchors = openingRef.flatMap(_.name).map(_.split(" ").take(2).toList).getOrElse(Nil)
       val concepts =
-        if precedentSnippets.nonEmpty then List("opening_theory", "opening_precedent")
+        if precedentFragments.nonEmpty then List("opening_theory", "opening_precedent")
         else List("opening_theory")
       Some(OutlineBeat(
         kind = OutlineBeatKind.OpeningTheory,
@@ -1501,17 +1560,25 @@ object NarrativeOutlineBuilder:
     ctx: NarrativeContext,
     openingRef: Option[OpeningReference],
     bead: Int
-  ): List[String] =
-    if !ctx.openingEvent.exists(isCoreOpeningEvent) then Nil
+  ): OpeningPrecedentFragments =
+    if !ctx.openingEvent.exists(isCoreOpeningEvent) then OpeningPrecedentFragments(Nil)
     else
       val lines = rankedOpeningPrecedentLines(ctx, openingRef, requireFocus = false).take(MaxOpeningPrecedents)
-      if lines.isEmpty then Nil
+      if lines.isEmpty then OpeningPrecedentFragments(Nil)
       else if shouldUsePrecedentComparison(ctx, lines, requireFocus = false) then
-        List(renderPrecedentComparison(lines, bead))
+        val comparison = buildPrecedentComparisonFragments(lines, bead)
+        OpeningPrecedentFragments(
+          body = List(comparison.header, comparison.items.mkString(" ")),
+          summary = comparison.summary,
+          sharedLesson = comparison.sharedLesson
+        )
       else
-        lines
-          .map(line => renderPrecedentBlock(line, bead))
-          .filter(_.trim.nonEmpty)
+        OpeningPrecedentFragments(
+          body =
+            lines
+              .map(line => renderPrecedentBlock(line, bead))
+              .filter(_.trim.nonEmpty)
+        )
 
   private def buildContextPrecedentSentence(ctx: NarrativeContext, bead: Int): Option[String] =
     val introOnly = ctx.openingEvent.exists {
@@ -1523,7 +1590,7 @@ object NarrativeOutlineBuilder:
       val lines = rankedOpeningPrecedentLines(ctx, ctx.openingData, requireFocus = true).take(MaxOpeningPrecedents)
       if lines.isEmpty then None
       else if shouldUsePrecedentComparison(ctx, lines, requireFocus = true) then
-        Some(renderPrecedentComparison(lines, bead))
+        Some(buildPrecedentComparisonFragments(lines, bead).renderedText)
       else
         val rep = OpeningPrecedentBranching.representativeSentence(ctx, ctx.openingData, requireFocus = true)
         val relation = OpeningPrecedentBranching.relationSentence(ctx, ctx.openingData, requireFocus = true)
@@ -1557,6 +1624,12 @@ object NarrativeOutlineBuilder:
     lines: List[OpeningPrecedentLine],
     bead: Int
   ): String =
+    buildPrecedentComparisonFragments(lines, bead).renderedText
+
+  private def buildPrecedentComparisonFragments(
+    lines: List[OpeningPrecedentLine],
+    bead: Int
+  ): PrecedentComparisonFragments =
     val ranked = lines.take(MaxOpeningPrecedents)
     val rankedWithSignals =
       ranked.map { line =>
@@ -1637,24 +1710,27 @@ object NarrativeOutlineBuilder:
       s"$label) ${parts.mkString(" ")}"
     }
 
-    val summaryTemplates =
-      buildPrecedentComparisonSummaryTemplates(
+    val summaryFamilies =
+      buildPrecedentComparisonSummaryFamilies(
         rankedWithSignals.flatMap(_._2.map(_.mechanism))
       )
-    val summary =
-      if summaryTemplates.isEmpty then ""
-      else
-        val selected = selectNonRepeatingTemplate(
-          templates = summaryTemplates,
-          seed = bead ^ 0x3c6ef372,
-          usedStems = usedStems.toSet,
-          prefixCounts = prefixCounts.toMap,
-          prefixLimits = PrefixFamilyLimits
-        )
-        trackTemplateUsage(selected, usedStems, prefixCounts)
-        selected
+    val (summary, sharedLesson) =
+      selectPrecedentComparisonSummaryFragments(
+        families = summaryFamilies,
+        seed = bead ^ 0x3c6ef372,
+        usedStems = usedStems.toSet,
+        prefixCounts = prefixCounts.toMap,
+        prefixLimits = PrefixFamilyLimits
+      )
+    summary.foreach(trackTemplateUsage(_, usedStems, prefixCounts))
+    sharedLesson.foreach(trackTemplateUsage(_, usedStems, prefixCounts))
 
-    List(header, items.mkString(" "), summary).filter(_.nonEmpty).mkString(" ")
+    PrecedentComparisonFragments(
+      header = header,
+      items = items,
+      summary = summary,
+      sharedLesson = sharedLesson
+    )
 
   private def precedentMechanismLabel(mechanism: OpeningBranchMechanism, seed: Int, occurrence: Int): String =
     val variants =
@@ -1708,26 +1784,56 @@ object NarrativeOutlineBuilder:
       case OpeningBranchMechanism.InitiativeSwing =>
         "initiative swings from piece activity"
 
-  private def buildPrecedentComparisonSummaryTemplates(
+  private def selectPrecedentComparisonSummaryFragments(
+    families: PrecedentComparisonSummaryFamilies,
+    seed: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    prefixLimits: Map[String, Int]
+  ): (Option[String], Option[String]) =
+    val candidates =
+      families.ordinary.map(_ -> false) ++ families.sharedLesson.map(_ -> true)
+    if candidates.isEmpty then (None, None)
+    else
+      val selected = selectNonRepeatingTemplate(
+        templates = candidates.map(_._1),
+        seed = seed,
+        usedStems = usedStems,
+        prefixCounts = prefixCounts,
+        prefixLimits = prefixLimits
+      )
+      candidates.find(_._1 == selected) match
+        case Some((text, true)) if text.trim.nonEmpty  => (None, Some(text))
+        case Some((text, false)) if text.trim.nonEmpty => (Some(text), None)
+        case _                                         => (None, None)
+
+  private def buildPrecedentComparisonSummaryFamilies(
     mechanisms: List[OpeningBranchMechanism]
-  ): List[String] =
-    if mechanisms.isEmpty then Nil
+  ): PrecedentComparisonSummaryFamilies =
+    if mechanisms.isEmpty then PrecedentComparisonSummaryFamilies(Nil, Nil)
     else
       val grouped = mechanisms.groupBy(identity).view.mapValues(_.size).toMap
       val dominant = grouped.maxBy(_._2)._1
       val dominantLabel = precedentMechanismSummaryLabel(dominant)
       val diversity = grouped.size
       if diversity >= 2 then
-        List(
-          s"Across these branches, results changed by which side better handled $dominantLabel.",
-          s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge.",
-          s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel."
+        PrecedentComparisonSummaryFamilies(
+          ordinary = List(
+            s"Across these branches, results changed by which side better handled $dominantLabel.",
+            s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge."
+          ),
+          sharedLesson = List(
+            s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel."
+          )
         )
       else
-        List(
-          s"All cited branches revolve around $dominantLabel.",
-          s"The recurring practical theme across these games is $dominantLabel.",
-          s"These precedent lines point to one key driver: $dominantLabel."
+        PrecedentComparisonSummaryFamilies(
+          ordinary = List(
+            s"All cited branches revolve around $dominantLabel.",
+            s"The recurring practical theme across these games is $dominantLabel.",
+            s"These precedent lines point to one key driver: $dominantLabel."
+          ),
+          sharedLesson = Nil
         )
 
   private def renderPrecedentBlock(
@@ -2046,18 +2152,18 @@ object NarrativeOutlineBuilder:
     rankedPlans: RankedQuestionPlans,
     bead: Int
   ): Option[OutlineBeat] =
-    val parts = scala.collection.mutable.ListBuffer[String]()
     val cpWhite = rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
-
-    rankedPlans.primary.flatMap(_.consequence).filter(_.beat == QuestionPlanConsequenceBeat.WrapUp).foreach { consequence =>
-      parts += consequence.text
-    }
-    ctx.semantic.flatMap(_.practicalAssessment).foreach { pa =>
-      parts += buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)
-    }
-    effectiveCompensationSignal(ctx).foreach { signal =>
-      parts += buildCompensationWrapUpSentence(signal, bead)
-    }
+    val fragments = WrapUpFragments(
+      planner =
+        rankedPlans.primary
+          .toList
+          .flatMap(_.consequence)
+          .filter(_.beat == QuestionPlanConsequenceBeat.WrapUp)
+          .map(_.text),
+      practical = ctx.semantic.flatMap(_.practicalAssessment).map(pa => buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)),
+      compensation = effectiveCompensationSignal(ctx).map(signal => buildCompensationWrapUpSentence(signal, bead))
+    )
+    val parts = fragments.orderedFragments
 
     if parts.isEmpty then None
     else
@@ -2611,15 +2717,21 @@ object NarrativeOutlineBuilder:
         Option.when(combined.nonEmpty)(combined)
       }
 
-  private def annotationTagHint(
+  private def annotationHintFragments(
     bead: Int,
     tags: List[CandidateTag],
     practicalDifficulty: String,
     moveHint: String,
     phase: String,
     isTerminalMove: Boolean
-  ): Option[String] =
-    NarrativeLexicon.getAnnotationTagHint(bead, tags, practicalDifficulty, moveHint, phase, isTerminalMove)
+  ): AnnotationHintFragments =
+    if isTerminalMove then
+      AnnotationHintFragments(terminal = Some(NarrativeLexicon.getAnnotationTerminalMoveHint(bead, moveHint)))
+    else
+      AnnotationHintFragments(
+        tagOnly = tags.flatMap(tag => NarrativeLexicon.getAnnotationTagOnlyHint(bead, tag, moveHint)).headOption,
+        difficulty = NarrativeLexicon.getAnnotationDifficultyHint(bead, practicalDifficulty, moveHint, phase)
+      )
 
   private def isTerminalAnnotationMove(
     ctx: NarrativeContext,
@@ -3864,12 +3976,15 @@ object NarrativeOutlineBuilder:
       )
       .filter(_.nonEmpty)
 
-  private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean, contextHint: Int): String =
-    if text.trim.isEmpty then text
-    else if isBest || cpLoss <= 35 then softenNearBestTone(text)
+  private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean, contextHint: Int): AnnotationTextProjection =
+    if text.trim.isEmpty then AnnotationTextProjection("")
+    else if isBest || cpLoss <= 35 then AnnotationTextProjection(softenNearBestTone(text).trim)
     else if cpLoss >= Thresholds.INACCURACY_CP && !containsNegativeTone(text) then
-      s"${text.trim} ${buildSeverityTail(Math.abs(text.hashCode) ^ 0x239b961b, cpLoss, contextHint)}"
-    else text
+      AnnotationTextProjection(
+        coreText = text.trim,
+        severityTail = Some(buildSeverityTail(Math.abs(text.hashCode) ^ 0x239b961b, cpLoss, contextHint))
+      )
+    else AnnotationTextProjection(text.trim)
 
   private def softenNearBestTone(text: String): String =
     List(
@@ -3893,29 +4008,35 @@ object NarrativeOutlineBuilder:
       .exists(low.contains)
 
   private def enforceAnnotationPolarity(
-    text: String,
+    text: AnnotationTextProjection,
     cpLoss: Int,
     isBest: Boolean,
     contextHint: Int
-  ): String =
-    if text.trim.isEmpty then text
+  ): AnnotationTextProjection =
+    if text.renderedText.trim.isEmpty then text
     else
       val nearBest = isBest || cpLoss <= 25
       val severeError = cpLoss >= 140
-      val containsBenchmarkStrongPositive = containsBenchmarkStrongPositiveLexicon(text)
+      val containsBenchmarkStrongPositive = containsBenchmarkStrongPositiveLexicon(text.coreText)
 
       val neutralized =
-        if nearBest then neutralizeBenchmarkNegativeLexicon(text)
-        else text
+        if nearBest then neutralizeBenchmarkNegativeLexicon(text.coreText)
+        else text.coreText
 
       val softenedPositive =
         if severeError && containsBenchmarkStrongPositive then
           neutralizeBenchmarkStrongPositiveLexicon(neutralized)
         else neutralized
 
-      if severeError && !containsBenchmarkNegativeLexicon(softenedPositive) then
-        s"${softenedPositive.trim} ${buildSeverityTail(Math.abs(softenedPositive.hashCode) ^ 0x6f4b1321, cpLoss, contextHint)}"
-      else softenedPositive
+      val severityTail =
+        if severeError && !containsBenchmarkNegativeLexicon(softenedPositive) then
+          text.severityTail.orElse(Some(buildSeverityTail(Math.abs(softenedPositive.hashCode) ^ 0x6f4b1321, cpLoss, contextHint)))
+        else text.severityTail
+
+      AnnotationTextProjection(
+        coreText = softenedPositive.trim,
+        severityTail = severityTail.filter(_.trim.nonEmpty)
+      )
 
   private def buildSeverityTail(bead: Int, cpLoss: Int, contextHint: Int): String =
     val seed = bead ^ contextHint ^ Math.abs(cpLoss) ^ 0x5bd1e995

@@ -188,6 +188,22 @@ class AuthorQuestionGeneratorTest extends FunSuite:
     assert(questions.exists(_.kind == AuthorQuestionKind.WhatChanged), clues(questions))
   }
 
+  test("generate seeds WhatChanged when the move changes the endgame task") {
+    val ctx = IntegratedContext(evalCp = 40, isWhiteToMove = true)
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            endgameTransition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+          ),
+        ctx = ctx,
+        candidates = List(playedCandidate()),
+        playedSan = Some(playedSan)
+      )
+
+    assert(questions.exists(_.kind == AuthorQuestionKind.WhatChanged), clues(questions))
+  }
+
   test("generate keeps diverse question kinds instead of truncating to duplicate high-priority kinds") {
     val threat =
       Threat(

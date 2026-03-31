@@ -184,9 +184,10 @@ object NarrativeContextBuilder:
 
 
     // Phase F: Decision Rationale (Synthesis)
-    val decision = if (header.choiceType != "StyleChoice") {
-      Some(calculateDecisionRationale(data, ctx, enrichedCandidates, semantic, targets, rootProbeResults))
-    } else None
+    val decision =
+      Option.when(shouldBuildDecisionRationale(header.choiceType, enrichedCandidates, rootProbeResults)) {
+        calculateDecisionRationale(data, ctx, enrichedCandidates, semantic, targets, rootProbeResults)
+      }
 
     // Phase A9: Opening Event Detection (event-driven, not per-move)
     val openingEvent = detectOpeningEvent(data, openingRef, decision, openingBudget, prevOpeningRef)
@@ -2295,6 +2296,40 @@ object NarrativeContextBuilder:
     )
   }
 
+  private def shouldBuildDecisionRationale(
+      choiceType: String,
+      candidates: List[CandidateInfo],
+      probeResults: List[ProbeResult]
+  ): Boolean =
+    choiceType != "StyleChoice" || bestMoveProbe(candidates, probeResults).exists(hasMoveLinkedProbeEvidence)
+
+  private def bestMoveProbe(
+      candidates: List[CandidateInfo],
+      probeResults: List[ProbeResult]
+  ): Option[ProbeResult] =
+    candidates.headOption.flatMap(candidate => probeResults.find(_.probedMove == candidate.uci))
+
+  private def hasMoveLinkedProbeEvidence(probe: ProbeResult): Boolean =
+    probe.futureSnapshot.exists(hasMoveLinkedFutureEvidence) ||
+      probe.l1Delta.exists(hasMoveLinkedL1DeltaEvidence) ||
+      probe.keyMotifs.nonEmpty
+
+  private def hasMoveLinkedFutureEvidence(snapshot: FutureSnapshot): Boolean =
+    snapshot.resolvedThreatKinds.nonEmpty ||
+      snapshot.newThreatKinds.nonEmpty ||
+      snapshot.targetsDelta.tacticalAdded.nonEmpty ||
+      snapshot.targetsDelta.strategicAdded.nonEmpty ||
+      snapshot.planBlockersRemoved.nonEmpty ||
+      snapshot.planPrereqsMet.nonEmpty
+
+  private def hasMoveLinkedL1DeltaEvidence(delta: L1DeltaSnapshot): Boolean =
+    delta.materialDelta != 0 ||
+      delta.kingSafetyDelta != 0 ||
+      delta.centerControlDelta != 0 ||
+      delta.openFilesDelta != 0 ||
+      delta.mobilityDelta != 0 ||
+      delta.collapseReason.exists(_.trim.nonEmpty)
+
   private def calculateDecisionRationale(
       data: ExtendedAnalysisData,
       ctx: IntegratedContext,
@@ -2303,8 +2338,7 @@ object NarrativeContextBuilder:
       targets: Targets,
       probeResults: List[ProbeResult]
   ): DecisionRationale = {
-    val bestMove = candidates.headOption
-    val bestProbe = bestMove.flatMap(c => probeResults.find(_.probedMove == c.uci))
+    val bestProbe = bestMoveProbe(candidates, probeResults)
     
     val delta = buildPVDelta(ctx, bestProbe)
     val focalPoint = identifyFocalPoint(targets, semantic, data.plans)

@@ -4,7 +4,7 @@ import munit.FunSuite
 
 import lila.llm.*
 import lila.llm.model.StrategicPlanExperiment
-import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
+import lila.llm.model.authoring.{ AuthorQuestionKind, PlanHypothesis, PlanViability }
 
 class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
@@ -168,6 +168,39 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       subplanId = None
     )
 
+  private def truthContract(
+      truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
+      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+      verifiedBestMove: Option[String] = Some("Qe2")
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("Rg3"),
+      verifiedBestMove = verifiedBestMove,
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = true,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = true,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = true,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = true,
+      failureMode = FailureInterpretationMode.OnlyMoveFailure,
+      failureIntentConfidence = 1.0,
+      failureIntentAnchor = verifiedBestMove,
+      failureInterpretationAllowed = true
+    )
+
   private def authorQuestion(
       id: String,
       kind: String,
@@ -202,6 +235,54 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       pendingProbeCount = 0,
       probeObjectives = Nil,
       linkedPlans = List("kingside_attack")
+    )
+
+  private def plannerInputs(
+      endgameTransitionClaim: Option[String] = None
+  ) =
+    QuestionPlannerInputs(
+      mainBundle = None,
+      quietIntent = None,
+      decisionFrame = CertifiedDecisionFrame(),
+      decisionComparison = None,
+      alternativeNarrative = None,
+      truthMode = PlayerFacingTruthMode.Strategic,
+      preventedPlansNow = Nil,
+      pvDelta = None,
+      counterfactual = None,
+      practicalAssessment = None,
+      opponentThreats = Nil,
+      forcingThreats = Nil,
+      evidenceByQuestionId = Map.empty,
+      candidateEvidenceLines = List("14...Rc8 15.Re1 Qc7"),
+      evidenceBackedPlans = Nil,
+      opponentPlan = None,
+      factualFallback = None,
+      endgameTransitionClaim = endgameTransitionClaim
+    )
+
+  private def plannerPlan(
+      questionId: String,
+      kind: AuthorQuestionKind,
+      claim: String,
+      ownerFamily: OwnerFamily,
+      ownerSource: String,
+      contrast: Option[String]
+  ) =
+    QuestionPlan(
+      questionId = questionId,
+      questionKind = kind,
+      priority = 100,
+      claim = claim,
+      evidence = None,
+      contrast = contrast,
+      consequence = None,
+      fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+      strengthTier = QuestionPlanStrengthTier.Moderate,
+      sourceKinds = List(ownerSource),
+      admissibilityReasons = List("test"),
+      ownerFamily = ownerFamily,
+      ownerSource = ownerSource
     )
 
   private def moment(
@@ -406,6 +487,40 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
     )
   }
 
+  test("active replay uses the truth-contract sidecar to keep only-move timing planner-owned") {
+    val activeMoment =
+      moment(
+        authorQuestions = List(authorQuestion("q_now_only", "WhyNow")),
+        authorEvidence = List(authorEvidence("q_now_only", "WhyNow", "reply_multipv", "14...Rc8 15.Re1 Qc7")),
+        signalDigest =
+          NarrativeSignalDigest(
+            deploymentContribution = Some("Pressure on g7 is the point."),
+            deploymentSurfaceMode = Some("exact"),
+            strategicFlow = Some("Keep the kingside pressure rolling."),
+            opponentPlan = Some("queenside counterplay")
+          )
+      )
+    val frame = CertifiedDecisionFrameBuilder.build(activeMoment, deltaBundle, None)
+    val withoutContract =
+      ActiveStrategicCoachingBriefBuilder
+        .replayPlanner(activeMoment, deltaBundle, None, frame)
+        .getOrElse(fail("expected replay without contract"))
+    val withContract =
+      ActiveStrategicCoachingBriefBuilder
+        .replayPlanner(activeMoment, deltaBundle, None, frame, Some(truthContract()))
+        .getOrElse(fail("expected replay with contract"))
+    val selected =
+      ActiveStrategicCoachingBriefBuilder
+        .selectPlannerSurface(activeMoment, deltaBundle, None, frame, Some(truthContract()))
+        .getOrElse(fail("expected active selection with contract"))
+
+    assertEquals(withoutContract.rankedPlans.primary.map(_.questionKind), None)
+    assertEquals(withContract.rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
+    assertEquals(withContract.rankedPlans.primary.map(_.ownerSource), Some("truth_contract"))
+    assertEquals(selected.primary.questionKind, AuthorQuestionKind.WhyNow)
+    assertEquals(selected.truthContract.map(_.reasonFamily), Some(DecisiveReasonFamily.OnlyMoveDefense))
+  }
+
   test("WhyNow active note skips duplicate contrast and keeps the next anchored support") {
     val activeMoment =
       moment(
@@ -498,6 +613,48 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, dossier, frame)
 
     assertEquals(selection, None)
+  }
+
+  test("active replay keeps endgame WhatChanged ahead of a higher-priority WhyThis swap") {
+    val replay =
+      ActiveStrategicCoachingBriefBuilder.PlannerReplay(
+        authorQuestions = Nil,
+        inputs = plannerInputs(endgameTransitionClaim = Some("endgame transition")),
+        rankedPlans =
+          RankedQuestionPlans(
+            primary =
+              Some(
+                plannerPlan(
+                  questionId = "q_end_change",
+                  kind = AuthorQuestionKind.WhatChanged,
+                  claim = "The endgame task changes immediately.",
+                  ownerFamily = OwnerFamily.EndgameTransition,
+                  ownerSource = "endgame_transition_translator",
+                  contrast = Some("Before the move, the earlier endgame task still defined the position.")
+                )
+              ),
+            secondary =
+              Some(
+                plannerPlan(
+                  questionId = "q_end_why",
+                  kind = AuthorQuestionKind.WhyThis,
+                  claim = "The move changes the technical task of the ending.",
+                  ownerFamily = OwnerFamily.EndgameTransition,
+                  ownerSource = "endgame_transition_translator",
+                  contrast = Some("The move matters because it changes the technical task of the ending, not just the local geometry.")
+                )
+              ),
+            rejected = Nil
+          )
+      )
+
+    val selection =
+      ActiveStrategicCoachingBriefBuilder
+        .selectPlannerSurface(replay)
+        .getOrElse(fail("missing active selection"))
+
+    assertEquals(selection.primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assertEquals(selection.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
   }
 
   test("deterministic note stays omitted when no planner-approved primary survives") {

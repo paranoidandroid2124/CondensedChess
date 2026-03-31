@@ -5,6 +5,7 @@ import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
 import lila.llm.*
+import lila.llm.analysis.practical.ContrastiveSupportAdmissibility
 import lila.llm.model.*
 import lila.llm.model.authoring.*
 import scala.annotation.unused
@@ -14,13 +15,15 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
   final case class PlannerReplay(
       authorQuestions: List[AuthorQuestion],
       inputs: QuestionPlannerInputs,
-      rankedPlans: RankedQuestionPlans
+      rankedPlans: RankedQuestionPlans,
+      truthContract: Option[DecisiveTruthContract] = None
   )
 
   final case class PlannerSurfaceSelection(
       primary: QuestionPlan,
       secondary: Option[QuestionPlan],
-      inputs: QuestionPlannerInputs
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract] = None
   )
 
   final case class DeterministicSupportCandidate(
@@ -109,21 +112,24 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       moment: GameChronicleMoment,
       deltaBundle: PlayerFacingMoveDeltaBundle,
       dossier: Option[ActiveBranchDossier],
-      decisionFrame: CertifiedDecisionFrame
+      decisionFrame: CertifiedDecisionFrame,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[PlannerSurfaceSelection] =
-    replayPlanner(moment, deltaBundle, dossier, decisionFrame)
+    replayPlanner(moment, deltaBundle, dossier, decisionFrame, truthContract)
       .flatMap(selectPlannerSurface)
 
   def selectPlannerSurface(
       replay: PlannerReplay
   ): Option[PlannerSurfaceSelection] =
     selectActiveSurface(replay.rankedPlans, replay.inputs)
+      .map(_.copy(truthContract = replay.truthContract))
 
   def replayPlanner(
       moment: GameChronicleMoment,
       deltaBundle: PlayerFacingMoveDeltaBundle,
       dossier: Option[ActiveBranchDossier],
-      decisionFrame: CertifiedDecisionFrame
+      decisionFrame: CertifiedDecisionFrame,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[PlannerReplay] =
     val authorEvidence = replayAuthorEvidence(moment.authorEvidence)
     val authorQuestions = replayAuthorQuestions(moment.authorQuestions, authorEvidence)
@@ -134,12 +140,13 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           ply = moment.ply,
           authorQuestions = authorQuestions,
           inputs = inputs,
-          truthContract = None
+          truthContract = truthContract
         )
       PlannerReplay(
         authorQuestions = authorQuestions,
         inputs = inputs,
-        rankedPlans = rankedPlans
+        rankedPlans = rankedPlans,
+        truthContract = truthContract
       )
     }
 
@@ -275,7 +282,15 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       plan: QuestionPlan,
       inputs: QuestionPlannerInputs
   ): Int =
-    if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim)) then 4
+    if plan.ownerFamily == OwnerFamily.OpeningRelation &&
+      plan.ownerSource == "opening_relation_translator"
+    then
+      if plan.questionKind == AuthorQuestionKind.WhyThis then 5 else 4
+    else if plan.ownerFamily == OwnerFamily.EndgameTransition &&
+      plan.ownerSource == "endgame_transition_translator"
+    then
+      if plan.questionKind == AuthorQuestionKind.WhatChanged then 5 else 4
+    else if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim)) then 4
     else if plan.questionKind == AuthorQuestionKind.WhatChanged &&
       plan.sourceKinds.exists(kind =>
         kind == "pv_delta" || kind == "move_delta" || kind == "prevented_plan" || kind == "decision_comparison"
@@ -327,7 +342,11 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       candidateEvidenceLines = candidateEvidenceLines,
       evidenceBackedPlans = replayEvidenceBackedPlans(moment),
       opponentPlan = replayOpponentPlan(moment),
-      factualFallback = None
+      factualFallback = None,
+      openingRelationClaim =
+        moment.signalDigest.flatMap(_.openingRelationClaim).flatMap(cleanStringSignal),
+      endgameTransitionClaim =
+        moment.signalDigest.flatMap(_.endgameTransitionClaim).flatMap(cleanStringSignal)
     )
 
   private def replayMainBundle(
@@ -720,6 +739,14 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       selection: PlannerSurfaceSelection,
       moment: GameChronicleMoment
   ): DeterministicComposeDebug =
+    val contrastSupport =
+      selection.primary.questionKind match
+        case AuthorQuestionKind.WhyThis | AuthorQuestionKind.WhyNow =>
+          ContrastiveSupportAdmissibility
+            .decide(selection.primary, selection.inputs, truthContract = selection.truthContract)
+            .effectiveSupport(selection.primary.contrast)
+        case _ =>
+          selection.primary.contrast
     val claim =
       selection.primary.questionKind match
         case AuthorQuestionKind.WhyNow =>
@@ -737,8 +764,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
             ),
             supportCandidate(
               source = "contrast",
-              raw = selection.primary.contrast,
-              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+              raw = contrastSupport,
+              cleaned = cleanActiveSupportSentence(contrastSupport)
             )
           )
         case AuthorQuestionKind.WhatMustBeStopped =>
@@ -758,8 +785,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           List(
             supportCandidate(
               source = "contrast",
-              raw = selection.primary.contrast,
-              cleaned = cleanActiveSupportSentence(selection.primary.contrast)
+              raw = contrastSupport,
+              cleaned = cleanActiveSupportSentence(contrastSupport)
             ),
             supportCandidate(
               source = "consequence",

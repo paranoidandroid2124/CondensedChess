@@ -291,7 +291,7 @@ class StrategicBranchSelectorTest extends FunSuite:
     assert(!plies.contains(138))
   }
 
-  test("selector surfaces decisive investment and conversion pivots without conflating them") {
+  test("selector surfaces decisive investment pivots but blocks raw conversion shells without truth proof") {
     locally {
       val threadedSeed = threadedMoment(11, decision = "seed thread one")
       val threadedBuild = threadedMoment(19, decision = "build thread one")
@@ -335,7 +335,8 @@ class StrategicBranchSelectorTest extends FunSuite:
           )
         )
 
-      assert(selection.selectedMoments.exists(_.ply == 36))
+      assert(!selection.selectedMoments.exists(_.ply == 36), clue(selection.selectedMoments))
+      assert(selection.selectedMoments.exists(_.ply == 40), clue(selection.selectedMoments))
     }
   }
 

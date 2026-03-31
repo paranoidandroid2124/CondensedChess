@@ -1,11 +1,36 @@
 package lila.llm.analysis
 
 import lila.llm.{ BookmakerRefsV1, StrategyPack }
+import lila.llm.analysis.practical.ContrastiveSupportAdmissibility
+import lila.llm.analysis.render.QuietStrategicSupportComposer
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestionKind, NarrativeOutline }
 import scala.annotation.unused
 
 private[llm] object BookmakerLiveCompressionPolicy:
+
+  private[llm] final case class PlannerRenderSelection(
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan],
+      contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace
+  )
+
+  private[llm] final case class ExactFactualQuietSupportTrace(
+      factualSentence: Option[String],
+      composerTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace,
+      liftApplied: Boolean,
+      rejectReasons: List[String]
+  )
+
+  private final case class PlannerRuntime(
+      inputs: QuestionPlannerInputs,
+      rankedPlans: RankedQuestionPlans
+  )
+
+  private final case class ExactFactualFallbackResult(
+      finalSlots: BookmakerPolishSlots,
+      trace: ExactFactualQuietSupportTrace
+  )
 
   private val movePurposeMarkers = List(
     "keep",
@@ -38,8 +63,10 @@ private[llm] object BookmakerLiveCompressionPolicy:
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): BookmakerPolishSlots =
-    buildSlots(ctx, outline, refs, strategyPack, truthContract)
-      .orElse(exactFactualFallbackSlots(ctx))
+    val plannerRuntime =
+      plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
+    slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
+      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, strategyPack))
       .getOrElse(omittedSlots)
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
@@ -60,11 +87,50 @@ private[llm] object BookmakerLiveCompressionPolicy:
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): Option[BookmakerPolishSlots] =
+    val plannerRuntime =
+      plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
+    slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
+
+  private[llm] def exactFactualQuietSupportTrace(
+      ctx: NarrativeContext,
+      refs: Option[BookmakerRefsV1],
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract] = None
+  ): ExactFactualQuietSupportTrace =
+    val plannerRuntime =
+      plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
+    val composerTrace =
+      QuietStrategicSupportComposer.diagnose(
+        ctx,
+        plannerRuntime.inputs,
+        plannerRuntime.rankedPlans,
+        strategyPack
+      )
+    exactFactualFallbackResult(ctx, plannerRuntime, strategyPack)
+      .map(_.trace)
+      .getOrElse(
+        ExactFactualQuietSupportTrace(
+          factualSentence = None,
+          composerTrace = composerTrace,
+          liftApplied = false,
+          rejectReasons = List("exact_factual_sentence_missing")
+        )
+      )
+
+  private def plannerInputsRuntime(
+      ctx: NarrativeContext,
+      refs: Option[BookmakerRefsV1],
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract]
+  ): PlannerRuntime =
     val candidateEvidence = candidateEvidenceLines(refs, ctx)
     val plannerInputs =
       QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
-    slotsFromPlanner(ctx, plannerInputs, rankedPlans)
+    PlannerRuntime(
+      inputs = plannerInputs,
+      rankedPlans = rankedPlans
+    )
 
   private case class PlannerSlotDraft(
       questionKind: AuthorQuestionKind,
@@ -80,18 +146,68 @@ private[llm] object BookmakerLiveCompressionPolicy:
   private def slotsFromPlanner(
       ctx: NarrativeContext,
       inputs: QuestionPlannerInputs,
-      rankedPlans: RankedQuestionPlans
+      rankedPlans: RankedQuestionPlans,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[BookmakerPolishSlots] =
-    rankedPlans.primary
-      .flatMap(primary => plannerDraft(ctx, primary, rankedPlans.secondary, inputs))
+    renderSelection(inputs, rankedPlans, truthContract)
+      .flatMap(selection =>
+        plannerDraft(
+          ctx,
+          selection.primary,
+          selection.secondary,
+          inputs,
+          selection.contrastTrace
+        )
+      )
       .flatMap(draft => finalizePlannerSlots(ctx, draft))
+
+  private[llm] def renderSelection(
+      inputs: QuestionPlannerInputs,
+      rankedPlans: RankedQuestionPlans,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[PlannerRenderSelection] =
+    rankedPlans.primary.map { primary =>
+      val primaryTrace =
+        ContrastiveSupportAdmissibility.decide(primary, inputs, truthContract)
+      rankedPlans.secondary
+        .filter(shouldPreferWhyNowSecondary(primary, _, primaryTrace))
+        .map { secondary =>
+          PlannerRenderSelection(
+            primary = secondary,
+            secondary = Some(primary),
+            contrastTrace = ContrastiveSupportAdmissibility.decide(secondary, inputs, truthContract)
+          )
+        }
+        .getOrElse(
+          PlannerRenderSelection(
+            primary = primary,
+            secondary = rankedPlans.secondary,
+            contrastTrace = primaryTrace
+          )
+        )
+    }
+
+  private def shouldPreferWhyNowSecondary(
+      primary: QuestionPlan,
+      secondary: QuestionPlan,
+      primaryTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace
+  ): Boolean =
+    primary.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
+      secondary.questionKind == AuthorQuestionKind.WhyNow &&
+      primary.ownerFamily == OwnerFamily.ForcingDefense &&
+      secondary.ownerFamily == OwnerFamily.ForcingDefense &&
+      primaryTrace.contrast_reject_reason.contains(
+        ContrastiveSupportAdmissibility.RejectReason.QuestionOutsideScope
+      )
 
   private def plannerDraft(
       ctx: NarrativeContext,
       primary: QuestionPlan,
       secondary: Option[QuestionPlan],
-      inputs: QuestionPlannerInputs
+      inputs: QuestionPlannerInputs,
+      contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace
   ): Option[PlannerSlotDraft] =
+    val admissibleContrast = contrastTrace.effectiveSupport(primary.contrast)
     val secondarySupport = secondarySupportText(primary, secondary, ctx)
     val primaryEvidence = plannerEvidenceHook(primary.evidence, ctx)
     val primaryConsequence = plannerConsequence(primary.consequence, ctx)
@@ -104,7 +220,7 @@ private[llm] object BookmakerLiveCompressionPolicy:
             questionKind = AuthorQuestionKind.WhyThis,
             lens = plannerLens(primary, inputs),
             claim = primary.claim,
-            supportPrimary = primary.contrast,
+            supportPrimary = admissibleContrast,
             supportSecondary = secondarySupport,
             tension = None,
             evidenceHook = primaryEvidence,
@@ -117,8 +233,8 @@ private[llm] object BookmakerLiveCompressionPolicy:
             questionKind = AuthorQuestionKind.WhyNow,
             lens = StrategicLens.Decision,
             claim = primary.claim,
-            supportPrimary = primary.contrast,
-            supportSecondary = secondarySupport.filterNot(text => primary.contrast.exists(sameSentence(_, text))),
+            supportPrimary = admissibleContrast,
+            supportSecondary = secondarySupport.filterNot(text => admissibleContrast.exists(sameSentence(_, text))),
             tension = timingTension,
             evidenceHook = primaryEvidence,
             coda = primaryConsequence
@@ -382,21 +498,65 @@ private[llm] object BookmakerLiveCompressionPolicy:
       List(Some("p1=claim"), p2, p3).flatten
 
   private def exactFactualFallbackSlots(
-      ctx: NarrativeContext
+      ctx: NarrativeContext,
+      plannerRuntime: PlannerRuntime,
+      strategyPack: Option[StrategyPack]
   ): Option[BookmakerPolishSlots] =
+    exactFactualFallbackResult(ctx, plannerRuntime, strategyPack).map(_.finalSlots)
+
+  private def exactFactualFallbackResult(
+      ctx: NarrativeContext,
+      plannerRuntime: PlannerRuntime,
+      strategyPack: Option[StrategyPack]
+  ): Option[ExactFactualFallbackResult] =
     QuietMoveIntentBuilder.exactFactualSentence(ctx)
       .flatMap(cleanSentence(_, ctx))
       .map { factual =>
-        BookmakerPolishSlots(
-          lens = StrategicLens.Decision,
-          claim = prefixMoveHeader(ctx, factual),
-          supportPrimary = None,
-          supportSecondary = None,
-          tension = None,
-          evidenceHook = None,
-          coda = None,
-          factGuardrails = Nil,
-          paragraphPlan = List("p1=claim")
+        val claimOnly =
+          BookmakerPolishSlots(
+            lens = StrategicLens.Decision,
+            claim = prefixMoveHeader(ctx, factual),
+            supportPrimary = None,
+            supportSecondary = None,
+            tension = None,
+            evidenceHook = None,
+            coda = None,
+            factGuardrails = Nil,
+            paragraphPlan = List("p1=claim")
+          )
+        val composerTrace =
+          QuietStrategicSupportComposer.diagnose(
+            ctx,
+            plannerRuntime.inputs,
+            plannerRuntime.rankedPlans,
+            strategyPack
+          )
+        val supportCandidate =
+          composerTrace.line
+            .flatMap(line =>
+              Option.when(!sameSentence(line.text, factual)) {
+                claimOnly.copy(
+                  supportPrimary = Some(line.text),
+                  factGuardrails = List(line.text),
+                  paragraphPlan = List("p1=claim", "p2=support_chain")
+                )
+              }
+            )
+        val liftApplied =
+          supportCandidate.exists(bookmakerContractSafe)
+        val rejectReasons =
+          composerTrace.rejectReasons ++
+            Option.when(composerTrace.line.nonEmpty && supportCandidate.isEmpty)("support_same_sentence_as_claim") ++
+            Option.when(supportCandidate.nonEmpty && !liftApplied)("support_contract_rejected")
+        ExactFactualFallbackResult(
+          finalSlots = supportCandidate.filter(bookmakerContractSafe).getOrElse(claimOnly),
+          trace =
+            ExactFactualQuietSupportTrace(
+              factualSentence = Some(factual),
+              composerTrace = composerTrace,
+              liftApplied = liftApplied,
+              rejectReasons = rejectReasons.distinct
+            )
         )
       }
 

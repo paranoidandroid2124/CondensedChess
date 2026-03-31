@@ -368,6 +368,7 @@ object AuthorQuestionGenerator:
     val changeSignal =
       data.counterfactual.nonEmpty ||
         data.preventedPlans.nonEmpty ||
+        data.endgameTransition.nonEmpty ||
         playedCandidate.exists(candidate =>
           candidate.downstreamTactic.exists(_.trim.nonEmpty) ||
             candidate.lineSanMoves.nonEmpty ||
@@ -380,6 +381,11 @@ object AuthorQuestionGenerator:
           .orElse(
             Option.when(data.preventedPlans.nonEmpty)(
               "The move appears to change what the opponent can do next."
+            )
+          )
+          .orElse(
+            Option.when(data.endgameTransition.nonEmpty)(
+              "The move appears to change which endgame task now defines the position."
             )
           )
           .orElse(

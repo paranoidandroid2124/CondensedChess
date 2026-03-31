@@ -2,7 +2,10 @@ package lila.llm.analysis
 
 import munit.FunSuite
 
-import lila.llm.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
+import lila.llm.{ NarrativeSignalDigest, StrategyPack }
+import lila.llm.analysis.practical.ContrastiveSupportAdmissibility
+import lila.llm.analysis.render.QuietStrategicSupportComposer
+import lila.llm.model.authoring.{ AuthorQuestionKind, NarrativeOutline, OutlineBeat, OutlineBeatKind }
 
 class GameChronicleCompressionPolicyTest extends FunSuite:
 
@@ -44,6 +47,120 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
       parts = partsFor(fixture),
       strategyPack = fixture.strategyPack,
       truthContract = fixture.truthContract
+    )
+
+  private def plannerInputs(
+      openingRelationClaim: Option[String] = None,
+      endgameTransitionClaim: Option[String] = None
+  ) =
+    QuestionPlannerInputs(
+      mainBundle = None,
+      quietIntent = None,
+      decisionFrame = CertifiedDecisionFrame(),
+      decisionComparison = None,
+      alternativeNarrative = None,
+      truthMode = PlayerFacingTruthMode.Strategic,
+      preventedPlansNow = Nil,
+      pvDelta = None,
+      counterfactual = None,
+      practicalAssessment = None,
+      opponentThreats = Nil,
+      forcingThreats = Nil,
+      evidenceByQuestionId = Map.empty,
+      candidateEvidenceLines = List("14...Rc8 15.Re1 Qc7"),
+      evidenceBackedPlans = Nil,
+      opponentPlan = None,
+      factualFallback = None,
+      openingRelationClaim = openingRelationClaim,
+      endgameTransitionClaim = endgameTransitionClaim
+    )
+
+  private def plannerPlan(
+      questionId: String,
+      kind: AuthorQuestionKind,
+      claim: String,
+      ownerFamily: OwnerFamily,
+      ownerSource: String,
+      contrast: Option[String]
+  ) =
+    QuestionPlan(
+      questionId = questionId,
+      questionKind = kind,
+      priority = 100,
+      claim = claim,
+      evidence = None,
+      contrast = contrast,
+      consequence = None,
+      fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+      strengthTier = QuestionPlanStrengthTier.Moderate,
+      sourceKinds = List(ownerSource),
+      admissibilityReasons = List("test"),
+      ownerFamily = ownerFamily,
+      ownerSource = ownerSource
+    )
+
+  private val quietSupportGateTrace =
+    QuietStrategicSupportComposer.QuietStrategicSupportGateTrace(
+      sceneType = "quiet_improvement",
+      selectedOwnerFamily = Some("MoveDelta"),
+      selectedOwnerSource = Some("pv_delta"),
+      pvDeltaAvailable = true,
+      signalDigestAvailable = true,
+      openingRelationClaimPresent = false,
+      endgameTransitionClaimPresent = false,
+      moveLinkedPvDeltaAnchorAvailable = true,
+      rejectReasons = Nil
+    )
+
+  private def quietSupportTrace(
+      text: String
+  ) =
+    QuietStrategicSupportComposer.QuietStrategicSupportTrace(
+      emitted = true,
+      line =
+        Some(
+          QuietStrategicSupportComposer.QuietStrategicSupportLine(
+            text = text,
+            bucket = QuietStrategicSupportComposer.Bucket.LongStructuralSqueeze,
+            sourceKinds = List("MoveDelta.pv_delta", "Digest.structure"),
+            verbFamily = QuietStrategicSupportComposer.VerbFamily.Reinforces
+          )
+        ),
+      rejectReasons = Nil,
+      gatePassed = true,
+      gate = quietSupportGateTrace
+    )
+
+  private def phaseAQuietSupportPack(
+      deploymentRoute: List[String]
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      signalDigest =
+        Some(
+          NarrativeSignalDigest(
+            deploymentRoute = deploymentRoute
+          )
+        )
+    )
+
+  private def renderPlanSurface(
+      fixture: BookmakerProseGoldenFixtures.PlannerRuntimeFixture,
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan] = None,
+      quietTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace = quietSupportTrace(
+        "This reinforces the fluid center."
+      )
+  ) =
+    GameChronicleCompressionPolicy.renderPlanSurface(
+      fixture.ctx,
+      GameChronicleCompressionPolicy.ChronicleRenderSurface(
+        primary = primary,
+        secondary = secondary,
+        contrastTrace = ContrastiveSupportAdmissibility.ContrastSupportTrace(),
+        quietSupportTrace = quietTrace
+      ),
+      beatEvidence = Nil
     )
 
   test("chronicle positive planner fixtures surface planner-owned claims") {
@@ -98,8 +215,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle only uses branch-scoped evidence when the cited line is anchored") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "why_now_positive")
-        .getOrElse(fail("missing why-now fixture"))
+      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+        .getOrElse(fail("missing what-changed fixture"))
     val branchyParts =
       partsFor(
         fixture,
@@ -119,7 +236,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
         .getOrElse(fail("expected chronicle render"))
 
     assert(!rendered.contains("Branch leak marker"), clue(rendered))
-    assert(rendered.toLowerCase.contains("now"), clue(rendered))
+    assert(rendered.toLowerCase.contains("back-rank counterplay"), clue(rendered))
   }
 
   test("chronicle omits instead of salvaging raw bundle prose when there is no admitted plan or factual fallback") {
@@ -142,4 +259,188 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
       )
 
     assertEquals(rendered, None)
+  }
+
+  test("chronicle keeps opening relation WhyThis ahead of a higher-priority WhatChanged swap") {
+    val rankedPlans =
+      RankedQuestionPlans(
+        primary =
+          Some(
+            plannerPlan(
+              questionId = "q_open_why",
+              kind = AuthorQuestionKind.WhyThis,
+              claim = "The move bends away from the usual opening script.",
+              ownerFamily = OwnerFamily.OpeningRelation,
+              ownerSource = "opening_relation_translator",
+              contrast = Some("The move matters because it changes which opening script the position follows.")
+            )
+          ),
+        secondary =
+          Some(
+            plannerPlan(
+              questionId = "q_open_change",
+              kind = AuthorQuestionKind.WhatChanged,
+              claim = "The opening relationship changes immediately.",
+              ownerFamily = OwnerFamily.OpeningRelation,
+              ownerSource = "opening_relation_translator",
+              contrast = Some("Before the move, the opening was still following the more familiar setup.")
+            )
+          ),
+        rejected = Nil
+      )
+
+    val selected =
+      GameChronicleCompressionPolicy
+        .selectPlannerSurface(rankedPlans, plannerInputs(openingRelationClaim = Some("opening relation")))
+        .getOrElse(fail("missing chronicle selection"))
+
+    assertEquals(selected.primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(selected.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+  }
+
+  test("chronicle keeps threat-owned WhatMustBeStopped primary ahead of a WhyNow replay swap") {
+    val rankedPlans =
+      RankedQuestionPlans(
+        primary =
+          Some(
+            plannerPlan(
+              questionId = "q_stop",
+              kind = AuthorQuestionKind.WhatMustBeStopped,
+              claim = "This has to stop the threat before it lands.",
+              ownerFamily = OwnerFamily.ForcingDefense,
+              ownerSource = "threat",
+              contrast = Some("If White drifts, the reply is forced.")
+            )
+          ),
+        secondary =
+          Some(
+            plannerPlan(
+              questionId = "q_why_now",
+              kind = AuthorQuestionKind.WhyNow,
+              claim = "The move has to happen now.",
+              ownerFamily = OwnerFamily.ForcingDefense,
+              ownerSource = "threat",
+              contrast = Some("If delayed, the threat becomes concrete.")
+            )
+          ),
+        rejected = Nil
+      )
+
+    val selected =
+      GameChronicleCompressionPolicy
+        .selectPlannerSurface(rankedPlans, plannerInputs())
+        .getOrElse(fail("missing chronicle selection"))
+
+    assertEquals(selected.primary.questionKind, AuthorQuestionKind.WhatMustBeStopped)
+    assertEquals(selected.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
+  }
+
+  test("chronicle attaches quiet support only for claim-only MoveDelta pv_delta replay rows") {
+    val fixture =
+      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+        .getOrElse(fail("missing what-changed fixture"))
+    val artifact =
+      renderPlanSurface(
+        fixture,
+        primary =
+          plannerPlan(
+            questionId = "q_quiet",
+            kind = AuthorQuestionKind.WhatChanged,
+            claim = "The move tightens the queenside bind.",
+            ownerFamily = OwnerFamily.MoveDelta,
+            ownerSource = "pv_delta",
+            contrast = None
+          )
+      ).getOrElse(fail("expected chronicle render artifact"))
+
+    assert(artifact.narrative.contains("The move tightens the queenside bind."), clue(artifact))
+    assert(artifact.narrative.contains("This reinforces the fluid center."), clue(artifact))
+    assertEquals(artifact.quietSupportTrace.applied, true, clue(artifact))
+  }
+
+  test("chronicle factual fallback stays claim-only even when quiet support is available") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        authorQuestions = Nil,
+        authorEvidence = Nil
+      )
+    val artifact =
+      GameChronicleCompressionPolicy
+        .renderWithTrace(
+          ctx = ctx,
+          parts = emptyParts,
+          strategyPack =
+            Some(
+              phaseAQuietSupportPack(
+                deploymentRoute = List("c3", "g3")
+              )
+            ),
+          truthContract = None
+        )
+        .getOrElse(fail("expected chronicle factual fallback artifact"))
+
+    assertEquals(artifact.narrative, "This puts the rook on c3.", clue(artifact))
+    assertEquals(artifact.quietSupportTrace.applied, false, clue(artifact.quietSupportTrace))
+    assertEquals(artifact.quietSupportTrace.composerTrace.emitted, true, clue(artifact.quietSupportTrace))
+    assertEquals(
+      artifact.quietSupportTrace.composerTrace.line.map(_.bucket),
+      Some(QuietStrategicSupportComposer.Bucket.SlowRouteImprovement),
+      clue(artifact.quietSupportTrace)
+    )
+    assert(
+      artifact.quietSupportTrace.rejectReasons.contains("chronicle_exact_factual_support_blocked"),
+      clue(artifact.quietSupportTrace)
+    )
+  }
+
+  test("chronicle does not add quiet support when planner support is already present") {
+    val fixture =
+      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+        .getOrElse(fail("missing what-changed fixture"))
+    val artifact =
+      renderPlanSurface(
+        fixture,
+        primary =
+          plannerPlan(
+            questionId = "q_supported",
+            kind = AuthorQuestionKind.WhatChanged,
+            claim = "The move tightens the queenside bind.",
+            ownerFamily = OwnerFamily.MoveDelta,
+            ownerSource = "pv_delta",
+            contrast = Some("The move keeps the c-file pressure coordinated.")
+          )
+      ).getOrElse(fail("expected chronicle render artifact"))
+
+    assert(!artifact.narrative.contains("This reinforces the fluid center."), clue(artifact))
+    assertEquals(artifact.quietSupportTrace.applied, false, clue(artifact))
+    assert(
+      artifact.quietSupportTrace.rejectReasons.contains("surface_support_already_present"),
+      clue(artifact.quietSupportTrace)
+    )
+  }
+
+  test("chronicle does not reinterpret non-MoveDelta rows as quiet support scenes") {
+    val fixture =
+      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+        .getOrElse(fail("missing what-changed fixture"))
+    val artifact =
+      renderPlanSurface(
+        fixture,
+        primary =
+          plannerPlan(
+            questionId = "q_forcing",
+            kind = AuthorQuestionKind.WhyNow,
+            claim = "The move has to happen now.",
+            ownerFamily = OwnerFamily.ForcingDefense,
+            ownerSource = "threat",
+            contrast = None
+          )
+      ).getOrElse(fail("expected chronicle render artifact"))
+
+    assert(!artifact.narrative.contains("This reinforces the fluid center."), clue(artifact))
+    assertEquals(artifact.quietSupportTrace.applied, false, clue(artifact))
+    assert(
+      artifact.quietSupportTrace.rejectReasons.contains("surface_primary_not_movedelta_pv_delta"),
+      clue(artifact.quietSupportTrace)
+    )
   }

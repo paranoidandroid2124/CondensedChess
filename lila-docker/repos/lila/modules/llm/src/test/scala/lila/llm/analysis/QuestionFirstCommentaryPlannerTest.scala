@@ -144,7 +144,9 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       opponentThreats: List[ThreatRow] = Nil,
       evidenceByQuestionId: Map[String, List[QuestionEvidence]] = Map.empty,
       evidenceBackedPlans: List[PlanHypothesis] = Nil,
-      opponentPlan: Option[PlanRow] = None
+      opponentPlan: Option[PlanRow] = None,
+      openingRelationClaim: Option[String] = None,
+      endgameTransitionClaim: Option[String] = None
   ): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle = mainBundle,
@@ -163,7 +165,9 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       candidateEvidenceLines = Nil,
       evidenceBackedPlans = evidenceBackedPlans,
       opponentPlan = opponentPlan,
-      factualFallback = Some("This castles.")
+      factualFallback = Some("This castles."),
+      openingRelationClaim = openingRelationClaim,
+      endgameTransitionClaim = endgameTransitionClaim
     )
 
   private def evidenceBackedPlan(name: String = "Kingside pressure"): PlanHypothesis =
@@ -412,6 +416,23 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(plans.ownerTrace.demotionReasons, List("generic_urgency_only"))
   }
 
+  test("WhyNow records an intentional drop when demotion cannot build a real WhyThis fallback") {
+    val q = question("q_now_drop", AuthorQuestionKind.WhyNow)
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(),
+        None
+      )
+
+    assertEquals(plans.primary, None)
+    val rejected = plans.rejected.find(_.questionId == q.id).getOrElse(fail("missing rejected plan"))
+    assertEquals(rejected.fallbackMode, QuestionPlanFallbackMode.Suppressed)
+    assert(rejected.reasons.contains("demotion_intentional_drop"), clues(rejected))
+    assert(rejected.reasons.contains("demote_target_unavailable"), clues(rejected))
+    assertEquals(rejected.demotedTo, Some(AuthorQuestionKind.WhyThis))
+  }
+
   test("planner owner trace records scene, owner family, and owner source") {
     val q = question("q_now_trace", AuthorQuestionKind.WhyNow)
     val ctx = baseCtx(List(q))
@@ -423,6 +444,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
+    assertEquals(plans.ownerTrace.sceneReasons, List("owner_family=ForcingDefense"))
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
         label.contains("ForcingDefense") && label.contains("source_kind=threat")
@@ -647,7 +669,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       ),
       clues(plans.ownerTrace.admittedFamilyLabels)
     )
-    assertEquals(plans.primary, None)
+    val primary = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.ownerFamily, OwnerFamily.OpeningRelation)
+    assertEquals(primary.ownerSource, "opening_relation_translator")
   }
 
   test("scene trace keeps pure endgame translators under endgame transition") {
@@ -707,7 +732,114 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       ),
       clues(plans.ownerTrace.admittedFamilyLabels)
     )
-    assertEquals(plans.primary, None)
+    val primary = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.ownerFamily, OwnerFamily.EndgameTransition)
+    assertEquals(primary.ownerSource, "endgame_transition_translator")
+  }
+
+  test("opening relation scene keeps WhyThis ahead of WhatChanged inside the legal pool") {
+    val whyThis = question("q_open_why", AuthorQuestionKind.WhyThis, priority = 40)
+    val whatChanged = question("q_open_change", AuthorQuestionKind.WhatChanged, priority = 90)
+    val ctx =
+      baseCtx(List(whyThis, whatChanged)).copy(
+        openingEvent = Some(OpeningEvent.Novelty("e4", 18, "novelty", 24)),
+        openingData =
+          Some(
+            OpeningReference(
+              eco = Some("C20"),
+              name = Some("King's Pawn Game"),
+              totalGames = 120,
+              topMoves = List(ExplorerMove("e2e4", "e4", 60, 24, 18, 18, 52)),
+              sampleGames =
+                List(
+                  ExplorerGame(
+                    id = "g_opening_rank",
+                    winner = None,
+                    white = ExplorerPlayer("Capablanca", 2700),
+                    black = ExplorerPlayer("Lasker", 2700),
+                    year = 1924,
+                    month = 1,
+                    event = Some("Test"),
+                    pgn = Some("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6")
+                  )
+                )
+            )
+          )
+      )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This improves pressure on e5.", sourceKind = "main_delta")),
+                Some(lineClaim("14...Rc8 15.Re1 Qc7"))
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(plans.ownerTrace.sceneType, SceneType.OpeningRelation)
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.ownerFamily, OwnerFamily.OpeningRelation)
+  }
+
+  test("endgame transition scene keeps WhatChanged ahead of WhyThis inside the legal pool") {
+    val whyThis = question("q_end_why", AuthorQuestionKind.WhyThis, priority = 90)
+    val whatChanged = question("q_end_change", AuthorQuestionKind.WhatChanged, priority = 30)
+    val ctx =
+      baseCtx(List(whyThis, whatChanged)).copy(
+        semantic =
+          Some(
+            SemanticSection(
+              structuralWeaknesses = Nil,
+              pieceActivity = Nil,
+              positionalFeatures = Nil,
+              compensation = None,
+              endgameFeatures =
+                Some(
+                  EndgameInfo(
+                    hasOpposition = false,
+                    isZugzwang = false,
+                    keySquaresControlled = Nil,
+                    theoreticalOutcomeHint = "Draw",
+                    confidence = 0.88,
+                    primaryPattern = Some("PhilidorDefense"),
+                    patternAge = 3,
+                    transition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+                  )
+                ),
+              practicalAssessment = None,
+              preventedPlans = Nil,
+              conceptSummary = Nil
+            )
+          )
+      )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This improves pressure on e5.", sourceKind = "main_delta")),
+                Some(lineClaim("14...Rc8 15.Re1 Qc7"))
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(plans.ownerTrace.sceneType, SceneType.EndgameTransition)
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assertEquals(primary.ownerFamily, OwnerFamily.EndgameTransition)
   }
 
   test("scene trace prefers plan clash over forcing defense when both are present") {
@@ -877,6 +1009,82 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
   }
 
+  test("best tactical refutation does not create tactical failure ownership without a bad move") {
+    val q = question("q_changed_best_hold", AuthorQuestionKind.WhatChanged)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          quietIntent =
+            Some(
+              QuietMoveIntentClaim(
+                intentClass = QuietMoveIntentClass.PieceImprovement,
+                claimText = "This keeps the rook active on the file.",
+                evidenceLine = Some("29...Rc8 30.Re1 Qc7"),
+                sourceKind = "quiet_intent"
+              )
+            ),
+          pvDelta =
+            Some(
+              PVDelta(
+                resolvedThreats = List("back-rank mate"),
+                newOpportunities = List("c-file pressure"),
+                planAdvancements = Nil,
+                concessions = Nil
+              )
+            )
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Best,
+            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            verifiedBestMove = Some("Rc8"),
+            benchmarkCriticalMove = false
+          )
+        )
+      )
+
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.MoveDelta))
+  }
+
+  test("best tactical refutation hold without concrete move delta keeps truth-contract forcing defense") {
+    val q = question("q_now_best_hold", AuthorQuestionKind.WhyNow)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil))
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Best,
+            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            verifiedBestMove = Some("e2e4"),
+            benchmarkCriticalMove = false
+          ).copy(
+            failureMode = FailureInterpretationMode.NoClearPlan
+          )
+        )
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
+    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.ForcingDefense))
+    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("truth_contract"))
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("ForcingDefense") &&
+          label.contains("source_kind=truth_contract") &&
+          label.contains("admission_decision=PrimaryAllowed")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
   test("WhatChanged requires move-attributed change rather than state summary") {
     val q = question("q_changed", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
@@ -908,6 +1116,141 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
     assert(plans.primary.flatMap(_.contrast).exists(_.contains("Before the move")), clues(plans.primary))
+  }
+
+  test("quiet move-delta ingress keeps threat pressure from promoting forcing defense") {
+    val q = question("q_changed_threat", AuthorQuestionKind.WhatChanged)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          quietIntent =
+            Some(
+              QuietMoveIntentClaim(
+                intentClass = QuietMoveIntentClass.PieceImprovement,
+                claimText = "This improves the rook on c8.",
+                evidenceLine = Some("29...Rc8 30.Re1 Qc7"),
+                sourceKind = "quiet_intent"
+              )
+            ),
+          pvDelta =
+            Some(
+              PVDelta(
+                resolvedThreats = List("back-rank mate"),
+                newOpportunities = List("c-file pressure"),
+                planAdvancements = List("rook lift"),
+                concessions = Nil
+              )
+            ),
+          opponentThreats = List(threat("Material", 160, Some("Qd8")))
+        ),
+        None
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.TransitionConversion)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.MoveDelta))
+    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("pv_delta"))
+    assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=threat")), clues(plans.ownerTrace.ownerCandidateLabels))
+  }
+
+  test("empty pv delta keeps concrete threat pressure as forcing defense") {
+    val q = question("q_stop_blocked_threat", AuthorQuestionKind.WhatMustBeStopped)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          opponentThreats = List(threat("Material", 320, Some("Qd8")))
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.CompensatedInvestment,
+            reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+            verifiedBestMove = Some("Qe2"),
+            benchmarkCriticalMove = false
+          ).copy(
+            failureMode = FailureInterpretationMode.NoClearPlan
+          )
+        )
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped))
+    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.ForcingDefense))
+    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("threat"))
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("ForcingDefense") &&
+          label.contains("source_kind=threat") &&
+          label.contains("admission_decision=PrimaryAllowed")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("MoveDelta") &&
+          label.contains("source_kind=pv_delta") &&
+          label.contains("admission_decision=SupportOnly")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
+  test("only-move investment with empty pv delta keeps move delta primary") {
+    val q = question("q_changed_only_move_quiet", AuthorQuestionKind.WhatChanged)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("a5"),
+                engineBestMove = Some("g3"),
+                engineBestScoreCp = Some(127),
+                engineBestPv = Nil,
+                cpLossVsChosen = Some(127),
+                deferredMove = Some("g3"),
+                deferredReason = Some("the cleaner version of the position runs through g3"),
+                deferredSource = Some("verified_best"),
+                evidence = Some("34.a5 g3"),
+                practicalAlternative = false,
+                chosenMatchesBest = false
+              )
+            ),
+          opponentThreats = List(threat("Material", 160, Some("g3")))
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Mistake,
+            reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+            verifiedBestMove = Some("g3"),
+            benchmarkCriticalMove = true
+          )
+        )
+      )
+
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
+    assertEquals(plans.primary, None)
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("MoveDelta") &&
+          label.contains("source_kind=pv_delta") &&
+          label.contains("admission_decision=PrimaryAllowed")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+    assert(
+      !plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("ForcingDefense") && label.contains("source_kind=threat")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("WhatChanged fails closed on state-only summary") {
@@ -981,8 +1324,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(
       plans.rejected.exists(rejected =>
         rejected.questionKind == AuthorQuestionKind.WhatChanged &&
-          rejected.fallbackMode == QuestionPlanFallbackMode.Suppressed &&
-          rejected.reasons.contains("decision_timing_support_only_in_v1")
+          rejected.fallbackMode == QuestionPlanFallbackMode.FactualFallback &&
+          rejected.reasons.contains("state_truth_only")
       ),
       clues(plans.rejected)
     )
@@ -994,6 +1337,45 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           label.contains("admission_decision=SupportOnly")
       ),
       clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
+  test("WhatChanged does not owner-promote decision comparison when pvDelta is empty") {
+    val q = question("q_changed_empty_delta", AuthorQuestionKind.WhatChanged)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("a5"),
+                engineBestMove = Some("g3"),
+                engineBestScoreCp = Some(127),
+                engineBestPv = Nil,
+                cpLossVsChosen = Some(127),
+                deferredMove = Some("g3"),
+                deferredReason = Some("the cleaner version of the position runs through g3"),
+                deferredSource = Some("verified_best"),
+                evidence = Some("34.a5 g3"),
+                practicalAlternative = false,
+                chosenMatchesBest = false
+              )
+            )
+        ),
+        None
+      )
+
+    assertEquals(plans.primary, None)
+    assert(
+      plans.rejected.exists(rejected =>
+        rejected.questionKind == AuthorQuestionKind.WhatChanged &&
+          rejected.fallbackMode == QuestionPlanFallbackMode.FactualFallback &&
+          rejected.reasons.contains("state_truth_only")
+      ),
+      clues(plans.rejected)
     )
   }
 
@@ -1213,4 +1595,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(decision.text, "This castles.")
     assert(!decision.text.contains("placeholder-q_now"), clues(decision.text))
+  }
+
+  test("outline factual fallback keeps ambiguous captures literal instead of adding simplification meaning") {
+    val q = question("q_capture", AuthorQuestionKind.WhyNow)
+    val ctx =
+      baseCtx(List(q)).copy(
+        playedMove = Some("c4f7"),
+        playedSan = Some("Bx")
+      )
+    val rec = new TraceRecorder()
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, rec)
+    val decision = outline.getBeat(OutlineBeatKind.DecisionPoint).getOrElse(fail("missing decision beat"))
+
+    assertEquals(decision.text, "This captures.")
+    assert(!decision.text.toLowerCase.contains("simplifying"), clues(decision.text))
   }

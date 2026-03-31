@@ -186,7 +186,9 @@ object UserFacingPayloadSanitizer:
       decision = None,
       strategicFlow = None,
       opponentPlan = None,
-      preservedSignals = Nil
+      preservedSignals = Nil,
+      openingRelationClaim = cleanOpt(digest.openingRelationClaim),
+      endgameTransitionClaim = cleanOpt(digest.endgameTransitionClaim)
     )
 
   private def sanitizeDecisionComparison(digest: DecisionComparisonDigest): DecisionComparisonDigest =

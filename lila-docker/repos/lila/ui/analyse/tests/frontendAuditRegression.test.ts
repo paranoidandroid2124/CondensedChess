@@ -393,6 +393,8 @@ describe('frontend audit regressions', () => {
     assert.match(bookmakerTs, /Advanced details/);
 
     assert.match(narrativeViewTs, /buildCompactSupportSurface/);
+    assert.match(narrativeViewTs, /const decisionComparison = digest\?\.decisionComparison;/);
+    assert.doesNotMatch(narrativeViewTs, /narrativeFallbackDecisionComparison/);
     assert.match(narrativeViewTs, /h3\.narrative-signal-title', 'Support'/);
     assert.match(narrativeViewTs, /details\.narrative-advanced-details/);
     assert.match(narrativeViewTs, /summary\.narrative-advanced-details__summary', 'Advanced details'/);

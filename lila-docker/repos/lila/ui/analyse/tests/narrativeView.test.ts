@@ -536,6 +536,44 @@ describe('narrative review card click guard', () => {
     assert.match(text, /keep the initiative rather than recovering material/);
   });
 
+  test('support box does not rebuild decision-comparison support from topEngineMove fallback alone', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
+    const ctrl: any = {
+      root: {
+        data: {
+          game: {
+            variant: { key: 'standard' },
+          },
+        },
+      },
+    };
+
+    const moment: any = {
+      ply: 24,
+      moveNumber: 12,
+      side: 'white',
+      momentType: 'StrategicBridge',
+      fen: '4k3/8/8/8/8/8/3Q4/4K3 w - - 0 1',
+      narrative: 'Qe2 keeps the center stable.',
+      concepts: [],
+      variations: [],
+      topEngineMove: {
+        uci: 'd1e2',
+        san: 'Qe2',
+        cpLossVsPlayed: 32,
+        pv: ['d1e2', 'e8d7', 'e2e4'],
+      },
+    };
+
+    const vnode = narrativeMomentView(ctrl, moment);
+    const selectors = collectSelectors(vnode);
+    const text = collectText(vnode);
+
+    assert.doesNotMatch(text, /Support/);
+    assert.doesNotMatch(text, /Engine/);
+    assert.ok(!selectors.includes('div.narrative-signal-box'));
+  });
+
   test('strategic note no longer rebuilds active strategy surfaces from strategyPack fallback', async () => {
     const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {

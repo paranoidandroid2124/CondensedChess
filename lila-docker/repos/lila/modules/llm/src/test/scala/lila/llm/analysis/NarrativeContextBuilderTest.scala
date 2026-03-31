@@ -1015,7 +1015,7 @@ class NarrativeContextBuilderTest extends FunSuite {
   }
 
   // ============================================================
-  // SEMANTIC SECTION (Phase A Enhancement)
+  // Semantic section enhancement
   // ============================================================
 
   test("Semantic: buildSemanticSection returns None when no semantic data exists") {
@@ -1540,7 +1540,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(tags.contains(CandidateTag.Prophylactic), s"Prophylaxis should map to Prophylactic, got: $tags")
   }
   
-  test("F6: Decision section is not generated for StyleChoice") {
+  test("F6: StyleChoice without probe-backed move evidence keeps Decision empty") {
     val ctx = IntegratedContext(
       evalCp = 100,
       isWhiteToMove = true,
@@ -1561,6 +1561,56 @@ class NarrativeContextBuilderTest extends FunSuite {
     
     // StyleChoice positions should NOT have Decision section (cost control)
     assert(result.decision.isEmpty, s"Decision should be None for StyleChoice, got: ${result.decision}")
+  }
+
+  test("F6b: StyleChoice with probe-backed move evidence keeps Decision and PVDelta") {
+    val ctx = IntegratedContext(
+      evalCp = 100,
+      isWhiteToMove = true,
+      classification = Some(PositionClassification(
+        nature = NatureResult(lila.llm.analysis.L3.NatureType.Static, 0, 0, 0, false),
+        criticality = CriticalityResult(CriticalityType.Normal, 0, None, 0),
+        choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 10, 5, None, 3, 0, None),
+        gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 40, true, 4),
+        simplifyBias = SimplifyBiasResult(false, 0, false, false),
+        drawBias = DrawBiasResult(false, false, false, false, false),
+        riskProfile = RiskProfileResult(RiskLevel.Low, 0, 0, 0),
+        taskMode = TaskModeResult(TaskModeType.ExplainPlan, "test")
+      ))
+    )
+
+    val probeResult = ProbeResult(
+      id = "style-choice-probe",
+      evalCp = 96,
+      bestReplyPv = Nil,
+      deltaVsBaseline = 8,
+      keyMotifs = Nil,
+      probedMove = Some("e2e4"),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = List("Mate"),
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, List("e5"), Nil),
+          planBlockersRemoved = List("back-rank pressure"),
+          planPrereqsMet = Nil
+        )
+      )
+    )
+
+    val candidate = AnalyzedCandidate(
+      move = "e2e4",
+      score = 100,
+      motifs = Nil,
+      prophylaxisResults = Nil,
+      futureContext = "central",
+      line = VariationLine(List("e2e4"), 100, depth = 20)
+    )
+
+    val data = minimalData(Some(ctx)).copy(candidates = List(candidate))
+    val result = NarrativeContextBuilder.build(data, ctx, None, List(probeResult))
+
+    assert(result.decision.isDefined, s"Decision should be present for probe-backed StyleChoice, got: ${result.decision}")
+    assert(result.decision.exists(_.delta.resolvedThreats.contains("Mate")), s"PVDelta should preserve resolved threat evidence, got: ${result.decision}")
   }
   
   // ============================================================

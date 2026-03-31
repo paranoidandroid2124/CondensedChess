@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, UserFacingProseHardGate }
+import lila.llm.analysis.{ ActiveBranchDossierBuilder, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, UserFacingProseHardGate }
 import lila.llm.model.{ OpeningReference, ProbeResult }
 import lila.llm.model.structure.StructureId
 import lila.llm.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -1513,11 +1513,19 @@ final class LlmApi(
       stage: String,
       primaryKind: Option[lila.llm.model.authoring.AuthorQuestionKind] = None,
       sourceMode: Option[String] = None,
+      rejectReason: Option[String] = None,
       hardReasons: List[String] = Nil,
       warningReasons: List[String] = Nil,
-      composeDebug: Option[ActiveStrategicCoachingBriefBuilder.DeterministicComposeDebug] = None
+      composeDebug: Option[ActiveStrategicCoachingBriefBuilder.DeterministicComposeDebug] = None,
+      noteCandidate: Option[String] = None,
+      validatorPassed: Boolean = false
   ):
     def isAttached: Boolean = stage == LlmApi.ActiveFinalizationStage.Attached
+    def noteBuilt: Boolean = noteCandidate.exists(_.trim.nonEmpty)
+    def plannerApproved: Boolean =
+      stage != LlmApi.ActiveFinalizationStage.NoPrimary &&
+        stage != LlmApi.ActiveFinalizationStage.PreselectionBlocked &&
+        stage != LlmApi.ActiveFinalizationStage.SupportGateBlocked
 
   private case class ActiveNoteRouteMeta(
       provider: String,
@@ -1616,7 +1624,8 @@ final class LlmApi(
       strategyPack: Option[StrategyPack],
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
-      plannerPrimaryKind: Option[lila.llm.model.authoring.AuthorQuestionKind] = None
+      plannerPrimaryKind: Option[lila.llm.model.authoring.AuthorQuestionKind] = None,
+      plannerPrimary: Option[QuestionPlan] = None
   ): ActiveStrategicNoteValidator.Result =
     val trimmed = Option(candidateText).map(_.trim).getOrElse("")
     val strategyReasons =
@@ -1630,8 +1639,34 @@ final class LlmApi(
       routeRefs = routeRefs,
       moveRefs = moveRefs,
       strategyReasons = strategyReasons,
-      plannerPrimaryKind = plannerPrimaryKind
+      plannerPrimaryKind = plannerPrimaryKind,
+      plannerPrimary = plannerPrimary
     )
+
+  private def normalizeActiveRejectReason(
+      stage: String,
+      hardReasons: List[String],
+      noteCandidate: Option[String]
+  ): Option[String] =
+    val detailedReasons =
+      hardReasons
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filterNot(reason => reason == "active_note_rule_failed" || reason == "active_note_rule_empty")
+    if stage == LlmApi.ActiveFinalizationStage.Attached then None
+    else if stage == LlmApi.ActiveFinalizationStage.NoPrimary then Some("no_planner_primary")
+    else if stage == LlmApi.ActiveFinalizationStage.PreselectionBlocked then detailedReasons.headOption.orElse(Some("preselection_blocked"))
+    else if stage == LlmApi.ActiveFinalizationStage.SupportGateBlocked then Some("visible_support_missing")
+    else if stage == LlmApi.ActiveFinalizationStage.NoteEmpty || noteCandidate.forall(_.trim.isEmpty) then Some("note_body_empty")
+    else if detailedReasons.contains("active_note_prior_phrase_reuse") then Some("validator_independence_fail")
+    else if detailedReasons.contains("strategy_route_missing") then Some("missing_required_route")
+    else if detailedReasons.contains("strategy_plan_missing") || detailedReasons.contains("forward_plan_missing") then
+      Some("missing_required_plan")
+    else if detailedReasons.contains("strategy_focus_missing") || detailedReasons.contains("opponent_or_trigger_missing") then
+      Some("missing_required_focus")
+    else if detailedReasons.contains("empty_polish") then Some("note_body_empty")
+    else if detailedReasons.nonEmpty then Some("note_body_too_generic")
+    else None
 
   private def finalizeActiveStrategicDecision(
       decision: ActiveStrategicNoteDecision,
@@ -1640,6 +1675,9 @@ final class LlmApi(
     val sanitized = decision.note.map(UserFacingProseHardGate.sanitize).map(_.trim).filter(_.nonEmpty)
     val hardGateEvaluation = sanitized.map(UserFacingProseHardGate.validateSanitized)
     val validatedNote = hardGateEvaluation.filter(_.isAccepted).map(_.text)
+    val noteCandidate =
+      decision.composeDebug.flatMap(_.result).orElse(decision.note).map(_.trim).filter(_.nonEmpty)
+    val validatorPassed = decision.note.exists(_.trim.nonEmpty) && decision.hardReasons.isEmpty
     val stage =
       if validatedNote.nonEmpty then LlmApi.ActiveFinalizationStage.Attached
       else if decision.note.isEmpty then
@@ -1650,15 +1688,19 @@ final class LlmApi(
       if stage == LlmApi.ActiveFinalizationStage.HardGateFailed then
         (decision.hardReasons ++ hardGateEvaluation.toList.flatMap(_.reasons)).distinct
       else decision.hardReasons.distinct
+    val rejectReason = normalizeActiveRejectReason(stage, hardReasons, noteCandidate)
     (
       validatedNote,
       ActiveNoteFinalizationTrace(
         stage = stage,
         primaryKind = plannerPrimaryKind,
         sourceMode = if validatedNote.nonEmpty then decision.sourceMode.orElse(Some("rule")) else Some("omitted"),
+        rejectReason = rejectReason,
         hardReasons = hardReasons,
         warningReasons = decision.warningReasons.distinct,
-        composeDebug = decision.composeDebug
+        composeDebug = decision.composeDebug,
+        noteCandidate = noteCandidate,
+        validatorPassed = validatorPassed
       )
     )
 
@@ -1679,7 +1721,8 @@ final class LlmApi(
         strategyPack = moment.strategyPack,
         routeRefs = routeRefs,
         moveRefs = moveRefs,
-        plannerPrimaryKind = Some(plannerSelection.primary.questionKind)
+        plannerPrimaryKind = Some(plannerSelection.primary.questionKind),
+        plannerPrimary = Some(plannerSelection.primary)
       )
 
     val composeDebug =
@@ -1906,7 +1949,8 @@ final class LlmApi(
               strategyPack = moment.strategyPack,
               routeRefs = routeRefs,
               moveRefs = moveRefs,
-              plannerPrimaryKind = Some(plannerSelection.primary.questionKind)
+              plannerPrimaryKind = Some(plannerSelection.primary.questionKind),
+              plannerPrimary = Some(plannerSelection.primary)
             )
             val observedModels = observedModelsForOpenAi(meta, leadingObservedModels, primary)
             if primaryValidation.isAccepted || !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
@@ -1968,7 +2012,8 @@ final class LlmApi(
                     strategyPack = moment.strategyPack,
                     routeRefs = routeRefs,
                     moveRefs = moveRefs,
-                    plannerPrimaryKind = Some(plannerSelection.primary.questionKind)
+                    plannerPrimaryKind = Some(plannerSelection.primary.questionKind),
+                    plannerPrimary = Some(plannerSelection.primary)
                   )
                   if repairedValidation.isAccepted then
                     polishedDecision(
@@ -2061,7 +2106,8 @@ final class LlmApi(
                   strategyPack = moment.strategyPack,
                   routeRefs = routeRefs,
                   moveRefs = moveRefs,
-                  plannerPrimaryKind = Some(plannerSelection.primary.questionKind)
+                  plannerPrimaryKind = Some(plannerSelection.primary.questionKind),
+                  plannerPrimary = Some(plannerSelection.primary)
                 )
                 if primaryValidation.isAccepted || !ActiveStrategicNoteValidator.shouldRepair(primaryValidation) then
                   Future.successful(
@@ -2097,7 +2143,8 @@ final class LlmApi(
                           strategyPack = moment.strategyPack,
                           routeRefs = routeRefs,
                           moveRefs = moveRefs,
-                          plannerPrimaryKind = Some(plannerSelection.primary.questionKind)
+                          plannerPrimaryKind = Some(plannerSelection.primary.questionKind),
+                          plannerPrimary = Some(plannerSelection.primary)
                         )
                         if repairedValidation.isAccepted then
                           Future.successful(
@@ -3260,6 +3307,7 @@ final class LlmApi(
 
   private def maybePolishGameChronicleArtifacts(
       response: GameChronicleResponse,
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
       allowLlmPolish: Boolean,
       lang: String,
       asyncTier: Boolean,
@@ -3279,6 +3327,7 @@ final class LlmApi(
           if shouldRunActiveNotes then
             attachActiveStrategicNotes(
               response = basePolished,
+              truthContractsByPly = truthContractsByPly,
               allowLlmPolish = allowLlmPolish,
               lang = lang,
               asyncTier = asyncTier,
@@ -3429,6 +3478,7 @@ final class LlmApi(
   ): Future[GameChronicleResponse] =
     maybePolishGameChronicleArtifacts(
       response = response,
+      truthContractsByPly = Map.empty,
       allowLlmPolish = allowLlmPolish,
       lang = lang,
       asyncTier = asyncTier,
@@ -3439,6 +3489,7 @@ final class LlmApi(
 
   private def attachActiveStrategicNotes(
       response: GameChronicleResponse,
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
       allowLlmPolish: Boolean,
       lang: String,
       asyncTier: Boolean,
@@ -3455,6 +3506,7 @@ final class LlmApi(
     activeNoteSelectedCount.addAndGet(selectedByPly.size.toLong)
 
     Future.traverse(response.moments) { moment =>
+      val truthContract = truthContractsByPly.get(moment.ply)
       val threadRef = moment.strategicThread
       val thread = threadRef.flatMap(ref => threadsById.get(ref.threadId))
       val routeRefs = buildActiveStrategicRouteRefs(moment)
@@ -3463,7 +3515,13 @@ final class LlmApi(
       val dossier = ActiveBranchDossierBuilder.build(moment, routeRefs, moveRefs, threadRef, thread)
       val decisionFrame = CertifiedDecisionFrameBuilder.build(moment, deltaBundle, dossier)
       val plannerSelection =
-        ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(moment, deltaBundle, dossier, decisionFrame)
+        ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
+          moment = moment,
+          deltaBundle = deltaBundle,
+          dossier = dossier,
+          decisionFrame = decisionFrame,
+          truthContract = truthContract
+        )
       val primaryKind = plannerSelection.map(_.primary.questionKind)
       val activePolicyEligible =
         LlmApi.activePlannerPolicyEligible(moment, primaryKind)
@@ -4114,7 +4172,6 @@ final class LlmApi(
       then
         LlmLevel.Active
       else normalizeLlmLevel(llmLevel)
-    val effectiveLevel = effectiveLlmLevel(normalizedPlanTier, requestedLevel, allowLlmPolish)
     val evalMap = evals.map(e => e.ply -> e.getVariations).toMap
     val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
     val normalizedProbeResultsByPly = probeResultsByPly.view.mapValues(_.take(GameArcProbeRequestsPerMoment)).toMap
@@ -4124,26 +4181,25 @@ final class LlmApi(
       )
     fetchOpeningRefsForPgn(pgn)
       .map { openingRefsByFen =>
-        CommentaryEngine.generateGameArc(
+        CommentaryEngine.generateGameArcDiagnostic(
           pgn = pgn,
           evals = evalMap,
           openingRefsByFen = openingRefsByFen,
           probeResultsByPly = normalizedProbeResultsByPly,
-          variantKey = normalizedVariant,
-          llmLevel = effectiveLevel
+          variantKey = normalizedVariant
         )
       }
       .recover { case NonFatal(e) =>
         logger.warn(s"Opening reference fetch failed for Game Chronicle: ${e.getMessage}")
-        CommentaryEngine.generateGameArc(
+        CommentaryEngine.generateGameArcDiagnostic(
           pgn = pgn,
           evals = evalMap,
           probeResultsByPly = normalizedProbeResultsByPly,
-          variantKey = normalizedVariant,
-          llmLevel = effectiveLevel
+          variantKey = normalizedVariant
         )
       }
-      .flatMap { narrative =>
+      .flatMap { diagnostic =>
+        val narrative = diagnostic.arc
         val base = GameChronicleResponse.fromGameArc(
           arc = narrative,
           review = None,
@@ -4154,6 +4210,7 @@ final class LlmApi(
         )
         maybePolishGameChronicleArtifacts(
           response = base,
+          truthContractsByPly = diagnostic.truthContractsByPly,
           allowLlmPolish = allowLlmPolish,
           lang = normalizeLang(lang),
           asyncTier = asyncTier,

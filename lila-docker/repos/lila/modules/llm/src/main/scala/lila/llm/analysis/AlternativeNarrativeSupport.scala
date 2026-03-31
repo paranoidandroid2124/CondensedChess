@@ -20,20 +20,6 @@ private[analysis] object AlternativeNarrativeSupport:
   def sentence(ctx: NarrativeContext): Option[String] =
     build(ctx).map(_.sentence)
 
-  def moveLabel(ctx: NarrativeContext): Option[String] =
-    build(ctx).flatMap(_.move)
-
-  def observedIn(text: String, alt: AlternativeNarrative): Boolean =
-    val low = normalize(text).toLowerCase
-    val moveHit = alt.move.exists(m => low.contains(normalize(m).toLowerCase))
-    val reasonTokens =
-      normalize(alt.reason)
-        .toLowerCase
-        .split("""[^a-z0-9]+""")
-        .toList
-        .filter(token => token.nonEmpty && token.length > 4)
-    moveHit || reasonTokens.count(low.contains) >= math.min(2, reasonTokens.size)
-
   private def fromCloseAlternative(ctx: NarrativeContext): Option[AlternativeNarrative] =
     val altLine = ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption)
     val altMove = altLine.flatMap(variationLeadSan(ctx.fen, _))

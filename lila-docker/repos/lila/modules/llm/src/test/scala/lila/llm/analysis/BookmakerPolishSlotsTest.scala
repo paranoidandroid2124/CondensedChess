@@ -1,6 +1,8 @@
 package lila.llm.analysis
 
 import munit.FunSuite
+import lila.llm.analysis.practical.ContrastiveSupportAdmissibility
+import lila.llm.analysis.render.QuietStrategicSupportComposer
 import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
@@ -148,6 +150,29 @@ class BookmakerPolishSlotsTest extends FunSuite:
         )
       )
     )
+
+  private def phaseAQuietSupportPack(
+      deploymentRoute: List[String] = Nil,
+      structuralCue: Option[String] = None,
+      practicalVerdict: Option[String] = None
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      signalDigest =
+        Some(
+          NarrativeSignalDigest(
+            deploymentRoute = deploymentRoute,
+            structuralCue = structuralCue,
+            practicalVerdict = practicalVerdict
+          )
+        )
+    )
+
+  private def assertNoForbiddenQuietSupport(text: String): Unit =
+    val lowered = text.toLowerCase
+    List("prepare", "launch", "force", "secure", "neutraliz").foreach { stem =>
+      assert(!lowered.matches(s""".*\\b${stem}\\w*\\b.*"""), clues(text, stem))
+    }
 
   private def tacticalCtx(base: NarrativeContext): NarrativeContext =
     base.copy(
@@ -339,7 +364,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertEquals(slots.supportSecondary, None)
   }
 
-  test("bookmaker maps WhyNow into a timing claim with proof instead of raw urgency support") {
+  test("bookmaker fails closed when tactical failure owns a WhyNow request") {
     val ctx =
       tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx).copy(
         threats = ThreatTable(toUs = List(threat("Mate", 900, Some("Qd8"))), toThem = Nil),
@@ -370,29 +395,24 @@ class BookmakerPolishSlotsTest extends FunSuite:
           )
       )
     val slots =
-      BookmakerLiveCompressionPolicy
-        .buildSlots(
-          ctx = ctx,
-          outline = outline,
-          refs = None,
-          strategyPack = None,
-          truthContract =
-            Some(
-              truthContract(
-                ownershipRole = TruthOwnershipRole.BlunderOwner,
-                visibilityRole = TruthVisibilityRole.PrimaryVisible,
-                surfaceMode = TruthSurfaceMode.FailureExplain,
-                truthClass = DecisiveTruthClass.Blunder,
-                reasonFamily = DecisiveReasonFamily.TacticalRefutation
-              )
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx = ctx,
+        outline = outline,
+        refs = None,
+        strategyPack = None,
+        truthContract =
+          Some(
+            truthContract(
+              ownershipRole = TruthOwnershipRole.BlunderOwner,
+              visibilityRole = TruthVisibilityRole.PrimaryVisible,
+              surfaceMode = TruthSurfaceMode.FailureExplain,
+              truthClass = DecisiveTruthClass.Blunder,
+              reasonFamily = DecisiveReasonFamily.TacticalRefutation
             )
-        )
-        .getOrElse(fail(outline.diagnostics.map(_.summary).getOrElse("expected tactical slots")))
+          )
+      )
 
-    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("now"), clues(claim))
-    assert(slots.supportPrimary.exists(_.contains("Qd8")), clues(slots.supportPrimary))
-    assert(slots.evidenceHook.exists(_.startsWith("a)")), clues(slots.evidenceHook))
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
   test("state-only structure fixture now falls back to an exact factual one-liner") {
@@ -895,7 +915,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("only-move defense now speaks through planner-owned timing prose instead of route copy") {
+  test("only-move defense stays support-only when no bookmaker-safe WhyNow surface survives") {
     val ctx =
       tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx).copy(
         authorQuestions =
@@ -933,9 +953,9 @@ class BookmakerPolishSlotsTest extends FunSuite:
         "The route is ready once the rook joins."
       )
     val slots =
-      BookmakerPolishSlotsBuilder.build(
-        ctx,
-        outline,
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx = ctx,
+        outline = outline,
         refs = None,
         strategyPack =
           Some(
@@ -958,12 +978,64 @@ class BookmakerPolishSlotsTest extends FunSuite:
               reasonFamily = DecisiveReasonFamily.OnlyMoveDefense
             )
           )
-      ).getOrElse(fail("missing slots"))
+      )
 
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
+  }
+
+  test("bookmaker keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        threats = ThreatTable(toUs = List(threat("Material threat", 220, Some("Qd8"))), toThem = Nil),
+        authorQuestions =
+          List(
+            question("q_now_scope", AuthorQuestionKind.WhyNow, evidencePurposes = List("reply_multipv")),
+            question("q_stop_scope", AuthorQuestionKind.WhatMustBeStopped, evidencePurposes = List("reply_multipv"))
+          ),
+        authorEvidence =
+          List(
+            evidence("q_now_scope", "reply_multipv", List("14...Rc8 15.Re1 Qd8", "14...Rc8 15.a4 Qd8")),
+            evidence("q_stop_scope", "reply_multipv", List("14...Rc8 15.Re1 Qd8"))
+          )
+      )
+    val contract =
+      Some(
+        truthContract(
+          ownershipRole = TruthOwnershipRole.NoneRole,
+          visibilityRole = TruthVisibilityRole.PrimaryVisible,
+          surfaceMode = TruthSurfaceMode.FailureExplain,
+          truthClass = DecisiveTruthClass.Best,
+          reasonFamily = DecisiveReasonFamily.OnlyMoveDefense
+        )
+      )
+    val outline =
+      genericDecisionOutline(
+        "The move keeps the rook coordinated before the position loosens.",
+        "The timing window closes if White drifts."
+      )
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = contract)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, inputs, contract)
+    val renderSelection =
+      BookmakerLiveCompressionPolicy
+        .renderSelection(inputs, rankedPlans, contract)
+        .getOrElse(fail("expected bookmaker render selection"))
+    val slots =
+      BookmakerLiveCompressionPolicy
+        .buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = contract)
+        .getOrElse(fail("expected bookmaker slots"))
+
+    assertEquals(rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped), clues(rankedPlans))
+    assertEquals(rankedPlans.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(rankedPlans))
+    assertEquals(renderSelection.primary.questionKind, AuthorQuestionKind.WhyNow, clues(renderSelection))
+    assertEquals(
+      renderSelection.contrastTrace.contrast_source_kind,
+      Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
+      clues(renderSelection.contrastTrace)
+    )
     val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("timing matters now") || claim.contains("slip away"), clue(claim))
-    assert(!claim.contains("route toward e5"), clue(claim))
-    assert(slots.evidenceHook.exists(_.startsWith("a)")), clues(slots.evidenceHook))
+    assert(claim.contains("timing") || claim.contains("now"), clues(claim, slots))
+    assert(!claim.contains("has to stop"), clues(claim, slots))
+    assert(slots.supportPrimary.exists(_.contains("Qd8")), clues(slots.supportPrimary, slots))
   }
 
   test("neutral truth contract drops raw compensation prose and falls back to exact move semantics") {
@@ -1019,6 +1091,156 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
     assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
+  }
+
+  test("direct bookmaker fallback keeps ambiguous captures literal") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        playedSan = Some("Qx"),
+        semantic = None,
+        decision = None,
+        mainStrategicPlans = Nil,
+        strategicPlanExperiments = Nil,
+        latentPlans = Nil,
+        whyAbsentFromTopMultiPV = Nil,
+        pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
+      )
+    val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
+    val slots =
+      BookmakerPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None
+      )
+
+    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This captures.")
+    assertEquals(slots.paragraphPlan, List("p1=claim"))
+  }
+
+  test("exact factual fallback can lift an eligible quiet-support row with one bounded support sentence") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        authorQuestions = Nil,
+        authorEvidence = Nil
+      )
+    val strategyPack =
+      Some(
+        phaseAQuietSupportPack(
+          deploymentRoute = List("c3", "g3")
+        )
+      )
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+    val plannerSlots = BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
+    val quietTrace =
+      BookmakerLiveCompressionPolicy.exactFactualQuietSupportTrace(
+        ctx = ctx,
+        refs = None,
+        strategyPack = strategyPack
+      )
+    val slots =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx = ctx,
+        outline = outline,
+        refs = None,
+        strategyPack = strategyPack
+      )
+
+    assertEquals(plannerSlots, None, clues(rankedPlans))
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
+    assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
+    assertEquals(rankedPlans.ownerTrace.selectedOwnerFamily, None, clues(rankedPlans.ownerTrace))
+    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
+    assert(slots.supportPrimary.exists(_.toLowerCase.contains("available")), clues(slots))
+    assertEquals(slots.supportSecondary, None)
+    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain"))
+    assertEquals(quietTrace.liftApplied, true, clues(quietTrace))
+    assertEquals(quietTrace.rejectReasons, Nil, clues(quietTrace))
+    assertEquals(quietTrace.composerTrace.gatePassed, true, clues(quietTrace))
+    assertEquals(quietTrace.composerTrace.gate.sceneType, SceneType.TransitionConversion.wireName, clues(quietTrace))
+    assertEquals(quietTrace.composerTrace.gate.pvDeltaAvailable, true, clues(quietTrace))
+    assertEquals(quietTrace.composerTrace.gate.moveLinkedPvDeltaAnchorAvailable, true, clues(quietTrace))
+    assertEquals(
+      quietTrace.composerTrace.line.map(_.bucket),
+      Some(QuietStrategicSupportComposer.Bucket.SlowRouteImprovement),
+      clues(quietTrace)
+    )
+    assertNoForbiddenQuietSupport(slots.supportPrimary.getOrElse(""))
+  }
+
+  test("planner-owned bookmaker rows skip quiet-support fallback lifting") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
+        plans =
+          PlanTable(
+            top5 =
+              List(
+                PlanRow(
+                  rank = 1,
+                  name = "Kingside Pressure",
+                  score = 0.82,
+                  evidence = List("probe-backed"),
+                  confidence = ConfidenceLevel.Probe
+                )
+              ),
+            suppressed = Nil
+          ),
+        threats = ThreatTable(toUs = List(threat("Counterplay", 220, Some("...Rc8"))), toThem = Nil),
+        authorQuestions = List(
+          question("q_race", AuthorQuestionKind.WhosePlanIsFaster, evidencePurposes = List("reply_multipv"))
+        ),
+        authorEvidence =
+          List(
+            evidence(
+              "q_race",
+              "reply_multipv",
+              List("23...Rc8 24.Rg3 Rc7 25.Qxg7+", "23...Rc8 24.Qh5 Rc7 25.Rg3")
+            )
+          ),
+        opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...c5 break"))),
+        mainStrategicPlans =
+          List(
+            PlanHypothesis(
+              planId = "kingside_expansion",
+              planName = "Kingside Pressure",
+              rank = 1,
+              score = 0.82,
+              preconditions = Nil,
+              executionSteps = List("Keep the pressure on g7."),
+              failureModes = Nil,
+              viability = PlanViability(score = 0.82, label = "high", risk = "stable"),
+              evidenceSources = List("probe-backed"),
+              themeL1 = "kingside_space"
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "kingside_expansion",
+              evidenceTier = "evidence_backed",
+              bestReplyStable = true,
+              futureSnapshotAligned = true
+            )
+          )
+      )
+    val strategyPack = Some(surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7"))
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack)
+    val plannerOwned =
+      BookmakerLiveCompressionPolicy
+        .buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
+        .getOrElse(fail("expected planner-owned bookmaker slots"))
+    val fallbackAware =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx = ctx,
+        outline = outline,
+        refs = None,
+        strategyPack = strategyPack
+      )
+
+    assertEquals(fallbackAware, plannerOwned)
   }
 
   test("line-scoped tactical proof alone no longer owns bookmaker prose and falls back to exact move semantics") {

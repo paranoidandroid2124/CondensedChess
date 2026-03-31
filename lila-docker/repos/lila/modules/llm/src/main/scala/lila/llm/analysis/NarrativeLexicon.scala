@@ -876,36 +876,6 @@ object NarrativeLexicon {
     motif.nonEmpty && needle.nonEmpty &&
       (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
 
-  def getTeachingPoint(bead: Int, theme: String, cpLoss: Int): String = {
-    val severity = if (cpLoss >= 200) "significant" else if (cpLoss >= 100) "noticeable" else "slight"
-    val t = theme.trim
-    val tLow = t.toLowerCase
-    val isSeverityWord = Set("inaccuracy", "mistake", "blunder", "error").contains(tLow)
-
-    if isSeverityWord then
-      pick(bead, List(
-        s"That's an $tLow with concrete practical consequences.",
-        s"A $tLow that hands over practical control.",
-        s"It gives the opponent a clearer and easier continuation."
-      ))
-    else
-      pick(bead, List(
-        s"Missing $t was a $severity oversight.",
-        s"Keeping $t in mind would have avoided the practical setback.",
-        s"A $severity oversight: $t was available."
-      ))
-  }
-
-  def getCausalTeachingPoint(bead: Int, concept: String, narrative: String, cpLoss: Int): String = {
-    val severity = if (cpLoss >= 200) "significant" else if (cpLoss >= 100) "noticeable" else "slight"
-    val n = narrative.trim
-    pick(bead, List(
-      s"A $severity oversight: it $n.",
-      s"Failing to account for the truth that it $n was a $severity error.",
-      s"A critical moment: the played line $n, which proved to be a $severity setback."
-    ))
-  }
-
   def getOpeningReference(bead: Int, name: String, games: Int, whitePct: Double): String = {
     val statsNote = if (games >= 100) s" ($games games, White scores ${(whitePct * 100).toInt}%)" else ""
     pick(bead, List(

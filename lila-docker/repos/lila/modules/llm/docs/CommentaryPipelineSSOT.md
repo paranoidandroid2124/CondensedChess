@@ -3,6 +3,10 @@
 This file is the canonical audit for the current Chesstory commentary-analysis
 pipeline.
 
+For onboarding, Step 1-7 status, CQF track status, and document navigation, see
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
+first.
+
 It intentionally describes the latest live pipeline and deletes the older
 dated update-log style material. Historical side paths are not canonical.
 
@@ -28,13 +32,13 @@ Current canonical scope includes:
 - Active-note selection, deterministic draft generation, optional polish, and
   frontend consumption
 - prompt-bearing surfaces that affect commentary behavior
-- signoff / audit entry points used by `RealPgnNarrativeEvalRunner`
+- signoff / audit entry points used by the real-PGN signoff runner
 
 Out of scope:
 
 - removed legacy QC / BookCommentary / debug / shadow / structure-endgame side
   workflows
-- temporary rerun outputs under `tmp/commentary-player-qc/...`
+- temporary rerun outputs under the local quality-audit temp root
 - historical design notes that no longer describe the current runtime
 
 ## Current Principles
@@ -126,6 +130,12 @@ Out of scope:
   compatibility/debug projections only. Runtime selection, whole-game binding,
   and signoff-path control flow must consume canonical `MoveTruthFrame` /
   `DecisiveTruthContract`, not re-derive truth from serialized strings.
+- no-contract `fallbackMomentProjection` is now failure-only:
+  raw `blunder` / `missed_win` classification may preserve a compact failure
+  fallback, but serialized `truthPhase`, `surfacedMoveOwnsTruth`,
+  `investmentTruthChainKey`, `verifiedPayoffAnchor`, and conversion-like
+  `transitionType` strings may not recreate investment / maintenance /
+  conversion ownership or visibility.
 - when a `DecisiveTruthContract` exists, runtime semantic consumers must stay
   truth-first:
   - raw `momentType`, `moveClassification`, `criticality`, and `choiceType`
@@ -309,7 +319,7 @@ Current canonical flow:
     outline beats.
 13. `QuestionFirstCommentaryPlanner` ranks `primary + optional secondary`
     question plans from that shared moment bundle.
-    - Phase 5 now runs scene-first admission inside the shared planner ahead of
+    - shared-planner scene-first admission now runs ahead of ranking:
       ranking:
       planner output now records `scene_type`, raw `owner_candidates`,
       `admitted_families`, `dropped_families`, `demotion_reasons`,
@@ -350,15 +360,26 @@ Current canonical flow:
       `MoveDelta` is `PrimaryAllowed` only in
       `quiet_improvement | transition_conversion`;
       `TacticalFailure` and `ForcingDefense` only own their matching scenes
-    - move-linked `OpeningRelation` / `EndgameTransition` translators can be
-      `PrimaryAllowed` in trace for their own scenes, but the planner still
-      forbids raw domain text as a direct owner and surface replay may not
-      mint a new owner family from them
+    - move-linked `OpeningRelation` / `EndgameTransition` translators are
+      `PrimaryAllowed` only in their own scenes, and only through the shared
+      planner's scene-first `WhyThis` / `WhatChanged` builders; raw opening
+      precedent summaries and raw endgame theoretical/oracle hints remain
+      support-only and never become direct owners
+    - the shared planner now hydrates replay-safe
+      `openingRelationClaim` / `endgameTransitionClaim` fields through
+      `QuestionPlannerInputs` and `NarrativeSignalDigest`, so Chronicle /
+      Active replay can reuse the same legal planner-owned domain claim
+      instead of minting a new owner locally
     - `WhyNow` / `WhatChanged` plans that rely only on `DecisionTiming` are
       filtered out of the legal pool in v1; even the
       `concrete_reply_or_reason` decision-comparison subtype remains trace-only
       at this stage, so fail-closed fallback or another already-legal owner
       must carry the scene instead
+    - demotions from `WhyNow` / `WhatMustBeStopped` /
+      `WhosePlanIsFaster` now resolve in-band:
+      a synthesized legal `WhyThis` fallback stays planner-owned, while a
+      missing fallback is recorded as an explicit suppressed intentional drop
+      rather than a ghost demotion that later hard-drops without trace
     - Chronicle / Active replay may still consume the shared trace, but they
       may not override planner legality to resurrect timing-only or raw-domain
       owners
@@ -372,15 +393,25 @@ Current canonical flow:
       `WhyNow > WhatChanged > WhatMustBeStopped > WhyThis > WhosePlanIsFaster`
     - a swap is allowed only when claim ownership, evidence quality,
       fallback strength, and plan strength do not get weaker
+    - replay-side claim ownership scoring now keeps a legal opening/endgame
+      domain primary ahead of a more generic swap candidate; Chronicle may
+      reorder only inside that preserved legal planner pool
 15. Chronicle sentence composition is planner-owned:
     - sentence 1 comes from `primary.claim`
-    - sentence 2 may use concrete `primary.contrast`
+    - for `WhyThis` / `WhyNow`, sentence 2 may replace raw `primary.contrast`
+      with `ContrastiveSupportAdmissibility` support when that support is
+      already certified by shared-planner/truth inputs; the primary question,
+      owner, and ranking stay unchanged
     - sentence 3 may use planner evidence or one beat-derived cited line only
       when the line is anchored/cited and still matches the selected plan
     - `secondary` may contribute only one non-duplicate support sentence
 16. if no admissible Chronicle surface survives, runtime falls straight to
     compact factual fallback or omission; it does not revive raw `mainBundle`,
     `quietIntent`, or generic strategic shell text as a prose owner path.
+    exact-factual Chronicle fallback also stays claim-only even if the
+    quiet-support composer finds a bounded candidate; that diagnostic trace may
+    still be recorded, but it may not append a support sentence on the fallback
+    surface.
 17. Chronicle conclusion quality is carried by a deterministic game-level
     binder inside `CommentaryEngine`, not by an LLM-only summary layer.
 18. local Chronicle runtime also exposes an internal artifact split for
@@ -401,6 +432,8 @@ Current canonical flow:
       `surfaceMode`, `failureMode`, and exemplar visibility first
     - raw `momentType` / `moveClassification` remain display and fallback aids
       for opening / mate / synthetic-bridge cases only
+    - raw investment / maintenance / conversion-like serialized fields may not
+      reopen whole-game owner projection when the canonical contract is absent
 15. Full-game review uses this deterministic path as the canonical signoff
     surface.
 
@@ -421,6 +454,11 @@ Current implications:
 - Chronicle evidence is still citation-bound:
   branch-scoped lines survive only as inline cited proof, and uncited branch
   leakage is omitted instead of being paraphrased
+- whole-game support reuse is projection-first:
+  raw `signalDigest` / `StrategyPack` carriers are passed through a local
+  whole-game support projection before anchor normalization, so helper labels
+  such as `continuity:` or `alignment intent:` are not reused verbatim as
+  released turning-point / payoff anchors
 - if the only remaining shift/payoff anchor is a raw square list, bare theater
   token, or piece-route stub, Chronicle omits that sentence instead of shipping
   rough prose
@@ -469,7 +507,22 @@ Current canonical flow:
      claim or evidence owner
    - `mainBundle` / `quietIntent` are input-only and no longer directly own
      Bookmaker prose
+  - the Bookmaker-side contrast-support render guard is renderer-scoped and
+     trace-preserving:
+     when raw planner `primary` is `WhatMustBeStopped`, shared-planner
+     `secondary` is `WhyNow`, both stay in `ForcingDefense`, and the raw primary
+     contrast trace rejects with `question_outside_scope`, slot rendering may
+     use the `WhyNow` secondary for visible prose/contrast while leaving the raw
+     planner trace unchanged; this is not a legality, ranking, or owner-path
+     change
 6. deterministic draft prose is rendered from those planner-owned slots.
+   - `NarrativeOutlineBuilder` still emits plain `OutlineBeat.text`, but the
+     runtime now keeps several mixed families split locally until the final
+     stitch:
+     opening precedent comparison body vs ordinary summary vs shared-lesson
+     phrasing, main-move annotation terminal/tag/difficulty hints vs
+     severity-tail projection, and wrap-up planner/practical/compensation
+     fragments
 7. `BookmakerPolishSlots` / `BookmakerPolishSlotsBuilder` expose the narrow
    slot contract for optional prose polish.
 8. `PolishPrompt` may polish the Bookmaker body only.
@@ -669,11 +722,106 @@ Current rules:
   - direct Bookmaker requests do not surface blank prose:
     after tactical / strategic / quiet-intent checks fail, runtime may still
     emit one exact factual fallback sentence from current move semantics
+    - that exact-factual floor is literal move-shape only:
+      planner/direct fallback may describe castles, destination-anchored piece
+      moves, and target-anchored captures, but when capture targeting is
+      unavailable it must fail closed to `This captures.` rather than adding
+      generalized simplification / exchange meaning from fallback state
+    - the quiet-support baseline cohort adds one narrow fallback-lift above
+      that floor:
+      when planner-owned slots do not survive, runtime may attach at most one
+      bounded quiet-support sentence under the exact factual claim, but only on
+      the move-linked `MoveDelta.pv_delta` subset backed by `signalDigest`
+      route / structure / pressure material
+    - that fallback-lift is support-only:
+      it does not reopen owner-family admission, question ranking, legality, or
+      raw domain-hint revival, and planner trace still records the row as an
+      exact-factual fallback rather than a planner-owned promotion
+    - QC reruns now also record a quiet-support diagnostic trace for the
+      exact-factual path, including runtime gate status
+      (`sceneType`, selected owner family/source, `pvDelta` availability,
+      move-linked `pv_delta` anchor availability, and gate reject reasons),
+      so quiet-support acceptance can separate baseline-selected rows into
+      runtime-gate-pass, runtime-gate-fail, and planner drift outside
+      quiet-support attach
+    - planner owner-preservation now distinguishes blocked `NoClearPlan`
+      forcing rows from quiet only-move benchmark rows when `pvDelta` is
+      present but empty:
+      `QuestionFirstCommentaryPlanner` keeps `MoveDelta` quiet-primary
+      behavior for the quiet-support-selected `OnlyMoveFailure` /
+      benchmark-critical path, but it preserves planner-owned
+      `ForcingDefense` when a blocked `InvestmentSacrifice` / `Conversion`
+      row still has an urgent opponent threat and would otherwise drop from
+      `planner_owned` to exact factual
+    - best-hold `TacticalRefutation` rows with empty `pvDelta` content now
+      keep truth-contract `ForcingDefense` through the same planner-only
+      owner-preservation gate; this does not reopen legality, ranking, or
+      quiet-support attach rules
+    - the upstream-isolation artifact now records the before/after ingress
+      fields needed to localize those failures:
+      raw/sanitized `decision` and `pvDelta` presence, truth-contract
+      `truthClass` / `reasonFamily` / `failureMode`, and raw planner candidate
+      source splits for `TacticalFailure`, `ForcingDefense`, and `MoveDelta`
+    - planner owner trace now also carries `sceneReasons`, and the isolation
+      evaluator emits an `upstreamPrimarySubsystem` / `upstreamPrimaryCause`
+      attribution so rows can be pinned to `NarrativeContextBuilder`,
+      `DecisiveTruth`, `QuestionFirstCommentaryPlanner`, or selector mismatch
+      without changing player-facing runtime wording
+    - the first upstream-fix pass now narrows those root causes in runtime:
+      `NarrativeContextBuilder` no longer hard-drops `decision` / `pvDelta`
+      for every `StyleChoice`, and instead keeps them when the best move has
+      probe-backed move-linked evidence; `DecisiveTruth.isCriticalBestMove`
+      no longer treats best `TacticalRefutation` holds as critical only-move
+      pressure; `QuestionFirstCommentaryPlanner` no longer opens a
+      `TacticalFailure` owner just because a best hold is tagged
+      `TacticalRefutation`; and `WhatChanged` no longer owner-promotes
+      decision-comparison prose when `pvDelta` exists but is structurally empty
+    - the Quiet Support selector contract is now intentionally narrower than
+      the original baseline: baseline-cohort selector rows still require
+      `MoveDelta.pv_delta` plus whitelisted digest support, but they also
+      require the before-artifact planner scene to be quiet-compatible
+      (`quiet_improvement` / `transition_conversion`, or absent), so preexisting
+      `tactical_failure` rows stay in `selector_mismatch` rather than the
+      baseline-selected lane
+    - latest real16 upstream-fix rerun:
+      the local quiet-support prototype summary under the quality-audit report
+      root
+      shows the selected quiet-support subset repaired (`runtimeGatePassCount=4`,
+      quiet-support lift applied in the artifact field `quietSupportLiftAppliedCount=4`,
+      baseline selected owner/question divergence `=0`, stronger-verb leakage
+      `=0`), and the blocked/non-eligible lane is reduced to one residual
+      fallback spike (`blockedFallbackSpikeCount=1`) after planner-owned
+      `ForcingDefense` is preserved on the representative `Ke7`, `Nxe3`, and
+      `Rxc4` blocked rows
+    - the remaining blocked spike is the style-choice `Ng4` row where
+      `NarrativeContextBuilder` does not surface move-linked `pv_delta`
+      ingress (`style_choice_pv_delta_unavailable`); that residual sits
+      outside the Track 3 Phase A quiet-support owner-preservation gate
   - surfaced Chronicle moments also do not surface blank prose:
     if a selected visible move renders empty after tactical / strategic /
     quiet-intent gating, `CommentaryEngine` runs a post-selection
     commentability pass that reselects the next commentable move in the same
     thread or drops that surfaced move when no same-thread replacement exists
+    - Chronicle quiet-support replay now mirrors the accepted Bookmaker
+      fallback-lift only on the same narrow quiet subset
+      (`long_structural_squeeze`, `slow_route_improvement`,
+      `pressure_maintenance_without_immediate_tactic`) and only when the
+      replayed planner surface is already legal `MoveDelta/pv_delta`
+    - the Chronicle attach point is renderer-only and claim-only:
+      `GameChronicleCompressionPolicy` may add at most one bounded quiet
+      support sentence only when the selected Chronicle replay surface has a
+      cleaned primary claim and no surviving contrast, evidence, consequence,
+      or secondary-support sentence
+    - this Chronicle mirror is replay-safe:
+      it does not reopen owner-family admission, question ranking, legality,
+      top-2 swap policy, or blocked-lane interpretation, and blocked forcing
+      rows remain closed unless the planner already selected them as legal
+      non-quiet owners
+    - Chronicle replay QC now records the same bounded quiet-support gate and
+      candidate trace (`applied`, reject reasons, runtime gate inputs,
+      candidate bucket/source kinds/verb family/text) so real-shard before /
+      after reruns can audit selected quiet rows, blocked-lane contamination,
+      and cross-surface owner carry without inventing a new runtime path
   - support rows may no longer promote themselves into stronger claims; support
     can justify an admitted claim, but it may not replace a missing canonical
     claim or upgrade a weak one
@@ -760,7 +908,7 @@ Current rules:
   (`primary kind`, `secondary kind`, planner-owned vs exact-factual fallback)
   for signoff review without changing the typed runtime payload
 - `BookmakerPlannerSliceBuilder` is the canonical real-PGN slice miner for
-  Phase 3 signoff: it scans catalog PGNs ply-by-ply, selects Bookmaker-only
+  selected-ply Bookmaker signoff: it scans catalog PGNs ply-by-ply, selects Bookmaker-only
   planner-positive or fail-closed moments, and writes a dedicated signoff slice
   manifest rather than reusing the generic mixed-surface slice manifest
 - `BookmakerPlannerSignoffRunner` now records deterministic Bookmaker prose from
@@ -793,6 +941,10 @@ Primary files:
 Current canonical flow:
 
 1. `LlmApi` selects the active-note subset from Chronicle moments.
+   - the same Chronicle build also keeps a backend-only per-ply
+     `DecisiveTruthContract` sidecar from
+     `CommentaryEngine.generateGameArcDiagnostic`; `LlmApi.attachActiveStrategicNotes`
+     reuses that sidecar by ply and does not add a new payload field
 2. `PlayerFacingMoveDeltaBuilder` and `ActiveBranchDossierBuilder` build the
    active-support carrier bundle for each selected moment.
 3. `CertifiedDecisionFrameBuilder` certifies the only support bridge allowed to
@@ -801,17 +953,32 @@ Current canonical flow:
    `authorQuestions` / `authorEvidence` from the Chronicle moment and combines
    them with the delta bundle, dossier, decision frame, strategy-pack support,
    and signal digest into one shared planner-input view.
+   - replay-safe `openingRelationClaim` / `endgameTransitionClaim` are carried
+     through the digest so Active can reconstruct the same legal planner-owned
+     domain claim family without promoting raw support text
 5. `QuestionFirstCommentaryPlanner` is reused for Active note ownership; Active
    may only pick from planner top-2.
+   - Active replay now consumes the same decisive-truth contract that Chronicle
+     already bound for that ply; planner replay is no longer contract-free
 6. `ActiveStrategicCoachingBriefBuilder` applies the Active-local surface rule:
    - note-body preference is
      `WhyThis > WhatMustBeStopped > WhyNow > WhatChanged`
    - `WhosePlanIsFaster` is never allowed to own the note body
    - a top-2 swap is allowed only when truth ownership, evidence quality, and
      fallback strength do not get weaker
+   - replay-side claim ownership scoring preserves legal opening/endgame
+     domain primaries so Active does not swap them away for a generic surface
+     preference winner
 7. the deterministic Active note is planner-first short-form:
    - the note body is built from one selected `primary` question plan only
    - `secondary` never enters the note body
+   - for `WhyThis` / `WhyNow`, the first support sentence may replace raw
+     `primary.contrast` with `ContrastiveSupportAdmissibility` support drawn
+     from existing shared-planner/truth inputs; this may improve support prose
+     only and may not change the selected primary
+   - that contrast admissibility step now reuses the same per-ply decisive-truth
+     contract as the planner replay rather than re-running as a contract-free
+     Active-local heuristic
    - planner-owned `WhyNow` short notes now skip support candidates that merely
      restate the same timing shell as the lead, and the surviving lead may be
      rewritten around the chosen move so the note stays independent from the
@@ -823,9 +990,27 @@ Current canonical flow:
      ownership rather than the old generic coaching-brief contract; they still
      need a real timing anchor such as a named move, cited line, or explicit
      cp-loss window
+   - planner-approved `TacticalFailure`, `MoveDelta`, `OpeningRelation`, and
+     `EndgameTransition` primaries now use a planner-aware minimal note
+     contract:
+     the note may attach when it preserves the selected planner claim plus one
+     anchored support / consequence sentence, even if the old strategic-brief
+     completeness contract would have failed it
+   - for those planner-approved minimal-contract notes, route / plan / focus /
+     execution completeness is side-surface warning material only
+     (`side_route_missing`, `side_plan_missing`, `side_focus_missing`,
+     `side_execution_or_objective_missing`, `side_coverage_low`) and does not
+     block note attach on its own
    - planner-owned `WhyNow` may reuse a carried proof sentence only when the
      lead sentence is independently grounded as a new timing claim; reusing the
      prior shell alone still fails the independence gate
+   - final Active attach rejection is normalized through one mutually exclusive
+     final reason code (`no_planner_primary`, `preselection_blocked`,
+     `visible_support_missing`, `note_body_empty`,
+     `validator_independence_fail`, `missing_required_route`,
+     `missing_required_plan`, `missing_required_focus`,
+     `note_body_too_generic`) even though lower-level validator details may
+     still be preserved for diagnostics
 9. only after a deterministic planner-owned note exists may
    `ActiveStrategicPrompt` attempt wording polish.
 10. if planner approval fails, or if the validated note does not survive the
@@ -841,6 +1026,11 @@ Current rules:
   the moment was not preselected by legacy `strategicBranch` routing or when
   route/move support is absent; this exception is narrow and exists only for
   concrete timing-owner notes
+- planner-approved `TacticalFailure` / `MoveDelta` / `OpeningRelation` /
+  `EndgameTransition` notes attach on a narrower planner-first contract than
+  the old coaching card:
+  the note body must keep the selected claim and one anchored support, but
+  side-surface completeness is not itself an attach gate
 - active-note emission also obeys the shared player-facing truth mode policy:
   - `Minimal` moments do not create a user-facing active note even if the
     selector kept the moment active internally
@@ -851,6 +1041,9 @@ Current rules:
     originate the note body
   - Active may reorder planner top-2 only when the replacement is not weaker on
     truth ownership, evidence quality, or fallback strength
+  - replay may reuse carried opening/endgame translator claims from the shared
+    digest, but it may not mint a new owner family or promote raw domain
+    summaries into the note body
   - `WhosePlanIsFaster` may never own the Active note body; it may survive only
     as certified side-support when another primary already exists
 - active/support is no longer a state-summary coaching card:
@@ -877,6 +1070,11 @@ Current rules:
     - if no non-empty validated note survives, user-facing note-dependent
       surfaces (`activeStrategicNote`, dossier, idea/route/move/target payloads)
       are omitted rather than rendered as an empty strategic-note block
+    - side-surface incompleteness may not veto an already-valid
+      planner-approved note:
+      missing route / plan / focus completeness downgrades side-surface
+      completeness or records warnings, but attach still follows the note
+      contract unless a real hard validator failure remains
     - `LlmApi` may not auto-attach dossier / refs from raw carriers; the note
       and the side surfaces must agree on the same selected planner result and
       certified decision frame
@@ -1050,6 +1248,10 @@ Current rules:
   - when no admissible question plan survives, outline falls back directly to
     exact factual move text instead of reviving question shells or speculative
     strategic prose
+  - planner factual fallback reasons (`missing_claim`, `missing_move_owner`,
+    `state_truth_only`, `missing_certified_race_pair`) remain trace-only:
+    the surfaced fallback claim comes from literal `exactFactualSentence`
+    move-shape semantics, not from those rejection labels
   - frontend probe panels consume structured payloads rather than mined prose
 
 Primary files:
@@ -1135,10 +1337,10 @@ This split is a runtime polish-routing choice, not a canonical attach contract.
 
 ### Signoff / eval path
 
-- audit-grade evaluation uses `RealPgnNarrativeEvalRunner`
+- audit-grade evaluation uses the real-PGN signoff runner
 - signoff path is deterministic canonical first
 - provider-none eval remains the canonical measurement path for release signoff
-- rerun outputs under `tmp/commentary-player-qc/...` are local evidence only
+- rerun outputs under the local quality-audit temp root are local evidence only
 - historical thesis snapshot tooling is removed from canonical signoff:
   `BookmakerProseGoldenTest`, `BookmakerProseGoldenDump`,
   `BookmakerThesisQaRunner`, and `src/test/resources/bookmaker_thesis_goldens`
@@ -1166,10 +1368,178 @@ Current release-signoff interpretation:
 - prompt/provider routing must not be allowed to create or remove active-note
   attachment on the signoff path
 
-Primary files:
+### Step 7 Signoff Snapshot
 
-- `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
-- `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalReportMerge.scala`
+Current deterministic rerun status for Step 7 final signoff:
+
+- stable shadowgames comparison
+  (legacy shadow-summary artifact -> planner-surface shadow summary)
+  preserves the conservative fail-closed target behavior while improving
+  visible carry:
+  Chronicle visible planner-owned moments moved `1 -> 2`, Active visible
+  attached notes moved `0 -> 1`, blank-like stayed `0 -> 0`, and
+  `missing_move_owner` dropped `21 -> 20`
+- current real-slice selected-target rerun
+  (planner-surface real summary under the local quality-audit report root)
+  remains fail-closed on target moments (`15` factual fallback, `114` omitted,
+  no blank-like output) while visible whole-game carry keeps `42` Chronicle
+  planner-owned moments and `41` Active attaches
+- current visible cross-surface owner carry stays aligned on the shared
+  planner-owned overlap:
+  `41` Chronicle/Active shared planner-visible rows, `0` owner-family/source
+  divergence
+- no Step-5 regression was reintroduced on the rerun:
+  admitted-but-unbuildable remains `0`, demote hard-drop remains `0`, and the
+  carried owner on same-key shadowgames overlap does not change
+- historical `validator_independence_fail` residual from the earlier phase-6
+  shadowgames rerun does not reproduce on the current rerun; the only current
+  visible post-primary omission is the fail-closed
+  `visible_support_missing` row at
+  `2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:106`
+- surviving residuals are classified as fail-closed suppressions, not surface
+  legality violations:
+  `missing_move_owner`, `missing_certified_race_pair`, and
+  `decision_timing_support_only_in_v1` remain intentional suppression buckets;
+  the single visible `endgame_transition` mismatch above is treated as an
+  upstream input-bundle/support-gate issue rather than a replay-layer owner
+  revival
+- Step 7 verdict: signoff-ready for the question-first shared-planner legality
+  contract; remaining residuals are isolated fail-closed suppressions or
+  upstream-classified mismatches, not planner/surface owner divergence
+
+### Quality-Audit Scaffold After The Signoff-Ready Snapshot
+
+After the `signoff-ready` snapshot, the parity-baseline lane and
+quality-rubric lane may extend input-quality diagnostics and internal quality
+measurement, but they may not reopen legality, owner admission, or replay
+consistency.
+
+Current quality-audit scaffold rules:
+
+- the current quality-audit scaffold is a `src/test` tooling/scaffold advance,
+  not a claim that runtime user-facing commentary quality already improved
+- same-ply parity is now an upstream-input diagnostic lane, not a legality
+  lane
+- parity classification must keep `replay_layer_rewrite` separate from
+  `upstream_layer_mismatch`
+- surface digest bundles are the canonical reason this separation is auditable:
+  snapshot / carry / augmentation / bundle hashes are emitted for Bookmaker,
+  Chronicle, and Active audit outputs
+- the fixed mismatch taxonomy is:
+  `bundle_missing`, `carry_mismatch`, `snapshot_skew`,
+  `surface_only_augmentation`, `replay_layer_rewrite`,
+  `upstream_layer_mismatch`
+- the currently allowed `surface_only_augmentation` set is closed to:
+  `active_no_primary_vs_chronicle_factual_fallback`,
+  `active_attached_vs_chronicle_planner_owned`,
+  `active_omitted_after_primary_vs_planner_owned`, and
+  `active_attached_vs_bookmaker_planner_owned`,
+  `active_no_primary_vs_bookmaker_exact_factual`
+- real16 parity currently reports `groupedPlies=107`, `mismatchedPlies=107`,
+  `taxonomyCounts={carry_mismatch=2, snapshot_skew=43, upstream_layer_mismatch=62}`,
+  `layerCounts={upstream=107}`
+- the standalone real16 parity baseline and the contrast-support after-rerun
+  are now different artifacts:
+  the baseline still shows upstream digest drift, while the contrast-support
+  after-rerun has already closed the previously targeted
+  `active/bookmaker:surface_only_augmentation=6` and primary
+  `bookmaker/chronicle:replay_layer_rewrite=4` blocker set
+- the internal LLM judge scaffold is internal-only and must not outrank the truth
+  gate or human signoff
+- the internal keep/review selector is fixed at:
+  `move_attribution_correctness >= 4` to unlock usefulness credit,
+  `selectorScore >= 12`, `overclaim_penalty <= 1`
+- the contrast-support runtime is signoff-scoped on Bookmaker / Chronicle and
+  diagnostic-only on Active, and it stays support-slot only:
+  `WhyThis` / `WhyNow` may replace planner `primary.contrast` or the first
+  support sentence only when `ContrastiveSupportAdmissibility` marks the
+  support admissible from a preexisting shared-planner/truth input; it may not
+  reopen owner choice, ranking, or legality
+- contrast-support trace fields are fixed at:
+  `contrast_source_kind`, `contrast_anchor`, `contrast_consequence`,
+  `contrast_admissible`, `contrast_reject_reason`
+- contrast-support selector accounting keeps Bookmaker fail-closed rows out of
+  gain
+  accounting:
+  rows that were `planner_owned` before but land at
+  `afterBookmakerFallbackMode=exact_factual` after the rerun are classified as
+  `after_fallback_blocked`, not `eligible`
+- current real16 contrast-support result for the narrow Bookmaker-first
+  prototype is signoff-ready, not rollout-ready:
+  `totalWhyRows=46`, `contrastEligibleRows=40`, `upstreamBlockedRows=0`,
+  `replayBlockedRows=0`, `track1BlockedRows=0`, `questionFilteredRows=0`,
+  `eligibleKeepCount=9`, `eligibleRejectCount=31`, `afterFallbackCount=0`,
+  `afterFallbackBlockedRows=6`, `changedCount=40`, `degradedCount=0`,
+  `track1RegressionStatus=no_track1_regression`
+- current real16 Chronicle contrast-support surface verdict is signoff-ready on the
+  after-state planner-selected `WhyThis` / `WhyNow` rows:
+  `totalWhyRows=46`, `plannerOwnedRows=46`, `factualFallbackRows=0`,
+  `primaryMismatchRows=0`, `ownerMismatchRows=0`
+- same-key before/after Chronicle deltas on the original Why slice are not
+  replay-layer bugs:
+  `upstream_input_bundle_mismatch=2`
+  (`ForcingDefense/WhyNow -> TacticalFailure/WhyThis`) and
+  `intentional_suppression=4` (planner primary dropped before replay, leaving
+  Chronicle at factual fallback)
+- current real16 Active contrast-support diagnostic lane shows that Active is not a
+  viable signoff surface for this narrow experiment:
+  on the after-state planner-selected `WhyThis` / `WhyNow` rows,
+  `totalWhyRows=46`, `attachedRows=1`, `composeRows=32`,
+  `contrastRawRows=1`, `contrastSelectedRows=1`,
+  `primaryMismatchRows=0`, `ownerMismatchRows=0`
+- forcing Active to stay inside contrast-support scope leaves only diagnostic blocker
+  counts, not a usable contrast slice:
+  `validator_independence_fail_with_no_contrast=21`
+  (`selectedSupport=evidence:19`, `fallback_narrative_tail:2`,
+  `contrast missing_raw=21`),
+  `missing_required_plan_with_no_contrast=7`
+  (`selectedSupport=evidence=7`, `contrast missing_raw=7`),
+  `note_body_empty_from_support_duplicate_claim=3`
+  (`support_duplicate_claim=3`, `sentence_count_1_of_2=3`),
+  `legacy_preselection_blocked=14`
+- because Active contributes only one contrast-bearing Why row on the current
+  real16 shard, and that row already attaches, contrast-support is
+  canonically cut to Bookmaker + Chronicle signoff scope; reopening Active
+  would require a later explicit scope expansion, not a silent lane drift
+- current pair-scoped blocker decomposition on those `46` Bookmaker target rows is
+  now empty:
+  `bookmakerPairBlockerCounts={}`, `upstreamPairBlockerCounts={}`,
+  `replayPairBlockerCounts={}`;
+  with the blocker set closed, the remaining primary admissibility blocker on
+  real eligible rows is `missing_concrete_consequence=30`, with
+  `question_outside_scope=0` and `vague_engine_preference=1` secondary
+- the current real shard now proves narrow positive gain on a chosen-best tactical
+  subset without reopening quality-rubric regressions:
+  nine eligible rows now keep, and the aggregate deltas stay flat-to-better
+  (`contrastUsefulnessDelta=0`, `dryButTruePenaltyDelta=-0.15`,
+  `moveAttributionDelta=0`)
+- aggregate maintenance baseline after the Chronicle / Active contrast-support rerun
+  reads:
+  Bookmaker `keep=55/review=52/gateFail=0`, Chronicle
+  `keep=57/review=50/gateFail=0`, Active `keep=2/review=105/gateFail=57`,
+  `crossSurfaceVerdictDisagreementCount=55`
+- current cross-surface contrast-support verdict is:
+  Bookmaker `signoff-ready`, Chronicle `signoff-ready`,
+  Active `scope-cut (diagnostic-only)`; quality-rubric regression remains
+  `no_track1_regression` on the Bookmaker signoff path, and `rollout-ready` is
+  still not claimed
+- the corpus-maintenance lane may add scene buckets, but it may not create new
+  owner families or bypass shared-planner legality
+- the current Track 4 scene-coverage lane is `close-candidate` on the
+  report-only corpus-maintenance path:
+  the important bucket set is materialized with target candidate / curated /
+  stable-fixture coverage, and the final `complex_sacrifice` widening probe
+  added no new failure class
+
+Detailed quality-audit artifacts and sample rows live in the local quality-audit
+report root; use
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
+for the current CQF track map and status summary.
+
+Primary tools:
+
+- real-PGN signoff runner in `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalRunner.scala`
+- signoff report merge in `modules/llm/src/test/scala/lila/llm/tools/RealPgnNarrativeEvalReportMerge.scala`
 
 ## Frontend Consumption
 
@@ -1178,6 +1548,11 @@ Current frontend rule:
 - frontend consumes typed payloads
 - frontend renders structure
 - frontend does not reconstruct hidden strategy from free-form prose
+- Chronicle frontend decision-comparison support consumes only canonical
+  `signalDigest.decisionComparison`
+- `topEngineMove` remains a fallback/debug payload input and may not be
+  reprojected into a user-facing decision-comparison surface when the canonical
+  digest is absent
 - bookmaker controller / decoder no longer serialize or expect legacy
   `latentPlans` / `whyAbsentFromTopMultiPV` fields on the user-facing runtime
   response
@@ -1258,6 +1633,7 @@ Primary current-code references:
 - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/CommentaryEngine.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/practical/ContrastiveSupportAdmissibility.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/GameChronicleCompressionPolicy.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeContextBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/NarrativeOutlineBuilder.scala`

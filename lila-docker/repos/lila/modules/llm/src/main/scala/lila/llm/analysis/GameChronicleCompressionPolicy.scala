@@ -1,6 +1,8 @@
 package lila.llm.analysis
 
 import lila.llm.StrategyPack
+import lila.llm.analysis.practical.ContrastiveSupportAdmissibility
+import lila.llm.analysis.render.QuietStrategicSupportComposer
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestionKind, OutlineBeat, OutlineBeatKind }
 
@@ -15,6 +17,29 @@ private[llm] object GameChronicleCompressionPolicy:
   final case class ChroniclePlanSurface(
       primary: QuestionPlan,
       secondary: Option[QuestionPlan]
+  )
+
+  private[llm] final case class ChronicleRenderSurface(
+      primary: QuestionPlan,
+      secondary: Option[QuestionPlan],
+      contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace,
+      quietSupportTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace
+  )
+
+  private[llm] final case class ChronicleQuietSupportTrace(
+      applied: Boolean,
+      rejectReasons: List[String],
+      composerTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace
+  )
+
+  private[llm] final case class ChronicleRenderArtifact(
+      narrative: String,
+      quietSupportTrace: ChronicleQuietSupportTrace
+  )
+
+  private final case class ChronicleQuietSupportDecision(
+      line: Option[String],
+      trace: ChronicleQuietSupportTrace
   )
 
   private val ChronicleTokenStopWords =
@@ -44,6 +69,14 @@ private[llm] object GameChronicleCompressionPolicy:
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None
   ): Option[String] =
+    renderWithTrace(ctx, parts, strategyPack, truthContract).map(_.narrative)
+
+  private[llm] def renderWithTrace(
+      ctx: NarrativeContext,
+      parts: CommentaryEngine.HybridNarrativeParts,
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
+  ): Option[ChronicleRenderArtifact] =
     val surfaces =
       parts.focusedOutline.beats
         .filterNot(isStrategicDistributionBeat)
@@ -56,9 +89,42 @@ private[llm] object GameChronicleCompressionPolicy:
       QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
 
-    selectPlannerSurface(rankedPlans, plannerInputs)
+    renderSelection(ctx, rankedPlans, plannerInputs, strategyPack, truthContract)
       .flatMap(surface => renderPlanSurface(ctx, surface, beatEvidence))
-      .orElse(factualFallback(ctx, plannerInputs))
+      .orElse {
+        factualFallback(ctx, plannerInputs).map { text =>
+          val composerTrace =
+            QuietStrategicSupportComposer.diagnose(
+              ctx,
+              plannerInputs,
+              rankedPlans,
+              strategyPack
+            )
+          factualFallbackRenderArtifact(ctx, text, composerTrace)
+        }
+      }
+
+  private[llm] def renderSelection(
+      ctx: NarrativeContext,
+      rankedPlans: RankedQuestionPlans,
+      inputs: QuestionPlannerInputs,
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ChronicleRenderSurface] =
+    selectPlannerSurface(rankedPlans, inputs).map(surface =>
+      ChronicleRenderSurface(
+        primary = surface.primary,
+        secondary = surface.secondary,
+        contrastTrace = ContrastiveSupportAdmissibility.decide(surface.primary, inputs, truthContract),
+        quietSupportTrace =
+          QuietStrategicSupportComposer.diagnose(
+            ctx,
+            inputs,
+            rankedPlans,
+            strategyPack
+          )
+      )
+    )
 
   private def factualFallback(
       ctx: NarrativeContext,
@@ -66,6 +132,32 @@ private[llm] object GameChronicleCompressionPolicy:
   ): Option[String] =
     inputs.factualFallback
       .flatMap(text => cleanChronicleSentence(text, ctx))
+
+  private def factualFallbackRenderArtifact(
+      ctx: NarrativeContext,
+      claim: String,
+      composerTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace
+  ): ChronicleRenderArtifact =
+    val cleanedCandidate =
+      composerTrace.line.flatMap(line => cleanChronicleSentence(line.text, ctx))
+    val duplicateWithClaim =
+      cleanedCandidate.exists(text => sameSentence(text, claim))
+    val localRejectReasons =
+      List(
+        Option.when(!composerTrace.emitted)("chronicle_quiet_support_not_emitted"),
+        Option.when(composerTrace.line.nonEmpty && cleanedCandidate.isEmpty)("candidate_cleaned_empty"),
+        Option.when(duplicateWithClaim)("support_same_sentence_as_claim"),
+        Option.when(cleanedCandidate.nonEmpty && !duplicateWithClaim)("chronicle_exact_factual_support_blocked")
+      ).flatten
+    ChronicleRenderArtifact(
+      narrative = FullGameDraftNormalizer.normalize(claim).trim,
+      quietSupportTrace =
+        ChronicleQuietSupportTrace(
+          applied = false,
+          rejectReasons = (composerTrace.rejectReasons ++ localRejectReasons).distinct,
+          composerTrace = composerTrace
+        )
+    )
 
   def selectPlannerSurface(
       rankedPlans: RankedQuestionPlans,
@@ -75,21 +167,33 @@ private[llm] object GameChronicleCompressionPolicy:
       val secondary = rankedPlans.secondary
       secondary
         .filter(candidate =>
-          chroniclePriority(candidate.questionKind) > chroniclePriority(primary.questionKind) &&
+          !preserveThreatStopPrimary(primary, candidate) &&
+            chroniclePriority(candidate.questionKind) > chroniclePriority(primary.questionKind) &&
             notWeaker(candidate, primary, inputs)
         )
         .map(candidate => ChroniclePlanSurface(primary = candidate, secondary = Some(primary)))
         .getOrElse(ChroniclePlanSurface(primary = primary, secondary = secondary))
     }
 
-  private def renderPlanSurface(
+  private def preserveThreatStopPrimary(
+      primary: QuestionPlan,
+      candidate: QuestionPlan
+  ): Boolean =
+    primary.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
+      candidate.questionKind == AuthorQuestionKind.WhyNow &&
+      primary.ownerFamily == OwnerFamily.ForcingDefense &&
+      candidate.ownerFamily == OwnerFamily.ForcingDefense &&
+      primary.ownerSource == "threat" &&
+      candidate.ownerSource == "threat"
+
+  private[llm] def renderPlanSurface(
       ctx: NarrativeContext,
-      surface: ChroniclePlanSurface,
+      surface: ChronicleRenderSurface,
       beatEvidence: List[String]
-  ): Option[String] =
+  ): Option[ChronicleRenderArtifact] =
     sanitizePrimaryClaim(surface.primary, ctx).flatMap { claim =>
       val contrast =
-        sanitizeDistinctSentence(surface.primary.contrast, ctx, claim)
+        sanitizeDistinctSentence(surface.contrastTrace.effectiveSupport(surface.primary.contrast), ctx, claim)
       val evidence =
         plannerEvidenceLine(surface.primary, ctx)
           .orElse(beatEvidenceLine(surface.primary, beatEvidence, ctx, claim, contrast))
@@ -97,17 +201,30 @@ private[llm] object GameChronicleCompressionPolicy:
         plannerConsequenceLine(surface.primary.consequence, ctx, claim, contrast, evidence)
       val secondarySupport =
         secondarySupportLine(surface.primary, surface.secondary, ctx, claim, contrast, evidence)
+      val quietSupport =
+        chronicleQuietSupportDecision(
+          surface,
+          ctx,
+          claim,
+          contrast,
+          evidence,
+          primaryConsequence,
+          secondarySupport
+        )
       val support =
-        secondarySupport.orElse(primaryConsequence)
+        secondarySupport.orElse(primaryConsequence).orElse(quietSupport.line)
 
       val sentences =
         distinctChronicleSentences(
           List(Some(claim), contrast, evidence, support).flatten
         )
 
-      Option.when(sentences.size >= 2) {
-        FullGameDraftNormalizer.normalize(sentences.mkString(" ")).trim
-      }.filter(text => text.nonEmpty && !isLowValueSentence(text))
+      Option.when(sentences.nonEmpty) {
+        ChronicleRenderArtifact(
+          narrative = FullGameDraftNormalizer.normalize(sentences.mkString(" ")).trim,
+          quietSupportTrace = quietSupport.trace
+        )
+      }.filter(artifact => artifact.narrative.nonEmpty && !isLowValueSentence(artifact.narrative))
     }
 
   private def sanitizePrimaryClaim(
@@ -120,6 +237,57 @@ private[llm] object GameChronicleCompressionPolicy:
           BookmakerLiveCompressionPolicy.relaxedCertifiedRaceSentence(plan.claim, ctx)
         }.flatten
       }
+
+  private def chronicleQuietSupportDecision(
+      surface: ChronicleRenderSurface,
+      ctx: NarrativeContext,
+      claim: String,
+      contrast: Option[String],
+      evidence: Option[String],
+      primaryConsequence: Option[String],
+      secondarySupport: Option[String]
+  ): ChronicleQuietSupportDecision =
+    val composerTrace = surface.quietSupportTrace
+    val surfacePrimaryEligible =
+      surface.primary.ownerFamily == OwnerFamily.MoveDelta &&
+        surface.primary.ownerSource == "pv_delta"
+    val supportAlreadyPresent =
+      List(contrast, evidence, primaryConsequence, secondarySupport).flatten.nonEmpty
+    val cleanedCandidate =
+      composerTrace.line.flatMap(line => cleanChronicleSentence(line.text, ctx))
+    val duplicateWithClaim =
+      cleanedCandidate.exists(text => sameSentence(text, claim))
+    val duplicateWithExistingSupport =
+      cleanedCandidate.exists { text =>
+        List(contrast, evidence, primaryConsequence, secondarySupport).flatten.exists(existing =>
+          sameSentence(existing, text)
+        )
+      }
+    val candidate =
+      cleanedCandidate.filter(_ =>
+        composerTrace.emitted &&
+          surfacePrimaryEligible &&
+          !supportAlreadyPresent &&
+          !duplicateWithClaim &&
+          !duplicateWithExistingSupport
+      )
+    val localRejectReasons =
+      List(
+        Option.when(!surfacePrimaryEligible)("surface_primary_not_movedelta_pv_delta"),
+        Option.when(supportAlreadyPresent)("surface_support_already_present"),
+        Option.when(composerTrace.line.nonEmpty && cleanedCandidate.isEmpty)("candidate_cleaned_empty"),
+        Option.when(duplicateWithClaim)("support_same_sentence_as_claim"),
+        Option.when(duplicateWithExistingSupport)("support_same_sentence_as_existing_support")
+      ).flatten
+    ChronicleQuietSupportDecision(
+      line = candidate,
+      trace =
+        ChronicleQuietSupportTrace(
+          applied = candidate.nonEmpty,
+          rejectReasons = (composerTrace.rejectReasons ++ localRejectReasons).distinct,
+          composerTrace = composerTrace
+        )
+    )
 
   private def chroniclePriority(kind: AuthorQuestionKind): Int =
     kind match
@@ -164,7 +332,15 @@ private[llm] object GameChronicleCompressionPolicy:
       plan: QuestionPlan,
       inputs: QuestionPlannerInputs
   ): Int =
-    if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => sameSentence(claim.claimText, plan.claim)) then 4
+    if plan.ownerFamily == OwnerFamily.OpeningRelation &&
+      plan.ownerSource == "opening_relation_translator"
+    then
+      if plan.questionKind == AuthorQuestionKind.WhyThis then 5 else 4
+    else if plan.ownerFamily == OwnerFamily.EndgameTransition &&
+      plan.ownerSource == "endgame_transition_translator"
+    then
+      if plan.questionKind == AuthorQuestionKind.WhatChanged then 5 else 4
+    else if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => sameSentence(claim.claimText, plan.claim)) then 4
     else if plan.questionKind == AuthorQuestionKind.WhatChanged &&
       plan.sourceKinds.exists(kind =>
         kind == "pv_delta" || kind == "move_delta" || kind == "prevented_plan" || kind == "decision_comparison"

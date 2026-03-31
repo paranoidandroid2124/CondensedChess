@@ -73,6 +73,82 @@ class DecisiveTruthContractTest extends FunSuite:
       chosenMatchesBest = chosenMatchesBest
     )
 
+  private def minimalAnalysisData(ply: Int): ExtendedAnalysisData =
+    ExtendedAnalysisData(
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      nature = PositionNature(NatureType.Dynamic, 0.5, 0.5, "Dynamic position"),
+      motifs = Nil,
+      plans = Nil,
+      preventedPlans = Nil,
+      pieceActivity = Nil,
+      structuralWeaknesses = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      prevMove = None,
+      ply = ply,
+      evalCp = 0,
+      isWhiteToMove = true
+    )
+
+  private def arcMoment(
+      ply: Int,
+      momentType: String,
+      moveClassification: Option[String],
+      truthPhase: Option[String],
+      surfacedMoveOwnsTruth: Boolean,
+      verifiedPayoffAnchor: Option[String],
+      benchmarkProseAllowed: Boolean,
+      investmentTruthChainKey: Option[String]
+  ): GameArcMoment =
+    GameArcMoment(
+      ply = ply,
+      momentType = momentType,
+      narrative = "Narrative",
+      analysisData = minimalAnalysisData(ply),
+      moveClassification = moveClassification,
+      cpBefore = Some(0),
+      cpAfter = Some(0),
+      truthPhase = truthPhase,
+      surfacedMoveOwnsTruth = surfacedMoveOwnsTruth,
+      verifiedPayoffAnchor = verifiedPayoffAnchor,
+      benchmarkProseAllowed = benchmarkProseAllowed,
+      investmentTruthChainKey = investmentTruthChainKey
+    )
+
+  private def chronicleMoment(
+      ply: Int,
+      momentType: String,
+      moveClassification: Option[String] = None,
+      transitionType: Option[String] = None
+  ): GameChronicleMoment =
+    GameChronicleMoment(
+      momentId = s"ply_$ply",
+      ply = ply,
+      moveNumber = (ply + 1) / 2,
+      side = if ply % 2 == 1 then "white" else "black",
+      moveClassification = moveClassification,
+      momentType = momentType,
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      narrative = "Narrative",
+      selectionKind = "key",
+      selectionLabel = Some("Key Moment"),
+      concepts = Nil,
+      variations = Nil,
+      cpBefore = 0,
+      cpAfter = 0,
+      mateBefore = None,
+      mateAfter = None,
+      wpaSwing = None,
+      strategicSalience = Some("High"),
+      transitionType = transitionType,
+      transitionConfidence = None,
+      activePlan = None,
+      topEngineMove = None,
+      collapse = None,
+      strategyPack = None
+    )
+
   private def compensationInfo(
       investedMaterial: Int,
       conversionPlan: String,
@@ -1304,4 +1380,99 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
     assertEquals(contract.benchmarkCriticalMove, true)
     assertEquals(contract.isBenchmarkCriticalQuietHold, true)
+  }
+
+  test("best tactical refutation is not treated as a critical best move") {
+    val contract =
+      DecisiveTruthContract(
+        playedMove = Some("c8c7"),
+        verifiedBestMove = Some("c8c7"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+        allowConcreteBenchmark = true,
+        chosenMatchesBest = true,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.Hidden,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = true,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+
+    assertEquals(contract.isCriticalBestMove, false)
+  }
+
+  test("fallback moment projection does not recreate investment ownership from serialized fields") {
+    val projection =
+      DecisiveTruth.momentProjection(
+        arcMoment(
+          ply = 55,
+          momentType = "InvestmentPivot",
+          moveClassification = Some("WinningInvestment"),
+          truthPhase = Some("FirstInvestmentCommitment"),
+          surfacedMoveOwnsTruth = true,
+          verifiedPayoffAnchor = Some("open-file pressure"),
+          benchmarkProseAllowed = true,
+          investmentTruthChainKey = Some("white:open-file pressure")
+        ),
+        None
+      )
+
+    assertEquals(projection.classificationKey, "winninginvestment")
+    assertEquals(projection.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(projection.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(projection.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(projection.exemplarRole, TruthExemplarRole.NonExemplar)
+    assertEquals(projection.surfacedMoveOwnsTruth, false)
+    assertEquals(projection.verifiedPayoffAnchor, None)
+    assertEquals(projection.benchmarkProseAllowed, false)
+    assertEquals(projection.chainKey, None)
+  }
+
+  test("fallback moment projection ignores raw conversion transitions without a truth contract") {
+    val projection =
+      DecisiveTruth.momentProjection(
+        chronicleMoment(
+          ply = 36,
+          momentType = "SustainedPressure",
+          transitionType = Some("ExchangeConversion")
+        ),
+        None
+      )
+
+    assertEquals(projection.ownershipRole, TruthOwnershipRole.NoneRole)
+    assertEquals(projection.visibilityRole, TruthVisibilityRole.Hidden)
+    assertEquals(projection.surfaceMode, TruthSurfaceMode.Neutral)
+    assertEquals(projection.surfacedMoveOwnsTruth, false)
+  }
+
+  test("fallback moment projection preserves blunder failure classification") {
+    val projection =
+      DecisiveTruth.momentProjection(
+        chronicleMoment(
+          ply = 18,
+          momentType = "AdvantageSwing",
+          moveClassification = Some("Blunder")
+        ),
+        None
+      )
+
+    assertEquals(projection.classificationKey, "blunder")
+    assertEquals(projection.ownershipRole, TruthOwnershipRole.BlunderOwner)
+    assertEquals(projection.visibilityRole, TruthVisibilityRole.PrimaryVisible)
+    assertEquals(projection.surfaceMode, TruthSurfaceMode.FailureExplain)
+    assertEquals(projection.surfacedMoveOwnsTruth, true)
   }

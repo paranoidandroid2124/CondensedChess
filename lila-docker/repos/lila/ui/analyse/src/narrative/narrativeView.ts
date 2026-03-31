@@ -1117,11 +1117,7 @@ export function narrativeMomentView(
 
 function narrativeSignalSummaryView(ctrl: NarrativeCtrl, moment: GameChronicleMoment): VNode | null {
     const digest = moment.signalDigest;
-    const canonicalDecisionComparison = digest?.decisionComparison;
-    const fallbackDecisionComparison = !canonicalDecisionComparison
-        ? narrativeFallbackDecisionComparison(moment)
-        : undefined;
-    const decisionComparison = canonicalDecisionComparison || fallbackDecisionComparison;
+    const decisionComparison = digest?.decisionComparison;
     const moveRefs = buildInlineMoveRefMap(moment, ctrl.root.data.game.variant.key);
     const mainPlans = (moment.mainStrategicPlans || []).slice(0, 2);
     const experimentIndex = strategicPlanExperimentIndex(moment.strategicPlanExperiments || []);
@@ -1242,23 +1238,6 @@ function narrativeAdvancedSignalDetailsView(moment: GameChronicleMoment): VNode 
         practicalRows.length ? narrativeSignalGroupView('Practical', practicalRows) : null,
         compensationRows.length ? narrativeSignalGroupView('Compensation', compensationRows) : null,
     ]);
-}
-
-function narrativeFallbackDecisionComparison(
-    moment: GameChronicleMoment,
-): DecisionComparisonDigest | undefined {
-    const alt = moment.topEngineMove;
-    if (!alt) return undefined;
-
-    const engineBestMove = (alt.san || alt.uci || '').trim();
-    if (!engineBestMove) return undefined;
-
-    return {
-        engineBestMove,
-        engineBestPv: (alt.pv || []).filter(Boolean),
-        cpLossVsChosen: typeof alt.cpLossVsPlayed === 'number' ? alt.cpLossVsPlayed : undefined,
-        chosenMatchesBest: false,
-    };
 }
 
 function narrativeDecisionComparisonView(

@@ -309,7 +309,6 @@ private[llm] final case class DecisiveTruthContract(
     truthClass == DecisiveTruthClass.Best &&
       (
         reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-          reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
           isBenchmarkCriticalQuietHold
       )
 
@@ -621,13 +620,7 @@ private[llm] object DecisiveTruth:
     contractOpt.map(contractProjection).getOrElse(
       fallbackMomentProjection(
         classificationKey = normalizedWholeGameText(moment.moveClassification.getOrElse("")).getOrElse(""),
-        serializedTruthPhase = normalizedWholeGameText(moment.truthPhase.getOrElse("")),
-        transitionKey = None,
-        serializedOwnsTruth = Some(moment.surfacedMoveOwnsTruth),
-        verifiedPayoffAnchor = moment.verifiedPayoffAnchor,
-        benchmarkProseAllowed = moment.benchmarkProseAllowed,
-        chainKey = moment.investmentTruthChainKey,
-        maintenanceMayStayVisible = true
+        verifiedPayoffAnchor = moment.verifiedPayoffAnchor
       )
     )
 
@@ -638,13 +631,7 @@ private[llm] object DecisiveTruth:
     contractOpt.map(contractProjection).getOrElse(
       fallbackMomentProjection(
         classificationKey = normalizedWholeGameText(moment.moveClassification.getOrElse("")).getOrElse(""),
-        serializedTruthPhase = None,
-        transitionKey = normalizedWholeGameText(moment.transitionType.getOrElse("")),
-        serializedOwnsTruth = None,
-        verifiedPayoffAnchor = None,
-        benchmarkProseAllowed = false,
-        chainKey = None,
-        maintenanceMayStayVisible = false
+        verifiedPayoffAnchor = None
       )
     )
 
@@ -1303,46 +1290,20 @@ private[llm] object DecisiveTruth:
 
   private def fallbackMomentProjection(
       classificationKey: String,
-      serializedTruthPhase: Option[String],
-      transitionKey: Option[String],
-      serializedOwnsTruth: Option[Boolean],
-      verifiedPayoffAnchor: Option[String],
-      benchmarkProseAllowed: Boolean,
-      chainKey: Option[String],
-      maintenanceMayStayVisible: Boolean
+      verifiedPayoffAnchor: Option[String]
   ): MomentTruthProjection =
     val ownershipRole =
       classificationKey match
-        case "blunder" | "missedwin"                        => TruthOwnershipRole.BlunderOwner
-        case "winninginvestment" | "compensatedinvestment" => TruthOwnershipRole.CommitmentOwner
-        case _ =>
-          serializedTruthPhase match
-            case Some(text) if text.contains("conversionfollowthrough") => TruthOwnershipRole.ConversionOwner
-            case Some(text) if text.contains("compensationmaintenance") => TruthOwnershipRole.MaintenanceEcho
-            case _ =>
-              transitionKey match
-                case Some(text)
-                    if text.contains("promotion") || text.contains("exchange") || text.contains("convert") ||
-                      text.contains("simplif") =>
-                  TruthOwnershipRole.ConversionOwner
-                case _ => TruthOwnershipRole.NoneRole
+        case "blunder" | "missedwin" => TruthOwnershipRole.BlunderOwner
+        case _                       => TruthOwnershipRole.NoneRole
     val surfaceMode =
       ownershipRole match
-        case TruthOwnershipRole.CommitmentOwner => TruthSurfaceMode.InvestmentExplain
-        case TruthOwnershipRole.MaintenanceEcho => TruthSurfaceMode.MaintenancePreserve
-        case TruthOwnershipRole.ConversionOwner => TruthSurfaceMode.ConversionExplain
         case TruthOwnershipRole.BlunderOwner    => TruthSurfaceMode.FailureExplain
         case _                                  => TruthSurfaceMode.Neutral
     val ownsTruth =
-      serializedOwnsTruth.getOrElse(
-        ownershipRole == TruthOwnershipRole.CommitmentOwner ||
-          ownershipRole == TruthOwnershipRole.ConversionOwner ||
-          ownershipRole == TruthOwnershipRole.BlunderOwner
-      )
+      ownershipRole == TruthOwnershipRole.BlunderOwner
     val visibilityRole =
       if ownsTruth then TruthVisibilityRole.PrimaryVisible
-      else if maintenanceMayStayVisible && ownershipRole == TruthOwnershipRole.MaintenanceEcho then
-        TruthVisibilityRole.SupportingVisible
       else TruthVisibilityRole.Hidden
     MomentTruthProjection(
       classificationKey = classificationKey,
@@ -1350,12 +1311,11 @@ private[llm] object DecisiveTruth:
       visibilityRole = visibilityRole,
       surfaceMode = surfaceMode,
       exemplarRole =
-        if ownershipRole == TruthOwnershipRole.CommitmentOwner then TruthExemplarRole.VerifiedExemplar
-        else TruthExemplarRole.NonExemplar,
+        TruthExemplarRole.NonExemplar,
       surfacedMoveOwnsTruth = ownsTruth,
-      verifiedPayoffAnchor = verifiedPayoffAnchor,
-      benchmarkProseAllowed = benchmarkProseAllowed,
-      chainKey = chainKey,
+      verifiedPayoffAnchor = Option.when(ownsTruth)(verifiedPayoffAnchor).flatten,
+      benchmarkProseAllowed = false,
+      chainKey = None,
       maintenanceExemplarCandidate = false,
       benchmarkCriticalMove = false
     )

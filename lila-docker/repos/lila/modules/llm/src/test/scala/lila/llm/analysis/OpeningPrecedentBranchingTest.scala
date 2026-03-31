@@ -192,3 +192,18 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     assertEquals(precedent.mechanism, OpeningBranchMechanism.InitiativeSwing)
     assert(precedent.representativeSentence.toLowerCase.contains("early queen exposure branch"))
   }
+
+  test("outline keeps the released precedent summary family singular after comparison assembly") {
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val released = outline.beats.map(_.text).mkString(" ")
+    val summaryMarkers = List(
+      "Across these branches,",
+      "Common pattern:",
+      "Shared lesson:",
+      "All cited branches revolve around",
+      "The recurring practical theme across these games is",
+      "These precedent lines point to one key driver:"
+    )
+
+    assertEquals(summaryMarkers.count(released.contains), 1, clue(released))
+  }

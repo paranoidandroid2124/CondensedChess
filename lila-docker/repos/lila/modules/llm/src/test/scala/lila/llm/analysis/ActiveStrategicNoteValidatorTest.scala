@@ -153,7 +153,8 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       dossierValue: Option[ActiveBranchDossier] = dossier,
       strategyPackValue: Option[StrategyPack] = strategyPack,
       strategyReasons: List[String] = Nil,
-      plannerPrimaryKind: Option[AuthorQuestionKind] = None
+      plannerPrimaryKind: Option[AuthorQuestionKind] = None,
+      plannerPrimary: Option[QuestionPlan] = None
   ) =
     ActiveStrategicNoteValidator.validate(
       candidateText = candidateText,
@@ -163,7 +164,44 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       routeRefs = routeRefs,
       moveRefs = moveRefs,
       strategyReasons = strategyReasons,
-      plannerPrimaryKind = plannerPrimaryKind
+      plannerPrimaryKind = plannerPrimaryKind,
+      plannerPrimary = plannerPrimary
+    )
+
+  private def plannerPrimary(
+      questionKind: AuthorQuestionKind,
+      claim: String,
+      ownerFamily: OwnerFamily,
+      contrast: Option[String] = None,
+      evidence: Option[String] = None,
+      consequence: Option[String] = None
+  ): QuestionPlan =
+    QuestionPlan(
+      questionId = s"primary_${ownerFamily.wireName}",
+      questionKind = questionKind,
+      priority = 100,
+      claim = claim,
+      evidence = evidence.map(text =>
+        QuestionPlanEvidence(
+          text = text,
+          purposes = List("test"),
+          sourceKinds = List("test"),
+          branchScoped = true
+        )
+      ),
+      contrast = contrast,
+      consequence = consequence.map(text =>
+        QuestionPlanConsequence(
+          text = text,
+          beat = QuestionPlanConsequenceBeat.TeachingPoint
+        )
+      ),
+      fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+      strengthTier = QuestionPlanStrengthTier.Moderate,
+      sourceKinds = List("test"),
+      admissibilityReasons = List("test"),
+      ownerFamily = ownerFamily,
+      ownerSource = "test"
     )
 
   test("accepts a dossier-backed delta note with route anchor and trigger") {
@@ -217,13 +255,21 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
   }
 
   test("accepts planner-owned WhyNow notes with concrete timing evidence even without plan coverage") {
+    val primary =
+      plannerPrimary(
+        questionKind = AuthorQuestionKind.WhyNow,
+        claim = "The timing matters now because drifting lets Qe2 take over.",
+        ownerFamily = OwnerFamily.DecisionTiming,
+        contrast = Some("If delayed, the cleaner version runs through Qe2.")
+      )
     val result =
       validate(
         candidateText =
           "The timing matters now because drifting lets Qe2 take over and costs about 84cp. If delayed, the cleaner version runs through Qe2.",
         dossierValue = None,
         strategyPackValue = None,
-        plannerPrimaryKind = Some(AuthorQuestionKind.WhyNow)
+        plannerPrimaryKind = Some(AuthorQuestionKind.WhyNow),
+        plannerPrimary = Some(primary)
       )
 
     assert(result.isAccepted, clue(result))
@@ -242,7 +288,16 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
         baseNarrative = prior,
         dossierValue = None,
         strategyPackValue = None,
-        plannerPrimaryKind = Some(AuthorQuestionKind.WhyNow)
+        plannerPrimaryKind = Some(AuthorQuestionKind.WhyNow),
+        plannerPrimary =
+          Some(
+            plannerPrimary(
+              questionKind = AuthorQuestionKind.WhyNow,
+              claim = "The timing matters now because other moves allow the position to slip away.",
+              ownerFamily = OwnerFamily.DecisionTiming,
+              evidence = Some("Maintain color complex clamp and restrict counterplay through Bd4 and Ba5.")
+            )
+          )
       )
     val rejected =
       validate(
@@ -274,4 +329,54 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
 
     assert(result.hardReasons.contains("duplicate_sentence_detected"), clue(result))
     assert(ActiveStrategicNoteValidator.shouldRepair(result))
+  }
+
+  test("planner-owned tactical failure notes can attach on claim plus anchored local consequence") {
+    val primary =
+      plannerPrimary(
+        questionKind = AuthorQuestionKind.WhyThis,
+        claim = "This is a blunder because the queen runs into Qxd6.",
+        ownerFamily = OwnerFamily.TacticalFailure,
+        evidence = Some("Qxd6 wins a pawn immediately.")
+      )
+    val result =
+      validate(
+        candidateText =
+          "This is a blunder because the queen runs into Qxd6. Qxd6 wins a pawn immediately.",
+        dossierValue = None,
+        strategyPackValue = strategyPack,
+        strategyReasons = List("strategy_coverage_low", "strategy_plan_missing", "strategy_focus_missing"),
+        plannerPrimaryKind = Some(AuthorQuestionKind.WhyThis),
+        plannerPrimary = Some(primary)
+      )
+
+    assert(result.isAccepted, clue(result))
+    assertEquals(result.hardReasons, Nil)
+    assert(result.warningReasons.contains("side_plan_missing"), clue(result))
+    assert(result.warningReasons.contains("side_focus_missing"), clue(result))
+  }
+
+  test("planner-owned move delta notes can attach without route or focus completeness") {
+    val primary =
+      plannerPrimary(
+        questionKind = AuthorQuestionKind.WhyThis,
+        claim = "The rook lift keeps the kingside pressure rolling.",
+        ownerFamily = OwnerFamily.MoveDelta,
+        consequence = Some("That immediately increases pressure on g7.")
+      )
+    val result =
+      validate(
+        candidateText =
+          "The rook lift keeps the kingside pressure rolling. That immediately increases pressure on g7.",
+        dossierValue = None,
+        strategyPackValue = strategyPack,
+        strategyReasons = List("strategy_coverage_low", "strategy_route_missing", "strategy_focus_missing"),
+        plannerPrimaryKind = Some(AuthorQuestionKind.WhyThis),
+        plannerPrimary = Some(primary)
+      )
+
+    assert(result.isAccepted, clue(result))
+    assertEquals(result.hardReasons, Nil)
+    assert(result.warningReasons.contains("side_route_missing"), clue(result))
+    assert(result.warningReasons.contains("side_focus_missing"), clue(result))
   }

@@ -2,6 +2,9 @@
 
 This document defines the canonical chess-truth signoff gate for Chesstory.
 
+For program status, Step 1-7 closure, CQF track state, and document roles, see
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md).
+
 It complements
 [`CommentaryPipelineSSOT.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md)
 by specifying how decisive-move truth is judged after the runtime pipeline
@@ -72,8 +75,8 @@ The older release/parity metrics remain required, but they are secondary.
 
 ## Master-140 GM Audit
 
-The required truth gate is the master-only 140-game corpus under
-`tmp/commentary-player-qc/manifests/master_only_signoff_140_20260324`.
+The required truth gate is the master-only 140-game corpus under the local
+quality-audit manifest root.
 
 This corpus is the mandatory manual audit gate for decisive-move truth.
 
@@ -146,10 +149,97 @@ Historical bookmaker thesis snapshot tools are also non-authoritative:
 `BookmakerThesisQaRunner`, and `src/test/resources/bookmaker_thesis_goldens`
 are stale regression artifacts, not chess-truth signoff gates.
 
+## Quality-Audit Internal Scaffold
+
+The parity-baseline lane and quality-rubric lane are allowed as internal
+selectors, but they remain below the truth gate:
+
+- same-ply parity taxonomy is diagnostic only
+- digest mismatch vs replay rewrite classification does not change legality
+- the internal LLM judge rubric (`clarity`, `move_attribution_correctness`,
+  `contrast_usefulness`, `practical_usefulness`, `dry_but_true_penalty`,
+  `overclaim_penalty`) is not a human-eval replacement
+- the internal selector may zero `contrast_usefulness` and
+  `practical_usefulness` credit when `move_attribution_correctness < 4`; that
+  gating is subordinate to the truth gate and exists only to keep vivid but
+  misattributed prose out of `keep`
+- current internal keep threshold is `selectorScore >= 12` with
+  `overclaim_penalty <= 1`
+- no quality-audit metric may justify overclaim, unsupported benchmark naming,
+  or owner
+  revival outside the shared planner
+- the only closed-by-design `surface_only_augmentation` tags are
+  `active_no_primary_vs_chronicle_factual_fallback` and
+  `active_attached_vs_chronicle_planner_owned`; anything else stays review-only
+- the contrast-support lane is legal only as a support-slot replacement for
+  Bookmaker / Chronicle signoff surfaces and for Active diagnostic traces on
+  `WhyThis` / `WhyNow`; it may consume shared-planner `decisionComparison`,
+  opponent-threat, prevented-resource, or decisive-truth inputs, but it may
+  not mint a new owner or reopen DecisionTiming recovery
+- contrast-support must stay traceable through
+  `contrast_source_kind`, `contrast_anchor`, `contrast_consequence`,
+  `contrast_admissible`, and `contrast_reject_reason`
+- forbidden contrast-support sources remain:
+  vague engine preference, generic `better was ...`, explanation-free eval
+  gaps, raw `close_candidate`, and line-conditioned branches promoted to
+  general prose
+- rows that fall from planner-owned before-state to Bookmaker
+  `afterBookmakerFallbackMode=exact_factual` after the rerun are truth-clean
+  fail-closed rows, not contrast-support gain rows; the selector must classify
+  them as
+  `after_fallback_blocked`
+- current real16 Bookmaker contrast-support evidence is signoff-ready, not
+  rollout-ready:
+  `contrastEligibleRows=40`, `eligibleKeepCount=9`, `eligibleRejectCount=31`,
+  `afterFallbackCount=0`, `afterFallbackBlockedRows=6`, `degradedCount=0`, and
+  `track1RegressionStatus=no_track1_regression`
+- current real16 Chronicle contrast-support evidence is signoff-ready on the
+  after-state planner-selected Why rows:
+  `totalWhyRows=46`, `plannerOwnedRows=46`, `factualFallbackRows=0`,
+  `primaryMismatchRows=0`, `ownerMismatchRows=0`
+- same-key before/after Chronicle deltas on the original Why slice classify as
+  upstream, not replay:
+  `upstream_input_bundle_mismatch=2`,
+  `intentional_suppression=4`,
+  `replay_layer_bug=0`
+- current real16 Active contrast-support evidence shows Active is
+  diagnostic-only for
+  this narrow experiment:
+  on the after-state planner-selected Why rows,
+  `totalWhyRows=46`, `attachedRows=1`, `composeRows=32`,
+  `contrastRawRows=1`, `contrastSelectedRows=1`,
+  `primaryMismatchRows=0`, `ownerMismatchRows=0`
+- forcing Active to remain inside contrast-support scope leaves only
+  diagnostic blocker
+  counts:
+  `validator_independence_fail_with_no_contrast=21`,
+  `missing_required_plan_with_no_contrast=7`,
+  `note_body_empty_from_support_duplicate_claim=3`,
+  `legacy_preselection_blocked=14`
+- because Active contributes only one contrast-bearing Why row on the current
+  real16 shard, and that row already attaches, Active is cut from the
+  contrast-support signoff scope until a later explicit surface-expansion lane
+  reopens it
+- remaining eligible-slice admissibility rejections are
+  `missing_concrete_consequence=30` and `vague_engine_preference=1`;
+  `question_outside_scope=0`
+- current cross-surface contrast-support verdict is:
+  Bookmaker `signoff-ready`, Chronicle `signoff-ready`,
+  Active `scope-cut (diagnostic-only)`
+
+Parity-baseline, quality-rubric, contrast-support, and quiet-support lane status
+now lives in
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
+plus the local quality-audit rerun artifacts referenced there.
+
 ## Required Runtime Behavior
 
 - Chronicle, Bookmaker, and Active must all consume the same decisive-truth
   contract for a given key moment.
+  - for Active, `LlmApi.attachActiveStrategicNotes` must thread the backend-only
+    per-ply contract sidecar into planner replay and support admissibility;
+    validator attach gates may still omit the note, but they may not replace
+    or reinterpret that contract
 - Ownership, visibility, and prose permission are separate:
   - a move may be `supporting_visible` without owning the decisive
     explanation
@@ -181,6 +271,13 @@ are stale regression artifacts, not chess-truth signoff gates.
 - serialized/debug truth fields are audit aids only. Signoff-path runtime logic
   must not reconstruct ownership or surface permission from those strings when
   canonical `MoveTruthFrame` / `DecisiveTruthContract` data is available.
+- when the canonical contract is absent, fallback projection must still fail
+  closed:
+  serialized `truthPhase`, `surfacedMoveOwnsTruth`, payoff-anchor/chain
+  strings, and conversion-like `transitionType` tags may not recreate
+  investment / maintenance / conversion ownership; only narrow raw
+  `blunder` / `missed_win` failure classification may remain visible as an
+  exact-factual residual.
 - truth-first runtime semantics are mandatory when a contract exists:
   - raw `momentType`, `moveClassification`, `criticality`, and `choiceType`
     may remain in payloads for compatibility, display, or fallback only
@@ -281,18 +378,41 @@ are stale regression artifacts, not chess-truth signoff gates.
     tables, and exact factual move semantics); raw author-question text,
     latent carriers, and support-only shell prose may not own `DecisionPoint`
     claims
+  - planner factual fallback reasons are diagnostic-only:
+    if planner admission fails and only `exactFactualSentence` survives, the
+    user-facing claim must stay at literal move-shape scope and may not turn
+    ambiguous capture shape into generalized “simplifying” or exchange meaning
   - Bookmaker prose now consumes that same planner output directly:
     `primary.claim` is the only owner of the main Bookmaker claim,
     `secondary` is support-only, and planner admission failure or slot
     contract failure must fall straight to the exact factual one-liner
     instead of reviving `mainBundle` / `quietIntent` compression as a separate
     prose owner path
+  - the Bookmaker-side contrast-support render guard is narrow and
+    trace-preserving:
+    when raw planner `primary` is `WhatMustBeStopped`, shared-planner
+    `secondary` is `WhyNow`, both stay in `ForcingDefense`, and the raw primary
+    contrast trace rejects with `question_outside_scope`, Bookmaker may render
+    the `WhyNow` secondary for visible prose/contrast while keeping the raw
+    planner trace unchanged; this prevents support-slot leakage without
+    reopening owner choice or ranking
+  - Chronicle contrast-support runtime is signoff-scoped and Active
+    contrast-support runtime is diagnostic-only, both only at the support
+    slot:
+    Chronicle may replace only `primary.contrast`, and Active may replace only
+    the selected support sentence in the deterministic note body, when
+    `ContrastiveSupportAdmissibility` certifies the replacement from
+    preexisting shared-planner/truth inputs; primary selection, owner family,
+    and ranking stay unchanged
   - Chronicle moment prose now consumes that same planner output directly:
     Chronicle may only reorder planner top-2 locally, `primary` still owns the
     opening sentence, `secondary` is support-only, and planner admission or
     surface-composition failure must fall to compact factual prose or omission
     rather than reviving raw bridge text
-  - Phase 5 scene-first admission is shared-planner owned:
+  - Chronicle exact-factual fallback is claim-only:
+    quiet-support diagnostics may still run for audit, but fallback rows may
+    not append a support sentence once planner-owned surface composition failed
+  - shared-planner scene-first admission is shared-planner owned:
     Chronicle / Bookmaker / Active may consume the same planner trace
     (`scene_type`, `owner_candidates`, `admitted_families`,
     `dropped_families`, `demotion_reasons`, `selected_question`,
@@ -308,6 +428,11 @@ are stale regression artifacts, not chess-truth signoff gates.
     theoretical hints may be traced with a proposed family mapping, but they
     stay `support_material=true` until shared-planner admission explicitly
     legalizes them
+  - move-linked `OpeningRelation` / `EndgameTransition` translators may own
+    only planner-admitted domain questions in their own scenes:
+    `OpeningRelation` may surface through planner-owned `WhyThis`,
+    `EndgameTransition` may surface through planner-owned `WhatChanged`, and
+    raw opening/endgame support text never becomes a direct owner
   - `DecisionTiming` trace must preserve source and materiality before
     admission:
     `decision_comparison`, `close_candidate`, `prevented_resource`, and
@@ -338,9 +463,22 @@ are stale regression artifacts, not chess-truth signoff gates.
     `concrete_reply_or_reason` decision-comparison subtype, but timing-only
     `WhyNow` / `WhatChanged` plans are filtered from the legal pool until a
     later admission phase explicitly widens them
+  - demotion must close on a real planner path:
+    if `WhyNow`, `WhatMustBeStopped`, or `WhosePlanIsFaster` demotes into a
+    legal `WhyThis` fallback, that fallback remains planner-owned; if no legal
+    fallback can be synthesized, the planner records an explicit suppressed
+    intentional drop rather than carrying a dead-end demotion forward
   - Chronicle / Active replay may inspect the carried `DecisionComparison`
     trace, but replay may not promote generic urgency, unnamed drift language,
     or raw domain summaries into a timing owner
+  - no-contract truth fallback is failure-only:
+    raw investment / maintenance / conversion shells in serialized fields may
+    not be read back as owner-bearing truth once the canonical contract is
+    missing
+  - Chronicle / Active replay may reuse carried
+    `openingRelationClaim` / `endgameTransitionClaim` digest fields only to
+    reconstruct the same already-legal planner result; replay may not mint a
+    new owner family or re-promote support-only domain text
   - `WhatChanged` move ownership remains separate from state summary:
     move-attributed `preventedPlans`, counterplay-window removal, or concrete
     decision-comparison balance shift may own `WhatChanged`, but a bare
@@ -397,6 +535,9 @@ are stale regression artifacts, not chess-truth signoff gates.
   - direct Bookmaker requests do not surface blank prose:
     if tactical / strategic / quiet-intent all fail, runtime may still emit a
     final exact factual one-liner from current move semantics
+    - that fallback floor must stay literal:
+      when target-square anchoring is absent, capture fallback may say only
+      `This captures.` and may not infer simplification / exchange semantics
   - direct Bookmaker requests also do not surface half-admitted planner prose:
     if planner-owned slots lose their support/evidence owner or fail the hard
     gate, runtime must still fall back to the exact factual one-liner rather
@@ -420,10 +561,29 @@ are stale regression artifacts, not chess-truth signoff gates.
     selection without legacy `strategicBranch` preselection or visible
     route/move support, and even then the note must still pass the same hard
     gate with a concrete timing anchor
+  - planner-approved `TacticalFailure`, `MoveDelta`, `OpeningRelation`, and
+    `EndgameTransition` notes use a planner-aware minimum contract at attach
+    time:
+    the note must preserve the selected claim plus one anchored support or
+    consequence, but it does not need to satisfy the old full coaching-card
+    completeness contract
   - planner-owned `WhyNow` may reuse a carried proof sentence only when the
     note's lead is a new, concrete timing claim; if the lead still reuses the
     prior shell or the support line is the only surviving content, the Active
     note fails closed
+  - attach gating for those planner-approved minimal-contract notes is note
+    first, not side-surface first:
+    missing route / plan / focus / execution completeness becomes warning-level
+    side incompleteness (`side_route_missing`, `side_plan_missing`,
+    `side_focus_missing`, `side_execution_or_objective_missing`,
+    `side_coverage_low`) rather than a hard attach blocker
+  - Active finalization must collapse attach failure to one mutually exclusive
+    user-facing reject reason (`no_planner_primary`, `preselection_blocked`,
+    `visible_support_missing`, `note_body_empty`,
+    `validator_independence_fail`, `missing_required_route`,
+    `missing_required_plan`, `missing_required_focus`,
+    `note_body_too_generic`) even if lower-level validator details remain in
+    debug traces
   - whole-game Chronicle carry must keep planner questions aligned with carried
     author-evidence rows:
     runtime may not keep an evidence row for `WhyNow` / `WhatChanged` while
@@ -444,6 +604,14 @@ are stale regression artifacts, not chess-truth signoff gates.
     active-support dossier / route / move / target payloads must survive the
     same planner-selected decision frame, and the frontend may not rebuild
     those surfaces from `strategyPack` fallback once they were omitted upstream
+  - frontend decision-comparison support is canonical-digest only:
+    `signalDigest.decisionComparison` may render when present, but
+    `topEngineMove` or other fallback-only engine-alternative fields may not be
+    rebuilt into a user-facing decision-comparison support box when that
+    canonical digest is absent
+  - conversely, side-surface incompleteness may not kill a planner-valid note:
+    note attach is decided from the validated note contract first, and side
+    surfaces stay best-effort on that same selected planner result
   - conversely, note omission also removes those aligned side surfaces:
     there is no canonical `carrier_only` active-note payload mode anymore
   - draw / repetition / perpetual-style whole-game summaries may not invent a

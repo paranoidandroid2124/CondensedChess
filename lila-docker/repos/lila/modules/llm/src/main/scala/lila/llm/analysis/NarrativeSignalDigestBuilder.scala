@@ -43,6 +43,8 @@ object NarrativeSignalDigestBuilder:
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)
     val structureArc = StructurePlanArcBuilder.build(ctx)
+    val openingRelationClaim = QuestionFirstCommentaryPlanner.openingRelationReplayClaim(ctx)
+    val endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx)
 
     val practicalVerdict = practical.flatMap(pa => normalized(pa.verdict))
     val practicalFactors =
@@ -91,6 +93,8 @@ object NarrativeSignalDigestBuilder:
       preservedSignalsOverride.getOrElse(
         List(
           Option.when(opening.isDefined)("opening"),
+          Option.when(openingRelationClaim.isDefined)("opening_relation"),
+          Option.when(endgameTransitionClaim.isDefined)("endgame_transition"),
           Option.when(strategicStack.nonEmpty)("strategic_stack"),
           Option.when(authoringEvidence.isDefined)("authoring_evidence"),
           Option.when(practicalVerdict.isDefined || compensation.isDefined)("practical"),
@@ -140,7 +144,9 @@ object NarrativeSignalDigestBuilder:
         decision = decision,
         strategicFlow = strategicFlow,
         opponentPlan = opponentPlan,
-        preservedSignals = preservedSignals
+        preservedSignals = preservedSignals,
+        openingRelationClaim = openingRelationClaim,
+        endgameTransitionClaim = endgameTransitionClaim
       )
     )
 

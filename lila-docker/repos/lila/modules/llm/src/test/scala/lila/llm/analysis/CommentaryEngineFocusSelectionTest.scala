@@ -1359,6 +1359,45 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     }
   }
 
+  test("buildWholeGameConclusionSupport projects labeled support carriers before whole-game reuse") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 66,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 18,
+        cpAfter = 260,
+        narrative = "Qb4 is a solid move that keeps the plan clear.",
+        signalDigest = Some(NarrativeSignalDigest(strategicFlow = Some("alignment intent: pressure on e6"))),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              longTermFocus = List("continuity: pressure on e6")
+            )
+          )
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Central pressure"),
+      truthContractsByPly =
+        Map(
+          66 ->
+            truthContract(
+              ownershipRole = TruthOwnershipRole.BlunderOwner,
+              visibilityRole = TruthVisibilityRole.PrimaryVisible,
+              surfaceMode = TruthSurfaceMode.FailureExplain,
+              truthClass = DecisiveTruthClass.Blunder
+            )
+        )
+    )
+
+    assertEquals(support.decisiveShift, Some("The decisive shift came through pressure on e6."))
+    assertEquals(support.payoff, Some("The punishment story ran through pressure on e6."))
+  }
+
   test("buildWholeGameConclusionSupport drops helper-leaky whole-game wrappers when the anchor is not release-safe") {
     val decisiveMoment =
       chronicleMoment(

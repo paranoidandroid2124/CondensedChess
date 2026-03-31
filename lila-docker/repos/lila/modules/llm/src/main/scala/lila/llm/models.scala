@@ -339,7 +339,9 @@ case class NarrativeSignalDigest(
     decision: Option[String] = None,
     strategicFlow: Option[String] = None,
     opponentPlan: Option[String] = None,
-    preservedSignals: List[String] = Nil
+    preservedSignals: List[String] = Nil,
+    openingRelationClaim: Option[String] = None,
+    endgameTransitionClaim: Option[String] = None
 ):
   def deploymentConfidence: Option[Double] = deploymentSurfaceConfidence
 object NarrativeSignalDigest:

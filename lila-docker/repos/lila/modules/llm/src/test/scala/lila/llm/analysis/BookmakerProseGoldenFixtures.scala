@@ -820,9 +820,9 @@ object BookmakerProseGoldenFixtures:
         expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
-        id = "why_now_positive",
-        title = "WhyNow surfaces timing pressure",
-        expectation = PlannerFixtureExpectation.Positive,
+        id = "why_now_tactical_fallback",
+        title = "WhyNow fails closed when tactical failure owns the scene",
+        expectation = PlannerFixtureExpectation.Fallback,
         questionKind = AuthorQuestionKind.WhyNow,
         ctx =
           openFileFight.ctx.copy(
@@ -841,8 +841,8 @@ object BookmakerProseGoldenFixtures:
               reasonFamily = DecisiveReasonFamily.TacticalRefutation
             )
           ),
-        expectedPrimaryKind = Some(AuthorQuestionKind.WhyNow),
-        expectedClaimFragment = Some("now")
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_negative",

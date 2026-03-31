@@ -65,6 +65,7 @@ object CommentaryEngine:
       visibleMomentPlies: List[Int],
       activeNotePlies: List[Int],
       promotedWholeGamePly: Option[Int],
+      truthContractsByPly: Map[Int, DecisiveTruthContract],
       canonicalTraceMoments: List[TruthTraceMoment],
       witnessTraceMoments: List[TruthTraceMoment]
   )
@@ -79,6 +80,28 @@ object CommentaryEngine:
       text: String,
       fullSentence: Boolean
   )
+  private case class WholeGameSupportProjection(
+      verifiedPayoffAnchor: Option[String],
+      digestDominantIdea: Option[String],
+      digestStrategicFlow: Option[String],
+      investmentCompensation: Option[String],
+      practicalVerdict: Option[String],
+      strategyDigestDominantIdea: Option[String],
+      strategyDigestStrategicFlow: Option[String],
+      strategyLongTermFocus: Option[String],
+      directionalReasons: List[String]
+  ):
+    def projectedTexts: List[String] =
+      List(
+        verifiedPayoffAnchor,
+        digestDominantIdea,
+        digestStrategicFlow,
+        investmentCompensation,
+        practicalVerdict,
+        strategyDigestDominantIdea,
+        strategyDigestStrategicFlow,
+        strategyLongTermFocus
+      ).flatten ++ directionalReasons
 
   private def themeMaxShareFromHypotheses(
       hypotheses: List[lila.llm.model.authoring.PlanHypothesis]
@@ -732,6 +755,7 @@ object CommentaryEngine:
           visibleMomentPlies = finalVisibleMomentPlies.toList.sorted,
           activeNotePlies = activeNotePlies.toList.sorted,
           promotedWholeGamePly = promotedWholeGamePly,
+          truthContractsByPly = truthContractsByPly,
           canonicalTraceMoments = canonicalTraceMoments,
           witnessTraceMoments = witnessTraceMoments
         )
@@ -745,6 +769,7 @@ object CommentaryEngine:
           visibleMomentPlies = Nil,
           activeNotePlies = Nil,
           promotedWholeGamePly = None,
+          truthContractsByPly = Map.empty,
           canonicalTraceMoments = Nil,
           witnessTraceMoments = Nil
         )
@@ -1396,19 +1421,51 @@ object CommentaryEngine:
       moment: GameArcMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): List[String] =
-    List(
-      truthContractsByPly.get(moment.ply).flatMap(_.verifiedPayoffAnchor).orElse(moment.verifiedPayoffAnchor),
-      moment.signalDigest.flatMap(_.dominantIdeaFocus),
-      moment.signalDigest.flatMap(_.strategicFlow),
-      Option.when(wholeGameSurfaceMode(moment, truthContractsByPly) == TruthSurfaceMode.InvestmentExplain)(
-        moment.signalDigest.flatMap(_.compensation)
-      ).flatten,
-      moment.signalDigest.flatMap(_.practicalVerdict),
-      moment.strategyPack.flatMap(_.signalDigest.flatMap(_.dominantIdeaFocus)),
-      moment.strategyPack.flatMap(_.signalDigest.flatMap(_.strategicFlow)),
-      moment.strategyPack.flatMap(_.longTermFocus.headOption)
-    ).flatten ++
-      moment.strategyPack.toList.flatMap(_.directionalTargets.flatMap(_.strategicReasons))
+    wholeGameSupportProjection(moment, truthContractsByPly).projectedTexts
+
+  private def wholeGameSupportProjection(
+      moment: GameArcMoment,
+      truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
+  ): WholeGameSupportProjection =
+    WholeGameSupportProjection(
+      verifiedPayoffAnchor =
+        truthContractsByPly.get(moment.ply).flatMap(_.verifiedPayoffAnchor).orElse(moment.verifiedPayoffAnchor),
+      digestDominantIdea = wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.dominantIdeaFocus)),
+      digestStrategicFlow = wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.strategicFlow)),
+      investmentCompensation =
+        Option.when(wholeGameSurfaceMode(moment, truthContractsByPly) == TruthSurfaceMode.InvestmentExplain)(
+          wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.compensation))
+        ).flatten,
+      practicalVerdict = wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.practicalVerdict)),
+      strategyDigestDominantIdea =
+        wholeGameProjectedSupportCarrier(moment.strategyPack.flatMap(_.signalDigest.flatMap(_.dominantIdeaFocus))),
+      strategyDigestStrategicFlow =
+        wholeGameProjectedSupportCarrier(moment.strategyPack.flatMap(_.signalDigest.flatMap(_.strategicFlow))),
+      strategyLongTermFocus =
+        wholeGameProjectedSupportCarrier(moment.strategyPack.flatMap(_.longTermFocus.headOption)),
+      directionalReasons =
+        moment.strategyPack.toList
+          .flatMap(_.directionalTargets.flatMap(_.strategicReasons))
+          .flatMap(reason => wholeGameProjectedSupportCarrier(Some(reason)))
+    )
+
+  private def wholeGameProjectedSupportCarrier(raw: Option[String]): Option[String] =
+    raw.flatMap(cleanedWholeGameAnchor)
+      .map(
+        _.replaceFirst("(?i)^(white|black)\\s+plan:\\s*", "")
+          .replaceFirst("(?i)^(white|black)\\s+execution:\\s*", "")
+          .replaceFirst("(?i)^risk trigger:\\s*", "")
+          .replaceFirst("(?i)^hypothesis:\\s*", "")
+          .replaceFirst("(?i)^follow-up:\\s*", "")
+          .replaceFirst("(?i)^continuity:\\s*", "")
+          .replaceFirst("(?i)^structure deployment:\\s*", "")
+          .replaceFirst("(?i)^move contribution:\\s*", "")
+          .replaceFirst("(?i)^plan alignment:\\s*", "")
+          .replaceFirst("(?i)^alignment intent:\\s*", "")
+          .replaceAll("\\s+", " ")
+          .trim
+      )
+      .filter(_.nonEmpty)
 
   private def normalizeWholeGameSupportAnchor(
       raw: String

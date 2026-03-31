@@ -65,7 +65,7 @@ private[llm] object QuietMoveIntentBuilder:
       else if shape.castlesLong then Some("This castles long.")
       else if shape.isCapture then
         shape.targetSquare.map(square => s"This captures on $square.")
-          .orElse(Some("This is a simplifying capture."))
+          .orElse(Some("This captures."))
       else if shape.piece == "pawn" then
         shape.targetSquare.map(square => s"This is a pawn move to $square.")
       else
