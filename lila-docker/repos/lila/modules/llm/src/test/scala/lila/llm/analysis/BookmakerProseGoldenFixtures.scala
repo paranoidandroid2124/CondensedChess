@@ -246,6 +246,54 @@ object BookmakerProseGoldenFixtures:
       )
     )
 
+  private def conversionPack(
+      routePurpose: String = "dark-square entry",
+      targetSquare: String = "f6",
+      focusSquares: List[String] = List("f6", "g7"),
+      targetReasons: List[String] = List("dark-square entry", "king cut-off")
+  ): StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      directionalTargets =
+        List(
+          StrategyDirectionalTarget(
+            targetId = s"target_$targetSquare",
+            ownerSide = "white",
+            piece = "B",
+            from = "f3",
+            targetSquare = targetSquare,
+            readiness = DirectionalTargetReadiness.Build,
+            strategicReasons = targetReasons,
+            evidence = List("probe-target", routePurpose)
+          )
+        ),
+      pieceRoutes =
+        List(
+          StrategyPieceRoute(
+            ownerSide = "white",
+            piece = "B",
+            from = "f3",
+            route = List("f3", "d1", targetSquare),
+            purpose = routePurpose,
+            strategicFit = 0.87,
+            tacticalSafety = 0.82,
+            surfaceConfidence = 0.85,
+            surfaceMode = RouteSurfaceMode.Exact,
+            evidence = List("probe-route", routePurpose)
+          )
+        ),
+      longTermFocus = List(routePurpose),
+      evidence = List("probe-backed conversion"),
+      signalDigest =
+        Some(
+          NarrativeSignalDigest(
+            dominantIdeaFocus = Some(focusSquares.mkString(", ")),
+            deploymentContribution = Some(routePurpose),
+            deploymentSurfaceMode = Some("exact")
+          )
+        )
+    )
+
   val rookPawnMarch: Fixture =
     Fixture(
       id = "rook_pawn_march",
@@ -689,7 +737,8 @@ object BookmakerProseGoldenFixtures:
       openFileFight,
       entrenchedPiece,
       prophylacticCut,
-      practicalChoice
+      practicalChoice,
+      oppositeBishopsConversion
     )
 
   private val raceCtx =
@@ -871,6 +920,112 @@ object BookmakerProseGoldenFixtures:
           ),
         expectedPrimaryKind = None,
         expectedFallbackClaim = Some("This puts the rook on c3.")
+      ),
+      PlannerRuntimeFixture(
+        id = "restricted_defense_conversion_positive",
+        title = "A WhyNow conversion request survives as a planner-owned WhyThis technical conversion",
+        expectation = PlannerFixtureExpectation.Positive,
+        questionKind = AuthorQuestionKind.WhyNow,
+        ctx =
+          oppositeBishopsConversion.ctx.copy(
+            authorQuestions =
+              List(
+                question(
+                  "q_convert_positive",
+                  AuthorQuestionKind.WhyNow,
+                  evidencePurposes = List("convert_reply_multipv")
+                )
+              ),
+            authorEvidence =
+              List(
+                evidence(
+                  "q_convert_positive",
+                  "convert_reply_multipv",
+                  List(
+                    "45...Kg8 46.Bd1 Kf8 47.Bc2 keeps the dark-square bind.",
+                    "45...Bc5 46.Bh5 gxh5 47.g4 still leaves the king cut off."
+                  )
+                )
+              ),
+            strategicPlanExperiments =
+              List(
+                StrategicPlanExperiment(
+                  planId = "opposite_bishops_conversion",
+                  themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+                  subplanId = Some(ThemeTaxonomy.SubplanId.OppositeBishopsConversion.id),
+                  evidenceTier = "evidence_backed",
+                  supportProbeCount = 1,
+                  bestReplyStable = true,
+                  futureSnapshotAligned = true,
+                  counterBreakNeutralized = true,
+                  experimentConfidence = 0.9
+                )
+              )
+          ),
+        strategyPack =
+          Some(
+            conversionPack(
+              routePurpose = "dark-square entry",
+              targetSquare = "f6",
+              focusSquares = List("f6", "g7"),
+              targetReasons = List("dark-square entry", "king cut-off")
+            )
+          ),
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis)
+      ),
+      PlannerRuntimeFixture(
+        id = "restricted_defense_conversion_fragile",
+        title = "WhyNow fails closed when restricted-defense conversion is move-order fragile",
+        expectation = PlannerFixtureExpectation.Fallback,
+        questionKind = AuthorQuestionKind.WhyNow,
+        ctx =
+          oppositeBishopsConversion.ctx.copy(
+            authorQuestions =
+              List(
+                question(
+                  "q_convert_fragile",
+                  AuthorQuestionKind.WhyNow,
+                  evidencePurposes = List("convert_reply_multipv")
+                )
+              ),
+            authorEvidence =
+              List(
+                evidence(
+                  "q_convert_fragile",
+                  "convert_reply_multipv",
+                  List(
+                    "45...Kg8 46.Bd1 Kf8 and only then ...Ke7 holds the shell.",
+                    "45...Bc5 46.Bh5 Ke7 restores the drawing route."
+                  )
+                )
+              ),
+            strategicPlanExperiments =
+              List(
+                StrategicPlanExperiment(
+                  planId = "opposite_bishops_conversion",
+                  themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+                  subplanId = Some(ThemeTaxonomy.SubplanId.OppositeBishopsConversion.id),
+                  evidenceTier = "deferred",
+                  supportProbeCount = 1,
+                  bestReplyStable = false,
+                  futureSnapshotAligned = false,
+                  counterBreakNeutralized = true,
+                  moveOrderSensitive = true,
+                  experimentConfidence = 0.42
+                )
+              )
+          ),
+        strategyPack =
+          Some(
+            conversionPack(
+              routePurpose = "dark-square entry",
+              targetSquare = "f6",
+              focusSquares = List("f6", "g7"),
+              targetReasons = List("dark-square entry", "king cut-off")
+            )
+          ),
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("This puts the bishop on f3.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_positive",

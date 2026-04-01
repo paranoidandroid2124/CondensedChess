@@ -4,7 +4,7 @@ import munit.FunSuite
 import chess.Color
 import chess.format.{Fen, Uci}
 import chess.variant.Standard
-import chess.File
+import chess.{ File, Square }
 import lila.llm.model._
 import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.llm.model.strategic.*
@@ -152,7 +152,10 @@ class NarrativeContextBuilderTest extends FunSuite {
     val experiments =
       NarrativeContextBuilder.buildStrategicPlanExperiments(
         evaluated = evaluated,
-        validatedProbeResults = probeResults
+        validatedProbeResults = probeResults,
+        preventedPlans = Nil,
+        evalCp = 50,
+        isWhiteToMove = true
       )
 
     assertEquals(experiments.size, 1)
@@ -162,6 +165,90 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(experiments.head.futureSnapshotAligned)
     assert(experiments.head.counterBreakNeutralized)
     assert(experiments.head.experimentConfidence > 0.8)
+  }
+
+  test("buildStrategicPlanExperiments downgrades uncertified conversion ideas before planner consumption") {
+    val conversionPlan =
+      PlanEvidenceEvaluator.EvaluatedPlan(
+        hypothesis =
+          PlanHypothesis(
+            planId = "simplification_conversion",
+            planName = "Simplify into a winning pawn ending",
+            rank = 1,
+            score = 0.84,
+            preconditions = Nil,
+            executionSteps = List("Trade the last active defender."),
+            failureModes = List("If the order slips, counterplay returns."),
+            viability = PlanViability(0.78, "high", "conversion test"),
+            evidenceSources = List("theme:advantage_transformation"),
+            themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+            subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+          ),
+        status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
+        userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
+        reason = "probe-backed conversion",
+        supportProbeIds = List("probe_theme_only"),
+        themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        claimCertification =
+          PlanEvidenceEvaluator.ClaimCertification(
+            certificateStatus = PlayerFacingCertificateStatus.Valid,
+            quantifier = PlayerFacingClaimQuantifier.Universal,
+            modalityTier = PlayerFacingClaimModalityTier.Advances,
+            attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+            stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+            provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+            ontologyFamily = PlayerFacingClaimOntologyFamily.PlanAdvance
+          )
+      )
+    val themeValidationOnlyProbe =
+      ProbeResult(
+        id = "probe_theme_only",
+        evalCp = 260,
+        bestReplyPv = List("g7g6", "g3g7"),
+        replyPvs = Some(List(List("g7g6", "g3g7"), List("c7c6", "g3g7"))),
+        deltaVsBaseline = 16,
+        keyMotifs = List("conversion_window"),
+        purpose = Some("theme_plan_validation"),
+        futureSnapshot =
+          Some(
+            FutureSnapshot(
+              resolvedThreatKinds = List("Counterplay"),
+              newThreatKinds = Nil,
+              targetsDelta = TargetsDelta(Nil, Nil, List("g7"), Nil),
+              planBlockersRemoved = List("defender_trade_complete"),
+              planPrereqsMet = List("pawn_ending_ready")
+            )
+          )
+      )
+
+    val experiments =
+      NarrativeContextBuilder.buildStrategicPlanExperiments(
+        evaluated = List(conversionPlan),
+        validatedProbeResults = List(themeValidationOnlyProbe),
+        preventedPlans =
+          List(
+            PreventedPlan(
+              planId = "deny_counterplay",
+              deniedSquares = List(Square.fromKey("c5").get),
+              breakNeutralized = None,
+              mobilityDelta = -1,
+              counterplayScoreDrop = 0,
+              preventedThreatType = None,
+              sourceScope = FactScope.Now
+            )
+          ),
+        evalCp = 260,
+        isWhiteToMove = true
+      )
+
+    assertEquals(experiments.head.evidenceTier, "deferred", clue(experiments))
+    assert(
+      StrategicNarrativePlanSupport
+        .filterEvidenceBacked(List(conversionPlan.hypothesis), experiments)
+        .isEmpty,
+      clue(experiments)
+    )
   }
 
   test("buildWithDiagnostics keeps latent strategic hypotheses out of runtime context and sidecars them instead") {

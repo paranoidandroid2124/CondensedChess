@@ -6,15 +6,26 @@ import lila.llm.model.authoring.PlanHypothesis
 private[llm] object StrategicNarrativePlanSupport:
 
   def evidenceBackedMainPlans(ctx: NarrativeContext): List[PlanHypothesis] =
-    if ctx.mainStrategicPlans.isEmpty then Nil
-    else if ctx.strategicPlanExperiments.isEmpty then ctx.mainStrategicPlans
+    filterEvidenceBacked(ctx.mainStrategicPlans, ctx.strategicPlanExperiments)
+
+  def filterEvidenceBacked(
+      plans: List[PlanHypothesis],
+      experiments: List[lila.llm.model.StrategicPlanExperiment]
+  ): List[PlanHypothesis] =
+    if plans.isEmpty then Nil
+    else if experiments.isEmpty then plans
     else
-      val evidenceBackedKeys =
-        ctx.strategicPlanExperiments.collect {
-          case experiment if experiment.evidenceTier == "evidence_backed" =>
-            planKey(experiment.planId, experiment.subplanId)
-        }.toSet
-      ctx.mainStrategicPlans.filter(plan => evidenceBackedKeys.contains(planKey(plan.planId, plan.subplanId)))
+      val evidenceBackedKeys = experimentEvidenceBackedKeys(experiments)
+      plans.filter(plan => evidenceBackedKeys.contains(planKey(plan.planId, plan.subplanId)))
+
+  def experimentEvidenceBackedKeys(
+      experiments: List[lila.llm.model.StrategicPlanExperiment]
+  ): Set[String] =
+    experiments.collect {
+      case experiment if normalized(experiment.evidenceTier).contains("evidence_backed") ||
+          normalized(experiment.evidenceTier).contains("evidence backed") =>
+        planKey(experiment.planId, experiment.subplanId)
+    }.toSet
 
   def evidenceBackedPlanNames(ctx: NarrativeContext): List[String] =
     evidenceBackedMainPlans(ctx).flatMap(plan => displayText(plan.planName))

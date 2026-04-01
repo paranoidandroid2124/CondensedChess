@@ -614,17 +614,10 @@ private[llm] object CertifiedDecisionFrameBuilder:
       candidateKeys.exists(evidencePlanKeys.contains)
 
   private def evidenceBackedMainPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
-    if moment.mainStrategicPlans.isEmpty then Nil
-    else if moment.strategicPlanExperiments.isEmpty then moment.mainStrategicPlans
-    else
-      val evidenceBackedKeys =
-        moment.strategicPlanExperiments.collect {
-          case experiment if normalized(experiment.evidenceTier) == "evidence backed" || normalized(experiment.evidenceTier) == "evidence_backed" =>
-            s"${normalized(experiment.planId)}|${experiment.subplanId.map(normalized).getOrElse("")}"
-        }.toSet
-      moment.mainStrategicPlans.filter(plan =>
-        evidenceBackedKeys.contains(s"${normalized(plan.planId)}|${plan.subplanId.map(normalized).getOrElse("")}")
-      )
+    StrategicNarrativePlanSupport.filterEvidenceBacked(
+      moment.mainStrategicPlans,
+      moment.strategicPlanExperiments
+    )
 
   private def planAlignmentKeys(
       evidenceBackedPlans: List[PlanHypothesis]

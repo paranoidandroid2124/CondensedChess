@@ -125,6 +125,22 @@ Its job is:
 Use [CommentaryTrustHardening.md](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
 as the canonical trust-risk map.
 
+Current status:
+
+- `CTH-A core complete`
+- `CTH-A maintenance-only` for residual watch and regression-pack upkeep
+- `CTH-B0 recon baseline complete`
+- `CTH-B1 restricted-defense conversion certification` is implemented as the
+  current narrow trust-hardening slice
+- `CTH-B1b restricted-defense broad validation / corpus expansion` is green for
+  the targeted late-middlegame / transition matrix, criticism pack, and
+  cross-surface validation
+- `CTH-B2a no-counterplay / quiet squeeze certification design baseline` is now
+  the canonical design/recon charter for the next CTH-B frontier
+- `CTH-B2b late-middlegame prophylactic clamp / named-break suppression
+  certification` is now implemented as the current narrow B2 runtime slice
+- broader `CTH-B` remains incremental/research-bound beyond B1/B1b
+
 ### CQF Tracks
 
 #### Track 0 — Upstream Input Quality
@@ -245,8 +261,31 @@ Each of those buckets now sits inside the target candidate / curated /
 stable-fixture band, and the final `complex_sacrifice` widening probe added no
 new failure class.
 
-Track 5 remains deferred. The immediate next workstream is CTH, not lesson
-extraction.
+Track 5 remains deferred.
+
+The current trust posture is:
+
+- CTH-A is no longer the active implementation frontier; it is maintenance-only
+- if new trust regressions appear, update
+  [CommentaryTrustHardening.md](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
+  and extend the Step 6 / Step 7 regression packs
+- CTH-B0 recon baseline is now the canonical starting point for any future
+  strategic-discovery work
+- the current implemented `CTH-B1` slice is
+  `restricted-defense conversion certification`
+- the current validation baseline on top of B1 is `CTH-B1b`, which broadens the
+  corpus and real-surface checks without adding new runtime semantics
+- the current `CTH-B2` baseline now consists of:
+  `CTH-B2a` design charter +
+  `CTH-B2b` narrow late-middlegame named-break / entry-axis suppression
+  certification
+- `CTH-B2b` is intentionally bounded:
+  planner-owned local suppression only, no whole-position no-counterplay, no
+  whole-game positive wrapper reuse
+- any future B2 runtime work should extend from the B2b bounded slice rather
+  than broad squeeze prose rollout
+- any broader strategic-depth work after B1/B1b still belongs to `CTH-B` and
+  must remain staged trust hardening rather than lesson extraction
 
 ## How To Read The Docs In A New Session
 

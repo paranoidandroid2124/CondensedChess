@@ -2,6 +2,8 @@ package lila.llm.analysis
 
 import munit.FunSuite
 import lila.llm.model.authoring.AuthorQuestionKind
+import lila.llm.model.*
+import lila.llm.model.authoring.*
 
 class SurfaceReplayParityTest extends FunSuite:
 
@@ -22,6 +24,18 @@ class SurfaceReplayParityTest extends FunSuite:
       ),
       FixtureExpectation(
         id = "why_now_tactical_fallback",
+        expectedPlannerPrimary = None,
+        expectedActivePrimary = None,
+        expectedBookmakerPlannerOwned = false
+      ),
+      FixtureExpectation(
+        id = "restricted_defense_conversion_positive",
+        expectedPlannerPrimary = Some(AuthorQuestionKind.WhyThis),
+        expectedActivePrimary = Some(AuthorQuestionKind.WhyThis),
+        expectedBookmakerPlannerOwned = true
+      ),
+      FixtureExpectation(
+        id = "restricted_defense_conversion_fragile",
         expectedPlannerPrimary = None,
         expectedActivePrimary = None,
         expectedBookmakerPlannerOwned = false
@@ -158,3 +172,99 @@ class SurfaceReplayParityTest extends FunSuite:
     }
   }
 
+  test("uncertified restricted-defense conversion stays out of planner and replay primaries") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        playedMove = Some("c3c4"),
+        playedSan = Some("Rc4"),
+        phase = PhaseContext("Endgame", "Technical conversion edge"),
+        authorQuestions =
+          List(
+            AuthorQuestion(
+              id = "q_convert",
+              kind = AuthorQuestionKind.WhyNow,
+              priority = 2,
+              question = "Why is Rc4 the right conversion moment?",
+              evidencePurposes = List("convert_reply_multipv")
+            )
+          ),
+        authorEvidence =
+          List(
+            QuestionEvidence(
+              questionId = "q_convert",
+              purpose = "convert_reply_multipv",
+              branches =
+                List(
+                  EvidenceBranch(
+                    keyMove = "line_1",
+                    line = "a) ...g6 Rg7 keeps the defender active.",
+                    evalCp = Some(220)
+                  )
+                )
+            )
+          ),
+        mainStrategicPlans =
+          List(
+            PlanHypothesis(
+              planId = "simplification_conversion",
+              planName = "Simplify into a winning pawn ending",
+              rank = 1,
+              score = 0.82,
+              preconditions = Nil,
+              executionSteps = List("Trade the last active defender."),
+              failureModes = List("Wrong move order restores counterplay."),
+              viability = PlanViability(score = 0.8, label = "high", risk = "test"),
+              evidenceSources = List("theme:advantage_transformation"),
+              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "simplification_conversion",
+              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+              evidenceTier = "deferred",
+              supportProbeCount = 1,
+              bestReplyStable = true,
+              futureSnapshotAligned = true
+            )
+          )
+      )
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val chronicleSelection =
+      GameChronicleCompressionPolicy.selectPlannerSurface(rankedPlans, inputs)
+    val activeSelection =
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
+        ActiveStrategicCoachingBriefBuilder.PlannerReplay(
+          authorQuestions = ctx.authorQuestions,
+          inputs = inputs,
+          rankedPlans = rankedPlans
+        )
+      )
+    val bookmakerSlots =
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+    val fallbackSlots =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, inputs.decisionFrame))
+    assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(BookmakerProseContract.stripMoveHeader(fallbackSlots.claim), "This puts the rook on c4.")
+  }

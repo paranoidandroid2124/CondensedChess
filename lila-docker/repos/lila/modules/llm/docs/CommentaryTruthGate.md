@@ -18,6 +18,22 @@ If Chesstory cannot verify a decisive claim, a concrete benchmark, or a
 compensation story, it must become less specific instead of inventing a more
 vivid explanation.
 
+The current Step 4 / 5 authority slice reinforces that rule inside outline
+assembly:
+
+- `unsafe_as_lesson` opening-precedent fragments may not surface as released
+  explanatory prose
+- `unsafe_as_truth` annotation suffixes may not strengthen the released move
+  claim by final-stitch append
+- `unsafe_as_truth` generalized Context opening leads may not surface as
+  released Context truth
+- generalized `support_only` fragments may release only when they stay
+  move-linked, scene-grounded, evidence-backed, planner-owned, or otherwise
+  contract-consistent with the owning scene
+- validator cleanup must still remove any leaked `Shared lesson:` sentence or
+  raw helper-label prefix before render, and it may drop ungrounded
+  generalized fallback families outside anchored / opening-theory scopes
+
 ## Canonical Signoff Order
 
 1. Derive a `MoveTruthFrame` for every candidate key moment.
@@ -123,6 +139,12 @@ The following are automatic truth-gate blockers:
   focus-moment exemplar set
 - a maintenance move is surfaced as if it were the original investment
 - a conversion move is surfaced as compensation rather than conversion
+- a restricted-defense conversion claim is surfaced as stable followthrough
+  without best-defense-stable certification, or is revived from support-only
+  carriers after certification failed closed
+- a bounded counterplay-axis suppression claim is surfaced as whole-position
+  `no-counterplay`, squeeze, or winning-route truth, or is revived from
+  support-only carriers after axis certification failed closed
 - compensation-positive prose appears on a move that does not own investment
   truth
 - a low-confidence blunder is narrated as if the player had a verified
@@ -290,6 +312,38 @@ plus the local quality-audit rerun artifacts referenced there.
   - `first_investment_commitment`
   - `compensation_maintenance`
   - `conversion_followthrough`
+- restricted-defense conversion followthrough is planner-gated:
+  - only `AdvantageTransformation` strategic experiments with backend-only
+    certification may remain `evidence_backed` for player-facing conversion
+    followthrough
+  - that certification must be based on bounded direct-reply evidence
+    (`convert_reply_multipv` / `defense_reply_multipv`), compressed defender
+    resources, concrete/stable best defense, future-snapshot persistence, and
+    counterplay suppression
+  - PV paraphrase alone is not certification
+  - uncertified or move-order-fragile conversion experiments must downgrade
+    before Chronicle / Bookmaker / Active / whole-game replay, and support-only
+    carriers may not re-inflate them afterward
+- bounded counterplay-axis suppression is planner-gated:
+  - only `RestrictionProphylaxis` strategic experiments with backend-only
+    named-break / entry-axis certification may remain `evidence_backed` for
+    player-facing prophylactic clamp / route-denial claims
+  - the certified claim scope is local only:
+    one named break or entry axis, not whole-position `no-counterplay`
+  - certification must be based on the narrow B2b slice:
+    late middlegame, clearly-better eval posture, route-denial or
+    long-term-restraint validation, concrete/stable best defense,
+    future-snapshot persistence, no hidden freeing break, no tactical release,
+    and no move-order fragility
+  - PV paraphrase, quiet waiting moves, or local restraint without measured
+    counterplay compression are not certification
+  - certified suppression may stay only on the existing move-delta planner
+    lane (`WhyThis`, and existing move-delta `WhatChanged` rules when they are
+    otherwise legal); raw `prevented_plan` forcing shells may not override that
+    certification into broader `WhyNow` / whole-position ownership
+  - uncertified suppression experiments must downgrade before Chronicle /
+    Bookmaker / Active / whole-game replay, and support-only carriers may not
+    re-inflate them afterward
 - Bookmaker and Active may use compensation-positive language only when the
   contract allows compensation framing.
 - fake compensation suppression and real investment exemplar preservation are
@@ -694,3 +748,9 @@ plus the local quality-audit rerun artifacts referenced there.
   and the contract explicitly allows it.
 - Whole-game Chronicle binders must anchor decisive shift / punishment prose in
   the same decisive-truth contract, or omit those sentences.
+- Whole-game support reuse may consume only authority-cleared projected support
+  carriers or verified payoff anchors; raw helper-labeled carriers are not
+  admissible whole-game truth owners.
+- `support_only` whole-game carriers may remain support, but they may not seed
+  decisive-shift / payoff wrappers; those wrappers require verified payoff
+  anchors or equivalent structured proof inside the same contract.

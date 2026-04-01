@@ -650,17 +650,10 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
     }
 
   private def replayEvidenceBackedPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
-    if moment.mainStrategicPlans.isEmpty then Nil
-    else if moment.strategicPlanExperiments.isEmpty then moment.mainStrategicPlans
-    else
-      val evidenceBackedKeys =
-        moment.strategicPlanExperiments.collect {
-          case experiment if experiment.evidenceTier == "evidence_backed" =>
-            s"${normalize(experiment.planId)}|${experiment.subplanId.map(normalize).getOrElse("")}"
-        }.toSet
-      moment.mainStrategicPlans.filter { plan =>
-        evidenceBackedKeys.contains(s"${normalize(plan.planId)}|${plan.subplanId.map(normalize).getOrElse("")}")
-      }
+    StrategicNarrativePlanSupport.filterEvidenceBacked(
+      moment.mainStrategicPlans,
+      moment.strategicPlanExperiments
+    )
 
   private def replayOpponentPlan(moment: GameChronicleMoment): Option[PlanRow] =
     moment.signalDigest.flatMap(_.opponentPlan).flatMap(cleanStringSignal).map { name =>

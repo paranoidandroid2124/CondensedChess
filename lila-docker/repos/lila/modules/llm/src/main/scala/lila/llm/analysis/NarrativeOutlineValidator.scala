@@ -12,6 +12,22 @@ import scala.util.matching.Regex
  * Rules from HighEffortBookCommentary.md Section 5.2.
  */
 object NarrativeOutlineValidator:
+  private val SharedLessonMarker = "shared lesson:"
+  private val AuthorityHelperPrefixPattern: Regex =
+    """(?i)\b(?:white|black)\s+(?:plan|execution):\s*|risk trigger:\s*|hypothesis:\s*|follow-up:\s*|continuity:\s*|structure deployment:\s*|move contribution:\s*|plan alignment:\s*|alignment intent:\s*""".r
+  private val UngroundedGeneralizationPatterns: List[Regex] = List(
+    """(?i)^across these branches,.*""".r,
+    """(?i)^common pattern:.*""".r,
+    """(?i)^all cited branches revolve around.*""".r,
+    """(?i)^the recurring practical theme across these games is.*""".r,
+    """(?i)^these precedent lines point to one key driver:.*""".r,
+    """(?i)^at this branch, practical handling matters more than memorized reference games\.?$""".r,
+    """(?i)^this node is best treated as a live practical decision rather than a model-game recall test\.?$""".r,
+    """(?i)^from here, over-the-board plan execution matters more than historical comparison\.?$""".r,
+    """(?i)^in practical terms, the key is to keep plans coherent\b.*""".r,
+    """(?i)^the position is decided more by accurate follow-up than by historical templates\b.*""".r,
+    """(?i)^from this point, practical move-order discipline is the main guide\b.*""".r
+  )
 
   /**
    * Validate and clean the outline, applying all hard gates.
@@ -33,25 +49,82 @@ object NarrativeOutlineValidator:
       empty.foreach(b => currentDiag = currentDiag.addDropped(b.kind, "EMPTY_TEXT"))
     beats = nonEmpty
 
-    // 2. Drop exact duplicates
+    // 2. Strip obvious authority leaks that should never survive beat release.
+    val (authorityCleaned, authorityDropped, authoritySanitized) = validateAuthorityLeaks(beats, rec)
+    if authorityDropped.nonEmpty then
+      authorityDropped.foreach(b => currentDiag = currentDiag.addDropped(b.kind, "AUTHORITY_LEAK"))
+    if authoritySanitized > 0 then
+      currentDiag = currentDiag.addWarning(s"Sanitized $authoritySanitized authority leak markers")
+    beats = authorityCleaned
+
+    // 3. Drop exact duplicates
     beats = dropDuplicateBeats(beats, rec)
 
-    // 3. Validate evidence requirements per question / evidence-purpose mapping.
+    // 4. Validate evidence requirements per question / evidence-purpose mapping.
     beats = validateEvidenceRequirements(beats, rec)
 
-    // 4. Validate minimum branches for evidence beats.
+    // 5. Validate minimum branches for evidence beats.
     beats = validateMinBranches(beats, rec)
 
-    // 5. Validate tactical-stop theme mention.
+    // 6. Validate tactical-stop theme mention.
     beats = validateTacticalTestTheme(beats, rec)
 
-    // 6. Validate must-mention anchors.
+    // 7. Validate must-mention anchors.
     beats = validateMustMention(beats, rec)
 
-    // 7. Reconcile evidence metadata.
+    // 8. Reconcile evidence metadata.
     beats = reconcileEvidenceMetadata(beats)
 
     NarrativeOutline(beats, Some(currentDiag))
+
+  private def validateAuthorityLeaks(
+    beats: List[OutlineBeat],
+    rec: TraceRecorder
+  ): (List[OutlineBeat], List[OutlineBeat], Int) =
+    val cleaned = scala.collection.mutable.ListBuffer.empty[OutlineBeat]
+    val dropped = scala.collection.mutable.ListBuffer.empty[OutlineBeat]
+    var sanitized = 0
+
+    beats.foreach { beat =>
+      val sanitizedText = sanitizeAuthorityLeakText(beat)
+      if sanitizedText.isEmpty then
+        rec.drop("outline.authority", beat.kind.toString, "Dropped beat after authority leak cleanup")
+        dropped += beat
+      else
+        if sanitizedText != beat.text.trim then
+          rec.drop("outline.authority", beat.kind.toString, "Sanitized authority leak marker from beat text")
+          sanitized += 1
+          cleaned += beat.copy(text = sanitizedText, confidenceLevel = beat.confidenceLevel * 0.9)
+        else cleaned += beat
+    }
+
+    (cleaned.toList, dropped.toList, sanitized)
+
+  private def sanitizeAuthorityLeakText(beat: OutlineBeat): String =
+    val withoutLessonSentences =
+      Option(beat.text)
+        .map(_.trim)
+        .getOrElse("")
+        .split("(?<=[.!?])\\s+")
+        .toList
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filterNot(_.toLowerCase.contains(SharedLessonMarker))
+        .filterNot(sentence => sentenceLooksUngroundedGeneralization(sentence) && !beatAllowsGroundedGeneralization(beat))
+        .mkString(" ")
+    AuthorityHelperPrefixPattern
+      .replaceAllIn(withoutLessonSentences, "")
+      .replaceAll("\\s+", " ")
+      .trim
+
+  private def sentenceLooksUngroundedGeneralization(sentence: String): Boolean =
+    UngroundedGeneralizationPatterns.exists(_.matches(sentence.trim))
+
+  private def beatAllowsGroundedGeneralization(beat: OutlineBeat): Boolean =
+    beat.kind == OutlineBeatKind.OpeningTheory ||
+      beat.kind == OutlineBeatKind.MainMove ||
+      beat.branchScoped ||
+      beat.allAnchors.exists(isUserFacingAnchor)
 
   private def dropDuplicateBeats(beats: List[OutlineBeat], rec: TraceRecorder): List[OutlineBeat] =
     val seen = scala.collection.mutable.Set.empty[(OutlineBeatKind, List[String])]

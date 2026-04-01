@@ -22,6 +22,78 @@ object NarrativeOutlineBuilder:
     "strategic_shift" -> 1,
     "engine" -> 1
   )
+  private enum FragmentAuthority:
+    case render_only
+    case support_only
+    case unsafe_as_truth
+    case unsafe_as_lesson
+    case candidate_for_future_lesson
+    case requires_move_linked_anchor
+  private case class AuthorityTaggedFragment(
+    text: String,
+    authority: FragmentAuthority,
+    moveLinkedAnchor: Boolean = false,
+    sceneGrounded: Boolean = false,
+    evidenceBacked: Boolean = false,
+    plannerOwned: Boolean = false,
+    contractConsistent: Boolean = false,
+    generalized: Boolean = false
+  ):
+    def rawText: String = Option(text).map(_.trim).getOrElse("")
+    def hasRawText: Boolean = rawText.nonEmpty
+    def groundedForAdmission: Boolean =
+      moveLinkedAnchor || sceneGrounded || evidenceBacked || plannerOwned || contractConsistent
+    def releasedText: String =
+      if !hasRawText then ""
+      else
+        authority match
+          case FragmentAuthority.unsafe_as_truth           => ""
+          case FragmentAuthority.unsafe_as_lesson          => ""
+          case FragmentAuthority.candidate_for_future_lesson => ""
+          case FragmentAuthority.requires_move_linked_anchor =>
+            if moveLinkedAnchor && groundedForAdmission then rawText else ""
+          case FragmentAuthority.support_only =>
+            if generalized && !groundedForAdmission then ""
+            else rawText
+          case _ => rawText
+
+  private def supportFragment(
+    text: String,
+    moveLinkedAnchor: Boolean = false,
+    sceneGrounded: Boolean = false,
+    evidenceBacked: Boolean = false,
+    plannerOwned: Boolean = false,
+    contractConsistent: Boolean = false,
+    generalized: Boolean = false
+  ): AuthorityTaggedFragment =
+    AuthorityTaggedFragment(
+      text = text,
+      authority = FragmentAuthority.support_only,
+      moveLinkedAnchor = moveLinkedAnchor,
+      sceneGrounded = sceneGrounded,
+      evidenceBacked = evidenceBacked,
+      plannerOwned = plannerOwned,
+      contractConsistent = contractConsistent,
+      generalized = generalized
+    )
+
+  private def releasedFragmentText(
+    fragments: List[AuthorityTaggedFragment]
+  ): String =
+    fragments
+      .map(_.releasedText)
+      .filter(_.nonEmpty)
+      .mkString(" ")
+      .trim
+  private def rawFragmentText(
+    fragments: Iterable[AuthorityTaggedFragment]
+  ): String =
+    fragments
+      .iterator
+      .map(_.rawText)
+      .filter(_.nonEmpty)
+      .mkString(" ")
+      .trim
 
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class AlternativeEngineSignal(
@@ -37,50 +109,41 @@ object NarrativeOutlineBuilder:
     confidence: Double
   )
   private case class PrecedentComparisonSummaryFamilies(
-    ordinary: List[String],
-    sharedLesson: List[String]
+    ordinary: List[AuthorityTaggedFragment],
+    sharedLesson: List[AuthorityTaggedFragment]
   )
   private case class PrecedentComparisonFragments(
-    header: String,
-    items: List[String],
-    summary: Option[String],
-    sharedLesson: Option[String]
+    header: AuthorityTaggedFragment,
+    items: List[AuthorityTaggedFragment],
+    summary: Option[AuthorityTaggedFragment],
+    sharedLesson: Option[AuthorityTaggedFragment]
   ):
     def renderedText: String =
-      List(header, items.mkString(" "), summary.getOrElse(""), sharedLesson.getOrElse(""))
-        .filter(_.trim.nonEmpty)
-        .mkString(" ")
-        .trim
+      releasedFragmentText(List(header) ++ items ++ List(summary, sharedLesson).flatten)
   private case class OpeningPrecedentFragments(
-    body: List[String],
-    summary: Option[String] = None,
-    sharedLesson: Option[String] = None
+    body: List[AuthorityTaggedFragment],
+    summary: Option[AuthorityTaggedFragment] = None,
+    sharedLesson: Option[AuthorityTaggedFragment] = None
   ):
-    def bodyText: String = body.filter(_.trim.nonEmpty).mkString(" ").trim
+    def bodyText: String = releasedFragmentText(body)
     def renderedText: String =
-      List(bodyText, summary.getOrElse(""), sharedLesson.getOrElse(""))
-        .filter(_.trim.nonEmpty)
-        .mkString(" ")
-        .trim
+      releasedFragmentText(body ++ List(summary, sharedLesson).flatten)
     def fragmentCount: Int =
-      body.count(_.trim.nonEmpty) + List(summary, sharedLesson).flatten.count(_.trim.nonEmpty)
+      body.count(_.hasRawText) + List(summary, sharedLesson).flatten.count(_.hasRawText)
     def nonEmpty: Boolean = renderedText.nonEmpty
   private case class AnnotationHintFragments(
-    tagOnly: Option[String] = None,
-    difficulty: Option[String] = None,
-    terminal: Option[String] = None
+    tagOnly: Option[AuthorityTaggedFragment] = None,
+    difficulty: Option[AuthorityTaggedFragment] = None,
+    terminal: Option[AuthorityTaggedFragment] = None
   ):
     def renderedHints: List[String] =
-      terminal.orElse(tagOnly).orElse(difficulty).toList.map(_.trim).filter(_.nonEmpty)
+      terminal.orElse(tagOnly).orElse(difficulty).toList.map(_.releasedText).filter(_.nonEmpty)
   private case class AnnotationTextProjection(
-    coreText: String,
-    severityTail: Option[String] = None
+    coreText: AuthorityTaggedFragment,
+    severityTail: Option[AuthorityTaggedFragment] = None
   ):
     def renderedText: String =
-      List(coreText.trim, severityTail.map(_.trim).getOrElse(""))
-        .filter(_.nonEmpty)
-        .mkString(" ")
-        .trim
+      releasedFragmentText(List(coreText) ++ severityTail.toList)
   private case class RookEndgameFrame(
     attacker: Color,
     defender: Color,
@@ -113,13 +176,15 @@ object NarrativeOutlineBuilder:
     sourceMove: String
   )
   private case class WrapUpFragments(
-    planner: List[String],
-    practical: Option[String],
-    compensation: Option[String]
+    planner: List[AuthorityTaggedFragment],
+    practical: Option[AuthorityTaggedFragment],
+    compensation: Option[AuthorityTaggedFragment]
   ):
-    def orderedFragments: List[String] =
-      planner.filter(_.trim.nonEmpty) ++
-        List(practical, compensation).flatten.map(_.trim).filter(_.nonEmpty)
+    def orderedFragments: List[AuthorityTaggedFragment] =
+      planner.filter(_.hasRawText) ++
+        List(practical, compensation).flatten.filter(_.hasRawText)
+    def renderedText: String =
+      releasedFragmentText(orderedFragments)
   private enum PrecedentRole:
     case Sequence
     case StrategicTransition
@@ -446,7 +511,7 @@ object NarrativeOutlineBuilder:
     }
 
   private def buildContextBeat(ctx: NarrativeContext, rec: TraceRecorder, bead: Int): OutlineBeat =
-    val parts = scala.collection.mutable.ListBuffer[String]()
+    val parts = scala.collection.mutable.ListBuffer[AuthorityTaggedFragment]()
     val concepts = scala.collection.mutable.ListBuffer[String]()
     val phase = ctx.phase.current
     val conceptSummaryMotifs = ctx.semantic.toList.flatMap(_.conceptSummary).map(_.trim).filter(_.nonEmpty).distinct
@@ -572,17 +637,29 @@ object NarrativeOutlineBuilder:
     val motifPrefix = NarrativeLexicon.getMotifPrefix(bead ^ motifHash, motifPrefixCandidates, ply = ctx.ply)
 
     val boardAnchor = buildBoardAnchor(ctx, keyFact, bead)
-    boardAnchor.foreach(a => parts += a.text)
+    boardAnchor.foreach(a => parts += supportFragment(a.text, sceneGrounded = true))
 
-    val leadText = List(
-      endgamePatternPrefix.map(_.trim).getOrElse(""),
-      endgameContinuityText.map(_.trim).getOrElse(""),
-      endgameCausalityText.map(_.trim).getOrElse(""),
-      motifPrefix.map(_.trim).getOrElse(""),
-      openingPart.trim
-    ).filter(_.nonEmpty).mkString(" ").trim
-    parts += leadText
-    val existingThemeText = List(boardAnchor.map(_.text).getOrElse(""), leadText).mkString(" ")
+    endgamePatternPrefix
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
+    endgameContinuityText
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
+    endgameCausalityText
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
+    motifPrefix
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
+    Option(openingPart.trim)
+      .filter(_.nonEmpty)
+      .foreach(text => parts += AuthorityTaggedFragment(text, FragmentAuthority.unsafe_as_truth))
+
+    val existingThemeText = rawFragmentText(parts.toList)
     val themeSignalPool =
       (derivedContextMotifs ++ deltaMotifs ++ counterfactualMotifs ++ trustedConceptThemeSignals)
         .distinct
@@ -593,22 +670,27 @@ object NarrativeOutlineBuilder:
       ply = ctx.ply,
       phase = phase
     )
-      .foreach(parts += _)
+      .foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
     val canonicalTermPool =
       (conceptSummaryMotifs ++ derivedContextMotifs ++ deltaMotifs ++ counterfactualMotifs).distinct
     buildCanonicalMotifTermSentence(
       motifs = canonicalTermPool,
-      existingText = parts.mkString(" "),
+      existingText = rawFragmentText(parts.toList),
       bead = bead ^ 0x31af9d42,
       ply = ctx.ply,
       phase = phase
-    ).foreach(parts += _)
+    ).foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
 
     // Main threat if exists (adds drama)
     ctx.threats.toUs.headOption.filter(_.lossIfIgnoredCp >= 30).foreach { t =>
       rec.use("threats.toUs[0]", t.kind, "Context threat")
       if !boardAnchor.exists(_.consumedThreat) then
-        parts += NarrativeLexicon.getThreatStatement(bead, t.kind, t.lossIfIgnoredCp, Some(ctx))
+        parts +=
+          supportFragment(
+            NarrativeLexicon.getThreatStatement(bead, t.kind, t.lossIfIgnoredCp, Some(ctx)),
+            sceneGrounded = true,
+            generalized = true
+          )
       concepts += s"threat_${t.kind}"
     }
 
@@ -645,42 +727,47 @@ object NarrativeOutlineBuilder:
         hasTacticalProof
     }.foreach { planName =>
       rec.use("strategic.main[0]", planName, "Context plan")
-        parts += NarrativeLexicon.getPlanStatement(
-          bead ^ Math.abs(planName.hashCode) ^ 0x2b2b2b,
-          planName,
-          Some(ctx),
-          ply = ctx.ply
+      parts +=
+        supportFragment(
+          NarrativeLexicon.getPlanStatement(
+            bead ^ Math.abs(planName.hashCode) ^ 0x2b2b2b,
+            planName,
+            Some(ctx),
+            ply = ctx.ply
+          ),
+          sceneGrounded = true,
+          generalized = true
         )
       concepts += s"plan_$planName"
     }
-    buildOpeningContextSentence(ctx, parts.mkString(" ")).foreach { openingText =>
+    buildOpeningContextSentence(ctx, rawFragmentText(parts.toList)).foreach { openingText =>
       rec.use("openingData", openingText, "Context opening")
-      parts += openingText
+      parts += supportFragment(openingText, sceneGrounded = true, generalized = true)
       concepts += "opening_context"
     }
-    buildStrategicStackContextSentence(ctx, parts.mkString(" ")).foreach { stackText =>
+    buildStrategicStackContextSentence(ctx, rawFragmentText(parts.toList)).foreach { stackText =>
       rec.use("mainStrategicPlans", stackText, "Context strategic stack")
-      parts += stackText
+      parts += supportFragment(stackText, sceneGrounded = true, generalized = true)
       concepts += "strategic_stack"
     }
-    buildStructuralContextSentence(ctx, parts.mkString(" ")).foreach { structureText =>
+    buildStructuralContextSentence(ctx, rawFragmentText(parts.toList)).foreach { structureText =>
       rec.use("semantic.planAlignment", structureText, "Context structure")
-      parts += structureText
+      parts += supportFragment(structureText, sceneGrounded = true, generalized = true)
       concepts += "structural_context"
     }
-    buildStrategicFlowContextSentence(ctx, parts.mkString(" ")).foreach { flowText =>
+    buildStrategicFlowContextSentence(ctx, rawFragmentText(parts.toList)).foreach { flowText =>
       rec.use("strategicFlow", flowText, "Context flow")
-      parts += flowText
+      parts += supportFragment(flowText, sceneGrounded = true, generalized = true)
       concepts += "strategic_flow"
     }
-    buildOpponentPlanContextSentence(ctx, parts.mkString(" ")).foreach { opponentText =>
+    buildOpponentPlanContextSentence(ctx, rawFragmentText(parts.toList)).foreach { opponentText =>
       rec.use("opponentPlan", opponentText, "Context opponent")
-      parts += opponentText
+      parts += supportFragment(opponentText, sceneGrounded = true, generalized = true)
       concepts += "opponent_plan"
     }
-    buildMetaContextSentence(ctx, parts.mkString(" ")).foreach { metaText =>
+    buildMetaContextSentence(ctx, rawFragmentText(parts.toList)).foreach { metaText =>
       rec.use("meta.choiceType", metaText, "Context meta")
-      parts += metaText
+      parts += supportFragment(metaText, sceneGrounded = true, generalized = true)
       concepts += "decision_context"
     }
 
@@ -688,17 +775,23 @@ object NarrativeOutlineBuilder:
     if !boardAnchor.exists(_.consumedFact) then
       keyFact.foreach { fact =>
         val factText = NarrativeLexicon.getFactStatement(bead ^ Math.abs(fact.hashCode), fact, ctx)
-        if factText.nonEmpty then parts += factText
+        if factText.nonEmpty then
+          parts += supportFragment(factText, sceneGrounded = true, generalized = true)
       }
     ctx.pawnPlay.breakFile.foreach { br =>
       rec.use("pawnPlay.breakFile", br, "Context break")
-      parts += NarrativeLexicon.getPawnPlayStatement(bead, br, ctx.pawnPlay.breakImpact, ctx.pawnPlay.tensionPolicy)
+      parts +=
+        supportFragment(
+          NarrativeLexicon.getPawnPlayStatement(bead, br, ctx.pawnPlay.breakImpact, ctx.pawnPlay.tensionPolicy),
+          sceneGrounded = true,
+          generalized = true
+        )
       concepts += "pawn_break_ready"
     }
 
     OutlineBeat(
       kind = OutlineBeatKind.Context,
-      text = parts.filter(_.nonEmpty).mkString(" ").trim,
+      text = releasedFragmentText(parts.toList),
       conceptIds = concepts.toList,
       focusPriority = 100,
       fullGameEssential = true
@@ -1502,9 +1595,7 @@ object NarrativeOutlineBuilder:
       branchSummary.getOrElse(""),
       branchRelation.getOrElse(""),
       precedentBridge,
-      precedentFragments.bodyText,
-      precedentFragments.summary.getOrElse(""),
-      precedentFragments.sharedLesson.getOrElse("")
+      precedentFragments.renderedText
     )
       .filter(_.trim.nonEmpty)
       .mkString(" ")
@@ -1568,7 +1659,7 @@ object NarrativeOutlineBuilder:
       else if shouldUsePrecedentComparison(ctx, lines, requireFocus = false) then
         val comparison = buildPrecedentComparisonFragments(lines, bead)
         OpeningPrecedentFragments(
-          body = List(comparison.header, comparison.items.mkString(" ")),
+          body = List(comparison.header) ++ comparison.items,
           summary = comparison.summary,
           sharedLesson = comparison.sharedLesson
         )
@@ -1576,8 +1667,13 @@ object NarrativeOutlineBuilder:
         OpeningPrecedentFragments(
           body =
             lines
-              .map(line => renderPrecedentBlock(line, bead))
-              .filter(_.trim.nonEmpty)
+              .map(line =>
+                supportFragment(
+                  text = renderPrecedentBlock(line, bead),
+                  evidenceBacked = true
+                )
+              )
+              .filter(_.hasRawText)
         )
 
   private def buildContextPrecedentSentence(ctx: NarrativeContext, bead: Int): Option[String] =
@@ -1635,11 +1731,14 @@ object NarrativeOutlineBuilder:
       ranked.map { line =>
         line -> buildPrecedentSignal(line).filter(_.confidence >= PrecedentConfidenceThreshold)
       }
-    val header = NarrativeLexicon.pick(bead ^ 0x57f1a235, List(
-      "Comparable master branches from this split:",
-      "At this branch, master games diverged in three practical directions:",
-      "Reference branches from elite games at this point:"
-    ))
+    val header = supportFragment(
+      text = NarrativeLexicon.pick(bead ^ 0x57f1a235, List(
+        "Comparable master branches from this split:",
+        "At this branch, master games diverged in three practical directions:",
+        "Reference branches from elite games at this point:"
+      )),
+      evidenceBacked = true
+    )
     val usedStems = scala.collection.mutable.HashSet.empty[String]
     val prefixCounts = scala.collection.mutable.HashMap.empty[String, Int].withDefaultValue(0)
     val seenSequenceKeys = scala.collection.mutable.HashSet.empty[String]
@@ -1707,7 +1806,10 @@ object NarrativeOutlineBuilder:
           selected
 
       val parts = List(baseLineText, roleLine).filter(_.nonEmpty)
-      s"$label) ${parts.mkString(" ")}"
+      supportFragment(
+        text = s"$label) ${parts.mkString(" ")}",
+        evidenceBacked = true
+      )
     }
 
     val summaryFamilies =
@@ -1722,8 +1824,8 @@ object NarrativeOutlineBuilder:
         prefixCounts = prefixCounts.toMap,
         prefixLimits = PrefixFamilyLimits
       )
-    summary.foreach(trackTemplateUsage(_, usedStems, prefixCounts))
-    sharedLesson.foreach(trackTemplateUsage(_, usedStems, prefixCounts))
+    summary.foreach(fragment => trackTemplateUsage(fragment.rawText, usedStems, prefixCounts))
+    sharedLesson.foreach(fragment => trackTemplateUsage(fragment.rawText, usedStems, prefixCounts))
 
     PrecedentComparisonFragments(
       header = header,
@@ -1790,22 +1892,42 @@ object NarrativeOutlineBuilder:
     usedStems: Set[String],
     prefixCounts: Map[String, Int],
     prefixLimits: Map[String, Int]
-  ): (Option[String], Option[String]) =
-    val candidates =
-      families.ordinary.map(_ -> false) ++ families.sharedLesson.map(_ -> true)
-    if candidates.isEmpty then (None, None)
+  ): (Option[AuthorityTaggedFragment], Option[AuthorityTaggedFragment]) =
+    (
+      selectPrecedentSummaryFragment(
+        templates = families.ordinary,
+        seed = seed,
+        usedStems = usedStems,
+        prefixCounts = prefixCounts,
+        prefixLimits = prefixLimits
+      ),
+      selectPrecedentSummaryFragment(
+        templates = families.sharedLesson,
+        seed = seed ^ 0x51ed270b,
+        usedStems = usedStems,
+        prefixCounts = prefixCounts,
+        prefixLimits = prefixLimits
+      )
+    )
+
+  private def selectPrecedentSummaryFragment(
+    templates: List[AuthorityTaggedFragment],
+    seed: Int,
+    usedStems: Set[String],
+    prefixCounts: Map[String, Int],
+    prefixLimits: Map[String, Int]
+  ): Option[AuthorityTaggedFragment] =
+    val usable = templates.filter(_.hasRawText)
+    if usable.isEmpty then None
     else
       val selected = selectNonRepeatingTemplate(
-        templates = candidates.map(_._1),
+        templates = usable.map(_.rawText),
         seed = seed,
         usedStems = usedStems,
         prefixCounts = prefixCounts,
         prefixLimits = prefixLimits
       )
-      candidates.find(_._1 == selected) match
-        case Some((text, true)) if text.trim.nonEmpty  => (None, Some(text))
-        case Some((text, false)) if text.trim.nonEmpty => (Some(text), None)
-        case _                                         => (None, None)
+      usable.find(_.rawText == selected)
 
   private def buildPrecedentComparisonSummaryFamilies(
     mechanisms: List[OpeningBranchMechanism]
@@ -1819,19 +1941,44 @@ object NarrativeOutlineBuilder:
       if diversity >= 2 then
         PrecedentComparisonSummaryFamilies(
           ordinary = List(
-            s"Across these branches, results changed by which side better handled $dominantLabel.",
-            s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge."
+            supportFragment(
+              text = s"Across these branches, results changed by which side better handled $dominantLabel.",
+              evidenceBacked = true,
+              generalized = true
+            ),
+            supportFragment(
+              text = s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge.",
+              evidenceBacked = true,
+              generalized = true
+            )
           ),
           sharedLesson = List(
-            s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel."
+            AuthorityTaggedFragment(
+              text = s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel.",
+              authority = FragmentAuthority.unsafe_as_lesson,
+              evidenceBacked = true,
+              generalized = true
+            )
           )
         )
       else
         PrecedentComparisonSummaryFamilies(
           ordinary = List(
-            s"All cited branches revolve around $dominantLabel.",
-            s"The recurring practical theme across these games is $dominantLabel.",
-            s"These precedent lines point to one key driver: $dominantLabel."
+            supportFragment(
+              text = s"All cited branches revolve around $dominantLabel.",
+              evidenceBacked = true,
+              generalized = true
+            ),
+            supportFragment(
+              text = s"The recurring practical theme across these games is $dominantLabel.",
+              evidenceBacked = true,
+              generalized = true
+            ),
+            supportFragment(
+              text = s"These precedent lines point to one key driver: $dominantLabel.",
+              evidenceBacked = true,
+              generalized = true
+            )
           ),
           sharedLesson = Nil
         )
@@ -2159,18 +2306,24 @@ object NarrativeOutlineBuilder:
           .toList
           .flatMap(_.consequence)
           .filter(_.beat == QuestionPlanConsequenceBeat.WrapUp)
-          .map(_.text),
-      practical = ctx.semantic.flatMap(_.practicalAssessment).map(pa => buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply)),
-      compensation = effectiveCompensationSignal(ctx).map(signal => buildCompensationWrapUpSentence(signal, bead))
+          .map(_.text)
+          .map(text => supportFragment(text, plannerOwned = true, generalized = true)),
+      practical =
+        ctx.semantic
+          .flatMap(_.practicalAssessment)
+          .map(pa => supportFragment(buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply), sceneGrounded = true, generalized = true)),
+      compensation =
+        effectiveCompensationSignal(ctx)
+          .map(signal => supportFragment(buildCompensationWrapUpSentence(signal, bead), sceneGrounded = true, generalized = true))
     )
-    val parts = fragments.orderedFragments
+    val text = fragments.renderedText
 
-    if parts.isEmpty then None
+    if text.isEmpty then None
     else
       Some(
         OutlineBeat(
           kind = OutlineBeatKind.WrapUp,
-          text = parts.mkString(" "),
+          text = text,
           conceptIds = List("practical_assessment"),
           focusPriority = 72
         )
@@ -2726,11 +2879,27 @@ object NarrativeOutlineBuilder:
     isTerminalMove: Boolean
   ): AnnotationHintFragments =
     if isTerminalMove then
-      AnnotationHintFragments(terminal = Some(NarrativeLexicon.getAnnotationTerminalMoveHint(bead, moveHint)))
+      AnnotationHintFragments(
+        terminal = Some(
+          supportFragment(
+            text = NarrativeLexicon.getAnnotationTerminalMoveHint(bead, moveHint),
+            moveLinkedAnchor = true,
+            sceneGrounded = true,
+            generalized = true
+          )
+        )
+      )
     else
       AnnotationHintFragments(
-        tagOnly = tags.flatMap(tag => NarrativeLexicon.getAnnotationTagOnlyHint(bead, tag, moveHint)).headOption,
-        difficulty = NarrativeLexicon.getAnnotationDifficultyHint(bead, practicalDifficulty, moveHint, phase)
+        tagOnly =
+          tags
+            .flatMap(tag => NarrativeLexicon.getAnnotationTagOnlyHint(bead, tag, moveHint))
+            .headOption
+            .map(text => supportFragment(text, moveLinkedAnchor = true, sceneGrounded = true, generalized = true)),
+        difficulty =
+          NarrativeLexicon
+            .getAnnotationDifficultyHint(bead, practicalDifficulty, moveHint, phase)
+            .map(text => supportFragment(text, moveLinkedAnchor = true, sceneGrounded = true, generalized = true))
       )
 
   private def isTerminalAnnotationMove(
@@ -3977,14 +4146,56 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
 
   private def harmonizeAnnotationTone(text: String, cpLoss: Int, isBest: Boolean, contextHint: Int): AnnotationTextProjection =
-    if text.trim.isEmpty then AnnotationTextProjection("")
-    else if isBest || cpLoss <= 35 then AnnotationTextProjection(softenNearBestTone(text).trim)
+    if text.trim.isEmpty then
+      AnnotationTextProjection(
+        coreText =
+          AuthorityTaggedFragment(
+            "",
+            FragmentAuthority.requires_move_linked_anchor,
+            moveLinkedAnchor = true,
+            sceneGrounded = true
+          )
+      )
+    else if isBest || cpLoss <= 35 then
+      AnnotationTextProjection(
+        coreText =
+          AuthorityTaggedFragment(
+            softenNearBestTone(text).trim,
+            FragmentAuthority.requires_move_linked_anchor,
+            moveLinkedAnchor = true,
+            sceneGrounded = true,
+            generalized = true
+          )
+      )
     else if cpLoss >= Thresholds.INACCURACY_CP && !containsNegativeTone(text) then
       AnnotationTextProjection(
-        coreText = text.trim,
-        severityTail = Some(buildSeverityTail(Math.abs(text.hashCode) ^ 0x239b961b, cpLoss, contextHint))
+        coreText =
+          AuthorityTaggedFragment(
+            text.trim,
+            FragmentAuthority.requires_move_linked_anchor,
+            moveLinkedAnchor = true,
+            sceneGrounded = true,
+            generalized = true
+          ),
+        severityTail =
+          Some(
+            AuthorityTaggedFragment(
+              buildSeverityTail(Math.abs(text.hashCode) ^ 0x239b961b, cpLoss, contextHint),
+              FragmentAuthority.unsafe_as_truth
+            )
+          )
       )
-    else AnnotationTextProjection(text.trim)
+    else
+      AnnotationTextProjection(
+        coreText =
+          AuthorityTaggedFragment(
+            text.trim,
+            FragmentAuthority.requires_move_linked_anchor,
+            moveLinkedAnchor = true,
+            sceneGrounded = true,
+            generalized = true
+          )
+      )
 
   private def softenNearBestTone(text: String): String =
     List(
@@ -4017,11 +4228,11 @@ object NarrativeOutlineBuilder:
     else
       val nearBest = isBest || cpLoss <= 25
       val severeError = cpLoss >= 140
-      val containsBenchmarkStrongPositive = containsBenchmarkStrongPositiveLexicon(text.coreText)
+      val containsBenchmarkStrongPositive = containsBenchmarkStrongPositiveLexicon(text.coreText.rawText)
 
       val neutralized =
-        if nearBest then neutralizeBenchmarkNegativeLexicon(text.coreText)
-        else text.coreText
+        if nearBest then neutralizeBenchmarkNegativeLexicon(text.coreText.rawText)
+        else text.coreText.rawText
 
       val softenedPositive =
         if severeError && containsBenchmarkStrongPositive then
@@ -4030,12 +4241,26 @@ object NarrativeOutlineBuilder:
 
       val severityTail =
         if severeError && !containsBenchmarkNegativeLexicon(softenedPositive) then
-          text.severityTail.orElse(Some(buildSeverityTail(Math.abs(softenedPositive.hashCode) ^ 0x6f4b1321, cpLoss, contextHint)))
+          text.severityTail.orElse(
+            Some(
+              AuthorityTaggedFragment(
+                buildSeverityTail(Math.abs(softenedPositive.hashCode) ^ 0x6f4b1321, cpLoss, contextHint),
+                FragmentAuthority.unsafe_as_truth
+              )
+            )
+          )
         else text.severityTail
 
       AnnotationTextProjection(
-        coreText = softenedPositive.trim,
-        severityTail = severityTail.filter(_.trim.nonEmpty)
+        coreText =
+          AuthorityTaggedFragment(
+            softenedPositive.trim,
+            FragmentAuthority.requires_move_linked_anchor,
+            moveLinkedAnchor = true,
+            sceneGrounded = true,
+            generalized = true
+          ),
+        severityTail = severityTail.filter(_.hasRawText)
       )
 
   private def buildSeverityTail(bead: Int, cpLoss: Int, contextHint: Int): String =

@@ -199,11 +199,11 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     val summaryMarkers = List(
       "Across these branches,",
       "Common pattern:",
-      "Shared lesson:",
       "All cited branches revolve around",
       "The recurring practical theme across these games is",
       "These precedent lines point to one key driver:"
     )
 
     assertEquals(summaryMarkers.count(released.contains), 1, clue(released))
+    assert(!released.contains("Shared lesson:"), clue(released))
   }

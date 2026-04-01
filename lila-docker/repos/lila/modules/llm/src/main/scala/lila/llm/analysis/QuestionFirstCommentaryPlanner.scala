@@ -768,6 +768,20 @@ private[llm] object QuestionFirstCommentaryPlanner:
         quietMoveDeltaFamily && !plannerThreatNeedsForcingOwner(inputs, contract)
       }
 
+  private def prefersRestrictedSuppressionMoveDeltaIngress(
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    def normalizedId(raw: String): String =
+      Option(raw).map(_.trim.toLowerCase).getOrElse("")
+    inputs.evidenceBackedPlans.exists { plan =>
+      normalizedId(plan.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
+      plan.subplanId.exists { subplanId =>
+        val normalizedSubplan = normalizedId(subplanId)
+        normalizedSubplan == ThemeTaxonomy.SubplanId.BreakPrevention.id ||
+        normalizedSubplan == ThemeTaxonomy.SubplanId.KeySquareDenial.id
+      }
+    }
+
   private def plannerBestHoldNeedsForcingOwner(
       inputs: QuestionPlannerInputs,
       contract: DecisiveTruthContract
@@ -1817,26 +1831,28 @@ private[llm] object QuestionFirstCommentaryPlanner:
             )
           }
         }.flatten,
-        inputs.preventedPlansNow
-          .find(plan =>
-            preventedPlanTimingClaim(plan).nonEmpty ||
-              preventedPlanChangeClaim(plan).nonEmpty
-          )
-          .map { _ =>
-            ownerCandidate(
-              family = OwnerFamily.ForcingDefense,
-              source = "prevented_plan",
-              sourceKinds = List("prevented_plan"),
-              questionKinds = List(
-                AuthorQuestionKind.WhyNow,
-                AuthorQuestionKind.WhatChanged,
-                AuthorQuestionKind.WhatMustBeStopped
-              ),
-              moveLinked = true,
-              proposedFamilyMapping = "ForcingDefense/move_linked",
-              reasons = List("prevented_resource")
+        Option.unless(prefersRestrictedSuppressionMoveDeltaIngress(inputs)) {
+          inputs.preventedPlansNow
+            .find(plan =>
+              preventedPlanTimingClaim(plan).nonEmpty ||
+                preventedPlanChangeClaim(plan).nonEmpty
             )
-          },
+            .map { _ =>
+              ownerCandidate(
+                family = OwnerFamily.ForcingDefense,
+                source = "prevented_plan",
+                sourceKinds = List("prevented_plan"),
+                questionKinds = List(
+                  AuthorQuestionKind.WhyNow,
+                  AuthorQuestionKind.WhatChanged,
+                  AuthorQuestionKind.WhatMustBeStopped
+                ),
+                moveLinked = true,
+                proposedFamilyMapping = "ForcingDefense/move_linked",
+                reasons = List("prevented_resource")
+              )
+            }
+        }.flatten,
         onlyMovePressure(inputs, truthContract).map { _ =>
           ownerCandidate(
             family = OwnerFamily.ForcingDefense,

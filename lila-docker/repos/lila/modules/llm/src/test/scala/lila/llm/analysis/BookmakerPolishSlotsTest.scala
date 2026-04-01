@@ -722,6 +722,60 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
+  test("uncertified restricted-defense conversion falls back instead of reviving a technical conversion claim") {
+    val ctx =
+      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+        playedMove = Some("c3c4"),
+        playedSan = Some("Rc4"),
+        phase = PhaseContext("Endgame", "Technical conversion edge"),
+        authorQuestions = Nil,
+        authorEvidence = Nil,
+        mainStrategicPlans =
+          List(
+            PlanHypothesis(
+              planId = "simplification_conversion",
+              planName = "Simplify into a winning pawn ending",
+              rank = 1,
+              score = 0.82,
+              preconditions = Nil,
+              executionSteps = List("Trade the last active defender."),
+              failureModes = List("Wrong move order restores counterplay."),
+              viability = PlanViability(score = 0.8, label = "high", risk = "test"),
+              evidenceSources = List("theme:advantage_transformation"),
+              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "simplification_conversion",
+              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+              evidenceTier = "deferred",
+              supportProbeCount = 1,
+              bestReplyStable = true,
+              futureSnapshotAligned = true
+            )
+          )
+      )
+    val outline =
+      genericDecisionOutline(
+        "A quiet conversion move.",
+        "The edge still needs clean technique."
+      )
+    val slots =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx = ctx,
+        outline = outline,
+        refs = None,
+        strategyPack = None
+      )
+
+    assertExactFactualFallback(slots, "This puts the rook on c4.")
+    assertNoStateSummaryLeak(slots.claim)
+  }
+
   test("EVA01-style surface pack drops unsupported routed thesis and keeps only exact factual fallback") {
     val ctx = tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx)
     val outline =

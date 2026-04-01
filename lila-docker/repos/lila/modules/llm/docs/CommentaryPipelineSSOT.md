@@ -459,6 +459,10 @@ Current implications:
   whole-game support projection before anchor normalization, so helper labels
   such as `continuity:` or `alignment intent:` are not reused verbatim as
   released turning-point / payoff anchors
+- whole-game support projection is now authority-aware:
+  verified payoff anchors remain separate from projected `support_only`
+  carriers, so binders can prefer contract-owned anchors without reopening raw
+  helper labels as truth owners
 - if the only remaining shift/payoff anchor is a raw square list, bare theater
   token, or piece-route stub, Chronicle omits that sentence instead of shipping
   rough prose
@@ -523,6 +527,38 @@ Current canonical flow:
      phrasing, main-move annotation terminal/tag/difficulty hints vs
      severity-tail projection, and wrap-up planner/practical/compensation
      fragments
+  - the current Step 4 / 5 authority slice stays file-local inside
+    `NarrativeOutlineBuilder`, `CommentaryEngine`, and
+    `NarrativeOutlineValidator`:
+    opening-precedent body/ordinary summary are released as
+    `support_only`, `sharedLesson` is retained as `unsafe_as_lesson`, and
+    annotation `severityTail` is retained as `unsafe_as_truth`; current
+    final stitch omits the unsafe lesson/truth fragments rather than letting
+    them strengthen released prose
+  - Step 5 now adds fragment-local generalization admissibility before final
+    release:
+    `unsafe_as_lesson`, `unsafe_as_truth`, and
+    `candidate_for_future_lesson` remain blocked;
+    `requires_move_linked_anchor` may release only when a move-linked,
+    grounded admission exists; generalized `support_only` fragments may
+    release only when they are move-linked, scene-grounded, evidence-backed,
+    planner-owned, or contract-consistent
+  - Context now keeps opening / motif / flow / plan / fact / pawn / opponent /
+    meta families as authority-bearing fragments until final beat stitch;
+    `getOpening` is contained as `unsafe_as_truth`, while surviving released
+    Context carriers are `support_only`
+  - WrapUp now keeps planner consequence / practical verdict / compensation as
+    separate fragments until the final join, with released wrap-up prose kept
+    in `support_only`
+  - whole-game support reuse is admissibility-gated too:
+    `support_only` projected carriers remain reusable support but may not seed
+    decisive-shift / payoff wrappers; those wrappers now require a verified
+    payoff anchor or equivalent structured, contract-consistent proof
+  - `NarrativeOutlineValidator` now applies one common authority leak cleanup
+    plus narrow admissibility backup before duplicate/evidence gates:
+    it removes leaked `Shared lesson:` sentences, strips raw helper-label
+    prefixes, and drops ungrounded generalized fallback families outside
+    anchored / opening-theory scopes if they survive builder release
 7. `BookmakerPolishSlots` / `BookmakerPolishSlotsBuilder` expose the narrow
    slot contract for optional prose polish.
 8. `PolishPrompt` may polish the Bookmaker body only.
@@ -650,6 +686,15 @@ Current rules:
     `If ...`); tactical proof lines may stand alone, but strategic
     line-scoped consequences may not survive without a move-local strategic
     claim
+  - cross-surface trust regression watch now exists in test tooling:
+    `CrossSurfaceTrustRegressionHarnessTest` replays the same fixture bundles
+    through Bookmaker / Chronicle / Active entrypoints and compares owner,
+    strength, scope, support-only carry, and fallback rewrite behavior against
+    the documented residual envelope rather than adding a new runtime path
+  - that test-side watch is now widened by a large negative fixture pack:
+    the same harness also freezes forbidden fallback rewrite / unsupported
+    generalization / whole-game support-promotion / Active residual misuse
+    lanes, again without introducing a parallel runtime comparison path
   - `exchange_forcing` and `resource_removal` remain canonical delta classes,
     but only with current-move causal proof:
     a thematic exchange or generic defensive easing is not enough; runtime
@@ -1219,6 +1264,40 @@ Current rules:
   - bounded author-evidence purposes are runtime-scoped:
     `reply_multipv`, `defense_reply_multipv`, `convert_reply_multipv`,
     `recapture_branches`, and `keep_tension_branches`
+  - restricted-defense conversion certification is also runtime-scoped:
+    `NarrativeContextBuilder` evaluates a backend-only certificate for
+    `ThemeL1.AdvantageTransformation` experiments using existing
+    `PlanEvidenceEvaluator` output, `preventedPlans`, side-to-move eval posture,
+    and direct `convert_reply_multipv` / `defense_reply_multipv` evidence
+  - certification is intentionally narrow:
+    it requires conversion-ready advantage (`>= +200cp` for the side to move),
+    at most two distinct defensive first replies, a concrete/stable best
+    defense, future-snapshot persistence, and either explicit
+    prevented-resource pressure or equivalent counterplay compression
+  - uncertified conversion contracts fail closed:
+    the experiment evidence tier is downgraded to `deferred` before
+    `mainStrategicPlans` are filtered for shared planner/Chronicle/Bookmaker/
+    Active reuse
+  - counterplay-axis suppression certification is also runtime-scoped:
+    `NarrativeContextBuilder` evaluates a backend-only certificate for
+    `ThemeL1.RestrictionProphylaxis` experiments with
+    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` using existing
+    `PlanEvidenceEvaluator` output, `preventedPlans`, validated probe results,
+    side-to-move eval posture, and current phase / ply / FEN context
+  - this B2b slice is intentionally narrower than B1:
+    it accepts only late-middlegame, clearly-better positions with one named
+    break/entry axis, route-denial or long-term-restraint validation,
+    concrete/stable best defense, future-snapshot persistence, and no tactical
+    release or move-order fragility
+  - uncertified suppression contracts fail closed the same way:
+    the experiment evidence tier is downgraded to `deferred` before planner
+    reuse, so no new public payload/schema field is needed
+  - planner ownership stays on the existing lane:
+    certified evidence-backed restriction-prophylaxis plans may remain in the
+    quiet move-delta `WhyThis` path, while threat-owned forcing defense remains
+    unchanged and uncertified shells stay outside the primary pool
+  - no new public payload/schema field exists for this slice; the certification
+    contract is backend-only
   - removed latent probe purposes (`latent_plan_immediate`,
     `latent_plan_refutation`, `free_tempo_branches`) are not owner-path
     contracts anymore
@@ -1278,6 +1357,59 @@ Primary files:
 - `StrategyPackSurface.Snapshot` no longer carries legacy dead-stub fields such
   as `strategicStack`, `latentPlan`, or `decisionEvidence`; runtime consumers
   must read live digest / evidence carriers instead of reviving those stubs
+
+### Restricted-defense conversion certification
+
+- backend-only helper `RestrictedDefenseConversionCertification` gates only
+  `AdvantageTransformation` strategic experiments
+- the helper reuses existing `PlanEvidenceEvaluator` data rather than opening a
+  new runtime lane:
+  reply PVs, best reply, future snapshots, prevented-resource evidence, and
+  current eval posture are all read from the existing narrative build inputs
+- the helper records a bounded internal contract:
+  strategy hypothesis, restricted-defense evidence, defender resources, best
+  defense found, route persistence, failure reasons, move-order fragility,
+  confidence, and evidence sources
+- `NarrativeContextBuilder` applies the contract before exposing
+  `mainStrategicPlans`; uncertified conversion experiments become `deferred`
+  instead of remaining `evidence_backed`
+- `StrategicNarrativePlanSupport.filterEvidenceBacked` is the shared replay
+  gate used by `NarrativeContextBuilder`, `CertifiedDecisionFrameBuilder`, and
+  `ActiveStrategicCoachingBriefBuilder`, so Chronicle / Bookmaker / Active all
+  consume the same downgraded planner pool
+- when that pool becomes empty, runtime remains on the existing exact-factual
+  fallback path rather than keeping a stronger-looking conversion shell
+
+### Counterplay-axis suppression certification
+
+- backend-only helper `CounterplayAxisSuppressionCertification` gates only
+  `RestrictionProphylaxis` strategic experiments with
+  `BreakPrevention` / `KeySquareDenial`
+- the helper reuses existing narrative build inputs instead of opening a new
+  runtime lane:
+  `PlanEvidenceEvaluator` output, validated probe purposes
+  (`route_denial_validation`, `long_term_restraint_validation`,
+  `defense_reply_multipv`, `reply_multipv`), `PreventedPlan` data, and current
+  phase / ply / FEN metadata all come from the existing build path
+- the helper records a bounded internal contract:
+  strategy hypothesis, claim scope (`break_axis` / `entry_axis`),
+  squeeze archetype, restriction evidence, enumerated defender resources,
+  remaining freeing breaks / tactical releases, best defense found,
+  route persistence, fail reasons, move-order fragility, reinflation risk,
+  confidence, and evidence sources
+- certification is late-middlegame / clearly-better only:
+  whole-position `no-counterplay`, fortress claims, and broad squeeze shells
+  remain outside admissible positive scope
+- `NarrativeContextBuilder` applies the B2b contract before exposing
+  `mainStrategicPlans`; uncertified suppression experiments become `deferred`
+  instead of remaining `evidence_backed`
+- `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
+  gate, so Chronicle / Bookmaker / Active reuse the same downgraded pool and
+  whole-game helpers never see a revived positive shell
+- `QuestionFirstCommentaryPlanner` keeps the existing ownership architecture:
+  for already-certified suppression plans, `prevented_plan` support no longer
+  overrides the quiet move-delta `WhyThis` owner; concrete threat-based forcing
+  defense is unchanged
 
 ### Compensation normalization
 
@@ -1576,6 +1708,7 @@ Current owner map for Stage-4 surface uplift:
 
 - live owners:
   - `PlanEvidenceEvaluator`
+  - `RestrictedDefenseConversionCertification`
   - `PlayerFacingTruthModePolicy`
   - `MainPathMoveDeltaClaimBuilder`
   - `QuietMoveIntentBuilder`
@@ -1598,6 +1731,7 @@ Primary files:
 
 - `ui/analyse/src/bookmaker.ts`
 - `ui/analyse/src/bookmaker/responsePayload.ts`
+- `modules/llm/src/main/scala/lila/llm/analysis/RestrictedDefenseConversionCertification.scala`
 - `ui/analyse/src/narrative/narrativeCtrl.ts`
 
 ## Source-of-Truth Document Set

@@ -156,12 +156,23 @@ object NarrativeContextBuilder:
         invalidByRequestId = probeValidation.invalidByRequestId
       )
 
-    val mainStrategicPlans = strategicPartition.mainPlans.take(3)
     val strategicPlanExperiments =
       buildStrategicPlanExperiments(
         evaluated = strategicPartition.evaluated,
-        validatedProbeResults = probeValidation.validResults
+        validatedProbeResults = probeValidation.validResults,
+        preventedPlans = data.preventedPlans,
+        evalCp = data.evalCp,
+        isWhiteToMove = data.isWhiteToMove,
+        phase = data.phase,
+        ply = data.ply,
+        fen = data.fen
       )
+    val mainStrategicPlans =
+      StrategicNarrativePlanSupport
+        .filterEvidenceBacked(
+          strategicPartition.mainPlans.take(3),
+          strategicPlanExperiments
+        )
 
     // Phase A: Semantic section from ExtendedAnalysisData
     val semantic =
@@ -293,12 +304,37 @@ object NarrativeContextBuilder:
 
   private[llm] def buildStrategicPlanExperiments(
       evaluated: List[PlanEvidenceEvaluator.EvaluatedPlan],
-      validatedProbeResults: List[ProbeResult]
+      validatedProbeResults: List[ProbeResult],
+      preventedPlans: List[PreventedPlan],
+      evalCp: Int,
+      isWhiteToMove: Boolean,
+      phase: String = "middlegame",
+      ply: Int = 0,
+      fen: String = ""
   ): List[StrategicPlanExperiment] =
     val resultsById = validatedProbeResults.groupBy(_.id).view.mapValues(_.head).toMap
     evaluated.map { plan =>
       val supportResults = plan.supportProbeIds.flatMap(resultsById.get).distinctBy(_.id)
       val refuteResults = plan.refuteProbeIds.flatMap(resultsById.get).distinctBy(_.id)
+      val restrictedDefenseCertification =
+        RestrictedDefenseConversionCertification.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove
+        )
+      val counterplayAxisCertification =
+        CounterplayAxisSuppressionCertification.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove,
+          phase = phase,
+          ply = ply,
+          fen = fen
+        )
       val bestReplyStable =
         supportResults.nonEmpty &&
           refuteResults.isEmpty &&
@@ -320,6 +356,7 @@ object NarrativeContextBuilder:
         plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled ||
           (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
           refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
+          restrictedDefenseCertification.exists(_.moveOrderFragility.fragile) ||
           (
             supportResults.nonEmpty &&
               supportResults.exists(hasReplyCoverage) &&
@@ -330,7 +367,14 @@ object NarrativeContextBuilder:
         planId = plan.hypothesis.planId,
         themeL1 = plan.themeL1,
         subplanId = plan.subplanId,
-        evidenceTier = evidenceTierOf(plan.status),
+        evidenceTier =
+          CounterplayAxisSuppressionCertification.playerFacingEvidenceTier(
+            RestrictedDefenseConversionCertification.playerFacingEvidenceTier(
+              evidenceTierOf(plan.status),
+              restrictedDefenseCertification
+            ),
+            counterplayAxisCertification
+          ),
         supportProbeCount = supportResults.size,
         refuteProbeCount = refuteResults.size,
         bestReplyStable = bestReplyStable,
@@ -345,7 +389,9 @@ object NarrativeContextBuilder:
             bestReplyStable = bestReplyStable,
             futureSnapshotAligned = futureSnapshotAligned,
             counterBreakNeutralized = counterBreakNeutralized,
-            moveOrderSensitive = moveOrderSensitive
+            moveOrderSensitive = moveOrderSensitive,
+            restrictedDefenseCertification = restrictedDefenseCertification,
+            counterplayAxisCertification = counterplayAxisCertification
           )
       )
     }
@@ -430,7 +476,9 @@ object NarrativeContextBuilder:
       bestReplyStable: Boolean,
       futureSnapshotAligned: Boolean,
       counterBreakNeutralized: Boolean,
-      moveOrderSensitive: Boolean
+      moveOrderSensitive: Boolean,
+      restrictedDefenseCertification: Option[RestrictedDefenseConversionCertification.Contract],
+      counterplayAxisCertification: Option[CounterplayAxisSuppressionCertification.Contract]
   ): Double =
     val base =
       tier match
@@ -444,7 +492,23 @@ object NarrativeContextBuilder:
     val futureBonus = if futureSnapshotAligned then 0.04 else 0.0
     val counterBreakBonus = if counterBreakNeutralized then 0.05 else 0.0
     val sensitivityPenalty = if moveOrderSensitive then 0.08 else 0.0
-    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus - refutePenalty - sensitivityPenalty)
+    val restrictedDefenseBonus =
+      restrictedDefenseCertification
+        .map(cert =>
+          if cert.certified then 0.05
+          else if cert.routePersistence.bestDefenseStable && cert.routePersistence.futureSnapshotPersistent then -0.05
+          else -0.12
+        )
+        .getOrElse(0.0)
+    val counterplayAxisBonus =
+      counterplayAxisCertification
+        .map(cert =>
+          if cert.certified then 0.04
+          else if cert.routePersistence.axisStillSuppressed then -0.04
+          else -0.10
+        )
+        .getOrElse(0.0)
+    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus - refutePenalty - sensitivityPenalty)
       .max(0.0)
       .min(0.98)
 

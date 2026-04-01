@@ -1359,7 +1359,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     }
   }
 
-  test("buildWholeGameConclusionSupport projects labeled support carriers before whole-game reuse") {
+  test("buildWholeGameConclusionSupport does not promote support-only carriers into decisive wrappers") {
     val decisiveMoment =
       chronicleMoment(
         ply = 66,
@@ -1385,6 +1385,56 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       truthContractsByPly =
         Map(
           66 ->
+            truthContract(
+              ownershipRole = TruthOwnershipRole.BlunderOwner,
+              visibilityRole = TruthVisibilityRole.PrimaryVisible,
+              surfaceMode = TruthSurfaceMode.FailureExplain,
+              truthClass = DecisiveTruthClass.Blunder
+            )
+        )
+    )
+
+    assertEquals(support.decisiveShift, None)
+    assertEquals(support.payoff, None)
+  }
+
+  test("buildWholeGameConclusionSupport keeps structured directional proof admissible without support-carrier promotion") {
+    val decisiveMoment =
+      chronicleMoment(
+        ply = 68,
+        momentType = "AdvantageSwing",
+        moveClassification = Some("Blunder"),
+        cpBefore = 12,
+        cpAfter = 295,
+        narrative = "Qb4 is a solid move that keeps the plan clear.",
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              directionalTargets =
+                List(
+                  StrategyDirectionalTarget(
+                    targetId = "target_e6",
+                    ownerSide = "white",
+                    piece = "Q",
+                    from = "d1",
+                    targetSquare = "e6",
+                    readiness = DirectionalTargetReadiness.Build,
+                    strategicReasons = List("pressure on e6"),
+                    evidence = List("d1", "e6")
+                  )
+                )
+            )
+          )
+      )
+
+    val support = CommentaryEngine.buildWholeGameConclusionSupport(
+      moments = List(decisiveMoment),
+      strategicThreads = Nil,
+      themes = List("Central pressure"),
+      truthContractsByPly =
+        Map(
+          68 ->
             truthContract(
               ownershipRole = TruthOwnershipRole.BlunderOwner,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,

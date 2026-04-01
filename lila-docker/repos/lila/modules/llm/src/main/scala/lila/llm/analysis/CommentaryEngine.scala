@@ -80,17 +80,54 @@ object CommentaryEngine:
       text: String,
       fullSentence: Boolean
   )
-  private case class WholeGameSupportProjection(
-      verifiedPayoffAnchor: Option[String],
-      digestDominantIdea: Option[String],
-      digestStrategicFlow: Option[String],
-      investmentCompensation: Option[String],
-      practicalVerdict: Option[String],
-      strategyDigestDominantIdea: Option[String],
-      strategyDigestStrategicFlow: Option[String],
-      strategyLongTermFocus: Option[String],
-      directionalReasons: List[String]
+  private enum WholeGameSupportAuthority:
+    case render_only
+    case support_only
+    case unsafe_as_truth
+    case unsafe_as_lesson
+    case candidate_for_future_lesson
+    case requires_move_linked_anchor
+  private case class WholeGameTaggedSupport(
+      text: String,
+      authority: WholeGameSupportAuthority,
+      moveLinkedAnchor: Boolean = false,
+      contractConsistent: Boolean = false,
+      structuredProof: Boolean = false,
+      generalized: Boolean = false
   ):
+    def rawText: String =
+      Option(text).map(_.trim).getOrElse("")
+    def releasedText: Option[String] =
+      Option.when(rawText.nonEmpty) {
+        authority match
+          case WholeGameSupportAuthority.unsafe_as_truth            => ""
+          case WholeGameSupportAuthority.unsafe_as_lesson           => ""
+          case WholeGameSupportAuthority.candidate_for_future_lesson => ""
+          case WholeGameSupportAuthority.requires_move_linked_anchor =>
+            if moveLinkedAnchor then rawText else ""
+          case _ => rawText
+      }.filter(_.nonEmpty)
+    def admissibleDecisiveSeed: Option[String] =
+      Option.when(rawText.nonEmpty) {
+        authority match
+          case WholeGameSupportAuthority.requires_move_linked_anchor =>
+            if moveLinkedAnchor && (contractConsistent || structuredProof) then rawText else ""
+          case _ =>
+            ""
+      }.filter(_.nonEmpty)
+  private case class WholeGameSupportProjection(
+      verifiedPayoffAnchor: Option[WholeGameTaggedSupport],
+      digestDominantIdea: Option[WholeGameTaggedSupport],
+      digestStrategicFlow: Option[WholeGameTaggedSupport],
+      investmentCompensation: Option[WholeGameTaggedSupport],
+      practicalVerdict: Option[WholeGameTaggedSupport],
+      strategyDigestDominantIdea: Option[WholeGameTaggedSupport],
+      strategyDigestStrategicFlow: Option[WholeGameTaggedSupport],
+      strategyLongTermFocus: Option[WholeGameTaggedSupport],
+      directionalReasons: List[WholeGameTaggedSupport]
+  ):
+    def decisiveSeedTexts: List[String] =
+      List(verifiedPayoffAnchor).flatten.flatMap(_.admissibleDecisiveSeed)
     def projectedTexts: List[String] =
       List(
         verifiedPayoffAnchor,
@@ -101,7 +138,7 @@ object CommentaryEngine:
         strategyDigestDominantIdea,
         strategyDigestStrategicFlow,
         strategyLongTermFocus
-      ).flatten ++ directionalReasons
+      ).flatten.flatMap(_.releasedText) ++ directionalReasons.flatMap(_.releasedText)
 
   private def themeMaxShareFromHypotheses(
       hypotheses: List[lila.llm.model.authoring.PlanHypothesis]
@@ -1391,16 +1428,10 @@ object CommentaryEngine:
       moment: GameArcMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): Option[String] =
-    wholeGameSupportTexts(moment, truthContractsByPly).flatMap(normalizeWholeGameSupportAnchor).headOption
+    wholeGameSupportProjection(moment, truthContractsByPly).decisiveSeedTexts.flatMap(normalizeWholeGameSupportAnchor).headOption
       .orElse(extractWholeGameDirectionalTargetAnchor(moment, truthContractsByPly))
       .orElse(extractWholeGameMoveRefAnchor(moment, truthContractsByPly))
       .orElse(extractWholeGameRouteAnchor(moment, truthContractsByPly))
-      .orElse(
-        List(
-          moment.analysisData.plans.headOption.map(_.plan.name),
-          moment.activePlan.map(_.themeL1)
-        ).flatten.flatMap(normalizeWholeGameSupportAnchor).headOption
-      )
 
   private def extractWholeGameNarrativeSentence(
       moment: GameArcMoment
@@ -1429,7 +1460,19 @@ object CommentaryEngine:
   ): WholeGameSupportProjection =
     WholeGameSupportProjection(
       verifiedPayoffAnchor =
-        truthContractsByPly.get(moment.ply).flatMap(_.verifiedPayoffAnchor).orElse(moment.verifiedPayoffAnchor),
+        truthContractsByPly
+          .get(moment.ply)
+          .flatMap(_.verifiedPayoffAnchor)
+          .orElse(moment.verifiedPayoffAnchor)
+          .map(text =>
+            WholeGameTaggedSupport(
+              text = text,
+              authority = WholeGameSupportAuthority.requires_move_linked_anchor,
+              moveLinkedAnchor = true,
+              contractConsistent = true,
+              structuredProof = true
+            )
+          ),
       digestDominantIdea = wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.dominantIdeaFocus)),
       digestStrategicFlow = wholeGameProjectedSupportCarrier(moment.signalDigest.flatMap(_.strategicFlow)),
       investmentCompensation =
@@ -1449,7 +1492,7 @@ object CommentaryEngine:
           .flatMap(reason => wholeGameProjectedSupportCarrier(Some(reason)))
     )
 
-  private def wholeGameProjectedSupportCarrier(raw: Option[String]): Option[String] =
+  private def wholeGameProjectedSupportCarrier(raw: Option[String]): Option[WholeGameTaggedSupport] =
     raw.flatMap(cleanedWholeGameAnchor)
       .map(
         _.replaceFirst("(?i)^(white|black)\\s+plan:\\s*", "")
@@ -1466,6 +1509,7 @@ object CommentaryEngine:
           .trim
       )
       .filter(_.nonEmpty)
+      .map(text => WholeGameTaggedSupport(text, WholeGameSupportAuthority.support_only))
 
   private def normalizeWholeGameSupportAnchor(
       raw: String
@@ -1483,15 +1527,12 @@ object CommentaryEngine:
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
   ): Option[String] =
     val targets = moment.strategyPack.toList.flatMap(_.directionalTargets)
-    val supportTexts = wholeGameSupportTexts(moment, truthContractsByPly)
     val targetSquares = targets.flatMap(target => normalizedWholeGameSquare(target.targetSquare))
     val theaters = targetSquares.flatMap(wholeGameTheaterFromSquare).distinct
 
     targets.flatMap(_.strategicReasons).flatMap(normalizeWholeGameSupportAnchor).headOption
       .orElse {
-        if supportTexts.exists(wholeGameTextSuggestsFilePressure) then
-          targetSquares.headOption.map(wholeGameFilePressurePhrase)
-        else if supportTexts.exists(wholeGameTextSuggestsTargetPressure) && theaters.size == 1 && targetSquares.size >= 2 then
+        if theaters.size == 1 && targetSquares.size >= 2 then
           Some(wholeGameTargetPhrase(theaters.head))
         else
           targetSquares.headOption.map(wholeGamePressurePhrase)
