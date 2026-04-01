@@ -34,6 +34,23 @@ Use the documents in this order:
 - `CommentaryTrustHardening.md`
   - canonical trust-risk map, CTH audit baseline, trust-hardening priority map
 
+## Current Canonical State
+
+- Step 1-7:
+  signoff-ready
+- CQF Track 0-4:
+  closed or maintenance-only
+- CQF Track 5:
+  deferred
+- CTH-A:
+  core complete, maintenance-only
+- CTH-B:
+  bounded B1 / B2 / B3 slices implemented and adversarial-review green inside
+  their current charters
+- Current operating rule:
+  maintenance-only re-review; do not open a broader strategic frontier unless a
+  fresh runtime seam change or trust regression forces it
+
 ## Current Status
 
 - Step 1-7:
@@ -95,8 +112,9 @@ expand explainable strategic depth only after CTH-A makes the trust envelope
 stronger.
 
 Status:
-design/research only; do not treat as the next automatic implementation step
-while CTH-A residual maintenance still owns trust-signoff questions.
+bounded B1 / B2 / B3 slices are implemented, but the broader frontier is
+paused; keep CTH-B in maintenance-only re-review unless a fresh runtime seam
+change reopens it.
 
 ### CTH-B0 — Strategic Discovery Recon Baseline
 
@@ -262,7 +280,8 @@ true for an `AdvantageTransformation` strategic plan:
   direct reply evidence exists, a best defense is identified, reply coverage is
   present, and no collapse reason appears on the best-reply branch
 - future snapshot persistence survives:
-  at least one future snapshot remains positive after the conversion step
+  at least one future snapshot remains positive after the conversion step on
+  that same defended branch
 - prevented-resource pressure is real:
   current `PreventedPlan` evidence shows counterplay compression through one of
   `counterplayScoreDrop >= 80`, `breakNeutralized`,
@@ -291,14 +310,18 @@ The runtime contract is private/backend-only and currently lives in
   the distinct defensive first replies observed in the bounded reply probes
 - `bestDefenseFound`:
   the concrete best defensive reply branch, if one exists
+- `bestDefenseBranchKey`:
+  the normalized defended branch identity that persistence must stay aligned to
 - `routePersistence`:
   whether the conversion route still holds after best defense and future
-  snapshots
+  snapshots, including direct best-defense presence and same-defended-branch
+  continuity
 - `failsIf`:
   explicit failure reasons such as `cooperative_defense`,
   `hidden_defensive_resource`, `route_persistence_missing`,
   `insufficient_counterplay_suppression`, `move_order_fragility`,
-  `pv_restatement_only`, and `local_to_global_overreach`
+  `pv_restatement_only`, `stitched_defended_branch`, and
+  `local_to_global_overreach`
 - `moveOrderFragility`:
   whether the route is resilient, fragile, or collapsed by best defense
 - `confidence`:
@@ -316,7 +339,7 @@ a parallel runtime path.
 | Axis | Why risky | Current guard before B1 | B1 verification |
 | --- | --- | --- | --- |
 | `cooperative_defense` | a nice-looking route exists only if the defender cooperates | probe-backed plan evidence plus reply probes | certification fails unless a concrete best defense is found and the route still survives it |
-| `pv_restatement` | paraphrasing engine PV can masquerade as strategic discovery | plan evidence already requires bounded probe support | certification fails when direct reply-multipv evidence is missing or when the claim is only a restated line |
+| `pv_restatement_only` | paraphrasing engine PV can masquerade as strategic discovery | plan evidence already requires bounded probe support | certification fails when direct reply-multipv evidence is missing or when the claim is only a restated line |
 | `hidden_defensive_resource` | a supposedly compressed defense may still have several viable holds | `bestReplyStable` / future snapshot checks already existed in partial form | defender resource count is measured explicitly and certification fails when replies stay too broad |
 | `move_order_fragility` | the idea works only in one exact order and collapses under the best defensive move order | existing experiment metadata could mark move-order sensitivity | certification converts that fragility into an explicit failure reason and downgrades planner admission |
 | `local_to_global_overreach` | a move-local edge is overstated as a whole-position conversion story | truth gate already bans scene-local to global-owner revival | B1 requires conversion-ready eval posture and bounded route persistence; equal/unclear positions fail |
@@ -348,7 +371,9 @@ semantics.
 Status:
 validation-only expansion completed. No new runtime helper, public payload
 field, or prose family was added. The work stays in test/tooling and reuses the
-existing planner/build/replay path.
+existing planner/build/replay path. Reverse adversarial review is now green for
+the bounded B1/B1b charter after closing cross-branch stitched-persistence
+loopholes in runtime/tests.
 
 Broad validation pack:
 
@@ -393,8 +418,9 @@ Acceptance matrix:
     none in the B1b targeted matrix
 - criticism class:
   - `covered`:
-    `cooperative_defense`, `pv_restatement`, `hidden_defensive_resource`,
-    `move_order_fragility`, `local_to_global_overreach`,
+    `cooperative_defense`, `pv_restatement_only`, `hidden_defensive_resource`,
+    `move_order_fragility`, `stitched_defended_branch`,
+    `local_to_global_overreach`,
     `surface_reinflation`
   - `deferred`:
     none inside the targeted B1b criticism pack
@@ -422,7 +448,8 @@ Actual surface validation status:
 Failure inventory from B1b:
 
 - `runtime bug`:
-  none found in the targeted B1b pack
+  no new runtime bug remains in the targeted B1b pack after the
+  `stitched_defended_branch` fix-up
 - `overclaim risk`:
   no new overclaim path observed; uncertified cases stayed fail-closed across
   planner and replay surfaces
@@ -601,14 +628,14 @@ Mandatory fail-closed reasons for B2 should include at least:
 - `local_to_global_overreach`
 - `waiting_move_disguised_as_plan`
 - `fortress_like_but_not_winning`
-- `surface_reinflation_risk`
+- `surface_reinflation`
 
 #### B2 criticism matrix
 
 | Axis | Why risky | Current guard / reuse | Future B2 guard | Required fixture shape |
 | --- | --- | --- | --- | --- |
 | `cooperative_defense` | the route works only if the defender stays passive | B1 best-defense stability, reply probes, alternative-dominance checks | no certification unless the squeeze survives the concrete best defense | squeeze-looking clamp where passive defense loses but best defense keeps activity |
-| `pv_restatement` | strategic discovery collapses into paraphrased engine PV | direct-reply requirement in B1, claim quantifier/modality checks | require restriction evidence plus falsification burden, not line prettification | quiet PV with no measured restriction/resource loss |
+| `pv_restatement_only` | strategic discovery collapses into paraphrased engine PV | direct-reply requirement in B1, claim quantifier/modality checks | require restriction evidence plus falsification burden, not line prettification | quiet PV with no measured restriction/resource loss |
 | `hidden_freeing_break` | one live break invalidates `no-counterplay` | `PreventedPlan.breakNeutralized`, route-denial probe purposes, null-move threat checks | enumerate `freeingBreaksRemaining` and fail if any certified break/entry route survives | clamp-looking scene with one untested pawn break or entry square |
 | `hidden_tactical_release` | exchange sac / perpetual / active king route revives counterplay | reply probes, collapse reasons, future snapshots | enumerate `tacticalReleasesRemaining`; require no forcing release under best defense | quiet bind that fails to an exchange sacrifice, perpetual, or king route |
 | `move_order_fragility` | one inaccurate order collapses the clamp | existing `moveOrderSensitive`, B1 fragility handling | certification must reject exact-order-only squeeze shells | same plan succeeds in PV order but fails when the defender changes move order |
@@ -729,8 +756,10 @@ Narrow scope:
   quiet, restriction-first moves that shut down one concrete freeing break or
   entry route
 - positive output cap:
-  bounded `WhyThis` / `WhatChanged` only; no global `no-counterplay`, no
-  whole-game wrapper, no broader squeeze shell
+  bounded planner-owned `WhyThis` only as the certified positive lane;
+  existing move-delta `WhatChanged` may still survive when independently legal,
+  but this slice does not widen a separate timing, whole-position, or
+  whole-game positive lane
 
 Why this slice should go first:
 
@@ -760,11 +789,13 @@ Purpose:
 implement the narrowest B2 runtime slice:
 bounded certification that a quiet restriction-first move suppresses one named
 freeing break or entry route in late middlegame and keeps that suppression
-alive against best defense.
+alive against direct best defense on that same defended branch.
 
 Status:
 implemented as a backend-only certification helper plus planner/replay
 containment. No public payload/schema field or new prose family was added.
+Reverse adversarial review is now green for the bounded B2b charter after
+closing validation-only best-defense and stitched-branch persistence loopholes.
 
 #### Runtime boundary
 
@@ -777,9 +808,9 @@ containment. No public payload/schema field or new prose family was added.
   `SubplanId.BreakPrevention` or `SubplanId.KeySquareDenial`
 - positive certification only when all of the following hold:
   late middlegame, clearly better eval posture, one named break/entry axis,
-  route-denial or long-term-restraint validation, concrete best defense,
-  future-snapshot persistence, no live tactical release, and no move-order
-  fragility
+  route-denial or long-term-restraint validation, concrete direct best defense,
+  future-snapshot persistence on that same defended branch, no live tactical
+  release, and no move-order fragility
 - positive claim cap:
   bounded axis-only suppression such as
   `this keeps the ...c5 break shut` or
@@ -817,7 +848,13 @@ containment. No public payload/schema field or new prose family was added.
 - `move_order_fragility`:
   fail on collapse reasons, PV-coupled shells, or unstable reply order
 - `pv_restatement_only`:
-  fail when restriction validation and concrete best defense are missing
+  fail when restriction validation is missing
+- `direct_best_defense_missing`:
+  fail when only validation probes carry the shell and no direct best-defense
+  reply exists
+- `stitched_defended_branch`:
+  fail when persistence is borrowed from a different defensive branch instead of
+  the defended branch established by direct best defense
 - `waiting_move_disguised_as_plan`:
   fail when counterplay compression / break neutralization is not measured
 - `local_to_global_overreach`:
@@ -879,8 +916,539 @@ Session verdict:
 - `CTH-B2b slice passed`
 - reason:
   late-middlegame named-break / entry-axis suppression is now certified only in
-  the narrow bounded slice, and every broader squeeze/no-counterplay surface
-  remains fail-closed
+  the narrow bounded slice with direct best-defense plus same-defended-branch
+  persistence, and every broader squeeze/no-counterplay surface remains
+  fail-closed
+
+#### B2 close review
+
+Verdict:
+
+- `B2 close-ready`
+
+Reason:
+
+- the implemented B2 slice stays narrow and consistent across runtime, tests,
+  and docs:
+  late middlegame, clearly better, one named break/entry axis, planner-owned
+  local suppression, direct best-defense-backed same-branch persistence, no
+  whole-position `no-counterplay`, and no whole-game positive reuse
+- criticism coverage is closed on the intended B2 lane:
+  `hidden_freeing_break`, `hidden_tactical_release`,
+  `move_order_fragility`, `pv_restatement_only`,
+  `direct_best_defense_missing`, `stitched_defended_branch`,
+  `waiting_move_disguised_as_plan`, `local_to_global_overreach`, and
+  `surface_reinflation`
+- the remaining cells below stay outside B2 positive scope rather than as open
+  B2 blockers:
+  heavy-piece middlegame positives, slightly-better positives,
+  transition/endgame-adjacent positives, pure endgame positives,
+  equal/unclear, defending side, broader quiet squeeze / fortress-like
+  positives, and whole-game positive reuse
+
+Positive-scope note:
+
+- certified B2 positives are review-closed on planner-owned `WhyThis`
+- existing move-delta `WhatChanged` remains only the preexisting
+  independently-legal lane; it is not a broader B2 positive-expansion claim
+
+Recommended next move from the B2 close review:
+
+- `B3a design` completed in the baseline below
+- current follow-on after B3a:
+  `B3b narrow late-middlegame dual-axis clamp / bind certification`
+
+### CTH-B3a — Multi-Axis Squeeze / Bind Certification Design Baseline
+
+Purpose:
+define what must be proven, falsified, and broad-validated before the pipeline
+may certify bounded `multi-axis squeeze` or `bind` claims.
+
+Status:
+design baseline only; no runtime semantics, public payload/schema, or prose
+family changed in this step. Use this section as the canonical B3 entry
+charter after B2 close-ready and before any later B3 implementation slice.
+
+#### Design posture
+
+- proof / falsification first:
+  define what must be measured before the word `squeeze` or `bind` may own the
+  explanation
+- broad validation before confidence:
+  B3 carries a heavier false-positive burden than B2 and cannot be inferred
+  from a narrow smoke pack
+- minor-criticism resistance:
+  the slice must survive cooperative-defense, hidden-resource,
+  fortress-near-miss, and move-order criticism without rhetorical escape hatches
+- fail-closed over rhetorical richness:
+  uncertified multi-axis shells must downgrade to `deferred`, support-only, or
+  exact factual fallback
+- architecture reuse only:
+  stay inside
+  `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> DecisiveTruth sanitize -> existing surfaces`
+  and do not open a new runtime lane
+- surface inflation forbidden:
+  Bookmaker, Chronicle, Active, and whole-game/support reuse may not strengthen
+  a squeeze/bind claim beyond the upstream certification result
+- local bounded claim before whole-position ambition:
+  B3 may certify a bounded local `dual-axis squeeze` shell, not a whole-position
+  `they have no moves` or global winning-route thesis
+
+#### Multi-axis squeeze definition draft
+
+For B3, `multi-axis squeeze` is not:
+
+- a list of several positional advantages
+- one denied break or square repeated with two different labels
+- a generic space edge with no measured defender-resource loss
+- a quiet move that simply improves one piece or king
+- a fortress-looking hold with no visible progress route
+- whole-position `no-counterplay` prose
+
+Axis families for the B3 draft are:
+
+- freeing break
+- entry route / invasion square / sector access
+- file or line access
+- king route / king activation corridor
+- square network or color complex
+- piece mobility cage
+
+For B3, `multi-axis squeeze` is only certifiable when all of the following are
+true:
+
+- at least two independent defender resource axes are simultaneously narrowed:
+  the claim must identify a primary axis and at least one corroborating axis
+- at least one axis is a concrete counterplay route:
+  break, entry route, file access, or king route rather than only a pleasant
+  structural description
+- the axes are non-redundant:
+  multiple squares or phrases that merely restate one denied route still count
+  as one axis
+- each axis is opponent-facing:
+  the contract must say what defender resource was lost, delayed, or fixed
+- best-defense inspection still leaves the squeeze shell standing:
+  direct reply evidence and future snapshots may not reopen a live escape route
+- the claim scope stays local:
+  B3 may say the move compresses two bounded defender resource axes here, not
+  that the whole position is strategically finished
+
+Operational note:
+
+- a second axis may be a square network, color complex, or mobility cage only
+  when it adds an independent defender-resource loss beyond the primary break or
+  route
+- if the supposed second axis disappears once the primary break/entry claim is
+  removed, the shell is not multi-axis
+
+#### Certified bind definition draft
+
+For B3, the relevant distinction is:
+
+- `static bind`:
+  the position looks cramped or controlled, but best-defense persistence,
+  opponent-resource loss, or route continuity is not proven
+- `dynamic restriction`:
+  at least one defender resource axis is measurably narrowed, but axis
+  independence, best-defense persistence, or continuity is still incomplete
+- `certified bind`:
+  two independent axes are measurably narrowed, best defense does not reopen the
+  shell, the shell keeps a bounded continuation route, and no tactical or
+  fortress-like objection survives inside the tested horizon
+
+For B3, a `certified bind` therefore requires all of the following:
+
+- measurable restriction:
+  prevented-plan, denied-square, counterplay-drop, route-denial, or
+  mobility-restraint evidence is present
+- dynamic persistence:
+  the shell survives the best defensive replies rather than only passive defense
+- route continuity:
+  future snapshots or conversion-followthrough evidence still show further
+  restriction, pressure, or conversion continuity after the bind
+- anti-fortress protection:
+  the shell is not merely a static hold with no bounded progress route
+- bounded language:
+  payoff language stays at `bind` / `squeeze` / `resource compression`, not
+  whole-position domination or global winning-route language
+
+Operational distinction for early B3:
+
+- `restraining but not winning`:
+  may still be a valid negative or support-only outcome when the bind is real
+  but continuity or progress is not proven
+- `certified squeeze`:
+  requires the bind plus bounded continuation continuity; otherwise the result
+  must fail closed
+
+#### B3 certification contract draft
+
+Any future B3 contract should remain backend-only and follow the B1/B2 pattern:
+evaluate inside `NarrativeContextBuilder`, downgrade uncertified experiments
+before `mainStrategicPlans` are filtered, and avoid new public schema.
+
+Proposed bounded contract:
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `strategyHypothesis` | names the tested squeeze/bind idea | `PlanHypothesis.planName`, existing experiment hypothesis text |
+| `claimScope` | keeps the claim local (`dual_axis_local`, `break_plus_entry`, `break_plus_network`) and blocks whole-position inflation | existing planner scene-first ownership plus backend-only certification scope |
+| `primaryAxis` | records the concrete main defender resource being compressed | `PreventedPlan.breakNeutralized`, `deniedResourceClass`, denied squares, route-denial language |
+| `corroboratingAxes` | records the additional independent axes needed for B3 | existing `PreventedPlan` set, denied-square network, `futureSnapshot`, subplan family, existing theme aliases |
+| `axisIndependence` | proves the second axis is not just a restatement of the first | existing reply/future-snapshot evidence plus backend-only independence check |
+| `bindArchetype` | stable role label such as `break_plus_entry`, `break_plus_network`, `entry_plus_mobility`, `file_plus_king_route` | `ThemeTaxonomy` subplans, `PlanEvidenceEvaluator` ontology family, `ThemePlanProbePurpose` |
+| `restrictionEvidence` | records the actual multi-axis proof | `PreventedPlan`, `counterplayScoreDrop`, `breakNeutralized`, denied squares, `defensiveSufficiency`, `breakNeutralizationStrength` |
+| `defenderResources` | enumerates the meaningful defensive resources instead of gesturing at them | direct `reply_multipv` / `defense_reply_multipv` probe heads and best reply |
+| `freeingResourcesRemaining` | lists still-live breaks, entries, or king/file routes that falsify the bind | existing `PreventedPlan` set plus reply/future-snapshot inspection |
+| `tacticalReleasesRemaining` | lists still-live tactical releases that puncture the shell | reply probes, `l1Delta.collapseReason`, `keyMotifs`, `futureSnapshot.newThreatKinds` |
+| `bestDefenseFound` | anchors the certification to a real defensive try | current best-reply extraction and alternative-dominance pattern |
+| `persistenceAfterBestDefense` | proves the squeeze shell survives the best defense | `bestReplyStable`, future snapshots, blocker removal / threat-resolution fields |
+| `routeContinuity` | shows the bind opens a bounded follow-through route without global overreach | `futureSnapshot`, `convert_reply_multipv`, existing conversion-tail evidence |
+| `fortressRisk` | blocks static-hold positions from being misread as certified squeeze | future snapshots, eval posture, continuity absence, existing decisive-proof discipline |
+| `moveOrderFragility` | records collapse under best defense or exact-order dependence | existing experiment fragility, B1/B2 move-order handling |
+| `counterplayReinflationRisk` | flags whether replay/support carriers are likely to overstate the shell | shared replay gate and support-only discipline |
+| `claimCertification` | keeps B3 inside the same truth grammar as B1/B2 | `ClaimCertification`, quantifier/modality/attribution/stability/ontology reuse |
+| `evidenceSources` | shows which existing carriers justified the contract | existing hypothesis/probe/prevented-plan source lists |
+
+Mandatory fail-closed reasons for B3 should include at least:
+
+- `cooperative_defense`
+- `hidden_freeing_break`
+- `hidden_tactical_release`
+- `pv_restatement_only`
+- `move_order_fragility`
+- `fortress_like_but_not_winning`
+- `local_to_global_overreach`
+- `waiting_move_disguised_as_bind`
+- `surface_reinflation`
+- `axis_independence_not_proven`
+- `route_continuity_missing`
+
+#### B3 criticism matrix
+
+| Axis | Why risky | Current guard / reusable guard | Future B3 guard | Required fixture shape |
+| --- | --- | --- | --- | --- |
+| `cooperative_defense` | the bind works only if the defender stays passive | reply probes, best-reply stability, alternative-dominance checks | no B3 certification unless the shell survives the concrete best defense | dual-axis-looking squeeze where passive defense collapses but best defense keeps one escape route alive |
+| `hidden_freeing_break` | one untested break or entry route invalidates the squeeze thesis | `PreventedPlan.breakNeutralized`, denied squares, route-denial probe purposes, future-snapshot blocker checks | enumerate remaining resource axes and fail if a live break/entry/file/king route survives | move appears to stop one resource but a second freeing break or entry square remains |
+| `hidden_tactical_release` | exchange sac, forcing threat, perpetual, or king route punctures the shell | `defense_reply_multipv`, collapse reasons, key motifs, future snapshots | require no tactical release under best defense across the tested horizon | bind-looking move that fails once the defender finds an exchange sacrifice, perpetual, or king walk |
+| `pv_restatement_only` | engine PV is merely rewritten as `squeeze` or `bind` | claim-certification quantifier/modality checks, probe-purpose contracts, source attribution | require explicit axis bundle, resource loss, and falsification burden rather than pretty PV prose | PV keeps the edge but no distinct axis compression or resource enumeration exists |
+| `move_order_fragility` | one move-order change collapses the shell | existing `moveOrderSensitive`, B1/B2 fragility handling, reply/future-snapshot checks | reject exact-order-only shells from B3 certification | same bind works only in the PV order and fails when the defender changes move order |
+| `fortress_like_but_not_winning` | static restriction is confused with a certifiable squeeze route | existing whole-position caution, conversion-tail checks, decisive-proof discipline | require bounded route continuity and block strong payoff language when progress is not visible | cramped-looking hold with no breakthrough, no bounded follow-through, and no worsening defender resource state |
+| `local_to_global_overreach` | local multi-axis restriction gets inflated into whole-position domination | TruthGate scene-local limits, planner ownership, support-only replay discipline | backend `claimScope` must stay local and B3 positives stay off whole-game reuse | one sector bind is rewritten as `the opponent has no play anywhere` |
+| `waiting_move_disguised_as_bind` | a quiet improving move is mistaken for a squeeze | quiet-intent fallback, move-delta anchoring, prevented-plan gating | require opponent-facing multi-axis restriction plus continuity; otherwise demote to support-only or exact factual | king/piece improvement with nicer coordination but no measurable defender-resource loss |
+| `surface_reinflation` | uncertified shell returns on Bookmaker, Chronicle, Active, or wrappers as a stronger claim | shared replay gate, `StrategicNarrativePlanSupport`, `CommentaryEngine`, existing parity harnesses | certification must downgrade before planner reuse and remain support-only everywhere else | uncertified squeeze wording appears in sidecars/support carriers and tries to revive on a stronger surface |
+
+#### Broad validation charter
+
+The B3 validation burden must be read as a positive-certification matrix plus a
+negative-corpus matrix:
+
+- positive certification may target only cells marked `likely coverable now`
+- any combination touching a `likely deferred` cell needs its own corpus
+  expansion before positive certification is accepted
+- any combination touching a `likely unsafe` cell is negative-only for the
+  early B3 slices and must prove fail-closed behavior rather than positive
+  certification
+
+Phase matrix:
+
+| Phase cell | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable now` | existing prevented-plan, route-denial, reply-probe, and future-snapshot signals are strongest here |
+| `heavy-piece middlegame` | `likely deferred` | tactical-release density is higher and minor-criticism resistance is harder |
+| `transition / endgame-adjacent` | `likely deferred` | route continuity and fortress ambiguity are harder to separate |
+| `pure endgame` | `likely unsafe` | fortress-like false positives and active-king resources dominate the risk profile |
+
+Evaluation posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable now` | easiest place to certify bounded multi-axis compression without global overreach |
+| `slightly better` | `likely deferred` | squeeze may be real, but fortress/progress criticism is much harder to separate |
+| `equal / unclear` | `likely unsafe` | positive bind certification would overstate local truth |
+| `defending side` | `likely unsafe` | the early B3 slice should not certify the defender as owning the squeeze shell |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `break suppression + entry denial` | `likely coverable now` | best fit for existing `PreventedPlan` + route-denial evidence and non-redundant axis counting |
+| `file / square bind` | `likely deferred` | axis independence is plausible, but overcounting and PV restatement risk are still high |
+| `color-complex squeeze` | `likely deferred` | current ontology and probe hooks exist, but counterexample resistance is weaker |
+| `piece mobility cage` | `likely deferred` | mobility evidence exists, but tactical-release and overreading risk are still high |
+| `quiet king/piece improvement only` | `likely unsafe` | too easy to confuse with waiting or generic improvement |
+| `fortress-like near-miss` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `tactical-release fake squeeze` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `restriction-first then conversion` | `likely coverable now` | can reuse the existing conversion tail once the local bind is certified first |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely coverable now` | strongest owner path for bounded local squeeze/bind explanation |
+| `planner-owned WhatChanged` | `likely deferred` | existing move-delta lane remains legal, but B3-specific positive ownership should not begin here |
+| `Bookmaker` | `likely coverable now` | strongest planner-first/fallback discipline once upstream certification exists |
+| `Chronicle` | `likely coverable now` | shared planner/replay path can mirror the same downgrade rules |
+| `Active` | `likely deferred` | parity/non-reinflation can be tested now, but positive bind ownership remains diagnostic-sensitive |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | B3 early slices should validate only non-reinflation, not positive wrapper reuse |
+
+#### Existing capability reuse map
+
+- `NarrativeContextBuilder`:
+  remains the main B3 contract evaluation site because it already sees
+  prevented plans, validated probe results, eval posture, phase, and strategic
+  experiments before planner exposure
+- `PlanEvidenceEvaluator`:
+  remains the falsification core; reuse its quantifier, stability,
+  alternative-dominance, attribution, and ontology-family checks so B3 does not
+  create a second truth grammar
+- `ThemeTaxonomy`:
+  already contains the subplan families B3 needs to group candidate bind axes:
+  `BreakPrevention`, `KeySquareDenial`, `FlankClamp`, `CentralSpaceBind`,
+  `MobilitySuppression`, `OpenFilePressure`, `StaticWeaknessFixation`, and
+  `OutpostEntrenchment`
+- `ProbeDetector` and `ThemePlanProbePurpose`:
+  already have the relevant bounded probe purposes:
+  `route_denial_validation`, `color_complex_squeeze_validation`,
+  `long_term_restraint_validation`, `reply_multipv`,
+  `defense_reply_multipv`, and `convert_reply_multipv`
+- `QuestionFirstCommentaryPlanner`:
+  should stay unchanged in role; B3 positives should begin only on
+  planner-owned `WhyThis`, while `WhatChanged` remains the preexisting
+  independently-legal move-delta lane
+- `StrategicNarrativePlanSupport`:
+  remains the shared replay gate so Bookmaker, Chronicle, and Active all see
+  the same downgraded planner pool
+- `DecisiveTruth` and `PlayerFacingTruthModePolicy`:
+  keep the same local-scope, ontology, and replay discipline so B3 does not add
+  a second projection policy
+- `CommentaryEngine`:
+  continues to treat whole-game support reuse as support-only unless a stronger
+  contract already exists upstream
+- existing trust harnesses:
+  `DualAxisBindCertificationTest`,
+  `DualAxisBindBroadValidationTest`,
+  `CounterplayAxisSuppressionCertificationTest`,
+  `CounterplayAxisSuppressionBroadValidationTest`,
+  `SurfaceReplayParityTest`,
+  `BookmakerPolishSlotsTest`, and
+  `CrossSurfaceTrustRegressionHarnessTest` already provide the patterns needed
+  for B3 contract tests, corpus expansion, parity checks, and
+  surface-reinflation regressions
+
+Why no parallel runtime path is needed:
+
+- B1 and B2 already proved that a backend-only certification contract can gate
+  strategic experiments without adding public schema
+- the current planner/build/replay path already contains the fail-closed points
+  B3 needs
+- a parallel path would immediately re-open surface divergence and
+  support-carrier reinflation risk
+
+#### Recommended B3b first implementation slice
+
+Recommended first slice:
+
+- `late-middlegame dual-axis clamp / bind certification`
+
+Narrow scope:
+
+- phase:
+  `late middlegame` only
+- eval posture:
+  `clearly better` only
+- texture:
+  `break suppression + entry denial` only:
+  one named break or entry route must be compressed, and a second independent
+  route or square-network access point must also be shown as narrowed
+- positive output cap:
+  planner-owned `WhyThis` only;
+  existing move-delta `WhatChanged` may still survive when independently legal,
+  but B3 does not widen a separate timing, whole-position, or whole-game
+  positive lane
+
+Why this slice should go first:
+
+- it reuses the strongest existing signals:
+  `PreventedPlan.breakNeutralized`, denied squares, `counterplayScoreDrop`,
+  route-denial probes, best-reply stability, and future-snapshot continuity
+- it directly tests the core new B3 burden:
+  proving non-redundant dual-axis compression rather than single-axis
+  suppression
+- it avoids the highest-risk early cells:
+  heavy-piece tactical-release density, pure-endgame fortress ambiguity,
+  color-complex overreading, and generic mobility-cage inflation
+- it composes naturally with B1/B2:
+  bounded local suppression can later feed the existing conversion tail without
+  inventing a new truth lane
+
+Session verdict:
+
+- `CTH-B3a baseline ready`
+- reason:
+  B3 now has a canonical bounded definition draft, certification contract,
+  criticism matrix, broad validation charter, and narrow B3b entry slice
+  without widening runtime semantics
+
+### CTH-B3b — Late-Middlegame Dual-Axis Clamp / Bind Certification
+
+Purpose:
+implement the narrowest B3 runtime slice:
+bounded certification that a quiet restriction-first move compresses one named
+break axis and one independent entry axis at the same time, keeps that
+dual-axis shell standing against direct best defense, and still shows only a
+bounded follow-through route on that same defended branch.
+
+Status:
+implemented as a backend-only certification helper plus existing
+planner/replay containment. No public payload/schema field or new prose family
+was added. The B3b fix-up for the known loophole trio is now in place, and the
+follow-on reverse adversarial review plus targeted seam review are green for the
+bounded B1 / B2 / B3 maintenance charter.
+
+#### Runtime boundary
+
+- implementation site:
+  `DualAxisBindCertification.scala` evaluated from
+  `NarrativeContextBuilder.buildStrategicPlanExperiments`
+- applicable plan family only:
+  `ThemeL1.RestrictionProphylaxis` with
+  `SubplanId.BreakPrevention` or `SubplanId.KeySquareDenial`
+- positive certification only when all of the following hold:
+  late middlegame, clearly better eval posture, queen-light late middlegame
+  texture, one named break axis plus one independent entry axis, measurable
+  counterplay compression on both axes individually, concrete direct
+  best-defense evidence, future-snapshot persistence plus bounded continuation
+  on the same defended branch, no live freeing axis, no tactical release, no
+  fortress-like static hold, and no move-order fragility
+- positive claim cap:
+  bounded local dual-axis bind only, such as
+  `this keeps the ...c5 break shut while b4 stays unavailable`
+  or
+  `this compresses one break axis and one entry axis at once`
+- positive owner cap:
+  planner-owned `WhyThis` only;
+  existing move-delta `WhatChanged` may survive only when it was already legal
+  on its own lane, not as a new B3 owner family
+- explicit non-goals remain forbidden:
+  whole-position `no-counterplay`, global squeeze, winning-route discovery,
+  fortress-break, broad color-complex domination, positive whole-game reuse,
+  and Active positive-owner widening
+
+#### Certification contract and fail reasons
+
+- backend-only contract fields now implemented:
+  `strategyHypothesis`, `claimScope`, `primaryAxis`, `corroboratingAxes`,
+  `axisIndependence`, `bindArchetype`, `restrictionEvidence`,
+  `defenderResources`, `freeingResourcesRemaining`,
+  `tacticalReleasesRemaining`, `bestDefenseFound`,
+  `bestDefenseBranchKey`, `persistenceAfterBestDefense`, `routeContinuity`,
+  `fortressRisk`, `moveOrderFragility`, `counterplayReinflationRisk`,
+  `claimCertification`, `failsIf`, `confidence`, and `evidenceSources`
+- `restrictionEvidence` now records per-axis burden separately so one strong
+  axis cannot certify a fake dual-axis shell
+- `routeContinuity` now records both `directBestDefensePresent` and
+  `sameDefendedBranch` so validation-only or stitched proof bundles fail closed
+- current B3b fail-closed reasons are:
+  `pv_restatement_only`, `local_to_global_overreach`,
+  `waiting_move_disguised_as_bind`, `dual_axis_burden_missing`,
+  `axis_independence_not_proven`, `hidden_freeing_break`,
+  `hidden_tactical_release`, `cooperative_defense`,
+  `direct_best_defense_missing`, `stitched_defended_branch`,
+  `route_continuity_missing`, `fortress_like_but_not_winning`,
+  `move_order_fragility`, and `surface_reinflation`
+- axis independence is intentionally narrow:
+  the second axis must be an entry-denial square/file distinct from the primary
+  break axis rather than a rephrased copy of the same route
+- route continuity is intentionally narrower than plain restriction:
+  denial language alone is not enough; B3b requires bounded follow-through
+  evidence rather than treating `entry denied` itself as a conversion route
+- fortress protection is explicit:
+  a static hold that survives best defense but shows no bounded continuation is
+  fail-closed as `fortress_like_but_not_winning`
+
+#### Criticism coverage closed in B3b
+
+- `axis_independence_not_proven`:
+  duplicate break/entry restatements fail instead of counting as two axes
+- `hidden_freeing_break`:
+  extra live break / entry axes keep the shell uncertified
+- `hidden_tactical_release`:
+  exchange-sac / perpetual / forcing-release motifs and new tactical threats
+  fail the shell
+- `move_order_fragility`:
+  collapse under best defense or exact-order dependence fails the shell
+- `dual_axis_burden_missing`:
+  one strong axis plus one decorative axis is not enough; both axes must carry
+  measurable restriction burden
+- `pv_restatement_only`:
+  direct reply PV without route-denial / restraint validation is insufficient
+- `direct_best_defense_missing`:
+  validation-only corroboration cannot certify a shell without direct
+  best-defense evidence
+- `stitched_defended_branch`:
+  best defense, persistence, and bounded continuation may not be borrowed from
+  different probe fragments unless they stay on the same defended branch
+- `fortress_like_but_not_winning`:
+  static hold without bounded continuation is blocked explicitly
+- `local_to_global_overreach`:
+  heavy-piece, slightly-better, transition-adjacent, color-complex, and other
+  out-of-scope positives stay fail-closed
+- `waiting_move_disguised_as_bind`:
+  quiet improvement without measurable opponent-facing restriction fails
+- `route_continuity_missing`:
+  persistence without a bounded follow-through route stays uncertified
+- `surface_reinflation`:
+  uncertified or overclaiming dual-axis shells are downgraded before planner
+  reuse and remain blocked from stronger Bookmaker / Chronicle / Active /
+  whole-game ownership
+
+#### Residual cells still outside B3b positive scope
+
+- heavy-piece middlegame positives
+- transition / endgame-adjacent positives
+- pure endgame positives
+- slightly better positives
+- equal / unclear
+- defending side
+- color-complex positives
+- piece-mobility-cage positives
+- quiet king/piece improvement positives
+- fortress-like positives
+- whole-game / wrap-up / support positive reuse
+
+#### Verification
+
+- `llm/compile`
+- targeted runtime and regression suites green:
+  `DualAxisBindCertificationTest`,
+  `DualAxisBindBroadValidationTest`,
+  `RestrictedDefenseConversionCertificationTest`,
+  `RestrictedDefenseConversionBroadValidationTest`,
+  `CounterplayAxisSuppressionCertificationTest`,
+  `CounterplayAxisSuppressionBroadValidationTest`,
+  `SurfaceReplayParityTest`,
+  `QuestionFirstCommentaryPlannerTest`,
+  `BookmakerPolishSlotsTest`, and
+  `CrossSurfaceTrustRegressionHarnessTest`
+
+Current operating rule:
+
+- keep B1 / B2 / B3 in maintenance-only re-review:
+  no broader frontier or residual expansion after the bounded reverse-review
+  pass; reopen review only if fresh runtime changes touch the audited seams
+
+#### Reverse review / seam review status
+
+- B3b known loophole trio is now fix-up green:
+  dual-axis burden, direct best-defense evidence, and same-defended-branch
+  continuity are all enforced in runtime/tests
+- reverse adversarial review is green on the bounded B2b / B1b / B1 slices:
+  validation-only best-defense shells and stitched proof bundles now fail
+  closed instead of certifying
+- targeted A/CQF seam review found no new loophole across fallback rewrite,
+  truth-gate re-entry, whole-game support reuse, or cross-surface divergence;
+  keep maintenance-only watch, not a new frontier
 
 ## CTH-0 Audit Baseline
 
@@ -1514,3 +2082,10 @@ Update it whenever trust-relevant behavior changes in:
 When a later task claims to reduce false positive, overclaim,
 overgeneralization, fallback rewrite, or surface inconsistency, the task should
 update this document in the same change.
+
+Current maintenance rule:
+
+- treat compile/test green as `implementation-green`, not final closure
+- require adversarial review before `close-ready`
+- if a fresh runtime change touches a bounded B1 / B2 / B3 seam, reopen only
+  the touched slice and extend its negative fixtures first

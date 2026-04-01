@@ -21,7 +21,9 @@ private[llm] object CounterplayAxisSuppressionCertification:
   final case class RoutePersistence(
       bestDefenseStable: Boolean,
       futureSnapshotPersistent: Boolean,
-      axisStillSuppressed: Boolean
+      axisStillSuppressed: Boolean,
+      directBestDefensePresent: Boolean,
+      sameDefendedBranch: Boolean
   )
 
   final case class MoveOrderFragility(
@@ -38,6 +40,7 @@ private[llm] object CounterplayAxisSuppressionCertification:
       freeingBreaksRemaining: List[String],
       tacticalReleasesRemaining: List[String],
       bestDefenseFound: Option[String],
+      bestDefenseBranchKey: Option[String],
       routePersistence: RoutePersistence,
       failsIf: List[String],
       moveOrderFragility: MoveOrderFragility,
@@ -104,26 +107,32 @@ private[llm] object CounterplayAxisSuppressionCertification:
             ValidationPurposes.contains(normalize(purpose))
           )
         )
-      val bestDefensePool =
+      val directReplyResults =
         supportResults.filter(result =>
           result.purpose.exists(purpose =>
             DirectReplyPurposes.contains(normalize(purpose))
           )
-        ) match
-          case Nil => validationResults
-          case direct => direct
-      val defenderResources = distinctDefenderResources(bestDefensePool)
+        )
+      val defenderResources = distinctDefenderResources(directReplyResults)
       val bestDefenseFound =
-        bestDefensePool.iterator
+        directReplyResults.iterator
           .flatMap(result => result.bestReplyPv.headOption.flatMap(clean))
           .toList
           .headOption
+      val directBestDefensePresent =
+        directReplyResults.nonEmpty && bestDefenseFound.nonEmpty
+      val bestDefenseBranchKey =
+        directReplyResults.iterator.flatMap(branchKey).toList.headOption
+      val sameBranchValidationResults =
+        bestDefenseBranchKey match
+          case Some(branch) =>
+            validationResults.filter(result => matchesDefendedBranch(result, branch))
+          case None => Nil
       val bestReplyStable =
-        bestDefensePool.nonEmpty &&
-          bestDefenseFound.nonEmpty &&
+        directBestDefensePresent &&
           defenderResources.nonEmpty &&
-          bestDefensePool.forall(hasReplyCoverage) &&
-          bestDefensePool.forall(result =>
+          directReplyResults.forall(hasReplyCoverage) &&
+          directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           )
       val relevantPreventedPlans =
@@ -141,14 +150,15 @@ private[llm] object CounterplayAxisSuppressionCertification:
             }.distinct
           case None => Nil
       val tacticalReleasesRemaining =
-        bestDefensePool.flatMap(tacticalReleaseSignals).distinct
+        directReplyResults.flatMap(tacticalReleaseSignals).distinct
       val futureSnapshotPersistence =
-        validationResults.exists(result =>
+        sameBranchValidationResults.exists(result =>
           result.futureSnapshot.exists(snapshot =>
             isPositiveSuppressionSnapshot(snapshot) && tacticalReleaseSignals(result).isEmpty
           )
-        ) &&
-          validationResults.nonEmpty
+        )
+      val sameDefendedBranch =
+        directBestDefensePresent && sameBranchValidationResults.nonEmpty
       val lateMiddlegameSlice =
         normalize(phase) == "middlegame" &&
           ply >= LateMiddlegamePlyFloor &&
@@ -175,11 +185,15 @@ private[llm] object CounterplayAxisSuppressionCertification:
           futureSnapshotPersistent = futureSnapshotPersistence,
           axisStillSuppressed =
             restrictionDeltaMeasured &&
+              directBestDefensePresent &&
               defenderResources.nonEmpty &&
               defenderResources.size <= RestrictedResourceCap &&
               tacticalReleasesRemaining.isEmpty &&
               futureSnapshotPersistence &&
-              bestReplyStable
+              sameDefendedBranch &&
+              bestReplyStable,
+          directBestDefensePresent = directBestDefensePresent,
+          sameDefendedBranch = sameDefendedBranch
         )
       val fragilityReasons =
         List(
@@ -190,13 +204,13 @@ private[llm] object CounterplayAxisSuppressionCertification:
             "missing_signals_under_pv_coupling"
           ),
           Option.when(
-            bestDefensePool.exists(result =>
+            directReplyResults.exists(result =>
               result.l1Delta.flatMap(_.collapseReason).exists(reason => clean(reason).nonEmpty)
             )
           )("collapse_under_best_defense"),
           Option.when(
-            bestDefensePool.nonEmpty &&
-              bestDefensePool.exists(hasReplyCoverage) &&
+            directReplyResults.nonEmpty &&
+              directReplyResults.exists(hasReplyCoverage) &&
               !bestReplyStable &&
               !futureSnapshotPersistence
           )("reply_order_not_stable")
@@ -235,7 +249,8 @@ private[llm] object CounterplayAxisSuppressionCertification:
         else BoundedAxisOnly
       val failsIf =
         List(
-          Option.when(validationResults.isEmpty || bestDefenseFound.isEmpty)("pv_restatement_only"),
+          Option.when(validationResults.isEmpty)("pv_restatement_only"),
+          Option.when(!directBestDefensePresent)("direct_best_defense_missing"),
           Option.when(!lateMiddlegameSlice || !clearlyBetter || !distinctiveEnough || !ontologyAllowed)(
             "local_to_global_overreach"
           ),
@@ -245,10 +260,15 @@ private[llm] object CounterplayAxisSuppressionCertification:
           Option.when(
             primaryAxis.isEmpty ||
               alternativeAxes.nonEmpty ||
-              defenderResources.isEmpty ||
-              defenderResources.size > RestrictedResourceCap
+              (directBestDefensePresent &&
+                (defenderResources.isEmpty || defenderResources.size > RestrictedResourceCap))
           )("hidden_freeing_break"),
           Option.when(tacticalReleasesRemaining.nonEmpty)("hidden_tactical_release"),
+          Option.when(
+            directBestDefensePresent &&
+              validationResults.nonEmpty &&
+              !sameDefendedBranch
+          )("stitched_defended_branch"),
           Option.when(!bestReplyStable)("cooperative_defense"),
           Option.when(!routePersistence.axisStillSuppressed)("route_persistence_missing"),
           Option.when(moveOrderFragility.fragile)("move_order_fragility"),
@@ -263,6 +283,7 @@ private[llm] object CounterplayAxisSuppressionCertification:
         freeingBreaksRemaining = alternativeAxes,
         tacticalReleasesRemaining = tacticalReleasesRemaining,
         bestDefenseFound = bestDefenseFound,
+        bestDefenseBranchKey = bestDefenseBranchKey,
         routePersistence = routePersistence,
         failsIf = failsIf,
         moveOrderFragility = moveOrderFragility,
@@ -272,8 +293,10 @@ private[llm] object CounterplayAxisSuppressionCertification:
             lateMiddlegameSlice = lateMiddlegameSlice,
             clearlyBetter = clearlyBetter,
             restrictionDeltaMeasured = restrictionDeltaMeasured,
+            directBestDefensePresent = directBestDefensePresent,
             bestReplyStable = bestReplyStable,
             futureSnapshotPersistence = futureSnapshotPersistence,
+            sameDefendedBranch = sameDefendedBranch,
             defenderResourceCount = defenderResources.size,
             alternativeAxisCount = alternativeAxes.size,
             tacticalReleaseCount = tacticalReleasesRemaining.size,
@@ -284,7 +307,8 @@ private[llm] object CounterplayAxisSuppressionCertification:
           ),
         evidenceSources =
           (plan.hypothesis.evidenceSources ++
-            bestDefensePool.flatMap(_.purpose.flatMap(clean)) ++
+            directReplyResults.flatMap(_.purpose.flatMap(clean)) ++
+            sameBranchValidationResults.flatMap(_.purpose.flatMap(clean)) ++
             relevantPreventedPlans.flatMap(preventedEvidenceSignals)).distinct
       )
     }
@@ -337,8 +361,10 @@ private[llm] object CounterplayAxisSuppressionCertification:
       lateMiddlegameSlice: Boolean,
       clearlyBetter: Boolean,
       restrictionDeltaMeasured: Boolean,
+      directBestDefensePresent: Boolean,
       bestReplyStable: Boolean,
       futureSnapshotPersistence: Boolean,
+      sameDefendedBranch: Boolean,
       defenderResourceCount: Int,
       alternativeAxisCount: Int,
       tacticalReleaseCount: Int,
@@ -351,8 +377,10 @@ private[llm] object CounterplayAxisSuppressionCertification:
     val phaseBonus = if lateMiddlegameSlice then 0.07 else 0.0
     val evalBonus = if clearlyBetter then 0.08 else 0.0
     val restrictionBonus = if restrictionDeltaMeasured then 0.12 else 0.0
+    val directDefenseBonus = if directBestDefensePresent then 0.04 else 0.0
     val replyBonus = if bestReplyStable then 0.07 else 0.0
     val futureBonus = if futureSnapshotPersistence then 0.06 else 0.0
+    val branchBundleBonus = if sameDefendedBranch then 0.04 else 0.0
     val resourceBonus =
       if defenderResourceCount > 0 && defenderResourceCount <= RestrictedResourceCap then 0.05
       else 0.0
@@ -363,7 +391,8 @@ private[llm] object CounterplayAxisSuppressionCertification:
     val tacticalReleasePenalty = math.min(0.18, tacticalReleaseCount * 0.08)
     val fragilityPenalty = if moveOrderFragility.fragile then 0.12 else 0.0
     val reinflationPenalty = if counterplayReinflationRisk == HighReinflationRisk then 0.12 else 0.0
-    (base + phaseBonus + evalBonus + restrictionBonus + replyBonus + futureBonus + resourceBonus + distinctivenessBonus -
+    (base + phaseBonus + evalBonus + restrictionBonus + directDefenseBonus + replyBonus + futureBonus +
+      branchBundleBonus + resourceBonus + distinctivenessBonus -
       alternativeAxisPenalty - tacticalReleasePenalty - fragilityPenalty - reinflationPenalty)
       .max(0.0)
       .min(0.96)
@@ -405,6 +434,31 @@ private[llm] object CounterplayAxisSuppressionCertification:
         (replyHeads ++ bestReply).distinct
       }
       .distinct
+
+  private def branchKey(
+      result: ProbeResult
+  ): Option[String] =
+    branchLineKey(result.bestReplyPv)
+      .orElse {
+        result.replyPvs.toList
+          .flatten
+          .flatMap(branchLineKey)
+          .headOption
+      }
+
+  private def branchLineKey(
+      moves: List[String]
+  ): Option[String] =
+    Option.when(moves.nonEmpty)(moves.flatMap(clean).mkString(" "))
+
+  private def matchesDefendedBranch(
+      result: ProbeResult,
+      expectedBranchKey: String
+  ): Boolean =
+    branchKey(result).contains(expectedBranchKey) ||
+      result.replyPvs.toList.flatten.exists(line =>
+        branchLineKey(line).contains(expectedBranchKey)
+      )
 
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan

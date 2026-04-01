@@ -161,8 +161,15 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("true_named_break_suppression passes certification for a late-middlegame clamp") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_true")),
-        probes = List(supportProbe(id = "probe_true"))
+        plan = evaluatedRestrictionPlan(List("probe_true_direct", "probe_true_validation")),
+        probes =
+          List(
+            supportProbe(
+              id = "probe_true_direct",
+              purpose = "defense_reply_multipv"
+            ),
+            supportProbe(id = "probe_true_validation")
+          )
       )
 
     assert(cert.certified, clue(cert))
@@ -171,15 +178,65 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
     assertEquals(cert.restrictionEvidence.namedAxis, "...c5")
     assertEquals(cert.defenderResources, List("f8e8", "a7a5"))
     assertEquals(cert.bestDefenseFound, Some("f8e8"))
+    assertEquals(cert.bestDefenseBranchKey, Some("f8e8 c1c8"))
     assert(cert.routePersistence.axisStillSuppressed, clue(cert))
+    assert(cert.routePersistence.directBestDefensePresent, clue(cert))
+    assert(cert.routePersistence.sameDefendedBranch, clue(cert))
     assertEquals(cert.counterplayReinflationRisk, "bounded_axis_only")
+  }
+
+  test("direct_best_defense_missing fails when only validation probes carry the suppression shell") {
+    val cert =
+      certification(
+        plan = evaluatedRestrictionPlan(List("probe_validation_only")),
+        probes = List(supportProbe(id = "probe_validation_only"))
+      )
+
+    assert(!cert.certified, clue(cert))
+    assert(cert.failsIf.contains("direct_best_defense_missing"), clue(cert))
+    assertEquals(cert.bestDefenseFound, None, clue(cert))
+    assert(!cert.routePersistence.directBestDefensePresent, clue(cert))
+  }
+
+  test("stitched_defended_branch fails when persistence is borrowed from a different defensive branch") {
+    val cert =
+      certification(
+        plan = evaluatedRestrictionPlan(List("probe_direct", "probe_validation_other_branch")),
+        probes =
+          List(
+            supportProbe(
+              id = "probe_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_validation_other_branch",
+              bestReplyPv = List("h7h5", "g2g4"),
+              replyPvs = Some(List(List("h7h5", "g2g4"), List("b7b5", "g2g4")))
+            )
+          )
+      )
+
+    assert(!cert.certified, clue(cert))
+    assert(cert.failsIf.contains("stitched_defended_branch"), clue(cert))
+    assert(cert.failsIf.contains("route_persistence_missing"), clue(cert))
+    assert(!cert.routePersistence.sameDefendedBranch, clue(cert))
   }
 
   test("hidden_freeing_break fails when more than one live axis survives") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_hidden_break")),
-        probes = List(supportProbe(id = "probe_hidden_break")),
+        plan = evaluatedRestrictionPlan(List("probe_hidden_break_direct", "probe_hidden_break_validation")),
+        probes =
+          List(
+            supportProbe(
+              id = "probe_hidden_break_direct",
+              purpose = "defense_reply_multipv"
+            ),
+            supportProbe(id = "probe_hidden_break_validation")
+          ),
         preventedPlans =
           List(
             preventedPlan(breakNeutralized = Some("...c5"), deniedSquare = "c5"),
@@ -195,11 +252,27 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("hidden_tactical_release fails when best defense revives forcing play") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_tactical_release")),
+        plan =
+          evaluatedRestrictionPlan(List("probe_tactical_release_direct", "probe_tactical_release_validation")),
         probes =
           List(
             supportProbe(
-              id = "probe_tactical_release",
+              id = "probe_tactical_release_direct",
+              purpose = "defense_reply_multipv",
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = List("Perpetual"),
+                    targetsDelta = TargetsDelta(List("g2"), Nil, Nil, List("c5")),
+                    planBlockersRemoved = List("...c5 break denied"),
+                    planPrereqsMet = List("queenside counterplay stays muted")
+                  )
+                ),
+              keyMotifs = List("...c5 break denied", "exchange sac resource")
+            ),
+            supportProbe(
+              id = "probe_tactical_release_validation",
               futureSnapshot =
                 Some(
                   FutureSnapshot(
@@ -223,13 +296,15 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("move_order_fragile_clamp fails when best defense collapses the shell") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_fragile")),
+        plan = evaluatedRestrictionPlan(List("probe_fragile_direct", "probe_fragile_validation")),
         probes =
           List(
             supportProbe(
-              id = "probe_fragile",
+              id = "probe_fragile_direct",
+              purpose = "defense_reply_multipv",
               collapseReason = Some("wrong order lets the c-file open")
-            )
+            ),
+            supportProbe(id = "probe_fragile_validation")
           )
       )
 
@@ -258,11 +333,16 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("waiting_move_only fails when no measurable restriction delta exists") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_waiting")),
+        plan = evaluatedRestrictionPlan(List("probe_waiting_direct", "probe_waiting_validation")),
         probes =
           List(
             supportProbe(
-              id = "probe_waiting",
+              id = "probe_waiting_direct",
+              purpose = "defense_reply_multipv",
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_waiting_validation",
               futureSnapshot =
                 Some(
                   FutureSnapshot(
@@ -292,8 +372,16 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("local_overreach_shell fails outside the narrow late-middlegame clearly-better slice") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_overreach")),
-        probes = List(supportProbe(id = "probe_overreach")),
+        plan = evaluatedRestrictionPlan(List("probe_overreach_direct", "probe_overreach_validation")),
+        probes =
+          List(
+            supportProbe(
+              id = "probe_overreach_direct",
+              purpose = "defense_reply_multipv",
+              futureSnapshot = None
+            ),
+            supportProbe(id = "probe_overreach_validation")
+          ),
         evalCp = 115,
         fen = HeavyPieceMiddlegameFen,
         ply = 18
@@ -308,14 +396,22 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
       certification(
         plan =
           evaluatedRestrictionPlan(
-            List("probe_reinflate"),
+            List("probe_reinflate_direct", "probe_reinflate_validation"),
             hypothesis =
               restrictionHypothesis(
                 name = "Leave Black with no counterplay forever",
                 executionSteps = List("Completely shut Black down and win by force.")
               )
           ),
-        probes = List(supportProbe(id = "probe_reinflate"))
+        probes =
+          List(
+            supportProbe(
+              id = "probe_reinflate_direct",
+              purpose = "defense_reply_multipv",
+              futureSnapshot = None
+            ),
+            supportProbe(id = "probe_reinflate_validation")
+          )
       )
 
     assert(!cert.certified, clue(cert))
@@ -325,8 +421,16 @@ class CounterplayAxisSuppressionCertificationTest extends FunSuite:
   test("pure_endgame_shell fails closed even when the same local clamp exists") {
     val cert =
       certification(
-        plan = evaluatedRestrictionPlan(List("probe_endgame")),
-        probes = List(supportProbe(id = "probe_endgame")),
+        plan = evaluatedRestrictionPlan(List("probe_endgame_direct", "probe_endgame_validation")),
+        probes =
+          List(
+            supportProbe(
+              id = "probe_endgame_direct",
+              purpose = "defense_reply_multipv",
+              futureSnapshot = None
+            ),
+            supportProbe(id = "probe_endgame_validation")
+          ),
         phase = "endgame",
         ply = 90,
         fen = PureEndgameFen

@@ -17,7 +17,9 @@ private[llm] object RestrictedDefenseConversionCertification:
   final case class RoutePersistence(
       bestDefenseStable: Boolean,
       futureSnapshotPersistent: Boolean,
-      counterplayStillCompressed: Boolean
+      counterplayStillCompressed: Boolean,
+      directBestDefensePresent: Boolean,
+      sameDefendedBranch: Boolean
   )
 
   final case class MoveOrderFragility(
@@ -30,6 +32,7 @@ private[llm] object RestrictedDefenseConversionCertification:
       restrictedDefenseEvidence: RestrictedDefenseEvidence,
       defenderResources: List[String],
       bestDefenseFound: Option[String],
+      bestDefenseBranchKey: Option[String],
       routePersistence: RoutePersistence,
       failsIf: List[String],
       moveOrderFragility: MoveOrderFragility,
@@ -66,17 +69,27 @@ private[llm] object RestrictedDefenseConversionCertification:
           .flatMap(result => result.bestReplyPv.headOption.flatMap(clean))
           .toList
           .headOption
+      val directBestDefensePresent =
+        directReplyResults.nonEmpty && bestDefenseFound.nonEmpty
+      val bestDefenseBranchKey =
+        directReplyResults.iterator.flatMap(branchKey).toList.headOption
+      val sameBranchReplyResults =
+        bestDefenseBranchKey match
+          case Some(branch) =>
+            directReplyResults.filter(result => matchesDefendedBranch(result, branch))
+          case None => Nil
       val bestReplyStable =
-        directReplyResults.nonEmpty &&
-          bestDefenseFound.nonEmpty &&
+        directBestDefensePresent &&
           directReplyResults.forall(hasReplyCoverage) &&
           directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           )
       val futureSnapshotPersistence =
-        directReplyResults.exists(result =>
+        sameBranchReplyResults.exists(result =>
           result.futureSnapshot.exists(isPositiveFutureSnapshot)
-        ) && directReplyResults.nonEmpty
+        )
+      val sameDefendedBranch =
+        directBestDefensePresent && futureSnapshotPersistence
       val relevantPreventedPlans =
         preventedPlans.filter(_.sourceScope == FactScope.Now)
       val counterplayScoreDrop =
@@ -100,7 +113,7 @@ private[llm] object RestrictedDefenseConversionCertification:
             moveQualityCompression &&
               (
                 counterplayScoreDrop >= CounterplayCompressionFloor ||
-                  directReplyResults.exists(result =>
+                  sameBranchReplyResults.exists(result =>
                     result.futureSnapshot.exists(snapshot =>
                       snapshot.resolvedThreatKinds.nonEmpty ||
                         snapshot.targetsDelta.strategicRemoved.nonEmpty ||
@@ -147,7 +160,9 @@ private[llm] object RestrictedDefenseConversionCertification:
         RoutePersistence(
           bestDefenseStable = bestReplyStable,
           futureSnapshotPersistent = futureSnapshotPersistence,
-          counterplayStillCompressed = counterplayStillCompressed
+          counterplayStillCompressed = counterplayStillCompressed,
+          directBestDefensePresent = directBestDefensePresent,
+          sameDefendedBranch = sameDefendedBranch
         )
       val conversionAdvantageReady =
         playerAdvantage(evalCp, isWhiteToMove) >= MinimumWinningAdvantageCp
@@ -157,6 +172,13 @@ private[llm] object RestrictedDefenseConversionCertification:
       val failsIf =
         List(
           Option.when(directReplyResults.isEmpty || bestDefenseFound.isEmpty)("pv_restatement_only"),
+          Option.when(
+            directBestDefensePresent &&
+              directReplyResults.exists(result =>
+                result.futureSnapshot.exists(isPositiveFutureSnapshot)
+              ) &&
+              !sameDefendedBranch
+          )("stitched_defended_branch"),
           Option.when(!conversionAdvantageReady)("local_to_global_overreach"),
           Option.when(!bestReplyStable)("cooperative_defense"),
           Option.when(!moveQualityCompression)("hidden_defensive_resource"),
@@ -170,14 +192,17 @@ private[llm] object RestrictedDefenseConversionCertification:
         restrictedDefenseEvidence = restrictedDefenseEvidence,
         defenderResources = defenderResources,
         bestDefenseFound = bestDefenseFound,
+        bestDefenseBranchKey = bestDefenseBranchKey,
         routePersistence = routePersistence,
         failsIf = failsIf,
         moveOrderFragility = moveOrderFragility,
         confidence =
           confidenceScore(
             conversionAdvantageReady = conversionAdvantageReady,
+            directBestDefensePresent = directBestDefensePresent,
             bestReplyStable = bestReplyStable,
             futureSnapshotPersistence = futureSnapshotPersistence,
+            sameDefendedBranch = sameDefendedBranch,
             moveQualityCompression = moveQualityCompression,
             counterplayStillCompressed = counterplayStillCompressed,
             distinctiveEnough = distinctiveEnough,
@@ -261,8 +286,10 @@ private[llm] object RestrictedDefenseConversionCertification:
 
   private def confidenceScore(
       conversionAdvantageReady: Boolean,
+      directBestDefensePresent: Boolean,
       bestReplyStable: Boolean,
       futureSnapshotPersistence: Boolean,
+      sameDefendedBranch: Boolean,
       moveQualityCompression: Boolean,
       counterplayStillCompressed: Boolean,
       distinctiveEnough: Boolean,
@@ -273,8 +300,10 @@ private[llm] object RestrictedDefenseConversionCertification:
     val signalCount =
       List(
         conversionAdvantageReady,
+        directBestDefensePresent,
         bestReplyStable,
         futureSnapshotPersistence,
+        sameDefendedBranch,
         moveQualityCompression,
         counterplayStillCompressed,
         distinctiveEnough,
@@ -285,6 +314,31 @@ private[llm] object RestrictedDefenseConversionCertification:
     val preventionBonus = math.min(0.05, preventedSignalCount * 0.02)
     val fragilityPenalty = if moveOrderFragility.fragile then 0.08 else 0.0
     (base + replyBonus + preventionBonus - fragilityPenalty).max(0.05).min(0.97)
+
+  private def branchKey(
+      result: ProbeResult
+  ): Option[String] =
+    branchLineKey(result.bestReplyPv)
+      .orElse {
+        result.replyPvs.toList
+          .flatten
+          .flatMap(branchLineKey)
+          .headOption
+      }
+
+  private def branchLineKey(
+      moves: List[String]
+  ): Option[String] =
+    Option.when(moves.nonEmpty)(moves.flatMap(clean).mkString(" "))
+
+  private def matchesDefendedBranch(
+      result: ProbeResult,
+      expectedBranchKey: String
+  ): Boolean =
+    branchKey(result).contains(expectedBranchKey) ||
+      result.replyPvs.toList.flatten.exists(line =>
+        branchLineKey(line).contains(expectedBranchKey)
+      )
 
   private def clean(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty)

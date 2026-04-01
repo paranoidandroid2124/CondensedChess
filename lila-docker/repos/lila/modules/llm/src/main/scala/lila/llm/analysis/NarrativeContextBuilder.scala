@@ -335,6 +335,17 @@ object NarrativeContextBuilder:
           ply = ply,
           fen = fen
         )
+      val dualAxisBindCertification =
+        DualAxisBindCertification.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove,
+          phase = phase,
+          ply = ply,
+          fen = fen
+        )
       val bestReplyStable =
         supportResults.nonEmpty &&
           refuteResults.isEmpty &&
@@ -357,6 +368,7 @@ object NarrativeContextBuilder:
           (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
           refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
           restrictedDefenseCertification.exists(_.moveOrderFragility.fragile) ||
+          dualAxisBindCertification.exists(_.moveOrderFragility.fragile) ||
           (
             supportResults.nonEmpty &&
               supportResults.exists(hasReplyCoverage) &&
@@ -368,13 +380,21 @@ object NarrativeContextBuilder:
         themeL1 = plan.themeL1,
         subplanId = plan.subplanId,
         evidenceTier =
-          CounterplayAxisSuppressionCertification.playerFacingEvidenceTier(
-            RestrictedDefenseConversionCertification.playerFacingEvidenceTier(
-              evidenceTierOf(plan.status),
-              restrictedDefenseCertification
-            ),
-            counterplayAxisCertification
-          ),
+          {
+            val restrictedDefenseTier =
+              RestrictedDefenseConversionCertification.playerFacingEvidenceTier(
+                evidenceTierOf(plan.status),
+                restrictedDefenseCertification
+              )
+            dualAxisBindCertification match
+              case Some(cert) if restrictedDefenseTier == "evidence_backed" =>
+                if cert.certified then "evidence_backed" else "deferred"
+              case _ =>
+                CounterplayAxisSuppressionCertification.playerFacingEvidenceTier(
+                  restrictedDefenseTier,
+                  counterplayAxisCertification
+                )
+          },
         supportProbeCount = supportResults.size,
         refuteProbeCount = refuteResults.size,
         bestReplyStable = bestReplyStable,
@@ -391,7 +411,8 @@ object NarrativeContextBuilder:
             counterBreakNeutralized = counterBreakNeutralized,
             moveOrderSensitive = moveOrderSensitive,
             restrictedDefenseCertification = restrictedDefenseCertification,
-            counterplayAxisCertification = counterplayAxisCertification
+            counterplayAxisCertification = counterplayAxisCertification,
+            dualAxisBindCertification = dualAxisBindCertification
           )
       )
     }
@@ -478,7 +499,8 @@ object NarrativeContextBuilder:
       counterBreakNeutralized: Boolean,
       moveOrderSensitive: Boolean,
       restrictedDefenseCertification: Option[RestrictedDefenseConversionCertification.Contract],
-      counterplayAxisCertification: Option[CounterplayAxisSuppressionCertification.Contract]
+      counterplayAxisCertification: Option[CounterplayAxisSuppressionCertification.Contract],
+      dualAxisBindCertification: Option[DualAxisBindCertification.Contract]
   ): Double =
     val base =
       tier match
@@ -508,7 +530,15 @@ object NarrativeContextBuilder:
           else -0.10
         )
         .getOrElse(0.0)
-    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus - refutePenalty - sensitivityPenalty)
+    val dualAxisBindBonus =
+      dualAxisBindCertification
+        .map(cert =>
+          if cert.certified then 0.06
+          else if cert.persistenceAfterBestDefense && cert.routeContinuity.futureSnapshotPersistent then -0.06
+          else -0.14
+        )
+        .getOrElse(0.0)
+    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus + dualAxisBindBonus - refutePenalty - sensitivityPenalty)
       .max(0.0)
       .min(0.98)
 

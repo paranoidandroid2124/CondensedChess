@@ -148,12 +148,51 @@ class RestrictedDefenseConversionCertificationTest extends FunSuite:
 
     assert(cert.certified, clue(cert))
     assertEquals(cert.bestDefenseFound, Some("g7g6"))
+    assertEquals(cert.bestDefenseBranchKey, Some("g7g6 g3g7"))
     assertEquals(cert.defenderResources, List("g7g6", "c7c6"))
     assertEquals(cert.restrictedDefenseEvidence.defenderResourceCount, 2)
     assertEquals(cert.restrictedDefenseEvidence.counterplayScoreDrop, 120)
     assert(cert.routePersistence.bestDefenseStable, clue(cert))
     assert(cert.routePersistence.futureSnapshotPersistent, clue(cert))
+    assert(cert.routePersistence.directBestDefensePresent, clue(cert))
+    assert(cert.routePersistence.sameDefendedBranch, clue(cert))
     assert(!cert.moveOrderFragility.fragile, clue(cert))
+  }
+
+  test("stitched_defended_branch fails certification when persistence is borrowed from a different defensive branch") {
+    val cert =
+      certification(
+        plan = evaluatedConversionPlan(List("probe_direct_best", "probe_other_branch")),
+        probes =
+          List(
+            replyProbe(
+              id = "probe_direct_best",
+              bestReplyPv = List("g7g6", "g3g7"),
+              replyPvs = Some(List(List("g7g6", "g3g7"))),
+              futureSnapshot = None
+            ),
+            replyProbe(
+              id = "probe_other_branch",
+              bestReplyPv = List("c7c6", "g3g7"),
+              replyPvs = Some(List(List("c7c6", "g3g7"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = Nil,
+                    targetsDelta = TargetsDelta(Nil, Nil, List("g7"), Nil),
+                    planBlockersRemoved = List("defender_trade_complete"),
+                    planPrereqsMet = List("pawn_ending_ready")
+                  )
+                )
+            )
+          )
+      )
+
+    assert(!cert.certified, clue(cert))
+    assert(cert.failsIf.contains("stitched_defended_branch"), clue(cert))
+    assert(cert.failsIf.contains("route_persistence_missing"), clue(cert))
+    assert(!cert.routePersistence.sameDefendedBranch, clue(cert))
   }
 
   test("cooperative_plan_fake fails certification when best defense is not actually identified") {

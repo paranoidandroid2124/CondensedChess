@@ -10,6 +10,13 @@ It complements
 by specifying how decisive-move truth is judged after the runtime pipeline
 produces its surfaces.
 
+Current program mode is maintenance-only. This file is policy, not frontier
+status; use
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
+and
+[`CommentaryTrustHardening.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
+for active status and re-review triggers.
+
 ## Core Rule
 
 Truth comes before prose richness.
@@ -140,11 +147,15 @@ The following are automatic truth-gate blockers:
 - a maintenance move is surfaced as if it were the original investment
 - a conversion move is surfaced as compensation rather than conversion
 - a restricted-defense conversion claim is surfaced as stable followthrough
-  without best-defense-stable certification, or is revived from support-only
-  carriers after certification failed closed
+  without direct best-defense branch proof plus same-branch persistence, or is
+  revived from support-only carriers after certification failed closed
 - a bounded counterplay-axis suppression claim is surfaced as whole-position
-  `no-counterplay`, squeeze, or winning-route truth, or is revived from
-  support-only carriers after axis certification failed closed
+  `no-counterplay`, squeeze, or winning-route truth, without direct
+  best-defense branch proof, or is revived from support-only carriers after
+  axis certification failed closed
+- a bounded dual-axis bind claim is surfaced without both axes individually
+  carrying measurable burden, without direct best-defense proof, or with
+  persistence / continuation stitched from a different defended branch
 - compensation-positive prose appears on a move that does not own investment
   truth
 - a low-confidence blunder is narrated as if the player had a verified
@@ -318,9 +329,10 @@ plus the local quality-audit rerun artifacts referenced there.
     followthrough
   - that certification must be based on bounded direct-reply evidence
     (`convert_reply_multipv` / `defense_reply_multipv`), compressed defender
-    resources, concrete/stable best defense, future-snapshot persistence, and
-    counterplay suppression
+    resources, concrete/stable best defense, future-snapshot persistence on
+    that same defended branch, and counterplay suppression
   - PV paraphrase alone is not certification
+  - cross-branch stitched persistence is not certification
   - uncertified or move-order-fragile conversion experiments must downgrade
     before Chronicle / Bookmaker / Active / whole-game replay, and support-only
     carriers may not re-inflate them afterward
@@ -332,11 +344,13 @@ plus the local quality-audit rerun artifacts referenced there.
     one named break or entry axis, not whole-position `no-counterplay`
   - certification must be based on the narrow B2b slice:
     late middlegame, clearly-better eval posture, route-denial or
-    long-term-restraint validation, concrete/stable best defense,
-    future-snapshot persistence, no hidden freeing break, no tactical release,
-    and no move-order fragility
+    long-term-restraint validation, concrete direct best defense,
+    future-snapshot persistence on that same defended branch, no hidden freeing
+    break, no tactical release, and no move-order fragility
   - PV paraphrase, quiet waiting moves, or local restraint without measured
     counterplay compression are not certification
+  - validation-only corroboration or cross-branch stitched persistence are not
+    certification
   - certified suppression may stay only on the existing move-delta planner
     lane (`WhyThis`, and existing move-delta `WhatChanged` rules when they are
     otherwise legal); raw `prevented_plan` forcing shells may not override that
@@ -344,6 +358,31 @@ plus the local quality-audit rerun artifacts referenced there.
   - uncertified suppression experiments must downgrade before Chronicle /
     Bookmaker / Active / whole-game replay, and support-only carriers may not
     re-inflate them afterward
+- bounded dual-axis bind is planner-gated too:
+  - only `RestrictionProphylaxis` strategic experiments with backend-only
+    dual-axis certification may remain `evidence_backed` for B3b player-facing
+    bind claims
+  - the certified claim scope is still local only:
+    one named break axis plus one independent entry axis, not whole-position
+    `no-counterplay`, global squeeze, or winning-route discovery
+  - certification must be based on the narrow B3b slice:
+    queen-light late middlegame, clearly-better eval posture, measurable
+    `break suppression + entry denial` on both axes individually, concrete
+    direct best defense, future-snapshot persistence plus bounded continuation
+    on that same defended branch, no hidden freeing axis, no tactical release,
+    no fortress-like static hold, and no move-order fragility
+  - PV paraphrase, quiet waiting moves, static binds without bounded progress,
+    mobility-cage/color-complex overreading, or route denial without
+    independent-axis proof are not certification
+  - validation-only corroboration may not stand in for direct best-defense
+    evidence, and cross-branch stitched proof bundles are not certification
+  - certified dual-axis bind may stay only on bounded planner-owned `WhyThis`;
+    existing move-delta `WhatChanged` remains legal only when independently
+    admissible, and B3b opens no new `WhyNow`, whole-position, or whole-game
+    owner lane
+  - uncertified dual-axis shells must downgrade before Chronicle / Bookmaker /
+    Active / whole-game replay, and support-only carriers may not re-inflate
+    them afterward
 - Bookmaker and Active may use compensation-positive language only when the
   contract allows compensation framing.
 - fake compensation suppression and real investment exemplar preservation are

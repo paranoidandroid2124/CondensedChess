@@ -31,6 +31,7 @@ class RestrictedDefenseConversionBroadValidationTest extends FunSuite:
     case PvRestatement
     case HiddenDefensiveResource
     case MoveOrderFragility
+    case StitchedDefendedBranch
     case LocalToGlobalOverreach
     case SurfaceReinflation
 
@@ -349,6 +350,34 @@ class RestrictedDefenseConversionBroadValidationTest extends FunSuite:
         evalCp = 255,
         expectedCertified = false,
         expectedFails = Set("move_order_fragility", "cooperative_defense")
+      ),
+      CorpusScenario(
+        id = "stitched_defended_branch_conversion",
+        planId = "stitched_defended_branch_conversion",
+        planName = "A conversion shell with stitched persistence",
+        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        phase = PhaseCell.TransitionEndgameAdjacent,
+        evalPosture = EvalPostureCell.ClearlyWinning,
+        texture = TextureCell.TechnicalSimplification,
+        criticisms = Set(CriticismCell.StitchedDefendedBranch),
+        probes =
+          List(
+            replyProbe(
+              id = "probe_direct_best",
+              bestReplyPv = List("g7g6", "g3g7"),
+              replyPvs = Some(List(List("g7g6", "g3g7"))),
+              futureSnapshot = None
+            ),
+            replyProbe(
+              id = "probe_other_branch",
+              bestReplyPv = List("c7c6", "g3g7"),
+              replyPvs = Some(List(List("c7c6", "g3g7")))
+            )
+          ),
+        preventedPlans = List(preventedPlan(counterplayScoreDrop = 120)),
+        evalCp = 250,
+        expectedCertified = false,
+        expectedFails = Set("stitched_defended_branch", "route_persistence_missing")
       )
     )
 
@@ -636,6 +665,7 @@ class RestrictedDefenseConversionBroadValidationTest extends FunSuite:
         CriticismCell.PvRestatement -> CoverageState.Covered,
         CriticismCell.HiddenDefensiveResource -> CoverageState.Covered,
         CriticismCell.MoveOrderFragility -> CoverageState.Covered,
+        CriticismCell.StitchedDefendedBranch -> CoverageState.Covered,
         CriticismCell.LocalToGlobalOverreach -> CoverageState.Covered,
         CriticismCell.SurfaceReinflation -> CoverageState.Covered
       )

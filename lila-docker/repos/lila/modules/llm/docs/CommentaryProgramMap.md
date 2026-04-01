@@ -9,7 +9,7 @@ Use it when a new session needs to understand:
 - what is already closed and must not be reopened casually
 - what CQF means
 - which document is canonical for runtime audit and truth signoff
-- what the current active work item is
+- what the current operating state is
 
 This file is an index and status map. It is not the canonical runtime audit.
 
@@ -45,6 +45,24 @@ This file is an index and status map. It is not the canonical runtime audit.
 - Purpose:
   trust-risk inventory, CTH audit baseline, hardening priorities, and Track 5
   defer rationale
+
+## Current Canonical State
+
+- Step 1-7:
+  closed and signoff-ready
+- CQF Track 0-4:
+  closed or maintenance-only
+- CQF Track 5:
+  deferred
+- CTH-A:
+  core complete, maintenance-only
+- CTH-B:
+  bounded B1 / B2 / B3 slices implemented and adversarial-review green inside
+  their current charters
+- Current operating mode:
+  maintenance-only re-review, not a new automatic frontier
+- Reopen broader CTH work only if a fresh runtime change touches an audited
+  seam or a new trust regression appears
 
 ## What Step 1-7 Closed
 
@@ -127,19 +145,21 @@ as the canonical trust-risk map.
 
 Current status:
 
-- `CTH-A core complete`
-- `CTH-A maintenance-only` for residual watch and regression-pack upkeep
-- `CTH-B0 recon baseline complete`
-- `CTH-B1 restricted-defense conversion certification` is implemented as the
-  current narrow trust-hardening slice
-- `CTH-B1b restricted-defense broad validation / corpus expansion` is green for
-  the targeted late-middlegame / transition matrix, criticism pack, and
-  cross-surface validation
-- `CTH-B2a no-counterplay / quiet squeeze certification design baseline` is now
-  the canonical design/recon charter for the next CTH-B frontier
-- `CTH-B2b late-middlegame prophylactic clamp / named-break suppression
-  certification` is now implemented as the current narrow B2 runtime slice
-- broader `CTH-B` remains incremental/research-bound beyond B1/B1b
+- `CTH-A`:
+  core complete, maintenance-only
+- `CTH-B0`:
+  recon baseline complete
+- `CTH-B1` / `CTH-B1b`:
+  bounded restricted-defense conversion slice implemented, broad validation and
+  reverse adversarial review green
+- `CTH-B2a` / `CTH-B2b` / close review:
+  bounded named-break / entry-axis suppression slice implemented and
+  `close-ready` inside that narrow charter
+- `CTH-B3a` / `CTH-B3b`:
+  bounded dual-axis clamp / bind slice implemented and adversarial-review green
+  inside that narrow charter
+- broader `CTH-B`:
+  paused; do not open a new frontier automatically
 
 ### CQF Tracks
 
@@ -263,29 +283,14 @@ new failure class.
 
 Track 5 remains deferred.
 
-The current trust posture is:
+The current trust posture is maintenance-only:
 
-- CTH-A is no longer the active implementation frontier; it is maintenance-only
-- if new trust regressions appear, update
+- CTH-A is no longer an active implementation frontier
+- bounded CTH-B1 / B2 / B3 slices are implemented and adversarial-review green
+- broader squeeze / no-counterplay / strategic-discovery expansion is paused
+- if a fresh runtime change reopens an audited seam, update
   [CommentaryTrustHardening.md](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
-  and extend the Step 6 / Step 7 regression packs
-- CTH-B0 recon baseline is now the canonical starting point for any future
-  strategic-discovery work
-- the current implemented `CTH-B1` slice is
-  `restricted-defense conversion certification`
-- the current validation baseline on top of B1 is `CTH-B1b`, which broadens the
-  corpus and real-surface checks without adding new runtime semantics
-- the current `CTH-B2` baseline now consists of:
-  `CTH-B2a` design charter +
-  `CTH-B2b` narrow late-middlegame named-break / entry-axis suppression
-  certification
-- `CTH-B2b` is intentionally bounded:
-  planner-owned local suppression only, no whole-position no-counterplay, no
-  whole-game positive wrapper reuse
-- any future B2 runtime work should extend from the B2b bounded slice rather
-  than broad squeeze prose rollout
-- any broader strategic-depth work after B1/B1b still belongs to `CTH-B` and
-  must remain staged trust hardening rather than lesson extraction
+  and extend the relevant regression packs before reopening the frontier
 
 ## How To Read The Docs In A New Session
 

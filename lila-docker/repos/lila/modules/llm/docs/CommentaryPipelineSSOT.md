@@ -10,6 +10,13 @@ first.
 It intentionally describes the latest live pipeline and deletes the older
 dated update-log style material. Historical side paths are not canonical.
 
+Current program mode is maintenance-only. This file is the runtime source of
+truth, not the active-work tracker; use
+[`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
+and
+[`CommentaryTrustHardening.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
+for frontier status and re-review triggers.
+
 ## Authority
 
 - Canonical audit for commentary-analysis in `modules/llm`
@@ -1296,6 +1303,36 @@ Current rules:
     certified evidence-backed restriction-prophylaxis plans may remain in the
     quiet move-delta `WhyThis` path, while threat-owned forcing defense remains
     unchanged and uncertified shells stay outside the primary pool
+  - dual-axis bind certification is now runtime-scoped on top of that same
+    restriction-prophylaxis lane:
+    `NarrativeContextBuilder` evaluates a backend-only
+    `DualAxisBindCertification` contract for
+    `ThemeL1.RestrictionProphylaxis` experiments with
+    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` when current
+    `PreventedPlan` evidence shows one named break axis plus one independent
+    entry axis
+  - this B3b slice is intentionally narrower than B2b:
+    it accepts only queen-light late-middlegame, clearly-better positions where
+    the named break axis and the independent entry axis each show measurable
+    burden, direct-reply best defense is concrete/stable, future-snapshot
+    persistence plus bounded continuation stay on that same defended branch, and
+    no extra live freeing axis, tactical release, fortress-like static hold, or
+    move-order fragility survives
+  - uncertified dual-axis contracts fail closed before planner reuse:
+    when the dual-axis contract is present and uncertified,
+    `NarrativeContextBuilder` forces the experiment evidence tier to
+    `deferred` before `mainStrategicPlans` are filtered for shared
+    planner/Chronicle/Bookmaker/Active reuse
+  - validation probes may corroborate the shell, but they may not replace
+    direct best-defense evidence or stitch persistence / continuation from a
+    different defended branch; explicit fail-closed reasons include
+    `dual_axis_burden_missing`, `direct_best_defense_missing`, and
+    `stitched_defended_branch`
+  - planner ownership still stays on the existing quiet move-delta lane:
+    certified dual-axis plans may surface only as bounded planner-owned
+    `WhyThis`; existing move-delta `WhatChanged` remains legal only when it was
+    already admissible on its own lane, and no new whole-position or whole-game
+    owner path is opened
   - no new public payload/schema field exists for this slice; the certification
     contract is backend-only
   - removed latent probe purposes (`latent_plan_immediate`,
@@ -1368,8 +1405,13 @@ Primary files:
   current eval posture are all read from the existing narrative build inputs
 - the helper records a bounded internal contract:
   strategy hypothesis, restricted-defense evidence, defender resources, best
-  defense found, route persistence, failure reasons, move-order fragility,
-  confidence, and evidence sources
+  defense found, defended-branch key, route persistence (including direct
+  best-defense presence and same-defended-branch continuity), failure reasons,
+  move-order fragility, confidence, and evidence sources
+- certification stays bounded to direct best-defense reality:
+  future-snapshot persistence must survive on that same defended branch rather
+  than being stitched from a different direct-reply fragment; explicit
+  fail-closed reasons now include `stitched_defended_branch`
 - `NarrativeContextBuilder` applies the contract before exposing
   `mainStrategicPlans`; uncertified conversion experiments become `deferred`
   instead of remaining `evidence_backed`
@@ -1395,14 +1437,20 @@ Primary files:
   strategy hypothesis, claim scope (`break_axis` / `entry_axis`),
   squeeze archetype, restriction evidence, enumerated defender resources,
   remaining freeing breaks / tactical releases, best defense found,
-  route persistence, fail reasons, move-order fragility, reinflation risk,
-  confidence, and evidence sources
+  defended-branch key, route persistence (including direct best-defense
+  presence and same-defended-branch continuity), fail reasons, move-order
+  fragility, reinflation risk, confidence, and evidence sources
 - certification is late-middlegame / clearly-better only:
   whole-position `no-counterplay`, fortress claims, and broad squeeze shells
-  remain outside admissible positive scope
+  remain outside admissible positive scope, and a positive B2b shell now
+  requires both route-denial / restraint validation and concrete direct
+  best-defense evidence on the same defended branch
 - `NarrativeContextBuilder` applies the B2b contract before exposing
   `mainStrategicPlans`; uncertified suppression experiments become `deferred`
   instead of remaining `evidence_backed`
+- validation-only suppression shells and cross-branch stitched persistence
+  bundles fail closed at that builder gate with explicit reasons
+  `direct_best_defense_missing` or `stitched_defended_branch`
 - `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
   gate, so Chronicle / Bookmaker / Active reuse the same downgraded pool and
   whole-game helpers never see a revived positive shell
@@ -1410,6 +1458,53 @@ Primary files:
   for already-certified suppression plans, `prevented_plan` support no longer
   overrides the quiet move-delta `WhyThis` owner; concrete threat-based forcing
   defense is unchanged
+
+### Dual-axis bind certification
+
+- backend-only helper `DualAxisBindCertification` gates only the first B3 slice:
+  `RestrictionProphylaxis` strategic experiments with
+  `BreakPrevention` / `KeySquareDenial` when current `PreventedPlan` evidence
+  shows one named break axis plus one independent entry axis
+- the helper reuses the existing narrative build inputs instead of opening a new
+  runtime lane:
+  `PlanEvidenceEvaluator` output, validated probe purposes
+  (`route_denial_validation`, `long_term_restraint_validation`,
+  `defense_reply_multipv`, `reply_multipv`, `convert_reply_multipv`),
+  `PreventedPlan` data, and current phase / ply / FEN metadata all come from
+  `NarrativeContextBuilder`
+- the helper records a bounded internal contract:
+  strategy hypothesis, local claim scope (`dual_axis_local`), primary and
+  corroborating axes, axis independence, bind archetype, restriction evidence
+  (including per-axis burden flags), enumerated defender resources, remaining
+  freeing axes / tactical releases, best defense found, defended-branch key,
+  persistence after best defense, route continuity (including direct
+  best-defense presence and same-defended-branch continuity), fortress risk,
+  move-order fragility, reinflation risk, fail reasons, confidence, and
+  evidence sources
+- certification is intentionally narrower than B2b:
+  queen-light late middlegame only, clearly-better posture only, dual-axis
+  `break suppression + entry denial` only; both axes must each carry
+  measurable restriction burden, direct best-defense evidence is mandatory, the
+  bounded continuation proof must stay on the same defended branch, and
+  whole-position `no-counterplay`, fortress-break, color-complex positives,
+  mobility-cage positives, and whole-game positive reuse all remain outside
+  admissible positive scope
+- `NarrativeContextBuilder` applies the B3b contract after the
+  restricted-defense evidence-tier gate and before the B2b single-axis
+  player-facing tier is finalized; when the dual-axis contract exists and is
+  uncertified, the experiment becomes `deferred` instead of remaining
+  `evidence_backed`
+- validation-only shells, single-axis burden shells, and cross-branch stitched
+  proof bundles fail closed at that builder gate rather than borrowing broader
+  validation support into a positive B3b certification
+- `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
+  gate, so Chronicle / Bookmaker / Active all consume the same downgraded pool
+  and whole-game helpers never see a revived positive dual-axis shell
+- `QuestionFirstCommentaryPlanner` reuses the same containment rule already used
+  for certified restriction-prophylaxis clamps:
+  dual-axis positives may surface only as bounded planner-owned `WhyThis`,
+  while uncertified shells may not re-inflate into forcing-defense, payoff,
+  wrap-up, or whole-position owner lanes
 
 ### Compensation normalization
 
@@ -1709,6 +1804,7 @@ Current owner map for Stage-4 surface uplift:
 - live owners:
   - `PlanEvidenceEvaluator`
   - `RestrictedDefenseConversionCertification`
+  - `DualAxisBindCertification`
   - `PlayerFacingTruthModePolicy`
   - `MainPathMoveDeltaClaimBuilder`
   - `QuietMoveIntentBuilder`
@@ -1732,6 +1828,7 @@ Primary files:
 - `ui/analyse/src/bookmaker.ts`
 - `ui/analyse/src/bookmaker/responsePayload.ts`
 - `modules/llm/src/main/scala/lila/llm/analysis/RestrictedDefenseConversionCertification.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/DualAxisBindCertification.scala`
 - `ui/analyse/src/narrative/narrativeCtrl.ts`
 
 ## Source-of-Truth Document Set

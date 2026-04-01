@@ -26,15 +26,19 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
     case ProphylacticClamp
     case NamedBreakSuppression
     case RouteDenialShell
+    case ValidationOnlyShell
+    case StitchedBranchShell
     case HiddenBreakFake
     case TacticalReleaseCase
     case QuietImprovementOnly
 
   private enum CriticismCell:
+    case DirectBestDefenseMissing
     case HiddenFreeingBreak
     case HiddenTacticalRelease
     case MoveOrderFragility
     case PvRestatementOnly
+    case StitchedDefendedBranch
     case WaitingMoveDisguisedAsPlan
     case LocalToGlobalOverreach
     case SurfaceReinflation
@@ -213,7 +217,13 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_true_break",
+              id = "probe_true_break_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4")))
+            ),
+            supportProbe(
+              id = "probe_true_break_validation",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4")))
             )
@@ -239,7 +249,15 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_true_entry",
+              id = "probe_true_entry_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("c8d8", "c1c8"),
+              replyPvs = Some(List(List("c8d8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None,
+              keyMotifs = List("b4 entry denied", "route denial")
+            ),
+            supportProbe(
+              id = "probe_true_entry_validation",
               purpose = ThemePlanProbePurpose.RouteDenialValidation,
               bestReplyPv = List("c8d8", "c1c8"),
               replyPvs = Some(List(List("c8d8", "c1c8"), List("a7a5", "g2g4"))),
@@ -269,6 +287,65 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         expectedFails = Set.empty
       ),
       CorpusScenario(
+        id = "validation_only_shell",
+        planId = "validation_only_shell",
+        planName = "Validation-only clamp shell",
+        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        phaseCell = PhaseCell.LateMiddlegame,
+        evalPosture = EvalPostureCell.ClearlyBetter,
+        texture = TextureCell.ValidationOnlyShell,
+        criticisms = Set(CriticismCell.DirectBestDefenseMissing),
+        phase = "middlegame",
+        ply = 28,
+        fen = QueenlessLateMiddlegameFen,
+        probes =
+          List(
+            supportProbe(
+              id = "probe_validation_only",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4")))
+            )
+          ),
+        preventedPlans = List(preventedPlan()),
+        evalCp = 180,
+        expectedCertified = false,
+        expectedFails = Set("direct_best_defense_missing", "route_persistence_missing")
+      ),
+      CorpusScenario(
+        id = "stitched_defended_branch",
+        planId = "stitched_defended_branch",
+        planName = "Clamp shell with stitched persistence",
+        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        phaseCell = PhaseCell.LateMiddlegame,
+        evalPosture = EvalPostureCell.ClearlyBetter,
+        texture = TextureCell.StitchedBranchShell,
+        criticisms = Set(CriticismCell.StitchedDefendedBranch),
+        phase = "middlegame",
+        ply = 28,
+        fen = QueenlessLateMiddlegameFen,
+        probes =
+          List(
+            supportProbe(
+              id = "probe_stitched_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_stitched_validation",
+              bestReplyPv = List("h7h5", "g2g4"),
+              replyPvs = Some(List(List("h7h5", "g2g4"), List("b7b5", "g2g4")))
+            )
+          ),
+        preventedPlans = List(preventedPlan()),
+        evalCp = 182,
+        expectedCertified = false,
+        expectedFails = Set("stitched_defended_branch", "route_persistence_missing")
+      ),
+      CorpusScenario(
         id = "hidden_freeing_break",
         planId = "hidden_break_shell",
         planName = "Clamp the queenside",
@@ -284,7 +361,14 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_hidden_break",
+              id = "probe_hidden_break_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_hidden_break_validation",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4")))
             )
@@ -310,7 +394,24 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_tactical_release",
+              id = "probe_tactical_release_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = List("Perpetual"),
+                    targetsDelta = TargetsDelta(List("g2"), Nil, Nil, List("c5")),
+                    planBlockersRemoved = List("...c5 break denied"),
+                    planPrereqsMet = List("queenside counterplay stays muted")
+                  )
+                ),
+              keyMotifs = List("...c5 break denied", "exchange sac resource")
+            ),
+            supportProbe(
+              id = "probe_tactical_release_validation",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
               futureSnapshot =
@@ -347,11 +448,13 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_fragile",
+              id = "probe_fragile_direct",
+              purpose = "defense_reply_multipv",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
               collapseReason = Some("wrong order lets the c-file open")
-            )
+            ),
+            supportProbe(id = "probe_fragile_validation", bestReplyPv = List("f8e8", "c1c8"), replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))))
           ),
         preventedPlans = List(preventedPlan()),
         evalCp = 180,
@@ -403,7 +506,15 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_waiting",
+              id = "probe_waiting_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None,
+              keyMotifs = List("quiet move")
+            ),
+            supportProbe(
+              id = "probe_waiting_validation",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
               futureSnapshot =
@@ -447,7 +558,14 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_slight_edge",
+              id = "probe_slight_edge_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("f8e8", "c1c8"),
+              replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4"))),
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_slight_edge_validation",
               bestReplyPv = List("f8e8", "c1c8"),
               replyPvs = Some(List(List("f8e8", "c1c8"), List("a7a5", "g2g4")))
             )
@@ -473,7 +591,14 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_heavy_piece",
+              id = "probe_heavy_piece_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("c5d6", "c3b5"),
+              replyPvs = Some(List(List("c5d6", "c3b5"), List("a7a6", "c3b5"))),
+              futureSnapshot = None
+            ),
+            supportProbe(
+              id = "probe_heavy_piece_validation",
               bestReplyPv = List("c5d6", "c3b5"),
               replyPvs = Some(List(List("c5d6", "c3b5"), List("a7a6", "c3b5")))
             )
@@ -499,7 +624,15 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_transition",
+              id = "probe_transition_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("g7g8", "f2e3"),
+              replyPvs = Some(List(List("g7g8", "f2e3"), List("d6c5", "f2e3"))),
+              futureSnapshot = None,
+              keyMotifs = List("dark-square entry denied", "route denial")
+            ),
+            supportProbe(
+              id = "probe_transition_validation",
               purpose = ThemePlanProbePurpose.RouteDenialValidation,
               bestReplyPv = List("g7g8", "f2e3"),
               replyPvs = Some(List(List("g7g8", "f2e3"), List("d6c5", "f2e3"))),
@@ -544,7 +677,15 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         probes =
           List(
             supportProbe(
-              id = "probe_pure_endgame",
+              id = "probe_pure_endgame_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("d7e6", "e4d4"),
+              replyPvs = Some(List(List("d7e6", "e4d4"), List("f7f6", "e4d4"))),
+              futureSnapshot = None,
+              keyMotifs = List("entry denial", "king route denied")
+            ),
+            supportProbe(
+              id = "probe_pure_endgame_validation",
               purpose = ThemePlanProbePurpose.RouteDenialValidation,
               bestReplyPv = List("d7e6", "e4d4"),
               replyPvs = Some(List(List("d7e6", "e4d4"), List("f7f6", "e4d4"))),
@@ -937,6 +1078,8 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
           ),
         unsafe =
           Set(
+            TextureCell.ValidationOnlyShell,
+            TextureCell.StitchedBranchShell,
             TextureCell.HiddenBreakFake,
             TextureCell.TacticalReleaseCase,
             TextureCell.QuietImprovementOnly
@@ -984,6 +1127,8 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         TextureCell.ProphylacticClamp -> CoverageState.Covered,
         TextureCell.NamedBreakSuppression -> CoverageState.Covered,
         TextureCell.RouteDenialShell -> CoverageState.Covered,
+        TextureCell.ValidationOnlyShell -> CoverageState.Unsafe,
+        TextureCell.StitchedBranchShell -> CoverageState.Unsafe,
         TextureCell.HiddenBreakFake -> CoverageState.Unsafe,
         TextureCell.TacticalReleaseCase -> CoverageState.Unsafe,
         TextureCell.QuietImprovementOnly -> CoverageState.Unsafe
@@ -992,10 +1137,12 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
     assertEquals(
       criticismCoverage,
       Map(
+        CriticismCell.DirectBestDefenseMissing -> CoverageState.Covered,
         CriticismCell.HiddenFreeingBreak -> CoverageState.Covered,
         CriticismCell.HiddenTacticalRelease -> CoverageState.Covered,
         CriticismCell.MoveOrderFragility -> CoverageState.Covered,
         CriticismCell.PvRestatementOnly -> CoverageState.Covered,
+        CriticismCell.StitchedDefendedBranch -> CoverageState.Covered,
         CriticismCell.WaitingMoveDisguisedAsPlan -> CoverageState.Covered,
         CriticismCell.LocalToGlobalOverreach -> CoverageState.Covered,
         CriticismCell.SurfaceReinflation -> CoverageState.Covered
