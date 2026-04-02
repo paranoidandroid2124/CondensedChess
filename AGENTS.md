@@ -145,6 +145,10 @@ follow these rules strictly:
 ### Verification discipline
 - After package moves or naming cleanup, run compile plus targeted tests before
   reporting the work as done.
+- Do **not** run multiple `sbt` / `testOnly` / `runMain` commands in parallel
+  against the same worktree; keep build and runner invocations serial because
+  Windows `sbt --client` boot, Zinc/`target` state, and temp artifact writes
+  race each other in this repo.
 - Do **not** claim quality gain, acceptance, or signoff from a mixed-worktree
   diff. If the result is confounded by unrelated drift, report it as isolation
   only, not as acceptance.

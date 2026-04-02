@@ -105,6 +105,13 @@ private[llm] object LocalFileEntryBindCertification:
       defensiveSufficiency: Option[Int]
   )
 
+  private final case class BranchIdentityResolution(
+      selectedKey: Option[String],
+      bestDefenseResult: Option[ProbeResult],
+      bestDefenseFound: Option[String],
+      ambiguousDefendedBranch: Boolean
+  )
+
   private val ApplicableSubplans =
     Set(SubplanId.BreakPrevention.id, SubplanId.KeySquareDenial.id)
   private val DirectReplyPurposes =
@@ -126,6 +133,7 @@ private[llm] object LocalFileEntryBindCertification:
   private val BreakNeutralizationFloor = 70
   private val RestrictedResourceCap = 2
   private val MaxQueensForPositiveSlice = 1
+  private val BranchKeyMoveCount = 2
   private val ClaimScope = "local_file_entry"
   private val HighReinflationRisk = "high"
   private val BoundedFileEntryOnly = "bounded_file_entry_only"
@@ -206,16 +214,10 @@ private[llm] object LocalFileEntryBindCertification:
             DirectReplyPurposes.contains(normalize(purpose))
           )
         )
-      val bestDefenseResult =
-        directReplyResults.find(result =>
-          hasReplyCoverage(result) &&
-            result.bestReplyPv.headOption.flatMap(clean).nonEmpty &&
-            branchKey(result).nonEmpty
-        )
-      val bestDefenseFound =
-        bestDefenseResult.flatMap(_.bestReplyPv.headOption.flatMap(clean))
-      val bestDefenseBranchKey =
-        bestDefenseResult.flatMap(branchKey)
+      val branchIdentity =
+        resolveBranchIdentity(directReplyResults)
+      val bestDefenseFound = branchIdentity.bestDefenseFound
+      val bestDefenseBranchKey = branchIdentity.selectedKey
       val sameBranchValidationResults =
         validationResults.filter(result =>
           matchesDefendedBranch(result, bestDefenseBranchKey)
@@ -382,6 +384,7 @@ private[llm] object LocalFileEntryBindCertification:
           )("entry_axis_persistence_missing"),
           Option.when(releaseRisksRemaining.nonEmpty)("hidden_off_file_release"),
           Option.when(tacticalReleasesRemaining.nonEmpty)("hidden_tactical_release"),
+          Option.when(branchIdentity.ambiguousDefendedBranch)("stitched_defended_branch"),
           Option.when(
             directBestDefensePresent &&
               validationResults.nonEmpty &&
@@ -827,6 +830,35 @@ private[llm] object LocalFileEntryBindCertification:
       }
       .distinct
 
+  private def resolveBranchIdentity(
+      directReplyResults: List[ProbeResult]
+  ): BranchIdentityResolution =
+    val groupedByStrongKey =
+      directReplyResults
+        .flatMap(result => branchKey(result).map(_ -> result))
+        .groupBy(_._1)
+        .view
+        .mapValues(_.map(_._2))
+        .toMap
+    val strongDirectKeys = groupedByStrongKey.keys.toList.sorted
+    val selectedKey =
+      Option.when(strongDirectKeys.size == 1)(strongDirectKeys.head)
+    val selectedResults =
+      selectedKey.toList.flatMap(key => groupedByStrongKey.getOrElse(key, Nil))
+    val bestDefenseResult =
+      selectedResults.find(result =>
+        hasReplyCoverage(result) &&
+          result.bestReplyPv.headOption.flatMap(clean).nonEmpty
+      )
+    val bestDefenseFound =
+      bestDefenseResult.flatMap(_.bestReplyPv.headOption.flatMap(clean))
+    BranchIdentityResolution(
+      selectedKey = selectedKey,
+      bestDefenseResult = bestDefenseResult,
+      bestDefenseFound = bestDefenseFound,
+      ambiguousDefendedBranch = strongDirectKeys.size > 1
+    )
+
   private def matchesDefendedBranch(
       result: ProbeResult,
       expectedBranchKey: Option[String]
@@ -838,21 +870,23 @@ private[llm] object LocalFileEntryBindCertification:
   private def branchKey(
       result: ProbeResult
   ): Option[String] =
-    result.variationHash.flatMap(clean)
-      .orElse(result.seedId.flatMap(clean))
+    result.variationHash.flatMap(clean).map(normalize)
+      .orElse(result.seedId.flatMap(clean).map(normalize))
       .orElse(branchLineKey(result.bestReplyPv))
       .orElse(
         result.replyPvs
           .flatMap(_.headOption)
           .flatMap(branchLineKey)
       )
-      .orElse(result.probedMove.flatMap(clean))
-      .orElse(result.candidateMove.flatMap(clean))
 
   private def branchLineKey(
       moves: List[String]
   ): Option[String] =
-    moves.headOption.flatMap(clean)
+    val normalizedMoves =
+      moves.flatMap(normalizeUciMove).take(BranchKeyMoveCount)
+    Option.when(normalizedMoves.size == BranchKeyMoveCount)(
+      normalizedMoves.mkString(" ")
+    )
 
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
@@ -965,6 +999,16 @@ private[llm] object LocalFileEntryBindCertification:
       raw: String
   ): String =
     "(?i)([a-h][1-8])".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
+
+  private def normalizeUciMove(
+      raw: String
+  ): Option[String] =
+    clean(raw).map(_.toLowerCase).filter(isUciMove)
+
+  private def isUciMove(
+      raw: String
+  ): Boolean =
+    "(?i)^[a-h][1-8][a-h][1-8][qrbn]?$".r.matches(Option(raw).getOrElse(""))
 
   private def clean(
       raw: String

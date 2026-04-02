@@ -137,6 +137,7 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
   private def directReplyProbe(
       id: String,
       branchHead: String = "f8e8",
+      branch: List[String] = Nil,
       collapseReason: Option[String] = None,
       futureSnapshot: Option[FutureSnapshot] =
         Some(
@@ -152,11 +153,13 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
       purpose: String = "defense_reply_multipv",
       evalCp: Int = 190
   ): ProbeResult =
+    val resolvedBranch =
+      Option.when(branch.nonEmpty)(branch).getOrElse(List(branchHead, "c1c8"))
     ProbeResult(
       id = id,
       evalCp = evalCp,
-      bestReplyPv = List(branchHead, "c1c8"),
-      replyPvs = Some(List(List(branchHead, "c1c8"), List("a7a5", "g2g4"))),
+      bestReplyPv = resolvedBranch,
+      replyPvs = Some((List(resolvedBranch, List("a7a5", "g2g4"))).distinct),
       deltaVsBaseline = 12,
       keyMotifs = keyMotifs,
       purpose = Some(purpose),
@@ -177,6 +180,7 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
   private def validationProbe(
       id: String,
       branchHead: String = "f8e8",
+      branch: List[String] = Nil,
       purpose: String = ThemePlanProbePurpose.RouteDenialValidation,
       futureSnapshot: Option[FutureSnapshot] =
         Some(
@@ -194,6 +198,7 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     directReplyProbe(
       id = id,
       branchHead = branchHead,
+      branch = branch,
       collapseReason = None,
       futureSnapshot = futureSnapshot,
       keyMotifs = keyMotifs,
@@ -428,6 +433,33 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
         ply = 30,
         fen = QueenlessLateMiddlegameFen,
         probes = List(directReplyProbe("probe_stitched_reply"), validationProbe("probe_stitched_validation", branchHead = "h7h5")),
+        preventedPlans = List(preventedFilePlan(), preventedEntryPlan()),
+        evalCp = 188,
+        expectedCertified = false,
+        expectedFails = Set("stitched_defended_branch", "surface_reinflation")
+      ),
+      CorpusScenario(
+        id = "same_first_move_divergent_branch",
+        planId = "same_first_move_divergent_branch",
+        planName = "Borrow same-branch proof from a divergent continuation",
+        phaseCell = PhaseCell.LateMiddlegame,
+        evalPosture = EvalPostureCell.ClearlyBetter,
+        texture = TextureCell.FileEntryBind,
+        criticisms = Set(CriticismCell.StitchedDefendedBranch),
+        phase = "middlegame",
+        ply = 30,
+        fen = QueenlessLateMiddlegameFen,
+        probes =
+          List(
+            directReplyProbe(
+              "probe_same_first_reply",
+              branch = List("f8e8", "c1c8")
+            ),
+            validationProbe(
+              "probe_same_first_validation",
+              branch = List("f8e8", "g2g4")
+            )
+          ),
         preventedPlans = List(preventedFilePlan(), preventedEntryPlan()),
         evalCp = 188,
         expectedCertified = false,

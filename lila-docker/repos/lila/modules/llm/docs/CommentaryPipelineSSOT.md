@@ -1572,6 +1572,12 @@ Primary files:
   release, fortress-like static hold, move-order fragility, or slight-edge
   posture; explicit hard-fail reasons now include
   `entry_axis_persistence_missing`
+- same-branch hardening:
+  B4 same-branch identity now requires a replayable defended-branch token
+  (`variationHash`, `seedId`, or a two-ply reply-line key); first-move-only
+  matching and candidate/probed-move fallback are no longer accepted as
+  defended-branch proof, and ambiguous direct-reply branch sets no longer leak
+  a selected `bestDefenseBranchKey` downstream
 - `StrategicAnalyzers.ProphylaxisAnalyzerImpl` and
   `NarrativeContextBuilder.convertPreventedPlan` provide the minimal carrier
   closure for this slice:
@@ -1600,6 +1606,12 @@ Primary files:
   certified B4b claims may surface only as bounded planner-owned `WhyThis` and
   bounded move-linked `WhatChanged`; no new `WhyNow`, whole-position, Active
   owner, or whole-game owner lane is opened
+- exact-board status:
+  `LocalFileEntryBindBroadValidationTest` now includes the
+  `same_first_move_divergent_branch` near-miss, so the live B4 slice rejects
+  stitched proof even when the first defended move matches; this bounded B4b
+  slice is now `current bounded scope complete` only, meaning maintenance-only
+  watch for the current local charter rather than broader B4 family completion
 
 ### Named route-network bind narrow positive slice
 
@@ -1623,8 +1635,14 @@ Primary files:
   same-branch continuity, bounded continuation, release risks, mirage /
   redundancy / reinflation risk, move-order fragility, fail reasons, confidence,
   and evidence sources
+- same-branch hardening:
+  B6 same-branch identity now requires a replayable branch token
+  (`variationHash`, `seedId`, or a two-ply reply-line key); first-move-only
+  branch fallback is no longer accepted, and missing / ambiguous defended-branch
+  identity fails closed before any same-branch reroute bundle can certify
 - hard-fail reasons:
   `file_entry_restatement_only`, `route_network_mirage`,
+  `same_branch_identity_missing`, `ambiguous_defended_branch`,
   `redundant_square_counting`, `untouched_sector_reroute`,
   `color_complex_escape`, `cross_branch_stitching`,
   `static_net_without_progress`, `engine_pv_paraphrase`,
@@ -1636,10 +1654,14 @@ Primary files:
   `StrategicNarrativePlanSupport.filterEvidenceBacked` can share the plan with
   planner/replay surfaces
 - positive owner scope:
-  `QuestionFirstCommentaryPlanner` may use
-  `NamedRouteNetworkBindCertification.certifiedSurfaceNetwork` only for
-  planner-owned `WhyThis`, keeping the existing move-delta owner lane and
-  tagging the plan with `sourceKinds += named_route_network_bind`;
+  `QuestionFirstCommentaryPlanner` may use the exact carried
+  `namedRouteNetworkSurface` only for planner-owned `WhyThis`, keeping the
+  existing move-delta owner lane and tagging the plan with
+  `sourceKinds += named_route_network_bind`; the planner no longer recomposes a
+  stronger route network from raw `preventedPlansNow`, and
+  `NamedRouteNetworkBindCertification.certifiedSurfaceNetwork` now fails closed
+  unless one exact plan-scoped file/entry/reroute triplet is uniquely named by
+  the surviving evidence-backed plans;
   `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game replay do not
   gain a new positive owner lane
 - replay closure:
@@ -1649,11 +1671,80 @@ Primary files:
   or planner-only route-network shell cannot re-inflate through replay
   selection
 - exact-board status:
-  the direct B6 validation suite is FEN-anchored and the local engine verifier
-  reproduces the positive reroute-denial branch as an exact MultiPV witness,
-  but current close review does not yet treat the positive control as a stable
-  top-1 root line; broader B6 expansion remains closed until that proof
-  strengthens
+  the direct B6 validation suite is FEN-anchored, now includes
+  `same_first_move_divergent_branch`,
+  `ambiguous_defended_branch`,
+  `missing_branch_identity_fails_close`, and planner triplet-mismatch hardening,
+  and the local engine verifier reproduces the positive reroute-denial branch as
+  an exact witness on the bounded slice; B6b is now close-ready inside that
+  narrow planner-only charter
+- status interpretation:
+  this closes the B6 minimum slice, not the full B6 family; the next required
+  work is still B6-family expansion inside the same route-network charter, but
+  the 2026-04-02 closeout campaign did not advance that frontier:
+  helper-backed reruns kept the after-trigger `a5` detour witness on the
+  control FEN but did not reproduce the earlier `a3b4` root-best reading, and
+  the screened `K09C`, `K09G`, `K09H`, `B21A`, and `Rubinstein-Duras 1911`
+  candidates produced no second independent exact-FEN survivor for the same
+  planner-owned intermediate-only charter. Broader posture/phase expansion,
+  replay / whole-game positive reuse, sector-network, and color-complex
+  expansion therefore remain deferred behind that unresolved burden
+
+### Broader route-chain closeout plateau
+
+- scope:
+  the same `NamedRouteNetworkBindCertification` lane is still the only
+  admissible place to look for a broader B6 route-chain slice, but the current
+  branch remains stuck at the same clearly-better late-middlegame,
+  planner-owned `WhyThis` charter:
+  one already-certifiable B6 triplet plus one exact intermediate node on the
+  same defended branch
+- runtime reuse:
+  no new ingress, planner lane, replay lane, payload field, or prose family was
+  added in the closeout campaign. The session used
+  `NamedRouteValidationMatrixWorkup.scala` plus the existing engine/replay
+  helpers to re-screen the current B6 control and the adjacent K09/B21/web
+  pool on the same architecture
+- new hard-fail reasons:
+  `fake_route_chain`, `redundant_intermediate_node`,
+  `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
+  `posture_inflation`, `heavy_piece_route_shell`,
+  `replay_reinflation`, and `whole_game_wrapper_leak`
+- positive owner scope:
+  no positive owner widening is authorized by this pass. Planner-owned
+  `WhyThis`, `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game replay
+  all remain bound to the pre-closeout charter because the closeout campaign
+  did not supply a second survivor and did not re-confirm the earlier root-best
+  reading for `a3b4`. The broader intermediate route-chain now stays
+  backend-visible only on the branch: `QuestionFirstCommentaryPlanner` no
+  longer emits planner-owned `a5 first` wording for `intermediateSquare`
+  witnesses until a new exact-FEN root-best control is added with its own
+  positive suite
+- exact-board status:
+  the control FEN remains
+  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`.
+  On the 2026-04-02 helper-backed rerun, the after-trigger defended branch
+  after `a3b4` still reproduced
+  `a7a5 b4a5 c6a5 f3e5 ... a5c4`,
+  which keeps the exact `a5` intermediate detour backend-visible while also
+  showing why downstream `c4` denial cannot surface as owner truth. But the
+  same rerun returned `c3b4`, not `a3b4`, as the root best move on that exact
+  FEN, so the closeout campaign could not reuse the earlier root-best pass as a
+  stable A-track anchor. The same matrix also screened `K09C`, `K09G`, `K09H`,
+  `B21A`, and `Rubinstein-Duras 1911`; none survived as a second independent
+  B6 route-chain witness once root-best identity, family distinctness, release
+  suppression, and planner-only containment were all applied. Direct suites
+  still cover
+  `fake_route_chain`, `redundant_intermediate_node`,
+  `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
+  `posture_inflation`, `surface_reinflation`,
+  `heavy_piece_route_shell`, and `engine_pv_paraphrase`
+- current status:
+  implementation artifacts exist on the branch, but the closeout result is
+  plateau-only:
+  no second survivor, no new admissible route-chain widening, and no new
+  positive surface authorization. Broader posture/phase expansion and replay /
+  whole-game positive reuse remain deferred
 
 ### Heavy-piece local bind negative-first validation
 
@@ -1682,6 +1773,11 @@ Primary files:
   release proof is replay-derived only; `heavyPieceReleaseInventory` comes from
   exact FEN-backed reply replays and `bestDefenseReleaseSurvivors` stays pinned
   to `bestReplyPv` plus same-branch validation best replies
+- same-branch identity rule:
+  `bestDefenseBranchKey` must resolve from a replayable two-ply defended branch
+  key, carried either by the exact variation identity or by the exact best-
+  reply / validation line itself; one-move fragments and candidate/probed-move
+  fallback do not count as same-branch proof
 - replay fail-close:
   illegal, paraphrased, wrong-base, short-fragment, and
   legal-prefix-plus-illegal-tail lines contribute no release proof; replay
@@ -1707,7 +1803,11 @@ Primary files:
   `HeavyPieceLocalBindExactBranchReplayTest`, and
   `HeavyPieceLocalBindEngineVerificationTest` keep the exact-FEN nasty corpus,
   exact-branch replay proof, and fixed-depth PV1 reproduction reproducible
-  no new public payload/schema field or prose family was added
+- status interpretation:
+  this B5b helper is `current bounded scope complete` only as a negative-first
+  containment slice; that means maintenance-only watch for that fail-closed
+  charter, not heavy-piece positive-family completion
+- no new public payload/schema field or prose family was added
 
 ### Compensation normalization
 
@@ -1752,6 +1852,24 @@ Prompt-bearing surfaces are intentionally narrow and role-specific.
 
 - product-specific reveal / summary polish
 - separate from commentary signoff canonical logic
+- bounded-plan wording only: identify the exact strategic task in the supplied
+  position before move-order detail
+- when multiple accepted starts converge, keep the shared plan primary instead
+  of implying engine-best single-move trivia
+- public strategic-puzzle shell is now plan-first:
+  `plan -> move -> reveal`
+- `plans[]` plus `planId + startUci` are the public solve contract
+- exact proof data now lives only behind the runtime `proof` layer in v2;
+  flat `rootChoices`, `nodes`, and `forcedReplies` are no longer part of the
+  public runtime shell contract
+- strategic-puzzle stored docs must now carry the nested `proof` field;
+  pre-v2 stored puzzle docs are no longer read-compatible and must be
+  republished before runtime use
+- strategic-puzzle completion no longer accepts line-only replay as a public
+  solve path; the server resolves attempts from `planId + startUci`, then
+  derives the canonical proof line internally
+- give-up and reveal still consume the exact proof layer, but the user-facing
+  copy must explain `why this plan` and `why this start` before line narration
 
 This section is the maintained prompt-family contract. No separate prompt-policy
 markdown file is authoritative anymore.

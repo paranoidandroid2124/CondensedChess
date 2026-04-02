@@ -30,7 +30,7 @@ final class StrategicPuzzleApi(
       case None =>
         fuccess(CompleteOutcome.MissingPuzzle)
       case Some(puzzle) =>
-        puzzle.runtimeShell.flatMap(resolveCompletion(_, req)) match
+        runtimeShellFor(puzzle).flatMap(resolveCompletion(_, req)) match
           case None => fuccess(CompleteOutcome.Invalid)
           case Some(resolved) =>
             val saveFu =
@@ -45,6 +45,8 @@ final class StrategicPuzzleApi(
                           puzzle.id,
                           resolved.status,
                           resolved.lineUcis,
+                          resolved.planId,
+                          resolved.startUci,
                           resolved.terminalId,
                           resolved.terminalFamilyKey
                         )
@@ -77,22 +79,26 @@ final class StrategicPuzzleApi(
       puzzle: StrategicPuzzleDoc,
       userId: Option[UserId]
   ): Fu[BootstrapPayload] =
-    val shell = puzzle.runtimeShell.get
+    val shell = runtimeShellFor(puzzle).get
+    val publicPuzzle = puzzle.copy(runtimeShell = Some(shell))
     userId match
       case Some(uid) =>
         for
           streak <- progressRepo.currentStreak(uid)
           recent <- progressRepo.recent(uid)
         yield BootstrapPayload(
-          puzzle = puzzle,
+          puzzle = publicPuzzle,
           runtimeShell = shell,
           progress = progress(authenticated = true, streak = streak, recent = recent)
         )
       case None =>
         fuccess(
           BootstrapPayload(
-          puzzle = puzzle,
+          puzzle = publicPuzzle,
           runtimeShell = shell,
           progress = progress(authenticated = false, streak = 0, recent = Nil)
           )
         )
+
+  private def runtimeShellFor(puzzle: StrategicPuzzleDoc): Option[RuntimeShell] =
+    puzzle.runtimeShell.map(_.materialize(puzzle.dominantFamily))

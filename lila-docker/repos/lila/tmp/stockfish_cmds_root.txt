@@ -1,0 +1,6 @@
+uci
+isready
+setoption name MultiPV value 5
+position fen 2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24
+go depth 18
+quit

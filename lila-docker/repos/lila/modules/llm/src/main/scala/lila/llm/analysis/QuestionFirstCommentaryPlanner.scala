@@ -277,7 +277,8 @@ private[llm] final case class QuestionPlannerInputs(
     factualFallback: Option[String],
     heavyPieceLocalBindBlocked: Boolean = false,
     openingRelationClaim: Option[String] = None,
-    endgameTransitionClaim: Option[String] = None
+    endgameTransitionClaim: Option[String] = None,
+    namedRouteNetworkSurface: Option[NamedRouteNetworkBindCertification.SurfaceNetwork] = None
 )
 
 private[llm] enum WhyNowTimingOwner:
@@ -320,6 +321,19 @@ private[llm] object QuestionPlannerInputsBuilder:
         mainBundle = mainBundle,
         quietIntent = quietIntent
       )
+    val preventedPlansNow =
+      ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
+    val evidenceBackedPlans =
+      StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
+    val heavyPieceLocalBindBlocked =
+      HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
+    val namedRouteNetworkSurface =
+      Option.unless(heavyPieceLocalBindBlocked) {
+        NamedRouteNetworkBindCertification.certifiedSurfaceNetwork(
+          preventedPlans = preventedPlansNow,
+          evidenceBackedPlans = evidenceBackedPlans
+        )
+      }.flatten
 
     QuestionPlannerInputs(
       mainBundle = mainBundle,
@@ -328,8 +342,7 @@ private[llm] object QuestionPlannerInputsBuilder:
       decisionComparison = decisionComparison,
       alternativeNarrative = AlternativeNarrativeSupport.build(ctx),
       truthMode = PlayerFacingTruthModePolicy.classify(ctx, strategyPack, truthContract),
-      preventedPlansNow =
-        ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now),
+      preventedPlansNow = preventedPlansNow,
       pvDelta = ctx.decision.map(_.delta),
       counterfactual = ctx.counterfactual,
       practicalAssessment = ctx.semantic.flatMap(_.practicalAssessment),
@@ -337,12 +350,13 @@ private[llm] object QuestionPlannerInputsBuilder:
       forcingThreats = ctx.threats.toThem,
       evidenceByQuestionId = ctx.authorEvidence.groupBy(_.questionId),
       candidateEvidenceLines = cleanedEvidenceLines,
-      evidenceBackedPlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx),
+      evidenceBackedPlans = evidenceBackedPlans,
       opponentPlan = ctx.opponentPlan,
       factualFallback = QuietMoveIntentBuilder.exactFactualSentence(ctx),
-      heavyPieceLocalBindBlocked = HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx),
+      heavyPieceLocalBindBlocked = heavyPieceLocalBindBlocked,
       openingRelationClaim = QuestionFirstCommentaryPlanner.openingRelationReplayClaim(ctx),
-      endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx)
+      endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx),
+      namedRouteNetworkSurface = namedRouteNetworkSurface
     )
 
   private def branchDisplayLine(branch: EvidenceBranch): Option[String] =
@@ -892,11 +906,18 @@ private[llm] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs
   ): Option[String] =
     Option.unless(inputs.heavyPieceLocalBindBlocked) {
-      NamedRouteNetworkBindCertification
-        .certifiedSurfaceNetwork(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
-        .map(network =>
-          s"This keeps ${network.entrySquare} closed, takes the ${network.file} away, and cuts off the ${network.rerouteSquare} reroute."
-        )
+      inputs.namedRouteNetworkSurface
+        .flatMap { network =>
+          network.intermediateSquare match
+            case Some(_) =>
+              // Broader route-chain intermediates stay backend-only until a real
+              // exact-FEN root-best control is restored for planner-owned truth.
+              None
+            case None =>
+              Some(
+                s"This keeps ${network.entrySquare} closed, takes the ${network.file} away, and cuts off the ${network.rerouteSquare} reroute."
+              )
+        }
     }.flatten
 
   private def preventedPlanChangeContrast(plan: PreventedPlanInfo): Option[String] =

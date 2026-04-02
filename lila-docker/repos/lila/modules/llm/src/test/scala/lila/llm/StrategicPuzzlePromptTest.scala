@@ -7,11 +7,13 @@ class StrategicPuzzlePromptTest extends FunSuite:
   test("system prompts keep puzzle text as grounded product-specific polish") {
     assert(StrategicPuzzlePrompt.terminalSystemPrompt.contains("Stay grounded in the supplied draft and context."))
     assert(StrategicPuzzlePrompt.terminalSystemPrompt.contains("Do not invent moves, evaluations, or opening lore."))
+    assert(StrategicPuzzlePrompt.terminalSystemPrompt.contains("bounded-plan task"))
     assert(StrategicPuzzlePrompt.summarySystemPrompt.contains("Stay grounded in the supplied draft and context."))
     assert(StrategicPuzzlePrompt.summarySystemPrompt.contains("Never mention engines"))
+    assert(StrategicPuzzlePrompt.summarySystemPrompt.contains("plan-selection stage and a first-move stage"))
   }
 
-  test("buildTerminalPrompt stays compact and line-focused") {
+  test("buildTerminalPrompt keeps the exact task ahead of move-order trivia") {
     val prompt = StrategicPuzzlePrompt.buildTerminalPrompt(
       StrategicPuzzlePrompt.TerminalInput(
         startFen = "3r2k1/1R4bp/1p1p1nn1/p2Pp3/b1P1P3/1BP2pp1/P1N1BKPP/5R2 w - - 0 30",
@@ -31,12 +33,13 @@ class StrategicPuzzlePromptTest extends FunSuite:
     assert(prompt.contains("Outcome: full"))
     assert(prompt.contains("Reached line: Nb4 ... Na3 ... Nc2"))
     assert(prompt.contains("Sibling continuations: Na1, Na3"))
-    assert(prompt.contains("Refine the draft into reveal text"))
+    assert(prompt.contains("bounded-plan puzzle in an exact position"))
+    assert(prompt.contains("State the exact task first"))
     assert(!prompt.contains("Stockfish"))
     assert(prompt.length < 1600)
   }
 
-  test("buildSummaryPrompt keeps accepted starts and common plan visible") {
+  test("buildSummaryPrompt keeps the shared plan and accepted starts visible") {
     val prompt = StrategicPuzzlePrompt.buildSummaryPrompt(
       StrategicPuzzlePrompt.SummaryInput(
         startFen = "3r2k1/1R4bp/1p1p1nn1/p2Pp3/b1P1P3/1BP2pp1/P1N1BKPP/5R2 w - - 0 30",
@@ -51,9 +54,10 @@ class StrategicPuzzlePromptTest extends FunSuite:
       )
     )
 
+    assert(prompt.contains("FEN: 3r2k1/1R4bp/1p1p1nn1/p2Pp3/b1P1P3/1BP2pp1/P1N1BKPP/5R2 w - - 0 30"))
     assert(prompt.contains("Featured line: Nb4 ... Na3 ... Nc2"))
     assert(prompt.contains("Accepted starts: Nb4, Na3, Na1"))
-    assert(prompt.contains("Write a short reveal summary"))
+    assert(prompt.contains("Treat this as a two-stage strategic puzzle"))
     assert(!prompt.contains("best move"))
     assert(prompt.length < 1500)
   }

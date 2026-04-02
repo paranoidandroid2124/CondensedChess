@@ -100,7 +100,9 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
       keyMotifs: List[String] = List("c-file denied", "b4 entry denied", "the b4 to a5 route stays cut off"),
       collapseReason: Option[String] = None,
       purpose: String = "defense_reply_multipv",
-      evalCp: Int = 205
+      evalCp: Int = 205,
+      seedId: Option[String] = None,
+      variationHash: Option[String] = None
   ): ProbeResult =
     ProbeResult(
       id = id,
@@ -122,23 +124,27 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
             collapseReason = collapseReason
           )
         ),
-      futureSnapshot = futureSnapshot
+      futureSnapshot = futureSnapshot,
+      seedId = seedId,
+      variationHash = variationHash
     )
 
   private def validationProbe(
       id: String,
-      branchHead: String = "a7a5",
+      branch: List[String] = List("a7a5", "b4a5"),
       futureSnapshot: Option[FutureSnapshot] = Some(routeSnapshot()),
       keyMotifs: List[String] = List("c-file denied", "b4 entry denied", "the b4 to a5 route stays cut off"),
       purpose: String = ThemePlanProbePurpose.RouteDenialValidation,
-      evalCp: Int = 202
+      evalCp: Int = 202,
+      seedId: Option[String] = None,
+      variationHash: Option[String] = None
   ): ProbeResult =
     ProbeResult(
       id = id,
       fen = Some(PositiveFen),
       evalCp = evalCp,
-      bestReplyPv = List(branchHead, "b4a5"),
-      replyPvs = Some(List(List(branchHead, "b4a5"))),
+      bestReplyPv = branch,
+      replyPvs = Some(List(branch)),
       deltaVsBaseline = 10,
       keyMotifs = keyMotifs,
       purpose = Some(purpose),
@@ -153,23 +159,29 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
             collapseReason = None
           )
         ),
-      futureSnapshot = futureSnapshot
+      futureSnapshot = futureSnapshot,
+      seedId = seedId,
+      variationHash = variationHash
     )
 
   private def continuityProbe(
       id: String,
-      branchHead: String = "a7a5",
+      branch: List[String] = List("a7a5", "b4a5"),
       futureSnapshot: Option[FutureSnapshot] = Some(routeSnapshot()),
       keyMotifs: List[String] = List("conversion route stabilizes", "the b4 to a5 route stays cut off"),
-      evalCp: Int = 200
+      evalCp: Int = 200,
+      seedId: Option[String] = None,
+      variationHash: Option[String] = None
   ): ProbeResult =
     validationProbe(
       id = id,
-      branchHead = branchHead,
+      branch = branch,
       futureSnapshot = futureSnapshot,
       keyMotifs = keyMotifs,
       purpose = "convert_reply_multipv",
-      evalCp = evalCp
+      evalCp = evalCp,
+      seedId = seedId,
+      variationHash = variationHash
     )
 
   private def preventedFilePlan(
@@ -302,6 +314,42 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
         expectedFails = Set("route_network_mirage")
       ),
       Scenario(
+        id = "same_first_move_divergent_branch",
+        fen = PositiveFen,
+        planName = "Take the c-file away, keep b4 closed, and deny the a5 reroute on the same branch",
+        probes =
+          List(
+            directReplyProbe("divergent_reply", branch = List("a7a5", "b4a5", "c6a5")),
+            validationProbe(
+              "divergent_validation",
+              branch = List("a7a5", "h4h5"),
+              futureSnapshot = Some(routeSnapshot()),
+              keyMotifs = List("the b4 to a5 route stays cut off")
+            ),
+            continuityProbe("divergent_continuity", branch = List("a7a5", "b4a5"))
+          ),
+        preventedPlans = List(preventedFilePlan(), preventedEntryPlan(), preventedReroutePlan()),
+        evalCp = 205,
+        expectedCertified = false,
+        expectedFails = Set("cross_branch_stitching", "engine_pv_paraphrase")
+      ),
+      Scenario(
+        id = "ambiguous_defended_branch",
+        fen = PositiveFen,
+        planName = "Take the c-file away, keep b4 closed, and deny the a5 reroute",
+        probes =
+          List(
+            directReplyProbe("ambiguous_reply_a", branch = List("a7a5", "b4a5", "c6a5")),
+            directReplyProbe("ambiguous_reply_b", branch = List("h7h5", "g4g5", "h6g5")),
+            validationProbe("ambiguous_validation", branch = List("a7a5", "b4a5")),
+            continuityProbe("ambiguous_continuity", branch = List("a7a5", "b4a5"))
+          ),
+        preventedPlans = List(preventedFilePlan(), preventedEntryPlan(), preventedReroutePlan()),
+        evalCp = 205,
+        expectedCertified = false,
+        expectedFails = Set("ambiguous_defended_branch")
+      ),
+      Scenario(
         id = "untouched_sector_reroute",
         fen = PositiveFen,
         planName = "Take the c-file away, keep b4 closed, and cut off the a5 reroute",
@@ -369,7 +417,7 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
             directReplyProbe("stitched_reply", branch = List("a7a5", "b4a5", "c6a5")),
             validationProbe(
               "stitched_validation",
-              branchHead = "c6a5",
+              branch = List("c6a5", "b4a5"),
               futureSnapshot = Some(routeSnapshot()),
               keyMotifs = List("the b4 to a5 route stays cut off")
             ),
@@ -415,6 +463,21 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
         evalCp = 205,
         expectedCertified = false,
         expectedFails = Set("engine_pv_paraphrase")
+      ),
+      Scenario(
+        id = "missing_branch_identity_fails_close",
+        fen = PositiveFen,
+        planName = "Take the c-file away, keep b4 closed, and deny the a5 reroute",
+        probes =
+          List(
+            directReplyProbe("identity_missing_reply", branch = List("a7a5")),
+            validationProbe("identity_missing_validation", branch = List("a7a5")),
+            continuityProbe("identity_missing_continuity", branch = List("a7a5"))
+          ),
+        preventedPlans = List(preventedFilePlan(), preventedEntryPlan(), preventedReroutePlan()),
+        evalCp = 205,
+        expectedCertified = false,
+        expectedFails = Set("same_branch_identity_missing")
       ),
       Scenario(
         id = "surface_reinflation",
@@ -544,7 +607,8 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
 
   private def plannerInputs(
       evidenceBackedPlans: List[PlanHypothesis],
-      preventedPlansNow: List[PreventedPlanInfo]
+      preventedPlansNow: List[PreventedPlanInfo],
+      namedRouteNetworkSurface: Option[NamedRouteNetworkBindCertification.SurfaceNetwork] = None
   ): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle =
@@ -570,7 +634,8 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
       evidenceBackedPlans = evidenceBackedPlans,
       opponentPlan = None,
       factualFallback = Some("This keeps the position under control."),
-      heavyPieceLocalBindBlocked = false
+      heavyPieceLocalBindBlocked = false,
+      namedRouteNetworkSurface = namedRouteNetworkSurface
     )
 
   test("exact-position narrow corpus accepts only same-branch reroute denial and rejects route mirages") {
@@ -605,24 +670,22 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
           evidenceBackedPlans = List(plan.hypothesis)
         )
         .getOrElse(fail("missing surface network"))
-    val whyThisClaim =
-      s"This keeps ${surface.entrySquare} closed, takes the ${surface.file} away, and cuts off the ${surface.rerouteSquare} reroute."
-    val routeWhyThis =
-      QuestionPlan(
-        questionId = "q_why",
-        questionKind = AuthorQuestionKind.WhyThis,
-        priority = 100,
-        claim = whyThisClaim,
-        evidence = None,
-        contrast = Some("The practical alternative leaves the local route available."),
-        consequence = None,
-        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
-        strengthTier = QuestionPlanStrengthTier.Moderate,
-        sourceKinds = List("main_delta", NamedRouteNetworkBindCertification.OwnerSource),
-        admissibilityReasons = List("test"),
-        ownerFamily = OwnerFamily.MoveDelta,
-        ownerSource = "main_delta"
+    val plannerInputs =
+      this.plannerInputs(
+        evidenceBackedPlans = List(plan.hypothesis),
+        preventedPlansNow = positive.preventedPlans.map(toInfo),
+        namedRouteNetworkSurface = Some(surface)
       )
+    val rankedFromPlanner =
+      QuestionFirstCommentaryPlanner.plan(
+        ply = 30,
+        authorQuestions = List(question("q_why", AuthorQuestionKind.WhyThis)),
+        inputs = plannerInputs,
+        truthContract = None
+      )
+    val routeWhyThis =
+      rankedFromPlanner.primary.getOrElse(fail("missing planner why-this"))
+    val whyThisClaim = routeWhyThis.claim
     val whatChanged =
       QuestionPlan(
         questionId = "q_changed",
@@ -658,27 +721,23 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
         secondary = Some(whatChanged),
         rejected = Nil
       )
-    val inputs =
-      plannerInputs(
-        evidenceBackedPlans = List(plan.hypothesis),
-        preventedPlansNow = positive.preventedPlans.map(toInfo)
-      )
     assert(whyThisClaim.contains("c-file"), clue(whyThisClaim))
     assert(whyThisClaim.contains("b4"), clue(whyThisClaim))
     assert(whyThisClaim.contains("a5"), clue(whyThisClaim))
     assert(whyThisClaim.toLowerCase.contains("reroute"), clue(whyThisClaim))
+    assert(routeWhyThis.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource), clue(routeWhyThis))
     assertEquals(whatChanged.ownerSource == NamedRouteNetworkBindCertification.OwnerSource, false, clue(whatChanged))
     assertEquals(whatChanged.claim.toLowerCase.contains("reroute"), false, clue(whatChanged.claim))
 
     val chronicle =
-      GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
+      GameChronicleCompressionPolicy.selectPlannerSurface(ranked, plannerInputs)
     val bookmaker =
-      BookmakerLiveCompressionPolicy.renderSelection(inputs, ranked, None)
+      BookmakerLiveCompressionPolicy.renderSelection(plannerInputs, ranked, None)
     val active =
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(
           authorQuestions = Nil,
-          inputs = inputs,
+          inputs = plannerInputs,
           rankedPlans = ranked
         )
       )
@@ -695,4 +754,65 @@ class NamedRouteNetworkBindBroadValidationTest extends FunSuite:
       active.forall(!_.primary.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource)),
       clue(active)
     )
+  }
+
+  test("planner route wording uses the exact certified triplet instead of recomposing a stronger network") {
+    val positive =
+      scenarios.find(_.id == "same_branch_reroute_denial_positive").getOrElse(fail("missing positive scenario"))
+    val narrowPlan = routePlan(positive).hypothesis
+    val broaderPlan =
+      PlanHypothesis(
+        planId = "broader_route_shell",
+        planName = "Take the c-file away, keep d5 closed, and cut off the f5 reroute",
+        rank = 2,
+        score = 0.79,
+        preconditions = Nil,
+        executionSteps =
+          List("Take the c-file away, keep d5 closed, and cut off the f5 reroute."),
+        failureModes = List("If d5 or f5 reopens, the broader route shell disappears."),
+        viability = PlanViability(score = 0.75, label = "medium", risk = "recomposition shell"),
+        evidenceSources = List(s"fen:$PositiveFen", "fixture:planner_raw_recomposition_stronger_than_contract"),
+        themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+        subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+      )
+    val preventedPlansNow =
+      List(
+        preventedFilePlan(),
+        preventedEntryPlan(square = "b4", counterplayScoreDrop = 130),
+        preventedEntryPlan(square = "d5", counterplayScoreDrop = 168),
+        preventedReroutePlan(square = "a5", counterplayScoreDrop = 122),
+        preventedReroutePlan(square = "f5", counterplayScoreDrop = 181)
+      ).map(toInfo)
+    val carriedTriplet =
+      NamedRouteNetworkBindCertification.SurfaceNetwork(
+        file = "c-file",
+        entrySquare = "b4",
+        rerouteSquare = "a5",
+        counterplayScoreDrop = 145
+      )
+    val inputs =
+      plannerInputs(
+        evidenceBackedPlans = List(broaderPlan, narrowPlan),
+        preventedPlansNow = preventedPlansNow,
+        namedRouteNetworkSurface = Some(carriedTriplet)
+      )
+    val ranked =
+      QuestionFirstCommentaryPlanner.plan(
+        ply = 30,
+        authorQuestions = List(question("q_why", AuthorQuestionKind.WhyThis)),
+        inputs = inputs,
+        truthContract = None
+      )
+    val primary = ranked.primary.getOrElse(fail("missing why-this primary"))
+
+    assertEquals(
+      NamedRouteNetworkBindCertification.certifiedSurfaceNetwork(preventedPlansNow, List(broaderPlan, narrowPlan)),
+      None
+    )
+    assert(primary.claim.contains("c-file"), clue(primary))
+    assert(primary.claim.contains("b4"), clue(primary))
+    assert(primary.claim.contains("a5"), clue(primary))
+    assert(!primary.claim.contains("d5"), clue(primary))
+    assert(!primary.claim.contains("f5"), clue(primary))
+    assert(primary.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource), clue(primary))
   }

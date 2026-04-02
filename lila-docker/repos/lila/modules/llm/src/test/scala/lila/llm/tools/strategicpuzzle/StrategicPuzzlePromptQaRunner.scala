@@ -106,11 +106,13 @@ object StrategicPuzzlePromptQaRunner:
         sideToMove = shell.sideToMove,
         dominantFamily = terminal.dominantFamilyKey.orElse(doc.dominantFamily.map(_.key)),
         mainLine = terminal.lineSan,
-        acceptedStarts = shell.rootChoices.filter(_.credit == StatusFull).map(_.san),
+        acceptedStarts =
+          if terminal.acceptedStarts.nonEmpty then terminal.acceptedStarts
+          else shell.proof.rootChoices.filter(_.credit == StatusFull).map(_.san),
         opening = terminal.opening.orElse(doc.source.opening),
         eco = terminal.eco.orElse(doc.source.eco),
-        draftSummary = List(terminal.title, terminal.summary).map(_.trim).filter(_.nonEmpty).mkString(" "),
-        draftCommentary = firstParagraph(terminal.commentary)
+        draftSummary = List(terminal.planTask, terminal.whyPlan, Some(terminal.title), Some(terminal.summary)).flatten.map(_.trim).filter(_.nonEmpty).mkString(" "),
+        draftCommentary = terminal.whyMove.flatMap(firstParagraph).orElse(firstParagraph(terminal.commentary))
       )
 
     val terminalPrompt = StrategicPuzzlePrompt.buildTerminalPrompt(terminalInput)

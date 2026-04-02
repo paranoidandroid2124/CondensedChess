@@ -10,8 +10,8 @@ import lila.llm.model.authoring.*
  * This is intentionally "book-biased": it enumerates idea-space items that authors
  * routinely mention even when they do not appear in PV/MultiPV.
  *
- * Validation is delegated to:
- * - LatentPlanSeeder (static → position-specific LatentPlanInfo)
+ * Seed proposals are refined downstream by:
+ * - PlanProposalEngine / SeedMoveGenerator (position-specific candidate generation)
  * - ProbeDetector (free-tempo/legal branches + refutation)
  * - BookStyleRenderer (conditional rendering rules)
  */

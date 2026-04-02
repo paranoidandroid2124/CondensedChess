@@ -80,6 +80,83 @@ class StrategicPuzzleCorpusSupportTest extends FunSuite:
     assertEquals(alternate.map(_.uci), List("h3"))
   }
 
+  test("family derivation keeps bounded counterplay and transition tasks even without a target square") {
+    val counterplay =
+      mkCommentResponse(
+        dominantIdeaKind = Some(StrategicIdeaKind.CounterplaySuppression),
+        directionalTarget = None,
+        commentary = longCommentary,
+        prophylaxisThreat = Some("Black's c5 break")
+      )
+    val transition =
+      mkCommentResponse(
+        dominantIdeaKind = Some(StrategicIdeaKind.FavorableTradeOrTransformation),
+        directionalTarget = None,
+        commentary = longCommentary,
+        endgameTransitionClaim = Some("Rook endgame")
+      )
+
+    val counterplayFamily = familySummary(counterplay, cpLoss = 30)
+    val transitionFamily = familySummary(transition, cpLoss = 28)
+
+    assertEquals(counterplayFamily.key, Some("counterplay_suppression|c5"))
+    assert(counterplayFamily.robust, clue(counterplayFamily))
+    assertEquals(transitionFamily.key, Some("favorable_trade_or_transformation|rook_endgame"))
+    assert(transitionFamily.robust, clue(transitionFamily))
+  }
+
+  test("family derivation rejects generic quiet-improvement anchors") {
+    val generic =
+      mkCommentResponse(
+        dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+        directionalTarget = None,
+        commentary = longCommentary,
+        dominantIdeaFocus = Some("Improve piece placement"),
+        includeSignals = false
+      )
+
+    val family = familySummary(generic, cpLoss = 24)
+
+    assertEquals(family.key, None)
+    assert(!family.robust, clue(family))
+  }
+
+  test("assignCredits excludes weakly explained off-family moves from partial credit") {
+    val main = mkCommentResponse(
+      dominantIdeaKind = Some(StrategicIdeaKind.LineOccupation),
+      directionalTarget = Some("e5"),
+      commentary = longCommentary
+    )
+    val boundedAlt =
+      mkCommentResponse(
+        dominantIdeaKind = Some(StrategicIdeaKind.CounterplaySuppression),
+        directionalTarget = None,
+        commentary = longCommentary,
+        prophylaxisThreat = Some("Black's c5 break")
+      )
+    val genericAlt =
+      mkCommentResponse(
+        dominantIdeaKind = Some(StrategicIdeaKind.Prophylaxis),
+        directionalTarget = None,
+        commentary = longCommentary,
+        dominantIdeaFocus = Some("Improve pieces"),
+        includeSignals = false
+      )
+
+    val rows = List(
+      mkStage03Row("s1", "e5a", 22, main),
+      mkStage03Row("s1", "c5stop", 35, boundedAlt),
+      mkStage03Row("s1", "quiet", 34, genericAlt)
+    )
+
+    val dominant = chooseDominantFamily(rows).getOrElse(fail("dominant family missing"))
+    val (accepted, partial, alternate) = assignCredits(dominant.summary, rows)
+
+    assertEquals(accepted.map(_.uci), List("e5a"))
+    assertEquals(partial.map(_.uci), List("c5stop"))
+    assertEquals(alternate.map(_.uci), List("c5stop"))
+  }
+
   test("explanation gate enforces llm polished mode, length, signal richness, and strategy coverage") {
     val failing =
       mkCommentResponse(
@@ -265,16 +342,22 @@ class StrategicPuzzleCorpusSupportTest extends FunSuite:
       commentary: String,
       sourceMode: String = "llm_polished",
       coveragePass: Option[Boolean] = Some(true),
-      includeSignals: Boolean = true
+      includeSignals: Boolean = true,
+      dominantIdeaFocus: Option[String] = Some("e5"),
+      prophylaxisThreat: Option[String] = None,
+      opponentPlan: Option[String] = None,
+      endgameTransitionClaim: Option[String] = None
   ): CommentResponse =
     val digest =
       NarrativeSignalDigest(
         dominantIdeaKind = dominantIdeaKind,
-        dominantIdeaFocus = Some("e5"),
+        dominantIdeaFocus = dominantIdeaFocus,
         deploymentRoute = if includeSignals then List("e3", "e4") else Nil,
         deploymentPurpose = Option.when(includeSignals)("centralize"),
-        opponentPlan = Option.when(includeSignals)("contest the center"),
-        practicalVerdict = Option.when(includeSignals)("stable edge")
+        opponentPlan = opponentPlan.orElse(Option.when(includeSignals)("contest the center")),
+        prophylaxisThreat = prophylaxisThreat,
+        practicalVerdict = Option.when(includeSignals)("stable edge"),
+        endgameTransitionClaim = endgameTransitionClaim
       )
     val strategyPack =
       StrategyPack(

@@ -11,7 +11,8 @@ private[analysis] object HeavyPieceLocalBindEngineVerifier:
 
   private val DefaultDepth = 12
   private val DefaultMultiPv = 3
-  private val DefaultTimeoutMs = 30000L
+  private val DefaultTimeoutMs =
+    sys.env.get("LLM_ACTIVE_CORPUS_ENGINE_TIMEOUT_MS").flatMap(_.toLongOption).getOrElse(90000L)
   private val EngineEnvVars = List("STOCKFISH_BIN", "LLM_ACTIVE_CORPUS_ENGINE_PATH")
   private val FallbackEnginePaths =
     List(
@@ -35,13 +36,14 @@ private[analysis] object HeavyPieceLocalBindEngineVerifier:
   def analyze(
       fen: String,
       depth: Int = DefaultDepth,
-      multiPv: Int = DefaultMultiPv
+      multiPv: Int = DefaultMultiPv,
+      moves: List[String] = Nil
   ): Option[EngineAnalysis] =
     resolvedEnginePath().map { enginePath =>
       val engine = new LocalUciEngine(enginePath, timeoutMs = DefaultTimeoutMs)
       try
         engine.newGame()
-        val result = engine.analyze(fen, depth, multiPv)
+        val result = engine.analyze(fen, depth, multiPv, moves)
         EngineAnalysis(
           engineName = engine.engineName,
           enginePath = enginePath,
@@ -97,10 +99,12 @@ private[analysis] object HeavyPieceLocalBindEngineVerifier:
       send("ucinewgame")
       ready()
 
-    def analyze(fen: String, depth: Int, multiPv: Int): AnalysisResult =
+    def analyze(fen: String, depth: Int, multiPv: Int, moves: List[String]): AnalysisResult =
       drainPending()
       send(s"setoption name MultiPV value $multiPv")
-      send(s"position fen $fen")
+      val moveSuffix =
+        Option.when(moves.nonEmpty)(moves.mkString(" moves ", " ", "")).getOrElse("")
+      send(s"position fen $fen$moveSuffix")
       send(s"go depth $depth")
 
       val perspectiveSign = whitePerspectiveSign(fen)

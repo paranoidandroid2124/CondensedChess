@@ -107,6 +107,7 @@ private[llm] object HeavyPieceLocalBindValidation:
   private val HeavyPieceCountFloor = 4
   private val QueenCountFloor = 2
   private val ProofEligibleReplayPlies = 3
+  private val BranchKeyMoveCount = 2
   private val ContinuityTokens =
     List(
       "convert",
@@ -875,21 +876,33 @@ private[llm] object HeavyPieceLocalBindValidation:
   private def branchKey(
       result: ProbeResult
   ): Option[String] =
-    result.variationHash.flatMap(clean)
-      .orElse(result.seedId.flatMap(clean))
+    result.variationHash.flatMap(clean).map(normalize)
+      .orElse(result.seedId.flatMap(clean).map(normalize))
       .orElse(branchLineKey(result.bestReplyPv))
       .orElse(
         result.replyPvs
           .flatMap(_.headOption)
           .flatMap(branchLineKey)
       )
-      .orElse(result.probedMove.flatMap(clean))
-      .orElse(result.candidateMove.flatMap(clean))
 
   private def branchLineKey(
       moves: List[String]
   ): Option[String] =
-    moves.headOption.flatMap(clean)
+    val normalizedMoves =
+      moves.flatMap(normalizeUciMove).take(BranchKeyMoveCount)
+    Option.when(normalizedMoves.size == BranchKeyMoveCount)(
+      normalizedMoves.mkString(" ")
+    )
+
+  private def normalizeUciMove(
+      raw: String
+  ): Option[String] =
+    clean(raw).map(_.toLowerCase).filter(isUciMove)
+
+  private def isUciMove(
+      raw: String
+  ): Boolean =
+    "(?i)^[a-h][1-8][a-h][1-8][qrbn]?$".r.matches(Option(raw).getOrElse(""))
 
   private def heavyPieceSlice(
       phase: String,

@@ -415,30 +415,56 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         startFen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
         sideToMove = "white",
         prompt = "PlayableByPV prompt with return vector and cash out",
-        rootChoices = List(
-          ShellChoice(
-            uci = "e2e4",
-            san = "e4",
-            credit = "full",
-            nextNodeId = Some("n1"),
-            terminalId = None,
-            afterFen = None,
-            familyKey = None,
-            label = Some("PlayedPV label"),
-            feedback = "engine-coupled continuation and {seed}"
+        plans = List(
+          PuzzlePlan(
+            id = "plan_attack",
+            familyKey = Some("king_attack_build_up|h7"),
+            dominantIdeaKind = Some("king_attack_build_up"),
+            anchor = Some("{them}"),
+            task = "cash out the compensation before the return vector lands",
+            feedback = "engine-coupled continuation and {seed}",
+            allowedStarts =
+              List(
+                PlanStart(
+                  uci = "e2e4",
+                  san = "e4",
+                  credit = "full",
+                  label = Some("PlayedPV label"),
+                  feedback = "engine-coupled continuation and {seed}",
+                  afterFen = None,
+                  terminalId = Some("t1")
+                )
+              ),
+            featuredTerminalId = "t1",
+            featuredStartUci = Some("e2e4")
           )
         ),
-        nodes = List(
-          PlayerNode(
-            id = "n1",
-            step = 1,
-            fen = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
-            prompt = "probe evidence pending",
-            badMoveFeedback = "return vector through line pressure",
-            choices = Nil
-          )
+        proof = RuntimeProofLayer(
+          rootChoices = List(
+            ShellChoice(
+              uci = "e2e4",
+              san = "e4",
+              credit = "full",
+              nextNodeId = Some("n1"),
+              terminalId = None,
+              afterFen = None,
+              familyKey = None,
+              label = Some("PlayedPV label"),
+              feedback = "engine-coupled continuation and {seed}"
+            )
+          ),
+          nodes = List(
+            PlayerNode(
+              id = "n1",
+              step = 1,
+              fen = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
+              prompt = "probe evidence pending",
+              badMoveFeedback = "return vector through line pressure",
+              choices = Nil
+            )
+          ),
+          forcedReplies = Nil
         ),
-        forcedReplies = Nil,
         terminals = List(
           TerminalReveal(
             id = "t1",
@@ -453,7 +479,13 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             siblingMoves = Nil,
             opening = Some("theme:piece_redeployment"),
             eco = None,
-            dominantFamilyKey = None
+            dominantFamilyKey = None,
+            planId = Some("plan_attack"),
+            planTask = Some("cash out the compensation before the return vector lands"),
+            whyPlan = Some("engine-coupled continuation and {seed}"),
+            whyMove = Some("The return vector only holds if delayed recovery keeps the line pressure alive."),
+            acceptedStarts = List("e4", "Qe2"),
+            featuredStart = Some("e4")
           )
         )
       )
@@ -479,9 +511,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val rendered =
       List(
         sanitized.runtimeShell.prompt,
-        sanitized.runtimeShell.rootChoices.flatMap(choice => choice.label.toList :+ choice.feedback).mkString(" "),
-        sanitized.runtimeShell.nodes.flatMap(node => List(node.prompt, node.badMoveFeedback)).mkString(" "),
-        sanitized.runtimeShell.terminals.flatMap(reveal => List(reveal.title, reveal.summary, reveal.commentary) ++ reveal.anchor.toList ++ reveal.opening.toList).mkString(" "),
+        sanitized.runtimeShell.plans.flatMap(plan => List(plan.task, plan.feedback) ++ plan.anchor.toList ++ plan.allowedStarts.flatMap(start => start.label.toList :+ start.feedback)).mkString(" "),
+        sanitized.runtimeShell.proof.rootChoices.flatMap(choice => choice.label.toList :+ choice.feedback).mkString(" "),
+        sanitized.runtimeShell.proof.nodes.flatMap(node => List(node.prompt, node.badMoveFeedback)).mkString(" "),
+        sanitized.runtimeShell.terminals.flatMap(reveal => List(reveal.title, reveal.summary, reveal.commentary) ++ reveal.anchor.toList ++ reveal.opening.toList ++ reveal.planTask.toList ++ reveal.whyPlan.toList ++ reveal.whyMove.toList ++ reveal.acceptedStarts ++ reveal.featuredStart.toList).mkString(" "),
         sanitized.puzzle.dominantFamily.toList.map(_.anchor).mkString(" ")
       ).mkString(" ")
 

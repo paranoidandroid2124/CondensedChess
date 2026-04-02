@@ -31,7 +31,7 @@ object StrategicPuzzleCorpusSupport:
   val RootMultiPv = 6
   val RootDepth = 14
   val RootCandidateCpLossMax = 120
-  val RootFullCreditCpLossMax = 80
+  val RootFullCreditCpLossMax = 90
   val RootTacticalGapCp = 110
   val RootGapPenaltyCp = 80
   val AfterMultiPv = 3
@@ -547,14 +547,148 @@ object StrategicPuzzleCorpusSupport:
   def prePolishFamilySummary(response: CommentResponse, cpLoss: Int): MoveFamilySummary =
     familySummary(response, cpLoss, prePolishExplanationGate(response))
 
+  private val GenericTaskKeys = Set(
+    "activity",
+    "centralize",
+    "consolidate",
+    "improve_piece_placement",
+    "improve_pieces",
+    "keep_improving",
+    "keep_pressure",
+    "maintain_pressure",
+    "play_positionally",
+    "quiet_improvement",
+    "stabilize",
+    "wait"
+  )
+
+  private val BoardSquarePattern = raw"\b([a-h][1-8])\b".r
+  private val FilePattern = raw"\b([a-h])(?:-|\s)?file\b".r
+  private val ZonePattern =
+    raw"\b(queenside|kingside|center|centre|dark squares|light squares|dark-square complex|light-square complex)\b".r
+  private val TaskLexemes = Set(
+    "bind",
+    "break",
+    "clamp",
+    "counterplay",
+    "endgame",
+    "ending",
+    "entry",
+    "file",
+    "infiltration",
+    "initiative",
+    "outpost",
+    "pawn",
+    "passed",
+    "rook",
+    "queen",
+    "trade",
+    "transition"
+  )
+
+  private def normalizedWords(raw: String): List[String] =
+    Option(raw)
+      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", " "))
+      .filter(_.nonEmpty)
+      .toList
+      .flatMap(_.split("\\s+").toList)
+      .filter(_.nonEmpty)
+
+  private def normalizedTaskKey(raw: String, maxWords: Int): Option[String] =
+    val words = normalizedWords(raw)
+    Option.when(words.nonEmpty && words.size <= maxWords)(words.mkString("_"))
+
+  private def boardAnchorFromText(raw: String): Option[String] =
+    val lowered = Option(raw).map(_.trim.toLowerCase).filter(_.nonEmpty)
+    lowered.flatMap(text =>
+      BoardSquarePattern.findFirstMatchIn(text).map(_.group(1)).orElse {
+        FilePattern.findFirstMatchIn(text).map(m => s"${m.group(1)}_file")
+      }.orElse {
+        ZonePattern.findFirstMatchIn(text).flatMap(m => normalizedTaskKey(m.group(1).replace("centre", "center"), 3))
+      }
+    )
+
+  private def boundedPhraseKey(raw: String, maxWords: Int = 4): Option[String] =
+    val words = normalizedWords(raw)
+    val key = words.mkString("_")
+    val hasBoardLexeme =
+      boardAnchorFromText(raw).isDefined ||
+        words.exists(w => Set("queenside", "kingside", "center", "centre", "dark", "light").contains(w))
+    val hasTaskLexeme = words.exists(TaskLexemes.contains)
+    Option.when(
+      words.nonEmpty &&
+        words.size <= maxWords &&
+        (hasBoardLexeme || hasTaskLexeme) &&
+        !GenericTaskKeys.contains(key)
+    )(key)
+
+  private def directionalAnchor(response: CommentResponse): Option[String] =
+    response.strategyPack.flatMap(_.directionalTargets.headOption.map(_.targetSquare)).flatMap(nonBlank).map(_.trim.toLowerCase)
+
+  private def routeDestinationAnchor(digest: Option[NarrativeSignalDigest]): Option[String] =
+    digest.flatMap(_.deploymentRoute.lastOption).flatMap(nonBlank).map(_.trim.toLowerCase)
+
+  private def focusAnchor(digest: Option[NarrativeSignalDigest]): Option[String] =
+    digest.flatMap(_.dominantIdeaFocus).flatMap(boardAnchorFromText)
+
+  private def counterplayAnchor(digest: Option[NarrativeSignalDigest]): Option[String] =
+    List(
+      digest.flatMap(_.prophylaxisThreat),
+      digest.flatMap(_.opponentPlan),
+      digest.flatMap(_.prophylaxisPlan)
+    ).flatten.flatMap(raw => boardAnchorFromText(raw).orElse(boundedPhraseKey(raw))).headOption
+
+  private def transitionAnchor(digest: Option[NarrativeSignalDigest]): Option[String] =
+    digest.flatMap(_.endgameTransitionClaim).flatMap(boundedPhraseKey(_))
+
+  private def routePurposeAnchor(
+      response: CommentResponse,
+      digest: Option[NarrativeSignalDigest]
+  ): Option[String] =
+    response.strategyPack.toList.flatMap(_.pieceRoutes.map(_.purpose)).flatMap(raw => boundedPhraseKey(raw)).headOption
+      .orElse(digest.flatMap(_.deploymentPurpose).flatMap(raw => boundedPhraseKey(raw)))
+
+  private def boundedTaskAnchor(
+      response: CommentResponse,
+      digest: Option[NarrativeSignalDigest],
+      kind: Option[String]
+  ): Option[String] =
+    val prophylaxisKinds = Set(StrategicIdeaKind.Prophylaxis, StrategicIdeaKind.CounterplaySuppression)
+    val transitionKinds = Set(StrategicIdeaKind.FavorableTradeOrTransformation)
+    val candidates =
+      if kind.exists(prophylaxisKinds.contains) then
+        List(
+          counterplayAnchor(digest),
+          directionalAnchor(response),
+          focusAnchor(digest),
+          routeDestinationAnchor(digest),
+          routePurposeAnchor(response, digest),
+          transitionAnchor(digest)
+        )
+      else if kind.exists(transitionKinds.contains) then
+        List(
+          transitionAnchor(digest),
+          counterplayAnchor(digest),
+          directionalAnchor(response),
+          focusAnchor(digest),
+          routeDestinationAnchor(digest),
+          routePurposeAnchor(response, digest)
+        )
+      else
+        List(
+          directionalAnchor(response),
+          focusAnchor(digest),
+          routeDestinationAnchor(digest),
+          routePurposeAnchor(response, digest),
+          counterplayAnchor(digest),
+          transitionAnchor(digest)
+        )
+    candidates.flatten.headOption
+
   def familySummary(response: CommentResponse, cpLoss: Int, gate: ExplanationGate): MoveFamilySummary =
     val resolvedDigest = response.signalDigest.orElse(response.strategyPack.flatMap(_.signalDigest))
     val kind = resolvedDigest.flatMap(_.dominantIdeaKind).flatMap(nonBlank)
-    val anchor =
-      response.strategyPack.flatMap(_.directionalTargets.headOption.map(_.targetSquare)).flatMap(nonBlank)
-        .orElse(resolvedDigest.flatMap(_.deploymentRoute.lastOption).flatMap(nonBlank))
-        .orElse(resolvedDigest.flatMap(_.dominantIdeaFocus).flatMap(nonBlank))
-        .orElse(response.mainStrategicPlans.headOption.map(_.planName).flatMap(nonBlank))
+    val anchor = boundedTaskAnchor(response, resolvedDigest, kind)
     val key = kind.zip(anchor).headOption.map { case (ideaKind, resolvedAnchor) =>
       s"$ideaKind|$resolvedAnchor"
     }
@@ -622,11 +756,17 @@ object StrategicPuzzleCorpusSupport:
 
     val partialRows =
       rows
-        .filter(row => row.move.cpLoss <= RootCandidateCpLossMax && !row.family.key.contains(dominantFamily.key))
+        .filter(row =>
+          row.move.cpLoss <= RootCandidateCpLossMax &&
+            !row.family.key.contains(dominantFamily.key) &&
+            row.family.robust &&
+            row.explanation.passed
+        )
         .sortBy(row => (row.move.cpLoss, -row.family.signalRichness, row.move.rank))
+        .take(MaxAcceptedMoves)
 
     val partial = partialRows.map(buildPuzzleMoveDoc)
-    val alternate = partialRows.filter(_.explanation.passed).map(buildPuzzleMoveDoc)
+    val alternate = partialRows.filter(_.move.cpLoss <= RootFullCreditCpLossMax + 20).map(buildPuzzleMoveDoc)
     (accepted, partial, alternate)
 
   def scorePuzzleDoc(
@@ -779,7 +919,7 @@ object StrategicPuzzleCorpusSupport:
   private def computeFamilyScore(doc: StrategicPuzzleDoc): Int =
     val acceptedCount = doc.acceptedMoves.size
     val countScore = if acceptedCount >= 2 then 1.0 else 0.78
-    val cpScore = 1.0 - normalized(doc.dominantFamily.averageCpLoss, lower = 0.0, upper = 80.0)
+    val cpScore = 1.0 - normalized(doc.dominantFamily.averageCpLoss, lower = 0.0, upper = RootFullCreditCpLossMax.toDouble)
     val signalScore = normalized(doc.dominantFamily.averageSignalRichness, lower = 2.0, upper = 12.0)
     math.round(30.0 * (0.4 * countScore + 0.35 * cpScore + 0.25 * signalScore)).toInt.clamp(0, 30)
 

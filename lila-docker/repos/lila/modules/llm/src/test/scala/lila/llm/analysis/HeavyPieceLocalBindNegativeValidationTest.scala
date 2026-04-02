@@ -136,7 +136,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
   private def validationProbe(
       id: String,
       baseFen: String,
-      branchHead: String,
+      branch: List[String],
       futureSnapshot: Option[FutureSnapshot],
       keyMotifs: List[String],
       purpose: String = ThemePlanProbePurpose.RouteDenialValidation,
@@ -146,8 +146,8 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
       id = id,
       fen = Some(baseFen),
       evalCp = evalCp,
-      bestReplyPv = List(branchHead, "c1c8"),
-      replyPvs = Some(List(List(branchHead, "c1c8"))),
+      bestReplyPv = branch,
+      replyPvs = Some(List(branch)),
       deltaVsBaseline = 10,
       keyMotifs = keyMotifs,
       purpose = Some(purpose),
@@ -263,7 +263,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "queen_infiltration_validation",
               baseFen = QueenInfiltrationFen,
-              branchHead = "c3c4",
+              branch = List("c3c4", "a7a6"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -300,7 +300,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "rook_lift_validation",
               baseFen = RookLiftFen,
-              branchHead = "h2h3",
+              branch = List("h2h3", "c6a5"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -338,7 +338,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "perpetual_validation",
               baseFen = PerpetualFen,
-              branchHead = "a8a1",
+              branch = List("a8a1", "c2b1"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -370,7 +370,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "off_sector_validation",
               baseFen = OffSectorFen,
-              branchHead = "c3c4",
+              branch = List("c3c4", "c8b8"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -415,7 +415,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "validation_only_shell",
               baseFen = PressureOnlyFen,
-              branchHead = "d8h4",
+              branch = List("d8h4"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -445,7 +445,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "stitched_validation",
               baseFen = StitchedFen,
-              branchHead = "h7h5",
+              branch = List("g1h1", "h7h5"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -476,7 +476,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "fragile_validation",
               baseFen = FragileFen,
-              branchHead = "c3c4",
+              branch = List("c3c4", "h7h6"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -506,7 +506,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "fortress_validation",
               baseFen = FortressFen,
-              branchHead = "c3c4",
+              branch = List("c3c4", "h7h6"),
               futureSnapshot = Some(fortressSnapshot),
               keyMotifs = List("c-file denied", "b4 entry denied", "hold the shell")
             )
@@ -541,7 +541,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             validationProbe(
               id = "exchange_sac_validation",
               baseFen = ExchangeSacFen,
-              branchHead = "h2h3",
+              branch = List("h2h3", "c8c1"),
               futureSnapshot = Some(basePositiveSnapshot()),
               keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
             )
@@ -720,6 +720,99 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
 
     assert(contract.heavyPieceReleaseInventory.contains("queen_infiltration"), clues(contract))
     assert(!contract.bestDefenseReleaseSurvivors.contains("queen_infiltration"), clues(contract))
+  }
+
+  test("same-first-move divergent continuation does not count as the same defended branch") {
+    val divergentFixture =
+      exactFixtures
+        .find(_.id == "stitched_heavy_piece_bundle")
+        .getOrElse(fail("expected stitched_heavy_piece_bundle fixture"))
+    val contract =
+      HeavyPieceLocalBindValidation
+        .evaluate(
+          plan = heavyPlan(divergentFixture),
+          probeResultsById = divergentFixture.probes.map(probe => probe.id -> probe).toMap,
+          preventedPlans = divergentFixture.preventedPlans,
+          evalCp = divergentFixture.evalCp,
+          isWhiteToMove = divergentFixture.sideToMove == "white",
+          phase = "middlegame",
+          ply = 24,
+          fen = divergentFixture.fen
+        )
+        .getOrElse(fail("expected heavy-piece contract"))
+
+    assertEquals(contract.sameDefendedBranch, false, clues(contract))
+    assert(contract.failsIf.contains("stitched_heavy_piece_bundle"), clues(contract))
+  }
+
+  test("one-move branch fragments do not provide replayable same-branch identity") {
+    val fragmentPlan =
+      heavyPlan(
+        ExactFixture(
+          id = "fragmentary_branch_identity",
+          source = s"fen:$PressureOnlyFen",
+          fen = PressureOnlyFen,
+          sideToMove = "white",
+          evalCp = 188,
+          planName = "Claim a heavy-piece shell from a one-move fragment",
+          bestDefenseLine = None,
+          releaseLine = List("d8h4"),
+          probes =
+            List(
+              directReplyProbe(
+                id = "fragment_reply",
+                baseFen = PressureOnlyFen,
+                bestDefenseLine = List("d8h4"),
+                releaseLine = List("d8h4"),
+                futureSnapshot = Some(basePositiveSnapshot()),
+                keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
+              ),
+              validationProbe(
+                id = "fragment_validation",
+                baseFen = PressureOnlyFen,
+                branch = List("d8h4"),
+                futureSnapshot = Some(basePositiveSnapshot()),
+                keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
+              )
+            ),
+          preventedPlans = List(preventedFilePlan(), preventedEntryPlan()),
+          expectedFails = Set("direct_best_defense_missing")
+        )
+      )
+    val probes =
+      List(
+        directReplyProbe(
+          id = "fragment_reply",
+          baseFen = PressureOnlyFen,
+          bestDefenseLine = List("d8h4"),
+          releaseLine = List("d8h4"),
+          futureSnapshot = Some(basePositiveSnapshot()),
+          keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
+        ),
+        validationProbe(
+          id = "fragment_validation",
+          baseFen = PressureOnlyFen,
+          branch = List("d8h4"),
+          futureSnapshot = Some(basePositiveSnapshot()),
+          keyMotifs = List("c-file denied", "b4 entry denied", "conversion route stabilizes")
+        )
+      )
+    val contract =
+      HeavyPieceLocalBindValidation
+        .evaluate(
+          plan = fragmentPlan,
+          probeResultsById = probes.map(probe => probe.id -> probe).toMap,
+          preventedPlans = List(preventedFilePlan(), preventedEntryPlan()),
+          evalCp = 188,
+          isWhiteToMove = true,
+          phase = "middlegame",
+          ply = 24,
+          fen = PressureOnlyFen
+        )
+        .getOrElse(fail("expected heavy-piece contract"))
+
+    assertEquals(contract.bestDefenseBranchKey, None, clues(contract))
+    assert(contract.failsIf.contains("direct_best_defense_missing"), clues(contract))
   }
 
   test("heavy-piece local bind shell cannot re-inflate across planner, replay, active, bookmaker, or whole-game reuse") {

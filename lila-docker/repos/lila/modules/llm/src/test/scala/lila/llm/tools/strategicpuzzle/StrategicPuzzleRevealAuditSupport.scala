@@ -130,8 +130,11 @@ object StrategicPuzzleRevealAuditSupport:
     val title = normalizePlain(terminal.title)
     val summary = normalizePlain(terminal.summary)
     val commentary = CommentaryPayloadNormalizer.normalize(Option(terminal.commentary).getOrElse("")).trim
-    val lead = firstParagraph(commentary).getOrElse(summary)
-    val combined = List(title, summary, lead, commentary).filter(_.nonEmpty).mkString("\n")
+    val planTask = normalizePlain(terminal.planTask.getOrElse(""))
+    val whyPlan = normalizePlain(terminal.whyPlan.getOrElse(summary))
+    val whyMove = normalizePlain(terminal.whyMove.getOrElse(""))
+    val lead = firstParagraph(commentary).getOrElse(whyPlan).trim
+    val combined = List(title, planTask, summary, whyPlan, whyMove, lead, commentary).filter(_.nonEmpty).mkString("\n")
     val issues = scala.collection.mutable.ListBuffer.empty[RevealIssue]
 
     val provenanceHits =
@@ -142,14 +145,14 @@ object StrategicPuzzleRevealAuditSupport:
         detail = s"Reveal text leaks engine/probe/grading language: ${provenanceHits.mkString(", ")}."
       )
 
-    val anchorText = List(summary, lead).filter(_.nonEmpty).mkString(" ")
+    val anchorText = List(planTask, whyPlan, summary, lead).filter(_.nonEmpty).mkString(" ")
     if LiveNarrativeCompressionCore.requiresConcreteAnchor(anchorText) && !LiveNarrativeCompressionCore.hasConcreteAnchor(anchorText) then
       issues += RevealIssue(
         code = "missing_anchor",
         detail = "Reveal text talks about a plan or pressure without naming a square, file, break, exchange, or concrete piece target."
       )
 
-    val falseClaimHits = falseClaimRiskHits(summary) ++ falseClaimRiskHits(lead)
+    val falseClaimHits = falseClaimRiskHits(planTask) ++ falseClaimRiskHits(summary) ++ falseClaimRiskHits(lead)
     if falseClaimHits.nonEmpty then
       issues += RevealIssue(
         code = "false_claim_risk",

@@ -7,7 +7,7 @@ import lila.llm.model.authoring.*
 
 /**
  * Generates concrete candidates for Latent Seeds based on the current position.
- * This centralizes logic that was previously hardcoded or missing in LatentPlanSeeder.
+ * This centralizes the position-specific move generation used by plan proposal.
  */
 object SeedMoveGenerator:
 

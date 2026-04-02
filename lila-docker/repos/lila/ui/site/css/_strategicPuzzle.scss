@@ -948,6 +948,22 @@ body.dark {
   text-align: left;
   display: grid;
   gap: 0.15rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.sp-choice:hover,
+.sp-choice:focus-visible {
+  border-color: rgba($sp-primary, 0.24);
+  box-shadow: 0 10px 24px rgba(18, 41, 57, 0.08);
+  transform: translateY(-1px);
+}
+
+.sp-choice:focus-visible {
+  outline: none;
 }
 
 .sp-choice.is-primary {
@@ -1469,6 +1485,17 @@ html.dark .sp-choice.is-selected,
 html.dark .sp-history-drawer,
 html.dark .sp-history-entry {
   border-color: rgba($sp-primary, 0.34);
+}
+
+html.dark .sp-choice.is-primary {
+  border-color: rgba($sp-primary, 0.34);
+  background: linear-gradient(135deg, rgba($sp-primary, 0.16), rgba(#12171d, 0.92));
+}
+
+html.dark .sp-choice:hover,
+html.dark .sp-choice:focus-visible {
+  border-color: rgba($sp-primary, 0.34);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
 html.dark .sp-choice__copy,

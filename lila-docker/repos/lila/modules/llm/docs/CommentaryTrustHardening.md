@@ -45,18 +45,41 @@ Use the documents in this order:
 - CTH-A:
   core complete, maintenance-only
 - CTH-B:
-  bounded B1 / B2 / B3 remain implemented and adversarial-review green, and B4
-  is now live only as one narrow slice:
-  late-middlegame local file-entry bind certification only
+  bounded B1 / B2 / B3 remain implemented and adversarial-review green, B4 is
+  now `current bounded scope complete` only as one narrow local file-entry bind
+  slice, B5b is now `current bounded scope complete` only as one bounded
+  negative-first containment slice, and B6 is live only as one narrow
+  planner-owned named route-network slice
 - CTH-B5a:
   design/recon baseline ready only:
   no B5 runtime slice is open, and the selected next recon family is
   heavy-piece local bind on a negative-first criticism lane
+- CTH-B5b:
+  bounded negative-first containment slice now `current bounded scope complete`
+  only: replayable two-ply same-branch identity, exact-branch replay proof,
+  fixed-depth PV1 reproduction, and cross-surface non-reinflation are green;
+  heavy-piece positive rollout remains closed
+- CTH-B7:
+  design/recon/charter baseline ready only:
+  no B7 runtime slice is open, and the only candidate allowed into B7b review
+  is one same-defended-branch bounded task shift after forced simplification;
+  exact-FEN positive control plus an exact-board nasty-case pack remain
+  mandatory before any rollout
+- CTH-B8:
+  `B8a` first-slice design + corpus validation is now
+  `still too fuzzy / more corpus work needed`:
+  the only plausible unit left is one same-branch sector-local active-plan
+  collapse, but current exact-FEN reruns do not produce two independent
+  survivors and still fail on progress visibility, family relabel drift,
+  heavy-piece leakage, or other-wing escape
 - Current operating rule:
-  maintain the live B1 / B2 / B3 / B4 runtime, keep broader B-frontier
-  expansion closed, and let any post-B4 work advance only through bounded
-  design/recon/charter baselines; B5a does not reopen positive semantics and
-  any B5b work must begin from the negative-first charter below
+  maintain the live B1 / B2 / B3 / B4 runtime, the shipped B5b containment
+  slice, and the narrow B6 planner-only route-network slice; keep broader
+  B-frontier expansion closed, and let post-B4 work advance only through
+  bounded design/recon/charter baselines. B7a defines proof burden only; it
+  does not authorize a new runtime path, new owner lane, `WhatChanged`, replay,
+  or whole-game reuse. Any B7b work must stay on the existing architecture and
+  begin with the fail-closed charter below.
 - CTH board-truth validation rule:
   B-track design, self-critique, and validation must stay tied to exact board
   positions plus engine-backed best-defense / best-path verification. Verbal
@@ -75,6 +98,19 @@ Use the documents in this order:
   explicitly deferred
 - current priority:
   `CTH`
+- strategic-puzzle cross-surface rule:
+  the public solve shell is plan-first, while exact line/tree data remains a
+  proof/replay layer; v2 should consume that layer only through the nested
+  runtime `proof` adapter. Flat legacy tree fields are removed from the public
+  shell, stored pre-v2 puzzle docs must be republished, and solve completion
+  should trust `planId + startUci` rather than any client-supplied line
+  replay. Reveal copy should explain the shared bounded task and accepted
+  start before it narrates the proof line. Frontend review labels must stay
+  player-facing too: do not surface raw generated `planId` strings where the
+  user should see the bounded task, theme, or accepted-start context. Reveal
+  first-frame board semantics should also stay plan-first:
+  start-applied position first, exact proof board only as a secondary review
+  focus
 
 CTH exists because Track 5 would otherwise amplify unresolved trust-critical
 problems:
@@ -1788,7 +1824,7 @@ Status:
 - `implementation-green`
 - known B4 fix-up findings closed
 - `adversarial-review green`
-- `close-ready`
+- `current bounded scope complete`
 
 Canonical runtime scope:
 
@@ -1865,16 +1901,30 @@ B4 fix-up hardening closed in this step:
 - `entryAxisPersistence` is now a legality burden, not just a confidence input:
   the corroborating entry square must stay unavailable on the same defended
   branch, and `entry_axis_persistence_missing` now hard-fails the certificate
+- same-defended-branch identity is now replayable-first:
+  `bestDefenseBranchKey` must resolve from `variationHash`, `seedId`, or one
+  exact two-ply reply-line key; same-first-move divergent continuations and
+  short candidate/probed fallbacks no longer count as same-branch proof, and
+  ambiguous direct-reply branch sets no longer leak a selected defended-branch
+  key downstream
 - affirmative-only surface matching is now explicit:
   the file-entry pair may be recovered only from affirmative plan text
   (`planName`, `executionSteps`); negative/caveat text such as
   `failureModes` or `refutation` may not unlock a positive surface pair
-- new negative fixtures now cover both seams:
+- new negative fixtures now cover the remaining narrow-slice seams:
   `entry_axis_persistence_missing` and
-  `pair_only_in_failure_mode_or_refutation`
+  `pair_only_in_failure_mode_or_refutation`, plus the same-first-move
+  divergent defended-branch near-miss
 - result:
   the B4 slice moves from `implementation-green` only to
-  `adversarial-review green` and `close-ready` inside its narrow charter
+  `adversarial-review green` and `current bounded scope complete` inside its
+  narrow charter only; that means maintenance-only watch for the bounded local
+  file-entry slice, not broader B4 family completion
+
+Next move:
+
+- `B4 maintenance-only watch`; any broader B4 texture / posture / owner-surface
+  expansion still needs a new bounded charter
 
 Verification burden closed in the same session:
 
@@ -2227,6 +2277,10 @@ Implemented B5b slice:
   `bestReplyPv` plus same-branch validation best replies; illegal,
   paraphrased, wrong-base, short-fragment, or legal-prefix-plus-illegal-tail
   heavy-piece lines do not count as release proof
+- same-branch identity rule:
+  `bestDefenseBranchKey` now requires replayable two-ply defended-branch
+  identity from the exact variation or exact best-reply / validation line
+  itself; same-first-move fragments and candidate/probed fallbacks do not count
 - exact-position regression pack:
   `HeavyPieceLocalBindNegativeValidationTest` with FEN-backed cases for
   `queen_infiltration_shell`, `rook_lift_switch`,
@@ -2252,14 +2306,14 @@ Implemented B5b slice:
   B5b applies only to queen-on heavy-piece shells, so the existing B4
   queen-light local file-entry positive slice remains intact
 - verification status:
-  implementation-green, adversarial-review green, and `close-ready` inside the
-  bounded negative-first charter after one fix-up narrowed the helper from
-  generic heavy-piece middlegames to queen-on heavy-piece middlegames so B4
-  queenless certification stayed live; the close review also re-checked
-  PV1-only best-defense survivors and wrong-base replay fail-closed behavior
+  implementation-green, adversarial-review green, and `current bounded scope
+  complete` inside the bounded negative-first charter after the final fix-up
+  closed the same-first-move defended-branch seam by requiring replayable
+  two-ply identity; B4 queenless certification stayed live, and PV1-only best-
+  defense survivors plus wrong-base replay fail-closed behavior remain green
 - positive scope after B5b:
-  still deferred; heavy-piece local bind remains containment-only until the
-  release inventory can clear on exact-position best defense
+  still deferred; this is containment-slice completion only, not heavy-piece
+  positive-family completion
 
 Session verdict:
 
@@ -2269,25 +2323,29 @@ Session verdict:
   backend-only contract drafts, criticism matrix, broad validation charter,
   and self-critique-revised B5b recommendation without changing runtime
   semantics
-- `CTH-B5b negative-first slice passed`
+- `CTH-B5b negative-first slice complete`
 - reason:
   the existing runtime path now contains queen-on heavy-piece local bind shells
   with exact-FEN negative fixtures, exact-branch replay release proof, fixed-
-  depth engine-path reproduction, and cross-surface non-reinflation checks,
-  while heavy-piece positive wording remains closed
-- `CTH-B5 bounded close review`
+  depth engine-path reproduction, replayable two-ply same-branch identity, and
+  cross-surface non-reinflation checks, while heavy-piece positive wording
+  remains closed
+- `CTH-B5 current bounded scope complete`
 - reason:
-  the current B5b runtime is now `close-ready` only inside its bounded
+  the current B5b runtime now has no remaining required work inside its bounded
   negative-first containment charter: exact-board / PV1 truth discipline,
-  nasty-case criticism coverage, and B4 boundary protection are green, but
-  heavy-piece positives and broader B5/B6 cells remain deferred
+  nasty-case criticism coverage, cross-surface non-reinflation, and B4/B6
+  boundary protection are green; this is maintenance-only status for the
+  containment slice, not heavy-piece family completion
 - next move:
-  `B6 design`; keep B5b itself containment-only while the next positive
-  frontier is designed
+  `B5 maintenance-only watch`; any broader heavy-piece positive or adjacent
+  B5/B6 frontier work needs a new bounded charter rather than reopening this
+  slice
 - residual watch result:
-  one exact-branch proof seam was closed by failing short / incomplete replay
-  fragments shut and by preferring explicit engine selection over the local
-  fallback; no new blocking seam was found after the bounded fix-up
+  the final same-first-move defended-branch seam was closed by requiring
+  replayable two-ply branch identity and by keeping short / incomplete replay
+  fragments fail-closed; no new blocking seam was found after the bounded
+  fix-up
 
 ## CTH-B6 — Named Route-Network Bind Design Baseline
 
@@ -2557,8 +2615,21 @@ Session verdict:
   same-branch continuity, continuation bound, release risks, mirage /
   redundancy / reinflation risk, move-order fragility, fail reasons, and
   evidence sources
+- branch-identity fix-up:
+  same-defended-branch proof no longer falls back to `moves.headOption`; B6 now
+  requires a replayable defended-branch token (`variationHash`, `seedId`, or a
+  two-ply reply-line key), and missing / ambiguous branch identity fails closed
+  as `same_branch_identity_missing` or `ambiguous_defended_branch`
+- planner surface fix-up:
+  planner-owned `WhyThis` no longer rebuilds a route network from raw
+  `preventedPlansNow`; it reads only the exact carried B6 triplet
+  (`file`, `entrySquare`, `rerouteSquare`), while
+  `NamedRouteNetworkBindCertification.certifiedSurfaceNetwork` itself now fails
+  closed unless one exact plan-scoped triplet is uniquely named by the
+  experiment-filtered evidence-backed plans
 - mandatory hard fails:
   `file_entry_restatement_only`, `route_network_mirage`,
+  `same_branch_identity_missing`, `ambiguous_defended_branch`,
   `redundant_square_counting`, `untouched_sector_reroute`,
   `color_complex_escape`, `cross_branch_stitching`,
   `static_net_without_progress`, `engine_pv_paraphrase`,
@@ -2573,26 +2644,1063 @@ Session verdict:
   prefix `a3b4 a7a5 b4a5 c6a5 f3e5`
 - exact negative / near-miss fixture set now covers:
   `file_entry_restatement_only`, `route_network_mirage`,
+  `same_first_move_divergent_branch`,
+  `ambiguous_defended_branch`,
   `redundant_square_counting`, `untouched_sector_reroute`,
   `color_complex_escape`, `move_order_fragility`,
   `cross_branch_stitching`, `static_net_without_progress`,
-  `engine_pv_paraphrase`, `surface_reinflation`, and
-  `heavy_piece_release_shell`
+  `engine_pv_paraphrase`, `surface_reinflation`,
+  `missing_branch_identity_fails_close`, and `heavy_piece_release_shell`
 - self-critique result:
-  the local engine currently reproduces the positive route branch as an exact
-  MultiPV witness, but not yet as a stable top-1 root line; broad B6 signoff
-  therefore remains closed even though the narrow runtime slice is implemented
+  same-first-move divergent replies now fail closed instead of borrowing
+  first-move branch identity, and planner `WhyThis` now stays pinned to the
+  exact carried triplet even when raw prevented plans contain a stronger-looking
+  composite shell
 
 ### Session status
 
 - implementation status:
   implementation-green on the bounded planner-only slice
 - review status:
-  adversarial close review remains `partial` because the exact positive control
-  is not yet a stable top-1 root line under the local engine harness
+  adversarial-review green on the bounded planner-only slice after the branch
+  identity and planner surface fix-up
 - operational consequence:
-  keep broader B6 expansion, replay reuse, and any stronger whole-position
-  thesis closed until the exact best-defense reproduction burden is stronger
+  B6b is now `close-ready` inside the narrow planner-only charter, which closes
+  the B6 minimum slice only; the next required work remains B6-family
+  expansion, with broader route-chain coverage first, then broader
+  posture/phase coverage, before any replay / whole-game positive reuse review.
+  Keep sector-network, color-complex, and stronger whole-position thesis cells
+  closed
+
+## CTH-B6 Expansion Baseline
+
+### Problem framing
+
+- B6 minimum slice is complete:
+  B6b is now `close-ready` inside one bounded planner-owned `WhyThis` charter
+- B6 product-complete is not:
+  the live slice still proves only one `file-entry pair + one reroute denial`
+- next work remains inside B6, not B7:
+  choose which route-network expansion can stay truth-owning on the existing
+  `RestrictionProphylaxis -> file-entry reuse` architecture
+- exact-board rule:
+  every expansion candidate must stay tied to exact FEN-backed best-defense and
+  same-branch continuation proof; route rhetoric does not count as validation
+- boundary rule:
+  no new runtime path, payload/schema, prose family, replay lane, or owner lane
+  may open as part of this baseline
+
+### Candidate map
+
+| Candidate | Expected positive scope | Product value | Trust risk | Strongest reusable signals | New falsification burden | Surface risk | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `broader route-chain rollout` | one current B6 triplet plus one exact intermediate node and one reroute denial on the same defended branch, still clearly-better late middlegame, still planner-owned `WhyThis` only | first product-meaningful widening beyond a local triplet because the route claim starts expressing actual continuity | `high` but still bounded | B4 file-entry pair, B6 reroute denial, same-defended-branch grammar, `futureSnapshot.planBlockersRemoved`, `planPrereqsMet`, `PreventedPlan.deniedSquares`, `deniedEntryScope`, `claimCertification` | `fake_route_chain`, `redundant_intermediate_node`, `chain_only_on_nonbest_branch`, `untouched_sector_escape`, root-best failure on the played move | `medium-high` if replay stays closed | `blocked on the current exact FEN`; after-move proof survives, but the move itself does not pass the live root-best gate |
+| `broader posture/phase expansion` | the same B6/B6-expansion truth in slightly-better late middlegame, heavy-piece middlegame, or transition-adjacent cells | broad row coverage once the route contract is trusted | `very high` | current B6 route continuity, B1 persistence grammar, B5b heavy-piece exclusion, current eval/phase gating | `posture_inflation`, heavy-piece release proof, transition task-shift proof, stronger progress burden | `high` | `deferred` until a broader route-chain slice survives exact-board criticism on the current cell |
+| `replay / whole-game positive reuse review` | limited Chronicle / Bookmaker / Active / wrapper reuse of planner-certified route truth | high cross-surface impact | `very high` | replay-closed `sourceKinds`, `StrategicNarrativePlanSupport.evidenceBackedMainPlans`, planner replay filters, existing non-reinflation harnesses | `replay_reinflation`, `whole_game_wrapper_leak`, exact carried-contract parity across surfaces | `very high` | `deferred` until route-chain truth is broader and stable on planner-only scope |
+| `sector-network rollout` | more than one local chain or more than one entry branch in the same sector | medium-high if it ever becomes safe | `extreme` | prevented-plan inventory, `releaseRisksRemaining`, same-branch grammar, `deniedEntryScope = sector` support signals | sector-boundary definition, multi-chain continuity, `untouched_sector_escape`, local-to-sector overreach | `extreme` | `likely unsafe` as the first expansion candidate |
+| `color-complex route expansion` | a route shell narrated through one color complex or mobility cage | medium prose value, low truth margin | `extreme` | denied-square inventory, weak-complex / mobility-cage support signals, `futureSnapshot` | `color_complex_escape`, exact route anchor on one branch, mobility-cage release proof, rhetoric drift | `extreme` | `likely unsafe`; keep support-only / negative-first |
+| `none / more B6 hardening first` | keep the positive frontier closed and do no B6-family widening yet | lowest immediate risk but no product movement | `low` | existing B2 / B3 / B4 / B5b / B6b fail-closed gates | none beyond current regression watch | `lowest` | selected by the 2026-04-02 live-runtime triage because the only plausible route-chain slice failed the root-best gate |
+
+### Backend-only contract drafts
+
+Selected draft:
+
+`namedRouteChainBind`
+
+No new public schema is allowed here.
+These fields describe a backend-only certification contract only, still using
+the existing evidence-tier / downgrade path.
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one B6-certified corridor plus one exact intermediate node and one reroute denial | current B4/B6 local-scope gating |
+| `primaryAxis` | retain the already-certified B4 file anchor instead of inventing a new owner lane | B4 file-axis grammar |
+| `routeNodes` | enumerate the exact node set the chain claims to deny | `PreventedPlan.deniedSquares`, denied entry/break nodes already present in the carrier |
+| `intermediateNodes` | record the single added chain node explicitly so the first expansion cannot drift into sector graphs | current denied-square inventory plus B3/B4 independence grammar |
+| `routeEdges` | require an ordered `entry -> intermediate -> reroute` witness path on the same defended branch | `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`, continuation motifs, direct reply probes |
+| `rerouteDenials` | capture the alternative reroute that makes the chain non-trivial | prevented-plan inventory, `deniedResourceClass`, current B6 reroute reuse |
+| `axisIndependence` | prove the intermediate node is not just a renamed file / entry / reroute square | B3 / B4 / B6 independence grammar |
+| `bestDefenseBranchKey` | keep every proof component on one defended branch | existing branch-key reuse |
+| `sameDefendedBranch` | fail closed when node proof, edge proof, or continuation come from different branches | current B1 / B3 / B4 / B6 same-branch grammar |
+| `routeContinuity` | require concrete best-defense presence, same-branch edge proof, reroute proof, and bounded continuation | `reply_multipv`, `defense_reply_multipv`, `futureSnapshot`, `convert_reply_multipv` |
+| `continuationBound` | keep the continuation explicitly local so the chain does not drift into sector or whole-position rhetoric | B4/B6 bounded-continuation discipline |
+| `releaseRisksRemaining` | inventory live sector escapes, breaks, and tactical releases that would puncture the chain | `newThreatKinds`, `keyMotifs`, collapse reasons, direct reply probes, B5b release grammar |
+| `routeChainMirageRisk` | mark when the node list looks coherent but ordered continuity is not defender-facing enough | B6 mirage logic plus explicit edge witness burden |
+| `postureInflationRisk` | force the first expansion to fail closed outside clearly-better late middlegame | current eval / phase gate plus B5b heavy-piece exclusion |
+| `counterplayReinflationRisk` | keep replay / wrapper rhetoric blocked if the chain is uncertified or weakly bounded | existing replay parity / trust harness / evidence-tier downgrade path |
+| `claimCertification` / `confidence` / `evidenceSources` | keep the expansion auditable inside the existing certification grammar | `PlanEvidenceEvaluator.ClaimCertification` and current contract patterns |
+
+Deferred broader drafts:
+
+| Candidate draft | Extra burden beyond the selected draft | Current verdict |
+| --- | --- | --- |
+| `routeNetworkPhaseExpansion` | explicit `phaseCell`, `evalPosture`, `taskShiftRisk`, stronger progress proof, and a real `postureInflationRisk` gate | `likely deferred` |
+| `routeNetworkReplayReuseReview` | `surfaceScope`, replay parity, wrapper leak proof, and exact carried-contract reuse instead of replay recomposition | `likely deferred` |
+| `sectorRouteNetworkBind` | sector-boundary ownership, multi-chain continuity, untouched-sector escape inventory, and stronger anti-whole-position wording proof | `likely unsafe` |
+| `colorComplexRouteShell` | one exact color-complex route anchor, opposite-color escape exclusion, and mobility-cage release proof | `likely unsafe` |
+
+### Criticism matrix
+
+| Axis | Why risky | Current reusable guard | Required B6 expansion guard | Required difficult fixture shape |
+| --- | --- | --- | --- | --- |
+| `fake_route_chain` | adjacent denied squares can sound like a chain even when no ordered defender-facing continuity was removed | current B6 `routeEdges`, `rerouteDenials`, same-branch persistence, B4 control pair | require per-edge witnesses on the best-defense branch for `entry -> intermediate` and `intermediate -> reroute`; no edge may come from prose alone | use the B6 positive control FEN `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` and try to certify `{b4,d5,a5}` without same-branch edge proof |
+| `redundant_intermediate_node` | the added node may just restate the file or entry axis and make B4 sound richer than it is | B3 / B4 independence grammar, B6 `redundant_square_counting` | compare intermediate-node role against file / entry / reroute roles and fail when it adds no new reroute burden | reuse the same control FEN and treat `c5` as the supposed intermediate node on the existing c-file shell |
+| `chain_only_on_nonbest_branch` | the chain may survive only on a non-best branch while best defense still keeps the route alive | B6 branch-identity hardening, `bestDefenseBranchKey`, same-branch filter | every chain edge, reroute denial, and continuation witness must be present on the exact best-defense branch, not only on validation side branches | reuse `same_first_move_divergent_branch` on `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` with direct reply `a7a5 b4a5 c6a5` versus validation `a7a5 h4h5` |
+| `untouched_sector_escape` | a local chain is closed while another wing or sector still gives the defender a practical reroute | current `releaseRisksRemaining`, B5b release grammar, B6 `untouched_sector_reroute` | keep the first expansion local and fail whenever another sector escape remains live; sector language does not open here | reuse `off_sector_break_release` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P2N2/PPQ2PPP/2RR2K1 w - - 0 24` |
+| `posture_inflation` | once chain prose sounds richer, slightly-better or phase-shifted cells are easy to overstate as bind truth | clearly-better phase gate, heavy-piece exclusion, B4/B6 local-scope discipline | add `postureInflationRisk`, keep the next slice on the existing clearly-better late-middlegame cell, and require a separate corpus before any posture/phase widening | reuse `slightly_better_overclaim_shell` on `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` with the slight-edge eval bucket only |
+| `replay_reinflation` | planner-only chain truth can be rebuilt into a stronger replay thesis than the contract actually proved | replay-closed `sourceKinds`, planner-first replay filters, trust harness | keep replay positive reuse closed on the next slice and require exact carried-chain parity before later review | reuse `planner_raw_recomposition_stronger_than_contract` on `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` |
+| `whole_game_wrapper_leak` | support-only route residue can seed wrap-up or decisive-wrapper rhetoric | whole-game / wrap-up are already closed to B6, truth gate bans support-only decisive wrappers | keep wrapper reuse explicitly unsafe until a later review proves exact carried-chain consumption and no new decisive wrapper seed | reuse `surface_reinflation_case` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/P1P1PN2/1PQ2PPP/2R2RK1 w - - 0 24` across planner / replay / whole-game |
+| `heavy_piece_route_shell` | queen-on or release-rich middlegames can mimic a chain while hiding tactical or perpetual escape | B5b `HeavyPieceLocalBindValidation`, `heavyPieceLocalBindBlocked`, current queen-count gate | inherit the heavy-piece negative-first exclusion unchanged; no positive chain rollout with queen-on shells | reuse the heavy-piece control FEN `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24` |
+| `engine_pv_paraphrase` | a maneuver line can be retold as a strategic chain even though no route loss was measured | claim-certification quantifier / attribution / ontology checks, current B6 `engine_pv_paraphrase` fail | require prevented-plan nodes plus same-branch edge and reroute proof; plan text or PV alone never certifies the chain | reuse the heavy-piece middlegame control FEN `r1bq1rk1/pp3ppp/2n1pn2/2bp4/3P4/2N1PN2/PPQ2PPP/R1B2RK1 w - - 0 12` |
+
+### Broad validation charter
+
+The next B6 expansion burden should still be read as a narrow admission charter:
+
+- `likely coverable next` means the cell can belong to the next bounded B6
+  implementation slice **if** the selected route-chain contract above is
+  enforced
+- `likely deferred` means the cell needs its own exact-board corpus, criticism
+  pack, or stronger containment before positive certification
+- `likely unsafe` means early B6 work should validate only fail-closed behavior
+
+Phase matrix:
+
+| Phase cell | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable next` | this is still the only phase where local route truth, same-branch reroute proof, and bounded continuation overlap strongly enough |
+| `heavy-piece middlegame` | `likely deferred` | B5b already shows the release burden is too large for early positive route-chain wording |
+| `transition / endgame-adjacent` | `likely deferred` | B1 persistence reuse exists, but task-shift and fortress/progress ambiguity are still too open |
+| `pure endgame` | `likely unsafe` | route-chain rhetoric would outrun technical truth too easily |
+
+Evaluation posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable next` | the first expansion still needs the strongest local truth posture |
+| `slightly better` | `likely deferred` | route-chain wording is too easy to inflate without stronger progress proof |
+| `equal / unclear` | `likely unsafe` | positive route-chain certification would overstate the truth |
+| `defending side` | `likely unsafe` | this would create a false owner lane for hold/survival claims |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `B6 current narrow slice` | `likely coverable next` | this remains the regression control cell that every broader candidate must preserve |
+| `broader route-chain` | `likely coverable next` | but only as one exact intermediate node plus one reroute denial on the same defended branch |
+| `posture/phase expansion` | `likely deferred` | more row coverage is attractive, but the trust burden is still larger than the texture gain from staying on the current cell |
+| `replay reuse` | `likely deferred` | review can come later, but only after a broader planner-only truth contract exists |
+| `sector-network` | `likely unsafe` | too close to sector rhetoric and untouched-sector escape overclaim |
+| `color-complex route shell` | `likely unsafe` | current proof remains too abstract and too prose-prone |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely coverable next` | this is still the narrowest owner path for a bounded route-chain claim |
+| `planner-owned WhatChanged` | `likely deferred` | change-language drifts too easily into broader route or conversion theses |
+| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but the chain wording is still inflation-prone |
+| `Chronicle` | `likely deferred` | same replay reuse exists, but exact carried-chain parity is not proven yet |
+| `Active` | `likely deferred` | non-reinflation can be checked, but positive ownership is still diagnostic-sensitive |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | the next slice should validate non-reinflation only, not positive wrapper reuse |
+
+### Mandatory self-critique pass
+
+Candidate attacked:
+
+- the first expansion draft treated `one named route chain + one reroute denial`
+  as enough, without pinning the intermediate node, the best-defense branch, or
+  replay closure tightly enough
+
+Nasty cases used to attack that draft:
+
+| Self-critique case | Why the first draft was vulnerable | B6 expansion correction |
+| --- | --- | --- |
+| `fake_route_chain` | the draft could count an aesthetically plausible intermediate square even when no ordered same-branch edge was proved | require per-edge witnesses on the best-defense branch for both chain edges |
+| `redundant_intermediate_node` | the extra node could just restate the existing B4/B6 axis and sound richer than the truth | add explicit `intermediateNodes` plus stronger `axisIndependence` comparison against file / entry / reroute roles |
+| `chain_only_on_nonbest_branch` | the draft could borrow the chain edge from a non-best validation branch while best defense still kept the route | require all node, edge, reroute, and continuation proof on one `bestDefenseBranchKey` |
+| `untouched_sector_escape` | the draft watched the local chain but not a still-live sector break | keep the first expansion local-only and require explicit off-sector escape inventory inside `releaseRisksRemaining` |
+| `replay_reinflation` | replay infrastructure already exists, so the chain could have been allowed to spread too early | keep the next slice planner-owned `WhyThis` only and postpone positive replay review |
+| `whole_game_wrapper_leak` | support-only chain residue could seed wrap-up or decisive-shift rhetoric | keep whole-game / wrap-up positive reuse explicitly `unsafe` in the charter |
+| `heavy_piece_route_shell` | queen-on shells can sound like route chains even when they are release-rich | inherit B5b heavy-piece exclusion unchanged and keep queen-on positives negative-first only |
+| `engine_pv_paraphrase` | an engine maneuver line could be rewritten as a route chain without measured route loss | require prevented-plan node inventory plus same-branch edge/reroute proof rather than plan text or PV alone |
+
+Design changes forced by self-critique:
+
+- narrow the selected candidate from
+  `one named route chain + one reroute denial`
+  to
+  `one B6-certified triplet plus one exact intermediate node, with both chain
+  edges and the reroute denial witnessed on the same defended branch`
+- add `intermediateNodes`, stronger per-edge `routeEdges`, and
+  `postureInflationRisk` to the selected draft
+- keep the surface charter strict:
+  only `planner-owned WhyThis` is `likely coverable next`;
+  replay review stays `likely deferred`;
+  whole-game / wrap-up stay `likely unsafe`
+- keep heavy-piece, posture/phase, sector-network, and color-complex cells
+  outside the next slice entirely
+
+Revision delta after self-critique:
+
+- before:
+  the next slice could have been read as any plausible `route chain`
+- after:
+  the next slice is only one exact intermediate-node chain above the current B6
+  triplet, with same-branch edge proof and bounded continuation
+- before:
+  replay and wrapper review looked like a small follow-on
+- after:
+  replay remains `deferred` and whole-game / wrap-up remain `unsafe` until a
+  later explicit review
+- before:
+  posture/phase widening looked parallel with route-chain widening
+- after:
+  posture/phase widening is explicitly behind the selected route-chain burden
+
+### Recommended next B6 implementation slice
+
+Recommended next slice:
+
+- no released B6-family expansion slice on the current branch:
+  the only plausible bounded candidate remained the broader route-chain rollout
+  above the current B6 triplet, but the 2026-04-02 exact-board rerun blocked it
+  because the played move did not survive the live root-best gate
+
+Why this slice should go first:
+
+- it was the smallest product-meaningful widening that was genuinely stricter
+  than current B6b
+- it kept phase, eval posture, and surface scope fixed while reusing the
+  current B4/B6 branch-key, denied-square, prevented-plan, future-snapshot,
+  and claim-certification grammar
+- it directly attacked the next early false positive:
+  telling a prettier chain story than the board truth can actually sustain
+- because this slice did not survive exact-board root-best criticism, broader
+  posture/phase widening, replay reuse, sector-network, and color-complex work
+  must all stay closed
+
+Session verdict:
+
+- `CTH-B6 expansion baseline ready`
+- reason:
+  B6 expansion now has a canonical candidate map, selected backend-only
+  contract draft, criticism matrix, broad validation charter, and self-critique
+  delta that keep the next queue inside B6 rather than drifting into B7 or a
+  broader route-network rollout
+
+### Broader route-chain closeout campaign
+
+Purpose:
+decide whether the current B6 intermediate-only live slice is more than a
+one-example shell, and either produce a second exact-FEN survivor or stop
+A-track closeout honestly.
+
+Current scope:
+
+- same clearly-better late middlegame cell only
+- same planner-owned `WhyThis` only
+- same `RestrictionProphylaxis -> file-entry reuse` architecture only
+- one exact B6 triplet plus one exact intermediate node
+- same defended branch only
+- no new runtime semantics; local verification and docs only
+
+Runtime reuse:
+
+- no new ingress, planner lane, replay lane, owner family, payload field, or
+  prose family was added in this campaign
+- the session used the existing engine/replay helpers plus the new
+  `NamedRouteValidationMatrixWorkup.scala` test/tooling runner to refresh the
+  current control, candidate pool, and blocker pack on the same branch
+
+Current hard-fail set added by the broader slice:
+
+- `fake_route_chain`
+- `redundant_intermediate_node`
+- `chain_only_on_nonbest_branch`
+- `untouched_sector_escape`
+- `posture_inflation`
+- `heavy_piece_route_shell`
+- `replay_reinflation`
+- `whole_game_wrapper_leak`
+
+Exact-board validation status:
+
+- positive control FEN:
+  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`
+- current 2026-04-02 local Stockfish depth-18 defended-branch line after the
+  played move `a3b4`:
+  `a7a5 b4a5 c6a5 f3e5 f7f6 e5d3 a5c4`
+- exact truth outcome:
+  the best-defense line proves the exact `a5` intermediate node, but it also
+  shows that downstream `c4` is still reachable, so the old
+  `a5 -> c4` denial wording had to be removed from the live owner claim
+- root-best refresh:
+  the same helper-backed matrix rerun returned `c3b4`, not `a3b4`, as root
+  best on the original control FEN at both depth 18 and depth 24, so the
+  earlier `a3b4` root-best pass could not be re-used as a stable closeout
+  anchor
+- second-survivor screen:
+  `K09C`, `K09G`, `K09H`, `B21A`, and `Rubinstein-Duras 1911` were all rerun
+  locally from exact FEN with root-best plus after-trigger best-defense
+  checks. `K09C`, `K09G`, and `K09H` failed the root-best gate; `B21A` stayed
+  distinctively target-fixing rather than route-chain; `Rubinstein-Duras`
+  stayed release-heavy (`queen_infiltration`, `rook_lift`,
+  `exchange_sac_release`) and therefore failed B5/B7 distinctness
+- exact negative / near-miss pack now includes:
+  `fake_route_chain`, `redundant_intermediate_node`,
+  `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
+  `posture_inflation`, `surface_reinflation`,
+  `heavy_piece_route_shell`, and `engine_pv_paraphrase`
+
+Self-critique result:
+
+- the first implementation draft was too permissive about what could count as
+  an intermediate node
+- the runtime now restricts intermediate-node pickup to
+  `route_node / intermediate_node` resource classes, so a second reroute square
+  cannot silently become the `intermediate` witness
+
+Verification status:
+
+- implementation status:
+  no runtime widening was added in this closeout pass; verification stayed on
+  exact-FEN engine/replay screening, blocker reruns, targeted tests, and doc
+  reconciliation
+- adversarial-review status:
+  no second survivor found, and the current control stayed root-best-unstable
+  under the helper-backed rerun
+- deferred residue:
+  the downstream `a5 -> c4` denial remains backend-only / deferred, the
+  intermediate `a5` detour is now backend-visible only rather than
+  planner-owned live truth, and the whole B6 route-chain family remains
+  one-example heavy at A-track closeout
+
+Current verdict:
+
+- `A-track plateau reached`
+- reason:
+  the closeout campaign reproduced the backend after-trigger `a5` detour but
+  did not reproduce `a3b4` as root best under the helper-backed rerun, and no
+  second independent exact-FEN survivor survived root-best, same-branch,
+  release-suppression, and family-distinctness screening. Keep broader
+  route-chain, replay reuse, and posture/phase widening deferred
+
+## CTH-B7 — Transition-Adjacent Strategic Route Design Baseline
+
+Purpose:
+decide whether `B7 = transition-adjacent strategic route` can open as a
+separate truth-owning family, and if so, define the narrowest certifiable claim
+before any runtime work is allowed.
+
+Current status:
+design baseline ready only. No B7 runtime slice, new payload field, new prose
+family, or new owner lane is opened by this section.
+
+### Problem framing
+
+- B7 is not generic simplification, not a whole-ending verdict, and not a
+  permission slip to reuse the existing `endgame_transition_translator`
+  ownership lane
+- B6 proves a bounded route-network bind inside the same current technical
+  task; B7 is distinct only if the same defended branch proves that the current
+  task has narrowed into a different and more technical next task after the
+  simplification trigger
+- the certifiable unit is:
+  one bounded same-branch task shift, not
+  `this is now a good endgame`, `the ending is winning`, or
+  `simplification is favorable in general`
+- exact board truth comes first:
+  if the trigger, best defense, continuation, and release suppression are not
+  all anchored to the same concrete branch, the claim stays closed
+
+### Candidate claim map
+
+| Candidate | Expected positive scope | Product value | Main overclaim risk | Main falsification burden | Expected surface risk | Strongest reusable signals | B7 verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `one favorable trade corridor` | one exact exchange corridor that removes a blocker on the best-defense branch | medium | favorable trade language inflates into `better ending` or `nearly winning` rhetoric | pin the exact trigger, exact best-defense reply, and show that the corridor survives without branch stitching | `high`; simplification phrasing inflates quickly on replay surfaces | `bestDefenseBranchKey`, same-branch reuse, `convert_reply_multipv`, `moveOrderFragility`, `futureSnapshot.planBlockersRemoved` | `deferred` as a trigger-only subcomponent, not the first truth-owning claim |
+| `one bounded task-shift after forced simplification` | one same-branch shift from the current task into one narrower technical task such as king activation, target fixation, or file occupation | highest | `fake_transition`, `endgame_verdict_inflation`, and `engine_pv_paraphrase` | prove trigger, shifted task, bounded continuation, and surviving release suppression on the same defended branch | `high`, but containable if it stays planner `WhyThis` only | B1 route persistence, B6 branch identity grammar, `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`, `targetsDelta`, `convert_reply_multipv` | `likely coverable next`, but still closed until the proof burden below is met |
+| `one conversion-adjacent technical route` | one bounded route into a narrower conversion task after the simplification | medium-high | a local route becomes a broader conversion thesis or endgame verdict | separate the route from the ending verdict and require that the defender's best branch still leaves one bounded next task rather than a narrative of the whole ending | `very high`; Chronicle / Bookmaker can turn it into whole-game meaning fast | B1 conversion persistence, same-branch keys, `futureSnapshot`, existing conversion motifs | `deferred` until the narrower task-shift slice survives criticism |
+| `one king-activation / target-fixation route` | one exact post-simplification technical task involving king path, target fixation, or file occupation | medium | king activity or target language drifts into race, fortress, or theorem-level endgame prose | require exact current-task removal plus exact shifted-task witness on the same branch; keep theoretical outcome support-only | `very high`; overlaps too easily with `EndgameTransition` replay prose | `futureSnapshot.targetsDelta`, `planPrereqsMet`, `EndgameFeature` as support only, same-branch keys | `deferred` as a downstream specialization, not the first slice |
+| `whole ending thesis` | whole ending verdict or long-run winning-route narration | superficially high | immediate overclaim and cross-surface reinflation | impossible to keep bounded enough for first B7 work | `maximal` | none that are safe for a first slice | `unsafe` |
+| `none / keep runtime closed` | design baseline only until one candidate survives exact-board criticism | near-term trust value is highest | reuse bias can still pressure a premature rollout | require one exact-FEN positive control plus near-miss negatives before any slice opens | lowest | existing B1 / B5b / B6 fail-closed gates, cross-surface regression harness | `current operating rule` until the corpus burden is satisfied |
+
+### Backend-only contract draft
+
+No new public payload/schema is authorized. If B7b is attempted later, the
+first contract must remain backend-only on the existing experiment/certification
+lane.
+
+| Field | Purpose | Strongest reusable source or guard |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one transition-adjacent task shift rather than the whole ending verdict | backend-only scope gating from B1 / B6 |
+| `currentTask` | name the exact pre-trigger technical task that the move is trying to resolve | existing route / entry / target evidence plus current plan hypothesis |
+| `shiftedTask` | name the exact post-trigger technical task that becomes narrower on the same branch | `futureSnapshot.planPrereqsMet`, `targetsDelta`, bounded continuation motifs |
+| `transitionTrigger` | pin the exact move or exchange that is supposed to cause the shift | best-reply PV plus `moveOrderFragility` |
+| `tradeCorridor` | record the exact exchange corridor when a trade is part of the trigger | `convert_reply_multipv`, direct reply probes, best-defense branch reuse |
+| `routePersistence` | prove that the shifted task remains live after best defense | B1 route persistence and B6 route continuity grammar |
+| `bestDefenseBranchKey` | keep trigger, task shift, and continuation on one defended branch | current branch-key reuse |
+| `sameDefendedBranch` | explicit stitched-proof blocker for the entire bundle | existing `stitched_defended_branch` / same-branch failures |
+| `continuationBound` | cap the proof at one bounded next task and bounded continuation window | `futureSnapshot.planBlockersRemoved`, `planPrereqsMet`, bounded continuation tokens |
+| `technicalGain` | record the exact technical gain, such as entry sealed, target fixed, king path clarified, or file occupied | `targetsDelta`, prevented-plan grammar, route/file-entry evidence |
+| `releaseRisksRemaining` | enumerate heavy-piece release, tactical release, fortress hold, or king-race ambiguity that still survives | B5b release inventory, fortress/static-hold heuristics, reply probes |
+| `transitionMirageRisk` | mark when the move only improves locally without changing the task | explicit B7 `fake_transition` guard |
+| `tradeIllusionRisk` | mark when the favorable trade exists only on non-best or cooperative branches | best-defense proof plus `moveOrderFragility` |
+| `endgameInflationRisk` | keep local task shift from becoming an ending verdict | separation from `endgameTransitionClaim` and replay surfaces |
+| `counterplayReinflationRisk` | block stronger surfaces from reviving unsupported ending claims | current replay-closure pattern and evidence-backed-plan filter |
+| `confidence` | keep the contract auditable and fail-closed | existing `PlanEvidenceEvaluator.ClaimCertification` grammar |
+| `evidenceSources` | list exact FEN / probe / future snapshot inputs | current certification source lists |
+
+Candidate-specific rules:
+
+- `one favorable trade corridor`
+  - may populate `transitionTrigger` and `tradeCorridor`, but may not surface a
+    positive B7 claim by itself
+- `one bounded task-shift after forced simplification`
+  - requires non-empty `currentTask`, `shiftedTask`, `continuationBound`, and
+    `technicalGain` on the same defended branch
+- `one conversion-adjacent technical route`
+  - may reuse the same contract only after the narrower task-shift slice proves
+    that it does not inflate into whole-ending narration
+- `one king-activation / target-fixation route`
+  - keeps king-race, theoretical outcome, Lucena/Philidor-style theorem labels,
+    and generic ending verdicts support-only
+
+### Criticism matrix
+
+| Axis | Why it is dangerous | Current reusable guard | Required future B7 guard | Required difficult fixture shape |
+| --- | --- | --- | --- | --- |
+| `fake_transition` | a move-local improvement gets narrated as a task shift even though the same technical task still governs the position | B6 route continuity and current same-branch grammar | require `currentTask != shiftedTask` plus same-branch proof that the old blocker actually clears | exact B6 route-chain near-miss: `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`, move `a3b4`, best line `a7a5 b4a5 c6a5 f3e5 f7f6 e5d3 a5c4` |
+| `favorable_trade_illusion` | the trade looks available, but best defense keeps another holding route or avoids the corridor entirely | direct reply probes, `moveOrderFragility`, heavy-piece negative-first review | require `tradeCorridor` to stay on the best-defense branch and fail if the defender can sidestep the trade without losing the same bounded task | queen-on heavy-piece exact FEN from B5b such as `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24` |
+| `technical_route_only_on_nonbest_branch` | the attractive technical route exists only on a side PV, not on the best reply | existing branch-key reuse and stitched-branch failures | require trigger, shifted task, and continuation to share one `bestDefenseBranchKey` | one exact FEN with best defense refusing the simplification while a secondary PV cooperates; harness must capture both PV identities explicitly |
+| `endgame_verdict_inflation` | bounded local truth mutates into `good ending`, `winning ending`, or theorem-level prose | existing separation between planner claims and `endgameTransition` support claims | hard-cap `claimScope`, keep B7 off `endgame_transition_translator`, and close `WhatChanged` / replay until separately audited | pure-endgame exact FENs such as Lucena / Philidor / Vancura patterns from `endgame_goldset_v2_patterns.jsonl` |
+| `holdable_simplification` | simplification happens, but the defender still reaches a static shell with no real progress route conceded | B1 / B3 / B4 fortress-risk and static-hold heuristics | require `technicalGain` to show more than liquidation: one blocker removed and one bounded next task opened | transition near-miss exact FEN `8/5pk1/3b2p1/3P4/1P3P2/6P1/5BK1/8 w - - 0 45` from `DualAxisBindBroadValidationTest.scala` |
+| `branch_stitched_transition` | trigger, task shift, continuation, and release suppression are borrowed from different branches | current same-branch failures and B6 branch identity hardening | require one branch token across trigger, best defense, continuation, and release inventory; no first-move fallback | one exact FEN where PV1 gives the trade, PV2 gives the continuation, and PV3 removes the release; certification must fail |
+| `heavy_piece_release_survives` | a transition-looking trade leaves queen/rook counterplay or forcing checks alive | B5b heavy-piece negative validation pack | require `releaseRisksRemaining` to be empty or the slice fails closed | B5b heavy-piece negatives including `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24` and related shells |
+| `route_network_restatement_only` | a B6 route denial gets relabeled as `transition` without any true task change | B6 exact contract and planner surface narrowing | require explicit `currentTask` / `shiftedTask` delta and fail if the evidence only proves route denial | the B6 route-chain FEN above, where the only surviving wider witness is the backend-visible `a5` detour |
+| `surface_reinflation` | planner-local truth is revived by Chronicle / Bookmaker / Active as a stronger ending thesis | evidence-backed-plan filter and existing replay closures for B6 | clone the replay-closure posture: planner `WhyThis` only first, keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game closed | one planner-local exact FEN whose replay wrapper tries to say `better ending` or `technical win` |
+| `engine_pv_paraphrase` | the model paraphrases an engine liquidation line as if it were a stable strategic route | current `pv_restatement_only` criticism from B1/B6 families | require measurable task-shift fields and bounded continuation, not just a neat PV | one exact FEN where the PV simplifies but `planBlockersRemoved` / `planPrereqsMet` do not prove a new bounded task |
+
+### Broad validation charter
+
+Phase matrix:
+
+| Phase | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable next` | best environment for a same-branch simplification trigger without theorem-level endgame inflation |
+| `heavy-piece middlegame` | `likely unsafe` | B5b still shows too many surviving release and reinflation seams |
+| `transition / endgame-adjacent` | `likely deferred` | product value is real, but task-shift ambiguity is too close to ending rhetoric |
+| `pure endgame` | `likely unsafe` | the work would collapse into theorem labels or existing endgame translator ownership |
+
+Eval posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable next` | strongest posture for a bounded task-shift claim with no whole-ending inflation |
+| `slightly better` | `likely deferred` | too easy to turn a practical edge into a fake transition |
+| `equal / unclear` | `likely unsafe` | positive transition ownership would overstate the truth |
+| `defending side` | `likely unsafe` | this would create a false survival/hold owner lane |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `favorable trade corridor` | `likely deferred` | useful trigger evidence, but not safe as a standalone B7 claim |
+| `bounded task-shift` | `likely coverable next` | narrowest slice that is actually distinct from B6 |
+| `conversion-adjacent technical route` | `likely deferred` | route language broadens too fast without a proven narrower task shift |
+| `king-activation / target-fixation route` | `likely deferred` | technically meaningful, but too close to endgame translator rhetoric for a first slice |
+| `whole ending thesis` | `likely unsafe` | out of scope for B7 |
+| `route-network restatement` | `likely unsafe` | that is B6 restated, not B7 |
+| `heavy-piece fake transition` | `likely unsafe` | release density remains too high |
+| `static simplification shell` | `likely unsafe` | simplification without progress is a mandatory negative corpus family |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely coverable next` | narrowest owner path and easiest place to keep the claim bounded |
+| `planner-owned WhatChanged` | `likely deferred` | it overstates task-shift truth too easily on first contact |
+| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but it is too inflation-prone for first-slice B7 |
+| `Chronicle` | `likely deferred` | same replay risk; too easy to turn the claim into the ending's full story |
+| `Active` | `likely deferred` | parity and non-reinflation can be tested, but positive ownership should stay closed |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | strongest reinflation seam and explicitly out of scope for first B7 work |
+
+### Strict proof structure
+
+#### Exact-board corpus burden
+
+- B7b may not open from verbal sketches or synthetic-only probes
+- minimum corpus gate:
+  one exact-FEN positive control plus at least five exact-FEN near-miss
+  negatives
+- every fixture must record the same schema:
+  `fen`, `currentMove`, `exactBestDefenseLine`, `bestDefenseBranchKey`,
+  `sameBranchPersistenceWitness`, `taskShiftWitness`, `continuationWitness`,
+  `releaseSuppressionWitness`, and `failReason` or `successReason`
+- current exact-board seed pack is intentionally negative-heavy and therefore
+  insufficient for rollout on its own:
+  - B6 near-miss route chain:
+    `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`
+  - B5b heavy-piece trade/release shells:
+    `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24`,
+    `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24`,
+    and related exact negatives
+  - transition near-miss:
+    `8/5pk1/3b2p1/3P4/1P3P2/6P1/5BK1/8 w - - 0 45`
+  - pure-endgame inflation blockers:
+    Lucena / Philidor / Vancura exact FENs from the goldset resources
+- current gap:
+  no exact-FEN positive control is certified yet, so B7a may define the burden
+  but may not authorize B7b rollout
+
+#### Engine-backed proof burden
+
+- root move agreement alone is not enough
+- a future B7 candidate must pin at least:
+  - the `transitionTrigger`
+  - the defender's best reply
+  - one bounded continuation window that still exhibits the same shifted task
+- acceptable proof is:
+  exact move sequence plus bounded continuation witness on the same branch
+- unacceptable proof is:
+  vague eval drift such as
+  `good ending eventually`, `technically winning`, or a naked PV paraphrase
+
+#### Branch identity burden
+
+- B7 is invalid unless the following live on one identical defended branch:
+  - `transitionTrigger`
+  - `tradeCorridor` if present
+  - `shiftedTask`
+  - `continuationBound`
+  - `releaseSuppressionWitness`
+- no first-move-only branch identity fallback is allowed
+- if the trigger comes from PV1, the shifted task from PV2, or the release
+  suppression from PV3, the result is `branch_stitched_transition` and fails
+  closed
+
+#### Surface containment burden
+
+- first B7 slice, if it ever opens, starts at planner-owned `WhyThis` only
+- `planner-owned WhatChanged` stays closed for the first slice
+- Chronicle, Bookmaker, Active, and whole-game / wrap-up reuse stay fail-closed
+- B7 may not reactivate or piggyback on the existing
+  `endgame_transition_translator` owner lane
+- support-only signals such as `endgameTransitionClaim` and endgame pattern
+  features may assist criticism, but they may not certify the B7 claim
+
+#### Downgrade / defer protocol
+
+- if exact position, exact move, or exact best-defense line is missing:
+  `deferred`
+- if the trigger exists but the task shift is not proven:
+  support-only or exact factual fallback only, never a positive B7 claim
+- if same-branch persistence is missing:
+  `deferred` with `branch_stitched_transition`
+- if release risks remain live:
+  `deferred` or negative-first only
+- if the only truthful statement is
+  `the move simplifies` or `the move forces one trade`:
+  keep that exact factual fallback and do not open B7 wording
+
+### Mandatory self-critique pass
+
+Candidate attacked:
+
+- `one bounded task-shift after forced simplification`
+
+Why the first draft was vulnerable:
+
+- it treated `trade corridor + continuation visible` as almost enough
+- it assumed that a future technical task could be inferred from a pretty PV
+- it left `WhatChanged` and transition-adjacent phases too loosely open
+
+Nasty cases used against that draft:
+
+| Case | Exact anchor | Why the first draft was fooled | Correction forced into the baseline |
+| --- | --- | --- | --- |
+| `fake_transition` | `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` after `a3b4` | the line looked like simplification into conversion, but the exact best-defense branch still reaches `...a5c4`, so the task did not actually shift | `tradeCorridor` was demoted to trigger-only evidence and explicit `currentTask` / `shiftedTask` became mandatory |
+| `route_network_restatement_only` | the same B6 exact FEN | B6 truth was easy to rename as B7 because `conversion route stabilizes` already existed in support text | B7 now requires a proved task delta, not more route vocabulary |
+| `heavy_piece_release_survives` | `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24` | favorable trade language hid surviving queen/rook release resources | `releaseRisksRemaining` became a mandatory field and heavy-piece middlegame was tightened to `likely unsafe` for first-slice work |
+| `holdable_simplification` | `8/5pk1/3b2p1/3P4/1P3P2/6P1/5BK1/8 w - - 0 45` | restriction-first wording made a static shell look like a real transition | `technicalGain` must now show one blocker removed plus one bounded next task opened |
+| `endgame_verdict_inflation` | Lucena / Philidor / Vancura exact FENs | existing endgame translator prose made it too easy to leap from local shift to theorem-level ending story | pure endgame stayed `likely unsafe`, and B7 is now explicitly barred from `endgame_transition_translator` |
+| `branch_stitched_transition` | one exact FEN with trigger on PV1 and continuation on PV2 | the first draft did not force one shared branch token across the whole bundle | `sameDefendedBranch` and branch-wide identity are now mandatory |
+
+Before/after deltas caused by self-critique:
+
+- before:
+  `trade corridor` looked like a possible standalone first slice
+- after:
+  `trade corridor` is trigger evidence only
+- before:
+  `heavy-piece middlegame` looked merely deferred
+- after:
+  it is `likely unsafe` for first B7 rollout
+- before:
+  `planner-owned WhatChanged` was loosely plausible on the first slice
+- after:
+  it is explicitly closed for first-slice B7
+- before:
+  the corpus burden could have been satisfied by attractive near-miss lines
+- after:
+  one exact-FEN positive control is a hard precondition for B7b
+
+### Recommended B7b first slice
+
+Recommended next slice, if and only if the corpus burden is first satisfied:
+
+- `one bounded task-shift after forced simplification on the same defended branch`
+
+Why this slice is first:
+
+- it is the narrowest candidate that is genuinely distinct from B6
+- it reuses the strongest existing signals:
+  same-branch identity, bounded continuation, prevented-plan grammar, and
+  future-snapshot task witnesses
+- it can stay on the existing architecture and planner `WhyThis` lane without
+  opening a new public payload, owner family, or replay surface
+- the broader alternatives either collapse into B6 restatement or inflate into
+  whole-ending rhetoric too easily
+
+Hard preconditions before any B7b implementation:
+
+- retain one exact-FEN positive control for this slice
+- add at least five exact-FEN near-miss negatives across
+  `fake_transition`, `trade_illusion`, `holdable_simplification`,
+  `branch_stitched_transition`, and `endgame_verdict_inflation`
+- keep the first slice on clearly-better late middlegame only
+- keep the first admissible task pair closed to
+  `secure_favorable_simplification -> pressure_fixed_weak_complex`;
+  `occupy_support_file_pressure` may appear only as a bounded same-branch
+  witness, never as the owned shifted task
+- keep the only positive surface at planner-owned `WhyThis`
+- keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game reuse
+  fail-closed
+
+### Exact-FEN corpus recon status
+
+The 2026-04-02 corpus workup materially strengthened the nasty pack, and the
+follow-up late-middlegame hunt did find one reviewable B7b branch candidate,
+but the implementation-time review blocked it on the current runtime path:
+
+- K09B exact-branch review candidate:
+  `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13`
+  still survives local Stockfish review with root-best trigger `Nxe6` (`d4e6`)
+  and best-defense reply `...fxe6`; the same defended branch keeps the bounded
+  continuation
+  `...Rd1 ... Bf4 ... Qb6 ...`
+  alive and therefore remains a valid exact-board review control
+- B7b review outcome on the current pipeline:
+  blocked, not passed; the live runtime still classifies the position as
+  `phase=Opening` / `taskMode=ExplainTactics`, produces no evidence-backed
+  strategic main plan, no `preventedPlansNow`, no named-route/local-file
+  surface, no `main_bundle`, and no planner-owned `WhyThis` owner. The only
+  surviving move-linked text is the line-scoped preview
+  `Line: a) Nxe6 fxe6 Rad1.`, which means a rollout here would collapse into
+  `engine_pv_paraphrase`
+- B7 containment consequence:
+  runtime remains closed because the current audited architecture does not yet
+  carry a measurable `currentTask -> shiftedTask` proof for K09B without either
+  new private/backend-only materialization or a weaker prose paraphrase; a new
+  owner lane remains unapproved and out of scope
+
+#### 2026-04-02 narrow redesign diagnosis
+
+The exact-board blocker is no longer discovery. K09B remains useful as a
+positive control, owner-path blocker, and narrow redesign smoke candidate. The
+canonical blocker is now split into two linked absences:
+
+- no owner-admissible backend-only carrier/materialization for a bounded
+  task-shift proof on the live planner path
+- no closed task vocabulary that can encode a real
+  `currentTask -> shiftedTask` handoff without collapsing into B1 conversion,
+  B6 route-bind language, or generic `better ending` rhetoric
+
+Task vocabulary gap map:
+
+| proposed task id | bounded chess meaning | why existing vocabulary is insufficient | B7 first-slice verdict |
+| --- | --- | --- | --- |
+| `secure_favorable_simplification` | finish or force the favorable simplification under live middlegame tension | existing exchange / simplification labels name the family, not the `from` side of a handoff | admissible as `currentTask` only |
+| `pressure_fixed_weak_complex` | after best defense fixes a new weakness complex, the bounded job becomes pressuring that exact complex on the same branch | current weakness/fixation labels describe a target, but not that the target is newly created and replaces the old task | admissible as `shiftedTask`; first-slice core |
+| `occupy_support_file_pressure` | file occupation/redeployment that helps the pressure continue | by itself it reads like B6 file/route truth or a move list, not a distinct owned task | support-only witness |
+| `force_target_fixation` | fix or hold a target without a simplification handoff | valid family, but no task delta; it can exist without any B7 transition | inadmissible first slice |
+| `activate_king_route` | king activation in the technical phase | too close to endgame translator rhetoric and whole-ending inflation | inadmissible first slice |
+| `technical_conversion_pressure` | generic technical conversion after simplification | theme/conversion name only; fails `currentTask != shiftedTask` discipline | inadmissible first slice |
+| `route_bind_restatement` | restate a denied route/reroute as the post-trade job | if the truth is route loss, the family is B6 already | fail-close to B6 |
+| `generic_endgame_improvement` | say the move reaches a better ending or easier phase | not measurable enough to be a bounded task identity | fail-close |
+
+Backend-only task-shift contract draft:
+
+| field | role |
+| --- | --- |
+| `claimScope` | freeze the slice to `task_shift_after_forced_simplification` |
+| `currentTask` | closed backend-only task ID for the job the trigger is finishing |
+| `shiftedTask` | closed backend-only task ID for the narrower job after best defense |
+| `transitionTrigger` | exact move-local trigger plus defended reply that creates the handoff |
+| `bestDefenseBranchKey` | tie the proof to one exact defended branch |
+| `sameDefendedBranch` | require trigger, shift witness, and continuation to stay on that branch |
+| `continuationBound` | require one bounded continuation window after best defense |
+| `taskShiftWitness` | concrete evidence that the owned job changed, not merely the PV continued |
+| `releaseSuppressionWitness` | inventory of release resources that did not become the real story |
+| `distinctFromExistingFamily` | explicit `not_b1_conversion` / `not_b6_route_bind` tags |
+| `transitionMirageRisk` | fail `task_label_only` / fake-transition shells |
+| `routeRestatementRisk` | fail B6 relabels |
+| `endgameInflationRisk` | fail `good ending` / theorem-level drift |
+| `surfaceContainmentMarker` | keep the slice planner `WhyThis` only |
+| `claimCertification` | reuse measurable quantifier/provenance/ontology gates |
+| `confidence` | bounded audit score only, never a release override |
+| `evidenceSources` | exact probe / branch / future-snapshot provenance |
+
+Owner-path admissibility map:
+
+| stage | current state | failure point | required minimal redesign |
+| --- | --- | --- | --- |
+| ingress | exact-board trigger, best defense, and same-branch continuation already exist for K09B | not the blocker anymore | none at producer discovery |
+| carrier/materialization | current carriers expose theme/subplan/line data only | no private record of `currentTask`, `shiftedTask`, or their witnesses | add a private/backend-only task-shift certification beside existing builder certifications |
+| planner admissibility | `buildWhyThisPlan` can admit `mainBundle`, `quietIntent`, or `namedRouteNetworkSurface` only | no B7 planner source exists, so K09B falls to `missing_move_owner` | add a private task-shift planner input/claim; if it cannot stay private and planner-local, keep B7 deferred |
+| replay/whole-game containment | current safe fallback is the line preview only | any broader surface would reinflate into route or ending rhetoric | require `surfaceContainmentMarker = planner_why_this_only`; keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game fail-closed |
+
+Canonical admissibility conclusion:
+
+- as-is, the current architecture still blocks B7
+- a future B7 slice does not yet prove that a new owner lane is necessary, but
+  it does require new private/backend-only materialization on the existing
+  architecture
+- if the redesign pressures public carriers such as `PlanHypothesis`,
+  `StrategicPlanExperiment`, `NarrativeContext`, or response payloads, B7 must
+  remain deferred
+
+#### Task vocabulary freeze
+
+The B7 task model is now frozen as a closed backend-only ID set. Free-text
+`currentTask` / `shiftedTask` labels are forbidden.
+
+| `task_id` | `chess_meaning` | `required_signals` | `same_branch_requirement` | `why_existing_theme_is_not_enough` | `first_slice_status` |
+| --- | --- | --- | --- | --- | --- |
+| `secure_favorable_simplification` | finish or force the favorable simplification while live middlegame tension still exists | exact trigger move, exact best-defense reply, favorable-exchange evidence, no tactical refutation | trigger and defended reply must anchor the same branch that later carries the post-trade task witness | existing exchange / simplification themes name a family, not the `from` side of a bounded handoff | `admissible` as `currentTask` only |
+| `pressure_fixed_weak_complex` | after best defense fixes a new weakness complex, the bounded job becomes pressuring that exact complex | post-recapture fixed-target witness, same-branch continuation, target/file pressure witness, no release takeover | the fixed weakness, continuation, and pressure witness must all remain on the same defended branch | current weakness/fixation themes describe a target family, but not that the target was created by the trigger and replaced the old job | `admissible` as `shiftedTask` only |
+| `occupy_support_file_pressure` | occupy or reinforce a file to help the pressure continue | file pressure witness, continuation witness, bounded support line | same branch only, and only as a corroborating continuation witness | by itself it collapses into B6 file/route truth or a raw move list | `witness_only` |
+| `force_target_fixation` | induce or maintain a fixed target without a simplification handoff | fixed-target witness, future target persistence, no task-removal proof | if used at all, it must still survive same-branch criticism, but that does not make it B7 | this can be true without any task shift and therefore does not define a B7 delta | `forbidden` |
+| `activate_king_route` | activate the king in the technical phase after simplification | exact endgame geometry, king path, race/fortress exclusion | would require same-branch proof plus pure-endgame safety, which first-slice B7 does not have | existing endgame families and translator hints are too broad and phase-heavy | `forbidden` |
+| `technical_conversion_pressure` | generic technical conversion after simplification | conversion summary, generic follow-through, eval drift | same-branch persistence alone is insufficient because the job identity stays blurry | this is a theme label, not a bounded `to` task | `forbidden` |
+| `route_bind_restatement` | restate a denied route or reroute as the post-trade task | route-edge/reroute denial evidence | same-branch route proof would still belong to B6, not B7 | if the owned truth is route loss, the family is B6 already | `forbidden` |
+| `generic_endgame_improvement` | say the move reaches a better ending or easier technical phase | phase change, eval drift, endgame hint | same-branch replay does not rescue it because the task identity is still unbounded | this is exactly the overbroad rhetoric B7 is meant to avoid | `forbidden` |
+
+Frozen first-slice admissible pair:
+
+- `secure_favorable_simplification -> pressure_fixed_weak_complex`
+
+Frozen exclusions:
+
+- `occupy_support_file_pressure` may not become the owned `shiftedTask`
+- any pair where `currentTask == shiftedTask` is an automatic fail
+- any pair whose distinctness depends only on theme/subplan renaming is an
+  automatic fail
+
+#### Backend-only contract freeze
+
+The contract remains backend-only, planner-local, and serialization-free. It is
+frozen as a design target only:
+
+```scala
+private[analysis] enum TaskShiftTaskId:
+  case SecureFavorableSimplification
+  case PressureFixedWeakComplex
+  case OccupySupportFilePressure
+  case ForceTargetFixation
+  case ActivateKingRoute
+  case TechnicalConversionPressure
+  case RouteBindRestatement
+  case GenericEndgameImprovement
+
+private[analysis] final case class TaskShiftContract(
+    claimScope: String,
+    currentTask: TaskShiftTaskId,
+    shiftedTask: TaskShiftTaskId,
+    transitionTrigger: String,
+    bestDefenseBranchKey: Option[String],
+    sameDefendedBranch: Boolean,
+    continuationBound: Boolean,
+    taskShiftWitness: List[String],
+    releaseSuppressionWitness: List[String],
+    distinctFromExistingFamily: List[String],
+    transitionMirageRisk: String,
+    routeRestatementRisk: String,
+    endgameInflationRisk: String,
+    surfaceContainmentMarker: String,
+    claimCertification: PlanEvidenceEvaluator.ClaimCertification,
+    confidence: Double,
+    evidenceSources: List[String]
+)
+```
+
+Freeze rules:
+
+- `currentTask` and `shiftedTask` must come from the closed enum only; free text
+  is forbidden
+- first slice admits exactly one owned pair:
+  `SecureFavorableSimplification -> PressureFixedWeakComplex`
+- `OccupySupportFilePressure` may appear only inside `taskShiftWitness`
+- `distinctFromExistingFamily` must explicitly carry
+  `not_b1_conversion` and `not_b6_route_bind`
+- `surfaceContainmentMarker` must be planner-local and replay-blocking
+- generic `OwnerFamily.MoveDelta` is not a sufficient contract by itself; it
+  carries no bounded task pair and therefore cannot certify B7
+
+Intentionally excluded from the frozen contract:
+
+- any new public payload/schema field
+- any new owner lane
+- any public evidence-tier upgrade
+- any replay / whole-game reuse grant
+- any free-form task prose
+
+#### Family distinction freeze
+
+| `family` | `what truth it owns` | `required evidence shape` | `what it must never claim` | `common relabel drift` | `fail-close rule` |
+| --- | --- | --- | --- | --- | --- |
+| `B1 restricted-defense conversion` | the move keeps the same conversion job and the defender's real resources are compressed on the surviving branch | direct defended reply, resource compression, same-branch persistence, positive future snapshot | it must never claim that the job itself changed if the truth is still conversion follow-through | a favorable trade is described as a new task instead of the same conversion continuing | if the same job still governs the position, keep it in B1 |
+| `B6 named route-network bind` | the move denies one bounded route network or reroute on the same defended branch | route nodes/edges, reroute denial, same-branch continuity, bounded continuation | it must never claim a new post-trade technical job beyond route loss | a reroute denial is renamed as a transition task | if the owned truth is route loss or reroute denial, keep it in B6 |
+| `B7 task shift after forced simplification` | the move finishes one bounded job and, after best defense, a different bounded job now governs the same defended branch | exact trigger, exact best defense, same-branch continuation, certified task pair, release suppression, explicit non-B1/non-B6 distinctness | it must never claim `good ending`, generic conversion, generic move improvement, or route-bind truth | B1 conversion relabel, B6 route-bind relabel, or PV paraphrase dressed as a task | if the pair is not distinct and measurable, defer or fail-close out of B7 |
+
+#### Containment freeze
+
+Planner-local containment is mandatory.
+
+Same as B6:
+
+- use a private/backend-only contract
+- admit only through planner-local `WhyThis`
+- require an explicit containment marker
+
+Stricter than B6:
+
+- no replay reuse review is open
+- no Chronicle / Bookmaker / Active positive carryover is open
+- no `WhatChanged` ownership is open
+- no theme-thread or whole-game wrapper reuse is open
+
+Frozen marker:
+
+- `surfaceContainmentMarker = planner_why_this_only`
+
+Why generic `MoveDelta` is unsafe:
+
+- it can admit a move-local explanation without proving a bounded task pair
+- replay consumers can then reconstruct stronger transition language from the
+  same generic owner category
+- it does not distinguish B7 from quiet improvement, B1 follow-through, or B6
+  route truth
+
+#### Downgrade / defer protocol freeze
+
+| condition | mandatory outcome |
+| --- | --- |
+| exact branch exists, but no task-shift carrier/materialization exists | `deferred` |
+| carrier exists, but `currentTask` / `shiftedTask` are free text, equal, or outside the closed set | `deferred` |
+| task pair exists, but distinctness relies only on theme/subplan renaming | `support_only` or `deferred`; never B7-owned |
+| `taskShiftWitness` is just the PV continuation under a new label | `exact factual fallback` |
+| `routeRestatementRisk` remains high or the truth is route loss/reroute denial | fail-close to `B6` or exact factual fallback |
+| `transitionMirageRisk` remains high and the move only simplifies without changing the bounded job | `deferred` |
+| `releaseSuppressionWitness` fails because heavy-piece or tactical release remains the real story | `deferred` |
+| `endgameInflationRisk` remains high or the claim becomes `better ending` rhetoric | `exact factual fallback` |
+| any design pressure appears for new public schema, new owner lane, or replay-positive reuse | keep `B7` closed; no materialization beyond private freeze |
+
+#### 2026-04-02 contract validation pass
+
+The frozen contract was then checked against the current exact-FEN control plus
+near-miss / blocker rows. The point of this pass was not to reopen B7, but to
+prove that the frozen contract fails closed under pressure.
+
+Validation matrix:
+
+| `candidate_id` | `trigger` | `best_defense` | `same_branch` | `currentTask fit` | `shiftedTask fit` | `continuationBound` | `releaseSuppression` | `distinct_from_B1` | `distinct_from_B6` | `containment_risk` | `verdict` | `fail_reason` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `K09B` | `Nxe6` | `...fxe6` | `yes` | `yes` | `yes`, narrowly | `yes` | narrow pass only; later queen/rook activity exists but does not yet displace the target-led reading | `yes` | `yes` | `high` | survives as `positive control only` | frozen pair is reviewable, but runtime still has no carrier/materialization and therefore no planner owner |
+| `K09A` | `Qb3` | `...Qd7` | `yes` | preparatory only | `no` | `yes` | insufficient | `no` | `yes` | `medium` | fail-close | setup move, not the shift-owning trigger |
+| `K09F` | `Nxe6` | `...fxe6` | `yes` | `yes` | `no` | `yes` | `no` | `no` | blurred | `high` | fail-close | holdable simplification shell; no crisp post-trade task |
+| `MI2` | root best `Kh1` | `...Bc5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | root branch is not a simplification handoff; generic conversion/cashing-in dominates |
+| `MI3` | root best `Nd5` | `...Nxd5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | wrong family; high-edge coordination/cashing-in, not B7 |
+| `B21` | `Nd2` | `...Na6` | `yes` | `no` | `no` | `yes` | not the issue | `yes` | `yes` | `low-medium` | fail-close | target fixation only; no simplification handoff |
+| `B21A` | `Nd2` | `...Na6` | `yes` | `no` | `no` | `yes` | not the issue | `yes` | `yes` | `low-medium` | fail-close | same target-fixing family persists; still no handoff |
+| `b5_queen_infiltration_shell` | no clean B7 trigger | `...Qd7` line keeps heavy-piece activity live | `yes` | `no` | `no` | `yes` | `no` | n/a | n/a | `very high` | fail-close | heavy-piece / exchange-sac release remains the real story |
+| `b6_route_chain_near_miss` | `b4` | `...a5` | `yes` | `no` | `no` | `yes` | n/a | `yes` | `no` | `high` | fail-close to `B6` | route/reroute denial, not a new task pair |
+| `lucena_blocker` | `Rb1` | `...Kd6` | `yes` | `no` | `no` | `yes` | n/a | `yes` | `yes` | `very high` | fail-close | pure-endgame inflation blocker; cannot become B7 |
+
+Task-pair proof outcome:
+
+- `SecureFavorableSimplification -> PressureFixedWeakComplex` remains the only
+  admissible owned pair because it is the only checked neighborhood where the
+  move-local job can plausibly change from securing the favorable trade to
+  pressuring a newly fixed weakness complex on the same defended branch
+- `OccupySupportFilePressure` remains witness-only because the B6 route blocker
+  proves that file occupation language alone is too easy to relabel as route or
+  file truth
+- `TechnicalConversionPressure` remains forbidden because MI2 / MI3 show that
+  generic conversion/cashing-in swallows the distinction and collapses back into
+  B1-style or non-B7 language
+- `RouteBindRestatement` remains forbidden because the B6 near-miss still fails
+  closed cleanly there and should not be admitted into B7 under a new name
+
+Failure taxonomy validation:
+
+| failure type | validated by |
+| --- | --- |
+| `task_label_only` | `B21`, `B21A` |
+| `current_shifted_not_distinct` | `K09F` |
+| `route_bind_relabel` | `b6_route_chain_near_miss` |
+| `conversion_relabel` | `MI2`, `MI3` |
+| `line_preview_disguised_as_task` | current K09B runtime output still collapses to `Line: a) Nxe6 fxe6 Rad1.` plus `missing_move_owner` |
+| `surface_overhang` | K09B survives only under planner-only containment; replay reuse remains explicitly closed |
+| `schema_pressure` | the current planner/build path still lacks any legal public carrier; any public-carrier pressure would break the frozen contract |
+| `heavy_piece_leakage` | `b5_queen_infiltration_shell` |
+| `endgame_inflation` | `lucena_blocker` |
+| `candidate_overfitting` | only `K09B` survives as a positive control, so reopen must demand more than that single row |
+
+Admissibility decision memo:
+
+- the frozen contract is strict enough to reject all current near-miss and
+  blocker rows for different reasons
+- the contract does **not** become runtime-open from this validation pass
+- `K09B` remains both:
+  - the lone positive control for the frozen pair
+  - the owner-path blocker because the runtime still cannot materialize the
+    contract
+- because `candidate_overfitting` remains live, future B7 reopen now requires
+  more than the existing freeze:
+  - implement private/backend-only materialization only
+  - keep planner `WhyThis` only containment
+  - rerun this same matrix with no new leakage
+  - and add at least one second non-`K09B` exact-FEN survivor for the same
+    frozen pair before any runtime reopening review
+- 2026-04-02 second-survivor hunt result:
+  exact-FEN reruns over `K09C`, `K09G`, `K09H`, `MI1`, `MI4`, `K19`, plus the
+  required blocker pack found no second non-`K09B` late-middlegame survivor
+  for `SecureFavorableSimplification -> PressureFixedWeakComplex`; the pair
+  therefore remains one-row overfit on the current corpus and B7 defer is
+  strengthened rather than loosened
+- 2026-04-02 parallel hunt addendum:
+  `K09I` plus three web-recovered exact-FEN historical leads
+  (`Rubinstein-Duras 1911`, `Shirov-Kinsman 1990`, `Alekhine-Vidmar 1936`)
+  were also rerun locally and all failed before the frozen pair could even
+  activate because none kept a root-best simplification trigger on the
+  defended branch
+
+- broad same-branch candidate found:
+  `8/5pk1/3b2p1/3P4/1P3P2/6P1/5BK1/8 w - - 0 45` with trigger `Bc5`
+  (`f2c5`) and best-defense prefix `...Bb8 b5 ... g5 ... d6 ...`; this is a
+  real exact-branch transition-adjacent route, but it lives in a pure-endgame
+  cell and is still unsafe for the first B7 slice
+- strongest late-middlegame near misses remain:
+  `2bqr1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12`
+  with trigger `Nxc6` (`d4c6`) stayed `non-best-branch only`,
+  `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PP2PPBP/2RQ1RK1 w - - 4 13`
+  stayed too preparatory, and
+  `2rqr1k1/pp2bpp1/2n1bn1p/3p4/3N4/P1N1B1P1/1P2PPBP/2RQ1RK1 w - - 1 14`
+  still behaved like a holdable simplification shell
+- exact-FEN nasty negatives are now anchored across:
+  B6 route-network restatement on
+  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`,
+  B5b heavy-piece release shells, and Lucena / Philidor / Vancura pure-endgame
+  inflation blockers
+- fixture-only transition prose that does not survive exact-board replay stays
+  outside the B7 corpus; current blockers include the `open_file_fight` and
+  `exchange_sacrifice` bookmaker fixtures, whose recorded move text does not
+  replay cleanly from the listed FEN
+
+Net effect:
+
+- the nasty-case burden is materially stronger
+- one `clearly-better late middlegame` branch remains useful as a review
+  control, but it did not survive implementation-time runtime review
+- runtime stays closed because the current pipeline still cannot own that
+  branch as a bounded task shift without slipping into PV paraphrase
+
+Current verdict:
+
+- `CTH-B7a baseline ready`
+- reason:
+  B7 is now narrowly defined as a same-branch bounded task-shift family with an
+  explicit falsification burden. The 2026-04-02 narrow redesign pass fixed the
+  remaining blocker as owner-path admissibility plus task vocabulary, not exact
+  board discovery alone. The backend-only planner-local contract freeze is now
+  canonical, and no implementation or surface reuse is authorized unless a
+  future attempt stays inside that frozen envelope and then survives both the
+  nasty-case pack and runtime-owner review
+
+Recommended next move:
+
+- `B7 defer`
+- reason:
+  the backend-only contract/vocabulary/containment baseline is now the
+  canonical freeze, the validation pass held it against current near-miss
+  pressure, and any future reopening must first stay entirely inside that
+  frozen envelope **and** produce a second non-`K09B` survivor for the same
+  pair before runtime review
+
+## CTH-B8 — Slight-Edge Local Squeeze First-Slice Validation
+
+Purpose:
+decide whether `B8 = slight-edge local squeeze` can open as the next
+truth-owning family, and if so, define the narrowest certifiable first slice
+before any runtime work is allowed.
+
+Current status:
+`B8a` design + corpus validation complete only.
+No runtime slice, new payload field, new owner lane, or new prose family is
+opened by this section.
+
+Current narrowest plausible unit:
+- one same-branch `sector-local active-plan collapse`
+- meaning:
+  before the move, the defender still has multiple active plan families in one
+  bounded sector; after the move, the root-best defended branch would need to
+  show those families collapsing into at most one holding-only residue for a
+  bounded continuation
+
+Exact-FEN validation outcome on the 2026-04-02 pass:
+- local QC seeds with direct PGN/FEN recovery, such as
+  `Qa5` on `2b3k1/p3qp1p/6p1/4P3/3p4/P2B3P/3Q1PP1/6K1 w - - 0 28`
+  and `Ke7` on `3R1k2/5ppp/ppb2n2/2r5/P1p5/2N1P1N1/1PP3PP/6K1 b - - 0 27`,
+  stayed inside true slight-edge territory but did not survive the B8 burden:
+  the defender still kept multiple active plan families on the root-best
+  branch rather than degrading to holding-only
+- the best local fixture-style control,
+  `rnbq1rk1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 9`
+  after root-best `Nd2`, behaved like target-fixing / prophylaxis with plural
+  defender resources still live
+- external exact-FEN leads already recoverable inside local tooling, such as
+  `r4bk1/1r2n1p1/p2p1p1p/1q1Pp3/2N1P3/RP1QBPP1/6KP/R7 w - - 0 27`
+  and
+  `8/1prrk1p1/p1p1ppb1/P1P3p1/2BPP3/4KPP1/1R5P/1R6 w - - 0 1`,
+  either equalized, lived in clearly-better pressure rather than slight-edge
+  squeeze, or kept too much tactical/release content to count as holding-only
+- repo-local blocker reruns continued to fail closed exactly where expected:
+  B6 route-chain restatement on
+  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`,
+  heavy-piece release on
+  `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24`,
+  B7 simplification relabel on
+  `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13`,
+  and pure-endgame inflation on
+  `2K5/2P1k3/8/8/8/8/7r/R7 w - - 0 1`
+
+Contract consequence:
+- the existing deferred `slightEdgeLocalSqueeze` draft remains directionally
+  right, but any future reopening also needs explicit
+  `preMoveActivePlans`, `postMoveActivePlans`, `collapsedPlanFamilies`, and
+  `holdingOnlyFamilies` enumeration on the exact best-defense branch
+- even with that narrower contract, current corpus evidence is insufficient for
+  positive reopening
+
+Current verdict:
+- `B8 still too fuzzy / more corpus work needed`
+- reason:
+  no two independent exact-FEN survivors currently prove a measurable
+  same-branch local active-plan collapse in true slight-edge territory
+
+Reference workup:
+- [b8a_slight_edge_local_squeeze_20260402.md](C:/Codes/CondensedChess/lila-docker/repos/lila/tmp/b8a_slight_edge_local_squeeze_20260402.md)
 
 ## CTH-0 Audit Baseline
 

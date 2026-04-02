@@ -320,9 +320,16 @@ object UserFacingPayloadSanitizer:
   private def sanitizeRuntimeShell(shell: RuntimeShell): RuntimeShell =
     shell.copy(
       prompt = clean(shell.prompt),
-      rootChoices = shell.rootChoices.map(sanitizeShellChoice),
-      nodes = shell.nodes.map(sanitizePlayerNode),
+      plans = shell.plans.map(sanitizePuzzlePlan),
+      proof = sanitizeRuntimeProofLayer(shell.proof),
       terminals = shell.terminals.map(sanitizeTerminalReveal)
+    )
+
+  private def sanitizeRuntimeProofLayer(proof: RuntimeProofLayer): RuntimeProofLayer =
+    proof.copy(
+      rootChoices = proof.rootChoices.map(sanitizeShellChoice),
+      nodes = proof.nodes.map(sanitizePlayerNode),
+      forcedReplies = proof.forcedReplies
     )
 
   private def sanitizeDominantFamily(family: DominantFamilySummary): DominantFamilySummary =
@@ -332,6 +339,20 @@ object UserFacingPayloadSanitizer:
     choice.copy(
       label = cleanOpt(choice.label),
       feedback = clean(choice.feedback)
+    )
+
+  private def sanitizePlanStart(start: PlanStart): PlanStart =
+    start.copy(
+      label = cleanOpt(start.label),
+      feedback = clean(start.feedback)
+    )
+
+  private def sanitizePuzzlePlan(plan: PuzzlePlan): PuzzlePlan =
+    plan.copy(
+      anchor = cleanOpt(plan.anchor),
+      task = clean(plan.task),
+      feedback = clean(plan.feedback),
+      allowedStarts = plan.allowedStarts.map(sanitizePlanStart)
     )
 
   private def sanitizePlayerNode(node: PlayerNode): PlayerNode =
@@ -347,7 +368,12 @@ object UserFacingPayloadSanitizer:
       summary = clean(reveal.summary),
       commentary = clean(reveal.commentary),
       anchor = cleanOpt(reveal.anchor),
-      opening = cleanOpt(reveal.opening)
+      opening = cleanOpt(reveal.opening),
+      planTask = cleanOpt(reveal.planTask),
+      whyPlan = cleanOpt(reveal.whyPlan),
+      whyMove = cleanOpt(reveal.whyMove),
+      acceptedStarts = cleanList(reveal.acceptedStarts),
+      featuredStart = cleanOpt(reveal.featuredStart)
     )
 
   private def clean(value: String): String =

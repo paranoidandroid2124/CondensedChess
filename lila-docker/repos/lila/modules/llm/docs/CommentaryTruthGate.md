@@ -400,6 +400,11 @@ plus the local quality-audit rerun artifacts referenced there.
     off-file release, tactical release, fortress-like static hold,
     slight-edge posture, or move-order fragility; explicit hard-fail reasons
     include `entry_axis_persistence_missing`
+  - same-defended-branch proof must now be replayable:
+    `bestDefenseBranchKey` may come from `variationHash`, `seedId`, or an exact
+    two-ply reply-line key, but not from first-move-only matching or
+    candidate/probed-move fallback; ambiguous direct-reply branch sets must
+    also fail closed instead of exporting a selected defended branch downstream
   - PV paraphrase, file occupancy alone, route pressure without actual file
     usability loss, or a corroborating square that simply restates the file
     axis are not certification
@@ -416,14 +421,25 @@ plus the local quality-audit rerun artifacts referenced there.
     text (`planName`, `executionSteps`) rather than negative fields such as
     `failureModes` or `refutation` when checking whether a file-entry pair was
     actually named
+  - status interpretation:
+    this bounded B4b slice is now `current bounded scope complete` only inside
+    the current local charter; broader B4 family work, heavier postures, and
+    wider owner/replay reuse remain closed until a new bounded charter is
+    approved
 - named route-network bind is now a narrower planner-only extension of that same
   lane:
   - only backend-only `NamedRouteNetworkBindCertification` may keep a B6b claim
     `evidence_backed`, and only when a certified B4 file-entry pair plus one
     non-redundant reroute denial survive the same defended branch under clear
     advantage in a late middlegame
+  - same-defended-branch proof now requires replayable branch identity:
+    `variationHash`, `seedId`, or a two-ply reply-line key; first-move-only
+    branch fallback is not truth-clean, and missing / ambiguous branch identity
+    must fail closed as `same_branch_identity_missing` or
+    `ambiguous_defended_branch`
   - certification is stricter than B4, not a rename:
     `file_entry_restatement_only`, `route_network_mirage`,
+    `same_branch_identity_missing`, `ambiguous_defended_branch`,
     `redundant_square_counting`, `untouched_sector_reroute`,
     `color_complex_escape`, `cross_branch_stitching`,
     `static_net_without_progress`, `engine_pv_paraphrase`,
@@ -431,23 +447,57 @@ plus the local quality-audit rerun artifacts referenced there.
     `surface_reinflation` all hard-fail before any positive wording survives
   - the only positive owner scope is planner-owned `WhyThis`, keeping the
     existing move-delta owner lane and tagging the plan with
-    `sourceKinds += named_route_network_bind`; `WhatChanged`, Chronicle,
-    Bookmaker, Active, and whole-game replay remain closed to that tag
+    `sourceKinds += named_route_network_bind`; planner `WhyThis` must consume
+    only the exact certified file / entry / reroute triplet carried from the B6
+    contract path, not a raw prevented-plan recomposition; `WhatChanged`,
+    Chronicle, Bookmaker, Active, and whole-game replay remain closed to that
+    tag
   - replay selection must fail closed on route-network planner plans:
     Chronicle / Bookmaker / Active may not reuse a
     `named_route_network_bind` primary, and whole-game / wrap-up remain outside
     the slice
-  - close-review caveat:
-    the exact FEN positive control is reproduced by the local engine as a
-    MultiPV reroute-denial witness, but not yet as a stable top-1 root line, so
-    the slice is implementation-green but not yet broad-signoff green
+  - close-review status:
+    the exact FEN positive control, the same-first-move divergent /
+    ambiguous-branch negatives, and the planner triplet-recomposition negative
+    now pass together, so the bounded B6b slice is close-ready inside its
+    narrow charter; broader B6 route-chain / replay / whole-position rollout
+    remains closed
+  - broader route-chain expansion on that same lane has now been narrowed back
+    at the live owner boundary:
+    the same backend-only helper may still inspect one exact intermediate node
+    plus one downstream reroute candidate, but planner-owned truth is closed
+    again for that broader slice because the helper-backed 2026-04-02 closeout
+    rerun reproduced the after-move defended branch
+    `a7a5 b4a5 c6a5 f3e5 ... a5c4` while still keeping `c4` reachable, and did
+    not reproduce the earlier `a3b4` root-best reading on the original FEN
+  - broader route-chain hard-fails must stay explicit:
+    `fake_route_chain`, `redundant_intermediate_node`,
+    `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
+    `posture_inflation`, `heavy_piece_route_shell`,
+    `replay_reinflation`, `whole_game_wrapper_leak`, and
+    `engine_pv_paraphrase` all block positive wording
+  - positive owner scope does not widen:
+    planner-owned `WhyThis` no longer consumes the carried intermediate route
+    wording on the current branch. The exact `a5` detour witness remains
+    backend-visible only until a future repair session adds a new exact-FEN
+    root-best control and a real positive suite; `WhatChanged`, Chronicle,
+    Bookmaker, Active, and whole-game / wrap-up all remain closed
+  - current truth-gate status for route-chain closeout is `plateau / do not
+    widen`:
+    the exact FEN control still proves the backend after-trigger detour, but
+    the helper-backed matrix rerun returned `c3b4`, not `a3b4`, as root best on
+    the original FEN and no second independent exact-FEN survivor was found in
+    the screened `K09*`, `B21A`, and `Rubinstein-Duras` pool. Treat the current
+    branch as one-example heavy rather than closeout-ready
 - heavy-piece local bind is now guarded only as a negative-first B5b slice:
   - only queen-on clearly-better late-middlegame
     `RestrictionProphylaxis -> file-entry reuse` shells are inspected by the
     backend-only `HeavyPieceLocalBindValidation` contract
   - heavy-piece release proof is exact-branch first:
     release inventory must come from replayable FEN-backed UCI branches, and
-    best-defense survivors must stay pinned to PV1 / same-branch best replies,
+    best-defense survivors must stay pinned to PV1 / same-branch best replies;
+    same-branch identity itself must come from a replayable two-ply defended-
+    branch key rather than a one-move fragment or candidate/probed fallback,
     so illegal, paraphrased, wrong-base, short-fragment, or
     legal-prefix-plus-illegal-tail heavy-piece lines do not certify release
     claims by text motif alone
@@ -467,10 +517,11 @@ plus the local quality-audit rerun artifacts referenced there.
     replay-derived feature set under the local UCI verifier before we treat
     the best-path anchor as reproduced, and the verifier should prefer an
     explicit configured engine binary over any local fallback
-  - close-review interpretation:
-    this bounded B5b containment slice is `close-ready` only inside the
-    negative-first charter; heavy-piece positive wording and broader B5/B6
-    frontier work stay deferred
+  - status interpretation:
+    this bounded B5b containment slice is `current bounded scope complete`
+    only inside the negative-first charter; maintenance-only watch applies to
+    that containment slice only, while heavy-piece positive wording and broader
+    B5/B6 frontier work stay deferred
 - Bookmaker and Active may use compensation-positive language only when the
   contract allows compensation framing.
 - fake compensation suppression and real investment exemplar preservation are
