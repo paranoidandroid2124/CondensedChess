@@ -45,11 +45,24 @@ Use the documents in this order:
 - CTH-A:
   core complete, maintenance-only
 - CTH-B:
-  bounded B1 / B2 / B3 slices implemented and adversarial-review green inside
-  their current charters
+  bounded B1 / B2 / B3 remain implemented and adversarial-review green, and B4
+  is now live only as one narrow slice:
+  late-middlegame local file-entry bind certification only
+- CTH-B5a:
+  design/recon baseline ready only:
+  no B5 runtime slice is open, and the selected next recon family is
+  heavy-piece local bind on a negative-first criticism lane
 - Current operating rule:
-  maintenance-only re-review; do not open a broader strategic frontier unless a
-  fresh runtime seam change or trust regression forces it
+  maintain the live B1 / B2 / B3 / B4 runtime, keep broader B-frontier
+  expansion closed, and let any post-B4 work advance only through bounded
+  design/recon/charter baselines; B5a does not reopen positive semantics and
+  any B5b work must begin from the negative-first charter below
+- CTH board-truth validation rule:
+  B-track design, self-critique, and validation must stay tied to exact board
+  positions plus engine-backed best-defense / best-path verification. Verbal
+  sketches alone do not count as strategic validation; if the exact position
+  and best line are not established, the claim stays deferred, support-only, or
+  negative-first.
 
 ## Current Status
 
@@ -112,9 +125,15 @@ expand explainable strategic depth only after CTH-A makes the trust envelope
 stronger.
 
 Status:
-bounded B1 / B2 / B3 slices are implemented, but the broader frontier is
-paused; keep CTH-B in maintenance-only re-review unless a fresh runtime seam
-change reopens it.
+bounded B1 / B2 / B3 slices are implemented, and the first B4 slice is now
+implemented too: a bounded late-middlegame local file-entry bind certificate.
+The broader implementation frontier still remains unopened. B5a now adds a
+canonical design baseline only: heavy-piece local bind is the most reusable
+next recon family, but only on a negative-first criticism lane. Do not treat
+B4 or B5a as permission to widen runtime semantics into heavy-piece positives,
+slightly-better positives, standalone square-network positives,
+transition-adjacent positive-route claims, or broader whole-position bind
+claims.
 
 ### CTH-B0 — Strategic Discovery Recon Baseline
 
@@ -214,7 +233,7 @@ Current proof and falsification inventory:
   whole-position route comparison beyond the B1 restricted-defense slice,
   free-tempo falsifiers, technical endgame route certificates, and a full
   validation matrix over opening / early middlegame / pure endgame plus
-  defending-posture cells beyond the B1b coverage pack
+  defending-posture cells beyond the broad-validation coverage pack
 
 Broad validation charter baseline:
 
@@ -361,7 +380,7 @@ that verify uncertified conversion ideas stay out of Chronicle / Bookmaker /
 Active primaries and collapse to exact factual fallback instead of
 stronger-looking strategic prose.
 
-#### CTH-B1b — Restricted-Defense Conversion Broad Validation / Corpus Expansion
+#### Broad validation and corpus expansion
 
 Purpose:
 stress the existing B1 certificate against a broader late-middlegame /
@@ -372,7 +391,7 @@ Status:
 validation-only expansion completed. No new runtime helper, public payload
 field, or prose family was added. The work stays in test/tooling and reuses the
 existing planner/build/replay path. Reverse adversarial review is now green for
-the bounded B1/B1b charter after closing cross-branch stitched-persistence
+the bounded B1 charter after closing cross-branch stitched-persistence
 loopholes in runtime/tests.
 
 Broad validation pack:
@@ -397,7 +416,7 @@ Acceptance matrix:
   - `deferred`:
     opening, early middlegame, and pure technical endgame cells
   - `failed`:
-    none in the B1b targeted matrix
+    none in the targeted broad-validation matrix
 - evaluation posture:
   - `covered`:
     clearly winning technical conversion, slightly better but
@@ -405,7 +424,7 @@ Acceptance matrix:
   - `deferred`:
     defending / materially worse posture
   - `failed`:
-    none in the B1b targeted matrix
+    none in the targeted broad-validation matrix
 - texture:
   - `covered`:
     technical simplification, counterplay suppression, quiet improvement before
@@ -415,7 +434,7 @@ Acceptance matrix:
     broad quiet squeeze certification, free-tempo routes, whole-position route
     search, fortress-break generalization
   - `failed`:
-    none in the B1b targeted matrix
+    none in the targeted broad-validation matrix
 - criticism class:
   - `covered`:
     `cooperative_defense`, `pv_restatement_only`, `hidden_defensive_resource`,
@@ -423,16 +442,16 @@ Acceptance matrix:
     `local_to_global_overreach`,
     `surface_reinflation`
   - `deferred`:
-    none inside the targeted B1b criticism pack
+    none inside the targeted broad-validation criticism pack
   - `failed`:
-    none in the B1b targeted matrix
+    none in the targeted broad-validation matrix
 - surface:
   - `covered`:
     Bookmaker, Chronicle, Active, and whole-game/support reuse
   - `deferred`:
-    none inside the targeted B1b surface pack
+    none inside the targeted broad-validation surface pack
   - `failed`:
-    none in the B1b targeted matrix
+    none in the targeted broad-validation matrix
 
 Actual surface validation status:
 
@@ -445,33 +464,33 @@ Actual surface validation status:
 - whole-game / wrap-up reuse keeps failed restricted-defense conversion support
   as support-only and does not revive it as `decisiveShift` or `payoff`
 
-Failure inventory from B1b:
+Failure inventory from broad validation:
 
 - `runtime bug`:
-  no new runtime bug remains in the targeted B1b pack after the
+  no new runtime bug remains in the targeted broad-validation pack after the
   `stitched_defended_branch` fix-up
 - `overclaim risk`:
   no new overclaim path observed; uncertified cases stayed fail-closed across
   planner and replay surfaces
 - `insufficient validation`:
   opening, early middlegame, pure technical endgame, and defending-posture
-  cells are still outside the B1b validation pack
+  cells are still outside the B1 validation pack
 - `fixture gap`:
-  no new targeted gap inside the B1b matrix; broader CTH-B cells remain future
-  work rather than B1b fixture debt
+  no new targeted gap inside the B1 matrix; broader CTH-B cells remain future
+  work rather than B1 fixture debt
 - `acceptable residual`:
   certified positives currently surface as bounded `WhyThis` conversion prose
-  rather than preserving a `WhyNow` timing answer; this is acceptable for B1b
+  rather than preserving a `WhyNow` timing answer; this is acceptable for broad validation
   because it reduces claim strength rather than inflating it
 
-B1 close-readiness after B1b:
+B1 close-readiness after broad validation:
 
 - the narrow restricted-defense conversion certificate now has broad validation
   over its intended late-middlegame / transition cells and real-surface reuse
 - B1 should still be read as a bounded certificate, not as general winning-route
   discovery
 
-Explicitly deferred after B1/B1b:
+Explicitly deferred after B1:
 
 - middlegame-wide tactical conversion discovery
 - broad quiet squeeze certification outside this restricted-defense slice
@@ -482,7 +501,7 @@ Explicitly deferred after B1/B1b:
   completion
 - Track 5 lesson extraction
 
-### CTH-B2a — No-Counterplay / Quiet Squeeze Certification Design Baseline
+### CTH-B2 — No-Counterplay / Quiet Squeeze / Named-Break Suppression
 
 Purpose:
 define what must be proven, falsified, and broad-validated before the pipeline
@@ -740,7 +759,7 @@ Why no parallel runtime path is needed:
 - a parallel path would immediately re-open surface divergence and
   support-carrier reinflation risk
 
-#### Recommended B2b first implementation slice
+#### Recommended first implementation slice
 
 Recommended first slice:
 
@@ -777,13 +796,13 @@ Why this slice should go first:
 
 Session verdict:
 
-- `CTH-B2a baseline ready`
+- `CTH-B2 design baseline ready`
 - reason:
   B2 now has a canonical definition draft, falsification burden, criticism
-  matrix, broad validation charter, and narrow B2b entry slice without
+  matrix, broad validation charter, and narrow B2 entry slice without
   widening runtime semantics
 
-### CTH-B2b — Late-Middlegame Prophylactic Clamp / Named-Break Suppression Certification
+#### Live runtime slice — late-middlegame prophylactic clamp / named-break suppression
 
 Purpose:
 implement the narrowest B2 runtime slice:
@@ -794,7 +813,7 @@ alive against direct best defense on that same defended branch.
 Status:
 implemented as a backend-only certification helper plus planner/replay
 containment. No public payload/schema field or new prose family was added.
-Reverse adversarial review is now green for the bounded B2b charter after
+Reverse adversarial review is now green for the bounded B2 charter after
 closing validation-only best-defense and stitched-branch persistence loopholes.
 
 #### Runtime boundary
@@ -886,7 +905,7 @@ Negative / near-miss fixtures:
 
 Surface verification:
 
-- planner-owned `WhyThis` parity is green for certified B2b positives
+- planner-owned `WhyThis` parity is green for certified B2 positives
 - Chronicle / Bookmaker reuse the same downgraded planner pool
 - Active is checked for parity/non-reinflation only
 - whole-game support is verified negative-only:
@@ -913,14 +932,14 @@ Verification:
 
 Session verdict:
 
-- `CTH-B2b slice passed`
+- `current B2 slice passed`
 - reason:
   late-middlegame named-break / entry-axis suppression is now certified only in
   the narrow bounded slice with direct best-defense plus same-defended-branch
   persistence, and every broader squeeze/no-counterplay surface remains
   fail-closed
 
-#### B2 close review
+#### Close review
 
 Verdict:
 
@@ -952,13 +971,13 @@ Positive-scope note:
 - existing move-delta `WhatChanged` remains only the preexisting
   independently-legal lane; it is not a broader B2 positive-expansion claim
 
-Recommended next move from the B2 close review:
+Recommended next move from the B2 review:
 
-- `B3a design` completed in the baseline below
-- current follow-on after B3a:
-  `B3b narrow late-middlegame dual-axis clamp / bind certification`
+- the next bounded design baseline is completed below
+- current follow-on below:
+  the narrow late-middlegame dual-axis clamp / bind certification slice
 
-### CTH-B3a — Multi-Axis Squeeze / Bind Certification Design Baseline
+### CTH-B3 — Multi-Axis Squeeze / Bind
 
 Purpose:
 define what must be proven, falsified, and broad-validated before the pipeline
@@ -1245,7 +1264,7 @@ Why no parallel runtime path is needed:
 - a parallel path would immediately re-open surface divergence and
   support-carrier reinflation risk
 
-#### Recommended B3b first implementation slice
+#### Recommended first implementation slice
 
 Recommended first slice:
 
@@ -1284,13 +1303,13 @@ Why this slice should go first:
 
 Session verdict:
 
-- `CTH-B3a baseline ready`
+- `CTH-B3 design baseline ready`
 - reason:
   B3 now has a canonical bounded definition draft, certification contract,
-  criticism matrix, broad validation charter, and narrow B3b entry slice
+  criticism matrix, broad validation charter, and narrow B3 entry slice
   without widening runtime semantics
 
-### CTH-B3b — Late-Middlegame Dual-Axis Clamp / Bind Certification
+#### Live runtime slice — late-middlegame dual-axis clamp / bind
 
 Purpose:
 implement the narrowest B3 runtime slice:
@@ -1302,7 +1321,7 @@ bounded follow-through route on that same defended branch.
 Status:
 implemented as a backend-only certification helper plus existing
 planner/replay containment. No public payload/schema field or new prose family
-was added. The B3b fix-up for the known loophole trio is now in place, and the
+was added. The B3 fix-up for the known loophole trio is now in place, and the
 follow-on reverse adversarial review plus targeted seam review are green for the
 bounded B1 / B2 / B3 maintenance charter.
 
@@ -1349,7 +1368,7 @@ bounded B1 / B2 / B3 maintenance charter.
   axis cannot certify a fake dual-axis shell
 - `routeContinuity` now records both `directBestDefensePresent` and
   `sameDefendedBranch` so validation-only or stitched proof bundles fail closed
-- current B3b fail-closed reasons are:
+- current B3 fail-closed reasons are:
   `pv_restatement_only`, `local_to_global_overreach`,
   `waiting_move_disguised_as_bind`, `dual_axis_burden_missing`,
   `axis_independence_not_proven`, `hidden_freeing_break`,
@@ -1361,13 +1380,13 @@ bounded B1 / B2 / B3 maintenance charter.
   the second axis must be an entry-denial square/file distinct from the primary
   break axis rather than a rephrased copy of the same route
 - route continuity is intentionally narrower than plain restriction:
-  denial language alone is not enough; B3b requires bounded follow-through
+  denial language alone is not enough; the live B3 slice requires bounded follow-through
   evidence rather than treating `entry denied` itself as a conversion route
 - fortress protection is explicit:
   a static hold that survives best defense but shows no bounded continuation is
   fail-closed as `fortress_like_but_not_winning`
 
-#### Criticism coverage closed in B3b
+#### Criticism coverage closed in the live B3 slice
 
 - `axis_independence_not_proven`:
   duplicate break/entry restatements fail instead of counting as two axes
@@ -1403,7 +1422,7 @@ bounded B1 / B2 / B3 maintenance charter.
   reuse and remain blocked from stronger Bookmaker / Chronicle / Active /
   whole-game ownership
 
-#### Residual cells still outside B3b positive scope
+#### Residual cells still outside the live B3 positive scope
 
 - heavy-piece middlegame positives
 - transition / endgame-adjacent positives
@@ -1434,21 +1453,1146 @@ bounded B1 / B2 / B3 maintenance charter.
 
 Current operating rule:
 
-- keep B1 / B2 / B3 in maintenance-only re-review:
-  no broader frontier or residual expansion after the bounded reverse-review
-  pass; reopen review only if fresh runtime changes touch the audited seams
+- keep the live B1 / B2 / B3 runtime in maintenance-only re-review
+- keep B4 in maintenance-only re-review inside its narrow local file-entry
+  charter
+- broader B4 expansion is still closed except for new design/recon baselines
+- do not treat B4 as approval to open heavy-piece positives,
+  slightly-better positives, standalone square-network positives, or broader
+  whole-position bind claims
 
 #### Reverse review / seam review status
 
-- B3b known loophole trio is now fix-up green:
+- the live B3 loophole trio is now fix-up green:
   dual-axis burden, direct best-defense evidence, and same-defended-branch
   continuity are all enforced in runtime/tests
-- reverse adversarial review is green on the bounded B2b / B1b / B1 slices:
+- reverse adversarial review is green on the bounded B2 / B1 slices:
   validation-only best-defense shells and stitched proof bundles now fail
   closed instead of certifying
 - targeted A/CQF seam review found no new loophole across fallback rewrite,
   truth-gate re-entry, whole-game support reuse, or cross-surface divergence;
-  keep maintenance-only watch, not a new frontier
+  keep runtime maintenance-only watch; the only reopened lane is the separate
+  B4 design baseline below
+
+### CTH-B4 — Local Bind Expansion
+
+Purpose:
+define the next bounded positive frontier after the live B3 slice, compare the leading
+candidates, and set the canonical contract / criticism / broad-validation
+burden before any B4 implementation slice is opened.
+
+Status:
+design baseline only. No runtime semantics, public payload/schema, prose
+family, or new owner lane changed in this step. B4 implementation remains
+unopened; the goal is to decide what can be certified next without opening
+heavy-piece, slight-edge, or color-complex overclaim.
+
+#### Design posture
+
+- proof / falsification first:
+  define what must be measured and what must fail before any new bind language
+  is admitted
+- broad validation before confidence:
+  B4 may not be inferred from a narrow smoke pack
+- minor-criticism resistance:
+  file-bind, heavy-piece, and slight-edge claims must survive nasty small
+  counterexamples rather than rhetorical confidence
+- fail-closed over rhetorical richness:
+  when proof is incomplete, the result stays `deferred`, support-only, or exact
+  factual fallback
+- architecture reuse only:
+  stay inside
+  `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
+- no new runtime path, payload/schema, prose family, or whole-game owner lane
+- surface inflation forbidden:
+  uncertified B4 shells must downgrade before Chronicle / Bookmaker / Active /
+  whole-game reuse
+- texture expansion before phase/eval expansion:
+  B4 should widen the certifiable local bind texture before reopening
+  heavy-piece phase or slightly-better eval posture
+
+#### Candidate frontier map
+
+| Candidate | Expected positive scope | Main overclaim risk | Main falsification burden | Expected surface risk | Strongest reusable signals | B4 verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `heavy-piece local bind` | one bounded file / entry corridor looks restricted while major pieces remain | queen infiltration, perpetuals, rook lifts, and tactical releases make a local shell look like a whole-position clamp | enumerate forcing releases under best defense, keep same-branch persistence, and block queen-check/perpetual seams | `high` | direct reply probes, `futureSnapshot.newThreatKinds`, `keyMotifs`, branch-key reuse | `deferred`; not the next slice |
+| `slightly-better local squeeze` | local restriction language below winning-route level | a comfortable edge gets narrated as a certified squeeze | separate progress from fortress/static hold, cap language, and fail closed on small releases | `high` | current eval gating, fortress-risk reuse, route continuity, same-branch persistence | `deferred`; positive B4 not recommended |
+| `file bind` | one denied file corridor plus one single corroborating entry square on the same defended branch | file occupancy or pressure is mistaken for denied file access | prove opponent-facing file usability loss, not just our piece placement; enumerate off-file releases | `medium` | builder-level `PreventedPlan.deniedEntryScope` / `deniedSquares` / `deniedResourceClass` / `counterplayScoreDrop`, reply probes, `futureSnapshot`, branch-key reuse | `deferred until carrier/surface gap closure`; still the preferred B4 entry slice |
+| `square-network bind` | a small named route network, not generic square rhetoric | isolated squares are overcounted as a network | prove route continuity and non-redundant square chaining | `medium-high` | `deniedSquares`, key-square denial, `futureSnapshot.planBlockersRemoved`, B3 axis-independence grammar | `deferred`; not part of the first positive slice beyond a single corroborating entry square |
+| `bounded color-complex restriction` | a color-complex idea tied to a named route loss | pretty positional prose outruns certifiable local truth | tie every color-complex claim to concrete entry/break loss plus same-branch persistence | `very high` | `ColorComplexSqueezeValidation`, weak-complex / denied-square signals, `futureSnapshot` | `unsafe` as the next positive slice |
+
+Operational conclusion:
+
+- B4 should widen texture, not phase or eval posture
+- the preferred next B4 target remains a bounded local `file bind` with one
+  single corroborating entry square, but it is not yet surface-ready on the
+  current carrier path
+- heavy-piece positives and slightly-better positives remain deferred
+- bounded color-complex positives remain unsafe
+
+#### Reusable signal inventory
+
+Reusable now:
+
+- `PreventedPlan.breakNeutralized`, `deniedSquares`, `deniedResourceClass`,
+  `deniedEntryScope`, `counterplayScoreDrop`,
+  `breakNeutralizationStrength`, and `defensiveSufficiency`
+- direct reply probes:
+  `defense_reply_multipv`, `reply_multipv`, and `convert_reply_multipv`
+- `futureSnapshot.planBlockersRemoved`, `planPrereqsMet`,
+  `resolvedThreatKinds`, and `newThreatKinds`
+- `PlanEvidenceEvaluator.ClaimCertification`:
+  distinctive attribution, ontology family, stability, and
+  `alternativeDominance = false`
+- existing branch-key / same-defended-branch / move-order-fragility grammar
+- existing `counterplayReinflationRisk` fail-closed pattern
+
+Reusable only as support, not as proof:
+
+- `OpenFilePressure` or other theme labels by themselves
+- generic `targetsDelta` or `c-file pressure` wording
+- generic square-control, mobility-clamp, or color-complex prose
+- support-only carriers that are not tied to direct best-defense proof
+
+Current builder / carrier gap:
+
+- the backend model already carries
+  `deniedEntryScope = single_square | file | sector`, and selector logic
+  already treats `file` as counterplay suppression
+- `NarrativeContextBuilder.convertPreventedPlan` currently drops
+  `deniedEntryScope` and `deniedResourceClass` when `PreventedPlan` is lowered
+  into `PreventedPlanInfo`
+- builder-level contract reuse is therefore plausible, but the current
+  player-facing carrier does not yet preserve explicit file scope
+- a future B4 slice may close that gap only inside the existing
+  `PreventedPlan` / probe / planner path; it may not add payload/schema
+
+Current surface phrasing gap:
+
+- current player-facing phrasing still prefers `breakNeutralized` or the first
+  `deniedSquare`
+- `QuietMoveIntentBuilder` and `MainPathMoveDeltaClaimBuilder` do not yet have
+  a surface-safe phrase path for `file usability loss`
+- because of that gap, positive B4 file-bind readiness is still deferred on
+  planner-owned `WhyThis`, Bookmaker, and Chronicle even though the upstream
+  builder/runtime path is the preferred reuse lane
+
+#### Backend-only contract drafts
+
+Recommended contract draft:
+
+`localFileEntryBind`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one file corridor plus one single corroborating entry square | existing planner ownership limits plus backend-only scope gating |
+| `axisFamilies` | record `file_access + single_entry_square` instead of generic `bind` wording | `PreventedPlan.deniedEntryScope`, `deniedResourceClass`, denied squares |
+| `axisIndependence` | prove the entry square is not just a renamed copy of the file claim | B3 axis-independence grammar, denied-square / file token comparison |
+| `fileUsabilityEvidence` | show the opponent lost usable file access rather than only seeing our rook pressure | builder-level `deniedEntryScope`, denied entry squares, `counterplayScoreDrop`, `defensiveSufficiency`, reply probes |
+| `singleCorroboratingEntryAxis` | keep the first slice at one corroborating entry square, not a standalone square network | denied-square extraction plus same-branch validation |
+| `entryAxisPersistence` | show that one corroborating entry square stays unavailable on the defended branch | `futureSnapshot.planBlockersRemoved`, `planPrereqsMet`, branch-key reuse |
+| `pressurePersistence` | keep the claim tied to best-defense stability plus bounded persistence | direct reply probes, `bestReplyStable`, same-branch validation |
+| `bestDefenseBranchKey` | force file proof, release checks, and continuity to stay on one defended branch | existing branch-key matching from B1/B3 |
+| `routeContinuity` | keep the bind tied to a bounded follow-through route, not global winning-route language | `futureSnapshot`, `convert_reply_multipv`, continuity motifs |
+| `releaseRisksRemaining` | enumerate live freeing breaks, file switches, or tactical releases that still puncture the shell | remaining prevented-plan axes, `newThreatKinds`, `collapseReason`, motifs |
+| `fileOccupancyOnlyRisk` | fail if the file claim is really just our piece placement | denied-file proof vs raw pressure comparison |
+| `fortressRisk` | block static hold from becoming a bind certificate | B3 fortress-risk pattern, lack of bounded continuation |
+| `slightEdgeOverclaimRisk` | block slightly-better positions from inheriting B4 positivity too early | eval posture gate plus bounded-language cap |
+| `counterplayReinflationRisk` | flag replay/support carriers likely to overstate the shell | existing replay gate and support-only discipline |
+| `claimCertification` | keep B4 inside the same quantifier/modality/attribution grammar as B1/B2/B3 | `PlanEvidenceEvaluator.ClaimCertification` |
+| `confidence` | derive confidence from the same bounded file/square evidence | existing confidence-score pattern |
+| `evidenceSources` | show which carriers justified the contract | current hypothesis/probe/prevented-plan source lists |
+
+Deferred contract draft:
+
+`heavyPieceBindShell`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one bounded sector under heavy-piece tension | backend-only scope gating |
+| `axisFamilies` | record the local resource axes without implying global domination | prevented-plan axes plus route-denial aliases |
+| `pressurePersistence` | tie the shell to direct best-defense handling | reply probes, `bestReplyStable`, same-branch persistence |
+| `bestDefenseBranchKey` | prevent stitched heavy-piece proof bundles | existing branch-key reuse |
+| `releaseRisksRemaining` | enumerate still-live breaks, infiltrations, and tactical releases | `newThreatKinds`, motifs, collapse reasons, prevented-plan residues |
+| `heavyPieceReleaseRisks` | separate queen-check, rook-lift, and forcing-chain seams from ordinary route denial | direct reply probes plus tactical-release parsing |
+| `perpetualRisk` | keep perpetual-like escapes from being narrated as a bind | reply probes, forcing motifs, future snapshots |
+| `routeContinuity` | require bounded continuation on that same defended branch | B3 route-continuity grammar |
+| `counterplayReinflationRisk` | stop a noisy heavy-piece shell from inflating on stronger surfaces | existing replay gate |
+| `confidence` / `evidenceSources` | make any future heavy-piece certification auditable | existing contract pattern |
+
+Deferred contract draft:
+
+`slightEdgeRestriction`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim explicitly local and non-winning | backend-only scope gating |
+| `axisFamilies` | record the bounded restriction without global squeeze rhetoric | prevented-plan axes, route-denial aliases |
+| `pressurePersistence` | verify the local shell survives best defense | reply probes, best-reply stability |
+| `bestDefenseBranchKey` | keep proof on one defended branch | existing branch-key reuse |
+| `routeContinuity` | separate real progress from mere static comfort | `futureSnapshot`, continuity motifs, conversion-tail reuse |
+| `progressVisibility` | require a visible worsening of defender resources before any positive language survives | future snapshots, blocker-removal / target-delta evidence |
+| `fortressRisk` | block static equality-like holds from sounding winning | B3 fortress-risk pattern |
+| `slightEdgeOverclaimRisk` | make low-margin inflation explicit and fail-closed | eval gating plus language-cap policy |
+| `releaseRisksRemaining` | enumerate the small defensive resources that still keep equality-like resistance alive | reply probes, tactical-release parsing, remaining axes |
+| `counterplayReinflationRisk` | stop support carriers from turning a mild edge into a squeeze | existing replay gate |
+| `confidence` / `evidenceSources` | keep any future slight-edge lane auditable and capped | existing contract pattern |
+
+Rejected for positive drafting now:
+
+- do not open a positive `boundedColorComplexRestriction` contract yet
+- keep color-complex work negative-only until the claim can point to a named
+  entry / break / file loss and survive same-branch release testing
+
+#### Criticism matrix
+
+| Axis | Why risky | Current reusable guard | Required future B4 guard | Required difficult fixture shape |
+| --- | --- | --- | --- | --- |
+| `cooperative_defense` | the shell survives only if the defender stays passive | direct reply probes, best-reply stability, alternative-dominance checks | concrete best defense plus same-branch persistence for every positive B4 claim | file grip that works unless the defender immediately contests the file or switches sector |
+| `hidden_freeing_break` | one unclosed break or route kills the bind thesis | prevented-plan enumeration, blocker checks, future snapshots | `releaseRisksRemaining` must list every live break / file switch / sector release and fail if any survive | c-file looks shut, but `...a5` or `...e5` still frees the game |
+| `hidden_tactical_release` | exchange sac, perpetual, forcing checks, or rook lift puncture the shell | `collapseReason`, `keyMotifs`, `newThreatKinds`, reply probes | explicit tactical-release inventory, especially for heavy-piece lanes | file clamp fails once the defender finds an exchange sac or check chain |
+| `engine_pv_paraphrase` | an engine line is rewritten as `bind` without local resource proof | claim-certification attribution/ontology checks, validation purposes | require opponent-facing resource enumeration and route loss, not raw PV pressure | doubling on a file is described as a bind even though no entry route is actually denied |
+| `move_order_fragility` | the idea works only in one exact move order | existing `moveOrderSensitive`, collapse reasons, B1/B2/B3 fragility handling | contract-level `moveOrderFragility` must fail exact-order-only shells | same file bind works only if the defender chooses the wrong rook-trade order |
+| `false_file_bind` | occupying or pressuring a file is mistaken for denying that file | `deniedEntryScope`, denied squares, counterplay-drop signals | add `fileUsabilityEvidence` and `fileOccupancyOnlyRisk`; require entry denial plus persistence | rooks occupy the c-file, but c2/c7 or a side break still keeps the file usable |
+| `false_square_network` | separate squares are overcounted as a meaningful network | denied-square lists, B3 axis-independence grammar | keep standalone square-network bind deferred; first B4 slice allows only one corroborating entry square | c5 and d6 look controlled, but the defender reroutes through e5/f4 or changes color complex |
+| `fortress_like_but_not_progressing` | a static hold is confused with a certifiable bind | B3 fortress-risk and route-continuity checks | require `progressVisibility` or bounded continuation; otherwise fail closed | locked file and denied square with no breakthrough, no worsening defender state, and no conversion tail |
+| `slight_edge_overclaim` | a mild edge is narrated as a squeeze | B2/B3 clearly-better gate | explicit `slightEdgeOverclaimRisk`, bounded language cap, and continued defer of slightly-better positives | `+80` to `+120` position with local control but no real progress route |
+| `cross_branch_stitching` | best defense, persistence, and continuation are borrowed from different probe branches | existing branch-key / same-defended-branch logic | every B4 proof component must key to the same defended branch | best defense comes from branch A, file denial from branch B, and continuation from branch C |
+| `surface_reinflation` | support carriers revive a stronger claim on Bookmaker / Chronicle / Active / wrap-up | `StrategicNarrativePlanSupport`, replay parity tests, cross-surface trust harness | downgrade before planner reuse and keep whole-game/support reuse blocked | uncertified local file shell reappears as `no counterplay` or `squeeze` on a stronger surface |
+
+#### Broad validation charter
+
+The B4 validation burden must be read as a texture-expansion charter, not as
+permission to widen phase, eval posture, and surface all at once:
+
+- positive certification may target only cells marked `likely coverable now`
+- any `likely deferred` cell needs its own corpus expansion and criticism pack
+  before positive certification is accepted
+- any `likely unsafe` cell is negative-only for early B4 work and must prove
+  fail-closed behavior rather than positive admission
+
+Phase matrix:
+
+| Phase cell | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable now` | existing prevented-plan, reply-probe, and future-snapshot signals are strongest here |
+| `heavy-piece middlegame` | `likely deferred` | forcing-release density is higher and file/square shells are easier to overread |
+| `transition / endgame-adjacent` | `likely deferred` | file grip vs fortress/progress ambiguity is harder to separate |
+| `pure endgame` | `likely unsafe` | active-king routes and fortress false positives dominate |
+
+Evaluation posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable now` | strongest place to admit a bounded local bind without implying a whole winning route |
+| `slightly better` | `likely deferred` | local restriction may be real, but progress vs fortress remains too fragile |
+| `equal / unclear` | `likely unsafe` | positive bind certification would overstate local truth |
+| `defending side` | `likely unsafe` | would turn hold/survival language into a false squeeze owner lane |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `break + entry shell` | `likely coverable now` | already certified by B3 and should remain the B4 regression control cell |
+| `file bind` | `likely deferred` | still the preferred first expansion, but current carrier/surface gaps must close before positive certification |
+| `square-network bind` | `likely deferred` | route continuity and mirage risk still need their own criticism pack |
+| `heavy-piece clamp` | `likely deferred` | tactical-release density and perpetual risk are still too high |
+| `slight-edge local squeeze` | `likely unsafe` | rhetorical inflation and progress ambiguity remain too large |
+| `static hold / fortress near-miss` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `tactical-release fake shell` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `waiting-move-only pseudo bind` | `likely unsafe` | too easy to confuse with generic improvement or style choice |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely deferred` | strongest eventual owner path, but current carrier and phrasing paths do not yet preserve file usability loss cleanly |
+| `planner-owned WhatChanged` | `likely deferred` | keep the move-delta lane independent; do not widen B4 positivity here first |
+| `Bookmaker` | `likely deferred` | planner-first replay is reusable, but current phrasing still prefers break or first-square language over file usability loss |
+| `Chronicle` | `likely deferred` | shared replay path is reusable, but current phrasing still prefers break or first-square language over file usability loss |
+| `Active` | `likely deferred` | parity/non-reinflation can be tested now, but positive ownership remains diagnostic-sensitive |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | early B4 work should validate only non-reinflation, not positive wrapper reuse |
+
+#### Mandatory self-critique pass
+
+Candidate attacked:
+
+- the first draft treated `file / square bind` as one unified next-step
+  frontier
+
+Nasty cases used to attack that draft:
+
+| Self-critique case | Why the first draft was vulnerable | B4 correction |
+| --- | --- | --- |
+| `occupied_file_not_denied` | the draft could confuse our heavy-piece occupation with the opponent actually losing file access | add `fileUsabilityEvidence` and `fileOccupancyOnlyRisk`; file bind now requires opponent-facing denial, not our pressure alone |
+| `off_file_break_release` | the draft focused on the file itself and could miss a freeing break elsewhere | add `releaseRisksRemaining` and expand `hidden_freeing_break` fixtures to include off-file releases |
+| `square_network_mirage` | the draft could count two pretty squares as a route network | split `file bind` from `standalone square-network bind`; keep the latter deferred and cap the first slice at one corroborating entry square |
+| `heavy_piece_perpetual_shell` | the draft was too willing to imagine the same contract under queens/major pieces | keep heavy-piece positives deferred and require a dedicated forcing-release corpus before reopening them |
+| `slight_edge_comfort_shell` | the draft could have admitted a low-margin restriction as a squeeze because the local shell looked real | add `slightEdgeOverclaimRisk` and keep slightly-better positives deferred |
+| `fortress_file_grip` | the draft could call a static hold a bind without visible progress | strengthen `fortressRisk` and keep `routeContinuity` / `progressVisibility` mandatory |
+| `stitched_branch_bundle` | the draft could still borrow best defense, file proof, and continuation from different branches | keep `bestDefenseBranchKey` / same-defended-branch proof mandatory for every positive B4 claim |
+
+Design changes forced by self-critique:
+
+- split candidate C into:
+  `file bind` vs `standalone square-network bind`
+- move `file bind` from `likely coverable now` to `likely deferred` until the
+  carrier/surface gap closes
+- add `fileUsabilityEvidence`, `singleCorroboratingEntryAxis`,
+  `entryAxisPersistence`, `fileOccupancyOnlyRisk`, `releaseRisksRemaining`,
+  and `slightEdgeOverclaimRisk` to the contract drafts
+- keep heavy-piece positives and slightly-better positives outside the first B4
+  implementation slice
+- keep color-complex positives explicitly unsafe rather than merely deferred
+
+#### Recommended first implementation slice
+
+Recommended first slice:
+
+- `late-middlegame clearly-better file-bind with one single corroborating entry-square axis, after carrier/surface gap closure`
+  this is the recommendation that the live B4 slice below now consumes
+
+Narrow scope:
+
+- applicable owner lane:
+  stay inside the existing `RestrictionProphylaxis` planner/runtime path
+- applicable plan family:
+  prefer `BreakPrevention` / `KeySquareDenial` cases where the opponent's file
+  access can be represented as `deniedEntryScope = file` or equivalent bounded
+  route-denial evidence inside the current carrier
+- positive output cap:
+  planner-owned `WhyThis` first after the carrier/surface gap closes;
+  Bookmaker / Chronicle may mirror the upstream certificate only after the same
+  phrasing gap is closed, while `WhatChanged`, Active, and whole-game reuse
+  remain non-inflation-only
+- explicit non-goals:
+  heavy-piece positive certification, slightly-better positive squeeze,
+  standalone square-network positives, color-complex positives, whole-position
+  `no-counterplay`, and winning-route discovery
+
+Why this slice should go first:
+
+- it expands texture while keeping phase and eval posture closed
+- it reuses the existing B3 branch-key / continuation / reinflation grammar
+- it has the smallest new falsification burden:
+  file usability vs occupancy, off-file release enumeration, and one bounded
+  corroborating entry-square axis
+- it avoids the two most dangerous temptation seams:
+  heavy-piece tactical illusion and slight-edge rhetorical inflation
+
+#### Live runtime slice — late-middlegame local file-entry bind certification
+
+Status:
+
+- implemented
+- `implementation-green`
+- known B4 fix-up findings closed
+- `adversarial-review green`
+- `close-ready`
+
+Canonical runtime scope:
+
+- `RestrictionProphylaxis` only
+- `BreakPrevention` / `KeySquareDenial` only
+- late middlegame only
+- clearly-better posture only
+- queen-light only as an extra fail-closed guard against heavy-piece release
+- one denied file corridor plus one independent corroborating entry square only
+
+Carrier / surface gap closure actually taken:
+
+- `StrategicAnalyzers.ProphylaxisAnalyzerImpl` may now preserve
+  `deniedEntryScope = file` for bounded break-prevention cases when the denied
+  break file is concrete
+- `NarrativeContextBuilder.convertPreventedPlan` now preserves
+  `deniedResourceClass` and `deniedEntryScope` inside `PreventedPlanInfo`, so
+  the existing carrier can express file usability loss without a new public
+  API/schema field
+- surface reuse remains fail-closed:
+  `MainPathMoveDeltaClaimBuilder`, `QuietMoveIntentBuilder`, and
+  `QuestionFirstCommentaryPlanner` may use the bounded file-entry wording only
+  when `StrategicNarrativePlanSupport.evidenceBackedMainPlans` still confirms
+  an evidence-backed restriction plan and that plan text itself names the same
+  file plus entry-square pair
+
+Positive scope now open:
+
+- bounded planner-owned `WhyThis`
+- bounded move-linked `WhatChanged`
+- Bookmaker / Chronicle parity only through the same planner/builder gate
+
+Still deferred or negative-only:
+
+- `WhyNow`
+- Active positive ownership expansion
+- whole-game / wrap-up / support positive reuse
+- heavy-piece middlegame positives
+- slightly-better positives
+- standalone square-network positives
+- bounded color-complex positives
+
+Fail-closed burdens enforced in the live slice:
+
+- `file_occupancy_only`
+- `hidden_off_file_release`
+- `entry_axis_not_independent`
+- `entry_axis_persistence_missing`
+- `direct_best_defense_missing`
+- `stitched_defended_branch`
+- `hidden_tactical_release`
+- `move_order_fragility`
+- `fortress_like_but_not_progressing`
+- `slight_edge_overclaim`
+- `surface_reinflation`
+
+Adversarial-review correction made during implementation:
+
+- the first B4 runtime draft left a real reinflation seam:
+  `LocalFileEntryBindCertification.certifiedSurfacePair(ctx)` was reading raw
+  `ctx.mainStrategicPlans`, so a deferred experiment with residual main-plan
+  text could still seed file-entry phrasing in builder-owned surfaces
+- the shipped slice fixes that by using
+  `StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)` and by
+  requiring the surviving evidence-backed restriction plan's affirmative text
+  to name the same file plus entry-square pair before any surface claim is
+  built
+- broad-validation now includes the explicit nasty-case fixture
+  `deferred experiment plus residual main plan cannot stitch a file-entry claim
+  back into builder or planner surfaces`
+
+B4 fix-up hardening closed in this step:
+
+- `entryAxisPersistence` is now a legality burden, not just a confidence input:
+  the corroborating entry square must stay unavailable on the same defended
+  branch, and `entry_axis_persistence_missing` now hard-fails the certificate
+- affirmative-only surface matching is now explicit:
+  the file-entry pair may be recovered only from affirmative plan text
+  (`planName`, `executionSteps`); negative/caveat text such as
+  `failureModes` or `refutation` may not unlock a positive surface pair
+- new negative fixtures now cover both seams:
+  `entry_axis_persistence_missing` and
+  `pair_only_in_failure_mode_or_refutation`
+- result:
+  the B4 slice moves from `implementation-green` only to
+  `adversarial-review green` and `close-ready` inside its narrow charter
+
+Verification burden closed in the same session:
+
+- targeted compile: `llm/compile`
+- B4 broad validation:
+  `LocalFileEntryBindBroadValidationTest`
+- regression packs:
+  `DualAxisBindBroadValidationTest`,
+  `CounterplayAxisSuppressionBroadValidationTest`,
+  `SurfaceReplayParityTest`,
+  `BookmakerPolishSlotsTest`,
+  `CrossSurfaceTrustRegressionHarnessTest`,
+  `ActiveStrategicCoachingBriefBuilderTest`
+
+Session verdict:
+
+- `CTH-B4 design baseline ready`
+- reason:
+  B4 now has a canonical candidate map, backend-only contract drafts,
+  criticism matrix, broad validation charter, and self-critique-revised next
+  slice without changing runtime semantics
+
+### CTH-B5a — Next Local Strategic Frontier Design
+
+Purpose:
+choose which deferred harder local strategic family, if any, can become the
+next bounded certification target after the live B4 slice, and set the
+canonical contract / criticism / broad-validation burden before any B5
+implementation opens.
+
+Status:
+design baseline only. No runtime semantics, public payload/schema, prose
+family, owner lane, or new test harness changed in this step. B5 positive
+rollout remains unopened.
+
+#### Design posture
+
+- proof / falsification first:
+  a B5 candidate must earn a measurable local truth claim, not just a
+  convincing strategic sentence
+- broad validation before confidence:
+  one attractive corpus shard is not enough for heavy-piece, transition, or
+  route-network work
+- minor-criticism resistance:
+  the candidate must survive nasty but realistic small objections
+- fail-closed over rhetorical richness:
+  incomplete proof stays `deferred`, support-only, or exact factual fallback
+- architecture reuse only:
+  stay inside
+  `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
+- no new runtime path, payload/schema, prose family, or whole-game owner lane
+- surface reinflation forbidden:
+  uncertified B5 shells must downgrade before Chronicle / Bookmaker / Active /
+  whole-game reuse
+- local bounded claim before whole-position ambition:
+  B5 is not a permission slip for `no counterplay`, global squeeze, or
+  winning-route discovery
+- self-critique during design, not afterthought:
+  the nastiest cases below are mandatory charter inputs, not optional examples
+
+#### Candidate frontier map
+
+| Candidate | Expected positive scope | Main overclaim risk | Main falsification burden | Expected surface risk | Strongest reusable signals | B5 verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `heavy-piece local bind` | one bounded file / entry corridor remains restricted with major pieces still on the board | queen infiltration, rook lifts, forcing checks, and perpetuals make a local shell look like a whole-position clamp | enumerate heavy-piece release inventory under concrete best defense, keep same-branch persistence, and prove the shell survives without stitched branches | `very high`; Bookmaker / Chronicle / Active can sound much stronger than the local truth | B4 file-entry contract shape, direct reply probes, `bestDefenseBranchKey`, `futureSnapshot.newThreatKinds`, `keyMotifs`, `deniedEntryScope`, `deniedSquares`, claim certification | `deferred` for positive rollout, but it is the most reusable next recon family and the recommended negative-first B5b lane |
+| `slightly-better local squeeze` | local restriction language below winning-route level in a small edge posture | a comfortable edge is narrated as a certified squeeze even when no progress route exists | separate progress from fortress/static hold, require visible defender-resource worsening, and hard-fail small surviving releases | `very high`; every surface wants to inflate mild-edge control into squeeze rhetoric | best-defense branch reuse, bounded continuation, fortress-risk patterns, `futureSnapshot`, claim certification | `unsafe` as the first positive B5 slice; keep negative-only until progress proof exists |
+| `named route-network bind` | a small named route network, not generic square-control rhetoric | isolated squares or one-file pressure are overcounted as a meaningful network | prove route continuity, non-redundant square chaining, and no reroute through an untouched sector or color complex | `high`; square naming is especially vulnerable to pretty positional prose | `deniedSquares`, route-denial validation, B3/B4 axis-independence grammar, same-branch persistence, `futureSnapshot.planBlockersRemoved` | `deferred`; next positive frontier candidate after B5 |
+| `transition-adjacent route` | one bounded move-local route into a better technical task near a middlegame -> endgame handoff | a local route becomes a whole-ending verdict, fortress verdict, or king-race thesis | prove same-branch task shift, route continuity, and fortress/king-race exclusion under best defense | `high`; `WhatChanged`, Chronicle, and wrap-up can overstate it into the ending's full story | B1 restricted-defense route persistence, `convert_reply_multipv`, same-branch keys, `futureSnapshot`, `endgameTransitionClaim`, endgame features as support only | `deferred`; second-line recon family, not the first B5 implementation slice |
+| `bounded color-complex / mobility-cage` | a color-complex idea tied to one named route loss or one bounded mobility cage | dark-square / light-square rhetoric outruns certifiable local truth and generic mobility-cage prose inflates too easily | tie every abstract claim to concrete entry/break/file loss on the same defended branch and block rhetoric drift when that route proof is missing | `very high`; lexicon and support carriers already make this sound stronger than it is | `ColorComplexSqueezeValidation`, `WeakComplex`, denied squares, `futureSnapshot` | `unsafe`; last and most optional frontier family |
+| `none / keep positive frontier closed` | no new positive charter until one family survives negative-first criticism | reuse bias makes a familiar local shell feel safer than it is | prove that the leading candidate survives the nasty-case pack before any positive wording is approved | `lowest` immediate surface risk, but only if the frontier stays explicitly closed | existing B2 / B3 / B4 fail-closed gates, cross-surface harness, evidence-backed plan filter | `recommended current baseline`: no B5 positive slice opens yet |
+
+Operational conclusion:
+
+- B5 opens no new positive local strategic family today
+- `B5` remains a heavy-piece negative-first containment lane only
+- the confirmed post-B5 frontier map is:
+  `B6 = named route-network bind`
+- then:
+  `B7 = transition-adjacent strategic route`
+- then only after fortress/progress separation materially improves:
+  `B8 = slight-edge local squeeze`
+- last and still optional / unsafe:
+  `B9 = bounded color-complex / mobility-cage`
+
+#### Reusable signal inventory
+
+Reusable now:
+
+- direct reply probes:
+  `reply_multipv`, `defense_reply_multipv`, and `convert_reply_multipv`
+- same-defended-branch grammar:
+  `bestDefenseBranchKey`, branch-key reuse, same-branch persistence, and
+  existing stitched-proof failure reasons
+- measured local restriction signals:
+  `PreventedPlan.deniedSquares`, `deniedResourceClass`, `deniedEntryScope`,
+  `counterplayScoreDrop`, `breakNeutralizationStrength`, and
+  `defensiveSufficiency`
+- bounded continuation and release signals:
+  `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`,
+  `resolvedThreatKinds`, `newThreatKinds`, and `targetsDelta`
+- claim-certification grammar:
+  quantifier, modality, attribution, stability, ontology family, and
+  `alternativeDominance`
+- existing fortress/static-hold suspicion:
+  B3 / B4 `fortressRisk`, bounded-continuation checks, and static-hold token
+  handling
+- transition support-only signals:
+  `endgameTransitionClaim`, `EndgameFeature` patterns, and existing
+  `AdvantageTransformation` route-persistence grammar
+
+Reusable only as support, not as proof:
+
+- generic `OpenFilePressure`, square-control, or mobility-cage wording
+- plain eval edge without measurable local resource loss
+- `WeakComplex` / color-complex language without a named route-loss anchor
+- surface persistence by itself:
+  Bookmaker / Chronicle / Active survival does not certify the route
+- whole-game / wrap-up support reuse:
+  it is a reinflation seam, not proof
+
+#### Backend-only contract drafts
+
+Selected next recon-family draft:
+
+`heavyPieceLocalBind`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one file / entry corridor under heavy-piece tension | existing backend-only scope gating plus B4 file-entry limits |
+| `axisFamilies` | record `file_access + corroborating_entry_square` without implying whole-position domination | `deniedEntryScope`, `deniedResourceClass`, `deniedSquares` |
+| `axisIndependence` | prove the entry square is not just a renamed copy of the file claim | B3 / B4 axis-independence grammar |
+| `bestDefenseBranchKey` | keep every proof component on one defended branch | existing branch-key reuse |
+| `pressurePersistence` | require the shell to survive concrete best defense | direct reply probes, `bestReplyStable`, same-branch persistence |
+| `routeContinuity` | show bounded continuation still exists on that same branch | `futureSnapshot`, `convert_reply_multipv`, continuation motifs |
+| `heavyPieceReleaseInventory` | enumerate forcing checks, queen infiltrations, rook lifts, exchange sacs, and perpetual seams that remain live | `newThreatKinds`, `keyMotifs`, `collapseReason`, direct reply probes |
+| `perpetualRisk` | keep perpetual-like resources from being narrated as a bind | reply probes, forcing motifs, future snapshots |
+| `tacticalReleaseDensity` | distinguish a locally stable shell from a tactically noisy one | release inventory plus reply branching counts |
+| `bestDefenseReleaseSurvivors` | record which release attempts still survive best defense even if the local file shell looks strong | pinned `bestReplyPv` plus same-branch validation best-reply bundle |
+| `counterplayReinflationRisk` | stop a noisy heavy-piece shell from inflating on stronger surfaces | existing replay gate and evidence-backed-plan filter |
+| `claimCertification` / `confidence` / `evidenceSources` | keep any future heavy-piece certification auditable inside the existing grammar | `PlanEvidenceEvaluator.ClaimCertification` plus current source lists |
+
+Deferred draft:
+
+`routeNetworkBind`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one named route chain, not generic square rhetoric | backend-only scope gating |
+| `axisFamilies` | record which entry squares or route nodes are claimed to matter | `deniedSquares`, `deniedResourceClass` |
+| `bestDefenseBranchKey` | keep route proof on one defended branch | existing branch-key reuse |
+| `pressurePersistence` | require the route shell to survive best defense | reply probes, same-branch persistence |
+| `routeContinuity` | prove the chain still points to one bounded follow-through route | `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`, continuation motifs |
+| `routeNodes` | enumerate the exact route nodes instead of letting prose invent them later | denied-square extraction |
+| `networkIndependence` | prevent one square or one file from being relabeled as a network | B3 / B4 independence grammar |
+| `rerouteResourcesRemaining` | fail when a nearby reroute keeps the route alive | denied-square comparison plus future-snapshot blockers |
+| `routeNetworkMirageRisk` | mark when the chain is too aesthetic and not sufficiently opponent-facing | route-denial validation plus support-only discipline |
+| `counterplayReinflationRisk` / `confidence` / `evidenceSources` | keep any future network work auditable and fail-closed | existing contract pattern |
+
+Deferred draft:
+
+`transitionAdjacentRoute`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to a transition-adjacent route, not the whole ending verdict | backend-only scope gating |
+| `phaseEnvelope` | freeze the charter to middlegame -> endgame-adjacent handoff cells | existing phase gating plus `endgameTransitionClaim` |
+| `bestDefenseBranchKey` | keep task-shift proof on one defended branch | B1 branch-key reuse |
+| `pressurePersistence` | require the route to survive concrete best defense | direct reply probes, `bestReplyStable` |
+| `routeContinuity` | show that the technical task shift still points to a bounded route | `convert_reply_multipv`, `futureSnapshot`, continuation motifs |
+| `endgameTaskShift` | record the specific task change being claimed | existing transition translator plus B1 route evidence |
+| `fortressRisk` | block fortress-like or static-hold readings | existing fortress heuristics plus endgame support signals |
+| `kingRaceAmbiguity` | block race-style or king-activity ambiguity from sounding like a certifiable route | `EndgameFeature.kingActivityDelta`, motifs, best-defense replies |
+| `tacticalReleaseDensity` | keep transition claims from hiding tactical liquidations | release inventory over reply probes |
+| `counterplayReinflationRisk` / `confidence` / `evidenceSources` | keep a future transition slice auditable and bounded | existing contract pattern |
+
+Deferred draft:
+
+`slightEdgeLocalSqueeze`
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim explicitly local and non-winning | backend-only scope gating |
+| `axisFamilies` | record the bounded restriction without global squeeze rhetoric | prevented-plan axes, route-denial aliases |
+| `bestDefenseBranchKey` | keep proof on one defended branch | existing branch-key reuse |
+| `pressurePersistence` | verify the shell survives best defense | reply probes, best-reply stability |
+| `routeContinuity` | separate real progress from static comfort | `futureSnapshot`, continuation motifs |
+| `progressVisibility` | require visible defender-resource worsening before any positive wording survives | future snapshots, blocker-removal / target-delta evidence |
+| `fortressRisk` | stop static equality-like holds from sounding winning | B3 / B4 fortress-risk patterns |
+| `slightEdgeOverclaimRisk` | make low-margin inflation explicit and fail-closed | eval gating plus bounded-language cap |
+| `tacticalReleaseDensity` | record the small tactical resources that still keep the edge non-certifiable | reply probes and release inventory |
+| `counterplayReinflationRisk` / `confidence` / `evidenceSources` | keep any future slight-edge work auditable and capped | existing contract pattern |
+
+Rejected for positive drafting now:
+
+- do not open a positive `boundedColorComplexRestriction` contract yet
+- keep color-complex work negative-only until the claim can point to one named
+  entry / break / file loss and survive same-branch release testing
+
+#### Criticism matrix
+
+| Axis | Why risky | Current reusable guard | Required future B5 guard | Required difficult fixture shape |
+| --- | --- | --- | --- | --- |
+| `cooperative_defense` | the line works only if the defender stays passive | direct reply probes, best-reply stability, resource caps | every B5 contract must survive one concrete best defense on the same branch | local bind survives unless the defender immediately contests the file or activates the queen |
+| `hidden_freeing_break` | one surviving break or reroute kills the strategic shell | prevented-plan enumeration, alternative-axis tracking, future snapshots | explicit `releaseRisksRemaining` / `rerouteResourcesRemaining` inventory for each candidate | the claimed bind on one wing collapses once `...a5` or `...e5` reopens play elsewhere |
+| `hidden_tactical_release` | exchange sac, perpetual, forcing checks, or rook lift puncture the shell | `collapseReason`, `newThreatKinds`, `keyMotifs` | candidate-specific tactical-release inventory and density gate | a file clamp fails once the defender finds an exchange sac or forcing-check chain |
+| `engine_pv_paraphrase` | a PV line is restated as a strategic thesis without opponent-facing proof | claim-certification quantifier / attribution / ontology checks | require resource-loss enumeration plus bounded route loss, not just line pressure | doubling rooks or a king move is narrated as a bind even though no route was actually denied |
+| `move_order_fragility` | the shell works only in one exact move order | `moveOrderSensitive`, collapse reasons, B1 / B3 / B4 fragility handling | contract-level hard fail for exact-order-only routes | the route works only if the defender chooses the wrong rook-trade or queen-check order |
+| `route_network_mirage` | a pretty square picture masquerades as a real network | denied-square lists and B3 / B4 independence grammar | `routeNodes`, `networkIndependence`, and `rerouteResourcesRemaining` must all pass | c5 and d6 look controlled, but the defender reroutes through e5 / f4 or flips the color complex |
+| `heavy_piece_release_illusion` | local restriction language survives in prose while forcing heavy-piece resources stay live | B4 queen-light fail-closed guard, tactical-release parsing, `newThreatKinds` | `heavyPieceReleaseInventory`, `perpetualRisk`, and `bestDefenseReleaseSurvivors` are mandatory before any positive reopening | the c-file looks closed, but queen infiltration, rook lift, or perpetual-check geometry still exists |
+| `fortress_like_but_not_progressing` | a static hold is confused with a certifiable route | B3 / B4 fortress-risk and bounded-continuation checks | require `progressVisibility` or a specific task shift; otherwise fail closed | the shell stays intact, but no defender resource worsens and no conversion tail appears |
+| `slight_edge_overclaim` | a mild edge is narrated as a squeeze | clearly-better gates and existing fail-closed posture cuts | explicit `slightEdgeOverclaimRisk` plus bounded-language cap and progress proof | `+80` to `+120` with local control but no concrete worsening of defender resources |
+| `cross_branch_stitching` | best defense, persistence, and continuation are borrowed from different probe branches | existing branch-key / same-defended-branch logic | every proof component must key to the same defended branch, including release suppression | best defense comes from branch A, route persistence from B, and transition proof from C |
+| `surface_reinflation` | support carriers revive a stronger claim on planner / replay / wrap-up surfaces | evidence-backed-plan filter, replay parity tests, trust harness | downgrade before planner reuse and keep whole-game reuse blocked until explicitly certified | a deferred shell reappears as `squeeze`, `no counterplay`, or a whole-ending thesis |
+| `color_complex_rhetoric_drift` | dark-square / light-square prose outruns the actual local route proof | ontology classification plus current unsafe/deferred boundary | require one named route-loss anchor and block positive prose when that anchor is missing | `dark-square bind` appears even though the defender still has an untouched entry route on the same color complex |
+
+#### Broad validation charter
+
+The B5 validation burden should be read as a candidate-selection charter, not
+as permission to widen every dimension at once:
+
+- `likely coverable now` means the dimension itself is not the main blocker for
+  the next design slice; it does **not** mean positive rollout is approved
+- any `likely deferred` cell needs its own corpus expansion and criticism pack
+  before positive certification is accepted
+- any `likely unsafe` cell is negative-only for early B5 work and must prove
+  fail-closed behavior rather than positive admission
+
+Phase matrix:
+
+| Phase cell | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable now` | every plausible B5 family still wants the late-middlegame signal density that B2 / B3 / B4 already rely on |
+| `heavy-piece middlegame` | `likely deferred` | this is the leading next recon family, but tactical-release density is still the main blocker |
+| `transition / endgame-adjacent` | `likely deferred` | B1 route persistence is reusable, but task-shift vs fortress/race ambiguity is not yet closed |
+| `pure endgame` | `likely unsafe` | fortress false positives and king-route ambiguity dominate the risk profile |
+
+Evaluation posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable now` | the only plausible B5 work still needs the strongest local truth posture |
+| `slightly better` | `likely deferred` | later work may revisit it, but not through first-slice squeeze rhetoric without explicit progress proof |
+| `equal / unclear` | `likely unsafe` | positive local strategic certification would overstate the truth |
+| `defending side` | `likely unsafe` | it would turn survival / hold language into a false owner lane |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `file-entry bind` | `likely coverable now` | already live as the B4 regression-control cell; reuse is available, but it is not new B5 scope |
+| `route-network bind` | `likely deferred` | route continuity and mirage risk need their own criticism pack |
+| `heavy-piece local bind` | `likely deferred` | highest reuse, but the heavy-piece release burden is not yet closed |
+| `slightly-better local squeeze` | `likely unsafe` | rhetorical inflation and progress ambiguity remain too large |
+| `transition-adjacent route` | `likely deferred` | B1 reuse exists, but technical-task ambiguity is still too open |
+| `color-complex restriction` | `likely unsafe` | current signals are too rhetorical and insufficiently opponent-facing |
+| `fortress/static hold near-miss` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `tactical-release fake shell` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `waiting-move-only pseudo strategy` | `likely unsafe` | too easy to confuse with generic improvement or style choice |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely deferred` | strongest eventual owner path, but no B5 positive family is approved yet |
+| `planner-owned WhatChanged` | `likely deferred` | transition-adjacent reuse is plausible later, but the task-shift proof is not ready |
+| `Bookmaker` | `likely deferred` | replay path is reusable, but positional phrasing is too inflation-prone at B5 risk level |
+| `Chronicle` | `likely deferred` | same replay reuse exists, but route and ending implications still inflate easily |
+| `Active` | `likely deferred` | parity / non-reinflation can be tested now, but positive ownership remains diagnostic-sensitive |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | early B5 work should validate only non-reinflation, not positive wrapper reuse |
+
+#### Mandatory self-critique pass
+
+Candidate attacked:
+
+- the first B5 draft treated `heavy-piece local bind` as the likely next
+  positive slice because the B4 file-entry contract looked almost reusable
+
+Nasty cases used to attack that draft:
+
+| Self-critique case | Why the first draft was vulnerable | B5a correction |
+| --- | --- | --- |
+| `queen_infiltration_shell` | the draft trusted local file-entry denial too much and under-read queen checks/infiltration | add `heavyPieceReleaseInventory`, `perpetualRisk`, and `bestDefenseReleaseSurvivors`; do not approve heavy-piece positivity yet |
+| `rook_lift_switch` | the draft watched the file itself and missed cross-rank release geometry | expand `hidden_tactical_release` into heavy-piece-specific release inventory |
+| `perpetual_check_escape` | a clearly better shell still looked stable even though the defender could force checks forever | make perpetual-like resources a separate hard-fail burden, not a soft confidence penalty |
+| `off_sector_break_after_file_lock` | the draft could call one wing restricted while another freeing break stayed live | strengthen `releaseRisksRemaining` for heavy-piece work and keep heavy-piece scope deferred |
+| `waiting_move_pressure_only` | the draft could mistake rook/queen pressure for an actual opponent-facing loss of route usability | keep opponent-facing route-loss proof mandatory and block pressure-only shells |
+| `stitched_heavy_piece_bundle` | best defense, release suppression, and continuation could still be borrowed from different branches | keep same-branch proof mandatory for every heavy-piece component |
+
+Design changes forced by self-critique:
+
+- downgrade `heavy-piece local bind` from tentative positive favorite to
+  `deferred` / negative-first only
+- add `heavyPieceReleaseInventory`, `perpetualRisk`,
+  `bestDefenseReleaseSurvivors`, and `tacticalReleaseDensity` to the draft
+  contract
+- keep `heavy-piece middlegame` and `heavy-piece local bind` at
+  `likely deferred` in the validation charter rather than `likely coverable now`
+- keep planner / Bookmaker / Chronicle / Active positive ownership closed for
+  heavy-piece work until that negative-first burden is cleared
+- leave `slightly-better local squeeze` and `bounded color-complex
+  restriction` outside the first B5 slice entirely instead of treating them as
+  secondary positive options
+
+#### Recommended B5b first slice
+
+Recommended first slice:
+
+- `heavy-piece local bind negative-first validation inside the existing RestrictionProphylaxis -> file-entry reuse lane`
+
+Narrow scope:
+
+- applicable owner lane:
+  stay inside the existing `RestrictionProphylaxis` planner/runtime path
+- applicable plan family:
+  `BreakPrevention` / `KeySquareDenial` only
+- applicable phase/eval:
+  clearly-better late-middlegame positions with heavy pieces still present
+- implementation goal:
+  add the backend-only heavy-piece contract / criticism pack and broad
+  negative corpus only; do **not** open player-facing heavy-piece positive
+  wording yet
+- acceptance bar before any later positive reopening:
+  same-branch best defense, empty heavy-piece release inventory,
+  non-fragile continuation, and green non-reinflation behavior across planner /
+  Bookmaker / Chronicle / Active / whole-game negative packs
+
+Why this slice should go first:
+
+- it reuses B4 file-entry and B3 same-branch grammar more directly than the
+  other deferred families
+- it attacks the most tempting false-positive seam first:
+  a familiar local shell that becomes unsafe as soon as heavy-piece tactics are
+  live
+- if heavy-piece local bind cannot survive that negative-first burden, route
+  networks, transition-adjacent routes, and mild-edge squeeze claims should
+  stay closed
+
+Implemented B5b slice:
+
+- `queen-on heavy-piece local bind negative-first validation inside the existing RestrictionProphylaxis -> file-entry reuse lane`
+- runtime helper:
+  backend-only `HeavyPieceLocalBindValidation`
+- runtime behavior:
+  record a heavy-piece criticism contract, force the affected experiment to
+  `deferred`, and block replay/planner reuse of heavy-piece file-entry shells;
+  do **not** open player-facing heavy-piece positive wording
+- exact-branch release rule:
+  `heavyPieceReleaseInventory` now scans replayable exact FEN-backed reply
+  branches, while `bestDefenseReleaseSurvivors` stays pinned to
+  `bestReplyPv` plus same-branch validation best replies; illegal,
+  paraphrased, wrong-base, short-fragment, or legal-prefix-plus-illegal-tail
+  heavy-piece lines do not count as release proof
+- exact-position regression pack:
+  `HeavyPieceLocalBindNegativeValidationTest` with FEN-backed cases for
+  `queen_infiltration_shell`, `rook_lift_switch`,
+  `perpetual_check_escape`, `off_sector_break_release`,
+  `pressure_only_waiting_move`, `direct_best_defense_missing`,
+  `stitched_heavy_piece_bundle`, `move_order_fragility`,
+  `fortress_like_but_not_progressing`, and `exchange_sac_release`
+- exact-path verification helpers:
+  `HeavyPieceLocalBindExactBranchReplayTest` proves line-derived release
+  features and rejects short / incomplete / illegal paraphrase lines;
+  `HeavyPieceLocalBindEngineVerificationTest` pins the full fixed-depth PV1
+  path plus replay-derived feature set on exact FEN fixtures, so the engine
+  best-path anchor is automatically reproducible beyond the first move only,
+  and the verifier now prefers an explicit configured binary before the local
+  fallback
+- criticism pack now implemented:
+  `heavy_piece_release_illusion`, `hidden_off_sector_break`,
+  `pressure_only_waiting_move`, `direct_best_defense_missing`,
+  `stitched_heavy_piece_bundle`, `move_order_fragility`,
+  `fortress_like_but_not_progressing`, `engine_pv_paraphrase`, and
+  `surface_reinflation`
+- boundary rule:
+  B5b applies only to queen-on heavy-piece shells, so the existing B4
+  queen-light local file-entry positive slice remains intact
+- verification status:
+  implementation-green, adversarial-review green, and `close-ready` inside the
+  bounded negative-first charter after one fix-up narrowed the helper from
+  generic heavy-piece middlegames to queen-on heavy-piece middlegames so B4
+  queenless certification stayed live; the close review also re-checked
+  PV1-only best-defense survivors and wrong-base replay fail-closed behavior
+- positive scope after B5b:
+  still deferred; heavy-piece local bind remains containment-only until the
+  release inventory can clear on exact-position best defense
+
+Session verdict:
+
+- `CTH-B5a baseline ready`
+- reason:
+  B5a now has a canonical candidate map, reusable-signal inventory,
+  backend-only contract drafts, criticism matrix, broad validation charter,
+  and self-critique-revised B5b recommendation without changing runtime
+  semantics
+- `CTH-B5b negative-first slice passed`
+- reason:
+  the existing runtime path now contains queen-on heavy-piece local bind shells
+  with exact-FEN negative fixtures, exact-branch replay release proof, fixed-
+  depth engine-path reproduction, and cross-surface non-reinflation checks,
+  while heavy-piece positive wording remains closed
+- `CTH-B5 bounded close review`
+- reason:
+  the current B5b runtime is now `close-ready` only inside its bounded
+  negative-first containment charter: exact-board / PV1 truth discipline,
+  nasty-case criticism coverage, and B4 boundary protection are green, but
+  heavy-piece positives and broader B5/B6 cells remain deferred
+- next move:
+  `B6 design`; keep B5b itself containment-only while the next positive
+  frontier is designed
+- residual watch result:
+  one exact-branch proof seam was closed by failing short / incomplete replay
+  fragments shut and by preferring explicit engine selection over the local
+  fallback; no new blocking seam was found after the bounded fix-up
+
+## CTH-B6 — Named Route-Network Bind Design Baseline
+
+### Problem framing
+
+- B6 exists only because B4 already owns one bounded
+  `file + corroborating entry-square` truth, while B5b only hardens
+  heavy-piece fail-closed behavior
+- the next positive frontier is worth opening only if `named route-network
+  bind` means a bounded opponent-facing route loss that B4 cannot already
+  certify
+- B6 is **not**:
+  - generic square control
+  - one-file pressure restated with nicer names
+  - an engine maneuver line paraphrased as strategy
+  - a whole-position `no counterplay`, domination, or winning-route thesis
+- B6 may open only if the claim stays:
+  - local
+  - exact-board anchored
+  - same-defended-branch
+  - reroute-aware
+  - fail-closed before Chronicle / Bookmaker / Active / whole-game reuse
+- architectural boundary:
+  any future B6 work must stay inside the existing
+  `RestrictionProphylaxis -> file-entry reuse` lane with backend-only
+  contract / downgrade discipline; do **not** add a new runtime path,
+  owner lane, public payload/schema, or prose family
+
+### Candidate claim map
+
+| Candidate | Expected positive scope | Main overclaim risk | Main falsification burden | Expected surface risk | Strongest reusable signals | B6 verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `file-entry pair + one non-redundant reroute denial` | one file corridor remains usable while one primary entry square and one nearby reroute square/edge both stay denied on the same defended branch | it is just B4 file-entry bind with one extra square counted as a `network` | prove the extra node is independent of the file-entry pair, prove reroute denial survives best defense, and prove bounded continuation still exists without untouched-sector or color-complex escape | `high`; named squares sound richer than the underlying local truth | B4 file-entry pair logic, `PreventedPlan.deniedSquares`, `deniedEntryScope`, `futureSnapshot.planBlockersRemoved`, `bestDefenseBranchKey`, same-branch persistence, claim certification | `selected B6b first-slice candidate`; `likely coverable now` only in this very narrow form |
+| `one named route chain + one reroute denial` | one bounded three-node route chain survives as an actual local strategic route rather than a single-axis clamp | route order and connectivity are invented from a maneuver line or from adjacent controlled squares | prove `routeEdges`, route order, same-branch persistence, and defender-facing reroute collapse rather than a pretty node list | `very high`; planner and replay prose can easily narrate the chain more strongly than the proof | denied-square inventory, B3 / B4 independence grammar, `futureSnapshot`, claim certification | `likely deferred`; current signals are still stronger on nodes than on graph continuity |
+| `bounded sector route network` | a small sector-level network with more than one entry branch | local restriction inflates into whole-wing or whole-position control | prove untouched-sector reroutes are dead, avoid branch stitching, and keep the claim from sounding like domination | `very high`; Chronicle / wrap-up pressure would overstate it quickly | same-branch grammar, prevented-plan inventory, future snapshots | `likely unsafe`; too close to reinflation and whole-position rhetoric |
+| `color-complex / mobility-cage route shell` | a route claim narrated through one color complex or one mobility cage | abstract square-complex prose outruns the exact local route loss | tie the claim to one exact named route loss on the same branch and exclude opposite-color reroutes | `very high`; the rhetoric is stronger than the current proof | denied squares, `WeakComplex`, mobility/cage support signals | `likely unsafe`; keep support-only / negative-first |
+| `none / keep the positive frontier closed` | no new positive B6 slice opens until the network candidate survives nasty-case review | reuse bias makes the route idea feel safer than it is | keep the closure fallback available if the selected candidate fails exact-board criticism | `lowest` immediate surface risk | existing B2 / B3 / B4 / B5b fail-closed gates | `fallback only`; not chosen after the self-critique below |
+
+### Backend-only contract drafts
+
+Selected draft:
+
+`namedRouteNetworkBind`
+
+No new public schema is allowed here.
+These fields describe a backend-only certification contract only, using the
+existing evidence tier / downgrade path.
+
+| Field | Purpose | Existing reuse path |
+| --- | --- | --- |
+| `claimScope` | keep the claim local to one file-entry corridor plus one reroute denial, not a sector or whole-position bind | existing backend-only scope gating and B4 local claim limits |
+| `primaryAxis` | retain the already-bounded B4 anchor rather than inventing a new owner lane | B4 file-axis / entry-axis grammar |
+| `routeNodes` | enumerate the exact route squares that are claimed to matter so later prose cannot invent extra nodes | `PreventedPlan.deniedSquares`, denied entry/break nodes already present in strategic evidence |
+| `routeEdges` | record which node-to-node connections are actually being claimed instead of treating adjacency as proof | `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`, continuation motifs, direct reply probes |
+| `rerouteDenials` | capture the exact alternative entry / reroute that must also stay shut for the network claim to be non-trivial | prevented-plan inventory, `deniedResourceClass`, blocked-break evidence |
+| `axisIndependence` | prove the reroute node is not just another spelling of the file or first entry-square claim | B3 / B4 axis-independence grammar |
+| `bestDefenseBranchKey` | keep every proof component on the same defended branch | existing branch-key reuse |
+| `sameDefendedBranch` | fail closed when node denial, reroute denial, and continuation come from different branches | B1 / B3 / B4 / B5 same-branch grammar |
+| `pressurePersistence` | require the bounded shell to survive concrete best defense | `reply_multipv`, `defense_reply_multipv`, `bestReplyStable` |
+| `routeContinuity` | show that the denied network still points to one bounded follow-through route for the stronger side | `futureSnapshot.planBlockersRemoved`, `targetsDelta`, `convert_reply_multipv`, continuation motifs |
+| `continuationBound` | keep the continuation explicitly local so the claim does not drift into global domination or winning-route language | bounded continuation checks, B4/B5b local truth discipline |
+| `releaseRisksRemaining` | enumerate still-live releases, untouched-sector breaks, and tactical escapes that make the network non-certifiable | `newThreatKinds`, `keyMotifs`, collapse reasons, direct reply probes |
+| `routeNetworkMirageRisk` | mark when the node picture is aesthetically plausible but not sufficiently opponent-facing | denied-square inventory plus route-denial validation discipline |
+| `redundantAxisRisk` | fail when the proposed network is just one axis counted twice | B3 / B4 independence grammar, file-entry control cell comparison |
+| `counterplayReinflationRisk` | block stronger surface rhetoric if the local truth is uncertified or weakly bounded | existing replay parity / trust harness / evidence-tier downgrade path |
+| `claimCertification` / `failsIf` / `confidence` / `evidenceSources` | keep any future B6 work inside the existing auditable certification grammar | `PlanEvidenceEvaluator.ClaimCertification` and current contract patterns |
+
+Deferred broader drafts:
+
+| Candidate draft | Extra burden beyond the selected draft | Current verdict |
+| --- | --- | --- |
+| `routeChainBind` | explicit route order, edge continuity beyond one file anchor, and a stronger anti-PV-paraphrase proof | `likely deferred` |
+| `sectorRouteNetworkBind` | sector boundary definition, untouched-sector reroute inventory, and stronger surface containment | `likely unsafe` |
+| `colorComplexRouteShell` | exact route anchor on one color complex plus opposite-color escape exclusion | `likely unsafe` |
+
+### Criticism matrix
+
+| Axis | Why risky | Current reusable guard | Required future B6 guard | Required difficult fixture shape |
+| --- | --- | --- | --- | --- |
+| `route_network_mirage` | a square bundle sounds coherent even though no defender-facing route continuity was actually removed | denied-square inventory, B3 / B4 axis-independence grammar, same-branch persistence | require `routeEdges`, non-empty `rerouteDenials`, and bounded continuation on the same branch | reuse the B4 late-middlegame control FEN `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` and try to certify `{c-file,b4,c5}` without proving a cut-off reroute beyond the B4 pair |
+| `redundant_square_counting` | one file axis is counted as several nodes so the claim sounds like a network | B4 file-entry control cell, B3 independence grammar | require `redundantAxisRisk` hard-fail whenever the extra node sits on the already-certified axis or adds no new reroute burden | use the same B4 control FEN and treat `c5` as an extra node on the same c-file shell; B6 must fail unless an independent reroute is also denied |
+| `untouched_sector_reroute` | one local route is closed while another nearby sector still keeps the defender's counterplay route alive | prevented-plan inventory, `futureSnapshot`, B5 release-risk grammar | require `releaseRisksRemaining` / `rerouteDenials` to inventory off-sector breaks and wing switches explicitly | reuse `off_sector_break_release` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P2N2/PPQ2PPP/2RR2K1 w - - 0 24` and ensure one denied route does not hide a still-live sector reroute |
+| `color_complex_escape` | the route looks closed on one color complex while an opposite-color approach still survives | denied squares, `WeakComplex` support signals, existing unsafe/deferred boundary | require an explicit opposite-color escape check before any positive wording survives | reuse `stitched_heavy_piece_bundle` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24` and test that a same-sector-looking net still fails if the opposite-color reroute remains |
+| `move_order_fragility` | the lock holds only in one exact sequence and collapses under the best practical move order | existing fragility handling, `moveOrderSensitive`, collapse reasons | contract-level hard fail for `move_order_fragility` before any route-network certification | reuse `move_order_fragility` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PNP1/PPQ2P1P/2RR2K1 w - - 0 24` and require the network to survive best-order defense |
+| `engine_pv_paraphrase` | a maneuver line gets retold as a network bind even though no bounded route loss was measured | claim-certification quantifier / attribution / ontology checks | require node/edge/reroute evidence and opponent-facing denial, not just a PV maneuver | reuse the heavy-piece middlegame control FEN `r1bq1rk1/pp3ppp/2n1pn2/2bp4/3P4/2N1PN2/PPQ2PPP/R1B2RK1 w - - 0 12`; a line like rook doubling or king improvement alone must not certify a network |
+| `cross_branch_stitching` | best defense, reroute denial, and continuation are borrowed from different branches | existing branch-key / same-defended-branch logic | require node denial, reroute denial, persistence, and continuation to share one `bestDefenseBranchKey` | reuse `stitched_heavy_piece_bundle` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24` and block any stitched network shell |
+| `static_net_without_progress` | a stable-looking net is confused with certifiable strategic progress even though no bounded continuation exists | B3 / B4 fortress-risk and bounded-continuation checks | require `continuationBound` plus visible blocker removal / target change, otherwise fail closed | reuse `fortress_like_but_not_progressing` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P2NP1/PPQ2P1P/2RR2K1 w - - 0 24` and block network wording when no defender resource actually worsens |
+| `surface_reinflation` | uncertified local route shells are restated as stronger planner/replay/wrap-up theses | B5b replay gate, trust harness, evidence-backed-plan filter | keep downgrade-before-reuse discipline and block whole-game reuse until explicit later signoff | reuse the surface reinflation FEN `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/P1P1PN2/1PQ2PPP/2R2RK1 w - - 0 24` across planner / Bookmaker / Chronicle / Active / whole-game |
+| `file_entry_restatement_only` | the draft does not add a new burden beyond B4 and simply renames the file-entry pair as a network | existing B4 certified surface-pair gate and local file-entry contract | require one independently denied reroute beyond the B4 pair or fail back to B4-only truth | reuse the B4 positive control FEN `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` with the existing `c-file + b4` pair and confirm B6 does not open without a third non-redundant denial |
+
+### Broad validation charter
+
+The B6 validation burden should be read as a narrow admission charter only:
+
+- `likely coverable now` means the cell could belong to the first B6b
+  implementation slice **if** the selected contract above is enforced
+- `likely deferred` means the cell needs more exact-board corpus, broader
+  criticism, or stronger surface blocking before positive certification
+- `likely unsafe` means early B6 work should validate only fail-closed behavior
+
+Phase matrix:
+
+| Phase cell | Status | Why |
+| --- | --- | --- |
+| `late middlegame` | `likely coverable now` | this is the only phase where B4-style local route truth, reroute denial, and bounded continuation currently overlap strongly enough |
+| `heavy-piece middlegame` | `likely deferred` | B5b shows the release burden is still too large for early positive network wording |
+| `transition / endgame-adjacent` | `likely deferred` | B1 route persistence is reusable, but task-shift and fortress ambiguity remain too open |
+| `pure endgame` | `likely unsafe` | route-network rhetoric would outrun technical truth too easily |
+
+Evaluation posture matrix:
+
+| Eval posture | Status | Why |
+| --- | --- | --- |
+| `clearly better` | `likely coverable now` | the first B6 slice still needs the strongest local truth posture |
+| `slightly better` | `likely deferred` | mild-edge control is still too easy to narrate as a network bind without progress proof |
+| `equal / unclear` | `likely unsafe` | positive route-network certification would overstate the truth |
+| `defending side` | `likely unsafe` | this would create a false owner lane for survival / hold claims |
+
+Texture matrix:
+
+| Texture | Status | Why |
+| --- | --- | --- |
+| `file-entry bind` | `likely coverable now` | existing B4 control cell remains the comparison baseline, not new B6 scope |
+| `named route-network bind` | `likely coverable now` | but only for `file-entry pair + one non-redundant reroute denial` inside one bounded sector |
+| `heavy-piece local bind` | `likely deferred` | B5b remains containment-only and release-heavy |
+| `transition-adjacent route` | `likely deferred` | B1 reuse exists, but not for first B6 implementation |
+| `slight-edge local squeeze` | `likely unsafe` | progress and rhetoric risk are still too open |
+| `color-complex / mobility-cage` | `likely unsafe` | current proof is too abstract and too prose-prone |
+| `static near-miss` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+| `tactical-release fake shell` | `likely unsafe` | mandatory negative corpus, not early positive scope |
+
+Surface matrix:
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| `planner-owned WhyThis` | `likely coverable now` | this is the narrowest owner path for a local route-network claim if the B6 contract certifies |
+| `planner-owned WhatChanged` | `likely deferred` | change-language drifts too easily into bigger route or conversion theses |
+| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but the network wording is still inflation-prone |
+| `Chronicle` | `likely deferred` | same replay reuse exists, but route prose still needs stronger containment |
+| `Active` | `likely deferred` | non-reinflation can be checked, but positive ownership is still diagnostic-sensitive |
+| `whole-game / wrap-up / support reuse` | `likely unsafe` | B6 should validate non-reinflation only, not positive wrapper reuse |
+
+### Mandatory self-critique pass
+
+Candidate attacked:
+
+- the first B6 draft treated `one file + two linked squares` as enough to call
+  the position a `named route-network bind`
+
+Nasty cases used to attack that draft:
+
+| Self-critique case | Why the first draft was vulnerable | B6 correction |
+| --- | --- | --- |
+| `file_entry_restatement_only` | the draft could promote the existing B4 `file + entry-square` truth into a `network` just by counting one extra square on the same axis | narrow the candidate to `file-entry pair + one non-redundant reroute denial`; add `redundantAxisRisk` hard-fail |
+| `route_network_mirage` | the draft trusted named squares more than actual defender-facing route continuity | add explicit `routeEdges` plus non-empty `rerouteDenials`; require same-branch bounded continuation |
+| `untouched_sector_reroute` | the draft watched the local corridor but could still ignore another live route in the same sector or on the other wing | add `releaseRisksRemaining` and `rerouteDenials` as mandatory certification fields |
+| `cross_branch_stitching` | node denial, persistence, and continuation could be borrowed from different branches and still sound coherent in prose | make `sameDefendedBranch` explicit in the B6 draft and fail whenever proof components do not share one branch key |
+| `move_order_only_route_lock` | the route lock could hold only if the defender cooperated with one exact order | add contract-level `move_order_fragility` hard fail before any positive surface eligibility |
+| `static_net_without_progress` | the draft could narrate a stable shape as a route bind even when there was no bounded continuation or resource worsening | add `continuationBound` and require visible blocker removal / target change before certification |
+| `surface_reinflation` | planner/replay/wrap-up surfaces could still revive a stronger thesis from an uncertified local shell | keep only `planner-owned WhyThis` as the first potentially coverable owner path and leave replay / wrap-up deferred or unsafe |
+| `engine_pv_paraphrase` | a line of maneuvers could still be restated as a network without measured route loss | require node/edge/reroute proof and keep line paraphrase alone non-certifying |
+
+Design changes forced by self-critique:
+
+- narrow the preferred candidate from
+  `one file + two linked squares` to
+  `one file-entry pair + one non-redundant reroute denial`
+- add `routeEdges`, `rerouteDenials`, `sameDefendedBranch`,
+  `continuationBound`, `releaseRisksRemaining`, and `redundantAxisRisk`
+  to the selected draft
+- keep `named route-network bind` as `likely coverable now` only for the narrow
+  first slice above, not for general route chains or sector networks
+- tighten the surface charter:
+  only `planner-owned WhyThis` is tentatively coverable;
+  `WhatChanged`, Bookmaker, Chronicle, and Active stay `likely deferred`;
+  whole-game / wrap-up remain `likely unsafe`
+- keep heavy-piece, transition-adjacent, slight-edge, and color-complex route
+  families outside the first B6 slice
+
+Revision delta after self-critique:
+
+- before:
+  B6 could have been read as `file + two named squares`
+- after:
+  B6 opens only when the third node is an independently denied reroute and the
+  proof survives same-branch best defense with bounded continuation
+- before:
+  replay surfaces looked tempting because B4 replay infrastructure already
+  exists
+- after:
+  replay and wrap-up remain closed for early B6; only planner-owned WhyThis is
+  even tentatively admissible
+
+### Recommended B6b first slice
+
+Recommended first slice:
+
+- `one file-entry pair + one non-redundant reroute denial on the same defended branch inside the existing RestrictionProphylaxis -> file-entry reuse lane`
+
+Narrow scope:
+
+- applicable owner lane:
+  stay inside the existing `RestrictionProphylaxis` planner/runtime path
+- applicable plan family:
+  `BreakPrevention` / `KeySquareDenial` only
+- applicable phase/eval:
+  clearly-better late-middlegame positions only
+- structural burden:
+  the B4 file-entry pair must already be locally certifiable, and B6 adds
+  exactly one extra reroute denial that is independent of that pair
+- continuation burden:
+  require same-branch best defense, bounded continuation, and visible local
+  blocker / target change
+- exclusion burden:
+  fail for heavy-piece queen-on shells, untouched-sector reroutes,
+  opposite-color escapes, exact-order-only locks, static holds, stitched
+  branches, and surface reinflation
+- surface scope:
+  if B6b opens later, open only `planner-owned WhyThis` first; keep
+  `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up closed
+- implementation boundary:
+  backend-only contract / downgrade work only; no new public payload/schema,
+  owner lane, or prose family
+
+Why this slice should go first:
+
+- it is the smallest route-network claim that is genuinely stricter than B4
+- it reuses existing branch-key, denied-square, prevented-plan, future-snapshot,
+  and claim-certification grammar without inventing a parallel runtime path
+- it attacks the nastiest early false positive first:
+  counting a pretty square picture as a `network`
+- if this slice cannot survive exact-board reroute and reinflation criticism,
+  broader route-chain or sector-network claims should stay closed
+
+Session verdict:
+
+- `CTH-B6a baseline ready`
+- reason:
+  B6 now has a canonical problem frame, candidate map, backend-only contract
+  draft, criticism matrix, broad validation charter, and self-critique-revised
+  B6b recommendation without changing runtime semantics
+
+## CTH-B6b — Named Route-Network Bind Narrow Positive Slice
+
+### Runtime scope
+
+- B6b now opens only one positive slice:
+  one B4-certifiable `file-entry pair + one non-redundant reroute denial` on
+  the same defended branch, only in clearly-better late middlegames, only on
+  the existing `RestrictionProphylaxis -> file-entry reuse` lane
+- no new runtime path, payload/schema field, prose family, or owner lane was
+  introduced
+- positive owner scope is planner-owned `WhyThis` only
+- `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up remain
+  replay-closed for `sourceKinds += named_route_network_bind`
+
+### Contract and hard fails
+
+- runtime helper:
+  `NamedRouteNetworkBindCertification`
+- reused evidence:
+  existing B4 contract, `PreventedPlan.deniedSquares`, `deniedEntryScope`,
+  `futureSnapshot.planBlockersRemoved`, `bestDefenseBranchKey`, same-branch
+  grammar, and evidence-backed-plan filtering
+- new backend-only fields:
+  primary axis, route nodes, route edges, reroute denials, axis independence,
+  same-branch continuity, continuation bound, release risks, mirage /
+  redundancy / reinflation risk, move-order fragility, fail reasons, and
+  evidence sources
+- mandatory hard fails:
+  `file_entry_restatement_only`, `route_network_mirage`,
+  `redundant_square_counting`, `untouched_sector_reroute`,
+  `color_complex_escape`, `cross_branch_stitching`,
+  `static_net_without_progress`, `engine_pv_paraphrase`,
+  `move_order_fragility`, `heavy_piece_release_shell`, and
+  `surface_reinflation`
+
+### Exact-position validation
+
+- exact positive control fixture:
+  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`
+- exact route witness used by the local verifier:
+  prefix `a3b4 a7a5 b4a5 c6a5 f3e5`
+- exact negative / near-miss fixture set now covers:
+  `file_entry_restatement_only`, `route_network_mirage`,
+  `redundant_square_counting`, `untouched_sector_reroute`,
+  `color_complex_escape`, `move_order_fragility`,
+  `cross_branch_stitching`, `static_net_without_progress`,
+  `engine_pv_paraphrase`, `surface_reinflation`, and
+  `heavy_piece_release_shell`
+- self-critique result:
+  the local engine currently reproduces the positive route branch as an exact
+  MultiPV witness, but not yet as a stable top-1 root line; broad B6 signoff
+  therefore remains closed even though the narrow runtime slice is implemented
+
+### Session status
+
+- implementation status:
+  implementation-green on the bounded planner-only slice
+- review status:
+  adversarial close review remains `partial` because the exact positive control
+  is not yet a stable top-1 root line under the local engine harness
+- operational consequence:
+  keep broader B6 expansion, replay reuse, and any stronger whole-position
+  thesis closed until the exact best-defense reproduction burden is stronger
 
 ## CTH-0 Audit Baseline
 
@@ -1498,7 +2642,9 @@ Bookmaker is also truth-bound:
 - `BookmakerLiveCompressionPolicy.scala`
 - `LlmApi.scala`
 
-It stays planner-first except when exact-factual fallback is explicitly taken.
+It stays planner-first except when exact-factual fallback is explicitly taken,
+and that fallback is now fail-closed: an empty author-question branch may not
+rebuild decision/meta/close-candidate shell prose as a substitute owner.
 
 Active is the main exception:
 
@@ -1931,7 +3077,8 @@ Current guards:
   `missing_claim` / `missing_move_owner` / `state_truth_only` /
   `missing_certified_race_pair` remain trace labels, and ambiguous captures
   fail closed to `This captures.` instead of generalized simplifying/exchange
-  prose
+  prose; the no-question outline branch also falls straight to exact factual
+  text or omission instead of restitching decision/meta/close-candidate prose
 
 #### Blocked-lane contamination
 

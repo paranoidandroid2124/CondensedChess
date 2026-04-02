@@ -23,11 +23,8 @@ class AlternativeNarrativeSupportTest extends FunSuite:
       renderMode = NarrativeRenderMode.Bookmaker
     )
 
-  test("returns no alternative narrative when only legacy whyAbsent text exists") {
-    val ctx = baseContext.copy(
-      whyAbsentFromTopMultiPV = List("""the immediate "g4" push loses 220 cp""")
-    )
-
+  test("returns no alternative narrative when no close candidate support survives") {
+    val ctx = baseContext
     assertEquals(AlternativeNarrativeSupport.build(ctx), None)
   }
 

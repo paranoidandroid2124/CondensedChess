@@ -70,7 +70,9 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
            counterplayScoreDrop = scoreDiff,
            preventedThreatType = inferThreatType(causalThreatOpt.map(_.concept)),
            deniedResourceClass = deniedResourceClass,
-           deniedEntryScope = Some(if scoreDiff >= 120 then "sector" else "single_square"),
+           deniedEntryScope =
+             Option.when(deniedResourceClass.contains("break") && extractBreakFile(finalPlanId) != "unknown")("file")
+               .orElse(Some(if scoreDiff >= 120 then "sector" else "single_square")),
            breakNeutralizationStrength =
              Option.when(deniedResourceClass.contains("break"))(math.min(100, scoreDiff)),
            defensiveSufficiency = Some(if scoreDiff >= 120 then 90 else if scoreDiff >= 80 then 75 else 60),

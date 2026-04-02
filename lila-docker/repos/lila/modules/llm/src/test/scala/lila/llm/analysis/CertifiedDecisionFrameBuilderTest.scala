@@ -213,9 +213,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         )
       ),
       mainStrategicPlans = List(plan("kingside_attack", "Kingside Pressure")),
-      strategicPlanExperiments = experiments,
-      latentPlans = Nil,
-      whyAbsentFromTopMultiPV = Nil
+      strategicPlanExperiments = experiments
     )
 
   private def deltaBundle =

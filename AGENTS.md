@@ -60,6 +60,33 @@ in the same change. This includes:
 - lexicon/template authority boundaries
 - Track 5 lesson-readiness guards or defer rationale
 
+## Chess Validation Discipline
+
+For CTH / strategic-discovery / trust-hardening work on Chesstory, validation
+must stay anchored to exact board truth rather than verbal sketches.
+
+- Use exact positions whenever a claim depends on strategic truth:
+  - prefer a concrete corpus row, PGN move index, or FEN-backed position
+  - do **not** validate a candidate only from a hand-wavy description such as
+    "a heavy-piece bind here"
+- Strong self-critique must be board-based:
+  - build nasty cases from exact positions, not abstract motifs alone
+  - test the same claim against the defender's best practical route in that
+    exact position
+- When best-defense, persistence, continuation, or release-risk matters, attach
+  engine-backed verification to the exact position:
+  - use the best available engine/probe/PV evidence already present in the
+    pipeline or local tooling
+  - prefer concrete best-defense / best-path lines over approximate narrative
+    summaries
+- A candidate is not validated just because a verbal idea sounds right.
+  If exact-position and best-line verification are missing, keep the claim
+  `deferred`, support-only, or negative-first.
+- When reporting results, separate:
+  - exact board-verified claim
+  - conjectural extension or future frontier idea
+  Do **not** let the latter masquerade as validated truth.
+
 ## Naming, Packaging, and Verification Guardrails
 
 When doing module cleanup, naming cleanup, or package boundary work in this repo,

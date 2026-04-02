@@ -57,12 +57,40 @@ This file is an index and status map. It is not the canonical runtime audit.
 - CTH-A:
   core complete, maintenance-only
 - CTH-B:
-  bounded B1 / B2 / B3 slices implemented and adversarial-review green inside
-  their current charters
+  bounded B1 / B2 / B3 are implemented and adversarial-review green, and B4 is
+  now live only as one narrow slice:
+  late-middlegame local file-entry bind certification only
+- CTH-B5a:
+  design/recon/charter baseline ready only:
+  no new runtime slice is open, and the selected next recon family is
+  heavy-piece local bind on a negative-first criticism lane rather than an
+  approved positive rollout
+- CTH-B5b:
+  implemented only as a bounded negative-first validation / containment slice,
+  now `close-ready` inside that narrow charter:
+  queen-on heavy-piece local bind shells on the existing
+  `RestrictionProphylaxis -> file-entry reuse` lane now fail closed through a
+  backend-only criticism pack and cross-surface non-reinflation gate; no new
+  positive wording, owner lane, or public schema opens
+- CTH-B6:
+  `B6b` narrow positive slice is now implemented on the existing
+  `RestrictionProphylaxis -> file-entry reuse` lane, but only for one bounded
+  `file-entry pair + one non-redundant reroute denial` on the same defended
+  branch, only in clearly-better late middlegames, only for planner-owned
+  `WhyThis`; Chronicle / Bookmaker / Active / whole-game replay remain
+  fail-closed, broader route-chain / sector-network / color-complex shells
+  remain deferred or unsafe, and exact-engine close review is still `partial`
 - Current operating mode:
-  maintenance-only re-review, not a new automatic frontier
-- Reopen broader CTH work only if a fresh runtime change touches an audited
-  seam or a new trust regression appears
+  maintain the live B1 / B2 / B3 / B4 runtime, the shipped B5b containment
+  slice, and the new narrow B6b planner-only route-network slice; keep broad
+  B6 expansion closed until exact best-defense reproduction is stronger, and
+  treat the next frontier map as:
+  `B6 = named route-network bind`,
+  `B7 = transition-adjacent strategic route`,
+  `B8 = slight-edge local squeeze` only after fortress/progress separation is
+  closed, and
+  `B9 = bounded color-complex / mobility-cage` as the last and most
+  risk-sensitive family
 
 ## What Step 1-7 Closed
 
@@ -149,17 +177,55 @@ Current status:
   core complete, maintenance-only
 - `CTH-B0`:
   recon baseline complete
-- `CTH-B1` / `CTH-B1b`:
+- `CTH-B1`:
   bounded restricted-defense conversion slice implemented, broad validation and
   reverse adversarial review green
-- `CTH-B2a` / `CTH-B2b` / close review:
+- `CTH-B2`:
   bounded named-break / entry-axis suppression slice implemented and
   `close-ready` inside that narrow charter
-- `CTH-B3a` / `CTH-B3b`:
+- `CTH-B3`:
   bounded dual-axis clamp / bind slice implemented and adversarial-review green
   inside that narrow charter
-- broader `CTH-B`:
-  paused; do not open a new frontier automatically
+- `CTH-B4`:
+  design baseline consumed by one narrow runtime slice; hardening fix-up is
+  closed and the slice is now `close-ready` inside the narrow local
+  charter:
+  clearly-better late-middlegame local file-entry bind certification with one
+  single corroborating entry-square axis; broader B4 expansion remains closed
+- `CTH-B5a`:
+  next-local-frontier design baseline ready only:
+  no B5 runtime slice is open; the most reusable deferred family is
+  heavy-piece local bind, but it stays deferred after self-critique and is
+  approved only as a negative-first criticism/validation charter for any B5b
+  work
+- `CTH-B5b`:
+  bounded queen-on heavy-piece local bind containment slice implemented and
+  `close-ready` inside that narrow negative-first charter only; exact-FEN nasty
+  cases, exact-branch replay, fixed-depth PV1 reproduction, and cross-surface
+  non-reinflation are green, the latest residual watch closed the short /
+  incomplete exact-branch proof seam, and heavy-piece positive wording remains
+  deferred
+- `CTH-B6`:
+  `B6b` narrow positive slice:
+  backend-only certification plus planner-owned `WhyThis` wording is now live
+  for one bounded `file-entry pair + one non-redundant reroute denial` on the
+  same defended branch; replay / whole-game surfaces remain fail-closed and
+  exact-engine close review is still `partial` because the positive control is
+  reproduced as a MultiPV witness rather than a stable top-1 root line
+- `CTH-B7`:
+  confirmed follow-up frontier:
+  transition-adjacent strategic route; deferred until B6 scope is defined
+- `CTH-B8`:
+  confirmed later frontier:
+  slight-edge local squeeze; deferred until fortress/progress discrimination is
+  materially stronger
+- `CTH-B9`:
+  confirmed last frontier:
+  bounded color-complex / mobility-cage; optional and still the highest-risk
+  abstract family
+- broader `CTH-B frontier`:
+  still not opened for new positive semantics; do not treat B4 or B5a as
+  approval to widen runtime semantics
 
 ### CQF Tracks
 
@@ -195,7 +261,7 @@ Current status:
   reduce dry exact-factual one-liners in quiet/strategic rows without
   overclaim
 - Current status:
-  Track 3 Phase A acceptance passed on real16:
+  the quiet-support acceptance subset remains passing on real16:
   the selected quiet-support subset stays intact and the representative
   blocked forcing rows no longer fall to quiet fallback
 - Current active work:
@@ -242,15 +308,61 @@ Use:
 
 ## Current Active Work
 
-The latest CQF Track 3 Phase A rerun remains acceptance-passing, and CQF Track 4
-scene coverage is now a close-candidate on the corpus-maintenance lane.
+The current active posture is trust-maintenance on the live B-frontier:
+keep the shipped B1 / B2 / B3 / B4 runtime stable, keep B5b as a closed bounded
+containment slice rather than a permission slip for broader B5 work, and treat
+B6b as a narrowly live planner-only slice rather than a permission slip for a
+broader route-network rollout.
+CQF Track 3 and Track 4 remain
+maintenance/report lanes, not the active implementation frontier.
 
 ### Current status
 
-Track 3 is in maintenance monitoring, not an active blocker.
+Current frontier status:
 
-Quiet-support wording itself is no longer the main blocker, and the
-planner-owned blocked-lane forcing-row preservation blocker remains closed.
+- the live trust-owning runtime is still:
+  bounded B1 / B2 / B3 / B4 only
+- the only live B4 positive scope remains:
+  clearly-better late-middlegame local file-entry bind certification with one
+  single corroborating entry-square axis on the existing
+  `RestrictionProphylaxis` lane
+- B5a is design-only:
+  no new positive slice is open, and the selected next recon family is
+  heavy-piece local bind on a negative-first criticism/validation lane
+- B5b is implemented only as a negative-first containment slice and is now
+  `close-ready` inside that bounded charter:
+  queen-on heavy-piece local bind shells now downgrade through the existing
+  `RestrictionProphylaxis` file-entry reuse path, with exact-FEN nasty cases,
+  exact-branch replay release proof, fixed-depth engine-path reproduction, and
+  cross-surface non-reinflation checks; heavy-piece positive wording remains
+  closed
+- latest B5b residual watch result:
+  slice-level stable after tightening exact-branch release proof so only
+  complete proof-eligible lines count and after making the engine verifier
+  prefer an explicit configured binary over the local fallback
+- B6b is narrowly live:
+  named route-network bind now opens only for one bounded `file-entry pair +
+  one non-redundant reroute denial` on the same defended branch, still inside
+  the existing `RestrictionProphylaxis -> file-entry reuse` lane, with planner-
+  owned `WhyThis` as the only positive owner scope; replay / whole-game reuse,
+  route-chain / sector-network / color-complex expansion, and heavy-piece
+  positives remain closed
+- confirmed post-B5 frontier map:
+  `B6 = named route-network bind`
+- then:
+  `B7 = transition-adjacent strategic route`
+- later only after stronger fortress/progress separation:
+  `B8 = slight-edge local squeeze`
+- last and still most abstract / risk-sensitive:
+  `B9 = bounded color-complex / mobility-cage`
+
+CQF maintenance status:
+
+- Track 3 is in maintenance monitoring, not an active blocker
+- quiet-support wording itself is no longer the main blocker, and the
+  planner-owned blocked-lane forcing-row preservation blocker remains closed
+- Track 4 no longer has a collection blocker and remains a close-candidate on
+  the corpus-maintenance lane
 
 Representative preserved rows include:
 
@@ -263,7 +375,7 @@ The selected quiet-support subset also remains intact on the representative
 baseline selected owner/question divergence `=0`, stronger-verb leakage `=0`).
 
 The remaining residual review row is `Ng4`, a style-choice /
-`pv_delta_missing` upstream lane outside the Track 3 Phase A planner fix.
+`pv_delta_missing` upstream lane outside the Track 3 quiet-support planner fix.
 
 Track 4 no longer has a collection blocker. The important bucket set is now
 materialized in artifact form:
@@ -283,14 +395,30 @@ new failure class.
 
 Track 5 remains deferred.
 
-The current trust posture is maintenance-only:
+The current trust posture is bounded live runtime plus closed broader frontier:
 
 - CTH-A is no longer an active implementation frontier
 - bounded CTH-B1 / B2 / B3 slices are implemented and adversarial-review green
-- broader squeeze / no-counterplay / strategic-discovery expansion is paused
-- if a fresh runtime change reopens an audited seam, update
+- bounded CTH-B4 is now implemented too:
+  the live positive scope is only a bounded file-bind plus one single
+  corroborating entry-square local certificate inside the existing owner path,
+  and the hardening fix-up has closed its known entry-persistence and
+  affirmative-matcher seams
+- bounded CTH-B5a is now documented too:
+  no new positive scope opens; the next recon family is heavy-piece local
+  bind, but only on a negative-first criticism/validation lane until it
+  survives the B5 nasty-case burden
+- heavy-piece middlegame positives and slightly-better positives remain
+  deferred
+- standalone square-network positives and transition-adjacent positive route
+  claims remain deferred
+- bounded color-complex positives remain unsafe
+- if any post-B4 runtime change reopens an
+  audited seam, update
   [CommentaryTrustHardening.md](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
-  and extend the relevant regression packs before reopening the frontier
+  and extend the relevant regression packs before reopening the frontier; if a
+  future session wants B5b work, start from the B5a criticism matrix and
+  broad-validation charter there rather than widening the live slice ad hoc
 
 ## How To Read The Docs In A New Session
 
@@ -298,7 +426,7 @@ If a user says:
 
 - `Step 1-7 is done`
 - `CQF is ongoing`
-- `Track 4 is the active lane`
+- `trust-maintenance is the active posture`
 
 read documents in this order:
 
@@ -329,4 +457,4 @@ Use this shorthand consistently:
 
 Use this wording when you need a concise new-session handoff:
 
-`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, which improves commentary quality without reopening legality. Track 1 is maintenance-mode, Track 2 contrast is signoff-ready on Bookmaker/Chronicle, Track 3 quiet-support Phase A remains acceptance-passing on real16, and Track 4 scene coverage is a close-candidate on the corpus-maintenance lane after the important bucket set was fully materialized without a new failure class. Use CommentaryProgramMap first, then SSoT and TruthGate; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`
+`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the live runtime is still bounded B1 / B2 / B3 / B4, B5b remains a close-ready negative-first containment slice only, and B6b is now a very narrow planner-only positive slice on the same restriction-prophylaxis lane: clearly-better late-middlegame named route-network bind requires a certified B4 file-entry pair plus one non-redundant reroute denial on the same defended branch, opens only planner-owned WhyThis wording, and stays fail-closed on Chronicle / Bookmaker / Active / whole-game replay. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed, and the current B6 close-review posture is still partial because the local engine reproduces the positive control as a MultiPV witness rather than a stable top-1 root line. Use CommentaryProgramMap first, then SSoT and TruthGate; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`

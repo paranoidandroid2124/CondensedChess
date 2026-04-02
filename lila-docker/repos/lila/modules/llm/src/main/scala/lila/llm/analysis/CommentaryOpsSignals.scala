@@ -19,14 +19,13 @@ object CommentaryOpsSignals:
 
   def decisionComparisonConsistency(
       digest: Option[DecisionComparisonDigest],
-      whyAbsent: List[String],
       authorEvidence: List[AuthorEvidenceSummary],
       probeRequests: List[ProbeRequest],
       strategyPack: Option[StrategyPack] = None
   ): Option[ComparisonObservation] =
     val packDigest = strategyPack.flatMap(_.signalDigest).flatMap(_.decisionComparison)
     val available =
-      digest.nonEmpty || whyAbsent.nonEmpty || authorEvidence.nonEmpty || probeRequests.nonEmpty || packDigest.nonEmpty
+      digest.nonEmpty || authorEvidence.nonEmpty || probeRequests.nonEmpty || packDigest.nonEmpty
 
     Option.when(available) {
       val reasons = scala.collection.mutable.ListBuffer.empty[String]
@@ -40,7 +39,7 @@ object CommentaryOpsSignals:
 
       digest match
         case None =>
-          if whyAbsent.nonEmpty || authorEvidence.nonEmpty || probeRequests.nonEmpty then
+          if authorEvidence.nonEmpty || probeRequests.nonEmpty then
             reasons += "missing_decision_digest"
         case Some(dc) =>
           if dc.practicalAlternative && dc.deferredMove.forall(_.trim.isEmpty) then
@@ -49,11 +48,9 @@ object CommentaryOpsSignals:
             reasons += "missing_engine_best"
           if dc.chosenMatchesBest && dc.cpLossVsChosen.exists(_ > 20) then
             reasons += "matching_best_has_cp_loss"
-          if dc.deferredSource.contains("why_absent") && whyAbsent.isEmpty then
-            reasons += "why_absent_source_missing"
 
           val hasDeferredSupport =
-            whyAbsent.nonEmpty || dc.deferredReason.exists(_.trim.nonEmpty) || dc.evidence.exists(_.trim.nonEmpty)
+            dc.deferredReason.exists(_.trim.nonEmpty) || dc.evidence.exists(_.trim.nonEmpty)
           if dc.deferredMove.exists(_.trim.nonEmpty) && !hasDeferredSupport then
             reasons += "deferred_without_support"
 

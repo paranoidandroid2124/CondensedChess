@@ -76,39 +76,65 @@ private[llm] object QuietMoveIntentBuilder:
       ctx: NarrativeContext,
       candidateEvidenceLines: List[String]
   ): Option[QuietMoveIntentClaim] =
-    ctx.semantic.toList
-      .flatMap(_.preventedPlans)
-      .find(plan =>
-        plan.sourceScope == FactScope.Now &&
-          (
-            plan.counterplayScoreDrop > 0 ||
-              plan.mobilityDelta < 0 ||
-              plan.breakNeutralized.exists(_.trim.nonEmpty)
-          )
-      )
-      .flatMap { plan =>
-        val claim =
-          plan.breakNeutralized.flatMap(clean).map(file => s"This keeps $file from coming right away.")
-            .orElse(
-              plan.deniedSquares.headOption.flatMap(clean).map(square => s"This keeps the opponent out of $square.")
+    Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
+      val preventedPlans =
+        ctx.semantic.toList.flatMap(_.preventedPlans)
+      val certifiedFileEntryPair =
+        LocalFileEntryBindCertification.certifiedSurfacePair(ctx)
+      val primaryPlan =
+        preventedPlans.find(plan =>
+          plan.sourceScope == FactScope.Now &&
+            (
+              plan.counterplayScoreDrop > 0 ||
+                plan.mobilityDelta < 0 ||
+                plan.breakNeutralized.exists(_.trim.nonEmpty)
             )
-            .orElse(
-              plan.preventedThreatType.flatMap(clean).map(threat => s"This cuts out the opponent's $threat.")
-            )
-        claim.map { text =>
+        )
+      certifiedFileEntryPair
+        .map { pair =>
           certifyQuietClaim(
             ctx = ctx,
-            anchorSquare = plan.deniedSquares.headOption,
+            anchorSquare = Some(pair.entrySquare),
             claim =
               QuietMoveIntentClaim(
                 intentClass = QuietMoveIntentClass.CounterplayRestraint,
-                claimText = text,
-                evidenceLine = candidateEvidenceLines.flatMap(clean).find(lineMentionsPreventedPlan(_, plan)),
+                claimText =
+                  s"This keeps ${pair.entrySquare} closed and takes the ${pair.file} away as a counterplay route.",
+                evidenceLine =
+                  candidateEvidenceLines.flatMap(clean).find(lineMentionsFileEntryPair(_, pair))
+                    .orElse(primaryPlan.flatMap(plan =>
+                      candidateEvidenceLines.flatMap(clean).find(lineMentionsPreventedPlan(_, plan))
+                    )),
                 sourceKind = "prevented_plan"
               )
           )
         }
-      }
+        .orElse {
+          primaryPlan.flatMap { plan =>
+            val claim =
+              plan.breakNeutralized.flatMap(clean).map(file => s"This keeps $file from coming right away.")
+                .orElse(
+                  plan.deniedSquares.headOption.flatMap(clean).map(square => s"This keeps the opponent out of $square.")
+                )
+                .orElse(
+                  plan.preventedThreatType.flatMap(clean).map(threat => s"This cuts out the opponent's $threat.")
+                )
+            claim.map { text =>
+              certifyQuietClaim(
+                ctx = ctx,
+                anchorSquare = plan.deniedSquares.headOption,
+                claim =
+                  QuietMoveIntentClaim(
+                    intentClass = QuietMoveIntentClass.CounterplayRestraint,
+                    claimText = text,
+                    evidenceLine = candidateEvidenceLines.flatMap(clean).find(lineMentionsPreventedPlan(_, plan)),
+                    sourceKind = "prevented_plan"
+                  )
+              )
+            }
+          }
+        }
+    }.flatten
 
   private def kingSafety(
       ctx: NarrativeContext,
@@ -346,7 +372,6 @@ private[llm] object QuietMoveIntentBuilder:
       quantifier: PlayerFacingClaimQuantifier
   ): Set[PlayerFacingClaimTaintFlag] =
     List(
-      Option.when(ctx.latentPlans.nonEmpty)(PlayerFacingClaimTaintFlag.Latent),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.PvCoupled)(PlayerFacingClaimTaintFlag.PvCoupled),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.Deferred)(PlayerFacingClaimTaintFlag.Deferred),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.StructuralOnly)(PlayerFacingClaimTaintFlag.StructuralOnly),
@@ -404,6 +429,13 @@ private[llm] object QuietMoveIntentBuilder:
     plan.breakNeutralized.map(normalize).exists(low.contains) ||
       plan.deniedSquares.map(normalize).exists(low.contains) ||
       plan.preventedThreatType.map(normalize).exists(low.contains)
+
+  private def lineMentionsFileEntryPair(
+      text: String,
+      pair: LocalFileEntryBindCertification.SurfacePair
+  ): Boolean =
+    val low = normalize(text)
+    low.contains(normalize(pair.file)) && low.contains(normalize(pair.entrySquare))
 
   private def moveShape(ctx: NarrativeContext): Option[MoveShape] =
     ctx.playedSan.flatMap(normalizedSan).map { san =>

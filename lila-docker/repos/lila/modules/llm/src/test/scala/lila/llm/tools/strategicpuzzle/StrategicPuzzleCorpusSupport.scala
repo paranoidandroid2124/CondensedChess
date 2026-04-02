@@ -854,7 +854,7 @@ object StrategicPuzzleCorpusSupport:
         digest.map(_.compensationVectors.size).getOrElse(0)
     response.strategyPack.map { pack =>
       pack.strategicIdeas.size + pack.pieceRoutes.size + pack.directionalTargets.size + pack.plans.size + digestFields
-    }.getOrElse(digestFields + response.mainStrategicPlans.size + response.latentPlans.size)
+    }.getOrElse(digestFields + response.mainStrategicPlans.size)
 
   private def applySingleMove(fen: String, uci: String): Option[String] =
     Fen.read(Standard, Fen.Full(fen)).flatMap { pos =>

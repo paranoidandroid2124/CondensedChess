@@ -737,7 +737,6 @@ private[llm] object PlayerFacingTruthModePolicy:
       quantifier: PlayerFacingClaimQuantifier
   ): Set[PlayerFacingClaimTaintFlag] =
     List(
-      Option.when(ctx.latentPlans.nonEmpty)(PlayerFacingClaimTaintFlag.Latent),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.PvCoupled)(PlayerFacingClaimTaintFlag.PvCoupled),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.Deferred)(PlayerFacingClaimTaintFlag.Deferred),
       Option.when(provenanceClass == PlayerFacingClaimProvenanceClass.StructuralOnly)(PlayerFacingClaimTaintFlag.StructuralOnly),

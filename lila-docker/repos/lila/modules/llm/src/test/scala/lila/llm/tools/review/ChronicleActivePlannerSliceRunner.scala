@@ -838,8 +838,6 @@ object ChronicleActivePlannerSliceRunner:
       authorEvidence = evidenceSurface.evidence,
       mainStrategicPlans = snapshot.ctx.mainStrategicPlans,
       strategicPlanExperiments = snapshot.ctx.strategicPlanExperiments,
-      latentPlans = snapshot.ctx.latentPlans,
-      whyAbsentFromTopMultiPV = snapshot.ctx.whyAbsentFromTopMultiPV,
       strategicBranch = false,
       activeStrategicNote = None,
       activeStrategicSourceMode = None,

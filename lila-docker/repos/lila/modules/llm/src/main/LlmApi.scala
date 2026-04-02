@@ -360,7 +360,6 @@ final class LlmApi(
   private def recordComparisonObservation(
       path: String,
       digest: Option[DecisionComparisonDigest],
-      whyAbsent: List[String],
       authorEvidence: List[AuthorEvidenceSummary],
       probeRequests: List[lila.llm.model.ProbeRequest],
       strategyPack: Option[StrategyPack]
@@ -368,7 +367,6 @@ final class LlmApi(
     CommentaryOpsSignals
       .decisionComparisonConsistency(
         digest = digest,
-        whyAbsent = whyAbsent,
         authorEvidence = authorEvidence,
         probeRequests = probeRequests,
         strategyPack = strategyPack
@@ -3345,7 +3343,6 @@ final class LlmApi(
             recordComparisonObservation(
               path = "fullgame",
               digest = moment.signalDigest.flatMap(_.decisionComparison),
-              whyAbsent = moment.whyAbsentFromTopMultiPV,
               authorEvidence = moment.authorEvidence,
               probeRequests = moment.probeRequests,
               strategyPack = moment.strategyPack
@@ -4094,8 +4091,6 @@ final class LlmApi(
                               plan.subplanId.getOrElse("").equalsIgnoreCase(experiment.subplanId.getOrElse(""))
                           )
                         ),
-                      latentPlans = Nil,
-                      whyAbsentFromTopMultiPV = Nil,
                       planStateToken = Some(nextTracker),
                       endgameStateToken = nextEndgameState,
                       sourceMode = decision.sourceMode,
@@ -4113,7 +4108,6 @@ final class LlmApi(
               recordComparisonObservation(
                 path = "bookmaker",
                 digest = response.signalDigest.flatMap(_.decisionComparison),
-                whyAbsent = response.whyAbsentFromTopMultiPV,
                 authorEvidence = response.authorEvidence,
                 probeRequests = response.probeRequests,
                 strategyPack = response.strategyPack

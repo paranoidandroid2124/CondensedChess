@@ -29,7 +29,6 @@ class StrategyPackBuilderTest extends FunSuite:
       opponent: Option[PlanRow] = None,
       continuity: Option[PlanContinuity] = None,
       conceptSummary: List[String] = Nil,
-      whyAbsent: List[String] = Nil,
       semantic: Option[SemanticSection] = None,
       probeRequests: List[ProbeRequest] = Nil,
       authorQuestions: List[AuthorQuestion] = Nil,
@@ -48,7 +47,6 @@ class StrategyPackBuilderTest extends FunSuite:
       phase = PhaseContext("Middlegame", "test"),
       candidates = Nil,
       mainStrategicPlans = mainPlans,
-      whyAbsentFromTopMultiPV = whyAbsent,
       probeRequests = probeRequests,
       semantic = semantic.orElse(
         Option.when(conceptSummary.nonEmpty)(
@@ -219,8 +217,7 @@ class StrategyPackBuilderTest extends FunSuite:
         ctx(
           mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)),
           continuity = Some(continuity),
-          conceptSummary = List("space advantage", "dark-square pressure"),
-          whyAbsent = List("line rejected because center breaks too early")
+          conceptSummary = List("space advantage", "dark-square pressure")
         )
       )
       .getOrElse(fail("pack missing"))
@@ -633,8 +630,7 @@ class StrategyPackBuilderTest extends FunSuite:
       .build(
         data(),
         ctx(
-          mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)),
-          whyAbsent = List("""the immediate "g4" push loses 220 cp""")
+          mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1))
         ).copy(
           playedMove = Some("h2h4"),
           playedSan = Some("h4"),

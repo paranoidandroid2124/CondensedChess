@@ -1670,8 +1670,6 @@ object CommentaryPlayerQcSupport:
         authorEvidence = moment.authorEvidence,
         mainStrategicPlans = moment.mainStrategicPlans,
         strategicPlanExperiments = moment.strategicPlanExperiments,
-        latentPlans = moment.latentPlans,
-        whyAbsentFromTopMultiPV = moment.whyAbsentFromTopMultiPV,
         sourceMode = moment.activeStrategicSourceMode.getOrElse("rule"),
         strategyPack = moment.strategyPack,
         signalDigest = moment.signalDigest

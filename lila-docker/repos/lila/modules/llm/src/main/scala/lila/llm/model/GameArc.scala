@@ -45,8 +45,6 @@ case class GameArcMoment(
   authorEvidence: List[lila.llm.AuthorEvidenceSummary] = Nil,
   mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
   strategicPlanExperiments: List[lila.llm.model.StrategicPlanExperiment] = Nil,
-  latentPlans: List[lila.llm.model.authoring.LatentPlanNarrative] = Nil,
-  whyAbsentFromTopMultiPV: List[String] = Nil,
   strategicBranch: Boolean = false,
   activeStrategicNote: Option[String] = None,
   activeStrategicSourceMode: Option[String] = None,

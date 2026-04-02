@@ -388,8 +388,6 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
         authorQuestions = Nil,
         authorEvidence = Nil,
         mainStrategicPlans = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         strategicBranch = strategicBranch,
         activeStrategicNote = activeNote,
         activeStrategicSourceMode = activeNote.map(_ => "llm_polished"),

@@ -1186,8 +1186,6 @@ object CommentaryEngine:
                         plan.subplanId.getOrElse("").equalsIgnoreCase(experiment.subplanId.getOrElse(""))
                     )
                   ),
-                latentPlans = Nil,
-                whyAbsentFromTopMultiPV = Nil,
                 truthPhase = truthContract.truthPhase.map(_.toString),
                 surfacedMoveOwnsTruth = truthContract.surfacedMoveOwnsTruth,
                 verifiedPayoffAnchor = truthContract.verifiedPayoffAnchor,

@@ -596,8 +596,6 @@ case class CommentResponse(
   authorEvidence: List[AuthorEvidenceSummary] = Nil,
   mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
   strategicPlanExperiments: List[lila.llm.model.StrategicPlanExperiment] = Nil,
-  latentPlans: List[lila.llm.model.authoring.LatentPlanNarrative] = Nil,
-  whyAbsentFromTopMultiPV: List[String] = Nil,
   planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
   endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None,
   sourceMode: String = "rule",

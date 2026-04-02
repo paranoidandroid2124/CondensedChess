@@ -648,10 +648,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
   }
 
   test("surface-only strategic pack cannot revive a bookmaker thesis beyond exact factual fallback") {
-    val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
-        whyAbsentFromTopMultiPV = List("the immediate 'Qh5' thrust lets Black trade queens and kill the attack")
-      )
+    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
       BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = Some(surfaceDrivenPack()))
@@ -659,7 +656,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("latent or pv-coupled support traces cannot prevent exact factual fallback") {
+  test("pv-coupled support traces cannot prevent exact factual fallback") {
     val ctx =
       BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
@@ -687,17 +684,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
               bestReplyStable = false,
               futureSnapshotAligned = false
             )
-          ),
-        latentPlans =
-          List(
-            LatentPlanNarrative(
-              seedId = "latent_1",
-              planName = "Kingside Pressure",
-              viabilityScore = 0.72,
-              whyAbsentFromTopMultiPv = "probe evidence pending"
-            )
-          ),
-        whyAbsentFromTopMultiPV = List("Further probe work still targets the kingside lift.")
+          )
       )
     val outline = genericDecisionOutline("A route exists.", "The key idea is kingside pressure.")
     val shellPack =
@@ -884,8 +871,6 @@ class BookmakerPolishSlotsTest extends FunSuite:
         decision = None,
         mainStrategicPlans = Nil,
         strategicPlanExperiments = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         strategicSalience = lila.llm.model.strategic.StrategicSalience.Low
       )
     val outline =
@@ -930,8 +915,6 @@ class BookmakerPolishSlotsTest extends FunSuite:
         decision = None,
         mainStrategicPlans = Nil,
         strategicPlanExperiments = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         strategicSalience = lila.llm.model.strategic.StrategicSalience.Low
       )
     val outline =
@@ -1130,8 +1113,6 @@ class BookmakerPolishSlotsTest extends FunSuite:
         decision = None,
         mainStrategicPlans = Nil,
         strategicPlanExperiments = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
       )
     val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
@@ -1155,8 +1136,6 @@ class BookmakerPolishSlotsTest extends FunSuite:
         decision = None,
         mainStrategicPlans = Nil,
         strategicPlanExperiments = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
       )
     val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
@@ -1303,9 +1282,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         semantic = None,
         decision = None,
         mainStrategicPlans = Nil,
-        strategicPlanExperiments = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil
+        strategicPlanExperiments = Nil
       )
     val outline =
       genericDecisionOutline(

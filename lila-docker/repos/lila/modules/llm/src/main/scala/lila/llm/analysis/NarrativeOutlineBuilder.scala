@@ -838,43 +838,14 @@ object NarrativeOutlineBuilder:
           )
         }
       case None =>
-        buildDecisionNarrativeText(ctx, None).map { text =>
-          ctx.decision.foreach { d =>
-            rec.use("decision.logicSummary", d.logicSummary, "Decision rationale")
-          }
-          ctx.meta.flatMap(_.whyNot).foreach { whyNot =>
-            rec.use("meta.whyNot", whyNot, "Decision meta")
-          }
+        plannerInputs.factualFallback.map { fallback =>
           OutlineBeat(
             kind = OutlineBeatKind.DecisionPoint,
-            text = text,
-            anchors = ctx.decision.flatMap(_.focalPoint.map(renderTargetRef)).toList,
+            text = fallback,
             focusPriority = 96,
             fullGameEssential = true
           )
         }
-
-  private def buildDecisionNarrativeText(
-    ctx: NarrativeContext,
-    alignedQuestion: Option[String]
-  ): Option[String] =
-    val parts = scala.collection.mutable.ListBuffer[String]()
-    alignedQuestion.map(ensureSentence).foreach(parts += _)
-    ctx.decision.flatMap(buildDecisionRationaleSentence).foreach(parts += _)
-    ctx.meta.flatMap(buildMetaDecisionSentence).foreach(parts += _)
-    val alternativeSentence =
-      AlternativeNarrativeSupport.sentence(ctx)
-        .map(ensureSentence)
-        .filter(_.nonEmpty)
-    alternativeSentence.foreach { sentence =>
-      val existing = parts.mkString(" ").toLowerCase
-      val isCritical = CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx)
-      if parts.nonEmpty then
-        if !existing.contains(sentence.toLowerCase) then parts += sentence
-      else if !isCritical then
-        parts += sentence
-    }
-    Option.when(parts.nonEmpty)(parts.mkString(" ").trim)
 
   private def buildStrategicFlowContextSentence(
     ctx: NarrativeContext,

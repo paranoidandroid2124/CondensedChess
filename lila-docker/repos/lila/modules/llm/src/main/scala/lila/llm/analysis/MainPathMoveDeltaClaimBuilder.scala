@@ -292,34 +292,43 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       ctx: NarrativeContext,
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
-    ctx.semantic.toList
-      .flatMap(_.preventedPlans)
-      .find(_.sourceScope == FactScope.Now)
-      .flatMap { prevented =>
-        delta.ontologyFamily match
-          case PlayerFacingClaimOntologyFamily.RouteDenial =>
-            prevented.deniedSquares.headOption
-              .flatMap(clean)
-              .map(square => s"This keeps the opponent out of $square.")
-          case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
-            clean(prevented.planId)
-              .filterNot(_.equalsIgnoreCase("counterplay"))
-              .map(plan => s"This keeps a longer squeeze on $plan.")
-          case _ =>
-            prevented.breakNeutralized
-              .flatMap(clean)
-              .map(file => s"This keeps $file from coming right away.")
-              .orElse(
-                prevented.deniedSquares.headOption
-                  .flatMap(clean)
-                  .map(square => s"This keeps the opponent out of $square.")
-              )
-              .orElse(
-                clean(prevented.planId)
-                  .filterNot(_.equalsIgnoreCase("counterplay"))
-                  .map(plan => s"This slows down $plan before it gets started.")
-              )
-      }
+    Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
+      val preventedPlans =
+        ctx.semantic.toList.flatMap(_.preventedPlans)
+      LocalFileEntryBindCertification.certifiedSurfacePair(ctx)
+        .map(pair =>
+          s"This keeps ${pair.entrySquare} closed and takes the ${pair.file} away as a counterplay route."
+        )
+        .orElse {
+          preventedPlans
+            .find(_.sourceScope == FactScope.Now)
+            .flatMap { prevented =>
+              delta.ontologyFamily match
+                case PlayerFacingClaimOntologyFamily.RouteDenial =>
+                  prevented.deniedSquares.headOption
+                    .flatMap(clean)
+                    .map(square => s"This keeps the opponent out of $square.")
+                case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
+                  clean(prevented.planId)
+                    .filterNot(_.equalsIgnoreCase("counterplay"))
+                    .map(plan => s"This keeps a longer squeeze on $plan.")
+                case _ =>
+                  prevented.breakNeutralized
+                    .flatMap(clean)
+                    .map(file => s"This keeps $file from coming right away.")
+                    .orElse(
+                      prevented.deniedSquares.headOption
+                        .flatMap(clean)
+                        .map(square => s"This keeps the opponent out of $square.")
+                    )
+                    .orElse(
+                      clean(prevented.planId)
+                        .filterNot(_.equalsIgnoreCase("counterplay"))
+                        .map(plan => s"This slows down $plan before it gets started.")
+                    )
+            }
+        }
+    }.flatten
 
   private def resourceRemovalClaim(
       ctx: NarrativeContext,

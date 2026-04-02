@@ -1,7 +1,7 @@
 package lila.llm.model
 
 import chess.Color
-import lila.llm.model.authoring.{ AuthorQuestion, LatentPlanNarrative, PlanHypothesis, QuestionEvidence }
+import lila.llm.model.authoring.{ AuthorQuestion, PlanHypothesis, QuestionEvidence }
 import play.api.libs.json.*
 
 enum NarrativeRenderMode:
@@ -43,10 +43,7 @@ case class NarrativeContext(
   // === EVIDENCE AUGMENTATION ===
   probeRequests: List[ProbeRequest] = Nil,
   mainStrategicPlans: List[PlanHypothesis] = Nil,
-  latentPlans: List[LatentPlanNarrative] = Nil,
   strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
-  whyAbsentFromTopMultiPV: List[String] = Nil,
-  absentReasonSource: String = "none",
 
 
   meta: Option[MetaSignals] = None,
@@ -417,7 +414,9 @@ case class PreventedPlanInfo(
   counterplayScoreDrop: Int,
   preventedThreatType: Option[String],
   sourceScope: FactScope = FactScope.Now,
-  citationLine: Option[String] = None
+  citationLine: Option[String] = None,
+  deniedResourceClass: Option[String] = None,
+  deniedEntryScope: Option[String] = None
 )
 
 case class StructureProfileInfo(

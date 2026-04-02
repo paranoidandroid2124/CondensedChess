@@ -3,6 +3,7 @@ package lila.llm.analysis
 import munit.FunSuite
 import lila.llm.model.*
 import lila.llm.model.authoring.*
+import lila.llm.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 
 class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
@@ -1610,4 +1611,56 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(decision.text, "This captures.")
     assert(!decision.text.toLowerCase.contains("simplifying"), clues(decision.text))
+  }
+
+  test("outline falls straight to exact factual fallback when no question survives to own the decision beat") {
+    val ctx =
+      baseCtx(Nil).copy(
+        playedMove = Some("e1g1"),
+        playedSan = Some("O-O"),
+        decision =
+          Some(
+            DecisionRationale(
+              focalPoint = None,
+              logicSummary = "Castle before starting the kingside pressure.",
+              delta = PVDelta(Nil, Nil, Nil, Nil),
+              confidence = ConfidenceLevel.Engine
+            )
+          ),
+        meta =
+          Some(
+            MetaSignals(
+              choiceType = ChoiceType.NarrowChoice,
+              targets = Targets(Nil, Nil),
+              planConcurrency = PlanConcurrency("kingside pressure", None, "independent"),
+              whyNot = Some("The rook lift is too slow.")
+            )
+          ),
+        candidates = List(
+          CandidateInfo("O-O", annotation = "!", planAlignment = "King safety", tacticalAlert = None, practicalDifficulty = "clean", whyNot = None),
+          CandidateInfo("Rc3", annotation = "", planAlignment = "Rook lift", tacticalAlert = None, practicalDifficulty = "clean", whyNot = Some("it slows the direct attack"))
+        ),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 20,
+              variations = List(
+                VariationLine(moves = List("e1g1", "a7a6"), scoreCp = 44),
+                VariationLine(
+                  moves = List("a1c3", "a7a6"),
+                  scoreCp = 30,
+                  parsedMoves = List(PvMove("a1c3", "Rc3", "a1", "c3", "R", isCapture = false, capturedPiece = None, givesCheck = false))
+                )
+              )
+            )
+          )
+      )
+    val rec = new TraceRecorder()
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, rec)
+    val decision = outline.getBeat(OutlineBeatKind.DecisionPoint).getOrElse(fail("missing decision beat"))
+
+    assertEquals(decision.text, "This castles.")
+    assert(!decision.text.contains("Rc3"), clues(decision.text))
+    assert(!decision.text.toLowerCase.contains("direct attack"), clues(decision.text))
+    assert(!decision.text.toLowerCase.contains("castle before"), clues(decision.text))
   }

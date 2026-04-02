@@ -1,6 +1,7 @@
 package lila.llm
 
 import munit.FunSuite
+import play.api.libs.json.{ JsObject, Json }
 
 import lila.llm.model.StrategicPlanExperiment
 import lila.llm.model.authoring.*
@@ -89,15 +90,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             experimentConfidence = 0.52
           )
         ),
-        latentPlans = List(
-          LatentPlanNarrative(
-            seedId = "latent_seed",
-            planName = "PlayedPV fallback",
-            viabilityScore = 0.5,
-            whyAbsentFromTopMultiPv = "accepted as PlayableByPV fallback"
-          )
-        ),
-        whyAbsentFromTopMultiPV = List("PlayableByPV fallback remains"),
         strategyPack = Some(
           StrategyPack(
             sideToMove = "white",
@@ -172,8 +164,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           )
           .mkString(" "),
         sanitized.strategicPlanExperiments.map(_.themeL1).mkString(" "),
-        sanitized.latentPlans.map(_.whyAbsentFromTopMultiPv).mkString(" "),
-        sanitized.whyAbsentFromTopMultiPV.mkString(" "),
         sanitized.strategyPack.toList.flatMap(pack =>
           pack.longTermFocus ++
             pack.evidence ++
@@ -198,9 +188,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         ).mkString(" ")
       ).mkString(" ")
 
+    val json = Json.toJson(sanitized).as[JsObject]
+
     assertNoLeaks(rendered)
-    assertEquals(sanitized.latentPlans, Nil, clue(sanitized))
-    assertEquals(sanitized.whyAbsentFromTopMultiPV, Nil, clue(sanitized))
+    assertEquals(json.keys.contains("latentPlans"), false, clue(json))
+    assertEquals(json.keys.contains("whyAbsentFromTopMultiPV"), false, clue(json))
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.signalDigest))
@@ -269,7 +261,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 experimentConfidence = 0.81
               )
             ),
-            whyAbsentFromTopMultiPV = List("probe evidence pending"),
             signalDigest = Some(
               NarrativeSignalDigest(
                 dominantIdeaKind = Some("pawn_break"),
@@ -297,8 +288,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       Some("rook_lift_scaffold"),
       clue(sanitized.moments.head.strategicPlanExperiments)
     )
+    val momentJson = Json.toJson(sanitized.moments.head).as[JsObject]
     assertEquals(sanitized.moments.head.concepts, Nil, clue(sanitized.moments.head))
-    assertEquals(sanitized.moments.head.whyAbsentFromTopMultiPV, Nil, clue(sanitized.moments.head))
+    assertEquals(momentJson.keys.contains("latentPlans"), false, clue(momentJson))
+    assertEquals(momentJson.keys.contains("whyAbsentFromTopMultiPV"), false, clue(momentJson))
     assertEquals(sanitized.moments.head.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.moments.head.signalDigest))
     assertEquals(sanitized.moments.head.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.moments.head.signalDigest))
     assertEquals(sanitized.themes, Nil, clue(sanitized))
@@ -324,15 +317,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             evidenceSources = List("probe_backed:validated_support")
           )
         ),
-        latentPlans = List(
-          LatentPlanNarrative(
-            seedId = "latent_seed",
-            planName = "Piece Activation",
-            viabilityScore = 0.52,
-            whyAbsentFromTopMultiPv = "Opening Development and Center Control"
-          )
-        ),
-        whyAbsentFromTopMultiPV = List("Exploiting Space Advantage", "Immediate Tactical Gain Counterplay"),
         signalDigest = Some(
           NarrativeSignalDigest(
             latentPlan = Some("Preparing d-break Break"),
@@ -364,8 +348,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       List("Simplifying toward an endgame"),
       clue(sanitized)
     )
-    assertEquals(sanitized.latentPlans, Nil, clue(sanitized))
-    assertEquals(sanitized.whyAbsentFromTopMultiPV, Nil, clue(sanitized))
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized))
     assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized))
   }

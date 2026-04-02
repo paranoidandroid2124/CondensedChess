@@ -127,6 +127,16 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       tacticalEvidence = None
     )
 
+  private val emptyDeltaBundle =
+    PlayerFacingMoveDeltaBundle(
+      claims = Nil,
+      visibleRouteRefs = Nil,
+      visibleMoveRefs = Nil,
+      visibleDirectionalTargets = Nil,
+      tacticalLead = None,
+      tacticalEvidence = None
+    )
+
   private val dossier =
     Some(
       ActiveBranchDossier(
@@ -485,6 +495,81 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, None, frame),
       None
     )
+  }
+
+  test("active replay cannot recover B4 file-entry wording from evidence-backed plan text without the local file-entry carrier") {
+    val activeMoment =
+      moment(
+        authorQuestions = List(authorQuestion("q_b4_changed", "WhatChanged")),
+        authorEvidence =
+          List(
+            authorEvidence(
+              "q_b4_changed",
+              "WhatChanged",
+              "reply_multipv",
+              "24.a3 keeps the c-file closed and b4 unavailable."
+            )
+          ),
+        signalDigest =
+          NarrativeSignalDigest(
+            prophylaxisPlan = Some("...c5 break"),
+            counterplayScoreDrop = Some(145)
+          )
+      ).copy(
+        mainStrategicPlans =
+          List(
+            PlanHypothesis(
+              planId = "local_file_entry_bind",
+              planName = "Take the c-file away and keep b4 closed",
+              rank = 1,
+              score = 0.84,
+              preconditions = Nil,
+              executionSteps = List("Take the c-file away first and keep b4 closed."),
+              failureModes = List("If the c-file reopens or b4 becomes available, the bind disappears."),
+              viability = PlanViability(score = 0.84, label = "high", risk = "bounded"),
+              evidenceSources = List("theme:restriction_prophylaxis"),
+              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "local_file_entry_bind",
+              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+              evidenceTier = "evidence_backed",
+              bestReplyStable = true,
+              futureSnapshotAligned = true
+            )
+          )
+      )
+    val frame = CertifiedDecisionFrameBuilder.build(activeMoment, emptyDeltaBundle, None)
+    val replay =
+      ActiveStrategicCoachingBriefBuilder
+        .replayPlanner(activeMoment, emptyDeltaBundle, None, frame)
+        .getOrElse(fail("expected B4-style active replay"))
+    val selection = ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(replay)
+    val surfacedTexts =
+      replay.rankedPlans.primary.map(_.claim).toList ++
+        selection.map(_.primary.claim).toList ++
+        selection.flatMap(sel => ActiveStrategicCoachingBriefBuilder.buildDeterministicNote(sel, activeMoment)).toList
+
+    assertEquals(replay.inputs.preventedPlansNow.headOption.flatMap(_.deniedEntryScope), None)
+    assertEquals(
+      LocalFileEntryBindCertification.certifiedSurfacePair(
+        replay.inputs.preventedPlansNow,
+        replay.inputs.evidenceBackedPlans
+      ),
+      None
+    )
+    surfacedTexts.foreach { text =>
+      val low = text.toLowerCase
+      assert(
+        !(low.contains("c-file") && low.contains("b4")),
+        clues(text, replay.inputs.preventedPlansNow, replay.inputs.evidenceBackedPlans, replay.rankedPlans, selection)
+      )
+    }
   }
 
   test("active replay uses the truth-contract sidecar to keep only-move timing planner-owned") {

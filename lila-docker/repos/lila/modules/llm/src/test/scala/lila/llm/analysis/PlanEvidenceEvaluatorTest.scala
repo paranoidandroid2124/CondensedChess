@@ -81,8 +81,6 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       )
 
     assertEquals(partition.mainPlans, Nil)
-    assertEquals(partition.latentPlans, Nil)
-    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assert(
       partition.diagnosticSidecar.entries.exists(entry =>
         entry.planId == "CentralControl" &&
@@ -151,8 +149,6 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     )
 
     assertEquals(partition.mainPlans, Nil)
-    assertEquals(partition.latentPlans, Nil)
-    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assert(
       partition.diagnosticSidecar.entries.exists(entry =>
         entry.planId == "PawnStorm" &&
@@ -194,8 +190,6 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       )
 
     assertEquals(partition.mainPlans, Nil)
-    assertEquals(partition.latentPlans, Nil)
-    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assertEquals(partition.diagnosticSidecar.droppedProbeCount, 1)
     assert(
       partition.diagnosticSidecar.entries.exists(entry =>
@@ -265,8 +259,6 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       partition.mainPlans.headOption.exists(_.evidenceSources.contains("probe_backed:validated_support")),
       clue(partition.mainPlans)
     )
-    assertEquals(partition.latentPlans, Nil)
-    assertEquals(partition.whyAbsentFromTopMultiPV, Nil)
     assert(
       partition.diagnosticSidecar.entries.exists(entry =>
         entry.planId == "PawnStorm2" &&

@@ -277,10 +277,7 @@ object NarrativeContextBuilder:
           counterfactualFacts = counterfactualFacts,
           probeRequests = probeRequests,
           mainStrategicPlans = mainStrategicPlans,
-          latentPlans = Nil,
           strategicPlanExperiments = strategicPlanExperiments,
-          whyAbsentFromTopMultiPV = Nil,
-          absentReasonSource = "none",
           meta = meta,
           strategicFlow = strategicFlow,
           semantic = semantic,
@@ -346,6 +343,40 @@ object NarrativeContextBuilder:
           ply = ply,
           fen = fen
         )
+      val localFileEntryBindCertification =
+        LocalFileEntryBindCertification.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove,
+          phase = phase,
+          ply = ply,
+          fen = fen
+        )
+      val namedRouteNetworkBindCertification =
+        NamedRouteNetworkBindCertification.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove,
+          phase = phase,
+          ply = ply,
+          fen = fen,
+          localFileEntryBindCertification = localFileEntryBindCertification
+        )
+      val heavyPieceLocalBindValidation =
+        HeavyPieceLocalBindValidation.evaluate(
+          plan = plan,
+          probeResultsById = resultsById,
+          preventedPlans = preventedPlans,
+          evalCp = evalCp,
+          isWhiteToMove = isWhiteToMove,
+          phase = phase,
+          ply = ply,
+          fen = fen
+        )
       val bestReplyStable =
         supportResults.nonEmpty &&
           refuteResults.isEmpty &&
@@ -368,6 +399,9 @@ object NarrativeContextBuilder:
           (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
           refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
           restrictedDefenseCertification.exists(_.moveOrderFragility.fragile) ||
+          localFileEntryBindCertification.exists(_.moveOrderFragility.fragile) ||
+          namedRouteNetworkBindCertification.exists(_.moveOrderFragility.fragile) ||
+          heavyPieceLocalBindValidation.exists(_.moveOrderFragility.fragile) ||
           dualAxisBindCertification.exists(_.moveOrderFragility.fragile) ||
           (
             supportResults.nonEmpty &&
@@ -386,14 +420,41 @@ object NarrativeContextBuilder:
                 evidenceTierOf(plan.status),
                 restrictedDefenseCertification
               )
-            dualAxisBindCertification match
-              case Some(cert) if restrictedDefenseTier == "evidence_backed" =>
-                if cert.certified then "evidence_backed" else "deferred"
+            val fileEntryTier =
+              LocalFileEntryBindCertification.playerFacingEvidenceTier(
+                restrictedDefenseTier,
+                localFileEntryBindCertification
+              )
+            val namedRouteTier =
+              NamedRouteNetworkBindCertification.playerFacingEvidenceTier(
+                fileEntryTier,
+                namedRouteNetworkBindCertification
+              )
+            val heavyPieceTier =
+              HeavyPieceLocalBindValidation.playerFacingEvidenceTier(
+                namedRouteTier,
+                heavyPieceLocalBindValidation
+              )
+            heavyPieceLocalBindValidation match
+              case Some(_) if namedRouteTier == "evidence_backed" =>
+                heavyPieceTier
               case _ =>
-                CounterplayAxisSuppressionCertification.playerFacingEvidenceTier(
-                  restrictedDefenseTier,
-                  counterplayAxisCertification
-                )
+                namedRouteNetworkBindCertification match
+                  case Some(_) if fileEntryTier == "evidence_backed" =>
+                    namedRouteTier
+                  case _ =>
+                    localFileEntryBindCertification match
+                      case Some(_) if restrictedDefenseTier == "evidence_backed" =>
+                        fileEntryTier
+                      case _ =>
+                        dualAxisBindCertification match
+                          case Some(cert) if restrictedDefenseTier == "evidence_backed" =>
+                            if cert.certified then "evidence_backed" else "deferred"
+                          case _ =>
+                            CounterplayAxisSuppressionCertification.playerFacingEvidenceTier(
+                              restrictedDefenseTier,
+                              counterplayAxisCertification
+                            )
           },
         supportProbeCount = supportResults.size,
         refuteProbeCount = refuteResults.size,
@@ -412,7 +473,10 @@ object NarrativeContextBuilder:
             moveOrderSensitive = moveOrderSensitive,
             restrictedDefenseCertification = restrictedDefenseCertification,
             counterplayAxisCertification = counterplayAxisCertification,
-            dualAxisBindCertification = dualAxisBindCertification
+            dualAxisBindCertification = dualAxisBindCertification,
+            localFileEntryBindCertification = localFileEntryBindCertification,
+            namedRouteNetworkBindCertification = namedRouteNetworkBindCertification,
+            heavyPieceLocalBindValidation = heavyPieceLocalBindValidation
           )
       )
     }
@@ -500,7 +564,10 @@ object NarrativeContextBuilder:
       moveOrderSensitive: Boolean,
       restrictedDefenseCertification: Option[RestrictedDefenseConversionCertification.Contract],
       counterplayAxisCertification: Option[CounterplayAxisSuppressionCertification.Contract],
-      dualAxisBindCertification: Option[DualAxisBindCertification.Contract]
+      dualAxisBindCertification: Option[DualAxisBindCertification.Contract],
+      localFileEntryBindCertification: Option[LocalFileEntryBindCertification.Contract],
+      namedRouteNetworkBindCertification: Option[NamedRouteNetworkBindCertification.Contract],
+      heavyPieceLocalBindValidation: Option[HeavyPieceLocalBindValidation.Contract]
   ): Double =
     val base =
       tier match
@@ -538,7 +605,31 @@ object NarrativeContextBuilder:
           else -0.14
         )
         .getOrElse(0.0)
-    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus + dualAxisBindBonus - refutePenalty - sensitivityPenalty)
+    val localFileEntryBonus =
+      localFileEntryBindCertification
+        .map(cert =>
+          if cert.certified then 0.05
+          else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.05
+          else -0.12
+        )
+        .getOrElse(0.0)
+    val namedRouteNetworkBonus =
+      namedRouteNetworkBindCertification
+        .map(cert =>
+          if cert.certified then 0.04
+          else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.06
+          else -0.12
+        )
+        .getOrElse(0.0)
+    val heavyPiecePenalty =
+      heavyPieceLocalBindValidation
+        .map(validation =>
+          if validation.certified then -0.10
+          else if validation.pressurePersistence && validation.routeContinuity.directBestDefensePresent then -0.12
+          else -0.16
+        )
+        .getOrElse(0.0)
+    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus + dualAxisBindBonus + localFileEntryBonus + namedRouteNetworkBonus + heavyPiecePenalty - refutePenalty - sensitivityPenalty)
       .max(0.0)
       .min(0.98)
 
@@ -2649,6 +2740,8 @@ object NarrativeContextBuilder:
       mobilityDelta = pp.mobilityDelta,
       counterplayScoreDrop = pp.counterplayScoreDrop,
       preventedThreatType = pp.preventedThreatType,
+      deniedResourceClass = pp.deniedResourceClass,
+      deniedEntryScope = pp.deniedEntryScope,
       sourceScope = pp.sourceScope,
       citationLine = citationLine
     )

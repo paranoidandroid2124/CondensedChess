@@ -1100,14 +1100,12 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           val ctx =
             BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
               playedSan = Some("Qx"),
-              semantic = None,
-              decision = None,
-              mainStrategicPlans = Nil,
-              strategicPlanExperiments = Nil,
-              latentPlans = Nil,
-              whyAbsentFromTopMultiPV = Nil,
-              pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
-            )
+            semantic = None,
+            decision = None,
+            mainStrategicPlans = Nil,
+            strategicPlanExperiments = Nil,
+            pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
+          )
           val slots =
             BookmakerPolishSlotsBuilder.buildOrFallback(
               ctx,

@@ -270,8 +270,6 @@ class NarrativeContextBuilderTest extends FunSuite {
     val result = NarrativeContextBuilder.buildWithDiagnostics(data, ctx, None)
 
     assertEquals(result.context.mainStrategicPlans, Nil)
-    assertEquals(result.context.latentPlans, Nil)
-    assertEquals(result.context.whyAbsentFromTopMultiPV, Nil)
     assert(
       result.diagnosticPlanSidecar.entries.exists(entry =>
         entry.planId == "CentralControl" &&

@@ -163,17 +163,30 @@ private[llm] object GameChronicleCompressionPolicy:
       rankedPlans: RankedQuestionPlans,
       inputs: QuestionPlannerInputs
   ): Option[ChroniclePlanSurface] =
-    rankedPlans.primary.map { primary =>
+    rankedPlans.primary.flatMap { primary =>
       val secondary = rankedPlans.secondary
-      secondary
-        .filter(candidate =>
-          !preserveThreatStopPrimary(primary, candidate) &&
+      val eligibleSecondary =
+        secondary.filter(candidate =>
+          !replayClosedNamedRouteNetwork(candidate) &&
+            !preserveThreatStopPrimary(primary, candidate) &&
             chroniclePriority(candidate.questionKind) > chroniclePriority(primary.questionKind) &&
             notWeaker(candidate, primary, inputs)
         )
-        .map(candidate => ChroniclePlanSurface(primary = candidate, secondary = Some(primary)))
-        .getOrElse(ChroniclePlanSurface(primary = primary, secondary = secondary))
+      if replayClosedNamedRouteNetwork(primary) then
+        eligibleSecondary.map(candidate => ChroniclePlanSurface(primary = candidate, secondary = None))
+      else
+        Some(
+          eligibleSecondary
+            .map(candidate => ChroniclePlanSurface(primary = candidate, secondary = Some(primary)))
+            .getOrElse(ChroniclePlanSurface(primary = primary, secondary = secondary.filterNot(replayClosedNamedRouteNetwork)))
+        )
     }
+
+  private def replayClosedNamedRouteNetwork(
+      plan: QuestionPlan
+  ): Boolean =
+    plan.ownerSource == NamedRouteNetworkBindCertification.OwnerSource ||
+      plan.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource)
 
   private def preserveThreatStopPrimary(
       primary: QuestionPlan,

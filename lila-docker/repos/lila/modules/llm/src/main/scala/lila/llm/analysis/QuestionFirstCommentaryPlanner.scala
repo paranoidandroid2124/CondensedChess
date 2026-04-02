@@ -275,6 +275,7 @@ private[llm] final case class QuestionPlannerInputs(
     evidenceBackedPlans: List[PlanHypothesis],
     opponentPlan: Option[PlanRow],
     factualFallback: Option[String],
+    heavyPieceLocalBindBlocked: Boolean = false,
     openingRelationClaim: Option[String] = None,
     endgameTransitionClaim: Option[String] = None
 )
@@ -339,6 +340,7 @@ private[llm] object QuestionPlannerInputsBuilder:
       evidenceBackedPlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx),
       opponentPlan = ctx.opponentPlan,
       factualFallback = QuietMoveIntentBuilder.exactFactualSentence(ctx),
+      heavyPieceLocalBindBlocked = HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx),
       openingRelationClaim = QuestionFirstCommentaryPlanner.openingRelationReplayClaim(ctx),
       endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx)
     )
@@ -844,6 +846,59 @@ private[llm] object QuestionFirstCommentaryPlanner:
         )
       )
 
+  private def localFileEntryChangeClaim(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    Option.unless(inputs.heavyPieceLocalBindBlocked) {
+      LocalFileEntryBindCertification
+        .certifiedSurfacePair(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+        .map(pair =>
+          s"This changes the position by taking the ${pair.file} away as a counterplay route and closing ${pair.entrySquare}."
+        )
+    }.flatten
+
+  private def localFileEntryChangeContrast(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    Option.unless(inputs.heavyPieceLocalBindBlocked) {
+      LocalFileEntryBindCertification
+        .certifiedSurfacePair(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+        .map(pair =>
+          s"Before the move, the ${pair.file} and the ${pair.entrySquare} entry were still available."
+        )
+    }.flatten
+
+  private def localFileEntryChangeConsequence(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    Option.unless(inputs.heavyPieceLocalBindBlocked) {
+      LocalFileEntryBindCertification
+        .certifiedSurfacePair(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+        .filter(_.counterplayScoreDrop > 0)
+        .map(pair =>
+          s"That removes roughly ${pair.counterplayScoreDrop}cp of counterplay from the local route."
+        )
+    }.flatten
+
+  private def hasCertifiedLocalFileEntryChange(
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    !inputs.heavyPieceLocalBindBlocked &&
+      LocalFileEntryBindCertification
+        .certifiedSurfacePair(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+        .nonEmpty
+
+  private def namedRouteNetworkWhyThisClaim(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    Option.unless(inputs.heavyPieceLocalBindBlocked) {
+      NamedRouteNetworkBindCertification
+        .certifiedSurfaceNetwork(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+        .map(network =>
+          s"This keeps ${network.entrySquare} closed, takes the ${network.file} away, and cuts off the ${network.rerouteSquare} reroute."
+        )
+    }.flatten
+
   private def preventedPlanChangeContrast(plan: PreventedPlanInfo): Option[String] =
     plan.breakNeutralized.map(file => s"Before the move, the $file-break was still available.")
       .orElse(plan.preventedThreatType.map(kind => s"Before the move, the opponent's $kind was still live."))
@@ -1051,20 +1106,29 @@ private[llm] object QuestionFirstCommentaryPlanner:
         case _ => None
 
     domainFirst.getOrElse {
+      val namedRouteClaim =
+        namedRouteNetworkWhyThisClaim(inputs)
       val ownerClaim =
-        inputs.mainBundle.flatMap(_.mainClaim).map(_.claimText)
+        namedRouteClaim
+          .orElse(inputs.mainBundle.flatMap(_.mainClaim).map(_.claimText))
           .orElse(inputs.quietIntent.map(_.claimText))
       ownerClaim match
         case None =>
           reject(question, QuestionPlanFallbackMode.FactualFallback, "missing_move_owner")
         case Some(claim) =>
+          val namedRouteOwner =
+            namedRouteClaim.contains(claim)
           val evidence =
             evidenceForQuestion(
               question = question,
               fallbackLine =
                 inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText)
                   .orElse(inputs.quietIntent.flatMap(_.evidenceLine)),
-              sourceKinds = List("main_bundle", "quiet_intent")
+              sourceKinds =
+                (
+                  List("main_bundle", "quiet_intent") ++
+                    Option.when(namedRouteOwner)(NamedRouteNetworkBindCertification.OwnerSource).toList
+                ).distinct
             )
           val contrast =
             inputs.decisionComparison.flatMap(_.deferredMove.map(move => s"The practical alternative $move remains secondary here."))
@@ -1098,10 +1162,14 @@ private[llm] object QuestionFirstCommentaryPlanner:
             fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
             strengthTier = strength,
             sourceKinds =
-              List(inputs.mainBundle.flatMap(_.mainClaim).map(_.sourceKind), inputs.quietIntent.map(_.sourceKind)).flatten,
+              (
+                List(inputs.mainBundle.flatMap(_.mainClaim).map(_.sourceKind), inputs.quietIntent.map(_.sourceKind)).flatten ++
+                  Option.when(namedRouteOwner)(NamedRouteNetworkBindCertification.OwnerSource).toList
+              ).distinct,
             admissibilityReasons = List("move_owner", "move_local_claim"),
             ownerFamily =
-              if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
+              if namedRouteOwner then OwnerFamily.MoveDelta
+              else if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
               else OwnerFamily.MoveDelta,
             ownerSource =
               inputs.mainBundle.flatMap(_.mainClaim).map(_.sourceKind)
@@ -1239,15 +1307,21 @@ private[llm] object QuestionFirstCommentaryPlanner:
       truthContract: Option[DecisiveTruthContract]
   ): Option[WhyNowTimingOwner] =
     val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
-    val preventedNamedOrBreak = inputs.preventedPlansNow.find(plan =>
-      plan.breakNeutralized.exists(_.trim.nonEmpty) ||
-        plan.preventedThreatType.exists(_.trim.nonEmpty)
-    )
-    val preventedCounterplayWindow = inputs.preventedPlansNow.find(plan =>
-      !plan.breakNeutralized.exists(_.trim.nonEmpty) &&
-        !plan.preventedThreatType.exists(_.trim.nonEmpty) &&
-        plan.counterplayScoreDrop >= 80
-    )
+    val preventedNamedOrBreak =
+      Option.unless(inputs.heavyPieceLocalBindBlocked) {
+        inputs.preventedPlansNow.find(plan =>
+          plan.breakNeutralized.exists(_.trim.nonEmpty) ||
+            plan.preventedThreatType.exists(_.trim.nonEmpty)
+        )
+      }.flatten
+    val preventedCounterplayWindow =
+      Option.unless(inputs.heavyPieceLocalBindBlocked) {
+        inputs.preventedPlansNow.find(plan =>
+          !plan.breakNeutralized.exists(_.trim.nonEmpty) &&
+            !plan.preventedThreatType.exists(_.trim.nonEmpty) &&
+            plan.counterplayScoreDrop >= 80
+        )
+      }.flatten
     urgentThreat.map(WhyNowTimingOwner.Threat.apply)
       .orElse(
         preventedNamedOrBreak
@@ -1283,13 +1357,17 @@ private[llm] object QuestionFirstCommentaryPlanner:
     val moveOwner = inputs.mainBundle.flatMap(_.mainClaim)
     val canPromoteDecisionComparisonChange =
       moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
+    val allowedPreventedPlans =
+      Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil)
     val moveLinkedChange =
       inputs.pvDelta.flatMap { delta =>
         resolvedThreatConsequence(delta)
           .orElse(newOpportunityConsequence(delta))
           .orElse(planAdvanceConsequence(delta))
       }.orElse {
-        inputs.preventedPlansNow.collectFirst(Function.unlift(preventedPlanChangeClaim))
+        localFileEntryChangeClaim(inputs)
+      }.orElse {
+        allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeClaim))
       }.orElse {
         Option.when(canPromoteDecisionComparisonChange)(decisionComparisonChangeClaim(inputs.decisionComparison)).flatten
       }
@@ -1307,7 +1385,9 @@ private[llm] object QuestionFirstCommentaryPlanner:
               delta.resolvedThreats.headOption.map(threat => s"Before the move, $threat was still on the board.")
                 .orElse(delta.concessions.headOption.map(concession => s"The tradeoff is that $concession."))
             }.orElse {
-              inputs.preventedPlansNow.collectFirst(Function.unlift(preventedPlanChangeContrast))
+              localFileEntryChangeContrast(inputs)
+            }.orElse {
+              allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeContrast))
             }.orElse {
               Option.when(canPromoteDecisionComparisonChange)(decisionComparisonChangeContrast(inputs.decisionComparison)).flatten
             }
@@ -1317,7 +1397,10 @@ private[llm] object QuestionFirstCommentaryPlanner:
                 .orElse(newOpportunityConsequence(delta))
                 .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
             }.orElse {
-              inputs.preventedPlansNow.collectFirst(Function.unlift(preventedPlanChangeConsequence))
+              localFileEntryChangeConsequence(inputs)
+                .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
+            }.orElse {
+              allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeConsequence))
                 .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
             }.orElse {
               Option.when(canPromoteDecisionComparisonChange)(decisionComparisonChangeConsequence(inputs.decisionComparison)).flatten
@@ -1326,7 +1409,8 @@ private[llm] object QuestionFirstCommentaryPlanner:
           val sourceKinds =
             moveOwner.toList.map(_.sourceKind) ++
               inputs.pvDelta.toList.map(_ => "pv_delta") ++
-              inputs.preventedPlansNow
+              Option.when(localFileEntryChangeClaim(inputs).nonEmpty)("prevented_plan").toList ++
+              allowedPreventedPlans
                 .find(plan =>
                   preventedPlanChangeClaim(plan).nonEmpty ||
                     preventedPlanChangeContrast(plan).nonEmpty ||
@@ -1346,7 +1430,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
                 question = question,
                 fallbackLine =
                   inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText)
-                    .orElse(inputs.preventedPlansNow.flatMap(_.citationLine).find(_.trim.nonEmpty)),
+                    .orElse(allowedPreventedPlans.flatMap(_.citationLine).find(_.trim.nonEmpty)),
                 sourceKinds = List("move_delta", "prevented_plan")
               ),
             contrast = contrast,
@@ -1359,9 +1443,13 @@ private[llm] object QuestionFirstCommentaryPlanner:
               if moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
               else if inputs.decisionComparison.exists(comparison => decisionComparisonChangeClaim(Some(comparison)).nonEmpty) &&
                 inputs.pvDelta.isEmpty &&
-                inputs.preventedPlansNow.forall(plan => preventedPlanChangeClaim(plan).isEmpty)
+                allowedPreventedPlans.forall(plan => preventedPlanChangeClaim(plan).isEmpty)
               then OwnerFamily.DecisionTiming
-              else if inputs.preventedPlansNow.exists(plan => preventedPlanChangeClaim(plan).nonEmpty) &&
+              else if hasCertifiedLocalFileEntryChange(inputs) &&
+                inputs.pvDelta.isEmpty &&
+                moveOwner.isEmpty
+              then OwnerFamily.MoveDelta
+              else if allowedPreventedPlans.exists(plan => preventedPlanChangeClaim(plan).nonEmpty) &&
                 inputs.pvDelta.isEmpty &&
                 moveOwner.isEmpty
               then OwnerFamily.ForcingDefense
@@ -1370,7 +1458,8 @@ private[llm] object QuestionFirstCommentaryPlanner:
               if moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then
                 moveOwner.map(_.sourceKind).getOrElse("move_delta")
               else if inputs.pvDelta.nonEmpty then "pv_delta"
-              else if inputs.preventedPlansNow.exists(plan => preventedPlanChangeClaim(plan).nonEmpty) then "prevented_plan"
+              else if hasCertifiedLocalFileEntryChange(inputs) then "prevented_plan"
+              else if allowedPreventedPlans.exists(plan => preventedPlanChangeClaim(plan).nonEmpty) then "prevented_plan"
               else if inputs.decisionComparison.exists(comparison => decisionComparisonChangeClaim(Some(comparison)).nonEmpty) then
                 "decision_comparison"
               else moveOwner.map(_.sourceKind).getOrElse("move_delta")
@@ -1418,11 +1507,14 @@ private[llm] object QuestionFirstCommentaryPlanner:
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
     val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
-    val preventedNow = inputs.preventedPlansNow.find(plan =>
-      plan.counterplayScoreDrop > 0 ||
-        plan.breakNeutralized.exists(_.trim.nonEmpty) ||
-        plan.preventedThreatType.exists(_.trim.nonEmpty)
-    )
+    val preventedNow =
+      Option.unless(inputs.heavyPieceLocalBindBlocked) {
+        inputs.preventedPlansNow.find(plan =>
+          plan.counterplayScoreDrop > 0 ||
+            plan.breakNeutralized.exists(_.trim.nonEmpty) ||
+            plan.preventedThreatType.exists(_.trim.nonEmpty)
+        )
+      }.flatten
     val claim =
       urgentThreat.map { threat =>
         s"This has to stop the opponent's ${threat.kind.toLowerCase} threat before it lands."
@@ -1498,7 +1590,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           bestImmediateThreat(inputs.opponentThreats).map(threat => s"the ${threat.kind.toLowerCase} threat")
         )
         .orElse(
-          inputs.preventedPlansNow.collectFirst {
+          Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil).collectFirst {
             case plan if plan.breakNeutralized.exists(_.trim.nonEmpty) =>
               s"the ${plan.breakNeutralized.get}-break"
           }
@@ -1511,14 +1603,19 @@ private[llm] object QuestionFirstCommentaryPlanner:
       bestImmediateThreat(inputs.opponentThreats)
         .map(threat => s"the reply window is short against the ${threat.kind.toLowerCase} threat")
         .orElse(
-          inputs.preventedPlansNow.collectFirst {
+          Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil).collectFirst {
             case plan if plan.breakNeutralized.exists(_.trim.nonEmpty) =>
               s"the ${plan.breakNeutralized.get}-break is the timing window"
           }
         )
         .orElse(urgencyRaceAnchor)
     if intent.isEmpty || battlefront.isEmpty || opponentRace.isEmpty || raceAnchor.isEmpty then
-      val onlyOpponentPressure = opponentRace.nonEmpty && (bestImmediateThreat(inputs.opponentThreats).nonEmpty || inputs.preventedPlansNow.nonEmpty)
+      val onlyOpponentPressure =
+        opponentRace.nonEmpty &&
+          (
+            bestImmediateThreat(inputs.opponentThreats).nonEmpty ||
+              Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).exists(_.nonEmpty)
+          )
       val onlyOurPlan = intent.nonEmpty || battlefront.nonEmpty || inputs.evidenceBackedPlans.nonEmpty
       if onlyOpponentPressure then
         resolveDemotion(
@@ -1832,7 +1929,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           }
         }.flatten,
         Option.unless(prefersRestrictedSuppressionMoveDeltaIngress(inputs)) {
-          inputs.preventedPlansNow
+          Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil)
             .find(plan =>
               preventedPlanTimingClaim(plan).nonEmpty ||
                 preventedPlanChangeClaim(plan).nonEmpty
@@ -1931,7 +2028,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
 
     val timingRefinements =
       List(
-        inputs.preventedPlansNow
+        Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil)
           .find(plan => preventedPlanTimingClaim(plan).nonEmpty)
           .map { _ =>
             ownerCandidate(
@@ -2136,7 +2233,10 @@ private[llm] object QuestionFirstCommentaryPlanner:
     val opponentRaceAvailable =
       inputs.opponentPlan.exists(plan => cleanLine(plan.name).nonEmpty) ||
         bestImmediateThreat(inputs.opponentThreats).nonEmpty ||
-        inputs.preventedPlansNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty))
+        (
+          !inputs.heavyPieceLocalBindBlocked &&
+            inputs.preventedPlansNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty))
+        )
     val ownRaceAvailable =
       inputs.decisionFrame.intent.nonEmpty ||
         (inputs.decisionFrame.battlefront.nonEmpty && inputs.evidenceBackedPlans.nonEmpty)

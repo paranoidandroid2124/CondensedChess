@@ -2,7 +2,7 @@ package lila.llm.analysis
 
 import play.api.libs.json.*
 import lila.llm.model.{ ProbeContractValidator, ProbeRequest, ProbeResult }
-import lila.llm.model.authoring.{ LatentPlanNarrative, PlanHypothesis }
+import lila.llm.model.authoring.PlanHypothesis
 import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId, SubplanSpec }
 
 /**
@@ -102,8 +102,6 @@ object PlanEvidenceEvaluator:
 
   case class PartitionedPlans(
       mainPlans: List[PlanHypothesis],
-      latentPlans: List[LatentPlanNarrative],
-      whyAbsentFromTopMultiPV: List[String],
       evaluated: List[EvaluatedPlan],
       diagnosticSidecar: DiagnosticPlanSidecar = DiagnosticPlanSidecar()
   )
@@ -167,8 +165,6 @@ object PlanEvidenceEvaluator:
     if hypotheses.isEmpty then
       PartitionedPlans(
         mainPlans = Nil,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         evaluated = Nil,
         diagnosticSidecar =
           DiagnosticPlanSidecar(
@@ -350,8 +346,6 @@ object PlanEvidenceEvaluator:
 
       PartitionedPlans(
         mainPlans = mainPlans,
-        latentPlans = Nil,
-        whyAbsentFromTopMultiPV = Nil,
         evaluated = evaluated,
         diagnosticSidecar =
           DiagnosticPlanSidecar(

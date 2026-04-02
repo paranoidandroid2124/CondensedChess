@@ -166,26 +166,46 @@ private[llm] object BookmakerLiveCompressionPolicy:
       rankedPlans: RankedQuestionPlans,
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlannerRenderSelection] =
-    rankedPlans.primary.map { primary =>
+    rankedPlans.primary.flatMap { primary =>
       val primaryTrace =
         ContrastiveSupportAdmissibility.decide(primary, inputs, truthContract)
-      rankedPlans.secondary
-        .filter(shouldPreferWhyNowSecondary(primary, _, primaryTrace))
-        .map { secondary =>
+      val eligibleSecondary =
+        rankedPlans.secondary
+          .filterNot(replayClosedNamedRouteNetwork)
+          .filter(shouldPreferWhyNowSecondary(primary, _, primaryTrace))
+      if replayClosedNamedRouteNetwork(primary) then
+        eligibleSecondary.map { secondary =>
           PlannerRenderSelection(
             primary = secondary,
-            secondary = Some(primary),
+            secondary = None,
             contrastTrace = ContrastiveSupportAdmissibility.decide(secondary, inputs, truthContract)
           )
         }
-        .getOrElse(
-          PlannerRenderSelection(
-            primary = primary,
-            secondary = rankedPlans.secondary,
-            contrastTrace = primaryTrace
-          )
+      else
+        Some(
+          eligibleSecondary
+            .map { secondary =>
+              PlannerRenderSelection(
+                primary = secondary,
+                secondary = Some(primary),
+                contrastTrace = ContrastiveSupportAdmissibility.decide(secondary, inputs, truthContract)
+              )
+            }
+            .getOrElse(
+              PlannerRenderSelection(
+                primary = primary,
+                secondary = rankedPlans.secondary.filterNot(replayClosedNamedRouteNetwork),
+                contrastTrace = primaryTrace
+              )
+            )
         )
     }
+
+  private def replayClosedNamedRouteNetwork(
+      plan: QuestionPlan
+  ): Boolean =
+    plan.ownerSource == NamedRouteNetworkBindCertification.OwnerSource ||
+      plan.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource)
 
   private def shouldPreferWhyNowSecondary(
       primary: QuestionPlan,

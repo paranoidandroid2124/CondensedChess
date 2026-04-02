@@ -759,9 +759,9 @@ Current rules:
     hot path
   - latent / pv-coupled / deferred strategic hypotheses are no longer runtime
     carriers:
-    `latentPlans` and `whyAbsentFromTopMultiPV` stay empty in user-facing
-    runtime responses, while structured diagnostic entries are emitted only to
-    local raw/debug sidecars
+    `latentPlans` and `whyAbsentFromTopMultiPV` are absent from user-facing
+    runtime responses and surfaced Chronicle moment payloads, while structured
+    diagnostic entries are emitted only to local raw/debug sidecars
   - runtime upstream no longer keeps dead latent/hold-reason branches alive:
     outline strategic-key derivation, strategic-stack context sentences,
     commentary-engine moment assembly, and debug narrative dumps do not rebuild
@@ -1333,6 +1333,42 @@ Current rules:
     `WhyThis`; existing move-delta `WhatChanged` remains legal only when it was
     already admissible on its own lane, and no new whole-position or whole-game
     owner path is opened
+  - local file-entry bind certification is now runtime-scoped on that same
+    restriction-prophylaxis lane:
+    `NarrativeContextBuilder` evaluates a backend-only
+    `LocalFileEntryBindCertification` contract for
+    `ThemeL1.RestrictionProphylaxis` experiments with
+    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` when current
+    `PreventedPlan` evidence shows one denied file corridor
+    (`deniedEntryScope = file`) plus one independent corroborating entry square
+  - this B4b slice is intentionally narrower than B3b:
+    it accepts only clearly-better late middlegames, keeps the extra
+    queen-light guard against heavy-piece release, requires opponent-facing
+    file usability loss instead of our file occupancy, direct best defense,
+    same-defended-branch file persistence plus same-defended-branch entry
+    persistence, bounded continuation, and no off-file release, tactical
+    release, fortress-like static hold, or move-order fragility
+  - uncertified local file-entry contracts fail closed before planner reuse:
+    when the contract is present and uncertified, `NarrativeContextBuilder`
+    forces the experiment evidence tier to `deferred` before
+    `mainStrategicPlans` are filtered for shared planner/Chronicle/Bookmaker/
+    Active reuse
+  - carrier closure stays inside the existing runtime path:
+    `StrategicAnalyzers.ProphylaxisAnalyzerImpl` may preserve
+    `deniedEntryScope = file` for bounded break-prevention cases, and
+    `NarrativeContextBuilder.convertPreventedPlan` now keeps
+    `deniedResourceClass` plus `deniedEntryScope` inside `PreventedPlanInfo`
+    so the internal carrier can still express file usability loss without a
+    new public API/frontend field
+  - surface reuse is tighter than the raw carrier:
+    `MainPathMoveDeltaClaimBuilder`, `QuietMoveIntentBuilder`, and
+    `QuestionFirstCommentaryPlanner` may use bounded file-entry wording only
+    when `StrategicNarrativePlanSupport.evidenceBackedMainPlans` still confirms
+    the experiment and the surviving evidence-backed plan's affirmative text
+    (`planName`, `executionSteps`) itself names the same file plus entry-square
+    pair; negative/caveat fields such as `failureModes` or `refutation` cannot
+    unlock that surface pair, so deferred or caveat-only shells cannot stitch a
+    residual main-plan proof back into player-facing surfaces
   - no new public payload/schema field exists for this slice; the certification
     contract is backend-only
   - removed latent probe purposes (`latent_plan_immediate`,
@@ -1363,7 +1399,8 @@ Current rules:
     remain move-attributed and certified
   - when no admissible question plan survives, outline falls back directly to
     exact factual move text instead of reviving question shells or speculative
-    strategic prose
+    strategic prose; an empty author-question list may not reopen
+    decision/meta/close-candidate shell text as a `DecisionPoint` owner
   - planner factual fallback reasons (`missing_claim`, `missing_move_owner`,
     `state_truth_only`, `missing_certified_race_pair`) remain trace-only:
     the surfaced fallback claim comes from literal `exactFactualSentence`
@@ -1505,6 +1542,172 @@ Primary files:
   dual-axis positives may surface only as bounded planner-owned `WhyThis`,
   while uncertified shells may not re-inflate into forcing-defense, payoff,
   wrap-up, or whole-position owner lanes
+
+### Local file-entry bind certification
+
+- backend-only helper `LocalFileEntryBindCertification` gates only the first
+  B4b slice:
+  `RestrictionProphylaxis` strategic experiments with
+  `BreakPrevention` / `KeySquareDenial` when current `PreventedPlan` evidence
+  shows one denied file corridor and one independent corroborating entry square
+- the helper reuses the existing narrative build inputs instead of opening a
+  new runtime lane:
+  `PlanEvidenceEvaluator` output, validated probe purposes
+  (`route_denial_validation`, `long_term_restraint_validation`,
+  `defense_reply_multipv`, `reply_multipv`, `convert_reply_multipv`),
+  `PreventedPlan` data, and current phase / ply / FEN metadata all come from
+  `NarrativeContextBuilder`
+- the helper records a bounded internal contract:
+  strategy hypothesis, local claim scope (`local_file_entry`), primary file
+  axis, one corroborating entry axis, axis independence, file-usability
+  evidence, entry persistence, route continuity, remaining release risks,
+  fortress risk, move-order fragility, reinflation risk, fail reasons,
+  confidence, and evidence sources
+- certification is intentionally narrower than B3b:
+  clearly-better late middlegame only, with an extra queen-light guard; it
+  requires opponent-facing file usability loss rather than our file occupancy,
+  one independent corroborating entry square, direct best defense,
+  same-defended-branch file persistence plus same-defended-branch entry
+  persistence, bounded continuation, and no off-file release, tactical
+  release, fortress-like static hold, move-order fragility, or slight-edge
+  posture; explicit hard-fail reasons now include
+  `entry_axis_persistence_missing`
+- `StrategicAnalyzers.ProphylaxisAnalyzerImpl` and
+  `NarrativeContextBuilder.convertPreventedPlan` provide the minimal carrier
+  closure for this slice:
+  bounded break-prevention rows may now preserve `deniedEntryScope = file`, and
+  `PreventedPlanInfo` now retains `deniedResourceClass` plus `deniedEntryScope`
+  inside the existing internal carrier
+- `NarrativeContextBuilder` applies the B4b contract after the
+  restricted-defense evidence-tier gate and before the B3b/B2b player-facing
+  tier is finalized; when the local file-entry contract exists and is
+  uncertified, the experiment becomes `deferred` instead of remaining
+  `evidence_backed`
+- validation-only shells, occupancy-only shells, off-file release shells, and
+  cross-branch stitched proof bundles fail closed at that builder gate rather
+  than borrowing broader restriction evidence into a positive B4b certificate;
+  a measured corroborating entry square that does not stay unavailable on the
+  same defended branch also fails closed instead of surviving as a soft
+  confidence penalty
+- `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
+  gate, and `LocalFileEntryBindCertification.certifiedSurfacePair` also reads
+  only experiment-filtered evidence-backed plans plus file/entry pairs that are
+  explicitly named in the surviving plan's affirmative text
+  (`planName`, `executionSteps`), so Chronicle / Bookmaker / builder-owned
+  move-delta surfaces cannot revive a deferred residual shell or a pair that
+  appears only inside negative/refutation wording
+- `QuestionFirstCommentaryPlanner` keeps the existing owner architecture:
+  certified B4b claims may surface only as bounded planner-owned `WhyThis` and
+  bounded move-linked `WhatChanged`; no new `WhyNow`, whole-position, Active
+  owner, or whole-game owner lane is opened
+
+### Named route-network bind narrow positive slice
+
+- scope:
+  backend-only `NamedRouteNetworkBindCertification` now hardens and narrows the
+  first B6b positive slice on the same
+  `RestrictionProphylaxis -> file-entry reuse` lane:
+  one already-certifiable B4 file-entry pair plus one independently denied
+  reroute, all on the same defended branch, only in clearly-better late
+  middlegames
+- runtime path:
+  `NarrativeContextBuilder` evaluates the B6 helper immediately after
+  `LocalFileEntryBindCertification` and before `HeavyPieceLocalBindValidation`,
+  reusing the same `PlanEvidenceEvaluator` experiments, current `PreventedPlan`
+  rows, reply/validation/continuity probe purposes, and phase / ply / FEN
+  metadata; no new ingress, payload, or planner lane is opened
+- contract:
+  the helper records only backend-local evidence:
+  claim scope (`named_route_network_bind`), primary file axis, route nodes,
+  route edges, reroute denials, axis independence, best-defense branch key,
+  same-branch continuity, bounded continuation, release risks, mirage /
+  redundancy / reinflation risk, move-order fragility, fail reasons, confidence,
+  and evidence sources
+- hard-fail reasons:
+  `file_entry_restatement_only`, `route_network_mirage`,
+  `redundant_square_counting`, `untouched_sector_reroute`,
+  `color_complex_escape`, `cross_branch_stitching`,
+  `static_net_without_progress`, `engine_pv_paraphrase`,
+  `move_order_fragility`, `heavy_piece_release_shell`, and
+  `surface_reinflation`
+- player-facing effect:
+  when a B6 contract is present and uncertified, `NarrativeContextBuilder`
+  downgrades the experiment to `deferred` before
+  `StrategicNarrativePlanSupport.filterEvidenceBacked` can share the plan with
+  planner/replay surfaces
+- positive owner scope:
+  `QuestionFirstCommentaryPlanner` may use
+  `NamedRouteNetworkBindCertification.certifiedSurfaceNetwork` only for
+  planner-owned `WhyThis`, keeping the existing move-delta owner lane and
+  tagging the plan with `sourceKinds += named_route_network_bind`;
+  `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game replay do not
+  gain a new positive owner lane
+- replay closure:
+  `GameChronicleCompressionPolicy`, `BookmakerLiveCompressionPolicy`, and
+  `ActiveStrategicCoachingBriefBuilder` now treat
+  `sourceKinds = named_route_network_bind` as replay-closed, so an uncertified
+  or planner-only route-network shell cannot re-inflate through replay
+  selection
+- exact-board status:
+  the direct B6 validation suite is FEN-anchored and the local engine verifier
+  reproduces the positive reroute-denial branch as an exact MultiPV witness,
+  but current close review does not yet treat the positive control as a stable
+  top-1 root line; broader B6 expansion remains closed until that proof
+  strengthens
+
+### Heavy-piece local bind negative-first validation
+
+- scope:
+  backend-only `HeavyPieceLocalBindValidation` hardens only the B5b
+  negative-first slice:
+  queen-on, clearly-better, late-middlegame
+  `RestrictionProphylaxis` experiments with `BreakPrevention` /
+  `KeySquareDenial` that already resemble a bounded B4 file-entry shell
+- runtime path:
+  no parallel lane opens; `NarrativeContextBuilder` reuses the audited
+  `PlanEvidenceEvaluator` experiment, current `PreventedPlan` file/entry pair,
+  branch-keyed reply / validation / convert probes, and phase / ply / FEN
+  metadata
+- contract role:
+  containment only, not positive certification; it records
+  `claimScope = heavy_piece_local_bind`,
+  `bestDefenseBranchKey`, `sameDefendedBranch`,
+  `heavyPieceReleaseInventory`, `perpetualRisk`,
+  `bestDefenseReleaseSurvivors`, `tacticalReleaseDensity`,
+  `releaseRisksRemaining`, `pressurePersistence`, `routeContinuity`,
+  `fileOccupancyOnlyRisk`, `fortressRisk`, `counterplayReinflationRisk`,
+  `moveOrderFragility`, `claimCertification`, `confidence`, and
+  `evidenceSources`
+- exact-board truth rule:
+  release proof is replay-derived only; `heavyPieceReleaseInventory` comes from
+  exact FEN-backed reply replays and `bestDefenseReleaseSurvivors` stays pinned
+  to `bestReplyPv` plus same-branch validation best replies
+- replay fail-close:
+  illegal, paraphrased, wrong-base, short-fragment, and
+  legal-prefix-plus-illegal-tail lines contribute no release proof; replay
+  features count only from complete proof-eligible exact branches
+- runtime effect:
+  `NarrativeContextBuilder` forces player-facing evidence to `deferred` when the
+  heavy-piece contract exists, and `MainPathMoveDeltaClaimBuilder`,
+  `QuietMoveIntentBuilder`, and `QuestionFirstCommentaryPlanner` block file-entry
+  shell reuse so Chronicle / Bookmaker / Active / whole-game replay cannot
+  re-inflate the deferred shell
+- boundary:
+  the helper applies only when both queens are still present, so the existing B4
+  queen-light / queenless positive slice remains live; future B6+ roadmap lives
+  in `CommentaryProgramMap.md` / `CommentaryTrustHardening.md`, not here
+- hard-fail reasons:
+  `heavy_piece_release_illusion`, `hidden_off_sector_break`,
+  `pressure_only_waiting_move`, `direct_best_defense_missing`,
+  `stitched_heavy_piece_bundle`, `move_order_fragility`,
+  `fortress_like_but_not_progressing`, `engine_pv_paraphrase`, and
+  `surface_reinflation`
+- regression anchors:
+  `HeavyPieceLocalBindNegativeValidationTest`,
+  `HeavyPieceLocalBindExactBranchReplayTest`, and
+  `HeavyPieceLocalBindEngineVerificationTest` keep the exact-FEN nasty corpus,
+  exact-branch replay proof, and fixed-depth PV1 reproduction reproducible
+  no new public payload/schema field or prose family was added
 
 ### Compensation normalization
 
@@ -1804,7 +2007,10 @@ Current owner map for Stage-4 surface uplift:
 - live owners:
   - `PlanEvidenceEvaluator`
   - `RestrictedDefenseConversionCertification`
+  - `CounterplayAxisSuppressionCertification`
   - `DualAxisBindCertification`
+  - `LocalFileEntryBindCertification`
+  - `HeavyPieceLocalBindValidation`
   - `PlayerFacingTruthModePolicy`
   - `MainPathMoveDeltaClaimBuilder`
   - `QuietMoveIntentBuilder`

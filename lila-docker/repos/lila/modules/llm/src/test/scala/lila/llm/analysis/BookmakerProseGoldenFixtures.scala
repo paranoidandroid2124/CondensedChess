@@ -841,8 +841,6 @@ object BookmakerProseGoldenFixtures:
             decision = None,
             mainStrategicPlans = Nil,
             strategicPlanExperiments = Nil,
-            latentPlans = Nil,
-            whyAbsentFromTopMultiPV = Nil,
             authorQuestions = List(question("q_why_this_negative", AuthorQuestionKind.WhyThis))
           ),
         strategyPack = Some(pressurePack()),

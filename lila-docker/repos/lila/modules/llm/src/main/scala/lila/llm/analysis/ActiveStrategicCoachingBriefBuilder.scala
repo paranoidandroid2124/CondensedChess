@@ -213,25 +213,35 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       val secondary = rankedPlans.secondary
       val swapped =
         secondary.filter(candidate =>
-          activePriority(candidate.questionKind) > activePriority(primary.questionKind) &&
+          !replayClosedNamedRouteNetwork(candidate) &&
+            activePriority(candidate.questionKind) > activePriority(primary.questionKind) &&
             activeKindAllowed(candidate.questionKind) &&
             notWeaker(candidate, primary, inputs)
         )
       val selected =
-        if !activeKindAllowed(primary.questionKind) then
+        if replayClosedNamedRouteNetwork(primary) then
+          swapped.map(candidate => PlannerSurfaceSelection(candidate, None, inputs))
+        else if !activeKindAllowed(primary.questionKind) then
           swapped.map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
         else
           swapped
             .map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
-            .orElse(Some(PlannerSurfaceSelection(primary, secondary, inputs)))
+            .orElse(Some(PlannerSurfaceSelection(primary, secondary.filterNot(replayClosedNamedRouteNetwork), inputs)))
       selected.filter { selection =>
         activeKindAllowed(selection.primary.questionKind) &&
+          !replayClosedNamedRouteNetwork(selection.primary) &&
           (
             selection.primary.questionKind != AuthorQuestionKind.WhatChanged ||
               compactWhatChanged(selection.primary)
           )
       }
     }
+
+  private def replayClosedNamedRouteNetwork(
+      plan: QuestionPlan
+  ): Boolean =
+    plan.ownerSource == NamedRouteNetworkBindCertification.OwnerSource ||
+      plan.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource)
 
   private def activePriority(kind: AuthorQuestionKind): Int =
     kind match
@@ -580,6 +590,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
         mobilityDelta = 0,
         counterplayScoreDrop = counterplayDrop,
         preventedThreatType = threatType,
+        deniedResourceClass = None,
+        deniedEntryScope = None,
         sourceScope = FactScope.Now,
         citationLine = dossier.flatMap(_.evidenceCue).flatMap(cleanStringSignal)
       )

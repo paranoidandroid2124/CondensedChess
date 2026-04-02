@@ -23,7 +23,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
       renderMode = NarrativeRenderMode.Bookmaker
     )
 
-  test("build falls back to engine-gap deferred branch when legacy whyAbsent text is present") {
+  test("build falls back to engine-gap deferred branch when engine evidence and counterfactual diverge") {
     val best =
       VariationLine(
         moves = List("g2g4", "a7a6", "h4h5"),
@@ -46,7 +46,6 @@ class DecisionComparisonBuilderTest extends FunSuite:
 
     val ctx = baseContext.copy(
       engineEvidence = Some(EngineEvidence(depth = 20, variations = List(best))),
-      whyAbsentFromTopMultiPV = List("""the immediate "g4" push loses 220 cp"""),
       counterfactual = Some(
         CounterfactualMatch(
           userMove = "h4",

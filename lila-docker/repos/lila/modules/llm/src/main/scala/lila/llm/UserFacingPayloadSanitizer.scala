@@ -26,8 +26,6 @@ object UserFacingPayloadSanitizer:
         response.strategicPlanExperiments
           .filter(experiment => planExperimentAllowed(experiment.planId, experiment.subplanId, allowedPlanKeys, allowedPlanIds))
           .map(sanitizeStrategicPlanExperiment),
-      latentPlans = Nil,
-      whyAbsentFromTopMultiPV = Nil,
       planStateToken = response.planStateToken.filter(_ => sanitizedPlans.nonEmpty),
       strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
@@ -85,8 +83,6 @@ object UserFacingPayloadSanitizer:
         moment.strategicPlanExperiments
           .filter(experiment => planExperimentAllowed(experiment.planId, experiment.subplanId, allowedPlanKeys, allowedPlanIds))
           .map(sanitizeStrategicPlanExperiment),
-      latentPlans = Nil,
-      whyAbsentFromTopMultiPV = Nil,
       activeStrategicNote = cleanOpt(moment.activeStrategicNote),
       activeStrategicIdeas = moment.activeStrategicIdeas.map(sanitizeActiveIdeaRef),
       activeStrategicRoutes = moment.activeStrategicRoutes.map(sanitizeActiveRouteRef),

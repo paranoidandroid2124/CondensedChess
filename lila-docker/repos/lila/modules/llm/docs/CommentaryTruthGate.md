@@ -383,6 +383,94 @@ plus the local quality-audit rerun artifacts referenced there.
   - uncertified dual-axis shells must downgrade before Chronicle / Bookmaker /
     Active / whole-game replay, and support-only carriers may not re-inflate
     them afterward
+- bounded local file-entry bind is planner-gated too:
+  - only `RestrictionProphylaxis` strategic experiments with backend-only
+    local file-entry certification may remain `evidence_backed` for B4b
+    player-facing file-entry bind claims
+  - the certified claim scope is still local only:
+    one denied file corridor plus one independent corroborating entry square,
+    not whole-position `no-counterplay`, not a standalone square network, and
+    not a heavy-piece clamp thesis
+  - certification must be based on the narrow B4b slice:
+    clearly-better late middlegame only, with an extra queen-light guard;
+    `deniedEntryScope = file` plus a measured independent entry square,
+    opponent-facing file usability loss rather than our file occupancy,
+    concrete direct best defense, same-defended-branch file persistence plus
+    same-defended-branch entry persistence, bounded continuation, and no
+    off-file release, tactical release, fortress-like static hold,
+    slight-edge posture, or move-order fragility; explicit hard-fail reasons
+    include `entry_axis_persistence_missing`
+  - PV paraphrase, file occupancy alone, route pressure without actual file
+    usability loss, or a corroborating square that simply restates the file
+    axis are not certification
+  - validation-only corroboration may not stand in for direct best-defense
+    evidence, and cross-branch stitched proof bundles are not certification
+  - certified local file-entry bind may stay only on bounded planner-owned
+    `WhyThis` and bounded move-linked `WhatChanged`; B4b opens no new `WhyNow`,
+    whole-position, Active-owner, or whole-game owner lane
+  - uncertified local file-entry shells must downgrade before Chronicle /
+    Bookmaker / Active / whole-game replay, and support-only or residual
+    main-plan carriers may not re-inflate them afterward; runtime surface
+    helpers must read experiment-filtered evidence-backed plans before they may
+    reconstruct any file-entry claim, and they may use only affirmative plan
+    text (`planName`, `executionSteps`) rather than negative fields such as
+    `failureModes` or `refutation` when checking whether a file-entry pair was
+    actually named
+- named route-network bind is now a narrower planner-only extension of that same
+  lane:
+  - only backend-only `NamedRouteNetworkBindCertification` may keep a B6b claim
+    `evidence_backed`, and only when a certified B4 file-entry pair plus one
+    non-redundant reroute denial survive the same defended branch under clear
+    advantage in a late middlegame
+  - certification is stricter than B4, not a rename:
+    `file_entry_restatement_only`, `route_network_mirage`,
+    `redundant_square_counting`, `untouched_sector_reroute`,
+    `color_complex_escape`, `cross_branch_stitching`,
+    `static_net_without_progress`, `engine_pv_paraphrase`,
+    `move_order_fragility`, `heavy_piece_release_shell`, and
+    `surface_reinflation` all hard-fail before any positive wording survives
+  - the only positive owner scope is planner-owned `WhyThis`, keeping the
+    existing move-delta owner lane and tagging the plan with
+    `sourceKinds += named_route_network_bind`; `WhatChanged`, Chronicle,
+    Bookmaker, Active, and whole-game replay remain closed to that tag
+  - replay selection must fail closed on route-network planner plans:
+    Chronicle / Bookmaker / Active may not reuse a
+    `named_route_network_bind` primary, and whole-game / wrap-up remain outside
+    the slice
+  - close-review caveat:
+    the exact FEN positive control is reproduced by the local engine as a
+    MultiPV reroute-denial witness, but not yet as a stable top-1 root line, so
+    the slice is implementation-green but not yet broad-signoff green
+- heavy-piece local bind is now guarded only as a negative-first B5b slice:
+  - only queen-on clearly-better late-middlegame
+    `RestrictionProphylaxis -> file-entry reuse` shells are inspected by the
+    backend-only `HeavyPieceLocalBindValidation` contract
+  - heavy-piece release proof is exact-branch first:
+    release inventory must come from replayable FEN-backed UCI branches, and
+    best-defense survivors must stay pinned to PV1 / same-branch best replies,
+    so illegal, paraphrased, wrong-base, short-fragment, or
+    legal-prefix-plus-illegal-tail heavy-piece lines do not certify release
+    claims by text motif alone
+  - that contract does not certify a new positive thesis:
+    it may only downgrade the experiment to `deferred` and block planner /
+    move-delta / quiet-intent / replay reinflation when
+    `heavy_piece_release_illusion`, `hidden_off_sector_break`,
+    `pressure_only_waiting_move`, `direct_best_defense_missing`,
+    `stitched_heavy_piece_bundle`, `move_order_fragility`,
+    `fortress_like_but_not_progressing`, `engine_pv_paraphrase`, or
+    `surface_reinflation` appears
+  - B4 queen-light local file-entry certification remains the only live
+    positive slice on this lane; B5b opens no heavy-piece positive wording,
+    no new owner lane, and no public payload change
+  - fixed-depth engine verification is now part of the negative-first audit:
+    exact FEN fixtures must reproduce the full pinned PV1 path and its
+    replay-derived feature set under the local UCI verifier before we treat
+    the best-path anchor as reproduced, and the verifier should prefer an
+    explicit configured engine binary over any local fallback
+  - close-review interpretation:
+    this bounded B5b containment slice is `close-ready` only inside the
+    negative-first charter; heavy-piece positive wording and broader B5/B6
+    frontier work stay deferred
 - Bookmaker and Active may use compensation-positive language only when the
   contract allows compensation framing.
 - fake compensation suppression and real investment exemplar preservation are
@@ -474,7 +562,9 @@ plus the local quality-audit rerun artifacts referenced there.
   - planner factual fallback reasons are diagnostic-only:
     if planner admission fails and only `exactFactualSentence` survives, the
     user-facing claim must stay at literal move-shape scope and may not turn
-    ambiguous capture shape into generalized “simplifying” or exchange meaning
+    ambiguous capture shape into generalized “simplifying” or exchange meaning;
+    an empty author-question list may not rebuild decision/meta/close-candidate
+    shell prose as a substitute owner
   - Bookmaker prose now consumes that same planner output directly:
     `primary.claim` is the only owner of the main Bookmaker claim,
     `secondary` is support-only, and planner admission failure or slot
@@ -614,8 +704,8 @@ plus the local quality-audit rerun artifacts referenced there.
     structural-only escalations remain diagnostic-only
   - latent / pv-coupled / deferred ideas are not runtime carriers:
     `latentPlans`, `whyAbsentFromTopMultiPV`, and signal-digest latent hints
-    stay empty in user-facing runtime payloads; their structured diagnostics
-    live only in local raw/debug sidecars
+    are absent from user-facing runtime payloads and surfaced Chronicle moment
+    payloads; their structured diagnostics live only in local raw/debug sidecars
   - latent / hold-reason branches are also removed from upstream narrative
     assembly:
     runtime outline/debug/main-moment builders may not derive strategic prose
