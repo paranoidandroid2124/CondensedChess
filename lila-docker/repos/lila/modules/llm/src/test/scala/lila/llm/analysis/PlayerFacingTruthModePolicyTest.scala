@@ -1383,7 +1383,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(QuietMoveIntentBuilder.build(ctx), None)
   }
 
-  test("regrouping-style piece improvement does not materialize the prophylactic exact owner path") {
+  test("defensive-regrouping stays absorbed into prophylactic_move rather than opening a distinct owner path") {
     val ctx =
       baseCtx().copy(
         fen = "r1bq1rk1/pp3ppp/2n1pn2/2bp4/3P4/2N1PN2/PPQ2PPP/R1B2RK1 w - - 0 12",
@@ -1474,7 +1474,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     }
   }
 
-  test("open-file pressure without an independent entry denial stays outside the exact file-entry owner path") {
+  test("open-file-control stays absorbed into half-open-file pressure without an independent file-entry proof") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",

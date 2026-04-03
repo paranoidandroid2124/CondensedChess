@@ -984,14 +984,18 @@ Current rules:
     branch`), and Active plus whole-game replay remain closed. Generic
     prophylaxis praise, whole-position no-counterplay, move-order-fragile
     shells, support-only reinflation, and heavy-piece relabel stay fail-closed
-  - `defensive_regrouping` remains candidate only:
-    regrouping-style piece-improvement plans do not inherit the promoted
-    `counterplay_restraint` owner path, so no new exact move-local owner lane
-    opens for generic consolidation or improvement rhetoric
-  - bounded `open_file_control` remains candidate only:
+  - `defensive_regrouping` is now triaged as absorbed into
+    `prophylactic_move`, not as an independent promotion candidate:
+    regrouping-style piece-improvement plans do not gain a distinct exact
+    owner path, so any truthful regrouping explanation stays subordinate to a
+    separately certified promoted `prophylactic_move`; generic consolidation
+    or improving-move rhetoric still opens no new owner lane
+  - bounded `open_file_control` is now triaged as absorbed into
+    `half_open_file_pressure`, not as an independent promotion candidate:
     `OpenFilePressure` / `RookFileTransfer` do not gain a distinct exact owner
-    path without the already-certified local file-entry pair, so no separate
-    `open_file_control` family or broader open-file wording opens in runtime
+    path beyond the already-certified local file-entry pair, so exact positive
+    release remains owned only by `half_open_file_pressure` and broader
+    open-file wording still stays closed
   - `trade_key_defender` remains blocked without an exact cert owner path, so
     this change does not widen broader B2/B6/B7/B8 rhetoric
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is

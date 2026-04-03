@@ -116,12 +116,14 @@ Use the documents in this order:
   whole-position no-counterplay, move-order fragility, heavy-piece relabel,
   and support-only reinflation remain fail-closed. Active and whole-game
   replay stay closed for this family too.
-  `defensive_regrouping` remains candidate:
+  `defensive_regrouping` is now triaged as absorbed into `prophylactic_move`:
   regrouping-style piece-improvement plans still lack a distinct exact owner
-  path and may not borrow the promoted prophylactic release.
-  bounded `open_file_control` remains candidate:
+  path and may appear only as subordinate wording/evidence under a separately
+  certified promoted prophylactic release.
+  bounded `open_file_control` is now triaged as absorbed into
+  `half_open_file_pressure`:
   `OpenFilePressure` / `RookFileTransfer` still need the already-certified
-  local file-entry pair and do not open a separate exact owner lane.
+  local file-entry pair, so they do not open a separate exact owner lane.
   `trade_key_defender` remains blocked on exact owner-path materialization.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now
