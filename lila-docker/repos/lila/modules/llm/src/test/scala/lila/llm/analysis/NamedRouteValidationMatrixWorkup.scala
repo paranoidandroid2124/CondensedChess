@@ -131,7 +131,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "yes"
       ),
       Candidate(
-        id = "k09c",
+        id = "b6_k09c",
         source = "StrategicIdeaFenFixtures.K09C / modules/llm/tmp/b6-second-survivor-campaign-20260402.md",
         fen = "r1b1r1k1/pp1qbpp1/2n2n1p/3p4/3N4/P1N1B1P1/1P2PPBP/R2Q1RK1 w - - 1 13",
         trigger = "d1b3",
@@ -148,7 +148,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "no"
       ),
       Candidate(
-        id = "k09g",
+        id = "b6_k09g",
         source = "StrategicIdeaFenFixtures.K09G / modules/llm/tmp/b6-second-survivor-campaign-20260402.md",
         fen = "r2qr1k1/pp2bpp1/4bn1p/n2p4/3N4/1QN1B1P1/PP2PPBP/R4RK1 w - - 6 14",
         trigger = "b3c2",
@@ -166,7 +166,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "no"
       ),
       Candidate(
-        id = "k09h",
+        id = "b6_k09h",
         source = "StrategicIdeaFenFixtures.K09H / modules/llm/tmp/b6-second-survivor-campaign-20260402.md",
         fen = "r1b1r1k1/pp1qbpp1/5n1p/3pn3/1P1N4/P1N1B1P1/4PPBP/R2Q1RK1 w - - 1 14",
         trigger = "d1b3",
@@ -183,7 +183,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "no"
       ),
       Candidate(
-        id = "b21a",
+        id = "b6_b21a",
         source = "StrategicIdeaFenFixtures.B21A / modules/llm/tmp/b6-second-survivor-campaign-20260402.md",
         fen = "rnbqr1k1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 2 1",
         trigger = "f3d2",
@@ -200,7 +200,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "yes"
       ),
       Candidate(
-        id = "rubinstein_duras",
+        id = "b6_rubinstein_duras",
         source = "modules/llm/tmp/b6-second-survivor-campaign-20260402.md",
         fen = "r4bk1/1r2n1p1/p2p1p1p/1q1Pp3/2N1P3/RP1QBPP1/6KP/R7 w - - 0 27",
         trigger = "d3d2",
@@ -217,7 +217,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "yes"
       ),
       Candidate(
-        id = "shirov_kinsman",
+        id = "b6_shirov_kinsman",
         source = "modules/llm/tmp/b7-second-survivor-hunt-20260402.md",
         fen = "8/1prrk1p1/p1p1ppb1/P1P3p1/2BPP3/4KPP1/1R5P/1R6 w - - 0 1",
         trigger = "h2h4",
@@ -234,7 +234,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "yes"
       ),
       Candidate(
-        id = "alekhine_vidmar",
+        id = "b6_alekhine_vidmar",
         source = "modules/llm/tmp/b7-second-survivor-hunt-20260402.md",
         fen = "1r3k2/2n2ppp/2B1p3/8/RP6/4P3/5PPP/6K1 w q - 0 1",
         trigger = "b4b5",
@@ -246,6 +246,82 @@ object NamedRouteValidationMatrixWorkup:
         baselineDownstreamRerouteDenial = "no",
         baselineContinuationBound = "yes",
         baselineReleaseSuppression = "n/a",
+        distinctFromB4 = "yes",
+        distinctFromB5 = "yes",
+        distinctFromB7 = "yes"
+      ),
+      Candidate(
+        id = "b6_ext_karpov_kavalek",
+        source =
+          "modules/llm/tmp/frontier-proving-handoff-20260403.md / https://dgriffinchess.wordpress.com/wp-content/uploads/2021/09/karpov-kavalek-21st-olympiad-nice-1974.pdf",
+        fen = "2r3k1/1pr1ppbp/p2p2p1/2nP3P/2P2P2/1P2B3/P2KB1P1/2R4R w - - 1 23",
+        trigger = "e2g4",
+        family = FamilyHint.BroaderB6,
+        note =
+          "exact foothold recovered, but Bg4/g4/Rxc4 all stayed non-root and the branch keeps heavy-piece contamination live",
+        bestDefensePrefix = List("c5e4", "d2d3", "f7f5"),
+        baselineSameBranch = "yes",
+        baselineIntermediateDetour = "no",
+        baselineDownstreamRerouteDenial = "no",
+        baselineContinuationBound = "yes",
+        baselineReleaseSuppression = "yes",
+        distinctFromB4 = "yes",
+        distinctFromB5 = "no",
+        distinctFromB7 = "yes"
+      ),
+      Candidate(
+        id = "b6_ext_karpov_timman_1979",
+        source =
+          "modules/llm/tmp/frontier-proving-handoff-20260403.md / https://dgriffinchess.wordpress.com/wp-content/uploads/2019/05/karpov-timman-montreal-1979.pdf",
+        fen = "3rb3/2q1rpbk/n1pp1npp/p7/4PPP1/2P2NNP/1PQ2BB1/3RR1K1 w - - 7 25",
+        trigger = "c2d3",
+        family = FamilyHint.BroaderB6,
+        note =
+          "Qd3 is root-best on the exact board, but the defended line stays prophylactic and never hardens into a B6-clean reroute denial",
+        bestDefensePrefix = List("d8a8", "d3d2", "f6d7"),
+        baselineSameBranch = "yes",
+        baselineIntermediateDetour = "no",
+        baselineDownstreamRerouteDenial = "no",
+        baselineContinuationBound = "yes",
+        baselineReleaseSuppression = "yes",
+        distinctFromB4 = "no",
+        distinctFromB5 = "yes",
+        distinctFromB7 = "yes"
+      ),
+      Candidate(
+        id = "b6_ext_karpov_unzicker",
+        source =
+          "modules/llm/tmp/frontier-proving-handoff-20260403.md / https://dgriffinchess.wordpress.com/wp-content/uploads/2021/09/karpov-unzicker-21st-olympiad-nice-1974.pdf",
+        fen = "r1rq1bk1/Bnnb1p1p/3p2p1/1p1Pp3/1Pp1P3/2P2NNP/R1BQ1PP1/4R1K1 w - - 6 26",
+        trigger = "e1a1",
+        family = FamilyHint.BroaderB6,
+        note =
+          "Rea1 is root-best only after the exact Ne8-Nc7 corridor, but the defended branch still allows a downstream reroute and the same-game B8 overlap stays live",
+        bestDefensePrefix = List("d8e7", "c2d1", "c7e8"),
+        baselineSameBranch = "yes",
+        baselineIntermediateDetour = "yes",
+        baselineDownstreamRerouteDenial = "no",
+        baselineContinuationBound = "yes",
+        baselineReleaseSuppression = "yes",
+        distinctFromB4 = "yes",
+        distinctFromB5 = "yes",
+        distinctFromB7 = "yes"
+      ),
+      Candidate(
+        id = "b6_ext_kasparov_karpov_1985",
+        source =
+          "modules/llm/tmp/frontier-proving-handoff-20260403.md / https://www.latimes.com/archives/la-xpm-1985-09-16-mn-22008-story.html",
+        fen = "b1rn1bk1/3n1ppp/8/1p6/1q2P3/5N1P/BB1N1PP1/3QR1K1 w - - 3 25",
+        trigger = "d2b3",
+        family = FamilyHint.BroaderB6,
+        note =
+          "the exact Game 5 corridor is recovered, but Nb3 is not root-best and the branch drifts into the wrong-game-same-players / after-trigger-only trap",
+        bestDefensePrefix = List("d7c5", "b2e5", "a8e4"),
+        baselineSameBranch = "yes",
+        baselineIntermediateDetour = "no",
+        baselineDownstreamRerouteDenial = "no",
+        baselineContinuationBound = "yes",
+        baselineReleaseSuppression = "yes",
         distinctFromB4 = "yes",
         distinctFromB5 = "yes",
         distinctFromB7 = "yes"
@@ -285,7 +361,7 @@ object NamedRouteValidationMatrixWorkup:
         distinctFromB7 = "yes"
       ),
       Candidate(
-        id = "file_entry_restatement_only",
+        id = "b6_blocker_file_entry_restatement",
         source = "NamedRouteNetworkBindBroadValidationTest",
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
         trigger = "c3b4",
@@ -329,7 +405,7 @@ object NamedRouteValidationMatrixWorkup:
         baselineReleaseSuppression = "n/a"
       ),
       Candidate(
-        id = "chain_only_on_nonbest_branch",
+        id = "b6_blocker_chain_only_nonbest",
         source = "NamedRouteChainBindBroadValidationTest",
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
         trigger = "a3b4",
@@ -342,7 +418,7 @@ object NamedRouteValidationMatrixWorkup:
         baselineReleaseSuppression = "n/a"
       ),
       Candidate(
-        id = "fake_route_chain",
+        id = "b6_blocker_fake_route_chain",
         source = "NamedRouteChainBindBroadValidationTest",
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
         trigger = "a3b4",
@@ -381,7 +457,7 @@ object NamedRouteValidationMatrixWorkup:
         baselineReleaseSuppression = "no"
       ),
       Candidate(
-        id = "route_network_mirage",
+        id = "b6_blocker_route_network_mirage",
         source = "NamedRouteNetworkBindBroadValidationTest",
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
         trigger = "a3b4",
