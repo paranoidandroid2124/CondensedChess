@@ -124,6 +124,23 @@ Use the documents in this order:
   `half_open_file_pressure`:
   `OpenFilePressure` / `RookFileTransfer` still need the already-certified
   local file-entry pair, so they do not open a separate exact owner lane.
+  `weakness_fixation` has now been re-reviewed and remains absorbed on the
+  reviewed `static_weakness_fixation` cell, with the already-absorbed
+  `backward_pawn_targeting` subtype staying subordinate wording on that same
+  lane:
+  exact `B21` / `B21A` controls plus `K03A` / `B15A` / `B16B` fixed-target
+  controls confirm the reviewed cell, but that exact slice still does not
+  materialize a one-board / one-target-complex / one-branch owner. Even with
+  branch-key visibility, the reviewed static-weakness lane stays below
+  `sameBranchState=Proven`, so `weak_main` release remains fail-closed there.
+  `K09A` / `K09D` / `K09E` still let preparatory, prophylactic, and
+  file-pressure rival stories dominate. The sibling review likewise keeps
+  `minority_attack_fixation` and `iqp_inducement` subordinate: `K03A` /
+  `B15A` / `B16B` hold Carlsbad fixed-target truth without a move-local
+  minority lever, while `K09A` / `K09B` / `K09F` stay structure/conversion
+  led and `K09B` remains move-order fragile under deeper engine recheck. Synthetic shells for
+  those reviewed siblings now fail-close under the same absorbed weakness
+  gate, so exact-board owner proof remains mandatory before any reopen.
   `trade_key_defender` remains blocked on exact owner-path materialization.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now

@@ -1180,21 +1180,32 @@ private[llm] object PlayerFacingTruthModePolicy:
       sameBranchState: PlayerFacingSameBranchState,
       persistence: PlayerFacingClaimPersistence
   ): Boolean =
-    ownerSeed.ownerFamily match
-      case "half_open_file_pressure" =>
-        bestDefenseBranchKey.nonEmpty &&
-          sameBranchState == PlayerFacingSameBranchState.Proven &&
-          persistence == PlayerFacingClaimPersistence.Stable
-      case "neutralize_key_break" =>
-        bestDefenseBranchKey.nonEmpty &&
-          sameBranchState == PlayerFacingSameBranchState.Proven &&
-          persistence == PlayerFacingClaimPersistence.Stable
-      case "counterplay_restraint" =>
-        bestDefenseBranchKey.nonEmpty &&
-          sameBranchState == PlayerFacingSameBranchState.Proven &&
-          persistence == PlayerFacingClaimPersistence.Stable
-      case "trade_key_defender" => false
-      case _                    => true
+    if isReviewedAbsorbedWeaknessOwnerFamily(ownerSeed.ownerFamily) then false
+    else
+      ownerSeed.ownerFamily match
+        case "half_open_file_pressure" =>
+          bestDefenseBranchKey.nonEmpty &&
+            sameBranchState == PlayerFacingSameBranchState.Proven &&
+            persistence == PlayerFacingClaimPersistence.Stable
+        case "neutralize_key_break" =>
+          bestDefenseBranchKey.nonEmpty &&
+            sameBranchState == PlayerFacingSameBranchState.Proven &&
+            persistence == PlayerFacingClaimPersistence.Stable
+        case "counterplay_restraint" =>
+          bestDefenseBranchKey.nonEmpty &&
+            sameBranchState == PlayerFacingSameBranchState.Proven &&
+            persistence == PlayerFacingClaimPersistence.Stable
+        case "trade_key_defender" => false
+        case _                    => true
+
+  private def isReviewedAbsorbedWeaknessOwnerFamily(ownerFamily: String): Boolean =
+    Set(
+      ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
+      ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+      ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
+      ThemeTaxonomy.SubplanId.IQPInducement.id
+    ).contains(ownerFamily)
 
   private val GenericNamedResourceLabels =
     Set(

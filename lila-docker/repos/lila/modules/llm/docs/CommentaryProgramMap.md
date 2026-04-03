@@ -145,6 +145,21 @@ This file is an index and status map. It is not the canonical runtime audit.
   `B9 = bounded color-complex / mobility-cage` as the last and most
   risk-sensitive family
 
+## Mid-Layer Cluster Map
+
+Use
+[`strategic-promotion-record.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/tmp/strategic-promotion-record.md)
+as the local result-only ledger for cluster / family / subfamily cell status.
+Keep campaign logs, proving notes, and temporary triage history out of the
+canonical docs.
+
+| Cluster | Family bucket | Included families / subfamilies | Current result | Next action |
+| --- | --- | --- | --- | --- |
+| A | Restriction / Counterplay Suppression | `15.neutralize_key_break`, `15.prophylactic_move`, `15.defensive_regrouping`, `8.half_open_file_pressure`, `8.open_file_control` | `neutralize_key_break`, `prophylactic_move`, and `half_open_file_pressure` promoted; `defensive_regrouping` absorbed into `prophylactic_move`; `open_file_control` absorbed into `half_open_file_pressure` | closed unless new exact-board corpus changes one of the absorbed cells |
+| B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | reviewed static weakness lane remains absorbed; `backward_pawn_targeting` stays subtype-only; `target_focused_coordination` stays support-only; `minority_attack_fixation` stays weakness support-only; `iqp_inducement` stays structure/conversion support-only | reopen only if one reviewed weakness sibling gets a same-branch move-local owner path |
+| C | Exchange / Removal Without Task-Shift | `17.trade_key_defender`, bounded `favorable_simplification`, bounded `trade_attacking_piece`, bounded `remove_key_defender` trigger-only form | `trade_key_defender` and bounded `favorable_simplification` blocked on exact review; `trade_attacking_piece` and `remove_key_defender` remain queued | hold the remaining trigger-only queue; do not reopen favorable simplification without a second independent stable root-best simplification control |
+| D | Coordination / Access Conversion | bounded `support_file_occupation`, bounded `entry_square_enable_deny`, bounded `target_focused_piece_coordination` | not started | queue only; no runtime owner path reviewed yet |
+
 ## What Step 1-7 Closed
 
 Step 1-7 was the architecture stabilization program.

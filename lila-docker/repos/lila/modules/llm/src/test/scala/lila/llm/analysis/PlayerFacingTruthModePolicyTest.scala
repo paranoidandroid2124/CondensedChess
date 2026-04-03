@@ -3,7 +3,7 @@ package lila.llm.analysis
 import munit.FunSuite
 import lila.llm.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.llm.model.*
-import lila.llm.model.authoring.{ PlanHypothesis, PlanViability }
+import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.llm.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 
 class PlayerFacingTruthModePolicyTest extends FunSuite:
@@ -99,6 +99,41 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       moveOrderSensitive = false,
       experimentConfidence = 0.86
     )
+
+  private val defaultQuestions =
+    List(
+      AuthorQuestion("why_this", AuthorQuestionKind.WhyThis, 100, "Why this move?"),
+      AuthorQuestion("what_changed", AuthorQuestionKind.WhatChanged, 80, "What changed?"),
+      AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
+    )
+
+  private def exactReviewSnapshot(id: String) =
+    val fixture =
+      TaskShiftProvingFixtures.reviewFixtures
+        .find(_.id == id)
+        .getOrElse(fail(s"missing review fixture: $id"))
+    val data =
+      CommentaryEngine
+        .assessExtended(
+          fen = fixture.fen,
+          variations = List(VariationLine(fixture.pvMoves, fixture.scoreCp, depth = 16)),
+          phase = Some(fixture.phase),
+          ply = fixture.ply
+        )
+        .getOrElse(fail(s"analysis missing for ${fixture.id}"))
+    val ctx =
+      NarrativeContextBuilder
+        .build(data, data.toContext, None)
+        .copy(authorQuestions = defaultQuestions)
+    val pack =
+      StrategyPackBuilder
+        .build(data, ctx)
+        .getOrElse(fail(s"strategy pack missing for ${fixture.id}"))
+    val inputs =
+      QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
+    val ranked =
+      QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    (fixture, pack, inputs, ranked)
 
   test("quiet shell-only support resolves to Minimal") {
     val ctx = baseCtx().copy(strategicSalience = lila.llm.model.strategic.StrategicSalience.Low)
@@ -1562,6 +1597,356 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     delta.foreach { evidence =>
       assertNotEquals(evidence.packet.ownerFamily, "half_open_file_pressure")
     }
+  }
+
+  test("weakness-fixation stays absorbed even when the weak complex is exact and branch-visible") {
+    val ctx =
+      baseCtx().copy(
+        fen = "rnbq1rk1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 9",
+        playedMove = Some("f3d2"),
+        playedSan = Some("Nd2"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "weakness_fixation_shell",
+              planName = "Keep the d6 weakness fixed",
+              subplanId = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+              executionSteps = List("Fix the d6 target and keep building pressure."),
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "weakness_fixation_shell",
+              subplanId = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("d6")),
+            logicSummary = "The move keeps pressure fixed on d6.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("pressure on d6"),
+              planAdvancements = List("keep the d6 weakness fixed"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = List(
+              WeakComplexInfo(
+                owner = "Black",
+                squareColor = "dark",
+                squares = List("d6"),
+                isOutpost = false,
+                cause = "Backward pawn on d6"
+              )
+            ),
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("f3d2", "b8a6", "e1g1"),
+                scoreCp = 71,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_d6",
+              ownerSide = "white",
+              piece = "N",
+              from = "f3",
+              targetSquare = "d6",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("keep pressure on d6"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("pressure on d6")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("f3d2|b8a6"))
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+
+    val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
+    assertEquals(bundle.flatMap(_.mainClaim), None)
+  }
+
+  test("exact weakness positive controls stay fail-closed at runtime and planner") {
+    List("B21", "B21A").foreach { id =>
+      val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
+
+      if !pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.TargetFixing) then
+        fail(s"$id should still expose target-fixing evidence")
+
+      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+      assert(ranked.primary.isEmpty)
+      assert(
+        ranked.rejected.exists(_.reasons.contains("missing_move_owner"))
+      )
+    }
+  }
+
+  test("exact weakness support and reviewed sibling rows keep the owner path closed") {
+    List("K03A", "B15A", "B16B").foreach { id =>
+      val (_, _, inputs, ranked) = exactReviewSnapshot(id)
+      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+      assert(ranked.primary.isEmpty)
+    }
+
+    List("K09A", "K09B", "K09D", "K09E", "K09F").foreach { id =>
+      val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
+
+      if pack.strategicIdeas.headOption.exists(_.kind == StrategicIdeaKind.TargetFixing) then
+        fail(s"$id should stay rival-dominated rather than weakness-owned")
+
+      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+      assert(ranked.primary.isEmpty)
+    }
+  }
+
+  test("minority-attack-fixation stays fail-closed under the reviewed weakness absorb gate") {
+    val ctx =
+      baseCtx().copy(
+        fen = "r1bq1rk1/pp2ppbp/2np2p1/8/2PP4/1P1BPN2/P4PPP/R1BQ1RK1 w - - 0 11",
+        playedMove = Some("b3b4"),
+        playedSan = Some("b4"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "minority_attack_fixation_shell",
+              planName = "Fix b7 as the minority-attack target",
+              subplanId = ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
+              executionSteps = List("Advance on the queenside and keep b7 under pressure."),
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "minority_attack_fixation_shell",
+              subplanId = ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("b7")),
+            logicSummary = "The move fixes the queenside target on b7.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("pressure on b7"),
+              planAdvancements = List("minority-attack fixation against b7"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = List(
+              WeakComplexInfo(
+                owner = "Black",
+                squareColor = "dark",
+                squares = List("b7"),
+                isOutpost = false,
+                cause = "Minority-attack target on b7"
+              )
+            ),
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("b3b4", "a7a5", "b4b5"),
+                scoreCp = 58,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_b7",
+              ownerSide = "white",
+              piece = "P",
+              from = "b3",
+              targetSquare = "b7",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("keep pressure on b7"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("pressure on b7")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.MinorityAttackFixation.id)
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+
+    val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
+    assertEquals(bundle.flatMap(_.mainClaim), None)
+  }
+
+  test("iqp-inducement stays fail-closed under the reviewed weakness absorb gate") {
+    val ctx =
+      baseCtx().copy(
+        fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13",
+        playedMove = Some("d4e6"),
+        playedSan = Some("Nxe6"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "iqp_inducement_shell",
+              planName = "Force the structure toward an isolated d-pawn target",
+              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+              executionSteps = List("Clarify the center and leave Black with a fixed d-pawn target."),
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "iqp_inducement_shell",
+              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("d5")),
+            logicSummary = "The move steers the branch toward an isolani target on d5.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("pressure on the d-pawn"),
+              planAdvancements = List("induce and attack the isolated d-pawn"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = List(
+              WeakComplexInfo(
+                owner = "Black",
+                squareColor = "dark",
+                squares = List("d5"),
+                isOutpost = false,
+                cause = "Potential isolated d-pawn target"
+              )
+            ),
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("d4e6", "f7e6", "a1d1"),
+                scoreCp = 60,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_d5",
+              ownerSide = "white",
+              piece = "N",
+              from = "d4",
+              targetSquare = "d5",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("steer the structure toward a fixed d-pawn"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("pressure on the d-pawn")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      )
+
+    assertEquals(delta, None)
+
+    val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
+    assertEquals(bundle.flatMap(_.mainClaim), None)
   }
 
   test("trade-key-defender packet stays blocked without an exact cert owner path") {

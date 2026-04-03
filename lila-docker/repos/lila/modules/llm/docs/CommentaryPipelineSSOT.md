@@ -996,6 +996,22 @@ Current rules:
     path beyond the already-certified local file-entry pair, so exact positive
     release remains owned only by `half_open_file_pressure` and broader
     open-file wording still stays closed
+  - `weakness_fixation` remains absorbed on the reviewed
+    `static_weakness_fixation` cell, not as an independent promotion candidate:
+    exact `B21` / `B21A` controls confirm the reviewed cell, but that exact
+    slice still does not gain a distinct exact owner path. Even when a
+    reviewed weakness shell carries a concrete branch key and stable branch
+    evidence, the lane stays below `sameBranchState=Proven`, so `weak_main`
+    release remains closed there; the already-absorbed
+    `backward_pawn_targeting` subtype stays subordinate wording on that same
+    lane, and rival preparatory / prophylactic / file-pressure stories still
+    outrank `K09A` / `K09D` / `K09E`. The sibling review also fail-closes
+    `minority_attack_fixation` and `iqp_inducement`: `K03A` / `B15A` / `B16B`
+    keep Carlsbad target truth without a move-local minority lever, while
+    `K09A` / `K09B` / `K09F` stay structure/conversion led and `K09B`
+    remains move-order fragile under deeper engine recheck. Synthetic shells for those
+    reviewed siblings now fail-close under the same absorbed weakness gate, so
+    exact-board owner proof is required before any future reopen
   - `trade_key_defender` remains blocked without an exact cert owner path, so
     this change does not widen broader B2/B6/B7/B8 rhetoric
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
@@ -2218,6 +2234,8 @@ Current owner map for Stage-4 surface uplift:
 - remain non-owner / suppressed:
   - `latentPlans`
   - `whyAbsentFromTopMultiPV`
+  - reviewed `static_weakness_fixation` / `backward_pawn_targeting` packet
+    shells without a dedicated exact certification lane
   - generic active/support strategic families
   - old thesis / hold-reason revival paths
 
