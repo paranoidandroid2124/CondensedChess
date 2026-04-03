@@ -2912,6 +2912,10 @@ Runtime reuse:
 - the session used the existing engine/replay helpers plus the new
   `NamedRouteValidationMatrixWorkup.scala` test/tooling runner to refresh the
   current control, candidate pool, and blocker pack on the same branch
+- the 2026-04-03 rerun wrote
+  `modules/llm/tmp/named-route-validation-matrix-20260403.tsv`
+  and widened the screen to `25` exact-FEN rows without opening any new
+  runtime semantics
 
 Current hard-fail set added by the broader slice:
 
@@ -2928,7 +2932,7 @@ Exact-board validation status:
 
 - positive control FEN:
   `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`
-- current 2026-04-02 local Stockfish depth-18 defended-branch line after the
+- current 2026-04-03 local Stockfish depth-18 defended-branch line after the
   played move `a3b4`:
   `a7a5 b4a5 c6a5 f3e5 f7f6 e5d3 a5c4`
 - exact truth outcome:
@@ -2940,18 +2944,19 @@ Exact-board validation status:
   best on the original control FEN at both depth 18 and depth 24, so the
   earlier `a3b4` root-best pass could not be re-used as a stable closeout
   anchor
-- second-survivor screen:
-  `K09C`, `K09G`, `K09H`, `B21A`, and `Rubinstein-Duras 1911` were all rerun
-  locally from exact FEN with root-best plus after-trigger best-defense
-  checks. `K09C`, `K09G`, and `K09H` failed the root-best gate; `B21A` stayed
-  distinctively target-fixing rather than route-chain; `Rubinstein-Duras`
+- widened matrix outcome:
+  the 2026-04-03 matrix screened `25` exact-FEN rows and found `0`
+  independent broader B6 survivors. `K09C`, `K09G`, `K09H`,
+  `Shirov-Kinsman 1990`, and `Alekhine-Vidmar 1936` failed the root-best gate;
+  `B21A` stayed target-fixing rather than route-chain; `Rubinstein-Duras 1911`
   stayed release-heavy (`queen_infiltration`, `rook_lift`,
-  `exchange_sac_release`) and therefore failed B5/B7 distinctness
-- exact negative / near-miss pack now includes:
-  `fake_route_chain`, `redundant_intermediate_node`,
-  `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
-  `posture_inflation`, `surface_reinflation`,
-  `heavy_piece_route_shell`, and `engine_pv_paraphrase`
+  `exchange_sac_release`); the current control itself remained an
+  after-trigger-only near miss because downstream reroute denial and release
+  suppression still failed
+- exact negative / near-miss pack now covers:
+  branch identity blockers, route mirage / redundant node rows, B4 relabel,
+  B5 leakage, B7 relabel, posture inflation, `untouched_sector_escape`, and
+  `engine_pv_paraphrase`
 
 Self-critique result:
 
@@ -2968,8 +2973,8 @@ Verification status:
   exact-FEN engine/replay screening, blocker reruns, targeted tests, and doc
   reconciliation
 - adversarial-review status:
-  no second survivor found, and the current control stayed root-best-unstable
-  under the helper-backed rerun
+  no survivor found in the widened matrix, and the current control stayed
+  root-best-unstable under the helper-backed rerun
 - deferred residue:
   the downstream `a5 -> c4` denial remains backend-only / deferred, the
   intermediate `a5` detour is now backend-visible only rather than
@@ -2981,9 +2986,10 @@ Current verdict:
 - `A-track plateau reached`
 - reason:
   the closeout campaign reproduced the backend after-trigger `a5` detour but
-  did not reproduce `a3b4` as root best under the helper-backed rerun, and no
-  second independent exact-FEN survivor survived root-best, same-branch,
-  release-suppression, and family-distinctness screening. Keep broader
+  did not reproduce `a3b4` as root best under the helper-backed rerun, and the
+  widened `25`-row exact-FEN matrix found `0` independent survivors after
+  root-best, same-branch, reroute-denial, release-suppression, and
+  family-distinctness screening. Keep broader
   route-chain, replay reuse, and posture/phase widening deferred
 
 ## CTH-B7 — Transition-Adjacent Strategic Route Design Baseline

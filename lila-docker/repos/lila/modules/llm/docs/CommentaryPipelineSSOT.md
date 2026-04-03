@@ -1681,14 +1681,15 @@ Primary files:
 - status interpretation:
   this closes the B6 minimum slice, not the full B6 family; the next required
   work is still B6-family expansion inside the same route-network charter, but
-  the 2026-04-02 closeout campaign did not advance that frontier:
+  the 2026-04-03 broadened closeout matrix did not advance that frontier:
   helper-backed reruns kept the after-trigger `a5` detour witness on the
   control FEN but did not reproduce the earlier `a3b4` root-best reading, and
-  the screened `K09C`, `K09G`, `K09H`, `B21A`, and `Rubinstein-Duras 1911`
-  candidates produced no second independent exact-FEN survivor for the same
-  planner-owned intermediate-only charter. Broader posture/phase expansion,
-  replay / whole-game positive reuse, sector-network, and color-complex
-  expansion therefore remain deferred behind that unresolved burden
+  the widened `25`-row exact-FEN screen produced `0` independent broader B6
+  survivors once root-best identity, same-branch persistence, intermediate
+  detour, downstream reroute denial, release suppression, and family
+  distinctness were all applied. Broader posture/phase expansion, replay /
+  whole-game positive reuse, sector-network, and color-complex expansion
+  therefore remain deferred behind that unresolved burden
 
 ### Broader route-chain closeout plateau
 
@@ -1703,8 +1704,10 @@ Primary files:
   no new ingress, planner lane, replay lane, payload field, or prose family was
   added in the closeout campaign. The session used
   `NamedRouteValidationMatrixWorkup.scala` plus the existing engine/replay
-  helpers to re-screen the current B6 control and the adjacent K09/B21/web
-  pool on the same architecture
+  helpers to re-screen the current B6 control, adjacent K09/B21 pool, local
+  B4/B5/B7 blocker pack, posture blockers, and recoverable historical leads on
+  the same architecture. The 2026-04-03 run wrote
+  `modules/llm/tmp/named-route-validation-matrix-20260403.tsv`
 - new hard-fail reasons:
   `fake_route_chain`, `redundant_intermediate_node`,
   `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
@@ -1723,26 +1726,29 @@ Primary files:
 - exact-board status:
   the control FEN remains
   `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`.
-  On the 2026-04-02 helper-backed rerun, the after-trigger defended branch
+  On the 2026-04-03 helper-backed rerun, the after-trigger defended branch
   after `a3b4` still reproduced
   `a7a5 b4a5 c6a5 f3e5 ... a5c4`,
   which keeps the exact `a5` intermediate detour backend-visible while also
   showing why downstream `c4` denial cannot surface as owner truth. But the
   same rerun returned `c3b4`, not `a3b4`, as the root best move on that exact
   FEN, so the closeout campaign could not reuse the earlier root-best pass as a
-  stable A-track anchor. The same matrix also screened `K09C`, `K09G`, `K09H`,
-  `B21A`, and `Rubinstein-Duras 1911`; none survived as a second independent
-  B6 route-chain witness once root-best identity, family distinctness, release
-  suppression, and planner-only containment were all applied. Direct suites
-  still cover
+  stable A-track anchor. The widened `25`-row matrix produced `0`
+  `positive_survivor` rows: the current control stayed an after-trigger-only
+  near miss, `B21A` stayed target-fixing/prophylaxis, `Rubinstein-Duras 1911`
+  stayed release-heavy, `K09C` / `K09G` / `K09H` stayed root-best-unstable, and
+  historical leads such as `Shirov-Kinsman 1990` and `Alekhine-Vidmar 1936`
+  also failed before a clean broader B6 contract emerged. Direct suites and the
+  matrix blocker pack now cover
   `fake_route_chain`, `redundant_intermediate_node`,
   `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
   `posture_inflation`, `surface_reinflation`,
-  `heavy_piece_route_shell`, and `engine_pv_paraphrase`
+  `heavy_piece_route_shell`, `engine_pv_paraphrase`,
+  branch-identity blockers, B4 relabel rows, and B7 relabel rows
 - current status:
   implementation artifacts exist on the branch, but the closeout result is
   plateau-only:
-  no second survivor, no new admissible route-chain widening, and no new
+  no independent survivor, no new admissible route-chain widening, and no new
   positive surface authorization. Broader posture/phase expansion and replay /
   whole-game positive reuse remain deferred
 

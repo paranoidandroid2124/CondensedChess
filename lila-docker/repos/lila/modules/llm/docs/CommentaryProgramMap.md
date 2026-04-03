@@ -79,16 +79,19 @@ This file is an index and status map. It is not the canonical runtime audit.
   fail-closed, broader route-chain / sector-network / color-complex shells
   remain deferred or unsafe, and B6 family closeout is now explicitly
   plateaued:
-  the 2026-04-02 helper-backed closeout campaign reproduced the after-trigger
-  defended branch `a7a5 b4a5 c6a5 f3e5 ... a5c4`, but did not reproduce the
-  earlier `a3b4` root-best reading on the control FEN. The same session also
-  screened `K09C`, `K09G`, `K09H`, `B21A`, and `Rubinstein-Duras 1911` and
-  found no second independent exact-FEN survivor for the same
-  planner-owned intermediate-only charter. The practical result is narrower
-  than the earlier close-ready reading:
+  the 2026-04-03 widened exact-FEN matrix reran `25` rows on the same helper
+  lane, including the current control, the `K09*` / `B21A` pool, local B4/B5/B7
+  blockers, posture blockers, and external historical leads. It still
+  reproduced the after-trigger defended branch
+  `a7a5 b4a5 c6a5 f3e5 ... a5c4`, but root best on the control FEN stayed
+  `c3b4`, not `a3b4`, and the matrix produced `0` independent broader B6
+  survivors. The practical result is narrower than the earlier close-ready
+  reading:
   current branch keeps the exact intermediate route-chain visible only on the
   backend helper lane, not as planner-owned live truth, so A-track closeout
-  does not advance from it, and
+  does not advance from it. The current control now reads as an
+  `after-trigger intermediate detour only` near miss with downstream reroute
+  still visible and B5-style release leakage still live, and
   broader posture/phase expansion plus replay / whole-game positive reuse stay
   deferred behind the exact-board burden
 - CTH-B7:
@@ -271,13 +274,16 @@ Current status:
   for one bounded `file-entry pair + one non-redundant reroute denial` on the
   same defended branch; replay / whole-game surfaces remain fail-closed, and
   the branch-identity / planner-surface fix-up kept that bounded slice alive,
-  but the 2026-04-02 closeout campaign did not find the required second
-  survivor for B6 family completion. The helper-backed rerun kept the after-
-  trigger `a5` detour branch but returned `c3b4`, not `a3b4`, as root best on
-  the control FEN, and no admissible second survivor emerged from the screened
-  `K09*`, `B21A`, or `Rubinstein-Duras` pool. B6 family expansion therefore
-  remains one-example heavy / plateaued at A-track closeout, and posture/phase
-  plus replay reuse remain deferred behind the same exact-board burden
+  but the 2026-04-03 broadened closeout matrix still did not find the required
+  second, third, or any independent survivor for B6 family completion. The
+  helper-backed rerun kept the after-trigger `a5` detour branch but returned
+  `c3b4`, not `a3b4`, as root best on the control FEN, and the full `25`-row
+  exact-FEN matrix yielded `0` broader B6 survivors while strengthening the
+  blocker pack across branch identity, route mirage, B4 relabel, B5 leakage,
+  B7 drift, posture inflation, engine PV paraphrase, and untouched-sector
+  escape. B6 family expansion therefore remains one-example heavy / plateaued
+  at A-track closeout, and posture/phase plus replay reuse remain deferred
+  behind the same exact-board burden
 - `CTH-B7`:
   design/recon/charter baseline ready only:
   no runtime slice is open; the selected candidate is one same-defended-branch
@@ -546,4 +552,4 @@ Use this shorthand consistently:
 
 Use this wording when you need a concise new-session handoff:
 
-`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the live runtime is still bounded B1 / B2 / B3 / B4, B5b is current-bounded-scope complete as a negative-first containment slice only, and B6b remains the only route-network positive attempt on the same restriction-prophylaxis lane: clearly-better late-middlegame named route-network bind still requires a certified B4 file-entry pair plus one non-redundant reroute denial on the same defended branch, opens only planner-owned WhyThis wording, and stays fail-closed on Chronicle / Bookmaker / Active / whole-game replay. The 2026-04-02 closeout campaign did not find a second independent B6 survivor and did not reproduce the earlier `a3b4` root-best reading under the helper-backed matrix rerun, so A-track closeout is plateaued rather than advanced. The broader route-chain intermediate remains backend-visible only on the current branch; planner-owned live wording for that wider slice is closed again until a fresh exact-FEN root-best control exists. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed. Use CommentaryProgramMap first, then SSoT and TruthGate; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`
+`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the live runtime is still bounded B1 / B2 / B3 / B4, B5b is current-bounded-scope complete as a negative-first containment slice only, and B6b remains the only route-network positive attempt on the same restriction-prophylaxis lane: clearly-better late-middlegame named route-network bind still requires a certified B4 file-entry pair plus one non-redundant reroute denial on the same defended branch, opens only planner-owned WhyThis wording, and stays fail-closed on Chronicle / Bookmaker / Active / whole-game replay. The 2026-04-03 broadened exact-FEN matrix reran 25 rows, found 0 independent broader B6 survivors, and again failed to reproduce the earlier `a3b4` root-best reading under the helper-backed rerun, so A-track closeout is plateaued rather than advanced. The broader route-chain intermediate remains backend-visible only on the current branch; planner-owned live wording for that wider slice is closed again until a fresh exact-FEN root-best control exists. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed. Use CommentaryProgramMap first, then SSoT and TruthGate; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`

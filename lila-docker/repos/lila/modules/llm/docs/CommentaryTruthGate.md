@@ -466,10 +466,13 @@ plus the local quality-audit rerun artifacts referenced there.
     at the live owner boundary:
     the same backend-only helper may still inspect one exact intermediate node
     plus one downstream reroute candidate, but planner-owned truth is closed
-    again for that broader slice because the helper-backed 2026-04-02 closeout
-    rerun reproduced the after-move defended branch
+    again for that broader slice because the widened helper-backed 2026-04-03
+    closeout matrix rerun reproduced the after-move defended branch
     `a7a5 b4a5 c6a5 f3e5 ... a5c4` while still keeping `c4` reachable, and did
-    not reproduce the earlier `a3b4` root-best reading on the original FEN
+    not reproduce the earlier `a3b4` root-best reading on the original FEN.
+    The same `25`-row matrix produced `0` independent broader B6 survivors
+    after applying root-best, same-branch, detour, reroute-denial, release,
+    and family-distinctness gates
   - broader route-chain hard-fails must stay explicit:
     `fake_route_chain`, `redundant_intermediate_node`,
     `chain_only_on_nonbest_branch`, `untouched_sector_escape`,
@@ -486,9 +489,11 @@ plus the local quality-audit rerun artifacts referenced there.
     widen`:
     the exact FEN control still proves the backend after-trigger detour, but
     the helper-backed matrix rerun returned `c3b4`, not `a3b4`, as root best on
-    the original FEN and no second independent exact-FEN survivor was found in
-    the screened `K09*`, `B21A`, and `Rubinstein-Duras` pool. Treat the current
-    branch as one-example heavy rather than closeout-ready
+    the original FEN, downstream `c4` remained reachable on the after-trigger
+    branch, and the widened exact-FEN matrix found `0` independent survivors
+    across the screened `K09*`, `B21A`, `Rubinstein-Duras`, `Shirov-Kinsman`,
+    `Alekhine-Vidmar`, B4/B5/B7 blockers, and posture blockers. Treat the
+    current branch as one-example heavy rather than closeout-ready
 - heavy-piece local bind is now guarded only as a negative-first B5b slice:
   - only queen-on clearly-better late-middlegame
     `RestrictionProphylaxis -> file-entry reuse` shells are inspected by the
