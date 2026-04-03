@@ -6,7 +6,7 @@ import munit.FunSuite
 import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
-import lila.llm.model.strategic.PreventedPlan
+import lila.llm.model.strategic.{ EngineEvidence, PreventedPlan, VariationLine }
 
 class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
 
@@ -906,7 +906,7 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
     }
   }
 
-  test("certified named-break suppression stays line-only and does not reopen planner ownership") {
+  test("certified named-break suppression does not reopen planner ownership without exact move-local proof") {
     val ctx = whyThisSurfaceCtx("evidence_backed")
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
@@ -959,6 +959,183 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
       slots.supportPrimary.foreach(assertNoSuppressionInflation)
       slots.supportSecondary.foreach(assertNoSuppressionInflation)
     }
+  }
+
+  test("exact positive control promotes neutralize-key-break only as a bounded WhatChanged move delta") {
+    val ctx =
+      BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+        fen = QueenlessLateMiddlegameFen,
+        authorQuestions =
+          List(
+            AuthorQuestion(
+              id = "q_b2b_changed",
+              kind = AuthorQuestionKind.WhatChanged,
+              priority = 100,
+              question = "What did Rc8 change here?",
+              evidencePurposes = List("reply_multipv")
+            )
+          ),
+        authorEvidence =
+          List(
+            QuestionEvidence(
+              questionId = "q_b2b_changed",
+              purpose = "reply_multipv",
+              branches =
+                List(
+                  EvidenceBranch(
+                    keyMove = "line_1",
+                    line = "23.Rc8 Rfe8 24.Rxe8+ and the ...c5 break still never comes.",
+                    evalCp = Some(88)
+                  )
+                )
+            )
+          ),
+        mainStrategicPlans =
+          List(
+            PlanHypothesis(
+              planId = "named_break_suppression",
+              planName = "Clamp the ...c5 break",
+              rank = 1,
+              score = 0.81,
+              preconditions = Nil,
+              executionSteps = List("Keep the opponent's main counterplay route closed first."),
+              failureModes = List("If the clamp slips, Black gets active play."),
+              viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+              evidenceSources = List("theme:restriction_prophylaxis"),
+              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "named_break_suppression",
+              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+              evidenceTier = "evidence_backed",
+              supportProbeCount = 1,
+              bestReplyStable = true,
+              futureSnapshotAligned = true,
+              counterBreakNeutralized = true,
+              moveOrderSensitive = false,
+              experimentConfidence = 0.88
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1c8", "f8e8", "c8e8"),
+                  scoreCp = 88,
+                  depth = 18
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_c5",
+              ownerSide = "white",
+              piece = "R",
+              from = "c1",
+              targetSquare = "c5",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("deny the ...c5 break"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = pack, truthContract = None)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = pack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+    val chronicleArtifact =
+      GameChronicleCompressionPolicy.renderWithTrace(
+        ctx = ctx,
+        parts = emptyParts.copy(focusedOutline = outline),
+        strategyPack = pack,
+        truthContract = None
+      )
+    val bookmakerSlots =
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = pack,
+        truthContract = None
+      )
+    val bookmakerFallback =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = pack,
+        truthContract = None
+      )
+
+    assert(plannerInputs.mainBundle.flatMap(_.mainClaim).nonEmpty, clues(plannerInputs.mainBundle))
+    assertEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.ownerFamily)),
+      Some("neutralize_key_break"),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.fallbackMode)),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(
+      rankedPlans.primary.map(_.questionKind),
+      Some(AuthorQuestionKind.WhatChanged),
+      clues(rankedPlans)
+    )
+    assert(
+      rankedPlans.primary.map(_.claim).exists(_.toLowerCase.contains("c5-break")),
+      clues(rankedPlans)
+    )
+    chronicleArtifact.foreach { artifact =>
+      assertNoSuppressionInflation(artifact.narrative)
+      assert(artifact.narrative.toLowerCase.contains("c5"), clues(artifact.narrative))
+    }
+    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
+    bookmakerSlots.foreach { slots =>
+      assertNoSuppressionInflation(slots.claim)
+      assert(slots.claim.toLowerCase.contains("c5"), clues(slots.claim))
+    }
+    assertNoSuppressionInflation(bookmakerFallback.claim)
+    assert(bookmakerFallback.claim.toLowerCase.contains("c5"), clues(bookmakerFallback.claim))
   }
 
   test("uncertified shell cannot re-inflate across planner, replay, or whole-game reuse") {

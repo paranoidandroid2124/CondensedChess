@@ -285,8 +285,11 @@ private[llm] object QuietMoveIntentBuilder:
     val ownerFamily = quietOwnerFamily(claim.intentClass)
     val lineOnlyPilot =
       PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, ownerFamily)
+    val quietCounterplayPilot =
+      claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
+        ownerFamily == "neutralize_key_break"
     val fallbackMode =
-      if lineOnlyPilot then PlayerFacingClaimFallbackMode.LineOnly
+      if lineOnlyPilot || quietCounterplayPilot then PlayerFacingClaimFallbackMode.LineOnly
       else if PlayerFacingClaimCertification.allowsWeakMainClaim(
           certificateStatus = certificateStatus,
           quantifier = quantifier,

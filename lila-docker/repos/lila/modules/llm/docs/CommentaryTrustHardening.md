@@ -87,13 +87,16 @@ Use the documents in this order:
   carrier for move-local strategic admission; it adds no new public schema,
   payload, or persisted debug field.
 - Packet pilot status on 2026-04-03:
-  `neutralize_key_break` and bounded `half_open_file_pressure` are now
-  packet-owned families with exact-board anchors, but the move-delta lane keeps
-  them hard-fixed `line_only` in this change rather than widening them into a
-  new move-local owner; `neutralize_key_break` cannot mark
-  `sameBranchState=Proven` without a concrete `bestDefenseBranchKey`.
-  `trade_key_defender` remains blocked on exact owner-path materialization and
-  stays below positive packet release.
+  `neutralize_key_break` is now the first promoted packet-owned family:
+  one exact-board named-break suppression may release as a bounded move-local
+  `WhatChanged` claim only when the packet carries a concrete
+  `bestDefenseBranchKey`, `sameBranchState=Proven`, `persistence=Stable`, and
+  no surviving suppression/release-risk objection. The release stays local
+  only; broad squeeze / whole-position no-counterplay / heavy-piece relabel /
+  support-only reinflation remain blocked.
+  bounded `half_open_file_pressure` remains packet-owned but hard-fixed
+  `line_only`, and `trade_key_defender` remains blocked on exact owner-path
+  materialization.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now
   live in

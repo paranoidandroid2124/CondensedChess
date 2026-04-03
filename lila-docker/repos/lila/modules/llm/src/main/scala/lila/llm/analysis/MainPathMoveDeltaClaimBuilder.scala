@@ -266,19 +266,24 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
             case _                                    => s"This keeps the exchange on $square available."
         }
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
+        val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
         strategicCounterplayClaim(ctx, delta)
-          .orElse(anchor.map { focal =>
-            delta.ontologyFamily match
-              case PlayerFacingClaimOntologyFamily.RouteDenial =>
-                "This keeps the opponent from getting easy entry there."
-              case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
-                s"This keeps a longer squeeze around $focal."
-              case _ =>
-                if delta.modalityTier == PlayerFacingClaimModalityTier.Supports then
-                  s"This cuts down the opponent's counterplay around $focal."
-                else s"This continues to restrain counterplay around $focal."
-          })
-          .orElse(Some("This continues to restrain the opponent's counterplay."))
+          .orElse {
+            Option.unless(namedBreakOnly) {
+              anchor.map { focal =>
+                delta.ontologyFamily match
+                  case PlayerFacingClaimOntologyFamily.RouteDenial =>
+                    "This keeps the opponent from getting easy entry there."
+                  case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
+                    s"This keeps a longer squeeze around $focal."
+                  case _ =>
+                    if delta.modalityTier == PlayerFacingClaimModalityTier.Supports then
+                      s"This cuts down the opponent's counterplay around $focal."
+                    else s"This continues to restrain counterplay around $focal."
+              }
+            }.flatten
+          }
+          .orElse(Option.unless(namedBreakOnly)("This continues to restrain the opponent's counterplay."))
       case PlayerFacingMoveDeltaClass.ResourceRemoval =>
         resourceRemovalClaim(ctx, delta)
           .orElse(anchor.map { focal =>
@@ -299,6 +304,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
     Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
+      val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
       val preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans)
       LocalFileEntryBindCertification.certifiedSurfacePair(ctx)
@@ -322,16 +328,16 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
                   prevented.breakNeutralized
                     .flatMap(clean)
                     .map(file => s"This keeps $file from coming right away.")
-                    .orElse(
+                    .orElse(Option.unless(namedBreakOnly) {
                       prevented.deniedSquares.headOption
                         .flatMap(clean)
                         .map(square => s"This keeps the opponent out of $square.")
-                    )
-                    .orElse(
+                    }.flatten)
+                    .orElse(Option.unless(namedBreakOnly) {
                       clean(prevented.planId)
                         .filterNot(_.equalsIgnoreCase("counterplay"))
                         .map(plan => s"This slows down $plan before it gets started.")
-                    )
+                    }.flatten)
             }
         }
     }.flatten

@@ -862,7 +862,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
   }
 
-  test("exact named-break suppression packet stays on the neutralize-key-break cell without widening beyond line scope") {
+  test("exact named-break suppression packet is admitted as a bounded move-local neutralize-key-break release") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
@@ -947,12 +947,15 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.ownerSource, "counterplay_axis_suppression")
     assertEquals(delta.packet.ownerFamily, "neutralize_key_break")
-    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
-    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.LineOnly)
-    assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(delta.packet.releaseRisks, Nil)
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
   }
 
-  test("named-break pilot keeps line-only fallback when the best-defense branch key is missing") {
+  test("named-break promotion fails closed when the best-defense branch key is missing") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
@@ -1037,12 +1040,13 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.ownerFamily, "neutralize_key_break")
     assertEquals(delta.packet.bestDefenseBranchKey, None)
-    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Missing)
+    assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SameBranchMissing))
     assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.LineOnly)
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
   }
 
-  test("quiet neutralize-key-break pilot stays non-user-facing while its packet remains line-only") {
+  test("quiet neutralize-key-break remains non-user-facing after main-path promotion") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",

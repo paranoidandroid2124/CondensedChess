@@ -950,13 +950,18 @@ Current rules:
     strategy text from raw support carriers
   - current packetized pilot mapping is narrower than the existing planner
     lanes:
-    exact B2 `neutralize_key_break` and bounded B4 `half_open_file_pressure`
-    packets are recognized and anchored, but the move-delta lane still keeps
-    them hard-fixed `line_only`; `neutralize_key_break` may mark
-    `sameBranchState=Proven` only when a concrete `bestDefenseBranchKey` is
-    visible; `trade_key_defender` remains blocked without an exact cert owner
-    path, so no new positive planner/replay/whole-game surface was opened in
-    this change
+    exact B2 `neutralize_key_break` is now promoted on one bounded move-delta
+    slice only:
+    the packet may release `weak_main` only when a concrete
+    `bestDefenseBranchKey` is visible, `sameBranchState=Proven`,
+    `persistence=Stable`, and no suppression/release-risk reason survives; the
+    generated claim must stay one-board / one-break / one-branch local
+    ("takes the ...X break away"), and `QuestionFirstCommentaryPlanner`
+    now preserves the admitted move-owner source instead of relabeling that
+    exact move-local claim as support-only `prevented_plan`
+  - bounded B4 `half_open_file_pressure` remains packet-owned but hard-fixed
+    `line_only`; `trade_key_defender` remains blocked without an exact cert
+    owner path, so this change does not widen broader B2/B4/B6/B7/B8 rhetoric
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
     ...`, `The concrete square is ...`, or `A concrete target is ...` claims
     unless the shared truth mode policy has already admitted a concrete,

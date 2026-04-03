@@ -1478,6 +1478,8 @@ private[llm] object QuestionFirstCommentaryPlanner:
             ownerSource =
               if moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then
                 moveOwner.map(_.sourceKind).getOrElse("move_delta")
+              else if moveOwner.nonEmpty then
+                moveOwner.map(_.sourceKind).getOrElse("move_delta")
               else if inputs.pvDelta.nonEmpty then "pv_delta"
               else if hasCertifiedLocalFileEntryChange(inputs) then "prevented_plan"
               else if allowedPreventedPlans.exists(plan => preventedPlanChangeClaim(plan).nonEmpty) then "prevented_plan"

@@ -795,13 +795,17 @@ private[llm] object PlayerFacingTruthModePolicy:
       releaseRisksForMainPath(
         ctx = ctx,
         ownerSeed = ownerSeed,
-        sameBranchState = sameBranchState
+        sameBranchState = sameBranchState,
+        persistence = persistence
       )
     val fallbackMode =
       fallbackModeForMainPath(
         claimGate = claimGate,
         ownerSeed = ownerSeed,
         anchors = anchorTerms,
+        bestDefenseBranchKey = bestDefenseBranchKey,
+        sameBranchState = sameBranchState,
+        persistence = persistence,
         suppressionReasons = suppressionReasons,
         releaseRisks = releaseRisks
       )
@@ -906,6 +910,8 @@ private[llm] object PlayerFacingTruthModePolicy:
       PlayerFacingSameBranchState.Proven
     else if breakPilot && branchVisible && stableBranch then
       PlayerFacingSameBranchState.Proven
+    else if breakPilot && !branchVisible then
+      PlayerFacingSameBranchState.Missing
     else if claimGate.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked && branchVisible then
       PlayerFacingSameBranchState.Ambiguous
     else if claimGate.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
@@ -958,13 +964,18 @@ private[llm] object PlayerFacingTruthModePolicy:
   private def releaseRisksForMainPath(
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed,
-      sameBranchState: PlayerFacingSameBranchState
+      sameBranchState: PlayerFacingSameBranchState,
+      persistence: PlayerFacingClaimPersistence
   ): List[String] =
     val risks = scala.collection.mutable.ListBuffer.empty[String]
     if ctx.strategicPlanExperiments.exists(_.moveOrderSensitive) then
       risks += PlayerFacingClaimReleaseRisk.MoveOrderFragility
     if HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) then
       risks += PlayerFacingClaimReleaseRisk.HeavyPieceLeakage
+    if ownerSeed.ownerFamily == "neutralize_key_break" &&
+        sameBranchState == PlayerFacingSameBranchState.Proven &&
+        persistence != PlayerFacingClaimPersistence.Stable
+    then risks += PlayerFacingClaimReleaseRisk.RouteMirage
     if (ownerSeed.ownerSource == "local_file_entry_bind" || ownerSeed.ownerFamily == "half_open_file_pressure") &&
         sameBranchState != PlayerFacingSameBranchState.Proven
     then
@@ -977,6 +988,9 @@ private[llm] object PlayerFacingTruthModePolicy:
       claimGate: PlanEvidenceEvaluator.ClaimCertification,
       ownerSeed: ClaimOwnerSeed,
       anchors: List[String],
+      bestDefenseBranchKey: Option[String],
+      sameBranchState: PlayerFacingSameBranchState,
+      persistence: PlayerFacingClaimPersistence,
       suppressionReasons: List[String],
       releaseRisks: List[String]
   ): PlayerFacingClaimFallbackMode =
@@ -997,9 +1011,16 @@ private[llm] object PlayerFacingTruthModePolicy:
       )
     val lineOnlyPilot =
       PlayerFacingClaimPacket.isLineOnlyPilot(ownerSeed.ownerSource, ownerSeed.ownerFamily)
+    val promotedReleaseAllowed =
+      allowsPromotedMoveLocalRelease(
+        ownerSeed = ownerSeed,
+        bestDefenseBranchKey = bestDefenseBranchKey,
+        sameBranchState = sameBranchState,
+        persistence = persistence
+      )
     if lineOnlyPilot then
       PlayerFacingClaimFallbackMode.LineOnly
-    else if allowsWeak && suppressionReasons.isEmpty && releaseRisks.isEmpty then
+    else if allowsWeak && promotedReleaseAllowed && suppressionReasons.isEmpty && releaseRisks.isEmpty then
       PlayerFacingClaimFallbackMode.WeakMain
     else if allowsLine &&
         ownerSeed.ownerFamily != "trade_key_defender" &&
@@ -1115,9 +1136,25 @@ private[llm] object PlayerFacingTruthModePolicy:
   private def clean(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty)
 
+  private def allowsPromotedMoveLocalRelease(
+      ownerSeed: ClaimOwnerSeed,
+      bestDefenseBranchKey: Option[String],
+      sameBranchState: PlayerFacingSameBranchState,
+      persistence: PlayerFacingClaimPersistence
+  ): Boolean =
+    ownerSeed.ownerFamily match
+      case "neutralize_key_break" =>
+        bestDefenseBranchKey.nonEmpty &&
+          sameBranchState == PlayerFacingSameBranchState.Proven &&
+          persistence == PlayerFacingClaimPersistence.Stable
+      case "trade_key_defender" => false
+      case _                    => true
+
   private def isEvidenceBackedTier(raw: String): Boolean =
     val normalized = normalize(raw)
-    normalized == "evidence_backed" || normalized == "evidencebacked"
+    normalized == "evidence_backed" ||
+      normalized == "evidence backed" ||
+      normalized == "evidencebacked"
 
   private def claimProvenance(
       ctx: NarrativeContext
